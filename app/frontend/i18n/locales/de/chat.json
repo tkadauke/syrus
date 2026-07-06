@@ -45,5 +45,35 @@
   "open_panel": "Bereich öffnen",
   "resize_workspace": "Arbeitsbereich skalieren",
   "new_messages_button_one": "1 neue Nachricht",
-  "new_messages_button_other": "{{count}} neue Nachrichten"
+  "new_messages_button_other": "{{count}} neue Nachrichten",
+  "search": {
+    "heading": "Chat-Suche",
+    "empty_prompt": "Suchen Sie in Ihren Chats oder filtern Sie nach Repository, Epic oder Aufgabe.",
+    "loading": "Chats werden durchsucht...",
+    "error": "Chats konnten nicht durchsucht werden.",
+    "no_results": "Keine Chats passen zu dieser Suche.",
+    "hide_matches": "Treffer ausblenden",
+    "show_matches": "Treffer anzeigen",
+    "no_snippet": "Kein Nachrichtenausschnitt verfügbar.",
+    "loading_matches": "Treffer werden geladen...",
+    "error_matches": "Treffer konnten nicht geladen werden.",
+    "showing": "Zeige {{first}}–{{last}} von {{total}}",
+    "previous": "Zurück",
+    "next": "Weiter"
+  },
+  "hidden": {
+    "heading": "Verborgene Chats",
+    "description": "Chats wiederherstellen, die aus der Seitenleiste und der Chat-Suche ausgeblendet wurden.",
+    "loading": "Verborgene Chats werden geladen...",
+    "error_load": "Verborgene Chats konnten nicht geladen werden.",
+    "error_restore": "Chat konnte nicht wiederhergestellt werden.",
+    "empty": "Keine verborgenen Chats.",
+    "general": "Allgemein",
+    "hidden_at": "Ausgeblendet {{date}}",
+    "restoring": "Wird wiederhergestellt...",
+    "unhide": "Einblenden",
+    "showing": "Zeige {{first}}–{{last}} von {{total}}",
+    "previous": "Zurück",
+    "next": "Weiter"
+  }
 }

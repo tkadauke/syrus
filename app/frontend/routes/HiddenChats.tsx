@@ -14,10 +14,8 @@ export function HiddenChatsRoute() {
     <main aria-label="Hidden chats" className="mx-auto max-w-4xl space-y-6 p-6">
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       <header>
-        {/* TODO: missing i18n key */}
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Hidden chats</h1>
-        {/* TODO: missing i18n key */}
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Restore chats hidden from the sidebar and chat search.</p>
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t('hidden.heading')}</h1>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t('hidden.description')}</p>
       </header>
       <HiddenChatsPanel onNotice={setNotice} />
     </main>
@@ -54,14 +52,10 @@ function HiddenChatsPanel({ onNotice }: { onNotice: (message: string | null) => 
   return (
     <section className="rounded border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
       <div>
-        {/* TODO: missing i18n key */}
-        {hiddenChats.isPending ? <PanelMessage>Loading hidden chats...</PanelMessage> : null}
-        {/* TODO: missing i18n key */}
-        {hiddenChats.isError ? <PanelMessage tone="error">{errorMessage(hiddenChats.error, "Unable to load hidden chats.")}</PanelMessage> : null}
-        {/* TODO: missing i18n key */}
-        {unhide.isError ? <PanelMessage tone="error">{errorMessage(unhide.error, "Unable to restore chat.")}</PanelMessage> : null}
-        {/* TODO: missing i18n key */}
-        {payload && chats.length === 0 ? <PanelMessage>No hidden chats.</PanelMessage> : null}
+        {hiddenChats.isPending ? <PanelMessage>{t('hidden.loading')}</PanelMessage> : null}
+        {hiddenChats.isError ? <PanelMessage tone="error">{errorMessage(hiddenChats.error, t('hidden.error_load'))}</PanelMessage> : null}
+        {unhide.isError ? <PanelMessage tone="error">{errorMessage(unhide.error, t('hidden.error_restore'))}</PanelMessage> : null}
+        {payload && chats.length === 0 ? <PanelMessage>{t('hidden.empty')}</PanelMessage> : null}
         {payload && chats.length > 0 ? (
           <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700">
             <div className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -70,10 +64,8 @@ function HiddenChatsPanel({ onNotice }: { onNotice: (message: string | null) => 
                   <div className="min-w-0">
                     <div className="truncate font-medium text-gray-900 dark:text-gray-100">{chat.title || chat.repository?.slug || t("new_title")}</div>
                     <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-                      {/* TODO: missing i18n key */}
-                      <span>{chat.repository?.slug || "General"}</span>
-                      {/* TODO: missing i18n key */}
-                      <span>Hidden {formatDateTime(chat.hidden_at)}</span>
+                      <span>{chat.repository?.slug || t('hidden.general')}</span>
+                      <span>{t('hidden.hidden_at', { date: formatDateTime(chat.hidden_at) })}</span>
                     </div>
                   </div>
                   <button
@@ -82,8 +74,7 @@ function HiddenChatsPanel({ onNotice }: { onNotice: (message: string | null) => 
                     onClick={() => unhide.mutate(chat)}
                     type="button"
                   >
-                    {/* TODO: missing i18n key */}
-                    {unhide.isPending && unhide.variables?.id === chat.id ? "Restoring..." : "Unhide"}
+                    {unhide.isPending && unhide.variables?.id === chat.id ? t('hidden.restoring') : t('hidden.unhide')}
                   </button>
                 </div>
               ))}
@@ -94,19 +85,17 @@ function HiddenChatsPanel({ onNotice }: { onNotice: (message: string | null) => 
 
       {payload && totalPages > 1 ? (
         <div className="mt-4 flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-          {/* TODO: missing i18n key */}
-          <span>Showing {firstItem}-{lastItem} of {total}</span>
-          {/* TODO: missing i18n key */}
+          <span>{t('hidden.showing', { first: firstItem, last: lastItem, total })}</span>
           <div className="flex gap-2">
             {currentPage > 1 ? (
-              <button className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800" onClick={() => setPage((current) => Math.max(current - 1, 1))} type="button">Previous</button>
+              <button className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800" onClick={() => setPage((current) => Math.max(current - 1, 1))} type="button">{t('hidden.previous')}</button>
             ) : (
-              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">Previous</span>
+              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">{t('hidden.previous')}</span>
             )}
             {currentPage < totalPages ? (
-              <button className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800" onClick={() => setPage((current) => current + 1)} type="button">Next</button>
+              <button className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800" onClick={() => setPage((current) => current + 1)} type="button">{t('hidden.next')}</button>
             ) : (
-              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">Next</span>
+              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">{t('hidden.next')}</span>
             )}
           </div>
         </div>

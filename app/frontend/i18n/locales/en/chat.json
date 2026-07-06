@@ -45,5 +45,35 @@
   "open_panel": "Open panel",
   "resize_workspace": "Resize chat workspace",
   "new_messages_button_one": "1 new message",
-  "new_messages_button_other": "{{count}} new messages"
+  "new_messages_button_other": "{{count}} new messages",
+  "search": {
+    "heading": "Chat search",
+    "empty_prompt": "Search your chats or filter by repository, epic, or job.",
+    "loading": "Searching chats...",
+    "error": "Unable to search chats.",
+    "no_results": "No chats match this search.",
+    "hide_matches": "Hide matches",
+    "show_matches": "Show matches",
+    "no_snippet": "No message snippet available.",
+    "loading_matches": "Loading matches...",
+    "error_matches": "Unable to load matches.",
+    "showing": "Showing {{first}}-{{last}} of {{total}}",
+    "previous": "Previous",
+    "next": "Next"
+  },
+  "hidden": {
+    "heading": "Hidden chats",
+    "description": "Restore chats hidden from the sidebar and chat search.",
+    "loading": "Loading hidden chats...",
+    "error_load": "Unable to load hidden chats.",
+    "error_restore": "Unable to restore chat.",
+    "empty": "No hidden chats.",
+    "general": "General",
+    "hidden_at": "Hidden {{date}}",
+    "restoring": "Restoring...",
+    "unhide": "Unhide",
+    "showing": "Showing {{first}}-{{last}} of {{total}}",
+    "previous": "Previous",
+    "next": "Next"
+  }
 }

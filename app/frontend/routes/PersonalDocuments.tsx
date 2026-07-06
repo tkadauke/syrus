@@ -25,18 +25,15 @@ export function PersonalDocumentsRoute() {
     <main aria-label="Personal documents" className="mx-auto max-w-4xl space-y-6 p-6">
       <header>
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
-          {/* TODO: missing i18n key */}
-          Personal documents
+          {t('personal_documents.heading')}
         </h1>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-          {/* TODO: missing i18n key */}
-          Account-scoped context available to your Syrus runs.
+          {t('personal_documents.description')}
         </p>
       </header>
 
       {documents.isPending ? <PanelMessage>
-        {/* TODO: missing i18n key */}
-        Loading personal documents...
+        {t('personal_documents.loading')}
       </PanelMessage> : null}
       {documents.isError ? <DocumentsError error={documents.error} /> : null}
       {documents.isSuccess ? <PersonalDocumentsView payload={documents.data} /> : null}
@@ -89,12 +86,10 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-            {/* TODO: missing i18n key */}
-            Documents
+            {t('personal_documents.section_heading')}
           </h2>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {/* TODO: missing i18n key */}
-            Attach files or Google Docs that should follow your account.
+            {t('personal_documents.attach_description')}
           </p>
         </div>
         <span className="text-xs text-gray-500 dark:text-gray-400">{payload.documents.length}</span>
@@ -103,8 +98,7 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
       <div className="mt-4 divide-y divide-gray-200 dark:divide-gray-700 rounded border border-gray-200 dark:border-gray-700">
         {payload.documents.length === 0 ? (
           <p className="p-4 text-sm text-gray-500 dark:text-gray-400">
-            {/* TODO: missing i18n key */}
-            No personal documents yet.
+            {t('personal_documents.empty')}
           </p>
         ) : payload.documents.map((document) => (
           <div className="flex items-center justify-between gap-3 p-3" key={document.id}>
@@ -117,8 +111,7 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
               }}
               type="button"
             >
-              {/* TODO: missing i18n key */}
-              Delete
+              {t('personal_documents.delete')}
             </button>
           </div>
         ))}
@@ -141,13 +134,11 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
         <button className="rounded bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:bg-gray-400" disabled={upload.isPending} type="submit">
           {upload.isPending ? (
             <>
-              {/* TODO: missing i18n key */}
-              Adding...
+              {t('personal_documents.adding')}
             </>
           ) : (
             <>
-              {/* TODO: missing i18n key */}
-              Add document
+              {t('personal_documents.add')}
             </>
           )}
         </button>
@@ -163,8 +154,7 @@ function DocumentSummary({ document }: { document: PersonalDocument }) {
       <div className="min-w-0">
         <a className="block truncate text-sm font-medium text-blue-700 dark:text-blue-300 hover:underline" href={document.google_doc_url} rel="noopener" target="_blank">{document.google_doc_url}</a>
         <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          {/* TODO: missing i18n key */}
-          Google Doc
+          {t('personal_documents.google_doc')}
         </div>
       </div>
     )
@@ -175,8 +165,7 @@ function DocumentSummary({ document }: { document: PersonalDocument }) {
       <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
         {document.filename || (
           <>
-            {/* TODO: missing i18n key */}
-            File
+            {t('personal_documents.file')}
           </>
         )}
       </div>

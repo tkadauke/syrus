@@ -28,14 +28,12 @@ export function Tags() {
   return (
     <main aria-label="Tags" className="mx-auto max-w-6xl space-y-6 p-6">
       <header>
-        {/* TODO: missing i18n key */}
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Tags</h1>
-        {/* TODO: missing i18n key */}
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Global job labels scoped to your account.</p>
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t('tags.heading')}</h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('tags.description')}</p>
       </header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {tags.isPending ? <PanelMessage>{/* TODO: missing i18n key */}Loading tags...</PanelMessage> : null}
+      {tags.isPending ? <PanelMessage>{t('tags.loading')}</PanelMessage> : null}
       {tags.isError ? <TagsError error={tags.error} /> : null}
       {tags.isSuccess ? <TagsView onNotice={setNotice} payload={tags.data} /> : null}
     </main>
@@ -75,12 +73,10 @@ function CreateTagForm({ palette, onNotice }: { palette: TagPaletteColor[]; onNo
 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-      {/* TODO: missing i18n key */}
-      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Create tag</h2>
+      <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t('tags.create')}</h2>
       <form className="mt-3 flex flex-wrap items-end gap-3" onSubmit={submit}>
         <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor="new-tag-name">
-          {/* TODO: missing i18n key */}
-          Name
+          {t('tags.field_name')}
           <input
             id="new-tag-name"
             className="mt-1 block rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm normal-case text-gray-700 dark:text-gray-300"
@@ -91,8 +87,7 @@ function CreateTagForm({ palette, onNotice }: { palette: TagPaletteColor[]; onNo
           />
         </label>
         <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor="new-tag-color">
-          {/* TODO: missing i18n key */}
-          Color
+          {t('tags.field_color')}
           <select
             id="new-tag-color"
             className="mt-1 block rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm normal-case text-gray-700 dark:text-gray-300"
@@ -124,15 +119,15 @@ function TagsTable({ tags, palette, onNotice }: { tags: TagRow[]; palette: TagPa
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
         <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
           <tr>
-            <th className="px-4 py-2">{/* TODO: missing i18n key */}Tag</th>
-            <th className="px-4 py-2">{/* TODO: missing i18n key */}Jobs</th>
-            <th className="px-4 py-2">{/* TODO: missing i18n key */}Rename / recolor</th>
+            <th className="px-4 py-2">{t('tags.col_tag')}</th>
+            <th className="px-4 py-2">{t('tags.col_jobs')}</th>
+            <th className="px-4 py-2">{t('tags.col_rename')}</th>
             <th className="px-4 py-2"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
           {tags.length === 0 ? (
-            <tr><td className="px-4 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={4}>{/* TODO: missing i18n key */}No tags yet.</td></tr>
+            <tr><td className="px-4 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={4}>{t('tags.empty')}</td></tr>
           ) : tags.map((tag) => (
             <TagTableRow key={tag.id} onNotice={onNotice} palette={palette} tag={tag} />
           ))}

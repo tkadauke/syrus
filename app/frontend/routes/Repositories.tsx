@@ -33,8 +33,7 @@ export function RepositoriesIndex() {
     <main aria-label="Repositories" className="mx-auto max-w-[96rem] space-y-6 p-6">
       {repositories.isPending ? (
         <PanelMessage>
-          {/* TODO: missing i18n key */}
-          Loading repositories...
+          {t('repositories.loading')}
         </PanelMessage>
       ) : null}
       {repositories.isError ? <PanelMessage tone="error">{errorMessage(repositories.error, "Unable to load repositories.")}</PanelMessage> : null}
@@ -72,11 +71,9 @@ function RepositoriesView({ payload, prefix }: { payload: RepositoriesPayload; p
     <>
       <header className="flex items-center justify-between gap-3">
         <h1 className="text-3xl font-semibold text-gray-900 dark:text-gray-100">
-          {/* TODO: missing i18n key */}
-          Repositories
+          {t('repositories.heading')}
         </h1>
-        {/* TODO: missing i18n key */}
-        <Link className="rounded bg-blue-600 px-3.5 py-2.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500" to={withRoutePrefix(payload.new_repository_path, prefix)}>Add</Link>
+        <Link className="rounded bg-blue-600 px-3.5 py-2.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500" to={withRoutePrefix(payload.new_repository_path, prefix)}>{t('repositories.add')}</Link>
       </header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
@@ -105,8 +102,7 @@ function RepositoriesView({ payload, prefix }: { payload: RepositoriesPayload; p
       {payload.archived_repositories.length > 0 ? (
         <section className="space-y-2">
           <h2 className="text-sm font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-            {/* TODO: missing i18n key */}
-            Archived ({payload.archived_repositories.length})
+            {t('repositories.archived_count', { count: payload.archived_repositories.length })}
           </h2>
           <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 opacity-75">
             <ArchivedRepositories
@@ -138,16 +134,13 @@ function RepositoryTable({
       <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
         <tr>
           <th className="px-4 py-2">
-            {/* TODO: missing i18n key */}
-            Working repository
+            {t('repositories.col_working_repo')}
           </th>
           <th className="hidden px-4 py-2 sm:table-cell">
-            {/* TODO: missing i18n key */}
-            Polling
+            {t('repositories.col_polling')}
           </th>
           <th className="hidden px-4 py-2 sm:table-cell">
-            {/* TODO: missing i18n key */}
-            Last poll
+            {t('repositories.col_last_poll')}
           </th>
           <th className="px-4 py-2"><span className="sr-only">Actions</span></th>
         </tr>
@@ -161,23 +154,19 @@ function RepositoryTable({
               </div>
               {repository.upstream_slug ? (
                 <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                  {/* TODO: missing i18n key */}
-                  upstream <span className="font-mono">{repository.upstream_slug}</span>
+                  {t('repositories.upstream')} <span className="font-mono">{repository.upstream_slug}</span>
                   {repository.upstream_default_branch ? <span className="font-mono">:{repository.upstream_default_branch}</span> : null}
                 </div>
               ) : null}
               <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                {/* TODO: missing i18n key */}
-                Syrus owner {repository.owner_user.email_address}
+                {t('repositories.syrus_owner')} {repository.owner_user.email_address}
               </div>
               <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                 <span className="font-mono">{repository.default_branch}</span>
                 <span className="mx-1 text-gray-300 dark:text-gray-600">·</span>
-                {/* TODO: missing i18n key */}
-                label <code className="rounded bg-gray-100 dark:bg-gray-800 px-1">{repository.trigger_label}</code>
+                {t('repositories.label')} <code className="rounded bg-gray-100 dark:bg-gray-800 px-1">{repository.trigger_label}</code>
                 <span className="mx-1 text-gray-300 dark:text-gray-600">·</span>
-                {/* TODO: missing i18n key */}
-                agent {repository.agent_provider_label}
+                {t('repositories.agent')} {repository.agent_provider_label}
               </div>
             </td>
             <td className="hidden px-4 py-3 sm:table-cell">
@@ -194,19 +183,16 @@ function RepositoryTable({
                   onClick={() => onAction({ id: repository.id, kind: "poll" })}
                   type="button"
                 >
-                  {/* TODO: missing i18n key */}
-                  Poll now
+                  {t('repositories.poll_now')}
                 </button>
-                {/* TODO: missing i18n key */}
-                <Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={withRoutePrefix(repository.edit_repository_path, prefix)}>Edit</Link>
+                <Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={withRoutePrefix(repository.edit_repository_path, prefix)}>{t('repositories.edit')}</Link>
                 <button
                   className="text-amber-700 dark:text-amber-300 underline hover:no-underline disabled:text-gray-300 dark:disabled:text-gray-600"
                   disabled={disabled}
                   onClick={() => onAction({ id: repository.id, kind: "archive" }, repository)}
                   type="button"
                 >
-                  {/* TODO: missing i18n key */}
-                  Archive
+                  {t('repositories.archive')}
                 </button>
               </div>
             </td>
@@ -235,8 +221,7 @@ function ArchivedRepositories({
             <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
               <div className="font-mono">{repository.slug}</div>
               <div className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
-                {/* TODO: missing i18n key */}
-                archived {formatDate(repository.archived_at)}
+                {t('repositories.archived')} {formatDate(repository.archived_at)}
               </div>
             </td>
             <td className="px-4 py-3 text-right">
@@ -246,8 +231,7 @@ function ArchivedRepositories({
                 onClick={() => onUnarchive(repository)}
                 type="button"
               >
-                {/* TODO: missing i18n key */}
-                Unarchive
+                {t('repositories.unarchive')}
               </button>
             </td>
           </tr>
@@ -262,15 +246,13 @@ function PollingPill({ enabled }: { enabled: boolean }) {
   if (enabled) {
     return (
       <span className="inline-block rounded bg-green-100 dark:bg-green-950/40 px-2 py-0.5 text-xs text-green-700 dark:text-green-300">
-        {/* TODO: missing i18n key */}
-        enabled
+        {t('repositories.polling_enabled')}
       </span>
     )
   }
   return (
     <span className="inline-block rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-400">
-      {/* TODO: missing i18n key */}
-      paused
+      {t('repositories.polling_paused')}
     </span>
   )
 }
@@ -281,8 +263,7 @@ function LastPoll({ repository }: { repository: RepositoryRow }) {
     return (
       <div>
         <span className="font-medium text-red-600 dark:text-red-300">
-          {/* TODO: missing i18n key */}
-          failed
+          {t('repositories.poll_failed')}
         </span>
         <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">{formatDate(repository.last_poll_started_at)}</span>
         {repository.last_poll_error ? <div className="mt-0.5 max-w-xs truncate font-mono text-xs text-red-500 dark:text-red-300" title={repository.last_poll_error}>{repository.last_poll_error}</div> : null}
@@ -294,8 +275,7 @@ function LastPoll({ repository }: { repository: RepositoryRow }) {
     return (
       <div>
         <span className="text-green-700 dark:text-green-300">
-          {/* TODO: missing i18n key */}
-          ok
+          {t('repositories.poll_ok')}
         </span>
         <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">{formatDate(repository.last_poll_started_at)}</span>
       </div>

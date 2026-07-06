@@ -29,8 +29,7 @@ export function RepositoryDocumentsRoute() {
   return (
     <main aria-label="Repository documents" className="mx-auto max-w-[96rem] space-y-6 p-6">
       {documents.isPending ? <PanelMessage>
-        {/* TODO: missing i18n key */}
-        Loading repository documents...
+        {t('repository_documents.loading')}
       </PanelMessage> : null}
       {documents.isError ? <RepositoryDocumentsError error={documents.error} /> : null}
       {documents.isSuccess ? <RepositoryDocumentsView payload={documents.data} prefix={routePrefix(location.pathname)} /> : null}
@@ -61,8 +60,7 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
 
       <RepositoryTabs active="documents" prefix={prefix} tabs={payload.tabs} />
       <p className="text-sm text-gray-600 dark:text-gray-400">
-        {/* TODO: missing i18n key */}
-        Supporting documents available to agent runs for this repository.
+        {t('repository_documents.description')}
       </p>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
@@ -71,15 +69,13 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-            {/* TODO: missing i18n key */}
-            Documentation
+            {t('repository_documents.documentation')}
           </h2>
         </div>
 
         {payload.documents.length === 0 ? (
           <div className="m-4 rounded border border-dashed border-gray-300 dark:border-gray-600 px-4 py-8 text-center text-sm text-gray-600 dark:text-gray-400">
-            {/* TODO: missing i18n key */}
-            No supporting documents yet. Upload a file or link a Google Doc to give the agent extra context.
+            {t('repository_documents.empty')}
           </div>
         ) : (
           <ul className="divide-y divide-gray-100 dark:divide-gray-800 px-4">
@@ -96,8 +92,7 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
                     }}
                     type="button"
                   >
-                    {/* TODO: missing i18n key */}
-                    Delete
+                    {t('repository_documents.delete')}
                   </button>
                 </div>
               </li>
@@ -157,8 +152,7 @@ function DocumentForms({
 
       <form className="space-y-3 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4" onSubmit={submitFile}>
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-          {/* TODO: missing i18n key */}
-          Upload a file
+          {t('repository_documents.upload_file')}
         </h2>
         <Field label="File title">
           <input className={inputClass()} onChange={(event) => setFileTitle(event.target.value)} placeholder="Optional; defaults to filename" type="text" value={fileTitle} />
@@ -169,13 +163,11 @@ function DocumentForms({
         <button className={primaryButton()} disabled={save.isPending} type="submit">
           {save.isPending ? (
             <>
-              {/* TODO: missing i18n key */}
-              Uploading...
+              {t('repository_documents.uploading')}
             </>
           ) : (
             <>
-              {/* TODO: missing i18n key */}
-              Upload
+              {t('repository_documents.upload')}
             </>
           )}
         </button>
@@ -183,8 +175,7 @@ function DocumentForms({
 
       <form className="space-y-3 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4" onSubmit={submitGoogleDoc}>
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-          {/* TODO: missing i18n key */}
-          Link a Google Doc
+          {t('repository_documents.link_google_doc')}
         </h2>
         <Field label="URL">
           <input className={inputClass()} onChange={(event) => setGoogleDocUrl(event.target.value)} placeholder="https://docs.google.com/document/..." required type="url" value={googleDocUrl} />
@@ -195,13 +186,11 @@ function DocumentForms({
         <button className={primaryButton()} disabled={save.isPending} type="submit">
           {save.isPending ? (
             <>
-              {/* TODO: missing i18n key */}
-              Adding...
+              {t('repository_documents.adding')}
             </>
           ) : (
             <>
-              {/* TODO: missing i18n key */}
-              Add Google Doc
+              {t('repository_documents.add_google_doc')}
             </>
           )}
         </button>
@@ -236,8 +225,7 @@ function DocumentSummary({ document }: { document: RepositoryDocument }) {
           <span>
             {document.filename || (
               <>
-                {/* TODO: missing i18n key */}
-                No file attached
+                {t('repository_documents.no_file_attached')}
               </>
             )}
             {document.byte_size ? ` · ${formatBytes(document.byte_size)}` : ""}
@@ -247,8 +235,7 @@ function DocumentSummary({ document }: { document: RepositoryDocument }) {
       <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
         {document.uploaded_by || (
           <>
-            {/* TODO: missing i18n key */}
-            Unknown
+            {t('repository_documents.unknown')}
           </>
         )} · {new Date(document.created_at).toLocaleString()}
       </div>

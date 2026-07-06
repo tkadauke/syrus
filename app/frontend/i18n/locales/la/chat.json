@@ -45,5 +45,35 @@
   "open_panel": "Tabulam aperire",
   "resize_workspace": "Spatium operis variare",
   "new_messages_button_one": "1 nuntius novus",
-  "new_messages_button_other": "{{count}} nuntii novi"
+  "new_messages_button_other": "{{count}} nuntii novi",
+  "search": {
+    "heading": "Quaesitio Colloquiorum",
+    "empty_prompt": "Quaere in colloquiis tuis vel filtra per receptaculum, epicum, vel officium.",
+    "loading": "Colloquia quaeruntur...",
+    "error": "Colloquia quaeri non potuerunt.",
+    "no_results": "Nulla colloquia huic quaesitioni respondent.",
+    "hide_matches": "Congruentia cela",
+    "show_matches": "Congruentia monstra",
+    "no_snippet": "Nulla particula nuntii praesto.",
+    "loading_matches": "Congruentia onerantur...",
+    "error_matches": "Congruentia onerari non potuerunt.",
+    "showing": "Ostenduntur {{first}}–{{last}} ex {{total}}",
+    "previous": "Prior",
+    "next": "Sequens"
+  },
+  "hidden": {
+    "heading": "Colloquia Occulta",
+    "description": "Colloquia ex latere et quaesitione colloquiorum occulta restitue.",
+    "loading": "Colloquia occulta onerantur...",
+    "error_load": "Colloquia occulta onerari non potuerunt.",
+    "error_restore": "Colloquium restitui non potuit.",
+    "empty": "Nulla colloquia occulta.",
+    "general": "Generale",
+    "hidden_at": "Occultatum {{date}}",
+    "restoring": "Restituitur...",
+    "unhide": "Patefacere",
+    "showing": "Ostenduntur {{first}}–{{last}} ex {{total}}",
+    "previous": "Prior",
+    "next": "Sequens"
+  }
 }

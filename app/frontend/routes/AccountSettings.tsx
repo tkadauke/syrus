@@ -78,7 +78,7 @@ function CredentialsAccountPanel({ onNotice, section }: { onNotice: (message: st
 
   return (
     <>
-      {credentials.isPending ? <PanelMessage>{/* TODO: missing i18n key */}Loading credentials...</PanelMessage> : null}
+      {credentials.isPending ? <PanelMessage>{t('account_settings.loading_credentials')}</PanelMessage> : null}
       {credentials.isError ? <CredentialsError error={credentials.error} /> : null}
       {credentials.isSuccess ? <CredentialsView onNotice={onNotice} payload={credentials.data} section={section} /> : null}
     </>
@@ -112,15 +112,12 @@ function GithubCredentialGuide() {
   const { t } = useT("settings")
   return (
     <section className="rounded border border-blue-100 dark:border-blue-900/60 bg-blue-50 dark:bg-blue-950/40 p-4 text-sm text-blue-950 dark:text-blue-100">
-      {/* TODO: missing i18n key */}
-      <h2 className="font-medium">GitHub access</h2>
-      {/* TODO: missing i18n key */}
+      <h2 className="font-medium">{t('account_settings.github_access')}</h2>
       <p className="mt-1">
-        A personal access token is the fallback credential for repositories without an active Syrus GitHub App installation. If an admin registers and installs the App on a repository, Syrus uses the App for that repository instead.
+        {t('account_settings.github_access_desc')}
       </p>
-      {/* TODO: missing i18n key */}
       <p className="mt-1 text-xs text-blue-800 dark:text-blue-200">
-        Keep a PAT configured for PAT-only repositories and GitHub owner/repository pickers.
+        {t('account_settings.github_access_pat_note')}
       </p>
     </section>
   )
@@ -323,8 +320,8 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
         {section === "credentials" ? (
           <Field label="Codex authentication">
             <select className={inputClass()} onChange={(event) => setValues({ ...values, codex_auth_mode: event.target.value })} value={values.codex_auth_mode}>
-              <option value="api_key">{/* TODO: missing i18n key */}API key</option>
-              <option value="chatgpt_login">{/* TODO: missing i18n key */}ChatGPT auth.json</option>
+              <option value="api_key">{t('account_settings.codex_api_key')}</option>
+              <option value="chatgpt_login">{t('account_settings.codex_chatgpt_login')}</option>
             </select>
           </Field>
         ) : null}
@@ -332,7 +329,7 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
         {section === "credentials" && payload.options.chat_providers.length > 0 ? (
           <Field label="Chat provider">
             <select className={inputClass()} onChange={(event) => setValues({ ...values, chat_provider: event.target.value })} value={values.chat_provider}>
-              <option disabled value="">{/* TODO: missing i18n key */}Select a configured provider</option>
+              <option disabled value="">{t('account_settings.select_provider')}</option>
               {payload.options.chat_providers.map((provider) => <option key={provider} value={provider}>{titleize(provider)}</option>)}
             </select>
           </Field>
@@ -391,9 +388,8 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
               onTest={() => test.mutate("github_token")}
               value={values.github_token}
             />
-            {/* TODO: missing i18n key */}
             <p className="-mt-3 text-xs text-gray-500 dark:text-gray-400">
-              Syrus uses a GitHub App installation when one is active for a repository owner. Repositories without an active installation use this PAT as the fallback credential.
+              {t('account_settings.github_token_note')}
             </p>
 
             <GithubRateLimit payload={payload} />
@@ -432,9 +428,9 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
               }}
               value={values.locale}
             >
-              <option value="en">{/* TODO: missing i18n key */}English</option>
-              <option value="de">{/* TODO: missing i18n key */}Deutsch</option>
-              <option value="la">{/* TODO: missing i18n key */}Latina</option>
+              <option value="en">{t('account_settings.lang_english')}</option>
+              <option value="de">{t('account_settings.lang_deutsch')}</option>
+              <option value="la">{t('account_settings.lang_latina')}</option>
             </select>
           </Field>
         ) : null}
@@ -449,10 +445,8 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
               type="checkbox"
             />
             <span>
-              {/* TODO: missing i18n key */}
-              <span className="block font-medium text-gray-700 dark:text-gray-300">Pause scheduling</span>
-              {/* TODO: missing i18n key */}
-              <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">Prevents your scheduled tasks from firing automatically.</span>
+              <span className="block font-medium text-gray-700 dark:text-gray-300">{t('account_settings.pause_scheduling')}</span>
+              <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t('account_settings.pause_scheduling_desc')}</span>
             </span>
           </label>
         ) : null}
@@ -479,12 +473,10 @@ function ClaudeTokenHelp({ onConnected }: { onConnected: (result: CredentialTest
   return (
     <div className="mt-3 space-y-3">
       <ClaudeOauthConnector onConnected={onConnected} />
-      {/* TODO: missing i18n key */}
       <p className="text-xs leading-5 text-gray-500 dark:text-gray-400">
         You can also run <code className="font-mono text-gray-700 dark:text-gray-300">claude setup-token</code> and paste the long-lived token it prints. Syrus stores this value and passes it as <code className="font-mono text-gray-700 dark:text-gray-300">CLAUDE_CODE_OAUTH_TOKEN</code> for Claude runs. Do not paste the short-lived token from Claude Code's local credential store. See the{" "}
         <a className="font-medium text-blue-700 dark:text-blue-300 underline hover:text-blue-600 dark:hover:text-blue-400" href="https://code.claude.com/docs/en/authentication#generate-a-long-lived-token" rel="noreferrer" target="_blank">
-          {/* TODO: missing i18n key */}
-          Anthropic authentication docs
+          {t('account_settings.anthropic_docs')}
         </a>
         .
       </p>
@@ -546,9 +538,8 @@ function ClaudeOauthConnector({ onConnected }: { onConnected: (result: Credentia
 
   return (
     <div className="rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950/40 p-3 text-xs text-gray-600 dark:text-gray-400">
-      {/* TODO: missing i18n key */}
       <p>
-        Authorize with Claude, copy the code Claude shows, then paste it here to save a durable OAuth token for Syrus runs.
+        {t('account_settings.claude_oauth_desc')}
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
@@ -581,11 +572,9 @@ function ClaudeOauthConnector({ onConnected }: { onConnected: (result: Credentia
       </div>
       {popupBlocked ? (
         <p className="mt-2 text-amber-700 dark:text-amber-300">
-          {/* TODO: missing i18n key */}
-          Popup blocked.{" "}
+          {t('account_settings.popup_blocked')}{" "}
           <a className="font-medium underline" href={popupBlocked} rel="noreferrer" target="_blank">
-            {/* TODO: missing i18n key */}
-            Open the authorization page
+            {t('account_settings.open_auth_page')}
           </a>{" "}
           manually.
         </p>
@@ -639,8 +628,7 @@ function CodexChatGptLogin({
 
   return (
     <div className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-      {/* TODO: missing i18n key */}
-      <div>Codex ChatGPT login</div>
+      <div>{t('account_settings.codex_login_label')}</div>
       <StatusLine set={set} />
       <div className="mt-3 space-y-3 rounded border border-gray-200 dark:border-gray-700 p-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -654,8 +642,7 @@ function CodexChatGptLogin({
           </button>
           {set ? (
             <button className="rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/50 disabled:text-red-300 dark:disabled:text-red-500" disabled={clearPending} onClick={onClear} type="button">
-              {/* TODO: missing i18n key */}
-              Clear
+              {t('account_settings.clear')}
             </button>
           ) : null}
           <button className="rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:text-gray-300 dark:disabled:text-gray-600" disabled={!set || manualUnsaved || testPending} onClick={onTest} type="button">
@@ -664,17 +651,15 @@ function CodexChatGptLogin({
         </div>
         {popupBlockedUrl ? (
           <p className="text-xs text-amber-600 dark:text-amber-300">
-            {/* TODO: missing i18n key */}
-            Popup blocked.{" "}
+            {t('account_settings.codex_popup_blocked')}{" "}
             <a className="font-medium underline" href={popupBlockedUrl} rel="noreferrer" target="_blank">
-              {/* TODO: missing i18n key */}
-              Open authorization
+              {t('account_settings.codex_open_auth')}
             </a>
             .
           </p>
         ) : null}
         {autoConnecting ? (
-          <p className="text-xs text-gray-500 dark:text-gray-400">{/* TODO: missing i18n key */}Connecting...</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{t('account_settings.connecting')}</p>
         ) : null}
         <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
           <input
@@ -699,11 +684,10 @@ function CodexChatGptLogin({
       </div>
 
       <details className="mt-3 rounded border border-gray-200 dark:border-gray-700 p-3">
-        <summary className="cursor-pointer text-sm text-gray-700 dark:text-gray-300">{/* TODO: missing i18n key */}Paste auth.json manually</summary>
+        <summary className="cursor-pointer text-sm text-gray-700 dark:text-gray-300">{t('account_settings.paste_auth_json')}</summary>
         <div className="mt-3 space-y-2">
           <textarea aria-label="Codex ChatGPT auth.json" className={`${inputClass()} font-mono text-xs`} name="codex_auth_json" onChange={(event) => onManualChange(event.target.value)} rows={6} value={manualValue} />
-          {/* TODO: missing i18n key */}
-          <p className="text-xs text-gray-500 dark:text-gray-400">Save after pasting a local Codex auth.json value.</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{t('account_settings.auth_json_help')}</p>
         </div>
       </details>
     </div>
@@ -748,8 +732,7 @@ function SecretField({
         </button>
         {set ? (
           <button className="rounded border border-gray-300 dark:border-gray-600 px-3 text-sm text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/50 disabled:text-red-300 dark:disabled:text-red-500" disabled={clearPending} onClick={onClear} type="button">
-            {/* TODO: missing i18n key */}
-            Clear
+            {t('account_settings.clear')}
           </button>
         ) : null}
       </div>
@@ -796,8 +779,7 @@ function SecretTextArea({
           </button>
           {set ? (
             <button className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/50 disabled:text-red-300 dark:disabled:text-red-500" disabled={clearPending} onClick={onClear} type="button">
-              {/* TODO: missing i18n key */}
-              Clear
+              {t('account_settings.clear')}
             </button>
           ) : null}
         </div>
@@ -830,21 +812,18 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
-      {/* TODO: missing i18n key */}
-      <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">API token</h2>
-      {/* TODO: missing i18n key */}
-      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Admin token for `/api/v1/admin/*` automation. Plaintext is shown once after rotation.</p>
+      <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t('account_settings.api_token_heading')}</h2>
+      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('account_settings.api_token_desc')}</p>
 
       {newToken ? (
         <div className="mt-3 rounded border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 p-3">
-          {/* TODO: missing i18n key */}
-          <div className="text-xs font-medium uppercase text-emerald-700 dark:text-emerald-300">New token</div>
+          <div className="text-xs font-medium uppercase text-emerald-700 dark:text-emerald-300">{t('account_settings.new_token')}</div>
           <code className="mt-1 block break-all font-mono text-sm">{newToken}</code>
         </div>
       ) : payload.credential_status.api_token ? (
-        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{/* TODO: missing i18n key */}A token is set.</p>
+        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{t('account_settings.token_is_set')}</p>
       ) : (
-        <p className="mt-3 text-xs text-amber-600 dark:text-amber-300">{/* TODO: missing i18n key */}No token issued yet.</p>
+        <p className="mt-3 text-xs text-amber-600 dark:text-amber-300">{t('account_settings.no_token')}</p>
       )}
 
       {rotate.isError ? <PanelMessage tone="error">{errorMessage(rotate.error, "Unable to rotate API token.")}</PanelMessage> : null}
@@ -872,8 +851,7 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
             }}
             type="button"
           >
-            {/* TODO: missing i18n key */}
-            Revoke
+            {t('account_settings.revoke')}
           </button>
         ) : null}
       </div>
@@ -894,16 +872,16 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function StatusLine({ set }: { set: boolean }) {
   const { t } = useT("settings")
   return set ? (
-    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{/* TODO: missing i18n key */}Currently set. Submit a new value to replace.</p>
+    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('account_settings.currently_set')}</p>
   ) : (
-    <p className="mt-1 text-xs text-amber-600 dark:text-amber-300">{/* TODO: missing i18n key */}Not set.</p>
+    <p className="mt-1 text-xs text-amber-600 dark:text-amber-300">{t('account_settings.not_set')}</p>
   )
 }
 
 function CredentialTestLine({ result, unsaved }: { result?: CredentialTestResult; unsaved: boolean }) {
   const { t } = useT("settings")
   if (unsaved) {
-    return <p className="mt-2 text-xs text-amber-600 dark:text-amber-300">{/* TODO: missing i18n key */}Save changes before testing this credential.</p>
+    return <p className="mt-2 text-xs text-amber-600 dark:text-amber-300">{t('account_settings.save_before_test')}</p>
   }
 
   if (!result) return null
@@ -920,13 +898,12 @@ function CredentialTestLine({ result, unsaved }: { result?: CredentialTestResult
 function GithubRateLimit({ payload }: { payload: CredentialsPayload }) {
   const { t } = useT("settings")
   if (!payload.github_rate_limit) {
-    return <p className="text-xs text-gray-400 dark:text-gray-500">{/* TODO: missing i18n key */}GitHub quota not yet recorded.</p>
+    return <p className="text-xs text-gray-400 dark:text-gray-500">{t('account_settings.github_quota_not_recorded')}</p>
   }
 
   return (
     <p className="text-xs text-gray-500 dark:text-gray-400">
-      {/* TODO: missing i18n key */}
-      GitHub API quota: <strong>{payload.github_rate_limit.remaining}</strong> / {payload.github_rate_limit.limit} remaining ({payload.github_rate_limit.resource} bucket).
+      {t('account_settings.github_quota_prefix')} <strong>{payload.github_rate_limit.remaining}</strong> / {payload.github_rate_limit.limit} {t('account_settings.github_quota_suffix', { resource: payload.github_rate_limit.resource })}
     </p>
   )
 }

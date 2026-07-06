@@ -18,12 +18,12 @@ export function TeamDirectoryRoute() {
   return (
     <main aria-label="Team directory" className="mx-auto max-w-[96rem] space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{/* TODO: missing i18n key */}Team directory</h1>
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t('profiles.team_directory')}</h1>
       </header>
 
-      {profiles.isPending ? <PanelMessage>{/* TODO: missing i18n key */}Loading profiles...</PanelMessage> : null}
+      {profiles.isPending ? <PanelMessage>{t('profiles.loading')}</PanelMessage> : null}
       {profiles.isError ? <ProfilesError error={profiles.error} /> : null}
-      {profiles.isSuccess && profiles.data.team_user_count <= 1 ? <PanelMessage>{/* TODO: missing i18n key */}Only one user exists on this Syrus instance.</PanelMessage> : null}
+      {profiles.isSuccess && profiles.data.team_user_count <= 1 ? <PanelMessage>{t('profiles.single_user')}</PanelMessage> : null}
       {profiles.isSuccess && profiles.data.team_user_count > 1 ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {profiles.data.profiles.map((profile) => <ProfileCard key={profile.id} prefix={prefix} profile={profile} />)}
@@ -47,10 +47,10 @@ export function TeamProfileRoute() {
   return (
     <main aria-label="Team profile" className="mx-auto max-w-[96rem] space-y-6 p-6">
       <header>
-        <Link className="text-sm text-blue-600 dark:text-blue-400 underline hover:no-underline" to={`${prefix}/profiles`}>{/* TODO: missing i18n key */}Team directory</Link>
+        <Link className="text-sm text-blue-600 dark:text-blue-400 underline hover:no-underline" to={`${prefix}/profiles`}>{t('profiles.team_directory')}</Link>
       </header>
 
-      {profile.isPending ? <PanelMessage>{/* TODO: missing i18n key */}Loading profile...</PanelMessage> : null}
+      {profile.isPending ? <PanelMessage>{t('profiles.loading_profile')}</PanelMessage> : null}
       {profile.isError ? <ProfilesError error={profile.error} /> : null}
       {profile.isSuccess ? <ProfileDetail prefix={prefix} profile={profile.data.profile} /> : null}
     </main>
