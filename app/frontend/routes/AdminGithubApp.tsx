@@ -88,12 +88,11 @@ function RegisterView({ payload }: { payload: AdminGithubAppRegisterPayload }) {
         </button>
         {popupBlocked ? (
           <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
-            {/* TODO: missing i18n keys for "Popup blocked.", "Open the registration page", "manually." */}
-            Popup blocked.{" "}
+            {t("github_app.popup_blocked_prefix")}{" "}
             <a className="font-medium underline" href={popupBlocked} rel="noreferrer" target="_blank">
-              Open the registration page
+              {t("github_app.popup_blocked_link")}
             </a>{" "}
-            manually.
+            {t("github_app.popup_blocked_suffix")}
           </p>
         ) : null}
       </section>

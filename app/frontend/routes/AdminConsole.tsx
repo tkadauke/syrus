@@ -37,32 +37,32 @@ export function AdminConsole() {
 }
 
 function ConsoleView({ payload }: { payload: AdminConsolePayload }) {
+  const { t } = useT("admin")
   return (
     <>
-      {/* TODO: missing i18n keys for TogglePanel title, description, label, and value props below */}
       <section className="grid gap-4 md:grid-cols-2">
         <TogglePanel
           command={payload.settings.polling_paused ? "unpause_polling" : "pause_polling"}
-          description="Stops recurring fan-out jobs from enqueueing per-Job pollers while leaving manual poll buttons available."
-          label={payload.settings.polling_paused ? "Resume polling" : "Pause polling"}
-          title="Polling"
-          value={payload.settings.polling_paused ? "paused" : "running"}
+          description={t("console.polling_description")}
+          label={payload.settings.polling_paused ? t("console.polling_resume") : t("console.polling_pause")}
+          title={t("console.polling_title")}
+          value={payload.settings.polling_paused ? t("console.state_paused") : t("console.state_running")}
           warning={payload.settings.polling_paused}
         />
         <TogglePanel
           command={payload.settings.runs_paused ? "unpause_runs" : "pause_runs"}
-          description="Defers new RunJob work at perform time. Already-running Runs continue."
-          label={payload.settings.runs_paused ? "Resume runs" : "Pause runs"}
-          title="RunJobs"
-          value={payload.settings.runs_paused ? "paused" : "running"}
+          description={t("console.runs_description")}
+          label={payload.settings.runs_paused ? t("console.runs_resume") : t("console.runs_pause")}
+          title={t("console.runs_title")}
+          value={payload.settings.runs_paused ? t("console.state_paused") : t("console.state_running")}
           warning={payload.settings.runs_paused}
         />
         <TogglePanel
           command={payload.settings.merge_train_enabled ? "disable_merge_train" : "enable_merge_train"}
-          description="When on, an Epic's children land together as one atomic merge (graded once) instead of individually. While enabled, Epic children land only via the train, never via the per-Job path."
-          label={payload.settings.merge_train_enabled ? "Disable merge-train" : "Enable merge-train"}
-          title="Epic merge-train"
-          value={payload.settings.merge_train_enabled ? "enabled" : "disabled"}
+          description={t("console.merge_train_description")}
+          label={payload.settings.merge_train_enabled ? t("console.merge_train_disable") : t("console.merge_train_enable")}
+          title={t("console.merge_train_title")}
+          value={payload.settings.merge_train_enabled ? t("console.state_enabled") : t("console.state_disabled")}
           warning={!payload.settings.merge_train_enabled}
         />
       </section>

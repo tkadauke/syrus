@@ -91,13 +91,12 @@ function RefreshButton() {
 
 function CredentialModeComparison() {
   const { t } = useT("admin")
-  // TODO: missing i18n keys for comparison table row content below
   const rows = [
-    ["Used when no active App installation exists", "Used when the App is registered and installed on the repo account"],
-    ["All actions appear as you", "Actions appear as the App bot"],
-    ["Can't approve your own PRs via normal flow", "Normal GitHub approve works"],
-    ["Shares your personal API rate limit", "Independent App rate limit"],
-    ["Required as fallback for PAT-only repos", "Does not replace PAT fallback for repos without an installation"]
+    [t("installations.compare_pat_1"), t("installations.compare_app_1")],
+    [t("installations.compare_pat_2"), t("installations.compare_app_2")],
+    [t("installations.compare_pat_3"), t("installations.compare_app_3")],
+    [t("installations.compare_pat_4"), t("installations.compare_app_4")],
+    [t("installations.compare_pat_5"), t("installations.compare_app_5")]
   ]
 
   return (

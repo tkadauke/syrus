@@ -157,21 +157,19 @@ function UserDetail({ user }: { user: AdminUserDetail }) {
     <>
       <section className="grid gap-4 md:grid-cols-2">
         <InfoPanel title={t("users.identity")}>
-          {/* TODO: missing i18n keys for Info labels: Email, GitHub, Admin, Role, GitHub API blocked, Created */}
-          <Info label="Email" value={user.email_address} />
-          <Info label="GitHub" value={user.github_handle ? `@${user.github_handle}` : "-"} />
-          <Info label="Admin" value={user.admin ? t("users.yes") : t("users.no")} />
-          <Info label="Role" value={<RoleOverride user={user} />} />
-          <Info label="GitHub API blocked" value={user.github_api_blocked ? user.github_api_blocked_reason || t("users.yes") : t("users.no")} />
-          <Info label="Created" value={formatDate(user.created_at)} />
+          <Info label={t("users.info_email")} value={user.email_address} />
+          <Info label={t("users.info_github")} value={user.github_handle ? `@${user.github_handle}` : "-"} />
+          <Info label={t("users.info_admin")} value={user.admin ? t("users.yes") : t("users.no")} />
+          <Info label={t("users.info_role")} value={<RoleOverride user={user} />} />
+          <Info label={t("users.info_github_api_blocked")} value={user.github_api_blocked ? user.github_api_blocked_reason || t("users.yes") : t("users.no")} />
+          <Info label={t("users.info_created")} value={formatDate(user.created_at)} />
         </InfoPanel>
         <InfoPanel title={t("users.agent_tokens")}>
-          {/* TODO: missing i18n keys for Info labels: Agent provider, Codex auth mode, Max turns, Tokens, GH rate */}
-          <Info label="Agent provider" value={user.agent_provider} />
-          <Info label="Codex auth mode" value={user.codex_auth_mode} />
-          <Info label="Max turns" value={String(user.agent_max_turns)} />
-          <Info label="Tokens" value={tokenSummary(user)} />
-          <Info label="GH rate" value={rateLimitLabel(user)} />
+          <Info label={t("users.info_agent_provider")} value={user.agent_provider} />
+          <Info label={t("users.info_codex_auth_mode")} value={user.codex_auth_mode} />
+          <Info label={t("users.info_max_turns")} value={String(user.agent_max_turns)} />
+          <Info label={t("users.info_tokens")} value={tokenSummary(user)} />
+          <Info label={t("users.info_gh_rate")} value={rateLimitLabel(user)} />
         </InfoPanel>
       </section>
 

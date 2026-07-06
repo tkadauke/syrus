@@ -51,7 +51,7 @@ export function AdminProcessesIndex() {
           smartFolders={
             <AdminSmartFolderNav
               activeFolderId={processes.data.active_smart_folder_id}
-              allLabel={"Active + recent" /* TODO: missing i18n key */}
+              allLabel={t("processes.all_label")}
               allPath={basePath}
               ariaLabel="Admin process smart folders"
               currentFilter={processes.data.filter}
@@ -68,8 +68,7 @@ export function AdminProcessesIndex() {
         >
           <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
             <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
-              {/* TODO: missing i18n key */}
-              {processes.data.running_total} running · {processes.data.processes.length} shown
+              {t("processes.running_summary", { running: processes.data.running_total, shown: processes.data.processes.length })}
             </div>
             <ProcessesTable basePath={basePath} processes={processes.data.processes} />
           </section>
@@ -111,23 +110,22 @@ export function AdminProcessDetail() {
 }
 
 function ProcessesTable({ processes, basePath }: { processes: SpawnedProcessPayload[]; basePath: string }) {
-  // TODO: missing i18n key — "No processes match this filter."
-  if (processes.length === 0) return <PanelMessage>No processes match this filter.</PanelMessage>
+  const { t } = useT("admin")
+  if (processes.length === 0) return <PanelMessage>{t("processes.no_match")}</PanelMessage>
 
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
         <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
           <tr>
-            {/* TODO: missing i18n keys for column headers below */}
-            <th className="px-3 py-2">Kind</th>
-            <th className="px-3 py-2">Command</th>
-            <th className="px-3 py-2">Host / PID</th>
-            <th className="px-3 py-2">Started</th>
-            <th className="px-3 py-2">Last chunk</th>
-            <th className="px-3 py-2">Duration</th>
-            <th className="px-3 py-2">Outcome</th>
-            <th className="px-3 py-2 text-right">Actions</th>
+            <th className="px-3 py-2">{t("processes.col_kind")}</th>
+            <th className="px-3 py-2">{t("processes.col_command")}</th>
+            <th className="px-3 py-2">{t("processes.col_host_pid")}</th>
+            <th className="px-3 py-2">{t("processes.col_started")}</th>
+            <th className="px-3 py-2">{t("processes.col_last_chunk")}</th>
+            <th className="px-3 py-2">{t("processes.col_duration")}</th>
+            <th className="px-3 py-2">{t("processes.col_outcome")}</th>
+            <th className="px-3 py-2 text-right">{t("processes.col_actions")}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -144,12 +142,12 @@ function ProcessesTable({ processes, basePath }: { processes: SpawnedProcessPayl
               <td className="whitespace-nowrap px-3 py-2 align-top text-xs text-gray-700 dark:text-gray-200">{formatDate(process.started_at)}</td>
               <td className="whitespace-nowrap px-3 py-2 align-top text-xs text-gray-700 dark:text-gray-200">
                 {formatDate(process.last_chunk_at)}
-                {process.stale ? <span className="ml-1 rounded bg-amber-200 dark:bg-amber-900/70 px-1 text-[0.65rem] font-semibold uppercase text-amber-900 dark:text-amber-100">stale{/* TODO: missing i18n key */}</span> : null}
+                {process.stale ? <span className="ml-1 rounded bg-amber-200 dark:bg-amber-900/70 px-1 text-[0.65rem] font-semibold uppercase text-amber-900 dark:text-amber-100">{t("processes.stale")}</span> : null}
               </td>
               <td className="px-3 py-2 align-top text-xs text-gray-700 dark:text-gray-200">{formatDuration(process.duration_s)}</td>
               <td className="px-3 py-2 align-top text-xs"><Outcome process={process} /></td>
               <td className="space-x-3 whitespace-nowrap px-3 py-2 text-right align-top text-xs">
-                <Link className="text-blue-600 dark:text-blue-300 underline hover:no-underline" to={`${basePath}/${process.id}`}>Detail{/* TODO: missing i18n key */}</Link>
+                <Link className="text-blue-600 dark:text-blue-300 underline hover:no-underline" to={`${basePath}/${process.id}`}>{t("processes.detail")}</Link>
                 <KillButton process={process} />
               </td>
             </tr>
@@ -161,6 +159,7 @@ function ProcessesTable({ processes, basePath }: { processes: SpawnedProcessPayl
 }
 
 function ProcessDetail({ process, prefix }: { process: SpawnedProcessPayload; prefix: string }) {
+  const { t } = useT("admin")
   return (
     <div className="space-y-5 p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -174,37 +173,36 @@ function ProcessDetail({ process, prefix }: { process: SpawnedProcessPayload; pr
         <KillButton process={process} />
       </div>
 
-      {/* TODO: missing i18n keys for all dt labels below (Hostname, PID / PGID, Workdir, Started, Last chunk, Finished, Duration, Outcome, Wall timeout, Silent timeout, Run, Workflow, Kill requested) */}
       <dl className="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-[10rem_1fr]">
-        <dt className="text-gray-500 dark:text-gray-400">Hostname</dt>
+        <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_hostname")}</dt>
         <dd className="font-mono text-gray-900 dark:text-gray-100">{process.hostname || "-"}</dd>
-        <dt className="text-gray-500 dark:text-gray-400">PID / PGID</dt>
+        <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_pid_pgid")}</dt>
         <dd className="font-mono text-gray-900 dark:text-gray-100">{process.pid || "-"} / {process.pgid || "-"}</dd>
-        <dt className="text-gray-500 dark:text-gray-400">Workdir</dt>
+        <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_workdir")}</dt>
         <dd className="break-all font-mono text-gray-900 dark:text-gray-100">{process.workdir || "-"}</dd>
-        <dt className="text-gray-500 dark:text-gray-400">Started</dt>
+        <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_started")}</dt>
         <dd>{formatDate(process.started_at)}</dd>
-        <dt className="text-gray-500 dark:text-gray-400">Last chunk</dt>
-        <dd>{formatDate(process.last_chunk_at)} {process.stale ? <span className="rounded bg-amber-200 dark:bg-amber-900/70 px-1 text-[0.65rem] font-semibold uppercase text-amber-900 dark:text-amber-100">stale</span> : null}</dd>
-        <dt className="text-gray-500 dark:text-gray-400">Finished</dt>
+        <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_last_chunk")}</dt>
+        <dd>{formatDate(process.last_chunk_at)} {process.stale ? <span className="rounded bg-amber-200 dark:bg-amber-900/70 px-1 text-[0.65rem] font-semibold uppercase text-amber-900 dark:text-amber-100">{t("processes.stale")}</span> : null}</dd>
+        <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_finished")}</dt>
         <dd>{formatDate(process.finished_at)}</dd>
-        <dt className="text-gray-500 dark:text-gray-400">Duration</dt>
+        <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_duration")}</dt>
         <dd>{formatDuration(process.duration_s)}</dd>
-        <dt className="text-gray-500 dark:text-gray-400">Outcome</dt>
+        <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_outcome")}</dt>
         <dd><Outcome process={process} /></dd>
-        <dt className="text-gray-500 dark:text-gray-400">Wall timeout</dt>
+        <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_wall_timeout")}</dt>
         <dd>{formatDuration(process.wall_timeout_s)}</dd>
-        <dt className="text-gray-500 dark:text-gray-400">Silent timeout</dt>
+        <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_silent_timeout")}</dt>
         <dd>{formatDuration(process.silent_timeout_s)}</dd>
         {process.run_id ? (
           <>
-            <dt className="text-gray-500 dark:text-gray-400">Run</dt>
+            <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_run")}</dt>
             <dd><Link className="text-blue-600 dark:text-blue-300 underline hover:no-underline" to={withRoutePrefix(`/admin/runs/${process.run_id}/transcript`, prefix)}>#{process.run_id}</Link></dd>
           </>
         ) : null}
         {process.workflow_id ? (
           <>
-            <dt className="text-gray-500 dark:text-gray-400">Workflow</dt>
+            <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_workflow")}</dt>
             <dd>
               {process.workflow_path ? (
                 <Link className="text-blue-600 dark:text-blue-300 underline hover:no-underline" to={withRoutePrefix(process.workflow_path, prefix)}>
@@ -216,7 +214,7 @@ function ProcessDetail({ process, prefix }: { process: SpawnedProcessPayload; pr
         ) : null}
         {process.kill_requested_at ? (
           <>
-            <dt className="text-gray-500 dark:text-gray-400">Kill requested</dt>
+            <dt className="text-gray-500 dark:text-gray-400">{t("processes.detail_kill_requested")}</dt>
             <dd>{formatDate(process.kill_requested_at)}</dd>
           </>
         ) : null}
@@ -228,6 +226,7 @@ function ProcessDetail({ process, prefix }: { process: SpawnedProcessPayload; pr
 }
 
 function KillButton({ process }: { process: SpawnedProcessPayload }) {
+  const { t } = useT("admin")
   const queryClient = useQueryClient()
   const kill = useMutation({
     mutationFn: () => killAdminProcess(process.id),
@@ -246,16 +245,16 @@ function KillButton({ process }: { process: SpawnedProcessPayload }) {
       onClick={() => kill.mutate()}
       type="button"
     >
-      {/* TODO: missing i18n keys for "Kill" and "Killing..." */}
-      {kill.isPending ? "Killing..." : "Kill"}
+      {kill.isPending ? t("processes.killing") : t("processes.kill")}
     </button>
   )
 }
 
 function HostMetrics({ metrics }: { metrics: Record<string, unknown> }) {
+  const { t } = useT("admin")
   return (
     <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Host metrics{/* TODO: missing i18n key */}</h3>
+      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">{t("processes.host_metrics")}</h3>
       <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
         {Object.entries(metrics).map(([key, value]) => (
           <div key={key}>
