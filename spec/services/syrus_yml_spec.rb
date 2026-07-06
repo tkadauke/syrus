@@ -269,4 +269,69 @@ RSpec.describe SyrusYml do
       YAML
     }.to raise_error(described_class::ParseError, /grade\.max_iterations: must be an integer/)
   end
+
+  it "returns nil coverage when the coverage key is absent" do
+    config = parse(<<~YAML)
+      grade:
+        - name: tests
+          run: bin/rspec
+    YAML
+
+    expect(config.coverage).to be_nil
+  end
+
+  it "parses shorthand coverage config into a RepoCoveragePlan" do
+    config = parse(<<~YAML)
+      coverage:
+        artifact: coverage/lcov.info
+        threshold:
+          lines: 80
+          pr_lines: 90
+        on_miss: warn
+    YAML
+
+    expect(config.coverage).to be_a(RepoCoveragePlan)
+    expect(config.coverage.sources).to eq([
+      RepoCoveragePlan::Source.new(artifact: "coverage/lcov.info", format: "lcov")
+    ])
+    expect(config.coverage.on_miss).to eq("warn")
+    expect(config.coverage.threshold.lines).to eq(80.0)
+    expect(config.coverage.threshold.pr_lines).to eq(90.0)
+  end
+
+  it "parses multi-source coverage config" do
+    config = parse(<<~YAML)
+      coverage:
+        sources:
+          - artifact: coverage/ruby/lcov.info
+            format: lcov
+          - artifact: coverage/js/lcov.info
+            format: lcov
+        threshold:
+          lines: 80
+        on_miss: schedule
+        schedule_prompt: "Coverage fell below 80%. Add tests to recently changed modules."
+        pr_comment: true
+        hitmap_ttl_days: 14
+    YAML
+
+    expect(config.coverage.sources.size).to eq(2)
+    expect(config.coverage.on_miss).to eq("schedule")
+    expect(config.coverage.hitmap_ttl_days).to eq(14)
+    expect(config.coverage.schedule_prompt).to eq("Coverage fell below 80%. Add tests to recently changed modules.")
+  end
+
+  it "raises ConfigError for invalid coverage configuration" do
+    expect {
+      parse(<<~YAML)
+        coverage:
+          artifact: coverage/lcov.info
+          on_miss: unknown_mode
+      YAML
+    }.to raise_error(described_class::ConfigError, /on_miss.*not valid/)
+  end
+
+  it "ConfigError is a subclass of ParseError" do
+    expect(described_class::ConfigError.ancestors).to include(described_class::ParseError)
+  end
 end
