@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build and publish the single-host distribution image to GHCR.
 #
-# This is the image `install.sh --docker` pulls (ghcr.io/tkadauke/syrus-local).
+# This is the image `install.sh --docker` pulls (ghcr.io/tkadauke/syrus-backend).
 # It bakes whatever is in your working tree right now. The heavy runtime layers
 # (mise: ruby/node/python/go) are cached, so a re-publish only re-copies app code
 # and rebuilds assets — a few minutes.
@@ -27,7 +27,7 @@
 #
 # Fork iteration: override the target repository and login user to publish
 # test images from a fork instead of the upstream package, e.g.
-#   SYRUS_IMAGE_REPO=ghcr.io/skadauke/syrus-local GHCR_USER=skadauke \
+#   SYRUS_IMAGE_REPO=ghcr.io/skadauke/syrus-backend GHCR_USER=skadauke \
 #     bin/publish-image stack
 # Consumers then point at it with install.sh --image / SYRUS_IMAGE /
 # the desktop build's SYRUS_BACKEND_IMAGE.
@@ -35,7 +35,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 . ./bin/docker-image-lib
 
-IMAGE="${SYRUS_IMAGE_REPO:-ghcr.io/tkadauke/syrus-local}"
+IMAGE="${SYRUS_IMAGE_REPO:-ghcr.io/tkadauke/syrus-backend}"
 GHCR_USER="${GHCR_USER:-tkadauke}"
 VERSION=""
 MULTI=0

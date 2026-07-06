@@ -1,7 +1,7 @@
 # Single-host Syrus on a laptop: web + worker, SQLite, one named volume.
 #
 # By default this PULLS the prebuilt image from GHCR
-# (ghcr.io/tkadauke/syrus-local) — nothing to compile. Run it with `./install.sh`.
+# (ghcr.io/tkadauke/syrus-backend) — nothing to compile. Run it with `./install.sh`.
 #
 # Developers building from this checkout instead use `bin/compose-up`, which
 # layers `docker-compose.build.yml` on top to build the image locally.
@@ -9,7 +9,7 @@ name: syrus
 
 # Web, worker, and the one-shot setup task all share one image + config.
 x-app: &app
-  image: ${SYRUS_IMAGE:-ghcr.io/tkadauke/syrus-local:latest}
+  image: ${SYRUS_IMAGE:-ghcr.io/tkadauke/syrus-backend:latest}
   env_file: .env
   volumes:
     # Clone cache + the SQLite databases live here, persisted across restarts.

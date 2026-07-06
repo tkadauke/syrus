@@ -38,7 +38,7 @@ const version = String(pkg.version ?? "")
 const isReleaseBuild = process.env.SYRUS_RELEASE_BUILD === "1"
 const image =
   process.env.SYRUS_BACKEND_IMAGE ??
-  (isReleaseBuild ? `ghcr.io/tkadauke/syrus-local:${version}` : "ghcr.io/tkadauke/syrus-local:latest")
+  (isReleaseBuild ? `ghcr.io/tkadauke/syrus-backend:${version}` : "ghcr.io/tkadauke/syrus-backend:latest")
 
 // The app's own build sha (distinct from appVersion, which stays put across
 // dev builds). The shell announces it via a User-Agent token so the web UI's

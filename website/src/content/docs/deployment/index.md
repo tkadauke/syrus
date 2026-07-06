@@ -30,7 +30,7 @@ operations.
 
 [Docker Compose](/docs/deployment/docker-compose) runs the real Syrus app
 on one machine. The default command pulls the prebuilt
-`ghcr.io/tkadauke/syrus-local` image, generates local secrets, starts web
+`ghcr.io/tkadauke/syrus-backend` image, generates local secrets, starts web
 and worker containers, and stores the SQLite databases plus workflow
 workspaces in one named Docker volume.
 

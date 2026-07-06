@@ -82,7 +82,7 @@ admin, and a first-run wizard walks you through GitHub credentials, the
 agent (Claude or Codex), your first repository, and a guided chat to land
 your first change. Your data lives in a Docker volume and survives restarts.
 
-No Ruby, Node, or Go required — the image (`ghcr.io/tkadauke/syrus-local`)
+No Ruby, Node, or Go required — the image (`ghcr.io/tkadauke/syrus-backend`)
 is public. See [Docker Compose deployment](website/src/content/docs/deployment/docker-compose.md)
 for pinning versions, adding OS packages, and building the image yourself,
 and [the deployment docs](website/src/content/docs/deployment/) for

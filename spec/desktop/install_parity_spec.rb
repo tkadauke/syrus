@@ -109,7 +109,7 @@ RSpec.describe "install.ps1 parity with install.sh" do
 
   it "defaults to the same image, project name, knobs, and --image charset" do
     [
-      "ghcr.io/tkadauke/syrus-local:latest",
+      "ghcr.io/tkadauke/syrus-backend:latest",
       "COMPOSE_PROJECT_NAME",
       "SYRUS_HEALTH_POLLS",
       "SYRUS_PULL_RETRY_DELAY",

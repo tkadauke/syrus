@@ -1197,7 +1197,7 @@ session outcome.
 
 - Single-host Docker Compose is the low-friction distribution path for
   new operators. `install.sh --docker` pulls the prebuilt
-  `ghcr.io/tkadauke/syrus-local` image, generates `.env` secrets on
+  `ghcr.io/tkadauke/syrus-backend` image, generates `.env` secrets on
   first run, refuses to regenerate encryption keys over an existing data
   volume, and starts web + worker containers backed by the local data
   volume. `install.sh --bare-metal` remains the macOS source install

@@ -37,7 +37,7 @@ export const installerCommand = (scriptPath: string, flags: string[]): { command
 
 // Written by desktop/scripts/stage-backend-assets.mjs at build time: pins the
 // backend image tag to this app release. Absent in dev — install.sh then
-// falls back to ghcr.io/tkadauke/syrus-local:latest.
+// falls back to ghcr.io/tkadauke/syrus-backend:latest.
 export type BackendManifest = {
   image?: string
   // The app's own build sha (git short sha at packaging time), announced as

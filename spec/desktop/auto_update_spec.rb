@@ -137,7 +137,7 @@ RSpec.describe "desktop auto-update and release pipeline" do
     expect(release_workflow).to match(/Free disk space/)
     # The BuildKit cache must target a package the token can auth against, not
     # the default syrus:cache (which 403'd).
-    expect(release_workflow).to include("ghcr.io/tkadauke/syrus-local:buildcache")
+    expect(release_workflow).to include("ghcr.io/tkadauke/syrus-backend:buildcache")
   end
 
   it "release publish is near-atomic: draft release, then flip, with rollback" do

@@ -11,6 +11,14 @@
 ARG RUBY_VERSION=3.2.3
 FROM docker.io/library/ruby:$RUBY_VERSION-slim AS base
 
+# Connect published images to the source repo. GHCR reads this label to link a
+# newly-published package to the repository, which (a) lets the release
+# workflow's built-in GITHUB_TOKEN push it with no PAT — the package is
+# auto-connected on first CI publish — and (b) makes the package page link back
+# here. Inherited by every `FROM base` stage, including the published worker-dev
+# image. See docs/releasing.md.
+LABEL org.opencontainers.image.source="https://github.com/tkadauke/syrus"
+
 # Rails app lives here
 WORKDIR /rails
 

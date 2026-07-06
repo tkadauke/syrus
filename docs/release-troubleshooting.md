@@ -68,7 +68,7 @@ Grep the failed run's log for the string in column one.
 | `timestamp.acs.microsoft.com` errors | flaky ACS timestamp server | [5.6](#56-timestamping) |
 | `no staged artifacts to publish` | a build job produced no assets to upload | [6.2](#62-publish-job-failures) |
 | `imagetools create` failure moving `:latest` | GHCR packages-write permission / auth | [6.2](#62-publish-job-failures) |
-| `denied: permission_denied: write_package` (build-backend) | token can't push to `tkadauke/syrus-local` — add a `GHCR_TOKEN` PAT | [6.2](#62-publish-job-failures) |
+| `denied: permission_denied: write_package` (build-backend) | `syrus-backend` package not connected to the repo — connect it (no PAT) | [6.2](#62-publish-job-failures) |
 | `Cannot find latest-mac.yml` (client logs) | broken/partial update feed | [6.3](#63-update-feed-integrity) |
 
 Nothing matched? Decide which of the three buckets you're in via
@@ -479,36 +479,38 @@ own failure signature.
 
 - **`imagetools create` fails moving `:latest`** ("Move image :latest to the
   released version" step) — `docker buildx imagetools create -t
-  ghcr.io/tkadauke/syrus-local:latest ...:$VERSION` copies the already-pushed
+  ghcr.io/tkadauke/syrus-backend:latest ...:$VERSION` copies the already-pushed
   multi-arch manifest onto `:latest`. A failure here is auth/permissions on
   GHCR, not a build problem: the versioned image already exists (build-backend
   pushed it). **The release is still a draft at this point** — the draft was
   created just before, and the go-live "Publish the release" step hasn't run
   yet, so the `Roll back on failure` step deletes the draft + tag and reverts
   `:latest` to the snapshotted digest. Nothing ships. **Check:** the "Log in
-  to GHCR" step succeeded (it uses `github.actor` + `GHCR_TOKEN`/`GITHUB_TOKEN`);
+  to GHCR" step succeeded (it uses `github.actor` + `GITHUB_TOKEN`);
   the top-level `permissions:` still grants `packages: write`; the
-  `syrus-local` package isn't locked to a different owner. **Fix:** restore the
+  `syrus-backend` package isn't locked to a different owner. **Fix:** restore the
   packages-write grant / GHCR permission and re-dispatch the pipeline. (The old
   "release already live, re-run just this move by hand" recovery no longer
   applies — the draft pattern rolls the whole attempt back instead of leaving a
   live release with a stale `:latest`.)
 
 - **`denied: permission_denied: write_package`** (build-backend, and it would
-  also break the `:latest` move) — the workflow token can't push to
-  `ghcr.io/tkadauke/syrus-local`. GHCR login uses `github.actor` with
-  `GHCR_TOKEN` if set, else the job's `GITHUB_TOKEN`. A `GITHUB_TOKEN` from a
-  run dispatched by someone who isn't a package admin (or a fork) has no write
-  access to that package, so both the image push and the registry BuildKit
-  cache export (`ghcr.io/tkadauke/syrus-local:buildcache`) fail. The cache
-  export is best-effort (`ignore-error=true`) so it only *warns* and leaves the
-  build cold; the image push is fatal. **Fix:** add a `GHCR_TOKEN` repo secret
-  — a PAT (classic) with `write:packages` (and `read:packages`) that can write
-  the `syrus-local` + `syrus-local:buildcache` packages under `tkadauke`. With
-  it set, `secrets.GHCR_TOKEN` wins the `||` and both the push and the cache
-  export succeed (warming every later build). Confirm it first with a
-  `dry_run` — the dry run's build-backend still exercises the same login +
-  cache export, so a `write_package` denial there is the early warning.
+  also break the `:latest` move) — the built-in `GITHUB_TOKEN` can't push to
+  `ghcr.io/tkadauke/syrus-backend`. A user-owned GHCR package is writable by a
+  repo's `GITHUB_TOKEN` only when the package is **connected** to that repo. A
+  package born from a CI publish connects automatically (reinforced by the
+  `org.opencontainers.image.source` LABEL in the Dockerfile), so a fresh
+  `syrus-backend` should never hit this. You'd only see it if the package was
+  first created *outside* CI — e.g. an early `bin/publish-image` run from a
+  laptop — which is exactly how the old `syrus-local` package broke.
+  **Fix (no PAT):** on the package page → *Package settings → Manage Actions
+  access → Add Repository → `tkadauke/syrus` → Write*. That connects it; the
+  `GITHUB_TOKEN` then pushes it, moves `:latest`, and writes `:buildcache` (all
+  the same package). **Confirm first with a `dry_run`** — its build-backend runs
+  the same login + cache export, so a `write_package` denial there is the early
+  warning. (A classic `write:packages` PAT dropped into a `GHCR_TOKEN` secret
+  would also work, but it's a broader, rotation-bound credential you don't need
+  for a same-owner package — prefer connecting the package.)
 
 ### 6.3 Update feed integrity
 
@@ -567,19 +569,21 @@ modes are infrastructure, not code.
 
 - **`403 Forbidden` / `denied` writing the BuildKit cache**
   - **Cause:** the BuildKit registry cache ref
-    (`SYRUS_DOCKER_CACHE_REF=ghcr.io/tkadauke/syrus-local:buildcache`) must be a
+    (`SYRUS_DOCKER_CACHE_REF=ghcr.io/tkadauke/syrus-backend:buildcache`) must be a
     package the GHCR token can **write**. `cache-from` only *reads* it (fine as
     long as the package is public), but `cache-to` *writes* it, and needs the
     same GHCR auth as the image push. The previous default,
     `ghcr.io/tkadauke/syrus:cache`, 403'd because that package isn't writable by
-    the token — hence the move to the image's own `syrus-local` package.
+    the token — hence the move to the image's own `syrus-backend` package.
   - **Check:** the `cache-to`/export line in the buildx output shows the 403
-    against `ghcr.io/…:buildcache`. Confirm which token the "Log in to GHCR"
-    step used (`GHCR_TOKEN` if set, else `GITHUB_TOKEN`).
+    against `ghcr.io/…:buildcache`. Because `:buildcache` is just a tag on the
+    `syrus-backend` package, a 403 here is the same root cause as a
+    `write_package` denial on the image push — the package isn't connected to
+    the repo.
   - **Fix:** a cache-write 403 is **non-fatal** — the build proceeds cold
-    (slower, but green). To restore warm caching, point `SYRUS_DOCKER_CACHE_REF`
-    at a package the token can write, or provide a `GHCR_TOKEN` PAT with
-    `write:packages` when `GITHUB_TOKEN` can't write the cache package.
+    (slower, but green). Restore warm caching the same way you fix the image
+    push: connect the `syrus-backend` package to the repo (see the
+    `write_package` entry above). No separate token needed — same package.
 
 ## 7. Reproduce locally to bisect
 

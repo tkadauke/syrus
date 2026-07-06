@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Builds the syrus-local backend image from the CURRENT WORKING TREE, for
+# Builds the syrus-backend backend image from the CURRENT WORKING TREE, for
 # iterating on the desktop app against unpublished backend changes.
 #
-#   bin/build-local-image                    # tags syrus-local:dev-<short-sha>
-#   bin/build-local-image my-tag             # tags syrus-local:my-tag
+#   bin/build-local-image                    # tags syrus-backend:dev-<short-sha>
+#   bin/build-local-image my-tag             # tags syrus-backend:my-tag
 #   GHCR_USER=<you> bin/build-local-image --push
-#                                            # tags ghcr.io/<you>/syrus-local:dev-<short-sha>
+#                                            # tags ghcr.io/<you>/syrus-backend:dev-<short-sha>
 #                                            # and pushes it to your fork's GHCR
 #
 # The registry is selected by DATA, not code: the DMG's manifest.json carries
@@ -17,8 +17,8 @@
 # install.sh falls back to the local image. That breaks the moment you wipe
 # Docker to test a fresh install. With --push: the image lives in your fork's
 # GHCR, so wipe-everything installs work — after a ONE-TIME step of making
-# the ghcr.io/<you>/syrus-local package PUBLIC (GitHub → Packages →
-# syrus-local → Package settings → Change visibility). Upstream's package is
+# the ghcr.io/<you>/syrus-backend package PUBLIC (GitHub → Packages →
+# syrus-backend → Package settings → Change visibility). Upstream's package is
 # public precedent; note this exposes the app code baked into the image,
 # exactly as upstream's does. Never stage a published ref you do NOT control
 # (like upstream :latest): a successful pull of someone else's image would
@@ -56,13 +56,13 @@ if [ "$PUSH" = "1" ]; then
   # Require the username explicitly: defaulting to the upstream namespace
   # would make "accidentally push a dev image as tkadauke" the failure mode.
   GHCR_USER="${GHCR_USER:?--push needs GHCR_USER=<your GitHub username> (the fork GHCR namespace)}"
-  IMAGE_REPO="${SYRUS_IMAGE_REPO:-ghcr.io/${GHCR_USER}/syrus-local}"
+  IMAGE_REPO="${SYRUS_IMAGE_REPO:-ghcr.io/${GHCR_USER}/syrus-backend}"
   IMAGE="${IMAGE_REPO}:${TAG}"
   # Fail fast on a missing token too — discovering it AFTER a potentially
   # 20-40 minute build wastes exactly the wait --push exists to justify.
   TOKEN="$(syrus_read_ghcr_token "$HOME/.config/syrus/ghcr-token")"
 else
-  IMAGE="syrus-local:${TAG}"
+  IMAGE="syrus-backend:${TAG}"
 fi
 
 syrus_build_local_backend_image "$IMAGE" "$GIT_SHA"
@@ -74,7 +74,7 @@ if [ "$PUSH" = "1" ]; then
   echo
   echo "Pushed ${IMAGE} (git ${GIT_SHA})"
   echo "One-time: make the package public so wipe-everything installs need no docker login:"
-  echo "  https://github.com/users/${GHCR_USER}/packages/container/syrus-local/settings"
+  echo "  https://github.com/users/${GHCR_USER}/packages/container/syrus-backend/settings"
 else
   echo
   echo "Built ${IMAGE} (git ${GIT_SHA}) — local only; a wiped Docker loses it."

@@ -48,7 +48,7 @@ The installer:
 2. Generates `.env` from `compose.env.example` with fresh secrets
    (`SECRET_KEY_BASE` and the three Active Record encryption keys) on first
    run. `.env` is gitignored — keep it.
-3. Pulls `ghcr.io/tkadauke/syrus-local`.
+3. Pulls `ghcr.io/tkadauke/syrus-backend`.
 4. Starts the stack: a one-shot **setup** task (prepares the SQLite
    databases and fixes volume ownership), then **web** and **worker**.
 

@@ -135,7 +135,7 @@ jobs:
           fi
 
   # ---------------------------------------------------------------------------
-  # Build the backend image (ghcr.io/tkadauke/syrus-local), run the integration
+  # Build the backend image (ghcr.io/tkadauke/syrus-backend), run the integration
   # gate against it, and push ONLY the versioned tag. `:latest` moves in
   # `publish`, after every app succeeds.
   # ---------------------------------------------------------------------------
@@ -176,16 +176,18 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build, integration-test, and push the versioned image
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
           DRY: ${{ needs.prepare.outputs.dry_run }}
-          # GITHUB_TOKEN can push to ghcr.io/tkadauke/syrus-local only if that
-          # package is linked to this repo with write access. If it isn't, set
-          # a GHCR_TOKEN secret (a PAT with write:packages) and it's used here.
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
+          # No PAT needed: the syrus-backend package is auto-connected to this
+          # repo on its first CI publish (the org.opencontainers.image.source
+          # LABEL in the Dockerfile), so the built-in GITHUB_TOKEN can push it.
+          # GHCR_TOKEN here is just bin/publish-image's token *env var* — the
+          # same interface a local run feeds a PAT — fed from GITHUB_TOKEN in CI.
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GHCR_USER: ${{ github.actor }}
           # Reuse layers across runs via the BuildKit registry cache. The ref
           # MUST be a package we can auth against — the image's own package,
@@ -193,7 +195,7 @@ jobs:
           # that package isn't writable by this token). cache-from reads it
           # (public), cache-to writes it (needs the same auth as the push).
           SYRUS_DOCKER_REGISTRY_CACHE: "1"
-          SYRUS_DOCKER_CACHE_REF: ghcr.io/tkadauke/syrus-local:buildcache
+          SYRUS_DOCKER_CACHE_REF: ghcr.io/tkadauke/syrus-backend:buildcache
         run: |
           set -euo pipefail
           # bin/publish-image builds the worker image, runs bin/test-docker
@@ -597,14 +599,14 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       # Remember where :latest points now, so cleanup can put it back.
       - name: Snapshot the current :latest digest
         id: snap
         run: |
           set -euo pipefail
-          IMAGE="ghcr.io/tkadauke/syrus-local"
+          IMAGE="ghcr.io/tkadauke/syrus-backend"
           OLD="$(docker buildx imagetools inspect "$IMAGE:latest" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
           echo "old_latest=$OLD" >> "$GITHUB_OUTPUT"
           echo "current :latest = ${OLD:-<none>}"
@@ -635,7 +637,7 @@ jobs:
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
-          IMAGE="ghcr.io/tkadauke/syrus-local"
+          IMAGE="ghcr.io/tkadauke/syrus-backend"
           docker buildx imagetools create -t "$IMAGE:latest" "$IMAGE:$VERSION"
 
       # THE go-live: flip the fully-built draft to published. One tiny API call,
@@ -656,7 +658,7 @@ jobs:
           OLD_LATEST: ${{ steps.snap.outputs.old_latest }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          IMAGE="ghcr.io/tkadauke/syrus-local"
+          IMAGE="ghcr.io/tkadauke/syrus-backend"
           echo "::warning::Publish failed — rolling back the draft release and :latest."
           # Deletes the draft (and its tag if the flip already created one).
           gh release delete "$TAG" --yes --cleanup-tag || true

@@ -14,7 +14,7 @@
 #   e) MCP sidecar       — boots full Rails without errors
 #
 # Usage: bin/test-docker
-#   SYRUS_IMAGE=ghcr.io/tkadauke/syrus-local:TAG  test a specific image
+#   SYRUS_IMAGE=ghcr.io/tkadauke/syrus-backend:TAG  test a specific image
 #   SYRUS_ITEST_PORT=NNNN                          override the host port
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -83,7 +83,7 @@ in_service() { # in_service <service> <ruby>
 
 # ---------------------------------------------------------------------------
 note "Bringing up an isolated stack (project=$PROJECT, port=$PORT)"
-echo "   image: ${SYRUS_IMAGE:-<compose default ghcr.io/tkadauke/syrus-local:latest>}"
+echo "   image: ${SYRUS_IMAGE:-<compose default ghcr.io/tkadauke/syrus-backend:latest>}"
 ensure_compose_env
 if ! compose -p "$PROJECT" up -d; then
   echo "Stack failed to come up — the setup service (db:prepare) likely errored." >&2

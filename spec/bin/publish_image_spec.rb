@@ -14,9 +14,9 @@ RSpec.describe "bin/publish-image" do
 
   it "supports publishing test images from a fork" do
     # SYRUS_IMAGE_REPO + GHCR_USER let a fork publish e.g.
-    # ghcr.io/<user>/syrus-local without editing the script; upstream stays
+    # ghcr.io/<user>/syrus-backend without editing the script; upstream stays
     # the default so the release runbook is unchanged.
-    expect(script).to include('IMAGE="${SYRUS_IMAGE_REPO:-ghcr.io/tkadauke/syrus-local}"')
+    expect(script).to include('IMAGE="${SYRUS_IMAGE_REPO:-ghcr.io/tkadauke/syrus-backend}"')
     expect(script).to include('GHCR_USER="${GHCR_USER:-tkadauke}"')
   end
 end

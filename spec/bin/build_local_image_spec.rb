@@ -24,20 +24,20 @@ RSpec.describe "bin/build-local-image" do
     expect(script).not_to include("docker buildx build")
   end
 
-  it "defaults the tag to the working tree's short sha under the syrus-local repo" do
+  it "defaults the tag to the working tree's short sha under the syrus-backend repo" do
     # Without --push the tag must NOT be a published registry ref: the
     # desktop installer pulls whatever manifest.json names, and a successful
     # pull would clobber the local build. An unpublished local tag makes the
     # pull fail and install.sh fall back to the local image.
     expect(script).to include('TAG="${TAG:-dev-${GIT_SHA}}"')
-    expect(script).to include('IMAGE="syrus-local:${TAG}"')
+    expect(script).to include('IMAGE="syrus-backend:${TAG}"')
   end
 
   it "pushes to the fork GHCR namespace with --push, requiring an explicit GHCR_USER" do
     # Defaulting to the upstream namespace would make "accidentally push a
     # dev image as tkadauke" the failure mode; the username must be explicit.
     expect(script).to match(/GHCR_USER="\$\{GHCR_USER:\?/)
-    expect(script).to include('IMAGE_REPO="${SYRUS_IMAGE_REPO:-ghcr.io/${GHCR_USER}/syrus-local}"')
+    expect(script).to include('IMAGE_REPO="${SYRUS_IMAGE_REPO:-ghcr.io/${GHCR_USER}/syrus-backend}"')
     expect(script).to include("syrus_ghcr_login")
     expect(script).to include('docker push "$IMAGE"')
     expect(script).to include("syrus_verify_pushed")
@@ -64,6 +64,6 @@ RSpec.describe "bin/build-local-image" do
   end
 
   it "keeps the Dockerfile.local overlay as the final image layer" do
-    expect(lib).to match(/docker build -f Dockerfile\.local[\s\S]{0,120}BASE_IMAGE=syrus-local-base:latest/)
+    expect(lib).to match(/docker build -f Dockerfile\.local[\s\S]{0,120}BASE_IMAGE=syrus-backend-base:latest/)
   end
 end

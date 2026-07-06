@@ -405,7 +405,7 @@ across web/worker processes.
   `ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT` instead of credentials;
   set all three together or boot fails.
 - **Single-host Docker distribution** — `install.sh --docker` pulls
-  `ghcr.io/tkadauke/syrus-local` and starts the Compose stack; `bin/compose-up`
+  `ghcr.io/tkadauke/syrus-backend` and starts the Compose stack; `bin/compose-up`
   builds the same stack locally. Keep `compose.env.example`, `.env.example`,
   and bootstrap payload expectations in sync when adding required env. Never
   regenerate `.env` over an existing `syrus_syrus-data` volume — those
@@ -419,13 +419,13 @@ across web/worker processes.
   `SYRUS_DOCKER_REGISTRY_CACHE=1` opts local compose/publish builds into the
   registry BuildKit cache, and `SYRUS_DOCKER_CACHE_REF` overrides the cache tag.
   For desktop-app iteration against unpublished backend changes, `bin/build-local-image`
-  builds `syrus-local:dev-<sha>` from the working tree; stage it into the DMG
+  builds `syrus-backend:dev-<sha>` from the working tree; stage it into the DMG
   with `SYRUS_BACKEND_IMAGE=<ref> npm --prefix desktop run build`. The
   registry is selected by data, not code: manifest.json carries the
   fully-qualified ref, install.sh pulls it verbatim, release builds pin
   `ghcr.io/tkadauke/...`. Local-only tags survive only until Docker is wiped;
   for wipe-everything install testing use `GHCR_USER=<you> bin/build-local-image
-  --push`, which pushes `ghcr.io/<you>/syrus-local:dev-<sha>` to the fork's
+  --push`, which pushes `ghcr.io/<you>/syrus-backend:dev-<sha>` to the fork's
   GHCR (needs `write:packages` in `GHCR_TOKEN` or `~/.config/syrus/ghcr-token`;
   make that package public once so installs need no docker login). Never
   stage a published ref you don't control — a successful pull would clobber

@@ -141,7 +141,7 @@ RSpec.describe "install.sh GUI interface" do
         out, _err, status = run_install(
           "--docker", "--json", "--non-interactive", "--skip-runtime-install",
           "--target-dir", target, "--port", "3999",
-          "--image", "syrus-local:built-here", stub_dir: stub_dir
+          "--image", "syrus-backend:built-here", stub_dir: stub_dir
         )
 
         # Pull fails, the local copy is adopted, the stack "starts", and the
@@ -167,10 +167,10 @@ RSpec.describe "install.sh GUI interface" do
         # exist" — denied must win the classification, because on GHCR an
         # unauthorized pull is indistinguishable from a missing private repo.
         write_docker_stub(stub_dir, volume_exists: false,
-          pull_error: "Error response from daemon: pull access denied for syrus-local, repository does not exist or may require authentication")
+          pull_error: "Error response from daemon: pull access denied for syrus-backend, repository does not exist or may require authentication")
         out, _err, status = run_install(
           "--docker", "--json", "--non-interactive", "--skip-runtime-install",
-          "--target-dir", target, "--image", "ghcr.io/example/syrus-local:dev-abc", stub_dir: stub_dir
+          "--target-dir", target, "--image", "ghcr.io/example/syrus-backend:dev-abc", stub_dir: stub_dir
         )
 
         expect(status.exitstatus).to eq(31)
@@ -187,7 +187,7 @@ RSpec.describe "install.sh GUI interface" do
         write_docker_stub(stub_dir, volume_exists: false, pull_error: "stub: manifest unknown")
         out, _err, status = run_install(
           "--docker", "--json", "--non-interactive", "--skip-runtime-install",
-          "--target-dir", target, "--image", "ghcr.io/example/syrus-local:dev-gone", stub_dir: stub_dir
+          "--target-dir", target, "--image", "ghcr.io/example/syrus-backend:dev-gone", stub_dir: stub_dir
         )
 
         expect(status.exitstatus).to eq(32)

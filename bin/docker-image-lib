@@ -190,7 +190,7 @@ syrus_docker_buildx_image() {
   docker buildx build -f Dockerfile --target "$target" --build-arg "GIT_SHA=$git_sha" "$@"
 }
 
-# Builds syrus-local-base:latest (Dockerfile target worker-dev — the fat
+# Builds syrus-backend-base:latest (Dockerfile target worker-dev — the fat
 # agent toolchain) from the current working tree. Honors the registry
 # BuildKit cache like bin/compose-up: SYRUS_DOCKER_REGISTRY_CACHE=1 pulls
 # from the cache ref, and SYRUS_DOCKER_CACHE_PUSH=1 additionally writes back
@@ -222,11 +222,11 @@ syrus_build_local_base_image() {
       --load \
       "${cache_args[@]}" \
       --provenance=false \
-      -t syrus-local-base:latest \
+      -t syrus-backend-base:latest \
       .
   else
     syrus_docker_build_image worker-dev "$git_sha" \
-      --provenance=false -t syrus-local-base:latest .
+      --provenance=false -t syrus-backend-base:latest .
   fi
 }
 
@@ -240,6 +240,6 @@ syrus_build_local_backend_image() {
 
   syrus_build_local_base_image "$git_sha"
   docker build -f Dockerfile.local \
-    --build-arg BASE_IMAGE=syrus-local-base:latest \
+    --build-arg BASE_IMAGE=syrus-backend-base:latest \
     -t "$final_tag" .
 }

@@ -3,8 +3,8 @@
 #
 # The base image (the fat agent toolchain — Ruby/Node/Go via mise, Python,
 # build tools, db clients, claude-code) is built separately by `bin/compose-up`:
-#   docker build -f Dockerfile --target worker-dev -t syrus-local-base:latest .
-ARG BASE_IMAGE=syrus-local-base:latest
+#   docker build -f Dockerfile --target worker-dev -t syrus-backend-base:latest .
+ARG BASE_IMAGE=syrus-backend-base:latest
 FROM ${BASE_IMAGE}
 
 # Trivially extensible: set EXTRA_APT_PACKAGES (space-separated) in .env, then

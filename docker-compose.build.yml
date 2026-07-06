@@ -12,12 +12,12 @@ services:
       context: .
       dockerfile: Dockerfile.local
       args:
-        BASE_IMAGE: ${BASE_IMAGE:-syrus-local-base:latest}
+        BASE_IMAGE: ${BASE_IMAGE:-syrus-backend-base:latest}
         EXTRA_APT_PACKAGES: ${EXTRA_APT_PACKAGES:-}
-    image: syrus-local:latest
+    image: syrus-backend:latest
   web:
     build: *build
-    image: syrus-local:latest
+    image: syrus-backend:latest
   worker:
     build: *build
-    image: syrus-local:latest
+    image: syrus-backend:latest

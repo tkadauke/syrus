@@ -76,8 +76,8 @@ RSpec.describe "desktop packaging" do
     %w[install.sh install.ps1 docker-compose.yml compose.env.example].each do |asset|
       expect(staging_script).to include(%("#{asset}"))
     end
-    expect(staging_script).to include("ghcr.io/tkadauke/syrus-local:${version}")
-    expect(staging_script).to include('ghcr.io/tkadauke/syrus-local:latest')
+    expect(staging_script).to include("ghcr.io/tkadauke/syrus-backend:${version}")
+    expect(staging_script).to include('ghcr.io/tkadauke/syrus-backend:latest')
     expect(staging_script).to include("manifest.json")
     # Only actual release-workflow builds pin the versioned tag; a local
     # `npm run build` at a release-looking version must not pin an image

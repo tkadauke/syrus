@@ -1,6 +1,6 @@
 # Install Syrus on this Windows machine. One way to run it:
 #
-#   --docker       Pull the prebuilt image (ghcr.io/tkadauke/syrus-local) and
+#   --docker       Pull the prebuilt image (ghcr.io/tkadauke/syrus-backend) and
 #                  start web + worker with Compose. Nothing compiles. Requires
 #                  Docker Desktop (or a Docker-compatible runtime such as
 #                  Podman Desktop with its Docker socket enabled).
@@ -262,7 +262,7 @@ function Run-Docker {
 
   $image = $script:ImageOverride
   if (-not $image) { $image = $env:SYRUS_IMAGE }
-  if (-not $image) { $image = "ghcr.io/tkadauke/syrus-local:latest" }
+  if (-not $image) { $image = "ghcr.io/tkadauke/syrus-backend:latest" }
   $env:SYRUS_IMAGE = $image
   # Belt-and-braces alongside the compose file's `name: syrus`: keeps the
   # `syrus_` volume prefix stable for docker-compose v1 and odd invocation dirs.

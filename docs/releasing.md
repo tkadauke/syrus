@@ -9,7 +9,7 @@ manual workflow run:
   and Azure-signed Windows `Syrus-Setup-X.Y.Z-x64.exe` + `latest.yml` (x64
   only; runs on arm64 Windows via emulation), plus stable-named aliases for
   the website permalinks (`Syrus.dmg`, `Syrus-Setup.exe`).
-- **Backend image** — `ghcr.io/tkadauke/syrus-local:X.Y.Z`, built and
+- **Backend image** — `ghcr.io/tkadauke/syrus-backend:X.Y.Z`, built and
   integration-tested in CI, with `:latest` moved to it.
 - **GitHub Release `vX.Y.Z`** — auto-generated notes, every artifact above.
 
@@ -126,7 +126,19 @@ with `bin/release-notes vX.Y.Z` (Claude-authored) and paste them in.
 | App Store Connect API key (`.p8`) | appstoreconnect.apple.com → Integrations | Developer role suffices for notarytool |
 | `APPLE_API_KEY_P8` / `APPLE_API_KEY_ID` / `APPLE_API_ISSUER` | repo secrets | the key contents + its ids |
 | Azure Trusted Signing | see [`windows-signing.md`](./windows-signing.md) | `AZURE_TENANT_ID` / `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` (secrets) + the four `AZURE_SIGN_*` identifiers (secrets or repo variables) |
-| GHCR `syrus-local` package visibility | github.com/users/tkadauke/packages | **must be public** — every end user's install pulls it anonymously |
+| GHCR `syrus-backend` package visibility | Package settings → Change visibility | **must be public** — every end user's install pulls it anonymously. New packages are private; flip it once after the first CI publish creates it. |
+
+**No GHCR token needed.** The backend image publishes with the workflow's
+built-in `GITHUB_TOKEN` — no PAT, no `GHCR_TOKEN` secret. This works because the
+`syrus-backend` package is **connected** to this repo: a package born from a CI
+publish connects automatically (reinforced by the `org.opencontainers.image.source`
+label in the Dockerfile), which lets the repo's `GITHUB_TOKEN` push it, move
+`:latest`, and write the `:buildcache` (all the same package). The only GHCR
+one-time action is making the package **public** after it first appears. (If a
+package ever pre-exists *unconnected* — e.g. created by a laptop `bin/publish-image`
+run — connect it manually via *Package settings → Manage Actions access → Add
+Repository → `tkadauke/syrus` → Write*; see
+[`release-troubleshooting.md`](./release-troubleshooting.md#62-publish-job-failures).)
 
 Validate both signing paths (Apple **and** Azure) without cutting a release
 with a **dry-run release**: **Actions → "Release" → Run workflow → check

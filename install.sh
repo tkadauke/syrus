@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Install Syrus on this Mac. Two ways to run it:
 #
-#   --docker       Pull the prebuilt image (ghcr.io/tkadauke/syrus-local) and
+#   --docker       Pull the prebuilt image (ghcr.io/tkadauke/syrus-backend) and
 #                  start web + worker with Compose. Nothing compiles. Installs and
 #                  launches OrbStack automatically if no container runtime is
 #                  present (prefers an existing Docker Desktop/Colima).
@@ -265,7 +265,7 @@ run_docker() {
   if [ "$START_AFTER" = "1" ]; then
     info "(--start is ignored for --docker; the Compose stack always starts.)"
   fi
-  IMAGE="${IMAGE_OVERRIDE:-${SYRUS_IMAGE:-ghcr.io/tkadauke/syrus-local:latest}}"
+  IMAGE="${IMAGE_OVERRIDE:-${SYRUS_IMAGE:-ghcr.io/tkadauke/syrus-backend:latest}}"
   export SYRUS_IMAGE="$IMAGE"
   # Belt-and-braces alongside the compose file's `name: syrus`: keeps the
   # `syrus_` volume prefix stable for docker-compose v1 and odd invocation dirs.
