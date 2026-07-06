@@ -353,6 +353,14 @@ across web/worker processes.
   paths; all other routes require an explicit entry. When adding a new React
   route, add the Rails counterpart in the same PR. Reviewers should check both
   files.
+- **Frontend i18n** — all user-visible strings in the SPA use i18next. Use the
+  `useT` hook (`app/frontend/hooks/useT.ts`, a re-export of `useTranslation`) and
+  pick the right namespace (`common`, `nav`, `jobs`, `epics`, `dashboard`, `chat`,
+  `settings`, `admin`). Locale files live under
+  `app/frontend/i18n/locales/{en,de,la}/`. When adding new strings, add them to
+  all three locales. Backend: `User#locale` drives `I18n.locale` per request via
+  `ApplicationController#switch_locale`; `User::LOCALES` is the source of truth
+  for valid values.
 - **Go CLI** lives under `cli/` and talks to the app-scoped JSON API
   (`/api/v1/app/*`). Keep CLI commands, API serializers/controllers, and
   `website/src/content/docs/api.md` aligned when changing terminal-visible
@@ -360,7 +368,9 @@ across web/worker processes.
   chat plus Job, Epic, repository, schedule, checkout, inbox, test-plan,
   approval, and identity workflows; repo-aware commands should detect `origin`,
   scope to that repo by default, and refuse checkout changes when the local repo
-  mismatches.
+  mismatches. Job and Epic identifiers are accepted as numeric IDs, `JOB-N`/`EPIC-N`
+  prefixes, or human-readable slugs; use the `JobEpicRefFinder` concern
+  (included in both app and admin base controllers) to resolve them server-side.
 - **Desktop app** lives under `desktop/` as a separate Electron + React + Vite
   app. It uses Tailwind too, but it does not share the Rails web app's compiled
   CSS or components at runtime. Keep the desktop UI visually aligned with the
@@ -371,10 +381,11 @@ across web/worker processes.
   `desktop/src/styles.css` (especially global `button` rules) because the tray
   surface relies on small, explicit controls. Prefer explicit local primitives
   such as `primary-button`, `secondary-button`, `icon-button`, and status pills.
-  Test desktop changes with `npm --prefix desktop run typecheck`,
-  `npm --prefix desktop run build:renderer`, and
-  `npm --prefix desktop run build:main`; run the desktop RSpec startup spec when
-  Electron main/preload code changes.
+  Ships on macOS (universal arm64+x64 DMG) and Windows (x64-only installer;
+  Windows on ARM runs via built-in x64 emulation). Test desktop changes with
+  `npm --prefix desktop run typecheck`, `npm --prefix desktop run build:renderer`,
+  and `npm --prefix desktop run build:main`; run the desktop RSpec startup spec
+  when Electron main/preload code changes.
 - **Brand palette (terracotta).** The product accent is the terracotta of the
   winged-stylus brand mark (`#b6492e` at 600). `config/tailwind.config.js`
   defines the `terracotta` scale and remaps Tailwind's `blue` scale onto the
