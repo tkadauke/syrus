@@ -4,8 +4,10 @@ import { Link, useLocation, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { fetchProfile, fetchProfiles, type TeamProfileActivity, type TeamProfileCounts, type TeamProfileDetail, type TeamProfileEpic, type TeamProfileJob, type TeamProfileRepository, type TeamProfileSummary } from "../api/profiles"
 import { StatusPill } from "../components/StatusPill"
+import { useT } from "../hooks/useT"
 
 export function TeamDirectoryRoute() {
+  const { t } = useT("settings")
   const location = useLocation()
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const profiles = useQuery({
@@ -16,12 +18,12 @@ export function TeamDirectoryRoute() {
   return (
     <main aria-label="Team directory" className="mx-auto max-w-[96rem] space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Team directory</h1>
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{/* TODO: missing i18n key */}Team directory</h1>
       </header>
 
-      {profiles.isPending ? <PanelMessage>Loading profiles...</PanelMessage> : null}
+      {profiles.isPending ? <PanelMessage>{/* TODO: missing i18n key */}Loading profiles...</PanelMessage> : null}
       {profiles.isError ? <ProfilesError error={profiles.error} /> : null}
-      {profiles.isSuccess && profiles.data.team_user_count <= 1 ? <PanelMessage>Only one user exists on this Syrus instance.</PanelMessage> : null}
+      {profiles.isSuccess && profiles.data.team_user_count <= 1 ? <PanelMessage>{/* TODO: missing i18n key */}Only one user exists on this Syrus instance.</PanelMessage> : null}
       {profiles.isSuccess && profiles.data.team_user_count > 1 ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {profiles.data.profiles.map((profile) => <ProfileCard key={profile.id} prefix={prefix} profile={profile} />)}
@@ -32,6 +34,7 @@ export function TeamDirectoryRoute() {
 }
 
 export function TeamProfileRoute() {
+  const { t } = useT("settings")
   const { id } = useParams()
   const location = useLocation()
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
@@ -44,10 +47,10 @@ export function TeamProfileRoute() {
   return (
     <main aria-label="Team profile" className="mx-auto max-w-[96rem] space-y-6 p-6">
       <header>
-        <Link className="text-sm text-blue-600 dark:text-blue-400 underline hover:no-underline" to={`${prefix}/profiles`}>Team directory</Link>
+        <Link className="text-sm text-blue-600 dark:text-blue-400 underline hover:no-underline" to={`${prefix}/profiles`}>{/* TODO: missing i18n key */}Team directory</Link>
       </header>
 
-      {profile.isPending ? <PanelMessage>Loading profile...</PanelMessage> : null}
+      {profile.isPending ? <PanelMessage>{/* TODO: missing i18n key */}Loading profile...</PanelMessage> : null}
       {profile.isError ? <ProfilesError error={profile.error} /> : null}
       {profile.isSuccess ? <ProfileDetail prefix={prefix} profile={profile.data.profile} /> : null}
     </main>
@@ -55,6 +58,7 @@ export function TeamProfileRoute() {
 }
 
 function ProfileCard({ profile, prefix }: { profile: TeamProfileSummary; prefix: string }) {
+  const { t } = useT("settings")
   return (
     <article className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
       <div className="flex items-start gap-3">
@@ -74,6 +78,7 @@ function ProfileCard({ profile, prefix }: { profile: TeamProfileSummary; prefix:
 }
 
 function ProfileDetail({ profile, prefix }: { profile: TeamProfileDetail; prefix: string }) {
+  const { t } = useT("settings")
   return (
     <>
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
@@ -101,6 +106,7 @@ function ProfileDetail({ profile, prefix }: { profile: TeamProfileDetail; prefix
 }
 
 function Counts({ counts }: { counts: TeamProfileCounts }) {
+  const { t } = useT("settings")
   return (
     <dl className="mt-4 grid grid-cols-4 gap-2 text-center text-xs">
       <Count label="Repos" value={counts.repositories} />
@@ -112,6 +118,7 @@ function Counts({ counts }: { counts: TeamProfileCounts }) {
 }
 
 function Count({ label, value }: { label: string; value: number }) {
+  const { t } = useT("settings")
   return (
     <div className="rounded border border-gray-200 dark:border-gray-700 px-2 py-2">
       <dt className="text-gray-500 dark:text-gray-400">{label}</dt>
@@ -121,6 +128,7 @@ function Count({ label, value }: { label: string; value: number }) {
 }
 
 function SummaryList<T>({ title, empty, items, renderItem }: { title: string; empty: string; items: T[]; prefix: string; renderItem: (item: T) => ReactNode }) {
+  const { t } = useT("settings")
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
       <h2 className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">{title}</h2>
@@ -134,6 +142,7 @@ function SummaryList<T>({ title, empty, items, renderItem }: { title: string; em
 }
 
 function EpicRow({ epic, prefix }: { epic: TeamProfileEpic; prefix: string }) {
+  const { t } = useT("settings")
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
@@ -146,6 +155,7 @@ function EpicRow({ epic, prefix }: { epic: TeamProfileEpic; prefix: string }) {
 }
 
 function JobRow({ job, prefix }: { job: TeamProfileJob; prefix: string }) {
+  const { t } = useT("settings")
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
@@ -161,6 +171,7 @@ function JobRow({ job, prefix }: { job: TeamProfileJob; prefix: string }) {
 }
 
 function OwnerProfileLink({ owner, prefix }: { owner: NonNullable<TeamProfileJob["owner"]>; prefix: string }) {
+  const { t } = useT("settings")
   return (
     <Link className="rounded bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 font-medium text-gray-600 dark:text-gray-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline" to={withRoutePrefix(owner.profile_path, prefix)}>
       {owner.display_name}
@@ -169,10 +180,12 @@ function OwnerProfileLink({ owner, prefix }: { owner: NonNullable<TeamProfileJob
 }
 
 function RepositoryRow({ repository, prefix }: { repository: TeamProfileRepository; prefix: string }) {
+  const { t } = useT("settings")
   return <Link className="font-mono text-sm text-blue-600 dark:text-blue-400 hover:underline" to={withRoutePrefix(repository.path, prefix)}>{repository.slug}</Link>
 }
 
 function ActivityRow({ activity, prefix }: { activity: TeamProfileActivity; prefix: string }) {
+  const { t } = useT("settings")
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
@@ -185,6 +198,7 @@ function ActivityRow({ activity, prefix }: { activity: TeamProfileActivity; pref
 }
 
 function Avatar({ avatarUrl, displayName, size = "normal" }: { avatarUrl: string | null; displayName: string; size?: "normal" | "large" }) {
+  const { t } = useT("settings")
   const dimension = size === "large" ? "h-20 w-20 text-2xl" : "h-12 w-12 text-base"
   const initials = displayName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "U"
 
@@ -196,10 +210,12 @@ function Avatar({ avatarUrl, displayName, size = "normal" }: { avatarUrl: string
 }
 
 function PanelMessage({ children }: { children: ReactNode }) {
+  const { t } = useT("settings")
   return <div className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 text-sm text-gray-600 dark:text-gray-400">{children}</div>
 }
 
 function ProfilesError({ error }: { error: Error }) {
+  const { t } = useT("settings")
   const message = error instanceof ApiError ? error.message : "Unable to load profiles."
   return <div className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-4 text-sm text-red-700 dark:text-red-300" role="alert">{message}</div>
 }

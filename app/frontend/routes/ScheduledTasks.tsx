@@ -6,6 +6,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { buttonClass } from "../lib/buttonClasses"
 import { NoticeToast } from "../components/NoticeToast"
+import { useT } from "../hooks/useT"
 import {
   archiveScheduledTask,
   createScheduledTask,
@@ -36,6 +37,7 @@ const fallbackOptions: ScheduledTaskOptions = {
 const cronHelpText = "Five fields in UTC: minute hour day-of-month month day-of-week. Examples: 0 9 * * 1 for Mondays at 09:00; 30 14 * * * for every day at 14:30."
 
 export function ScheduledTasksIndex() {
+  const { t } = useT("settings")
   const location = useLocation()
   const prefix = routePrefix(location.pathname)
   const tasks = useQuery({
@@ -46,11 +48,13 @@ export function ScheduledTasksIndex() {
   return (
     <main aria-label="Scheduled tasks" className="mx-auto max-w-[96rem] space-y-6 p-6">
       <header>
+        {/* TODO: missing i18n key */}
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Scheduled tasks</h1>
+        {/* TODO: missing i18n key */}
         <p className="mt-1 max-w-2xl text-sm text-gray-600 dark:text-gray-400">Recurring and one-shot agent prompts attached to repositories.</p>
       </header>
 
-      {tasks.isPending ? <PanelMessage>Loading scheduled tasks...</PanelMessage> : null}
+      {tasks.isPending ? <PanelMessage>{t("scheduled_tasks.loading")}</PanelMessage> : null}
       {tasks.isError ? <ScheduledTasksError error={tasks.error} /> : null}
       {tasks.isSuccess ? (
         <>
@@ -181,6 +185,7 @@ function TaskSection({ title, tasks, empty, basePath, prefix }: { title: string;
 }
 
 function TaskDetail({ payload, basePath, prefix }: { payload: ScheduledTaskDetailPayload; basePath: string; prefix: string }) {
+  const { t } = useT("settings")
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [notice, setNotice] = useState<string | null>(payload.message || null)
@@ -221,7 +226,7 @@ function TaskDetail({ payload, basePath, prefix }: { payload: ScheduledTaskDetai
       </header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, "Unable to update scheduled task.")}</PanelMessage> : null}
+      {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("scheduled_tasks.error_update"))}</PanelMessage> : null}
       {archive.isError ? <PanelMessage tone="error">{errorMessage(archive.error, "Unable to archive scheduled task.")}</PanelMessage> : null}
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">

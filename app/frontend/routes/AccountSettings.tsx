@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react"
 import { useLocation } from "react-router-dom"
 import i18n from "../i18n"
 import { ApiError } from "../api/client"
+import { useT } from "../hooks/useT"
 import { openInNewTab } from "../lib/desktopShell"
 import { NoticeToast } from "../components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
@@ -28,22 +29,27 @@ const queryKey = ["credentials"] as const
 type AccountSettingsSection = "profile" | "credentials" | "agent" | "preferences"
 
 export function CredentialsRoute() {
+  const { t } = useT("settings")
   return <AccountSettingsPage description="Encrypted provider and GitHub credentials for Syrus runs." label="Credentials" section="credentials" />
 }
 
 export function AccountProfileRoute() {
+  const { t } = useT("settings")
   return <AccountSettingsPage description="Your public team profile details." label="Profile" section="profile" />
 }
 
 export function AgentSettingsRoute() {
+  const { t } = useT("settings")
   return <AccountSettingsPage description="Default agent behavior for new Syrus work." label="Agent Settings" section="agent" />
 }
 
 export function PreferencesRoute() {
+  const { t } = useT("settings")
   return <AccountSettingsPage description="Account-level behavior preferences." label="Preferences" section="preferences" />
 }
 
 function AccountSettingsPage({ description, label, section }: { description: string; label: string; section: AccountSettingsSection }) {
+  const { t } = useT("settings")
   const [notice, setNotice] = useState<string | null>(null)
 
   return (
@@ -60,6 +66,7 @@ function AccountSettingsPage({ description, label, section }: { description: str
 }
 
 function CredentialsAccountPanel({ onNotice, section }: { onNotice: (message: string | null) => void; section: AccountSettingsSection }) {
+  const { t } = useT("settings")
   const credentials = useQuery({
     queryKey,
     queryFn: fetchCredentials
@@ -71,7 +78,7 @@ function CredentialsAccountPanel({ onNotice, section }: { onNotice: (message: st
 
   return (
     <>
-      {credentials.isPending ? <PanelMessage>Loading credentials...</PanelMessage> : null}
+      {credentials.isPending ? <PanelMessage>{/* TODO: missing i18n key */}Loading credentials...</PanelMessage> : null}
       {credentials.isError ? <CredentialsError error={credentials.error} /> : null}
       {credentials.isSuccess ? <CredentialsView onNotice={onNotice} payload={credentials.data} section={section} /> : null}
     </>
@@ -79,6 +86,7 @@ function CredentialsAccountPanel({ onNotice, section }: { onNotice: (message: st
 }
 
 function CredentialsView({ payload, onNotice, section }: { payload: CredentialsPayload; onNotice: (message: string | null) => void; section: AccountSettingsSection }) {
+  const { t } = useT("settings")
   const location = useLocation()
   const setupStatus = useSetupStatus()
   const prefix = routePrefix(location.pathname)
@@ -101,12 +109,16 @@ function CredentialsView({ payload, onNotice, section }: { payload: CredentialsP
 }
 
 function GithubCredentialGuide() {
+  const { t } = useT("settings")
   return (
     <section className="rounded border border-blue-100 dark:border-blue-900/60 bg-blue-50 dark:bg-blue-950/40 p-4 text-sm text-blue-950 dark:text-blue-100">
+      {/* TODO: missing i18n key */}
       <h2 className="font-medium">GitHub access</h2>
+      {/* TODO: missing i18n key */}
       <p className="mt-1">
         A personal access token is the fallback credential for repositories without an active Syrus GitHub App installation. If an admin registers and installs the App on a repository, Syrus uses the App for that repository instead.
       </p>
+      {/* TODO: missing i18n key */}
       <p className="mt-1 text-xs text-blue-800 dark:text-blue-200">
         Keep a PAT configured for PAT-only repositories and GitHub owner/repository pickers.
       </p>
@@ -115,6 +127,7 @@ function GithubCredentialGuide() {
 }
 
 function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsPayload; onNotice: (message: string | null) => void; section: AccountSettingsSection }) {
+  const { t } = useT("settings")
   const queryClient = useQueryClient()
   const [values, setValues] = useState<CredentialsInput>(inputFromPayload(payload))
   const roleOptions = payload.options.roles || ["developer", "product_owner"]
@@ -310,8 +323,8 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
         {section === "credentials" ? (
           <Field label="Codex authentication">
             <select className={inputClass()} onChange={(event) => setValues({ ...values, codex_auth_mode: event.target.value })} value={values.codex_auth_mode}>
-              <option value="api_key">API key</option>
-              <option value="chatgpt_login">ChatGPT auth.json</option>
+              <option value="api_key">{/* TODO: missing i18n key */}API key</option>
+              <option value="chatgpt_login">{/* TODO: missing i18n key */}ChatGPT auth.json</option>
             </select>
           </Field>
         ) : null}
@@ -319,7 +332,7 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
         {section === "credentials" && payload.options.chat_providers.length > 0 ? (
           <Field label="Chat provider">
             <select className={inputClass()} onChange={(event) => setValues({ ...values, chat_provider: event.target.value })} value={values.chat_provider}>
-              <option disabled value="">Select a configured provider</option>
+              <option disabled value="">{/* TODO: missing i18n key */}Select a configured provider</option>
               {payload.options.chat_providers.map((provider) => <option key={provider} value={provider}>{titleize(provider)}</option>)}
             </select>
           </Field>
@@ -378,6 +391,7 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
               onTest={() => test.mutate("github_token")}
               value={values.github_token}
             />
+            {/* TODO: missing i18n key */}
             <p className="-mt-3 text-xs text-gray-500 dark:text-gray-400">
               Syrus uses a GitHub App installation when one is active for a repository owner. Repositories without an active installation use this PAT as the fallback credential.
             </p>
@@ -418,9 +432,9 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
               }}
               value={values.locale}
             >
-              <option value="en">English</option>
-              <option value="de">Deutsch</option>
-              <option value="la">Latina</option>
+              <option value="en">{/* TODO: missing i18n key */}English</option>
+              <option value="de">{/* TODO: missing i18n key */}Deutsch</option>
+              <option value="la">{/* TODO: missing i18n key */}Latina</option>
             </select>
           </Field>
         ) : null}
@@ -435,7 +449,9 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
               type="checkbox"
             />
             <span>
+              {/* TODO: missing i18n key */}
               <span className="block font-medium text-gray-700 dark:text-gray-300">Pause scheduling</span>
+              {/* TODO: missing i18n key */}
               <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">Prevents your scheduled tasks from firing automatically.</span>
             </span>
           </label>
@@ -459,12 +475,15 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
 }
 
 function ClaudeTokenHelp({ onConnected }: { onConnected: (result: CredentialTestResult) => void }) {
+  const { t } = useT("settings")
   return (
     <div className="mt-3 space-y-3">
       <ClaudeOauthConnector onConnected={onConnected} />
+      {/* TODO: missing i18n key */}
       <p className="text-xs leading-5 text-gray-500 dark:text-gray-400">
         You can also run <code className="font-mono text-gray-700 dark:text-gray-300">claude setup-token</code> and paste the long-lived token it prints. Syrus stores this value and passes it as <code className="font-mono text-gray-700 dark:text-gray-300">CLAUDE_CODE_OAUTH_TOKEN</code> for Claude runs. Do not paste the short-lived token from Claude Code's local credential store. See the{" "}
         <a className="font-medium text-blue-700 dark:text-blue-300 underline hover:text-blue-600 dark:hover:text-blue-400" href="https://code.claude.com/docs/en/authentication#generate-a-long-lived-token" rel="noreferrer" target="_blank">
+          {/* TODO: missing i18n key */}
           Anthropic authentication docs
         </a>
         .
@@ -474,6 +493,7 @@ function ClaudeTokenHelp({ onConnected }: { onConnected: (result: CredentialTest
 }
 
 function ClaudeOauthConnector({ onConnected }: { onConnected: (result: CredentialTestResult) => void }) {
+  const { t } = useT("settings")
   const queryClient = useQueryClient()
   const [authStarted, setAuthStarted] = useState(false)
   const [popupBlocked, setPopupBlocked] = useState<string | null>(null)
@@ -526,6 +546,7 @@ function ClaudeOauthConnector({ onConnected }: { onConnected: (result: Credentia
 
   return (
     <div className="rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950/40 p-3 text-xs text-gray-600 dark:text-gray-400">
+      {/* TODO: missing i18n key */}
       <p>
         Authorize with Claude, copy the code Claude shows, then paste it here to save a durable OAuth token for Syrus runs.
       </p>
@@ -560,8 +581,10 @@ function ClaudeOauthConnector({ onConnected }: { onConnected: (result: Credentia
       </div>
       {popupBlocked ? (
         <p className="mt-2 text-amber-700 dark:text-amber-300">
+          {/* TODO: missing i18n key */}
           Popup blocked.{" "}
           <a className="font-medium underline" href={popupBlocked} rel="noreferrer" target="_blank">
+            {/* TODO: missing i18n key */}
             Open the authorization page
           </a>{" "}
           manually.
@@ -610,11 +633,13 @@ function CodexChatGptLogin({
   onClear: () => void
   onTest: () => void
 }) {
+  const { t } = useT("settings")
   const manualUnsaved = manualValue.trim().length > 0
   const exchangeDisabled = exchangePending || authCode.trim().length === 0
 
   return (
     <div className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+      {/* TODO: missing i18n key */}
       <div>Codex ChatGPT login</div>
       <StatusLine set={set} />
       <div className="mt-3 space-y-3 rounded border border-gray-200 dark:border-gray-700 p-3">
@@ -629,6 +654,7 @@ function CodexChatGptLogin({
           </button>
           {set ? (
             <button className="rounded border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/50 disabled:text-red-300 dark:disabled:text-red-500" disabled={clearPending} onClick={onClear} type="button">
+              {/* TODO: missing i18n key */}
               Clear
             </button>
           ) : null}
@@ -638,15 +664,17 @@ function CodexChatGptLogin({
         </div>
         {popupBlockedUrl ? (
           <p className="text-xs text-amber-600 dark:text-amber-300">
+            {/* TODO: missing i18n key */}
             Popup blocked.{" "}
             <a className="font-medium underline" href={popupBlockedUrl} rel="noreferrer" target="_blank">
+              {/* TODO: missing i18n key */}
               Open authorization
             </a>
             .
           </p>
         ) : null}
         {autoConnecting ? (
-          <p className="text-xs text-gray-500 dark:text-gray-400">Connecting...</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{/* TODO: missing i18n key */}Connecting...</p>
         ) : null}
         <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
           <input
@@ -671,9 +699,10 @@ function CodexChatGptLogin({
       </div>
 
       <details className="mt-3 rounded border border-gray-200 dark:border-gray-700 p-3">
-        <summary className="cursor-pointer text-sm text-gray-700 dark:text-gray-300">Paste auth.json manually</summary>
+        <summary className="cursor-pointer text-sm text-gray-700 dark:text-gray-300">{/* TODO: missing i18n key */}Paste auth.json manually</summary>
         <div className="mt-3 space-y-2">
           <textarea aria-label="Codex ChatGPT auth.json" className={`${inputClass()} font-mono text-xs`} name="codex_auth_json" onChange={(event) => onManualChange(event.target.value)} rows={6} value={manualValue} />
+          {/* TODO: missing i18n key */}
           <p className="text-xs text-gray-500 dark:text-gray-400">Save after pasting a local Codex auth.json value.</p>
         </div>
       </details>
@@ -708,6 +737,7 @@ function SecretField({
   onClear: () => void
   onTest: () => void
 }) {
+  const { t } = useT("settings")
   return (
     <Field label={label}>
       <StatusLine set={set} />
@@ -718,6 +748,7 @@ function SecretField({
         </button>
         {set ? (
           <button className="rounded border border-gray-300 dark:border-gray-600 px-3 text-sm text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/50 disabled:text-red-300 dark:disabled:text-red-500" disabled={clearPending} onClick={onClear} type="button">
+            {/* TODO: missing i18n key */}
             Clear
           </button>
         ) : null}
@@ -753,6 +784,7 @@ function SecretTextArea({
   onClear: () => void
   onTest: () => void
 }) {
+  const { t } = useT("settings")
   return (
     <Field label={label}>
       <StatusLine set={set} />
@@ -764,6 +796,7 @@ function SecretTextArea({
           </button>
           {set ? (
             <button className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/50 disabled:text-red-300 dark:disabled:text-red-500" disabled={clearPending} onClick={onClear} type="button">
+              {/* TODO: missing i18n key */}
               Clear
             </button>
           ) : null}
@@ -775,6 +808,7 @@ function SecretTextArea({
 }
 
 function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onNotice: (message: string | null) => void }) {
+  const { t } = useT("settings")
   const queryClient = useQueryClient()
   const [newToken, setNewToken] = useState(payload.new_api_token || "")
   const rotate = useMutation({
@@ -796,18 +830,21 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
+      {/* TODO: missing i18n key */}
       <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">API token</h2>
+      {/* TODO: missing i18n key */}
       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Admin token for `/api/v1/admin/*` automation. Plaintext is shown once after rotation.</p>
 
       {newToken ? (
         <div className="mt-3 rounded border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 p-3">
+          {/* TODO: missing i18n key */}
           <div className="text-xs font-medium uppercase text-emerald-700 dark:text-emerald-300">New token</div>
           <code className="mt-1 block break-all font-mono text-sm">{newToken}</code>
         </div>
       ) : payload.credential_status.api_token ? (
-        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">A token is set.</p>
+        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{/* TODO: missing i18n key */}A token is set.</p>
       ) : (
-        <p className="mt-3 text-xs text-amber-600 dark:text-amber-300">No token issued yet.</p>
+        <p className="mt-3 text-xs text-amber-600 dark:text-amber-300">{/* TODO: missing i18n key */}No token issued yet.</p>
       )}
 
       {rotate.isError ? <PanelMessage tone="error">{errorMessage(rotate.error, "Unable to rotate API token.")}</PanelMessage> : null}
@@ -835,6 +872,7 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
             }}
             type="button"
           >
+            {/* TODO: missing i18n key */}
             Revoke
           </button>
         ) : null}
@@ -844,6 +882,7 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
+  const { t } = useT("settings")
   return (
     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
       {label}
@@ -853,16 +892,18 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function StatusLine({ set }: { set: boolean }) {
+  const { t } = useT("settings")
   return set ? (
-    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Currently set. Submit a new value to replace.</p>
+    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{/* TODO: missing i18n key */}Currently set. Submit a new value to replace.</p>
   ) : (
-    <p className="mt-1 text-xs text-amber-600 dark:text-amber-300">Not set.</p>
+    <p className="mt-1 text-xs text-amber-600 dark:text-amber-300">{/* TODO: missing i18n key */}Not set.</p>
   )
 }
 
 function CredentialTestLine({ result, unsaved }: { result?: CredentialTestResult; unsaved: boolean }) {
+  const { t } = useT("settings")
   if (unsaved) {
-    return <p className="mt-2 text-xs text-amber-600 dark:text-amber-300">Save changes before testing this credential.</p>
+    return <p className="mt-2 text-xs text-amber-600 dark:text-amber-300">{/* TODO: missing i18n key */}Save changes before testing this credential.</p>
   }
 
   if (!result) return null
@@ -877,22 +918,26 @@ function CredentialTestLine({ result, unsaved }: { result?: CredentialTestResult
 }
 
 function GithubRateLimit({ payload }: { payload: CredentialsPayload }) {
+  const { t } = useT("settings")
   if (!payload.github_rate_limit) {
-    return <p className="text-xs text-gray-400 dark:text-gray-500">GitHub quota not yet recorded.</p>
+    return <p className="text-xs text-gray-400 dark:text-gray-500">{/* TODO: missing i18n key */}GitHub quota not yet recorded.</p>
   }
 
   return (
     <p className="text-xs text-gray-500 dark:text-gray-400">
+      {/* TODO: missing i18n key */}
       GitHub API quota: <strong>{payload.github_rate_limit.remaining}</strong> / {payload.github_rate_limit.limit} remaining ({payload.github_rate_limit.resource} bucket).
     </p>
   )
 }
 
 function CredentialsError({ error }: { error: Error }) {
+  const { t } = useT("settings")
   return <PanelMessage tone="error">{errorMessage(error, "Unable to load credentials.")}</PanelMessage>
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
+  const { t } = useT("settings")
   const colors = {
     error: "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300",
     success: "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300",

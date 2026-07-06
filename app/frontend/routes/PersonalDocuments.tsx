@@ -10,10 +10,12 @@ import {
   type PersonalDocument,
   type PersonalDocumentsPayload
 } from "../api/credentials"
+import { useT } from "../hooks/useT"
 
 const queryKey = ["personal-documents"] as const
 
 export function PersonalDocumentsRoute() {
+  const { t } = useT("settings")
   const documents = useQuery({
     queryKey,
     queryFn: fetchCredentialDocuments
@@ -22,11 +24,20 @@ export function PersonalDocumentsRoute() {
   return (
     <main aria-label="Personal documents" className="mx-auto max-w-4xl space-y-6 p-6">
       <header>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Personal documents</h1>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Account-scoped context available to your Syrus runs.</p>
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+          {/* TODO: missing i18n key */}
+          Personal documents
+        </h1>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+          {/* TODO: missing i18n key */}
+          Account-scoped context available to your Syrus runs.
+        </p>
       </header>
 
-      {documents.isPending ? <PanelMessage>Loading personal documents...</PanelMessage> : null}
+      {documents.isPending ? <PanelMessage>
+        {/* TODO: missing i18n key */}
+        Loading personal documents...
+      </PanelMessage> : null}
       {documents.isError ? <DocumentsError error={documents.error} /> : null}
       {documents.isSuccess ? <PersonalDocumentsView payload={documents.data} /> : null}
     </main>
@@ -34,6 +45,7 @@ export function PersonalDocumentsRoute() {
 }
 
 function PersonalDocumentsView({ payload }: { payload: PersonalDocumentsPayload }) {
+  const { t } = useT("settings")
   const [notice, setNotice] = useState<string | null>(payload.message || null)
 
   return (
@@ -45,6 +57,7 @@ function PersonalDocumentsView({ payload }: { payload: PersonalDocumentsPayload 
 }
 
 function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPayload; onNotice: (message: string | null) => void }) {
+  const { t } = useT("settings")
   const queryClient = useQueryClient()
   const [files, setFiles] = useState<File[]>([])
   const [googleDocUrl, setGoogleDocUrl] = useState("")
@@ -75,15 +88,24 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Documents</h2>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Attach files or Google Docs that should follow your account.</p>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+            {/* TODO: missing i18n key */}
+            Documents
+          </h2>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {/* TODO: missing i18n key */}
+            Attach files or Google Docs that should follow your account.
+          </p>
         </div>
         <span className="text-xs text-gray-500 dark:text-gray-400">{payload.documents.length}</span>
       </div>
 
       <div className="mt-4 divide-y divide-gray-200 dark:divide-gray-700 rounded border border-gray-200 dark:border-gray-700">
         {payload.documents.length === 0 ? (
-          <p className="p-4 text-sm text-gray-500 dark:text-gray-400">No personal documents yet.</p>
+          <p className="p-4 text-sm text-gray-500 dark:text-gray-400">
+            {/* TODO: missing i18n key */}
+            No personal documents yet.
+          </p>
         ) : payload.documents.map((document) => (
           <div className="flex items-center justify-between gap-3 p-3" key={document.id}>
             <DocumentSummary document={document} />
@@ -95,6 +117,7 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
               }}
               type="button"
             >
+              {/* TODO: missing i18n key */}
               Delete
             </button>
           </div>
@@ -116,7 +139,17 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
           <input className={inputClass()} onChange={(event) => setGoogleDocUrl(event.target.value)} placeholder="https://docs.google.com/document/d/..." type="url" value={googleDocUrl} />
         </Field>
         <button className="rounded bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:bg-gray-400" disabled={upload.isPending} type="submit">
-          {upload.isPending ? "Adding..." : "Add document"}
+          {upload.isPending ? (
+            <>
+              {/* TODO: missing i18n key */}
+              Adding...
+            </>
+          ) : (
+            <>
+              {/* TODO: missing i18n key */}
+              Add document
+            </>
+          )}
         </button>
       </form>
     </section>
@@ -124,24 +157,36 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
 }
 
 function DocumentSummary({ document }: { document: PersonalDocument }) {
+  const { t } = useT("settings")
   if (document.kind === "google_doc" && document.google_doc_url) {
     return (
       <div className="min-w-0">
         <a className="block truncate text-sm font-medium text-blue-700 dark:text-blue-300 hover:underline" href={document.google_doc_url} rel="noopener" target="_blank">{document.google_doc_url}</a>
-        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">Google Doc</div>
+        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {/* TODO: missing i18n key */}
+          Google Doc
+        </div>
       </div>
     )
   }
 
   return (
     <div className="min-w-0">
-      <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{document.filename || "File"}</div>
+      <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+        {document.filename || (
+          <>
+            {/* TODO: missing i18n key */}
+            File
+          </>
+        )}
+      </div>
       <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{document.content_type || "unknown"} · {formatBytes(document.byte_size)}</div>
     </div>
   )
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
+  const { t } = useT("settings")
   return (
     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
       {label}
@@ -151,10 +196,12 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function DocumentsError({ error }: { error: Error }) {
+  const { t } = useT("settings")
   return <PanelMessage tone="error">{errorMessage(error, "Unable to load personal documents.")}</PanelMessage>
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
+  const { t } = useT("settings")
   const colors = {
     error: "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300",
     success: "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300",

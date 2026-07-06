@@ -3,6 +3,7 @@ import type { FormEvent, ReactNode } from "react"
 import { useState } from "react"
 import { Link } from "react-router-dom"
 import { ApiError } from "../api/client"
+import { useT } from "../hooks/useT"
 import { NoticeToast } from "../components/NoticeToast"
 import {
   createTag,
@@ -17,6 +18,7 @@ import {
 const queryKey = ["tags"] as const
 
 export function Tags() {
+  const { t } = useT("settings")
   const [notice, setNotice] = useState<string | null>(null)
   const tags = useQuery({
     queryKey,
@@ -26,12 +28,14 @@ export function Tags() {
   return (
     <main aria-label="Tags" className="mx-auto max-w-6xl space-y-6 p-6">
       <header>
+        {/* TODO: missing i18n key */}
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Tags</h1>
+        {/* TODO: missing i18n key */}
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Global job labels scoped to your account.</p>
       </header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {tags.isPending ? <PanelMessage>Loading tags...</PanelMessage> : null}
+      {tags.isPending ? <PanelMessage>{/* TODO: missing i18n key */}Loading tags...</PanelMessage> : null}
       {tags.isError ? <TagsError error={tags.error} /> : null}
       {tags.isSuccess ? <TagsView onNotice={setNotice} payload={tags.data} /> : null}
     </main>
@@ -39,6 +43,7 @@ export function Tags() {
 }
 
 function TagsView({ payload, onNotice }: { payload: TagsPayload; onNotice: (message: string | null) => void }) {
+  const { t } = useT("settings")
   return (
     <>
       <CreateTagForm onNotice={onNotice} palette={payload.palette} />
@@ -48,6 +53,7 @@ function TagsView({ payload, onNotice }: { payload: TagsPayload; onNotice: (mess
 }
 
 function CreateTagForm({ palette, onNotice }: { palette: TagPaletteColor[]; onNotice: (message: string | null) => void }) {
+  const { t } = useT("settings")
   const queryClient = useQueryClient()
   const [name, setName] = useState("")
   const [color, setColor] = useState("gray")
@@ -69,9 +75,11 @@ function CreateTagForm({ palette, onNotice }: { palette: TagPaletteColor[]; onNo
 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+      {/* TODO: missing i18n key */}
       <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Create tag</h2>
       <form className="mt-3 flex flex-wrap items-end gap-3" onSubmit={submit}>
         <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor="new-tag-name">
+          {/* TODO: missing i18n key */}
           Name
           <input
             id="new-tag-name"
@@ -83,6 +91,7 @@ function CreateTagForm({ palette, onNotice }: { palette: TagPaletteColor[]; onNo
           />
         </label>
         <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor="new-tag-color">
+          {/* TODO: missing i18n key */}
           Color
           <select
             id="new-tag-color"
@@ -109,20 +118,21 @@ function CreateTagForm({ palette, onNotice }: { palette: TagPaletteColor[]; onNo
 }
 
 function TagsTable({ tags, palette, onNotice }: { tags: TagRow[]; palette: TagPaletteColor[]; onNotice: (message: string | null) => void }) {
+  const { t } = useT("settings")
   return (
     <section className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
         <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
           <tr>
-            <th className="px-4 py-2">Tag</th>
-            <th className="px-4 py-2">Jobs</th>
-            <th className="px-4 py-2">Rename / recolor</th>
+            <th className="px-4 py-2">{/* TODO: missing i18n key */}Tag</th>
+            <th className="px-4 py-2">{/* TODO: missing i18n key */}Jobs</th>
+            <th className="px-4 py-2">{/* TODO: missing i18n key */}Rename / recolor</th>
             <th className="px-4 py-2"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
           {tags.length === 0 ? (
-            <tr><td className="px-4 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={4}>No tags yet.</td></tr>
+            <tr><td className="px-4 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={4}>{/* TODO: missing i18n key */}No tags yet.</td></tr>
           ) : tags.map((tag) => (
             <TagTableRow key={tag.id} onNotice={onNotice} palette={palette} tag={tag} />
           ))}
@@ -133,6 +143,7 @@ function TagsTable({ tags, palette, onNotice }: { tags: TagRow[]; palette: TagPa
 }
 
 function TagTableRow({ tag, palette, onNotice }: { tag: TagRow; palette: TagPaletteColor[]; onNotice: (message: string | null) => void }) {
+  const { t } = useT("settings")
   const queryClient = useQueryClient()
   const [name, setName] = useState(tag.name)
   const [color, setColor] = useState(tag.color)
@@ -212,6 +223,7 @@ function TagTableRow({ tag, palette, onNotice }: { tag: TagRow; palette: TagPale
 }
 
 function TagChip({ tag, palette }: { tag: TagRow; palette: TagPaletteColor[] }) {
+  const { t } = useT("settings")
   const colors = tagColors(tag.color, palette)
 
   return (
@@ -222,10 +234,12 @@ function TagChip({ tag, palette }: { tag: TagRow; palette: TagPaletteColor[] }) 
 }
 
 function TagsError({ error }: { error: Error }) {
+  const { t } = useT("settings")
   return <PanelMessage tone="error">{errorMessage(error, "Unable to load tags.")}</PanelMessage>
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
+  const { t } = useT("settings")
   return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-400"}`}>{children}</div>
 }
 

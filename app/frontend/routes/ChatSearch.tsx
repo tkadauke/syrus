@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useMemo, useState, type FormEvent } from "react"
+import { useT } from "../hooks/useT"
 import { fetchChatSearch, fetchChatSearchMessages, type ChatSearchMatch, type ChatSearchPayload, type ChatSearchResult } from "../api/chats"
 import { getJson } from "../api/client"
 import { ChevronIcon } from "../components/ChevronIcon"
@@ -13,6 +14,7 @@ type FilterOptionsPayload = {
 const filterFields = ["q", "repository_id", "epic_id", "job_id"]
 
 export function ChatSearchRoute() {
+  const { t } = useT("chat")
   const location = useLocation()
   const search = location.search || ""
   const searchParams = new URLSearchParams(search)
@@ -33,6 +35,7 @@ export function ChatSearchRoute() {
   return (
     <main aria-label="Chat search" className="mx-auto max-w-[96rem] space-y-6 p-6">
       <header>
+        {/* TODO: missing i18n key */}
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Chat search</h1>
       </header>
 
@@ -47,6 +50,7 @@ export function ChatSearchRoute() {
         />
       </section>
 
+      {/* TODO: missing i18n key */}
       {!hasCriteria ? (
         <PanelMessage>Search your chats or filter by repository, epic, or job.</PanelMessage>
       ) : results.isPending ? (
@@ -61,7 +65,9 @@ export function ChatSearchRoute() {
 }
 
 function SearchResults({ payload, search }: { payload: ChatSearchPayload; search: string }) {
+  const { t } = useT("chat")
   if (payload.results.length === 0) {
+    // TODO: missing i18n key
     return <PanelMessage>No chats match this search.</PanelMessage>
   }
 
@@ -76,6 +82,7 @@ function SearchResults({ payload, search }: { payload: ChatSearchPayload; search
 }
 
 function SearchResultCard({ result, search }: { result: ChatSearchResult; search: string }) {
+  const { t } = useT("chat")
   const [expanded, setExpanded] = useState(false)
   const expandSearch = useMemo(() => {
     const params = new URLSearchParams(search)
@@ -108,16 +115,20 @@ function SearchResultCard({ result, search }: { result: ChatSearchResult; search
             type="button"
           >
             <ChevronIcon className={`h-4 w-4 transition-transform ${expanded ? "rotate-90" : ""}`} />
+            {/* TODO: missing i18n key */}
             <span className="sr-only">{expanded ? "Hide matches" : "Show matches"}</span>
           </button>
         ) : (
           <span className="h-6 w-6 shrink-0" aria-hidden="true" />
         )}
+        {/* TODO: missing i18n key */}
         <Snippet className="min-w-0 text-sm leading-6 text-gray-700 dark:text-gray-300" html={result.best_snippet || "No message snippet available."} />
       </div>
       {expanded ? (
         <div className="ml-8 mt-3 divide-y divide-gray-100 border-t border-gray-100 dark:divide-gray-800 dark:border-gray-800">
+          {/* TODO: missing i18n key */}
           {expandedMatches.isPending ? <div className="py-3 text-sm text-gray-500 dark:text-gray-400">Loading matches...</div> : null}
+          {/* TODO: missing i18n key */}
           {expandedMatches.isError ? <div className="py-3 text-sm text-red-700 dark:text-red-300">Unable to load matches.</div> : null}
           {expandedMatches.data?.matches.map((match) => (
             <MatchRow chatSessionId={result.chat_session_id} key={match.message_id} match={match} />
@@ -129,6 +140,7 @@ function SearchResultCard({ result, search }: { result: ChatSearchResult; search
 }
 
 function MatchRow({ chatSessionId, match }: { chatSessionId: number; match: ChatSearchMatch }) {
+  const { t } = useT("chat")
   const navigate = useNavigate()
 
   return (
@@ -145,10 +157,12 @@ function MatchRow({ chatSessionId, match }: { chatSessionId: number; match: Chat
 }
 
 function Snippet({ className, html }: { className: string; html: string }) {
+  const { t } = useT("chat")
   return <p className={className} dangerouslySetInnerHTML={{ __html: sanitizeSnippet(html) }} />
 }
 
 function SearchPagination({ page, perPage, total }: { page: number; perPage: number; total: number }) {
+  const { t } = useT("chat")
   const location = useLocation()
   const totalPages = Math.ceil(total / perPage)
   if (totalPages <= 1) return null
@@ -158,9 +172,12 @@ function SearchPagination({ page, perPage, total }: { page: number; perPage: num
 
   return (
     <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+      {/* TODO: missing i18n key */}
       <span>Showing {firstItem}-{lastItem} of {total}</span>
       <div className="flex gap-2">
+        {/* TODO: missing i18n key */}
         {page > 1 ? <Link className={paginationLinkClass()} to={pageLink(location.pathname, location.search, page - 1)}>Previous</Link> : <span className={disabledPaginationClass()}>Previous</span>}
+        {/* TODO: missing i18n key */}
         {page < totalPages ? <Link className={paginationLinkClass()} to={pageLink(location.pathname, location.search, page + 1)}>Next</Link> : <span className={disabledPaginationClass()}>Next</span>}
       </div>
     </div>
@@ -168,6 +185,7 @@ function SearchPagination({ page, perPage, total }: { page: number; perPage: num
 }
 
 function PanelMessage({ children, tone = "neutral" }: { children: string; tone?: "neutral" | "error" }) {
+  const { t } = useT("chat")
   const color = tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-500 dark:text-gray-400"
   return <div className={`rounded border border-gray-200 bg-white p-6 text-sm ${color} dark:border-gray-700 dark:bg-gray-900`}>{children}</div>
 }

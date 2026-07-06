@@ -4,15 +4,19 @@ import { useState } from "react"
 import { ApiError } from "../api/client"
 import { fetchHiddenChats, unhideChat, type HiddenChatRecord } from "../api/chats"
 import { NoticeToast } from "../components/NoticeToast"
+import { useT } from "../hooks/useT"
 
 export function HiddenChatsRoute() {
   const [notice, setNotice] = useState<string | null>(null)
+  const { t } = useT("chat")
 
   return (
     <main aria-label="Hidden chats" className="mx-auto max-w-4xl space-y-6 p-6">
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       <header>
+        {/* TODO: missing i18n key */}
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Hidden chats</h1>
+        {/* TODO: missing i18n key */}
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Restore chats hidden from the sidebar and chat search.</p>
       </header>
       <HiddenChatsPanel onNotice={setNotice} />
@@ -21,6 +25,7 @@ export function HiddenChatsRoute() {
 }
 
 function HiddenChatsPanel({ onNotice }: { onNotice: (message: string | null) => void }) {
+  const { t } = useT("chat")
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)
   const hiddenChats = useQuery({
@@ -49,9 +54,13 @@ function HiddenChatsPanel({ onNotice }: { onNotice: (message: string | null) => 
   return (
     <section className="rounded border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
       <div>
+        {/* TODO: missing i18n key */}
         {hiddenChats.isPending ? <PanelMessage>Loading hidden chats...</PanelMessage> : null}
+        {/* TODO: missing i18n key */}
         {hiddenChats.isError ? <PanelMessage tone="error">{errorMessage(hiddenChats.error, "Unable to load hidden chats.")}</PanelMessage> : null}
+        {/* TODO: missing i18n key */}
         {unhide.isError ? <PanelMessage tone="error">{errorMessage(unhide.error, "Unable to restore chat.")}</PanelMessage> : null}
+        {/* TODO: missing i18n key */}
         {payload && chats.length === 0 ? <PanelMessage>No hidden chats.</PanelMessage> : null}
         {payload && chats.length > 0 ? (
           <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700">
@@ -59,9 +68,11 @@ function HiddenChatsPanel({ onNotice }: { onNotice: (message: string | null) => 
               {chats.map((chat) => (
                 <div className="grid gap-3 px-4 py-3 text-sm sm:grid-cols-[1fr_auto] sm:items-center" key={chat.id}>
                   <div className="min-w-0">
-                    <div className="truncate font-medium text-gray-900 dark:text-gray-100">{chatTitle(chat)}</div>
+                    <div className="truncate font-medium text-gray-900 dark:text-gray-100">{chat.title || chat.repository?.slug || t("new_title")}</div>
                     <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                      {/* TODO: missing i18n key */}
                       <span>{chat.repository?.slug || "General"}</span>
+                      {/* TODO: missing i18n key */}
                       <span>Hidden {formatDateTime(chat.hidden_at)}</span>
                     </div>
                   </div>
@@ -71,6 +82,7 @@ function HiddenChatsPanel({ onNotice }: { onNotice: (message: string | null) => 
                     onClick={() => unhide.mutate(chat)}
                     type="button"
                   >
+                    {/* TODO: missing i18n key */}
                     {unhide.isPending && unhide.variables?.id === chat.id ? "Restoring..." : "Unhide"}
                   </button>
                 </div>
@@ -82,7 +94,9 @@ function HiddenChatsPanel({ onNotice }: { onNotice: (message: string | null) => 
 
       {payload && totalPages > 1 ? (
         <div className="mt-4 flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+          {/* TODO: missing i18n key */}
           <span>Showing {firstItem}-{lastItem} of {total}</span>
+          {/* TODO: missing i18n key */}
           <div className="flex gap-2">
             {currentPage > 1 ? (
               <button className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800" onClick={() => setPage((current) => Math.max(current - 1, 1))} type="button">Previous</button>

@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom"
 import { useState } from "react"
 import { fetchSearch, type SearchResult, type SearchResultType } from "../api/search"
 import { ChevronIcon } from "../components/ChevronIcon"
+import { useT } from "../hooks/useT"
 
 type SearchFilter = SearchResultType | "all"
 
@@ -32,6 +33,7 @@ const typeStyles: Record<SearchResultType, { border: string; badge: string; labe
 }
 
 export function SearchRoute() {
+  const { t } = useT("common")
   const location = useLocation()
   const params = new URLSearchParams(location.search)
   const query = params.get("q")?.trim() || ""
@@ -47,6 +49,7 @@ export function SearchRoute() {
     <main aria-label="Search" className="mx-auto max-w-[72rem] space-y-6 p-6">
       <header className="space-y-4">
         <div>
+          {/* TODO: missing i18n key */}
           <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Search</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{query ? `Results for "${query}"` : "Search jobs, epics, and chats."}</p>
         </div>
@@ -60,15 +63,15 @@ export function SearchRoute() {
       </header>
 
       {query.length === 0 ? (
-        <PanelMessage>Use the sidebar search field to search across Syrus.</PanelMessage>
+        <PanelMessage>{/* TODO: missing i18n key */}Use the sidebar search field to search across Syrus.</PanelMessage>
       ) : query.length < 2 ? (
-        <PanelMessage>Enter at least 2 characters to search.</PanelMessage>
+        <PanelMessage>{/* TODO: missing i18n key */}Enter at least 2 characters to search.</PanelMessage>
       ) : search.isPending ? (
         <SearchSkeleton />
       ) : search.isError ? (
-        <PanelMessage tone="error">Unable to load search results.</PanelMessage>
+        <PanelMessage tone="error">{/* TODO: missing i18n key */}Unable to load search results.</PanelMessage>
       ) : search.data.length === 0 ? (
-        <PanelMessage>No results match this search.</PanelMessage>
+        <PanelMessage>{/* TODO: missing i18n key */}No results match this search.</PanelMessage>
       ) : (
         <section className="divide-y divide-gray-200 overflow-hidden rounded border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-950">
           {search.data.map((result) => <SearchResultRow key={`${result.type}-${result.id}`} result={result} />)}
@@ -79,6 +82,7 @@ export function SearchRoute() {
 }
 
 function SearchResultRow({ result }: { result: SearchResult }) {
+  const { t } = useT("common")
   const location = useLocation()
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const styles = typeStyles[result.type]
@@ -109,6 +113,7 @@ function SearchResultRow({ result }: { result: SearchResult }) {
 }
 
 function GroupedChatMatches({ result, routePrefix }: { result: Extract<SearchResult, { type: "chat" }>; routePrefix: string }) {
+  const { t } = useT("common")
   const [expanded, setExpanded] = useState(false)
   const groupedMatches = result.grouped_matches || []
   const hiddenMatchCount = Math.max((result.total_match_count || groupedMatches.length + 1) - 1, groupedMatches.length)
@@ -123,9 +128,9 @@ function GroupedChatMatches({ result, routePrefix }: { result: Extract<SearchRes
         type="button"
       >
         <ChevronIcon className={`h-4 w-4 transition-transform ${expanded ? "rotate-90" : ""}`} />
-        {expanded ? "Hide" : "Show"} {groupedMatches.length} more {groupedMatches.length === 1 ? "match" : "matches"}
+        {expanded ? "Hide" : "Show"} {groupedMatches.length} {/* TODO: missing i18n key */}more {groupedMatches.length === 1 ? "match" : "matches"}
       </button>
-      {!expanded ? <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">{hiddenMatchCount} more {matchLabel} in this chat</span> : null}
+      {!expanded ? <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">{hiddenMatchCount} {/* TODO: missing i18n key */}more {matchLabel} {/* TODO: missing i18n key */}in this chat</span> : null}
       {expanded ? (
         <div className="mt-3 divide-y divide-gray-100 border-t border-gray-100 dark:divide-gray-800 dark:border-gray-800">
           {groupedMatches.map((match) => (
@@ -134,7 +139,7 @@ function GroupedChatMatches({ result, routePrefix }: { result: Extract<SearchRes
               {match.created_at ? <time className="mt-1 block text-xs text-gray-500 dark:text-gray-400" dateTime={match.created_at}>{formatDate(match.created_at)}</time> : null}
             </Link>
           ))}
-          {result.has_more_matches ? <div className="py-3 text-xs text-gray-500 dark:text-gray-400">Only the top {groupedMatches.length} additional matches are shown.</div> : null}
+          {result.has_more_matches ? <div className="py-3 text-xs text-gray-500 dark:text-gray-400">{/* TODO: missing i18n key */}Only the top {groupedMatches.length} additional matches are shown.</div> : null}
         </div>
       ) : null}
     </div>
@@ -142,6 +147,7 @@ function GroupedChatMatches({ result, routePrefix }: { result: Extract<SearchRes
 }
 
 function Snippet({ html }: { html: string }) {
+  const { t } = useT("common")
   return (
     <p
       className="mt-2 text-sm leading-6 text-gray-700 dark:text-gray-300 [&_mark]:rounded [&_mark]:bg-yellow-200 [&_mark]:px-0.5 [&_mark]:text-gray-950 dark:[&_mark]:bg-yellow-500/40 dark:[&_mark]:text-yellow-50"
@@ -151,6 +157,7 @@ function Snippet({ html }: { html: string }) {
 }
 
 function SearchSkeleton() {
+  const { t } = useT("common")
   return (
     <section aria-label="Loading search results" className="space-y-3">
       {[0, 1, 2, 3].map((index) => (
@@ -166,6 +173,7 @@ function SearchSkeleton() {
 }
 
 function PanelMessage({ children, tone = "neutral" }: { children: string; tone?: "neutral" | "error" }) {
+  const { t } = useT("common")
   const color = tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-500 dark:text-gray-400"
   return <div className={`rounded border border-gray-200 bg-white p-6 text-sm ${color} dark:border-gray-800 dark:bg-gray-950`}>{children}</div>
 }

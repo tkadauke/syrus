@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 import { useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { ApiError } from "../api/client"
+import { useT } from "../hooks/useT"
 import { NoticeToast } from "../components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import {
@@ -20,6 +21,7 @@ type RepositoryAction = {
 }
 
 export function RepositoriesIndex() {
+  const { t } = useT("settings")
   const location = useLocation()
   const repositories = useQuery({
     queryKey: ["repositories"],
@@ -29,7 +31,12 @@ export function RepositoriesIndex() {
 
   return (
     <main aria-label="Repositories" className="mx-auto max-w-[96rem] space-y-6 p-6">
-      {repositories.isPending ? <PanelMessage>Loading repositories...</PanelMessage> : null}
+      {repositories.isPending ? (
+        <PanelMessage>
+          {/* TODO: missing i18n key */}
+          Loading repositories...
+        </PanelMessage>
+      ) : null}
       {repositories.isError ? <PanelMessage tone="error">{errorMessage(repositories.error, "Unable to load repositories.")}</PanelMessage> : null}
       {repositories.isSuccess ? <RepositoriesView payload={repositories.data} prefix={prefix} /> : null}
     </main>
@@ -37,6 +44,7 @@ export function RepositoriesIndex() {
 }
 
 function RepositoriesView({ payload, prefix }: { payload: RepositoriesPayload; prefix: string }) {
+  const { t } = useT("settings")
   const queryClient = useQueryClient()
   const setupStatus = useSetupStatus()
   const [notice, setNotice] = useState<string | null>(payload.message || null)
@@ -63,7 +71,11 @@ function RepositoriesView({ payload, prefix }: { payload: RepositoriesPayload; p
   return (
     <>
       <header className="flex items-center justify-between gap-3">
-        <h1 className="text-3xl font-semibold text-gray-900 dark:text-gray-100">Repositories</h1>
+        <h1 className="text-3xl font-semibold text-gray-900 dark:text-gray-100">
+          {/* TODO: missing i18n key */}
+          Repositories
+        </h1>
+        {/* TODO: missing i18n key */}
         <Link className="rounded bg-blue-600 px-3.5 py-2.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500" to={withRoutePrefix(payload.new_repository_path, prefix)}>Add</Link>
       </header>
 
@@ -92,7 +104,10 @@ function RepositoriesView({ payload, prefix }: { payload: RepositoriesPayload; p
 
       {payload.archived_repositories.length > 0 ? (
         <section className="space-y-2">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Archived ({payload.archived_repositories.length})</h2>
+          <h2 className="text-sm font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            {/* TODO: missing i18n key */}
+            Archived ({payload.archived_repositories.length})
+          </h2>
           <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 opacity-75">
             <ArchivedRepositories
               disabled={command.isPending}
@@ -117,13 +132,23 @@ function RepositoryTable({
   onAction: (action: RepositoryAction, repository?: RepositoryRow) => void
   prefix: string
 }) {
+  const { t } = useT("settings")
   return (
     <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
       <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
         <tr>
-          <th className="px-4 py-2">Working repository</th>
-          <th className="hidden px-4 py-2 sm:table-cell">Polling</th>
-          <th className="hidden px-4 py-2 sm:table-cell">Last poll</th>
+          <th className="px-4 py-2">
+            {/* TODO: missing i18n key */}
+            Working repository
+          </th>
+          <th className="hidden px-4 py-2 sm:table-cell">
+            {/* TODO: missing i18n key */}
+            Polling
+          </th>
+          <th className="hidden px-4 py-2 sm:table-cell">
+            {/* TODO: missing i18n key */}
+            Last poll
+          </th>
           <th className="px-4 py-2"><span className="sr-only">Actions</span></th>
         </tr>
       </thead>
@@ -136,18 +161,22 @@ function RepositoryTable({
               </div>
               {repository.upstream_slug ? (
                 <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {/* TODO: missing i18n key */}
                   upstream <span className="font-mono">{repository.upstream_slug}</span>
                   {repository.upstream_default_branch ? <span className="font-mono">:{repository.upstream_default_branch}</span> : null}
                 </div>
               ) : null}
               <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                {/* TODO: missing i18n key */}
                 Syrus owner {repository.owner_user.email_address}
               </div>
               <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                 <span className="font-mono">{repository.default_branch}</span>
                 <span className="mx-1 text-gray-300 dark:text-gray-600">·</span>
+                {/* TODO: missing i18n key */}
                 label <code className="rounded bg-gray-100 dark:bg-gray-800 px-1">{repository.trigger_label}</code>
                 <span className="mx-1 text-gray-300 dark:text-gray-600">·</span>
+                {/* TODO: missing i18n key */}
                 agent {repository.agent_provider_label}
               </div>
             </td>
@@ -165,8 +194,10 @@ function RepositoryTable({
                   onClick={() => onAction({ id: repository.id, kind: "poll" })}
                   type="button"
                 >
+                  {/* TODO: missing i18n key */}
                   Poll now
                 </button>
+                {/* TODO: missing i18n key */}
                 <Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={withRoutePrefix(repository.edit_repository_path, prefix)}>Edit</Link>
                 <button
                   className="text-amber-700 dark:text-amber-300 underline hover:no-underline disabled:text-gray-300 dark:disabled:text-gray-600"
@@ -174,6 +205,7 @@ function RepositoryTable({
                   onClick={() => onAction({ id: repository.id, kind: "archive" }, repository)}
                   type="button"
                 >
+                  {/* TODO: missing i18n key */}
                   Archive
                 </button>
               </div>
@@ -194,6 +226,7 @@ function ArchivedRepositories({
   disabled: boolean
   onUnarchive: (repository: RepositoryRow) => void
 }) {
+  const { t } = useT("settings")
   return (
     <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
       <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
@@ -201,7 +234,10 @@ function ArchivedRepositories({
           <tr key={repository.id}>
             <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
               <div className="font-mono">{repository.slug}</div>
-              <div className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">archived {formatDate(repository.archived_at)}</div>
+              <div className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                {/* TODO: missing i18n key */}
+                archived {formatDate(repository.archived_at)}
+              </div>
             </td>
             <td className="px-4 py-3 text-right">
               <button
@@ -210,6 +246,7 @@ function ArchivedRepositories({
                 onClick={() => onUnarchive(repository)}
                 type="button"
               >
+                {/* TODO: missing i18n key */}
                 Unarchive
               </button>
             </td>
@@ -221,17 +258,32 @@ function ArchivedRepositories({
 }
 
 function PollingPill({ enabled }: { enabled: boolean }) {
+  const { t } = useT("settings")
   if (enabled) {
-    return <span className="inline-block rounded bg-green-100 dark:bg-green-950/40 px-2 py-0.5 text-xs text-green-700 dark:text-green-300">enabled</span>
+    return (
+      <span className="inline-block rounded bg-green-100 dark:bg-green-950/40 px-2 py-0.5 text-xs text-green-700 dark:text-green-300">
+        {/* TODO: missing i18n key */}
+        enabled
+      </span>
+    )
   }
-  return <span className="inline-block rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-400">paused</span>
+  return (
+    <span className="inline-block rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-400">
+      {/* TODO: missing i18n key */}
+      paused
+    </span>
+  )
 }
 
 function LastPoll({ repository }: { repository: RepositoryRow }) {
+  const { t } = useT("settings")
   if (repository.last_poll_status === "failed") {
     return (
       <div>
-        <span className="font-medium text-red-600 dark:text-red-300">failed</span>
+        <span className="font-medium text-red-600 dark:text-red-300">
+          {/* TODO: missing i18n key */}
+          failed
+        </span>
         <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">{formatDate(repository.last_poll_started_at)}</span>
         {repository.last_poll_error ? <div className="mt-0.5 max-w-xs truncate font-mono text-xs text-red-500 dark:text-red-300" title={repository.last_poll_error}>{repository.last_poll_error}</div> : null}
       </div>
@@ -241,7 +293,10 @@ function LastPoll({ repository }: { repository: RepositoryRow }) {
   if (repository.last_poll_status === "ok") {
     return (
       <div>
-        <span className="text-green-700 dark:text-green-300">ok</span>
+        <span className="text-green-700 dark:text-green-300">
+          {/* TODO: missing i18n key */}
+          ok
+        </span>
         <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">{formatDate(repository.last_poll_started_at)}</span>
       </div>
     )
@@ -251,6 +306,7 @@ function LastPoll({ repository }: { repository: RepositoryRow }) {
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
+  const { t } = useT("settings")
   const colors = {
     error: "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300",
     success: "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300",

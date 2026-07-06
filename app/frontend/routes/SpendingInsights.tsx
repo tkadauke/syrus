@@ -2,18 +2,20 @@ import { useQuery } from "@tanstack/react-query"
 import { useMemo, useState, type FormEvent } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { fetchSpending, type SpendingBreakdownRow, type SpendingPayload, type SpendingTriggerRow } from "../api/spending"
+import { useT } from "../hooks/useT"
 
 type SortKey = "label" | "jobs_count" | "total_usd" | "average_job_usd" | "last_30_days_usd" | "runs_count" | "average_usd"
 type SortState = { key: SortKey; direction: "asc" | "desc" }
 
 export function SpendingInsightsRoute() {
+  const { t } = useT("common")
   const location = useLocation()
   const spending = useQuery({
     queryKey: ["insights", "spending", location.search],
     queryFn: () => fetchSpending(location.search)
   })
 
-  if (spending.isPending) return <main aria-label="Spending insights" className="p-6 text-sm text-gray-600 dark:text-gray-400">Loading...</main>
+  if (spending.isPending) return <main aria-label="Spending insights" className="p-6 text-sm text-gray-600 dark:text-gray-400">{t("loading")}</main>
   if (spending.isError) {
     return (
       <main aria-label="Spending insights" className="p-6">

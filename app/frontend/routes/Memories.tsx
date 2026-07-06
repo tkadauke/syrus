@@ -3,6 +3,7 @@ import type { FormEvent } from "react"
 import { useEffect, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { ApiError } from "../api/client"
+import { useT } from "../hooks/useT"
 import {
   createMemory,
   deleteMemory,
@@ -37,6 +38,7 @@ const kindClasses: Record<string, string> = {
 }
 
 export function MemoriesRoute() {
+  const { t } = useT("settings")
   const location = useLocation()
   const search = location.search || ""
   const [notice, setNotice] = useState<string | null>(null)
@@ -48,12 +50,14 @@ export function MemoriesRoute() {
   return (
     <main aria-label="Memories" className="mx-auto max-w-[96rem] space-y-6 p-6">
       <header>
+        {/* TODO: missing i18n key */}
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Memories</h1>
+        {/* TODO: missing i18n key */}
         <p className="mt-1 max-w-2xl text-sm text-gray-600 dark:text-gray-400">Manage persistent agent memories for your account and repositories.</p>
       </header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {memories.isPending ? <PanelMessage>Loading memories...</PanelMessage> : null}
+      {memories.isPending ? <PanelMessage>{/* TODO: missing i18n key */}Loading memories...</PanelMessage> : null}
       {memories.isError ? <MemoriesError error={memories.error} /> : null}
       {memories.isSuccess ? <MemoriesView onNotice={setNotice} payload={memories.data} /> : null}
     </main>
@@ -61,6 +65,7 @@ export function MemoriesRoute() {
 }
 
 function MemoriesView({ payload, onNotice }: { payload: MemoriesPayload; onNotice: (message: string | null) => void }) {
+  const { t } = useT("settings")
   const location = useLocation()
   const [creating, setCreating] = useState(false)
 
@@ -76,6 +81,7 @@ function MemoriesView({ payload, onNotice }: { payload: MemoriesPayload; onNotic
             search={location.search}
           />
           <button className="shrink-0 rounded bg-blue-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-blue-500" onClick={() => setCreating(true)} type="button">
+            {/* TODO: missing i18n key */}
             Create memory
           </button>
         </div>
@@ -88,6 +94,7 @@ function MemoriesView({ payload, onNotice }: { payload: MemoriesPayload; onNotic
 }
 
 function MemoriesTable({ payload, onNotice }: { payload: MemoriesPayload; onNotice: (message: string | null) => void }) {
+  const { t } = useT("settings")
   const showOwner = payload.current_user.admin
 
   return (
@@ -95,18 +102,18 @@ function MemoriesTable({ payload, onNotice }: { payload: MemoriesPayload; onNoti
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
         <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
           <tr>
-            <th className="px-4 py-2">Kind</th>
-            <th className="px-4 py-2">Scope</th>
-            {showOwner ? <th className="px-4 py-2">Owner</th> : null}
-            <th className="px-4 py-2">Content</th>
-            <th className="px-4 py-2">Published</th>
-            <th className="px-4 py-2">Created</th>
+            <th className="px-4 py-2">{/* TODO: missing i18n key */}Kind</th>
+            <th className="px-4 py-2">{/* TODO: missing i18n key */}Scope</th>
+            {showOwner ? <th className="px-4 py-2">{/* TODO: missing i18n key */}Owner</th> : null}
+            <th className="px-4 py-2">{/* TODO: missing i18n key */}Content</th>
+            <th className="px-4 py-2">{/* TODO: missing i18n key */}Published</th>
+            <th className="px-4 py-2">{/* TODO: missing i18n key */}Created</th>
             <th className="px-4 py-2"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 text-sm dark:divide-gray-800">
           {payload.memories.length === 0 ? (
-            <tr><td className="px-4 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={showOwner ? 7 : 6}>No memories match these filters.</td></tr>
+            <tr><td className="px-4 py-6 text-center text-gray-500 dark:text-gray-400" colSpan={showOwner ? 7 : 6}>{/* TODO: missing i18n key */}No memories match these filters.</td></tr>
           ) : payload.memories.map((memory) => (
             <MemoryRowView key={memory.id} memory={memory} onNotice={onNotice} payload={payload} showOwner={showOwner} />
           ))}
@@ -117,6 +124,7 @@ function MemoriesTable({ payload, onNotice }: { payload: MemoriesPayload; onNoti
 }
 
 function MemoryRowView({ memory, payload, showOwner, onNotice }: { memory: MemoryRow; payload: MemoriesPayload; showOwner: boolean; onNotice: (message: string | null) => void }) {
+  const { t } = useT("settings")
   const queryClient = useQueryClient()
   const [viewing, setViewing] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -143,6 +151,7 @@ function MemoryRowView({ memory, payload, showOwner, onNotice }: { memory: Memor
       <td className="max-w-2xl px-4 py-3 text-gray-800 dark:text-gray-200">
         <Markdown className="chat-prose line-clamp-2 text-sm text-gray-800 break-words dark:text-gray-200" text={memory.content} />
         <button className="mt-1 block text-xs text-blue-700 underline hover:no-underline dark:text-blue-300" onClick={() => setViewing(true)} type="button">
+          {/* TODO: missing i18n key */}
           See more
         </button>
       </td>
@@ -154,6 +163,7 @@ function MemoryRowView({ memory, payload, showOwner, onNotice }: { memory: Memor
         <div className="flex justify-end gap-2">
           {memory.permissions.can_manage ? (
             <button className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800" onClick={() => setEditing(true)} type="button">
+              {/* TODO: missing i18n key */}
               Edit
             </button>
           ) : null}
@@ -188,6 +198,7 @@ function MemoryRowView({ memory, payload, showOwner, onNotice }: { memory: Memor
 }
 
 function MemoryContentModal({ memory, onClose }: { memory: MemoryRow; onClose: () => void }) {
+  const { t } = useT("settings")
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") onClose()
@@ -207,6 +218,7 @@ function MemoryContentModal({ memory, onClose }: { memory: MemoryRow; onClose: (
       >
         <div className="space-y-4 p-5 sm:p-6">
           <div className="flex items-start justify-between gap-4">
+            {/* TODO: missing i18n key */}
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id={`memory-content-modal-title-${memory.id}`}>Memory content</h2>
             <button
               aria-label="Close"
@@ -225,6 +237,7 @@ function MemoryContentModal({ memory, onClose }: { memory: MemoryRow; onClose: (
 }
 
 function MemoryModal({ memory, mode, payload, onClose, onNotice }: { memory?: MemoryRow; mode: "create" | "edit"; payload: MemoriesPayload; onClose: () => void; onNotice: (message: string | null) => void }) {
+  const { t } = useT("settings")
   const queryClient = useQueryClient()
   const [kind, setKind] = useState<MemoryKind>(memory?.kind || payload.kinds[0] || "user_pref")
   const [scope, setScope] = useState<MemoryScope>(memory?.scope || "global")
@@ -300,6 +313,7 @@ function MemoryModal({ memory, mode, payload, onClose, onNotice }: { memory?: Me
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className={labelClass()} htmlFor="memory-kind">
+              {/* TODO: missing i18n key */}
               Kind
               <select id="memory-kind" className={fieldClass()} onChange={(event) => setKind(event.target.value as MemoryKind)} value={kind}>
                 {payload.kinds.map((option) => <option key={option} value={option}>{kindLabel(option)}</option>)}
@@ -307,6 +321,7 @@ function MemoryModal({ memory, mode, payload, onClose, onNotice }: { memory?: Me
             </label>
             {mode === "create" ? (
               <label className={labelClass()} htmlFor="memory-scope">
+                {/* TODO: missing i18n key */}
                 Scope
                 <select id="memory-scope" className={fieldClass()} onChange={(event) => setScope(event.target.value as MemoryScope)} value={scope}>
                   {payload.scopes.map((option) => <option key={option} value={option}>{option === "global" ? "Global" : "Repository"}</option>)}
@@ -317,6 +332,7 @@ function MemoryModal({ memory, mode, payload, onClose, onNotice }: { memory?: Me
 
           {mode === "create" && scope === "repository" ? (
             <label className={labelClass()} htmlFor="memory-repository">
+              {/* TODO: missing i18n key */}
               Repository
               <select
                 disabled={payload.repositories.length === 0}
@@ -326,13 +342,14 @@ function MemoryModal({ memory, mode, payload, onClose, onNotice }: { memory?: Me
                 required
                 value={scopeId}
               >
-                {payload.repositories.length === 0 ? <option value="">No repositories</option> : null}
+                {payload.repositories.length === 0 ? <option value="">{/* TODO: missing i18n key */}No repositories</option> : null}
                 {payload.repositories.map((repository) => <option key={repository.id} value={repository.id}>{repository.name}</option>)}
               </select>
             </label>
           ) : null}
 
           <label className={labelClass()} htmlFor="memory-content">
+            {/* TODO: missing i18n key */}
             Content
             <textarea
               id="memory-content"
@@ -348,6 +365,7 @@ function MemoryModal({ memory, mode, payload, onClose, onNotice }: { memory?: Me
 
           <div className="flex justify-end gap-2">
             <button className="rounded border border-gray-300 px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800" onClick={onClose} type="button">
+              {/* TODO: missing i18n key */}
               Cancel
             </button>
             <button className="rounded bg-blue-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300" disabled={pending} type="submit">
@@ -361,6 +379,7 @@ function MemoryModal({ memory, mode, payload, onClose, onNotice }: { memory?: Me
 }
 
 function MemoryPagination({ pagination }: { pagination: MemoriesPayload["pagination"] }) {
+  const { t } = useT("settings")
   const location = useLocation()
   const navigate = useNavigate()
   if (pagination.total_pages <= 1) return null
@@ -376,20 +395,21 @@ function MemoryPagination({ pagination }: { pagination: MemoriesPayload["paginat
 
   return (
     <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-      <span>Showing {firstItem}-{lastItem} of {pagination.total}</span>
+      <span>{/* TODO: missing i18n key */}Showing {firstItem}-{lastItem} of {pagination.total}</span>
       <div className="flex gap-2">
         {pagination.page > 1 ? (
-          <button className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" onClick={() => go(pagination.page - 1)} type="button">Previous</button>
-        ) : <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">Previous</span>}
+          <button className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" onClick={() => go(pagination.page - 1)} type="button">{/* TODO: missing i18n key */}Previous</button>
+        ) : <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">{/* TODO: missing i18n key */}Previous</span>}
         {pagination.page < pagination.total_pages ? (
-          <button className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" onClick={() => go(pagination.page + 1)} type="button">Next</button>
-        ) : <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">Next</span>}
+          <button className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800" onClick={() => go(pagination.page + 1)} type="button">{/* TODO: missing i18n key */}Next</button>
+        ) : <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600">{/* TODO: missing i18n key */}Next</span>}
       </div>
     </div>
   )
 }
 
 function KindBadge({ kind }: { kind: string }) {
+  const { t } = useT("settings")
   return <span className={`inline-flex whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium ring-1 ${kindClasses[kind] || kindClasses.reference}`}>{kindLabel(kind)}</span>
 }
 
@@ -410,10 +430,12 @@ function fieldClass() {
 }
 
 function PanelMessage({ children }: { children: string }) {
+  const { t } = useT("settings")
   return <section className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">{children}</section>
 }
 
 function MemoriesError({ error }: { error: unknown }) {
+  const { t } = useT("settings")
   return <section className="rounded border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">{errorMessage(error, "Unable to load memories.")}</section>
 }
 

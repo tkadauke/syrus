@@ -13,8 +13,10 @@ import {
   type RepositoryDocumentsPayload
 } from "../api/repositoryDocuments"
 import { RepositoryTabs } from "../components/RepositoryTabs"
+import { useT } from "../hooks/useT"
 
 export function RepositoryDocumentsRoute() {
+  const { t } = useT("settings")
   const location = useLocation()
   const params = useParams()
   const repositoryId = params.repositoryId || ""
@@ -26,7 +28,10 @@ export function RepositoryDocumentsRoute() {
 
   return (
     <main aria-label="Repository documents" className="mx-auto max-w-[96rem] space-y-6 p-6">
-      {documents.isPending ? <PanelMessage>Loading repository documents...</PanelMessage> : null}
+      {documents.isPending ? <PanelMessage>
+        {/* TODO: missing i18n key */}
+        Loading repository documents...
+      </PanelMessage> : null}
       {documents.isError ? <RepositoryDocumentsError error={documents.error} /> : null}
       {documents.isSuccess ? <RepositoryDocumentsView payload={documents.data} prefix={routePrefix(location.pathname)} /> : null}
     </main>
@@ -34,6 +39,7 @@ export function RepositoryDocumentsRoute() {
 }
 
 function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocumentsPayload; prefix: string }) {
+  const { t } = useT("settings")
   const queryClient = useQueryClient()
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const queryKey = ["repositories", String(payload.repository.id), "documents"] as const
@@ -54,18 +60,25 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
       </header>
 
       <RepositoryTabs active="documents" prefix={prefix} tabs={payload.tabs} />
-      <p className="text-sm text-gray-600 dark:text-gray-400">Supporting documents available to agent runs for this repository.</p>
+      <p className="text-sm text-gray-600 dark:text-gray-400">
+        {/* TODO: missing i18n key */}
+        Supporting documents available to agent runs for this repository.
+      </p>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {destroy.isError ? <PanelMessage tone="error">{errorMessage(destroy.error, "Unable to delete document.")}</PanelMessage> : null}
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Documentation</h2>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            {/* TODO: missing i18n key */}
+            Documentation
+          </h2>
         </div>
 
         {payload.documents.length === 0 ? (
           <div className="m-4 rounded border border-dashed border-gray-300 dark:border-gray-600 px-4 py-8 text-center text-sm text-gray-600 dark:text-gray-400">
+            {/* TODO: missing i18n key */}
             No supporting documents yet. Upload a file or link a Google Doc to give the agent extra context.
           </div>
         ) : (
@@ -83,6 +96,7 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
                     }}
                     type="button"
                   >
+                    {/* TODO: missing i18n key */}
                     Delete
                   </button>
                 </div>
@@ -106,6 +120,7 @@ function DocumentForms({
   acceptedTypes: string[]
   onNotice: (message: string | null) => void
 }) {
+  const { t } = useT("settings")
   const queryClient = useQueryClient()
   const queryKey = ["repositories", String(payload.repository.id), "documents"] as const
   const [fileTitle, setFileTitle] = useState("")
@@ -141,31 +156,62 @@ function DocumentForms({
       {save.isError ? <div className="md:col-span-2"><PanelMessage tone="error">{errorMessage(save.error, "Unable to add document.")}</PanelMessage></div> : null}
 
       <form className="space-y-3 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4" onSubmit={submitFile}>
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Upload a file</h2>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+          {/* TODO: missing i18n key */}
+          Upload a file
+        </h2>
         <Field label="File title">
           <input className={inputClass()} onChange={(event) => setFileTitle(event.target.value)} placeholder="Optional; defaults to filename" type="text" value={fileTitle} />
         </Field>
         <Field label="File">
           <input accept={acceptedTypes.join(",")} className="block w-full text-sm text-gray-700 dark:text-gray-300" onChange={(event) => setFile(event.currentTarget.files?.[0] || null)} required type="file" />
         </Field>
-        <button className={primaryButton()} disabled={save.isPending} type="submit">{save.isPending ? "Uploading..." : "Upload"}</button>
+        <button className={primaryButton()} disabled={save.isPending} type="submit">
+          {save.isPending ? (
+            <>
+              {/* TODO: missing i18n key */}
+              Uploading...
+            </>
+          ) : (
+            <>
+              {/* TODO: missing i18n key */}
+              Upload
+            </>
+          )}
+        </button>
       </form>
 
       <form className="space-y-3 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4" onSubmit={submitGoogleDoc}>
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Link a Google Doc</h2>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+          {/* TODO: missing i18n key */}
+          Link a Google Doc
+        </h2>
         <Field label="URL">
           <input className={inputClass()} onChange={(event) => setGoogleDocUrl(event.target.value)} placeholder="https://docs.google.com/document/..." required type="url" value={googleDocUrl} />
         </Field>
         <Field label="Document title">
           <input className={inputClass()} onChange={(event) => setDocTitle(event.target.value)} placeholder="Optional" type="text" value={docTitle} />
         </Field>
-        <button className={primaryButton()} disabled={save.isPending} type="submit">{save.isPending ? "Adding..." : "Add Google Doc"}</button>
+        <button className={primaryButton()} disabled={save.isPending} type="submit">
+          {save.isPending ? (
+            <>
+              {/* TODO: missing i18n key */}
+              Adding...
+            </>
+          ) : (
+            <>
+              {/* TODO: missing i18n key */}
+              Add Google Doc
+            </>
+          )}
+        </button>
       </form>
     </section>
   )
 }
 
 function DocumentBadge({ document }: { document: RepositoryDocument }) {
+  const { t } = useT("settings")
   let label = "DOC"
   if (document.kind === "google_doc") label = "G"
   if (document.content_type?.startsWith("image/")) label = "IMG"
@@ -179,6 +225,7 @@ function DocumentBadge({ document }: { document: RepositoryDocument }) {
 }
 
 function DocumentSummary({ document }: { document: RepositoryDocument }) {
+  const { t } = useT("settings")
   return (
     <div className="min-w-0 flex-1">
       <div className="break-words text-sm font-medium text-gray-900 dark:text-gray-100">{document.title}</div>
@@ -186,15 +233,31 @@ function DocumentSummary({ document }: { document: RepositoryDocument }) {
         {document.kind === "google_doc" && document.google_doc_url ? (
           <a className="text-blue-600 dark:text-blue-400 underline hover:no-underline" href={document.google_doc_url} rel="noopener" target="_blank">{document.google_doc_url}</a>
         ) : (
-          <span>{document.filename || "No file attached"}{document.byte_size ? ` · ${formatBytes(document.byte_size)}` : ""}</span>
+          <span>
+            {document.filename || (
+              <>
+                {/* TODO: missing i18n key */}
+                No file attached
+              </>
+            )}
+            {document.byte_size ? ` · ${formatBytes(document.byte_size)}` : ""}
+          </span>
         )}
       </div>
-      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{document.uploaded_by || "Unknown"} · {new Date(document.created_at).toLocaleString()}</div>
+      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+        {document.uploaded_by || (
+          <>
+            {/* TODO: missing i18n key */}
+            Unknown
+          </>
+        )} · {new Date(document.created_at).toLocaleString()}
+      </div>
     </div>
   )
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
+  const { t } = useT("settings")
   return (
     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
       {label}
@@ -204,10 +267,12 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function RepositoryDocumentsError({ error }: { error: Error }) {
+  const { t } = useT("settings")
   return <PanelMessage tone="error">{errorMessage(error, "Unable to load repository documents.")}</PanelMessage>
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
+  const { t } = useT("settings")
   const colors = {
     error: "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300",
     success: "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300",

@@ -3,6 +3,7 @@ import type { FormEvent, ReactNode } from "react"
 import { useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
+import { useT } from "../hooks/useT"
 import { NoticeToast } from "../components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import { RepositoryTabs } from "../components/RepositoryTabs"
@@ -32,6 +33,7 @@ type IssueCommand =
   | { kind: "comment"; issueNumber: number; commentBody: string }
 
 export function RepositoryDetailRoute() {
+  const { t } = useT("settings")
   const params = useParams()
   const location = useLocation()
   const id = params.id || ""
@@ -57,13 +59,23 @@ export function RepositoryDetailRoute() {
     <main aria-label="Repository" className="mx-auto max-w-[96rem] space-y-6 p-6">
       {tab !== "github_issues" ? (
         <>
-          {detail.isPending ? <PanelMessage>Loading repository...</PanelMessage> : null}
+          {detail.isPending ? (
+            <PanelMessage>
+              {/* TODO: missing i18n key */}
+              Loading repository...
+            </PanelMessage>
+          ) : null}
           {detail.isError ? <PanelMessage tone="error">{errorMessage(detail.error, "Unable to load repository.")}</PanelMessage> : null}
           {detail.isSuccess ? <RepositoryDetail activeTab={tab} payload={detail.data} prefix={prefix} queryKey={detailQueryKey} /> : null}
         </>
       ) : (
         <>
-          {issues.isPending ? <PanelMessage>Loading GitHub issues...</PanelMessage> : null}
+          {issues.isPending ? (
+            <PanelMessage>
+              {/* TODO: missing i18n key */}
+              Loading GitHub issues...
+            </PanelMessage>
+          ) : null}
           {issues.isError ? <PanelMessage tone="error">{errorMessage(issues.error, "Unable to load GitHub issues.")}</PanelMessage> : null}
           {issues.isSuccess ? <RepositoryIssues payload={issues.data} prefix={prefix} /> : null}
         </>
@@ -83,6 +95,7 @@ function appendSearch(path: string, search: string) {
 }
 
 function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab: "overview" | "github_issues"; payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey }) {
+  const { t } = useT("settings")
   const setupStatus = useSetupStatus()
   const [notice, setNotice] = useState<string | null>(payload.message || null)
 
@@ -113,6 +126,7 @@ function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab:
 }
 
 function RepositoryIssues({ payload, prefix }: { payload: RepositoryIssuesPayload; prefix: string }) {
+  const { t } = useT("settings")
   const queryClient = useQueryClient()
   const setupStatus = useSetupStatus()
   const queryKey = ["repositories", String(payload.repository.id), "issues", payload.state] as const
@@ -163,14 +177,22 @@ function RepositoryIssues({ payload, prefix }: { payload: RepositoryIssuesPayloa
       <RepositoryTabs active="github_issues" prefix={prefix} tabs={payload.tabs} />
 
       <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-gray-600 dark:text-gray-400">
-        <span>Trigger label: <code className="rounded bg-gray-100 dark:bg-gray-800 px-1">{payload.repository.trigger_label}</code></span>
-        <span>Showing: <StatusPill tone={payload.state === "open" ? "green" : "gray"}>{payload.state}</StatusPill></span>
+        <span>
+          {/* TODO: missing i18n key */}
+          Trigger label: <code className="rounded bg-gray-100 dark:bg-gray-800 px-1">{payload.repository.trigger_label}</code>
+        </span>
+        <span>
+          {/* TODO: missing i18n key */}
+          Showing: <StatusPill tone={payload.state === "open" ? "green" : "gray"}>{payload.state}</StatusPill>
+        </span>
         <span><strong>{payload.issue_count}</strong> {payload.issue_count === 1 ? "issue" : "issues"}</span>
         {payload.repository.github_rate_limit ? (
           <span>
+            {/* TODO: missing i18n key */}
             GitHub quota: <strong>{payload.repository.github_rate_limit.remaining.toLocaleString()}</strong> / {payload.repository.github_rate_limit.limit.toLocaleString()} ({payload.repository.github_rate_limit.resource})
           </span>
         ) : null}
+        {/* TODO: missing i18n key */}
         <a className="text-blue-600 dark:text-blue-400 hover:underline" href={payload.paths.github_issues_path} rel="noopener" target="_blank">View on GitHub</a>
       </div>
 
@@ -180,7 +202,9 @@ function RepositoryIssues({ payload, prefix }: { payload: RepositoryIssuesPayloa
 
       <div className="flex items-center justify-between gap-3">
         <div className="flex gap-1">
+          {/* TODO: missing i18n key */}
           <Link className={stateFilterClass(payload.state === "open")} to={withRoutePrefix(payload.state_paths.open, prefix)}>Open</Link>
+          {/* TODO: missing i18n key */}
           <Link className={stateFilterClass(payload.state === "closed")} to={withRoutePrefix(payload.state_paths.closed, prefix)}>Closed</Link>
         </div>
         {payload.issues.length > 0 ? (
@@ -192,6 +216,7 @@ function RepositoryIssues({ payload, prefix }: { payload: RepositoryIssuesPayloa
                 onClick={() => command.mutate({ kind: "bulk", bulkAction: "close", issueNumbers: selected })}
                 type="button"
               >
+                {/* TODO: missing i18n key */}
                 Close selected
               </button>
             ) : null}
@@ -201,6 +226,7 @@ function RepositoryIssues({ payload, prefix }: { payload: RepositoryIssuesPayloa
               onClick={() => command.mutate({ kind: "bulk", bulkAction: "delegate", issueNumbers: selected })}
               type="button"
             >
+              {/* TODO: missing i18n key */}
               Delegate selected
             </button>
           </div>
@@ -213,8 +239,14 @@ function RepositoryIssues({ payload, prefix }: { payload: RepositoryIssuesPayloa
             <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
               <tr>
                 <th className="w-10 px-4 py-2"><span className="sr-only">Select</span></th>
-                <th className="px-4 py-2">Issue</th>
-                <th className="w-36 px-4 py-2 text-right">Actions</th>
+                <th className="px-4 py-2">
+                  {/* TODO: missing i18n key */}
+                  Issue
+                </th>
+                <th className="w-36 px-4 py-2 text-right">
+                  {/* TODO: missing i18n key */}
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
@@ -250,7 +282,10 @@ function RepositoryIssues({ payload, prefix }: { payload: RepositoryIssuesPayloa
 
       {commentingOn ? (
         <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Comment on <span className="font-mono text-sm font-normal text-gray-600 dark:text-gray-400">#{commentingOn.number}</span></h2>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+            {/* TODO: missing i18n key */}
+            Comment on <span className="font-mono text-sm font-normal text-gray-600 dark:text-gray-400">#{commentingOn.number}</span>
+          </h2>
           <form className="mt-3 space-y-3" onSubmit={submitComment}>
             <textarea
               className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -259,7 +294,9 @@ function RepositoryIssues({ payload, prefix }: { payload: RepositoryIssuesPayloa
               value={commentBody}
             />
             <div className="flex justify-end gap-2">
+              {/* TODO: missing i18n key */}
               <button className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800" onClick={() => setCommentingOn(null)} type="button">Cancel</button>
+              {/* TODO: missing i18n key */}
               <button className={buttonClass("blue")} disabled={command.isPending} type="submit">Post comment</button>
             </div>
           </form>
@@ -288,6 +325,7 @@ function RepositoryIssueRow({
   selected: boolean
   state: "open" | "closed"
 }) {
+  const { t } = useT("settings")
   return (
     <tr>
       <td className="px-4 py-3 align-top">
@@ -304,8 +342,14 @@ function RepositoryIssueRow({
       </td>
       <td className="px-4 py-3 align-top">
         <div className="flex flex-col items-stretch gap-1.5">
-          <button className="rounded bg-gray-100 dark:bg-gray-800 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700" disabled={commandPending} onClick={onComment} type="button">Comment</button>
-          {state === "open" ? <button className="rounded bg-amber-50 dark:bg-amber-950/40 px-2 py-1 text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950/60" disabled={commandPending} onClick={onClose} type="button">Close</button> : null}
+          <button className="rounded bg-gray-100 dark:bg-gray-800 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700" disabled={commandPending} onClick={onComment} type="button">
+            {/* TODO: missing i18n key */}
+            Comment
+          </button>
+          {state === "open" ? <button className="rounded bg-amber-50 dark:bg-amber-950/40 px-2 py-1 text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950/60" disabled={commandPending} onClick={onClose} type="button">
+            {/* TODO: missing i18n key */}
+            Close
+          </button> : null}
           {issue.delegated ? (
             <span className="rounded border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 px-2 py-1 text-center text-xs font-medium text-green-700 dark:text-green-300">Delegated</span>
           ) : (
@@ -318,6 +362,7 @@ function RepositoryIssueRow({
 }
 
 function IssueLabel({ color, name }: { color: string; name: string }) {
+  const { t } = useT("settings")
   const safeColor = color.match(/^[0-9a-fA-F]{6}$/) ? color : "6b7280"
   return (
     <span
@@ -335,6 +380,7 @@ function IssueLabel({ color, name }: { color: string; name: string }) {
 
 
 function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
+  const { t } = useT("settings")
   const repository = payload.repository
   const nonzeroCounts = [
     { label: "running", value: payload.counts.running, tone: "blue" as const },
@@ -347,7 +393,10 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
       <StatusPill tone={repository.polling_enabled ? "green" : "gray"}>{repository.polling_enabled ? "polling enabled" : "polling paused"}</StatusPill>
       <span>{payload.credential_status.label}</span>
       <span className="text-gray-300 dark:text-gray-600">·</span>
-      <span>Agent: {repository.agent_provider_label || `user default (${repository.effective_agent_provider_label})`}</span>
+      <span>
+        {/* TODO: missing i18n key */}
+        Agent: {repository.agent_provider_label || `user default (${repository.effective_agent_provider_label})`}
+      </span>
       {nonzeroCounts.map((count) => (
         <StatusPill key={count.label} tone={count.tone}>{count.value} {count.label}</StatusPill>
       ))}
@@ -356,32 +405,51 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
 }
 
 function RepositoryDetailsCard({ payload, prefix }: { payload: RepositoryDetailPayload; prefix: string }) {
+  const { t } = useT("settings")
   const repository = payload.repository
 
   return (
     <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
-      <h2 className="font-semibold text-gray-900 dark:text-gray-100">Repository details</h2>
+      <h2 className="font-semibold text-gray-900 dark:text-gray-100">
+        {/* TODO: missing i18n key */}
+        Repository details
+      </h2>
       <dl className="mt-3 space-y-3">
         <div>
-          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Working repo</dt>
+          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+            {/* TODO: missing i18n key */}
+            Working repo
+          </dt>
           <dd className="mt-0.5 font-mono text-gray-700 dark:text-gray-300">{repository.slug}</dd>
         </div>
         <div>
-          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Working branch</dt>
+          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+            {/* TODO: missing i18n key */}
+            Working branch
+          </dt>
           <dd className="mt-0.5 font-mono text-gray-700 dark:text-gray-300">{repository.default_branch}</dd>
         </div>
         {repository.upstream_slug ? (
           <div>
-            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Upstream repo</dt>
+            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+              {/* TODO: missing i18n key */}
+              Upstream repo
+            </dt>
             <dd className="mt-0.5 font-mono text-gray-700 dark:text-gray-300">{repository.upstream_slug}{repository.upstream_default_branch ? `:${repository.upstream_default_branch}` : ""}</dd>
           </div>
         ) : null}
         <div>
-          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Trigger label</dt>
+          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+            {/* TODO: missing i18n key */}
+            Trigger label
+          </dt>
           <dd className="mt-0.5"><code className="rounded bg-gray-100 px-1 dark:bg-gray-800">{repository.trigger_label}</code></dd>
         </div>
         <div>
-          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Syrus owner</dt>
+          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+            {/* TODO: missing i18n key */}
+            Syrus owner
+          </dt>
           <dd className="mt-0.5 text-gray-700 dark:text-gray-300">
             {repository.owner_user.profile_path ? (
               <Link className="text-blue-600 hover:underline dark:text-blue-400" to={withRoutePrefix(repository.owner_user.profile_path, prefix)}>{repository.owner_user.display_name}</Link>
@@ -391,19 +459,31 @@ function RepositoryDetailsCard({ payload, prefix }: { payload: RepositoryDetailP
           </dd>
         </div>
         <div>
-          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Added</dt>
+          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+            {/* TODO: missing i18n key */}
+            Added
+          </dt>
           <dd className="mt-0.5 text-gray-700 dark:text-gray-300">{formatDate(repository.created_at)}</dd>
         </div>
         {repository.github_rate_limit ? (
           <div>
-            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">GitHub quota</dt>
+            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+              {/* TODO: missing i18n key */}
+              GitHub quota
+            </dt>
             <dd className="mt-0.5 text-gray-700 dark:text-gray-300"><strong>{repository.github_rate_limit.remaining.toLocaleString()}</strong> / {repository.github_rate_limit.limit.toLocaleString()} ({repository.github_rate_limit.resource})</dd>
           </div>
         ) : null}
         {payload.credential_status.mode === "app" && payload.credential_status.installation_account ? (
           <div>
-            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Credential</dt>
-            <dd className="mt-0.5 text-gray-700 dark:text-gray-300">Syrus App via {payload.credential_status.installation_account}</dd>
+            <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+              {/* TODO: missing i18n key */}
+              Credential
+            </dt>
+            <dd className="mt-0.5 text-gray-700 dark:text-gray-300">
+              {/* TODO: missing i18n key */}
+              Syrus App via {payload.credential_status.installation_account}
+            </dd>
           </div>
         ) : null}
       </dl>
@@ -412,6 +492,7 @@ function RepositoryDetailsCard({ payload, prefix }: { payload: RepositoryDetailP
 }
 
 function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey; onNotice: (message: string | null) => void }) {
+  const { t } = useT("settings")
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const search = queryKey[3]
@@ -452,7 +533,9 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
+        {/* TODO: missing i18n key */}
         <Link className={buttonClass("green")} to={withRoutePrefix(payload.paths.new_job_path, prefix)}>New job</Link>
+        {/* TODO: missing i18n key */}
         <button className={buttonClass("blue")} disabled={disabled} onClick={() => { onNotice(null); poll.mutate() }} type="button">Poll now</button>
         {retry.count > 0 ? (
           <button className={buttonClass("amber")} disabled={disabled || retry.provider_circuit.open} onClick={() => { onNotice(null); retryFailed.mutate() }} type="button">Retry {retry.count} failed with {retry.agent_provider_label}</button>
@@ -466,6 +549,7 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
             onClick={() => setMoreOpen((open) => !open)}
             type="button"
           >
+            {/* TODO: missing i18n key */}
             More
           </button>
           {moreOpen ? (
@@ -489,6 +573,7 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
 }
 
 function CredentialNotice({ payload }: { payload: RepositoryDetailPayload }) {
+  const { t } = useT("settings")
   const status = payload.credential_status
   if (status.mode === "app") return null
 
@@ -496,19 +581,37 @@ function CredentialNotice({ payload }: { payload: RepositoryDetailPayload }) {
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-300">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <span className="font-medium">Connection:</span> PAT fallback because this repository has no active App installation.
+          <span className="font-medium">
+            {/* TODO: missing i18n key */}
+            Connection:
+          </span>
+          {/* TODO: missing i18n key */}
+          {" "}PAT fallback because this repository has no active App installation.
           <span className="ml-1">{status.github_app_registered ? "Install the GitHub App for this repository owner to use app credentials here." : "Register the GitHub App to prefer app credentials over PAT fallback."}</span>
-          {status.previous_installation_removed ? <span className="ml-1">Previous installation was removed.</span> : null}
+          {status.previous_installation_removed ? (
+            <span className="ml-1">
+              {/* TODO: missing i18n key */}
+              Previous installation was removed.
+            </span>
+          ) : null}
         </div>
+        {/* TODO: missing i18n key */}
         {status.install_url ? <a className={buttonClass("gray")} href={status.install_url} rel="noopener" target="_blank">Install Syrus App</a> : null}
+        {/* TODO: missing i18n key */}
         {status.register_path ? <a className={buttonClass("gray")} href={status.register_path}>Register Syrus App</a> : null}
       </div>
-      {status.missing_github_ids ? <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">GitHub numeric IDs are missing; edit this repository and select it from the GitHub-backed picker to generate a one-click install link.</p> : null}
+      {status.missing_github_ids ? (
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {/* TODO: missing i18n key */}
+          GitHub numeric IDs are missing; edit this repository and select it from the GitHub-backed picker to generate a one-click install link.
+        </p>
+      ) : null}
     </section>
   )
 }
 
 function NeedsTriageJobs({ payload, prefix, queryKey, onNotice }: { payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey; onNotice: (message: string | null) => void }) {
+  const { t } = useT("settings")
   const queryClient = useQueryClient()
   const search = queryKey[3]
   const release = useMutation({
@@ -523,15 +626,27 @@ function NeedsTriageJobs({ payload, prefix, queryKey, onNotice }: { payload: Rep
 
   return (
     <section>
-      <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">Needs triage</h2>
+      <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
+        {/* TODO: missing i18n key */}
+        Needs triage
+      </h2>
       <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         {payload.needs_triage_jobs.length > 0 ? (
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
               <tr>
-                <th className="px-4 py-2">Job</th>
-                <th className="hidden px-4 py-2 sm:table-cell">Created</th>
-                <th className="px-4 py-2 text-right">Action</th>
+                <th className="px-4 py-2">
+                  {/* TODO: missing i18n key */}
+                  Job
+                </th>
+                <th className="hidden px-4 py-2 sm:table-cell">
+                  {/* TODO: missing i18n key */}
+                  Created
+                </th>
+                <th className="px-4 py-2 text-right">
+                  {/* TODO: missing i18n key */}
+                  Action
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
@@ -540,18 +655,29 @@ function NeedsTriageJobs({ payload, prefix, queryKey, onNotice }: { payload: Rep
                   <td className="px-4 py-3">
                     <SourceLink job={job} prefix={prefix} />
                     <Link className="ml-1 text-gray-700 dark:text-gray-300 hover:underline" to={withRoutePrefix(job.job_path, prefix)}>{job.issue_title || `JOB-${job.id}`}</Link>
-                    {job.owner_user ? <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Owner: {job.owner_user.display_name || job.owner_user.email_address}</div> : null}
+                    {job.owner_user ? (
+                      <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                        {/* TODO: missing i18n key */}
+                        Owner: {job.owner_user.display_name || job.owner_user.email_address}
+                      </div>
+                    ) : null}
                   </td>
                   <td className="hidden px-4 py-3 text-gray-500 dark:text-gray-400 sm:table-cell">{formatRelative(job.created_at)}</td>
                   <td className="px-4 py-3 text-right">
-                    <button className={buttonClass("blue")} disabled={release.isPending} onClick={() => { onNotice(null); release.mutate(job.id) }} type="button">Release for triage</button>
+                    <button className={buttonClass("blue")} disabled={release.isPending} onClick={() => { onNotice(null); release.mutate(job.id) }} type="button">
+                      {/* TODO: missing i18n key */}
+                      Release for triage
+                    </button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         ) : (
-          <p className="p-4 text-sm text-gray-600 dark:text-gray-400">No jobs are waiting for triage release.</p>
+          <p className="p-4 text-sm text-gray-600 dark:text-gray-400">
+            {/* TODO: missing i18n key */}
+            No jobs are waiting for triage release.
+          </p>
         )}
       </div>
       {release.isError ? <PanelMessage tone="error">{errorMessage(release.error, "Unable to release job for triage.")}</PanelMessage> : null}
@@ -560,10 +686,14 @@ function NeedsTriageJobs({ payload, prefix, queryKey, onNotice }: { payload: Rep
 }
 
 function RecentJobs({ payload, prefix, setupStatus }: { payload: RepositoryDetailPayload; prefix: string; setupStatus: ReturnType<typeof useSetupStatus> }) {
+  const { t } = useT("settings")
   if (payload.jobs.length === 0) {
     return (
       <section>
-        <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">Recent jobs</h2>
+        <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
+          {/* TODO: missing i18n key */}
+          Recent jobs
+        </h2>
         <OnboardingEmptyState
           fallbackActionPath={payload.paths.new_job_path}
           fallbackActionText="Create direct job"
@@ -578,15 +708,30 @@ function RecentJobs({ payload, prefix, setupStatus }: { payload: RepositoryDetai
 
   return (
     <section>
-      <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">Recent jobs</h2>
+      <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
+        {/* TODO: missing i18n key */}
+        Recent jobs
+      </h2>
       <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
             <tr>
-              <th className="px-4 py-2">State</th>
-              <th className="px-4 py-2">Issue</th>
-              <th className="hidden px-4 py-2 sm:table-cell">Runs</th>
-              <th className="hidden px-4 py-2 sm:table-cell">Last</th>
+              <th className="px-4 py-2">
+                {/* TODO: missing i18n key */}
+                State
+              </th>
+              <th className="px-4 py-2">
+                {/* TODO: missing i18n key */}
+                Issue
+              </th>
+              <th className="hidden px-4 py-2 sm:table-cell">
+                {/* TODO: missing i18n key */}
+                Runs
+              </th>
+              <th className="hidden px-4 py-2 sm:table-cell">
+                {/* TODO: missing i18n key */}
+                Last
+              </th>
               <th className="hidden px-4 py-2 sm:table-cell"><span className="sr-only">Actions</span></th>
             </tr>
           </thead>
@@ -601,6 +746,7 @@ function RecentJobs({ payload, prefix, setupStatus }: { payload: RepositoryDetai
 }
 
 function JobRow({ job, prefix }: { job: RepositoryDetailJob; prefix: string }) {
+  const { t } = useT("settings")
   return (
     <tr>
       <td className="px-4 py-3 align-top">
@@ -622,12 +768,16 @@ function JobRow({ job, prefix }: { job: RepositoryDetailJob; prefix: string }) {
       </td>
       <td className="hidden px-4 py-3 text-gray-600 dark:text-gray-400 sm:table-cell">{job.runs_count}</td>
       <td className="hidden px-4 py-3 text-gray-500 dark:text-gray-400 sm:table-cell">{formatRelative(job.updated_at)}</td>
-      <td className="hidden px-4 py-3 text-right sm:table-cell"><Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={withRoutePrefix(job.job_path, prefix)}>View</Link></td>
+      <td className="hidden px-4 py-3 text-right sm:table-cell">
+        {/* TODO: missing i18n key */}
+        <Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={withRoutePrefix(job.job_path, prefix)}>View</Link>
+      </td>
     </tr>
   )
 }
 
 function RepositoryRetryState({ job }: { job: RepositoryDetailJob }) {
+  const { t } = useT("settings")
   const retry = job.retry_state
   if (!retry || retry.state_label === "No failure") return null
 
@@ -636,13 +786,22 @@ function RepositoryRetryState({ job }: { job: RepositoryDetailJob }) {
     <div className={`mt-1 inline-flex flex-wrap items-center gap-1.5 rounded border px-2 py-1 text-xs ${tone}`}>
       <span className="font-medium">{retry.state_label}</span>
       <span>{retry.classification_label}</span>
-      <span>{retry.retry_budget_remaining} retries left</span>
-      {retry.next_auto_retry_at ? <span>next {formatRelative(retry.next_auto_retry_at)}</span> : null}
+      <span>
+        {/* TODO: missing i18n key */}
+        {retry.retry_budget_remaining} retries left
+      </span>
+      {retry.next_auto_retry_at ? (
+        <span>
+          {/* TODO: missing i18n key */}
+          next {formatRelative(retry.next_auto_retry_at)}
+        </span>
+      ) : null}
     </div>
   )
 }
 
 function SourceLink({ job, prefix }: { job: { source: RepositoryDetailJob["source"] }; prefix: string }) {
+  const { t } = useT("settings")
   if (!job.source.path) return <span className="text-gray-600 dark:text-gray-400">{job.source.label}</span>
   if (!job.source.external) {
     return (
@@ -660,25 +819,51 @@ function SourceLink({ job, prefix }: { job: { source: RepositoryDetailJob["sourc
 }
 
 function Pagination({ payload, prefix }: { payload: RepositoryDetailPayload; prefix: string }) {
+  const { t } = useT("settings")
   const pagination = payload.pagination
   if (pagination.total_pages <= 1) return null
 
   return (
     <div className="mt-4 flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-      <span>Showing {pagination.first_item}-{pagination.last_item} of {pagination.total_jobs}</span>
+      <span>
+        {/* TODO: missing i18n key */}
+        Showing {pagination.first_item}-{pagination.last_item} of {pagination.total_jobs}
+      </span>
       <div className="flex gap-2">
-        {pagination.previous_path ? <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.previous_path, prefix)}>Previous</Link> : <span className={disabledPaginationClass()}>Previous</span>}
-        {pagination.next_path ? <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.next_path, prefix)}>Next</Link> : <span className={disabledPaginationClass()}>Next</span>}
+        {pagination.previous_path ? (
+          <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.previous_path, prefix)}>
+            {/* TODO: missing i18n key */}
+            Previous
+          </Link>
+        ) : (
+          <span className={disabledPaginationClass()}>
+            {/* TODO: missing i18n key */}
+            Previous
+          </span>
+        )}
+        {pagination.next_path ? (
+          <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.next_path, prefix)}>
+            {/* TODO: missing i18n key */}
+            Next
+          </Link>
+        ) : (
+          <span className={disabledPaginationClass()}>
+            {/* TODO: missing i18n key */}
+            Next
+          </span>
+        )}
       </div>
     </div>
   )
 }
 
 function StatusPill({ children, tone }: { children: ReactNode; tone: "green" | "gray" | "blue" | "red" | "amber" }) {
+  const { t } = useT("settings")
   return <TonePill tone={tone}>{children}</TonePill>
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "warning" }) {
+  const { t } = useT("settings")
   const colors = {
     error: "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300",
     muted: "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400",
