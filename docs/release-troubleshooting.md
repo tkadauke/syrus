@@ -15,13 +15,13 @@ working.
 
 The pipeline is **manually dispatched** (`workflow_dispatch`) — you pick a
 `bump` (patch/minor/major, default minor) or an explicit `version`, and an
-optional `dry_run`. There is no tag trigger; `prepare` computes the version
-from the higher of the latest tag and `desktop/package.json`, then guards
-that the tag/release don't already exist. The four build jobs (`build-backend`,
-`build-cli`, `build-mac`, `build-windows`) each produce **staged** artifacts
-and push only a *versioned* backend image — never `:latest`. Only the final
-`publish` job creates the tag + GitHub Release, uploads every staged asset,
-moves the image `:latest` pointer, and commits the version bump to main. It
+optional `dry_run`. There is no tag trigger; `prepare` computes the version by
+bumping the newest tag (`desktop/package.json` stays a `0.0.0` sentinel), then
+guards that the tag/release don't already exist. The four build jobs
+(`build-backend`, `build-cli`, `build-mac`, `build-windows`) each produce
+**staged** artifacts and push only a *versioned* backend image — never
+`:latest`. Only the final `publish` job creates the tag + GitHub Release,
+uploads every staged asset, and moves the image `:latest` pointer. It
 does this as a **draft** release flipped live at the very end, and rolls the
 draft + tag + `:latest` back on any failure (see [6.2](#62-publish-job-failures)).
 If any build fails, `publish` never runs — no release, no half-shipped state.
@@ -68,7 +68,7 @@ Grep the failed run's log for the string in column one.
 | `timestamp.acs.microsoft.com` errors | flaky ACS timestamp server | [5.6](#56-timestamping) |
 | `no staged artifacts to publish` | a build job produced no assets to upload | [6.2](#62-publish-job-failures) |
 | `imagetools create` failure moving `:latest` | GHCR packages-write permission / auth | [6.2](#62-publish-job-failures) |
-| `Could not push the version bump` | branch protection blocked the bump (non-fatal) | [6.2](#62-publish-job-failures) |
+| `denied: permission_denied: write_package` (build-backend) | token can't push to `tkadauke/syrus-local` — add a `GHCR_TOKEN` PAT | [6.2](#62-publish-job-failures) |
 | `Cannot find latest-mac.yml` (client logs) | broken/partial update feed | [6.3](#63-update-feed-integrity) |
 
 Nothing matched? Decide which of the three buckets you're in via
@@ -453,9 +453,9 @@ unsigned dev build.
 
 The `publish` job is a **near-atomic** go-live built on a draft-release
 pattern — it runs only after every build job succeeded, and it works in this
-order: snapshot where `:latest` points now, commit the version bump to main
-(non-fatal), create an **invisible draft** release carrying the tag + every
-staged asset + generated notes, move the image `:latest` pointer, and finally
+order: snapshot where `:latest` points now, create an **invisible draft**
+release carrying the tag + every staged asset + generated notes, move the
+image `:latest` pointer, and finally
 flip the draft to published (`gh release edit --draft=false`) — the single
 tiny go-live. A `Roll back on failure` step (`if: failure()`) deletes the
 draft release + tag (`gh release delete --cleanup-tag`) and reverts `:latest`
@@ -494,14 +494,21 @@ own failure signature.
   applies — the draft pattern rolls the whole attempt back instead of leaving a
   live release with a stale `:latest`.)
 
-- **`Could not push the version bump to <branch>`** ("Commit the version bump
-  to main" step) — this is a **`::warning`, not a failure**: the step catches
-  a rejected push (branch protection on `main`) and continues green. The
-  release is already published and the tag carries the version forward; only
-  `desktop/package.json` on `main` is stale. **Fix:** bump
-  `desktop/package.json`/`package-lock.json` to `X.Y.Z` in a normal PR (or
-  let the next release self-correct — `prepare` bases the next version on the
-  higher of the latest tag and package.json, so the tag already floors it).
+- **`denied: permission_denied: write_package`** (build-backend, and it would
+  also break the `:latest` move) — the workflow token can't push to
+  `ghcr.io/tkadauke/syrus-local`. GHCR login uses `github.actor` with
+  `GHCR_TOKEN` if set, else the job's `GITHUB_TOKEN`. A `GITHUB_TOKEN` from a
+  run dispatched by someone who isn't a package admin (or a fork) has no write
+  access to that package, so both the image push and the registry BuildKit
+  cache export (`ghcr.io/tkadauke/syrus-local:buildcache`) fail. The cache
+  export is best-effort (`ignore-error=true`) so it only *warns* and leaves the
+  build cold; the image push is fatal. **Fix:** add a `GHCR_TOKEN` repo secret
+  — a PAT (classic) with `write:packages` (and `read:packages`) that can write
+  the `syrus-local` + `syrus-local:buildcache` packages under `tkadauke`. With
+  it set, `secrets.GHCR_TOKEN` wins the `||` and both the push and the cache
+  export succeed (warming every later build). Confirm it first with a
+  `dry_run` — the dry run's build-backend still exercises the same login +
+  cache export, so a `write_package` denial there is the early warning.
 
 ### 6.3 Update feed integrity
 

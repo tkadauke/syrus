@@ -26,8 +26,8 @@ any failure — see [the pipeline](#the-pipeline-githubworkflowsreleaseyml)).
 
 | Input | Meaning |
 | --- | --- |
-| `bump` | `patch` / `minor` (default) / `major`. The version is computed from the higher of the latest release tag and `desktop/package.json`, then bumped. |
-| `version` | Optional explicit override, e.g. `v1.2.3` or a pre-release `v1.2.3-beta.1` (auto-flagged as a GitHub pre-release). Overrides `bump`. |
+| `bump` | `patch` / `minor` (default) / `major`. The version is computed by bumping the latest release tag (`desktop/package.json` stays a `0.0.0` sentinel, so you never hand-set a version). |
+| `version` | Optional explicit override, e.g. `1.2.3` or a pre-release `1.2.3-beta.1` (auto-flagged as a GitHub pre-release). A leading `v` is accepted but not needed. Overrides `bump`. |
 | `dry_run` | Build and stage **everything** (image built + integration-tested, apps **signed + notarized / Azure-signed**, CLI cross-compiled) but publish nothing — no tag, no release, no image push, no `:latest` move. The full rehearsal: the build jobs are identical to a real release, so signing is validated every dry run. The staged artifacts (`staged-mac` / `staged-windows` / `staged-cli`) are downloadable from the run for inspection. |
 
 ### The pipeline (`.github/workflows/release.yml`)
@@ -40,12 +40,11 @@ prepare ─┬─ build-backend (build + bin/test-docker + push :X.Y.Z, NOT :lat
                     │  all four must pass
                     ▼
                  publish   (NEAR-ATOMIC draft-release flow:
-                            snapshot :latest, bump main (non-fatal),
-                            create an invisible DRAFT release with every
-                            staged artifact + generated notes, move image
-                            :latest → :X.Y.Z, then flip the draft to
-                            published as the go-live — and roll back the
-                            draft + tag + :latest if anything fails)
+                            snapshot :latest, create an invisible DRAFT
+                            release with every staged artifact + generated
+                            notes, move image :latest → :X.Y.Z, then flip
+                            the draft to published as the go-live — and roll
+                            back the draft + tag + :latest if anything fails)
                     ▼
              publish-website  (calls the shared deploy-website workflow — stub)
 ```
@@ -90,21 +89,24 @@ it at once.)
 
 ## Versioning convention
 
-Semantic versioning. The pipeline computes the next version and owns it:
+Semantic versioning, **tag-driven**. The git tag is the source of truth; the
+pipeline computes the next version by bumping the newest `vX.Y.Z` tag:
 
 - **`minor`** is the default — the normal cadence for a release with features
   and fixes.
 - **`patch`** is for hotfix-only releases.
 - **`major`** must be chosen explicitly (never automatic) — for breaking
   changes.
-- Pre-releases use `vX.Y.Z-beta.N` via the `version` input; electron-updater
+- Pre-releases use `X.Y.Z-beta.N` via the `version` input; electron-updater
   skips pre-releases by default.
 
-`publish` commits the bump to `desktop/package.json` on `main`, so dev builds
-and the next release start from the right base. If a branch-protection rule
-blocks that push, the release still succeeds and the *tag* carries the version
-forward — the next release self-corrects. (To let CI push the bump, allow the
-release workflow to bypass protection on `main`.)
+`desktop/package.json` stays pinned at `0.0.0` — a dev sentinel you never
+hand-edit. Each build job stamps the computed version in with
+`npm version "$VERSION"` before packaging, so the shipped apps and the image
+carry the real number, but **nothing is committed back to `main`**: the next
+release just recomputes from the newest tag. That means no version-bump
+commit, no branch-protection carve-out for CI, and no manual version bookkeeping
+— pick a `bump`, and the tag does the rest.
 
 ## Release notes
 

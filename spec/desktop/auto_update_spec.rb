@@ -152,12 +152,15 @@ RSpec.describe "desktop auto-update and release pipeline" do
     expect(rollback).to match(/imagetools create -t "\$IMAGE:latest" "\$IMAGE@\$OLD_LATEST"/)
   end
 
-  it "release workflow computes+bumps the version and never interpolates it into shell" do
-    # CI owns the version: stamped into package.json before each build and
-    # committed to main by publish.
+  it "release workflow computes a tag-driven version and never interpolates it into shell" do
+    # The git tag is the source of truth. CI computes the version, stamps it
+    # into each build with `npm version` (so the shipped apps carry it), but
+    # NEVER commits back to main — desktop/package.json stays a 0.0.0 sentinel.
     expect(release_workflow).to include("Compute the release version")
     expect(release_workflow.scan(/npm --prefix desktop version "\$VERSION"/).length).to be >= 2
-    expect(release_workflow).to include("Commit the version bump to main")
+    # No push-to-main bump step: publish only tags + releases.
+    expect(release_workflow).not_to include("Commit the version bump to main")
+    expect(release_workflow).not_to match(/git push origin "HEAD:/)
     # The version/tag are attacker-influenceable (whoever can dispatch); they
     # reach run: bodies only via env, never inline ${{ }} interpolation.
     run_bodies = release_workflow.scan(/run: \|[\s\S]*?(?=\n      - |\n  [a-z]|\z)/)

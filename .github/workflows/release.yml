@@ -41,16 +41,16 @@ on:
         options: [patch, minor, major]
         default: minor
       version:
-        description: "Explicit version override, e.g. v1.2.3 or v1.2.3-beta.1 (optional)"
+        description: "Explicit version override, e.g. 1.2.3 or 1.2.3-beta.1 (optional)"
         type: string
         default: ""
       dry_run:
-        description: "Build + stage everything, publish nothing"
+        description: "Dry run — build + stage everything, publish nothing"
         type: boolean
         default: false
 
 permissions:
-  contents: write # create the tag/release and push the version-bump commit
+  contents: write # create the git tag and the GitHub Release
   packages: write # push the backend image to GHCR
 
 # One release at a time; never cancel a half-finished publish.
@@ -91,7 +91,9 @@ jobs:
             ver="${OVERRIDE#v}"
           else
             latest_tag="$(git tag --list 'v*' | sed -nE 's/^v([0-9]+\.[0-9]+\.[0-9]+)$/\1/p' | sort -V | tail -1)"
-            # Base = the higher of the newest release tag and package.json.
+            # The git tag is the source of truth. desktop/package.json stays a
+            # 0.0.0 dev sentinel (never hand-bumped), so base is normally just
+            # the newest tag; the pkg floor only matters if someone raises it.
             base="$(printf '%s\n%s\n' "${latest_tag:-0.0.0}" "${pkg%%-*}" | sort -V | tail -1)"
             IFS=. read -r MA MI PA <<<"$base"
             case "$BUMP" in
@@ -607,35 +609,6 @@ jobs:
           echo "old_latest=$OLD" >> "$GITHUB_OUTPUT"
           echo "current :latest = ${OLD:-<none>}"
 
-      # Bump desktop/package.json on main so the tag points at a commit whose
-      # version matches the shipped apps. Non-fatal: if branch protection blocks
-      # the push, the release still happens off the pre-bump commit and the next
-      # release recomputes from the tag.
-      - name: Commit the version bump to main
-        id: bump
-        env:
-          VERSION: ${{ needs.prepare.outputs.version }}
-          TAG: ${{ needs.prepare.outputs.tag }}
-        run: |
-          set -euo pipefail
-          target="$GITHUB_SHA"
-          npm --prefix desktop version "$VERSION" --no-git-tag-version --allow-same-version
-          if git diff --quiet -- desktop/package.json desktop/package-lock.json; then
-            echo "package.json already at $VERSION — nothing to commit."
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add desktop/package.json desktop/package-lock.json
-            git commit -m "Release $TAG"
-            if git push origin "HEAD:${GITHUB_REF_NAME}"; then
-              target="$(git rev-parse HEAD)"
-            else
-              echo "::warning::Could not push the version bump to ${GITHUB_REF_NAME} (branch protection?). Tagging the pre-bump commit; bump desktop/package.json manually."
-              git reset --hard "$GITHUB_SHA"
-            fi
-          fi
-          echo "target=$target" >> "$GITHUB_OUTPUT"
-
       # Build the release as a DRAFT: uploads every asset and generates notes,
       # but it's invisible. (A draft does NOT create the git tag — GitHub defers
       # that until the draft is published, which only strengthens atomicity: a
@@ -645,7 +618,7 @@ jobs:
         env:
           TAG: ${{ needs.prepare.outputs.tag }}
           PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
-          TARGET: ${{ steps.bump.outputs.target }}
+          TARGET: ${{ github.sha }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
