@@ -17,12 +17,14 @@ The pipeline is **manually dispatched** (`workflow_dispatch`) — you pick a
 `bump` (patch/minor/major, default minor) or an explicit `version`, and an
 optional `dry_run`. There is no tag trigger; `prepare` computes the version
 from the higher of the latest tag and `desktop/package.json`, then guards
-that the tag/release don't already exist. The four build jobs (`build-image`,
+that the tag/release don't already exist. The four build jobs (`build-backend`,
 `build-cli`, `build-mac`, `build-windows`) each produce **staged** artifacts
 and push only a *versioned* backend image — never `:latest`. Only the final
 `publish` job creates the tag + GitHub Release, uploads every staged asset,
-moves the image `:latest` pointer, and commits the version bump to main. If
-any build fails, `publish` never runs — no release, no half-shipped state.
+moves the image `:latest` pointer, and commits the version bump to main. It
+does this as a **draft** release flipped live at the very end, and rolls the
+draft + tag + `:latest` back on any failure (see [6.2](#62-publish-job-failures)).
+If any build fails, `publish` never runs — no release, no half-shipped state.
 
 Two orientation facts before you grep:
 
@@ -44,6 +46,8 @@ Grep the failed run's log for the string in column one.
 | --- | --- | --- |
 | `tag vX.Y.Z already exists` / `GitHub release vX.Y.Z already exists` | computed version collides with a prior release | [2](#2-guard-failures-the-deliberate-reds) |
 | `Signing secrets missing` | `CSC_LINK` / `APPLE_API_KEY_P8` repo secrets absent | [2](#2-guard-failures-the-deliberate-reds) |
+| `no space left on device` (build-backend) | the multi-arch fat image overflowed the runner disk | [6.4](#64-build-backend-disk-and-cache) |
+| `403 Forbidden` / `denied` on the buildcache ref (build-backend) | GHCR token can't write the BuildKit cache package | [6.4](#64-build-backend-disk-and-cache) |
 | `Env CSC_LINK is not correct, cannot resolve` | base64 mangled (newlines, lost padding) | [3.2](#32-mangled-csc_link-or-wrong-p12-password) |
 | `MAC verification failed during PKCS12 import` | wrong `CSC_KEY_PASSWORD` or corrupted p12 | [3.2](#32-mangled-csc_link-or-wrong-p12-password) |
 | `not signed with a valid Developer ID certificate` | wrong cert type in `CSC_LINK` | [3.1](#31-wrong-certificate-type) |
@@ -101,10 +105,12 @@ the workflow working as designed, not bugs:
    [5](#5-windows-azure-artifact-signing).
 
 The backend image is built, integration-tested, and pushed **inside CI** by
-the `build-image` job (`bin/publish-image $VERSION --multi-arch
+the `build-backend` job (`bin/publish-image $VERSION --multi-arch
 --skip-latest`) — there is no longer any "publish the image by hand before
-tagging" step, and no "image not found on GHCR" guard. If `build-image`
-fails, read its `bin/publish-image` / `bin/test-docker` output directly.
+tagging" step, and no "image not found on GHCR" guard. If `build-backend`
+fails, read its `bin/publish-image` / `bin/test-docker` output directly. For
+its two infrastructure-flavored failure modes (disk exhaustion, cache-write
+permission) see [6.4](#64-build-backend-disk-and-cache).
 
 ## 3. macOS signing
 
@@ -445,36 +451,48 @@ unsigned dev build.
 
 ### 6.2 Publish-job failures
 
-The `publish` job is the single atomic commit point — it runs only after
-every build job succeeded, and it does three things in sequence: create the
-release with all staged assets, move the image `:latest` pointer, and commit
-the version bump to main. Each has its own failure signature.
+The `publish` job is a **near-atomic** go-live built on a draft-release
+pattern — it runs only after every build job succeeded, and it works in this
+order: snapshot where `:latest` points now, commit the version bump to main
+(non-fatal), create an **invisible draft** release carrying the tag + every
+staged asset + generated notes, move the image `:latest` pointer, and finally
+flip the draft to published (`gh release edit --draft=false`) — the single
+tiny go-live. A `Roll back on failure` step (`if: failure()`) deletes the
+draft release + tag (`gh release delete --cleanup-tag`) and reverts `:latest`
+to the snapshotted digest, so a failed run leaves **no half-published state**
+(a *published* release is therefore never partial). Each step still has its
+own failure signature.
 
-- **`no staged artifacts to publish`** ("Create the GitHub release" step) —
+- **`no staged artifacts to publish`** ("Create the draft release" step) —
   `publish` downloads the `staged-*` upload-artifacts, `find`s every file,
   and aborts if the set is empty. This means a build job went green but
   produced nothing to stage (its `upload-artifact` steps use
   `if-no-files-found: error`, so an empty stage normally reds the build job
   first — reaching this error implies the artifacts expired or the download
-  matched nothing). **Check:** open each build job's "Stage …" step and its
-  `upload-artifact` step; confirm `staged-cli` / `staged-mac` /
-  `staged-windows` exist under the run's artifacts and haven't passed their
-  7-day retention. **Fix:** re-dispatch the whole pipeline — the builds are
-  cheap relative to a broken release, and nothing was published.
+  matched nothing). Because the assets go into a **draft**, an abort here
+  leaves nothing visible, and the rollback step cleans up the draft + tag.
+  **Check:** open each build job's "Stage …" step and its `upload-artifact`
+  step; confirm `staged-cli` / `staged-mac` / `staged-windows` exist under
+  the run's artifacts and haven't passed their 7-day retention. **Fix:**
+  re-dispatch the whole pipeline — the builds are cheap relative to a broken
+  release, and nothing was published.
 
 - **`imagetools create` fails moving `:latest`** ("Move image :latest to the
   released version" step) — `docker buildx imagetools create -t
   ghcr.io/tkadauke/syrus-local:latest ...:$VERSION` copies the already-pushed
   multi-arch manifest onto `:latest`. A failure here is auth/permissions on
-  GHCR, not a build problem: the versioned image already exists (build-image
-  pushed it). **Note the GitHub Release is already live at this point** — the
-  create-release step ran first. **Check:** the "Log in to GHCR" step
-  succeeded (it uses `github.actor` + `GITHUB_TOKEN`); the top-level
-  `permissions:` still grants `packages: write`; the `syrus-local` package
-  isn't locked to a different owner. **Fix:** restore the packages-write
-  grant / GHCR permission and re-run just this move by hand:
-  `docker buildx imagetools create -t ghcr.io/tkadauke/syrus-local:latest
-  ghcr.io/tkadauke/syrus-local:X.Y.Z`. The release does not need re-cutting.
+  GHCR, not a build problem: the versioned image already exists (build-backend
+  pushed it). **The release is still a draft at this point** — the draft was
+  created just before, and the go-live "Publish the release" step hasn't run
+  yet, so the `Roll back on failure` step deletes the draft + tag and reverts
+  `:latest` to the snapshotted digest. Nothing ships. **Check:** the "Log in
+  to GHCR" step succeeded (it uses `github.actor` + `GHCR_TOKEN`/`GITHUB_TOKEN`);
+  the top-level `permissions:` still grants `packages: write`; the
+  `syrus-local` package isn't locked to a different owner. **Fix:** restore the
+  packages-write grant / GHCR permission and re-dispatch the pipeline. (The old
+  "release already live, re-run just this move by hand" recovery no longer
+  applies — the draft pattern rolls the whole attempt back instead of leaving a
+  live release with a stale `:latest`.)
 
 - **`Could not push the version bump to <branch>`** ("Commit the version bump
   to main" step) — this is a **`::warning`, not a failure**: the step catches
@@ -491,11 +509,16 @@ the version bump to main. Each has its own failure signature.
   latest release artifacts` (HttpError 404), blockmap 404s /
   `Cannot parse blockmap`, or sha512 checksum mismatches — a published
   release that breaks auto-update in the field.
-- **Cause:** the release is missing part of its atomic asset set, or an
-  asset was renamed/re-uploaded by hand after the ymls were generated —
-  `latest-mac.yml` embeds exact file names, sizes, and sha512 hashes
+- **Cause:** an asset was renamed/re-uploaded by hand after the ymls were
+  generated — `latest-mac.yml` embeds exact file names, sizes, and sha512
+  hashes
   ([#4942](https://github.com/electron-userland/electron-builder/issues/4942),
   [#3936](https://github.com/electron-userland/electron-builder/issues/3936)).
+  A *published* release should no longer be missing part of its asset set on
+  its own: `publish` uploads everything into an invisible **draft** and only
+  flips it live once complete, and a partial/failed upload leaves that draft
+  hidden and is cleaned up by the rollback step — so hand-editing after the
+  fact is now the realistic way a published feed goes partial.
   The mac `zip` targets are load-bearing: dmg-only builds can't produce
   `latest-mac.yml` at all, and Squirrel.Mac installs from the zip
   ([#2137](https://github.com/electron-userland/electron-builder/issues/2137)) —
@@ -514,6 +537,42 @@ the version bump to main. Each has its own failure signature.
   every client hash check fails against a modified file. If the ymls and
   binaries have diverged beyond repair, ship a patch release; that's cheaper
   than un-breaking a poisoned feed.
+
+### 6.4 build-backend disk and cache
+
+The `build-backend` job builds the multi-arch backend image (two arches ×
+the mise ruby/node/python/go toolchain) — a fat image whose two failure
+modes are infrastructure, not code.
+
+- **`no space left on device`**
+  - **Cause:** the multi-arch fat image overflows the GitHub runner's ~14GB
+    of free disk during the build.
+  - **Check:** the failure appears in the Docker/buildx build step, not in
+    `bin/test-docker`. The job's **"Free disk space"** step prints `before:` /
+    `after:` `df -h /` lines — read them to see how much headroom the build
+    actually had.
+  - **Fix:** the "Free disk space" step already reclaims ~25GB of preinstalled
+    SDKs (`/usr/share/dotnet`, `/opt/ghc`, `/usr/local/lib/android`, the CodeQL
+    toolcache, boost, JVMs, `AGENT_TOOLSDIRECTORY`) plus a `docker image prune`
+    before building — that is the fix, and it's why the build stopped hitting
+    this. If it recurs (the image grew, or the runner shrank), reclaim more
+    directories in that step or move `build-backend` to a larger runner.
+
+- **`403 Forbidden` / `denied` writing the BuildKit cache**
+  - **Cause:** the BuildKit registry cache ref
+    (`SYRUS_DOCKER_CACHE_REF=ghcr.io/tkadauke/syrus-local:buildcache`) must be a
+    package the GHCR token can **write**. `cache-from` only *reads* it (fine as
+    long as the package is public), but `cache-to` *writes* it, and needs the
+    same GHCR auth as the image push. The previous default,
+    `ghcr.io/tkadauke/syrus:cache`, 403'd because that package isn't writable by
+    the token — hence the move to the image's own `syrus-local` package.
+  - **Check:** the `cache-to`/export line in the buildx output shows the 403
+    against `ghcr.io/…:buildcache`. Confirm which token the "Log in to GHCR"
+    step used (`GHCR_TOKEN` if set, else `GITHUB_TOKEN`).
+  - **Fix:** a cache-write 403 is **non-fatal** — the build proceeds cold
+    (slower, but green). To restore warm caching, point `SYRUS_DOCKER_CACHE_REF`
+    at a package the token can write, or provide a `GHCR_TOKEN` PAT with
+    `write:packages` when `GITHUB_TOKEN` can't write the cache package.
 
 ## 7. Reproduce locally to bisect
 

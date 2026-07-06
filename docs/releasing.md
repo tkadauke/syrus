@@ -21,7 +21,8 @@ the next launch the app offers to update the local backend.
 
 **Actions → "Release" → Run workflow.** Pick the **bump** and run. That's it —
 the pipeline computes the version, builds and signs everything, and publishes
-atomically.
+near-atomically (a draft release flipped live as the last step, rolled back on
+any failure — see [the pipeline](#the-pipeline-githubworkflowsreleaseyml)).
 
 | Input | Meaning |
 | --- | --- |
@@ -32,18 +33,21 @@ atomically.
 ### The pipeline (`.github/workflows/release.yml`)
 
 ```
-prepare ─┬─ build-image   (build + bin/test-docker + push :X.Y.Z, NOT :latest)
+prepare ─┬─ build-backend (build + bin/test-docker + push :X.Y.Z, NOT :latest)
          ├─ build-cli     (cross-compile tarballs → staged)
          ├─ build-mac     (sign + notarize + staple → staged)
          └─ build-windows (Azure-sign → staged)
                     │  all four must pass
                     ▼
-                 publish   (ATOMIC: create tag + release + notes,
-                            upload every staged artifact,
-                            move image :latest → :X.Y.Z,
-                            commit the version bump to main)
+                 publish   (NEAR-ATOMIC draft-release flow:
+                            snapshot :latest, bump main (non-fatal),
+                            create an invisible DRAFT release with every
+                            staged artifact + generated notes, move image
+                            :latest → :X.Y.Z, then flip the draft to
+                            published as the go-live — and roll back the
+                            draft + tag + :latest if anything fails)
                     ▼
-             publish-website  (stub)
+             publish-website  (calls the shared deploy-website workflow — stub)
 ```
 
 Nothing is user-visible until `publish`. The build jobs only *stage* artifacts
@@ -51,6 +55,38 @@ and push a *versioned* image tag; if any of them fails, `publish` never runs —
 no tag, no release, no moved `:latest`. macOS and Windows build in parallel
 (the old create-release 422 race is gone because neither job touches the
 release). A dry run skips `publish` and `publish-website` entirely.
+
+`publish` is **near-atomic**, not perfectly atomic. It builds the whole
+release as an invisible **draft** first — the tag, every staged asset, and
+the generated notes all land inside a draft nobody can see — then moves the
+image `:latest` pointer, and only then flips the draft to published
+(`gh release edit --draft=false`), a single tiny go-live as the last
+irreversible action. If any step fails, a `Roll back on failure` step deletes
+the draft release + tag (`gh release delete --cleanup-tag`) and reverts
+`:latest` to the digest it snapshotted at the start, so a failed run leaves
+**no half-published state**. The one residue is the *versioned* backend image
+that `build-backend` already pushed before `publish` ran — a tested,
+unreferenced orphan tag (`:latest` never pointed at it), harmless and
+overwritten on the next attempt.
+
+### Updating just the website
+
+The website deploys through a **reusable** workflow,
+[`.github/workflows/deploy-website.yml`](../.github/workflows/deploy-website.yml),
+so the build/deploy logic lives in exactly one place. The release calls it as
+its final `publish-website` step (`uses: ./.github/workflows/deploy-website.yml`,
+passing the `release_tag`), but you don't need to cut a software release to
+refresh the site: the same workflow also runs
+
+- **on demand** — **Actions → "Deploy website" → Run workflow**
+  (`workflow_dispatch`), and
+- **automatically** — on any `push` to `main` that touches `website/**`.
+
+So a docs fix or copy change redeploys the site on its own, without a version
+bump, a tag, or a new set of app builds. (The deploy step is still a **stub** —
+the static site under `website/src/` has no in-repo build/host target yet — but
+whenever one lands, it lands in that one workflow and all three entry points get
+it at once.)
 
 ## Versioning convention
 

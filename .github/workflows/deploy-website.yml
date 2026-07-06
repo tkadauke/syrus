@@ -1,0 +1,56 @@
+# The website's build + deploy, in ONE place, reachable three ways:
+#
+#   - workflow_call  — the release pipeline invokes it as its final step, so a
+#                      release refreshes the site (release.yml -> publish-website).
+#   - workflow_dispatch — run it on its own to redeploy the site any time
+#                      (a docs fix, a copy change) WITHOUT cutting a release.
+#   - push (website/**) — auto-redeploy when website content lands on main.
+#
+# The build/deploy steps live here and nowhere else, so a website-only update
+# never means duplicating the release job.
+#
+# STUB: the site is static markdown under website/src/ with no in-repo build or
+# hosting target yet. When one exists (e.g. Astro + Pages/Netlify/Cloudflare),
+# replace the stub step with the real build + deploy and grant the permissions
+# it needs (e.g. pages: write, id-token: write).
+name: Deploy website
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["website/**"]
+  workflow_call:
+    inputs:
+      release_tag:
+        description: "The release this deploy corresponds to (blank for standalone runs)"
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-website
+  cancel-in-progress: false
+
+jobs:
+  deploy-website:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: (stub) Build and deploy the website
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          echo "Triggered by: $GITHUB_EVENT_NAME${RELEASE_TAG:+ (release $RELEASE_TAG)}"
+          echo
+          echo "TODO: build the site from website/src/ and deploy it."
+          echo "The download links already use the stable"
+          echo "releases/latest/download/ permalinks (Syrus.dmg, Syrus-Intel.dmg,"
+          echo "Syrus-Setup.exe), so no rebuild is strictly required today. When the"
+          echo "site gains a build+host target, replace this step with the real"
+          echo "build + deploy (and inject \$RELEASE_TAG / download URLs if needed)."
+          echo "::notice::Website deploy is a stub — see .github/workflows/deploy-website.yml."

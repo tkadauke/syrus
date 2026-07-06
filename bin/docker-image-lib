@@ -211,7 +211,10 @@ syrus_build_local_base_image() {
     cache_args=(--cache-from "type=registry,ref=${cache_ref}")
     case "${SYRUS_DOCKER_CACHE_PUSH:-}" in
       1|true|TRUE|yes|YES|on|ON)
-        cache_args+=(--cache-to "type=registry,ref=${cache_ref},mode=max")
+        # ignore-error: a cache EXPORT failure is fatal to the build in BuildKit
+        # (unlike cache-from); keep caching best-effort so a 403 or disk-pressure
+        # write can't kill an otherwise-good build.
+        cache_args+=(--cache-to "type=registry,ref=${cache_ref},mode=max,ignore-error=true")
         ;;
     esac
 

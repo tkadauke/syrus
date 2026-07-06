@@ -76,7 +76,10 @@ if [ -n "$VERSION" ]; then tags+=(-t "$IMAGE:$VERSION"); fi
 cache_args=()
 if syrus_registry_cache_enabled; then
   CACHE_REF="$(syrus_docker_cache_ref)"
-  cache_args=(--cache-from "type=registry,ref=${CACHE_REF}" --cache-to "type=registry,ref=${CACHE_REF},mode=max")
+  # ignore-error on cache-to: a registry cache EXPORT failure is fatal to the
+  # build in BuildKit (unlike cache-from), so a cache-ref we can't write (403,
+  # disk pressure) would kill an otherwise-good build. Caching is best-effort.
+  cache_args=(--cache-from "type=registry,ref=${CACHE_REF}" --cache-to "type=registry,ref=${CACHE_REF},mode=max,ignore-error=true")
 fi
 
 echo "== Tags =="

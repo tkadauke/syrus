@@ -30,7 +30,8 @@ RSpec.describe "Docker image scripts" do
     expect(helper).to include("if syrus_registry_cache_enabled; then")
     expect(helper).to include('cache_ref="$(syrus_docker_cache_ref)"')
     expect(helper).to include("--cache-from \"type=registry,ref=${cache_ref}\"")
-    expect(helper).to include("--cache-to \"type=registry,ref=${cache_ref},mode=max\"")
+    # ignore-error keeps a cache-export failure (403 / disk) from killing the build.
+    expect(helper).to include("--cache-to \"type=registry,ref=${cache_ref},mode=max,ignore-error=true\"")
     expect(helper).to include("syrus_docker_build_image worker-dev \"$git_sha\"")
   end
 

@@ -85,12 +85,12 @@ RSpec.describe "desktop auto-update and release pipeline" do
     expect(workflow.dig("permissions", "packages")).to eq("write")
     # One coherent pipeline: build everything, then a single publish job.
     expect(workflow["jobs"].keys).to include(
-      "prepare", "build-image", "build-cli", "build-mac", "build-windows", "publish", "publish-website"
+      "prepare", "build-backend", "build-cli", "build-mac", "build-windows", "publish", "publish-website"
     )
     # Atomic: publish waits for every build and is skipped on a dry run, so a
     # failure means nothing is tagged, released, or promoted.
     expect(workflow.dig("jobs", "publish", "needs")).to include(
-      "build-image", "build-cli", "build-mac", "build-windows"
+      "build-backend", "build-cli", "build-mac", "build-windows"
     )
     expect(workflow.dig("jobs", "publish", "if")).to include("dry_run == 'false'")
     expect(workflow.dig("jobs", "publish-website", "if")).to include("dry_run == 'false'")
@@ -121,7 +121,7 @@ RSpec.describe "desktop auto-update and release pipeline" do
     workflow = YAML.safe_load(release_workflow)
     expect(workflow.dig("jobs", "build-mac", "timeout-minutes")).to be_a(Integer)
     expect(workflow.dig("jobs", "build-windows", "timeout-minutes")).to be_a(Integer)
-    expect(workflow.dig("jobs", "build-image", "timeout-minutes")).to be_a(Integer)
+    expect(workflow.dig("jobs", "build-backend", "timeout-minutes")).to be_a(Integer)
   end
 
   it "release workflow builds + pushes the image in CI and moves :latest atomically" do
@@ -133,6 +133,23 @@ RSpec.describe "desktop auto-update and release pipeline" do
     # ...and :latest is moved to it only in the atomic publish job.
     expect(release_workflow).to include("docker buildx imagetools create")
     expect(release_workflow).to match(/imagetools create -t "\$IMAGE:latest" "\$IMAGE:\$VERSION"/)
+    # The multi-arch fat build overflows the runner without freeing disk first.
+    expect(release_workflow).to match(/Free disk space/)
+    # The BuildKit cache must target a package the token can auth against, not
+    # the default syrus:cache (which 403'd).
+    expect(release_workflow).to include("ghcr.io/tkadauke/syrus-local:buildcache")
+  end
+
+  it "release publish is near-atomic: draft release, then flip, with rollback" do
+    # The only visible go-live is flipping the draft to published; everything
+    # before it is invisible (draft) or reversible (:latest), and a failure
+    # rolls it all back — no half-published state.
+    expect(release_workflow).to match(/release create "\$TAG" --draft/)
+    expect(release_workflow).to include("--draft=false") # the go-live flip
+    rollback = release_workflow[/name: Roll back on failure[\s\S]{0,900}/]
+    expect(rollback).to include("if: failure()")
+    expect(rollback).to include("gh release delete \"$TAG\" --yes --cleanup-tag")
+    expect(rollback).to match(/imagetools create -t "\$IMAGE:latest" "\$IMAGE@\$OLD_LATEST"/)
   end
 
   it "release workflow computes+bumps the version and never interpolates it into shell" do
@@ -160,12 +177,18 @@ RSpec.describe "desktop auto-update and release pipeline" do
     expect(release_workflow).to match(%r{Syrus-Setup-\$VERSION-x64\.exe" "\$RUNNER_TEMP/staged/Syrus-Setup\.exe"})
   end
 
-  it "release workflow has a website-publish stub with the integration seam" do
+  it "deploys the website via a reusable workflow, callable standalone too" do
     workflow = YAML.safe_load(release_workflow)
-    expect(workflow["jobs"]).to have_key("publish-website")
-    # It's a documented stub, not a silent no-op.
-    expect(release_workflow).to match(/publish-website:[\s\S]*?stub/i)
-    expect(release_workflow).to include("Website publish is a stub")
+    # The release's website step CALLS the shared workflow — no duplicated
+    # deploy logic — so the site can also be updated without a release.
+    expect(workflow.dig("jobs", "publish-website", "uses")).to eq("./.github/workflows/deploy-website.yml")
+
+    deploy = read(repo_root, ".github/workflows/deploy-website.yml")
+    triggers = YAML.safe_load(deploy)[true] # `on:` parses as the boolean key
+    expect(triggers.keys).to include("workflow_call", "workflow_dispatch", "push")
+    expect(deploy).to include("website/**") # push path filter
+    # Still a documented stub until a real deploy target exists.
+    expect(deploy).to include("Website deploy is a stub")
   end
 
   it "desktop CI covers typecheck, builds, and the installer's machine interface" do
