@@ -833,4 +833,74 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     expect(response).to have_http_status(:ok)
     expect(repository.reload.feedback_policy).to eq("confirm")
   end
+
+  describe "GET /api/v1/app/repositories/:id/coverage_trend" do
+    let(:repository) { Factories.repository(user: user, default_branch: "main") }
+
+    def create_snapshot(branch: "main", lines_pct: 80.0, branches_pct: 60.0, functions_pct: 90.0, created_at: Time.current)
+      job = Factories.job(repository: repository)
+      workflow = job.workflows.first
+      snap = CoverageSnapshot.create!(
+        repository: repository,
+        workflow: workflow,
+        sha: SecureRandom.hex(10),
+        branch: branch,
+        lines_pct: lines_pct,
+        branches_pct: branches_pct,
+        functions_pct: functions_pct
+      )
+      snap.update_columns(created_at: created_at)
+      snap
+    end
+
+    it "returns 200 with correct shape when snapshots exist" do
+      sign_in_as(user)
+      snap = create_snapshot(created_at: 1.day.ago)
+
+      get "/api/v1/app/repositories/#{repository.id}/coverage_trend"
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["days"]).to eq(30)
+      expect(body["trend"]).to be_an(Array)
+      expect(body["trend"].first).to include("date", "lines_pct", "branches_pct")
+      expect(body["latest"]).to include(
+        "lines_pct" => snap.lines_pct.to_f,
+        "branches_pct" => snap.branches_pct.to_f,
+        "functions_pct" => snap.functions_pct.to_f
+      )
+    end
+
+    it "returns empty trend array when no snapshots exist" do
+      sign_in_as(user)
+
+      get "/api/v1/app/repositories/#{repository.id}/coverage_trend"
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["days"]).to eq(30)
+      expect(body["trend"]).to eq([])
+      expect(body["latest"]).to be_nil
+    end
+
+    it "respects the days param" do
+      sign_in_as(user)
+      old_snap = create_snapshot(created_at: 40.days.ago)
+      new_snap = create_snapshot(created_at: 5.days.ago)
+
+      get "/api/v1/app/repositories/#{repository.id}/coverage_trend", params: { days: 10 }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["days"]).to eq(10)
+      trend_dates = body["trend"].map { |row| row["date"] }
+      expect(trend_dates).not_to include(old_snap.created_at.to_date.to_s)
+    end
+
+    it "returns 401 when not signed in" do
+      get "/api/v1/app/repositories/#{repository.id}/coverage_trend"
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
 end

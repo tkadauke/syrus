@@ -367,6 +367,7 @@ class Job < ApplicationRecord
   after_update_commit :start_dependent_jobs_after_implementation, if: :saved_change_to_implemented?
   after_update_commit :promote_queued_chat_pending_actions, if: :saved_change_to_implemented?
   after_update_commit :cancel_queued_chat_pending_actions, if: :saved_change_to_closed?
+  after_update_commit :purge_coverage_hit_maps_on_close, if: :saved_change_to_closed?
   after_update_commit :start_dependent_jobs_after_approval, if: :saved_change_to_approved?
   after_update_commit :cancel_queued_retry_workflows_after_approval, if: :saved_change_to_approved?
   after_update_commit :enqueue_landing_queue_processor, if: :saved_change_needs_landing_queue_processor?
@@ -977,6 +978,14 @@ class Job < ApplicationRecord
       pr_url: notification_pr_url,
       body: "Syrus opened PR ##{pr_number} for #{slug}: #{title.truncate(80)}"
     )
+  end
+
+  def purge_coverage_hit_maps_on_close
+    workflows.find_each do |workflow|
+      workflow.purge_coverage_hit_map! if workflow.coverage_hit_map.attached?
+    rescue StandardError => e
+      Rails.logger.warn("Job#purge_coverage_hit_maps_on_close: workflow #{workflow.id} failed: #{e.message}")
+    end
   end
 
   def notify_pr_merged

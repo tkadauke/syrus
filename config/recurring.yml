@@ -61,6 +61,9 @@ default: &default
   prune_video_walkthroughs:
     class: VideoWalkthroughPruneJob
     schedule: every day at 3:40am
+  prune_coverage_hit_map_ttl:
+    class: CoverageHitMapTtlPruneJob
+    schedule: every day at 3:50am
   sync_agent_skills:
     class: SyncAgentSkillsJob
     schedule: every hour
