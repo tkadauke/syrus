@@ -653,7 +653,7 @@ function SummaryTab({ payload, command, prefix }: { payload: JobDetailPayload; c
               {payload.job.branch_name ? <KeyValue label={t("detail_branch")}><code className="break-all">{payload.job.branch_name}</code></KeyValue> : null}
               <KeyValue label={t("detail_stack_base")}><StackBaseForm command={command} payload={payload} /></KeyValue>
               {payload.job.pr_number || payload.job.external_pr_number ? <KeyValue label={t("detail_pull_request")}><PullRequestSummary payload={payload} /></KeyValue> : null}
-              <KeyValue label={t("detail_cost")}>{payload.job.total_cost_usd == null ? "-" : formatCurrency(payload.job.total_cost_usd)} <span className="text-xs text-gray-400 dark:text-gray-500">({payload.job.billed_runs_count}{/* TODO: missing i18n key */} billed)</span></KeyValue>
+              <KeyValue label={t("detail_cost")}>{payload.job.total_cost_usd == null ? "-" : formatCurrency(payload.job.total_cost_usd)} <span className="text-xs text-gray-400 dark:text-gray-500">({payload.job.billed_runs_count} {t("detail_billed")})</span></KeyValue>
               <KeyValue label={t("detail_started")}>{formatDate(payload.job.started_at)}</KeyValue>
               {payload.job.finished_at ? <KeyValue label={t("detail_closed")}>{formatDate(payload.job.finished_at)} ({payload.job.closure_reason || "unspecified"})</KeyValue> : null}
             </div>
@@ -755,8 +755,8 @@ function RetryStatePanel({ payload }: { payload: JobDetailPayload }) {
         <span className="font-semibold">{retry.state_label}</span>
         <SmallPill>{retry.classification_label}</SmallPill>
         <SmallPill>{retry.retryable ? t("run_retryable") : t("run_not_retryable")}</SmallPill>
-        <SmallPill>{retry.retry_attempt_count}/{retry.retry_budget}{/* TODO: missing i18n key */} attempts</SmallPill>
-        <SmallPill>{retry.retry_budget_remaining}{/* TODO: missing i18n key */} remaining</SmallPill>
+        <SmallPill>{retry.retry_attempt_count}/{retry.retry_budget} {t("retry_attempts_label")}</SmallPill>
+        <SmallPill>{retry.retry_budget_remaining} {t("retry_remaining_label")}</SmallPill>
       </div>
       <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs">
         {retry.next_auto_retry_at ? <span>{t("retry_state_next_retry")} {formatDate(retry.next_auto_retry_at)}</span> : null}
@@ -1187,7 +1187,7 @@ function BranchDivergencePanel({
 }) {
   const { t } = useT("jobs")
   const sourcePath = withRoutePrefix(`/jobs/${payload.job.id}/source`, prefix)
-  const branch = divergence.branch || "the PR branch" // TODO: missing i18n key
+  const branch = divergence.branch || t("workflow_pr_branch_fallback")
 
   return (
     <div className="mt-4 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
@@ -1205,7 +1205,7 @@ function BranchDivergencePanel({
         <CommandButton command={command} input={{ method: "post", path: payload.paths.app_run_again_path }} tone="secondary">
           {t("workflow_retry_from_pr")}
         </CommandButton>
-        <CommandButton command={command} input={{ method: "post", path: workflow.app_force_push_branch_path, confirm: `Replace ${branch} with this workflow's output?` /* TODO: missing i18n key */ }} tone="danger">
+        <CommandButton command={command} input={{ method: "post", path: workflow.app_force_push_branch_path, confirm: t("workflow_replace_confirm", { branch }) }} tone="danger">
           {t("workflow_replace_pr_branch")}
         </CommandButton>
         <CommandButton command={command} input={{ method: "post", path: workflow.app_discard_branch_output_path }} tone="secondary">
@@ -1409,7 +1409,7 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
           <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
             <span>{metadataLabel || step.kind}</span>
             {step.loop_id ? <span>{t("step_metadata_iteration", { n: step.iteration ?? 1 })}</span> : null}
-            {activeRun && step.state !== activeRun.state ? <SmallPill>{/* TODO: missing i18n key */}step {step.state.replaceAll("_", " ")}</SmallPill> : null}
+            {activeRun && step.state !== activeRun.state ? <SmallPill>{t("step_state_display", { state: step.state.replaceAll("_", " ") })}</SmallPill> : null}
             {step.latest ? <SmallPill>{t("step_latest")}</SmallPill> : null}
             <span>{formatDate(step.started_at || step.created_at)}</span>
           </div>
@@ -1505,7 +1505,7 @@ function RunRow({ run, payload, command, active = false }: { run: JobRun; payloa
             {run.rate_limited ? <SmallPill>{t("run_rate_limited")}</SmallPill> : null}
           </div>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {run.agent_provider || "agent" /* TODO: missing i18n key */} · {t("run_turns", { count: run.agent_turns ?? 0 })} · {run.job_log_count} {t("run_log_line", { count: run.job_log_count })} · {formatCurrency(run.cost_usd || 0)}
+            {run.agent_provider || t("run_agent_fallback")} · {t("run_turns", { count: run.agent_turns ?? 0 })} · {run.job_log_count} {t("run_log_line", { count: run.job_log_count })} · {formatCurrency(run.cost_usd || 0)}
           </p>
           {run.agent_summary ? <p className="mt-2 whitespace-pre-wrap text-gray-700 dark:text-gray-300">{run.agent_summary}</p> : null}
           {run.health_snapshots.at(-1) ? <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t("run_health")} {run.health_snapshots.at(-1)?.health_status || "unknown"} {run.health_snapshots.at(-1)?.hint ? `- ${run.health_snapshots.at(-1)?.hint}` : ""}</p> : null}
@@ -1693,6 +1693,7 @@ function diffMarkerClass(kind: DiffLineKind) {
 }
 
 function RunTranscriptLogs({ logs }: { logs: Awaited<ReturnType<typeof fetchJobRunArtifacts>>["logs"] }) {
+  const { t } = useT("jobs")
   const listRef = useRef<HTMLOListElement | null>(null)
   const atBottomRef = useRef(true)
   const logSignature = logs.map((log) => `${log.id}:${log.sequence}:${log.kind || ""}:${log.chunk.length}`).join("|")
@@ -1710,7 +1711,7 @@ function RunTranscriptLogs({ logs }: { logs: Awaited<ReturnType<typeof fetchJobR
     <ol className="max-h-[32rem] overflow-auto divide-y divide-gray-200 max-md:min-h-0 max-md:flex-1 max-md:max-h-none dark:divide-gray-800" data-testid="run-transcript-log-stream" onScroll={handleScroll} ref={listRef}>
       {displayLogs.map((log) => (
         <li className="grid gap-2 px-3 py-2 font-mono text-xs text-gray-800 sm:grid-cols-[5rem_minmax(0,1fr)] dark:text-gray-200" key={log.id}>
-          <span className="text-gray-400 dark:text-gray-500">{transcriptLogKindLabel(log.kind) || `#${log.sequence}`}</span>
+          <span className="text-gray-400 dark:text-gray-500">{transcriptLogKindLabel(log.kind, t) || `#${log.sequence}`}</span>
           <pre className="whitespace-pre-wrap break-words"><AnsiText text={log.chunk} /></pre>
         </li>
       ))}
@@ -1779,10 +1780,10 @@ function scrollRunTranscriptToBottom(element: HTMLElement | null) {
   element.scrollTop = element.scrollHeight
 }
 
-function transcriptLogKindLabel(kind: string | null | undefined) {
-  if (kind === "assistant_text") return "Agent" // TODO: missing i18n key
-  if (kind === "tool_call") return "Tool" // TODO: missing i18n key
-  if (kind === "system") return "System" // TODO: missing i18n key
+function transcriptLogKindLabel(kind: string | null | undefined, t: ReturnType<typeof useT>["t"]) {
+  if (kind === "assistant_text") return t("transcript_kind_agent")
+  if (kind === "tool_call") return t("transcript_kind_tool")
+  if (kind === "system") return t("transcript_kind_system")
   return kind
 }
 

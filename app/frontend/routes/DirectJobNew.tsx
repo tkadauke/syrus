@@ -24,6 +24,7 @@ type DirectJobFormState = {
 }
 
 export function DirectJobNewRoute() {
+  const { t } = useT("jobs")
   const location = useLocation()
   const prefix = routePrefix(location.pathname)
   const form = useQuery({
@@ -34,15 +35,12 @@ export function DirectJobNewRoute() {
   return (
     <main aria-label="New direct job" className="mx-auto max-w-4xl space-y-6 p-6">
       <header>
-        {/* TODO: missing i18n key */}
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">New direct job</h1>
-        {/* TODO: missing i18n key */}
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Run the agent on a repository with a free-form prompt and optional context.</p>
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("direct_job_title")}</h1>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t("direct_job_description")}</p>
       </header>
 
-      {/* TODO: missing i18n key */}
-      {form.isPending ? <PanelMessage>Loading direct job form...</PanelMessage> : null}
-      {form.isError ? <PanelMessage tone="error">{errorMessage(form.error, "Unable to load the direct job form.")}</PanelMessage> : null}
+      {form.isPending ? <PanelMessage>{t("direct_job_loading")}</PanelMessage> : null}
+      {form.isError ? <PanelMessage tone="error">{errorMessage(form.error, t("direct_job_load_error"))}</PanelMessage> : null}
       {form.isSuccess ? <DirectJobForm payload={form.data} prefix={prefix} /> : null}
     </main>
   )
@@ -69,7 +67,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
         return
       }
 
-      setNotice(created.message || "Direct job created.") // TODO: missing i18n key
+      setNotice(created.message || t("direct_job_created"))
       setFiles([])
       if (fileInputRef.current) fileInputRef.current.value = ""
       setValues((current) => ({
@@ -114,12 +112,11 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
 
   if (payload.repositories.length === 0) {
     return (
-      // TODO: missing i18n key (fallbackActionText, fallbackDescription, fallbackTitle)
       <OnboardingEmptyState
         fallbackActionPath={payload.new_repository_path}
-        fallbackActionText="Add repository"
-        fallbackDescription="Direct jobs run inside an active repository. Add one first, then return here with the repository preselected."
-        fallbackTitle="No active repositories"
+        fallbackActionText={t("direct_job_no_repositories_action")}
+        fallbackDescription={t("direct_job_no_repositories_description")}
+        fallbackTitle={t("direct_job_no_repositories_title")}
         prefix={prefix}
         setupStatus={setupStatus}
       />
@@ -129,14 +126,12 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
   return (
     <form className="space-y-5" onSubmit={submit}>
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {/* TODO: missing i18n key */}
-      {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, "Unable to create direct job.")}</PanelMessage> : null}
+      {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, t("direct_job_create_error"))}</PanelMessage> : null}
 
       <section className="space-y-4 rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-        {/* TODO: missing i18n key */}
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Target</h2>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("form_section_target")}</h2>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label={"Repository" /* TODO: missing i18n key */}>
+          <Field label={t("form_repository_label")}>
             <select
               className={inputClass()}
               name="repository_id"
@@ -144,8 +139,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
               required
               value={values.repositoryId}
             >
-              {/* TODO: missing i18n key */}
-              <option value="">Select a repository</option>
+              <option value="">{t("form_repository_placeholder")}</option>
               {payload.repositories.map((repository) => (
                 <option key={repository.id} value={repository.id}>{repository.slug}</option>
               ))}
@@ -153,14 +147,14 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
           </Field>
 
           {payload.configured_agent_providers.length > 1 ? (
-            <Field label={"Agent" /* TODO: missing i18n key */}>
+            <Field label={t("form_agent_label")}>
               <select
                 className={inputClass()}
                 name="agent_provider"
                 onChange={(event) => setValues({ ...values, agentProvider: event.target.value })}
                 value={values.agentProvider}
               >
-                <option value="">{"Repository default" /* TODO: missing i18n key */} ({selectedRepository?.default_agent_provider_label || "default"})</option>
+                <option value="">{t("form_agent_repository_default")} ({selectedRepository?.default_agent_provider_label || "default"})</option>
                 {payload.configured_agent_providers.map((provider) => (
                   <option key={provider.value} value={provider.value}>{provider.label}</option>
                 ))}
@@ -172,8 +166,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
 
       {payload.prompt_templates.length > 0 ? (
         <section className="space-y-3">
-          {/* TODO: missing i18n key */}
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Templates</h2>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("form_section_templates")}</h2>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {payload.prompt_templates.map((template) => (
               <button
@@ -191,31 +184,30 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
       ) : null}
 
       <section className="space-y-4 rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-        {/* TODO: missing i18n key */}
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Prompt</h2>
-        <Field label={"Title" /* TODO: missing i18n key */}>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("form_section_prompt")}</h2>
+        <Field label={t("form_title_label")}>
           <input
             className={inputClass()}
             name="title"
             onChange={(event) => setValues({ ...values, title: event.target.value })}
-            placeholder={"e.g. Bump Ruby version to 3.3" /* TODO: missing i18n key */}
+            placeholder={t("form_title_placeholder")}
             type="text"
             value={values.title}
           />
         </Field>
-        <Field label={"Prompt" /* TODO: missing i18n key */}>
+        <Field label={t("form_section_prompt")}>
           <textarea
             className={`${inputClass()} font-mono`}
             name="prompt"
             onChange={(event) => setValues({ ...values, prompt: event.target.value })}
-            placeholder={"Describe what you want the agent to do..." /* TODO: missing i18n key */}
+            placeholder={t("form_prompt_placeholder")}
             ref={promptRef}
             required
             rows={10}
             value={values.prompt}
           />
         </Field>
-        <Field label={"Priority" /* TODO: missing i18n key */}>
+        <Field label={t("form_priority_label")}>
           <select
             className={inputClass()}
             name="priority"
@@ -234,8 +226,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
       <section className="space-y-4 rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
         <div>
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("section_attachments")}</h2>
-          {/* TODO: missing i18n key */}
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Optional files and Google Doc links are passed to the agent as Job context.</p>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("form_attachments_description")}</p>
         </div>
 
         <div
@@ -252,10 +243,8 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
           role="button"
           tabIndex={0}
         >
-          {/* TODO: missing i18n key */}
-          <div className="font-medium text-gray-700 dark:text-gray-300">Drop files here</div>
-          {/* TODO: missing i18n key */}
-          <div className="mt-1 text-xs">PNG, JPG, GIF, WebP, PDF, text, or Markdown. 20 MB max.</div>
+          <div className="font-medium text-gray-700 dark:text-gray-300">{t("form_drop_files")}</div>
+          <div className="mt-1 text-xs">{t("form_file_types_hint")}</div>
         </div>
         <input
           accept={payload.accepted_file_content_types.join(",")}
@@ -271,8 +260,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
             onClick={() => fileInputRef.current?.click()}
             type="button"
           >
-            {/* TODO: missing i18n key */}
-            Choose files
+            {t("form_choose_files")}
           </button>
           {files.length > 0 ? <span className="text-sm text-gray-600 dark:text-gray-400">{files.map((file) => file.name).join(", ")}</span> : null}
         </div>
@@ -297,8 +285,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
           onChange={(event) => setValues({ ...values, createMore: event.target.checked })}
           type="checkbox"
         />
-        {/* TODO: missing i18n key */}
-        Create More
+        {t("form_create_more")}
       </label>
 
       <div className="flex items-center gap-3">
@@ -307,8 +294,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
           disabled={save.isPending}
           type="submit"
         >
-          {/* TODO: missing i18n key */}
-          {save.isPending ? "Creating..." : "Create job"}
+          {save.isPending ? t("form_creating") : t("form_create_job")}
         </button>
         <Link className="text-sm text-gray-600 underline hover:no-underline dark:text-gray-400 dark:hover:text-gray-200" to={withRoutePrefix(payload.dashboard_jobs_path, prefix)}>{t("cancel")}</Link>
       </div>
