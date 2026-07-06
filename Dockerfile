@@ -130,10 +130,14 @@ CMD ["./bin/thrust", "./bin/rails", "server"]
 # ============================================================================
 # Runtime cache stages — pre-compiled language runtimes for the worker.
 #
-# Ruby and Python install via mise compile from source (~5 min/Ruby, ~3 min
-# for Python, on amd64 native; longer under qemu). Keep each language family
-# in its own stage so changing Go/Node/Python pins cannot invalidate the Ruby
-# compile cache.
+# Ruby installs mise's PRECOMPILED binaries (MISE_RUBY_COMPILE=0), which cuts
+# this stage from ~13 min (compiling 3.2.3 + 3.3.11 from source) to seconds.
+# The prebuilt binaries are glibc-2.36-compatible — verified running on
+# bookworm-slim, amd64 and arm64, with their own bundled OpenSSL/libyaml — and
+# mise makes precompiled the default in 2026.8.0 anyway. The apt build deps in
+# runtime-base stay: `bundle install` still compiles native gems against them.
+# Python still compiles from source (~3 min). Keep each language family in its
+# own stage so changing Go/Node/Python pins cannot invalidate the Ruby cache.
 #
 # Cross-builder cache sharing (e.g. CI on fresh runners) needs `--cache-from
 # type=registry,ref=ghcr.io/tkadauke/syrus:cache` plus a matching `--cache-to`.
@@ -167,8 +171,10 @@ FROM runtime-base AS runtime-ruby-cache
 
 # Exact patch pins keep cache keys stable and make cold rebuilds reproducible.
 # 3.2.3 matches Syrus's own .ruby-version; 3.3.11 is the current Ruby 3.3 line.
+# MISE_RUBY_COMPILE=0 pulls prebuilt binaries instead of compiling (see the
+# stage-header note); bump the mise pin deliberately if a prebuilt is missing.
 ARG MISE_RUBIES="3.2.3 3.3.11"
-RUN /usr/local/bin/mise install $(for v in $MISE_RUBIES; do echo ruby@$v; done) && \
+RUN MISE_RUBY_COMPILE=0 /usr/local/bin/mise install $(for v in $MISE_RUBIES; do echo ruby@$v; done) && \
     rm -rf /opt/mise/cache /opt/mise/tmp
 
 FROM runtime-base AS runtime-node-cache

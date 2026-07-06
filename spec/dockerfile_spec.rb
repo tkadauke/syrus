@@ -43,7 +43,7 @@ RSpec.describe "Dockerfile" do
     expect(stage).to include("PATH=\"/opt/mise/installs/go/${MISE_GO_VERSION}/bin:/opt/python-tools/bin:/opt/mise/shims:${PATH}\"")
   end
 
-  it "keeps compiled Ruby runtimes in their own exact-pinned cache stage" do
+  it "keeps Ruby runtimes in their own exact-pinned cache stage, installed prebuilt" do
     ruby_stage = stage("runtime-ruby-cache")
     node_stage = stage("runtime-node-cache")
     python_stage = stage("runtime-python-cache")
@@ -52,6 +52,9 @@ RSpec.describe "Dockerfile" do
 
     expect(ruby_stage).to include('ARG MISE_RUBIES="3.2.3 3.3.11"')
     expect(ruby_stage).to include("mise install $(for v in $MISE_RUBIES")
+    # Prebuilt Ruby binaries (glibc-2.36-compatible), not a ~13-min source
+    # compile. The env override must sit on the install RUN itself.
+    expect(ruby_stage).to match(/MISE_RUBY_COMPILE=0 \S*mise install \$\(for v in \$MISE_RUBIES/)
     expect(ruby_stage).not_to include("MISE_NODES")
     expect(ruby_stage).not_to include("MISE_PYTHONS")
     expect(ruby_stage).not_to include("MISE_GO_VERSION")
