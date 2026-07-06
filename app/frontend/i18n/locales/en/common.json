@@ -4,6 +4,29 @@
   "show_more": "Show more",
   "show_less": "Show less",
   "workflows": "Workflows",
+  "onboarding": {
+    "loading": "Loading setup status...",
+    "setup_label": "First-run setup",
+    "heading": "Set up Syrus",
+    "complete_badge": "Complete",
+    "ready_heading": "Ready for normal operations",
+    "ready_description": "Your first Epic has landed — Syrus is set up. The Setup tab will drop off the nav.",
+    "open_dashboard": "Open dashboard"
+  },
+  "search": {
+    "heading": "Search",
+    "use_sidebar": "Use the sidebar search field to search across Syrus.",
+    "min_chars": "Enter at least 2 characters to search.",
+    "error": "Unable to load search results.",
+    "no_results": "No results match this search.",
+    "hide": "Hide",
+    "show": "Show",
+    "match_more": "more match",
+    "matches_more": "more matches",
+    "more": "more",
+    "in_this_chat": "in this chat",
+    "top_matches_shown": "Only the top {{count}} additional matches are shown."
+  },
   "errors": {
     "not_found_heading": "There's nothing here.",
     "not_found_description": "This address leads nowhere. You may have followed a broken link, or the page may have moved.",

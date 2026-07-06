@@ -49,8 +49,7 @@ export function SearchRoute() {
     <main aria-label="Search" className="mx-auto max-w-[72rem] space-y-6 p-6">
       <header className="space-y-4">
         <div>
-          {/* TODO: missing i18n key */}
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Search</h1>
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t('search.heading')}</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{query ? `Results for "${query}"` : "Search jobs, epics, and chats."}</p>
         </div>
         <nav aria-label="Search type filters" className="flex flex-wrap gap-2">
@@ -63,15 +62,15 @@ export function SearchRoute() {
       </header>
 
       {query.length === 0 ? (
-        <PanelMessage>{/* TODO: missing i18n key */}Use the sidebar search field to search across Syrus.</PanelMessage>
+        <PanelMessage>{t('search.use_sidebar')}</PanelMessage>
       ) : query.length < 2 ? (
-        <PanelMessage>{/* TODO: missing i18n key */}Enter at least 2 characters to search.</PanelMessage>
+        <PanelMessage>{t('search.min_chars')}</PanelMessage>
       ) : search.isPending ? (
         <SearchSkeleton />
       ) : search.isError ? (
-        <PanelMessage tone="error">{/* TODO: missing i18n key */}Unable to load search results.</PanelMessage>
+        <PanelMessage tone="error">{t('search.error')}</PanelMessage>
       ) : search.data.length === 0 ? (
-        <PanelMessage>{/* TODO: missing i18n key */}No results match this search.</PanelMessage>
+        <PanelMessage>{t('search.no_results')}</PanelMessage>
       ) : (
         <section className="divide-y divide-gray-200 overflow-hidden rounded border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-950">
           {search.data.map((result) => <SearchResultRow key={`${result.type}-${result.id}`} result={result} />)}
@@ -128,9 +127,9 @@ function GroupedChatMatches({ result, routePrefix }: { result: Extract<SearchRes
         type="button"
       >
         <ChevronIcon className={`h-4 w-4 transition-transform ${expanded ? "rotate-90" : ""}`} />
-        {expanded ? "Hide" : "Show"} {groupedMatches.length} {/* TODO: missing i18n key */}more {groupedMatches.length === 1 ? "match" : "matches"}
+        {expanded ? t('search.hide') : t('search.show')} {groupedMatches.length} {groupedMatches.length === 1 ? t('search.match_more') : t('search.matches_more')}
       </button>
-      {!expanded ? <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">{hiddenMatchCount} {/* TODO: missing i18n key */}more {matchLabel} {/* TODO: missing i18n key */}in this chat</span> : null}
+      {!expanded ? <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">{hiddenMatchCount} {t('search.more')} {matchLabel} {t('search.in_this_chat')}</span> : null}
       {expanded ? (
         <div className="mt-3 divide-y divide-gray-100 border-t border-gray-100 dark:divide-gray-800 dark:border-gray-800">
           {groupedMatches.map((match) => (
@@ -139,7 +138,7 @@ function GroupedChatMatches({ result, routePrefix }: { result: Extract<SearchRes
               {match.created_at ? <time className="mt-1 block text-xs text-gray-500 dark:text-gray-400" dateTime={match.created_at}>{formatDate(match.created_at)}</time> : null}
             </Link>
           ))}
-          {result.has_more_matches ? <div className="py-3 text-xs text-gray-500 dark:text-gray-400">{/* TODO: missing i18n key */}Only the top {groupedMatches.length} additional matches are shown.</div> : null}
+          {result.has_more_matches ? <div className="py-3 text-xs text-gray-500 dark:text-gray-400">{t('search.top_matches_shown', { count: groupedMatches.length })}</div> : null}
         </div>
       ) : null}
     </div>

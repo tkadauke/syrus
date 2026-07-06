@@ -48,10 +48,8 @@ export function ScheduledTasksIndex() {
   return (
     <main aria-label="Scheduled tasks" className="mx-auto max-w-[96rem] space-y-6 p-6">
       <header>
-        {/* TODO: missing i18n key */}
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Scheduled tasks</h1>
-        {/* TODO: missing i18n key */}
-        <p className="mt-1 max-w-2xl text-sm text-gray-600 dark:text-gray-400">Recurring and one-shot agent prompts attached to repositories.</p>
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("scheduled_tasks.heading")}</h1>
+        <p className="mt-1 max-w-2xl text-sm text-gray-600 dark:text-gray-400">{t("scheduled_tasks.description")}</p>
       </header>
 
       {tasks.isPending ? <PanelMessage>{t("scheduled_tasks.loading")}</PanelMessage> : null}

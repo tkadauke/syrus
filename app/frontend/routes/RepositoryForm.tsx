@@ -36,10 +36,7 @@ export function RepositoryFormRoute({ mode }: { mode: "new" | "edit" }) {
 
   return (
     <main aria-label={mode === "new" ? "Add Repository" : "Edit Repository"} className="mx-auto max-w-3xl space-y-6 p-6">
-      {form.isPending ? <PanelMessage>
-        {/* TODO: missing i18n key */}
-        Loading repository form...
-      </PanelMessage> : null}
+      {form.isPending ? <PanelMessage>{t('repository_form.loading')}</PanelMessage> : null}
       {form.isError ? <PanelMessage tone="error">{errorMessage(form.error, "Unable to load repository form.")}</PanelMessage> : null}
       {form.isSuccess ? <RepositoryForm mode={mode} payload={form.data} prefix={prefix} /> : null}
     </main>
@@ -209,8 +206,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
       <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <h1 className="break-words text-3xl font-semibold text-gray-900 dark:text-gray-100">{title}</h1>
         {mode === "edit" && payload.repository.repository_path ? <Link className="text-sm text-blue-600 dark:text-blue-400 underline hover:no-underline" to={withRoutePrefix(payload.repository.repository_path, prefix)}>
-          {/* TODO: missing i18n key */}
-          Back to repository
+          {t('repository_form.back')}
         </Link> : null}
       </header>
 
@@ -222,12 +218,10 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
         <section className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
           <div>
             <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-              {/* TODO: missing i18n key */}
-              Working repository
+              {t('repository_form.working_section')}
             </h2>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {/* TODO: missing i18n key */}
-              Syrus polls issues, creates branches, and opens PRs in this repository.
+              {t('repository_form.working_description')}
             </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -240,8 +234,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
                   value={values.owner}
                 >
                   <option value="">
-                    {/* TODO: missing i18n key */}
-                    Select owner...
+                    {t('repository_form.select_owner')}
                   </option>
                   {ownerOptions.map((owner) => <option key={owner.login} value={owner.login}>{owner.login}</option>)}
                 </SelectWithManual>
@@ -272,8 +265,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
                   value={values.name}
                 >
                   <option value="">
-                    {/* TODO: missing i18n key */}
-                    Select repository...
+                    {t('repository_form.select_repo')}
                   </option>
                   {repoOptions.map((repo) => <option key={repo.name} value={repo.name}>{repo.name}</option>)}
                 </SelectWithManual>
@@ -323,8 +315,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
               value={values.trigger_label}
             />
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {/* TODO: missing i18n key */}
-              Issues with this label are picked up by the poller.
+              {t('repository_form.trigger_hint')}
             </p>
           </Field>
         </section>
@@ -332,12 +323,10 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
         <section className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
           <div>
             <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-              {/* TODO: missing i18n key */}
-              Upstream repository
+              {t('repository_form.upstream_section')}
             </h2>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {/* TODO: missing i18n key */}
-              Optional reference repo for fork context. Syrus still opens PRs in the working repository.
+              {t('repository_form.upstream_description')}
             </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -375,8 +364,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
 
         <section className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-            {/* TODO: missing i18n key */}
-            Automation
+            {t('repository_form.automation_section')}
           </h2>
           <Field label="Default agent">
             <select
@@ -386,16 +374,14 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
               value={values.agent_provider}
             >
               <option value="">
-                {/* TODO: missing i18n key */}
-                Use my default ({payload.user_agent_provider_label})
+                {t('repository_form.agent_default', { provider: payload.user_agent_provider_label })}
               </option>
               {payload.configured_agent_providers.map((provider) => (
                 <option key={provider.value} value={provider.value}>{provider.label}</option>
               ))}
             </select>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {/* TODO: missing i18n key */}
-              New jobs for this repository use this agent unless a job already has its own agent.
+              {t('repository_form.agent_hint')}
             </p>
           </Field>
 
@@ -422,34 +408,17 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
 
         <section className="space-y-3">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-            {/* TODO: missing i18n key */}
-            Credential Mode Tradeoffs
+            {t('repository_form.credential_section')}
           </h2>
           <CredentialModeComparison />
         </section>
 
         <div className="flex items-center gap-3">
           <button className="rounded bg-blue-600 px-3.5 py-2.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900" disabled={save.isPending} type="submit">
-            {save.isPending ? (
-              <>
-                {/* TODO: missing i18n key */}
-                Saving...
-              </>
-            ) : mode === "new" ? (
-              <>
-                {/* TODO: missing i18n key */}
-                Create Repository
-              </>
-            ) : (
-              <>
-                {/* TODO: missing i18n key */}
-                Save Repository
-              </>
-            )}
+            {save.isPending ? t('repository_form.saving') : mode === "new" ? t('repository_form.create') : t('repository_form.save')}
           </button>
           <Link className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100" to={withRoutePrefix(payload.repositories_path, prefix)}>
-            {/* TODO: missing i18n key */}
-            Cancel
+            {t('repository_form.cancel')}
           </Link>
         </div>
       </form>
@@ -509,8 +478,7 @@ function SelectWithManual({
         {children}
       </select>
       <button className="mt-1 text-xs text-gray-500 dark:text-gray-400 underline hover:no-underline" onClick={onManual} type="button">
-        {/* TODO: missing i18n key */}
-        Enter manually
+        {t('repository_form.enter_manually')}
       </button>
     </div>
   )
@@ -541,12 +509,10 @@ function CredentialModeComparison() {
         <thead className="bg-gray-50 dark:bg-gray-800 text-xs uppercase text-gray-500 dark:text-gray-400">
           <tr>
             <th className="px-4 py-2 text-left">
-              {/* TODO: missing i18n key */}
-              PAT-only
+              {t('repository_form.pat_only')}
             </th>
             <th className="px-4 py-2 text-left">
-              {/* TODO: missing i18n key */}
-              App-installed
+              {t('repository_form.app_installed')}
             </th>
           </tr>
         </thead>

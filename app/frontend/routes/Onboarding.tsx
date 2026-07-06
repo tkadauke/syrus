@@ -33,8 +33,7 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
   if (!user || !setup) {
     return (
       <main aria-label="Onboarding" className="mx-auto max-w-5xl p-6">
-        {/* TODO: missing i18n key */}
-        <p className="text-sm text-gray-600 dark:text-gray-400">Loading setup status...</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400">{t('onboarding.loading')}</p>
       </main>
     )
   }
@@ -67,10 +66,8 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
   return (
     <main aria-label="Onboarding" className="mx-auto max-w-5xl space-y-6 p-6">
       <header className="border-b border-gray-200 dark:border-gray-700 pb-5">
-        {/* TODO: missing i18n key */}
-        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">First-run setup</p>
-        {/* TODO: missing i18n key */}
-        <h1 className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">Set up Syrus</h1>
+        <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t('onboarding.setup_label')}</p>
+        <h1 className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t('onboarding.heading')}</h1>
       </header>
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
@@ -87,7 +84,7 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
                   </div>
                 </div>
                 {step.complete ? (
-                  <span className="self-start rounded bg-green-50 dark:bg-green-950/40 px-2.5 py-1 text-xs font-medium text-green-700 dark:text-green-300 sm:self-center">{/* TODO: missing i18n key */}Complete</span>
+                  <span className="self-start rounded bg-green-50 dark:bg-green-950/40 px-2.5 py-1 text-xs font-medium text-green-700 dark:text-green-300 sm:self-center">{t('onboarding.complete_badge')}</span>
                 ) : step.ctaModal ? (
                   <button className={primaryCtaClass(current)} onClick={() => setOpenModal(step.ctaModal ?? null)} type="button">
                     {step.ctaLabel}
@@ -113,13 +110,10 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
 
       {complete ? (
         <section className="rounded border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 p-4">
-          {/* TODO: missing i18n key */}
-          <h2 className="text-sm font-medium text-green-900 dark:text-green-100">Ready for normal operations</h2>
-          {/* TODO: missing i18n key */}
-          <p className="mt-1 text-sm text-green-800 dark:text-green-200">Your first Epic has landed — Syrus is set up. The Setup tab will drop off the nav.</p>
+          <h2 className="text-sm font-medium text-green-900 dark:text-green-100">{t('onboarding.ready_heading')}</h2>
+          <p className="mt-1 text-sm text-green-800 dark:text-green-200">{t('onboarding.ready_description')}</p>
           <Link className="mt-3 inline-flex rounded bg-green-700 px-3 py-2 text-sm font-medium text-white hover:bg-green-800" to={withRoutePrefix("/dashboard/jobs?view=list", prefix)}>
-            {/* TODO: missing i18n key */}
-            Open dashboard
+            {t('onboarding.open_dashboard')}
           </Link>
         </section>
       ) : null}

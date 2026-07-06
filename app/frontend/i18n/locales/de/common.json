@@ -4,6 +4,29 @@
   "show_more": "Mehr anzeigen",
   "show_less": "Weniger anzeigen",
   "workflows": "Workflows",
+  "onboarding": {
+    "loading": "Setup-Status wird geladen...",
+    "setup_label": "Ersteinrichtung",
+    "heading": "Syrus einrichten",
+    "complete_badge": "Abgeschlossen",
+    "ready_heading": "Bereit für den Normalbetrieb",
+    "ready_description": "Ihr erstes Epic ist gelandet — Syrus ist eingerichtet. Der Einrichtungs-Tab wird aus der Navigation verschwinden.",
+    "open_dashboard": "Dashboard öffnen"
+  },
+  "search": {
+    "heading": "Suche",
+    "use_sidebar": "Verwenden Sie das Suchfeld in der Seitenleiste, um Syrus zu durchsuchen.",
+    "min_chars": "Geben Sie mindestens 2 Zeichen ein, um zu suchen.",
+    "error": "Suchergebnisse konnten nicht geladen werden.",
+    "no_results": "Keine Ergebnisse entsprechen dieser Suche.",
+    "hide": "Verbergen",
+    "show": "Zeigen",
+    "match_more": "weiterer Treffer",
+    "matches_more": "weitere Treffer",
+    "more": "weitere",
+    "in_this_chat": "in diesem Chat",
+    "top_matches_shown": "Nur die obersten {{count}} weiteren Treffer werden angezeigt."
+  },
   "errors": {
     "not_found_heading": "Hier ist nichts.",
     "not_found_description": "Diese Adresse führt nirgendwohin. Möglicherweise haben Sie einem defekten Link gefolgt, oder die Seite wurde verschoben.",

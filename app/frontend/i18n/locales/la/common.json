@@ -4,6 +4,29 @@
   "show_more": "Ostende plus",
   "show_less": "Ostende minus",
   "workflows": "Cursus operum",
+  "onboarding": {
+    "loading": "Status constitutionis oneratur...",
+    "setup_label": "Constitutio Prima",
+    "heading": "Syrum Constituere",
+    "complete_badge": "Perfectum",
+    "ready_heading": "Parata ad Opera Ordinaria",
+    "ready_description": "Primum Epicum terram tetigit — Syrus constitutus est. Tabella Constitutionis ex navigatione cadet.",
+    "open_dashboard": "Tabulam Aperire"
+  },
+  "search": {
+    "heading": "Quaesitio",
+    "use_sidebar": "Campo quaesitionis in latere utere ut per Syrum quaeras.",
+    "min_chars": "Inscribe saltem 2 litteras ad quaerendum.",
+    "error": "Exitus quaesitionis onerari non potuerunt.",
+    "no_results": "Nulla huic quaesitioni conveniunt.",
+    "hide": "Absconde",
+    "show": "Ostende",
+    "match_more": "plus conveniens",
+    "matches_more": "plura convenientia",
+    "more": "plura",
+    "in_this_chat": "in hoc colloquio",
+    "top_matches_shown": "Solum summi {{count}} exitus additi ostenduntur."
+  },
   "errors": {
     "not_found_heading": "Hic nihil est.",
     "not_found_description": "Haec via nusquam ducit. Fortasse nexum fractum secutus es, vel pagina huc mota est.",
