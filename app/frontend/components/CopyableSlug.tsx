@@ -35,7 +35,7 @@ export function CopyableSlug({ slug, className = "" }: { slug: string; className
   )
 }
 
-function CopyIcon({ className = "" }: { className?: string }) {
+export function CopyIcon({ className = "" }: { className?: string }) {
   return (
     <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 20 20">
       <rect height="11" rx="2" stroke="currentColor" strokeWidth="1.8" width="11" x="6" y="3" />

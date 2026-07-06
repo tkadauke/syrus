@@ -21,4 +21,17 @@ module SyrusMcp
       JobLog.append!(run: run, chunk: chunk)
     end
   end
+
+  def self.invalid(reason)
+    MCP::Tool::Response.new([ { type: "text", text: "Error: #{reason}" } ], error: true)
+  end
+
+  def self.utf8(text)
+    string = text.to_s
+    if string.encoding == Encoding::ASCII_8BIT
+      string.dup.force_encoding(Encoding::UTF_8).scrub("")
+    else
+      string.encode(Encoding::UTF_8, invalid: :replace, undef: :replace, replace: "")
+    end
+  end
 end

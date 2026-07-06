@@ -42,14 +42,14 @@ module SyrusMcp
       def call(pr_title:, pr_body:, summary:, server_context:)
         run = SyrusMcp.run_from_context(server_context)
 
-        title   = utf8(pr_title).strip
-        body    = utf8(pr_body).strip
-        summary = utf8(summary).strip
+        title   = SyrusMcp.utf8(pr_title).strip
+        body    = SyrusMcp.utf8(pr_body).strip
+        summary = SyrusMcp.utf8(summary).strip
 
-        return invalid("pr_title is required")                          if title.empty?
-        return invalid("pr_title too long (#{title.length} chars)")     if title.length > MAX_TITLE_LENGTH
-        return invalid("pr_body is required")                           if body.empty?
-        return invalid("summary is required")                           if summary.empty?
+        return SyrusMcp.invalid("pr_title is required")                          if title.empty?
+        return SyrusMcp.invalid("pr_title too long (#{title.length} chars)")     if title.length > MAX_TITLE_LENGTH
+        return SyrusMcp.invalid("pr_body is required")                           if body.empty?
+        return SyrusMcp.invalid("summary is required")                           if summary.empty?
 
         run.update!(
           agent_pr_title: title,
@@ -64,20 +64,6 @@ module SyrusMcp
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
       end
 
-      private
-
-      def invalid(reason)
-        MCP::Tool::Response.new([ { type: "text", text: "Error: #{reason}" } ], error: true)
-      end
-
-      def utf8(text)
-        string = text.to_s
-        if string.encoding == Encoding::ASCII_8BIT
-          string.dup.force_encoding(Encoding::UTF_8).scrub("")
-        else
-          string.encode(Encoding::UTF_8, invalid: :replace, undef: :replace, replace: "")
-        end
-      end
     end
   end
 end

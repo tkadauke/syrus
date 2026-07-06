@@ -32,11 +32,11 @@ module SyrusMcp
       def call(critique:, verdict:, server_context:)
         run = SyrusMcp.run_from_context(server_context)
 
-        normalized_critique = utf8(critique).strip
-        normalized_verdict = utf8(verdict).strip
+        normalized_critique = SyrusMcp.utf8(critique).strip
+        normalized_verdict = SyrusMcp.utf8(verdict).strip
 
-        return invalid("critique is required") if normalized_critique.empty?
-        return invalid("verdict must be one of: #{VERDICTS.join(', ')}") unless VERDICTS.include?(normalized_verdict)
+        return SyrusMcp.invalid("critique is required") if normalized_critique.empty?
+        return SyrusMcp.invalid("verdict must be one of: #{VERDICTS.join(', ')}") unless VERDICTS.include?(normalized_verdict)
 
         workflow = run.workflow
         iterations = Array(workflow.artifact("adversarial_review_iterations"))
@@ -54,20 +54,6 @@ module SyrusMcp
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
       end
 
-      private
-
-      def invalid(reason)
-        MCP::Tool::Response.new([ { type: "text", text: "Error: #{reason}" } ], error: true)
-      end
-
-      def utf8(text)
-        string = text.to_s
-        if string.encoding == Encoding::ASCII_8BIT
-          string.dup.force_encoding(Encoding::UTF_8).scrub("")
-        else
-          string.encode(Encoding::UTF_8, invalid: :replace, undef: :replace, replace: "")
-        end
-      end
     end
   end
 end

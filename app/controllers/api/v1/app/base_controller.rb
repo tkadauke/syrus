@@ -58,6 +58,19 @@ module Api
         def render_error(code, message, status:)
           render json: { error: { code: code, message: message } }, status: status
         end
+
+        def plain_json(value)
+          case value
+          when ActionController::Parameters
+            plain_json(value.to_unsafe_h)
+          when Hash
+            value.to_h.transform_values { |child| plain_json(child) }
+          when Array
+            value.map { |child| plain_json(child) }
+          else
+            value
+          end
+        end
       end
     end
   end

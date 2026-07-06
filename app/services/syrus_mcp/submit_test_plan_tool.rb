@@ -33,10 +33,10 @@ module SyrusMcp
       def call(steps:, notes: nil, server_context:)
         run = SyrusMcp.run_from_context(server_context)
 
-        normalized_steps = Array(steps).map { |step| utf8(step).strip }.reject(&:empty?)
-        normalized_notes = utf8(notes).strip.presence
+        normalized_steps = Array(steps).map { |step| SyrusMcp.utf8(step).strip }.reject(&:empty?)
+        normalized_notes = SyrusMcp.utf8(notes).strip.presence
 
-        return invalid("steps must include at least one item") if normalized_steps.empty?
+        return SyrusMcp.invalid("steps must include at least one item") if normalized_steps.empty?
 
         run.workflow.set_artifact!("test_plan", {
           steps: normalized_steps,
@@ -50,20 +50,6 @@ module SyrusMcp
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
       end
 
-      private
-
-      def invalid(reason)
-        MCP::Tool::Response.new([ { type: "text", text: "Error: #{reason}" } ], error: true)
-      end
-
-      def utf8(text)
-        string = text.to_s
-        if string.encoding == Encoding::ASCII_8BIT
-          string.dup.force_encoding(Encoding::UTF_8).scrub("")
-        else
-          string.encode(Encoding::UTF_8, invalid: :replace, undef: :replace, replace: "")
-        end
-      end
     end
   end
 end

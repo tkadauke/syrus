@@ -54,19 +54,6 @@ module Api
             version: whiteboard&.version || 0
           }
         end
-
-        def plain_json(value)
-          case value
-          when ActionController::Parameters
-            plain_json(value.to_unsafe_h)
-          when Hash
-            value.to_h.transform_values { |child| plain_json(child) }
-          when Array
-            value.map { |child| plain_json(child) }
-          else
-            value
-          end
-        end
       end
     end
   end
