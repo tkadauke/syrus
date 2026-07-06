@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-07-01._
+_Last reviewed: 2026-07-06._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -43,7 +43,10 @@ domain concepts. File paths are repo-relative.
   workflows through the app API
 - **Electron desktop shell** under `desktop/` for a menubar inbox,
   native notifications, checkout/approval shortcuts, and local
-  repository path preferences against the same app API
+  repository path preferences against the same app API. Distributed as a
+  universal macOS DMG (arm64 + x64 in one binary) and a Windows x64 NSIS
+  installer (`install.ps1`); both bundles include the Go CLI for one-click
+  install to `~/.local/bin/syrus`
 - **Octokit** for the GitHub API
 - **AASM** for state machines on `Job`, `Workflow`, `Step`, and `Run`
 - **Claude Code** and **Codex** as agent providers (subprocesses behind
@@ -131,6 +134,8 @@ state.
 | `scheduled_task_id` | nullable; set on cron Jobs |
 | `priority` | `high` / `medium` / `low`, mapped to Solid Queue priorities 0 / 10 / 20 |
 | `agent_provider` | provider captured for the Job; Workflows/Runs denormalize the selected provider |
+| `slug` | auto-generated short name (kebab-case from title, max 50 chars, collision-suffixed); accepted by CLI and API in place of numeric id or `JOB-<n>` prefix |
+| `branch_deleted_at` | set when the Syrus-managed branch is deleted after merge/close |
 
 Jobs also own optional operator metadata around the execution thread:
 `job_tags`, `job_pins`, `documents` / `job_attachments`, and
@@ -141,6 +146,12 @@ source links for work created from chat. `App::JobSourceChat` uses the
 direct Job proposal when present, or falls back to the Epic proposal for
 bundled child Jobs, so dashboard and Job detail payloads can link back
 to the originating chat message.
+
+`JobApproval` rows track which users have approved a Job (one row per
+user, with `approved_at` timestamp). Approval eligibility is governed
+by the repository's `review_policy`; `can_add_job_approval?` enforces
+the policy on the Job. The landing queue checks these rows when
+determining whether the Job is ready to merge.
 
 `closure_reason` values:
 
@@ -186,7 +197,9 @@ own board lifecycle (`backlog`, `ready`, `in_progress`, `done`,
 `archived`), dependency graph, ownership/claim fields, chat-proposal
 source links, and optional merge-train landing behavior for approved
 child Jobs. Starting an Epic unblocks its child Jobs; moving it back or
-archiving it restores the child Epic block.
+archiving it restores the child Epic block. Epics carry an auto-generated
+`slug` (kebab-case from title, max 50 chars, collision-suffixed) accepted
+by CLI and API in place of numeric id or `EPIC-<n>` prefix.
 
 `EpicVersion` records title/description changes for audit and for
 product-owner/developer handoff. Product owners can create and refine
@@ -295,15 +308,21 @@ Unique on `(run_id, sequence)`. `before_update` raises
 
 ### Repository
 
-Unique on `(user_id, owner, name)`: the same GitHub repo can be
-registered by multiple Syrus users, but not twice by the same user.
-Per-user is the natural scope because Syrus uses either the linked
-GitHub App installation or the user's PAT, plus the user's configured
-agent credentials. Carries `default_branch`, `polling_enabled`,
-`trigger_label` (default `"syrus"`), `archived_at`, `prepare_enabled`,
-`trust_clean_rebase_grade`, and optional repository-level
-`agent_provider`. Archive blocks polling even if `polling_enabled` is
-true.
+Unique on `(owner, name)` — a repository is a single shared record that
+multiple users can access through `RepositoryMembership` (roles: `owner`
+/ `collaborator`). The original registering user is the initial `owner`
+membership; repo-scoped actions use the membership's optional
+`agent_provider` override, falling back to the member's user-level
+default. Carries `default_branch`, `polling_enabled`, `trigger_label`
+(default `"syrus"`), `archived_at`, `prepare_enabled`,
+`trust_clean_rebase_grade`, and optional repository-level `agent_provider`
+for the owning user's Job runs. `review_policy` governs how approvals are
+counted (`self` — any reviewer including the author; `two_person` — at
+least one non-author approval; `final_say` — a designated
+`RepositoryFinalApprover` must be among the approvers). Upstream fork
+metadata (`upstream_owner`, `upstream_name`, `upstream_default_branch`)
+links a fork to its origin repository. Archive blocks polling even if
+`polling_enabled` is true.
 
 ### User
 
@@ -316,11 +335,16 @@ product owners can draft work and refine Epics, while developers/admins
 advance Epics into runnable implementation. `agent_provider` is the
 user's default for new Jobs; a
 Repository can override it and per-Job retry/direct actions can choose
-an explicitly configured provider. `agent_max_turns` is the per-user
-ceiling on Claude `--max-turns`; `0` means "no `--max-turns` flag" —
-the per-Run wall-clock timeout still applies. `theme` is a per-user UI
+an explicitly configured provider. `chat_provider` is a separate
+per-user preference for chat turns (`claude` or `codex`; defaults to
+`agent_provider` when nil). `agent_max_turns` is the per-user ceiling
+on Claude `--max-turns`; `0` means "no `--max-turns` flag" — the
+per-Run wall-clock timeout still applies. `theme` is a per-user UI
 preference (`light` or `dark`) returned in the bootstrap payload and
-updated through `PATCH /api/v1/app/theme`. `notification_preferences`
+updated through `PATCH /api/v1/app/theme`. `locale` is the user's UI
+language preference (supported: `"en"`, `"de"`, `"la"`; defaults to
+`"en"`), serialized in the bootstrap payload and used by the React i18n
+layer. `notification_preferences`
 stores per-kind app notification toggles plus desktop-native toggles for
 implemented/failed Job state alerts. Preferences are returned in
 bootstrap/current-user payloads, updated through
@@ -891,6 +915,18 @@ write/edit tools disabled; they inspect code, maintain notes and
 whiteboard state, and propose or queue work rather than editing a
 repository checkout directly.
 
+`ChatSession` carries two optional fields that enable additional sharing
+features. `share_token` (unique, nullable) enables read-only access for
+teammates who have the link — shared chats are visible without
+authentication. `pinned_context` stores serialized content that the
+operator has pinned to persist across turns. Chat sessions can also be
+branched: `POST /api/v1/app/chats/:id/branch` forks the full transcript
+into a fresh `ChatSession` and returns the new session's id, letting the
+operator explore an alternative direction without losing the original
+thread. The chat agent exposes `/branch`, `/pin`, `/copy`, `/search`,
+and `/report` slash commands; `/report` files a GitHub issue to the
+repository configured in `AppSetting.report_issue_repo_slug`.
+
 Each chat turn writes a temporary MCP config for `bin/syrus-chat-sidecar`
 with `SYRUS_CHAT_SESSION_ID` in the environment and `alwaysLoad: true`.
 `SyrusChatMcp::Sidecar` boots Rails over stdio and scopes every tool to
@@ -1069,8 +1105,9 @@ Several layers, each catching different failure modes:
 - **Feature flags** — declared in `config/features.yml`, synchronized
   into `Feature` rows, serialized through the bootstrap
   `feature_flags` payload, and toggled by admins at `/admin/features`.
-  `v2_sidebar_subject_selector` controls the dashboard subject selector
-  inside the V2 sidebar.
+  `v2_ui` enables the redesigned app shell. `v2_sidebar_subject_selector`
+  controls the dashboard subject selector inside the V2 sidebar.
+  `terminal` gates the interactive terminal experience.
 - **`/settings/edit`** — admin settings toggles (signups open, max job
   failures, merge-train enablement, etc.); redirects non-admins to
   credentials.
@@ -1244,15 +1281,19 @@ session outcome.
   notes.
 - Releases are cut by the CI pipeline (`.github/workflows/release.yml`) —
   a manual dispatch that computes the version, builds and signs the CLI,
-  both desktop apps, and the backend image, and publishes them atomically
-  (see `docs/releasing.md`). The `bin/release*` scripts are LOCAL
-  build/verify tools: `bin/release` builds CLI/desktop artifacts under
-  `dist/releases/<version>/<component>/` (no tagging or publishing);
-  `bin/release-cli` / `bin/release-desktop` are the per-component builders;
-  `bin/publish-image` builds, integration-tests, and pushes the image (used
-  directly and by the workflow); `bin/release-notes` previews Claude-written
-  notes. Shared version/checksum/output-dir helpers live in
-  `bin/release-lib`.
+  the macOS universal DMG, the Windows x64 NSIS installer, and the backend
+  image, and publishes them atomically (see `docs/releasing.md`). Versions
+  are tag-driven: `desktop/package.json` stays at `0.0.0` permanently;
+  the release tag is the canonical version. The backend image is published
+  using `GITHUB_TOKEN` (no PAT required — the package auto-connects to
+  the repo via `org.opencontainers.image.source`). The `bin/release*`
+  scripts are LOCAL build/verify tools: `bin/release` builds CLI/desktop
+  artifacts under `dist/releases/<version>/<component>/` (no tagging or
+  publishing); `bin/release-cli` / `bin/release-desktop` are the
+  per-component builders; `bin/publish-image` builds, integration-tests,
+  and pushes the image (used directly and by the workflow); `bin/release-notes`
+  previews Claude-written notes. Shared version/checksum/output-dir helpers
+  live in `bin/release-lib`.
 
 ## What's intentionally not here
 
