@@ -502,11 +502,28 @@ RSpec.describe "Steps::MergeTrain*" do
   end
 
   describe MergeTrainFailureHandler do
-    def train_with_workflow(members, reason:)
+    def train_with_workflow(members, reason:, artifacts: {})
       train = build_train(members)
-      workflow = Workflow.create!(job: members.last, trigger_kind: "merge_train",
-                                  artifacts: { "merge_train_id" => train.id },
-                                  failure_reason: reason)
+      workflow = Workflow.create!(
+        job: members.last,
+        trigger_kind: "merge_train",
+        artifacts: { "merge_train_id" => train.id }.merge(artifacts),
+        failure_reason: reason
+      )
+      [ train, workflow ]
+    end
+
+    def train_with_workflow_and_failed_run(members, error_message:)
+      train = build_train(members)
+      workflow = Workflow.create!(
+        job: members.last,
+        trigger_kind: "merge_train",
+        artifacts: { "merge_train_id" => train.id }
+      )
+      step = Step.create!(workflow: workflow, kind: "merge_train_land", position: 0)
+      run = Run.create!(job: members.last, step: step, trigger_kind: "merge_train", state: "failed",
+                        started_at: 5.minutes.ago, finished_at: 1.minute.ago)
+      RunDiagnostic.create!(run: run, error_class: "Steps::Base::StepFailed", error_message: error_message)
       [ train, workflow ]
     end
 
@@ -551,6 +568,78 @@ RSpec.describe "Steps::MergeTrain*" do
 
       expect(a.reload.state).to eq("approved")
       expect(train.reload.state).to eq("failed")
+    end
+
+    context "when workflow.failure_reason is blank — stale-base artifact fallback" do
+      it "defer_lands members when stale-base artifact records base_moved (not fail_lands)" do
+        a = member_job(issue_number: 1)
+        train, workflow = train_with_workflow(
+          [ a ],
+          reason: nil,
+          artifacts: {
+            "merge_train_stale_base" => {
+              "base_branch" => "main",
+              "built_base_sha" => "abc123456789000",
+              "current_base_sha" => "def456789012000",
+              "reason" => "base_moved"
+            }
+          }
+        )
+
+        described_class.call(workflow: workflow)
+
+        expect(a.reload.state).to eq("approved")
+        expect(train.reload.failure_reason).to match(/merge_train: base moved/)
+        expect(train.reload.failure_reason).to match(/rebuild required/)
+      end
+
+      it "defer_lands members when stale-base artifact records missing_built_base_sha" do
+        a = member_job(issue_number: 1)
+        train, workflow = train_with_workflow(
+          [ a ],
+          reason: nil,
+          artifacts: {
+            "merge_train_stale_base" => {
+              "base_branch" => "main",
+              "built_base_sha" => nil,
+              "current_base_sha" => "abc123",
+              "reason" => "missing_built_base_sha"
+            }
+          }
+        )
+
+        described_class.call(workflow: workflow)
+
+        expect(a.reload.state).to eq("approved")
+        expect(train.reload.failure_reason).to match(/merge_train: missing built base SHA/)
+      end
+    end
+
+    context "when workflow.failure_reason and stale-base artifact are blank — diagnostic fallback" do
+      it "defer_lands members when the failed run diagnostic carries the stale-base error message" do
+        a = member_job(issue_number: 1)
+        train, workflow = train_with_workflow_and_failed_run(
+          [ a ],
+          error_message: "merge_train: base moved from oldbase123456 to newbase654321; rebuild required"
+        )
+
+        described_class.call(workflow: workflow)
+
+        expect(a.reload.state).to eq("approved")
+        expect(train.reload.failure_reason).to match(/merge_train: base moved/)
+      end
+
+      it "fail_lands members when the failed run diagnostic carries a genuine failure message" do
+        a = member_job(issue_number: 1)
+        train, workflow = train_with_workflow_and_failed_run(
+          [ a ],
+          error_message: "grader returned non-zero exit"
+        )
+
+        described_class.call(workflow: workflow)
+
+        expect(a.reload.state).to eq("implemented")
+      end
     end
 
     # Regression: a failing merge_train workflow used to drive its tip

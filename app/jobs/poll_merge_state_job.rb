@@ -135,6 +135,7 @@ class PollMergeStateJob < ApplicationJob
 
     return if attempt_cap_reached?
     return if repo_rebase_concurrency_reached?
+    return if stack_rebase_blocked_by_unchanged_deps?
 
     workflow = RebaseWorkflowSelector.instantiate(job: @job, pr: @pr)
     audit("auto_merge: dispatching rebase #{workflow.slug} before merge")
@@ -170,5 +171,36 @@ class PollMergeStateJob < ApplicationJob
   def repo_rebase_concurrency_reached?
     active = RebaseWorkflowSelector.active_in_repository(@job.repository).count
     active >= PollRebaseJob::CONCURRENT_REBASES_PER_REPO
+  end
+
+  # Skip dispatching a stack_rebase when the last rebase workflow was
+  # cancelled because stack dependencies weren't ready AND the parent
+  # job's state hasn't changed since — creating and immediately cancelling
+  # a new workflow every poll is wasteful churn with no chance of success.
+  # Returns to normal dispatch as soon as the parent job is updated (state
+  # transition, any attribute change via update!).
+  def stack_rebase_blocked_by_unchanged_deps?
+    return false unless RebaseWorkflowSelector.stack_rebase?(@job)
+
+    last_blocked = @job.workflows
+      .where(trigger_kind: RebaseWorkflowSelector::TRIGGER_KINDS, state: "cancelled")
+      .order(id: :desc)
+      .first
+    return false unless last_blocked
+    return false unless last_blocked.artifact("start_blocked_reason") == "stack_dependencies_not_ready"
+
+    blocked_at_str = last_blocked.artifact("start_blocked_at").to_s
+    return false if blocked_at_str.blank?
+
+    blocked_at = begin
+      Time.zone.parse(blocked_at_str)
+    rescue ArgumentError, TypeError
+      return false
+    end
+
+    parent = @job.parent_job
+    return false unless parent
+
+    parent.updated_at <= blocked_at
   end
 end

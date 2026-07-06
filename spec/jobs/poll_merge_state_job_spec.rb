@@ -278,6 +278,63 @@ RSpec.describe PollMergeStateJob do
     end
   end
 
+  describe "stack rebase churn guard" do
+    # A stack job must have open children so RebaseWorkflowSelector.stack_rebase? returns true.
+    let(:parent_job) { Factories.job(user: user, repository: repository, issue_number: 41, pr_number: 6, branch_name: "syrus/issue-41-1") }
+    let(:child_job)  { Factories.job(user: user, repository: repository, issue_number: 43, pr_number: 8, branch_name: "syrus/issue-43-1") }
+
+    before do
+      job.update!(parent_job: parent_job)
+      child_job.update!(parent_job: job)
+      child_job.workflows.update_all(state: "succeeded")
+      parent_job.workflows.update_all(state: "succeeded")
+      allow_any_instance_of(GithubClient).to receive(:pull_request).and_return(
+        pr(mergeable_state: "dirty", mergeable: false)
+      )
+      allow_any_instance_of(GithubClient).to receive(:pr_reviews).and_return([])
+    end
+
+    it "skips stack rebase dispatch when the last cancel was due to unready deps and the parent hasn't changed" do
+      blocked_at = 10.minutes.ago
+      Workflows::StackRebase.instantiate(job: job).update!(
+        state: "cancelled",
+        artifacts: {
+          "start_blocked_reason" => "stack_dependencies_not_ready",
+          "start_blocked_at"     => blocked_at.iso8601
+        }
+      )
+      parent_job.update_columns(updated_at: blocked_at - 1.minute)
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { job.workflows.where(trigger_kind: "stack_rebase").count }
+    end
+
+    it "dispatches stack rebase when the parent job was updated after the last blocked cancel" do
+      blocked_at = 10.minutes.ago
+      Workflows::StackRebase.instantiate(job: job).update!(
+        state: "cancelled",
+        artifacts: {
+          "start_blocked_reason" => "stack_dependencies_not_ready",
+          "start_blocked_at"     => blocked_at.iso8601
+        }
+      )
+      parent_job.update_columns(updated_at: blocked_at + 1.minute)
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.workflows.where(trigger_kind: "stack_rebase").count }.by(1)
+    end
+
+    it "dispatches stack rebase when there is no prior blocked cancel" do
+      parent_job.update_columns(updated_at: 30.minutes.ago)
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.workflows.where(trigger_kind: "stack_rebase").count }.by(1)
+    end
+  end
+
   describe "finalizing preempted Jobs whose external PR is terminal" do
     def preempted_job(external_pr_number: 99)
       job = Factories.job(user: user, repository: repository, pr_number: nil)
