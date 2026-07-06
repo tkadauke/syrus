@@ -152,8 +152,8 @@ else
   if [ -n "$VERSION" ]; then docker push "$IMAGE:$VERSION"; fi
 fi
 
-if [ "$SKIP_LATEST" = 0 ]; then syrus_verify_pushed "$IMAGE" "latest" "$TOKEN"; fi
-if [ -n "$VERSION" ]; then syrus_verify_pushed "$IMAGE" "$VERSION" "$TOKEN"; fi
+if [ "$SKIP_LATEST" = 0 ]; then syrus_verify_pushed "$IMAGE" "latest"; fi
+if [ -n "$VERSION" ]; then syrus_verify_pushed "$IMAGE" "$VERSION"; fi
 
 echo
 echo "Published:"

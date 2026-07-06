@@ -70,22 +70,22 @@ syrus_ghcr_login() {
 }
 
 syrus_verify_pushed() {
-  local repo="${1:?usage: syrus_verify_pushed REPO TAG TOKEN}"
-  local tag="${2:?usage: syrus_verify_pushed REPO TAG TOKEN}"
-  local token="${3:?usage: syrus_verify_pushed REPO TAG TOKEN}"
-  local b64 code
+  local repo="${1:?usage: syrus_verify_pushed REPO TAG}"
+  local tag="${2:?usage: syrus_verify_pushed REPO TAG}"
 
-  b64=$(printf '%s' "$token" | base64)
-  code=$(curl -sS -o /dev/null -w '%{http_code}' \
-           -H "Authorization: Bearer ${b64}" \
-           -H "Accept: application/vnd.oci.image.index.v1+json" \
-           -H "Accept: application/vnd.oci.image.manifest.v1+json" \
-           -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
-           -H "Accept: application/vnd.docker.distribution.manifest.list.v2+json" \
-           "https://ghcr.io/v2/${repo#ghcr.io/}/manifests/${tag}")
-
-  if [ "$code" != "200" ]; then
-    echo "✗ ${repo}:${tag} not in registry (HTTP ${code}) — buildx --push didn't actually push" >&2
+  # Confirm buildx --push actually landed the manifest. Use imagetools, which
+  # authenticates through the docker credential store we just logged into and
+  # pushed with — no hand-rolled bearer token.
+  #
+  # The old approach base64-encoded the token into an `Authorization: Bearer`
+  # header for a raw curl. GNU `base64` (the CI runner) wraps output at 76
+  # columns, so a token longer than 57 bytes — e.g. the Actions GITHUB_TOKEN —
+  # gained an embedded newline that broke the request at the transport layer
+  # (curl exit 43/18). It was invisible locally because macOS `base64` does not
+  # wrap, and never ran in the `--no-push` dry run. imagetools sidesteps the
+  # whole class of bug: same creds that just pushed, no manual token handling.
+  if ! docker buildx imagetools inspect "${repo}:${tag}" >/dev/null 2>&1; then
+    echo "✗ ${repo}:${tag} not in registry — buildx --push didn't actually push" >&2
     return 1
   fi
 }

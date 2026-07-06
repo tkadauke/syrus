@@ -70,7 +70,7 @@ syrus_build_local_backend_image "$IMAGE" "$GIT_SHA"
 if [ "$PUSH" = "1" ]; then
   syrus_ghcr_login "$GHCR_USER" "$TOKEN"
   docker push "$IMAGE"
-  syrus_verify_pushed "$IMAGE_REPO" "$TAG" "$TOKEN"
+  syrus_verify_pushed "$IMAGE_REPO" "$TAG"
   echo
   echo "Pushed ${IMAGE} (git ${GIT_SHA})"
   echo "One-time: make the package public so wipe-everything installs need no docker login:"

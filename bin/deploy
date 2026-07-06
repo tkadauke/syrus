@@ -92,7 +92,7 @@ syrus_disable_buildx_attestations
 # either reuses the old :latest digest (silent regression — what
 # bit us today) or kubelet ImagePullBackOffs on the SHA tag.
 verify_pushed() {
-  syrus_verify_pushed "$1" "$2" "$GHCR_TOKEN"
+  syrus_verify_pushed "$1" "$2"
 }
 
 if [ "$SKIP_BUILD" = false ]; then

@@ -44,7 +44,23 @@ RSpec.describe "Docker image scripts" do
     expect(deploy).to include('. "${SCRIPT_DIR}/docker-image-lib"')
     expect(deploy).to include("syrus_docker_build_image app \"$SHA\"")
     expect(deploy).to include("syrus_docker_build_image worker-dev \"$SHA\"")
-    expect(deploy).to include("syrus_verify_pushed \"$1\" \"$2\" \"$GHCR_TOKEN\"")
+    expect(deploy).to include("syrus_verify_pushed \"$1\" \"$2\"")
+  end
+
+  it "verifies pushes through imagetools, not a hand-rolled base64 bearer token" do
+    # Regression: syrus_verify_pushed used to base64-encode the token into an
+    # `Authorization: Bearer` header for a raw curl. GNU `base64` wraps at 76
+    # columns, so a >57-byte token (the Actions GITHUB_TOKEN) gained an embedded
+    # newline that broke the request on Linux runners (curl exit 43) — invisible
+    # on macOS (no wrapping) and never exercised by the --no-push dry run. It
+    # now authenticates through the docker credential store that just pushed.
+    verify = helper[/syrus_verify_pushed\(\)[\s\S]*?\n}/]
+    # Assert on the code, not the comment that explains the removed bug.
+    code = verify.lines.reject { |l| l.strip.start_with?("#") }.join
+    expect(code).to include('docker buildx imagetools inspect "${repo}:${tag}"')
+    expect(code).not_to include("base64")
+    expect(code).not_to include("curl")
+    expect(code).not_to match(/Authorization:\s*Bearer/)
   end
 
   it "lets Docker integration tests run without a checked-in local env file" do
