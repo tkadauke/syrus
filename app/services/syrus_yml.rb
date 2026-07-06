@@ -12,8 +12,9 @@ class SyrusYml
   GRADE_NAME_PATTERN = /\A[A-Za-z0-9][A-Za-z0-9-]*\z/
 
   ParseError = Class.new(StandardError)
+  ConfigError = Class.new(ParseError)
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review)
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :coverage)
   GradeConfig = Data.define(:max_iterations, :steps)
   GradeStep = Data.define(:name, :run, :description, :required, :timeout_minutes)
   HooksConfig = Data.define(:post_checkout)
@@ -41,13 +42,19 @@ class SyrusYml
       prepare: raw["prepare"],
       grade: parse_grade(raw["grade"]),
       hooks: parse_hooks(raw["hooks"]),
-      adversarial_review: parse_adversarial_review(raw["adversarial_review"])
+      adversarial_review: parse_adversarial_review(raw["adversarial_review"]),
+      coverage: parse_coverage(raw["coverage"])
     )
   rescue Psych::SyntaxError => e
     raise ParseError, "YAML parse error: #{e.message}"
   end
 
   private
+
+  def parse_coverage(raw)
+    return nil if raw.nil?
+    RepoCoveragePlan.from_config(raw)
+  end
 
   def parse_adversarial_review(raw)
     return nil if raw.nil?
