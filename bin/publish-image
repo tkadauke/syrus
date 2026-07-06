@@ -136,9 +136,11 @@ fi
 
 # Tests passed — push.
 if [ "$MULTI" = 1 ]; then
-  echo "== Building + pushing multi-arch (amd64 + arm64) — the amd64 half is slow under QEMU =="
-  # arm64 reuses the build cache from above; amd64 is built fresh. The tested
-  # image is the arm64 variant (amd64 is the same source, not run here).
+  echo "== Building + pushing multi-arch (amd64 + arm64) — the non-host arch is slow under QEMU =="
+  # Local convenience only: whichever arch is NOT this host builds under QEMU
+  # emulation (slow). CI does NOT use this path — release.yml builds each arch
+  # on a native runner and merges by digest (no QEMU). The other arch reuses the
+  # build cache from above; only the host-arch variant was integration-tested.
   syrus_docker_buildx_image worker-dev "$GIT_SHA" \
     --platform linux/amd64,linux/arm64 \
     "${cache_args[@]}" \

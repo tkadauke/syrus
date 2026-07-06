@@ -83,14 +83,17 @@ RSpec.describe "desktop auto-update and release pipeline" do
     # Needs write to create the tag/release/commit AND push the image.
     expect(workflow.dig("permissions", "contents")).to eq("write")
     expect(workflow.dig("permissions", "packages")).to eq("write")
-    # One coherent pipeline: build everything, then a single publish job.
+    # One coherent pipeline: build everything, then a single publish job. The
+    # backend builds per-arch (build-backend matrix) then merge-backend
+    # assembles the multi-arch manifest.
     expect(workflow["jobs"].keys).to include(
-      "prepare", "build-backend", "build-cli", "build-mac", "build-windows", "publish", "publish-website"
+      "prepare", "build-backend", "merge-backend", "build-cli", "build-mac", "build-windows", "publish", "publish-website"
     )
-    # Atomic: publish waits for every build and is skipped on a dry run, so a
-    # failure means nothing is tagged, released, or promoted.
+    # Atomic: publish waits for the merged image + every app and is skipped on a
+    # dry run, so a failure means nothing is tagged, released, or promoted.
+    # (merge-backend transitively needs build-backend, so both must pass.)
     expect(workflow.dig("jobs", "publish", "needs")).to include(
-      "build-backend", "build-cli", "build-mac", "build-windows"
+      "merge-backend", "build-cli", "build-mac", "build-windows"
     )
     expect(workflow.dig("jobs", "publish", "if")).to include("dry_run == 'false'")
     expect(workflow.dig("jobs", "publish-website", "if")).to include("dry_run == 'false'")
@@ -124,20 +127,30 @@ RSpec.describe "desktop auto-update and release pipeline" do
     expect(workflow.dig("jobs", "build-backend", "timeout-minutes")).to be_a(Integer)
   end
 
-  it "release workflow builds + pushes the image in CI and moves :latest atomically" do
-    # The image is built, integration-tested, and pushed IN CI (no manual
-    # bin/publish-image step). Only the versioned tag is pushed by the build...
-    expect(release_workflow).to include("bin/publish-image")
-    expect(release_workflow).to match(/bin\/publish-image "\$VERSION" --multi-arch --skip-latest/)
-    expect(release_workflow).to match(/bin\/publish-image "\$VERSION" --no-push/) # dry run
-    # ...and :latest is moved to it only in the atomic publish job.
+  it "release workflow builds each arch natively (no QEMU) and merges by digest" do
+    workflow = YAML.safe_load(release_workflow)
+    # build-backend is a per-arch matrix on native runners — amd64 on
+    # ubuntu-latest, arm64 on ubuntu-24.04-arm — so NO QEMU emulation.
+    expect(release_workflow).to include("ubuntu-24.04-arm")
+    expect(release_workflow).not_to include("setup-qemu-action")
+    expect(workflow.dig("jobs", "build-backend", "strategy", "matrix", "include")).to be_an(Array)
+    # Each leg builds + integration-tests its own arch via bin/publish-image
+    # --no-push (identical on dry AND real runs → both arches always exercised),
+    # then real runs push that arch BY DIGEST.
+    expect(release_workflow).to match(/bin\/publish-image "\$VERSION" --no-push/)
+    expect(release_workflow).not_to include("--multi-arch") # QEMU path is gone from CI
+    expect(release_workflow).to include("push-by-digest=true")
+    # Per-arch cache refs so the two legs don't clobber each other's mode=max cache.
+    expect(release_workflow).to include("ghcr.io/tkadauke/syrus-backend:buildcache-${{ matrix.arch }}")
+    # merge-backend assembles the digests into the versioned multi-arch tag; it's
+    # skipped on dry runs (nothing was pushed).
     expect(release_workflow).to include("docker buildx imagetools create")
+    expect(release_workflow).to match(/imagetools create -t "\$IMAGE:\$VERSION"/)
+    expect(workflow.dig("jobs", "merge-backend", "if")).to include("dry_run == 'false'")
+    # ...and :latest is moved to :VERSION only in the atomic publish job.
     expect(release_workflow).to match(/imagetools create -t "\$IMAGE:latest" "\$IMAGE:\$VERSION"/)
-    # The multi-arch fat build overflows the runner without freeing disk first.
+    # The fat image still overflows the runner without freeing disk first.
     expect(release_workflow).to match(/Free disk space/)
-    # The BuildKit cache must target a package the token can auth against, not
-    # the default syrus:cache (which 403'd).
-    expect(release_workflow).to include("ghcr.io/tkadauke/syrus-backend:buildcache")
   end
 
   it "release publish is near-atomic: draft release, then flip, with rollback" do

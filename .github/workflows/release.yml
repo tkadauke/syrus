@@ -135,23 +135,41 @@ jobs:
           fi
 
   # ---------------------------------------------------------------------------
-  # Build the backend image (ghcr.io/tkadauke/syrus-backend), run the integration
-  # gate against it, and push ONLY the versioned tag. `:latest` moves in
-  # `publish`, after every app succeeds.
+  # Build the backend image (ghcr.io/tkadauke/syrus-backend) NATIVELY per
+  # architecture — NO QEMU. Each matrix leg runs on its own CPU (amd64 on
+  # ubuntu-latest, arm64 on ubuntu-24.04-arm — GitHub arm64 runners went GA for
+  # private repos 2026-01-29), builds its arch, runs the integration gate
+  # against it, and on a real run pushes THAT arch by digest. `merge-backend`
+  # then assembles the two digests into the multi-arch :VERSION tag; `:latest`
+  # moves later, in `publish`. dry_run builds + integration-tests BOTH arches
+  # natively (a faithful rehearsal) and pushes nothing.
+  #
+  # This replaced a single-runner `buildx --platform amd64,arm64` build whose
+  # arm64 half ran under QEMU (~40 min) and where only ONE arch was ever tested.
   # ---------------------------------------------------------------------------
   build-backend:
     needs: prepare
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+            platform: linux/amd64
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            platform: linux/arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
 
-      # The multi-arch fat image (two arches x the mise ruby/node/python/go
-      # toolchain), its mode=max build cache, and the integration Compose stack
-      # overflow the runner's ~14GB free (this is the "no space left on device"
-      # cause). Reclaim ~30GB of preinstalled SDKs we don't use — this job runs
-      # no setup-node/go, so the toolcache can go wholesale. If a future run
-      # still ENOSPCs, point Docker's data-root at /mnt (~65GB) instead.
+      # The fat image (mise ruby/node/python/go toolchain), its mode=max build
+      # cache, and the integration Compose stack overflow the runner's ~14GB
+      # free. Reclaim ~30GB of preinstalled SDKs we don't use — this job runs no
+      # setup-node/go, so the toolcache can go wholesale. Native single-arch
+      # builds need far less than the old QEMU multi-arch fat build, but keep
+      # the reclaim as headroom.
       - name: Free disk space
         run: |
           set -euo pipefail
@@ -165,12 +183,12 @@ jobs:
           sudo docker image prune -af >/dev/null 2>&1 || true
           echo "after:"; df -h / | tail -1
 
-      - uses: docker/setup-qemu-action@v4
+      # No QEMU emulation here — each arch builds on its own native CPU.
       - uses: docker/setup-buildx-action@v4
 
-      # Log in here (not only inside bin/publish-image) so the BuildKit registry
-      # cache can read/write even on dry --no-push runs, where publish-image
-      # skips its own login.
+      # Log in so BuildKit's registry cache can read/write and the by-digest
+      # push authenticates (via the ambient docker config, even though
+      # bin/publish-image --no-push skips its own login).
       - name: Log in to GHCR
         uses: docker/login-action@v4
         with:
@@ -178,35 +196,99 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build, integration-test, and push the versioned image
+      # Build THIS arch natively and run bin/test-docker against it. --no-push
+      # builds + integration-tests, then stops — identical on dry and real runs,
+      # so BOTH arches are always exercised (the dry run's whole point). The
+      # per-arch cache ref keeps the two legs from clobbering each other's
+      # mode=max cache.
+      - name: Build + integration-test (native ${{ matrix.arch }})
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
-          DRY: ${{ needs.prepare.outputs.dry_run }}
-          # No PAT needed: the syrus-backend package is auto-connected to this
-          # repo on its first CI publish (the org.opencontainers.image.source
-          # LABEL in the Dockerfile), so the built-in GITHUB_TOKEN can push it.
-          # GHCR_TOKEN here is just bin/publish-image's token *env var* — the
-          # same interface a local run feeds a PAT — fed from GITHUB_TOKEN in CI.
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GHCR_USER: ${{ github.actor }}
-          # Reuse layers across runs via the BuildKit registry cache. The ref
-          # MUST be a package we can auth against — the image's own package,
-          # not the default ghcr.io/tkadauke/syrus:cache (which 403'd because
-          # that package isn't writable by this token). cache-from reads it
-          # (public), cache-to writes it (needs the same auth as the push).
           SYRUS_DOCKER_REGISTRY_CACHE: "1"
-          SYRUS_DOCKER_CACHE_REF: ghcr.io/tkadauke/syrus-backend:buildcache
+          SYRUS_DOCKER_CACHE_REF: ghcr.io/tkadauke/syrus-backend:buildcache-${{ matrix.arch }}
+        run: bin/publish-image "$VERSION" --no-push
+
+      # Real runs only: push THIS arch by digest (a tagless manifest). The build
+      # is a cache hit from the step above, so this is the registry upload, not
+      # a rebuild. No PAT needed — the built-in GITHUB_TOKEN can push the
+      # repo-connected syrus-backend package. merge-backend combines the digests.
+      - name: Push ${{ matrix.arch }} by digest
+        if: needs.prepare.outputs.dry_run == 'false'
+        env:
+          IMAGE: ghcr.io/tkadauke/syrus-backend
+          PLATFORM: ${{ matrix.platform }}
+          CACHE_REF: ghcr.io/tkadauke/syrus-backend:buildcache-${{ matrix.arch }}
         run: |
           set -euo pipefail
-          # bin/publish-image builds the worker image, runs bin/test-docker
-          # against it, and pushes ONLY on success. --skip-latest keeps :latest
-          # untouched (publish moves it); --no-push builds + integration-tests
-          # without pushing the image (a dry rehearsal that still warms cache).
-          if [ "$DRY" = "true" ]; then
-            bin/publish-image "$VERSION" --no-push
-          else
-            bin/publish-image "$VERSION" --multi-arch --skip-latest
-          fi
+          mkdir -p /tmp/digests
+          docker buildx build -f Dockerfile --target worker-dev \
+            --build-arg "GIT_SHA=$(git rev-parse --short HEAD)" \
+            --platform "$PLATFORM" --provenance=false \
+            --cache-from "type=registry,ref=$CACHE_REF" \
+            --output "type=image,name=$IMAGE,push-by-digest=true,name-canonical=true,push=true" \
+            --metadata-file /tmp/metadata.json .
+          digest="$(jq -r '."containerimage.digest"' /tmp/metadata.json)"
+          echo "pushed $PLATFORM as $digest"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        if: needs.prepare.outputs.dry_run == 'false'
+        uses: actions/upload-artifact@v7
+        with:
+          name: digests-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # ---------------------------------------------------------------------------
+  # Assemble the per-arch digests into one multi-arch :VERSION manifest (a
+  # metadata-only registry op — no rebuild). Skipped on dry runs (nothing was
+  # pushed). `:latest` still moves later, in `publish`.
+  # ---------------------------------------------------------------------------
+  merge-backend:
+    needs: [prepare, build-backend]
+    if: needs.prepare.outputs.dry_run == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download per-arch digests
+        uses: actions/download-artifact@v8
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Assemble the multi-arch :VERSION manifest
+        env:
+          IMAGE: ghcr.io/tkadauke/syrus-backend
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          cd /tmp/digests
+          refs=()
+          for d in *; do refs+=("$IMAGE@sha256:$d"); done
+          if [ "${#refs[@]}" -eq 0 ]; then echo "::error::no per-arch digests to merge"; exit 1; fi
+          echo "merging ${#refs[@]} arch(es) into $IMAGE:$VERSION"
+          docker buildx imagetools create -t "$IMAGE:$VERSION" "${refs[@]}"
+
+      - name: Verify the versioned manifest exists
+        env:
+          IMAGE: ghcr.io/tkadauke/syrus-backend
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          . ./bin/docker-image-lib
+          syrus_verify_pushed "$IMAGE" "$VERSION"
 
   # ---------------------------------------------------------------------------
   # Cross-compile the CLI and stage the tarballs + checksums.
@@ -572,7 +654,7 @@ jobs:
   # thing back if anything fails. See the step comments.
   # ---------------------------------------------------------------------------
   publish:
-    needs: [prepare, build-backend, build-cli, build-mac, build-windows]
+    needs: [prepare, merge-backend, build-cli, build-mac, build-windows]
     if: needs.prepare.outputs.dry_run == 'false'
     runs-on: ubuntu-latest
     steps:

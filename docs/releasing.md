@@ -33,11 +33,17 @@ any failure — see [the pipeline](#the-pipeline-githubworkflowsreleaseyml)).
 ### The pipeline (`.github/workflows/release.yml`)
 
 ```
-prepare ─┬─ build-backend (build + bin/test-docker + push :X.Y.Z, NOT :latest)
+prepare ─┬─ build-backend (MATRIX, native per arch — NO QEMU:
+         │                  amd64 on ubuntu-latest, arm64 on ubuntu-24.04-arm;
+         │                  each builds its arch, runs bin/test-docker on it,
+         │                  then pushes that arch BY DIGEST) ──┐
+         │                                                     ▼
+         │                              merge-backend (imagetools create → the
+         │                              multi-arch :X.Y.Z tag; NOT :latest)
          ├─ build-cli     (cross-compile tarballs → staged)
          ├─ build-mac     (sign + notarize + staple → staged)
          └─ build-windows (Azure-sign → staged)
-                    │  all four must pass
+                    │  merge-backend + all three apps must pass
                     ▼
                  publish   (NEAR-ATOMIC draft-release flow:
                             snapshot :latest, create an invisible DRAFT
@@ -53,7 +59,21 @@ Nothing is user-visible until `publish`. The build jobs only *stage* artifacts
 and push a *versioned* image tag; if any of them fails, `publish` never runs —
 no tag, no release, no moved `:latest`. macOS and Windows build in parallel
 (the old create-release 422 race is gone because neither job touches the
-release). A dry run skips `publish` and `publish-website` entirely.
+release). A dry run skips `publish` and `publish-website` entirely, **but still
+builds and integration-tests both arches natively** — a faithful rehearsal, no
+QEMU, publishing nothing (no digest push, no manifest, no tag).
+
+**The backend build is native, per-arch, no QEMU.** `build-backend` is a matrix:
+amd64 on `ubuntu-latest`, arm64 on `ubuntu-24.04-arm` (GitHub's arm64 runners,
+GA for private repos since 2026-01-29). Each leg builds its own arch on a real
+CPU, runs `bin/test-docker` against it (so **both** arches are integration-tested,
+not just one), and on a real run pushes that arch *by digest*; `merge-backend`
+then `imagetools create`s the two digests into the multi-arch `:X.Y.Z` tag. This
+replaced a single-runner `buildx --platform amd64,arm64` build whose arm64 half
+ran ~40 min under QEMU. The BuildKit registry cache is keyed per arch
+(`:buildcache-amd64` / `:buildcache-arm64`) so the legs don't clobber each
+other. **Prerequisite:** the account/plan must have arm64 hosted runners enabled
+(standard tier); a wrong/absent `ubuntu-24.04-arm` label queues forever.
 
 `publish` is **near-atomic**, not perfectly atomic. It builds the whole
 release as an invisible **draft** first — the tag, every staged asset, and
@@ -64,7 +84,7 @@ irreversible action. If any step fails, a `Roll back on failure` step deletes
 the draft release + tag (`gh release delete --cleanup-tag`) and reverts
 `:latest` to the digest it snapshotted at the start, so a failed run leaves
 **no half-published state**. The one residue is the *versioned* backend image
-that `build-backend` already pushed before `publish` ran — a tested,
+that `merge-backend` already assembled before `publish` ran — a tested,
 unreferenced orphan tag (`:latest` never pointed at it), harmless and
 overwritten on the next attempt.
 

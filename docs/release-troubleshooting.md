@@ -105,11 +105,15 @@ the workflow working as designed, not bugs:
    [5](#5-windows-azure-artifact-signing).
 
 The backend image is built, integration-tested, and pushed **inside CI** by
-the `build-backend` job (`bin/publish-image $VERSION --multi-arch
---skip-latest`) — there is no longer any "publish the image by hand before
-tagging" step, and no "image not found on GHCR" guard. If `build-backend`
-fails, read its `bin/publish-image` / `bin/test-docker` output directly. For
-its two infrastructure-flavored failure modes (disk exhaustion, cache-write
+the `build-backend` matrix (amd64 on `ubuntu-latest`, arm64 on
+`ubuntu-24.04-arm` — native, no QEMU). Each leg runs
+`bin/publish-image $VERSION --no-push` (native single-arch build +
+`bin/test-docker`) then pushes its arch by digest; `merge-backend` assembles
+the `:VERSION` manifest. There is no longer any "publish the image by hand
+before tagging" step. If a `build-backend` leg fails, read its
+`bin/publish-image` / `bin/test-docker` output directly; if the arm64 leg
+**queues forever**, the account/plan is missing `ubuntu-24.04-arm` runners. For
+the infrastructure-flavored failure modes (disk exhaustion, cache-write
 permission) see [6.4](#64-build-backend-disk-and-cache).
 
 ## 3. macOS signing
@@ -549,13 +553,14 @@ own failure signature.
 
 ### 6.4 build-backend disk and cache
 
-The `build-backend` job builds the multi-arch backend image (two arches ×
-the mise ruby/node/python/go toolchain) — a fat image whose two failure
-modes are infrastructure, not code.
+Each `build-backend` matrix leg builds ONE arch of the backend image (the mise
+ruby/node/python/go toolchain — a fat image) natively; its two failure modes
+are infrastructure, not code. (Per-arch native builds use less disk than the
+old single-runner multi-arch fat build, but the reclaim step stays as headroom.)
 
 - **`no space left on device`**
-  - **Cause:** the multi-arch fat image overflows the GitHub runner's ~14GB
-    of free disk during the build.
+  - **Cause:** the fat image overflows the GitHub runner's ~14GB of free disk
+    during the build.
   - **Check:** the failure appears in the Docker/buildx build step, not in
     `bin/test-docker`. The job's **"Free disk space"** step prints `before:` /
     `after:` `df -h /` lines — read them to see how much headroom the build
