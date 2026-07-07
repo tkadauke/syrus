@@ -204,6 +204,37 @@ RSpec.describe "desktop Windows scaffold" do
     expect(runtime_setup).to match(/Open \{runtimeName\}/)
   end
 
+  it "installs Docker Desktop itself: unattended, per-user, license pre-accepted" do
+    # The auto-install kills the field failure at the root: --accept-license
+    # removes the first-start service-agreement dialog entirely, and --user
+    # installs per-user with NO admin elevation (no UAC) to the
+    # %LOCALAPPDATA%\Programs\DockerDesktop location detection already probes.
+    installer = read("electron/installer/dockerDesktopInstaller.ts")
+    expect(installer).to include('"--accept-license"')
+    expect(installer).to include('"--user"')
+    expect(installer).to include('"--backend=wsl-2"')
+    expect(installer).to include('"--quiet"')
+    # Official permanent links, both real hardware architectures (the x64-only
+    # app runs emulated on arm64 Windows — PROCESSOR_ARCHITEW6432 disambiguates).
+    expect(installer).to include("https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe")
+    expect(installer).to include("https://desktop.docker.com/win/main/arm64/Docker%20Desktop%20Installer.exe")
+    expect(installer).to include("PROCESSOR_ARCHITEW6432")
+    # Per-user needs no elevation — no UAC round-trip in this path.
+    expect(installer).not_to include("-Verb RunAs")
+
+    driver = read("electron/installer/installerDriver.ts")
+    expect(driver).to include("local.runtimeInstalling")
+    # A Docker install can still end in a WSL reboot — the resume save point
+    # arms before the installer runs.
+    expect(driver).to match(/async installRuntime\(\)[\s\S]{0,400}armRebootResume\(\)/)
+
+    runtime_setup = read("src/onboarding/RuntimeSetup.tsx")
+    expect(runtime_setup).to include("Install Docker Desktop")
+    expect(runtime_setup).to include("runtime-auto-install")
+    # Manual download survives as the fallback for cautious users / failures.
+    expect(runtime_setup).to include("download manually instead")
+  end
+
   it "preflights WSL 2 with a one-click elevated install and reboot guidance" do
     runtime = read("electron/installer/dockerRuntime.ts")
     expect(runtime).to include("export const wslReady")

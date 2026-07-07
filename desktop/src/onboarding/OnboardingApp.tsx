@@ -121,9 +121,24 @@ export function OnboardingApp() {
             mode="missing"
             polling={state.polling}
             wslMissing={state.wslMissing}
+            installError={state.installError}
             onInstallWsl={() => void window.syrusDesktop.installWsl()}
+            onInstallRuntime={() => void window.syrusDesktop.installRuntime()}
             onDownload={() => void window.syrusDesktop.openOrbStackDownload()}
             onRetry={() => void window.syrusDesktop.retryOnboarding()}
+            onBack={back}
+          />
+        )
+        break
+      case "local.runtimeInstalling":
+        content = (
+          <RuntimeSetup
+            mode="installing"
+            polling={false}
+            installStep={state.step}
+            installPercent={state.percent}
+            onDownload={() => {}}
+            onRetry={() => {}}
             onBack={back}
           />
         )
