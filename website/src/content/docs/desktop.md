@@ -19,12 +19,13 @@ Desktop (or connects to an existing instance), with the same tray inbox
 and bundled CLI. Installers aren't published to the releases page yet —
 they ship there once code signing goes live. Setup differences worth
 knowing: the local backend needs [Docker
-Desktop](https://www.docker.com/products/docker-desktop/) on WSL 2 — if
-WSL 2 is missing, the app offers a one-click elevated install. Installing
-Docker Desktop or WSL may restart Windows; **Syrus reopens after you log
-back in and setup continues where it left off**. On Docker Desktop's very
-first start, accept its service agreement when it asks (signing in is
-optional — skip it); Syrus waits and continues automatically. State lives
+Desktop](https://www.docker.com/products/docker-desktop/) on WSL 2, and
+**the app installs it for you** — it downloads the official installer and
+runs it silently (per-user, no admin permission, service agreement
+pre-accepted), so there is nothing to click. If WSL 2 is missing, the app
+offers a one-click elevated install first. Either install may restart
+Windows; **Syrus reopens after you log back in and setup continues where
+it left off**. State lives
 under `%USERPROFILE%\.syrus\`, and the
 automatically installed CLI lands in `%LocalAppData%\Syrus\bin` and joins
 your user PATH (open a new terminal to pick it up).

@@ -2368,6 +2368,7 @@ ipcMain.handle("onboarding:open-orbstack-download", async () => {
   ensureOnboardingDriver().openOrbStackDownload()
 })
 ipcMain.handle("onboarding:open-runtime", async () => ensureOnboardingDriver().openRuntimeApp())
+ipcMain.handle("onboarding:install-runtime", async () => ensureOnboardingDriver().installRuntime())
 ipcMain.handle("onboarding:adopt-running", async () => {
   ensureOnboardingDriver().adoptRunning()
 })

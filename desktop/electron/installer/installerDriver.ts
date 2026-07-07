@@ -4,8 +4,9 @@ import fs from "node:fs/promises"
 import path from "node:path"
 import readline from "node:readline"
 import { promisify } from "node:util"
-import { dialog, shell, type BrowserWindow } from "electron"
+import { app, dialog, shell, type BrowserWindow } from "electron"
 import { localStateDir, saveBackendConfig, setOnboardingResumeLocal } from "../settings.js"
+import { downloadDockerDesktopInstaller, runDockerDesktopInstaller } from "./dockerDesktopInstaller.js"
 import { clearRunOnceResume, registerRunOnceResume } from "./windowsResume.js"
 import { fingerprintSyrus } from "./fingerprint.js"
 import { analyzeInstanceUrl } from "./instanceUrl.js"
@@ -73,7 +74,8 @@ export type OnboardingState =
   | { phase: "local.precheck" }
   | { phase: "local.adoptRunning"; url: string }
   | { phase: "local.adoptExisting"; error: string | null }
-  | { phase: "local.runtimeMissing"; polling: boolean; wslMissing: boolean }
+  | { phase: "local.runtimeMissing"; polling: boolean; wslMissing: boolean; installError: string | null }
+  | { phase: "local.runtimeInstalling"; step: "downloading" | "installing"; percent: number | null }
   | { phase: "local.runtimeStarting"; needsAttention: boolean }
   | { phase: "local.portConflict"; port: number }
   | { phase: "local.installing"; steps: InstallStep[]; currentStep: InstallStepId | null }
@@ -138,6 +140,7 @@ export class OnboardingDriver {
   private child: ChildProcess | null = null
   private cancelRequested = false
   private pollTimer: NodeJS.Timeout | null = null
+  private installAbort: AbortController | null = null
   private port = DEFAULT_PORT
   private logTail: string[] = []
   private lastError: { code: number; step: string | null; message: string } | null = null
@@ -185,6 +188,8 @@ export class OnboardingDriver {
 
   backToWelcome() {
     this.stopPolling()
+    this.installAbort?.abort()
+    this.installAbort = null
     if (this.child) {
       this.cancelRequested = true
       this.killInstallChild()
@@ -396,8 +401,85 @@ export class OnboardingDriver {
   // WSL preflight rides along: on Windows the screen leads with a one-click
   // WSL 2 install when WSL itself is absent (Docker Desktop needs it, and
   // its own installer punts that to a manual PowerShell step).
-  private async showRuntimeMissing(polling: boolean) {
-    this.setState({ phase: "local.runtimeMissing", polling, wslMissing: !(await wslReady()) })
+  private async showRuntimeMissing(polling: boolean, installError: string | null = null) {
+    this.setState({ phase: "local.runtimeMissing", polling, wslMissing: !(await wslReady()), installError })
+  }
+
+  // One-click Docker Desktop acquisition (Windows): download the official
+  // installer and run it unattended with --accept-license --user --quiet —
+  // no UAC (per-user install), no license dialog on first start, no manual
+  // download. The field flow this replaces: browser download page → manual
+  // installer → forced reboot → first-run agreement modal Syrus couldn't see.
+  async installRuntime() {
+    if (process.platform !== "win32" || this.state.phase !== "local.runtimeMissing") {
+      return
+    }
+
+    // A Docker Desktop install can still end in a WSL-related reboot — make
+    // sure setup comes back afterwards.
+    this.armRebootResume()
+
+    this.installAbort = new AbortController()
+    const installerPath = path.join(app.getPath("temp"), "syrus-docker-desktop-installer.exe")
+
+    // setState mutates this.state across awaits, which TS's narrowing can't
+    // see — same widening-closure pattern as connectRemote's stillChecking().
+    const stillInstalling = (step?: "downloading" | "installing") => {
+      const current = this.state as OnboardingState
+      return current.phase === "local.runtimeInstalling" && (step === undefined || current.step === step)
+    }
+
+    this.setState({ phase: "local.runtimeInstalling", step: "downloading", percent: 0 })
+    try {
+      await downloadDockerDesktopInstaller(
+        installerPath,
+        (percent) => {
+          if (stillInstalling("downloading")) {
+            this.setState({ phase: "local.runtimeInstalling", step: "downloading", percent })
+          }
+        },
+        this.installAbort.signal
+      )
+    } catch (error) {
+      if (!stillInstalling()) {
+        return // user backed out; the abort landed here
+      }
+      await this.showRuntimeMissing(
+        false,
+        `${errorMessage(error, "The download failed.")} You can retry, or download Docker Desktop manually.`
+      )
+      return
+    }
+
+    if (!stillInstalling()) {
+      return
+    }
+
+    this.setState({ phase: "local.runtimeInstalling", step: "installing", percent: null })
+    try {
+      await runDockerDesktopInstaller(installerPath)
+    } catch (error) {
+      if (!stillInstalling()) {
+        return
+      }
+      await this.showRuntimeMissing(
+        false,
+        `${errorMessage(error, "The installer did not finish.")} You can retry, or download Docker Desktop manually.`
+      )
+      return
+    } finally {
+      void fs.rm(installerPath, { force: true }).catch(() => {})
+    }
+
+    if (!stillInstalling()) {
+      return
+    }
+
+    // License pre-accepted at install time, so the first engine start needs
+    // no interaction — precheck finds the per-user install and startRuntime
+    // brings the daemon up. (If Windows scheduled a WSL reboot, the resume
+    // flag carries setup across it.)
+    void this.precheck()
   }
 
   // One-click WSL 2 install (elevates via UAC), then watch for WSL to
@@ -442,7 +524,7 @@ export class OnboardingDriver {
     void shell.openExternal(runtimeDownloadUrl())
     if (this.state.phase === "local.runtimeMissing" && !this.state.polling) {
       const wslMissing = this.state.wslMissing
-      this.setState({ phase: "local.runtimeMissing", polling: true, wslMissing })
+      this.setState({ phase: "local.runtimeMissing", polling: true, wslMissing, installError: null })
       void this.pollForDaemon(RUNTIME_DOWNLOAD_POLLS).then((ready) => {
         if (this.state.phase !== "local.runtimeMissing") {
           return

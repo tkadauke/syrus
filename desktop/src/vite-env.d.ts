@@ -187,7 +187,8 @@ type SyrusOnboardingState =
   | { phase: "local.precheck" }
   | { phase: "local.adoptRunning"; url: string }
   | { phase: "local.adoptExisting"; error: string | null }
-  | { phase: "local.runtimeMissing"; polling: boolean; wslMissing: boolean }
+  | { phase: "local.runtimeMissing"; polling: boolean; wslMissing: boolean; installError: string | null }
+  | { phase: "local.runtimeInstalling"; step: "downloading" | "installing"; percent: number | null }
   | { phase: "local.runtimeStarting"; needsAttention: boolean }
   | { phase: "local.portConflict"; port: number }
   | { phase: "local.installing"; steps: SyrusInstallStep[]; currentStep: SyrusInstallStepId | null }
@@ -261,6 +262,7 @@ interface Window {
     wipeLocalData: () => Promise<void>
     openOrbStackDownload: () => Promise<void>
     openRuntimeApp: () => Promise<void>
+    installRuntime: () => Promise<void>
     installWsl: () => Promise<void>
     adoptRunningInstance: () => Promise<void>
     finishOnboarding: () => Promise<void>
