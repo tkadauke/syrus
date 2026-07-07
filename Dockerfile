@@ -125,6 +125,19 @@ COPY --chown=rails:rails --from=build /rails /rails
 ARG GIT_SHA=unknown
 ENV GIT_SHA=$GIT_SHA
 
+# Bake the release version too (bin/publish-image X.Y.Z passes it through
+# the shared build helpers). Empty for dev/deploy builds — the bootstrap
+# payload then omits it and the UI falls back to the git SHA.
+ARG SYRUS_VERSION=""
+ENV SYRUS_VERSION=$SYRUS_VERSION
+
+# And the build timestamp (UTC ISO-8601), so the UI's BuildBadge can show
+# WHEN this image was built — the fastest way to see which part of a
+# diverged app/backend pair is older. Passed by bin/publish-image and
+# bin/build-local-image; empty for bin/deploy / compose-up builds.
+ARG SYRUS_BUILT_AT=""
+ENV SYRUS_BUILT_AT=$SYRUS_BUILT_AT
+
 # Entrypoint prepares the database.
 ENTRYPOINT ["/rails/bin/docker-entrypoint"]
 
@@ -309,6 +322,19 @@ COPY --chown=rails:rails --from=build /rails /rails
 # Placed late so re-baking the SHA doesn't bust the asset/gem cache.
 ARG GIT_SHA=unknown
 ENV GIT_SHA=$GIT_SHA
+
+# Bake the release version too (bin/publish-image X.Y.Z passes it through
+# the shared build helpers). Empty for dev/deploy builds — the bootstrap
+# payload then omits it and the UI falls back to the git SHA.
+ARG SYRUS_VERSION=""
+ENV SYRUS_VERSION=$SYRUS_VERSION
+
+# And the build timestamp (UTC ISO-8601), so the UI's BuildBadge can show
+# WHEN this image was built — the fastest way to see which part of a
+# diverged app/backend pair is older. Passed by bin/publish-image and
+# bin/build-local-image; empty for bin/deploy / compose-up builds.
+ARG SYRUS_BUILT_AT=""
+ENV SYRUS_BUILT_AT=$SYRUS_BUILT_AT
 
 ENTRYPOINT ["/rails/bin/docker-entrypoint"]
 

@@ -120,10 +120,29 @@ syrus_docker_tags_match_label() {
   done
 }
 
+# Optional metadata flags immediately after GIT_SHA, in any order:
+#   --version=X.Y.Z   feeds the SYRUS_VERSION build-arg (release version)
+#   --built-at=TS     feeds the SYRUS_BUILT_AT build-arg (UTC ISO-8601)
+# Both are baked as ENV by the Dockerfile so images know their release
+# version and build time (the BuildBadge and its tooltips read them via the
+# bootstrap payload). Callers that don't pass them — bin/deploy,
+# bin/compose-up — get empty values, and the UI degrades to the git SHA
+# with no tooltip. Flags (not positionals) so those call sites stay valid.
+# The parse loop is inlined in both build functions: a shared helper would
+# run in a $(...) subshell and could not set the caller's variables.
+
 syrus_docker_build_image() {
-  local target="${1:?usage: syrus_docker_build_image TARGET GIT_SHA [docker build args...]}"
-  local git_sha="${2:?usage: syrus_docker_build_image TARGET GIT_SHA [docker build args...]}"
+  local target="${1:?usage: syrus_docker_build_image TARGET GIT_SHA [--version=X.Y.Z] [--built-at=TS] [docker build args...]}"
+  local git_sha="${2:?usage: syrus_docker_build_image TARGET GIT_SHA [--version=X.Y.Z] [--built-at=TS] [docker build args...]}"
   shift 2
+  local syrus_version="" syrus_built_at=""
+  while :; do
+    case "${1:-}" in
+      --version=*) syrus_version="${1#--version=}"; shift ;;
+      --built-at=*) syrus_built_at="${1#--built-at=}"; shift ;;
+      *) break ;;
+    esac
+  done
 
   local -a build_args tags
   build_args=("$@")
@@ -133,7 +152,7 @@ syrus_docker_build_image() {
   done < <(syrus_docker_arg_tags "${build_args[@]}")
 
   if [ "${#tags[@]}" -eq 0 ] || [ "${SYRUS_DOCKER_BUILD_STALE_CLIENT_GUARD:-1}" = "0" ]; then
-    docker build -f Dockerfile --target "$target" --build-arg "GIT_SHA=$git_sha" "${build_args[@]}"
+    docker build -f Dockerfile --target "$target" --build-arg "GIT_SHA=$git_sha" --build-arg "SYRUS_VERSION=$syrus_version" --build-arg "SYRUS_BUILT_AT=$syrus_built_at" "${build_args[@]}"
     return
   fi
 
@@ -144,7 +163,7 @@ syrus_docker_build_image() {
   interval="${SYRUS_DOCKER_BUILD_POLL_INTERVAL:-2}"
   exported_at=""
 
-  docker build -f Dockerfile --target "$target" --build-arg "GIT_SHA=$git_sha" --label "$guard_label=$guard_value" "${build_args[@]}" &
+  docker build -f Dockerfile --target "$target" --build-arg "GIT_SHA=$git_sha" --build-arg "SYRUS_VERSION=$syrus_version" --build-arg "SYRUS_BUILT_AT=$syrus_built_at" --label "$guard_label=$guard_value" "${build_args[@]}" &
   build_pid=$!
 
   while true; do
@@ -183,11 +202,19 @@ syrus_docker_build_image() {
 }
 
 syrus_docker_buildx_image() {
-  local target="${1:?usage: syrus_docker_buildx_image TARGET GIT_SHA [docker buildx build args...]}"
-  local git_sha="${2:?usage: syrus_docker_buildx_image TARGET GIT_SHA [docker buildx build args...]}"
+  local target="${1:?usage: syrus_docker_buildx_image TARGET GIT_SHA [--version=X.Y.Z] [--built-at=TS] [docker buildx build args...]}"
+  local git_sha="${2:?usage: syrus_docker_buildx_image TARGET GIT_SHA [--version=X.Y.Z] [--built-at=TS] [docker buildx build args...]}"
   shift 2
+  local syrus_version="" syrus_built_at=""
+  while :; do
+    case "${1:-}" in
+      --version=*) syrus_version="${1#--version=}"; shift ;;
+      --built-at=*) syrus_built_at="${1#--built-at=}"; shift ;;
+      *) break ;;
+    esac
+  done
 
-  docker buildx build -f Dockerfile --target "$target" --build-arg "GIT_SHA=$git_sha" "$@"
+  docker buildx build -f Dockerfile --target "$target" --build-arg "GIT_SHA=$git_sha" --build-arg "SYRUS_VERSION=$syrus_version" --build-arg "SYRUS_BUILT_AT=$syrus_built_at" "$@"
 }
 
 # Builds syrus-backend-base:latest (Dockerfile target worker-dev — the fat
@@ -195,8 +222,11 @@ syrus_docker_buildx_image() {
 # BuildKit cache like bin/compose-up: SYRUS_DOCKER_REGISTRY_CACHE=1 pulls
 # from the cache ref, and SYRUS_DOCKER_CACHE_PUSH=1 additionally writes back
 # to it (needs a token with write:packages).
+# Trailing args are forwarded to the build helpers as metadata flags
+# (e.g. --built-at=TS from bin/build-local-image); compose-up passes none.
 syrus_build_local_base_image() {
-  local git_sha="${1:?usage: syrus_build_local_base_image GIT_SHA}"
+  local git_sha="${1:?usage: syrus_build_local_base_image GIT_SHA [--version=X.Y.Z] [--built-at=TS]}"
+  shift
 
   if syrus_registry_cache_enabled; then
     local ghcr_user cache_ref cache_token
@@ -218,14 +248,14 @@ syrus_build_local_base_image() {
         ;;
     esac
 
-    syrus_docker_buildx_image worker-dev "$git_sha" \
+    syrus_docker_buildx_image worker-dev "$git_sha" "$@" \
       --load \
       "${cache_args[@]}" \
       --provenance=false \
       -t syrus-backend-base:latest \
       .
   else
-    syrus_docker_build_image worker-dev "$git_sha" \
+    syrus_docker_build_image worker-dev "$git_sha" "$@" \
       --provenance=false -t syrus-backend-base:latest .
   fi
 }
@@ -235,10 +265,13 @@ syrus_build_local_base_image() {
 # the image the desktop installer runs, so a locally built tag here plus
 # SYRUS_BACKEND_IMAGE at DMG stage time gives a fully local end-to-end build.
 syrus_build_local_backend_image() {
-  local final_tag="${1:?usage: syrus_build_local_backend_image FINAL_TAG GIT_SHA}"
-  local git_sha="${2:?usage: syrus_build_local_backend_image FINAL_TAG GIT_SHA}"
+  local final_tag="${1:?usage: syrus_build_local_backend_image FINAL_TAG GIT_SHA [--version=X.Y.Z] [--built-at=TS]}"
+  local git_sha="${2:?usage: syrus_build_local_backend_image FINAL_TAG GIT_SHA [--version=X.Y.Z] [--built-at=TS]}"
+  shift 2
 
-  syrus_build_local_base_image "$git_sha"
+  # Metadata flags only need to reach the base build — the Dockerfile.local
+  # overlay inherits the base image's baked ENV (GIT_SHA/SYRUS_*) via FROM.
+  syrus_build_local_base_image "$git_sha" "$@"
   docker build -f Dockerfile.local \
     --build-arg BASE_IMAGE=syrus-backend-base:latest \
     -t "$final_tag" .

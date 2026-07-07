@@ -10,12 +10,31 @@ export function isDesktopShell(): boolean {
   return /\bSyrusDesktop\//.test(navigator.userAgent)
 }
 
-// The desktop app announces its build sha as a UA token
-// (SyrusDesktopBuild/<sha>) so the web UI can show which app build is
-// hosting it — see BuildBadge.
+// The desktop app announces its build as a UA token
+// (SyrusDesktopBuild/<value>) so the web UI can show which app build is
+// hosting it — see BuildBadge. The value is the release version ("0.1.2")
+// for release builds and the git short sha for dev builds; the pattern
+// deliberately matches both.
 export function desktopBuildSha(): string | null {
   const match = navigator.userAgent.match(/\bSyrusDesktopBuild\/([0-9a-zA-Z._-]+)/)
   return match?.[1] ?? null
+}
+
+// The desktop app also announces WHEN it was built, as a second UA token
+// (SyrusDesktopBuiltAt/<timestamp>) feeding the BuildBadge's hover tooltip.
+// Colons are not valid in UA product-version tokens, so the shell emits
+// ISO-8601 basic format ("20260707T143200Z" — see webAppWindow.ts) and this
+// parser restores the extended form. Returns a full ISO string, or null when
+// the token is missing (older shells, plain browsers) or malformed.
+export function desktopBuiltAt(): string | null {
+  const match = navigator.userAgent.match(/\bSyrusDesktopBuiltAt\/(\d{8})T(\d{6})Z/)
+  if (!match) return null
+
+  const [, date, time] = match
+  return (
+    `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}` +
+    `T${time.slice(0, 2)}:${time.slice(2, 4)}:${time.slice(4, 6)}Z`
+  )
 }
 
 // Opens a URL in a new tab (or, in the desktop shell, wherever the shell

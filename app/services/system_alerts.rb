@@ -71,8 +71,14 @@ module SystemAlerts
       title: "Worker data volume usage is #{level_label}.",
       message: "SYRUS_DATA_ROOT is #{snapshot.used_percent}% full with " \
                "#{format_bytes(snapshot.available_bytes)} available. " \
-               "Data root: <code>#{ERB::Util.html_escape(snapshot.path)}</code>.",
+               "Data root: <code>#{ERB::Util.html_escape(snapshot.path)}</code>. " \
+               "On single-host Docker installs this volume shares a disk with Docker's " \
+               "own image store, so the space is often consumed by old, unused Docker " \
+               "images — superseded Syrus backend images left behind by updates are the " \
+               "most common culprit — rather than by Syrus data.",
       action_steps: [
+        "Check Docker's image store first: run <code>docker image prune -a</code> on the Docker host to delete unused images. " \
+          "Caution: it removes <strong>all</strong> images not used by a container, not just Syrus ones.",
         "Inspect retained workflow workspaces under <code>#{ERB::Util.html_escape(snapshot.path)}/workflows</code> and clean up old terminal Workflow workspaces.",
         "If cleanup is not enough, resize the worker data volume before clone, prepare, or landing jobs start failing."
       ],

@@ -388,7 +388,7 @@ function bootstrapPayload(overrides: Partial<BootstrapPayload> = {}): BootstrapP
       locale: "en"
     },
     team_user_count: 1,
-    app: { revision: "dev", revision_url: null },
+    app: { revision: "dev", revision_url: null, version: null, built_at: null },
     public: {
       first_signup: false,
       signups_open: false,

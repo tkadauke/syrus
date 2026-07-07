@@ -213,7 +213,20 @@ jobs:
           VERSION: ${{ needs.prepare.outputs.version }}
           SYRUS_DOCKER_REGISTRY_CACHE: "1"
           SYRUS_DOCKER_CACHE_REF: ghcr.io/tkadauke/syrus-backend:buildcache-${{ matrix.arch }}
-        run: bin/publish-image "$VERSION" --no-push
+        run: |
+          set -euo pipefail
+          # The build timestamp is DERIVED FROM THE SOURCE (HEAD's committer
+          # date, UTC ISO-8601), never the wall clock: both matrix legs and
+          # the push step below check out the same SHA, so every arch image
+          # in the released multi-arch manifest bakes the IDENTICAL
+          # SYRUS_BUILT_AT — and the desktop build stamps the same instant
+          # (stage-backend-assets.mjs), so the BuildBadge's app and backend
+          # tooltips agree on a release. Keep this expression in lockstep with
+          # the push step below (spec/scripts/docker_image_scripts_spec.rb
+          # pins both).
+          SYRUS_BUILT_AT="$(TZ=UTC git show -s --format=%cd --date=format-local:'%Y-%m-%dT%H:%M:%SZ' HEAD)"
+          export SYRUS_BUILT_AT
+          bin/publish-image "$VERSION" --no-push
 
       # Real runs only: push THIS arch by digest (a tagless manifest). The build
       # is a cache hit from the step above, so this is the registry upload, not
@@ -225,11 +238,21 @@ jobs:
           IMAGE: ghcr.io/tkadauke/syrus-backend
           PLATFORM: ${{ matrix.platform }}
           CACHE_REF: ghcr.io/tkadauke/syrus-backend:buildcache-${{ matrix.arch }}
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
           mkdir -p /tmp/digests
+          # Build args must match what bin/publish-image passed above, or this
+          # "cache-hit re-push" silently rebuilds a DIFFERENT image (empty
+          # SYRUS_VERSION / SYRUS_BUILT_AT) than the one the integration gate
+          # tested. SYRUS_BUILT_AT re-derives from HEAD's committer date —
+          # deterministic, so it matches the build step and the other matrix
+          # leg without any GITHUB_ENV hand-off.
+          SYRUS_BUILT_AT="$(TZ=UTC git show -s --format=%cd --date=format-local:'%Y-%m-%dT%H:%M:%SZ' HEAD)"
           docker buildx build -f Dockerfile --target worker-dev \
             --build-arg "GIT_SHA=$(git rev-parse --short HEAD)" \
+            --build-arg "SYRUS_VERSION=$VERSION" \
+            --build-arg "SYRUS_BUILT_AT=$SYRUS_BUILT_AT" \
             --platform "$PLATFORM" --provenance=false \
             --cache-from "type=registry,ref=$CACHE_REF" \
             --output "type=image,name=$IMAGE,push-by-digest=true,name-canonical=true,push=true" \

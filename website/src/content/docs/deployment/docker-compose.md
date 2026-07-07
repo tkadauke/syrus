@@ -95,12 +95,15 @@ parsing text:
 | `12` | Docker Compose is not available. |
 | `20` | The `syrus_syrus-data` volume exists but `.env` is missing — the encryption-key guard. Restore the original `.env` or wipe with `docker compose down -v`. |
 | `30` | Image pull failed for a network or other unclassified reason, and no local copy of the image exists. |
-| `31` | The registry denied the pull and no local copy exists. Most often this is a **stale saved Docker login** — docker sends any stored `ghcr.io` credentials with every pull, and an expired token is rejected even for public images. Run `docker logout ghcr.io` and retry. (Otherwise: private package or unpublished tag.) |
+| `31` | The registry denied the pull and no local copy exists. The installer already handles the most common cause itself — a **stale saved Docker login** (docker sends any stored `ghcr.io` credentials with every pull, and an expired token is rejected even for public images) — by running `docker logout` for the registry and retrying, once per run. A `31` that persists means the package is private, the tag is unpublished, the registry genuinely requires a login, or Docker's credential helper is broken — check `~/.docker/config.json` for a stale `credsStore`/`credHelpers` entry. |
 | `32` | The image tag does not exist in the registry and no local copy exists. |
 | `40` | `docker compose up` failed. |
 | `41` | The stack started but never became healthy. |
 
-The pull is retried twice before failing. If the pull still fails but the
+The pull is retried twice before failing, and a failure that matches the
+stale-saved-credential patterns triggers one automatic
+`docker logout <registry>` before the retry re-pulls anonymously — no
+manual `docker logout ghcr.io` needed. If the pull still fails but the
 image already exists in the local Docker image store — a previous install,
 or a copy you built yourself — the installer continues with that local copy
 instead of exiting with a pull-failure code (30/31/32). That makes fork
@@ -233,6 +236,51 @@ docker compose cp worker:/home/rails/.syrus-search ./syrus-search-backup
 A filesystem snapshot or `tar` of the volumes works too. Because database
 state and clone/workspace state are split across volumes, snapshot them
 together when preserving active runs.
+
+## Uninstall
+
+`uninstall.sh` (macOS/Linux) and `uninstall.ps1` (Windows) at the repo root
+reverse `install.sh --docker`, plus the desktop-app artifacts when present.
+Interactive by default: the script prints exactly what it will remove and
+asks one y/N question. Re-running is always safe — missing artifacts are
+skipped, and an unreachable Docker daemon skips only the Docker steps.
+
+```bash
+./uninstall.sh              # interactive — prints the plan, asks once
+./uninstall.sh --keep-data  # keep all data; remove app, CLI, containers, images
+```
+
+What it removes:
+
+- The Compose stack (project `syrus`) and — unless `--keep-data` — its
+  volumes (`syrus_syrus-data`, `syrus_syrus-search`).
+- Every `*syrus-backend` image (any registry/tag) and `ghcr.io/*/syrus-local`
+  dev images.
+- `~/.syrus/local` — **its `.env` holds the database encryption keys;
+  removing it together with the data volume destroys the local Syrus data
+  permanently** (skipped by `--keep-data`).
+- `~/.syrus/credentials` (skipped by `--keep-data`).
+- The `syrus` CLI: `~/.local/bin/syrus`, or on Windows
+  `%LOCALAPPDATA%\Syrus\bin` plus its user `PATH` entry.
+- The Claude Code skill at `~/.claude/skills/syrus`.
+- The desktop app and its settings (settings skipped by `--keep-data`),
+  where present.
+
+Shared tools are never touched: Docker Desktop, OrbStack, Colima, and
+Homebrew have their own uninstallers.
+
+| Flag | Effect |
+| --- | --- |
+| `--yes` | Skip the confirmation prompt. |
+| `--keep-data` | Preserve `~/.syrus` (encryption keys, credentials), the Docker data volumes, and the desktop app settings. Still removes the app, CLI, skill, containers, and images — a later reinstall adopts the kept data. |
+| `--json` | Machine-readable NDJSON events on stdout (`start`, `step`, `log`, `error`, `done`), the same protocol the installer speaks; implies `--yes`. |
+
+Exit codes: `0` ok (including a declined prompt and "nothing left to
+remove"), `2` usage, `1` anything else.
+
+Desktop app users don't need the script directly: **Syrus → Uninstall
+Syrus…** in the app menu drives the same teardown — see the
+[desktop page](/docs/desktop#uninstall).
 
 ## TLS
 

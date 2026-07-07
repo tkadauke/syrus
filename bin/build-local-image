@@ -50,6 +50,10 @@ syrus_require_docker_daemon
 syrus_disable_buildx_attestations
 
 GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo dev)"
+# Bake the build time so the BuildBadge tooltip can tell WHICH dev image a
+# stack is running — exactly the "is my backend older than my app?" question
+# this script's iterate-on-the-desktop-app loop keeps raising.
+BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 TAG="${TAG:-dev-${GIT_SHA}}"
 
 if [ "$PUSH" = "1" ]; then
@@ -65,7 +69,7 @@ else
   IMAGE="syrus-backend:${TAG}"
 fi
 
-syrus_build_local_backend_image "$IMAGE" "$GIT_SHA"
+syrus_build_local_backend_image "$IMAGE" "$GIT_SHA" --built-at="$BUILT_AT"
 
 if [ "$PUSH" = "1" ]; then
   syrus_ghcr_login "$GHCR_USER" "$TOKEN"

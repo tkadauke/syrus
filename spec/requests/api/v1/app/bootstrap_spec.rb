@@ -88,7 +88,9 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     expect(body["team_user_count"]).to eq(1)
     expect(body["app"]).to include(
       "revision" => "dev",
-      "revision_url" => nil
+      "revision_url" => nil,
+      "version" => nil,
+      "built_at" => nil
     )
     expect(body["setup_status"]).to include(
       "state" => "first_admin",
@@ -317,6 +319,39 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("app", "revision_url")).to eq("https://github.com/operator/syrus/commit/9c0f8d15")
+  end
+
+  it "exposes the release version and build time baked into published images" do
+    user = Factories.user
+    sign_in_as(user)
+
+    # bin/publish-image X.Y.Z bakes SYRUS_VERSION and SYRUS_BUILT_AT into the
+    # image; the badge prefers the version over the git SHA so releases read
+    # "backend 0.1.2", and built_at feeds the badge's hover tooltip.
+    with_env("GIT_SHA" => "9c0f8d15", "SYRUS_VERSION" => "0.1.2", "SYRUS_BUILT_AT" => "2026-07-07T14:32:00Z") do
+      get api_v1_app_bootstrap_path
+    end
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("app", "version")).to eq("0.1.2")
+    expect(parse_body.dig("app", "revision")).to eq("9c0f8d15")
+    expect(parse_body.dig("app", "built_at")).to eq("2026-07-07T14:32:00Z")
+  end
+
+  it "returns nil version and built_at on dev/deploy builds (unset or empty env)" do
+    user = Factories.user
+    sign_in_as(user)
+
+    # The Dockerfile defaults are empty strings — presence semantics must
+    # treat "" like unset so dev images fall back to the SHA badge with no
+    # build-time tooltip.
+    with_env("SYRUS_VERSION" => "", "SYRUS_BUILT_AT" => "") do
+      get api_v1_app_bootstrap_path
+    end
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("app", "version")).to be_nil
+    expect(parse_body.dig("app", "built_at")).to be_nil
   end
 
   it "omits the revision link instead of 500ing when SYRUS_GITHUB_REPO is unset" do

@@ -221,8 +221,9 @@ describe("App", () => {
           id: "data_root_disk_usage",
           severity: "alarm",
           title: "Worker data volume usage is critical.",
-          message: "SYRUS_DATA_ROOT is 96% full with <code>3.5GB</code> available.",
+          message: "SYRUS_DATA_ROOT is 96% full with <code>3.5GB</code> available. On single-host Docker installs this volume shares a disk with Docker's own image store.",
           action_steps: [
+            "Check Docker's image store first: run <code>docker image prune -a</code> on the Docker host to delete unused images.",
             "Inspect retained workflow workspaces under <code>/syrus/workflows</code>."
           ],
           cta: { text: "Open admin overview", path: "/admin" }
@@ -242,6 +243,9 @@ describe("App", () => {
     const alerts = await screen.findByRole("region", { name: "System alerts" })
     expect(within(alerts).getByRole("heading", { name: "Worker data volume usage is critical." })).toBeInTheDocument()
     expect(within(alerts).getByText("3.5GB")).toBeInTheDocument()
+    // Action steps render server-provided HTML verbatim, so the docker-image
+    // remedy (shared-disk reality) shows up as a copy-pasteable command.
+    expect(within(alerts).getByText("docker image prune -a")).toBeInTheDocument()
     expect(within(alerts).getByText("/syrus/workflows")).toBeInTheDocument()
     expect(within(alerts).getByRole("link", { name: "Open admin overview" })).toHaveAttribute("href", "/app-shell/admin")
   })

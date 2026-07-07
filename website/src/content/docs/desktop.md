@@ -44,10 +44,13 @@ instances.)
 - **A guided first-run setup.** On first launch, choose between
   installing Syrus locally or connecting to an existing instance your
   team already runs. The local path drives the same Docker install the
-  CLI uses (`install.sh --docker`), streamed into a progress view — it
+  CLI uses (`install.sh --docker`), streamed into a progress view with a
+  real download progress bar for the multi-gigabyte backend image — it
   detects an existing Docker runtime (OrbStack, Docker Desktop, or
   Colima), walks you through installing OrbStack when there is none,
-  and adopts a previous CLI install instead of clobbering it.
+  and adopts a previous CLI install instead of clobbering it. If Docker
+  has a stale saved `ghcr.io` login, the installer clears it and retries
+  the download by itself.
 - **The full Syrus web app in a native window.** Jobs, Epics, chats,
   repositories, insights — everything. External links (GitHub PRs,
   issues) open in your default browser.
@@ -78,6 +81,9 @@ instances.)
   update, the next launch offers to bring the local backend up to the
   pinned version — the update pulls the new image and restarts the
   backend, so the app asks first instead of doing it behind your back.
+  Once the updated backend is confirmed healthy, the app removes the
+  superseded Syrus backend images it left behind, so repeated updates
+  don't slowly fill Docker's disk.
 
 ## Requirements
 
@@ -85,7 +91,7 @@ instances.)
 - A Docker runtime for the local install: [OrbStack](https://orbstack.dev)
   (recommended; the app guides you through it), Docker Desktop, or
   Colima. Connecting to a remote Syrus instance needs no Docker at all.
-- ~2 GB of disk for the backend image, plus whatever your repositories'
+- ~8 GB of disk for the backend image, plus whatever your repositories'
   clones need.
 
 ## Where things live
@@ -122,9 +128,20 @@ but the Syrus data volume is gone entirely, it offers this itself.
 
 ## Uninstall
 
-1. Quit Syrus and stop the stack: **Backend → Stop Syrus** (or
-   `docker compose -p syrus stop`).
-2. Delete `Syrus.app` from Applications.
-3. To remove all data too:
-   `docker compose -p syrus down -v` (deletes the database and clone
-   cache — irreversible), then delete `~/.syrus/`.
+**Syrus → Uninstall Syrus…** in the app menu removes the local Docker
+containers and downloaded Syrus images, the `syrus` CLI, the Claude Code
+skill, and the app itself. Docker Desktop / OrbStack / Colima are never
+touched — they have their own uninstallers.
+
+By default everything you'd need to come back survives the uninstall: the
+Docker data volumes, `~/.syrus` (the `.env` with your database
+**encryption keys**, plus your credentials), and the app settings all stay
+put, so reinstalling later picks up where you left off. The confirmation
+dialog has an **"Also delete my Syrus data"** checkbox (off by default);
+checking it removes those too. Deleting the data is irreversible — without
+the encryption keys the database cannot be read again.
+
+The same teardown is scriptable: `uninstall.sh` (macOS/Linux) and
+`uninstall.ps1` (Windows) ship at the repo root and inside the app. See
+[Uninstall on the Docker Compose page](/docs/deployment/docker-compose#uninstall)
+for flags and details.

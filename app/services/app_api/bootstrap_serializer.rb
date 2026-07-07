@@ -54,7 +54,9 @@ module AppApi
     def app_payload
       {
         revision: app_revision,
-        revision_url: app_revision_url
+        revision_url: app_revision_url,
+        version: app_version,
+        built_at: app_built_at
       }
     end
 
@@ -128,6 +130,21 @@ module AppApi
 
     def app_revision
       ENV["GIT_SHA"].presence || "dev"
+    end
+
+    # The release version baked into published images (bin/publish-image passes
+    # --build-arg SYRUS_VERSION=X.Y.Z; the Dockerfile bakes it as ENV). Nil on
+    # dev/deploy builds — the BuildBadge then falls back to the git SHA.
+    def app_version
+      ENV["SYRUS_VERSION"].presence
+    end
+
+    # When the running image was built (UTC ISO-8601; SYRUS_BUILT_AT baked the
+    # same way as SYRUS_VERSION). Feeds the BuildBadge hover tooltip so a
+    # diverged app/backend pair shows which part is older. Nil when absent —
+    # the badge simply renders no tooltip.
+    def app_built_at
+      ENV["SYRUS_BUILT_AT"].presence
     end
 
     def app_revision_url

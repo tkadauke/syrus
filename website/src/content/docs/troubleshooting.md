@@ -260,3 +260,27 @@ Then reduce future exposure:
 Repo-level and account-level dollar budgets are roadmap work. Until they
 ship, max-turns, cancellation, prompt scope, and scheduled-task policy
 are the practical controls.
+
+## The data volume is filling up
+
+Syrus warns in the UI when the worker data volume (`SYRUS_DATA_ROOT`) is
+nearly full. On single-host Docker installs, that volume shares its disk
+with Docker's own image store, so the space is often consumed by old,
+unused Docker images rather than by Syrus data — superseded Syrus backend
+images left behind by updates are the most common culprit. The desktop
+app cleans those up automatically once an updated backend is confirmed
+healthy, but images from other sources still accumulate.
+
+Check Docker's image store first:
+
+```bash
+docker image prune -a
+```
+
+Caution: that removes **all** images not used by a container, not just
+Syrus ones.
+
+If the image store isn't the problem, inspect retained workflow
+workspaces under `$SYRUS_DATA_ROOT/workflows` and clean up workspaces
+left by finished Workflows. If cleanup is not enough, resize the data
+volume before clone, prepare, or landing jobs start failing.

@@ -195,7 +195,9 @@ function bootstrapPayload(overrides: Partial<BootstrapPayload> = {}): BootstrapP
     team_user_count: 1,
     app: {
       revision: "dev",
-      revision_url: null
+      revision_url: null,
+      version: null,
+      built_at: null
     },
     setup_status: null,
     public: {

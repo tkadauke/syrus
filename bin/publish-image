@@ -69,6 +69,13 @@ if [ "$NO_PUSH" = 0 ]; then
   TOKEN="$(syrus_read_ghcr_token "$HOME/.config/syrus/ghcr-token")"
 fi
 GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo dev)"
+# DERIVED FROM THE SOURCE (HEAD's committer date, UTC ISO-8601), not the wall
+# clock, so every build site below bakes the same timestamp and rebuilding the
+# same commit reproduces it. release.yml's two native-arch legs and their
+# by-digest push steps derive the identical value from the same SHA — that is
+# what keeps one released multi-arch manifest on one timestamp. SYRUS_BUILT_AT
+# still overrides; a non-git tree falls back to "now".
+BUILT_AT="${SYRUS_BUILT_AT:-$(TZ=UTC git show -s --format=%cd --date=format-local:'%Y-%m-%dT%H:%M:%SZ' HEAD 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)}"
 
 tags=()
 if [ "$SKIP_LATEST" = 0 ]; then tags+=(-t "$IMAGE:latest"); fi
@@ -107,15 +114,19 @@ fi
 # suite runs against, and what the default path pushes. Nothing leaves this host
 # until the tests below pass.
 echo "== Building (single-arch, this host) =="
+# --version bakes SYRUS_VERSION into the image (empty when publishing without
+# a version) so release images can report their release version, not just the
+# git SHA. release.yml's push-by-digest rebuild passes the same build-arg —
+# keep the two in lockstep or the pushed digest won't be the tested build.
 if [ "${#cache_args[@]}" -gt 0 ]; then
-  syrus_docker_buildx_image worker-dev "$GIT_SHA" \
+  syrus_docker_buildx_image worker-dev "$GIT_SHA" --version="$VERSION" --built-at="$BUILT_AT" \
     --load \
     "${cache_args[@]}" \
     --provenance=false \
     "${tags[@]}" \
     .
 else
-  syrus_docker_build_image worker-dev "$GIT_SHA" \
+  syrus_docker_build_image worker-dev "$GIT_SHA" --version="$VERSION" --built-at="$BUILT_AT" \
     --provenance=false "${tags[@]}" .
 fi
 
@@ -141,7 +152,7 @@ if [ "$MULTI" = 1 ]; then
   # emulation (slow). CI does NOT use this path — release.yml builds each arch
   # on a native runner and merges by digest (no QEMU). The other arch reuses the
   # build cache from above; only the host-arch variant was integration-tested.
-  syrus_docker_buildx_image worker-dev "$GIT_SHA" \
+  syrus_docker_buildx_image worker-dev "$GIT_SHA" --version="$VERSION" --built-at="$BUILT_AT" \
     --platform linux/amd64,linux/arm64 \
     "${cache_args[@]}" \
     --provenance=false \
