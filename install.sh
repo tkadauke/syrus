@@ -365,15 +365,125 @@ run_docker() {
   #    MAC" mid-pull) gets a couple of automatic retries before we give up.
   step "Pulling $IMAGE"
   emit_step image_pull start "$IMAGE"
+
+  # Docker sends any saved registry login with EVERY pull, and GHCR rejects an
+  # expired/revoked token even for PUBLIC images — so a failed attempt whose
+  # log matches the stale-credential patterns below gets one automatic
+  # `docker logout <registry>` before a retry re-pulls anonymously.
+  # Derive the registry host from the image ref: the part before the first
+  # "/" counts only when it looks like a host (contains a dot or a port, or
+  # is "localhost"). Anything else — bare Docker-Hub-style refs like
+  # `syrus-backend:dev-x` or `user/image` — means Docker Hub: the logout runs
+  # PLAIN (`docker logout`, Docker Hub is the CLI default). Never assume
+  # ghcr.io for a ref that isn't actually on ghcr.io — that would wipe an
+  # unrelated saved ghcr.io login.
+  registry_host=""
+  case "$IMAGE" in
+    */*)
+      ref_head="${IMAGE%%/*}"
+      case "$ref_head" in
+        *.*|*:*|localhost) registry_host="$ref_head" ;;
+      esac
+      ;;
+  esac
+  logout_cmd="docker logout"
+  [ -n "$registry_host" ] && logout_cmd="docker logout $registry_host"
+  login_cmd="docker login"
+  [ -n "$registry_host" ] && login_cmd="docker login $registry_host"
+
+  # The SAME patterns the exit-31 classifiers use below — keep the two in sync.
+  pull_log_matches_stale_credentials() {
+    case "$1" in
+      *"error getting credentials"*|*"credential helper"*|*"credentials store"*) return 0 ;;
+      *[Dd]enied*|*[Uu]nauthorized*|*"authentication required"*|*[Ff]orbidden*) return 0 ;;
+    esac
+    return 1
+  }
+
+  pull_log_matches_progress_rejection() {
+    # Two rejection shapes exist. Ancient compose has no --progress flag at
+    # all ("unknown flag: --progress"). Compose v2.19–v2.28 ACCEPTS the flag
+    # but rejects the json value — `unsupported --progress value "json"`,
+    # also seen as `invalid --progress value`. Be generous and case-
+    # insensitive: any progress complaint mentioning unsupported/invalid/
+    # unknown means "drop the flag and re-pull" (worst case one extra plain
+    # pull), so only a REAL pull failure gets classified.
+    case "$1" in
+      *"unknown flag"*|*"unknown option"*|*"unrecognized argument"*|*"unknown shorthand"*) return 0 ;;
+    esac
+    local lowered
+    lowered="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+    case "$lowered" in
+      *progress*)
+        case "$lowered" in
+          *unsupported*|*invalid*|*unknown*) return 0 ;;
+        esac
+        ;;
+    esac
+    return 1
+  }
+
+  # In --json mode the GUI wants per-layer progress, so ask compose for
+  # machine-readable NDJSON progress and forward those lines VERBATIM as pull
+  # log events (the desktop driver parses them). --progress is a ROOT-level
+  # compose flag (`compose --progress=json pull`, not a pull flag). Humans in
+  # a terminal keep docker's native progress rendering. Compose that rejects
+  # the flag (or the json value — see the matcher above): drop the flag for
+  # the rest of the run and re-pull, so only a REAL pull failure gets
+  # classified.
+  pull_progress_flag=""
+  [ "$JSON" = "1" ] && pull_progress_flag="--progress=json"
+  pull_once() {
+    if [ -n "$pull_progress_flag" ]; then
+      if run_logged_captured "$pull_log" pull compose "$pull_progress_flag" pull; then
+        return 0
+      fi
+      if ! pull_log_matches_progress_rejection "$(cat "$pull_log" 2>/dev/null || true)"; then
+        return 1
+      fi
+      pull_progress_flag=""
+      emit_log pull "compose does not support --progress=json; retrying the pull without it"
+    fi
+    run_logged_captured "$pull_log" pull compose pull
+  }
+
   pull_ok=0
+  logout_attempted=0
   pull_log="$(mktemp "${TMPDIR:-/tmp}/syrus-pull.XXXXXX")"
-  for pull_attempt in 1 2 3; do
-    if run_logged_captured "$pull_log" pull compose pull; then
+  # Up to 3 normal attempts, plus at most ONE bonus attempt granted when the
+  # stale-credential logout fires on the final attempt: a logout is only
+  # useful if at least one pull re-runs after it, so a logout is ALWAYS
+  # followed by another pull.
+  max_pull_attempts=3
+  pull_attempt=0
+  while [ "$pull_attempt" -lt "$max_pull_attempts" ]; do
+    pull_attempt=$((pull_attempt + 1))
+    if pull_once; then
       pull_ok=1
       break
     fi
-    if [ "$pull_attempt" -lt 3 ]; then
-      info "Pull failed (attempt $pull_attempt/3) — retrying…"
+    # Stale saved registry credentials are the top cause of pull failures on a
+    # public image. Clear them ONCE per run and let the next attempt re-pull
+    # anonymously; a genuinely private image still fails every attempt and
+    # reaches the exit-31 guidance below without a second logout. When a
+    # local copy of the image exists, skip the logout entirely — the
+    # local-image fallback below adopts it, so there is no reason to touch
+    # (possibly valid) saved credentials.
+    if [ "$logout_attempted" != "1" ] \
+       && pull_log_matches_stale_credentials "$(cat "$pull_log" 2>/dev/null || true)" \
+       && ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
+      logout_attempted=1
+      if [ -n "$registry_host" ]; then
+        docker logout "$registry_host" >/dev/null 2>&1 || true
+      else
+        docker logout >/dev/null 2>&1 || true
+      fi
+      info "The registry refused Docker's saved credentials — cleared them ($logout_cmd) before retrying."
+      emit_log pull "stale registry credentials cleared ($logout_cmd); retrying"
+      [ "$pull_attempt" -ge "$max_pull_attempts" ] && max_pull_attempts=$((pull_attempt + 1))
+    fi
+    if [ "$pull_attempt" -lt "$max_pull_attempts" ]; then
+      info "Pull failed (attempt $pull_attempt/$max_pull_attempts) — retrying…"
       emit_log pull "pull attempt $pull_attempt failed; retrying"
       sleep "${SYRUS_PULL_RETRY_DELAY:-5}"
     fi
@@ -401,28 +511,39 @@ run_docker() {
         # Docker's credential helper choked on a stored (usually stale) login —
         # e.g. "error getting credentials" from a broken keychain entry. Docker
         # sends stored ghcr.io credentials on EVERY pull, and GHCR rejects an
-        # expired/revoked token even for public images, so the fix is to log
-        # OUT, not in. Checked before the generic denied branch: the helper's
-        # message contains neither "denied" nor "unauthorized" and used to
-        # misclassify as a network problem (exit 30).
+        # expired/revoked token even for public images. When the loop above
+        # already ran `docker logout` + re-pulled, landing here means the
+        # helper itself is wedged — and the copy only claims that logout+retry
+        # when it actually happened. Checked before the generic denied branch:
+        # the helper's message contains neither "denied" nor "unauthorized"
+        # and used to misclassify as a network problem (exit 30).
         *"error getting credentials"*|*"credential helper"*|*"credentials store"*)
-          echo "Docker has stored login credentials for the registry that it can no longer" >&2
-          echo "read (or that have expired). The image is public — no login is needed." >&2
-          echo "Clear the stale credentials and retry:" >&2
-          echo "    docker logout ghcr.io" >&2
-          echo "Then re-run ./install.sh --docker." >&2
-          die "stored Docker credentials for the registry are broken — run: docker logout ghcr.io" 31
+          echo "Docker's stored registry login is broken (a stale or unreadable credential" >&2
+          if [ "$logout_attempted" = "1" ]; then
+            echo "helper entry). Syrus already tried clearing it ($logout_cmd)" >&2
+            echo "and retried, but the pull still failed. Check ~/.docker/config.json for a" >&2
+            echo "broken credsStore/credHelpers entry, then re-run ./install.sh --docker." >&2
+            die "stored Docker credentials for the registry are broken even after $logout_cmd" 31
+          else
+            echo "helper entry). Try clearing it ($logout_cmd), check ~/.docker/config.json" >&2
+            echo "for a broken credsStore/credHelpers entry, then re-run ./install.sh --docker." >&2
+            die "stored Docker credentials for the registry are broken (try: $logout_cmd)" 31
+          fi
           ;;
         *[Dd]enied*|*[Uu]nauthorized*|*"authentication required"*|*[Ff]orbidden*)
-          echo "The registry refused the download. The most common cause is STALE stored" >&2
-          echo "credentials: docker sends any saved ghcr.io login with every pull, and an" >&2
-          echo "expired token is rejected even for public images. Clear it and retry:" >&2
-          echo "    docker logout ghcr.io" >&2
-          echo "If that doesn't help, the package may be private or the tag unpublished —" >&2
-          echo "make the package public, or log in with a valid token:" >&2
-          echo "    echo <YOUR_PAT_with_read:packages> | docker login ghcr.io -u <your-username> --password-stdin" >&2
+          if [ "$logout_attempted" = "1" ]; then
+            echo "The registry refused the download. Syrus already cleared stale saved" >&2
+            echo "credentials ($logout_cmd) and retried, so the likely causes" >&2
+            echo "are: the package is private, the tag is unpublished, or this registry" >&2
+            echo "needs a login. To log in with a valid token:" >&2
+          else
+            echo "The registry refused the download. The likely causes are: the package" >&2
+            echo "is private, the tag is unpublished, or this registry needs a login." >&2
+            echo "To log in with a valid token:" >&2
+          fi
+          echo "    echo <YOUR_PAT_with_read:packages> | $login_cmd -u <your-username> --password-stdin" >&2
           echo "Then re-run ./install.sh --docker." >&2
-          die "access to $IMAGE was denied (stale login, private package, or unpublished tag)" 31
+          die "access to $IMAGE was denied (private package, unpublished tag, or login required)" 31
           ;;
         *"manifest unknown"*|*"not found"*)
           echo "The package exists but this tag doesn't — the build that produced this" >&2

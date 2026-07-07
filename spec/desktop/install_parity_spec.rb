@@ -75,6 +75,8 @@ RSpec.describe "install.ps1 parity with install.sh" do
       "pull failed; using the local image copy",
       "pull attempt",
       "failed; retrying",
+      "stale registry credentials cleared (",
+      "compose does not support --progress=json; retrying the pull without it",
       "SYRUS_IMAGE pin updated:",
       "<empty>"
     ].each do |line|
@@ -86,8 +88,8 @@ RSpec.describe "install.ps1 parity with install.sh" do
   it "shares the error-message fragments the GUI error screens key on" do
     [
       "undecryptable",
-      "denied (stale login, private package, or unpublished tag)",
-      "docker logout ghcr.io",
+      "denied (private package, unpublished tag, or login required)",
+      "docker logout ",
       "does not exist in the registry",
       "didn't become healthy",
       "docker compose up failed",
@@ -102,7 +104,7 @@ RSpec.describe "install.ps1 parity with install.sh" do
     # GHCR's anonymous-denied message mentions both "denied" and "does not
     # exist" - the denied branch must be checked first in both scripts.
     [sh, ps1].each do |text|
-      denied = text.index("denied (stale login, private package, or unpublished tag)")
+      denied = text.index("denied (private package, unpublished tag, or login required)")
       missing = text.index("does not exist in the registry")
       expect(denied).to be < missing
     end
@@ -113,15 +115,89 @@ RSpec.describe "install.ps1 parity with install.sh" do
     # with neither "denied" nor "unauthorized" in it, which used to fall through
     # to the misleading exit-30 "network problem" branch. Docker sends stored
     # ghcr.io credentials on every pull and GHCR rejects an expired token even
-    # for PUBLIC images, so the fix is `docker logout ghcr.io`, not a login.
+    # for PUBLIC images. Both installers run `docker logout` themselves
+    # mid-retry when eligible, and the terminal guidance claims that
+    # logout+retry ONLY on the paths where it actually happened.
     [sh, ps1].each do |text|
       helper = text.index("error getting credentials")
-      denied = text.index("denied (stale login, private package, or unpublished tag)")
+      denied = text.index("denied (private package, unpublished tag, or login required)")
       expect(helper).not_to be_nil
       expect(helper).to be < denied
     end
-    expect(sh).to include("stored Docker credentials for the registry are broken")
-    expect(ps1).to include("stored Docker credentials for the registry are broken")
+    expect(sh).to include("stored Docker credentials for the registry are broken even after ")
+    expect(ps1).to include("stored Docker credentials for the registry are broken even after ")
+    # The no-logout variants must not claim a logout+retry that never ran.
+    expect(sh).to include("stored Docker credentials for the registry are broken (try: ")
+    expect(ps1).to include("stored Docker credentials for the registry are broken (try: ")
+    expect(sh).to include("The registry refused the download. The likely causes are: the package")
+    expect(ps1).to include("The registry refused the download. The likely causes are: the package")
+    # Both scripts gate the "already cleared … and retried" copy on the flag.
+    expect(sh).to include('if [ "$logout_attempted" = "1" ]; then')
+    expect(ps1).to include("if ($logoutAttempted) {")
+  end
+
+  it "auto-clears stale registry credentials once per run, with the same patterns in both scripts" do
+    # The in-loop stale-credential match must stay in sync with the exit-31
+    # classifiers (see the "keep the two in sync" comments in both scripts).
+    ["error getting credentials", "credential helper", "credentials store",
+     "authentication required"].each do |pattern|
+      expect(sh).to include(pattern), "install.sh: missing classifier pattern #{pattern.inspect}"
+      expect(ps1).to include(pattern), "install.ps1: missing classifier pattern #{pattern.inspect}"
+    end
+    # One logout per install run, against the registry host derived from the
+    # image reference — but ONLY when the first path segment is host-like
+    # (dot/colon/localhost). Docker-Hub-style refs (bare or user/image) get a
+    # PLAIN `docker logout`; neither script may assume ghcr.io for a ref that
+    # isn't on ghcr.io.
+    expect(sh).to include("logout_attempted=1")
+    expect(ps1).to include("$logoutAttempted = $true")
+    expect(sh).to include('docker logout "$registry_host"')
+    expect(ps1).to include('@("logout", $registryHost)')
+    expect(sh).to include("docker logout >/dev/null")
+    expect(ps1).to include('@("logout")')
+    expect(sh).to include('registry_host=""')
+    expect(ps1).to include('$registryHost = ""')
+    expect(sh).not_to include('registry_host="ghcr.io"')
+    expect(ps1).not_to include('$registryHost = "ghcr.io"')
+    # The logout is skipped when a local image copy exists: both scripts run
+    # a pre-logout `docker image inspect` in the retry loop, in addition to
+    # the post-loop local-image fallback check.
+    expect(sh.scan('docker image inspect "$IMAGE"').length).to be >= 2
+    expect(ps1.scan('@("image", "inspect", $image)').length).to be >= 2
+  end
+
+  it "always follows a logout with at least one more pull attempt, in both scripts" do
+    # When the stale-credential logout first fires on the FINAL attempt, both
+    # loops grant exactly one bonus attempt so the post-logout anonymous
+    # re-pull always happens — otherwise the exit-31 "already retried"
+    # guidance would be a lie.
+    expect(sh).to include("max_pull_attempts=$((pull_attempt + 1))")
+    expect(ps1).to include("$maxPullAttempts = $attempt + 1")
+    expect(sh).to include('[ "$pull_attempt" -ge "$max_pull_attempts" ]')
+    expect(ps1).to include("if ($attempt -ge $maxPullAttempts)")
+  end
+
+  it "asks compose for machine-readable pull progress in --json mode, with a progress-rejection fallback" do
+    # --progress is a ROOT-level compose flag; both installers pass it only in
+    # --json mode (the GUI parses the NDJSON lines; terminal users keep
+    # docker's native progress) and drop it when compose rejects it. Two
+    # rejection shapes: ancient compose lacks the flag entirely ("unknown
+    # flag"), and compose v2.19–v2.28 accepts the flag but rejects the json
+    # VALUE (`unsupported --progress value "json"` / `invalid --progress
+    # value`) — both must trigger the fallback.
+    ["unknown flag", "unknown option", "unrecognized argument", "unknown shorthand"].each do |pattern|
+      expect(sh).to include(pattern), "install.sh: missing fallback pattern #{pattern.inspect}"
+      expect(ps1).to include(pattern), "install.ps1: missing fallback pattern #{pattern.inspect}"
+    end
+    # The widened value-rejection matcher: /progress/ near
+    # /unsupported|invalid|unknown/, case-insensitive, in both scripts.
+    expect(sh).to include("*unsupported*|*invalid*|*unknown*")
+    expect(sh).to include("*progress*")
+    expect(sh).to include("tr '[:upper:]' '[:lower:]'")
+    expect(ps1).to include('-imatch "progress"')
+    expect(ps1).to include('-imatch "unsupported|invalid|unknown"')
+    expect(sh).to include('[ "$JSON" = "1" ] && pull_progress_flag="--progress=json"')
+    expect(ps1).to include('if ($script:Json) { $pullProgressArgs = @("--progress=json") }')
   end
 
   it "defaults to the same image, project name, knobs, and --image charset" do

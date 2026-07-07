@@ -165,6 +165,21 @@ function Invoke-LoggedCommand {
   return $captured
 }
 
+function Test-ProgressFlagRejected {
+  # Two rejection shapes exist. Ancient compose has no --progress flag at all
+  # ("unknown flag: --progress"). Compose v2.19-v2.28 ACCEPTS the flag but
+  # rejects the json value - `unsupported --progress value "json"`, also seen
+  # as `invalid --progress value`. Be generous and case-insensitive: any
+  # progress complaint mentioning unsupported/invalid/unknown means "drop the
+  # flag and re-pull" (worst case one extra plain pull), so only a REAL pull
+  # failure gets classified. Mirrors install.sh's
+  # pull_log_matches_progress_rejection.
+  param([string]$Text)
+  if ($Text -cmatch "unknown flag|unknown option|unrecognized argument|unknown shorthand") { return $true }
+  if ($Text -imatch "progress" -and $Text -imatch "unsupported|invalid|unknown") { return $true }
+  return $false
+}
+
 function New-HexSecret {
   # CSPRNG hex - the `openssl rand -hex N` analog. The one-call hex-string
   # convenience API is pwsh 7+ only, so format each byte by hand for PS 5.1.
@@ -379,19 +394,90 @@ function Run-Docker {
   #    automatic retries before we give up.
   Write-HumanStep "Pulling $image"
   Emit-Step "image_pull" "start" $image
+
+  # Docker sends any saved registry login with EVERY pull, and GHCR rejects an
+  # expired/revoked token even for PUBLIC images - so a failed attempt whose
+  # log matches the stale-credential patterns below gets one automatic
+  # `docker logout <registry>` before a retry re-pulls anonymously.
+  # Derive the registry host from the image ref: the part before the first
+  # "/" counts only when it looks like a host (contains a dot or a port, or
+  # is "localhost"). Anything else - bare Docker-Hub-style refs like
+  # `syrus-backend:dev-x` or `user/image` - means Docker Hub: the logout runs
+  # PLAIN (`docker logout`, Docker Hub is the CLI default). Never assume
+  # ghcr.io for a ref that isn't actually on ghcr.io - that would wipe an
+  # unrelated saved ghcr.io login.
+  $registryHost = ""
+  $refSlash = $image.IndexOf("/")
+  if ($refSlash -gt 0) {
+    $refHead = $image.Substring(0, $refSlash)
+    if ($refHead.Contains(".") -or $refHead.Contains(":") -or $refHead -ceq "localhost") {
+      $registryHost = $refHead
+    }
+  }
+  $logoutCmd = "docker logout"
+  if ($registryHost) { $logoutCmd = "docker logout $registryHost" }
+  $loginCmd = "docker login"
+  if ($registryHost) { $loginCmd = "docker login $registryHost" }
+
+  # In --json mode the GUI wants per-layer progress, so ask compose for
+  # machine-readable NDJSON progress and forward those lines VERBATIM as pull
+  # log events (the desktop driver parses them). --progress is a ROOT-level
+  # compose flag (`compose --progress=json pull`, not a pull flag). Humans in
+  # a terminal keep docker's native progress rendering. Compose that rejects
+  # the flag (or the json value - see Test-ProgressFlagRejected): drop the
+  # flag for the rest of the run and re-pull, so only a REAL pull failure
+  # gets classified.
+  $pullProgressArgs = @()
+  if ($script:Json) { $pullProgressArgs = @("--progress=json") }
+
   $pullOk = $false
+  $logoutAttempted = $false
   # The capture file mirrors install.sh's mktemp+tee: placed under $env:TEMP
   # (GetTempPath honors it), read-then-delete before the classification.
   $pullLog = Join-Path ([System.IO.Path]::GetTempPath()) ("syrus-pull-" + [Guid]::NewGuid().ToString("N") + ".log")
   $retryDelay = 5
   if ($env:SYRUS_PULL_RETRY_DELAY) { $retryDelay = [int]$env:SYRUS_PULL_RETRY_DELAY }
-  for ($attempt = 1; $attempt -le 3; $attempt++) {
-    $lines = @(Invoke-LoggedCommand "pull" $composeExe ($composePrefix + @("pull")))
+  # Up to 3 normal attempts, plus at most ONE bonus attempt granted when the
+  # stale-credential logout fires on the final attempt: a logout is only
+  # useful if at least one pull re-runs after it, so a logout is ALWAYS
+  # followed by another pull.
+  $maxPullAttempts = 3
+  $attempt = 0
+  while ($attempt -lt $maxPullAttempts) {
+    $attempt++
+    $lines = @(Invoke-LoggedCommand "pull" $composeExe ($composePrefix + $pullProgressArgs + @("pull")))
     $pullExit = $LASTEXITCODE
+    if ($pullExit -ne 0 -and $pullProgressArgs.Count -gt 0) {
+      if (Test-ProgressFlagRejected ($lines -join "`n")) {
+        $pullProgressArgs = @()
+        Emit-Log "pull" "compose does not support --progress=json; retrying the pull without it"
+        $lines = @(Invoke-LoggedCommand "pull" $composeExe ($composePrefix + @("pull")))
+        $pullExit = $LASTEXITCODE
+      }
+    }
     [System.IO.File]::WriteAllLines($pullLog, [string[]]$lines, $script:Utf8NoBom)
     if ($pullExit -eq 0) { $pullOk = $true; break }
-    if ($attempt -lt 3) {
-      Write-Info "Pull failed (attempt $attempt/3) - retrying..."
+    # Stale saved registry credentials are the top cause of pull failures on a
+    # public image. Clear them ONCE per run and let the next attempt re-pull
+    # anonymously; a genuinely private image still fails every attempt and
+    # reaches the exit-31 guidance below without a second logout. When a local
+    # copy of the image exists, skip the logout entirely - the local-image
+    # fallback below adopts it, so there is no reason to touch (possibly
+    # valid) saved credentials. The match is the SAME set of patterns the
+    # exit-31 classifiers use - keep them in sync.
+    if (-not $logoutAttempted -and (($lines -join "`n") -cmatch "error getting credentials|credential helper|credentials store|[Dd]enied|[Uu]nauthorized|authentication required|[Ff]orbidden")) {
+      Invoke-NativeQuiet "docker" @("image", "inspect", $image)
+      if ($LASTEXITCODE -ne 0) {
+        $logoutAttempted = $true
+        if ($registryHost) { Invoke-NativeQuiet "docker" @("logout", $registryHost) }
+        else { Invoke-NativeQuiet "docker" @("logout") }
+        Write-Info "The registry refused Docker's saved credentials - cleared them ($logoutCmd) before retrying."
+        Emit-Log "pull" "stale registry credentials cleared ($logoutCmd); retrying"
+        if ($attempt -ge $maxPullAttempts) { $maxPullAttempts = $attempt + 1 }
+      }
+    }
+    if ($attempt -lt $maxPullAttempts) {
+      Write-Info "Pull failed (attempt $attempt/$maxPullAttempts) - retrying..."
       Emit-Log "pull" "pull attempt $attempt failed; retrying"
       Start-Sleep -Seconds $retryDelay
     }
@@ -418,26 +504,37 @@ function Run-Docker {
       if ($pullError -cmatch "error getting credentials|credential helper|credentials store") {
         # Docker's credential helper choked on a stored (usually stale) login.
         # Docker sends stored ghcr.io credentials on EVERY pull, and GHCR
-        # rejects an expired token even for public images - the fix is to log
-        # OUT, not in. Checked before the generic denied branch: this message
-        # contains neither "denied" nor "unauthorized" and used to misclassify
-        # as a network problem (exit 30).
-        [Console]::Error.WriteLine("Docker has stored login credentials for the registry that it can no longer")
-        [Console]::Error.WriteLine("read (or that have expired). The image is public - no login is needed.")
-        [Console]::Error.WriteLine("Clear the stale credentials and retry:")
-        [Console]::Error.WriteLine("    docker logout ghcr.io")
-        [Console]::Error.WriteLine("Then re-run .\install.ps1 --docker.")
-        Fail "stored Docker credentials for the registry are broken - run: docker logout ghcr.io" 31
+        # rejects an expired token even for public images. When the loop above
+        # already ran `docker logout` + re-pulled, landing here means the
+        # helper itself is wedged - and the copy only claims that logout+retry
+        # when it actually happened. Checked before the generic denied branch:
+        # this message contains neither "denied" nor "unauthorized" and used
+        # to misclassify as a network problem (exit 30).
+        [Console]::Error.WriteLine("Docker's stored registry login is broken (a stale or unreadable credential")
+        if ($logoutAttempted) {
+          [Console]::Error.WriteLine("helper entry). Syrus already tried clearing it ($logoutCmd)")
+          [Console]::Error.WriteLine("and retried, but the pull still failed. Check %USERPROFILE%\.docker\config.json")
+          [Console]::Error.WriteLine("for a broken credsStore/credHelpers entry, then re-run .\install.ps1 --docker.")
+          Fail "stored Docker credentials for the registry are broken even after $logoutCmd" 31
+        } else {
+          [Console]::Error.WriteLine("helper entry). Try clearing it ($logoutCmd), check %USERPROFILE%\.docker\config.json")
+          [Console]::Error.WriteLine("for a broken credsStore/credHelpers entry, then re-run .\install.ps1 --docker.")
+          Fail "stored Docker credentials for the registry are broken (try: $logoutCmd)" 31
+        }
       } elseif ($pullError -cmatch "[Dd]enied|[Uu]nauthorized|authentication required|[Ff]orbidden") {
-        [Console]::Error.WriteLine("The registry refused the download. The most common cause is STALE stored")
-        [Console]::Error.WriteLine("credentials: docker sends any saved ghcr.io login with every pull, and an")
-        [Console]::Error.WriteLine("expired token is rejected even for public images. Clear it and retry:")
-        [Console]::Error.WriteLine("    docker logout ghcr.io")
-        [Console]::Error.WriteLine("If that doesn't help, the package may be private or the tag unpublished -")
-        [Console]::Error.WriteLine("make the package public, or log in with a valid token:")
-        [Console]::Error.WriteLine("    echo <YOUR_PAT_with_read:packages> | docker login ghcr.io -u <your-username> --password-stdin")
+        if ($logoutAttempted) {
+          [Console]::Error.WriteLine("The registry refused the download. Syrus already cleared stale saved")
+          [Console]::Error.WriteLine("credentials ($logoutCmd) and retried, so the likely causes")
+          [Console]::Error.WriteLine("are: the package is private, the tag is unpublished, or this registry")
+          [Console]::Error.WriteLine("needs a login. To log in with a valid token:")
+        } else {
+          [Console]::Error.WriteLine("The registry refused the download. The likely causes are: the package")
+          [Console]::Error.WriteLine("is private, the tag is unpublished, or this registry needs a login.")
+          [Console]::Error.WriteLine("To log in with a valid token:")
+        }
+        [Console]::Error.WriteLine("    echo <YOUR_PAT_with_read:packages> | $loginCmd -u <your-username> --password-stdin")
         [Console]::Error.WriteLine("Then re-run .\install.ps1 --docker.")
-        Fail "access to $image was denied (stale login, private package, or unpublished tag)" 31
+        Fail "access to $image was denied (private package, unpublished tag, or login required)" 31
       } elseif ($pullError -cmatch "manifest unknown|not found") {
         [Console]::Error.WriteLine("The package exists but this tag doesn't - the build that produced this")
         [Console]::Error.WriteLine("installer references an image that was never published.")
