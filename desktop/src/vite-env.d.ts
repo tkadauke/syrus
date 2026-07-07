@@ -180,6 +180,18 @@ type SyrusInstallStep = {
   status: "pending" | "running" | "ok" | "skipped"
 }
 
+// Overall image-pull progress for the installing screen's determinate bar.
+// `label` is preformatted by the driver ("42% (312 MB / 745 MB)") so the
+// renderer and the log summary can't drift.
+type SyrusPullProgress = {
+  percent: number
+  label: string
+}
+
+// Plain string, or a transient rolling status line (the image-pull progress
+// summary) that replaces the previous log line when that was also transient.
+type SyrusOnboardingLogLine = string | { line: string; transient: true }
+
 type SyrusOnboardingState =
   | { phase: "welcome" }
   | { phase: "connect.form"; error: string | null }
@@ -191,7 +203,12 @@ type SyrusOnboardingState =
   | { phase: "local.runtimeInstalling"; step: "downloading" | "installing"; percent: number | null }
   | { phase: "local.runtimeStarting"; needsAttention: boolean }
   | { phase: "local.portConflict"; port: number }
-  | { phase: "local.installing"; steps: SyrusInstallStep[]; currentStep: SyrusInstallStepId | null }
+  | {
+      phase: "local.installing"
+      steps: SyrusInstallStep[]
+      currentStep: SyrusInstallStepId | null
+      pullProgress: SyrusPullProgress | null
+    }
   | { phase: "local.failed"; code: number; step: string | null; message: string; logTail: string[] }
   | { phase: "done"; mode: "local" | "remote"; url: string }
 
@@ -267,7 +284,7 @@ interface Window {
     adoptRunningInstance: () => Promise<void>
     finishOnboarding: () => Promise<void>
     onOnboardingState: (callback: (state: SyrusOnboardingState) => void) => () => void
-    onOnboardingLogLine: (callback: (line: string) => void) => () => void
+    onOnboardingLogLine: (callback: (line: SyrusOnboardingLogLine) => void) => () => void
     onDesktopSettingsUpdated: (callback: () => void) => () => void
     onCredentialsCleared: (callback: () => void) => () => void
     onCredentialsSaved: (callback: (credentials: SyrusCredentials) => void) => () => void

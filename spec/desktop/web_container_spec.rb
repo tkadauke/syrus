@@ -48,10 +48,32 @@ RSpec.describe "desktop web-container window" do
   it "marks the web container's user agent so the web app can detect the shell" do
     expect(web_app_window).to include("SyrusDesktop/")
     expect(web_app_window).to include("setUserAgent")
-    # The app build sha rides a second UA token (from the staged manifest's
-    # appBuild) so the web UI's BuildBadge can show which build hosts it.
+    # The app build rides a second UA token (from the staged manifest) so the
+    # web UI's BuildBadge can show which build hosts it. Release builds
+    # announce the release version, dev builds the git sha — one token,
+    # version-or-sha ("0.0.0" is the dev placeholder, never a release).
     expect(web_app_window).to include("SyrusDesktopBuild/")
-    expect(main_process).to include("buildSha: manifest?.appBuild ?? null")
+    expect(main_process).to include(
+      'buildSha: (manifest?.appVersion && manifest.appVersion !== "0.0.0" ? manifest.appVersion : manifest?.appBuild) ?? null'
+    )
+    # A third token carries the app's build time for the badge's hover
+    # tooltip, encoded ISO-8601 BASIC (20260707T143200Z) because colons are
+    # not valid in UA product-version tokens — desktopBuiltAt() decodes it.
+    expect(web_app_window).to include("SyrusDesktopBuiltAt/")
+    expect(web_app_window).to include('.toISOString().slice(0, 19).replace(/[-:]/g, "")')
+    expect(main_process).to include("builtAt: manifest?.builtAt ?? null")
+    # stage-backend-assets stamps the timestamp the token is derived from.
+    # Dev builds stamp the wall clock (staging time IS the build moment);
+    # release builds derive it from HEAD's committer date — the same source
+    # release.yml / bin/publish-image bake into the backend image as
+    # SYRUS_BUILT_AT — normalized to the identical second-precision UTC
+    # ISO-8601 form, so the BuildBadge's app and backend tooltips show the
+    # IDENTICAL instant on a release.
+    stage_script = read("scripts/stage-backend-assets.mjs")
+    expect(stage_script).to include("if (!isReleaseBuild) return new Date().toISOString()")
+    expect(stage_script).to include('execSync("git show -s --format=%ct HEAD"')
+    expect(stage_script).to include('new Date(Number(epochSeconds) * 1000).toISOString().replace(/\.\d{3}Z$/, "Z")')
+    expect(stage_script).to include("appVersion: version, appBuild, builtAt")
   end
 
   it "exposes the context-menu essentials to the left-click popover" do

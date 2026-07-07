@@ -14,6 +14,7 @@ RSpec.describe "desktop backend lifecycle" do
   end
 
   let(:lifecycle) { read("electron/installer/backendLifecycle.ts") }
+  let(:image_cleanup) { read("electron/installer/imageCleanup.ts") }
   let(:main_process) { read("electron/main.ts") }
   let(:backend_status) { read("src/BackendStatus.tsx") }
 
@@ -87,6 +88,48 @@ RSpec.describe "desktop backend lifecycle" do
     expect(restart_fn).to include("if (!stopped)")
     expect(main_process).to include("runBackendAction")
     expect(main_process).to include("reportBackendActionFailure")
+  end
+
+  it "retires superseded syrus images only after a healthy update, never on first install" do
+    # Every backend update pulls a fresh multi-GB image; without cleanup the
+    # Docker VM disk fills with dead syrus-backend images after a few updates.
+    update_fn = lifecycle[/export const updateBackend[\s\S]*?\n\}/]
+    expect(update_fn).to match(/ok && \(await backendHealthy\(\)\)[\s\S]{0,600}removeSupersededSyrusImages/)
+    # The pin just applied is the one image that must survive.
+    expect(update_fn).to include("pinnedRef: image")
+    # Cleanup lives on the update path only — first installs go through the
+    # onboarding driver and never call updateBackend.
+    expect(lifecycle.scan(/removeSupersededSyrusImages\(/).length).to eq(1)
+  end
+
+  it "scopes image cleanup to same-repository siblings of the pin and stays polite" do
+    expect(image_cleanup).to include('SYRUS_IMAGE_BASENAMES = ["syrus-backend", "syrus-local"]')
+    # "Superseded" means the ref's full repository (registry + namespace +
+    # name — the ref minus the tag) EQUALS the pinned ref's repository, under
+    # a different tag. A basename-wide rule deleted a developer's freshly
+    # built `syrus-backend:dev-abc` on a routine desktop update.
+    expect(image_cleanup).to include("const pinnedRepository = splitRef(pinnedRef).repository")
+    expect(image_cleanup).to include("splitRef(ref).repository === pinnedRepository")
+    # Plain per-ref removal: an in-use image refuses politely and stays.
+    expect(image_cleanup).to include('["image", "rm", ref]')
+    expect(image_cleanup).not_to include("--force")
+    # Never a blanket prune — that would nuke the user's unrelated images.
+    expect(image_cleanup).not_to include('"prune"')
+    # No pin (first install / pre-pin float) means nothing is removable.
+    expect(image_cleanup).to match(/if \(!pinnedRef\) \{\s*return/)
+  end
+
+  it "never lets the pull progress bar freeze at a guessed 100%" do
+    pull_progress = read("electron/installer/pullProgress.ts")
+    # Layer-count fallback (no byte totals yet) is a guess: early cached
+    # "Already exists" rows would compute ~100% before the real multi-GB
+    # download even starts. The fallback caps below 100 until the
+    # image-level terminal event, and the monotonic clamp resets on the
+    # fallback→bytes mode switch so real byte data can correct downward.
+    expect(pull_progress).to include("FALLBACK_MAX_PERCENT = 99")
+    expect(pull_progress).to match(/if \(!this\.imagesAllDone\(\)\) \{\s*rawPercent = Math\.min\(rawPercent, FALLBACK_MAX_PERCENT\)/)
+    expect(pull_progress).to match(/event\.text === "Pulled" \|\| event\.status === "Done"/)
+    expect(pull_progress).to match(/mode === "bytes" && this\.mode === "fallback"[\s\S]{0,40}this\.maxPercent = null/)
   end
 
   it "bounds the daemon wait by wall clock with short probes" do

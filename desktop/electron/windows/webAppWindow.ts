@@ -4,9 +4,13 @@ import { decideWindowOpen } from "./windowOpenPolicy.js"
 
 type WebAppWindowOptions = {
   serverUrl: string
-  // Git short sha of this app build (from the staged manifest) — appended to
-  // the user agent so the web UI's BuildBadge can display it.
+  // Build identity of this app (from the staged manifest) — appended to
+  // the user agent so the web UI's BuildBadge can display it. Release
+  // builds carry the release version here, dev builds the git short sha.
   buildSha?: string | null
+  // When this app build was staged (ISO-8601, from the manifest) — appended
+  // as a second UA token feeding the BuildBadge's hover tooltip.
+  builtAt?: string | null
   savedBounds: WindowBounds | null
   // Loads the packaged renderer's backend-status view. That page is purely
   // informational — this window carries NO preload (the remote web app must
@@ -26,6 +30,7 @@ export type WebAppWindowHandle = {
 export const createWebAppWindow = ({
   serverUrl,
   buildSha,
+  builtAt,
   savedBounds,
   loadFallback,
   onBoundsChanged,
@@ -52,9 +57,20 @@ export const createWebAppWindow = ({
 
   // The web app detects the shell by this marker (see
   // app/frontend/lib/desktopShell.ts) — e.g. to not report an intercepted
-  // window.open as a blocked popup. The build token feeds the BuildBadge.
+  // window.open as a blocked popup. The build token feeds the BuildBadge;
+  // the built-at token feeds its hover tooltip. Colons are not valid in UA
+  // product-version tokens, so the timestamp is ISO-8601 basic format
+  // ("20260707T143200Z") — desktopBuiltAt() restores the extended form.
+  // Silently dropped when the manifest timestamp is missing or unparseable.
   const buildToken = buildSha ? ` SyrusDesktopBuild/${buildSha}` : ""
-  window.webContents.setUserAgent(`${window.webContents.getUserAgent()} SyrusDesktop/${app.getVersion()}${buildToken}`)
+  const builtAtDate = builtAt ? new Date(builtAt) : null
+  const builtAtToken =
+    builtAtDate && !Number.isNaN(builtAtDate.getTime())
+      ? ` SyrusDesktopBuiltAt/${builtAtDate.toISOString().slice(0, 19).replace(/[-:]/g, "")}Z`
+      : ""
+  window.webContents.setUserAgent(
+    `${window.webContents.getUserAgent()} SyrusDesktop/${app.getVersion()}${buildToken}${builtAtToken}`
+  )
 
   // Same-origin navigation stays in the window; everything else (GitHub PRs,
   // issue links, docs) opens in the user's default browser — see

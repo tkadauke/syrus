@@ -1,6 +1,6 @@
 import { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, screen, shell, dialog, clipboard, globalShortcut, Notification } from "electron"
 import type { MessageBoxOptions, NativeImage, OpenDialogOptions } from "electron"
-import { execFile } from "node:child_process"
+import { execFile, spawn } from "node:child_process"
 import fs from "node:fs/promises"
 import { constants as fsConstants } from "node:fs"
 import os from "node:os"
@@ -21,7 +21,8 @@ import { clearBackendConfig, DEFAULT_GLOBAL_HOTKEY, getBackendMode, getOnboardin
 import type { DesktopSettings, DesktopSettingsInput } from "./settings.js"
 import * as appUpdates from "./appUpdates.js"
 import * as backendLifecycle from "./installer/backendLifecycle.js"
-import { readBackendManifest } from "./installer/installPaths.js"
+import { readBackendManifest, uninstallScriptPath } from "./installer/installPaths.js"
+import { uninstallCommand } from "./installer/uninstallCommand.js"
 import { OnboardingDriver } from "./installer/installerDriver.js"
 import { decideOnSecondInstance, takeoverPrompt, type InstanceIdentity } from "./instanceTakeover.js"
 import { bundlePathFromExecPath, installBundle, launchInstalledCopy, shouldSelfInstall } from "./selfInstall.js"
@@ -1734,7 +1735,13 @@ const showWebAppWindow = async () => {
   const manifest = await readBackendManifest()
   webAppWindow = createWebAppWindow({
     serverUrl,
-    buildSha: manifest?.appBuild ?? null,
+    // Release builds announce the release version ("0.1.2"); everything else
+    // announces the git sha — one UA token, version-or-sha, so the web UI's
+    // BuildBadge shows "app 0.1.2" on releases without a parser change.
+    buildSha: (manifest?.appVersion && manifest.appVersion !== "0.0.0" ? manifest.appVersion : manifest?.appBuild) ?? null,
+    // Stamped at DMG stage time; rides a second UA token so the BuildBadge
+    // tooltip can show when this app build was made.
+    builtAt: manifest?.builtAt ?? null,
     savedBounds: store.get("webAppWindowBounds", null),
     loadFallback: (window) => loadBackendStatus(window, getBackendMode() === "remote" ? "remote" : "local"),
     onBoundsChanged: (bounds) => store.set("webAppWindowBounds", bounds),
@@ -1953,6 +1960,89 @@ const confirmStopBackend = async () => {
   }
 }
 
+// "Uninstall Syrus…": confirm natively, then hand off to the staged
+// uninstall script (uninstall.sh / uninstall.ps1) and get out of its way.
+// The script owns the whole teardown — compose down, volumes/images, CLI,
+// Claude skill, settings, and the app itself (on Windows the NSIS
+// uninstaller runs /S as its LAST step) — so it must outlive this process:
+// spawn detached with ignored stdio, unref, then quit after a short beat.
+// Quitting never touches the stack (backendLifecycle stops containers only
+// on explicit menu action), so there is no race against the script's own
+// `compose down`.
+
+// darwin only: the uninstall dialog promises to remove "the Syrus app", so
+// uninstall.sh must be told where the RUNNING bundle actually lives —
+// self-install accepts both /Applications and ~/Applications, and the
+// script's built-in default only guesses ~/Applications. Derived from the
+// live exe path (<bundle>.app/Contents/MacOS/<binary> → <bundle>.app) and
+// passed only when the result actually looks like a bundle; uninstall.sh
+// re-validates it (absolute, ends in /Syrus.app, under an Applications dir).
+// Windows never passes it — the NSIS uninstaller owns app removal there.
+const uninstallAppPath = (): string | null => {
+  if (process.platform !== "darwin") {
+    return null
+  }
+
+  const bundle = bundlePathFromExecPath(app.getPath("exe"))
+  return bundle.endsWith(".app") ? bundle : null
+}
+
+const confirmAndUninstall = async () => {
+  const choice = await dialog.showMessageBox({
+    type: "warning",
+    title: "Uninstall Syrus",
+    message: "Uninstall Syrus from this computer?",
+    detail:
+      "This removes the Syrus app, the syrus command-line tool, the Claude Code skill, and Syrus's local Docker containers and downloaded images.\n\nSyrus will quit when the uninstall starts. Docker Desktop / OrbStack itself is not removed.",
+    checkboxLabel: "Also delete my Syrus data (jobs, chats, settings — cannot be undone)",
+    checkboxChecked: false,
+    buttons: ["Cancel", "Uninstall"],
+    defaultId: 0,
+    cancelId: 0
+  })
+
+  if (choice.response !== 1) {
+    return
+  }
+
+  // The checkbox asks about DELETING data, the scripts' flag asks about
+  // KEEPING it — unchecked (the default) maps to --keep-data.
+  const scriptPath = uninstallScriptPath()
+  const { command, args } = uninstallCommand(scriptPath, !choice.checkboxChecked, process.platform, uninstallAppPath())
+  // detached + unref + ignored stdio: the script keeps running after
+  // app.quit(). windowsHide: false gives uninstall.ps1 its own visible
+  // console window, where teardown progress (and the final NSIS step)
+  // remains observable after the app exits.
+  const child = spawn(command, args, { detached: true, stdio: "ignore", windowsHide: false })
+
+  // A short beat lets the detached child finish launching before Electron
+  // starts tearing this process down. Quit only if no spawn error fired
+  // within the grace period — quitting anyway would end the app with
+  // nothing uninstalled and no explanation.
+  let quitTimer: NodeJS.Timeout | null = setTimeout(() => {
+    quitTimer = null
+    app.quit()
+  }, 500)
+
+  // Spawn failures (blocked powershell.exe, missing/unstaged script) emit
+  // "error" instead of throwing; without a listener that's an uncaught
+  // main-process exception AND a silent no-op uninstall. Cancel the pending
+  // quit first so the timer and the dialog can never both fire, then tell
+  // the user exactly what didn't launch. The app stays open.
+  child.once("error", (error: Error) => {
+    if (quitTimer !== null) {
+      clearTimeout(quitTimer)
+      quitTimer = null
+    }
+    dialog.showErrorBox(
+      "Uninstall could not start",
+      `The uninstall script failed to launch, so nothing was removed.\n\nScript: ${scriptPath}\nError: ${error.message}\n\nYou can try again from the menu, or run the script manually.`
+    )
+  })
+
+  child.unref()
+}
+
 // Backend-menu actions return false when refused (busy) or failed; silent
 // no-ops made the menu look dead.
 const reportBackendActionFailure = async (label: string) => {
@@ -2169,6 +2259,13 @@ const createMenu = () => {
           click: async () => {
             await deleteCredentials()
             await showSetupWindow()
+          }
+        },
+        { type: "separator" },
+        {
+          label: "Uninstall Syrus…",
+          click: () => {
+            void confirmAndUninstall()
           }
         },
         { type: "separator" },

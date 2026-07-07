@@ -84,6 +84,24 @@ export function Spinner({ className = "h-3 w-3" }: { className?: string }) {
   )
 }
 
+// Slim determinate progress bar — same visual language as the Docker Desktop
+// download bar on RuntimeSetup (slate track, terracotta fill).
+export function ProgressBar({ percent }: { percent: number }) {
+  const bounded = Math.max(0, Math.min(100, percent))
+
+  return (
+    <div
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={bounded}
+      className="h-2 w-full overflow-hidden rounded-full bg-slate-200"
+    >
+      <div className="h-full rounded-full bg-terracotta-600 transition-all" style={{ width: `${bounded}%` }} />
+    </div>
+  )
+}
+
 export function LogTail({ lines, label = "Show details" }: { lines: string[]; label?: string }) {
   if (lines.length === 0) {
     return null
@@ -92,7 +110,7 @@ export function LogTail({ lines, label = "Show details" }: { lines: string[]; la
   return (
     <details className="mt-4">
       <summary className="cursor-pointer text-xs text-slate-500">{label}</summary>
-      <pre className="mt-2 max-h-40 overflow-y-auto rounded-lg bg-slate-900 p-3 text-xs leading-relaxed text-slate-200">
+      <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded-lg bg-slate-900 p-3 text-xs leading-relaxed text-slate-200">
         {lines.join("\n")}
       </pre>
     </details>

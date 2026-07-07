@@ -13,9 +13,14 @@ import syrusIconUrl from "../../assets/syrusIcon.png"
 // this strip, which doubles as the drag handle.
 const dragRegion = { WebkitAppRegion: "drag" } as CSSProperties
 
+// Transient entries are rolling status lines (the image-pull progress
+// summary): a new transient line replaces the previous entry when that entry
+// was also transient, instead of appending — keeps the log pane readable.
+type LogEntry = { line: string; transient: boolean }
+
 export function OnboardingApp() {
   const [state, setState] = useState<SyrusOnboardingState | null>(null)
-  const [logLines, setLogLines] = useState<string[]>([])
+  const [logEntries, setLogEntries] = useState<LogEntry[]>([])
 
   useEffect(() => {
     let isMounted = true
@@ -36,11 +41,23 @@ export function OnboardingApp() {
     const unsubscribeState = window.syrusDesktop.onOnboardingState((next) => {
       setState(next)
       if (next.phase === "welcome") {
-        setLogLines([])
+        setLogEntries([])
       }
     })
-    const unsubscribeLog = window.syrusDesktop.onOnboardingLogLine((line) => {
-      setLogLines((previous) => [...previous.slice(-499), line])
+    const unsubscribeLog = window.syrusDesktop.onOnboardingLogLine((payload) => {
+      const entry: LogEntry =
+        typeof payload === "string"
+          ? { line: payload, transient: false }
+          : { line: payload.line, transient: payload.transient === true }
+      // Pure updater (no refs) so a StrictMode double-invoke can't eat lines.
+      setLogEntries((previous) => {
+        const last = previous[previous.length - 1]
+        if (entry.transient && last?.transient) {
+          return [...previous.slice(0, -1), entry]
+        }
+
+        return [...previous.slice(-499), entry]
+      })
     })
 
     return () => {
@@ -169,7 +186,8 @@ export function OnboardingApp() {
         content = (
           <InstallProgress
             steps={state.steps}
-            logLines={logLines}
+            pullProgress={state.pullProgress ?? null}
+            logLines={logEntries.map((entry) => entry.line)}
             onCancel={() => void window.syrusDesktop.cancelInstall()}
           />
         )

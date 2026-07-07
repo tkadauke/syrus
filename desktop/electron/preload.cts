@@ -161,6 +161,11 @@ type ToggleAdminControlResult = {
 // main process's installerDriver.ts; the bridge passes it through opaquely.
 type OnboardingState = { phase: string } & Record<string, unknown>
 
+// Plain string, or a transient rolling status line (the image-pull progress
+// summary) that replaces the previous line when that was also transient.
+// Mirrors installerDriver.ts's OnboardingLogLine; passed through opaquely.
+type OnboardingLogLine = string | { line: string; transient: true }
+
 // URL-only: sign-in in the app window mints the tray token automatically;
 // the manual-token path for non-admin accounts lives in Preferences.
 type ConnectRemoteRequest = {
@@ -258,8 +263,8 @@ contextBridge.exposeInMainWorld("syrusDesktop", {
     ipcRenderer.on("onboarding:state-changed", listener)
     return () => ipcRenderer.removeListener("onboarding:state-changed", listener)
   },
-  onOnboardingLogLine: (callback: (line: string) => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, line: string) => callback(line)
+  onOnboardingLogLine: (callback: (line: OnboardingLogLine) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, line: OnboardingLogLine) => callback(line)
     ipcRenderer.on("onboarding:log-line", listener)
     return () => ipcRenderer.removeListener("onboarding:log-line", listener)
   },

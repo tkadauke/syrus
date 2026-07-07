@@ -13,6 +13,7 @@ import {
   syrusHealthy,
   volumeExists
 } from "./dockerRuntime.js"
+import { removeSupersededSyrusImages } from "./imageCleanup.js"
 import { installerCommand, installerScriptPath } from "./installPaths.js"
 import { DATA_VOLUME_NAME } from "./installerDriver.js"
 
@@ -167,7 +168,7 @@ export const updateBackend = async (image: string): Promise<boolean> => {
 
     const log = createWriteStream(path.join(stateDir(), "install.log"), { flags: "a" })
     try {
-      return await new Promise<boolean>((resolve) => {
+      const ok = await new Promise<boolean>((resolve) => {
         // Same platform-selected interpreter as the onboarding driver — the
         // image-update path IS the installer (bash install.sh on POSIX,
         // powershell install.ps1 on Windows).
@@ -187,6 +188,22 @@ export const updateBackend = async (image: string): Promise<boolean> => {
         child.on("error", () => resolve(false))
         child.on("close", (code) => resolve(code === 0))
       })
+
+      // Superseded-image cleanup runs ONLY on the update path (first installs
+      // go through the onboarding driver and have nothing to retire) and only
+      // once the stack is re-confirmed healthy on the new pin — a stack left
+      // stopped by a wedged update keeps all its images. Each auto-update
+      // otherwise strands a multi-GB syrus-backend image on the Docker VM
+      // disk until it fills. Best-effort by contract: cleanup can never fail
+      // the update that triggered it.
+      if (ok && (await backendHealthy())) {
+        await removeSupersededSyrusImages({
+          pinnedRef: image,
+          log: (line) => log.write(`${line}\n`)
+        })
+      }
+
+      return ok
     } finally {
       log.end()
     }

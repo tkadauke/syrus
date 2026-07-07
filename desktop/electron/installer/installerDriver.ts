@@ -11,6 +11,7 @@ import { clearRunOnceResume, registerRunOnceResume } from "./windowsResume.js"
 import { fingerprintSyrus } from "./fingerprint.js"
 import { analyzeInstanceUrl } from "./instanceUrl.js"
 import { installerCommand, installerScriptPath, readBackendManifest } from "./installPaths.js"
+import { PullProgressAggregator, formatPullProgress, parsePullProgressLine } from "./pullProgress.js"
 import {
   composeCommand,
   daemonUp,
@@ -67,6 +68,17 @@ export type InstallStepId = (typeof INSTALL_STEP_IDS)[number]
 export type InstallStepStatus = "pending" | "running" | "ok" | "skipped"
 export type InstallStep = { id: InstallStepId; status: InstallStepStatus }
 
+// Overall image-pull progress for the installing screen's determinate bar.
+// `label` is preformatted here ("42% (312 MB / 745 MB)") so the renderer and
+// the log pane can't drift — the renderer/main builds can't share a
+// formatting module (see instanceUrl.ts's byte-identical-copies note).
+export type PullProgress = { percent: number; label: string }
+
+// A transient log line replaces the previous line when that line was also
+// transient — the rolling pull-progress summary rewrites itself instead of
+// appending hundreds of near-identical lines.
+export type OnboardingLogLine = string | { line: string; transient: true }
+
 export type OnboardingState =
   | { phase: "welcome" }
   | { phase: "connect.form"; error: string | null }
@@ -78,7 +90,7 @@ export type OnboardingState =
   | { phase: "local.runtimeInstalling"; step: "downloading" | "installing"; percent: number | null }
   | { phase: "local.runtimeStarting"; needsAttention: boolean }
   | { phase: "local.portConflict"; port: number }
-  | { phase: "local.installing"; steps: InstallStep[]; currentStep: InstallStepId | null }
+  | { phase: "local.installing"; steps: InstallStep[]; currentStep: InstallStepId | null; pullProgress: PullProgress | null }
   | { phase: "local.failed"; code: number; step: string | null; message: string; logTail: string[] }
   | { phase: "done"; mode: "local" | "remote"; url: string }
 
@@ -96,7 +108,7 @@ type InstallerEvent = {
 
 type DriverDeps = {
   onState: (state: OnboardingState) => void
-  onLogLine: (line: string) => void
+  onLogLine: (line: OnboardingLogLine) => void
 }
 
 const errorMessage = (error: unknown, fallback: string) =>
@@ -143,8 +155,13 @@ export class OnboardingDriver {
   private installAbort: AbortController | null = null
   private port = DEFAULT_PORT
   private logTail: string[] = []
+  private lastLogTransient = false
   private lastError: { code: number; step: string | null; message: string } | null = null
   private doneUrl: string | null = null
+  private pullAggregator: PullProgressAggregator | null = null
+  private lastPullLabel: string | null = null
+  private lastPullPercent: number | null = null
+  private lastPullEmitAt = 0
 
   constructor(private deps: DriverDeps) {}
 
@@ -685,10 +702,15 @@ export class OnboardingDriver {
 
     const steps: InstallStep[] = INSTALL_STEP_IDS.map((id) => ({ id, status: "pending" }))
     this.logTail = []
+    this.lastLogTransient = false
     this.lastError = null
     this.doneUrl = null
     this.cancelRequested = false
-    this.setState({ phase: "local.installing", steps, currentStep: null })
+    this.pullAggregator = null
+    this.lastPullLabel = null
+    this.lastPullPercent = null
+    this.lastPullEmitAt = 0
+    this.setState({ phase: "local.installing", steps, currentStep: null, pullProgress: null })
 
     const logStream = createWriteStream(path.join(stateDir, "install.log"), { flags: "a" })
     logStream.write(`\n--- install started ${new Date().toISOString()} ---\n`)
@@ -777,13 +799,73 @@ export class OnboardingDriver {
     this.setState({ phase: "welcome" })
   }
 
-  private appendLog(line: string) {
-    this.logTail.push(line)
-    if (this.logTail.length > LOG_TAIL_LIMIT) {
-      this.logTail.shift()
+  // Transient lines are rolling status updates (the pull-progress summary):
+  // consecutive transient lines overwrite each other in the visible tail and
+  // in the renderer, so the log stays readable. The install.log FILE is
+  // written upstream from here and keeps every raw line.
+  private appendLog(line: string, options: { transient?: boolean } = {}) {
+    const transient = options.transient === true
+    if (transient && this.lastLogTransient && this.logTail.length > 0) {
+      this.logTail[this.logTail.length - 1] = line
+    } else {
+      this.logTail.push(line)
+      if (this.logTail.length > LOG_TAIL_LIMIT) {
+        this.logTail.shift()
+      }
     }
 
-    this.deps.onLogLine(line)
+    this.lastLogTransient = transient
+    this.deps.onLogLine(transient ? { line, transient: true } : line)
+  }
+
+  private pullStepRunning() {
+    return (
+      this.state.phase === "local.installing" &&
+      this.state.steps.some((step) => step.id === "image_pull" && step.status === "running")
+    )
+  }
+
+  // `docker compose --progress=json pull` emits one NDJSON object per layer
+  // update — hundreds of lines that would drown the visible log. While the
+  // image_pull step runs, fold them into the aggregate instead and surface a
+  // single rolling summary + the determinate progress bar. Returns false for
+  // anything that isn't a pull-progress object (older compose prints plain
+  // text) so the caller logs it normally — that's the no-progress-bar
+  // degradation path.
+  private handlePullProgressLine(rawLine: string): boolean {
+    if (!this.pullStepRunning()) {
+      return false
+    }
+
+    const event = parsePullProgressLine(rawLine)
+    if (!event) {
+      return false
+    }
+
+    this.pullAggregator ??= new PullProgressAggregator()
+    this.pullAggregator.observe(event)
+    const snapshot = this.pullAggregator.snapshot()
+    const label = formatPullProgress(snapshot)
+    if (label === null || label === this.lastPullLabel) {
+      return true // consumed, but nothing new to show
+    }
+
+    // Byte counts tick many times a second on fast connections; re-render on
+    // every percent change but rate-limit label-only (MB counter) updates.
+    const now = Date.now()
+    if (snapshot.percent === this.lastPullPercent && now - this.lastPullEmitAt < 500) {
+      return true
+    }
+
+    this.lastPullLabel = label
+    this.lastPullPercent = snapshot.percent
+    this.lastPullEmitAt = now
+    this.appendLog(`Downloading Syrus image — ${label}`, { transient: true })
+    if (this.state.phase === "local.installing" && snapshot.percent !== null) {
+      this.setState({ ...this.state, pullProgress: { percent: snapshot.percent, label } })
+    }
+
+    return true
   }
 
   private handleInstallerEvent(line: string) {
@@ -796,6 +878,10 @@ export class OnboardingDriver {
     }
 
     if (event.event === "log" && typeof event.line === "string") {
+      if (this.handlePullProgressLine(event.line)) {
+        return
+      }
+
       this.appendLog(event.line)
       return
     }
@@ -836,8 +922,18 @@ export class OnboardingDriver {
         return step
       })
       const currentStep = event.status === "start" ? (event.id as InstallStepId) : this.state.currentStep
-      this.setState({ phase: "local.installing", steps, currentStep })
+      // The bar belongs to the pull; clear it the moment image_pull ends so a
+      // later screen can't show a stale percent.
+      const pullEnded = event.id === "image_pull" && event.status !== "start"
+      const pullProgress = pullEnded ? null : this.state.pullProgress
+      this.setState({ phase: "local.installing", steps, currentStep, pullProgress })
+      return
     }
+
+    // Parsed as JSON but not an install.sh event: if install.sh ever streams
+    // compose's --progress=json objects through unwrapped, fold them into the
+    // pull progress the same way (otherwise they stay invisible, as before).
+    this.handlePullProgressLine(line)
   }
 
   private handleExit(code: number) {

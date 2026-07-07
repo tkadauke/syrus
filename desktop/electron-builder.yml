@@ -56,7 +56,17 @@ mac:
       arch: [universal]
     - target: zip
       arch: [universal]
+# Finder-layout fixes the dmg config schema can't express: dev builds get a
+# unique volume name per build (Finder caches window geometry per volume
+# name, so remounts of a same-named volume reuse stale geometry), and the
+# dmgbuild helper dotfiles (.background.tiff, .VolumeIcon.icns, .DS_Store)
+# get icon positions below the visible window so "show hidden files" users
+# see only Syrus.app. See the hook's header comment for the full story.
+artifactBuildStarted: ./scripts/dmg-finder-layout.cjs
 dmg:
+  # Release volume name ("Syrus 0.1.2"). Non-release builds (no
+  # SYRUS_RELEASE_BUILD=1) get a "(<sha>-<hhmmss>)" suffix appended by
+  # scripts/dmg-finder-layout.cjs.
   title: Syrus ${version}
   iconSize: 128
   # Double-click install: one centered icon, no /Applications drag target —
@@ -65,9 +75,16 @@ dmg:
   # scripts/render-dmg-background.mjs (1x/2x combined via
   # `tiffutil -cathidpicheck`); its text positions assume the icon slot below.
   background: build/dmg-background.tiff
+  # NOTE: dmg-builder ignores this window block when a background image is
+  # set — it sizes the Finder window frame from the background's 1x pixel
+  # size instead (sips). The values are kept here as documentation and must
+  # match the tiff: 660 wide, 400 of visible design + 33 of title-bar pad
+  # (Finder puts the title bar INSIDE the frame height, so a pad-less frame
+  # clips the bottom 28-33pt of the design). Keep in sync with WIDTH /
+  # DESIGN_HEIGHT / TITLE_BAR_PAD in scripts/render-dmg-background.mjs.
   window:
     width: 660
-    height: 400
+    height: 433
   contents:
     - x: 330
       y: 175

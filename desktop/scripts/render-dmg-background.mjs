@@ -8,6 +8,16 @@
 // contents position from electron-builder.yml, an instruction under it, and
 // the Publilius Syrus motto. Keep the geometry in sync with the `dmg:`
 // section of electron-builder.yml.
+//
+// Sizing contract (measured, macOS 26 Finder): dmg-builder ignores the yml
+// `window` block when a background image is set and sizes the Finder window
+// FRAME from this tiff's 1x pixel size. Finder puts the title bar (~28-33pt
+// depending on macOS version) INSIDE that frame, so a canvas that is exactly
+// the design height gets its bottom ~33pt clipped — the motto sat right on
+// the cut line. The canvas is therefore DESIGN_HEIGHT of art plus
+// TITLE_BAR_PAD of plain parchment: the window frame grows by the pad, the
+// content area shows the full 400pt design, and on older macOS (shorter
+// title bars) the few extra visible rows are seamless parchment margin.
 import { app, BrowserWindow } from "electron"
 import { execFile } from "node:child_process"
 import fs from "node:fs/promises"
@@ -19,7 +29,15 @@ const execFileAsync = promisify(execFile)
 const buildDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "build")
 
 const WIDTH = 660
-const HEIGHT = 400
+// The visible design area. Icon positions in electron-builder.yml and the
+// helper-icon rows in scripts/dmg-finder-layout.cjs are expressed against
+// this 660x400 canvas.
+const DESIGN_HEIGHT = 400
+// Extra parchment rows so the Finder window frame (sized from this image)
+// has room for its title bar without clipping the design. 33pt measured on
+// macOS 26; older Finders use ~28pt and just show a sliver more margin.
+const TITLE_BAR_PAD = 33
+const HEIGHT = DESIGN_HEIGHT + TITLE_BAR_PAD
 
 // Palette sampled from the brand mark and the original art: parchment field,
 // warm slate for the instruction, softer stone for the motto.
@@ -57,6 +75,11 @@ const capture = async () => {
   window.destroy()
   return image.toPNG()
 }
+
+// Without this, Electron's default window-all-closed behavior starts quitting
+// the app the moment capture() destroys its offscreen window, abandoning the
+// sips/tiffutil steps below mid-flight while still exiting 0.
+app.on("window-all-closed", () => {})
 
 app.whenReady().then(async () => {
   try {
