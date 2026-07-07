@@ -17,7 +17,7 @@ import {
   writeCredentialsFile
 } from "./credentialsStore.js"
 import type { Credentials } from "./credentialsStore.js"
-import { clearBackendConfig, DEFAULT_GLOBAL_HOTKEY, getBackendMode, getServerUrl, localStateDir, migrateBackendConfig, saveBackendConfig, store } from "./settings.js"
+import { clearBackendConfig, DEFAULT_GLOBAL_HOTKEY, getBackendMode, getOnboardingResumeLocal, getServerUrl, localStateDir, migrateBackendConfig, saveBackendConfig, store } from "./settings.js"
 import type { DesktopSettings, DesktopSettingsInput } from "./settings.js"
 import * as appUpdates from "./appUpdates.js"
 import * as backendLifecycle from "./installer/backendLifecycle.js"
@@ -2367,6 +2367,7 @@ ipcMain.handle("onboarding:wipe-data", async (event) =>
 ipcMain.handle("onboarding:open-orbstack-download", async () => {
   ensureOnboardingDriver().openOrbStackDownload()
 })
+ipcMain.handle("onboarding:open-runtime", async () => ensureOnboardingDriver().openRuntimeApp())
 ipcMain.handle("onboarding:adopt-running", async () => {
   ensureOnboardingDriver().adoptRunning()
 })
@@ -2508,6 +2509,15 @@ app.whenReady().then(async () => {
 
   if (getBackendMode() === "") {
     await showOnboardingWindow()
+    // Mid-setup save point (Windows): the user was in the local flow when a
+    // Docker Desktop / WSL install forced a reboot. Jump straight back into
+    // it — precheck re-evaluates the machine, finds the freshly installed
+    // runtime, and carries on — instead of restarting at Welcome. RunOnce
+    // launched us at logon; the persisted flag (settings.ts) does the rest,
+    // so a manual relaunch resumes identically.
+    if (getOnboardingResumeLocal()) {
+      ensureOnboardingDriver().chooseMode("local")
+    }
   } else {
     startLocalBackendSupervision()
     await showWebAppWindow()

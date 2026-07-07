@@ -249,6 +249,7 @@ contextBridge.exposeInMainWorld("syrusDesktop", {
   locateEnvFile: () => ipcRenderer.invoke("onboarding:locate-env") as Promise<void>,
   wipeLocalData: () => ipcRenderer.invoke("onboarding:wipe-data") as Promise<void>,
   openOrbStackDownload: () => ipcRenderer.invoke("onboarding:open-orbstack-download") as Promise<void>,
+  openRuntimeApp: () => ipcRenderer.invoke("onboarding:open-runtime") as Promise<void>,
   adoptRunningInstance: () => ipcRenderer.invoke("onboarding:adopt-running") as Promise<void>,
   finishOnboarding: () => ipcRenderer.invoke("onboarding:finish") as Promise<void>,
   onOnboardingState: (callback: (state: OnboardingState) => void) => {

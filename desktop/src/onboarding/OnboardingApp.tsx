@@ -129,7 +129,17 @@ export function OnboardingApp() {
         )
         break
       case "local.runtimeStarting":
-        content = <RuntimeSetup mode="starting" polling onDownload={() => {}} onRetry={() => {}} onBack={back} />
+        content = (
+          <RuntimeSetup
+            mode="starting"
+            polling
+            needsAttention={state.needsAttention}
+            onOpenRuntime={() => void window.syrusDesktop.openRuntimeApp()}
+            onDownload={() => {}}
+            onRetry={() => {}}
+            onBack={back}
+          />
+        )
         break
       case "local.portConflict":
         content = (

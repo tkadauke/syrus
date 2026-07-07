@@ -50,4 +50,27 @@ describe("RuntimeSetup on Windows", () => {
     expect(screen.getByRole("button", { name: /Download Docker Desktop/ })).toBeTruthy()
     expect(screen.queryByText(/Podman/)).toBeNull()
   })
+
+  it("keeps the plain starting screen while the daemon is just booting", () => {
+    renderRuntimeSetup({ mode: "starting", polling: true, needsAttention: false })
+
+    expect(screen.getByText("Starting your Docker runtime…")).toBeTruthy()
+    expect(screen.queryByTestId("runtime-attention")).toBeNull()
+  })
+
+  it("tells the user to finish Docker Desktop's first-run setup when the daemon stays quiet", () => {
+    // Field failure: Docker Desktop's FIRST start blocks on its service
+    // agreement (and offers a sign-in) while Syrus said "Starting…" forever
+    // with no hint. The attention state must say exactly what to click —
+    // accept the agreement, sign-in is skippable — and offer to open the app.
+    const onOpenRuntime = vi.fn()
+    renderRuntimeSetup({ mode: "starting", polling: true, needsAttention: true, onOpenRuntime })
+
+    const attention = screen.getByTestId("runtime-attention")
+    expect(attention.textContent).toMatch(/Accept/)
+    expect(attention.textContent).toMatch(/service agreement/)
+    expect(attention.textContent).toMatch(/optional/)
+    fireEvent.click(screen.getByRole("button", { name: "Open Docker Desktop" }))
+    expect(onOpenRuntime).toHaveBeenCalledTimes(1)
+  })
 })

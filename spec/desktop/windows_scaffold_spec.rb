@@ -154,6 +154,56 @@ RSpec.describe "desktop Windows scaffold" do
     expect(runtime_setup).not_to include("Podman")
   end
 
+  it "resumes onboarding after a Docker/WSL install forces a Windows reboot" do
+    # Field failure: Docker Desktop's installer rebooted Windows mid-setup and
+    # Syrus never came back — the user restarted the wizard from scratch. Two
+    # halves: HKCU RunOnce relaunches the app at the next logon, and the
+    # persisted onboardingResumeLocal flag (source of truth — manual relaunches
+    # resume too) jumps straight back into the local flow.
+    resume = read("electron/installer/windowsResume.ts")
+    expect(resume).to include("HKCU\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\RunOnce")
+    expect(resume).to include("SyrusResumeSetup")
+    # Quoted exe path — profile directories contain spaces.
+    expect(resume).to include('`"${execPath}" --resume-setup`')
+
+    expect(read("electron/settings.ts")).to include("onboardingResumeLocal")
+
+    driver = read("electron/installer/installerDriver.ts")
+    # Armed at BOTH reboot-risk points: the Docker Desktop download handoff
+    # and the one-click WSL install.
+    expect(driver.scan("this.armRebootResume()").length).to be >= 2
+    # Cleared when onboarding resolves (done or a deliberate back-to-welcome).
+    expect(driver).to include("this.clearRebootResume()")
+
+    main = read("electron/main.ts")
+    expect(main).to match(/getOnboardingResumeLocal\(\)[\s\S]{0,120}chooseMode\("local"\)/)
+  end
+
+  it "detects per-user Docker Desktop installs and guides its first-run setup" do
+    runtime = read("electron/installer/dockerRuntime.ts")
+    # Docker Desktop's `--user` install lands under %LOCALAPPDATA% — probing
+    # only Program Files reads a per-user install as "no runtime". Fixed paths
+    # (not PATH) are load-bearing: the Electron process never sees PATH
+    # changes made after it launched, which is why docker worked in a fresh
+    # cmd while the app said no docker.
+    expect(runtime).to include('"Programs", "DockerDesktop", "resources", "bin"')
+    expect(runtime).to include('"Programs", "DockerDesktop", "Docker Desktop.exe"')
+
+    # First-start attention: after a quiet 30s the wizard must say exactly
+    # what to click in Docker Desktop (accept the agreement; sign-in is
+    # skippable) instead of spinning on "Starting…" — and the deadline
+    # extends so the user isn't timed out mid-dialog.
+    driver = read("electron/installer/installerDriver.ts")
+    expect(driver).to include("RUNTIME_ATTENTION_POLLS")
+    expect(driver).to include("RUNTIME_FIRST_START_POLLS")
+    expect(driver).to match(/needsAttention: true/)
+
+    runtime_setup = read("src/onboarding/RuntimeSetup.tsx")
+    expect(runtime_setup).to include("runtime-attention")
+    expect(runtime_setup).to include("service agreement")
+    expect(runtime_setup).to match(/Open \{runtimeName\}/)
+  end
+
   it "preflights WSL 2 with a one-click elevated install and reboot guidance" do
     runtime = read("electron/installer/dockerRuntime.ts")
     expect(runtime).to include("export const wslReady")

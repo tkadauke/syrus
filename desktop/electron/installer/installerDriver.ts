@@ -5,7 +5,8 @@ import path from "node:path"
 import readline from "node:readline"
 import { promisify } from "node:util"
 import { dialog, shell, type BrowserWindow } from "electron"
-import { localStateDir, saveBackendConfig } from "../settings.js"
+import { localStateDir, saveBackendConfig, setOnboardingResumeLocal } from "../settings.js"
+import { clearRunOnceResume, registerRunOnceResume } from "./windowsResume.js"
 import { fingerprintSyrus } from "./fingerprint.js"
 import { analyzeInstanceUrl } from "./instanceUrl.js"
 import { installerCommand, installerScriptPath, readBackendManifest } from "./installPaths.js"
@@ -37,6 +38,14 @@ export const DATA_VOLUME_NAME = "syrus_syrus-data"
 const DEFAULT_PORT = 3000
 const RUNTIME_START_POLLS = 90 // × 2s = 180s, matches install.sh's own wait
 const RUNTIME_DOWNLOAD_POLLS = 300 // × 2s = 10 minutes for a manual OrbStack install
+// Docker Desktop's FIRST start blocks on user interaction (the service
+// agreement dialog; an optional sign-in). After this many quiet polls we stop
+// pretending it's just slow and tell the user to go click through it…
+const RUNTIME_ATTENTION_POLLS = 15 // × 2s = 30s
+// …and once we've asked the user to interact, the deadline extends: reading
+// and accepting an agreement takes longer than a normal daemon boot, and
+// timing out mid-dialog (the old 180s did) is a dead end.
+const RUNTIME_FIRST_START_POLLS = 450 // × 2s = 15 minutes
 const LOG_TAIL_LIMIT = 400
 
 // The install steps install.sh emits in --json mode, in order.
@@ -65,7 +74,7 @@ export type OnboardingState =
   | { phase: "local.adoptRunning"; url: string }
   | { phase: "local.adoptExisting"; error: string | null }
   | { phase: "local.runtimeMissing"; polling: boolean; wslMissing: boolean }
-  | { phase: "local.runtimeStarting" }
+  | { phase: "local.runtimeStarting"; needsAttention: boolean }
   | { phase: "local.portConflict"; port: number }
   | { phase: "local.installing"; steps: InstallStep[]; currentStep: InstallStepId | null }
   | { phase: "local.failed"; code: number; step: string | null; message: string; logTail: string[] }
@@ -143,6 +152,35 @@ export class OnboardingDriver {
   private setState(state: OnboardingState) {
     this.state = state
     this.deps.onState(state)
+
+    // The reboot-resume save point ends when onboarding resolves: done (any
+    // mode) or a deliberate return to Welcome. Cheap + idempotent, so keying
+    // it off the state transition beats sprinkling clears on every exit path.
+    if (state.phase === "done" || state.phase === "welcome") {
+      this.clearRebootResume()
+    }
+  }
+
+  // Set when we send the user off to install Docker Desktop / WSL — both can
+  // force a Windows reboot that kills the wizard (the field failure: setup
+  // never came back). The persisted flag makes the next launch jump straight
+  // back into the local flow; RunOnce makes that launch happen at logon.
+  private armRebootResume() {
+    if (process.platform !== "win32") {
+      return
+    }
+
+    setOnboardingResumeLocal(true)
+    void registerRunOnceResume()
+  }
+
+  private clearRebootResume() {
+    if (process.platform !== "win32") {
+      return
+    }
+
+    setOnboardingResumeLocal(false)
+    void clearRunOnceResume()
   }
 
   backToWelcome() {
@@ -298,16 +336,31 @@ export class OnboardingDriver {
       return
     }
 
-    this.setState({ phase: "local.runtimeStarting" })
+    this.setState({ phase: "local.runtimeStarting", needsAttention: false })
     try {
       await startRuntimeApp(runtimeApp)
     } catch {
       // The poll below reports failure either way.
     }
 
-    const ready = await this.pollForDaemon(RUNTIME_START_POLLS)
+    // Two-stage wait. A normal daemon boot answers within the first stage. A
+    // FIRST Docker Desktop start blocks on user interaction (service
+    // agreement, optional sign-in) — the field failure: Syrus said
+    // "Starting…" forever while Docker Desktop sat waiting for a click. After
+    // a quiet 30s, flip the screen to explicit go-interact-with-Docker
+    // guidance and keep polling on a much longer deadline instead of dying
+    // mid-dialog.
+    let ready = await this.pollForDaemon(RUNTIME_ATTENTION_POLLS)
     if (this.state.phase !== "local.runtimeStarting") {
       return // user navigated away while we waited
+    }
+
+    if (!ready) {
+      this.setState({ phase: "local.runtimeStarting", needsAttention: true })
+      ready = await this.pollForDaemon(RUNTIME_FIRST_START_POLLS)
+      if (this.state.phase !== "local.runtimeStarting") {
+        return
+      }
     }
 
     if (ready) {
@@ -317,9 +370,25 @@ export class OnboardingDriver {
         phase: "local.failed",
         code: 11,
         step: "runtime_start",
-        message: `${runtimeApp} is installed but its Docker daemon never became ready. Open it, finish any setup prompt, then retry.`,
+        message: `${runtimeApp} is installed but its Docker daemon never became ready. Open ${runtimeApp}, finish its first-run setup (accept the service agreement; sign-in is optional and can be skipped), then retry.`,
         logTail: []
       })
+    }
+  }
+
+  // "Open Docker Desktop" on the needs-attention screen: bring the runtime
+  // app (back) up so the user can finish its first-run dialogs. The daemon
+  // poll already running picks the flow up the moment the engine answers.
+  async openRuntimeApp() {
+    const runtimeApp = installedRuntimeApp()
+    if (!runtimeApp) {
+      return
+    }
+
+    try {
+      await startRuntimeApp(runtimeApp)
+    } catch {
+      // Best-effort — the screen's guidance still stands.
     }
   }
 
@@ -339,6 +408,10 @@ export class OnboardingDriver {
     if (process.platform !== "win32") {
       return
     }
+
+    // WSL installs routinely end in a Windows restart — make sure setup
+    // comes back afterwards instead of stranding the user at square one.
+    this.armRebootResume()
 
     try {
       await launchWslInstall()
@@ -363,6 +436,9 @@ export class OnboardingDriver {
   // Named for the IPC channel it serves; the URL is per-platform (OrbStack
   // on macOS, Docker Desktop on Windows).
   openOrbStackDownload() {
+    // On Windows the user is now going to run Docker Desktop's installer,
+    // which can force a reboot mid-setup — arm the resume save point first.
+    this.armRebootResume()
     void shell.openExternal(runtimeDownloadUrl())
     if (this.state.phase === "local.runtimeMissing" && !this.state.polling) {
       const wslMissing = this.state.wslMissing

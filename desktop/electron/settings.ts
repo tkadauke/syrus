@@ -47,6 +47,15 @@ export type DesktopStore = DesktopSettings & {
   // re-prompt. The CLI itself is no longer offered: it installs silently
   // at launch (docs/install-experience-spec.md I1).
   skillInstallOffered: boolean
+  // Mid-onboarding save point: the user was in the LOCAL install flow and got
+  // sent off to install Docker Desktop / WSL — either can force a Windows
+  // reboot that kills the wizard. On the next launch (RunOnce relaunches us
+  // after logon; see installer/windowsResume.ts) an unfinished onboarding
+  // with this flag set jumps straight back into the local flow instead of
+  // restarting from Welcome. Cleared when onboarding completes or the user
+  // backs out. The persisted flag — not the RunOnce argv — is the source of
+  // truth, so a manual app relaunch resumes too.
+  onboardingResumeLocal: boolean
 }
 
 export const store = new Store<DesktopStore>({
@@ -62,9 +71,16 @@ export const store = new Store<DesktopStore>({
     onboardingCompletedAt: "",
     backendConfigMigratedAt: "",
     cliInstallOffered: false,
-    skillInstallOffered: false
+    skillInstallOffered: false,
+    onboardingResumeLocal: false
   }
 })
+
+export const getOnboardingResumeLocal = () => store.get("onboardingResumeLocal", false)
+
+export const setOnboardingResumeLocal = (value: boolean) => {
+  store.set("onboardingResumeLocal", value)
+}
 
 // Mutable state of a local install (.env, synced docker-compose.yml,
 // install.log). Lives next to ~/.syrus/credentials on EVERY platform —

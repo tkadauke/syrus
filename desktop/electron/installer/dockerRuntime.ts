@@ -11,18 +11,32 @@ const execFileAsync = promisify(execFile)
 // OrbStack, Homebrew, or Docker Desktop is invisible without help. Every
 // docker/compose invocation in the app must go through execEnv() or an
 // absolute binary path from findDockerBinary().
-const dockerCandidateDirs = () =>
-  process.platform === "win32"
-    ? [
-        path.join(process.env["ProgramFiles"] ?? "C:\\Program Files", "Docker", "Docker", "resources", "bin"),
-        path.join(process.env["LOCALAPPDATA"] ?? "", "Programs", "RedHat", "Podman")
-      ].filter((dir) => dir !== "")
-    : [
-        path.join(os.homedir(), ".orbstack", "bin"),
-        "/opt/homebrew/bin",
-        "/usr/local/bin",
-        "/Applications/Docker.app/Contents/Resources/bin"
-      ]
+// Windows note: probing these FIXED paths (not just PATH) is load-bearing. A
+// long-running Electron process copies its environment at spawn and never
+// sees the PATH additions Docker Desktop's installer makes afterwards (they
+// go to the registry + a WM_SETTINGCHANGE broadcast that only new shells
+// pick up) — which is why `docker ps` can work in a fresh cmd while the app
+// still says "no docker". Both install modes are covered: the default
+// all-users location under Program Files AND the `--user` per-user install
+// under %LOCALAPPDATA%\Programs\DockerDesktop.
+const dockerCandidateDirs = () => {
+  if (process.platform !== "win32") {
+    return [
+      path.join(os.homedir(), ".orbstack", "bin"),
+      "/opt/homebrew/bin",
+      "/usr/local/bin",
+      "/Applications/Docker.app/Contents/Resources/bin"
+    ]
+  }
+
+  const localAppData = process.env["LOCALAPPDATA"] ?? ""
+  const dirs = [path.join(process.env["ProgramFiles"] ?? "C:\\Program Files", "Docker", "Docker", "resources", "bin")]
+  if (localAppData !== "") {
+    dirs.push(path.join(localAppData, "Programs", "DockerDesktop", "resources", "bin"))
+    dirs.push(path.join(localAppData, "Programs", "RedHat", "Podman"))
+  }
+  return dirs
+}
 
 export const augmentedPath = () => {
   const extras = dockerCandidateDirs().filter((dir) => fs.existsSync(dir))
@@ -134,10 +148,22 @@ const colimaBinary = (): string | null => {
   return null
 }
 
+// Docker Desktop.exe lives under Program Files for the default all-users
+// install and under %LOCALAPPDATA%\Programs\DockerDesktop for a `--user`
+// install — check both, or a per-user install reads as "no runtime".
+const dockerDesktopExePath = (): string | null => {
+  const candidates = [
+    path.join(process.env["ProgramFiles"] ?? "C:\\Program Files", "Docker", "Docker", "Docker Desktop.exe"),
+    ...(process.env["LOCALAPPDATA"]
+      ? [path.join(process.env["LOCALAPPDATA"], "Programs", "DockerDesktop", "Docker Desktop.exe")]
+      : [])
+  ]
+  return candidates.find((exe) => fs.existsSync(exe)) ?? null
+}
+
 export const installedRuntimeApp = (): RuntimeApp | null => {
   if (process.platform === "win32") {
-    const programFiles = process.env["ProgramFiles"] ?? "C:\\Program Files"
-    if (fs.existsSync(path.join(programFiles, "Docker", "Docker", "Docker Desktop.exe"))) {
+    if (dockerDesktopExePath()) {
       return "Docker Desktop"
     }
     if (fs.existsSync(path.join(process.env["LOCALAPPDATA"] ?? "", "Programs", "podman-desktop", "Podman Desktop.exe"))) {
@@ -173,10 +199,12 @@ export const startRuntimeApp = async (runtimeApp: RuntimeApp) => {
   }
 
   if (process.platform === "win32") {
-    const programFiles = process.env["ProgramFiles"] ?? "C:\\Program Files"
     const exe = runtimeApp === "Docker Desktop"
-      ? path.join(programFiles, "Docker", "Docker", "Docker Desktop.exe")
+      ? dockerDesktopExePath()
       : path.join(process.env["LOCALAPPDATA"] ?? "", "Programs", "podman-desktop", "Podman Desktop.exe")
+    if (!exe) {
+      return
+    }
     await execFileAsync("cmd.exe", ["/c", "start", "", exe])
     return
   }
