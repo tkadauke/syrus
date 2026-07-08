@@ -137,7 +137,7 @@ class Job < ApplicationRecord
         SELECT workflows.#{column}
         FROM workflows
         WHERE workflows.job_id = jobs.id
-        ORDER BY workflows.created_at DESC, workflows.id DESC
+        ORDER BY (workflows.finished_at IS NULL) DESC, workflows.finished_at DESC, workflows.id DESC
         LIMIT 1
       )
     SQL
@@ -480,7 +480,11 @@ class Job < ApplicationRecord
   end
 
   def latest_workflow
-    workflows.last
+    if workflows.loaded?
+      workflows.max_by { |wf| [ wf.finished_at.nil? ? 1 : 0, wf.finished_at || Time.zone.at(0), wf.id || 0 ] }
+    else
+      workflows.reorder(Arel.sql("(finished_at IS NULL) DESC, finished_at DESC, id DESC")).first
+    end
   end
 
   def latest_workflow_id

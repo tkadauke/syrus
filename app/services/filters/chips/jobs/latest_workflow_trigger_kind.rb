@@ -26,7 +26,7 @@ module Filters
                     workflows.id = (
                       SELECT latest_workflows.id FROM workflows latest_workflows
                       WHERE latest_workflows.job_id = workflows.job_id
-                      ORDER BY latest_workflows.created_at DESC, latest_workflows.id DESC
+                      ORDER BY (latest_workflows.finished_at IS NULL) DESC, latest_workflows.finished_at DESC, latest_workflows.id DESC
                       LIMIT 1
                     )
                   SQL

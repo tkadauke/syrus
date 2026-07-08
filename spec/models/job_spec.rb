@@ -174,6 +174,99 @@ RSpec.describe Job do
       expect(row.latest_workflow_trigger_kind).to eq("rebase")
       expect(row.latest_workflow_created_at.to_i).to eq(latest_workflow.created_at.to_i)
     end
+
+    it "prefers the most recently finished workflow over the most recently created one" do
+      job = Factories.job_record(issue_number: 1, issue_title: "Resurface the forum")
+      # WF-B was created more recently but finished (failed) earlier
+      wf_b = Workflow.create!(
+        job: job,
+        trigger_kind: "retry",
+        state: "failed",
+        created_at: 1.hour.ago,
+        finished_at: 30.minutes.ago
+      )
+      # WF-A was created earlier but resumed and finished (succeeded) just now
+      wf_a = Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "succeeded",
+        created_at: 2.hours.ago,
+        finished_at: 1.minute.ago
+      )
+
+      row = described_class.where(id: job.id).with_latest_workflow_snapshot.first
+
+      expect(row.latest_workflow_id).to eq(wf_a.id)
+      expect(row.latest_workflow_state).to eq("succeeded")
+      expect(row.latest_workflow_trigger_kind).to eq("initial")
+    end
+
+    it "ranks an in-progress workflow ahead of a more recently created but finished workflow" do
+      job = Factories.job_record(issue_number: 2, issue_title: "Grade the via")
+      # WF-B created more recently but already failed
+      Workflow.create!(
+        job: job,
+        trigger_kind: "retry",
+        state: "failed",
+        created_at: 1.hour.ago,
+        finished_at: 45.minutes.ago
+      )
+      # WF-A created earlier and still running (finished_at is NULL)
+      wf_a = Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "running",
+        created_at: 2.hours.ago,
+        finished_at: nil
+      )
+
+      row = described_class.where(id: job.id).with_latest_workflow_snapshot.first
+
+      expect(row.latest_workflow_id).to eq(wf_a.id)
+      expect(row.latest_workflow_state).to eq("running")
+    end
+  end
+
+  describe "#latest_workflow" do
+    it "prefers the most recently finished workflow over the most recently created one" do
+      job = Factories.job_record(issue_number: 1, issue_title: "Pave the forum")
+      wf_b = Workflow.create!(
+        job: job,
+        trigger_kind: "retry",
+        state: "failed",
+        created_at: 1.hour.ago,
+        finished_at: 30.minutes.ago
+      )
+      wf_a = Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "succeeded",
+        created_at: 2.hours.ago,
+        finished_at: 1.minute.ago
+      )
+
+      expect(job.reload.latest_workflow).to eq(wf_a)
+    end
+
+    it "ranks an in-progress workflow (nil finished_at) ahead of a finished one" do
+      job = Factories.job_record(issue_number: 2, issue_title: "Raise the aqueduct")
+      Workflow.create!(
+        job: job,
+        trigger_kind: "retry",
+        state: "failed",
+        created_at: 1.hour.ago,
+        finished_at: 45.minutes.ago
+      )
+      wf_running = Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "running",
+        created_at: 2.hours.ago,
+        finished_at: nil
+      )
+
+      expect(job.reload.latest_workflow).to eq(wf_running)
+    end
   end
 
   describe ".without_active_workflows" do

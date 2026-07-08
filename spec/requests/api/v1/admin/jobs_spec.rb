@@ -510,13 +510,13 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
     end
 
     describe "?failed_in_last_24h=true" do
-      # Each Job auto-creates an `initial` workflow via after_create_commit;
-      # to make the "latest workflow" what we set up here, force the
-      # `retry` workflow to be the most recent for that job.
+      # Each Job auto-creates an `initial` workflow via after_create_commit.
+      # Finalize any still-open workflows first so the retry workflow wins
+      # the "latest" slot by having the most recent finished_at.
       def add_retry_workflow(job, state:, finished_at:, age_offset: 1.minute)
-        # `created_at: 1.minute.from_now` (or any future time) guarantees
-        # this workflow is later than the auto-Initial that fired during
-        # Factories.job, regardless of test wallclock.
+        job.workflows.where(finished_at: nil).update_all(
+          state: "succeeded", finished_at: finished_at - 1.second
+        )
         Workflow.create!(job: job, trigger_kind: "retry",
                          state: state, finished_at: finished_at,
                          created_at: age_offset.from_now)

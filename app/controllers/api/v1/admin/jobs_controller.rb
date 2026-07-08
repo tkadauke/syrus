@@ -155,7 +155,7 @@ module Api
           # rank workflows by created_at DESC within their job, then
           # filter to rank=1 + state=failed + finished within cutoff.
           ranked = Workflow.select("job_id, state, finished_at,
-                                    ROW_NUMBER() OVER (PARTITION BY job_id ORDER BY created_at DESC) AS rn")
+                                    ROW_NUMBER() OVER (PARTITION BY job_id ORDER BY (finished_at IS NULL) DESC, finished_at DESC, id DESC) AS rn")
           Workflow.from("(#{ranked.to_sql}) wfs")
                   .where("wfs.rn = 1 AND wfs.state = 'failed' AND wfs.finished_at >= ?", cutoff)
                   .pluck("wfs.job_id")
