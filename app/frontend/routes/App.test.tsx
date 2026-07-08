@@ -10750,7 +10750,9 @@ describe("App", () => {
     const chip = screen.getByText("acme/widgets")
     const textarea = screen.getByPlaceholderText("Ask about this repository...")
     const composeForm = textarea.closest("form")
-    const composeRow = textarea.parentElement
+    // The textarea sits inside a relative wrapper (for the ghost-text
+    // suggestion overlay); the compose row is one level further up.
+    const composeRow = textarea.parentElement?.parentElement
     expect(chip).toBeInTheDocument()
     expect(chip.closest("div")).toHaveClass("w-full")
     expect(chip.compareDocumentPosition(textarea) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()

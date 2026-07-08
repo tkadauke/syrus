@@ -121,6 +121,7 @@ Rails.application.routes.draw do
         patch "epics/:id/unclaim", to: "epics#unclaim", constraints: { id: /[a-zA-Z0-9_-]+/ }
         patch "epics/:id/reassign", to: "epics#reassign", constraints: { id: /[a-zA-Z0-9_-]+/ }
         patch "epics/:id/state", to: "epics#update_state", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        post "epics/:id/start", to: "epics#start", constraints: { id: /[a-zA-Z0-9_-]+/ }
         post "epics/:id/dependencies", to: "epics#add_dependency", constraints: { id: /[a-zA-Z0-9_-]+/ }
         delete "epics/:id/dependencies/:depends_on_epic_id", to: "epics#remove_dependency", constraints: { id: /[a-zA-Z0-9_-]+/, depends_on_epic_id: /\d+/ }
         get "filters/fk_options", to: "filters#fk_options"
@@ -143,6 +144,7 @@ Rails.application.routes.draw do
         post "chats/onboarding", to: "chats#onboarding"
         get "chats/:id", to: "chats#show", constraints: { id: /\d+/ }
         patch "chats/:id", to: "chats#update", constraints: { id: /\d+/ }
+        delete "chats/:id", to: "chats#destroy", constraints: { id: /\d+/ }
         get "chats/:id/messages", to: "chats#messages", constraints: { id: /\d+/ }
         get "chats/:id/whiteboard", to: "chat_whiteboards#show", constraints: { id: /\d+/ }
         patch "chats/:id/whiteboard", to: "chat_whiteboards#update", constraints: { id: /\d+/ }

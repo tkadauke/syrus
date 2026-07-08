@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       class EpicsController < BaseController
-        before_action :authorize_epic_action!, only: [ :update_state ]
+        before_action :authorize_epic_action!, only: [ :update_state, :start ]
 
         def index
           epics = Epic.accessible_to(Current.user).includes(:repository, :jobs).order(updated_at: :desc, id: :desc)
@@ -36,9 +36,12 @@ module Api
 
         def create
           epic = Current.user.epics.new(epic_params)
+          start_requested = ActiveModel::Type::Boolean.new.cast(params[:start])
 
           if epic.save
-            render json: saved_payload(epic, message: I18n.t("api.epics.created")), status: :created
+            started = start_requested && start_created_epic!(epic)
+            message = started ? I18n.t("api.epics.created_and_started") : I18n.t("api.epics.created")
+            render json: saved_payload(epic, message: message), status: :created
           else
             render_error("validation_failed", epic.errors.full_messages.to_sentence, status: :unprocessable_content)
           end
@@ -130,6 +133,22 @@ module Api
           render json: detail_payload(epic.reload, message: I18n.t("api.epics.reassigned"))
         rescue ActionController::ParameterMissing, ArgumentError => e
           render_error("reassign_not_allowed", e.message, status: :unprocessable_content)
+        end
+
+        # POST /api/v1/app/epics/:id/start — the explicit "Start implementing"
+        # action: move the Epic into the In progress lane and release its held
+        # child Jobs (dependency-gated children flow later as their gates close).
+        def start
+          epic = find_epic
+
+          epic.with_lock do
+            epic.start_implementing!(actor: Current.user)
+            auto_claim_started_epic!(epic, "in_progress")
+          end
+
+          render json: detail_payload(epic.reload, message: I18n.t("api.epics.started"))
+        rescue Epic::NotStartable => e
+          render_error("epic_not_startable", e.message, status: :conflict)
         end
 
         def update_state
@@ -232,6 +251,7 @@ module Api
               dashboard_epics_path: dashboard_epics_path,
               edit_epic_path: edit_epic_path(epic),
               app_state_path: "/api/v1/app/epics/#{epic.id}/state",
+              app_start_path: "/api/v1/app/epics/#{epic.id}/start",
               app_archive_path: "/api/v1/app/epics/#{epic.id}/archive",
               app_claim_path: "/api/v1/app/epics/#{epic.id}/claim",
               app_unclaim_path: "/api/v1/app/epics/#{epic.id}/unclaim",
@@ -283,6 +303,11 @@ module Api
             description: epic.description.to_s,
             state: epic.state,
             stuck: epic.stuck?,
+            startable: epic.may_start_implementing?(actor: Current.user),
+            # Names of unfinished dependencies keeping a backlog/ready Epic
+            # from being startable; the UI renders a muted "Waiting on ..."
+            # hint in place of the hidden Start implementing button.
+            start_blocked_on: (epic.backlog? || epic.ready?) ? epic.unfinished_dependency_names : [],
             owner: owner_json(epic.owner),
             owned_by_current_user: epic.owner_user_id == Current.user.id || epic.claimed_by?(Current.user),
             claimable: epic.claimable?,
@@ -427,10 +452,23 @@ module Api
           RepositoryMembership.exists?(repository_id: repository_id, user: Current.user)
         end
 
+        # Best-effort start after a "Create Epic & Start Implementing" create:
+        # the Epic row is already saved, so a non-startable Epic (e.g. product
+        # owner actor) degrades to a plain create instead of failing the request.
+        def start_created_epic!(epic)
+          return false unless epic.may_start_implementing?(actor: Current.user)
+
+          epic.start_implementing!(actor: Current.user)
+          auto_claim_started_epic!(epic, "in_progress")
+          true
+        rescue Epic::NotStartable
+          false
+        end
+
         def authorize_epic_action!
           return unless Current.user&.product_owner?
 
-          target_state = params[:target_state].to_s
+          target_state = action_name == "start" ? "in_progress" : params[:target_state].to_s
           return unless target_state.in?(%w[ready in_progress done])
 
           render_error(

@@ -9,6 +9,11 @@ module AppApi
       /\b(?:oat|claude|codex)[-_][A-Za-z0-9_-]{12,}\b/i
     ].freeze
 
+    # Grace window covering several SyncInstallationsJob ticks (every 5
+    # minutes) after GitHub App registration, during which missing
+    # installations read as "sync pending" rather than misconfiguration.
+    INSTALLATION_SYNC_GRACE = 15.minutes
+
     def initialize(user)
       @user = user
     end
@@ -214,6 +219,36 @@ module AppApi
       active_count = Installation.active.count
       return check("github_app", "GitHub App", "ok", "#{active_count} active GitHub App installation#{'s' unless active_count == 1} linked.", nil, optional: true) if active_count.positive?
 
+      # No active installations, but the remediation copy itself says a PAT is
+      # an acceptable alternative — so this optional check passes when the
+      # PATs GithubClient.for would ACTUALLY fall back to are in place (see
+      # personal_access_token_configured?), instead of warning on every fresh
+      # PAT-based install.
+      if personal_access_token_configured?
+        return check(
+          "github_app",
+          "GitHub App",
+          "ok",
+          "No active GitHub App installations are linked yet; repositories fall back to a configured personal access token.",
+          nil,
+          optional: true
+        )
+      end
+
+      # Installations sync asynchronously (SyncInstallationsJob runs right
+      # after registration and every 5 minutes). A just-registered App with no
+      # synced installation rows is pending, not misconfigured.
+      if github_app_recently_registered?(settings)
+        return check(
+          "github_app",
+          "GitHub App",
+          "ok",
+          "GitHub App registered recently; the first installation sync may not have completed yet.",
+          nil,
+          optional: true
+        )
+      end
+
       check(
         "github_app",
         "GitHub App",
@@ -222,6 +257,33 @@ module AppApi
         "Install the GitHub App on at least one GitHub owner, or use a personal access token.",
         optional: true
       )
+    end
+
+    def github_app_recently_registered?(settings)
+      registered_at = settings.github_app_registered_at
+      registered_at.present? && registered_at > INSTALLATION_SYNC_GRACE.ago
+    end
+
+    def personal_access_token_configured?
+      # The PAT fallback in GithubClient.for authenticates as `user ||
+      # repository.user`, and the polling/ingestion paths pass the repository's
+      # owning user — so once repositories exist, only the OWNERS' PATs would
+      # actually be used. The honest rule: every active repository's owner must
+      # have a PAT (an owner without one has no working credential path at all
+      # while no installation is linked). Before any repository exists, any
+      # user's PAT is acceptable — the first repository will be attached to
+      # whichever user configured it.
+      #
+      # Encrypted column: NULL rows never had a token; decrypt only the
+      # candidates to skip blank-but-encrypted leftovers.
+      owner_ids = Repository.active.distinct.pluck(:user_id)
+      if owner_ids.any?
+        return false if owner_ids.include?(nil)
+
+        User.where(id: owner_ids).all? { |owner| owner.github_token.present? }
+      else
+        User.where.not(github_token: nil).any? { |candidate| candidate.github_token.present? }
+      end
     end
 
     def provider_label(provider)

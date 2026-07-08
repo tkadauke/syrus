@@ -290,6 +290,23 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
     return patched
   }
 
+  const suggestion = chatSuggestionPayload(event.payload)
+  if (suggestion) {
+    let patched = false
+    queryClient.setQueriesData<ChatPayload>(
+      { queryKey: ["chats", String(event.id)] },
+      (current) => {
+        if (!current) return current
+        patched = true
+        return {
+          ...current,
+          chat: { ...current.chat, suggested_next_step: suggestion.suggested_next_step }
+        }
+      }
+    )
+    return patched
+  }
+
   const pendingAction = chatPendingActionUpdatedPayload(event.payload)
   if (pendingAction) {
     void queryClient.invalidateQueries({ queryKey: ["chats", String(event.id)] })
@@ -344,6 +361,11 @@ type ChatPendingActionUpdatedPayload = {
   action: "pending_action_updated"
   pending_action_id: number
   chat_message_id: number | null
+}
+
+type ChatSuggestionPayload = {
+  action: "update_suggestion"
+  suggested_next_step: string | null
 }
 
 type ChatUpdateProposalPayload = {
@@ -452,6 +474,19 @@ function chatPendingActionUpdatedPayload(payload: unknown): ChatPendingActionUpd
     action: "pending_action_updated",
     pending_action_id: candidate.pending_action_id,
     chat_message_id: candidate.chat_message_id
+  }
+}
+
+function chatSuggestionPayload(payload: unknown): ChatSuggestionPayload | null {
+  if (!payload || typeof payload !== "object") return null
+
+  const candidate = payload as Partial<ChatSuggestionPayload>
+  if (candidate.action !== "update_suggestion") return null
+  if (typeof candidate.suggested_next_step !== "string" && candidate.suggested_next_step !== null) return null
+
+  return {
+    action: "update_suggestion",
+    suggested_next_step: candidate.suggested_next_step
   }
 }
 

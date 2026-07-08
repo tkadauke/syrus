@@ -221,6 +221,14 @@ RSpec.describe Epic do
 
       expect(epic.reload).not_to be_stuck
     end
+
+    it "is false for a jobless in-progress Epic (awaiting children, not stalled)" do
+      epic = described_class.create!(user: user, repository: repository, title: "Fresh forum", state: "backlog")
+      epic.start_implementing!(actor: user)
+
+      expect(epic.reload).to be_in_progress
+      expect(epic).not_to be_stuck
+    end
   end
 
   describe "#all_jobs_closed?" do
@@ -480,6 +488,173 @@ RSpec.describe Epic do
 
     expect(job.reload).to be_queued
     expect(workflow.first_step.runs.first).to be_queued
+  end
+
+  describe "#start_implementing!" do
+    it "starts a ready Epic through the AASM graph and dispatches held child Jobs" do
+      epic = described_class.create!(user: user, repository: repository, title: "Launch", state: "ready")
+      job = Factories.job_record(user: user, repository: repository, issue_number: 20, epic: epic, state: "blocked_by_epic")
+
+      expect(epic.may_start_implementing?(actor: user)).to be(true)
+      expect {
+        epic.start_implementing!(actor: user)
+      }.to change { epic.reload.state }.from("ready").to("in_progress")
+        .and change(Run, :count).by(1)
+
+      expect(job.reload).to be_queued
+      expect(epic.owner_user).to eq(user)
+    end
+
+    it "walks a startable backlog Epic through auto_ready before starting" do
+      epic = described_class.create!(user: user, repository: repository, title: "Launch", state: "ready")
+      job = Factories.job_record(user: user, repository: repository, issue_number: 20, epic: epic, state: "blocked_by_epic")
+      epic.move_to_backlog!
+
+      expect {
+        epic.start_implementing!(actor: user)
+      }.to change { epic.reload.state }.from("backlog").to("in_progress")
+
+      expect(job.reload).to be_queued
+    end
+
+    it "starts a jobless backlog Epic via the override path so later children dispatch immediately" do
+      epic = described_class.create!(user: user, repository: repository, title: "Planless", state: "backlog")
+
+      expect {
+        epic.start_implementing!(actor: user)
+      }.to change { epic.reload.state }.from("backlog").to("in_progress")
+
+      expect(epic.owner_user).to eq(user)
+      expect(epic.releases_jobs_for_execution?).to be(true)
+    end
+
+    it "releases dependency-gated children without starting their Runs" do
+      epic = described_class.create!(user: user, repository: repository, title: "Launch", state: "ready")
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 19, state: "queued")
+      job = Factories.job_record(user: user, repository: repository, issue_number: 20, epic: epic, state: "blocked_by_epic")
+      JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual")
+
+      expect {
+        epic.start_implementing!(actor: user)
+      }.not_to change(Run, :count)
+
+      expect(job.reload).to be_queued
+      expect(job.workflows.queued.count).to eq(1)
+    end
+
+    it "refuses in_progress, done, and archived Epics" do
+      %w[in_progress done archived].each do |state|
+        epic = described_class.create!(user: user, repository: repository, title: "No start from #{state}", state: state)
+
+        expect(epic.may_start_implementing?(actor: user)).to be(false)
+        expect {
+          epic.start_implementing!(actor: user)
+        }.to raise_error(Epic::NotStartable, /cannot start implementing from the #{state} state/)
+        expect(epic.reload.state).to eq(state)
+      end
+    end
+
+    it "refuses Epics claimed by another user but lets the claimant start" do
+      claimant = Factories.user(email_address: "claimant@example.com")
+      epic = described_class.create!(
+        user: user, repository: repository, title: "Claimed", state: "ready",
+        owner: claimant, owner_user: claimant, claimed_at: Time.current
+      )
+
+      expect(epic.may_start_implementing?(actor: user)).to be(false)
+      expect {
+        epic.start_implementing!(actor: user)
+      }.to raise_error(Epic::NotStartable, /claimed by another user/)
+      expect(epic.reload).to be_ready
+
+      expect(epic.may_start_implementing?(actor: claimant)).to be(true)
+      epic.start_implementing!(actor: claimant)
+      expect(epic.reload).to be_in_progress
+    end
+
+    it "refuses product-owner actors" do
+      product_owner = Factories.user(role: "product_owner")
+      epic = described_class.create!(user: user, repository: repository, title: "Launch", state: "ready")
+
+      expect(epic.may_start_implementing?(actor: product_owner)).to be(false)
+      expect {
+        epic.start_implementing!(actor: product_owner)
+      }.to raise_error(Epic::NotStartable, /Product owners cannot advance/)
+      expect(epic.reload).to be_ready
+    end
+
+    it "refuses a jobless backlog Epic with unfinished Epic dependencies (no dependency-gate bypass)" do
+      blocker = described_class.create!(user: user, repository: repository, title: "Pave the road first", state: "backlog")
+      epic = described_class.create!(user: user, repository: repository, title: "Raise the forum", state: "backlog")
+      epic.dependencies.create!(depends_on_epic: blocker)
+
+      expect(epic.may_start_implementing?(actor: user)).to be(false)
+      expect {
+        epic.start_implementing!(actor: user)
+      }.to raise_error(Epic::NotStartable, /waiting on Epic dependencies: Pave the road first/)
+      expect(epic.reload).to be_backlog
+      expect(epic.releases_jobs_for_execution?).to be(false)
+    end
+
+    it "refuses a ready Epic with unfinished dependencies and keeps held children blocked" do
+      blocker = described_class.create!(user: user, repository: repository, title: "Pave the road first", state: "in_progress")
+      epic = described_class.create!(user: user, repository: repository, title: "Raise the forum", state: "ready")
+      child = Factories.job_record(user: user, repository: repository, issue_number: 20, epic: epic, state: "blocked_by_epic")
+      epic.dependencies.create!(depends_on_epic: blocker)
+
+      expect(epic.may_start_implementing?(actor: user)).to be(false)
+      expect {
+        expect {
+          epic.start_implementing!(actor: user)
+        }.to raise_error(Epic::NotStartable, /waiting on Epic dependencies: Pave the road first/)
+      }.not_to change(Run, :count)
+
+      expect(epic.reload).to be_ready
+      expect(child.reload).to be_blocked_by_epic
+    end
+
+    it "names every unfinished dependency, including Job-target dependencies" do
+      blocker = described_class.create!(user: user, repository: repository, title: "Pave the road first", state: "backlog")
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 19, state: "queued")
+      epic = described_class.create!(user: user, repository: repository, title: "Raise the forum", state: "backlog")
+      epic.dependencies.create!(depends_on_epic: blocker)
+      epic.dependencies.create!(depends_on_job: prerequisite)
+
+      expect(epic.unfinished_dependency_names).to contain_exactly("Pave the road first", prerequisite.slug)
+      expect {
+        epic.start_implementing!(actor: user)
+      }.to raise_error(Epic::NotStartable, /Pave the road first/)
+    end
+
+    it "becomes startable once the blocking Epic completes" do
+      blocker = described_class.create!(user: user, repository: repository, title: "Pave the road first", state: "backlog")
+      epic = described_class.create!(user: user, repository: repository, title: "Raise the forum", state: "backlog")
+      epic.dependencies.create!(depends_on_epic: blocker)
+
+      expect(epic.may_start_implementing?(actor: user)).to be(false)
+
+      blocker.override_state!("done")
+
+      expect(epic.reload.may_start_implementing?(actor: user)).to be(true)
+      epic.start_implementing!(actor: user)
+      expect(epic.reload).to be_in_progress
+    end
+
+    it "refuses a backlog Epic whose child Jobs are still awaiting confirmation" do
+      epic = described_class.create!(user: user, repository: repository, title: "Raise the forum", state: "backlog")
+      # Attach the triaging child without firing Job callbacks: the factory's
+      # create-closed-then-flip dance would auto_ready the Epic in between.
+      unconfirmed = Factories.job_record(user: user, repository: repository, issue_number: 21, state: "triaging")
+      unconfirmed.update_columns(epic_id: epic.id)
+
+      expect(epic.reload).to be_backlog
+      expect(epic.may_start_implementing?(actor: user)).to be(false)
+      expect {
+        epic.start_implementing!(actor: user)
+      }.to raise_error(Epic::NotStartable, /until its child Jobs are confirmed/)
+      expect(epic.reload).to be_backlog
+      expect(unconfirmed.reload.state).to eq("triaging")
+    end
   end
 
   it "allows ready Epics to move back to backlog without starting child Jobs" do

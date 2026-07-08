@@ -191,6 +191,82 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     expect(setup.to_json).not_to include("github_token", "claude_oauth_token", "codex_api_key", "codex_auth_json")
   end
 
+  it "does not warn about missing GitHub App installations when a PAT is configured" do
+    AppSetting.current.update!(
+      github_app_id: 4242,
+      github_app_slug: "operator-syrus",
+      github_app_private_key_pem: "-----BEGIN RSA PRIVATE KEY-----\nfake\n-----END RSA PRIVATE KEY-----",
+      github_app_registered_at: 2.days.ago
+    )
+    user = Factories.user(github_token: "ghp_secret_pat", claude_oauth_token: "claude_secret_token")
+    sign_in_as(user)
+
+    get api_v1_app_bootstrap_path
+
+    github_app_check = parse_body.dig("setup_status", "readiness", "checks").find { |check| check["key"] == "github_app" }
+    expect(github_app_check).to include("status" => "ok", "optional" => true)
+    expect(github_app_check["message"]).to match(/fall back to a configured personal access token/i)
+  end
+
+  it "does not warn about missing GitHub App installations right after registration" do
+    AppSetting.current.update!(
+      github_app_id: 4242,
+      github_app_slug: "operator-syrus",
+      github_app_private_key_pem: "-----BEGIN RSA PRIVATE KEY-----\nfake\n-----END RSA PRIVATE KEY-----",
+      github_app_registered_at: Time.current
+    )
+    user = Factories.user(github_token: nil, claude_oauth_token: "claude_secret_token")
+    sign_in_as(user)
+
+    get api_v1_app_bootstrap_path
+
+    github_app_check = parse_body.dig("setup_status", "readiness", "checks").find { |check| check["key"] == "github_app" }
+    expect(github_app_check).to include("status" => "ok", "optional" => true)
+    expect(github_app_check["message"]).to match(/installation sync/i)
+  end
+
+  it "still warns about missing GitHub App installations when no PAT exists and the sync grace passed" do
+    AppSetting.current.update!(
+      github_app_id: 4242,
+      github_app_slug: "operator-syrus",
+      github_app_private_key_pem: "-----BEGIN RSA PRIVATE KEY-----\nfake\n-----END RSA PRIVATE KEY-----",
+      github_app_registered_at: 2.days.ago
+    )
+    user = Factories.user(github_token: nil, claude_oauth_token: "claude_secret_token")
+    sign_in_as(user)
+
+    get api_v1_app_bootstrap_path
+
+    github_app_check = parse_body.dig("setup_status", "readiness", "checks").find { |check| check["key"] == "github_app" }
+    expect(github_app_check).to include(
+      "status" => "warning",
+      "optional" => true,
+      "message" => "GitHub App credentials exist, but no active installations are linked."
+    )
+  end
+
+  it "keeps setup complete (Setup nav hidden) after the landed first Epic is archived" do
+    user = Factories.user(github_token: "ghp_secret_pat", claude_oauth_token: "claude_secret_token")
+    repository = Factories.repository(user: user)
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    epic.override_state!("done")
+    epic.override_state!("archived")
+    sign_in_as(user)
+
+    get api_v1_app_bootstrap_path
+
+    expect(parse_body.dig("setup", "complete")).to eq(true)
+  end
+
+  it "keeps setup incomplete (Setup nav shown) for a fresh user with no landed Epic" do
+    user = Factories.user
+    sign_in_as(user)
+
+    get api_v1_app_bootstrap_path
+
+    expect(parse_body.dig("setup", "complete")).to eq(false)
+  end
+
   it "reports readiness failures with remediation" do
     user = Factories.user
     AppSetting.current.update!(runs_paused: true)

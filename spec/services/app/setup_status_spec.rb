@@ -38,6 +38,38 @@ RSpec.describe App::SetupStatus do
     expect(complete_payload.dig(:progress, :completed)).to eq(3)
   end
 
+  it "stays complete after the landed first Epic is archived" do
+    AppSetting.current.update!(github_app_id: 1, github_app_slug: "test-syrus")
+    user = Factories.user(github_token: "ghp_test", claude_oauth_token: "oat-test")
+    repository = Factories.repository(user: user)
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    epic.override_state!("done")
+    expect(described_class.call(user: user)[:complete]).to eq(true)
+
+    epic.override_state!("archived")
+    archived_payload = described_class.call(user: user)
+    expect(archived_payload[:complete]).to eq(true)
+    expect(archived_payload[:next_step]).to eq("complete")
+  end
+
+  it "does not complete for a fresh user whose only Epic was archived without landing" do
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    epic = Factories.epic(user: user, repository: repository, state: "backlog")
+    epic.archive!
+
+    expect(described_class.call(user: user)[:complete]).to eq(false)
+  end
+
+  it "completes for a user whose owned (but not created) Epic landed" do
+    creator = Factories.user
+    owner = Factories.user
+    repository = Factories.repository(user: creator)
+    Factories.epic(user: creator, repository: repository, state: "done", owner_user: owner)
+
+    expect(described_class.call(user: owner)[:complete]).to eq(true)
+  end
+
   it "reports chat_started and the onboarding chat path once the chat begins" do
     AppSetting.current.update!(github_app_id: 1, github_app_slug: "test-syrus")
     user = Factories.user(github_token: "ghp_test", claude_oauth_token: "oat-test")

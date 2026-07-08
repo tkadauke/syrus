@@ -2,6 +2,11 @@ class Epic < ApplicationRecord
   include AASM
   include AutoApproveModes
 
+  # Raised by #start_implementing! when the Epic cannot move to
+  # :in_progress (already running/finished, claimed by someone else,
+  # or the actor is a product owner). Carries an operator-facing message.
+  class NotStartable < StandardError; end
+
   BOARD_STATES = %w[ backlog ready in_progress done ].freeze
   ARCHIVED_STATE = "archived"
   STATES = (BOARD_STATES + [ ARCHIVED_STATE ]).freeze
@@ -201,11 +206,16 @@ class Epic < ApplicationRecord
     child_jobs.any? && child_jobs.all? { |job| job.closed? && SUCCESSFUL_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
   end
 
+  # "Stuck" means the Epic is in progress but its children have all wound
+  # down without landing — nothing is running and the Epic can't complete.
+  # A jobless in-progress Epic (the form-created "start now, add children
+  # later" path) is awaiting children, not stuck.
   def stuck?
     child_jobs = jobs.reload
     in_progress? &&
+      child_jobs.any? &&
       child_jobs.none?(&:open?) &&
-      !(child_jobs.any? && child_jobs.all? { |job| job.closed? && SUCCESSFUL_JOB_CLOSURE_REASONS.include?(job.closure_reason) })
+      !child_jobs.all? { |job| job.closed? && SUCCESSFUL_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
   end
 
   def all_jobs_closed?
@@ -241,7 +251,10 @@ class Epic < ApplicationRecord
       was_in_progress = in_progress?
       update!(
         state: target_state,
-        done_at: target_state == "done" ? Time.current : nil,
+        # Archiving keeps `done_at`: an Epic that landed and was later
+        # archived still counts as landed (first-run setup completion).
+        # Reopening (backlog/ready/in_progress) clears it.
+        done_at: override_done_at(target_state),
         archived_at: target_state == "archived" ? Time.current : nil
       )
       if target_state == "in_progress"
@@ -255,6 +268,62 @@ class Epic < ApplicationRecord
 
   def in_progress!
     override_state!("in_progress")
+  end
+
+  # "Start implementing" — the definite operator action (CLAUDE.md pattern:
+  # re-check state, then dispatch side effects) that moves an Epic into
+  # :in_progress and releases its held child Jobs. Prefers the AASM graph
+  # (backlog → auto_ready → start); the override_state! fallback exists
+  # ONLY for jobless form-created Epics (auto_ready requires jobs.exists?,
+  # so the graph can never start them) so future children dispatch
+  # immediately on creation. It must never bypass the EpicDependency gate:
+  # an Epic with unfinished dependencies is not startable at all, and an
+  # Epic that has child Jobs must be startable through the graph itself
+  # (children confirmed) rather than force-released past it.
+  def may_start_implementing?(actor: nil)
+    return false unless backlog? || ready?
+    return false unless actor_can_advance?(actor: actor)
+
+    actor_user = epic_advancement_actor(actor)
+    return false if claimed? && actor_user && !claimed_by?(actor_user)
+    return false unless dependencies_done?
+
+    # ready → start! flows through the graph. backlog must either be
+    # graph-startable (has confirmed children, so auto_ready → start
+    # works) or jobless (the sanctioned override fallback).
+    ready? || jobs.none? || ready_to_start?
+  end
+
+  def start_implementing!(actor: nil)
+    raise NotStartable, start_implementing_block_reason(actor) unless may_start_implementing?(actor: actor)
+
+    transaction do
+      auto_ready!(actor: actor) if backlog? && may_auto_ready?(actor: actor)
+      if ready? && may_start?(actor: actor)
+        start!(actor: actor)
+      else
+        # Jobless-Epic fallback. may_start_implementing? has already ruled
+        # out unfinished dependencies and unconfirmed children; re-check the
+        # invariant so a future guard change can't silently widen this
+        # override back into a dependency-gate bypass.
+        raise NotStartable, start_implementing_block_reason(actor) unless jobs.none? && dependencies_done?
+
+        claim!(epic_advancement_actor(actor) || user, force: true) unless claimed?
+        override_state!("in_progress", actor: actor)
+      end
+    end
+
+    true
+  end
+
+  # Operator-facing display names of unfinished dependencies, used by the
+  # NotStartable message and the detail payload's start-blocked hint.
+  def unfinished_dependency_names
+    dependencies.includes(:depends_on_epic, :depends_on_job).reject(&:dependency_succeeded?).filter_map do |dependency|
+      next dependency.depends_on_job.slug if dependency.depends_on_job_id.present?
+
+      dependency.depends_on_epic&.title
+    end
   end
 
   def claim_unowned_child_jobs!(owner)
@@ -306,6 +375,25 @@ class Epic < ApplicationRecord
   end
 
   private
+
+  def start_implementing_block_reason(actor)
+    actor_user = epic_advancement_actor(actor)
+    return I18n.t("api.epics.product_owner_forbidden") if actor_user&.product_owner?
+    return I18n.t("api.epics.start_claimed_by_other") if (backlog? || ready?) && claimed? && actor_user && !claimed_by?(actor_user)
+    if (backlog? || ready?) && !dependencies_done?
+      return I18n.t("api.epics.start_blocked_by_dependencies", names: unfinished_dependency_names.to_sentence)
+    end
+    return I18n.t("api.epics.start_children_unconfirmed") if backlog? && jobs.exists? && !child_jobs_confirmed?
+
+    I18n.t("api.epics.not_startable", state: state)
+  end
+
+  def override_done_at(target_state)
+    case target_state
+    when "done" then Time.current
+    when "archived" then done_at
+    end
+  end
 
   def generate_slug
     base = title.to_s.parameterize.presence

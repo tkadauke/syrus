@@ -1,12 +1,114 @@
-import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
-import type { EpicDetailJob } from "../api/epics"
-import { JobsSection, ProgressBar, StateChips } from "./EpicDetail"
+import type { EpicDetailJob, EpicDetailPayload } from "../api/epics"
+import { EpicDetail, JobsSection, ProgressBar, StateChips } from "./EpicDetail"
 
 function job(state: string): EpicDetailJob {
   return { id: Math.random(), label: "JOB-1", title: "A job", path: "/jobs/1", state, owner_user_id: null, owner_user: null, repository_slug: "owner/repo" }
 }
+
+function detailPayload(overrides: Partial<EpicDetailPayload["epic"]> = {}): EpicDetailPayload {
+  return {
+    message: null,
+    epic: {
+      id: 3,
+      number: 3,
+      display_number: "EPIC-3",
+      title: "Onboarding",
+      description: "",
+      state: "ready",
+      stuck: false,
+      startable: true,
+      start_blocked_on: [],
+      owner: null,
+      owned_by_current_user: false,
+      claimable: true,
+      claimed_at: null,
+      github_issue_url: "",
+      updated_at: new Date().toISOString(),
+      archived: false,
+      jobs_count: 0,
+      epic_path: "/epics/3",
+      owner_user_id: null,
+      owner_status: "unclaimed",
+      owner_user: null,
+      repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1" },
+      ...overrides
+    },
+    summary: { done_jobs_count: 0, total_jobs_count: 0, dependency_edge_count: 0, blocked: false, blocked_reason: null },
+    state_transitions: [],
+    graph: { empty: true, definition: "", node_count: 0, epic_dependency_count: 0, job_blocker_count: 0, initially_open: false },
+    dependencies: [],
+    dependents: [],
+    jobs: [],
+    versions: [],
+    paths: {
+      dashboard_epics_path: "/dashboard/epics",
+      edit_epic_path: "/epics/3/edit",
+      app_state_path: "/api/v1/app/epics/3/state",
+      app_start_path: "/api/v1/app/epics/3/start",
+      app_archive_path: "/api/v1/app/epics/3/archive",
+      app_claim_path: "/api/v1/app/epics/3/claim",
+      app_unclaim_path: "/api/v1/app/epics/3/unclaim",
+      app_reassign_path: "/api/v1/app/epics/3/reassign",
+      app_dependencies_path: "/api/v1/app/epics/3/dependencies"
+    }
+  }
+}
+
+function renderDetail(payload: EpicDetailPayload) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <EpicDetail payload={payload} prefix="" />
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
+}
+
+describe("EpicDetail start implementing", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("shows Start implementing for a startable Epic and POSTs to the start path", async () => {
+    const started = detailPayload({ state: "in_progress", startable: false })
+    started.message = "Epic started — ready child Jobs are dispatching."
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(started))
+    renderDetail(detailPayload())
+
+    fireEvent.click(screen.getByRole("button", { name: "Start implementing" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled())
+    const [url, init] = fetchSpy.mock.calls[0]
+    expect(url).toBe("/api/v1/app/epics/3/start")
+    expect(init?.method).toBe("POST")
+  })
+
+  it("hides Start implementing when the Epic is not startable", () => {
+    renderDetail(detailPayload({ state: "in_progress", startable: false }))
+
+    expect(screen.queryByRole("button", { name: "Start implementing" })).not.toBeInTheDocument()
+  })
+
+  it("shows a muted waiting hint when the Epic is blocked on dependencies", () => {
+    renderDetail(detailPayload({ state: "backlog", startable: false, start_blocked_on: ["Pave the road first", "JOB-19"] }))
+
+    expect(screen.queryByRole("button", { name: "Start implementing" })).not.toBeInTheDocument()
+    expect(screen.getByText("Waiting on Pave the road first, JOB-19")).toBeInTheDocument()
+  })
+
+  it("does not show the waiting hint for startable Epics", () => {
+    renderDetail(detailPayload({ start_blocked_on: [] }))
+
+    expect(screen.queryByText(/^Waiting on /)).not.toBeInTheDocument()
+  })
+})
 
 describe("ProgressBar", () => {
   it("renders an empty bar when there are no jobs", () => {

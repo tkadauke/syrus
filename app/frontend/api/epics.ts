@@ -65,6 +65,8 @@ export type EpicDetailRecord = {
   description: string
   state: string
   stuck: boolean
+  startable: boolean
+  start_blocked_on: string[]
   owner: EpicOwner | null
   owned_by_current_user: boolean
   claimable: boolean
@@ -145,6 +147,7 @@ export type EpicDetailPayload = {
     dashboard_epics_path: string
     edit_epic_path: string
     app_state_path: string
+    app_start_path: string
     app_archive_path: string
     app_claim_path: string
     app_unclaim_path: string
@@ -171,8 +174,8 @@ export function searchEpicOptions(query: string, options: { signal?: AbortSignal
     .then((payload) => payload.options || [])
 }
 
-export function createEpic(values: EpicInput) {
-  return postJson<EpicSavedPayload>("/api/v1/app/epics", { epic: values })
+export function createEpic(values: EpicInput, options: { start?: boolean } = {}) {
+  return postJson<EpicSavedPayload>("/api/v1/app/epics", options.start ? { epic: values, start: true } : { epic: values })
 }
 
 export function updateEpic(id: number, values: EpicInput) {
@@ -187,6 +190,12 @@ export function updateEpicState(path: string, targetState: string) {
 // in backlog/ready starts in one click). Used by the chat "Start" action.
 export function startEpic(path: string) {
   return patchJson<EpicDetailPayload>(path, { target_state: "in_progress", override: true })
+}
+
+// Explicit "Start implementing" action (POST /api/v1/app/epics/:id/start):
+// moves the Epic to In progress and dispatches its ready child Jobs.
+export function startEpicImplementing(path: string) {
+  return postJson<EpicDetailPayload>(path, {})
 }
 
 export function archiveEpic(path: string) {

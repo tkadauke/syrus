@@ -423,8 +423,15 @@ class User < ApplicationRecord
     first_epic_landed?
   end
 
+  # "Landed" means the Epic reached `done` at some point — including Epics
+  # that were archived afterwards (`done_at` persists across archiving) and
+  # Epics the user owns (claimed / assigned) without having created them.
+  # An Epic archived straight from backlog/ready never landed and does not
+  # count, so genuinely fresh instances still see the Setup flow.
   def first_epic_landed?
-    epics.where(state: "done").exists?
+    Epic.where("user_id = :id OR owner_id = :id OR owner_user_id = :id", id: id)
+        .where("state = 'done' OR done_at IS NOT NULL")
+        .exists?
   end
 
   def first_epic_started?

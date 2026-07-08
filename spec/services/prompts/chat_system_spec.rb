@@ -89,6 +89,15 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("the built-in `AskUserQuestion` tool")
   end
 
+  it "instructs chat to suggest a tab-completable next step at turn end" do
+    out = described_class.new(repository: repo).to_s
+
+    expect(out).to include("call `suggest_next_step(text)` with a concise,")
+    expect(out).to match(/written in the operator's voice/)
+    expect(out).to include("tab-completable ghost text in the composer")
+    expect(out).to match(/Skip it when no\s+follow-up is natural/)
+  end
+
   it "instructs chat to use canonical Job and Epic reference formats" do
     out = described_class.new(repository: repo).to_s
 

@@ -21,6 +21,18 @@
   "open_sidebar": "Seitenleiste öffnen",
   "close_sidebar": "Seitenleiste schließen",
   "resize_sidebar": "Seitenleiste anpassen",
+  "shell": {
+    "update_ready": "Neu starten und aktualisieren",
+    "update_version": "Version {{version}} bereit",
+    "skill_offer": "Claude erkannt — Syrus-Skill installieren?",
+    "skill_info_label": "Über den Syrus-Skill",
+    "skill_info": "Erlaubt Claude Code, Arbeit aus jedem Terminal an Syrus zu delegieren: Inbox prüfen, Issues anlegen und Branches auschecken.",
+    "skill_install": "Installieren",
+    "skill_installing": "Wird installiert…",
+    "skill_installed": "Skill installiert ✓",
+    "skill_install_failed": "Der Skill konnte nicht installiert werden.",
+    "skill_dismiss": "Skill-Angebot ausblenden"
+  },
   "onboarding": {
     "configure_credentials_title": "Zugangsdaten zuerst verbinden",
     "configure_credentials_description": "Syrus benötigt sowohl GitHub-Zugang als auch einen Agenten-Anbieter, bevor es Repositories abfragen oder Jobs ausführen kann.",

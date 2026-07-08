@@ -15,6 +15,7 @@ import {
   fetchEpicDetail,
   removeEpicDependency,
   searchEpicOptions,
+  startEpicImplementing,
   unclaimEpic,
   updateEpicState,
   type EpicDependencyRecord,
@@ -35,6 +36,7 @@ let mermaidRenderSequence = 0
 
 type EpicCommand =
   | { kind: "state"; transition: EpicStateTransition }
+  | { kind: "start" }
   | { kind: "archive" }
   | { kind: "claim" }
   | { kind: "unclaim" }
@@ -60,13 +62,14 @@ export function EpicDetailRoute() {
   )
 }
 
-function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: string }) {
+export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: string }) {
   const { t } = useT("epics")
   const queryClient = useQueryClient()
   const queryKey = ["epics", String(payload.epic.id)] as const
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const command = useMutation({
     mutationFn: (action: EpicCommand) => {
+      if (action.kind === "start") return startEpicImplementing(payload.paths.app_start_path)
       if (action.kind === "archive") return archiveEpic(payload.paths.app_archive_path)
       if (action.kind === "claim") return claimEpic(payload.paths.app_claim_path)
       if (action.kind === "unclaim") return unclaimEpic(payload.paths.app_unclaim_path)
@@ -116,6 +119,21 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
 
         {(payload.state_transitions.length > 0 || payload.epic.claimable || !payload.epic.archived) ? (
           <div className="flex flex-wrap items-center gap-2">
+            {payload.epic.startable ? (
+              <button
+                className={buttonClass("primary")}
+                disabled={command.isPending}
+                onClick={() => command.mutate({ kind: "start" })}
+                type="button"
+              >
+                {command.isPending ? t("starting") : t("start_implementing")}
+              </button>
+            ) : null}
+            {!payload.epic.startable && (payload.epic.start_blocked_on ?? []).length > 0 ? (
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                {t("waiting_on_dependencies", { names: (payload.epic.start_blocked_on ?? []).join(", ") })}
+              </span>
+            ) : null}
             {payload.epic.claimable && payload.epic.owner_status === "unclaimed" ? (
               <button
                 className={buttonClass("secondary")}
@@ -137,7 +155,7 @@ function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; prefix: s
               </button>
             ) : null}
             {!payload.epic.archived ? (
-              <Link className={buttonClass("primary")} to={withRoutePrefix(payload.paths.edit_epic_path, prefix)}>{t("edit")}</Link>
+              <Link className={buttonClass(payload.epic.startable ? "secondary" : "primary")} to={withRoutePrefix(payload.paths.edit_epic_path, prefix)}>{t("edit")}</Link>
             ) : null}
             {payload.state_transitions.length > 0 ? (
               <EpicActionsMenu disabled={command.isPending} onTransition={runTransition} transitions={payload.state_transitions} />

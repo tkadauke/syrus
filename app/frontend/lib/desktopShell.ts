@@ -37,6 +37,41 @@ export function desktopBuiltAt(): string | null {
   )
 }
 
+// --- window.syrusShell bridge -------------------------------------------
+//
+// The desktop app's preload script exposes an imperative bridge on the
+// web-app window for shell-level concerns the web UI can't see on its own:
+// a downloaded update waiting for a relaunch, and whether Claude Code is
+// installed on the host machine (for offering the Syrus skill). Plain
+// browsers (and older shells) have no window.syrusShell — always
+// feature-detect through syrusShellBridge() and render nothing without it.
+
+export type SyrusShellState = {
+  updateReadyVersion: string | null
+  claudeDetected: boolean
+  skillInstalled: boolean
+  skillOfferDismissed: boolean
+}
+
+export type SyrusShellBridge = {
+  getState(): Promise<SyrusShellState>
+  onStateChanged(callback: (state: SyrusShellState) => void): () => void
+  relaunchToUpdate(): void
+  installSkill(): Promise<{ ok: boolean; message: string }>
+  dismissSkillOffer(): void
+}
+
+declare global {
+  interface Window {
+    syrusShell?: SyrusShellBridge
+  }
+}
+
+export function syrusShellBridge(): SyrusShellBridge | null {
+  if (typeof window === "undefined") return null
+  return window.syrusShell ?? null
+}
+
 // Opens a URL in a new tab (or, in the desktop shell, wherever the shell
 // routes it). Returns false only when a browser popup blocker genuinely
 // swallowed the open. Deliberately not passing the `noopener` feature:

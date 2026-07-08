@@ -693,6 +693,48 @@ RSpec.describe User do
       expect(setup_user.first_epic_landed?).to be true
       expect(setup_user.first_run_setup_complete?).to be true
     end
+
+    it "stays complete after the landed Epic is archived" do
+      repository = Factories.repository(user: setup_user)
+      epic = Factories.epic(user: setup_user, repository: repository, state: "in_progress")
+      epic.update!(state: "done", done_at: Time.current)
+
+      epic.archive!
+      expect(epic.reload.state).to eq("archived")
+      expect(setup_user.first_epic_landed?).to be true
+      expect(setup_user.first_run_setup_complete?).to be true
+    end
+
+    it "stays complete when the landed Epic is archived through the operator override" do
+      repository = Factories.repository(user: setup_user)
+      epic = Factories.epic(user: setup_user, repository: repository, state: "in_progress")
+      epic.override_state!("done")
+      expect(epic.reload.done_at).to be_present
+
+      epic.override_state!("archived")
+      expect(epic.reload.done_at).to be_present
+      expect(setup_user.first_run_setup_complete?).to be true
+    end
+
+    it "does not count an Epic archived without ever landing" do
+      repository = Factories.repository(user: setup_user)
+      epic = Factories.epic(user: setup_user, repository: repository, state: "backlog")
+
+      epic.archive!
+      expect(epic.reload.state).to eq("archived")
+      expect(setup_user.first_epic_landed?).to be false
+      expect(setup_user.first_run_setup_complete?).to be false
+    end
+
+    it "counts a landed Epic the user owns but did not create" do
+      creator = Factories.user
+      repository = Factories.repository(user: creator)
+      Factories.epic(user: creator, repository: repository, state: "done", owner_user: setup_user)
+
+      expect(setup_user.first_epic_landed?).to be true
+      expect(setup_user.first_run_setup_complete?).to be true
+      expect(creator.first_epic_landed?).to be true
+    end
   end
 
   describe "locale" do

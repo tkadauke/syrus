@@ -794,6 +794,60 @@ describe("chat proposal cards", () => {
     expect(await screen.findByRole("button", { name: "Confirm Epic and Jobs" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Confirm Epic" })).not.toBeInTheDocument()
   })
+
+  it("offers Create Epic & Start Implementing on Epic proposals and sends the start flag", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path.startsWith("/api/v1/app/chats/8/proposals/1/confirm") && init?.method === "POST") {
+        return Promise.resolve(jsonResponse(chatPayload({ messages: [] })))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [
+          messageWithProposal(9, proposal({
+            kind: "epic",
+            kind_label: "Epic",
+            title: "Plan onboarding",
+            slug: "EPIC-DRAFT-1",
+            epic_bundle: true,
+            active_children_count: 0,
+            children: []
+          }))
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Create Epic & Start Implementing" }))
+
+    await waitFor(() => {
+      const confirmCall = fetchMock.mock.calls.find((call) => String(call[0]).startsWith("/api/v1/app/chats/8/proposals/1/confirm"))
+      expect(confirmCall).toBeTruthy()
+      expect(JSON.parse(confirmCall?.[1]?.body as string)).toEqual({ start: true })
+    })
+  })
+
+  it("does not offer Create Epic & Start Implementing on non-Epic proposals", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [messageWithProposal(9, proposal())]
+      })))
+    })
+
+    renderRoute()
+
+    expect(await screen.findByRole("button", { name: "Confirm" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Create Epic & Start Implementing" })).not.toBeInTheDocument()
+  })
 })
 
 describe("chat compose image attachments", () => {
@@ -1175,6 +1229,135 @@ describe("chat slash commands", () => {
     expect(await screen.findByText("Here is the answer.")).toBeInTheDocument()
     expect(document.getElementById("chat_message_9")).not.toBeInTheDocument()
     expect(document.getElementById("chat_message_10")).toBeInTheDocument()
+  })
+})
+
+describe("composer next-step suggestion", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  function findComposerTextarea() {
+    return screen.findByRole("textbox")
+  }
+
+  it("renders the suggestion as ghost text with a tab hint when the composer is empty", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { suggested_next_step: "Create an Epic from these findings" } }))
+
+    renderRoute()
+
+    const ghost = await screen.findByTestId("chat-suggestion-ghost")
+    expect(ghost).toHaveTextContent("Create an Epic from these findings")
+    expect(ghost).toHaveTextContent("tab")
+    expect(screen.getByText("Suggested next message: Create an Epic from these findings. Press Tab to accept.")).toBeInTheDocument()
+  })
+
+  it("does not render ghost text when no suggestion is stored", async () => {
+    mockChatRouteFetch(chatPayload())
+
+    renderRoute()
+
+    expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
+    expect(screen.queryByTestId("chat-suggestion-ghost")).not.toBeInTheDocument()
+  })
+
+  it("fills the composer with the suggestion on Tab after the grace period", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { suggested_next_step: "Create an Epic from these findings" } }))
+
+    renderRoute()
+
+    await screen.findByTestId("chat-suggestion-ghost")
+    const textarea = await findComposerTextarea()
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 300)
+    fireEvent.keyDown(textarea, { key: "Tab" })
+    nowSpy.mockRestore()
+
+    expect(textarea).toHaveValue("Create an Epic from these findings")
+    expect(screen.queryByTestId("chat-suggestion-ghost")).not.toBeInTheDocument()
+  })
+
+  it("does not hijack Tab while the suggestion is inside the arrival grace period", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { suggested_next_step: "Create an Epic from these findings" } }))
+    // Freeze the clock across render AND keydown so the Tab lands
+    // "immediately" after the suggestion's arrival timestamp — inside
+    // the grace period — regardless of real render latency.
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1_700_000_000_000)
+
+    try {
+      renderRoute()
+
+      await screen.findByTestId("chat-suggestion-ghost")
+      const textarea = await findComposerTextarea()
+      const defaultNotPrevented = fireEvent.keyDown(textarea, { key: "Tab" })
+
+      expect(defaultNotPrevented).toBe(true)
+      expect(textarea).toHaveValue("")
+      expect(screen.getByTestId("chat-suggestion-ghost")).toBeInTheDocument()
+    } finally {
+      nowSpy.mockRestore()
+    }
+  })
+
+  it("leaves Shift+Tab focus navigation alone even when the ghost renders", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { suggested_next_step: "Create an Epic from these findings" } }))
+
+    renderRoute()
+
+    await screen.findByTestId("chat-suggestion-ghost")
+    const textarea = await findComposerTextarea()
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 300)
+    const defaultNotPrevented = fireEvent.keyDown(textarea, { key: "Tab", shiftKey: true })
+    nowSpy.mockRestore()
+
+    expect(defaultNotPrevented).toBe(true)
+    expect(textarea).toHaveValue("")
+    expect(screen.getByTestId("chat-suggestion-ghost")).toBeInTheDocument()
+  })
+
+  it("leaves modifier-chord Tab presses alone even when the ghost renders", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { suggested_next_step: "Create an Epic from these findings" } }))
+
+    renderRoute()
+
+    await screen.findByTestId("chat-suggestion-ghost")
+    const textarea = await findComposerTextarea()
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 300)
+    const defaultNotPrevented = fireEvent.keyDown(textarea, { key: "Tab", ctrlKey: true })
+    nowSpy.mockRestore()
+
+    expect(defaultNotPrevented).toBe(true)
+    expect(textarea).toHaveValue("")
+    expect(screen.getByTestId("chat-suggestion-ghost")).toBeInTheDocument()
+  })
+
+  it("dismisses the suggestion for the session on Escape", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { suggested_next_step: "Create an Epic from these findings" } }))
+
+    renderRoute()
+
+    await screen.findByTestId("chat-suggestion-ghost")
+    const textarea = await findComposerTextarea()
+    fireEvent.keyDown(textarea, { key: "Escape" })
+
+    expect(screen.queryByTestId("chat-suggestion-ghost")).not.toBeInTheDocument()
+    expect(textarea).toHaveValue("")
+  })
+
+  it("hides the ghost while the operator is typing", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { suggested_next_step: "Create an Epic from these findings" } }))
+
+    renderRoute()
+
+    await screen.findByTestId("chat-suggestion-ghost")
+    const textarea = await findComposerTextarea()
+    fireEvent.change(textarea, { target: { value: "My own idea" } })
+
+    expect(screen.queryByTestId("chat-suggestion-ghost")).not.toBeInTheDocument()
+
+    fireEvent.change(textarea, { target: { value: "" } })
+
+    expect(await screen.findByTestId("chat-suggestion-ghost")).toBeInTheDocument()
   })
 })
 

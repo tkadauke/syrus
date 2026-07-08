@@ -10,6 +10,7 @@ class ChatMessage < ApplicationRecord
 
   after_create_commit :broadcast_app_event
   after_create_commit :enqueue_search_index
+  after_create_commit :clear_suggested_next_step, if: -> { role == "user" }
 
   validates :role, presence: true, inclusion: { in: ROLES }
   validate :content_is_present
@@ -68,5 +69,11 @@ class ChatMessage < ApplicationRecord
 
   def enqueue_search_index
     IndexChatMessageJob.perform_later(id) if ChatMessageSearchIndex.indexable?(self)
+  end
+
+  # A stored next-step suggestion is only valid until the operator speaks
+  # again — clear it the moment a user message lands.
+  def clear_suggested_next_step
+    chat_session&.clear_suggested_next_step!
   end
 end

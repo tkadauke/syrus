@@ -80,5 +80,9 @@
   "github_issue_url": "GitHub issue URL",
   "saving": "Saving...",
   "create": "Create Epic",
-  "save": "Save Epic"
+  "save": "Save Epic",
+  "create_and_start": "Create Epic & Start Implementing",
+  "start_implementing": "Start implementing",
+  "waiting_on_dependencies": "Waiting on {{names}}",
+  "starting": "Starting..."
 }

@@ -80,5 +80,9 @@
   "github_issue_url": "URL quaestionis GitHub",
   "saving": "Servatur...",
   "create": "Epicam crea",
-  "save": "Epicam serva"
+  "save": "Epicam serva",
+  "create_and_start": "Epicam crea et effectionem incipe",
+  "start_implementing": "Effectionem incipe",
+  "waiting_on_dependencies": "Exspectat {{names}}",
+  "starting": "Incipitur..."
 }

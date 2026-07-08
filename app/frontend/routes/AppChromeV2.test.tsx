@@ -11,7 +11,31 @@ import { AppChromeV2, chatSectionsFromPayload } from "./AppChromeV2"
 describe("AppChromeV2", () => {
   beforeEach(() => {
     window.localStorage.clear()
+    delete window.syrusShell
     vi.restoreAllMocks()
+  })
+
+  it("renders desktop shell notices in the sidebar above the account row", async () => {
+    window.syrusShell = {
+      getState: vi.fn().mockResolvedValue({
+        updateReadyVersion: "0.1.3",
+        claudeDetected: false,
+        skillInstalled: false,
+        skillOfferDismissed: false
+      }),
+      onStateChanged: vi.fn().mockReturnValue(() => {}),
+      relaunchToUpdate: vi.fn(),
+      installSkill: vi.fn().mockResolvedValue({ ok: true, message: "" }),
+      dismissSkillOffer: vi.fn()
+    }
+
+    renderAppChrome()
+
+    await screen.findByText("Relaunch to update")
+    const notices = screen.getByTestId("shell-notices")
+    const accountRow = screen.getByRole("navigation", { name: "Account" })
+    // The notice stack sits directly above the username/account row.
+    expect(notices.compareDocumentPosition(accountRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it("reuses an existing unstarted chat without creating a chat", async () => {
@@ -372,6 +396,151 @@ describe("AppChromeV2 recent chats", () => {
     const hideButton = screen.getByRole("button", { name: "Hide Chat" })
 
     expect(Boolean(pinButton.compareDocumentPosition(hideButton) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+  })
+
+  it("renames a chat from the context menu", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/1/rename" && init?.method === "PATCH") {
+        return Promise.resolve(jsonResponse({ message: "Chat renamed.", chat: chatNav({ id: 1, title: "New name" }) }))
+      }
+
+      if (path === "/api/v1/app/chats/1") {
+        return Promise.resolve(jsonResponse({ bookmarks: [] }))
+      }
+
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(jsonResponse(chatsIndexPayload()))
+      }
+
+      return Promise.resolve(jsonResponse({}))
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries")
+    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
+      groups: [
+        chatGroup({
+          chats: [
+            chatNav({ id: 1, title: "Old name" })
+          ]
+        })
+      ]
+    }))
+
+    renderAppChrome(undefined, { queryClient })
+
+    fireEvent.click(await screen.findByRole("button", { name: "Chat actions for Old name" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Rename" }))
+
+    const input = await screen.findByLabelText("Chat name")
+    expect(input).toHaveValue("Old name")
+
+    // The dialog must portal OUT of the row's `absolute … -translate-y-1/2`
+    // actions wrapper: a CSS transform turns that ancestor into the containing
+    // block for fixed-position descendants, clipping the overlay to the row.
+    const renameDialog = screen.getByRole("dialog")
+    expect(renameDialog.closest('[class*="-translate-y-1/2"]')).toBeNull()
+    expect(renameDialog.parentElement?.parentElement).toBe(document.body)
+    fireEvent.change(input, { target: { value: "New name" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/1/rename", expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ chat: { title: "New name" } })
+      }))
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
+    })
+  })
+
+  it("deletes a chat from the context menu after confirmation", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/1" && init?.method === "DELETE") {
+        return Promise.resolve(jsonResponse({ message: "Chat deleted." }))
+      }
+
+      if (path === "/api/v1/app/chats/1") {
+        return Promise.resolve(jsonResponse({ bookmarks: [] }))
+      }
+
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(jsonResponse(chatsIndexPayload()))
+      }
+
+      return Promise.resolve(jsonResponse({}))
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
+      groups: [
+        chatGroup({
+          chats: [
+            chatNav({ id: 1, title: "Doomed chat" })
+          ]
+        })
+      ]
+    }))
+
+    renderAppChrome(undefined, { queryClient })
+
+    fireEvent.click(await screen.findByRole("button", { name: "Chat actions for Doomed chat" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Delete Chat" }))
+
+    expect(await screen.findByText("This permanently deletes the chat, its messages, and all associated data. This cannot be undone.")).toBeInTheDocument()
+
+    // Portaled to document.body, not nested in the transformed row wrapper
+    // (which would clip/misposition the fixed overlay).
+    const deleteDialog = screen.getByRole("dialog")
+    expect(deleteDialog.closest('[class*="-translate-y-1/2"]')).toBeNull()
+    expect(deleteDialog.parentElement?.parentElement).toBe(document.body)
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/1", expect.objectContaining({ method: "DELETE" }))
+    })
+    await waitFor(() => {
+      expect(screen.queryByText("Doomed chat")).not.toBeInTheDocument()
+    })
+  })
+
+  it("surfaces the server error when chat deletion is refused", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/1" && init?.method === "DELETE") {
+        return Promise.resolve(new Response(JSON.stringify({
+          error: { code: "turn_in_flight", message: "Cannot delete this chat while a turn is in progress. Stop the turn first." }
+        }), { status: 409, headers: { "Content-Type": "application/json" } }))
+      }
+
+      if (path === "/api/v1/app/chats/1") {
+        return Promise.resolve(jsonResponse({ bookmarks: [] }))
+      }
+
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(jsonResponse(chatsIndexPayload()))
+      }
+
+      return Promise.resolve(jsonResponse({}))
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
+      groups: [
+        chatGroup({
+          chats: [
+            chatNav({ id: 1, title: "Busy chat" })
+          ]
+        })
+      ]
+    }))
+
+    renderAppChrome(undefined, { queryClient })
+
+    fireEvent.click(await screen.findByRole("button", { name: "Chat actions for Busy chat" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Delete Chat" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Delete" }))
+
+    expect(await screen.findByText("Cannot delete this chat while a turn is in progress. Stop the turn first.")).toBeInTheDocument()
   })
 })
 

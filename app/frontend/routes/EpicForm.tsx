@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
-import type { FormEvent, ReactNode } from "react"
+import type { FormEvent, MouseEvent, ReactNode } from "react"
 import { useEffect, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
@@ -34,13 +34,13 @@ export function EpicFormRoute({ mode }: { mode: "new" | "edit" }) {
   )
 }
 
-function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payload: EpicFormPayload; prefix: string }) {
+export function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payload: EpicFormPayload; prefix: string }) {
   const { t } = useT("epics")
   const navigate = useNavigate()
   const [values, setValues] = useState<EpicInput>(() => inputFromPayload(payload))
   const save = useMutation({
-    mutationFn: () => {
-      if (mode === "new") return createEpic(values)
+    mutationFn: (options: { start: boolean }) => {
+      if (mode === "new") return createEpic(values, { start: options.start })
       return updateEpic(Number(payload.epic.id), values)
     },
     onSuccess: (saved) => {
@@ -52,9 +52,19 @@ function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payload: Ep
     setValues(inputFromPayload(payload))
   }, [payload])
 
+  // The form's default submission (Enter key included) is always a plain
+  // create/save. "Create Epic & Start Implementing" is deliberately NOT a
+  // submit button so implicit form submission can never create-and-start.
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    save.mutate()
+    save.mutate({ start: false })
+  }
+
+  function createAndStart(event: MouseEvent<HTMLButtonElement>) {
+    const formElement = event.currentTarget.form
+    if (formElement && !formElement.reportValidity()) return
+
+    save.mutate({ start: true })
   }
 
   return (
@@ -109,9 +119,21 @@ function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payload: Ep
           />
         </Field>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {mode === "new" ? (
+            <button
+              className="rounded bg-blue-600 px-3.5 py-2.5 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
+              disabled={save.isPending}
+              onClick={createAndStart}
+              type="button"
+            >
+              {save.isPending ? t("saving") : t("create_and_start")}
+            </button>
+          ) : null}
           <button
-            className="rounded bg-blue-600 px-3.5 py-2.5 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
+            className={mode === "new"
+              ? "rounded border border-gray-300 bg-white px-3.5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+              : "rounded bg-blue-600 px-3.5 py-2.5 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"}
             disabled={save.isPending}
             type="submit"
           >

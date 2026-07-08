@@ -21,6 +21,18 @@
   "open_sidebar": "Aperi columnam",
   "close_sidebar": "Claude columnam",
   "resize_sidebar": "Muta magnitudinem columnae",
+  "shell": {
+    "update_ready": "Resuscita ut renoves",
+    "update_version": "Versio {{version}} parata",
+    "skill_offer": "Claude repertus — ars Syri instituenda?",
+    "skill_info_label": "De arte Syri",
+    "skill_info": "Sinit Claude Code opus Syro ex quovis terminali mandare: cistam inspicere, querelas proponere, ramos depromere.",
+    "skill_install": "Institue",
+    "skill_installing": "Instituitur…",
+    "skill_installed": "Ars instituta ✓",
+    "skill_install_failed": "Ars institui non potuit.",
+    "skill_dismiss": "Oblationem artis dimitte"
+  },
   "onboarding": {
     "configure_credentials_title": "Primum testimonia coniunge",
     "configure_credentials_description": "Syrus et accessu GitHub et provisore agentis indiget, antequam horrea perscrutari aut opera agere possit.",

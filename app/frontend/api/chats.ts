@@ -21,6 +21,7 @@ export type ChatRecord = {
   turn_in_flight?: boolean
   agent_busy?: boolean
   stop_requested_at: string | null
+  suggested_next_step?: string | null
   cumulative_input_tokens: number
   cumulative_output_tokens: number
   cumulative_cost_usd: number
@@ -389,6 +390,7 @@ export type ChatPayload = {
     app_messages_path: string
     app_message_path: string
     app_rename_path: string
+    app_delete_path?: string
     app_clear_path: string
     app_branch_path: string
     app_share_path: string
@@ -565,6 +567,12 @@ export function clearChatHistory(path: string) {
   return deleteJson<ChatPayload>(path)
 }
 
+// Hard-deletes the chat and all of its data (messages, attachments,
+// workspace). The server refuses with a 409 while a turn is running.
+export function deleteChat(id: number | string) {
+  return deleteJson<{ message: string }>(`/api/v1/app/chats/${id}`)
+}
+
 export function branchChat(path: string) {
   return postJson<ChatBranchPayload>(path)
 }
@@ -641,8 +649,10 @@ export function deleteChatAttachment(path: string) {
   return deleteJson<ChatPayload>(path)
 }
 
-export function confirmChatProposal(path: string) {
-  return postJson<ChatPayload>(path)
+// `start: true` asks the server to also move a materialized Epic to
+// In progress and dispatch its ready child Jobs right after confirming.
+export function confirmChatProposal(path: string, options: { start?: boolean } = {}) {
+  return postJson<ChatPayload>(path, options.start ? { start: true } : undefined)
 }
 
 export function rejectChatProposal(path: string) {

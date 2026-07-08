@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { BRAND_ICON_SRC } from "../lib/brandIcon"
 import { type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
-import { createEmptyChat, fetchChat, fetchChats, fetchMoreChatsForGroup, fetchNewChat, hideChat, markChatRead, markChatUnread, updateChatPinned, type ChatGroupRecord, type ChatNavRecord, type ChatPayload, type ChatsIndexPayload } from "../api/chats"
-import { patchJson } from "../api/client"
+import { createEmptyChat, deleteChat, fetchChat, fetchChats, fetchMoreChatsForGroup, fetchNewChat, hideChat, markChatRead, markChatUnread, renameChat, updateChatPinned, type ChatGroupRecord, type ChatNavRecord, type ChatPayload, type ChatsIndexPayload } from "../api/chats"
+import { ApiError, patchJson } from "../api/client"
 import { dashboardApiSearch, fetchDashboard, type DashboardPayload, type DashboardSubject } from "../api/dashboard"
 import { fetchTerminalSessions } from "../api/terminal"
 import { BugReportButton } from "../components/BugReportButton"
@@ -15,6 +16,7 @@ import { DashboardSmartFolderNav } from "../components/DashboardSmartFolderNav"
 import { NoticeToast } from "../components/NoticeToast"
 import { NotificationsBell } from "../components/Notifications"
 import { PinIcon } from "../components/PinIcon"
+import { ShellNotices } from "../components/ShellNotices"
 import { SyrusBrand } from "../components/SyrusBrand"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { updateChatUnread, updateRecentChatCache } from "../lib/chatCache"
@@ -499,6 +501,7 @@ function SidebarContent({
         </div>
         <RecentChatsSidebar onCloseDrawer={onCloseDrawer} onNotice={onNotice} prefix={prefix} userPresent={Boolean(user)} />
       </div>
+      <ShellNotices />
       <div className="shrink-0 border-t border-gray-200 p-3 dark:border-gray-800">
         {user ? (
           <nav aria-label="Account">
@@ -672,6 +675,7 @@ function RecentChatsSidebar({ onCloseDrawer, onNotice, prefix, userPresent }: { 
   const [loadedSections, setLoadedSections] = useState<Record<string, { chats: ChatNavRecord[]; has_more: boolean }>>({})
   const [loadingSections, setLoadingSections] = useState<Set<string>>(() => new Set())
   const [hidingChatIds, setHidingChatIds] = useState<Set<number>>(() => new Set())
+  const [deletingChatIds, setDeletingChatIds] = useState<Set<number>>(() => new Set())
   const activeChatId = activeChatIdFromPath(location.pathname)
   const chats = useQuery({
     queryKey: ["chats", "recent"],
@@ -745,6 +749,29 @@ function RecentChatsSidebar({ onCloseDrawer, onNotice, prefix, userPresent }: { 
       void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
     }).finally(() => {
       setHidingChatIds((current) => {
+        const next = new Set(current)
+        next.delete(chat.id)
+        return next
+      })
+    })
+  }
+
+  function deleteRecentChat(chat: ChatNavRecord) {
+    if (deletingChatIds.has(chat.id)) return
+
+    setDeletingChatIds((current) => new Set(current).add(chat.id))
+    void deleteChat(chat.id).then(() => {
+      removeChatFromRecentLists(chat.id)
+      queryClient.removeQueries({ queryKey: ["chats", String(chat.id)] })
+      void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
+      void queryClient.invalidateQueries({ queryKey: ["hidden-chats"] })
+      onNotice(t("chat:chat_deleted"))
+      if (chat.id === activeChatId) navigate(`${prefix}/dashboard/jobs`)
+    }).catch((error) => {
+      onNotice(error instanceof ApiError && error.message ? error.message : t("chat:unable_to_delete"))
+      void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
+    }).finally(() => {
+      setDeletingChatIds((current) => {
         const next = new Set(current)
         next.delete(chat.id)
         return next
@@ -829,8 +856,11 @@ function RecentChatsSidebar({ onCloseDrawer, onNotice, prefix, userPresent }: { 
                       </Link>
                       <RecentChatActionsMenu
                         chat={chat}
+                        deleteDisabled={deletingChatIds.has(chat.id)}
                         disabled={hidingChatIds.has(chat.id)}
+                        onDelete={() => deleteRecentChat(chat)}
                         onHide={() => hideRecentChat(chat)}
+                        onNotice={onNotice}
                         onTogglePin={() => togglePin(chat)}
                         search={location.search}
                       />
@@ -888,10 +918,13 @@ function RecentChatActivityMarker({ active, unread }: { active: boolean; unread:
   return <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${unread ? "bg-blue-600 dark:bg-blue-400" : "bg-transparent"}`} />
 }
 
-function RecentChatActionsMenu({ chat, disabled, onHide, onTogglePin, search }: {
+function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelete, onHide, onNotice, onTogglePin, search }: {
   chat: ChatNavRecord
+  deleteDisabled?: boolean
   disabled: boolean
+  onDelete: () => void
   onHide: () => void
+  onNotice: (message: string | null) => void
   onTogglePin: () => void
   search: string
 }) {
@@ -899,6 +932,8 @@ function RecentChatActionsMenu({ chat, disabled, onHide, onTogglePin, search }: 
   const queryClient = useQueryClient()
   const { t } = useTranslation("chat")
   const [open, setOpen] = useState(false)
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const active = chat.current || chat.id === activeChatIdFromPath(location.pathname)
@@ -928,6 +963,30 @@ function RecentChatActionsMenu({ chat, disabled, onHide, onTogglePin, search }: 
       setOpen(false)
     }
   })
+
+  const rename = useMutation({
+    mutationFn: (title: string) => renameChat(`/api/v1/app/chats/${chat.id}/rename`, title),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
+      void queryClient.invalidateQueries({ queryKey: ["chats", String(chat.id)] })
+      setRenameOpen(false)
+      onNotice(null)
+    },
+    onError: (error) => {
+      onNotice(error instanceof ApiError && error.message ? error.message : t("chat:unable_to_rename"))
+    }
+  })
+
+  function submitRename(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (rename.isPending) return
+
+    const form = event.currentTarget
+    const title = new FormData(form).get("chat_title")?.toString().trim() || ""
+    if (title.length === 0) return
+
+    rename.mutate(title)
+  }
 
   return (
     <div className="absolute right-1 top-1/2 -translate-y-1/2" ref={menuRef}>
@@ -984,6 +1043,16 @@ function RecentChatActionsMenu({ chat, disabled, onHide, onTogglePin, search }: 
           >
             {chat.unread ? "Mark as read" : "Mark as unread"}
           </button>
+          <button
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+            onClick={() => {
+              setOpen(false)
+              setRenameOpen(true)
+            }}
+            type="button"
+          >
+            {t("chat:rename")}
+          </button>
           <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
           <button
             className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-red-300 dark:hover:bg-red-950/40"
@@ -997,7 +1066,81 @@ function RecentChatActionsMenu({ chat, disabled, onHide, onTogglePin, search }: 
             <HideIcon />
             <span>{t("chat:hide")}</span>
           </button>
+          <button
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-red-300 dark:hover:bg-red-950/40"
+            disabled={deleteDisabled}
+            onClick={() => {
+              setOpen(false)
+              setDeleteConfirmOpen(true)
+            }}
+            type="button"
+          >
+            <CloseIcon className="h-4 w-4 shrink-0" />
+            <span>{t("chat:delete")}</span>
+          </button>
         </div>
+      ) : null}
+      {/* Both confirm dialogs render through a portal: this menu wrapper is
+          `absolute … -translate-y-1/2`, and a CSS transform makes an ancestor
+          the containing block for fixed-position descendants — an inline
+          `fixed inset-0` overlay here would be sized/clipped to the chat row
+          instead of the viewport. */}
+      {renameOpen ? createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="presentation">
+          <form aria-modal="true" className="w-full max-w-sm rounded border border-gray-200 bg-white p-4 shadow-xl dark:border-gray-700 dark:bg-gray-950" onSubmit={submitRename} role="dialog">
+            <div className="flex items-start justify-between gap-3">
+              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("chat:rename_chat_title")}</h2>
+              <button aria-label={t("chat:cancel")} className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100" disabled={rename.isPending} onClick={() => setRenameOpen(false)} type="button">
+                <CloseIcon className="h-4 w-4" />
+              </button>
+            </div>
+            <label className="mt-4 block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor={`rename-chat-${chat.id}`}>{t("chat:rename_chat_label")}</label>
+            <input
+              autoFocus
+              className="mt-1 w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+              defaultValue={chat.title || ""}
+              disabled={rename.isPending}
+              id={`rename-chat-${chat.id}`}
+              maxLength={120}
+              name="chat_title"
+              required
+              type="text"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800" disabled={rename.isPending} onClick={() => setRenameOpen(false)} type="button">{t("chat:cancel")}</button>
+              <button className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-blue-300" disabled={rename.isPending} type="submit">{t("chat:save")}</button>
+            </div>
+          </form>
+        </div>,
+        document.body
+      ) : null}
+      {deleteConfirmOpen ? createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="presentation">
+          <div aria-modal="true" className="w-full max-w-sm rounded border border-gray-200 bg-white p-4 shadow-xl dark:border-gray-700 dark:bg-gray-950" role="dialog">
+            <div className="flex items-start justify-between gap-3">
+              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("chat:delete_chat_title")}</h2>
+              <button aria-label={t("chat:cancel")} className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100" onClick={() => setDeleteConfirmOpen(false)} type="button">
+                <CloseIcon className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="mt-3 text-sm text-gray-700 dark:text-gray-300">{t("chat:delete_confirm_body")}</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800" onClick={() => setDeleteConfirmOpen(false)} type="button">{t("chat:cancel")}</button>
+              <button
+                className="rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:bg-red-300"
+                disabled={deleteDisabled}
+                onClick={() => {
+                  setDeleteConfirmOpen(false)
+                  onDelete()
+                }}
+                type="button"
+              >
+                {t("chat:delete_confirm")}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       ) : null}
     </div>
   )
