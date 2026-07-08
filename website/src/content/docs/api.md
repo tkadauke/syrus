@@ -152,15 +152,29 @@ curl -X POST https://syrus.example.com/api/v1/app/epics \
 
 ## Rename a Chat
 
-`POST /api/v1/app/chats/:id/rename` renames one of the authenticated
-user's chat sessions. `name` is required and must be 60 characters or
-fewer.
+`POST /api/v1/app/chats/:id/rename` (also accepted as `PATCH`) renames one
+of the authenticated user's chat sessions. `name` is required and must be
+120 characters or fewer.
 
 ```bash
 curl -X POST https://syrus.example.com/api/v1/app/chats/123/rename \
   -H "Authorization: Bearer $SYRUS_API_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{ "name": "Release planning" }'
+```
+
+## Delete a Chat
+
+`DELETE /api/v1/app/chats/:id` permanently deletes one of the authenticated
+user's chat sessions: the conversation, its messages and bookmarks, queued
+messages, attachments, proposals, pending actions, whiteboard, search-index
+entries, and the chat workspace directory on disk. There is no undo — use
+hide/unhide for reversible cleanup. The request is refused with `409
+Conflict` (`error.code` `turn_in_flight`) while a turn is actively running.
+
+```bash
+curl -X DELETE https://syrus.example.com/api/v1/app/chats/123 \
+  -H "Authorization: Bearer $SYRUS_API_TOKEN"
 ```
 
 ## Pin or Unpin a Chat

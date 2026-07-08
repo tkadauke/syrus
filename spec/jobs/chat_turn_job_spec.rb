@@ -275,6 +275,25 @@ RSpec.describe ChatTurnJob do
     expect(received[:prompt]).to include("Use `attach_repository(slug)`")
   end
 
+  it "clears the stored next-step suggestion when a turn starts" do
+    chat = ChatSession.create!(user: user, suggested_next_step: "Create an Epic from these findings")
+    message = chat.messages.create!(role: "assistant", content: { text: "Proposal outcome" })
+    top_level_path = workspace_root.join("suggestion")
+    allow(ChatWorkspace).to receive(:path_for).with(chat).and_return(top_level_path)
+    allow(ChatWorkspace).to receive(:ensure_root!).with(chat).and_return(top_level_path)
+
+    suggestion_at_agent_start = :unset
+    ChatTurnJob.agent_runner = ->(**_kwargs) {
+      suggestion_at_agent_start = chat.reload.suggested_next_step
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(chat.id, message.id)
+
+    expect(suggestion_at_agent_start).to be_nil
+    expect(chat.reload.suggested_next_step).to be_nil
+  end
+
   it "passes a temporary git askpass helper to Claude for attached repositories and deletes it after success" do
     allow(GithubClient).to receive(:for)
       .with(repository: repository, user: user)

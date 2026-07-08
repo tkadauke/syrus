@@ -105,5 +105,12 @@ class WorkflowWorkspacePruneJob < ApplicationJob
   def chat_workspace_sweep
     n = ChatWorkspace.prune_idle!(older_than: RETAIN_CHAT_WORKSPACES)
     Rails.logger.info("[WorkflowWorkspacePrune] chat_workspace_sweep removed #{n} chat workspaces") if n > 0
+
+    # Orphan sweep: chat-workspaces/<id> and agent_homes/chats/<id>
+    # directories whose ChatSession no longer exists. Heals leaks from
+    # deletions that ran on a pod without the workspace PVC (and the
+    # era when agent homes were never cleaned at all).
+    orphans = ChatWorkspace.sweep_orphans!
+    Rails.logger.info("[WorkflowWorkspacePrune] chat_workspace_sweep removed #{orphans} orphaned chat directories") if orphans > 0
   end
 end

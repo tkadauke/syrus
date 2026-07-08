@@ -45,5 +45,19 @@
   "open_panel": "Tabulam aperire",
   "resize_workspace": "Spatium operis variare",
   "new_messages_button_one": "1 nuntius novus",
-  "new_messages_button_other": "{{count}} nuntii novi"
+  "new_messages_button_other": "{{count}} nuntii novi",
+  "rename": "Renominare",
+  "rename_chat_title": "Colloquium renominare",
+  "rename_chat_label": "Nomen colloquii",
+  "save": "Servare",
+  "unable_to_rename": "Colloquium renominari non potuit.",
+  "delete": "Colloquium delere",
+  "delete_chat_title": "Colloquium delere",
+  "delete_confirm_body": "Colloquium, nuntii eius, et omnia data adiuncta in perpetuum delebuntur. Hoc revocari non potest.",
+  "delete_confirm": "Delere",
+  "unable_to_delete": "Colloquium deleri non potuit.",
+  "chat_deleted": "Colloquium deletum.",
+  "suggestion_tab_hint": "tab",
+  "suggestion_available": "Nuntius proximus suasus: {{suggestion}}. Preme Tab ut accipias.",
+  "create_epic_and_start": "Epicam crea et effectionem incipe"
 }

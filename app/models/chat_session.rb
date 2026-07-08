@@ -1,6 +1,7 @@
 class ChatSession < ApplicationRecord
   MESSAGE_PAGE_SIZE = 30
-  TITLE_MAX_LENGTH = 60
+  TITLE_MAX_LENGTH = 120
+  SUGGESTED_NEXT_STEP_MAX_BYTES = 200
 
   belongs_to :user
 
@@ -50,8 +51,18 @@ class ChatSession < ApplicationRecord
 
   after_update_commit :broadcast_header, if: :header_previously_changed?
   after_create :attach_initial_repository
-  before_destroy :destroy_workspace
+  # prepend: dependent-association callbacks (declared above) also run
+  # as before_destroy; the pending JobDependency placeholders must be
+  # released BEFORE `dependent: :destroy` deletes the proposals they
+  # reference, or the proposal delete raises InvalidForeignKey.
+  before_destroy :release_unresolved_proposal_dependencies, prepend: true
+  # Filesystem + FTS cleanup is deliberately NOT done here: it runs
+  # post-commit on the worker via ChatSessionCleanupJob, so a rollback
+  # can't leave irreversible side effects behind and the rm_rf happens
+  # on the pod that actually mounts the workspace PVC.
+  after_destroy_commit :enqueue_cleanup_job
 
+  validates :title, length: { maximum: TITLE_MAX_LENGTH }, allow_nil: true
   validates :cumulative_input_tokens,
             numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :cumulative_output_tokens,
@@ -207,6 +218,40 @@ class ChatSession < ApplicationRecord
     )
   end
 
+  # Stores the agent's tab-completable next-step suggestion, clamped to
+  # SUGGESTED_NEXT_STEP_MAX_BYTES via safe_byteslice so multibyte
+  # characters are never split. Returns the stored text, or nil when the
+  # clamped text is blank.
+  def record_suggested_next_step!(text)
+    clamped = text.to_s.strip.safe_byteslice(0, SUGGESTED_NEXT_STEP_MAX_BYTES).to_s.strip
+    return if clamped.blank?
+
+    update!(suggested_next_step: clamped)
+    broadcast_app_suggestion_update
+    clamped
+  end
+
+  def clear_suggested_next_step!
+    return if suggested_next_step.blank?
+
+    update!(suggested_next_step: nil)
+    broadcast_app_suggestion_update
+  end
+
+  def broadcast_app_suggestion_update
+    AppEvents.broadcast(
+      user: user,
+      type: "updated",
+      resource: "chat",
+      id: id,
+      changed: [ "suggestion" ],
+      payload: {
+        action: "update_suggestion",
+        suggested_next_step: suggested_next_step
+      }
+    )
+  end
+
   def broadcast_app_controls_update(switching_provider: false)
     AppEvents.broadcast(
       user: user,
@@ -242,8 +287,19 @@ class ChatSession < ApplicationRecord
     chat_attachments.create!(attachable: @initial_repository, suppress_header_broadcast: true)
   end
 
-  def destroy_workspace
-    ChatWorkspace.destroy!(self)
+  # Pending JobDependency rows can reference this chat's proposals via
+  # unresolved_chat_proposal_id (a placeholder awaiting a proposal that
+  # will now never materialize). Such rows can never resolve once the
+  # proposal is gone — dependency_succeeded? would stay false forever
+  # and wedge the dependent Job — so they are removed, not nullified:
+  # a JobDependency must reference exactly one target, and a
+  # target-less row is both invalid and permanently blocking.
+  def release_unresolved_proposal_dependencies
+    JobDependency.where(unresolved_chat_proposal_id: proposals.select(:id)).delete_all
+  end
+
+  def enqueue_cleanup_job
+    ChatSessionCleanupJob.perform_later(id, workspace_path)
   end
 
   def attached_records_for(type)

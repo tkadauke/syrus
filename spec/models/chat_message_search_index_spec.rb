@@ -34,6 +34,23 @@ RSpec.describe ChatMessageSearchIndex do
     expect(results.first[:snippet]).to include("<mark>deploy</mark>")
   end
 
+  it "skips inserting when the message's chat session no longer exists" do
+    message = ChatMessage.create!(
+      chat_session: session,
+      role: "user",
+      content: { "text" => "Indexed after the chat was deleted." }
+    )
+    # Simulate the deletion race: an IndexChatMessageJob loaded the
+    # message just before the chat (and its rows) were hard-deleted and
+    # ChatSessionCleanupJob purged the index. Re-inserting now would
+    # orphan an FTS row forever.
+    session.destroy!
+
+    expect { described_class.insert(message) }.not_to raise_error
+
+    expect(described_class.search("deleted", user_id: user.id)).to be_empty
+  end
+
   it "scopes results to the requested user" do
     own_message = ChatMessage.create!(
       chat_session: session,

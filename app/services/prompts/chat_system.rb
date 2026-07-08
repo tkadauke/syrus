@@ -340,6 +340,12 @@ module Prompts
           - When attached context is relevant, use the attachment details
             above directly. Use `read_epic`, `read_job`, or
             `read_repo_document` when you need full detail.
+          - At the end of a turn, when there is one clear, natural next
+            step, call `suggest_next_step(text)` with a concise,
+            actionable next message written in the operator's voice
+            (e.g. "Create an Epic from these findings"). It appears as
+            tab-completable ghost text in the composer. Skip it when no
+            follow-up is natural — never invent busywork.
         #{onboarding_guidance}
       PROMPT
     end

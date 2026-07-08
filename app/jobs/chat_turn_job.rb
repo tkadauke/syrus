@@ -48,6 +48,7 @@ class ChatTurnJob < ApplicationJob
     @cancelled = false
 
     clear_stale_stop_request!
+    @chat.clear_suggested_next_step!
     return if stop_requested?
     @current_assistant_content = []
 

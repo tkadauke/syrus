@@ -88,9 +88,10 @@ RSpec.describe SyrusChatMcp::Sidecar do
         repo_info
         submit_chat_feedback
         rename_chat
+        suggest_next_step
         ask_user_question
       ])
-      expect(tool_names.size).to eq(22)
+      expect(tool_names.size).to eq(23)
     end
 
     it "advertises specialty tools via the deferred tools/list" do

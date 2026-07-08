@@ -104,8 +104,47 @@ RSpec.describe ChatWorkspace do
       expect(path).not_to exist
     end
 
+    it "removes the per-chat agent homes alongside the workspace" do
+      path = described_class.ensure_root!(chat_session)
+      agent_home = described_class.agent_home_for(chat_session, "codex")
+      FileUtils.mkdir_p(agent_home.to_s)
+      FileUtils.touch(agent_home.join("auth.json").to_s)
+
+      described_class.destroy!(chat_session)
+
+      expect(path).not_to exist
+      expect(described_class.agent_homes_root_for_id(chat_session.id)).not_to exist
+    end
+
     it "is idempotent on a missing path" do
       expect { described_class.destroy!(chat_session) }.not_to raise_error
+    end
+  end
+
+  describe ".remove_artifacts_for_id!" do
+    it "rejects non-positive ids" do
+      expect { described_class.remove_artifacts_for_id!(0) }.to raise_error(ArgumentError)
+      expect { described_class.remove_artifacts_for_id!(-3) }.to raise_error(ArgumentError)
+    end
+
+    it "ignores recorded workspace paths outside SYRUS_DATA_ROOT" do
+      outside = Pathname.new(Dir.mktmpdir("syrus-chatws-outside"))
+      FileUtils.touch(outside.join("keep.txt").to_s)
+
+      described_class.remove_artifacts_for_id!(chat_session.id, recorded_workspace_path: outside.to_s)
+
+      expect(outside.join("keep.txt")).to exist
+    ensure
+      FileUtils.rm_rf(outside.to_s) if outside
+    end
+
+    it "never removes the data root itself when it is passed as the recorded path" do
+      marker = Pathname.new(@data_root).join("marker.txt")
+      FileUtils.touch(marker.to_s)
+
+      described_class.remove_artifacts_for_id!(chat_session.id, recorded_workspace_path: @data_root)
+
+      expect(marker).to exist
     end
   end
 
@@ -120,6 +159,17 @@ RSpec.describe ChatWorkspace do
       expect(chat_session.reload.workspace_path).to be_nil
     end
 
+    it "prunes the per-chat agent homes alongside the idle workspace" do
+      described_class.ensure_root!(chat_session)
+      agent_home = described_class.agent_home_for(chat_session, "codex")
+      FileUtils.mkdir_p(agent_home.to_s)
+      chat_session.update_columns(last_message_at: 8.days.ago, updated_at: 8.days.ago)
+
+      expect(described_class.prune_idle!(older_than: 7.days)).to eq(1)
+
+      expect(described_class.agent_homes_root_for_id(chat_session.id)).not_to exist
+    end
+
     it "leaves recently used chat workspaces alone" do
       path = described_class.ensure_root!(chat_session)
       chat_session.update_columns(last_message_at: 1.day.ago)
@@ -131,13 +181,53 @@ RSpec.describe ChatWorkspace do
     end
   end
 
-  describe "ChatSession destroy callback" do
-    it "removes the chat workspace" do
-      path = described_class.ensure_root!(chat_session)
+  describe ".sweep_orphans!" do
+    it "removes chat-workspace and agent-home directories whose ChatSession no longer exists" do
+      root = Pathname.new(@data_root)
+      orphan_workspace = root.join("chat-workspaces", "424242")
+      orphan_home = root.join("agent_homes", "chats", "424242")
+      live_workspace = root.join("chat-workspaces", chat_session.id.to_s)
+      live_home = root.join("agent_homes", "chats", chat_session.id.to_s)
+      [ orphan_workspace, orphan_home, live_workspace, live_home ].each { |path| FileUtils.mkdir_p(path.to_s) }
 
-      chat_session.destroy!
+      expect(described_class.sweep_orphans!).to eq(2)
+
+      expect(orphan_workspace).not_to exist
+      expect(orphan_home).not_to exist
+      expect(live_workspace).to exist
+      expect(live_home).to exist
+    end
+
+    it "skips non-numeric directory names and missing roots" do
+      root = Pathname.new(@data_root)
+      weird = root.join("chat-workspaces", "not-a-chat-id")
+      FileUtils.mkdir_p(weird.to_s)
+
+      expect(described_class.sweep_orphans!).to eq(0)
+
+      expect(weird).to exist
+    end
+  end
+
+  describe "ChatSession destroy" do
+    it "enqueues the worker-side cleanup job instead of removing the workspace inline" do
+      path = described_class.ensure_root!(chat_session)
+      agent_home = described_class.agent_home_for(chat_session, "codex")
+      FileUtils.mkdir_p(agent_home.to_s)
+      id = chat_session.id
+      workspace_path = chat_session.reload.workspace_path
+
+      expect { chat_session.destroy! }
+        .to have_enqueued_job(ChatSessionCleanupJob).with(id, workspace_path).on_queue("chat")
+
+      # The request-side destroy leaves the filesystem alone (the web pod
+      # doesn't mount the workspace PVC); the enqueued job does the removal.
+      expect(path).to exist
+
+      ChatSessionCleanupJob.perform_now(id, workspace_path)
 
       expect(path).not_to exist
+      expect(described_class.agent_homes_root_for_id(id)).not_to exist
     end
   end
 

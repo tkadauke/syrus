@@ -94,6 +94,7 @@ module SyrusChatMcp
       RepoInfoTool,
       SubmitChatFeedbackTool,
       RenameChatTool,
+      SuggestNextStepTool,
       AskUserQuestionTool,
       *ADMIN_TOOLS
     ].freeze

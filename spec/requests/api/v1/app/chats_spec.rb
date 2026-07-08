@@ -1,4 +1,5 @@
 require "rails_helper"
+require "tmpdir"
 
 RSpec.describe "API: /api/v1/app/chats", type: :request do
   let(:user) { Factories.user(claude_oauth_token: "oat-test") }
@@ -161,6 +162,20 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
     expect(response).to have_http_status(:created)
     expect(ChatSession.find(parse_body["id"]).chat_provider).to be_nil
+  end
+
+  it "clamps a branched chat's derived title at the title length limit" do
+    sign_in_as(user)
+    max_title = "R" * ChatSession::TITLE_MAX_LENGTH
+    chat = ChatSession.create!(user: user, repository: repository, title: max_title)
+
+    post "/api/v1/app/chats/#{chat.id}/branch"
+
+    expect(response).to have_http_status(:created)
+    branched = ChatSession.find(parse_body["id"])
+    expect(branched.title.length).to be <= ChatSession::TITLE_MAX_LENGTH
+    expect(branched.title).to end_with(" (branch)")
+    expect(branched.title).to start_with("RRRR")
   end
 
   it "rejects branching another user's chat" do
@@ -629,6 +644,138 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "message")).to eq("Name must be #{ChatSession::TITLE_MAX_LENGTH} characters or fewer.")
     expect(chat.reload.title).to eq("Old title")
+  end
+
+  it "accepts rename titles up to the 120-character limit" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, title: "Old title", last_message_at: Time.current)
+
+    post "/api/v1/app/chats/#{chat.id}/rename", params: { name: "a" * ChatSession::TITLE_MAX_LENGTH }
+
+    expect(response).to have_http_status(:ok)
+    expect(ChatSession::TITLE_MAX_LENGTH).to eq(120)
+    expect(chat.reload.title).to eq("a" * 120)
+  end
+
+  describe "DELETE /api/v1/app/chats/:id" do
+    it "hard-deletes the chat and its dependent rows, then cleans search index, workspace, and agent homes via the worker job" do
+      prepare_search_tables
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, title: "Doomed", last_message_at: Time.current)
+      message = chat.messages.create!(role: "user", content: { "text" => "Catapult research" })
+      chat.messages.create!(role: "assistant", content: { "text" => "Done." })
+      bookmark = message.bookmarks.create!(label: "Catapults", kind: "topic")
+      queued = chat.chat_queued_messages.create!(content: { "text" => "Queued follow-up" })
+      proposal = chat.proposals.create!(slug: "catapult-job", title: "Build catapult", body: "Do it.")
+      whiteboard = chat.create_whiteboard!
+      ChatMessageSearchIndex.insert(message)
+      expect(ChatMessageSearchIndex.search("catapult", user_id: user.id)).not_to be_empty
+
+      original_data_root = ENV["SYRUS_DATA_ROOT"]
+      Dir.mktmpdir("syrus-data-root") do |data_root|
+        ENV["SYRUS_DATA_ROOT"] = data_root
+        workspace = ChatWorkspace.ensure_root!(chat)
+        FileUtils.touch(workspace.join("scratch.txt"))
+        agent_home = ChatWorkspace.agent_home_for(chat, "codex")
+        FileUtils.mkdir_p(agent_home.to_s)
+        recorded_workspace_path = chat.reload.workspace_path
+        expect(File.directory?(workspace)).to be(true)
+
+        expect {
+          delete "/api/v1/app/chats/#{chat.id}"
+        }.to have_enqueued_job(ChatSessionCleanupJob).with(chat.id, recorded_workspace_path).on_queue("chat")
+
+        expect(response).to have_http_status(:ok)
+        expect(parse_body["message"]).to eq("Chat deleted.")
+
+        # The request itself only deletes rows; the filesystem + FTS
+        # cleanup runs post-commit on the worker (the web pod doesn't
+        # mount the workspace PVC).
+        expect(File.directory?(workspace)).to be(true)
+
+        ChatSessionCleanupJob.perform_now(chat.id, recorded_workspace_path)
+
+        expect(File.exist?(workspace)).to be(false)
+        expect(File.exist?(agent_home)).to be(false)
+      ensure
+        ENV["SYRUS_DATA_ROOT"] = original_data_root
+      end
+
+      expect(ChatSession.exists?(chat.id)).to be(false)
+      expect(ChatMessage.where(chat_session_id: chat.id)).to be_empty
+      expect(ChatBookmark.exists?(bookmark.id)).to be(false)
+      expect(ChatQueuedMessage.exists?(queued.id)).to be(false)
+      expect(ChatProposal.exists?(proposal.id)).to be(false)
+      expect(Whiteboard.exists?(whiteboard.id)).to be(false)
+      expect(ChatAttachment.where(chat_session_id: chat.id)).to be_empty
+      expect(ChatMessageSearchIndex.search("catapult", user_id: user.id)).to be_empty
+    end
+
+    it "deletes a chat whose proposals are referenced by pending JobDependency placeholders" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, title: "Has placeholders")
+      proposal = chat.proposals.create!(slug: "upstream-work", title: "Upstream work", body: "First.")
+      dependent_job = Factories.job_record(user: user, repository: repository)
+      dependency = JobDependency.create!(job: dependent_job, unresolved_chat_proposal: proposal, source: "parsed")
+
+      delete "/api/v1/app/chats/#{chat.id}"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["message"]).to eq("Chat deleted.")
+      expect(ChatSession.exists?(chat.id)).to be(false)
+      expect(ChatProposal.exists?(proposal.id)).to be(false)
+      # The placeholder can never resolve once its proposal is gone —
+      # it is removed so it cannot wedge the dependent Job forever.
+      expect(JobDependency.exists?(dependency.id)).to be(false)
+      expect(Job.exists?(dependent_job.id)).to be(true)
+    end
+
+    it "refuses deletion with a 409 while a turn is in flight" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+      chat.messages.create!(role: "user", content: { "text" => "Still thinking..." })
+
+      delete "/api/v1/app/chats/#{chat.id}"
+
+      expect(response).to have_http_status(:conflict)
+      expect(parse_body.dig("error", "code")).to eq("turn_in_flight")
+      expect(parse_body.dig("error", "message")).to include("while a turn is in progress")
+      expect(ChatSession.exists?(chat.id)).to be(true)
+    end
+
+    it "404s for another user's chat" do
+      other_user = Factories.user(claude_oauth_token: "oat-other")
+      other_chat = ChatSession.create!(user: other_user)
+      sign_in_as(user)
+
+      delete "/api/v1/app/chats/#{other_chat.id}"
+
+      expect(response).to have_http_status(:not_found)
+      expect(ChatSession.exists?(other_chat.id)).to be(true)
+    end
+  end
+
+  describe "next-step suggestion" do
+    it "serializes the stored suggestion in the chat payload" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, suggested_next_step: "Create an Epic from these findings")
+
+      get "/api/v1/app/chats/#{chat.id}"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("chat", "suggested_next_step")).to eq("Create an Epic from these findings")
+    end
+
+    it "clears the stored suggestion when the operator sends a message" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, suggested_next_step: "Create an Epic from these findings")
+
+      post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "Do the other thing instead" } }
+
+      expect(response).to have_http_status(:ok)
+      expect(chat.reload.suggested_next_step).to be_nil
+      expect(parse_body.dig("chat", "suggested_next_step")).to be_nil
+    end
   end
 
   it "creates a fresh chat with an optional repository attachment" do
@@ -1840,6 +1987,107 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       "acknowledgment" => "Confirmed #{proposal.epic.slug}."
     )
     expect(chat.messages.where(role: "user").count).to eq(0)
+  end
+
+  it "confirms an Epic proposal and starts implementing when start is requested" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    proposal = chat.proposals.create!(
+      slug: "ship-auth",
+      title: "Ship auth",
+      body: "Group the auth work.",
+      kind: "epic",
+      repository: repository
+    )
+    schema = proposal.child_proposals.create!(
+      chat_session: chat,
+      slug: "auth-schema",
+      title: "Auth schema",
+      body: "Add tables.",
+      repository: repository
+    )
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm", params: { start: true }
+    }.to change(Run, :count).by(1)
+
+    expect(response).to have_http_status(:ok)
+    expect(proposal.reload).to be_confirmed
+    epic = proposal.epic
+    expect(epic).to be_in_progress
+    expect(epic.owner_user).to eq(user)
+    job = schema.reload.job
+    expect(job).to be_queued
+    expect(job.runs.count).to eq(1)
+    expect(parse_body["message"]).to eq(
+      "Proposal confirmed and filed as #{epic.slug}. Epic started — ready child Jobs are dispatching."
+    )
+    confirmation_message = chat.messages.where(role: "system").order(:created_at, :id).last
+    expect(confirmation_message.content.fetch("text")).to include("The Epic was started; ready child Jobs are dispatching.")
+  end
+
+  it "confirms the proposal even when the best-effort Epic start raises unexpectedly" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    proposal = chat.proposals.create!(
+      slug: "ship-auth",
+      title: "Ship auth",
+      body: "Group the auth work.",
+      kind: "epic",
+      repository: repository
+    )
+    proposal.child_proposals.create!(
+      chat_session: chat,
+      slug: "auth-schema",
+      title: "Auth schema",
+      body: "Add tables.",
+      repository: repository
+    )
+    # Not just Epic::NotStartable: the synchronous start creates
+    # Workflows/Runs and can raise anything. None of it may abort the
+    # confirmation the operator just made.
+    allow_any_instance_of(Epic).to receive(:start_implementing!).and_raise(RuntimeError, "boom")
+    allow(Rails.logger).to receive(:error).and_call_original
+
+    post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm", params: { start: true }
+
+    expect(response).to have_http_status(:ok)
+    expect(proposal.reload).to be_confirmed
+    epic = proposal.epic
+    expect(epic).to be_present
+    expect(epic).not_to be_in_progress
+    expect(parse_body["message"]).to eq("Proposal confirmed and filed as #{epic.slug}.")
+    expect(Rails.logger).to have_received(:error)
+      .with(a_string_including("best-effort Epic start after confirming proposal ##{proposal.id} failed"))
+    confirmation_message = chat.messages.where(role: "system").order(:created_at, :id).last
+    expect(confirmation_message.content.fetch("text")).not_to include("The Epic was started")
+  end
+
+  it "confirms an Epic proposal without starting when start is absent" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    proposal = chat.proposals.create!(
+      slug: "ship-auth",
+      title: "Ship auth",
+      body: "Group the auth work.",
+      kind: "epic",
+      repository: repository
+    )
+    child = proposal.child_proposals.create!(
+      chat_session: chat,
+      slug: "auth-schema",
+      title: "Auth schema",
+      body: "Add tables.",
+      repository: repository
+    )
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm"
+    }.not_to change(Run, :count)
+
+    expect(response).to have_http_status(:ok)
+    expect(proposal.reload.epic).to be_ready
+    expect(child.reload.job).to be_blocked_by_epic
   end
 
   it "rejects proposed child proposals when rejecting an Epic proposal" do

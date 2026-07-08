@@ -174,4 +174,24 @@ RSpec.describe ChatMessage do
       }.not_to have_enqueued_job(IndexChatMessageJob)
     end
   end
+
+  describe "after_create_commit :clear_suggested_next_step" do
+    it "clears the stored suggestion when a user message lands" do
+      allow(AppEvents).to receive(:broadcast)
+      session.update!(suggested_next_step: "Create an Epic from these findings")
+
+      described_class.create!(chat_session: session, role: "user", content: { "text" => "Actually, let's refactor first." })
+
+      expect(session.reload.suggested_next_step).to be_nil
+    end
+
+    it "keeps the stored suggestion for non-user messages" do
+      allow(AppEvents).to receive(:broadcast)
+      session.update!(suggested_next_step: "Create an Epic from these findings")
+
+      described_class.create!(chat_session: session, role: "assistant", content: { "text" => "Done." })
+
+      expect(session.reload.suggested_next_step).to eq("Create an Epic from these findings")
+    end
+  end
 end

@@ -54,8 +54,8 @@ RSpec.describe ChatTitleGenerator do
     expect(seen[:max_turns]).to eq(1)
   end
 
-  it "rejects titles over sixty characters" do
-    generated = call_with({ title: "A" * 61 }.to_json)
+  it "rejects titles over the title length limit" do
+    generated = call_with({ title: "A" * (ChatSession::TITLE_MAX_LENGTH + 1) }.to_json)
 
     expect(generated).not_to be_success
     expect(generated.error).to match(/title too long/)

@@ -1,4 +1,5 @@
 require "rails_helper"
+require "tmpdir"
 
 RSpec.describe ChatSession do
   let(:repo) { Factories.repository }
@@ -371,5 +372,171 @@ RSpec.describe ChatSession do
 
       expect(session.attached_documents_in_scope).to contain_exactly(repo_document, job_document, direct_document)
     end
+  end
+
+  describe "suggested next step" do
+    let(:session) { described_class.create!(repository: repo, user: repo.user) }
+
+    it "stores a trimmed suggestion and broadcasts a suggestion event" do
+      events = []
+      allow(AppEvents).to receive(:broadcast) { |**kwargs| events << kwargs }
+
+      stored = session.record_suggested_next_step!("  Create an Epic from these findings  ")
+
+      expect(stored).to eq("Create an Epic from these findings")
+      expect(session.reload.suggested_next_step).to eq("Create an Epic from these findings")
+      suggestion_event = events.find { |event| event[:changed] == [ "suggestion" ] }
+      expect(suggestion_event[:payload]).to eq(
+        action: "update_suggestion",
+        suggested_next_step: "Create an Epic from these findings"
+      )
+    end
+
+    it "clamps stored suggestions to the byte limit with safe_byteslice" do
+      session.record_suggested_next_step!("ü" * 300)
+
+      stored = session.reload.suggested_next_step
+      expect(stored.bytesize).to be <= ChatSession::SUGGESTED_NEXT_STEP_MAX_BYTES
+      expect(stored).to eq("ü" * 100)
+      expect(stored).to be_valid_encoding
+    end
+
+    it "returns nil and stores nothing for blank suggestions" do
+      session
+      expect(AppEvents).not_to receive(:broadcast)
+
+      expect(session.record_suggested_next_step!("   ")).to be_nil
+      expect(session.reload.suggested_next_step).to be_nil
+    end
+
+    it "clears a stored suggestion and broadcasts the cleared value" do
+      session.update!(suggested_next_step: "Ship it")
+      events = []
+      allow(AppEvents).to receive(:broadcast) { |**kwargs| events << kwargs }
+
+      session.clear_suggested_next_step!
+
+      expect(session.reload.suggested_next_step).to be_nil
+      suggestion_event = events.find { |event| event[:changed] == [ "suggestion" ] }
+      expect(suggestion_event[:payload]).to eq(
+        action: "update_suggestion",
+        suggested_next_step: nil
+      )
+    end
+
+    it "does not broadcast when clearing an already-empty suggestion" do
+      session
+      expect(AppEvents).not_to receive(:broadcast)
+
+      session.clear_suggested_next_step!
+    end
+  end
+
+  describe "#destroy" do
+    # ChatSessionCleanupJob derives filesystem paths from
+    # SYRUS_DATA_ROOT (default ~/.syrus). Pin it to a throwaway tmpdir
+    # so performing the job in specs can never touch a real data root.
+    around do |example|
+      original = ENV["SYRUS_DATA_ROOT"]
+      Dir.mktmpdir("syrus-chat-session-destroy") do |dir|
+        ENV["SYRUS_DATA_ROOT"] = dir
+        example.run
+      ensure
+        ENV["SYRUS_DATA_ROOT"] = original
+      end
+    end
+
+    it "purges the chat's search-index rows via the post-commit cleanup job" do
+      prepare_search_tables
+      session = described_class.create!(repository: repo, user: repo.user)
+      message = session.messages.create!(role: "user", content: { "text" => "Aqueduct feasibility" })
+      ChatMessageSearchIndex.insert(message)
+      expect(ChatMessageSearchIndex.search("aqueduct", user_id: repo.user.id)).not_to be_empty
+      id = session.id
+
+      session.destroy!
+
+      # The purge is deliberately NOT part of the destroy transaction —
+      # it runs post-commit on the worker so a rollback can't leave the
+      # index half-purged.
+      expect(ChatMessageSearchIndex.search("aqueduct", user_id: repo.user.id)).not_to be_empty
+
+      ChatSessionCleanupJob.perform_now(id, nil)
+
+      expect(ChatMessageSearchIndex.search("aqueduct", user_id: repo.user.id)).to be_empty
+    end
+
+    it "enqueues the cleanup job post-commit with the chat id and recorded workspace path" do
+      session = described_class.create!(repository: repo, user: repo.user)
+      session.update_columns(workspace_path: "/tmp/syrus-data/chat-workspaces/#{session.id}")
+      id = session.id
+
+      expect { session.destroy! }
+        .to have_enqueued_job(ChatSessionCleanupJob)
+        .with(id, "/tmp/syrus-data/chat-workspaces/#{id}")
+        .on_queue("chat")
+    end
+
+    it "survives destroy when the search schema is absent" do
+      SearchRecord.connection.execute("DROP TABLE IF EXISTS chat_message_fts")
+      SearchRecord.connection.execute("DROP TABLE IF EXISTS chat_search_metadata")
+      session = described_class.create!(repository: repo, user: repo.user)
+      session.messages.create!(role: "user", content: { "text" => "No search here" })
+      id = session.id
+
+      expect { session.destroy! }.to change(described_class, :count).by(-1)
+      expect { ChatSessionCleanupJob.perform_now(id, nil) }.not_to raise_error
+    end
+
+    it "removes pending JobDependency placeholders that reference its proposals before the proposals go" do
+      session = described_class.create!(repository: repo, user: repo.user)
+      proposal = session.proposals.create!(slug: "upstream-work", title: "Upstream work", body: "First.")
+      dependent_job = Factories.job_record(user: repo.user, repository: repo)
+      dependency = JobDependency.create!(job: dependent_job, unresolved_chat_proposal: proposal, source: "parsed")
+
+      expect { session.destroy! }.not_to raise_error
+
+      expect(JobDependency.exists?(dependency.id)).to be(false)
+      expect(ChatProposal.exists?(proposal.id)).to be(false)
+      expect(Job.exists?(dependent_job.id)).to be(true)
+    end
+  end
+
+  describe "title length" do
+    it "rejects titles longer than TITLE_MAX_LENGTH so no code path can overflow" do
+      session = described_class.new(user: repo.user, title: "R" * (ChatSession::TITLE_MAX_LENGTH + 1))
+
+      expect(session).not_to be_valid
+      expect(session.errors[:title]).to be_present
+    end
+
+    it "accepts titles at exactly TITLE_MAX_LENGTH" do
+      session = described_class.new(user: repo.user, title: "R" * ChatSession::TITLE_MAX_LENGTH)
+
+      expect(session).to be_valid
+    end
+  end
+
+  def prepare_search_tables
+    SearchRecord.connection.execute("DROP TABLE IF EXISTS chat_message_fts")
+    SearchRecord.connection.execute("DROP TABLE IF EXISTS chat_search_metadata")
+    SearchRecord.connection.execute(<<~SQL)
+      CREATE VIRTUAL TABLE chat_message_fts
+      USING fts5(
+        content,
+        user_id UNINDEXED,
+        chat_session_id UNINDEXED,
+        chat_message_id UNINDEXED,
+        role UNINDEXED,
+        created_at UNINDEXED,
+        tokenize = 'porter unicode61'
+      )
+    SQL
+    SearchRecord.connection.execute(<<~SQL)
+      CREATE TABLE chat_search_metadata (
+        key TEXT PRIMARY KEY,
+        value TEXT
+      )
+    SQL
   end
 end

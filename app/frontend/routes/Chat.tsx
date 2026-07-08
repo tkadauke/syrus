@@ -120,6 +120,10 @@ const CHAT_WORKSPACE_WIDTH_KEY = "syrus.chat.workspace.width"
 const CHAT_WORKSPACE_TAB_KEY = "syrus.chat.workspace.tab"
 const CHAT_WORKSPACE_COLLAPSED_KEY = "syrus.chat.workspace.collapsed"
 const CHAT_DRAFT_KEY_PREFIX = "syrus.chat.draft."
+// Tab only accepts the ghost suggestion after this grace period. A
+// suggestion that streams in asynchronously mid-keystroke must not
+// hijack a keyboard user's Tab navigation out of the composer.
+export const GHOST_SUGGESTION_TAB_GRACE_MS = 250
 const CHAT_WORKSPACE_DEFAULT_WIDTH = 520
 const CHAT_WORKSPACE_MIN_WIDTH = 360
 const CHAT_WORKSPACE_MAX_WIDTH = 760
@@ -1289,15 +1293,18 @@ function initialProposalDependencyPills(proposal: EditableProposal) {
   return (proposal.dependency_slugs || []).map((slug) => ({ key: slug, label: slug, detail: details.get(slug) }))
 }
 
+type ProposalActionInput = { action: "confirm" | "reject"; path: string; start?: boolean }
+
 function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: ChatProposal; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+  const { t } = useT("chat")
   const queryClient = useQueryClient()
   const search = queryKey[2]
   const [editingProposal, setEditingProposal] = useState<EditableProposal | null>(null)
   const childJobCount = proposal.children?.length || 0
   const proposalAction = useMutation({
-    mutationFn: (input: { action: "confirm" | "reject"; path: string }) => {
+    mutationFn: (input: ProposalActionInput) => {
       const path = appendSearch(input.path, search)
-      return input.action === "confirm" ? confirmChatProposal(path) : rejectChatProposal(path)
+      return input.action === "confirm" ? confirmChatProposal(path, { start: input.start }) : rejectChatProposal(path)
     },
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
@@ -1336,8 +1343,18 @@ function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: Chat
           <ProposalResultFooter proposal={proposal} prefix={prefix} onNotice={onNotice} />
           {proposal.proposed ? (
             <div className="mt-4 flex flex-wrap gap-2">
+              {proposal.epic_bundle ? (
+                <button
+                  className={primaryButton()}
+                  disabled={proposalAction.isPending}
+                  onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path, start: true })}
+                  type="button"
+                >
+                  {t("create_epic_and_start")}
+                </button>
+              ) : null}
               <button
-                className={primaryButton()}
+                className={proposal.epic_bundle ? secondaryButton() : primaryButton()}
                 disabled={proposalAction.isPending}
                 onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path })}
                 type="button"
@@ -1646,7 +1663,7 @@ function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
   )
 }
 
-function ProposalChildren({ children, mutation, prefix, onEdit }: { children: ChatProposalChild[]; mutation: UseMutationResult<ChatPayload, Error, { action: "confirm" | "reject"; path: string }>; prefix: string; onEdit: (child: ChatProposalChild) => void }) {
+function ProposalChildren({ children, mutation, prefix, onEdit }: { children: ChatProposalChild[]; mutation: UseMutationResult<ChatPayload, Error, ProposalActionInput>; prefix: string; onEdit: (child: ChatProposalChild) => void }) {
   if (children.length === 0) return null
   return (
     <div className="mt-4 divide-y divide-gray-100 rounded border border-gray-200 dark:divide-gray-800 dark:border-gray-700">
@@ -1740,6 +1757,8 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
   const search = queryKey[2]
   const agentActive = isAgentActive(payload)
   const queuedMessages = payload.queued_messages || []
+  const [dismissedSuggestion, setDismissedSuggestion] = useState<string | null>(null)
+  const suggestionShownAtRef = useRef(0)
   const commandQuery = slashCommandQuery(text)
   const matchingCommands = useMemo(() => commandQuery == null ? [] : filterSlashCommands(commandQuery), [commandQuery])
   const pendingProposals = useMemo(() => {
@@ -1912,6 +1931,10 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
     && !systemAction.isPending
     && !systemCommandAction.isPending
     && pendingConfirmation == null
+  const suggestedNextStep = payload.chat.suggested_next_step || null
+  const ghostSuggestion = text.length === 0 && !send.isPending && suggestedNextStep && suggestedNextStep !== dismissedSuggestion
+    ? suggestedNextStep
+    : null
 
   function submitMessage() {
     if (send.isPending || systemAction.isPending || systemCommandAction.isPending || text.trim().length === 0) return
@@ -2279,7 +2302,37 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
     }
   }
 
+  function acceptGhostSuggestion(suggestion: string) {
+    updateText(suggestion)
+    const textarea = textareaRef.current
+    if (!textarea) return
+
+    window.requestAnimationFrame(() => {
+      textarea.setSelectionRange(suggestion.length, suggestion.length)
+    })
+  }
+
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    // Only plain Tab (never Shift+Tab or a modifier chord) accepts the
+    // ghost suggestion, and only while the focused composer is empty
+    // with the ghost rendered (both implied by `ghostSuggestion` on
+    // this textarea's own handler). A suggestion that appeared within
+    // the grace period does not intercept — the user was mid-Tab
+    // navigation, so the keystroke keeps its default focus behavior.
+    if (ghostSuggestion && event.key === "Tab" && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey) {
+      if (Date.now() - suggestionShownAtRef.current < GHOST_SUGGESTION_TAB_GRACE_MS) return
+
+      event.preventDefault()
+      acceptGhostSuggestion(ghostSuggestion)
+      return
+    }
+
+    if (ghostSuggestion && event.key === "Escape") {
+      event.preventDefault()
+      setDismissedSuggestion(ghostSuggestion)
+      return
+    }
+
     if (commandPaletteOpen && (event.key === "Tab" || event.key === "Enter")) {
       event.preventDefault()
       completeSlashCommand(matchingCommands[activeCommandIndex] || matchingCommands[0])
@@ -2338,6 +2391,18 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
   useEffect(() => {
     if (autoFocus) textareaRef.current?.focus()
   }, [autoFocus, payload.chat.id])
+
+  // An Escape-dismissed suggestion stays dismissed for this chat view
+  // only; switching chats starts fresh.
+  useEffect(() => {
+    setDismissedSuggestion(null)
+  }, [payload.chat.id])
+
+  // Track when the current suggestion arrived so Tab interception can
+  // ignore suggestions younger than the grace period (see handleKeyDown).
+  useEffect(() => {
+    if (suggestedNextStep) suggestionShownAtRef.current = Date.now()
+  }, [suggestedNextStep])
 
   useEffect(() => {
     const textarea = textareaRef.current
@@ -2547,23 +2612,32 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
             <AddAttachment payload={payload} prefix={prefix} queryKey={queryKey} onAttached={() => setAttachmentPopoverOpen(false)} onNotice={onNotice} />
           </div>
         ) : null}
-        <textarea
-          aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
-          aria-expanded={commandPaletteOpen}
-          aria-haspopup="listbox"
-          className="min-h-9 min-w-0 flex-1 resize-none overflow-y-hidden rounded border border-gray-300 px-3 py-2 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
-          disabled={send.isPending || systemAction.isPending}
-          onChange={(event) => {
-            updateText(event.target.value)
-            if (clearConfirmationOpen) setClearConfirmationOpen(false)
-          }}
-          onKeyDown={handleKeyDown}
-          placeholder={payload.switching_provider ? t("switching_to_provider", { provider: providerLabel(payload.chat.chat_provider ?? "") }) : agentActive ? t("queue_followup") : payload.chat.repository ? t("ask_repository") : t("ask_anything")}
-          ref={textareaRef}
-          required
-          rows={1}
-          value={text}
-        />
+        <div className="relative min-w-0 flex-1">
+          <textarea
+            aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
+            aria-expanded={commandPaletteOpen}
+            aria-haspopup="listbox"
+            className="min-h-9 w-full resize-none overflow-y-hidden rounded border border-gray-300 px-3 py-2 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
+            disabled={send.isPending || systemAction.isPending}
+            onChange={(event) => {
+              updateText(event.target.value)
+              if (clearConfirmationOpen) setClearConfirmationOpen(false)
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder={ghostSuggestion ? "" : payload.switching_provider ? t("switching_to_provider", { provider: providerLabel(payload.chat.chat_provider ?? "") }) : agentActive ? t("queue_followup") : payload.chat.repository ? t("ask_repository") : t("ask_anything")}
+            ref={textareaRef}
+            required
+            rows={1}
+            value={text}
+          />
+          {ghostSuggestion ? (
+            <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center gap-2 overflow-hidden px-3 py-2 text-base leading-6 sm:text-sm sm:leading-5" data-testid="chat-suggestion-ghost">
+              <span className="truncate text-gray-400 dark:text-gray-500">{ghostSuggestion}</span>
+              <span className="inline-flex shrink-0 items-center rounded border border-gray-300 bg-gray-50 px-1 text-[10px] font-medium text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-500">⇥ {t("suggestion_tab_hint")}</span>
+            </div>
+          ) : null}
+          <span aria-live="polite" className="sr-only">{ghostSuggestion ? t("suggestion_available", { suggestion: ghostSuggestion }) : ""}</span>
+        </div>
         <div className="flex items-center gap-2">
           <button aria-label={agentActive ? t("enqueue_message") : t("send_message")} className={`${primaryButton()} inline-flex items-center justify-center`} disabled={send.isPending || systemAction.isPending || systemCommandAction.isPending || text.trim().length === 0 || pendingConfirmation != null || attachmentError != null} type="submit">
             {agentActive ? <EnqueueIcon className="h-4 w-4" /> : <SendIcon className="h-4 w-4" />}

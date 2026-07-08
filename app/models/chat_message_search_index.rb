@@ -8,6 +8,13 @@ class ChatMessageSearchIndex < SearchRecord
       return unless indexable?(message)
       return if indexed?(message.id)
 
+      # A chat deleted mid-flight must not repopulate the index after
+      # ChatSessionCleanupJob purged its rows: re-fetch the ChatSession
+      # from the primary DB (never a possibly-stale cached association)
+      # right before inserting, and skip when it is gone.
+      chat_session = ChatSession.find_by(id: message.chat_session_id)
+      return unless chat_session
+
       connection.transaction do
         connection.exec_insert(
           <<~SQL.squish,
@@ -24,7 +31,7 @@ class ChatMessageSearchIndex < SearchRecord
           "ChatMessageSearchIndex Insert",
           [
             bind(content_for(message)),
-            bind(message.chat_session.user_id),
+            bind(chat_session.user_id),
             bind(message.chat_session_id),
             bind(message.id),
             bind(message.role),
@@ -84,6 +91,38 @@ class ChatMessageSearchIndex < SearchRecord
         "ChatMessageSearchIndex Indexed",
         [ bind(indexed_message_key(message_id)) ]
       ).present?
+    end
+
+    # Hard-deletes every FTS row (and its indexed-marker metadata) for a
+    # chat session. Used when a ChatSession is destroyed so the search
+    # index does not accumulate orphaned rows. No-ops when the search
+    # schema has not been created (fresh installs, minimal test setups);
+    # note `table_exists?` cannot detect FTS5 virtual tables, so the
+    # missing-table case is handled by rescue instead.
+    def delete_for_chat_session(chat_session_id)
+      connection.transaction do
+        message_ids = connection.select_values(
+          "SELECT chat_message_id FROM chat_message_fts WHERE chat_session_id = ?",
+          "ChatMessageSearchIndex Session Message Ids",
+          [ bind(chat_session_id) ]
+        )
+
+        connection.exec_delete(
+          "DELETE FROM chat_message_fts WHERE chat_session_id = ?",
+          "ChatMessageSearchIndex Delete Session Rows",
+          [ bind(chat_session_id) ]
+        )
+
+        message_ids.each do |message_id|
+          connection.exec_delete(
+            "DELETE FROM chat_search_metadata WHERE key = ?",
+            "ChatMessageSearchIndex Delete Indexed Marker",
+            [ bind(indexed_message_key(message_id)) ]
+          )
+        end
+      end
+    rescue ActiveRecord::StatementInvalid => e
+      raise unless e.message.match?(/no such table/i)
     end
 
     def indexable?(message)

@@ -58,6 +58,12 @@ goal is larger than one PR but still needs visible sequencing.
 An Epic has a board state: `backlog`, `ready`, `in_progress`, `done`, or
 `archived`. Child Jobs can be blocked until the Epic starts, and Epics can
 depend on other Epics or Jobs. Jobs can also wait on an Epic to complete.
+An Epic that has been created or approved does not run work by itself — a
+**Start implementing** action on the Epic detail page (and a
+**Create Epic & Start Implementing** button on the new-Epic form and chat
+Epic proposal cards) moves the Epic to `in_progress` in one click and
+dispatches its ready child Jobs; children with unmet dependencies follow
+as those dependencies close.
 Syrus can mark an Epic ready when its dependencies are done and all child
 Jobs are confirmed, then mark it done automatically when all child Jobs
 close through merged PR or no-change outcomes. When every child Job is
@@ -126,8 +132,13 @@ to confirm. New chats use a short interpreted title from the first prompt,
 with the repository name as the fallback. The app sidebar groups recent chats
 by repository, and each repository group can be collapsed when the operator
 wants to fold that section away. Individual chats can be pinned or unpinned
-from the sidebar actions menu, hidden from the sidebar and chat search, then
-restored from the Hidden chats section in user settings. In the V2 layout, the
+from the sidebar actions menu, renamed through the same menu (or the
+`/rename` slash command), hidden from the sidebar and chat search, then
+restored from the Hidden chats section in user settings. The sidebar actions
+menu can also permanently delete a chat after a confirmation dialog: deletion
+removes the conversation, its messages, attachments, proposals, whiteboard,
+search-index entries, and the chat workspace on disk, and is refused while a
+turn is still running. In the V2 layout, the
 sidebar search field opens a dedicated search
 page where operators can search Jobs, Epics, and chat messages from
 one ranked result list, then narrow results to a single type. Search terms
@@ -140,6 +151,11 @@ Operators can also share a chat with teammates on the same Syrus instance:
 the `/share` slash command copies a stable link to a read-only transcript
 view that requires normal Syrus sign-in and does not expose compose controls,
 pending actions, or agent controls.
+At the end of a turn, the chat agent can suggest the operator's likely next
+message; the suggestion appears as muted ghost text in the empty composer
+with a `tab` hint. Pressing Tab fills the composer with the suggestion,
+typing anything hides it, and Escape dismisses it. Suggestions clear
+automatically when the operator sends a message or a new turn starts.
 The chat composer accepts image and PDF attachments through the plus button
 and sends them with the next message. Before sending, operators can click an
 image thumbnail in the composer to mark it up with basic shapes, arrows,

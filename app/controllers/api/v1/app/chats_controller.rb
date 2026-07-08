@@ -316,7 +316,7 @@ module Api
             branched_chat = ChatSession.create!(
               user: source_chat.user,
               repository: source_chat.repository,
-              title: "#{source_chat.title.presence || ChatSession.fallback_title_for(source_chat.repository).presence || "New chat"} (branch)",
+              title: branch_chat_title(source_chat),
               chat_provider: source_chat.chat_provider,
               last_message_at: Time.current
             )
@@ -324,6 +324,31 @@ module Api
           end
 
           render json: { id: branched_chat.id, app_path: chat_path(branched_chat) }, status: :created
+        end
+
+        # Hard-deletes a chat: the ChatSession row and every dependent
+        # row (messages, bookmarks, queued messages, attachments,
+        # proposals, pending actions, agent questions, wakeups,
+        # whiteboard + snapshots, captured agent session) go in the
+        # request transaction; the search-index rows, workspace
+        # directory, and per-chat agent homes are cleaned up post-commit
+        # by ChatSessionCleanupJob on the worker (the web pod doesn't
+        # mount the workspace PVC). Refused while a turn is actively
+        # running.
+        def destroy
+          chat_session = find_chat_session
+          if chat_session.turn_in_flight? || chat_session.agent_busy?
+            render_error(
+              "turn_in_flight",
+              "Cannot delete this chat while a turn is in progress. Stop the turn first.",
+              status: :conflict
+            )
+            return
+          end
+
+          chat_session.destroy!
+
+          render json: { message: "Chat deleted." }
         end
 
         def clear_messages
@@ -523,19 +548,20 @@ module Api
           else
             ChatProposalFiler.new(user: Current.user, repository: proposal.effective_repository).file!([ proposal ])
           end
+          epic_started = maybe_start_confirmed_epic!(proposal, result)
 
           confirmation_message = chat_session.messages.create!(
             role: "system",
             content: proposal_outcome_control_content(
               proposal.reload,
-              text: proposal_confirmation_text(proposal, result),
+              text: proposal_confirmation_text(proposal, result, epic_started: epic_started),
               outcome: :confirmed
             )
           )
           notify_agent_of_proposal_outcome(confirmation_message)
           broadcast_proposal_updated(chat_session, proposal.reload)
 
-          render json: chat_payload(chat_session.reload, message: proposal_confirmed_notice(proposal, result))
+          render json: chat_payload(chat_session.reload, message: proposal_confirmed_notice(proposal, result, epic_started: epic_started))
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         rescue ArgumentError => e
@@ -855,6 +881,7 @@ module Api
               app_messages_path: "/api/v1/app/chats/#{chat_session.id}/messages",
               app_message_path: "/api/v1/app/chats/#{chat_session.id}/message",
               app_rename_path: "/api/v1/app/chats/#{chat_session.id}/rename",
+              app_delete_path: "/api/v1/app/chats/#{chat_session.id}",
               app_clear_path: "/api/v1/app/chats/#{chat_session.id}/messages",
               app_branch_path: "/api/v1/app/chats/#{chat_session.id}/branch",
               app_share_path: "/api/v1/app/chats/#{chat_session.id}/share",
@@ -1280,6 +1307,21 @@ module Api
           Current.user.chat_sessions.find(params[:id])
         end
 
+        BRANCH_TITLE_SUFFIX = " (branch)".freeze
+
+        # Rename enforces ChatSession::TITLE_MAX_LENGTH (in characters,
+        # matching the model validation), so a branch of a max-length
+        # title must clamp the base before appending the suffix instead
+        # of overflowing it.
+        def branch_chat_title(source_chat)
+          base = source_chat.title.presence ||
+            ChatSession.fallback_title_for(source_chat.repository).presence ||
+            "New chat"
+          max_base_length = ChatSession::TITLE_MAX_LENGTH - BRANCH_TITLE_SUFFIX.length
+          base = base.truncate(max_base_length, omission: "…") if base.length > max_base_length
+          "#{base}#{BRANCH_TITLE_SUFFIX}"
+        end
+
         def find_branch_source_chat_session
           chat_session = ChatSession.find(params[:id])
           return chat_session if chat_session.user_id == Current.user.id
@@ -1530,6 +1572,7 @@ module Api
             turn_in_flight: chat_session.turn_in_flight?,
             agent_busy: chat_session.agent_busy?,
             stop_requested_at: chat_session.stop_requested_at&.iso8601,
+            suggested_next_step: chat_session.suggested_next_step,
             cumulative_input_tokens: chat_session.cumulative_input_tokens.to_i,
             cumulative_output_tokens: chat_session.cumulative_output_tokens.to_i,
             cumulative_cost_usd: chat_session.cumulative_cost.to_f,
@@ -1683,9 +1726,38 @@ module Api
           end
         end
 
-        def proposal_confirmed_notice(proposal, result)
+        # Optional `start: true` on proposal confirmation: after an Epic bundle
+        # materializes, immediately move the Epic to In progress and dispatch
+        # its ready child Jobs. Best-effort in the strongest sense: by the
+        # time this runs, the proposal has already been filed and the Epic
+        # exists — NO failure here (not just Epic::NotStartable; the
+        # synchronous start creates Workflows/Runs and can raise anything)
+        # may abort the confirmation the operator just made. Unexpected
+        # errors are logged loudly and the confirm proceeds unstarted.
+        def maybe_start_confirmed_epic!(proposal, result)
+          return false unless ActiveModel::Type::Boolean.new.cast(params[:start])
+          return false unless proposal.epic_bundle?
+
+          epic = result.respond_to?(:epic) ? result.epic : nil
+          return false unless epic
+          return true if epic.in_progress?
+          return false unless epic.may_start_implementing?(actor: Current.user)
+
+          epic.start_implementing!(actor: Current.user)
+          true
+        rescue Epic::NotStartable
+          false
+        rescue StandardError => e
+          Rails.logger.error(
+            "[ChatsController] best-effort Epic start after confirming proposal ##{proposal.id} failed — " \
+            "confirmation proceeds unstarted: #{e.class}: #{e.message}"
+          )
+          false
+        end
+
+        def proposal_confirmed_notice(proposal, result, epic_started: false)
           record = result.respond_to?(:epic) && result.epic ? result.epic : result.jobs.first || proposal.reload.materialized_record
-          case record
+          notice = case record
           when Job
             "Proposal confirmed and filed as #{record.slug}."
           when Epic
@@ -1693,13 +1765,17 @@ module Api
           else
             "Proposal confirmed."
           end
+
+          epic_started ? "#{notice} #{I18n.t('api.epics.started')}" : notice
         end
 
-        def proposal_confirmation_text(proposal, result)
+        def proposal_confirmation_text(proposal, result, epic_started: false)
           if result.respond_to?(:epic) && result.epic
             child_jobs = Array(result.jobs).map { |job| proposal_job_label(job) }.join(", ")
             text = %(Proposal confirmed. Epic ##{result.epic.id} "#{result.epic.title}" was created.)
-            return child_jobs.present? ? "#{text} Child jobs: #{child_jobs}." : text
+            text += " Child jobs: #{child_jobs}." if child_jobs.present?
+            text += " The Epic was started; ready child Jobs are dispatching." if epic_started
+            return text
           end
 
           job = Array(result.respond_to?(:jobs) ? result.jobs : []).first || proposal.job

@@ -244,4 +244,22 @@ RSpec.describe WorkflowWorkspacePruneJob do
     expect(path).not_to exist
     expect(chat.reload.workspace_path).to be_nil
   end
+
+  it "removes orphaned chat workspace and agent home directories whose ChatSession is gone" do
+    allow(WorkflowWorkspace).to receive(:cleanup_for).and_call_original
+    root = Pathname.new(data_root)
+    orphan_workspace = root.join("chat-workspaces", "424242")
+    orphan_home = root.join("agent_homes", "chats", "424242")
+    live_chat = ChatSession.create!(user: Factories.user)
+    live_workspace = root.join("chat-workspaces", live_chat.id.to_s)
+    live_home = root.join("agent_homes", "chats", live_chat.id.to_s)
+    [ orphan_workspace, orphan_home, live_workspace, live_home ].each { |path| FileUtils.mkdir_p(path.to_s) }
+
+    described_class.perform_now
+
+    expect(orphan_workspace).not_to exist
+    expect(orphan_home).not_to exist
+    expect(live_workspace).to exist
+    expect(live_home).to exist
+  end
 end

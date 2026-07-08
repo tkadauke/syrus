@@ -45,5 +45,19 @@
   "open_panel": "Open panel",
   "resize_workspace": "Resize chat workspace",
   "new_messages_button_one": "1 new message",
-  "new_messages_button_other": "{{count}} new messages"
+  "new_messages_button_other": "{{count}} new messages",
+  "rename": "Rename",
+  "rename_chat_title": "Rename chat",
+  "rename_chat_label": "Chat name",
+  "save": "Save",
+  "unable_to_rename": "Unable to rename chat.",
+  "delete": "Delete Chat",
+  "delete_chat_title": "Delete chat",
+  "delete_confirm_body": "This permanently deletes the chat, its messages, and all associated data. This cannot be undone.",
+  "delete_confirm": "Delete",
+  "unable_to_delete": "Unable to delete chat.",
+  "chat_deleted": "Chat deleted.",
+  "suggestion_tab_hint": "tab",
+  "suggestion_available": "Suggested next message: {{suggestion}}. Press Tab to accept.",
+  "create_epic_and_start": "Create Epic & Start Implementing"
 }

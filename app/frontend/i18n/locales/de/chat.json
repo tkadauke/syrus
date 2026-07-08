@@ -45,5 +45,19 @@
   "open_panel": "Bereich öffnen",
   "resize_workspace": "Arbeitsbereich skalieren",
   "new_messages_button_one": "1 neue Nachricht",
-  "new_messages_button_other": "{{count}} neue Nachrichten"
+  "new_messages_button_other": "{{count}} neue Nachrichten",
+  "rename": "Umbenennen",
+  "rename_chat_title": "Chat umbenennen",
+  "rename_chat_label": "Chat-Name",
+  "save": "Speichern",
+  "unable_to_rename": "Chat konnte nicht umbenannt werden.",
+  "delete": "Chat löschen",
+  "delete_chat_title": "Chat löschen",
+  "delete_confirm_body": "Der Chat, seine Nachrichten und alle zugehörigen Daten werden dauerhaft gelöscht. Dies kann nicht rückgängig gemacht werden.",
+  "delete_confirm": "Löschen",
+  "unable_to_delete": "Chat konnte nicht gelöscht werden.",
+  "chat_deleted": "Chat gelöscht.",
+  "suggestion_tab_hint": "Tab",
+  "suggestion_available": "Vorgeschlagene nächste Nachricht: {{suggestion}}. Mit Tab übernehmen.",
+  "create_epic_and_start": "Epic erstellen & Umsetzung starten"
 }
