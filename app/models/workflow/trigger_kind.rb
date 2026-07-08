@@ -18,7 +18,7 @@ class Workflow
       Entry.new(kind: "retry",         template: "Retry",       label: "Retry",                   style: "bg-amber-100 text-amber-700",    retry_label: "Retry failed step",  feedback_kind: nil),
       Entry.new(kind: "replay",        template: "Retry",       label: "Retry",                   style: "bg-amber-100 text-amber-700",    retry_label: "Retry failed step",  feedback_kind: nil),
       Entry.new(kind: "manual",        template: "Manual",      label: "Manual",                  style: "bg-gray-100 text-gray-700",      retry_label: "Retry failed step",  feedback_kind: nil),
-      Entry.new(kind: "resume",        template: "Resume",      label: "Resume",                  style: "bg-fuchsia-100 text-fuchsia-700", retry_label: "Retry failed step", feedback_kind: nil)
+      Entry.new(kind: "resume",        template: "Manual",      label: "Resume",                  style: "bg-fuchsia-100 text-fuchsia-700", retry_label: "Retry failed step", feedback_kind: nil)
     ].freeze
 
     BY_KIND = ENTRIES.index_by(&:kind).freeze

@@ -92,24 +92,25 @@ RSpec.describe "App API job run commands", type: :request do
     failed_run.start!
     failed_run.fail!
     failed_run.save!
+    failed_run.step.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 5.minutes.ago)
+    failed_run.step.workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 5.minutes.ago)
     ClaudeSession.create!(
       resumable: failed_run,
       provider: "codex",
       session_id: "uuid-deadbeef",
       transcript_jsonl: "{}\n"
     )
+    workflow_count = job.reload.workflows.count
 
     expect {
       post app_job_path("/resume"), params: { source_run_id: failed_run.id }, as: :json
-    }.to change { job.reload.workflows.where(trigger_kind: "resume").count }.by(1)
-      .and have_enqueued_job(RunJob)
+    }.to have_enqueued_job(RunJob)
 
-    workflow = job.workflows.where(trigger_kind: "resume").last
-    run = workflow.first_step.runs.first
     expect(response).to have_http_status(:ok)
+    expect(job.reload.workflows.count).to eq(workflow_count)
+    run = Run.find(parse_body.dig("run", "id"))
     expect(run.parent_session_id).to eq("uuid-deadbeef")
     expect(parse_body).to include("message" => "Resume workflow enqueued.")
-    expect(parse_body.dig("run", "id")).to eq(run.id)
   end
 
   it "rejects resume when the source run has no captured session" do
@@ -120,7 +121,7 @@ RSpec.describe "App API job run commands", type: :request do
 
     expect {
       post app_job_path("/resume"), params: { source_run_id: failed_run.id }, as: :json
-    }.not_to change { job.reload.workflows.where(trigger_kind: "resume").count }
+    }.not_to change { Workflow.count }
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "message")).to include("No agent session captured")

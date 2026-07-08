@@ -10,9 +10,11 @@ RSpec.describe ResumeWorkflowEnqueuer do
     source_run.start!
     source_run.fail!
     source_run.save!
+    source_run.step.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 5.minutes.ago)
+    source_run.step.workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 5.minutes.ago)
   end
 
-  it "starts a resume workflow from a captured failed agent session" do
+  it "reopens the failed step instead of creating a new resume workflow" do
     fail_source_run!
     job.update!(state: "failed")
     ClaudeSession.create!(
@@ -22,16 +24,20 @@ RSpec.describe ResumeWorkflowEnqueuer do
       transcript_jsonl: "{}\n"
     )
 
+    original_workflow = source_run.step.workflow
+    failed_step = source_run.step
+
+    result = nil
     expect {
       result = described_class.call(job: job, source_run: source_run)
-      expect(result).to be_success
-      expect(result.run.parent_session_id).to eq("codex-thread")
-      expect(result.workflow.trigger_kind).to eq("resume")
-      expect(result.workflow.agent_provider).to eq("codex")
-    }.to change { job.reload.workflows.where(trigger_kind: "resume").count }.by(1)
-      .and have_enqueued_job(RunJob)
+    }.to have_enqueued_job(RunJob)
 
-    expect(job.reload).to be_queued
+    expect(result).to be_success
+    expect(result.run.parent_session_id).to eq("codex-thread")
+    expect(result.workflow).to eq(original_workflow)
+    expect(result.step).to eq(failed_step)
+    expect(job.reload.workflows.count).to eq(1)
+    expect(job.reload).to be_running
   end
 
   it "rejects source runs without a captured session" do

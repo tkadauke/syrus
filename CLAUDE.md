@@ -88,7 +88,6 @@ pr_comment:  prepare → retry_until(respond → graders) → summarize_amend �
 chat_feedback: prepare → retry_until(respond → graders) → summarize_amend → try(push)
 ci_failure:  prepare → analyze_and_fix → summarize_amend → try(push)
 retry:       prepare → retry_until(implement → graders) → summarize → test_plan → pr_open
-resume:      manual
 rebase:      auto_rebase → agent_rebase → force_push
 stack_rebase: stack_auto_rebase → stack_agent_rebase → stack_force_push
 auto_merge:  mergeability_preflight → prepare → retry_until(graders, repair: landing_fix) → push → auto_merge

@@ -1,5 +1,5 @@
 class ResumeWorkflowEnqueuer
-  Result = Data.define(:run, :workflow, :error) do
+  Result = Data.define(:run, :workflow, :step, :error) do
     def success? = run.present?
   end
 
@@ -19,21 +19,18 @@ class ResumeWorkflowEnqueuer
     session = source_run.claude_session
     return failure("No agent session captured for that Run - try Retry instead.") unless session
 
-    if job.failed? && job.may_retry_after_failure?
-      job.retry_after_failure!
-      job.save!
-    end
+    failed_workflow = source_run.step&.workflow
+    return failure("Could not find the workflow for this Run.") unless failed_workflow
 
-    workflow = Workflows::Resume.instantiate(job: job, agent_provider: session.provider)
-    run = StepDispatcher.start_workflow(
-      workflow,
+    retry_result = RetryFailedStepEnqueuer.call(
+      workflow: failed_workflow,
       parent_session_id: session.session_id,
       prompt: Prompts::Resume.new.to_s
     )
 
-    return failure("Resume workflow could not be started.") unless run
+    return failure(retry_result.error) unless retry_result.success?
 
-    Result.new(run: run, workflow: workflow, error: nil)
+    Result.new(run: retry_result.run, workflow: retry_result.workflow, step: retry_result.step, error: nil)
   end
 
   private
@@ -41,6 +38,6 @@ class ResumeWorkflowEnqueuer
   attr_reader :job, :source_run
 
   def failure(message)
-    Result.new(run: nil, workflow: nil, error: message)
+    Result.new(run: nil, workflow: nil, step: nil, error: message)
   end
 end
