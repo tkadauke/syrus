@@ -186,7 +186,8 @@ contextBridge.exposeInMainWorld("syrusDesktop", {
   saveGlobalHotkey: (globalHotkey: string) =>
     ipcRenderer.invoke("save-global-hotkey", globalHotkey) as Promise<{ globalHotkey: string }>,
   chooseLocalProjectsRoot: () => ipcRenderer.invoke("choose-local-projects-root") as Promise<string | null>,
-  syrusCliStatus: () => ipcRenderer.invoke("syrus-cli-status") as Promise<{ available: boolean }>,
+  syrusCliStatus: () =>
+    ipcRenderer.invoke("syrus-cli-status") as Promise<{ available: boolean; bundledAvailable: boolean }>,
   installSyrusCli: (options?: { withSkill?: boolean }) =>
     ipcRenderer.invoke("install-syrus-cli", options) as Promise<{
       installed: boolean
@@ -204,6 +205,9 @@ contextBridge.exposeInMainWorld("syrusDesktop", {
   localStatus: () => ipcRenderer.invoke("syrus:local-status") as Promise<LocalStatus | null>,
   showPreferences: () => ipcRenderer.invoke("show-preferences") as Promise<void>,
   openSyrusWindow: () => ipcRenderer.invoke("open-syrus") as Promise<void>,
+  // "Open in Syrus" — focus the app window and navigate it to an
+  // instance-relative path (or same-origin URL); never the external browser.
+  openInSyrus: (target?: string) => ipcRenderer.invoke("open-in-syrus", target) as Promise<void>,
   quitApp: () => ipcRenderer.invoke("quit-app") as Promise<void>,
   copyText: (text: string) => ipcRenderer.invoke("copy-text", text) as Promise<void>,
   showNotification: (opts: DesktopNotificationOptions) =>

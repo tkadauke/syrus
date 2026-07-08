@@ -56,7 +56,9 @@ instances.)
   issues) open in your default browser.
 - **The menu-bar inbox.** Implemented and failed Jobs, notifications with
   badge counts, approve/retry/feedback actions, and a compose shortcut —
-  one keyboard shortcut away. For admins — which includes the first (and
+  one keyboard shortcut away. "Open in Syrus" actions focus the app
+  window and jump straight to the Job, chat, or repository there; only
+  GitHub links (PRs, issues) go to your default browser. For admins — which includes the first (and
   usually only) user of a local install — signing in inside the app window
   wires the menu bar up automatically; there is no token to copy. If the
   saved token ever goes stale (say, after a full reinstall rebuilt the
@@ -65,19 +67,25 @@ instances.)
   Non-admin users on a shared remote instance paste an API token into
   Preferences instead.
 - **The Syrus CLI, batteries included.** The app installs the bundled
-  `syrus` CLI automatically at launch (`~/.local/bin` on macOS,
+  `syrus` CLI automatically — at launch and again the moment a local
+  install finishes setting up (`~/.local/bin` on macOS,
   `%LocalAppData%\Syrus\bin` on Windows — see the [CLI docs](/docs/cli))
-  and keeps it current with every app update, already signed in through
-  the shared credentials file. When Claude Code or Codex is detected on
-  the machine, the app offers (once) to add the Claude Code skill so
-  coding agents can drive Syrus from the terminal — also available any
-  time from Preferences.
+  — and keeps it current with every app update, already signed in through
+  the shared credentials file. There is nothing to click; the tray banner
+  and Preferences remain as repair/reinstall surfaces if an install ever
+  fails. When Claude Code or Codex is detected on the machine, a
+  dismissible notice in the app's sidebar offers to add the Claude Code
+  skill so coding agents can drive Syrus from the terminal — also
+  available any time from Preferences.
 - **Lifecycle management.** The app starts your local Syrus when it
   launches and leaves it running when you quit, so GitHub polling and
   agent runs continue in the background. Start, stop, and restart live
   in the **Backend** menu.
-- **Automatic updates.** The app updates itself, and each app release
-  pins the exact backend image version it was tested with. After an app
+- **Automatic updates.** The app updates itself: when an update has
+  downloaded, a quiet "restart to update" notice appears in the app's
+  sidebar (and in the app and tray menus) — nothing interrupts what
+  you're doing. Each app release also pins the exact backend image
+  version it was tested with. After an app
   update, the next launch offers to bring the local backend up to the
   pinned version — the update pulls the new image and restarts the
   backend, so the app asks first instead of doing it behind your back.

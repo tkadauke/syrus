@@ -444,7 +444,7 @@ function HeaderBrand({ title, instanceUrl }: { title: string; instanceUrl: strin
       className="header-brand"
       title={`Open ${normalizedUrl}`}
       aria-label={`Open ${title} in Syrus`}
-      onClick={() => void window.syrusDesktop.openExternal(normalizedUrl)}
+      onClick={() => void window.syrusDesktop.openInSyrus()}
     >
       <img alt="" className="header-brand__logo" src={syrusIconUrl} />
       <span className="min-w-0">
@@ -725,7 +725,8 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
   }, [cliStatusQuery, inboxQuery])
 
   const openJob = (job: SyrusJobItem) => {
-    void window.syrusDesktop.openExternal(`${normalizeInstanceUrl(instanceUrl)}/jobs/${job.id}`)
+    // "Open in Syrus" means the app window, not the default browser.
+    void window.syrusDesktop.openInSyrus(`/jobs/${job.id}`)
   }
 
   const openJobDetail = (job: SyrusJobItem) => {
@@ -754,14 +755,14 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
   }
 
   const openChat = (originChat: SyrusJobOriginChat) => {
-    void window.syrusDesktop.openExternal(
-      `${normalizeInstanceUrl(instanceUrl)}/app-shell/chats/${originChat.chat_session_id}#message-${originChat.message_id}`
+    void window.syrusDesktop.openInSyrus(
+      `/app-shell/chats/${originChat.chat_session_id}#message-${originChat.message_id}`
     )
   }
 
   const openRepository = (repositoryId?: number) => {
     if (repositoryId) {
-      void window.syrusDesktop.openExternal(`${normalizeInstanceUrl(instanceUrl)}/repositories/${repositoryId}`)
+      void window.syrusDesktop.openInSyrus(`/repositories/${repositoryId}`)
     }
   }
 
@@ -990,7 +991,9 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
 
   const openToastAction = () => {
     if (toast?.actionUrl) {
-      void window.syrusDesktop.openExternal(toast.actionUrl)
+      // Toast actions are "Open in Syrus" links to instance pages — the app
+      // window, not the browser (main refuses cross-origin targets).
+      void window.syrusDesktop.openInSyrus(toast.actionUrl)
     }
   }
 
@@ -1037,6 +1040,10 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
   }
 
   const cliMissing = cliStatusQuery.data?.available === false
+  // The app package itself carries no CLI binary (a build shipped without
+  // Resources/cli) — the banner's install button could only throw ENOENT,
+  // so show manual guidance instead.
+  const cliBundleMissing = cliStatusQuery.data?.bundledAvailable === false
   const checkedOutJobId = localStatus && localStatus.job_id > 0 ? localStatus.job_id : null
   const checkedOutJob = checkedOutJobId ? jobs.find((job) => job.id === checkedOutJobId) : undefined
   const checkedOutJobVisible = Boolean(
@@ -1158,15 +1165,24 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
 
       {cliMissing ? (
         <div className="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-sm leading-5 text-amber-900" data-testid="cli-missing-banner">
-          <span>Install the Syrus CLI to enable local branch checkout.</span>
-          <button
-            type="button"
-            className="shrink-0 rounded-md border border-amber-300 bg-white px-2.5 py-1 text-xs font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-60"
-            disabled={installingCliFromBanner}
-            onClick={() => void installCliFromBanner()}
-          >
-            {installingCliFromBanner ? "Installing…" : "Install"}
-          </button>
+          {cliBundleMissing ? (
+            <span>
+              This app build is missing its bundled Syrus CLI — reinstall the app from the latest release, or
+              install the CLI from a repo clone.
+            </span>
+          ) : (
+            <>
+              <span>Install the Syrus CLI to enable local branch checkout.</span>
+              <button
+                type="button"
+                className="shrink-0 rounded-md border border-amber-300 bg-white px-2.5 py-1 text-xs font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+                disabled={installingCliFromBanner}
+                onClick={() => void installCliFromBanner()}
+              >
+                {installingCliFromBanner ? "Installing…" : "Install"}
+              </button>
+            </>
+          )}
         </div>
       ) : null}
 
@@ -1402,6 +1418,7 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
 // Claude Code skill (the one opt-in piece — it writes into ~/.claude).
 export function CliInstallSection() {
   const [status, setStatus] = useState<"checking" | "installed" | "missing">("checking")
+  const [bundleMissing, setBundleMissing] = useState(false)
   const [result, setResult] = useState<SyrusCliInstallResult | null>(null)
   const [installing, setInstalling] = useState(false)
 
@@ -1409,8 +1426,11 @@ export function CliInstallSection() {
     let cancelled = false
     window.syrusDesktop
       .syrusCliStatus()
-      .then(({ available }) => {
-        if (!cancelled) setStatus(available ? "installed" : "missing")
+      .then(({ available, bundledAvailable }) => {
+        if (!cancelled) {
+          setStatus(available ? "installed" : "missing")
+          setBundleMissing(bundledAvailable === false)
+        }
       })
       .catch(() => {
         if (!cancelled) setStatus("missing")
@@ -1440,6 +1460,11 @@ export function CliInstallSection() {
             <span className="status-line">Checking…</span>
           ) : status === "installed" ? (
             <span className="form-success">Installed — kept current automatically with app updates.</span>
+          ) : bundleMissing ? (
+            <span className="status-line">
+              Not installed — this app build carries no bundled CLI, so reinstalling from here can't work.
+              Reinstall the app from the latest release, or install the CLI from a repo clone.
+            </span>
           ) : (
             <span className="status-line">
               Not installed — it normally installs itself when the app starts, so something went wrong.
@@ -1447,7 +1472,12 @@ export function CliInstallSection() {
           )}
         </div>
         {status === "missing" ? (
-          <button className="primary-button" disabled={installing} onClick={() => void install()} type="button">
+          <button
+            className="primary-button"
+            disabled={installing || bundleMissing}
+            onClick={() => void install()}
+            type="button"
+          >
             {installing ? "Installing…" : "Reinstall CLI"}
           </button>
         ) : (
@@ -2464,7 +2494,7 @@ function ComposeView({ instanceUrl }: { instanceUrl: string }) {
           <div className="flex items-start justify-between gap-3">
             <span className="min-w-0 overflow-wrap-anywhere">{toast.message}</span>
             {toast.actionLabel && toast.actionUrl ? (
-              <button type="button" className="toast-action" onClick={() => window.syrusDesktop.openExternal(toast.actionUrl!)}>
+              <button type="button" className="toast-action" onClick={() => window.syrusDesktop.openInSyrus(toast.actionUrl!)}>
                 {toast.actionLabel}
               </button>
             ) : null}

@@ -42,11 +42,16 @@ export type DesktopStore = DesktopSettings & {
   // shown. Kept (and still honored) so upgraded installs that answered it
   // aren't re-asked about the skill.
   cliInstallOffered: boolean
-  // The one-time "coding agent detected — add the Syrus skill?" dialog was
-  // shown (or the skill was already present). Asked-and-answered — never
-  // re-prompt. The CLI itself is no longer offered: it installs silently
-  // at launch (docs/install-experience-spec.md I1).
+  // Legacy: the retired "coding agent detected — add the Syrus skill?"
+  // dialog was shown (or the skill was already present). Kept (and still
+  // honored as a dismissal) so upgraded installs that answered it aren't
+  // re-nagged by the sidebar notice. The CLI itself is never offered: it
+  // installs silently at launch (docs/install-experience-spec.md I1).
   skillInstallOffered: boolean
+  // The user dismissed the skill-offer notice in the web app's sidebar
+  // (the non-interruptive successor to the dialog above). Set through the
+  // shell-notice bridge's dismissSkillOffer(); never re-prompt after it.
+  skillOfferDismissed: boolean
   // Mid-onboarding save point: the user was in the LOCAL install flow and got
   // sent off to install Docker Desktop / WSL — either can force a Windows
   // reboot that kills the wizard. On the next launch (RunOnce relaunches us
@@ -72,6 +77,7 @@ export const store = new Store<DesktopStore>({
     backendConfigMigratedAt: "",
     cliInstallOffered: false,
     skillInstallOffered: false,
+    skillOfferDismissed: false,
     onboardingResumeLocal: false
   }
 })

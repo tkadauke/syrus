@@ -331,6 +331,10 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: cli/go.mod
+          # setup-go's default cache lookup expects go.sum at the repo ROOT;
+          # ours lives under cli/, so without this the cache step warns and
+          # caches nothing on every run.
+          cache-dependency-path: cli/go.sum
 
       - name: Build CLI release tarballs
         env:
@@ -428,6 +432,20 @@ jobs:
           cache: npm
           cache-dependency-path: desktop/package-lock.json
 
+      # The desktop build cross-compiles the Syrus CLI into the app bundle
+      # (desktop/scripts/stage-cli.mjs). macos-15 runners ship NO Go, so
+      # 0.1.1/0.1.2 released with an empty Resources/cli (stage-cli used to
+      # soft-skip) and every in-app CLI/skill install died with ENOENT. The
+      # script now hard-fails under SYRUS_RELEASE_BUILD=1; this pinned
+      # toolchain (same source of truth as build-cli) makes it never trigger.
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: cli/go.mod
+          # setup-go's default cache lookup expects go.sum at the repo ROOT;
+          # ours lives under cli/, so without this the cache step warns and
+          # caches nothing on every run.
+          cache-dependency-path: cli/go.sum
+
       - name: Install dependencies
         run: npm ci --prefix desktop
 
@@ -446,7 +464,9 @@ jobs:
 
       # forceCodeSigning turns electron-builder's silent skip-signing paths into
       # hard failures. --publish never: we STAGE, we don't upload. One retry,
-      # but never on a deterministic notarization "Invalid" verdict.
+      # but never on a deterministic verdict: a notarization "Invalid" or a
+      # stage-cli hard-fail (no Go toolchain under SYRUS_RELEASE_BUILD=1)
+      # fails identically on retry, so fail fast instead.
       - name: Build, sign, and notarize
         timeout-minutes: 60
         env:
@@ -464,6 +484,12 @@ jobs:
           if build; then exit 0; fi
           if grep -q '"status":"Invalid"\|status: Invalid' "$RUNNER_TEMP/build.log"; then
             echo "::error::Notarization verdict was Invalid — deterministic, not retrying. See the developer log artifact."
+            exit 1
+          fi
+          # stage-cli.mjs hard-fails under SYRUS_RELEASE_BUILD=1 when the Go
+          # toolchain is missing — deterministic, a retry cannot fix it.
+          if grep -qF 'stage-cli: Go toolchain not found' "$RUNNER_TEMP/build.log"; then
+            echo "::error::stage-cli hard-failed: no Go toolchain on the runner — deterministic, not retrying. Fix the actions/setup-go step (go-version-file: cli/go.mod)."
             exit 1
           fi
           echo "::warning::Build/notarization failed with a non-deterministic error — retrying once in 90s."
@@ -511,6 +537,12 @@ jobs:
           test -f desktop/out/latest-mac.yml
           grep -q "Syrus-$VERSION-universal.zip" desktop/out/latest-mac.yml
           test -f "desktop/out/Syrus-$VERSION-universal.zip"
+          # The bundled CLI must be INSIDE the built app — 0.1.1/0.1.2 shipped
+          # without Resources/cli (no Go on the runner; stage-cli soft-skipped)
+          # and every in-app CLI/skill install threw ENOENT. Both darwin arches
+          # ride the universal app; ensureCliCurrent installs the matching one.
+          test -x "$APP/Contents/Resources/cli/syrus-darwin-arm64"
+          test -x "$APP/Contents/Resources/cli/syrus-darwin-x64"
 
       # Stage only what's needed. Humans download ONE dmg — the stable-named
       # `Syrus.dmg` permalink. macOS auto-update uses the versioned `.zip` +
@@ -598,6 +630,18 @@ jobs:
           cache: npm
           cache-dependency-path: desktop/package-lock.json
 
+      # windows-latest runners usually ship Go, but pin it anyway — parity
+      # with build-mac/build-cli and determinism over runner-image drift. The
+      # desktop build needs it to bundle the CLI (stage-cli.mjs hard-fails
+      # without it under SYRUS_RELEASE_BUILD=1).
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: cli/go.mod
+          # setup-go's default cache lookup expects go.sum at the repo ROOT;
+          # ours lives under cli/, so without this the cache step warns and
+          # caches nothing on every run.
+          cache-dependency-path: cli/go.sum
+
       - name: Install dependencies
         run: npm ci --prefix desktop
 
@@ -660,6 +704,10 @@ jobs:
             if ($sig.Status -ne "Valid") { throw "$($exe.Name) is not validly signed (status: $($sig.Status))" }
           }
           if (-not (Test-Path "desktop/out/latest.yml")) { throw "latest.yml missing - Windows auto-update feed would be broken" }
+          # The bundled CLI must be in the packaged resources (win-unpacked is
+          # what NSIS wraps). Same 0.1.1/0.1.2 failure mode as macOS: stage-cli
+          # soft-skipping without Go shipped installers with no CLI to install.
+          if (-not (Test-Path "desktop/out/win-unpacked/resources/cli/syrus-win32-x64.exe")) { throw "Bundled CLI missing - desktop/out/win-unpacked/resources/cli/syrus-win32-x64.exe not found (stage-cli must have been skipped)" }
 
       - name: Stage Windows artifacts
         shell: bash

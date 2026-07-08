@@ -27,8 +27,17 @@ RSpec.describe "desktop CLI install" do
     # derive the bundled source; windows binaries carry .exe.
     expect(stage).to match(/goos: "darwin", platform: "darwin", suffix: ""/)
     expect(stage).to match(/goos: "windows", platform: "win32", suffix: "\.exe"/)
-    # Missing Go must degrade to a notice, not break packaging.
+    # Missing Go must degrade to a notice in DEV builds, not break packaging.
     expect(stage).to include("skipping CLI bundling")
+    # ...but RELEASE builds hard-fail: 0.1.1/0.1.2 shipped with an empty
+    # Resources/cli because the mac runner had no Go and this script exited 0
+    # after wiping the staging dir — every in-app CLI/skill install then died
+    # with ENOENT. A release without the bundled CLI is broken, not degraded.
+    release_guard = stage[/process\.env\.SYRUS_RELEASE_BUILD === "1"[\s\S]{0,600}/]
+    expect(release_guard).to include("process.exit(1)")
+    expect(release_guard).to include("console.error")
+    # The hard fail must trigger BEFORE the dev-build soft skip is reached.
+    expect(release_guard.index("process.exit(1)")).to be < release_guard.index("process.exit(0)")
 
     config = read("electron-builder.yml")
     # Per-platform filters: mac DMGs must not ship ~40 MB of windows exes and
@@ -52,7 +61,7 @@ RSpec.describe "desktop CLI install" do
     install = main[/const performCliInstall[\s\S]{0,3600}/]
     # The bundled-source path derivation lives in bundledCliPath so the
     # launch-time freshness check and the installer share it.
-    expect(main[/const bundledCliPath[\s\S]{0,500}/]).to match(/syrus-\$\{process\.platform\}-/)
+    expect(main[/const bundledCliPath[\s\S]{0,900}/]).to match(/syrus-\$\{process\.platform\}-/)
     expect(install).to include("const source = bundledCliPath()")
     # No credentials writing here: credentialsStore.ts owns
     # ~/.syrus/credentials, and the app already keeps it in the CLI-shared
@@ -66,6 +75,25 @@ RSpec.describe "desktop CLI install" do
     # The IPC handler delegates so the tray banner, Preferences, and the
     # post-setup dialog share one install path.
     expect(main).to match(/ipcMain\.handle\("install-syrus-cli", async \(_event, options\?: CliInstallOptions\) => performCliInstall\(options\)\)/)
+  end
+
+  it "resolves the bundled CLI from desktop/resources in dev builds" do
+    main = read("electron/main.ts")
+    helper = main[/const bundledCliPath[\s\S]{0,900}/]
+    # Packaged apps read <Resources>/cli (electron-builder's `to: cli`).
+    expect(helper).to include('path.join(process.resourcesPath, "cli")')
+    # Dev builds run the COMPILED main.js from desktop/dist-electron
+    # (tsconfig.electron.json outDir), so ONE level up reaches desktop/,
+    # where stage-cli.mjs stages resources/cli. Two levels up (the old bug)
+    # pointed at <repo>/resources/cli — every dev run then reported the
+    # bundled CLI missing and skipped the automatic install.
+    expect(helper).to include('path.join(__dirname, "..", "resources", "cli")')
+    expect(helper).not_to include('"..", "..", "resources"')
+    tsconfig = JSON.parse(read("tsconfig.electron.json"))
+    expect(tsconfig.dig("compilerOptions", "outDir")).to eq("dist-electron")
+    # ...and the stage script must agree on that staging dir.
+    stage = read("scripts/stage-cli.mjs")
+    expect(stage).to include('path.join(desktopRoot, "resources", "cli")')
   end
 
   it "adds the Windows per-user PATH entry safely (registry, not setx)" do
@@ -104,35 +132,65 @@ RSpec.describe "desktop CLI install" do
     expect(ensure_current).to match(/performCliInstall\(\{ withSkill: skillPresent \}\)/)
     # Wired into app.whenReady, non-blocking, failure self-heals next launch.
     expect(main).to match(/void ensureCliCurrent\(\)\.catch/)
-    # Dev builds without staged binaries must skip, not error.
+    # Dev builds without staged binaries must skip, not error — and a
+    # PACKAGED app in that state (the 0.1.1/0.1.2 missing-Resources/cli
+    # builds) must log the skip so it's diagnosable, never crash.
     expect(ensure_current).to match(/if \(bundledHash === null\)/)
+    expect(ensure_current).to match(/console\.warn\(`\[cli-install\] bundled CLI missing/)
   end
 
-  it "offers the Claude Code skill once, only when a coding agent is present" do
+  it "installs the CLI automatically the moment local onboarding completes" do
     main = read("electron/main.ts")
-    # The web app window has no IPC bridge (remote content), so the setup
-    # step is the main process watching navigation events. The skill is the
-    # ONE offered piece — it writes into another tool's config dir (spec I4).
-    expect(main).to include("const offerSkillIfAgentDetected")
-    offer = main[/const offerSkillIfAgentDetected[\s\S]{0,4200}/]
-    # Never interrupt onboarding/auth — only the settled home surface.
-    expect(offer).to match(%r{pathname !== "/" && pathname !== "/dashboard"})
-    # Gated on agent presence (~/.claude or ~/.codex), and the once-only
-    # flag must NOT burn while no agent is detected — the offer stays live
-    # for the launch after Claude Code shows up.
-    expect(offer).to match(/if \(!\(await agentToolPresent\(\)\)\)/)
+    # A fresh local install must end with a working `syrus` — no tray click.
+    # The hook lives on the onboarding driver's done/local transition (which
+    # fires even when the wizard is closed via the traffic light) and reuses
+    # the same idempotent content-hash install as launch.
+    done_transition = main[/state\.phase === "done" && state\.mode === "local"[\s\S]{0,900}/]
+    expect(done_transition).to match(/void ensureCliCurrent\(\)\.catch/)
+  end
+
+  it "surfaces a bundle with no CLI as guidance, not a doomed install button" do
+    main = read("electron/main.ts")
+    # syrus-cli-status reports whether the app package carries a binary to
+    # install from; the tray banner and Preferences degrade to manual
+    # guidance when it doesn't (ENOENT was the 0.1.1/0.1.2 experience).
+    expect(main).to include("const bundledCliAvailable")
+    status_handler = main[/ipcMain\.handle\("syrus-cli-status"[\s\S]{0,600}/]
+    expect(status_handler).to include("bundledAvailable: await bundledCliAvailable()")
+
+    app = read("src/App.tsx")
+    banner = app[/data-testid="cli-missing-banner"[\s\S]{0,1600}/]
+    expect(banner).to include("cliBundleMissing")
+    expect(banner).to include("missing its bundled Syrus CLI")
+    section = app[/export function CliInstallSection[\s\S]{0,4200}/]
+    expect(section).to include("carries no bundled CLI")
+    expect(section).to match(/disabled=\{installing \|\| bundleMissing\}/)
+  end
+
+  it "offers the Claude Code skill as a sidebar notice, never a dialog" do
+    main = read("electron/main.ts")
+    # The old interruptive "Coding agent detected — teach it Syrus?" dialog
+    # is gone; the web app renders the offer inline from the shell-notice
+    # bridge state. The skill stays the ONE offered piece — it writes into
+    # another tool's config dir (spec I4) — gated on agent presence.
+    expect(main).not_to include("offerSkillIfAgentDetected")
+    expect(main).not_to include("Coding agent detected")
+    expect(main).to include("claudeDetected: await agentToolPresent()")
     detection = main[/const agentToolPresent[\s\S]{0,600}/]
     expect(detection).to include('".claude"')
     expect(detection).to include('".codex"')
-    # Asked-and-answered: one offer, ever; the legacy CLI-offer flag counts
-    # (that dialog included the skill checkbox).
-    expect(offer).to include('store.set("skillInstallOffered", true)')
-    expect(offer).to include('store.get("cliInstallOffered", false)')
-    expect(main).to match(/did-navigate-in-page", attemptSkillOffer/)
+    # Asked-and-answered survives the dialog era: both legacy flags count as
+    # a dismissal so upgraded installs aren't re-nagged by the notice.
+    dismissed = main[/const skillOfferDismissed[\s\S]{0,400}/]
+    expect(dismissed).to include('store.get("skillOfferDismissed", false)')
+    expect(dismissed).to include('store.get("skillInstallOffered", false)')
+    expect(dismissed).to include('store.get("cliInstallOffered", false)')
 
     settings = read("electron/settings.ts")
     expect(settings).to include("skillInstallOffered: boolean")
     expect(settings).to include("skillInstallOffered: false")
+    expect(settings).to include("skillOfferDismissed: boolean")
+    expect(settings).to include("skillOfferDismissed: false")
   end
 
   it "documents the install experience and keeps Preferences as the fallback surface" do

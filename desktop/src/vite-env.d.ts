@@ -236,13 +236,14 @@ interface Window {
     getGlobalHotkey: () => Promise<string>
     saveGlobalHotkey: (globalHotkey: string) => Promise<{ globalHotkey: string }>
     chooseLocalProjectsRoot: () => Promise<string | null>
-    syrusCliStatus: () => Promise<{ available: boolean }>
+    syrusCliStatus: () => Promise<{ available: boolean; bundledAvailable: boolean }>
     installSyrusCli: (options?: { withSkill?: boolean }) => Promise<SyrusCliInstallResult>
     checkoutAvailability: (repoSlug: string) => Promise<SyrusCheckoutAvailability>
     checkoutJob: (request: SyrusCheckoutRequest) => Promise<{ branchName: string }>
     localStatus: () => Promise<SyrusLocalStatus | null>
     showPreferences: () => Promise<void>
     openSyrusWindow: () => Promise<void>
+    openInSyrus: (target?: string) => Promise<void>
     quitApp: () => Promise<void>
     copyText: (text: string) => Promise<void>
     showNotification: (opts: SyrusDesktopNotificationOptions) => Promise<void>

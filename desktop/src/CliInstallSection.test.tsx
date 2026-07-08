@@ -2,9 +2,14 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { CliInstallSection } from "./App"
 
-function stubBridge(over: Partial<{ available: boolean; install: SyrusCliInstallResult }> = {}) {
+function stubBridge(
+  over: Partial<{ available: boolean; bundledAvailable: boolean; install: SyrusCliInstallResult }> = {}
+) {
   const bridge = {
-    syrusCliStatus: vi.fn().mockResolvedValue({ available: over.available ?? false }),
+    syrusCliStatus: vi.fn().mockResolvedValue({
+      available: over.available ?? false,
+      bundledAvailable: over.bundledAvailable ?? true
+    }),
     installSyrusCli: vi.fn().mockResolvedValue(
       over.install ?? {
         installed: true,
@@ -69,6 +74,18 @@ describe("CliInstallSection", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Add Claude Code skill" }))
     expect(bridge.installSyrusCli).toHaveBeenCalledWith({ withSkill: true })
     await waitFor(() => expect(screen.queryByText(/Claude Code skill added/)).not.toBeNull())
+  })
+
+  it("shows manual guidance and disables reinstall when the app bundle carries no CLI", async () => {
+    // The 0.1.1/0.1.2 failure mode: the build shipped without Resources/cli,
+    // so "Reinstall CLI" could only throw ENOENT. Guidance instead.
+    const bridge = stubBridge({ available: false, bundledAvailable: false })
+    render(<CliInstallSection />)
+
+    await waitFor(() => expect(screen.queryByText(/carries no bundled CLI/)).not.toBeNull())
+    const reinstall = await screen.findByRole("button", { name: "Reinstall CLI" })
+    expect((reinstall as HTMLButtonElement).disabled).toBe(true)
+    expect(bridge.installSyrusCli).not.toHaveBeenCalled()
   })
 
   it("surfaces install failures", async () => {

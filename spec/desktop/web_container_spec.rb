@@ -18,11 +18,16 @@ RSpec.describe "desktop web-container window" do
   let(:renderer_entry) { read("src/main.tsx") }
   let(:backend_status) { read("src/BackendStatus.tsx") }
 
-  it "loads remote content fully isolated, with no preload bridge" do
+  it "loads remote content fully isolated, with only the shell-notice preload" do
     expect(web_app_window).to include("contextIsolation: true")
     expect(web_app_window).to include("nodeIntegration: false")
     expect(web_app_window).to include("sandbox: true")
-    expect(web_app_window).not_to include("preload:")
+    # The ONLY bridge is the minimal shell-notice preload (window.syrusShell,
+    # webAppPreload.cts) — never the tray's preload.cjs, whose credential and
+    # filesystem IPC remote content must not see.
+    expect(web_app_window).to include("preload: preloadPath")
+    expect(main_process).to match(%r{preloadPath: path\.join\(__dirname, "windows", "webAppPreload\.cjs"\)})
+    expect(main_process).not_to match(/createWebAppWindow\(\{[\s\S]{0,1200}"preload\.cjs"/)
   end
 
   it "keeps same-origin navigation in-window and opens everything else externally" do
@@ -30,6 +35,20 @@ RSpec.describe "desktop web-container window" do
     expect(web_app_window).to include("window.webContents.setWindowOpenHandler")
     expect(web_app_window).to include("decideWindowOpen")
     expect(web_app_window).to include("shell.openExternal")
+  end
+
+  it "confines server-side redirects too — will-navigate never fires for a 302" do
+    # A same-origin URL that 302s off-origin would otherwise leave a foreign
+    # page running in this window with the syrusShell preload attached.
+    # will-redirect fires exactly there; preventDefault cancels the whole
+    # navigation and off-origin destinations go to the default browser.
+    # (main.ts's shell:* sender validation stays as the backstop.)
+    redirect_handler = web_app_window[/window\.webContents\.on\("will-redirect"[\s\S]{0,700}/]
+    expect(redirect_handler).not_to be_nil
+    expect(redirect_handler).to include("if (!isMainFrame)")
+    expect(redirect_handler).to include("decideWindowOpen(targetUrl, serverOrigin)")
+    expect(redirect_handler).to include("event.preventDefault()")
+    expect(redirect_handler).to include("shell.openExternal(targetUrl)")
   end
 
   it "never allows popups — flows that need a real browser use the syrus_external marker" do

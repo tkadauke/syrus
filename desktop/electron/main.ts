@@ -29,6 +29,7 @@ import { bundlePathFromExecPath, installBundle, launchInstalledCopy, shouldSelfI
 import { maybeProvisionDesktopToken } from "./tokenProvisioner.js"
 import { paintUnreadDot } from "./trayBadge.js"
 import { createOnboardingWindow } from "./windows/onboardingWindow.js"
+import { resolveInstanceOrigin, resolveOpenInSyrusTarget } from "./windows/openInSyrusTarget.js"
 import { computePopoverPosition } from "./windows/popoverPosition.js"
 import { createWebAppWindow, type WebAppWindowHandle } from "./windows/webAppWindow.js"
 
@@ -999,11 +1000,29 @@ const addToWindowsUserPath = async (dir: string) => {
 }
 
 const bundledCliPath = () => {
+  // Packaged: electron-builder copies resources/cli to <Resources>/cli.
+  // Dev: compiled main.js runs from desktop/dist-electron (tsconfig outDir),
+  // so ONE level up reaches desktop/, where stage-cli.mjs stages
+  // resources/cli. Two levels up would point at <repo>/resources/cli and
+  // report the bundled CLI missing on every dev run.
   const bundledDir = app.isPackaged
     ? path.join(process.resourcesPath, "cli")
-    : path.join(__dirname, "..", "..", "resources", "cli")
+    : path.join(__dirname, "..", "resources", "cli")
   const suffix = process.platform === "win32" ? ".exe" : ""
   return path.join(bundledDir, `syrus-${process.platform}-${process.arch === "arm64" ? "arm64" : "x64"}${suffix}`)
+}
+
+// Whether the app package actually carries a CLI binary to install from.
+// False means the build shipped without Resources/cli (or a dev build never
+// staged it) — the tray banner then shows manual guidance instead of an
+// install button that can only throw ENOENT.
+const bundledCliAvailable = async () => {
+  try {
+    await fs.access(bundledCliPath(), fsConstants.R_OK)
+    return true
+  } catch {
+    return false
+  }
 }
 
 const claudeSkillPath = () => path.join(os.homedir(), ".claude", "skills", "syrus", "SKILL.md")
@@ -1044,7 +1063,13 @@ const fileSha256 = async (filePath: string): Promise<string | null> => {
 const ensureCliCurrent = async () => {
   const bundledHash = await fileSha256(bundledCliPath())
   if (bundledHash === null) {
-    return // dev build without staged binaries — nothing to install from
+    // Dev builds without staged binaries have nothing to install from. A
+    // PACKAGED app in this state shipped without Resources/cli (the
+    // 0.1.1/0.1.2 stage-cli regression) — log it and let the tray's CLI
+    // banner surface manual guidance (syrus-cli-status reports
+    // bundledAvailable: false) instead of crashing or failing silently.
+    console.warn(`[cli-install] bundled CLI missing at ${bundledCliPath()} — skipping automatic install`)
+    return
   }
 
   const installedHash = await fileSha256(localBinSyrus())
@@ -1101,6 +1126,10 @@ const performCliInstall = async ({ withSkill = false }: CliInstallOptions = {}):
       try {
         await execFileAsync(target, ["skill", "install"], { windowsHide: true })
         skillInstalled = true
+        // Asked and answered — keep the legacy flag in sync so nothing
+        // re-offers the skill after it landed through Preferences, the tray
+        // banner, or the launch/onboarding auto-install.
+        store.set("skillInstallOffered", true)
       } catch (error) {
         // The binary landed; a failed skill write must not report the whole
         // install as broken.
@@ -1122,110 +1151,144 @@ const performCliInstall = async ({ withSkill = false }: CliInstallOptions = {}):
       skillError: null,
       error: error instanceof Error ? error.message : "Could not install the Syrus CLI."
     }
+  } finally {
+    // EVERY install path funnels through here — Preferences and the tray
+    // banner (install-syrus-cli IPC), the launch/onboarding auto-install
+    // (ensureCliCurrent), and the shell bridge's repair fallback — so a
+    // successful skill install clears the web sidebar's offer immediately
+    // instead of lingering until the next app restart.
+    void broadcastShellNoticeState()
   }
 }
 
-// The web app window carries no IPC bridge (remote content), so the
-// skill-offer setup step is the main process watching for the moment the
-// user is signed in and settled on the home surface — i.e. onboarding,
-// sign-in, and GitHub/agent connect flows are behind them. The CLI itself
-// is never offered — ensureCliCurrent installs it silently (spec I1); the
-// skill writes into another tool's config directory, so it gets the one
-// explicit ask (spec I4), and only when such a tool is actually present.
-let skillOfferInFlight = false
+// The shell-notice bridge (window.syrusShell, webAppPreload.cts): the web
+// app's sidebar renders a staged auto-update and the one-time Claude Code
+// skill offer as inline notices — the non-interruptive successor to the
+// retired native dialogs. The CLI itself is never offered: ensureCliCurrent
+// installs it silently (spec I1). The skill writes into another tool's
+// config directory, so it stays the one explicit ask (spec I4), shown only
+// while a coding agent is actually present and never after a dismissal.
+type ShellNoticeState = {
+  updateReadyVersion: string | null
+  claudeDetected: boolean
+  skillInstalled: boolean
+  skillOfferDismissed: boolean
+}
 
-const offerSkillIfAgentDetected = async (window: BrowserWindow) => {
-  // cliInstallOffered is the legacy key from when this dialog offered the
-  // CLI with a skill checkbox — an install that already answered it was
-  // already asked about the skill.
-  if (skillOfferInFlight || store.get("skillInstallOffered", false) || store.get("cliInstallOffered", false)) {
-    return
-  }
+// The legacy dialog-era keys still count as a dismissal: an install that
+// already answered "Not now" (or the even older CLI-offer dialog with the
+// skill checkbox) must not be re-nagged by the sidebar notice.
+const skillOfferDismissed = () =>
+  store.get("skillOfferDismissed", false) ||
+  store.get("skillInstallOffered", false) ||
+  store.get("cliInstallOffered", false)
 
-  if (!cachedCredentials) {
-    return
-  }
-
-  let pathname: string
-  try {
-    pathname = new URL(window.webContents.getURL()).pathname
-  } catch {
-    return
-  }
-
-  // Only the settled home surface — never interrupt onboarding, auth, or a
-  // deep-linked page the user is actually working in.
-  if (pathname !== "/" && pathname !== "/dashboard") {
-    return
-  }
-
-  if (!(await agentToolPresent())) {
-    // No marker: don't ask, and don't burn the once-only flag — the offer
-    // stays live for the launch after Claude Code or Codex shows up.
-    return
-  }
-
-  const alreadyInstalled = await fs
+const shellNoticeState = async (): Promise<ShellNoticeState> => ({
+  updateReadyVersion: appUpdates.downloadedUpdateVersion(),
+  claudeDetected: await agentToolPresent(),
+  skillInstalled: await fs
     .access(claudeSkillPath())
     .then(() => true)
-    .catch(() => false)
-  if (alreadyInstalled) {
-    store.set("skillInstallOffered", true)
-    return
+    .catch(() => false),
+  skillOfferDismissed: skillOfferDismissed()
+})
+
+const broadcastShellNoticeState = async () => {
+  const state = await shellNoticeState()
+  webAppWindow?.window.webContents.send("shell:state-changed", state)
+}
+
+// ipcMain.handle answers ANY renderer in the app by default — including the
+// web-app window after it somehow ended up on a foreign page. The shell:*
+// channels act on the host (write a skill into ~/.claude, relaunch the app),
+// so every shell:* handler re-validates the SENDER before doing anything:
+// it must be the web-app window's webContents, the invoking frame must be
+// that window's TOP frame (no iframe reaches the bridge's channels by
+// name), and the frame's CURRENT URL must sit on the configured instance
+// origin — the same resolver the tray's Open-in-Syrus path trusts. Any
+// mismatch is logged and refused, never acted on. The navigation guards in
+// webAppWindow.ts (will-navigate + will-redirect) should make a foreign
+// origin unreachable; this is the defense-in-depth backstop.
+const shellSenderAllowed = (event: Electron.IpcMainInvokeEvent, channel: string): boolean => {
+  const contents = webAppWindow?.window.webContents
+  if (!contents || event.sender !== contents) {
+    console.warn(`[shell-ipc] refused ${channel}: sender is not the web-app window`)
+    return false
   }
 
-  skillOfferInFlight = true
+  const frame = event.senderFrame
+  if (!frame || frame !== contents.mainFrame) {
+    console.warn(`[shell-ipc] refused ${channel}: sender frame is not the window's top frame`)
+    return false
+  }
+
+  const instanceOrigin = resolveInstanceOrigin(getServerUrl())
+  let senderOrigin: string | null = null
   try {
-    const isWindows = process.platform === "win32"
-    const { response } = await dialog.showMessageBox(window, {
-      type: "question",
-      buttons: ["Add skill", "Not now"],
-      defaultId: 0,
-      cancelId: 1,
-      message: "Coding agent detected — teach it Syrus?",
-      detail:
-        `Claude Code (or Codex) is set up on this ${isWindows ? "PC" : "Mac"}. ` +
-        "Adding the Syrus skill lets agent sessions file work, check job status, and drive reviews through the syrus CLI. " +
-        "It writes one file under ~/.claude/skills and keeps itself current with app updates. " +
-        "You can add or remove it any time from Preferences.",
-    })
+    senderOrigin = new URL(frame.url).origin
+  } catch {
+    senderOrigin = null
+  }
 
-    // Asked and answered — either way, don't nag on every navigation.
-    store.set("skillInstallOffered", true)
+  if (instanceOrigin === null || senderOrigin !== instanceOrigin) {
+    console.warn(
+      `[shell-ipc] refused ${channel}: sender origin ${senderOrigin ?? "<unparseable>"} is not the configured instance origin`
+    )
+    return false
+  }
 
-    if (response !== 0) {
-      return
+  return true
+}
+
+// What a refused shell:get-state caller sees: no update, no agent, offer
+// dismissed — a state that renders zero notices and leaks nothing about
+// the host machine.
+const INERT_SHELL_NOTICE_STATE: ShellNoticeState = {
+  updateReadyVersion: null,
+  claudeDetected: false,
+  skillInstalled: false,
+  skillOfferDismissed: true
+}
+
+// The sidebar's "Add the Syrus skill" action. Failures return inline
+// ({ ok: false, message }) for the web UI to render — no error dialog.
+const installSkillFromShell = async (): Promise<{ ok: boolean; message: string | null }> => {
+  try {
+    // Server-side re-check of the offer's own gates. The sidebar only shows
+    // the action while a coding agent is present and the skill is absent,
+    // but the renderer's claim is not trusted: no agent tool means no
+    // writing into another tool's config dir, and an already-installed
+    // skill is idempotent success — the broadcast below clears the notice.
+    if (!(await agentToolPresent())) {
+      return { ok: false, message: "No coding agent (Claude Code or Codex) was detected on this machine." }
+    }
+
+    const alreadyInstalled = await fs
+      .access(claudeSkillPath())
+      .then(() => true)
+      .catch(() => false)
+    if (alreadyInstalled) {
+      store.set("skillInstallOffered", true)
+      return { ok: true, message: null }
     }
 
     // The CLI is normally already present (ensureCliCurrent at launch); a
     // missing binary here just means that install failed, so retry it with
     // the skill in one go.
-    let skillError: string | null = null
     try {
       await execFileAsync(localBinSyrus(), ["skill", "install"], { windowsHide: true })
     } catch {
       const result = await performCliInstall({ withSkill: true })
       if (!result.skillInstalled) {
-        skillError = result.skillError ?? result.error ?? "Could not install the skill."
+        return { ok: false, message: result.skillError ?? result.error ?? "Could not install the Syrus skill." }
       }
     }
 
-    if (skillError) {
-      await dialog.showMessageBox(window, {
-        type: "warning",
-        message: "The Syrus skill could not be added.",
-        detail: `${skillError} You can retry from Preferences → Projects.`
-      })
-      return
-    }
-
-    await dialog.showMessageBox(window, {
-      type: "info",
-      message: "Syrus skill added",
-      detail: "New Claude Code sessions can now drive Syrus through the syrus CLI."
-    })
+    // Asked and answered — keep the legacy flag in sync so nothing re-offers.
+    store.set("skillInstallOffered", true)
+    return { ok: true, message: null }
   } finally {
-    skillOfferInFlight = false
+    void broadcastShellNoticeState()
   }
 }
 
@@ -1621,6 +1684,14 @@ const ensureOnboardingDriver = () => {
       if (state.phase === "done" && state.mode === "local") {
         createMenu()
         startLocalBackendSupervision()
+        // Batteries included the moment a local install lands: the CLI must
+        // be on disk without any tray click. The launch-time install
+        // normally already ran; this re-runs the same idempotent
+        // content-hash check (a no-op when current, a log line when the
+        // bundle carries no CLI), so a fresh install never ends without a
+        // working `syrus`. The tray banner / Preferences stay as the
+        // repair/reinstall surface.
+        void ensureCliCurrent().catch(() => {})
       }
     },
     onLogLine: (line) => {
@@ -1742,6 +1813,10 @@ const showWebAppWindow = async () => {
     // Stamped at DMG stage time; rides a second UA token so the BuildBadge
     // tooltip can show when this app build was made.
     builtAt: manifest?.builtAt ?? null,
+    // The minimal shell-notice bridge (window.syrusShell) — NOT preload.cjs,
+    // which carries the credential/filesystem IPC remote content must never
+    // see. See webAppPreload.cts for the contract.
+    preloadPath: path.join(__dirname, "windows", "webAppPreload.cjs"),
     savedBounds: store.get("webAppWindowBounds", null),
     loadFallback: (window) => loadBackendStatus(window, getBackendMode() === "remote" ? "remote" : "local"),
     onBoundsChanged: (bounds) => store.set("webAppWindowBounds", bounds),
@@ -1783,16 +1858,6 @@ const showWebAppWindow = async () => {
   handle.window.webContents.on("did-finish-load", attemptTokenProvisioning)
   handle.window.webContents.on("did-navigate-in-page", attemptTokenProvisioning)
 
-  // One-time post-setup step: once the user is signed in and lands on the
-  // home surface (never mid-onboarding), offer the Claude Code skill if a
-  // coding agent is set up on this machine. Native dialog because the
-  // remote web app deliberately has no IPC bridge.
-  const attemptSkillOffer = () => {
-    void offerSkillIfAgentDetected(handle.window)
-  }
-  handle.window.webContents.on("did-finish-load", attemptSkillOffer)
-  handle.window.webContents.on("did-navigate-in-page", attemptSkillOffer)
-
   try {
     await webAppWindow.loadServerUrl()
   } catch {
@@ -1807,6 +1872,25 @@ const openSyrus = async () => {
   }
 
   await showWebAppWindow()
+}
+
+// Tray "Open in Syrus": land in the app window — created if closed,
+// restored if minimized, focused — never the external browser (the legacy
+// behavior this replaces). `target` is an instance-relative path (or full
+// URL); cross-origin targets are refused rather than navigated to, and an
+// empty target just focuses the window on whatever page it was showing.
+const openInSyrus = async (target = "") => {
+  await showWebAppWindow()
+  // showWebAppWindow focuses the window; this pulls the whole app forward
+  // when the tray popover (another focused surface) initiated the action.
+  app.focus({ steal: true })
+
+  const destination = resolveOpenInSyrusTarget(getServerUrl(), target)
+  if (!webAppWindow || destination === null) {
+    return
+  }
+
+  await webAppWindow.window.loadURL(destination)
 }
 
 // Swap the web window onto the status page and let recovery polling bring
@@ -2365,7 +2449,14 @@ ipcMain.handle("choose-local-projects-root", async () => {
 
   return result.canceled ? null : result.filePaths[0]
 })
-ipcMain.handle("syrus-cli-status", async () => ({ available: await syrusCliAvailable() }))
+ipcMain.handle("syrus-cli-status", async () => ({
+  available: await syrusCliAvailable(),
+  // False when the app package itself has no CLI to install from (the
+  // 0.1.1/0.1.2 missing-Resources/cli builds, or a dev build that never
+  // staged one) — the tray banner then shows manual guidance instead of an
+  // install button that can only fail.
+  bundledAvailable: await bundledCliAvailable()
+}))
 ipcMain.handle("install-syrus-cli", async (_event, options?: CliInstallOptions) => performCliInstall(options))
 ipcMain.handle("checkout-availability", async (_event, repoSlug: string) => checkoutAvailability(repoSlug))
 ipcMain.handle("checkout-job", async (_event, request: CheckoutRequest) => checkoutJob(request))
@@ -2377,6 +2468,55 @@ ipcMain.handle("show-preferences", async () => {
 // (open, preferences, quit) reachable from a left click too.
 ipcMain.handle("open-syrus", async () => {
   await openSyrus()
+})
+// Tray "Open in Syrus" actions: focus the app window and navigate it to the
+// requested instance page instead of launching the external browser.
+ipcMain.handle("open-in-syrus", async (_event, target?: string) => {
+  await openInSyrus(typeof target === "string" ? target : "")
+})
+// The shell-notice bridge (webAppPreload.cts / window.syrusShell): sidebar
+// notices for a staged auto-update and the one-time Claude Code skill offer.
+// Every shell:* handler validates the sender first (shellSenderAllowed):
+// only the web-app window's top frame, showing the configured instance
+// origin, is honored — anything else is logged and refused.
+ipcMain.handle("shell:get-state", async (event) => {
+  if (!shellSenderAllowed(event, "shell:get-state")) {
+    return INERT_SHELL_NOTICE_STATE
+  }
+
+  return shellNoticeState()
+})
+ipcMain.handle("shell:relaunch-to-update", (event) => {
+  if (!shellSenderAllowed(event, "shell:relaunch-to-update")) {
+    return
+  }
+
+  // Only meaningful once electron-updater has an update staged — a stray
+  // call from the page must not quit a perfectly healthy app.
+  if (!appUpdates.downloadedUpdateVersion()) {
+    return
+  }
+
+  // quitAndInstall closes windows BEFORE any quit event fires, so the
+  // hide-on-close handler would preventDefault and abort the update unless
+  // the quit flag is already set.
+  isQuitting = true
+  appUpdates.quitAndInstallUpdate()
+})
+ipcMain.handle("shell:install-skill", async (event) => {
+  if (!shellSenderAllowed(event, "shell:install-skill")) {
+    return { ok: false, message: "This action is only available to the Syrus app window." }
+  }
+
+  return installSkillFromShell()
+})
+ipcMain.handle("shell:dismiss-skill-offer", async (event) => {
+  if (!shellSenderAllowed(event, "shell:dismiss-skill-offer")) {
+    return
+  }
+
+  store.set("skillOfferDismissed", true)
+  await broadcastShellNoticeState()
 })
 ipcMain.handle("quit-app", () => {
   app.quit()
@@ -2599,6 +2739,9 @@ app.whenReady().then(async () => {
   appUpdates.initAutoUpdates({
     onUpdateDownloaded: () => {
       createMenu() // tray menu rebuilds per click; the app menu needs a refresh
+      // The web app's sidebar shows the "restart to update" notice through
+      // the shell bridge — no dialog, no forced interruption.
+      void broadcastShellNoticeState()
     },
     onBeforeQuitForUpdate: () => {
       isQuitting = true

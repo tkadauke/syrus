@@ -209,6 +209,51 @@ RSpec.describe "desktop auto-update and release pipeline" do
     end
   end
 
+  it "release workflow guarantees the bundled CLI: Go on both desktop runners, presence asserted" do
+    # 0.1.1/0.1.2 shipped with NO Resources/cli: macos-15 has no Go, and
+    # stage-cli.mjs exited 0 after wiping the staging dir, so every in-app
+    # CLI/skill install died with ENOENT. Three layers now prevent it:
+    # (1) stage-cli hard-fails under SYRUS_RELEASE_BUILD=1 (pinned in
+    # cli_install_spec), (2) BOTH desktop jobs pin the Go toolchain from
+    # cli/go.mod — same source of truth as build-cli — and (3) the verify
+    # steps assert the binaries are actually inside the packaged app.
+    setup_go = release_workflow.scan(%r{uses: actions/setup-go@\S+\s+with:\s+go-version-file: cli/go\.mod})
+    expect(setup_go.length).to be >= 3 # build-cli + build-mac + build-windows
+    # setup-go's default cache expects go.sum at the repo root; ours is under
+    # cli/, so every setup-go step must point the cache there or it caches
+    # nothing (with a warning) on every release run.
+    expect(release_workflow.scan("cache-dependency-path: cli/go.sum").length).to be >= 3
+
+    mac_job = release_workflow[/^  build-mac:[\s\S]*?(?=^  build-windows:)/]
+    expect(mac_job).to include("go-version-file: cli/go.mod")
+    windows_job = release_workflow[/^  build-windows:[\s\S]*?(?=^  publish:)/]
+    expect(windows_job).to include("go-version-file: cli/go.mod")
+
+    # Layer (1) only arms itself when the workflow declares a release build:
+    # stage-cli's hard-fail and the DMG's release naming both key on
+    # SYRUS_RELEASE_BUILD=1, so BOTH desktop build steps must set it.
+    expect(mac_job).to include('SYRUS_RELEASE_BUILD: "1"')
+    expect(windows_job).to include('SYRUS_RELEASE_BUILD: "1"')
+
+    # The mac build's retry-once loop must treat the stage-cli hard-fail as
+    # deterministic (like a notarization "Invalid") — retrying a missing Go
+    # toolchain just burns 90s and mislabels the failure as transient.
+    mac_build_step = release_workflow[/name: Build, sign, and notarize[\s\S]{0,1800}/]
+    expect(mac_build_step).to include("grep -qF 'stage-cli: Go toolchain not found'")
+
+    # macOS: both darwin arches ride the universal app (ensureCliCurrent
+    # installs the one matching the running arch), asserted executable.
+    mac_verify = release_workflow[/name: Verify signature, notarization, and update feed[\s\S]{0,1800}/]
+    expect(mac_verify).to include('test -x "$APP/Contents/Resources/cli/syrus-darwin-arm64"')
+    expect(mac_verify).to include('test -x "$APP/Contents/Resources/cli/syrus-darwin-x64"')
+
+    # Windows: the packaged resources dir (win-unpacked is what NSIS wraps)
+    # must carry the x64 exe.
+    windows_verify = release_workflow[/name: Verify signatures and update feed[\s\S]{0,1800}/]
+    expect(windows_verify).to include("desktop/out/win-unpacked/resources/cli/syrus-win32-x64.exe")
+    expect(windows_verify).to include("Bundled CLI missing")
+  end
+
   it "release workflow verifies the signature, stapling, and stable download aliases" do
     expect(release_workflow).to include("codesign --verify --deep --strict")
     expect(release_workflow).to include("xcrun stapler validate")

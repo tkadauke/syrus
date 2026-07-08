@@ -11,11 +11,16 @@ type WebAppWindowOptions = {
   // When this app build was staged (ISO-8601, from the manifest) — appended
   // as a second UA token feeding the BuildBadge's hover tooltip.
   builtAt?: string | null
+  // The MINIMAL shell-notice bridge (webAppPreload.cjs), NOT the tray's
+  // preload.cjs: this window loads remote content, which must never see the
+  // credential/filesystem IPC surface. The shell bridge exposes only
+  // update/skill notice state and two re-validated actions — see
+  // webAppPreload.cts for the contract and why it's safe on any origin.
+  preloadPath: string
   savedBounds: WindowBounds | null
   // Loads the packaged renderer's backend-status view. That page is purely
-  // informational — this window carries NO preload (the remote web app must
-  // never see the IPC bridge), so recovery is driven by the main process
-  // polling /up and calling loadServerUrl() again.
+  // informational — it never uses the bridge, and recovery is driven by the
+  // main process polling /up and calling loadServerUrl() again.
   loadFallback: (window: BrowserWindow) => Promise<void>
   onBoundsChanged: (bounds: WindowBounds) => void
   onLoadFailed: () => void
@@ -31,6 +36,7 @@ export const createWebAppWindow = ({
   serverUrl,
   buildSha,
   builtAt,
+  preloadPath,
   savedBounds,
   loadFallback,
   onBoundsChanged,
@@ -48,10 +54,13 @@ export const createWebAppWindow = ({
     minHeight: 480,
     title: "Syrus",
     webPreferences: {
-      // The Syrus web app is remote content: full isolation, no bridge.
+      // The Syrus web app is remote content: full isolation stays on. The
+      // only bridge is the shell-notice preload (window.syrusShell) — never
+      // the tray's preload.cjs with its credential/filesystem IPC.
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      preload: preloadPath
     }
   })
 
@@ -79,6 +88,30 @@ export const createWebAppWindow = ({
   // calls, so any file: navigation seen here is remote content trying to
   // reach local files — deny it.
   window.webContents.on("will-navigate", (event, targetUrl) => {
+    const action = decideWindowOpen(targetUrl, serverOrigin)
+    if (action === "main") {
+      return
+    }
+
+    event.preventDefault()
+    if (action === "external") {
+      void shell.openExternal(targetUrl)
+    }
+  })
+
+  // will-navigate does NOT fire for server-side redirects: a same-origin
+  // URL that 302s off-origin would otherwise land a foreign page in this
+  // window with the syrusShell preload attached. will-redirect fires
+  // exactly there, and preventDefault cancels the whole navigation; an
+  // off-origin destination is handed to the default browser like any other
+  // external link. Main frame only — subframes never see the preload
+  // bridge, and main.ts's shell:* sender validation is the backstop if a
+  // foreign page ever does end up here.
+  window.webContents.on("will-redirect", (event, targetUrl, _isInPlace, isMainFrame) => {
+    if (!isMainFrame) {
+      return
+    }
+
     const action = decideWindowOpen(targetUrl, serverOrigin)
     if (action === "main") {
       return

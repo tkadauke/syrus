@@ -11,8 +11,13 @@
 //   syrus-darwin-arm64, syrus-darwin-x64, syrus-win32-arm64.exe,
 //   syrus-win32-x64.exe
 //
-// Skips with a notice when Go isn't available — the app then simply shows
-// manual install guidance instead of the one-click button.
+// Dev builds skip with a notice when Go isn't available — the app then
+// simply shows manual install guidance instead of the one-click button.
+// Release builds (SYRUS_RELEASE_BUILD=1) HARD-FAIL instead: 0.1.1 and 0.1.2
+// shipped with no Resources/cli because the mac runner had no Go and this
+// script exited 0 after wiping the staging dir, so every CLI/skill install
+// in the released app died with ENOENT. A release without the bundled CLI
+// is a broken release, not a degraded one.
 import { execFileSync } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
@@ -32,6 +37,14 @@ try {
   const homebrewGo = "/opt/homebrew/bin/go"
   if (fs.existsSync(homebrewGo)) {
     goBinary = homebrewGo
+  } else if (process.env.SYRUS_RELEASE_BUILD === "1") {
+    // Release builds must never ship without the bundled CLI (the 0.1.1/0.1.2
+    // regression). CI provides Go via actions/setup-go pinned to cli/go.mod.
+    console.error(
+      "stage-cli: Go toolchain not found and SYRUS_RELEASE_BUILD=1 — a release build MUST bundle the Syrus CLI. " +
+        "Add actions/setup-go (go-version-file: cli/go.mod) to the workflow, or install Go locally, and rebuild."
+    )
+    process.exit(1)
   } else {
     console.log("stage-cli: Go not found — skipping CLI bundling (Preferences will show manual install guidance)")
     process.exit(0)
