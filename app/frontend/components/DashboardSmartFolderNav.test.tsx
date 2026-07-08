@@ -162,7 +162,7 @@ describe("DashboardSmartFolderNav", () => {
 
     expect(smartFoldersApi.deleteSmartFolder).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole("menuitem", { name: "Confirm delete?" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "Confirm delete" }))
 
     await waitFor(() => {
       expect(smartFoldersApi.deleteSmartFolder).toHaveBeenCalledWith(101)
