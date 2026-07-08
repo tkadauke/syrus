@@ -5,6 +5,7 @@ import { createPortal } from "react-dom"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import type { AdminSmartFolder } from "../api/adminSmartFolders"
 import { createSmartFolder, deleteSmartFolder, updateSmartFolder } from "../api/smartFolders"
+import { useT } from "../hooks/useT"
 import { filterTreeFromPayload, filterTreesEqual, topFilterChildren } from "./FilterBar"
 
 export function AdminSmartFolderNav({
@@ -35,6 +36,7 @@ export function AdminSmartFolderNav({
   search?: string
   subjectType?: string
 }) {
+  const { t } = useT("nav")
   const queryClient = useQueryClient()
   const [draggedFolderId, setDraggedFolderId] = useState<number | null>(null)
   const location = useLocation()
@@ -139,7 +141,7 @@ export function AdminSmartFolderNav({
         {primaryFolders.map((folder) => <SmartFolderLink folder={folder} key={folder.id} prefix={prefix} />)}
         {moreFolders.length > 0 ? (
           <details className="space-y-1" open={moreFolders.some((folder) => folder.active) || undefined}>
-            <summary className="list-none cursor-pointer px-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">More</summary>
+            <summary className="list-none cursor-pointer px-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("smart_folder.more")}</summary>
             <div className="space-y-1">
               {moreFolders.map((folder) => <SmartFolderLink folder={folder} key={folder.id} prefix={prefix} />)}
             </div>
@@ -147,7 +149,7 @@ export function AdminSmartFolderNav({
         ) : null}
       </nav>
       <div className="space-y-1 pt-3">
-        <h3 className="px-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Saved</h3>
+        <h3 className="px-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("smart_folder.saved")}</h3>
         {savedFolders.length > 0 ? (
           <nav aria-label={`${ariaLabel} saved`} className="space-y-1">
             {savedFolders.map((folder) => (
@@ -165,7 +167,7 @@ export function AdminSmartFolderNav({
             ))}
           </nav>
         ) : (
-          <p className="px-2 py-1.5 text-sm text-gray-400">No saved folders</p>
+          <p className="px-2 py-1.5 text-sm text-gray-400">{t("smart_folder.no_saved_folders")}</p>
         )}
         {filtersDiffer && activeFolder ? (
           <div className="space-y-2 px-2 pt-2">
@@ -175,16 +177,16 @@ export function AdminSmartFolderNav({
               onClick={() => updateFolder.mutate()}
               type="button"
             >
-              {updateFolder.isPending ? "Updating..." : `Update ${activeFolder.name}`}
+              {updateFolder.isPending ? t("smart_folder.updating") : t("smart_folder.update_named_folder", { name: activeFolder.name })}
             </button>
-            {updateFolder.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">Unable to update smart folder.</p> : null}
+            {updateFolder.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{t("smart_folder.unable_to_update")}</p> : null}
           </div>
         ) : null}
         {canSaveAsNew ? (
           <div className="space-y-2 px-2 pt-2">
             <form className="space-y-2" onSubmit={saveFolder}>
               <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor={`${subjectType}-smart-folder-name`}>
-                Folder name
+                {t("smart_folder.folder_name")}
                 <input
                   className="mt-1 block w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm normal-case text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
                   disabled={createFolder.isPending}
@@ -197,9 +199,9 @@ export function AdminSmartFolderNav({
                 />
               </label>
               <button className="w-full rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:bg-gray-300 dark:hover:bg-blue-500 dark:disabled:bg-gray-700 dark:disabled:text-gray-400" disabled={createFolder.isPending} type="submit">
-                {createFolder.isPending ? "Saving..." : "Save as new folder"}
+                {createFolder.isPending ? t("smart_folder.saving") : t("smart_folder.save_as_new_folder")}
               </button>
-              {createFolder.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">Unable to save smart folder.</p> : null}
+              {createFolder.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{t("smart_folder.unable_to_save")}</p> : null}
             </form>
           </div>
         ) : null}
@@ -227,6 +229,7 @@ function SmartFolderLink({
   onMutationSuccess?: () => void
   prefix: string
 }) {
+  const { t } = useT("nav")
   const [menuOpen, setMenuOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(folder.name)
@@ -369,7 +372,7 @@ function SmartFolderLink({
           role="menu"
           style={{ top: menuAnchor.top, right: menuAnchor.right }}
         >
-          <button className={menuItemClass()} onClick={startRename} role="menuitem" type="button">Rename</button>
+          <button className={menuItemClass()} onClick={startRename} role="menuitem" type="button">{t("smart_folder.rename")}</button>
           <button
             className={menuItemClass("text-red-700 dark:text-red-300")}
             disabled={destroy.isPending}
@@ -377,7 +380,7 @@ function SmartFolderLink({
             role="menuitem"
             type="button"
           >
-            {confirmDelete ? "Confirm delete" : "Delete"}
+            {confirmDelete ? t("smart_folder.confirm_delete") : t("smart_folder.delete")}
           </button>
         </div>,
         document.body

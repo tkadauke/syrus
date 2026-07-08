@@ -1,6 +1,7 @@
 import type { RefObject } from "react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
+import { useT } from "../hooks/useT"
 import { CloseIcon } from "./CloseIcon"
 
 export type FilterOption = {
@@ -74,6 +75,7 @@ export function FilterBar({
   className?: string
   buildLink?: FilterLinkBuilder
 }) {
+  const { t } = useT("nav")
   const navigate = useNavigate()
   const [draftTree, setDraftTree] = useState<FilterTree>(() => filterTreeFromPayload(filter))
   const [editingPath, setEditingPath] = useState<FilterPath | null>(null)
@@ -300,17 +302,17 @@ export function FilterBar({
             onToggleNegation={toggleNegation}
           />
         ))}
-        {draftChildren.length > 0 ? null : <span className="text-sm text-gray-400 dark:text-gray-500">No filters</span>}
+        {draftChildren.length > 0 ? null : <span className="text-sm text-gray-400 dark:text-gray-500">{t("filter_bar.no_filters")}</span>}
         <button
           className="inline-flex items-center gap-1 rounded border border-dashed border-gray-300 px-2 py-1.5 text-sm text-gray-600 hover:border-gray-400 hover:text-gray-900 dark:border-gray-700 dark:text-gray-300 dark:hover:border-gray-500 dark:hover:text-white"
           onClick={() => openAddMenu()}
           type="button"
         >
-          + Add filter
+          {t("filter_bar.add_filter")}
         </button>
         {hasFilters ? (
           <Link className="text-sm text-gray-500 underline hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" to={clearFiltersLink(pathname, search, legacyFilterKeys, buildLink)}>
-            Clear filters
+            {t("filter_bar.clear_filters")}
           </Link>
         ) : null}
         {addMenuOpen ? (
@@ -319,14 +321,14 @@ export function FilterBar({
               autoFocus
               className="block w-full rounded-t border-b border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
               onChange={(event) => setAddQuery(event.target.value)}
-              placeholder="Search filters..."
+              placeholder={t("filter_bar.search_placeholder")}
               type="search"
               value={addQuery}
             />
             <div className="max-h-72 overflow-y-auto py-1">
               {filteredSuggestions.length > 0 ? (
                 <div className="border-b border-gray-100 pb-1 dark:border-gray-800">
-                  <div className="px-3 py-1.5 text-xs font-semibold uppercase text-gray-400 dark:text-gray-500">Suggested</div>
+                  <div className="px-3 py-1.5 text-xs font-semibold uppercase text-gray-400 dark:text-gray-500">{t("filter_bar.suggested")}</div>
                   {filteredSuggestions.map((suggestion) => (
                     <button
                       className="block w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
@@ -351,7 +353,7 @@ export function FilterBar({
                   <span className="text-xs text-gray-400 dark:text-gray-500">{field.bucket}</span>
                 </button>
               ))}
-              {filteredSchema.length === 0 && filteredSuggestions.length === 0 ? <div className="px-3 py-2 text-sm text-gray-400 dark:text-gray-500">No matching filters</div> : null}
+              {filteredSchema.length === 0 && filteredSuggestions.length === 0 ? <div className="px-3 py-2 text-sm text-gray-400 dark:text-gray-500">{t("filter_bar.no_matching_filters")}</div> : null}
             </div>
           </div>
         ) : null}
@@ -441,6 +443,8 @@ function FilterChipButton({ chip, controls, negated = false, onClick }: { chip: 
 }
 
 function FilterChipEditor({ chip, editorRef, meta, onAddAlternative, onChange }: { chip: FilterChip; editorRef: RefObject<HTMLDivElement>; meta: FilterSchemaField; onAddAlternative: () => void; onChange: (chip: FilterChip) => void }) {
+  const { t } = useT("nav")
+
   function updateOp(op: string) {
     onChange({ field: chip.field, op, value: defaultFilterValue(meta, op) })
   }
@@ -450,7 +454,7 @@ function FilterChipEditor({ chip, editorRef, meta, onAddAlternative, onChange }:
       <div className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{meta.label}</div>
       <div className="space-y-3">
         <label className={filterLabelClass()} htmlFor={`filter-op-${meta.field}`}>
-          Operator
+          {t("filter_bar.operator")}
           <select className={filterInputClass("mt-1 block rounded px-2 py-1.5")} id={`filter-op-${meta.field}`} onChange={(event) => updateOp(event.target.value)} value={chip.op}>
             {meta.operators.map((op) => <option key={op} value={op}>{humanizeOp(op)}</option>)}
           </select>
@@ -458,13 +462,14 @@ function FilterChipEditor({ chip, editorRef, meta, onAddAlternative, onChange }:
         <FilterValueEditor chip={chip} meta={meta} onChange={onChange} />
       </div>
       <button className="rounded border border-dashed border-indigo-300 px-2 py-1 text-sm font-medium text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-200 dark:hover:bg-indigo-950" onClick={onAddAlternative} type="button">
-        + OR alternative
+        {t("filter_bar.or_alternative")}
       </button>
     </div>
   )
 }
 
 function FilterValueEditor({ chip, meta, onChange }: { chip: FilterChip; meta: FilterSchemaField; onChange: (chip: FilterChip) => void }) {
+  const { t } = useT("nav")
   if (isPredicateOp(chip.op)) return null
 
   const options = filterOptions(meta)
@@ -477,7 +482,7 @@ function FilterValueEditor({ chip, meta, onChange }: { chip: FilterChip; meta: F
     const selected = multi ? Array.isArray(chip.value) ? chip.value.map(String) : [] : [String(chip.value ?? "")]
     return (
       <label className={filterLabelClass()} htmlFor={`filter-value-${meta.field}`}>
-        Value
+        {t("filter_bar.value")}
         <select
           className={filterInputClass("mt-1 block min-w-44 rounded px-2 py-1.5")}
           id={`filter-value-${meta.field}`}
@@ -499,6 +504,7 @@ function FilterValueEditor({ chip, meta, onChange }: { chip: FilterChip; meta: F
 }
 
 function TextFilterValueEditor({ chip, meta, onChange }: { chip: FilterChip; meta: FilterSchemaField; onChange: (chip: FilterChip) => void }) {
+  const { t } = useT("nav")
   const [localValue, setLocalValue] = useState(String(chip.value ?? ""))
 
   useEffect(() => {
@@ -511,7 +517,7 @@ function TextFilterValueEditor({ chip, meta, onChange }: { chip: FilterChip; met
 
   return (
     <label className={filterLabelClass()} htmlFor={`filter-value-${chip.field}`}>
-      Value
+      {t("filter_bar.value")}
       <input
         className={filterInputClass("mt-1 block w-56 rounded px-2 py-1.5")}
         id={`filter-value-${chip.field}`}
@@ -529,6 +535,7 @@ function TextFilterValueEditor({ chip, meta, onChange }: { chip: FilterChip; met
 }
 
 function TypeaheadFilterValueEditor({ chip, meta, multi, onChange }: { chip: FilterChip; meta: FilterSchemaField; multi: boolean; onChange: (chip: FilterChip) => void }) {
+  const { t } = useT("nav")
   const [query, setQuery] = useState("")
   const [selectedOptions, setSelectedOptions] = useState<FilterOption[]>([])
   const [options, setOptions] = useState<FilterOption[]>([])
@@ -596,7 +603,7 @@ function TypeaheadFilterValueEditor({ chip, meta, multi, onChange }: { chip: Fil
 
   return (
     <div className={filterLabelClass()}>
-      <label htmlFor={`filter-value-${meta.field}-search`}>Value</label>
+      <label htmlFor={`filter-value-${meta.field}-search`}>{t("filter_bar.value")}</label>
       <div className="relative mt-1 normal-case text-gray-700 dark:text-gray-200">
         <div className="flex max-h-[10rem] min-h-11 w-full flex-wrap items-center gap-1.5 overflow-y-auto rounded border border-gray-300 bg-white px-2 py-2 text-sm dark:border-gray-700 dark:bg-gray-950" onClick={() => inputRef.current?.focus()}>
           {selected.length > 0 ? (
@@ -616,7 +623,7 @@ function TypeaheadFilterValueEditor({ chip, meta, multi, onChange }: { chip: Fil
             className="min-w-32 flex-1 border-0 bg-transparent p-0 text-sm text-gray-900 focus:outline-none dark:text-gray-100 dark:placeholder:text-gray-500"
             id={`filter-value-${meta.field}-search`}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search by name..."
+            placeholder={t("filter_bar.search_by_name")}
             ref={inputRef}
             type="text"
             value={query}
@@ -636,7 +643,7 @@ function TypeaheadFilterValueEditor({ chip, meta, multi, onChange }: { chip: Fil
                 </button>
               ))
             ) : (
-              <div className="px-3 py-1.5 text-sm text-gray-400 dark:text-gray-500">No matches</div>
+              <div className="px-3 py-1.5 text-sm text-gray-400 dark:text-gray-500">{t("filter_bar.no_matches")}</div>
             )}
           </div>
         ) : null}
@@ -646,6 +653,7 @@ function TypeaheadFilterValueEditor({ chip, meta, multi, onChange }: { chip: Fil
 }
 
 function MultiFilterValueEditor({ chip, meta, onChange, options }: { chip: FilterChip; meta: FilterSchemaField; onChange: (chip: FilterChip) => void; options: FilterOption[] }) {
+  const { t } = useT("nav")
   const [query, setQuery] = useState("")
   const selected = Array.isArray(chip.value) ? chip.value.map(String) : []
   const selectedSet = new Set(selected)
@@ -669,7 +677,7 @@ function MultiFilterValueEditor({ chip, meta, onChange, options }: { chip: Filte
 
   return (
     <label className={filterLabelClass()} htmlFor={`filter-value-${meta.field}-search`}>
-      <span className="sr-only">Value</span>
+      <span className="sr-only">{t("filter_bar.value")}</span>
       <div className="mt-1 w-72 overflow-hidden rounded border border-gray-300 bg-white normal-case text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
         <div className="flex min-h-11 flex-wrap items-center gap-1.5 px-2 py-2 text-sm">
           {selectedOptions.length > 0 ? (
@@ -682,14 +690,14 @@ function MultiFilterValueEditor({ chip, meta, onChange, options }: { chip: Filte
               </span>
             ))
           ) : (
-            <span className="text-gray-400 dark:text-gray-500">Nothing selected yet</span>
+            <span className="text-gray-400 dark:text-gray-500">{t("filter_bar.nothing_selected")}</span>
           )}
         </div>
         <input
           className="block w-full border-t border-gray-200 bg-white px-2 py-2 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
           id={`filter-value-${meta.field}-search`}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search..."
+          placeholder={t("filter_bar.search_value_placeholder")}
           type="search"
           value={query}
         />
@@ -704,7 +712,7 @@ function MultiFilterValueEditor({ chip, meta, onChange, options }: { chip: Filte
               {option.label}
             </button>
           ))}
-          {filteredOptions.length === 0 ? <div className="px-3 py-1.5 text-sm text-gray-400 dark:text-gray-500">No matches</div> : null}
+          {filteredOptions.length === 0 ? <div className="px-3 py-1.5 text-sm text-gray-400 dark:text-gray-500">{t("filter_bar.no_matches")}</div> : null}
         </div>
       </div>
     </label>
@@ -712,16 +720,18 @@ function MultiFilterValueEditor({ chip, meta, onChange, options }: { chip: Filte
 }
 
 function DateFilterValueEditor({ chip, onChange }: { chip: FilterChip; onChange: (chip: FilterChip) => void }) {
+  const { t } = useT("nav")
+
   if (chip.op === "within_last" || chip.op === "more_than_ago") {
     const value = isObjectValue(chip.value) ? chip.value : { n: 7, unit: "days" }
     return (
       <div className="flex items-end gap-2">
         <label className={filterLabelClass()} htmlFor="filter-date-amount">
-          Amount
+          {t("filter_bar.amount")}
           <input className={filterInputClass("mt-1 block w-20 rounded px-2 py-1.5")} id="filter-date-amount" min="0" onChange={(event) => onChange({ ...chip, value: { ...value, n: Number(event.target.value || 0) } })} type="number" value={Number(value.n || 0)} />
         </label>
         <label className={filterLabelClass()} htmlFor="filter-date-unit">
-          Unit
+          {t("filter_bar.unit")}
           <select className={filterInputClass("mt-1 block rounded px-2 py-1.5")} id="filter-date-unit" onChange={(event) => onChange({ ...chip, value: { ...value, unit: event.target.value } })} value={String(value.unit || "days")}>
             {["minutes", "hours", "days", "weeks", "months"].map((unit) => <option key={unit} value={unit}>{unit}</option>)}
           </select>
@@ -735,11 +745,11 @@ function DateFilterValueEditor({ chip, onChange }: { chip: FilterChip; onChange:
     return (
       <div className="flex items-end gap-2">
         <label className={filterLabelClass()} htmlFor="filter-date-from">
-          From
+          {t("filter_bar.from")}
           <input className={filterInputClass("mt-1 block rounded px-2 py-1.5")} id="filter-date-from" onChange={(event) => onChange({ ...chip, value: [event.target.value, value[1] || ""] })} type="date" value={String(value[0] || "").slice(0, 10)} />
         </label>
         <label className={filterLabelClass()} htmlFor="filter-date-to">
-          To
+          {t("filter_bar.to")}
           <input className={filterInputClass("mt-1 block rounded px-2 py-1.5")} id="filter-date-to" onChange={(event) => onChange({ ...chip, value: [value[0] || "", event.target.value] })} type="date" value={String(value[1] || "").slice(0, 10)} />
         </label>
       </div>
@@ -748,23 +758,25 @@ function DateFilterValueEditor({ chip, onChange }: { chip: FilterChip; onChange:
 
   return (
     <label className={filterLabelClass()} htmlFor="filter-date-value">
-      Value
+      {t("filter_bar.value")}
       <input className={filterInputClass("mt-1 block rounded px-2 py-1.5")} id="filter-date-value" onChange={(event) => onChange({ ...chip, value: event.target.value })} type="date" value={String(chip.value || "").slice(0, 10)} />
     </label>
   )
 }
 
 function NumberFilterValueEditor({ chip, onChange }: { chip: FilterChip; onChange: (chip: FilterChip) => void }) {
+  const { t } = useT("nav")
+
   if (chip.op === "between") {
     const value = Array.isArray(chip.value) ? chip.value : [null, null]
     return (
       <div className="flex items-end gap-2">
         <label className={filterLabelClass()} htmlFor="filter-number-min">
-          Min
+          {t("filter_bar.min")}
           <input className={filterInputClass("mt-1 block w-28 rounded px-2 py-1.5")} id="filter-number-min" onChange={(event) => onChange({ ...chip, value: [event.target.value === "" ? null : Number(event.target.value), value[1] ?? null] })} type="number" value={typeof value[0] === "number" ? value[0] : ""} />
         </label>
         <label className={filterLabelClass()} htmlFor="filter-number-max">
-          Max
+          {t("filter_bar.max")}
           <input className={filterInputClass("mt-1 block w-28 rounded px-2 py-1.5")} id="filter-number-max" onChange={(event) => onChange({ ...chip, value: [value[0] ?? null, event.target.value === "" ? null : Number(event.target.value)] })} type="number" value={typeof value[1] === "number" ? value[1] : ""} />
         </label>
       </div>
@@ -773,7 +785,7 @@ function NumberFilterValueEditor({ chip, onChange }: { chip: FilterChip; onChang
 
   return (
     <label className={filterLabelClass()} htmlFor="filter-number-value">
-      Value
+      {t("filter_bar.value")}
       <input className={filterInputClass("mt-1 block w-32 rounded px-2 py-1.5")} id="filter-number-value" onChange={(event) => onChange({ ...chip, value: event.target.value === "" ? null : Number(event.target.value) })} type="number" value={typeof chip.value === "number" ? chip.value : ""} />
     </label>
   )

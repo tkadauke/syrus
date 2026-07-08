@@ -31,5 +31,52 @@
     "start_first_chat_title": "Conveni Syrum in colloquio",
     "start_first_chat_description": "Testimonia et horreum parata sunt. Cum Syro colloquere ut primum Epos crees et emittas — explicabit quomodo Opera et Epica per aquaeductum fluant.",
     "start_first_chat_action": "Incipe colloquium cum Syro"
+  },
+  "smart_folder": {
+    "more": "Plus",
+    "saved": "Servata",
+    "no_saved_folders": "Scrinia nulla servata",
+    "folder_name": "Nomen scriniī",
+    "save_folder": "Serva scrinium",
+    "save_as_new_folder": "Serva ut scrinium novum",
+    "saving": "Servans...",
+    "update_named_folder": "Innova {{name}}",
+    "updating": "Innovans...",
+    "rename": "Renomina",
+    "delete": "Dele",
+    "confirm_delete": "Dele confirma",
+    "unable_to_save": "Scrinium servare non potuit.",
+    "unable_to_update": "Scrinium innovare non potuit.",
+    "unable_to_update_landing": "Ordinem expectantium mutare non potuit.",
+    "resume_landing": "Descensum resume",
+    "pause_landing": "Descensum pausa",
+    "unable_to_rename": "Scrinium renominare non potuit.",
+    "unable_to_delete": "Scrinium delere non potuit."
+  },
+  "filters_layout": {
+    "folders_and_filters": "Scrinia et colandra",
+    "show": "Ostende",
+    "hide": "Absconde"
+  },
+  "filter_bar": {
+    "no_filters": "Nulla colandra",
+    "add_filter": "+ Adde colandrum",
+    "clear_filters": "Colandra remove",
+    "search_placeholder": "Quaere colandra...",
+    "suggested": "Proposita",
+    "no_matching_filters": "Nulla colandra congruentia",
+    "operator": "Operator",
+    "or_alternative": "+ Alternativa AUT",
+    "value": "Valor",
+    "nothing_selected": "Nihil adhuc selectum",
+    "search_by_name": "Quaere nomine...",
+    "no_matches": "Nulla congruentia",
+    "search_value_placeholder": "Quaere...",
+    "amount": "Numerus",
+    "unit": "Unitas",
+    "from": "Ab",
+    "to": "Ad",
+    "min": "Minimum",
+    "max": "Maximum"
   }
 }

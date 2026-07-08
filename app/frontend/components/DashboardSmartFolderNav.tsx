@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { Link, useNavigate } from "react-router-dom"
 import { ApiError } from "../api/client"
+import { useT } from "../hooks/useT"
 import { createDashboardSmartFolder, toggleDashboardLandingPause, updateDashboardPreferences, type DashboardPayload, type DashboardSmartFolder, type DashboardSubject } from "../api/dashboard"
 import { deleteSmartFolder, updateSmartFolder } from "../api/smartFolders"
 import { filterTreeFromPayload, filterTreesEqual, smartFolderFiltersFromTree, topFilterChildren, type FilterNode, type FilterTree } from "./FilterBar"
@@ -12,6 +13,7 @@ import { NoticeToast } from "./NoticeToast"
 const dashboardFilterOverrideKeys = ["q", "state", "repository_id", "kind", "trigger_kind", "job_id", "attention", "tag_ids", "pr", "age"]
 
 export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: DashboardPayload; prefix: string; search: string }) {
+  const { t } = useT("nav")
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [folderName, setFolderName] = useState("")
@@ -139,7 +141,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
         {primaryFolders.map((folder) => <SmartFolderLink folder={folder} key={folder.id} onSelect={() => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: folder.id })} prefix={prefix} />)}
         {moreFolders.length > 0 || payload.subject === "job" ? (
           <details className="space-y-1" open={allJobsSelected || moreFolders.some((folder) => folder.active) || undefined}>
-            <summary className="list-none cursor-pointer px-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">More</summary>
+            <summary className="list-none cursor-pointer px-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("smart_folder.more")}</summary>
             <div className="space-y-1">
               {payload.subject === "job" ? allJobsLink : null}
               {moreFolders.map((folder) => <SmartFolderLink folder={folder} key={folder.id} onSelect={() => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: folder.id })} prefix={prefix} />)}
@@ -148,7 +150,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
         ) : null}
       </nav>
       <div className="space-y-1 pt-3">
-        <h3 className="px-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Saved</h3>
+        <h3 className="px-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("smart_folder.saved")}</h3>
         {savedFolders.length > 0 ? (
           <nav aria-label="Saved smart folders" className="space-y-1">
             {orderedSavedFolders.map((folder, index) => (
@@ -167,7 +169,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
             ))}
           </nav>
         ) : (
-          <p className="px-2 py-1.5 text-sm text-gray-400 dark:text-gray-500">No saved folders</p>
+          <p className="px-2 py-1.5 text-sm text-gray-400 dark:text-gray-500">{t("smart_folder.no_saved_folders")}</p>
         )}
       </div>
       {canUpdateFilter && activeFolder ? (
@@ -178,15 +180,15 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
             onClick={() => updateFolder.mutate()}
             type="button"
           >
-            Update {activeFolder.name}
+            {t("smart_folder.update_named_folder", { name: activeFolder.name })}
           </button>
-          {updateFolder.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(updateFolder.error, "Unable to update smart folder.")}</p> : null}
+          {updateFolder.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(updateFolder.error, t("smart_folder.unable_to_update"))}</p> : null}
         </div>
       ) : null}
       {canSaveFilter ? (
         <form className="space-y-2 px-2 pt-3" onSubmit={saveFolder}>
           <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor="dashboard-smart-folder-name">
-            Folder name
+            {t("smart_folder.folder_name")}
             <input
               className="mt-1 block w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm normal-case text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
               disabled={createFolder.isPending}
@@ -199,9 +201,9 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
             />
           </label>
           <button className="w-full rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:bg-gray-300 dark:hover:bg-blue-500 dark:disabled:bg-gray-700 dark:disabled:text-gray-400" disabled={createFolder.isPending} type="submit">
-            Save folder
+            {t("smart_folder.save_folder")}
           </button>
-          {createFolder.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(createFolder.error, "Unable to save smart folder.")}</p> : null}
+          {createFolder.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(createFolder.error, t("smart_folder.unable_to_save"))}</p> : null}
         </form>
       ) : null}
       {payload.landing_queue.visible ? (
@@ -212,10 +214,10 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
             onClick={() => landingPause.mutate()}
             type="button"
           >
-            {payload.landing_queue.paused ? "Resume landing" : "Pause landing"}
+            {payload.landing_queue.paused ? t("smart_folder.resume_landing") : t("smart_folder.pause_landing")}
           </button>
           <NoticeToast message={landingPause.isSuccess ? landingPause.data.message : null} onDismiss={() => landingPause.reset()} />
-          {landingPause.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(landingPause.error, "Unable to update landing queue.")}</p> : null}
+          {landingPause.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(landingPause.error, t("smart_folder.unable_to_update_landing"))}</p> : null}
         </div>
       ) : null}
     </aside>
@@ -243,6 +245,7 @@ function SmartFolderLink({
   prefix: string
   showDragHandle?: boolean
 }) {
+  const { t } = useT("nav")
   const queryClient = useQueryClient()
   const [menuOpen, setMenuOpen] = useState(false)
   const [renaming, setRenaming] = useState(false)
@@ -350,7 +353,7 @@ function SmartFolderLink({
   }
 
   if (folder.kind === "user_defined") {
-    const error = update.isError ? errorMessage(update.error, "Unable to rename smart folder.") : destroy.isError ? errorMessage(destroy.error, "Unable to delete smart folder.") : null
+    const error = update.isError ? errorMessage(update.error, t("smart_folder.unable_to_rename")) : destroy.isError ? errorMessage(destroy.error, t("smart_folder.unable_to_delete")) : null
     const showActions = actionsVisible || menuOpen
 
     return (
@@ -424,7 +427,7 @@ function SmartFolderLink({
               style={{ top: menuAnchor.top, right: menuAnchor.right }}
             >
               <button className="block w-full px-3 py-1.5 text-left text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800" onClick={startRename} role="menuitem" type="button">
-                Rename
+                {t("smart_folder.rename")}
               </button>
               <button
                 className="block w-full px-3 py-1.5 text-left text-red-700 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950"
@@ -439,7 +442,7 @@ function SmartFolderLink({
                 role="menuitem"
                 type="button"
               >
-                {deleteArmed ? "Confirm delete?" : "Delete"}
+                {deleteArmed ? t("smart_folder.confirm_delete") : t("smart_folder.delete")}
               </button>
             </div>,
             document.body

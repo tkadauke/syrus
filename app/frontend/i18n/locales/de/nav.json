@@ -31,5 +31,52 @@
     "start_first_chat_title": "Syrus im Chat kennenlernen",
     "start_first_chat_description": "Zugangsdaten und ein Repository sind bereit. Chatten Sie mit Syrus, um Ihr erstes Epic zu erstellen und zu landen – es erklärt, wie Jobs und Epics durch die Pipeline fließen.",
     "start_first_chat_action": "Syrus-Chat starten"
+  },
+  "smart_folder": {
+    "more": "Mehr",
+    "saved": "Gespeichert",
+    "no_saved_folders": "Keine gespeicherten Ordner",
+    "folder_name": "Ordnername",
+    "save_folder": "Ordner speichern",
+    "save_as_new_folder": "Als neuen Ordner speichern",
+    "saving": "Speichern...",
+    "update_named_folder": "{{name}} aktualisieren",
+    "updating": "Aktualisieren...",
+    "rename": "Umbenennen",
+    "delete": "Löschen",
+    "confirm_delete": "Löschen bestätigen",
+    "unable_to_save": "Smart-Ordner konnte nicht gespeichert werden.",
+    "unable_to_update": "Smart-Ordner konnte nicht aktualisiert werden.",
+    "unable_to_update_landing": "Landing-Warteschlange konnte nicht aktualisiert werden.",
+    "resume_landing": "Landing fortsetzen",
+    "pause_landing": "Landing pausieren",
+    "unable_to_rename": "Smart-Ordner konnte nicht umbenannt werden.",
+    "unable_to_delete": "Smart-Ordner konnte nicht gelöscht werden."
+  },
+  "filters_layout": {
+    "folders_and_filters": "Ordner und Filter",
+    "show": "Anzeigen",
+    "hide": "Ausblenden"
+  },
+  "filter_bar": {
+    "no_filters": "Keine Filter",
+    "add_filter": "+ Filter hinzufügen",
+    "clear_filters": "Filter löschen",
+    "search_placeholder": "Filter suchen...",
+    "suggested": "Vorgeschlagen",
+    "no_matching_filters": "Keine passenden Filter",
+    "operator": "Operator",
+    "or_alternative": "+ ODER Alternative",
+    "value": "Wert",
+    "nothing_selected": "Noch nichts ausgewählt",
+    "search_by_name": "Nach Name suchen...",
+    "no_matches": "Keine Treffer",
+    "search_value_placeholder": "Suchen...",
+    "amount": "Anzahl",
+    "unit": "Einheit",
+    "from": "Von",
+    "to": "Bis",
+    "min": "Min",
+    "max": "Max"
   }
 }

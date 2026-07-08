@@ -31,5 +31,52 @@
     "start_first_chat_title": "Meet Syrus in chat",
     "start_first_chat_description": "Credentials and a repository are ready. Chat with Syrus to create and land your first Epic — it will explain how Jobs and Epics flow through the pipeline.",
     "start_first_chat_action": "Start Syrus chat"
+  },
+  "smart_folder": {
+    "more": "More",
+    "saved": "Saved",
+    "no_saved_folders": "No saved folders",
+    "folder_name": "Folder name",
+    "save_folder": "Save folder",
+    "save_as_new_folder": "Save as new folder",
+    "saving": "Saving...",
+    "update_named_folder": "Update {{name}}",
+    "updating": "Updating...",
+    "rename": "Rename",
+    "delete": "Delete",
+    "confirm_delete": "Confirm delete",
+    "unable_to_save": "Unable to save smart folder.",
+    "unable_to_update": "Unable to update smart folder.",
+    "unable_to_update_landing": "Unable to update landing queue.",
+    "resume_landing": "Resume landing",
+    "pause_landing": "Pause landing",
+    "unable_to_rename": "Unable to rename smart folder.",
+    "unable_to_delete": "Unable to delete smart folder."
+  },
+  "filters_layout": {
+    "folders_and_filters": "Folders and filters",
+    "show": "Show",
+    "hide": "Hide"
+  },
+  "filter_bar": {
+    "no_filters": "No filters",
+    "add_filter": "+ Add filter",
+    "clear_filters": "Clear filters",
+    "search_placeholder": "Search filters...",
+    "suggested": "Suggested",
+    "no_matching_filters": "No matching filters",
+    "operator": "Operator",
+    "or_alternative": "+ OR alternative",
+    "value": "Value",
+    "nothing_selected": "Nothing selected yet",
+    "search_by_name": "Search by name...",
+    "no_matches": "No matches",
+    "search_value_placeholder": "Search...",
+    "amount": "Amount",
+    "unit": "Unit",
+    "from": "From",
+    "to": "To",
+    "min": "Min",
+    "max": "Max"
   }
 }

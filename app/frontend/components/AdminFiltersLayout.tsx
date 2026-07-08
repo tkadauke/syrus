@@ -1,7 +1,9 @@
 import type { ReactNode } from "react"
 import { useEffect, useState } from "react"
+import { useT } from "../hooks/useT"
 
 export function AdminFiltersLayout({ children, filterBar, smartFolders }: { children: ReactNode; filterBar?: ReactNode; smartFolders?: ReactNode }) {
+  const { t } = useT("nav")
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const hasControls = Boolean(filterBar || smartFolders)
 
@@ -34,9 +36,9 @@ export function AdminFiltersLayout({ children, filterBar, smartFolders }: { chil
     <div className="space-y-3">
       <details className="group rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200">
-          <span>Folders and filters</span>
-          <span className="text-gray-400 dark:text-gray-500 group-open:hidden">Show</span>
-          <span className="hidden text-gray-400 dark:text-gray-500 group-open:inline">Hide</span>
+          <span>{t("filters_layout.folders_and_filters")}</span>
+          <span className="text-gray-400 dark:text-gray-500 group-open:hidden">{t("filters_layout.show")}</span>
+          <span className="hidden text-gray-400 dark:text-gray-500 group-open:inline">{t("filters_layout.hide")}</span>
         </summary>
         <div className="space-y-4 border-t border-gray-200 dark:border-gray-700 p-4">
           {filterBar}
