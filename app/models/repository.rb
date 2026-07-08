@@ -41,6 +41,8 @@ class Repository < ApplicationRecord
   has_many :jobs, dependent: :destroy
   has_many :epics, dependent: :destroy
   has_many :scheduled_tasks, dependent: :destroy
+  has_many :input_sources, class_name: "InputSource", dependent: :destroy
+  has_one :github_input_source, class_name: "InputSources::Github"
   has_many :chat_attachments, as: :attachable, dependent: :destroy
   has_many :chat_sessions, through: :chat_attachments
   has_many :documents, as: :attachable, dependent: :destroy
@@ -69,6 +71,8 @@ class Repository < ApplicationRecord
   before_validation :default_main_branch_repair_for_fork, on: :create
   before_save :link_installation_from_owner
   after_create :seed_owner_membership
+  after_create :create_github_input_source
+  after_save :sync_input_source_attrs, if: -> { saved_change_to_polling_enabled? || saved_change_to_trigger_label? }
   before_destroy :destroy_chat_sessions, prepend: true
 
   scope :active,   -> { where(archived_at: nil) }
@@ -97,6 +101,24 @@ class Repository < ApplicationRecord
 
   def main_health_unknown?
     main_health == "unknown"
+  end
+
+  # Read-through delegators to the InputSources::Github record.
+  # The repository columns remain for legacy reads and fallback when no
+  # source record exists yet. Write changes are synced back via after_save.
+  def trigger_label
+    github_input_source&.config&.dig("trigger_label").presence || read_attribute(:trigger_label)
+  end
+
+  def polling_enabled
+    source = github_input_source
+    return source.polling_enabled if source
+
+    read_attribute(:polling_enabled)
+  end
+
+  def polling_enabled?
+    !!polling_enabled
   end
 
   def feedback_policy_auto?
@@ -201,5 +223,34 @@ class Repository < ApplicationRecord
   def seed_owner_membership
     return unless user_id.present?
     repository_memberships.find_or_create_by!(user_id: user_id) { |m| m.role = "owner" }
+  end
+
+  def create_github_input_source
+    return if user_id.nil?
+
+    InputSources::Github.create!(
+      repository: self,
+      user_id: user_id,
+      polling_enabled: read_attribute(:polling_enabled),
+      config: { "trigger_label" => read_attribute(:trigger_label) }
+    )
+    # Validation calls trigger_label / polling_enabled, which loads the
+    # association before after_create fires. Reset so the next read queries
+    # the record we just persisted.
+    association(:github_input_source).reset
+  rescue ActiveRecord::RecordNotUnique
+    association(:github_input_source).reset
+  end
+
+  def sync_input_source_attrs
+    source = github_input_source
+    return unless source
+
+    updates = {}
+    updates[:polling_enabled] = read_attribute(:polling_enabled) if saved_change_to_polling_enabled?
+    if saved_change_to_trigger_label?
+      updates[:config] = source.config.merge("trigger_label" => read_attribute(:trigger_label))
+    end
+    source.update_columns(updates) if updates.any?
   end
 end

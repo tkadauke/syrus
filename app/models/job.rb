@@ -22,6 +22,7 @@ class Job < ApplicationRecord
   belongs_to :user
   belongs_to :owner_user, class_name: "User", optional: true
   belongs_to :repository
+  belongs_to :input_source, optional: true
   belongs_to :scheduled_task, optional: true
   belongs_to :epic, optional: true
   belongs_to :parent_job, class_name: "Job", optional: true
@@ -75,7 +76,7 @@ class Job < ApplicationRecord
   validates :issue_number,
             presence: true,
             numericality: { only_integer: true, greater_than: 0 },
-            if: :issue?
+            if: -> { issue? && (input_source.nil? || input_source.is_a?(InputSources::Github)) }
   validates :scheduled_task_id, presence: true, if: :cron?
   validate  :issue_number_blank_for_cron, if: :cron?
   validate  :issue_number_blank_for_direct, if: :direct?
