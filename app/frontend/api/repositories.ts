@@ -459,6 +459,35 @@ export function updateRepository(id: number, values: RepositoryInput) {
   return patchJson<RepositorySavedPayload>(`/api/v1/app/repositories/${id}`, { repository: values })
 }
 
+export type LinearSourceRecord = {
+  id: number
+  polling_enabled: boolean
+  team_id: string
+  label_filter: string
+  last_poll_started_at: string | null
+  issues_ingested_count: number
+}
+
+export type LinearSourcePayload = {
+  linear_source: LinearSourceRecord | null
+  message?: string | null
+}
+
+export type LinearSourceInput = {
+  api_key: string
+  team_id: string
+  label_filter: string
+  polling_enabled: boolean
+}
+
+export function fetchLinearSource(repositoryId: number) {
+  return getJson<LinearSourcePayload>(`/api/v1/app/repositories/${repositoryId}/input_sources/linear`)
+}
+
+export function saveLinearSource(repositoryId: number, values: LinearSourceInput) {
+  return patchJson<LinearSourcePayload>(`/api/v1/app/repositories/${repositoryId}/input_sources/linear`, { linear_source: values })
+}
+
 export function pollRepository(id: number) {
   return postJson<RepositoriesPayload>(`/api/v1/app/repositories/${id}/poll`)
 }

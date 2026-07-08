@@ -2,6 +2,7 @@ class InputSource < ApplicationRecord
   belongs_to :repository
   belongs_to :user
 
+  attribute :credentials, :json
   encrypts :credentials
 
   after_initialize :seed_config

@@ -426,6 +426,27 @@
     "gemini_tab_configured": "Gemini paratum est — videones perambulationum automatice analysabuntur.",
     "gemini_tab_add_key": "Clavem API Gemini addere"
   },
+  "linear_source": {
+    "section_heading": "Linear",
+    "section_description": "Sonat gregem Linearem pro quaestionibus apertis et officia Syri ex eis creat.",
+    "api_key_label": "Clavis API",
+    "api_key_placeholder": "lin_api_...",
+    "api_key_placeholder_set": "(clavis posita est — novum valorem inscribe ad substituendum)",
+    "api_key_hint": "Clavis API personalis Linearis. Reposita encrypta.",
+    "team_id_label": "Identificator Gregis",
+    "label_filter_label": "Filtratio pittacii",
+    "label_filter_placeholder": "optionale",
+    "label_filter_hint": "Solum quaestiones cum hoc nomine pittacii Linearis capere. Vacuum relinque ut omnes quaestiones apertas capias.",
+    "polling_enabled_label": "Sonatio activata",
+    "save": "Fontem Linearem servare",
+    "saving": "Servatur...",
+    "saved": "Fons Linearis servatus est.",
+    "save_error": "Fontem Linearem servare non potuit.",
+    "last_polled_at": "Ultima sonatio: {{time}}",
+    "issues_ingested_one": "{{count}} quaestio capta",
+    "issues_ingested_other": "{{count}} quaestiones captae",
+    "issues_ingested": "{{count}} quaestiones captae"
+  },
   "account_settings": {
     "loading_credentials": "Testimonia onerantur...",
     "github_access_desc": "Tessera accessus personalis est testimonium subsidiarium pro receptaculis sine installatione applicationis Syri activa. Si administrator applicationem in receptaculo registrat et installat, Syrus applicationem pro illo receptaculo utitur.",

@@ -43,6 +43,7 @@ class Repository < ApplicationRecord
   has_many :scheduled_tasks, dependent: :destroy
   has_many :input_sources, class_name: "InputSource", dependent: :destroy
   has_one :github_input_source, class_name: "InputSources::Github"
+  has_one :linear_input_source, class_name: "InputSources::Linear"
   has_many :chat_attachments, as: :attachable, dependent: :destroy
   has_many :chat_sessions, through: :chat_attachments
   has_many :documents, as: :attachable, dependent: :destroy

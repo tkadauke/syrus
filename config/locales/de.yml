@@ -92,6 +92,9 @@ de:
       run_main_branch_graders_enqueued: "Graders für %{sha} auf %{slug} in die Warteschlange gestellt."
       no_sha_to_grade: "Noch kein Branch-SHA erfasst — bitte zuerst das Repository abfragen."
 
+    input_sources:
+      linear_saved: "Linear-Quelle gespeichert."
+
     job_pins:
       pinned: "Aufgabe angeheftet."
       unpinned: "Aufgabe losgelöst."

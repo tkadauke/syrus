@@ -220,6 +220,8 @@ Rails.application.routes.draw do
           end
         end
         get "workflows/:workflow_id/coverage_hit_map", to: "workflows#coverage_hit_map", constraints: { workflow_id: /\d+/ }
+        get "repositories/:repository_id/input_sources/linear", to: "input_sources#linear_show"
+        patch "repositories/:repository_id/input_sources/linear", to: "input_sources#linear_update"
         get "repositories/:repository_id/documents", to: "repository_documents#index"
         post "repositories/:repository_id/documents", to: "repository_documents#create"
         delete "repository_documents/:id", to: "repository_documents#destroy"

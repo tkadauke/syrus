@@ -6,13 +6,16 @@ import { ApiError } from "../api/client"
 import {
   createRepository,
   fetchEditRepositoryForm,
+  fetchLinearSource,
   fetchNewRepositoryForm,
   fetchRepositoryBranches,
   fetchRepositoryOptions,
   fetchRepositoryOwners,
   type GitHubRepositoryOption,
+  type LinearSourceInput,
   type RepositoryFormPayload,
   type RepositoryInput,
+  saveLinearSource,
   updateRepository
 } from "../api/repositories"
 import { useT } from "../hooks/useT"
@@ -444,6 +447,10 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
           </Field>
         </section>
 
+        {mode === "edit" && payload.repository.id ? (
+          <LinearSourceSection repositoryId={payload.repository.id} />
+        ) : null}
+
         <section className="space-y-3">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
             {t('repository_form.credential_section')}
@@ -568,6 +575,137 @@ function CredentialModeComparison() {
         </tbody>
       </table>
     </div>
+  )
+}
+
+function LinearSourceSection({ repositoryId }: { repositoryId: number }) {
+  const { t } = useT("settings")
+  const [values, setValues] = useState<LinearSourceInput>({
+    api_key: "",
+    team_id: "",
+    label_filter: "",
+    polling_enabled: false
+  })
+  const [message, setMessage] = useState<string | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  const sourceQuery = useQuery({
+    queryKey: ["linear_source", repositoryId],
+    queryFn: () => fetchLinearSource(repositoryId)
+  })
+
+  useEffect(() => {
+    if (!sourceQuery.isSuccess || !sourceQuery.data.linear_source) return
+    const s = sourceQuery.data.linear_source
+    setValues({
+      api_key: "",
+      team_id: s.team_id,
+      label_filter: s.label_filter,
+      polling_enabled: s.polling_enabled
+    })
+  }, [sourceQuery.isSuccess, sourceQuery.data])
+
+  const save = useMutation({
+    mutationFn: () => saveLinearSource(repositoryId, values),
+    onSuccess: (data) => {
+      setMessage(data.message ?? t("linear_source.saved"))
+      setErrorMsg(null)
+      sourceQuery.refetch()
+    },
+    onError: (error) => {
+      setMessage(null)
+      setErrorMsg(error instanceof ApiError ? error.message : t("linear_source.save_error"))
+    }
+  })
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setMessage(null)
+    setErrorMsg(null)
+    save.mutate()
+  }
+
+  const existing = sourceQuery.data?.linear_source
+
+  return (
+    <section className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+      <div>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+          {t("linear_source.section_heading")}
+        </h2>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {t("linear_source.section_description")}
+        </p>
+      </div>
+
+      {existing ? (
+        <div className="text-xs text-gray-500 dark:text-gray-400 space-y-0.5">
+          {existing.last_poll_started_at ? (
+            <p>{t("linear_source.last_polled_at", { time: new Date(existing.last_poll_started_at).toLocaleString() })}</p>
+          ) : null}
+          <p>{t("linear_source.issues_ingested", { count: existing.issues_ingested_count })}</p>
+        </div>
+      ) : null}
+
+      {message ? <div className="rounded border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 p-3 text-sm text-green-700 dark:text-green-300">{message}</div> : null}
+      {errorMsg ? <div className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-3 text-sm text-red-700 dark:text-red-300">{errorMsg}</div> : null}
+
+      <form className="space-y-4" onSubmit={submit}>
+        <Field label={t("linear_source.api_key_label")}>
+          <input
+            aria-label={t("linear_source.api_key_label")}
+            autoComplete="off"
+            className={inputClass()}
+            onChange={(e) => setValues({ ...values, api_key: e.target.value })}
+            placeholder={existing ? t("linear_source.api_key_placeholder_set") : t("linear_source.api_key_placeholder")}
+            type="password"
+            value={values.api_key}
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {t("linear_source.api_key_hint")}
+          </p>
+        </Field>
+
+        <Field label={t("linear_source.team_id_label")}>
+          <input
+            aria-label={t("linear_source.team_id_label")}
+            className={`${inputClass()} font-mono`}
+            onChange={(e) => setValues({ ...values, team_id: e.target.value })}
+            required
+            type="text"
+            value={values.team_id}
+          />
+        </Field>
+
+        <Field label={t("linear_source.label_filter_label")}>
+          <input
+            aria-label={t("linear_source.label_filter_label")}
+            className={`${inputClass()} font-mono`}
+            onChange={(e) => setValues({ ...values, label_filter: e.target.value })}
+            placeholder={t("linear_source.label_filter_placeholder")}
+            type="text"
+            value={values.label_filter}
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {t("linear_source.label_filter_hint")}
+          </p>
+        </Field>
+
+        <Checkbox
+          label={t("linear_source.polling_enabled_label")}
+          onChange={(checked) => setValues({ ...values, polling_enabled: checked })}
+          value={values.polling_enabled}
+        />
+
+        <button
+          className="rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900"
+          disabled={save.isPending}
+          type="submit"
+        >
+          {save.isPending ? t("linear_source.saving") : t("linear_source.save")}
+        </button>
+      </form>
+    </section>
   )
 }
 

@@ -426,6 +426,27 @@
     "gemini_tab_configured": "Gemini ist eingerichtet — Walkthrough-Videos werden automatisch analysiert.",
     "gemini_tab_add_key": "Gemini-API-Schlüssel hinzufügen"
   },
+  "linear_source": {
+    "section_heading": "Linear",
+    "section_description": "Pollt ein Linear-Team nach offenen Issues und erstellt daraus Syrus-Jobs.",
+    "api_key_label": "API-Schlüssel",
+    "api_key_placeholder": "lin_api_...",
+    "api_key_placeholder_set": "(Schlüssel gesetzt — neuen Wert eingeben zum Ersetzen)",
+    "api_key_hint": "Persönlicher Linear API-Schlüssel. Verschlüsselt gespeichert.",
+    "team_id_label": "Team-ID",
+    "label_filter_label": "Label-Filter",
+    "label_filter_placeholder": "optional",
+    "label_filter_hint": "Nur Issues mit diesem Linear-Label-Namen aufnehmen. Leer lassen, um alle offenen Issues aufzunehmen.",
+    "polling_enabled_label": "Polling aktiviert",
+    "save": "Linear-Einstellungen speichern",
+    "saving": "Wird gespeichert...",
+    "saved": "Linear-Quelle gespeichert.",
+    "save_error": "Linear-Quelle konnte nicht gespeichert werden.",
+    "last_polled_at": "Zuletzt abgerufen: {{time}}",
+    "issues_ingested_one": "{{count}} Issue aufgenommen",
+    "issues_ingested_other": "{{count}} Issues aufgenommen",
+    "issues_ingested": "{{count}} Issues aufgenommen"
+  },
   "account_settings": {
     "loading_credentials": "Anmeldedaten werden geladen...",
     "github_access_desc": "Ein persönliches Zugriffstoken ist das Fallback-Credential für Repositories ohne aktive Syrus GitHub App-Installation. Wenn ein Administrator die App für ein Repository registriert und installiert, verwendet Syrus die App für dieses Repository.",

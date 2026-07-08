@@ -426,6 +426,27 @@
     "gemini_tab_configured": "Gemini is set up — walkthrough videos will be analyzed automatically.",
     "gemini_tab_add_key": "Add Gemini API key"
   },
+  "linear_source": {
+    "section_heading": "Linear",
+    "section_description": "Poll a Linear team for open issues and create Syrus jobs from them.",
+    "api_key_label": "API key",
+    "api_key_placeholder": "lin_api_...",
+    "api_key_placeholder_set": "(key is set — enter a new value to replace)",
+    "api_key_hint": "Linear personal API key. Stored encrypted.",
+    "team_id_label": "Team ID",
+    "label_filter_label": "Label filter",
+    "label_filter_placeholder": "optional",
+    "label_filter_hint": "Only ingest issues that carry this Linear label name. Leave blank to ingest all open issues.",
+    "polling_enabled_label": "Polling enabled",
+    "save": "Save Linear settings",
+    "saving": "Saving...",
+    "saved": "Linear source saved.",
+    "save_error": "Unable to save Linear source.",
+    "last_polled_at": "Last polled: {{time}}",
+    "issues_ingested_one": "{{count}} issue ingested",
+    "issues_ingested_other": "{{count}} issues ingested",
+    "issues_ingested": "{{count}} issues ingested"
+  },
   "account_settings": {
     "loading_credentials": "Loading credentials...",
     "github_access_desc": "A personal access token is the fallback credential for repositories without an active Syrus GitHub App installation. If an admin registers and installs the App on a repository, Syrus uses the App for that repository instead.",

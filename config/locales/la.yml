@@ -92,6 +92,9 @@ la:
       run_main_branch_graders_enqueued: "Examinatores pro %{sha} in %{slug} in ordinem positi sunt."
       no_sha_to_grade: "Nullum SHA rami adhuc indagatum — prius repositorium interroga."
 
+    input_sources:
+      linear_saved: "Fons Linearis servatus est."
+
     job_pins:
       pinned: "Opus adfixa est."
       unpinned: "Opus defixum est."

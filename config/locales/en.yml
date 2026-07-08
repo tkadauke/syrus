@@ -125,6 +125,9 @@ en:
       run_main_branch_graders_enqueued: "Graders enqueued for %{sha} on %{slug}."
       no_sha_to_grade: "No branch SHA tracked yet — poll the repository first."
 
+    input_sources:
+      linear_saved: "Linear source saved."
+
     job_pins:
       pinned: "Job pinned."
       unpinned: "Job unpinned."
