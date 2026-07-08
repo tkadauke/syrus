@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react"
+import { useT } from "../hooks/useT"
 import { CloseIcon } from "./CloseIcon"
 
 type Tool = "rectangle" | "ellipse" | "line" | "arrow" | "freehand" | "text"
@@ -12,22 +13,22 @@ type TextPlacement = Point & {
   value: string
 }
 
-const TOOLS: Array<{ id: Tool; label: string }> = [
-  { id: "rectangle", label: "Rectangle" },
-  { id: "ellipse", label: "Ellipse" },
-  { id: "line", label: "Line" },
-  { id: "arrow", label: "Arrow" },
-  { id: "freehand", label: "Freehand" },
-  { id: "text", label: "Text" }
+const TOOLS: Array<{ id: Tool }> = [
+  { id: "rectangle" },
+  { id: "ellipse" },
+  { id: "line" },
+  { id: "arrow" },
+  { id: "freehand" },
+  { id: "text" }
 ]
 
 const COLORS = [
-  { label: "Red", value: "#ef4444" },
-  { label: "Blue", value: "#3b82f6" },
-  { label: "Yellow", value: "#eab308" },
-  { label: "Green", value: "#22c55e" },
-  { label: "White", value: "#ffffff" },
-  { label: "Black", value: "#000000" }
+  { key: "red", value: "#ef4444" },
+  { key: "blue", value: "#3b82f6" },
+  { key: "yellow", value: "#eab308" },
+  { key: "green", value: "#22c55e" },
+  { key: "white", value: "#ffffff" },
+  { key: "black", value: "#000000" }
 ]
 
 const STROKE_WIDTH = 3
@@ -35,6 +36,7 @@ const TEXT_FONT = "bold 20px sans-serif"
 const MAX_UNDO_STEPS = 50
 
 export function ImageAnnotationModal({ dataUrl, name, onDone, onClose }: { dataUrl: string; name: string; onDone: (annotatedDataUrl: string) => void; onClose: () => void }) {
+  const { t } = useT("common")
   const imageCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const undoStackRef = useRef<ImageData[]>([])
@@ -286,9 +288,9 @@ export function ImageAnnotationModal({ dataUrl, name, onDone, onClose }: { dataU
 
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-gray-950/80 p-3 text-gray-900 dark:text-gray-100" role="presentation">
-      <section aria-label={`Annotate ${name}`} aria-modal="true" className="flex min-h-0 flex-1 flex-col gap-3" role="dialog">
+      <section aria-label={t("image_annotation.annotate", { name })} aria-modal="true" className="flex min-h-0 flex-1 flex-col gap-3" role="dialog">
         <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-gray-200 bg-white px-3 py-2 shadow dark:border-gray-700 dark:bg-gray-900">
-          <div className="flex flex-wrap items-center gap-1" role="toolbar" aria-label="Annotation tools">
+          <div className="flex flex-wrap items-center gap-1" role="toolbar" aria-label={t("image_annotation.toolbar")}>
             {TOOLS.map((item) => (
               <button
                 aria-pressed={tool === item.id}
@@ -297,14 +299,14 @@ export function ImageAnnotationModal({ dataUrl, name, onDone, onClose }: { dataU
                 onClick={() => setTool(item.id)}
                 type="button"
               >
-                {item.label}
+                {t(`image_annotation.tool_${item.id}`)}
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-1" role="radiogroup" aria-label="Annotation color">
+          <div className="flex items-center gap-1" role="radiogroup" aria-label={t("image_annotation.colors")}>
             {COLORS.map((item) => (
               <button
-                aria-label={item.label}
+                aria-label={t(`image_annotation.color_${item.key}`)}
                 aria-checked={color === item.value}
                 className={`h-7 w-7 rounded-full border ${color === item.value ? "border-blue-600 ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-gray-900" : "border-gray-300 dark:border-gray-600"}`}
                 key={item.value}
@@ -316,10 +318,10 @@ export function ImageAnnotationModal({ dataUrl, name, onDone, onClose }: { dataU
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <button className={secondaryButton()} disabled={undoCount <= 1} onClick={undo} type="button">Undo</button>
-            <button className={secondaryButton()} onClick={onClose} type="button">Cancel</button>
-            <button className="rounded bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:bg-blue-300" disabled={!imageSize} onClick={finishAnnotation} type="button">Done</button>
-            <button aria-label="Close annotation editor" className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100" onClick={onClose} type="button">
+            <button className={secondaryButton()} disabled={undoCount <= 1} onClick={undo} type="button">{t("image_annotation.undo")}</button>
+            <button className={secondaryButton()} onClick={onClose} type="button">{t("image_annotation.cancel")}</button>
+            <button className="rounded bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:bg-blue-300" disabled={!imageSize} onClick={finishAnnotation} type="button">{t("image_annotation.done")}</button>
+            <button aria-label={t("image_annotation.close")} className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100" onClick={onClose} type="button">
               <CloseIcon className="h-4 w-4" />
             </button>
           </div>
@@ -328,7 +330,7 @@ export function ImageAnnotationModal({ dataUrl, name, onDone, onClose }: { dataU
           <div className="relative max-h-[calc(100dvh-6rem)] max-w-[calc(100vw-1.5rem)]" style={canvasStyle}>
             <canvas aria-hidden="true" className="block max-h-[calc(100dvh-6rem)] max-w-full rounded bg-white object-contain shadow-lg" ref={imageCanvasRef} />
             <canvas
-              aria-label="Annotation canvas"
+              aria-label={t("image_annotation.canvas")}
               className="absolute inset-0 h-full w-full touch-none rounded"
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
@@ -338,12 +340,12 @@ export function ImageAnnotationModal({ dataUrl, name, onDone, onClose }: { dataU
             />
             {textPlacement ? (
               <input
-                aria-label="Annotation text"
+                aria-label={t("image_annotation.text_input")}
                 autoFocus
                 className="absolute min-w-32 -translate-y-1/2 rounded border border-blue-500 bg-white px-2 py-1 text-xl font-bold shadow focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-900"
                 onChange={(event) => setTextPlacement((current) => current ? { ...current, value: event.target.value } : current)}
                 onKeyDown={handleTextKeyDown}
-                placeholder="Type, then press Enter"
+                placeholder={t("image_annotation.text_placeholder")}
                 style={inputStyle}
                 value={textPlacement.value}
               />

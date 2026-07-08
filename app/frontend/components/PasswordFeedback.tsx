@@ -1,4 +1,5 @@
 import { passwordStrength } from "../lib/passwordStrength"
+import { useT } from "../hooks/useT"
 
 // Live feedback under the signup / password-reset fields: an email format
 // hint, a four-segment entropy meter that fills and recolors as the
@@ -8,6 +9,7 @@ import { passwordStrength } from "../lib/passwordStrength"
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
 export function EmailValidityHint({ email }: { email: string }) {
+  const { t } = useT("common")
   const valid = email.length > 0 && EMAIL_SHAPE.test(email)
   const invalid = email.length > 0 && !valid
 
@@ -28,7 +30,7 @@ export function EmailValidityHint({ email }: { email: string }) {
           <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       ) : null}
-      {valid ? "Looks good" : invalid ? "Doesn't look like an email address yet" : " "}
+      {valid ? t("email_validity.valid") : invalid ? t("email_validity.invalid") : " "}
     </p>
   )
 }
@@ -37,6 +39,7 @@ export function EmailValidityHint({ email }: { email: string }) {
 // the useful live signal there is Caps Lock, the classic "why is my correct
 // password wrong" trap. Same fade-in language as the other hints.
 export function CapsLockHint({ active }: { active: boolean }) {
+  const { t } = useT("common")
   return (
     <p
       aria-live="polite"
@@ -50,7 +53,7 @@ export function CapsLockHint({ active }: { active: boolean }) {
           <path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       ) : null}
-      {active ? "Caps Lock is on" : " "}
+      {active ? t("caps_lock.active") : " "}
     </p>
   )
 }
@@ -69,7 +72,15 @@ const LABEL_COLORS: Record<number, string> = {
   4: "text-emerald-600 dark:text-emerald-400"
 }
 
+const STRENGTH_KEYS: Record<number, string> = {
+  1: "password_strength.weak",
+  2: "password_strength.fair",
+  3: "password_strength.good",
+  4: "password_strength.strong"
+}
+
 export function PasswordStrengthMeter({ password }: { password: string }) {
+  const { t } = useT("common")
   const strength = passwordStrength(password)
 
   return (
@@ -86,13 +97,14 @@ export function PasswordStrengthMeter({ password }: { password: string }) {
       </div>
       {/* Non-breaking space keeps the line height stable so the form doesn't jump. */}
       <p className={`mt-1 text-xs transition-colors duration-300 ${LABEL_COLORS[strength.score] ?? "text-gray-400"}`}>
-        {strength.label || " "}
+        {strength.score > 0 ? t(STRENGTH_KEYS[strength.score]) : " "}
       </p>
     </div>
   )
 }
 
 export function PasswordMatchHint({ password, confirmation }: { password: string; confirmation: string }) {
+  const { t } = useT("common")
   const match = confirmation.length > 0 && password === confirmation
   const mismatch = confirmation.length > 0 && !match
 
@@ -113,7 +125,7 @@ export function PasswordMatchHint({ password, confirmation }: { password: string
           <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       ) : null}
-      {match ? "Passwords match" : mismatch ? "Doesn't match yet" : " "}
+      {match ? t("password_match.match") : mismatch ? t("password_match.mismatch") : " "}
     </p>
   )
 }

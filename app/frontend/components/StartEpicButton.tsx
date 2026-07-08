@@ -4,6 +4,7 @@ import type { ChatProposal } from "../api/chats"
 import { fetchBootstrap } from "../api/bootstrap"
 import { startEpic } from "../api/epics"
 import { ApiError } from "../api/client"
+import { useT } from "../hooks/useT"
 
 // "Start" next to a confirmed Epic proposal — moves the Epic to In Progress so
 // its Jobs begin. Only shown for Epic materializations that aren't already
@@ -11,6 +12,7 @@ import { ApiError } from "../api/client"
 const STARTABLE_EPIC_STATES = ["backlog", "ready"]
 
 export function StartEpicButton({ proposal, onNotice }: { proposal: ChatProposal; onNotice: (message: string | null) => void }) {
+  const { t } = useT("common")
   const bootstrap = useQuery({ queryKey: ["bootstrap"], queryFn: fetchBootstrap })
   const currentUser = bootstrap.data?.current_user
   const statePath = proposal.materialized_epic_state_path
@@ -19,14 +21,14 @@ export function StartEpicButton({ proposal, onNotice }: { proposal: ChatProposal
     mutationFn: () => startEpic(statePath as string),
     onSuccess: () => {
       setStarted(true)
-      onNotice("Epic moved to In Progress — its Jobs will start.")
+      onNotice(t("epic_start.notice"))
     }
   })
 
   if (!statePath) return null
   const epicState = started ? "in_progress" : proposal.materialized_epic_state
   if (epicState && !STARTABLE_EPIC_STATES.includes(epicState)) {
-    return <span className="text-xs font-medium text-blue-700 dark:text-blue-300">In progress</span>
+    return <span className="text-xs font-medium text-blue-700 dark:text-blue-300">{t("epic_start.in_progress")}</span>
   }
   if (!currentUser?.admin && currentUser?.role !== "developer") return null
 
@@ -38,11 +40,11 @@ export function StartEpicButton({ proposal, onNotice }: { proposal: ChatProposal
         onClick={() => start.mutate()}
         type="button"
       >
-        {start.isPending ? "Starting…" : "Start"}
+        {start.isPending ? t("epic_start.starting") : t("epic_start.start")}
       </button>
       {start.isError ? (
         <span className="text-xs text-red-700 dark:text-red-300">
-          {start.error instanceof ApiError ? start.error.message : "Could not start the Epic."}
+          {start.error instanceof ApiError ? start.error.message : t("epic_start.error")}
         </span>
       ) : null}
     </>

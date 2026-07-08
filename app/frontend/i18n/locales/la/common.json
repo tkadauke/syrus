@@ -37,5 +37,81 @@
     "bad_request_heading": "Minister id legere non potuit.",
     "bad_request_description": "Haec petitio male formata erat vel legi non potuit. Quaeso inscriptionem verifica et iterum tempta.",
     "return_to_dashboard": "Redi ad Tabulam"
+  },
+  "bug_report": {
+    "title": "Nuntia errorem",
+    "close": "Omitte",
+    "field_title": "Titulus",
+    "field_description": "Descriptio",
+    "screenshot": "Imago capturae",
+    "screenshot_failed": "Captura imaginis defecit. Nuntium errorum sine ea creare potes.",
+    "full_page_failed": "Captura paginae totius defecit. Imago portae adest.",
+    "viewport": "Porta",
+    "capturing": "Capiunt...",
+    "full_page": "Pagina tota",
+    "no_screenshot": "Sine imagine",
+    "none": "Nulla",
+    "unavailable": "Non praesto",
+    "error": "Nuntium errorum in ordinem poni non potuit.",
+    "cancel": "Omitte",
+    "submit": "Munus crea",
+    "submitting": "Creans…",
+    "queued": "Nuntium errorum in ordine positum."
+  },
+  "image_annotation": {
+    "annotate": "Annota {{name}}",
+    "tool_rectangle": "Rectangulum",
+    "tool_ellipse": "Ellipsis",
+    "tool_line": "Linea",
+    "tool_arrow": "Sagitta",
+    "tool_freehand": "Libera manus",
+    "tool_text": "Textus",
+    "color_red": "Rubrum",
+    "color_blue": "Caeruleum",
+    "color_yellow": "Flavum",
+    "color_green": "Viride",
+    "color_white": "Album",
+    "color_black": "Nigrum",
+    "undo": "Revoca",
+    "cancel": "Omitte",
+    "done": "Factum",
+    "close": "Claude editorem annotationum",
+    "toolbar": "Instrumenta annotationum",
+    "colors": "Color annotationum",
+    "canvas": "Area annotationum",
+    "text_input": "Textus annotationum",
+    "text_placeholder": "Scribe, deinde Enter preme"
+  },
+  "epic_start": {
+    "in_progress": "In progressu",
+    "notice": "Epicum ad In progressu motum — Munera incipient.",
+    "starting": "Incipiens…",
+    "start": "Incipe",
+    "error": "Epicum incipere non potuit."
+  },
+  "copy": {
+    "copy_to_clipboard": "Describe {{slug}} in tabellam",
+    "copied": "Descriptum",
+    "copy": "Describe {{slug}}"
+  },
+  "notice_toast": {
+    "dismiss": "Dimitte nuntium"
+  },
+  "email_validity": {
+    "valid": "Bene habet",
+    "invalid": "Nondum similis inscriptioni electronicae"
+  },
+  "caps_lock": {
+    "active": "Clavis capitalis ardet"
+  },
+  "password_strength": {
+    "weak": "Infirmum",
+    "fair": "Tolerabile",
+    "good": "Bonum",
+    "strong": "Firmum"
+  },
+  "password_match": {
+    "match": "Tesserae congruunt",
+    "mismatch": "Nondum congruunt"
   }
 }

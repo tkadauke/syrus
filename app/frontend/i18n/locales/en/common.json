@@ -37,5 +37,81 @@
     "bad_request_heading": "The server could not read that.",
     "bad_request_description": "This request was malformed or could not be parsed. Please check the address and try again.",
     "return_to_dashboard": "Return to dashboard"
+  },
+  "bug_report": {
+    "title": "Report a bug",
+    "close": "Close",
+    "field_title": "Title",
+    "field_description": "Description",
+    "screenshot": "Screenshot",
+    "screenshot_failed": "Screenshot capture failed. You can still create the bug report without one.",
+    "full_page_failed": "Full-page screenshot capture failed. The viewport screenshot is still available.",
+    "viewport": "Viewport",
+    "capturing": "Capturing...",
+    "full_page": "Full page",
+    "no_screenshot": "No screenshot",
+    "none": "None",
+    "unavailable": "Unavailable",
+    "error": "Bug report could not be queued.",
+    "cancel": "Cancel",
+    "submit": "Create Job",
+    "submitting": "Creating...",
+    "queued": "Bug report queued."
+  },
+  "image_annotation": {
+    "annotate": "Annotate {{name}}",
+    "tool_rectangle": "Rectangle",
+    "tool_ellipse": "Ellipse",
+    "tool_line": "Line",
+    "tool_arrow": "Arrow",
+    "tool_freehand": "Freehand",
+    "tool_text": "Text",
+    "color_red": "Red",
+    "color_blue": "Blue",
+    "color_yellow": "Yellow",
+    "color_green": "Green",
+    "color_white": "White",
+    "color_black": "Black",
+    "undo": "Undo",
+    "cancel": "Cancel",
+    "done": "Done",
+    "close": "Close annotation editor",
+    "toolbar": "Annotation tools",
+    "colors": "Annotation color",
+    "canvas": "Annotation canvas",
+    "text_input": "Annotation text",
+    "text_placeholder": "Type, then press Enter"
+  },
+  "epic_start": {
+    "in_progress": "In progress",
+    "notice": "Epic moved to In Progress — its Jobs will start.",
+    "starting": "Starting…",
+    "start": "Start",
+    "error": "Could not start the Epic."
+  },
+  "copy": {
+    "copy_to_clipboard": "Copy {{slug}} to clipboard",
+    "copied": "Copied",
+    "copy": "Copy {{slug}}"
+  },
+  "notice_toast": {
+    "dismiss": "Dismiss notification"
+  },
+  "email_validity": {
+    "valid": "Looks good",
+    "invalid": "Doesn't look like an email address yet"
+  },
+  "caps_lock": {
+    "active": "Caps Lock is on"
+  },
+  "password_strength": {
+    "weak": "Weak",
+    "fair": "Fair",
+    "good": "Good",
+    "strong": "Strong"
+  },
+  "password_match": {
+    "match": "Passwords match",
+    "mismatch": "Doesn't match yet"
   }
 }

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react"
+import { useT } from "../hooks/useT"
 
 export function CopyableSlug({ slug, className = "" }: { slug: string; className?: string }) {
+  const { t } = useT("common")
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
@@ -23,10 +25,10 @@ export function CopyableSlug({ slug, className = "" }: { slug: string; className
 
   return (
     <button
-      aria-label={`Copy ${slug} to clipboard`}
+      aria-label={t("copy.copy_to_clipboard", { slug })}
       className={`group inline-flex items-center gap-1 rounded px-1 py-0.5 font-mono text-gray-600 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100 ${className}`}
       onClick={copySlug}
-      title={copied ? "Copied" : `Copy ${slug}`}
+      title={copied ? t("copy.copied") : t("copy.copy", { slug })}
       type="button"
     >
       <span>{slug}</span>

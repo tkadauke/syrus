@@ -37,5 +37,81 @@
     "bad_request_heading": "Der Server konnte die Anfrage nicht lesen.",
     "bad_request_description": "Diese Anfrage war fehlerhaft oder konnte nicht verarbeitet werden. Bitte prüfen Sie die Adresse und versuchen Sie es erneut.",
     "return_to_dashboard": "Zurück zum Dashboard"
+  },
+  "bug_report": {
+    "title": "Fehler melden",
+    "close": "Schließen",
+    "field_title": "Titel",
+    "field_description": "Beschreibung",
+    "screenshot": "Screenshot",
+    "screenshot_failed": "Screenshot fehlgeschlagen. Sie können den Fehlerbericht auch ohne Screenshot erstellen.",
+    "full_page_failed": "Ganzseitiger Screenshot fehlgeschlagen. Der Viewport-Screenshot ist weiterhin verfügbar.",
+    "viewport": "Viewport",
+    "capturing": "Aufnehmen...",
+    "full_page": "Ganze Seite",
+    "no_screenshot": "Kein Screenshot",
+    "none": "Keiner",
+    "unavailable": "Nicht verfügbar",
+    "error": "Fehlerbericht konnte nicht in die Warteschlange gestellt werden.",
+    "cancel": "Abbrechen",
+    "submit": "Job erstellen",
+    "submitting": "Wird erstellt...",
+    "queued": "Fehlerbericht in die Warteschlange gestellt."
+  },
+  "image_annotation": {
+    "annotate": "{{name}} annotieren",
+    "tool_rectangle": "Rechteck",
+    "tool_ellipse": "Ellipse",
+    "tool_line": "Linie",
+    "tool_arrow": "Pfeil",
+    "tool_freehand": "Freihand",
+    "tool_text": "Text",
+    "color_red": "Rot",
+    "color_blue": "Blau",
+    "color_yellow": "Gelb",
+    "color_green": "Grün",
+    "color_white": "Weiß",
+    "color_black": "Schwarz",
+    "undo": "Rückgängig",
+    "cancel": "Abbrechen",
+    "done": "Fertig",
+    "close": "Annotierungseditor schließen",
+    "toolbar": "Annotierungswerkzeuge",
+    "colors": "Annotierungsfarbe",
+    "canvas": "Annotierungsfläche",
+    "text_input": "Annotierungstext",
+    "text_placeholder": "Eingeben, dann Enter drücken"
+  },
+  "epic_start": {
+    "in_progress": "In Bearbeitung",
+    "notice": "Epic auf In Bearbeitung verschoben — die Jobs werden gestartet.",
+    "starting": "Wird gestartet…",
+    "start": "Starten",
+    "error": "Epic konnte nicht gestartet werden."
+  },
+  "copy": {
+    "copy_to_clipboard": "{{slug}} in die Zwischenablage kopieren",
+    "copied": "Kopiert",
+    "copy": "{{slug}} kopieren"
+  },
+  "notice_toast": {
+    "dismiss": "Benachrichtigung schließen"
+  },
+  "email_validity": {
+    "valid": "Sieht gut aus",
+    "invalid": "Sieht noch nicht wie eine E-Mail-Adresse aus"
+  },
+  "caps_lock": {
+    "active": "Feststelltaste ist aktiv"
+  },
+  "password_strength": {
+    "weak": "Schwach",
+    "fair": "Ausreichend",
+    "good": "Gut",
+    "strong": "Stark"
+  },
+  "password_match": {
+    "match": "Passwörter stimmen überein",
+    "mismatch": "Stimmt noch nicht überein"
   }
 }

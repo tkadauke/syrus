@@ -3,6 +3,7 @@ import type { FormEvent, KeyboardEvent } from "react"
 import { useEffect, useState } from "react"
 import { ApiError } from "../api/client"
 import { createBugReport } from "../api/bugReports"
+import { useT } from "../hooks/useT"
 import { CloseIcon } from "./CloseIcon"
 import { NoticeToast } from "./NoticeToast"
 
@@ -17,6 +18,7 @@ type ScreenshotCaptures = Partial<Record<Exclude<ScreenshotChoice, "none">, Scre
 const MAX_FULL_PAGE_SCREENSHOT_PIXELS = 8_000_000
 
 export function BugReportButton({ context, position = "bottom-left" }: { context: string; position?: "bottom-left" | "bottom-right" }) {
+  const { t } = useT("common")
   const [open, setOpen] = useState(false)
   const [capturing, setCapturing] = useState(false)
   const [capturingFullPage, setCapturingFullPage] = useState(false)
@@ -30,7 +32,7 @@ export function BugReportButton({ context, position = "bottom-left" }: { context
     mutationFn: () => createBugReport({ title, description, screenshot: selectedScreenshot(captures, screenshotChoice) }),
     onSuccess: (payload) => {
       setOpen(false)
-      setNotice(payload.message || "Bug report queued.")
+      setNotice(payload.message || t("bug_report.queued"))
       setTitle("")
       setDescription("")
       setCaptures({})
@@ -60,7 +62,7 @@ export function BugReportButton({ context, position = "bottom-left" }: { context
     } catch (error) {
       console.error(error)
       setScreenshotChoice("none")
-      setCaptureError("Screenshot capture failed. You can still create the bug report without one.")
+      setCaptureError(t("bug_report.screenshot_failed"))
     } finally {
       setCapturing(false)
       setOpen(true)
@@ -83,7 +85,7 @@ export function BugReportButton({ context, position = "bottom-left" }: { context
     } catch (error) {
       console.error(error)
       setScreenshotChoice(captures.viewport ? "viewport" : "none")
-      setCaptureError("Full-page screenshot capture failed. The viewport screenshot is still available.")
+      setCaptureError(t("bug_report.full_page_failed"))
     } finally {
       setCapturingFullPage(false)
     }
@@ -112,11 +114,11 @@ export function BugReportButton({ context, position = "bottom-left" }: { context
     <>
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       <button
-        aria-label="Report a bug"
+        aria-label={t("bug_report.title")}
         className={`fixed bottom-4 ${position === "bottom-right" ? "right-4" : "left-4"} z-40 flex h-12 w-12 items-center justify-center rounded-full bg-rose-600 text-xl font-semibold text-white shadow-lg shadow-rose-900/20 hover:bg-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 dark:focus:ring-offset-gray-950 disabled:cursor-wait disabled:opacity-60`}
         disabled={capturing}
         onClick={() => void openDialog()}
-        title="Report a bug"
+        title={t("bug_report.title")}
         type="button"
       >
         <BugIcon />
@@ -126,9 +128,9 @@ export function BugReportButton({ context, position = "bottom-left" }: { context
           <section aria-labelledby="bug-report-title" aria-modal="true" className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-lg bg-white dark:bg-gray-900 shadow-xl" role="dialog">
             <form className="space-y-5 p-5 sm:p-6" onKeyDown={submitOnShortcut} onSubmit={submit}>
               <div className="flex items-start justify-between gap-4">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id="bug-report-title">Report a bug</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id="bug-report-title">{t("bug_report.title")}</h2>
                 <button
-                  aria-label="Close"
+                  aria-label={t("bug_report.close")}
                   className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-950"
                   onClick={closeDialog}
                   type="button"
@@ -138,7 +140,7 @@ export function BugReportButton({ context, position = "bottom-left" }: { context
               </div>
 
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Title
+                {t("bug_report.field_title")}
                 <input
                   className="mt-1 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   onChange={(event) => setTitle(event.target.value)}
@@ -149,7 +151,7 @@ export function BugReportButton({ context, position = "bottom-left" }: { context
               </label>
 
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Description
+                {t("bug_report.field_description")}
                 <textarea
                   className="mt-1 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   onChange={(event) => setDescription(event.target.value)}
@@ -159,7 +161,7 @@ export function BugReportButton({ context, position = "bottom-left" }: { context
               </label>
 
               <fieldset className="space-y-2">
-                <legend className="text-sm font-medium text-gray-700 dark:text-gray-300">Screenshot</legend>
+                <legend className="text-sm font-medium text-gray-700 dark:text-gray-300">{t("bug_report.screenshot")}</legend>
                 {captureError ? (
                   <p className="rounded border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">{captureError}</p>
                 ) : null}
@@ -167,20 +169,20 @@ export function BugReportButton({ context, position = "bottom-left" }: { context
                   <ScreenshotOption
                     capture={captures.viewport}
                     choice="viewport"
-                    label="Viewport"
+                    label={t("bug_report.viewport")}
                     onChange={(choice) => void chooseScreenshot(choice)}
                     selected={screenshotChoice === "viewport"}
                   />
                   <ScreenshotOption
                     capture={captures.fullPage}
                     choice="fullPage"
-                    label={capturingFullPage ? "Capturing..." : "Full page"}
+                    label={capturingFullPage ? t("bug_report.capturing") : t("bug_report.full_page")}
                     onChange={(choice) => void chooseScreenshot(choice)}
                     selected={screenshotChoice === "fullPage"}
                   />
                   <ScreenshotOption
                     choice="none"
-                    label="No screenshot"
+                    label={t("bug_report.no_screenshot")}
                     onChange={(choice) => void chooseScreenshot(choice)}
                     selected={screenshotChoice === "none"}
                   />
@@ -189,16 +191,16 @@ export function BugReportButton({ context, position = "bottom-left" }: { context
 
               {bugReport.isError ? (
                 <p className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 px-3 py-2 text-sm text-red-700 dark:text-red-300" role="alert">
-                  {errorMessage(bugReport.error, "Bug report could not be queued.")}
+                  {errorMessage(bugReport.error, t("bug_report.error"))}
                 </p>
               ) : null}
 
               <div className="flex justify-end gap-2 border-t border-gray-100 dark:border-gray-800 pt-4">
                 <button className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800" onClick={closeDialog} type="button">
-                  Cancel
+                  {t("bug_report.cancel")}
                 </button>
                 <button className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500 disabled:bg-blue-300 dark:disabled:bg-blue-900" disabled={bugReport.isPending} type="submit">
-                  {bugReport.isPending ? "Creating..." : "Create Job"}
+                  {bugReport.isPending ? t("bug_report.submitting") : t("bug_report.submit")}
                 </button>
               </div>
             </form>
@@ -222,6 +224,7 @@ function ScreenshotOption({
   onChange: (choice: ScreenshotChoice) => void
   selected: boolean
 }) {
+  const { t } = useT("common")
   const borderClass = selected ? "border-blue-600 dark:border-blue-400 ring-2 ring-blue-600 dark:ring-blue-400" : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-500"
 
   return (
@@ -235,11 +238,11 @@ function ScreenshotOption({
         type="radio"
       />
       {choice === "none" ? (
-        <span className="flex aspect-video items-center justify-center rounded border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm font-semibold text-gray-500 dark:text-gray-400">None</span>
+        <span className="flex aspect-video items-center justify-center rounded border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm font-semibold text-gray-500 dark:text-gray-400">{t("bug_report.none")}</span>
       ) : capture?.previewUrl ? (
         <img alt="" className="aspect-video w-full rounded border border-gray-100 dark:border-gray-800 object-cover" src={capture.previewUrl} />
       ) : (
-        <span className="flex aspect-video items-center justify-center rounded border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm font-semibold text-gray-400 dark:text-gray-500">Unavailable</span>
+        <span className="flex aspect-video items-center justify-center rounded border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm font-semibold text-gray-400 dark:text-gray-500">{t("bug_report.unavailable")}</span>
       )}
       <span className="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100">{label}</span>
     </label>
