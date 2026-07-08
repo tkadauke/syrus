@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { exchangeClaudeOauth, startClaudeOauth, testClaudeCli, type CredentialTestResult } from "../api/credentials"
 import { openInNewTab } from "../lib/desktopShell"
 import { CloseIcon } from "./CloseIcon"
+import { useT } from "../hooks/useT"
 
 type AgentTab = "claude" | "codex"
 
@@ -12,6 +13,7 @@ type Preflight =
   | { status: "error" }
 
 export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void; onSaved?: () => void }) {
+  const { t } = useT("settings")
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<AgentTab>("claude")
   const [preflight, setPreflight] = useState<Preflight>({ status: "checking" })
@@ -53,14 +55,14 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
       if (!openInNewTab(authorize_url)) setPopupBlocked(authorize_url)
       setAuthStarted(true)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not start authorization.")
+      setError(err instanceof Error ? err.message : t('configure_agent.auth_error'))
     }
   }
 
   async function connect(codeOverride?: string) {
     const codeToExchange = (codeOverride ?? code).trim()
     if (codeToExchange.length === 0) {
-      setError("Paste the code from Claude first.")
+      setError(t('configure_agent.paste_code_first'))
       return
     }
     setError(null)
@@ -70,13 +72,13 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
       if (payload.credential_test.ok) {
         await queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
         await queryClient.invalidateQueries({ queryKey: ["credentials"] })
-        setConnected(payload.credential_test.message || "Claude connected.")
+        setConnected(payload.credential_test.message || t('configure_agent.connected_default'))
         onSaved?.()
       } else {
-        setError(payload.credential_test.message || "The token Claude returned did not work. Try again.")
+        setError(payload.credential_test.message || t('configure_agent.exchange_error'))
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not exchange the code. Try authorizing again.")
+      setError(err instanceof Error ? err.message : t('configure_agent.exchange_catch_error'))
     } finally {
       setExchanging(false)
     }
@@ -106,14 +108,14 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id="configure-agent-title">
-                Configure agent
+                {t('configure_agent.title')}
               </h2>
               <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                Set the default agent Syrus uses for runs. You can add more or switch later in Agent Settings.
+                {t('configure_agent.description')}
               </p>
             </div>
             <button
-              aria-label="Close"
+              aria-label={t('configure_agent.close')}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
               onClick={onClose}
               type="button"
@@ -131,7 +133,7 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
               role="tab"
               type="button"
             >
-              Claude
+              {t('configure_agent.tab_claude')}
             </button>
             <button
               aria-disabled="true"
@@ -139,11 +141,11 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
               className="cursor-not-allowed px-4 py-2 text-sm font-medium text-gray-400 dark:text-gray-600"
               disabled
               role="tab"
-              title="Codex support is coming next"
+              title={t('configure_agent.codex_title')}
               type="button"
             >
-              Codex
-              <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gray-400 dark:bg-gray-800 dark:text-gray-500">Soon</span>
+              {t('configure_agent.tab_codex')}
+              <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gray-400 dark:bg-gray-800 dark:text-gray-500">{t('configure_agent.soon')}</span>
             </button>
             <button
               aria-disabled="true"
@@ -151,11 +153,11 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
               className="cursor-not-allowed px-4 py-2 text-sm font-medium text-gray-400 dark:text-gray-600"
               disabled
               role="tab"
-              title="Gemini support is planned"
+              title={t('configure_agent.gemini_title')}
               type="button"
             >
-              Gemini
-              <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gray-400 dark:bg-gray-800 dark:text-gray-500">Soon</span>
+              {t('configure_agent.tab_gemini')}
+              <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gray-400 dark:bg-gray-800 dark:text-gray-500">{t('configure_agent.soon')}</span>
             </button>
           </div>
 
@@ -168,7 +170,7 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
                   onClick={onClose}
                   type="button"
                 >
-                  Done
+                  {t('configure_agent.done')}
                 </button>
               </div>
             </>
@@ -176,53 +178,52 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
             <div className="space-y-4">
               {preflight.status === "checking" ? (
                 <p className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400" role="status">
-                  <Spinner /> Checking for an existing Claude login on this machine…
+                  <Spinner /> {t('configure_agent.checking_login')}
                 </p>
               ) : null}
 
               {ambientReady ? (
                 <StatusBox tone="ok">
-                  Claude already works on this machine. You can connect a durable token below (recommended for restarts and headless workers), or skip for now.
+                  {t('configure_agent.ambient_ready')}
                 </StatusBox>
               ) : null}
 
               <ol className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
                 <li>
-                  <p className="font-medium text-gray-900 dark:text-gray-100">1. Authorize with Claude</p>
+                  <p className="font-medium text-gray-900 dark:text-gray-100">{t('configure_agent.step1_heading')}</p>
                   <p className="mt-1 text-gray-600 dark:text-gray-400">
-                    Opens <span className="font-medium">claude.ai</span> in a new tab. Approve access (requires a Claude
-                    Pro, Max, Team, or Enterprise plan); Claude then shows you a short code.
+                    {t('configure_agent.step1_description')}
                   </p>
                   <button
                     className="mt-2 inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
                     onClick={authorize}
                     type="button"
                   >
-                    {authStarted ? "Reopen authorization" : "Authorize with Claude"}
+                    {authStarted ? t('configure_agent.reopen_auth') : t('configure_agent.authorize_claude')}
                     <span aria-hidden="true">↗</span>
                   </button>
                   {popupBlocked ? (
                     <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
-                      Popup blocked.{" "}
+                      {t('configure_agent.popup_blocked')}{" "}
                       <a className="font-medium underline" href={popupBlocked} rel="noreferrer" target="_blank">
-                        Open the authorization page
+                        {t('configure_agent.open_auth_page')}
                       </a>{" "}
-                      manually.
+                      {t('configure_agent.popup_blocked_manually')}
                     </p>
                   ) : null}
                 </li>
                 <li className={authStarted ? "" : "opacity-50"}>
-                  <p className="font-medium text-gray-900 dark:text-gray-100">2. Paste the code</p>
-                  <p className="mt-1 text-gray-600 dark:text-gray-400">Copy the code Claude shows and paste it here.</p>
+                  <p className="font-medium text-gray-900 dark:text-gray-100">{t('configure_agent.step2_heading')}</p>
+                  <p className="mt-1 text-gray-600 dark:text-gray-400">{t('configure_agent.step2_description')}</p>
                   <label className="mt-2 block">
-                    <span className="sr-only">Authorization code from Claude</span>
+                    <span className="sr-only">{t('configure_agent.input_label')}</span>
                     <input
                       autoComplete="off"
                       className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-950 px-3 py-2 font-mono text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                       disabled={!authStarted}
                       onChange={(event) => setCode(event.target.value)}
                       onPaste={pasteAndConnect}
-                      placeholder="paste code here"
+                      placeholder={t('configure_agent.input_placeholder')}
                       spellCheck={false}
                       type="text"
                       value={code}
@@ -239,7 +240,7 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
                   onClick={onClose}
                   type="button"
                 >
-                  {ambientReady ? "Skip for now" : "Cancel"}
+                  {ambientReady ? t('configure_agent.skip_for_now') : t('configure_agent.cancel')}
                 </button>
                 <button
                   className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
@@ -249,10 +250,10 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
                 >
                   {exchanging ? (
                     <>
-                      <Spinner light /> Connecting…
+                      <Spinner light /> {t('configure_agent.connecting')}
                     </>
                   ) : (
-                    "Connect"
+                    t('configure_agent.connect')
                   )}
                 </button>
               </div>

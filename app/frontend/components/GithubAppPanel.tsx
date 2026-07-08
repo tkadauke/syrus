@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { fetchAdminGithubAppConfirm, fetchAdminGithubAppRegister, syncAdminGithubAppInstallations } from "../api/adminGithubApp"
 import { ApiError } from "../api/client"
 import { openInNewTab } from "../lib/desktopShell"
+import { useT } from "../hooks/useT"
 
 // Admin-only panel: create the singleton Syrus GitHub App from a manifest,
 // then install it on the operator's account (All repositories recommended —
@@ -10,6 +11,7 @@ import { openInNewTab } from "../lib/desktopShell"
 // satisfies the GitHub onboarding step; installation is encouraged here but
 // skippable, with a per-repository fallback offer at add-repository time.
 export function GithubAppPanel({ onClose, onSaved }: { onClose: () => void; onSaved?: () => void }) {
+  const { t } = useT("settings")
   const queryClient = useQueryClient()
   const [awaiting, setAwaiting] = useState(false)
   const [awaitingInstall, setAwaitingInstall] = useState(false)
@@ -61,7 +63,7 @@ export function GithubAppPanel({ onClose, onSaved }: { onClose: () => void; onSa
   }, [installed])
 
   if (register.isPending) {
-    return <p className="text-sm text-gray-500 dark:text-gray-400">Loading GitHub App registration…</p>
+    return <p className="text-sm text-gray-500 dark:text-gray-400">{t('github_app_panel.loading')}</p>
   }
 
   if (register.isError) {
@@ -69,8 +71,8 @@ export function GithubAppPanel({ onClose, onSaved }: { onClose: () => void; onSa
     return (
       <Box tone="muted">
         {forbidden
-          ? "Only an admin can register the Syrus GitHub App. Ask an admin to set it up, or use a personal access token instead."
-          : "Could not load GitHub App registration. Use a personal access token instead."}
+          ? t('github_app_panel.error_forbidden')
+          : t('github_app_panel.error_load')}
       </Box>
     )
   }
@@ -79,11 +81,11 @@ export function GithubAppPanel({ onClose, onSaved }: { onClose: () => void; onSa
     return (
       <div className="space-y-4">
         <Box tone="ok">
-          Installed on {installations.map((i) => i.account_login).join(", ")} — Syrus acts through its own bot identity there, and repositories you add connect automatically.
+          {t('github_app_panel.installed_on', { accounts: installations.map((i) => i.account_login).join(', ') })}
         </Box>
         <div className="flex justify-end">
           <button className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700" onClick={onClose} type="button">
-            Done
+            {t('github_app_panel.done')}
           </button>
         </div>
       </div>
@@ -93,12 +95,9 @@ export function GithubAppPanel({ onClose, onSaved }: { onClose: () => void; onSa
   if (registered) {
     return (
       <div className="space-y-4">
-        <Box tone="ok">The Syrus GitHub App is registered.</Box>
+        <Box tone="ok">{t('github_app_panel.registered_ok')}</Box>
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          One more step: install it on your GitHub account so Syrus acts through its own bot identity. We recommend
-          keeping GitHub&apos;s <span className="font-medium text-gray-900 dark:text-gray-100">All repositories</span> default —
-          repositories you add to Syrus then connect automatically. Skip it and Syrus works through your personal
-          access token, with a per-repository offer when you add one.
+          {t('github_app_panel.install_prompt')}
         </p>
 
         {status?.install_url ? (
@@ -112,29 +111,29 @@ export function GithubAppPanel({ onClose, onSaved }: { onClose: () => void; onSa
               syncAdminGithubAppInstallations().catch(() => {})
             }}
           >
-            Install on GitHub <span aria-hidden="true">↗</span>
+            {t('github_app_panel.install_on_github')} <span aria-hidden="true">↗</span>
           </button>
         ) : null}
 
         {popupBlocked ? (
           <p className="text-xs text-amber-700 dark:text-amber-300">
-            Popup blocked.{" "}
+            {t('github_app_panel.popup_blocked')}{" "}
             <a className="font-medium underline" href={popupBlocked} rel="noreferrer" target="_blank">
-              Open the install page
+              {t('github_app_panel.open_install_page')}
             </a>{" "}
-            manually.
+            {t('github_app_panel.popup_blocked_manually')}
           </p>
         ) : null}
 
         {awaitingInstall ? (
           <p className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400" role="status">
-            <Spinner /> Waiting for GitHub — this updates by itself once the App is installed…
+            <Spinner /> {t('github_app_panel.waiting_for_install')}
           </p>
         ) : null}
 
         <div className="flex justify-end">
           <button className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800" onClick={onClose} type="button">
-            {awaitingInstall ? "Close — it keeps connecting in the background" : "Skip for now"}
+            {awaitingInstall ? t('github_app_panel.close_connecting') : t('github_app_panel.skip_for_now')}
           </button>
         </div>
       </div>
@@ -144,11 +143,11 @@ export function GithubAppPanel({ onClose, onSaved }: { onClose: () => void; onSa
   return (
     <div className="space-y-4 text-sm text-gray-700 dark:text-gray-300">
       <p className="text-gray-600 dark:text-gray-400">
-        The GitHub App enables actions to appear as a bot natively on your repositories.
+        {t('github_app_panel.app_description')}
       </p>
       <ol className="space-y-2">
-        <li><span className="font-medium text-gray-900 dark:text-gray-100">1.</span> Create the App on GitHub (opens in your browser).</li>
-        <li><span className="font-medium text-gray-900 dark:text-gray-100">2.</span> GitHub sends you back — Syrus picks it up automatically.</li>
+        <li><span className="font-medium text-gray-900 dark:text-gray-100">1.</span> {t('github_app_panel.register_step1')}</li>
+        <li><span className="font-medium text-gray-900 dark:text-gray-100">2.</span> {t('github_app_panel.register_step2')}</li>
       </ol>
 
       <button
@@ -165,17 +164,17 @@ export function GithubAppPanel({ onClose, onSaved }: { onClose: () => void; onSa
 
       {popupBlocked ? (
         <p className="text-xs text-amber-700 dark:text-amber-300">
-          Popup blocked.{" "}
+          {t('github_app_panel.popup_blocked')}{" "}
           <a className="font-medium underline" href={popupBlocked} rel="noreferrer" target="_blank">
-            Open the registration page
+            {t('github_app_panel.open_registration_page')}
           </a>{" "}
-          manually.
+          {t('github_app_panel.popup_blocked_manually')}
         </p>
       ) : null}
 
       {awaiting ? (
         <p className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400" role="status">
-          <Spinner /> Waiting for GitHub to finish creating the App…
+          <Spinner /> {t('github_app_panel.waiting_for_register')}
         </p>
       ) : null}
     </div>

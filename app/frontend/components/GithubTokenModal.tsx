@@ -4,6 +4,7 @@ import { saveGithubToken, testGithubToken, type CredentialTestResult } from "../
 import { fetchBootstrap } from "../api/bootstrap"
 import { CloseIcon } from "./CloseIcon"
 import { GithubAppPanel } from "./GithubAppPanel"
+import { useT } from "../hooks/useT"
 
 const TOKEN_SETTINGS_URL = "https://github.com/settings/tokens"
 const TEST_DEBOUNCE_MS = 500
@@ -17,6 +18,7 @@ type TestState =
 // The GitHub onboarding step requires BOTH credentials, set up in order:
 // first a personal access token, then the GitHub App.
 export function GithubTokenModal({ onClose, onSaved }: { onClose: () => void; onSaved?: () => void }) {
+  const { t } = useT("settings")
   const queryClient = useQueryClient()
   const bootstrap = useQuery({ queryKey: ["bootstrap"], queryFn: fetchBootstrap })
   const isAdmin = !!bootstrap.data?.current_user?.admin
@@ -51,16 +53,15 @@ export function GithubTokenModal({ onClose, onSaved }: { onClose: () => void; on
         <div className="space-y-5 p-5 sm:p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id="github-title">GitHub integration</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id="github-title">{t('github_token.title')}</h2>
               {phase === "pat" ? (
                 <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                  To monitor and interact with GitHub, and to act as an independent contributor, Syrus requires both a
-                  Personal Access Token (PAT) and a custom GitHub App.
+                  {t('github_token.description')}
                 </p>
               ) : null}
             </div>
             <button
-              aria-label="Close"
+              aria-label={t('github_token.close')}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
               onClick={onClose}
               type="button"
@@ -78,8 +79,7 @@ export function GithubTokenModal({ onClose, onSaved }: { onClose: () => void; on
             <GithubAppPanel onClose={onClose} onSaved={onSaved} />
           ) : (
             <Box tone="muted">
-              A personal access token is saved. The GitHub App is registered once per instance by an admin — ask an
-              admin to register it to finish this step.
+              {t('github_token.admin_required')}
             </Box>
           )}
         </div>
@@ -89,9 +89,10 @@ export function GithubTokenModal({ onClose, onSaved }: { onClose: () => void; on
 }
 
 function Stepper({ patDone, appDone, active }: { patDone: boolean; appDone: boolean; active: "pat" | "app" }) {
+  const { t } = useT("settings")
   const steps = [
-    { key: "pat", label: "Personal access token", done: patDone },
-    { key: "app", label: "GitHub App", done: appDone }
+    { key: "pat", label: t('github_token.step_pat_label'), done: patDone },
+    { key: "app", label: t('github_token.step_app_label'), done: appDone }
   ]
   return (
     <ol className="flex items-center gap-2 text-xs font-medium">
@@ -117,6 +118,7 @@ function Stepper({ patDone, appDone, active }: { patDone: boolean; appDone: bool
 
 // Step 1: paste + verify + save a personal access token.
 function TokenStep({ onSaved }: { onSaved: () => void }) {
+  const { t } = useT("settings")
   const queryClient = useQueryClient()
   const [token, setToken] = useState("")
   const [test, setTest] = useState<TestState>({ status: "idle" })
@@ -141,11 +143,11 @@ function TokenStep({ onSaved }: { onSaved: () => void }) {
         const payload = await testGithubToken(trimmed)
         if (seq === probeSeq.current) setTest({ status: "done", result: payload.credential_test })
       } catch (err) {
-        if (seq === probeSeq.current) setTest({ status: "error", message: err instanceof Error ? err.message : "Could not verify the token." })
+        if (seq === probeSeq.current) setTest({ status: "error", message: err instanceof Error ? err.message : t('github_token.verify_error') })
       }
     }, TEST_DEBOUNCE_MS)
     return () => clearTimeout(handle)
-  }, [token])
+  }, [token, t])
 
   const tokenValid = test.status === "done" && test.result.ok
 
@@ -156,7 +158,7 @@ function TokenStep({ onSaved }: { onSaved: () => void }) {
       await queryClient.invalidateQueries({ queryKey: ["credentials"] })
       onSaved()
     },
-    onError: (err) => setSaveError(err instanceof Error ? err.message : "Could not save the token. Check it and try again.")
+    onError: (err) => setSaveError(err instanceof Error ? err.message : t('github_token.save_error'))
   })
 
   function submit(event: React.FormEvent) {
@@ -170,33 +172,32 @@ function TokenStep({ onSaved }: { onSaved: () => void }) {
     <form className="space-y-5" onSubmit={submit}>
       <ol className="space-y-4 text-sm text-gray-700 dark:text-gray-300">
         <li>
-          <p className="font-medium text-gray-900 dark:text-gray-100">1. Open GitHub token settings</p>
-          <p className="mt-1 text-gray-600 dark:text-gray-400">Generate a <span className="font-medium">classic</span> personal access token.</p>
+          <p className="font-medium text-gray-900 dark:text-gray-100">{t('github_token.step1_heading')}</p>
+          <p className="mt-1 text-gray-600 dark:text-gray-400">{t('github_token.step1_description')}</p>
           <a className="mt-2 inline-flex items-center gap-1 rounded bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-700 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white" href={TOKEN_SETTINGS_URL} rel="noreferrer" target="_blank">
-            Open github.com/settings/tokens <span aria-hidden="true">↗</span>
+            {t('github_token.step1_link')} <span aria-hidden="true">↗</span>
           </a>
         </li>
         <li>
-          <p className="font-medium text-gray-900 dark:text-gray-100">2. Select scopes and expiration</p>
+          <p className="font-medium text-gray-900 dark:text-gray-100">{t('github_token.step2_heading')}</p>
           <p className="mt-1 text-gray-600 dark:text-gray-400">
-            Under <span className="font-medium">Generate new token (classic)</span>, set
-            <span className="font-medium"> Expiration</span> to <span className="font-medium">No expiration</span>, then enable these scopes:
+            {t('github_token.step2_description')}
           </p>
           <ul className="mt-2 space-y-1">
             <li className="flex items-center gap-2">
               <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">repo</code>
-              <span className="text-gray-600 dark:text-gray-400">— clone, branch, and open PRs</span>
+              <span className="text-gray-600 dark:text-gray-400">{t('github_token.scope_repo')}</span>
             </li>
             <li className="flex items-center gap-2">
               <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">workflow</code>
-              <span className="text-gray-600 dark:text-gray-400">— update GitHub Actions workflows</span>
+              <span className="text-gray-600 dark:text-gray-400">{t('github_token.scope_workflow')}</span>
             </li>
           </ul>
         </li>
         <li>
-          <p className="font-medium text-gray-900 dark:text-gray-100">3. Paste the token</p>
+          <p className="font-medium text-gray-900 dark:text-gray-100">{t('github_token.step3_heading')}</p>
           <label className="mt-2 block">
-            <span className="sr-only">GitHub personal access token</span>
+            <span className="sr-only">{t('github_token.input_label')}</span>
             <input
               autoComplete="off"
               className="block w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-950 px-3 py-2 font-mono text-sm text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -217,7 +218,7 @@ function TokenStep({ onSaved }: { onSaved: () => void }) {
 
       <div className="flex items-center justify-end gap-2">
         <button className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60" disabled={!tokenValid || save.isPending} type="submit">
-          {save.isPending ? "Saving…" : "Save and continue"}
+          {save.isPending ? t('github_token.saving') : t('github_token.save_continue')}
         </button>
       </div>
     </form>
@@ -225,11 +226,12 @@ function TokenStep({ onSaved }: { onSaved: () => void }) {
 }
 
 function TokenStatus({ test }: { test: TestState }) {
+  const { t } = useT("settings")
   if (test.status === "idle") return null
   if (test.status === "testing") {
     return (
       <p className="mt-2 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400" role="status">
-        <Spinner /> Checking token…
+        <Spinner /> {t('github_token.checking_token')}
       </p>
     )
   }

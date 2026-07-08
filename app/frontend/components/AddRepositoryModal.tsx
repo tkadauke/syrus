@@ -15,10 +15,12 @@ import { syncAdminGithubAppInstallations } from "../api/adminGithubApp"
 import { ApiError } from "../api/client"
 import { openInNewTab } from "../lib/desktopShell"
 import { CloseIcon } from "./CloseIcon"
+import { useT } from "../hooks/useT"
 
 type OwnerOption = { login: string; type: "user" | "org" }
 
 export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; onSaved?: () => void }) {
+  const { t } = useT("settings")
   const queryClient = useQueryClient()
   const form = useQuery({ queryKey: ["repositories", "new"], queryFn: fetchNewRepositoryForm })
   const owners = useQuery({ queryKey: ["repositories", "owners"], queryFn: fetchRepositoryOwners })
@@ -72,7 +74,7 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
   useEffect(() => {
     if (!owners.isSuccess) return
     if (owners.data.error) {
-      setOwnersNotice(ownerErrorMessage(owners.data.error))
+      setOwnersNotice(ownerErrorMessage(owners.data.error, t))
       return
     }
     setOwnerOptions([
@@ -97,19 +99,19 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
       setLoadingRepos(false)
       if (data.error || !data.repos) {
         setRepoOptions([])
-        setReposNotice(repoErrorMessage(data.error))
+        setReposNotice(repoErrorMessage(data.error, t))
         return
       }
       const options = data.repos.map((repo) =>
         typeof repo === "string" ? { name: repo, github_repository_id: null, github_owner_id: null } : repo
       )
       setRepoOptions(options)
-      if (options.length === 0) setReposNotice("No repositories found for this owner.")
+      if (options.length === 0) setReposNotice(t('add_repository.no_repositories'))
     }).catch(() => {
       if (cancelled) return
       setLoadingRepos(false)
       setRepoOptions([])
-      setReposNotice("Unable to load repositories.")
+      setReposNotice(t('add_repository.load_repos_error'))
     })
     return () => {
       cancelled = true
@@ -156,7 +158,7 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
       onClose()
     },
     onError: (err) => {
-      setError(err instanceof ApiError ? err.message : "Could not add the repository. Try again.")
+      setError(err instanceof ApiError ? err.message : t('add_repository.save_error'))
     }
   })
 
@@ -205,7 +207,7 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
     event.preventDefault()
     setError(null)
     if (!values || !values.owner || !values.name) {
-      setError("Choose a user/org and repository.")
+      setError(t('add_repository.validation_choose'))
       return
     }
     save.mutate()
@@ -226,10 +228,10 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
           <div className="space-y-5 p-5 sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id="add-repository-title">
-                Repository added
+                {t('add_repository.title_added')}
               </h2>
               <button
-                aria-label="Close"
+                aria-label={t('add_repository.close')}
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 onClick={() => { onSaved?.(); onClose() }}
                 type="button"
@@ -238,27 +240,25 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
               </button>
             </div>
 
-            <Box tone="ok">{saved.repository.slug} is ready.</Box>
+            <Box tone="ok">{t('add_repository.repository_ready', { slug: saved.repository.slug })}</Box>
 
             {installedNow ? (
               <Box tone="ok">
-                Syrus App connected — actions on {saved.repository.owner} now come from the Syrus bot.
+                {t('add_repository.app_connected', { owner: saved.repository.owner })}
               </Box>
             ) : (
               <>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Optional: install the Syrus GitHub App on{" "}
-                  <span className="font-medium text-gray-900 dark:text-gray-100">{saved.repository.owner}</span> so Syrus acts
-                  through its own bot identity there. Until then it works through your personal access token.
+                  {t('add_repository.install_optional', { owner: saved.repository.owner })}
                 </p>
                 {awaitingInstall ? (
                   <p className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400" role="status">
-                    <Spinner /> Waiting for GitHub — this updates by itself once the App is installed…
+                    <Spinner /> {t('add_repository.waiting_for_install')}
                   </p>
                 ) : null}
                 {!awaitingInstall && saved.credential_status.generic_install_url ? (
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Recommended:{" "}
+                    {t('add_repository.install_all_prefix')}{" "}
                     <button
                       className="font-medium text-blue-700 dark:text-blue-300 underline hover:no-underline"
                       type="button"
@@ -267,9 +267,9 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
                         setAwaitingInstall(true)
                       }}
                     >
-                      install for all repositories
+                      {t('add_repository.install_all_button')}
                     </button>{" "}
-                    instead — every repo you add later connects automatically.
+                    {t('add_repository.install_all_suffix')}
                   </p>
                 ) : null}
               </>
@@ -285,7 +285,7 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
                     setAwaitingInstall(true)
                   }}
                 >
-                  Install on GitHub <span aria-hidden="true">↗</span>
+                  {t('add_repository.install_on_github')} <span aria-hidden="true">↗</span>
                 </button>
               ) : null}
               <button
@@ -293,7 +293,7 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
                 onClick={() => { onSaved?.(); onClose() }}
                 type="button"
               >
-                Done
+                {t('add_repository.done')}
               </button>
             </div>
           </div>
@@ -302,14 +302,14 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id="add-repository-title">
-                Add repository
+                {t('add_repository.title')}
               </h2>
               <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                Pick the first repository Syrus should work with. You can add more later from Repositories.
+                {t('add_repository.description')}
               </p>
             </div>
             <button
-              aria-label="Close"
+              aria-label={t('add_repository.close')}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
               onClick={onClose}
               type="button"
@@ -320,32 +320,32 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
 
           {!values ? (
             <p className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400" role="status">
-              <Spinner /> Loading…
+              <Spinner /> {t('add_repository.loading')}
             </p>
           ) : (
             <>
-              <Field label="User/Org">
+              <Field label={t('add_repository.field_user_org')}>
                 {ownersNotice ? (
                   <Box tone="error">{ownersNotice}</Box>
                 ) : ownersLoading ? (
-                  <Loading>Loading your GitHub accounts…</Loading>
+                  <Loading>{t('add_repository.loading_accounts')}</Loading>
                 ) : (
-                  <select aria-label="User/Org" className={selectClass()} onChange={(event) => chooseOwner(event.target.value)} value={values.owner}>
-                    <option value="">Select user or org…</option>
+                  <select aria-label={t('add_repository.field_user_org')} className={selectClass()} onChange={(event) => chooseOwner(event.target.value)} value={values.owner}>
+                    <option value="">{t('add_repository.select_user_org')}</option>
                     {ownerOptions.map((o) => <option key={o.login} value={o.login}>{o.login}</option>)}
                   </select>
                 )}
               </Field>
 
               {values.owner ? (
-                <Field label="Repository">
+                <Field label={t('add_repository.field_repository')}>
                   {loadingRepos ? (
-                    <Loading>Loading repositories…</Loading>
+                    <Loading>{t('add_repository.loading_repositories')}</Loading>
                   ) : reposNotice ? (
                     <Box tone="error">{reposNotice}</Box>
                   ) : (
-                    <select aria-label="Repository" className={selectClass()} onChange={(event) => chooseRepo(event.target.value)} value={values.name}>
-                      <option value="">Select repository…</option>
+                    <select aria-label={t('add_repository.field_repository')} className={selectClass()} onChange={(event) => chooseRepo(event.target.value)} value={values.name}>
+                      <option value="">{t('add_repository.select_repository')}</option>
                       {repoOptions.map((r) => <option key={r.name} value={r.name}>{r.name}</option>)}
                     </select>
                   )}
@@ -353,11 +353,11 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
               ) : null}
 
               {values.name ? (
-                <Field label="Default branch">
+                <Field label={t('add_repository.field_default_branch')}>
                   {loadingBranches ? (
-                    <Loading>Loading branches…</Loading>
+                    <Loading>{t('add_repository.loading_branches')}</Loading>
                   ) : (
-                    <select aria-label="Default branch" className={selectClass()} onChange={(event) => setValues((c) => (c ? { ...c, default_branch: event.target.value } : c))} value={values.default_branch}>
+                    <select aria-label={t('add_repository.field_default_branch')} className={selectClass()} onChange={(event) => setValues((c) => (c ? { ...c, default_branch: event.target.value } : c))} value={values.default_branch}>
                       {branchOptions.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
                     </select>
                   )}
@@ -365,20 +365,19 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
               ) : null}
 
               <Box tone="muted">
-                Runs will use your default agent ({form.data?.user_agent_provider_label || "your default"}). The{" "}
+                {t('add_repository.defaults_info_prefix', { agent: form.data?.user_agent_provider_label || t('add_repository.defaults_agent_default') })}{" "}
                 <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-xs dark:bg-gray-800">{values.trigger_label}</code>{" "}
-                trigger label, auto-merge, and the standard repository defaults apply — you can change the label and
-                fine-tune everything later in the repository settings.
+                {t('add_repository.defaults_info_suffix')}
               </Box>
 
               {error ? <Box tone="error">{error}</Box> : null}
 
               <div className="flex items-center justify-end gap-2">
                 <button className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800" onClick={onClose} type="button">
-                  Cancel
+                  {t('add_repository.cancel')}
                 </button>
                 <button className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60" disabled={save.isPending || !values.owner || !values.name} type="submit">
-                  {save.isPending ? <><Spinner light /> Adding…</> : "Add repository"}
+                  {save.isPending ? <><Spinner light /> {t('add_repository.adding')}</> : t('add_repository.add_repository')}
                 </button>
               </div>
             </>
@@ -437,14 +436,16 @@ function selectClass() {
   return "block w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-mono shadow-sm focus:outline-blue-600"
 }
 
-function ownerErrorMessage(error: string) {
-  if (error === "no_token") return "No GitHub token configured yet — revisit Configure GitHub first."
-  if (error === "unauthorized") return "GitHub rejected the configured credentials. Revisit Configure GitHub."
-  return "Unable to load your GitHub accounts. Revisit Configure GitHub."
+type TFunction = (key: string) => string
+
+function ownerErrorMessage(error: string, t: TFunction) {
+  if (error === "no_token") return t('add_repository.owner_error_no_token')
+  if (error === "unauthorized") return t('add_repository.owner_error_unauthorized')
+  return t('add_repository.owner_error_default')
 }
 
-function repoErrorMessage(error?: string) {
-  if (error === "no_token") return "No GitHub token configured — revisit Configure GitHub."
-  if (error === "not_found") return "Owner not found or not accessible."
-  return "Unable to load repositories for this owner."
+function repoErrorMessage(error: string | undefined, t: TFunction) {
+  if (error === "no_token") return t('add_repository.repo_error_no_token')
+  if (error === "not_found") return t('add_repository.repo_error_not_found')
+  return t('add_repository.repo_error_default')
 }
