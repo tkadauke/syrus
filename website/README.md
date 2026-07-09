@@ -53,24 +53,18 @@ points) and `lib/legal.ts` (Impressum + privacy). Pages are under `app/`.
 
 ## Information Architecture
 
-The public documentation contract: every product behavior that operators or visitors need to understand has a corresponding page. A feature is not done if the user-facing page that explains it is stale.
+The site surfaces three content kinds: marketing pages (what, why, proof),
+documentation (deployment, configuration, API), and legal.
 
-### Marketing pages (`src/pages/`)
+Key pages and docs (source-of-truth markdown under `src/`):
 
 | Page | Path | Purpose |
 | --- | --- | --- |
-| Home | `src/pages/index.md` | Entry point: what Syrus is, the loop, how to start |
-| What is Syrus? | `src/pages/what-is-syrus.md` | Plain-language product model |
-| Why use Syrus? | `src/pages/why-use-syrus.md` | Fit assessment and value argument |
-| About | `src/pages/about.md` | Naming story and project history |
+| What is Syrus? | `src/pages/what-is-syrus.md` | Product positioning |
+| Why use Syrus? | `src/pages/why-use-syrus.md` | Adoption rationale and fit check |
+| Getting Started | `src/content/docs/getting-started.md` | First deployment walkthrough |
+| Troubleshooting | `src/content/docs/troubleshooting.md` | Common failure modes |
 
-### Docs (`src/content/docs/`)
-
-| Page | Path | Audience |
-| --- | --- | --- |
-| Start Here | `src/content/docs/index.md` | Orientation and navigation table |
-| What is Syrus? | `src/content/docs/what-is-syrus.md` | Product model in detail |
-| Why use Syrus? | `src/content/docs/why-use-syrus.md` | Fit and value argument |
-| Getting Started | `src/content/docs/getting-started.md` | First successful run |
-| Features | `src/content/docs/features.md` | Jobs, Epics, chats, credentials, GitHub App |
-| Troubleshooting | `src/content/docs/troubleshooting.md` | Failure modes and debug paths |
+**Convention: A feature is not done if the user-facing page that explains it is stale.**
+Every PR that adds or changes product behavior should update the relevant page
+under `src/` or say explicitly in the PR body why no update is needed.
