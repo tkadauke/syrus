@@ -795,11 +795,14 @@ describe("chat proposal cards", () => {
     expect(screen.queryByRole("button", { name: "Confirm Epic" })).not.toBeInTheDocument()
   })
 
-  it("offers Create Epic & Start Implementing on Epic proposals and sends the start flag", async () => {
+  it("offers Create Epic & Start Implementing on Epic proposals to developers and sends the start flag", async () => {
     const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
         return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/bootstrap") {
+        return Promise.resolve(jsonResponse({ current_user: developerUser() }))
       }
       if (path.startsWith("/api/v1/app/chats/8/proposals/1/confirm") && init?.method === "POST") {
         return Promise.resolve(jsonResponse(chatPayload({ messages: [] })))
@@ -829,6 +832,37 @@ describe("chat proposal cards", () => {
       expect(confirmCall).toBeTruthy()
       expect(JSON.parse(confirmCall?.[1]?.body as string)).toEqual({ start: true })
     })
+  })
+
+  it("hides Create Epic & Start Implementing from non-developers on Epic proposals", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/bootstrap") {
+        return Promise.resolve(jsonResponse({ current_user: { ...developerUser(), role: "product_owner" } }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [
+          messageWithProposal(9, proposal({
+            kind: "epic",
+            kind_label: "Epic",
+            title: "Plan onboarding",
+            slug: "EPIC-DRAFT-1",
+            epic_bundle: true,
+            active_children_count: 0,
+            children: []
+          }))
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    expect(await screen.findByRole("button", { name: "Confirm Epic" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Create Epic & Start Implementing" })).not.toBeInTheDocument()
   })
 
   it("does not offer Create Epic & Start Implementing on non-Epic proposals", async () => {
@@ -1528,6 +1562,26 @@ function dayLabel(date: Date) {
   if (dayDelta === 1) return "Yesterday"
 
   return date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })
+}
+
+function developerUser() {
+  return {
+    id: 1,
+    email_address: "dev@example.com",
+    name: "Developer",
+    first_name: null,
+    last_name: null,
+    display_name: "Developer",
+    admin: false,
+    role: "developer",
+    scheduling_paused: false,
+    landing_paused: false,
+    agent_provider: "claude",
+    chat_provider: "claude",
+    agent_max_turns: 200,
+    theme: "light",
+    locale: "en"
+  }
 }
 
 function proposal(overrides: Record<string, unknown> = {}) {

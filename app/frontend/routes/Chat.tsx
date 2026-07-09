@@ -76,6 +76,7 @@ import {
   type SharedChatPayload,
   type WhiteboardSnapshot
 } from "../api/chats"
+import { fetchBootstrap } from "../api/bootstrap"
 import { postJobCommand } from "../api/jobs"
 import { CloseIcon } from "../components/CloseIcon"
 import { ConfirmationCard } from "../components/ConfirmationCard"
@@ -1301,6 +1302,9 @@ function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: Chat
   const search = queryKey[2]
   const [editingProposal, setEditingProposal] = useState<EditableProposal | null>(null)
   const childJobCount = proposal.children?.length || 0
+  const bootstrap = useQuery({ queryKey: ["bootstrap"], queryFn: fetchBootstrap })
+  const currentUser = bootstrap.data?.current_user
+  const showConfirmAndStart = proposal.epic_bundle && (currentUser?.role === "developer" || currentUser?.admin === true)
   const proposalAction = useMutation({
     mutationFn: (input: ProposalActionInput) => {
       const path = appendSearch(input.path, search)
@@ -1343,7 +1347,15 @@ function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: Chat
           <ProposalResultFooter proposal={proposal} prefix={prefix} onNotice={onNotice} />
           {proposal.proposed ? (
             <div className="mt-4 flex flex-wrap gap-2">
-              {proposal.epic_bundle ? (
+              <button
+                className={showConfirmAndStart ? secondaryButton() : primaryButton()}
+                disabled={proposalAction.isPending}
+                onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path })}
+                type="button"
+              >
+                {proposalConfirmLabel(proposal, childJobCount)}
+              </button>
+              {showConfirmAndStart ? (
                 <button
                   className={primaryButton()}
                   disabled={proposalAction.isPending}
@@ -1353,14 +1365,6 @@ function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: Chat
                   {t("create_epic_and_start")}
                 </button>
               ) : null}
-              <button
-                className={proposal.epic_bundle ? secondaryButton() : primaryButton()}
-                disabled={proposalAction.isPending}
-                onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path })}
-                type="button"
-              >
-                {proposalConfirmLabel(proposal, childJobCount)}
-              </button>
               <button
                 className={secondaryButton()}
                 disabled={proposalAction.isPending}
