@@ -3069,8 +3069,6 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
               </button>
             ) : null}
             <div className="border-t border-gray-100 dark:border-gray-800" />
-            <AddAttachment payload={payload} prefix={prefix} queryKey={queryKey} onAttached={() => setAttachmentPopoverOpen(false)} onNotice={onNotice} />
-            <div className="border-t border-gray-100 dark:border-gray-800" />
             <button
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
               onClick={() => {
@@ -3086,6 +3084,8 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
               </svg>
               {t("scratchpad_title")}
             </button>
+            <div className="border-t border-gray-100 dark:border-gray-800" />
+            <AddAttachment payload={payload} prefix={prefix} queryKey={queryKey} onAttached={() => setAttachmentPopoverOpen(false)} onNotice={onNotice} />
           </div>
         ) : null}
         <div className="relative min-w-0 flex-1">
