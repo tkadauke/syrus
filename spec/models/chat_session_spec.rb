@@ -321,7 +321,8 @@ RSpec.describe ChatSession do
           agent_busy: false,
           switching_provider: false,
           stop_requested_at: stopped_at.iso8601,
-          queued_messages: []
+          queued_messages: [],
+          scratchpad_items: []
         }
       )
 

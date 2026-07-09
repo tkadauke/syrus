@@ -645,6 +645,7 @@ function chatNav(overrides: Partial<ChatNavRecord> = {}): ChatNavRecord {
     cumulative_output_tokens: 0,
     cumulative_cost_usd: 0,
     pending_proposal_count: 0,
+    scratchpad_items_count: 0,
     current: false,
     last_message_at: "2026-06-27T12:00:00Z",
     unread: false,

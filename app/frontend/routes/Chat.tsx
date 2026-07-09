@@ -264,6 +264,7 @@ function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
     pending_actions: [],
     agent_questions: [],
     queued_messages: [],
+    scratchpad_items: [],
     attachment_groups: { repositories: [], epics: [], jobs: [], documents: [] },
     documents_in_scope: [],
     attachment_results: [],
