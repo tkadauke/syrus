@@ -1707,8 +1707,17 @@ function ProposalChildren({ children, parentProposed, mutation, prefix, onEdit }
 
 function ChildDependencySummary({ child, prefix }: { child: ChatProposalChild; prefix: string }) {
   const details = child.dependency_details || []
+  const collapsedPillClass = "shrink-0 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300"
+
   if (details.length === 0) {
+    if (child.dependencies.length >= 2) {
+      return <span className={collapsedPillClass} title={child.dependencies.join(", ")}>{child.dependencies.length} dependencies</span>
+    }
     return <span className="shrink-0 rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">depends on {child.dependencies.join(", ")}</span>
+  }
+
+  if (details.length >= 2) {
+    return <span className={collapsedPillClass} title={details.map((d) => d.slug).join(", ")}>{details.length} dependencies</span>
   }
 
   return (
