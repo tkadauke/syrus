@@ -441,6 +441,67 @@ module Api
           render json: chat_payload(chat_session.reload, message: "Queued message deleted.")
         end
 
+        def create_scratchpad_item
+          chat_session = find_chat_session
+          content = params.dig(:scratchpad_item, :content).to_s.strip
+          if content.blank?
+            render_error("validation_failed", "Content cannot be blank.", status: :unprocessable_content)
+            return
+          end
+
+          max_position = chat_session.scratchpad_items.maximum(:position) || -1
+          chat_session.scratchpad_items.create!(content: content, position: max_position + 1)
+
+          render json: chat_payload(chat_session.reload, message: "Scratch pad item added.")
+        rescue ActiveRecord::RecordInvalid => e
+          render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        end
+
+        def update_scratchpad_item
+          chat_session = find_chat_session
+          item = chat_session.scratchpad_items.find(params[:item_id])
+          content = params.dig(:scratchpad_item, :content).to_s.strip
+          if content.blank?
+            render_error("validation_failed", "Content cannot be blank.", status: :unprocessable_content)
+            return
+          end
+
+          item.update!(content: content)
+          render json: chat_payload(chat_session.reload, message: "Scratch pad item updated.")
+        rescue ActiveRecord::RecordInvalid => e
+          render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        end
+
+        def destroy_scratchpad_item
+          chat_session = find_chat_session
+          item = chat_session.scratchpad_items.find(params[:item_id])
+          item.destroy!
+
+          render json: chat_payload(chat_session.reload, message: "Scratch pad item deleted.")
+        end
+
+        def reorder_scratchpad_items
+          chat_session = find_chat_session
+          ids = Array(params[:ids]).map { |id| Integer(id, exception: false) }.compact
+          if ids.blank?
+            render_error("validation_failed", "ids is required.", status: :unprocessable_content)
+            return
+          end
+
+          items = chat_session.scratchpad_items.where(id: ids).index_by(&:id)
+          if items.size != ids.size
+            render_error("not_found", "One or more scratchpad items were not found.", status: :not_found)
+            return
+          end
+
+          ids.each_with_index do |id, position|
+            items[id].update_columns(position: position)
+          end
+
+          chat_session.broadcast_controls
+          render json: chat_payload(chat_session.reload, message: "Scratch pad items reordered.")
+        end
+
         def answer_agent_question
           chat_session = find_chat_session
           question = chat_session.agent_questions.find(params[:agent_question_id])
@@ -866,6 +927,7 @@ module Api
             pending_actions: pending_actions_json(chat_session),
             agent_questions: chat_session.agent_questions_payload,
             queued_messages: chat_session.queued_messages_payload,
+            scratchpad_items: chat_session.scratchpad_items_payload,
             attachment_groups: attachment_groups_json(attachment_groups),
             documents_in_scope: chat_session.attached_documents_in_scope.includes(:attachable).order(:title, :id).map { |document| document_json(document) },
             attachment_results: attachment_search_results(chat_session).map { |record| attachable_result_json(record) },
@@ -1577,7 +1639,8 @@ module Api
             cumulative_output_tokens: chat_session.cumulative_output_tokens.to_i,
             cumulative_cost_usd: chat_session.cumulative_cost.to_f,
             pending_proposal_count: chat_session.proposals.where(state: "proposed").count +
-              chat_session.pending_actions.where(state: "pending").count
+              chat_session.pending_actions.where(state: "pending").count,
+            scratchpad_items_count: chat_session.scratchpad_items.count
           }
         end
 

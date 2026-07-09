@@ -1213,6 +1213,100 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body["queued_messages"]).to eq([])
   end
 
+  it "creates, updates, reorders, and destroys scratchpad items" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository)
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/scratchpad_items", params: { scratchpad_item: { content: "First draft" } }
+    }.to change(ChatScratchpadItem, :count).by(1)
+
+    expect(response).to have_http_status(:ok)
+    item = chat.scratchpad_items.last
+    expect(parse_body["message"]).to eq("Scratch pad item added.")
+    expect(parse_body["scratchpad_items"]).to contain_exactly(include(
+      "id" => item.id,
+      "content" => "First draft",
+      "app_update_path" => "/api/v1/app/chats/#{chat.id}/scratchpad_items/#{item.id}",
+      "app_delete_path" => "/api/v1/app/chats/#{chat.id}/scratchpad_items/#{item.id}"
+    ))
+
+    post "/api/v1/app/chats/#{chat.id}/scratchpad_items", params: { scratchpad_item: { content: "Second draft" } }
+    item2 = chat.scratchpad_items.ordered.last
+
+    expect(item.reload.position).to eq(0)
+    expect(item2.position).to eq(1)
+
+    patch "/api/v1/app/chats/#{chat.id}/scratchpad_items/#{item.id}", params: { scratchpad_item: { content: "Updated first draft" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(item.reload.content).to eq("Updated first draft")
+    expect(parse_body["scratchpad_items"]).to contain_exactly(
+      include("id" => item.id, "content" => "Updated first draft"),
+      include("id" => item2.id, "content" => "Second draft")
+    )
+
+    patch "/api/v1/app/chats/#{chat.id}/scratchpad_items/reorder", params: { ids: [ item2.id, item.id ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Scratch pad items reordered.")
+    expect(item2.reload.position).to eq(0)
+    expect(item.reload.position).to eq(1)
+
+    expect {
+      delete "/api/v1/app/chats/#{chat.id}/scratchpad_items/#{item.id}"
+    }.to change { chat.scratchpad_items.count }.from(2).to(1)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Scratch pad item deleted.")
+    expect(parse_body["scratchpad_items"]).to contain_exactly(include("id" => item2.id))
+  end
+
+  it "rejects blank content when creating a scratchpad item" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository)
+
+    post "/api/v1/app/chats/#{chat.id}/scratchpad_items", params: { scratchpad_item: { content: "   " } }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("Content cannot be blank.")
+  end
+
+  it "rejects blank content when updating a scratchpad item" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository)
+    item = chat.scratchpad_items.create!(content: "Draft", position: 0)
+
+    patch "/api/v1/app/chats/#{chat.id}/scratchpad_items/#{item.id}", params: { scratchpad_item: { content: "" } }
+
+    expect(response).to have_http_status(:unprocessable_content)
+  end
+
+  it "rejects reorder with ids from another session" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository)
+    other_chat = ChatSession.create!(user: user, repository: repository)
+    other_item = other_chat.scratchpad_items.create!(content: "Other", position: 0)
+
+    patch "/api/v1/app/chats/#{chat.id}/scratchpad_items/reorder", params: { ids: [ other_item.id ] }
+
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it "includes scratchpad_items_count in the chat index payload" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository)
+    chat.scratchpad_items.create!(content: "Idea A", position: 0)
+    chat.scratchpad_items.create!(content: "Idea B", position: 1)
+
+    get "/api/v1/app/chats"
+
+    expect(response).to have_http_status(:ok)
+    chat_record = parse_body.dig("groups", 0, "chats")&.find { |c| c["id"] == chat.id }
+    expect(chat_record).not_to be_nil
+    expect(chat_record["scratchpad_items_count"]).to eq(2)
+  end
+
   it "stores valid file attachments on a queued chat message" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)

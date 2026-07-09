@@ -164,6 +164,10 @@ Rails.application.routes.draw do
         post "chats/:id/queued_messages", to: "chats#enqueue_message", constraints: { id: /\d+/ }
         patch "chats/:id/queued_messages/:queued_message_id", to: "chats#update_queued_message", constraints: { id: /\d+/, queued_message_id: /\d+/ }
         delete "chats/:id/queued_messages/:queued_message_id", to: "chats#destroy_queued_message", constraints: { id: /\d+/, queued_message_id: /\d+/ }
+        post "chats/:id/scratchpad_items", to: "chats#create_scratchpad_item", constraints: { id: /\d+/ }
+        patch "chats/:id/scratchpad_items/reorder", to: "chats#reorder_scratchpad_items", constraints: { id: /\d+/ }
+        patch "chats/:id/scratchpad_items/:item_id", to: "chats#update_scratchpad_item", constraints: { id: /\d+/, item_id: /\d+/ }
+        delete "chats/:id/scratchpad_items/:item_id", to: "chats#destroy_scratchpad_item", constraints: { id: /\d+/, item_id: /\d+/ }
         post "chats/:id/agent_questions/:agent_question_id/answer", to: "chats#answer_agent_question", constraints: { id: /\d+/, agent_question_id: /\d+/ }
         post "chats/:id/stop", to: "chats#stop", constraints: { id: /\d+/ }
         post "chats/:id/switch_provider", to: "chats#switch_provider", constraints: { id: /\d+/ }

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_08_010724) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_09_183428) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -237,6 +237,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_08_010724) do
     t.datetime "updated_at", null: false
     t.index ["chat_session_id", "delivered_at", "created_at", "id"], name: "idx_chat_queued_messages_pending_order"
     t.index ["chat_session_id"], name: "index_chat_queued_messages_on_chat_session_id"
+  end
+
+  create_table "chat_scratchpad_items", force: :cascade do |t|
+    t.integer "chat_session_id", null: false
+    t.text "content", null: false
+    t.datetime "created_at", null: false
+    t.integer "position", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_session_id", "position", "id"], name: "index_chat_scratchpad_items_on_session_position"
+    t.index ["chat_session_id"], name: "index_chat_scratchpad_items_on_chat_session_id"
   end
 
   create_table "chat_sessions", force: :cascade do |t|
@@ -1047,7 +1057,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_08_010724) do
     t.integer "chat_session_id", null: false
     t.datetime "created_at", null: false
     t.datetime "last_edited_at"
-    t.json "scene_json", default: {"elements"=>[]}, null: false
+    t.json "scene_json", default: {"elements" => []}, null: false
     t.datetime "updated_at", null: false
     t.integer "version", default: 0, null: false
     t.index ["chat_session_id"], name: "index_whiteboards_on_chat_session_id", unique: true
@@ -1100,6 +1110,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_08_010724) do
   add_foreign_key "chat_proposals", "jobs"
   add_foreign_key "chat_proposals", "repositories"
   add_foreign_key "chat_queued_messages", "chat_sessions"
+  add_foreign_key "chat_scratchpad_items", "chat_sessions"
   add_foreign_key "chat_sessions", "users"
   add_foreign_key "chat_wakeups", "chat_sessions"
   add_foreign_key "chat_wakeups", "users"

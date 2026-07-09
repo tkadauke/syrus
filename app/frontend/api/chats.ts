@@ -26,6 +26,7 @@ export type ChatRecord = {
   cumulative_output_tokens: number
   cumulative_cost_usd: number
   pending_proposal_count?: number
+  scratchpad_items_count?: number
 }
 
 export type ChatProviderOption = {
@@ -41,6 +42,7 @@ export type ChatNavRecord = ChatRecord & {
   last_message_at: string | null
   unread: boolean
   pending_proposal_count: number
+  scratchpad_items_count: number
   created_at?: string
   updated_at?: string
 }
@@ -257,6 +259,13 @@ export type ChatQueuedMessage = {
   app_delete_path: string
 }
 
+export type ChatScratchpadItem = {
+  id: number
+  content: string
+  app_update_path: string
+  app_delete_path: string
+}
+
 export type ChatAttachmentRow = {
   id: number
   label: string
@@ -370,6 +379,7 @@ export type ChatPayload = {
   pending_actions: ChatPendingAction[]
   agent_questions: ChatAgentQuestion[]
   queued_messages: ChatQueuedMessage[]
+  scratchpad_items: ChatScratchpadItem[]
   attachment_groups: {
     repositories: ChatAttachmentRow[]
     epics: ChatAttachmentRow[]
@@ -591,6 +601,22 @@ export function updateQueuedChatMessage(path: string, text: string) {
 
 export function deleteQueuedChatMessage(path: string) {
   return deleteJson<ChatPayload>(path)
+}
+
+export function createScratchpadItem(chatId: string | number, content: string) {
+  return postJson<ChatPayload>(`/api/v1/app/chats/${chatId}/scratchpad_items`, { scratchpad_item: { content } })
+}
+
+export function updateScratchpadItem(path: string, content: string) {
+  return patchJson<ChatPayload>(path, { scratchpad_item: { content } })
+}
+
+export function deleteScratchpadItem(path: string) {
+  return deleteJson<ChatPayload>(path)
+}
+
+export function reorderScratchpadItems(chatId: string | number, ids: number[]) {
+  return patchJson<ChatPayload>(`/api/v1/app/chats/${chatId}/scratchpad_items/reorder`, { ids })
 }
 
 export function stopChat(path: string) {

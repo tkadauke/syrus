@@ -37,6 +37,7 @@ class ChatSession < ApplicationRecord
   has_many :messages, class_name: "ChatMessage", dependent: :destroy
   has_many :chat_queued_messages, class_name: "ChatQueuedMessage", dependent: :destroy
   has_many :queued_messages, -> { pending.order(:created_at, :id) }, class_name: "ChatQueuedMessage"
+  has_many :scratchpad_items, -> { ordered }, class_name: "ChatScratchpadItem", dependent: :destroy
   has_many :wakeups, class_name: "ChatWakeup", dependent: :destroy
   has_many :agent_questions, class_name: "ChatAgentQuestion", dependent: :destroy
   has_many :bookmarks,
@@ -181,6 +182,17 @@ class ChatSession < ApplicationRecord
     end
   end
 
+  def scratchpad_items_payload
+    scratchpad_items.map do |item|
+      {
+        id: item.id,
+        content: item.content,
+        app_update_path: "/api/v1/app/chats/#{id}/scratchpad_items/#{item.id}",
+        app_delete_path: "/api/v1/app/chats/#{id}/scratchpad_items/#{item.id}"
+      }
+    end
+  end
+
   def agent_questions_payload
     agent_questions.active.map do |question|
       {
@@ -265,7 +277,8 @@ class ChatSession < ApplicationRecord
         agent_busy: agent_busy?,
         stop_requested_at: stop_requested_at&.iso8601,
         switching_provider: switching_provider,
-        queued_messages: queued_messages_payload
+        queued_messages: queued_messages_payload,
+        scratchpad_items: scratchpad_items_payload
       }
     )
   end
