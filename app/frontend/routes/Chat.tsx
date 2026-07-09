@@ -1852,6 +1852,7 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
   const [geminiSheetOpen, setGeminiSheetOpen] = useState(false)
   const pendingVideoRef = useRef<File | null>(null)
   const walkthroughKeyRef = useRef(0)
+  const [scratchpadOpen, setScratchpadOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const attachmentPopoverRef = useRef<HTMLDivElement | null>(null)
@@ -2881,9 +2882,11 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
         <ScratchpadPanel
           chatId={chatId}
           items={payload.scratchpad_items || []}
+          open={agentActive || scratchpadOpen}
           queryKey={queryKey}
           reorderPath={payload.paths.app_scratchpad_reorder_path}
           text={text}
+          onDismiss={() => setScratchpadOpen(false)}
           onLoadToInput={updateText}
         />
         {pendingConfirmation ? (
@@ -3067,6 +3070,22 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
             ) : null}
             <div className="border-t border-gray-100 dark:border-gray-800" />
             <AddAttachment payload={payload} prefix={prefix} queryKey={queryKey} onAttached={() => setAttachmentPopoverOpen(false)} onNotice={onNotice} />
+            <div className="border-t border-gray-100 dark:border-gray-800" />
+            <button
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+              onClick={() => {
+                setAttachmentPopoverOpen(false)
+                setScratchpadOpen((prev) => !prev)
+              }}
+              type="button"
+            >
+              <svg aria-hidden="true" className="h-4 w-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+                <rect height="4" rx="1" width="6" x="9" y="3" />
+                <path d="M9 12h6M9 16h4" />
+              </svg>
+              {t("scratchpad_title")}
+            </button>
           </div>
         ) : null}
         <div className="relative min-w-0 flex-1">
@@ -3342,16 +3361,20 @@ function QueuedMessageRow({ message, position, queryKey }: { message: ChatQueued
 function ScratchpadPanel({
   chatId,
   items,
+  open,
   queryKey,
   reorderPath,
   text,
+  onDismiss,
   onLoadToInput
 }: {
   chatId: string
   items: ChatScratchpadItem[]
+  open?: boolean
   queryKey: ChatQueryKey
   reorderPath: string
   text: string
+  onDismiss?: () => void
   onLoadToInput: (content: string) => void
 }) {
   const { t } = useT("chat")
@@ -3409,35 +3432,47 @@ function ScratchpadPanel({
     create.mutate()
   }
 
-  const visible = items.length > 0 || addFocused
+  const visible = (open ?? false) || items.length > 0 || addFocused
   if (!visible) return null
 
   return (
     <div className="mb-3 border-b border-gray-100 pb-3 dark:border-gray-800">
-      <button
-        className="flex w-full items-center gap-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
-        onClick={() => setCollapsed((c) => !c)}
-        type="button"
-      >
-        {t("scratchpad_title")}
-        {items.length > 0 && (
-          <span className="rounded-full bg-gray-200 px-1.5 py-0.5 text-xs font-semibold leading-none text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-            {items.length}
-          </span>
-        )}
-        <svg
-          aria-hidden="true"
-          className={`ml-auto h-3.5 w-3.5 transition-transform ${collapsed ? "rotate-90" : "-rotate-90"}`}
-          fill="none"
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          viewBox="0 0 24 24"
+      <div className="flex items-center gap-1">
+        <button
+          className="flex flex-1 items-center gap-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
+          onClick={() => setCollapsed((c) => !c)}
+          type="button"
         >
-          <path d="m9 18 6-6-6-6" />
-        </svg>
-      </button>
+          {t("scratchpad_title")}
+          {items.length > 0 && (
+            <span className="rounded-full bg-gray-200 px-1.5 py-0.5 text-xs font-semibold leading-none text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+              {items.length}
+            </span>
+          )}
+          <svg
+            aria-hidden="true"
+            className={`ml-auto h-3.5 w-3.5 transition-transform ${collapsed ? "rotate-90" : "-rotate-90"}`}
+            fill="none"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            viewBox="0 0 24 24"
+          >
+            <path d="m9 18 6-6-6-6" />
+          </svg>
+        </button>
+        {open && onDismiss ? (
+          <button
+            aria-label={t("scratchpad_dismiss")}
+            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+            onClick={onDismiss}
+            type="button"
+          >
+            <CloseIcon className="h-3.5 w-3.5" />
+          </button>
+        ) : null}
+      </div>
 
       {!collapsed && (
         <>

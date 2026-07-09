@@ -1706,6 +1706,67 @@ describe("scratchpad panel", () => {
   })
 })
 
+describe("scratchpad panel via + menu", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("shows a Scratch pad button inside the + attachment popover", async () => {
+    mockChatRouteFetch(chatPayload({ scratchpad_items: [] }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
+
+    const dialog = screen.getByRole("dialog", { name: "Add attachment" })
+    expect(within(dialog).getByRole("button", { name: /scratch pad/i })).toBeInTheDocument()
+  })
+
+  it("opens the scratchpad panel when clicking Scratch pad in the + menu even with no items", async () => {
+    mockChatRouteFetch(chatPayload({ scratchpad_items: [] }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    expect(screen.queryByRole("button", { name: "Close scratch pad" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Add attachment" })).getByRole("button", { name: /scratch pad/i }))
+
+    expect(screen.queryByRole("dialog", { name: "Add attachment" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Close scratch pad" })).toBeInTheDocument()
+  })
+
+  it("closes the scratchpad panel when clicking the dismiss button", async () => {
+    mockChatRouteFetch(chatPayload({ scratchpad_items: [] }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Add attachment" })).getByRole("button", { name: /scratch pad/i }))
+
+    expect(screen.getByRole("button", { name: "Close scratch pad" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Close scratch pad" }))
+
+    expect(screen.queryByRole("button", { name: "Close scratch pad" })).not.toBeInTheDocument()
+  })
+
+  it("toggles the scratchpad panel closed on second + menu click when open", async () => {
+    mockChatRouteFetch(chatPayload({ scratchpad_items: [] }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+
+    fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Add attachment" })).getByRole("button", { name: /scratch pad/i }))
+    expect(screen.getByRole("button", { name: "Close scratch pad" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Add attachment" })).getByRole("button", { name: /scratch pad/i }))
+    expect(screen.queryByRole("button", { name: "Close scratch pad" })).not.toBeInTheDocument()
+  })
+})
+
 function renderRoute() {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
