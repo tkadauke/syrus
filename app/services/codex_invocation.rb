@@ -158,11 +158,16 @@ class CodexInvocation
     ).run
     log_codex_resume_failure(resume_session_id, runner_result, metadata, log_sink)
 
+    # Same cleanup-timeout guard as ClaudeInvocation: if the provider
+    # already emitted a successful result, don't fail on cleanup timeouts.
+    provider_succeeded = metadata[:outcome].present? && !metadata[:is_error]
+    cleanup_timeout    = provider_succeeded && (runner_result.timed_out || runner_result.silent_timed_out)
+
     transcript_path = rollout_path_for(codex_home, metadata[:session_id])
     AgentInvocation::Result.new(
       turns: metadata[:turns],
-      exit_status: runner_result.exit_status,
-      timed_out: runner_result.timed_out || runner_result.silent_timed_out,
+      exit_status: cleanup_timeout ? 0 : runner_result.exit_status,
+      timed_out: !cleanup_timeout && (runner_result.timed_out || runner_result.silent_timed_out),
       is_error: metadata[:is_error],
       outcome: metadata[:outcome],
       final_text: metadata[:final_text],

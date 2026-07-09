@@ -124,15 +124,17 @@ class ClaudeInvocation
       metadata[:final_text] = nil
     end
 
+    # If the provider already emitted a successful result event, any
+    # subsequent timeout is cleanup overhead (e.g. a lingering background
+    # watcher keeping the claude process alive after the agent finished).
+    # Don't surface it as a timeout — the agent's work is already done.
+    provider_succeeded = metadata[:outcome].present? && !metadata[:is_error]
+    cleanup_timeout    = provider_succeeded && (runner_result.timed_out || runner_result.silent_timed_out)
+
     AgentInvocation::Result.new(
       turns: metadata[:turns],
-      exit_status: runner_result.exit_status,
-      # A silent-timeout kill is, from the caller's perspective, the
-      # same outcome as a wall-clock timeout: the agent didn't
-      # complete. Surface it as `timed_out` so existing failure
-      # handling in Steps::Implement (etc.) covers both cases without
-      # any new branches.
-      timed_out: runner_result.timed_out || runner_result.silent_timed_out,
+      exit_status: cleanup_timeout ? 0 : runner_result.exit_status,
+      timed_out: !cleanup_timeout && (runner_result.timed_out || runner_result.silent_timed_out),
       is_error: metadata[:is_error],
       outcome: metadata[:outcome],
       final_text: metadata[:final_text],

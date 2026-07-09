@@ -320,6 +320,88 @@ RSpec.describe ClaudeInvocation do
     end
   end
 
+  describe "provider cleanup timeout handling" do
+    let(:successful_result_line) do
+      { type: "result", num_turns: 3, is_error: false, subtype: "success",
+        total_cost_usd: 0.05, usage: {} }.to_json
+    end
+
+    def stub_process_runner(runner_result, emit_line: nil)
+      allow(ProcessRunner).to receive(:new) do |**kwargs|
+        fake = double("ProcessRunner")
+        allow(fake).to receive(:run) do
+          kwargs[:on_output_line]&.call(emit_line) if emit_line
+          runner_result
+        end
+        fake
+      end
+    end
+
+    def silent_timeout_result
+      ProcessRunner::Result.new(
+        exit_status: nil, timed_out: false, stopped: false, silent_timed_out: true,
+        operator_killed: false, aliveness_failed: false, duration_s: 1234.5, spawned_process_id: nil
+      )
+    end
+
+    def wall_timeout_result
+      ProcessRunner::Result.new(
+        exit_status: nil, timed_out: true, stopped: false, silent_timed_out: false,
+        operator_killed: false, aliveness_failed: false, duration_s: 5400.0, spawned_process_id: nil
+      )
+    end
+
+    let(:null_sink) { ->(_chunk, **) {} }
+
+    it "treats a silent timeout after a successful provider result as cleanup overhead" do
+      invocation = described_class.new("/tmp", prompt: "x", oauth_token: "x", log_sink: null_sink)
+      stub_process_runner(silent_timeout_result, emit_line: successful_result_line)
+
+      result = invocation.run
+
+      expect(result).to be_success
+      expect(result.timed_out).to be false
+      expect(result.exit_status).to eq(0)
+      expect(result.outcome).to eq("success")
+      expect(result.turns).to eq(3)
+    end
+
+    it "treats a wall-clock timeout after a successful provider result as cleanup overhead" do
+      invocation = described_class.new("/tmp", prompt: "x", oauth_token: "x", log_sink: null_sink)
+      stub_process_runner(wall_timeout_result, emit_line: successful_result_line)
+
+      result = invocation.run
+
+      expect(result).to be_success
+      expect(result.timed_out).to be false
+      expect(result.exit_status).to eq(0)
+    end
+
+    it "still surfaces a silent timeout when no provider result was received" do
+      invocation = described_class.new("/tmp", prompt: "x", oauth_token: "x", log_sink: null_sink)
+      stub_process_runner(silent_timeout_result)
+
+      result = invocation.run
+
+      expect(result).not_to be_success
+      expect(result.timed_out).to be true
+      expect(result.exit_status).to be_nil
+    end
+
+    it "still surfaces a timeout when the provider result was an error" do
+      error_result_line = { type: "result", num_turns: 50, is_error: true,
+                            subtype: "error_max_turns", usage: {} }.to_json
+      invocation = described_class.new("/tmp", prompt: "x", oauth_token: "x", log_sink: null_sink)
+      stub_process_runner(silent_timeout_result, emit_line: error_result_line)
+
+      result = invocation.run
+
+      expect(result).not_to be_success
+      expect(result.timed_out).to be true
+      expect(result.is_error).to be true
+    end
+  end
+
   describe "default_runner cmd line ordering" do
     # `claude --mcp-config <configs...>` is variadic and will swallow
     # the next positional arg as a second config. If `--mcp-config <path>`
