@@ -725,6 +725,53 @@ describe("chat proposal cards", () => {
     expect(screen.getByText("api-build")).toBeInTheDocument()
   })
 
+  it("does not show edit or reject buttons on child proposals of a withdrawn epic bundle", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [
+          messageWithProposal(9, proposal({
+            kind: "epic",
+            kind_label: "Epic",
+            title: "Plan onboarding",
+            slug: "EPIC-DRAFT-1",
+            proposed: false,
+            resolved: true,
+            state: "withdrawn",
+            state_label: "Withdrawn",
+            epic_bundle: true,
+            active_children_count: 1,
+            children: [
+              {
+                id: 11,
+                title: "Build first step",
+                slug: "JOB-DRAFT-1",
+                body: "Create the first onboarding step.",
+                state: "proposed",
+                state_label: "Pending",
+                proposed: true,
+                repository_slug: "acme/widgets",
+                dependencies: [],
+                app_update_path: "/api/v1/app/chats/8/proposals/11",
+                app_reject_path: "/api/v1/app/chats/8/proposals/11/reject"
+              }
+            ]
+          }))
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    expect(await screen.findByText("Build first step")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Edit JOB-DRAFT-1" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Reject child Job" })).not.toBeInTheDocument()
+  })
+
   it("labels Epic confirmation without Jobs when the proposal has no child Jobs", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)

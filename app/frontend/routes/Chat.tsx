@@ -1335,7 +1335,7 @@ function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: Chat
       body={
         <>
           <Markdown className="chat-prose text-sm text-gray-800 dark:text-gray-100" text={proposal.body} />
-          {proposal.epic_bundle ? <ProposalChildren children={proposal.children || []} mutation={proposalAction} prefix={prefix} onEdit={(child) => setEditingProposal(editableChildProposal(child))} /> : <ProposalMeta proposal={proposal} />}
+          {proposal.epic_bundle ? <ProposalChildren children={proposal.children || []} parentProposed={proposal.proposed} mutation={proposalAction} prefix={prefix} onEdit={(child) => setEditingProposal(editableChildProposal(child))} /> : <ProposalMeta proposal={proposal} />}
         </>
       }
       footer={
@@ -1663,7 +1663,7 @@ function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
   )
 }
 
-function ProposalChildren({ children, mutation, prefix, onEdit }: { children: ChatProposalChild[]; mutation: UseMutationResult<ChatPayload, Error, ProposalActionInput>; prefix: string; onEdit: (child: ChatProposalChild) => void }) {
+function ProposalChildren({ children, parentProposed, mutation, prefix, onEdit }: { children: ChatProposalChild[]; parentProposed: boolean; mutation: UseMutationResult<ChatPayload, Error, ProposalActionInput>; prefix: string; onEdit: (child: ChatProposalChild) => void }) {
   if (children.length === 0) return null
   return (
     <div className="mt-4 divide-y divide-gray-100 rounded border border-gray-200 dark:divide-gray-800 dark:border-gray-700">
@@ -1674,12 +1674,12 @@ function ProposalChildren({ children, mutation, prefix, onEdit }: { children: Ch
             <span className="min-w-0 flex-1 truncate font-medium text-gray-900 dark:text-gray-100">{child.title}</span>
             {child.dependencies.length > 0 ? <ChildDependencySummary child={child} prefix={prefix} /> : null}
             <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${child.proposed ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{child.state_label}</span>
-            {child.proposed ? <ProposalEditButton label={`Edit ${child.slug}`} onClick={(event) => { event.stopPropagation(); onEdit(child) }} /> : null}
+            {child.proposed && parentProposed ? <ProposalEditButton label={`Edit ${child.slug}`} onClick={(event) => { event.stopPropagation(); onEdit(child) }} /> : null}
           </summary>
           <div className="border-t border-gray-100 px-8 py-3 text-sm text-gray-700 dark:border-gray-800 dark:text-gray-300">
             <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400"><span className="font-mono">{child.slug}</span><span>{child.repository_slug || "No repository attached"}</span></div>
             <Markdown className="chat-prose mt-2 text-sm text-gray-800 dark:text-gray-100" text={child.body} />
-            {child.proposed ? (
+            {child.proposed && parentProposed ? (
               <div className="mt-3">
                 <button
                   className="rounded border border-red-200 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-300 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950 dark:disabled:text-gray-600"

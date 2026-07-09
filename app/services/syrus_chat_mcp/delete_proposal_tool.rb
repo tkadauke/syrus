@@ -28,6 +28,13 @@ module SyrusChatMcp
         return SyrusChatMcp.invalid("unknown proposal slug: #{slug}") unless proposal
 
         cascade = ChatProposal.transitive_downstream_closure([ proposal ]).to_a
+
+        epic_ids = cascade.select(&:epic_bundle?).map(&:id)
+        if epic_ids.any?
+          children = ChatProposal.where(parent_proposal_id: epic_ids, state: "proposed").to_a
+          cascade = (cascade + children).uniq(&:id)
+        end
+
         cascade = ChatProposal.topological_sort(ChatProposal.where(id: cascade.map(&:id)))
         now = Time.current
 

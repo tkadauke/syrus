@@ -44,6 +44,34 @@ RSpec.describe SyrusChatMcp::DeleteProposalTool do
     expect(response_payload(response)[:cascade].map { |proposal| proposal[:slug] }).to eq(%w[middle leaf])
   end
 
+  it "discards child proposals when deleting an epic bundle" do
+    parent = ChatProposal.create!(chat_session: chat_session, slug: "epic-draft", kind: "epic", title: "My Epic", body: "Epic.")
+    child1 = ChatProposal.create!(chat_session: chat_session, slug: "job-draft-1", title: "Job 1", body: "Job 1.", parent_proposal: parent)
+    child2 = ChatProposal.create!(chat_session: chat_session, slug: "job-draft-2", title: "Job 2", body: "Job 2.", parent_proposal: parent)
+
+    response = call_tool("epic-draft")
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(parent.reload).to be_withdrawn
+    expect(child1.reload).to be_withdrawn
+    expect(child2.reload).to be_withdrawn
+    cascade_slugs = response_payload(response)[:cascade].map { |p| p[:slug] }
+    expect(cascade_slugs).to include("job-draft-1", "job-draft-2")
+  end
+
+  it "does not discard already-rejected child proposals when deleting an epic bundle" do
+    parent = ChatProposal.create!(chat_session: chat_session, slug: "epic-draft", kind: "epic", title: "My Epic", body: "Epic.")
+    proposed_child = ChatProposal.create!(chat_session: chat_session, slug: "job-draft-1", title: "Job 1", body: "Job 1.", parent_proposal: parent)
+    rejected_child = ChatProposal.create!(chat_session: chat_session, slug: "job-draft-2", title: "Job 2", body: "Job 2.", parent_proposal: parent, state: "rejected")
+
+    response = call_tool("epic-draft")
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(parent.reload).to be_withdrawn
+    expect(proposed_child.reload).to be_withdrawn
+    expect(rejected_child.reload).to be_rejected
+  end
+
   it "returns a tool error for an unknown slug" do
     response = call_tool("missing")
 
