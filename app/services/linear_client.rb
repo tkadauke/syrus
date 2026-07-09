@@ -68,7 +68,7 @@ class LinearClient
     query IssueList($teamId: String!) {
       issues(filter: {
         team: { id: { eq: $teamId } }
-        state: { type: { notIn: ["cancelled", "completed"] } }
+        state: { type: { nin: ["cancelled", "completed"] } }
       }) {
         nodes {
           id
@@ -86,7 +86,7 @@ class LinearClient
     query IssueListWithLabel($teamId: String!, $labelName: String!) {
       issues(filter: {
         team: { id: { eq: $teamId } }
-        state: { type: { notIn: ["cancelled", "completed"] } }
+        state: { type: { nin: ["cancelled", "completed"] } }
         labels: { name: { eq: $labelName } }
       }) {
         nodes {
