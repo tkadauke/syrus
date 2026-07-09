@@ -952,7 +952,8 @@ module Api
               app_bookmarks_path: "/api/v1/app/chats/#{chat_session.id}/bookmarks",
               app_attachments_path: "/api/v1/app/chats/#{chat_session.id}/attachments",
               app_whiteboard_path: "/api/v1/app/chats/#{chat_session.id}/whiteboard",
-              app_switch_provider_path: "/api/v1/app/chats/#{chat_session.id}/switch_provider"
+              app_switch_provider_path: "/api/v1/app/chats/#{chat_session.id}/switch_provider",
+              app_scratchpad_reorder_path: "/api/v1/app/chats/#{chat_session.id}/scratchpad_items/reorder"
             }
           }
         end

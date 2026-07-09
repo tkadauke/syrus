@@ -89,5 +89,16 @@
   "chat_deleted": "Colloquium deletum.",
   "suggestion_tab_hint": "tab",
   "suggestion_available": "Nuntius proximus suasus: {{suggestion}}. Preme Tab ut accipias.",
-  "create_epic_and_start": "Epicam crea et effectionem incipe"
+  "create_epic_and_start": "Epicam crea et effectionem incipe",
+  "scratchpad_title": "Pugillares",
+  "scratchpad_stash": "Recondere",
+  "scratchpad_add_placeholder": "Notam addere...",
+  "scratchpad_add": "Addere",
+  "scratchpad_load": "In campum mittere",
+  "scratchpad_load_blocked": "Primum campum vaca",
+  "scratchpad_edit_item": "Notam emendare",
+  "scratchpad_delete_item": "Notam delere",
+  "scratchpad_drag_item": "Trahere ad reordinandum",
+  "scratchpad_save": "Servare",
+  "scratchpad_cancel": "Omittere"
 }

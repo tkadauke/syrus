@@ -89,5 +89,16 @@
   "chat_deleted": "Chat gelöscht.",
   "suggestion_tab_hint": "Tab",
   "suggestion_available": "Vorgeschlagene nächste Nachricht: {{suggestion}}. Mit Tab übernehmen.",
-  "create_epic_and_start": "Epic erstellen & Umsetzung starten"
+  "create_epic_and_start": "Epic erstellen & Umsetzung starten",
+  "scratchpad_title": "Entwurfsblock",
+  "scratchpad_stash": "Ablegen",
+  "scratchpad_add_placeholder": "Notiz hinzufügen...",
+  "scratchpad_add": "Hinzufügen",
+  "scratchpad_load": "In Eingabe laden",
+  "scratchpad_load_blocked": "Eingabe zuerst leeren",
+  "scratchpad_edit_item": "Eintrag bearbeiten",
+  "scratchpad_delete_item": "Eintrag löschen",
+  "scratchpad_drag_item": "Zum Neuordnen ziehen",
+  "scratchpad_save": "Speichern",
+  "scratchpad_cancel": "Abbrechen"
 }

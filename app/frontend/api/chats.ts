@@ -410,6 +410,7 @@ export type ChatPayload = {
     app_attachments_path: string
     app_whiteboard_path: string
     app_switch_provider_path: string
+    app_scratchpad_reorder_path: string
   }
 }
 

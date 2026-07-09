@@ -89,5 +89,16 @@
   "chat_deleted": "Chat deleted.",
   "suggestion_tab_hint": "tab",
   "suggestion_available": "Suggested next message: {{suggestion}}. Press Tab to accept.",
-  "create_epic_and_start": "Create Epic & Start Implementing"
+  "create_epic_and_start": "Create Epic & Start Implementing",
+  "scratchpad_title": "Scratch pad",
+  "scratchpad_stash": "Stash",
+  "scratchpad_add_placeholder": "Add a note...",
+  "scratchpad_add": "Add",
+  "scratchpad_load": "Load to input",
+  "scratchpad_load_blocked": "Clear the input first",
+  "scratchpad_edit_item": "Edit item",
+  "scratchpad_delete_item": "Delete item",
+  "scratchpad_drag_item": "Drag to reorder",
+  "scratchpad_save": "Save",
+  "scratchpad_cancel": "Cancel"
 }

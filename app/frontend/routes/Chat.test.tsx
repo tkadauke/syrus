@@ -1361,6 +1361,268 @@ describe("composer next-step suggestion", () => {
   })
 })
 
+describe("scratchpad stash button", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("does not show the stash button when the agent is idle", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { agent_busy: false } }))
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "Draft idea" } })
+
+    expect(screen.queryByRole("button", { name: "Stash" })).not.toBeInTheDocument()
+  })
+
+  it("does not show the stash button when the textarea is empty and agent is active", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      return Promise.resolve(jsonResponse({ ...chatPayload(), agent_busy: true }))
+    })
+    renderRoute()
+
+    await screen.findByPlaceholderText("Queue a follow-up message...")
+    expect(screen.queryByRole("button", { name: "Stash" })).not.toBeInTheDocument()
+  })
+
+  it("shows the stash button when agent is active and textarea has text", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      return Promise.resolve(jsonResponse({ ...chatPayload(), agent_busy: true }))
+    })
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Queue a follow-up message...")
+    fireEvent.change(textarea, { target: { value: "Draft idea" } })
+
+    expect(screen.getByRole("button", { name: "Stash" })).toBeInTheDocument()
+  })
+
+  it("calls POST scratchpad_items and clears the textarea on stash", async () => {
+    const updatedPayload = {
+      ...chatPayload({
+        scratchpad_items: [{ id: 1, content: "Draft idea", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }]
+      }),
+      agent_busy: true
+    }
+
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (String(input) === "/api/v1/app/chats/8/scratchpad_items" && (init as RequestInit)?.method === "POST") {
+        return Promise.resolve(jsonResponse(updatedPayload))
+      }
+      return Promise.resolve(jsonResponse({ ...chatPayload(), agent_busy: true }))
+    })
+
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Queue a follow-up message...")
+    fireEvent.change(textarea, { target: { value: "Draft idea" } })
+    fireEvent.click(screen.getByRole("button", { name: "Stash" }))
+
+    await waitFor(() => {
+      expect(textarea).toHaveValue("")
+    })
+
+    const stashCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
+      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
+    )
+    expect(stashCalls).toHaveLength(1)
+    expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({ scratchpad_item: { content: "Draft idea" } })
+  })
+})
+
+describe("scratchpad panel", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("does not render the scratchpad panel when there are no items", async () => {
+    mockChatRouteFetch(chatPayload({ scratchpad_items: [] }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    expect(screen.queryByText("Scratch pad")).not.toBeInTheDocument()
+  })
+
+  it("renders the scratchpad panel with items when scratchpad_items is non-empty", async () => {
+    mockChatRouteFetch(chatPayload({
+      scratchpad_items: [
+        { id: 1, content: "Review the aqueduct spec", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
+      ]
+    }))
+    renderRoute()
+
+    expect(await screen.findByText("Review the aqueduct spec")).toBeInTheDocument()
+    expect(screen.getByText("Scratch pad")).toBeInTheDocument()
+  })
+
+  it("loads item content into the empty textarea on click", async () => {
+    mockChatRouteFetch(chatPayload({
+      scratchpad_items: [
+        { id: 1, content: "Check the aqueduct route", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
+      ]
+    }))
+    renderRoute()
+
+    await screen.findByText("Check the aqueduct route")
+    fireEvent.click(screen.getByText("Check the aqueduct route"))
+
+    const textarea = screen.getByPlaceholderText("Ask about this repository...") as HTMLTextAreaElement
+    await waitFor(() => {
+      expect(textarea).toHaveValue("Check the aqueduct route")
+    })
+  })
+
+  it("shows a warning instead of overwriting non-empty textarea on load", async () => {
+    mockChatRouteFetch(chatPayload({
+      scratchpad_items: [
+        { id: 1, content: "Check the aqueduct route", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
+      ]
+    }))
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "Already have some text" } })
+
+    await screen.findByText("Check the aqueduct route")
+    fireEvent.click(screen.getByText("Check the aqueduct route"))
+
+    expect(await screen.findByText("Clear the input first")).toBeInTheDocument()
+    expect(textarea).toHaveValue("Already have some text")
+  })
+
+  it("calls DELETE when the delete button is clicked", async () => {
+    const updatedPayload = chatPayload({ scratchpad_items: [] })
+
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (String(input) === "/api/v1/app/chats/8/scratchpad_items/1" && (init as RequestInit)?.method === "DELETE") {
+        return Promise.resolve(jsonResponse(updatedPayload))
+      }
+      return Promise.resolve(jsonResponse(chatPayload({
+        scratchpad_items: [
+          { id: 1, content: "Temporary note", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    expect(await screen.findByText("Temporary note")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Delete item" }))
+
+    await waitFor(() => {
+      expect(screen.queryByText("Temporary note")).not.toBeInTheDocument()
+    })
+
+    expect(fetchMock.mock.calls.some((call: unknown[]) =>
+      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items/1" && (call[1] as RequestInit)?.method === "DELETE"
+    )).toBe(true)
+  })
+
+  it("shows edit form when edit button is clicked and saves on save", async () => {
+    const updatedPayload = chatPayload({
+      scratchpad_items: [
+        { id: 1, content: "Updated note", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
+      ]
+    })
+
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (String(input) === "/api/v1/app/chats/8/scratchpad_items/1" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(jsonResponse(updatedPayload))
+      }
+      return Promise.resolve(jsonResponse(chatPayload({
+        scratchpad_items: [
+          { id: 1, content: "Original note", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    await screen.findByText("Original note")
+    fireEvent.click(screen.getByRole("button", { name: "Edit item" }))
+
+    const editTextarea = screen.getByRole("textbox", { name: "Edit item" })
+    fireEvent.change(editTextarea, { target: { value: "Updated note" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/chats/8/scratchpad_items/1", expect.objectContaining({ method: "PATCH" }))
+    })
+    expect(await screen.findByText("Updated note")).toBeInTheDocument()
+    expect(screen.queryByText("Original note")).not.toBeInTheDocument()
+  })
+
+  it("shows inline add field inside the panel and adds an item on Enter", async () => {
+    const updatedPayload = chatPayload({
+      scratchpad_items: [
+        { id: 1, content: "New draft note", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" },
+        { id: 2, content: "First item", app_update_path: "/api/v1/app/chats/8/scratchpad_items/2", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/2" }
+      ]
+    })
+
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (String(input) === "/api/v1/app/chats/8/scratchpad_items" && (init as RequestInit)?.method === "POST") {
+        return Promise.resolve(jsonResponse(updatedPayload))
+      }
+      return Promise.resolve(jsonResponse(chatPayload({
+        scratchpad_items: [
+          { id: 2, content: "First item", app_update_path: "/api/v1/app/chats/8/scratchpad_items/2", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/2" }
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    await screen.findByText("First item")
+    const addInput = screen.getByRole("textbox", { name: "Add a note..." })
+    fireEvent.change(addInput, { target: { value: "New draft note" } })
+    fireEvent.keyDown(addInput, { key: "Enter" })
+
+    expect(await screen.findByText("New draft note")).toBeInTheDocument()
+    expect(addInput).toHaveValue("")
+  })
+
+  it("collapses and expands the panel on header click", async () => {
+    mockChatRouteFetch(chatPayload({
+      scratchpad_items: [
+        { id: 1, content: "Check the aqueduct route", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
+      ]
+    }))
+    renderRoute()
+
+    await screen.findByText("Check the aqueduct route")
+
+    fireEvent.click(screen.getByText("Scratch pad").closest("button")!)
+
+    expect(screen.queryByText("Check the aqueduct route")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText("Scratch pad").closest("button")!)
+
+    expect(await screen.findByText("Check the aqueduct route")).toBeInTheDocument()
+  })
+})
+
 function renderRoute() {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -1562,7 +1824,7 @@ function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
 }
 
-function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Array<Record<string, unknown>>; bookmarks?: Array<Record<string, unknown>>; attachment_groups?: Record<string, Array<Record<string, unknown>>>; attachment_results?: Array<Record<string, unknown>> } = {}) {
+function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Array<Record<string, unknown>>; bookmarks?: Array<Record<string, unknown>>; attachment_groups?: Record<string, Array<Record<string, unknown>>>; attachment_results?: Array<Record<string, unknown>>; scratchpad_items?: Array<Record<string, unknown>> } = {}) {
   return {
     chat: {
       id: 8,
@@ -1581,6 +1843,7 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
     chat_available: true,
     turn_in_flight: false,
     agent_busy: false,
+    switching_provider: false,
     has_more_older: false,
     messages: overrides.messages || [
       {
@@ -1598,6 +1861,7 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
     pending_actions: [],
     agent_questions: [],
     queued_messages: [],
+    scratchpad_items: overrides.scratchpad_items || [],
     attachment_groups: {
       repositories: overrides.attachment_groups?.repositories || [],
       epics: overrides.attachment_groups?.epics || [],
@@ -1624,7 +1888,8 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
       app_stop_path: "/api/v1/app/chats/8/stop",
       app_bookmarks_path: "/api/v1/app/chats/8/bookmarks",
       app_attachments_path: "/api/v1/app/chats/8/attachments",
-      app_whiteboard_path: "/api/v1/app/chats/8/whiteboard"
+      app_whiteboard_path: "/api/v1/app/chats/8/whiteboard",
+      app_scratchpad_reorder_path: "/api/v1/app/chats/8/scratchpad_items/reorder"
     }
   }
 }
