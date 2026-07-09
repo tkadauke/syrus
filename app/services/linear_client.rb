@@ -29,6 +29,14 @@ class LinearClient
     result.dig("data", "viewer")
   end
 
+  # Returns an array of team hashes ({ "id" => ..., "name" => ... }), or [] when rate-limited.
+  def teams
+    result = execute(TEAMS_QUERY, variables: {})
+    return [] if result.nil?
+
+    result.dig("data", "teams", "nodes") || []
+  end
+
   private
 
   def execute(query, variables: {})
@@ -96,6 +104,12 @@ class LinearClient
   VIEWER_QUERY = <<~GQL.freeze
     query Viewer {
       viewer { id }
+    }
+  GQL
+
+  TEAMS_QUERY = <<~GQL.freeze
+    query Teams {
+      teams { nodes { id name } }
     }
   GQL
 end

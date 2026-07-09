@@ -7,12 +7,14 @@ import {
   createRepository,
   fetchEditRepositoryForm,
   fetchLinearSource,
+  fetchLinearTeams,
   fetchNewRepositoryForm,
   fetchRepositoryBranches,
   fetchRepositoryOptions,
   fetchRepositoryOwners,
   type GitHubRepositoryOption,
   type LinearSourceInput,
+  type LinearTeam,
   type RepositoryFormPayload,
   type RepositoryInput,
   saveLinearSource,
@@ -618,12 +620,16 @@ function LinearSourceSection({ repositoryId }: { repositoryId: number }) {
     }
   })
 
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setMessage(null)
-    setErrorMsg(null)
-    save.mutate()
-  }
+  const plausibleApiKey = values.api_key.startsWith("lin_api_") ? values.api_key : ""
+
+  const teamsQuery = useQuery({
+    queryKey: ["linear_teams", plausibleApiKey],
+    queryFn: () => fetchLinearTeams(plausibleApiKey),
+    enabled: plausibleApiKey.length > 0,
+    retry: false
+  })
+
+  const teams: LinearTeam[] = teamsQuery.data?.teams ?? []
 
   const existing = sourceQuery.data?.linear_source
 
@@ -650,7 +656,7 @@ function LinearSourceSection({ repositoryId }: { repositoryId: number }) {
       {message ? <div className="rounded border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 p-3 text-sm text-green-700 dark:text-green-300">{message}</div> : null}
       {errorMsg ? <div className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-3 text-sm text-red-700 dark:text-red-300">{errorMsg}</div> : null}
 
-      <form className="space-y-4" onSubmit={submit}>
+      <div className="space-y-4">
         <Field label={t("linear_source.api_key_label")}>
           <input
             aria-label={t("linear_source.api_key_label")}
@@ -666,16 +672,27 @@ function LinearSourceSection({ repositoryId }: { repositoryId: number }) {
           </p>
         </Field>
 
-        <Field label={t("linear_source.team_id_label")}>
-          <input
-            aria-label={t("linear_source.team_id_label")}
-            className={`${inputClass()} font-mono`}
-            onChange={(e) => setValues({ ...values, team_id: e.target.value })}
-            required
-            type="text"
-            value={values.team_id}
-          />
-        </Field>
+        {plausibleApiKey.length > 0 ? (
+          <Field label={t("linear_source.team_label")}>
+            {teamsQuery.isPending ? (
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("linear_source.team_loading")}</p>
+            ) : teamsQuery.isError ? (
+              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{t("linear_source.team_error")}</p>
+            ) : (
+              <select
+                aria-label={t("linear_source.team_label")}
+                className={`${inputClass()} cursor-pointer`}
+                onChange={(e) => setValues({ ...values, team_id: e.target.value })}
+                value={values.team_id}
+              >
+                <option value="">{t("linear_source.team_placeholder")}</option>
+                {teams.map((team) => (
+                  <option key={team.id} value={team.id}>{team.name}</option>
+                ))}
+              </select>
+            )}
+          </Field>
+        ) : null}
 
         <Field label={t("linear_source.label_filter_label")}>
           <input
@@ -700,11 +717,16 @@ function LinearSourceSection({ repositoryId }: { repositoryId: number }) {
         <button
           className="rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900"
           disabled={save.isPending}
-          type="submit"
+          onClick={() => {
+            setMessage(null)
+            setErrorMsg(null)
+            save.mutate()
+          }}
+          type="button"
         >
           {save.isPending ? t("linear_source.saving") : t("linear_source.save")}
         </button>
-      </form>
+      </div>
     </section>
   )
 }

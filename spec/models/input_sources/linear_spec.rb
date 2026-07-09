@@ -74,8 +74,22 @@ RSpec.describe InputSources::Linear do
       expect { source.validate_credentials! }.to raise_error(/Invalid or rate-limited/)
     end
 
-    it "does not raise when viewer returns a valid response" do
+    it "does not raise when viewer and teams return valid responses" do
       allow_any_instance_of(LinearClient).to receive(:viewer).and_return({ "id" => "user-1" })
+      allow_any_instance_of(LinearClient).to receive(:teams).and_return([ { "id" => "TEAM-123", "name" => "Engineering" } ])
+      expect { source.validate_credentials! }.not_to raise_error
+    end
+
+    it "raises when the configured team_id is not in the accessible teams list" do
+      allow_any_instance_of(LinearClient).to receive(:viewer).and_return({ "id" => "user-1" })
+      allow_any_instance_of(LinearClient).to receive(:teams).and_return([ { "id" => "OTHER-TEAM", "name" => "Other" } ])
+      expect { source.validate_credentials! }.to raise_error(/team is not accessible/)
+    end
+
+    it "does not check teams when team_id is not configured" do
+      source.config = source.config.merge("team_id" => "")
+      allow_any_instance_of(LinearClient).to receive(:viewer).and_return({ "id" => "user-1" })
+      expect_any_instance_of(LinearClient).not_to receive(:teams)
       expect { source.validate_credentials! }.not_to raise_error
     end
   end

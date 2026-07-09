@@ -480,12 +480,26 @@ export type LinearSourceInput = {
   polling_enabled: boolean
 }
 
+export type LinearTeam = {
+  id: string
+  name: string
+}
+
+export type LinearTeamsPayload = {
+  teams: LinearTeam[]
+}
+
 export function fetchLinearSource(repositoryId: number) {
   return getJson<LinearSourcePayload>(`/api/v1/app/repositories/${repositoryId}/input_sources/linear`)
 }
 
 export function saveLinearSource(repositoryId: number, values: LinearSourceInput) {
   return patchJson<LinearSourcePayload>(`/api/v1/app/repositories/${repositoryId}/input_sources/linear`, { linear_source: values })
+}
+
+export function fetchLinearTeams(apiKey: string) {
+  const params = new URLSearchParams({ api_key: apiKey })
+  return getJson<LinearTeamsPayload>(`/api/v1/app/linear/teams?${params}`)
 }
 
 export function pollRepository(id: number) {
