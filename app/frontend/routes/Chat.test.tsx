@@ -1704,6 +1704,143 @@ describe("scratchpad panel", () => {
 
     expect(await screen.findByText("Check the aqueduct route")).toBeInTheDocument()
   })
+
+  it("shows a Queue button on scratchpad items", async () => {
+    mockChatRouteFetch(chatPayload({
+      scratchpad_items: [
+        { id: 1, content: "Refactor the aqueduct service", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
+      ]
+    }))
+    renderRoute()
+
+    await screen.findByText("Refactor the aqueduct service")
+    expect(screen.getByRole("button", { name: "Queue" })).toBeInTheDocument()
+  })
+
+  it("calls POST queued_messages then DELETE scratchpad item on Queue click", async () => {
+    const afterEnqueue = {
+      ...chatPayload({
+        scratchpad_items: [
+          { id: 1, content: "Refactor the aqueduct service", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
+        ]
+      }),
+      agent_busy: true,
+      queued_messages: [{ id: 20, text: "Refactor the aqueduct service", created_at: null, app_update_path: "/api/v1/app/chats/8/queued_messages/20", app_delete_path: "/api/v1/app/chats/8/queued_messages/20" }]
+    }
+    const afterDelete = chatPayload({ scratchpad_items: [], queued_messages: afterEnqueue.queued_messages })
+
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (String(input) === "/api/v1/app/chats/8/queued_messages" && (init as RequestInit)?.method === "POST") {
+        return Promise.resolve(jsonResponse(afterEnqueue))
+      }
+      if (String(input) === "/api/v1/app/chats/8/scratchpad_items/1" && (init as RequestInit)?.method === "DELETE") {
+        return Promise.resolve(jsonResponse(afterDelete))
+      }
+      return Promise.resolve(jsonResponse(chatPayload({
+        scratchpad_items: [
+          { id: 1, content: "Refactor the aqueduct service", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    await screen.findByText("Refactor the aqueduct service")
+    fireEvent.click(screen.getByRole("button", { name: "Queue" }))
+
+    await waitFor(() => {
+      expect(screen.queryByText("Scratch pad")).not.toBeInTheDocument()
+    })
+
+    expect(fetchMock.mock.calls.some((call: unknown[]) =>
+      String(call[0]) === "/api/v1/app/chats/8/queued_messages" && (call[1] as RequestInit)?.method === "POST"
+    )).toBe(true)
+    expect(fetchMock.mock.calls.some((call: unknown[]) =>
+      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items/1" && (call[1] as RequestInit)?.method === "DELETE"
+    )).toBe(true)
+
+    const enqueueCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
+      String(call[0]) === "/api/v1/app/chats/8/queued_messages" && (call[1] as RequestInit)?.method === "POST"
+    )
+    expect(JSON.parse((enqueueCalls[0][1] as RequestInit).body as string)).toMatchObject({ chat_message: { text: "Refactor the aqueduct service" } })
+  })
+})
+
+describe("queued message stash", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("shows a Stash button on each queued message row", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      return Promise.resolve(jsonResponse(chatPayload({
+        queued_messages: [
+          { id: 14, text: "Check the forum routes", created_at: null, app_update_path: "/api/v1/app/chats/8/queued_messages/14", app_delete_path: "/api/v1/app/chats/8/queued_messages/14" }
+        ]
+      })))
+    })
+    renderRoute()
+
+    await screen.findByText("Check the forum routes")
+    expect(screen.getByRole("button", { name: "Stash" })).toBeInTheDocument()
+  })
+
+  it("calls POST scratchpad_items then DELETE queued message on Stash click", async () => {
+    const afterCreate = chatPayload({
+      queued_messages: [
+        { id: 14, text: "Check the forum routes", created_at: null, app_update_path: "/api/v1/app/chats/8/queued_messages/14", app_delete_path: "/api/v1/app/chats/8/queued_messages/14" }
+      ],
+      scratchpad_items: [
+        { id: 5, content: "Check the forum routes", app_update_path: "/api/v1/app/chats/8/scratchpad_items/5", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/5" }
+      ]
+    })
+    const afterDelete = chatPayload({ scratchpad_items: afterCreate.scratchpad_items, queued_messages: [] })
+
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (String(input) === "/api/v1/app/chats/8/scratchpad_items" && (init as RequestInit)?.method === "POST") {
+        return Promise.resolve(jsonResponse(afterCreate))
+      }
+      if (String(input) === "/api/v1/app/chats/8/queued_messages/14" && (init as RequestInit)?.method === "DELETE") {
+        return Promise.resolve(jsonResponse(afterDelete))
+      }
+      return Promise.resolve(jsonResponse(chatPayload({
+        queued_messages: [
+          { id: 14, text: "Check the forum routes", created_at: null, app_update_path: "/api/v1/app/chats/8/queued_messages/14", app_delete_path: "/api/v1/app/chats/8/queued_messages/14" }
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    await screen.findByText("Check the forum routes")
+    fireEvent.click(screen.getByRole("button", { name: "Stash" }))
+
+    await waitFor(() => {
+      expect(screen.queryByText("Queued messages")).not.toBeInTheDocument()
+    })
+
+    expect(fetchMock.mock.calls.some((call: unknown[]) =>
+      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
+    )).toBe(true)
+    expect(fetchMock.mock.calls.some((call: unknown[]) =>
+      String(call[0]) === "/api/v1/app/chats/8/queued_messages/14" && (call[1] as RequestInit)?.method === "DELETE"
+    )).toBe(true)
+
+    const stashCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
+      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
+    )
+    expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({ scratchpad_item: { content: "Check the forum routes" } })
+  })
 })
 
 function renderRoute() {
@@ -1927,7 +2064,7 @@ function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } })
 }
 
-function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Array<Record<string, unknown>>; bookmarks?: Array<Record<string, unknown>>; attachment_groups?: Record<string, Array<Record<string, unknown>>>; attachment_results?: Array<Record<string, unknown>>; scratchpad_items?: Array<Record<string, unknown>> } = {}) {
+function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Array<Record<string, unknown>>; bookmarks?: Array<Record<string, unknown>>; attachment_groups?: Record<string, Array<Record<string, unknown>>>; attachment_results?: Array<Record<string, unknown>>; scratchpad_items?: Array<Record<string, unknown>>; queued_messages?: Array<Record<string, unknown>> } = {}) {
   return {
     chat: {
       id: 8,
@@ -1963,7 +2100,7 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
     recent_chats: [],
     pending_actions: [],
     agent_questions: [],
-    queued_messages: [],
+    queued_messages: overrides.queued_messages || [],
     scratchpad_items: overrides.scratchpad_items || [],
     attachment_groups: {
       repositories: overrides.attachment_groups?.repositories || [],

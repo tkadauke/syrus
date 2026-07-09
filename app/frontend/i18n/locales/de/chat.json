@@ -101,6 +101,7 @@
   "scratchpad_drag_item": "Zum Neuordnen ziehen",
   "scratchpad_save": "Speichern",
   "scratchpad_cancel": "Abbrechen",
+  "scratchpad_queue_item": "Einreihen",
   "gemini_setup_get_key": "Google AI Studio öffnen → anmelden → API-Schlüssel erstellen",
   "gemini_setup_intro": "Walkthrough-Videos werden von Googles Gemini analysiert — dem Modell, das Video heute am besten versteht. Du brauchst einen kostenlosen Gemini-API-Schlüssel (keine Kreditkarte nötig).",
   "gemini_setup_key_help": "Das sieht nicht nach einem API-Schlüssel aus — kopiere den ganzen Wert von aistudio.google.com/apikey.",
