@@ -109,12 +109,12 @@ RSpec.describe PollMainBranchHealthJob do
     described_class.perform_now(repository.id)
   end
 
-  it "does not call MainHealthChangedService when health transitions to healthy" do
+  it "calls MainHealthChangedService when health transitions from broken to healthy" do
     repository.update!(ci_health: "broken", grader_health: "healthy")
     stub_sha(sha)
     stub_check_runs({ any?: true, pending?: false, any_failed?: false, all_passed?: true })
 
-    expect(MainHealthChangedService).not_to receive(:on_health_change!)
+    expect(MainHealthChangedService).to receive(:on_health_change!).with(kind_of(Repository))
     described_class.perform_now(repository.id)
   end
 
