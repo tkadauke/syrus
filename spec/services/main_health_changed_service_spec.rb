@@ -190,6 +190,7 @@ RSpec.describe MainHealthChangedService do
         }.not_to change { Notification.count }
       end
 
+
       it "delegates to recovered!" do
         expect(described_class).to receive(:recovered!).with(repository)
         described_class.on_health_change!(repository)
