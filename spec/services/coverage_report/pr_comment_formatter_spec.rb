@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Coverage::PrCommentFormatter do
+RSpec.describe CoverageReport::PrCommentFormatter do
   let(:threshold) { nil }
   let(:plan) do
     instance_double(SyrusYml::CoverageConfig, threshold: threshold)
@@ -23,7 +23,7 @@ RSpec.describe Coverage::PrCommentFormatter do
   describe "#format" do
     it "starts with the syrus-coverage HTML marker" do
       result = formatter.format
-      expect(result).to start_with(Coverage::PrCommentFormatter::MARKER)
+      expect(result).to start_with(CoverageReport::PrCommentFormatter::MARKER)
     end
 
     it "includes the Test Coverage Report heading" do

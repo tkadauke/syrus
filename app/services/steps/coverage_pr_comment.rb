@@ -47,7 +47,7 @@ module Steps
 
     def find_existing_coverage_comment(client, repo_slug, pr_number)
       client.pr_issue_comments(repo_slug, pr_number).find do |comment|
-        comment.body.to_s.include?(Coverage::PrCommentFormatter::MARKER)
+        comment.body.to_s.include?(CoverageReport::PrCommentFormatter::MARKER)
       end
     rescue => e
       log("[coverage_pr_comment] failed to list PR comments: #{e.class}: #{e.message} — will post new comment")
