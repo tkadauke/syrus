@@ -118,6 +118,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     expect(body["unread_notifications_count"]).to eq(0)
     expect(body["feature_flags"]).to eq(
       "chat_polish" => false,
+      "coding_mode" => false,
       "terminal" => false,
       "v2_sidebar_subject_selector" => false,
       "v2_ui" => false,
