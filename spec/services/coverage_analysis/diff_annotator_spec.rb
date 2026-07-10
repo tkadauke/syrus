@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Coverage::DiffAnnotator do
+RSpec.describe CoverageAnalysis::DiffAnnotator do
   HIT_MAP = {
     "app/models/user.rb" => {
       "1" => 5,   # covered
