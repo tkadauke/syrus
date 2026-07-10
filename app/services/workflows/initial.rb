@@ -52,6 +52,7 @@ module Workflows
           repair: [ :implement ],
           check: [ :grader_fanout, :grader_collect ]
         ),
+        coverage_analyze_for(job),
         "summarize",
         "test_plan",
         "pr_open"
