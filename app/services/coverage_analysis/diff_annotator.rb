@@ -1,4 +1,4 @@
-module Coverage
+module CoverageAnalysis
   # Parses a unified git diff and annotates changed lines with coverage status.
   # Used by Steps::CoverageAnalyze to produce diff_annotations and pr_delta.
   module DiffAnnotator

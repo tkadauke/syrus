@@ -1,4 +1,4 @@
-module Coverage
+module CoverageAnalysis
   module Parsers
     # Parses LCOV trace files (.info / lcov.info) into a normalized hit map.
     #

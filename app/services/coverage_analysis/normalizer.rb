@@ -1,4 +1,4 @@
-module Coverage
+module CoverageAnalysis
   # Converts a merged hit map + totals into the summary / files / hit_map
   # triple consumed by Steps::CoverageAnalyze.
   module Normalizer
