@@ -90,7 +90,8 @@ RSpec.describe MainHealthChangedService do
         expect(fix_job).to have_attributes(
           issue_title: MainHealthChangedService::FIX_MAIN_TITLE,
           priority: "high",
-          kind: "direct"
+          kind: "direct",
+          state: "queued"
         )
         expect(fix_job.issue_body).to include("ci_health", "grader_health")
       end
