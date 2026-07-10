@@ -50,6 +50,7 @@ per-user/private:
   - app/controllers/api/v1/app/theme_controller.rb
   - app/controllers/api/v1/app/video_walkthroughs_controller.rb
   - app/controllers/api/v1/app/whiteboard_snapshots_controller.rb
+  - app/controllers/api/v1/app/workflows_controller.rb
   - app/controllers/application_controller.rb
   - app/controllers/spa_controller.rb
   - app/views/spa/show.html.erb
