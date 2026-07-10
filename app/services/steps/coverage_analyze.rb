@@ -101,6 +101,7 @@ module Steps
         artifact["pr_comment_body"] = CoverageReport::PrCommentFormatter.new(artifact, plan: plan).format
       end
 
+
       artifact
     end
 
