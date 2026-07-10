@@ -161,4 +161,21 @@ RSpec.describe AutoRetryScheduler do
     attempt = AutoRetryAttempt.last
     expect(attempt.retry_kind).to eq("retry_workflow")
   end
+
+  it "skips auto-retry without consuming budget when the workflow has a main_broken artifact" do
+    fail_workflow!
+    workflow.update!(artifacts: { "main_broken" => true })
+
+    expect {
+      described_class.schedule_for_workflow(workflow: workflow)
+    }.not_to change { AutoRetryAttempt.count }
+  end
+
+  it "schedules normally when main_broken artifact is absent" do
+    fail_workflow!
+
+    expect {
+      described_class.schedule_for_workflow(workflow: workflow)
+    }.to change { AutoRetryAttempt.count }.by(1)
+  end
 end

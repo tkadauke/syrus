@@ -757,6 +757,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_11_192118) do
     t.bigint "github_repository_id"
     t.string "grader_health", default: "unknown", null: false
     t.integer "installation_id"
+    t.boolean "landing_paused", default: false, null: false
     t.string "last_health_checked_sha"
     t.text "last_poll_error"
     t.datetime "last_poll_started_at"
@@ -780,6 +781,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_11_192118) do
     t.index ["github_owner_id"], name: "index_repositories_on_github_owner_id"
     t.index ["github_repository_id"], name: "index_repositories_on_github_repository_id"
     t.index ["installation_id"], name: "index_repositories_on_installation_id"
+    t.index ["landing_paused"], name: "index_repositories_on_landing_paused"
     t.index ["owner", "name"], name: "index_repositories_on_owner_and_name", unique: true
     t.index ["upstream_repository_id"], name: "index_repositories_on_upstream_repository_id"
     t.index ["user_id"], name: "index_repositories_on_user_id"

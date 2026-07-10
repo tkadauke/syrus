@@ -873,4 +873,22 @@ RSpec.describe StepDispatcher, "main_health queue gate" do
       described_class.start_workflow(sr_workflow)
     }.to change { rs1.runs.count }.by(1)
   end
+
+  it "does not block a fix-main direct job's initial workflow even when main is broken" do
+    break_main!
+    fix_job = Factories.job_record(
+      user: job_model.user,
+      repository: job_model.repository,
+      kind: "direct",
+      issue_title: MainHealthChangedService::FIX_MAIN_TITLE,
+      issue_number: nil,
+      state: "queued"
+    )
+    fix_workflow = Workflow.create!(job: fix_job, trigger_kind: "initial")
+    fix_step = Step.create!(workflow: fix_workflow, kind: "implement", position: 0)
+
+    expect {
+      described_class.start_workflow(fix_workflow)
+    }.to change { fix_step.runs.count }.by(1)
+  end
 end

@@ -20,6 +20,7 @@ class Repository < ApplicationRecord
   attribute :upstream_pr_grace_period_days, :integer, default: 7
   attribute :ci_health, :string, default: "unknown"
   attribute :grader_health, :string, default: "unknown"
+  attribute :landing_paused, :boolean, default: false
 
   enum :ci_health, HEALTH_STATES.index_with(&:itself), prefix: true, validate: true
   enum :grader_health, HEALTH_STATES.index_with(&:itself), prefix: true, validate: true
