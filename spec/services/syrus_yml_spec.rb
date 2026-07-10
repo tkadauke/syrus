@@ -274,7 +274,6 @@ RSpec.describe SyrusYml do
     expect(described_class::ConfigError.ancestors).to include(described_class::ParseError)
   end
 
-
   describe "coverage: key" do
     it "parses a full coverage block" do
       config = parse(<<~YAML)
