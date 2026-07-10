@@ -170,6 +170,7 @@ class Workflow < ApplicationRecord
   # spuriously try to transition an :approved Job to :running.
   def propagate_start_to_job!
     return if landing_workflow?
+    return if infrastructure_workflow?
     return unless job.may_start_running?
 
     StateTransition.with_source("propagate") do
@@ -184,6 +185,7 @@ class Workflow < ApplicationRecord
   # :landing → :implemented (RunJob#record_landing_failure!).
   def propagate_fail_to_job!
     return if landing_workflow?
+    return if infrastructure_workflow?
     return unless job.may_mark_failed?
 
     StateTransition.with_source("propagate") do
@@ -212,6 +214,7 @@ class Workflow < ApplicationRecord
   #      escape, the Job would silently stay :failed forever.
   def propagate_succeed_to_job!
     return if landing_workflow?
+    return if infrastructure_workflow?
     return if job.implemented? || job.approved? || job.landing? || job.closed?
 
     StateTransition.with_source("propagate") do
@@ -358,9 +361,17 @@ class Workflow < ApplicationRecord
   # workflow→Job state propagation (propagate_*_to_job!) and the
   # new-workflow auto-retry path must NOT touch the Job for them.
   LANDING_TRIGGER_KINDS = %w[ auto_merge merge_train ].freeze
+  INFRASTRUCTURE_TRIGGER_KINDS = %w[ main_grader ].freeze
 
   def landing_workflow?
     LANDING_TRIGGER_KINDS.include?(trigger_kind)
+  end
+
+  # Infrastructure workflows manage their own Job lifecycle via after_success/
+  # after_fail hooks. The normal propagate_*_to_job! cascade is skipped so
+  # these hidden jobs don't surface in the operator-facing state machine.
+  def infrastructure_workflow?
+    INFRASTRUCTURE_TRIGGER_KINDS.include?(trigger_kind)
   end
 
   private

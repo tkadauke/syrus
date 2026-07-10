@@ -36,16 +36,20 @@ module Steps
     private
 
     # Grader Steps belonging to this loop iteration, in chain order.
-    # We scope by loop_id + iteration to avoid picking up siblings
-    # from a different iteration (when multiple loop iterations
-    # have been materialized).
+    # When inside a loop/retry_until the loop_id scopes to this exact
+    # iteration. Without a loop (e.g. main_grader workflows that run
+    # graders once without retrying), fall back to all grader Steps in
+    # the workflow — there is only one iteration so no cross-iteration
+    # collisions are possible.
     def current_iteration_graders
-      return [] if step.loop_id.blank?
-
-      workflow.steps
-              .where(kind: "grader", loop_id: step.loop_id, iteration: step.iteration)
-              .order(:position)
-              .to_a
+      if step.loop_id.present?
+        workflow.steps
+                .where(kind: "grader", loop_id: step.loop_id, iteration: step.iteration)
+                .order(:position)
+                .to_a
+      else
+        workflow.steps.where(kind: "grader").order(:position).to_a
+      end
     end
 
     # Convenience rollup onto workflow.artifacts["iterations"] for
@@ -73,6 +77,8 @@ module Steps
     end
 
     def record_landing_validation!
+      return if workflow.trigger_kind == "main_grader"
+
       head_sha = GitRunner.new.run("rev-parse", "HEAD", chdir: workspace.path.to_s).strip
       base_sha = workflow.trigger_kind == "auto_merge" ? job.mergeability_base_sha.presence : nil
       base_ref = workflow.trigger_kind == "auto_merge" ? job.mergeability_base_ref.presence : nil
