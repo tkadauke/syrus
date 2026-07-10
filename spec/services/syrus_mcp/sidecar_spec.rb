@@ -11,7 +11,7 @@ RSpec.describe SyrusMcp::Sidecar do
   def server_for(run)
     MCP::Server.new(
       name: "syrus-mcp-sidecar",
-      tools: [ SyrusMcp::ReadLiveStateTool, SyrusMcp::ReadMemoryTool, SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool, SyrusMcp::SubmitAdversarialReviewTool ],
+      tools: [ SyrusMcp::ReadLiveStateTool, SyrusMcp::ReadMemoryTool, SyrusMcp::GetCoverageReportTool, SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool, SyrusMcp::SubmitAdversarialReviewTool ],
       server_context: { run_id: run.id }
     )
   end
@@ -33,7 +33,7 @@ RSpec.describe SyrusMcp::Sidecar do
       _ = jsonrpc(server_for(run), "initialize", id: 0)
       response = jsonrpc(server_for(run), "tools/list", id: 1)
       tool_names = response[:result][:tools].map { |t| t[:name] }
-      expect(tool_names).to eq(%w[read_live_state read_memory submit_summary submit_test_plan submit_adversarial_review])
+      expect(tool_names).to eq(%w[read_live_state read_memory get_coverage_report submit_summary submit_test_plan submit_adversarial_review])
     end
 
     it "exposes read_live_state as a read-only tool without arbitrary job lookup arguments" do
