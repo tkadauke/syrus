@@ -1,18 +1,14 @@
 module AgentProviders
   class ConfigurationError < StandardError; end
 
-  REGISTRY = {
-    "claude" => "AgentProviders::Claude",
-    "codex" => "AgentProviders::Codex"
-  }.freeze
-
   def self.for(provider)
-    class_name = REGISTRY[provider.to_s]
-    unless class_name
+    klass = Syrus::PluginRegistry.providers_for(:agent_provider)
+              .find { |p| p.provider_key == provider.to_s }
+    unless klass
       raise ConfigurationError, "Unknown agent provider: #{provider.inspect}"
     end
 
-    class_name.constantize
+    klass
   end
 
   # Runs a one-shot (no MCP, no workflow context) agent invocation.

@@ -477,6 +477,17 @@ RSpec.describe User do
     end
   end
 
+  describe ".agent_providers" do
+    it "returns provider keys from the plugin registry" do
+      expect(User.agent_providers).to contain_exactly("claude", "codex")
+    end
+
+    it "reflects providers registered in the registry" do
+      expect(User.agent_providers).to include("claude")
+      expect(User.agent_providers).to include("codex")
+    end
+  end
+
   describe "#configured_agent_providers" do
     it "includes Claude when a Claude token is set" do
       user = User.create!(attrs.merge(claude_oauth_token: "oat-test"))

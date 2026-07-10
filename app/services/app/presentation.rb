@@ -2,15 +2,12 @@ module App
   module Presentation
     GITHUB_APP_INSTALL_BASE_URL = "https://github.com/apps".freeze
 
-    AGENT_PROVIDER_LABELS = {
-      "claude" => "Claude Code",
-      "codex" => "Codex"
-    }.freeze
-
     module_function
 
     def agent_provider_label(provider)
-      AGENT_PROVIDER_LABELS[provider] || provider.to_s.titleize
+      klass = Syrus::PluginRegistry.providers_for(:agent_provider)
+                .find { |p| p.provider_key == provider.to_s }
+      klass&.display_name || provider.to_s.titleize
     end
 
     def job_slug(job_or_id)

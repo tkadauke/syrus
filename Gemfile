@@ -2,6 +2,10 @@ source "https://rubygems.org"
 
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
 gem "rails", "~> 8.1.3"
+
+# Bundled agent provider plugins
+gem "syrus_claude_agent", path: "plugins/claude_agent"
+gem "syrus_codex_agent",  path: "plugins/codex_agent"
 # The modern asset pipeline for Rails [https://github.com/rails/propshaft]
 gem "propshaft"
 # Use sqlite3 for development/test

@@ -62,7 +62,7 @@ class Repository < ApplicationRecord
   validates :upstream_name, format: { with: GITHUB_NAME }, allow_blank: true
   validates :default_branch, presence: true
   validates :trigger_label, presence: true
-  validates :agent_provider, inclusion: { in: User::AGENT_PROVIDERS }, allow_nil: true
+  validates :agent_provider, inclusion: { in: -> { User.agent_providers } }, allow_nil: true
   validates :review_policy, presence: true, inclusion: { in: REVIEW_POLICIES }
   validates :feedback_policy, presence: true, inclusion: { in: FEEDBACK_POLICIES }
   validates :name, uniqueness: {

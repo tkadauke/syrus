@@ -61,6 +61,10 @@ module AgentProviders
       name.demodulize.underscore
     end
 
+    def self.provider_key
+      provider
+    end
+
     def provider
       self.class.provider
     end

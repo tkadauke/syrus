@@ -2,6 +2,28 @@ require "rails_helper"
 require "tmpdir"
 
 RSpec.describe AgentProviders::Claude do
+  describe "plugin interface" do
+    it "includes Syrus::Plugin::AgentProvider" do
+      expect(described_class).to include(Syrus::Plugin::AgentProvider)
+    end
+
+    it "has provider_key 'claude'" do
+      expect(described_class.provider_key).to eq("claude")
+    end
+
+    it "has display_name 'Claude Code'" do
+      expect(described_class.display_name).to eq("Claude Code")
+    end
+
+    it "reports available?" do
+      expect(described_class.available?).to eq(true)
+    end
+
+    it "provider_key matches provider for backward compat" do
+      expect(described_class.provider_key).to eq(described_class.provider)
+    end
+  end
+
   let(:user) { Factories.user(claude_oauth_token: "oat-test") }
   let(:job) { Factories.job(user: user) }
   let(:workflow) { Workflow.create!(job: job, trigger_kind: "initial") }

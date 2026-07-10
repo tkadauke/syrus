@@ -7,7 +7,7 @@ class RepositoryMembership < ApplicationRecord
 
   validates :role, inclusion: { in: ROLES }
   validates :user_id, uniqueness: { scope: :repository_id, message: "is already a member of this repository" }
-  validates :agent_provider, inclusion: { in: User::AGENT_PROVIDERS }, allow_nil: true
+  validates :agent_provider, inclusion: { in: -> { User.agent_providers } }, allow_nil: true
 
   before_validation :normalize_agent_provider
 

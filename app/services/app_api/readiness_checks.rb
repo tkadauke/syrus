@@ -180,7 +180,7 @@ module AppApi
 
     def agent_provider_check
       provider = user.agent_provider
-      unless User::AGENT_PROVIDERS.include?(provider)
+      unless User.agent_providers.include?(provider)
         return check(
           "agent_provider",
           "Agent provider",

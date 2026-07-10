@@ -127,7 +127,7 @@ module App
       @available_agent_providers ||= begin
         providers = scoped_runs.distinct.pluck(:agent_provider).compact
         providers << "claude" if scoped_chat_sessions.where("cumulative_cost_usd > 0").exists?
-        User::AGENT_PROVIDERS.select { |provider| providers.include?(provider) }.map do |provider|
+        User.agent_providers.select { |provider| providers.include?(provider) }.map do |provider|
           { value: provider, label: App::Presentation.agent_provider_label(provider) }
         end
       end
@@ -326,7 +326,7 @@ module App
     def parse_agent_provider(value)
       provider = value.to_s.presence
       return if provider.blank?
-      return provider if User::AGENT_PROVIDERS.include?(provider) && available_agent_providers.any? { |option| option[:value] == provider }
+      return provider if User.agent_providers.include?(provider) && available_agent_providers.any? { |option| option[:value] == provider }
 
       nil
     end

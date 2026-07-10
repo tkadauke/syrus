@@ -5,7 +5,7 @@ class AutoRetryAttempt < ApplicationRecord
   belongs_to :workflow
   belongs_to :run, optional: true
 
-  validates :agent_provider, presence: true, inclusion: { in: User::AGENT_PROVIDERS }
+  validates :agent_provider, presence: true, inclusion: { in: -> { User.agent_providers } }
   validates :failure_classification, presence: true
   validates :retry_kind, presence: true, inclusion: { in: RETRY_KINDS }
   validates :attempt_number, presence: true, numericality: { only_integer: true, greater_than: 0 }
