@@ -201,7 +201,11 @@
     "retry_next": "nächster {{time}}",
     "showing": "Zeige {{first}}–{{last}} von {{total}}",
     "previous": "Zurück",
-    "next": "Weiter"
+    "next": "Weiter",
+    "coverage_trend_label": "Abdeckungsverlauf (30 Tage)",
+    "coverage_trend_aria": "Abdeckungsverlauf-Diagramm",
+    "coverage_trend_lines": "Zeilen",
+    "coverage_trend_branches": "Verzweigungen"
   },
   "memories": {
     "heading": "Erinnerungen",

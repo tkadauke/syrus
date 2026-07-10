@@ -527,6 +527,29 @@ export function fetchJobRunArtifacts(path: string) {
   return getJson<JobRunArtifactsPayload>(path)
 }
 
+export type CoverageArtifact = {
+  summary?: { lines_pct: number | null; branches_pct: number | null; functions_pct: number | null }
+  files?: Record<string, { lines_pct: number | null; branches_pct: number | null }>
+  diff_annotations?: Record<string, Record<string, "covered" | "uncovered" | "not_executable">>
+  pr_delta?: { covered: number; total: number; pct: number | null; uncovered_files: string[] }
+  threshold_miss?: boolean
+  threshold_miss_details?: { lines_pct: number | null; threshold_lines: number | null; pr_delta_pct: number | null; threshold_pr_lines: number | null }
+  coverage_unavailable?: boolean
+  sources_status?: Array<{ artifact: string; found: boolean; lines_pct: number | null }>
+  hit_map_attached?: boolean
+}
+
+export type WorkflowCoverageHitMapPayload = {
+  hit_map_attached: boolean
+  file: string
+  lines: Record<string, number>
+}
+
+export function fetchWorkflowCoverageHitMap(workflowId: number, file: string) {
+  const params = new URLSearchParams({ file })
+  return getJson<WorkflowCoverageHitMapPayload>(`/api/v1/app/workflows/${workflowId}/coverage_hit_map?${params}`)
+}
+
 export function postJobCommand(path: string, body?: unknown) {
   return postJson<JobCommandPayload>(path, body)
 }
