@@ -107,13 +107,14 @@ RSpec.describe RunJob do
       expect(wf.trigger_kind).to eq("initial")
       expect(wf.state).to eq("succeeded")
       expect(wf.steps.pluck(:kind, :state)).to eq([
-        [ "prepare",        "succeeded" ],
-        [ "implement",      "succeeded" ],
-        [ "grader_fanout",  "succeeded" ],
-        [ "grader_collect", "succeeded" ],
-        [ "summarize",      "succeeded" ],
-        [ "test_plan",      "succeeded" ],
-        [ "pr_open",        "succeeded" ]
+        [ "prepare",          "succeeded" ],
+        [ "implement",        "succeeded" ],
+        [ "grader_fanout",    "succeeded" ],
+        [ "grader_collect",   "succeeded" ],
+        [ "coverage_analyze", "succeeded" ],
+        [ "summarize",        "succeeded" ],
+        [ "test_plan",        "succeeded" ],
+        [ "pr_open",          "succeeded" ]
       ])
       expect(wf.artifact("pr_title")).to eq("Add greeting helper")
       expect(job.pr_number).to eq(123)
@@ -416,12 +417,14 @@ RSpec.describe RunJob do
       expect(wf.state).to eq("succeeded")
       kinds_and_states = wf.steps.where.not(kind: "grader").pluck(:kind, :state)
       expect(kinds_and_states).to eq([
-        [ "prepare",         "succeeded" ],
-        [ "respond",         "succeeded" ],
-        [ "grader_fanout",   "succeeded" ],
-        [ "grader_collect",  "succeeded" ],
-        [ "summarize_amend", "succeeded" ],
-        [ "push",            "succeeded" ]
+        [ "prepare",              "succeeded" ],
+        [ "respond",              "succeeded" ],
+        [ "grader_fanout",        "succeeded" ],
+        [ "grader_collect",       "succeeded" ],
+        [ "coverage_analyze",     "succeeded" ],
+        [ "coverage_pr_comment",  "succeeded" ],
+        [ "summarize_amend",      "succeeded" ],
+        [ "push",                 "succeeded" ]
       ])
       # No new PR — same Job's existing one
       expect(@pr_stub).not_to have_been_requested
