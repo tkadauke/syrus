@@ -82,7 +82,7 @@ jobs:
           # yet. If the token isn't allowed to, enable it once in Settings → Pages.
           enablement: true
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: website/out
 
