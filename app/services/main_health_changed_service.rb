@@ -5,6 +5,12 @@ class MainHealthChangedService
     new(repository).on_health_change!
   end
 
+  def self.recovered!(repository)
+    # Stub: full recovery logic (resume landing, unblock queued workflows,
+    # emit recovery notification) will be implemented by the recovery Job
+    # in EPIC-161.
+  end
+
   def initialize(repository)
     @repository = repository
   end
@@ -15,12 +21,14 @@ class MainHealthChangedService
       "ci_health=#{@repository.ci_health} grader_health=#{@repository.grader_health}"
     )
 
-    return unless @repository.main_health_broken?
-
-    pause_landing!
-    stamp_active_workflows!
-    spawn_fix_job!
-    emit_notification!
+    if @repository.main_health_broken?
+      pause_landing!
+      stamp_active_workflows!
+      spawn_fix_job!
+      emit_notification!
+    elsif @repository.main_health == "healthy"
+      self.class.recovered!(@repository)
+    end
   end
 
   private

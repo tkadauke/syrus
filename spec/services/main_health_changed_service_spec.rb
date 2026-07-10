@@ -168,10 +168,10 @@ RSpec.describe MainHealthChangedService do
       end
     end
 
-    context "when main_health is not broken" do
-      it "does not pause landing" do
-        repository.update!(ci_health: "healthy", grader_health: "healthy")
+    context "when main_health is healthy" do
+      before { repository.update!(ci_health: "healthy", grader_health: "healthy") }
 
+      it "does not pause landing" do
         expect {
           described_class.on_health_change!(repository)
         }.not_to change { repository.reload.landing_paused }
@@ -188,6 +188,36 @@ RSpec.describe MainHealthChangedService do
           described_class.on_health_change!(repository)
         }.not_to change { Notification.count }
       end
+
+      it "delegates to recovered!" do
+        expect(described_class).to receive(:recovered!).with(repository)
+        described_class.on_health_change!(repository)
+      end
+    end
+
+    context "when main_health is unknown" do
+      it "does not pause landing" do
+        expect {
+          described_class.on_health_change!(repository)
+        }.not_to change { repository.reload.landing_paused }
+      end
+
+      it "does not spawn a fix Job" do
+        expect {
+          described_class.on_health_change!(repository)
+        }.not_to change { Job.count }
+      end
+
+      it "does not delegate to recovered!" do
+        expect(described_class).not_to receive(:recovered!)
+        described_class.on_health_change!(repository)
+      end
+    end
+  end
+
+  describe ".recovered!" do
+    it "accepts a repository without raising" do
+      expect { described_class.recovered!(repository) }.not_to raise_error
     end
   end
 end
