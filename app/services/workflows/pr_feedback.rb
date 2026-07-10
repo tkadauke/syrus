@@ -20,7 +20,7 @@ module Workflows
 
     def self.trigger_kind = "pr_comment"
 
-    def self.steps_for(_job)
+    def self.steps_for(job)
       [
         "prepare",
         Workflows::RetryUntil.new(
@@ -28,9 +28,10 @@ module Workflows
           repair: [ :respond ],
           check: [ :grader_fanout, :grader_collect ]
         ),
+        coverage_analyze_for(job),
         "summarize_amend",
         follow_up_push(max_iterations: AppSetting.grade_max_iterations)
-      ]
+      ].compact
     end
 
     # Mark the most recently-addressed PR comment so the feedback

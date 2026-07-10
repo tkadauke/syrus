@@ -50,7 +50,7 @@ module Workflows
 
     def self.queue_name = :merges
 
-    def self.steps_for(_job)
+    def self.steps_for(job)
       [
         "merge_train_assemble",
         "merge_train_build",
@@ -61,6 +61,7 @@ module Workflows
           repair: [ :landing_fix ],
           check: [ :grader_fanout, :grader_collect ]
         ),
+        coverage_analyze_for(job),
         Workflows::Try.new(:merge_train_land).on_failure(
           Steps::MergeTrainLand::BaseMoved::FAILURE_CODE,
           [
@@ -74,7 +75,7 @@ module Workflows
             :merge_train_land_after_rebase
           ]
         )
-      ]
+      ].compact
     end
 
     def self.after_fail(workflow)
