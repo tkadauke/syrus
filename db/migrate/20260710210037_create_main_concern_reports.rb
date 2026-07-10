@@ -11,8 +11,9 @@ class CreateMainConcernReports < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :main_concern_reports, [ :repository_id, :created_at ],
-              name: "index_main_concern_reports_on_repository_id_and_created_at",
-              if_not_exists: true
+    unless index_exists?(:main_concern_reports, [ :repository_id, :created_at ], name: "index_main_concern_reports_on_repository_id_and_created_at")
+      add_index :main_concern_reports, [ :repository_id, :created_at ],
+                name: "index_main_concern_reports_on_repository_id_and_created_at"
+    end
   end
 end
