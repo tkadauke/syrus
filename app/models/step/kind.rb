@@ -36,6 +36,7 @@ class Step
       Entry.new(kind: "merge_train_assemble", handler: "MergeTrainAssemble", label: "Assemble train", style: "bg-green-100 text-green-800", agentic: false),
       Entry.new(kind: "merge_train_build", handler: "MergeTrainBuild", label: "Build integration branch", style: "bg-green-100 text-green-800", agentic: true),
       Entry.new(kind: "merge_train_land", handler: "MergeTrainLand", label: "Land Epic", style: "bg-green-100 text-green-800", agentic: false),
+      Entry.new(kind: "coverage_analyze", handler: "CoverageAnalyze", label: "Analyze coverage", style: "bg-orange-100 text-orange-700", agentic: false),
       Entry.new(kind: "manual", handler: "Manual", label: "Manual", style: "bg-gray-100 text-gray-700", agentic: true)
     ].freeze
 

@@ -99,6 +99,10 @@ module Workflows
       false
     end
 
+    def self.coverage_analyze_for(job)
+      "coverage_analyze" if RepoCoveragePlanReader.for_job(job)
+    end
+
     def self.follow_up_push(max_iterations: nil)
       Workflows::Try.new(:push).on_failure(
         "remote_branch_advanced_rebase_conflict",
