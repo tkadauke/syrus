@@ -71,6 +71,7 @@ class StepDispatcher
     job.direct? && job.issue_title == MainHealthChangedService::FIX_MAIN_TITLE
   end
 
+
   def self.cancel_unstartable_rebase_workflow!(workflow, reason)
     return unless RebaseWorkflowSelector::TRIGGER_KINDS.include?(workflow.trigger_kind)
 
