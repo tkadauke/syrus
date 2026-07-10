@@ -3,10 +3,18 @@ require "fileutils"
 module ChatProviders
   class Claude < Base
     SESSION_ID_PATTERN = /\A[A-Za-z0-9_-]+\z/
-    DISALLOWED_TOOLS = %w[
+    PLANNING_DISALLOWED_TOOLS = %w[
       Write
       Edit
       MultiEdit
+      NotebookEdit
+      AskUserQuestion
+    ].freeze
+
+    # In Coding Mode the agent implements directly — Write/Edit/Bash are
+    # intentionally available. Only tools with no legitimate coding use
+    # remain blocked.
+    CODING_DISALLOWED_TOOLS = %w[
       NotebookEdit
       AskUserQuestion
     ].freeze
@@ -118,7 +126,7 @@ module ChatProviders
         image_paths: image_paths,
         file_paths: file_paths,
         resume_session_id: resume_session_id,
-        disallowed_tools: DISALLOWED_TOOLS,
+        disallowed_tools: disallowed_tools,
         env: env,
         stop_requested: stop_requested,
         process_started: process_started
@@ -169,6 +177,12 @@ module ChatProviders
       File.write(path, jsonl)
     rescue SystemCallError => e
       Rails.logger.warn("[ChatProviders::Claude] unable to rehydrate Claude session #{session_id}: #{e.class}: #{e.message}")
+    end
+
+    def disallowed_tools
+      return CODING_DISALLOWED_TOOLS if Feature.coding_mode_enabled? && chat.coding?
+
+      PLANNING_DISALLOWED_TOOLS
     end
 
     def normalized_session_id(session_id)

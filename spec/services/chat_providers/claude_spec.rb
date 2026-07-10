@@ -59,6 +59,71 @@ RSpec.describe ChatProviders::Claude do
       )
     end
 
+    it "allows Write/Edit/MultiEdit in Coding Mode when the feature flag is on" do
+      Feature.find_or_create_by!(slug: "coding_mode") { |f| f.category = "Labs"; f.name = "Coding Mode" }
+              .update!(enabled: true)
+      chat.update!(mode: "coding")
+
+      received = nil
+      runner = ->(**kwargs) { received = kwargs; result_fixture }
+      adapter = described_class.new(chat: chat, runner: runner)
+
+      adapter.invoke(
+        workspace_path: "/tmp/chat-workspace",
+        prompt: "Fix the bug.",
+        log_sink: ->(*, **) { },
+        mcp_config: "/tmp/mcp.json",
+        resume_session_id: nil,
+        stop_requested: -> { false },
+        process_started: ->(_process) { }
+      )
+
+      expect(received[:disallowed_tools]).to eq(%w[NotebookEdit AskUserQuestion])
+    end
+
+    it "keeps Write/Edit disallowed in Coding Mode when the feature flag is off" do
+      Feature.find_or_create_by!(slug: "coding_mode") { |f| f.category = "Labs"; f.name = "Coding Mode" }
+              .update!(enabled: false)
+      chat.update!(mode: "coding")
+
+      received = nil
+      runner = ->(**kwargs) { received = kwargs; result_fixture }
+      adapter = described_class.new(chat: chat, runner: runner)
+
+      adapter.invoke(
+        workspace_path: "/tmp/chat-workspace",
+        prompt: "Fix the bug.",
+        log_sink: ->(*, **) { },
+        mcp_config: "/tmp/mcp.json",
+        resume_session_id: nil,
+        stop_requested: -> { false },
+        process_started: ->(_process) { }
+      )
+
+      expect(received[:disallowed_tools]).to eq(%w[Write Edit MultiEdit NotebookEdit AskUserQuestion])
+    end
+
+    it "keeps Write/Edit disallowed in Planning Mode even when the coding_mode flag is on" do
+      Feature.find_or_create_by!(slug: "coding_mode") { |f| f.category = "Labs"; f.name = "Coding Mode" }
+              .update!(enabled: true)
+
+      received = nil
+      runner = ->(**kwargs) { received = kwargs; result_fixture }
+      adapter = described_class.new(chat: chat, runner: runner)
+
+      adapter.invoke(
+        workspace_path: "/tmp/chat-workspace",
+        prompt: "What is the plan?",
+        log_sink: ->(*, **) { },
+        mcp_config: "/tmp/mcp.json",
+        resume_session_id: nil,
+        stop_requested: -> { false },
+        process_started: ->(_process) { }
+      )
+
+      expect(received[:disallowed_tools]).to eq(%w[Write Edit MultiEdit NotebookEdit AskUserQuestion])
+    end
+
     it "retries WITHOUT --resume when a resume hard-fails at startup (stale session)" do
       calls = []
       runner = ->(**kwargs) {

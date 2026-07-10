@@ -13,6 +13,7 @@ class ChatPendingAction < ApplicationRecord
     pause_landing_queue
     resume_landing_queue
     submit_chat_feedback
+    complete_implement_step
     reopen_epic_and_attach_job
     admin_kill_process
     admin_reap_stale_runs

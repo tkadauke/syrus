@@ -206,7 +206,7 @@ class ChatTurnJob < ApplicationJob
     return nil unless Feature.coding_mode_enabled?
     return nil unless @chat.coding?
 
-    Prompts::ChatCodingMode.new.to_s
+    Prompts::ChatCodingMode.new(chat_session: @chat).to_s
   end
 
   def chat_history_fallback

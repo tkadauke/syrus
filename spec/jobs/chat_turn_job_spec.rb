@@ -54,7 +54,7 @@ RSpec.describe ChatTurnJob do
     described_class.perform_now(chat.id, user_message.id)
 
     expect(received[:prompt]).not_to include("Coding Mode")
-    expect(received[:prompt]).not_to include("write access to the repository checkout")
+    expect(received[:prompt]).not_to include("complete_implement_step")
   end
 
   it "does not inject the coding mode section for a planning-mode chat even when the flag is on" do
@@ -82,7 +82,30 @@ RSpec.describe ChatTurnJob do
     described_class.perform_now(chat.id, user_message.id)
 
     expect(received[:prompt]).to include("Coding Mode")
-    expect(received[:prompt]).to include("write access to the repository checkout")
+    expect(received[:prompt]).to include("implement code")
+    expect(received[:prompt]).to include("complete_implement_step")
+    expect(received[:prompt]).to include("grader")
+  end
+
+  it "includes the workspace root and attached job context in the coding mode prompt" do
+    enable_coding_mode!
+    job = Factories.job_record(user: user, repository: repository, issue_title: "Add widget API",
+                               branch_name: "syrus/direct-999")
+    chat.chat_attachments.create!(attachable: job)
+    chat.update!(mode: "coding")
+
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
+      result_fixture(session_id: "s1")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(received[:prompt]).to include(workspace_path.to_s)
+    expect(received[:prompt]).to include("syrus/direct-999")
+    expect(received[:prompt]).to include("Add widget API")
+    expect(received[:prompt]).to include(job.id.to_s)
   end
 
   it "orients the agent to its walkthrough tools (not an analysis dump) for a walkthrough message" do
