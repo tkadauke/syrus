@@ -184,10 +184,9 @@ RSpec.describe MainHealthChangedService do
         }.not_to change { Job.count }
       end
 
-      it "does not emit a notification" do
-        expect {
-          described_class.on_health_change!(repository)
-        }.not_to change { Notification.count }
+      it "emits a main_recovered notification instead of main_broken" do
+        described_class.on_health_change!(repository)
+        expect(Notification.last&.kind).to eq("main_recovered")
       end
 
 
@@ -218,8 +217,166 @@ RSpec.describe MainHealthChangedService do
   end
 
   describe ".recovered!" do
-    it "accepts a repository without raising" do
+    before { repository.update!(ci_health: "healthy", grader_health: "healthy") }
+
+    it "clears landing_paused on the repository" do
+      repository.update!(landing_paused: true)
+      described_class.recovered!(repository)
+      expect(repository.reload.landing_paused).to be false
+    end
+
+    it "is idempotent when landing_paused is already false" do
+      repository.update!(landing_paused: false)
       expect { described_class.recovered!(repository) }.not_to raise_error
+      expect(repository.reload.landing_paused).to be false
+    end
+
+    context "unblocking queued workflows" do
+      it "calls start_workflow for queued workflows with no runs" do
+        job = Factories.job_record(repository: repository, state: "queued")
+        blocked_workflow = Workflow.create!(
+          job: job,
+          user: user,
+          trigger_kind: "initial",
+          agent_provider: "claude"
+        )
+        blocked_workflow.steps.create!(kind: "prepare", position: 0, iteration: 1)
+
+        allow(StepDispatcher).to receive(:start_workflow)
+        described_class.recovered!(repository)
+        expect(StepDispatcher).to have_received(:start_workflow).with(blocked_workflow)
+      end
+
+      it "does not call start_workflow for queued workflows that already have runs" do
+        Factories.job(repository: repository)
+        # The job's workflow has a run on its first step — it was never blocked.
+
+        allow(StepDispatcher).to receive(:start_workflow)
+        described_class.recovered!(repository)
+        expect(StepDispatcher).not_to have_received(:start_workflow)
+      end
+
+      it "does not call start_workflow for queued workflows on other repositories" do
+        other_repo = Factories.repository(user: user)
+        other_job = Factories.job_record(repository: other_repo, state: "queued")
+        other_blocked = Workflow.create!(
+          job: other_job,
+          user: user,
+          trigger_kind: "initial",
+          agent_provider: "claude"
+        )
+        other_blocked.steps.create!(kind: "prepare", position: 0, iteration: 1)
+
+        allow(StepDispatcher).to receive(:start_workflow)
+        described_class.recovered!(repository)
+        expect(StepDispatcher).not_to have_received(:start_workflow)
+      end
+    end
+
+    context "retrying held jobs" do
+      let(:held_job) { Factories.job(repository: repository) }
+      let(:held_workflow) { held_job.latest_workflow }
+
+      before do
+        held_workflow.update_columns(state: "failed")
+        held_workflow.set_artifact!("main_broken", true)
+      end
+
+      it "enqueues a retry for failed workflows with main_broken artifact" do
+        allow(RetryWorkflowEnqueuer).to receive(:call).and_return(
+          RetryWorkflowEnqueuer::Result.new(workflow: held_workflow, error: nil, circuit: nil)
+        )
+        described_class.recovered!(repository)
+        expect(RetryWorkflowEnqueuer).to have_received(:call).with(
+          job: held_job,
+          provider_validation: :none,
+          automatic: true
+        )
+      end
+
+      it "skips failed workflows without main_broken artifact" do
+        held_workflow.update!(artifacts: {})
+
+        expect(RetryWorkflowEnqueuer).not_to receive(:call)
+        described_class.recovered!(repository)
+      end
+
+      it "skips failed workflows whose job is closed" do
+        held_job.update_columns(state: "closed")
+
+        expect(RetryWorkflowEnqueuer).not_to receive(:call)
+        described_class.recovered!(repository)
+      end
+
+      it "does not retry workflows for other repositories" do
+        other_repo = Factories.repository(user: user)
+        other_job = Factories.job(repository: other_repo)
+        other_wf = other_job.latest_workflow
+        other_wf.update_columns(state: "failed")
+        other_wf.set_artifact!("main_broken", true)
+
+        allow(RetryWorkflowEnqueuer).to receive(:call).and_return(
+          RetryWorkflowEnqueuer::Result.new(workflow: held_workflow, error: nil, circuit: nil)
+        )
+        described_class.recovered!(repository)
+
+        # held_job (in repository) should be retried; other_job (in other_repo) should not
+        expect(RetryWorkflowEnqueuer).to have_received(:call).with(job: held_job, provider_validation: :none, automatic: true)
+        expect(RetryWorkflowEnqueuer).not_to have_received(:call).with(job: other_job, provider_validation: :none, automatic: true)
+      end
+
+      it "caps retries at MAX_RECOVERY_RETRIES" do
+        (MainHealthChangedService::MAX_RECOVERY_RETRIES + 1).times do
+          j = Factories.job(repository: repository)
+          wf = j.latest_workflow
+          wf.update_columns(state: "failed")
+          wf.set_artifact!("main_broken", true)
+        end
+        # held_workflow + 11 more = 12 total; cap at 10
+
+        allow(RetryWorkflowEnqueuer).to receive(:call).and_return(
+          RetryWorkflowEnqueuer::Result.new(workflow: held_workflow, error: nil, circuit: nil)
+        )
+        described_class.recovered!(repository)
+        expect(RetryWorkflowEnqueuer).to have_received(:call).exactly(MainHealthChangedService::MAX_RECOVERY_RETRIES).times
+      end
+    end
+
+    context "recovery notification" do
+      it "emits a main_recovered notification" do
+        expect {
+          described_class.recovered!(repository)
+        }.to change { Notification.count }.by(1)
+
+        notification = Notification.last
+        expect(notification).to have_attributes(user: user, kind: "main_recovered")
+        expect(notification.body).to include(repository.slug)
+      end
+
+      it "includes the retry count in the notification body when jobs were retried" do
+        job = Factories.job(repository: repository)
+        wf = job.latest_workflow
+        wf.update_columns(state: "failed")
+        wf.set_artifact!("main_broken", true)
+
+        allow(RetryWorkflowEnqueuer).to receive(:call).and_return(
+          RetryWorkflowEnqueuer::Result.new(workflow: wf, error: nil, circuit: nil)
+        )
+        described_class.recovered!(repository)
+        expect(Notification.last.body).to include("1 job")
+      end
+
+      it "omits the retry count from the notification body when no jobs were retried" do
+        described_class.recovered!(repository)
+        expect(Notification.last.body).not_to include("auto-retry")
+      end
+
+      it "does not emit a notification when the repository has no owner user" do
+        repository.update_columns(user_id: nil)
+        expect {
+          described_class.recovered!(repository.reload)
+        }.not_to change { Notification.count }
+      end
     end
   end
 end
