@@ -2,7 +2,7 @@ class Job < ApplicationRecord
   include AASM
   include RecordsStateTransitions
 
-  KINDS = %w[ issue cron direct ].freeze
+  KINDS = %w[ issue cron direct main_grader ].freeze
   CREDENTIAL_MODES = %w[ app pat ].freeze
   PREPARE_SKIP_LABEL = "syrus-skip-prepare".freeze
 
@@ -78,6 +78,7 @@ class Job < ApplicationRecord
   validates :scheduled_task_id, presence: true, if: :cron?
   validate  :issue_number_blank_for_cron, if: :cron?
   validate  :issue_number_blank_for_direct, if: :direct?
+  validate  :issue_number_blank_for_main_grader, if: :main_grader?
   validate  :epic_belongs_to_same_user_and_repository
   before_validation :default_agent_provider, on: :create
   before_validation :default_credential_mode, on: :create
@@ -154,6 +155,10 @@ class Job < ApplicationRecord
 
   def direct?
     kind == "direct"
+  end
+
+  def main_grader?
+    kind == "main_grader"
   end
 
   def claimed?
@@ -1094,6 +1099,7 @@ class Job < ApplicationRecord
   # prompt at fire time.
   def create_initial_run_if_needed
     return if cron?
+    return if main_grader?
     return if workflows.where.not(state: "cancelled").exists?
 
     create_initial_run
@@ -1341,6 +1347,10 @@ class Job < ApplicationRecord
 
   def issue_number_blank_for_direct
     errors.add(:issue_number, "must be blank for direct Jobs") if issue_number.present?
+  end
+
+  def issue_number_blank_for_main_grader
+    errors.add(:issue_number, "must be blank for main_grader Jobs") if issue_number.present?
   end
 
   def saved_change_to_stack_parent_resolved_terminal?

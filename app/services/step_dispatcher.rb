@@ -56,8 +56,9 @@ class StepDispatcher
   end
 
   # Rebase and stack-rebase workflows must proceed even when main is broken —
-  # they may be part of the recovery path. All other workflows are held.
-  MAIN_HEALTH_EXEMPT_TRIGGERS = %w[ rebase stack_rebase ].freeze
+  # they may be part of the recovery path. main_grader IS the health-check
+  # workflow, so it must never be blocked by the state it is trying to measure.
+  MAIN_HEALTH_EXEMPT_TRIGGERS = %w[ rebase stack_rebase main_grader ].freeze
 
   def self.main_health_blocking?(workflow)
     return false if MAIN_HEALTH_EXEMPT_TRIGGERS.include?(workflow.trigger_kind)
