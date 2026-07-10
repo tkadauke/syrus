@@ -1,0 +1,5 @@
+require "<%= file_name %>/version"
+require "<%= file_name %>/engine"
+
+module <%= module_name %>
+end

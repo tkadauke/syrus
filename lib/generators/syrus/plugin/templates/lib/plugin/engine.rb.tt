@@ -1,0 +1,17 @@
+module <%= module_name %>
+  class Engine < ::Rails::Engine
+    isolate_namespace <%= module_name %>
+
+    initializer "<%= file_name %>.register_plugin" do
+      Syrus::PluginRegistry.register(
+        name:     "<%= file_name %>",
+        version:  <%= module_name %>::VERSION,
+        provides: {
+          # :agent_provider => <%= module_name %>::YourProvider,
+          # :mcp_tool_set   => <%= module_name %>::YourToolSet,
+          # :input_source   => <%= module_name %>::YourInputSource,
+        }
+      )
+    end
+  end
+end
