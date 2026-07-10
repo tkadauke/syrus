@@ -1522,6 +1522,89 @@ describe("scratchpad stash button", () => {
     expect(stashCalls).toHaveLength(1)
     expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({ scratchpad_item: { content: "Draft idea" } })
   })
+
+  it("shows 'Stash (Tab)' in the stash button tooltip", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { agent_busy: false } }))
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "some text" } })
+
+    expect(screen.getByRole("button", { name: "Stash" })).toHaveAttribute("title", "Stash (Tab)")
+  })
+
+  it("stashes on Tab when the textarea has text", async () => {
+    const updatedPayload = chatPayload({
+      scratchpad_items: [{ id: 1, content: "Draft idea", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }]
+    })
+
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (String(input) === "/api/v1/app/chats/8/scratchpad_items" && (init as RequestInit)?.method === "POST") {
+        return Promise.resolve(jsonResponse(updatedPayload))
+      }
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "Draft idea" } })
+    const defaultNotPrevented = fireEvent.keyDown(textarea, { key: "Tab" })
+
+    expect(defaultNotPrevented).toBe(false)
+
+    await waitFor(() => {
+      expect(textarea).toHaveValue("")
+    })
+
+    const stashCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
+      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
+    )
+    expect(stashCalls).toHaveLength(1)
+    expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({ scratchpad_item: { content: "Draft idea" } })
+  })
+
+  it("does not stash on Tab when the textarea is empty", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    const defaultNotPrevented = fireEvent.keyDown(textarea, { key: "Tab" })
+
+    expect(defaultNotPrevented).toBe(true)
+    expect(fetchMock.mock.calls.some((call: unknown[]) =>
+      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
+    )).toBe(false)
+  })
+
+  it("does not stash on Shift+Tab when textarea has text", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "Draft idea" } })
+    const defaultNotPrevented = fireEvent.keyDown(textarea, { key: "Tab", shiftKey: true })
+
+    expect(defaultNotPrevented).toBe(true)
+    expect(fetchMock.mock.calls.some((call: unknown[]) =>
+      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
+    )).toBe(false)
+  })
 })
 
 describe("scratchpad panel", () => {
