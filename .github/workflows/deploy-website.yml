@@ -76,7 +76,7 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag }}
         run: npm run build
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
         with:
           # Best-effort enable Pages (build_type: workflow) if an admin hasn't
           # yet. If the token isn't allowed to, enable it once in Settings → Pages.
