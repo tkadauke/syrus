@@ -24,8 +24,8 @@ module Steps
         return
       end
 
-      merged     = Coverage::MergeStrategy.merge_all(found_sources.map(&:raw))
-      normalized = Coverage::Normalizer.normalize(merged)
+      merged     = CoverageAnalysis::MergeStrategy.merge_all(found_sources.map(&:raw))
+      normalized = CoverageAnalysis::Normalizer.normalize(merged)
 
       diff_annotations, pr_delta = compute_diff_coverage(normalized[:hit_map])
 
@@ -47,17 +47,17 @@ module Steps
         artifact_path = workspace.path.join(source.artifact)
         unless artifact_path.exist?
           log("[coverage_analyze] artifact not found: #{source.artifact}")
-          next Coverage::ParsedSource.new(artifact: source.artifact, format: source.format,
+          next CoverageAnalysis::ParsedSource.new(artifact: source.artifact, format: source.format,
                                           found: false, raw: nil, lines_pct: nil)
         end
 
         begin
-          result = Coverage::Parsers.for(source.format).parse(artifact_path.read)
-          Coverage::ParsedSource.new(artifact: source.artifact, format: source.format,
+          result = CoverageAnalysis::Parsers.for(source.format).parse(artifact_path.read)
+          CoverageAnalysis::ParsedSource.new(artifact: source.artifact, format: source.format,
                                      found: true, raw: result.raw, lines_pct: result.lines_pct)
         rescue => e
           log("[coverage_analyze] failed to parse #{source.artifact} (#{source.format}): #{e.message}")
-          Coverage::ParsedSource.new(artifact: source.artifact, format: source.format,
+          CoverageAnalysis::ParsedSource.new(artifact: source.artifact, format: source.format,
                                      found: false, raw: nil, lines_pct: nil)
         end
       end
@@ -68,7 +68,7 @@ module Steps
         "diff", "#{default_branch_ref}...HEAD", "--unified=0",
         chdir: workspace.path.to_s
       )
-      Coverage::DiffAnnotator.annotate(diff_text, hit_map)
+      CoverageAnalysis::DiffAnnotator.annotate(diff_text, hit_map)
     rescue GitRunner::GitError => e
       log("[coverage_analyze] git diff failed: #{e.message} — skipping diff annotations")
       [ {}, { "covered" => 0, "total" => 0, "pct" => nil, "uncovered_files" => [] } ]
