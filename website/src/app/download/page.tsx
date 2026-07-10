@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { Nav } from "../../components/nav";
-import { Footer } from "../../components/footer";
-import { ButtonLink } from "../../components/button";
-import { AppleIcon, WindowsIcon, DownloadIcon } from "../../components/icons";
+import { Nav } from "../../../components/nav";
+import { Footer } from "../../../components/footer";
+import { ButtonLink } from "../../../components/button";
+import { AppleIcon, WindowsIcon, DownloadIcon } from "../../../components/icons";
 import {
   downloads,
   humanSize,
@@ -10,7 +10,7 @@ import {
   allReleasesUrl,
   type DownloadArtifact,
   type Platform,
-} from "../../lib/release";
+} from "../../../lib/release";
 
 export const metadata: Metadata = {
   title: "Download",

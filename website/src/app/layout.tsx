@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { MotionProvider } from "../components/motion-provider";
+import { MotionProvider } from "../../components/motion-provider";
 import "./globals.css";
 
 const description =
