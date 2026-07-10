@@ -540,6 +540,13 @@ class GithubClient
     raise
   end
 
+  def update_issue_comment(repo_slug, comment_id, body)
+    track_rate_limits { @client.update_comment(repo_slug, comment_id, body) }
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited updating comment #{comment_id} on #{repo_slug}: #{e.message}")
+    raise
+  end
+
   def close_issue(repo_slug, issue_number)
     track_rate_limits { @client.close_issue(repo_slug, issue_number) }
   rescue Octokit::TooManyRequests => e

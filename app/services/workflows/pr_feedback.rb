@@ -15,6 +15,8 @@ module Workflows
   class PrFeedback < Base
     steps :prepare,
           Workflows::RetryUntil.new(repair: [ :respond ], check: [ :grader_fanout, :grader_collect ]),
+          :coverage_analyze,
+          :coverage_pr_comment,
           :summarize_amend,
           follow_up_push
 
@@ -28,6 +30,8 @@ module Workflows
           repair: [ :respond ],
           check: [ :grader_fanout, :grader_collect ]
         ),
+        "coverage_analyze",
+        "coverage_pr_comment",
         "summarize_amend",
         follow_up_push(max_iterations: AppSetting.grade_max_iterations)
       ]

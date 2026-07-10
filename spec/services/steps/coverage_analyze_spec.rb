@@ -275,4 +275,68 @@ RSpec.describe Steps::CoverageAnalyze do
       end
     end
   end
+
+  context "pr_comment body generation" do
+    context "when pr_comment: false (default)" do
+      before do
+        write_syrus_yml(<<~YAML)
+          coverage:
+            sources:
+              - artifact: coverage/lcov.info
+                format: lcov
+        YAML
+        write_lcov
+      end
+
+      it "does not write pr_comment_body into the artifact" do
+        handler.call
+        expect(workflow.reload.artifact("coverage")).not_to have_key("pr_comment_body")
+      end
+    end
+
+    context "when pr_comment: true" do
+      before do
+        write_syrus_yml(<<~YAML)
+          coverage:
+            sources:
+              - artifact: coverage/lcov.info
+                format: lcov
+            pr_comment: true
+        YAML
+        write_lcov
+      end
+
+      it "writes pr_comment_body into the artifact" do
+        handler.call
+        body = workflow.reload.artifact("coverage")["pr_comment_body"]
+        expect(body).to be_present
+        expect(body).to include(Coverage::PrCommentFormatter::MARKER)
+        expect(body).to include("## Test Coverage Report")
+      end
+
+      it "renders the measured lines_pct in the comment" do
+        handler.call
+        body = workflow.reload.artifact("coverage")["pr_comment_body"]
+        expect(body).to include("66.7%")
+      end
+    end
+
+    context "when pr_comment: true but artifacts are missing" do
+      before do
+        write_syrus_yml(<<~YAML)
+          coverage:
+            sources:
+              - artifact: coverage/lcov.info
+                format: lcov
+            pr_comment: true
+        YAML
+        # No LCOV file written — coverage_unavailable path
+      end
+
+      it "does not write pr_comment_body (coverage is unavailable)" do
+        handler.call
+        expect(workflow.reload.artifact("coverage")).not_to have_key("pr_comment_body")
+      end
+    end
+  end
 end
