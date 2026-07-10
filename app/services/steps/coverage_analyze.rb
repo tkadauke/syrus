@@ -146,8 +146,9 @@ module Steps
       return unless artifact["threshold_miss"]
 
       details = artifact["threshold_miss_details"] || {}
-      msg = "Coverage threshold not met: " \
-            "#{details['lines_pct']}% lines (threshold: #{details['threshold_lines']}%)"
+      msg = "Coverage threshold not met " \
+            "(lines: #{details['lines_pct']}%, threshold: #{details['threshold_lines']}%). " \
+            "Add tests and retry this Job."
 
       case plan.on_miss
       when "block"
