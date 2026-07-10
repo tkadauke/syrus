@@ -748,13 +748,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_11_192118) do
     t.datetime "archived_at"
     t.string "auto_approve_mode", default: "never", null: false
     t.boolean "auto_merge_enabled", default: false, null: false
+    t.string "ci_health", default: "unknown", null: false
     t.datetime "created_at", null: false
     t.string "default_branch", default: "main", null: false
     t.string "feedback_policy", default: "confirm", null: false
     t.integer "fork_pr_grace_period_hours", default: 24, null: false
     t.bigint "github_owner_id"
     t.bigint "github_repository_id"
+    t.string "grader_health", default: "unknown", null: false
     t.integer "installation_id"
+    t.string "last_health_checked_sha"
     t.text "last_poll_error"
     t.datetime "last_poll_started_at"
     t.string "last_poll_status"

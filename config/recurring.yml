@@ -13,6 +13,9 @@ default: &default
   poll_repositories:
     class: PollAllRepositoriesJob
     schedule: every 5 minutes
+  poll_main_branch_health:
+    class: PollAllMainBranchHealthJob
+    schedule: every 5 minutes
   poll_pull_requests:
     class: PollAllPullRequestsJob
     schedule: every 5 minutes

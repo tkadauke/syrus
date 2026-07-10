@@ -812,3 +812,65 @@ RSpec.describe StepDispatcher do
     end
   end
 end
+
+RSpec.describe StepDispatcher, "main_health queue gate" do
+  include ActiveJob::TestHelper
+
+  let(:job_model) { Factories.job }
+  let!(:workflow) { Workflow.create!(job: job_model, trigger_kind: "initial") }
+  let!(:s1) { Step.create!(workflow: workflow, kind: "implement", position: 0) }
+  let!(:s2) { Step.create!(workflow: workflow, kind: "pr_open", position: 1) }
+
+  before { s1.update!(next_step_id: s2.id) }
+
+  def break_main!
+    job_model.repository.update!(ci_health: "broken")
+  end
+
+  it "does not create a Run when the repository main_health is broken" do
+    break_main!
+    expect {
+      described_class.start_workflow(workflow)
+    }.not_to change { Run.count }
+    expect(workflow.reload).to be_queued
+  end
+
+  it "logs a warning when main is broken and the workflow is left queued" do
+    break_main!
+    expect(Rails.logger).to receive(:warn).with(include("main_branch_broken"))
+    described_class.start_workflow(workflow)
+  end
+
+  it "starts the workflow normally when main_health is healthy" do
+    job_model.repository.update!(ci_health: "healthy", grader_health: "healthy")
+    expect {
+      described_class.start_workflow(workflow)
+    }.to change { s1.runs.count }.by(1)
+  end
+
+  it "starts the workflow normally when main_health is unknown (default)" do
+    expect {
+      described_class.start_workflow(workflow)
+    }.to change { s1.runs.count }.by(1)
+  end
+
+  it "does not block rebase workflows even when main is broken" do
+    break_main!
+    rebase_workflow = Workflow.create!(job: job_model, trigger_kind: "rebase")
+    rs1 = Step.create!(workflow: rebase_workflow, kind: "auto_rebase", position: 0)
+
+    expect {
+      described_class.start_workflow(rebase_workflow)
+    }.to change { rs1.runs.count }.by(1)
+  end
+
+  it "does not block stack_rebase workflows even when main is broken" do
+    break_main!
+    sr_workflow = Workflow.create!(job: job_model, trigger_kind: "stack_rebase")
+    rs1 = Step.create!(workflow: sr_workflow, kind: "stack_auto_rebase", position: 0)
+
+    expect {
+      described_class.start_workflow(sr_workflow)
+    }.to change { rs1.runs.count }.by(1)
+  end
+end

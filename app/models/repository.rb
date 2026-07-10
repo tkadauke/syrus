@@ -4,6 +4,7 @@ class Repository < ApplicationRecord
   GITHUB_NAME = /\A[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?\z/
   REVIEW_POLICIES = %w[ self two_person final_say ].freeze
   FEEDBACK_POLICIES = %w[ auto confirm ].freeze
+  HEALTH_STATES = %w[ unknown healthy broken ].freeze
 
   attribute :polling_enabled, :boolean, default: true
   attribute :prepare_enabled, :boolean, default: true
@@ -17,6 +18,11 @@ class Repository < ApplicationRecord
   attribute :feedback_policy, :string, default: "confirm"
   attribute :fork_pr_grace_period_hours, :integer, default: 24
   attribute :upstream_pr_grace_period_days, :integer, default: 7
+  attribute :ci_health, :string, default: "unknown"
+  attribute :grader_health, :string, default: "unknown"
+
+  enum :ci_health, HEALTH_STATES.index_with(&:itself), prefix: true, validate: true
+  enum :grader_health, HEALTH_STATES.index_with(&:itself), prefix: true, validate: true
 
   belongs_to :user, optional: true
   belongs_to :installation, optional: true
@@ -62,6 +68,20 @@ class Repository < ApplicationRecord
 
   def archived?
     archived_at.present?
+  end
+
+  def main_health
+    return "broken" if ci_health_broken? || grader_health_broken?
+    return "healthy" if ci_health_healthy? && grader_health_healthy?
+    "unknown"
+  end
+
+  def main_health_broken?
+    main_health == "broken"
+  end
+
+  def main_health_unknown?
+    main_health == "unknown"
   end
 
   def feedback_policy_auto?
