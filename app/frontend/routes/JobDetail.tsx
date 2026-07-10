@@ -26,11 +26,13 @@ import {
   fetchJobSource,
   fetchJobSourceDiff,
   fetchJobTimeline,
+  fetchWorkflowCoverageHitMap,
   ignorePendingFeedback,
   patchJobCommand,
   postJobCommand,
   replacePendingFeedback,
   submitJobFeedback,
+  type CoverageArtifact,
   type JobAttachment,
   type JobDependency,
   type JobApprovalRecord,
@@ -44,6 +46,7 @@ import {
   type JobWorkflow,
   type PendingFeedbackComment
 } from "../api/jobs"
+import { CoverageCard } from "../components/CoverageCard"
 
 type JobTab = "summary" | "workflows" | "attachments" | "source"
 type JobDetailQueryKey = readonly ["jobs", string, "detail", string]
@@ -235,7 +238,7 @@ export function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefi
       {activeTab === "summary" ? <SummaryTab command={command} payload={payload} prefix={prefix} queryKey={queryKey} /> : null}
       {activeTab === "workflows" ? <WorkflowsTab command={command} payload={payload} prefix={prefix} /> : null}
       {activeTab === "attachments" ? <AttachmentsTab payload={payload} queryKey={queryKey} onNotice={setNotice} /> : null}
-      {activeTab === "source" ? <SourceTab jobId={String(payload.job.id)} /> : null}
+      {activeTab === "source" ? <SourceTab jobId={String(payload.job.id)} coverageInfo={latestWorkflowCoverage(payload.workflows)} /> : null}
     </>
   )
 }
@@ -646,8 +649,17 @@ function NeedsAttentionBanner({ job }: { job: JobDetailPayload["job"] }) {
   )
 }
 
+function latestWorkflowCoverage(workflows: JobWorkflow[]): { workflowId: number; coverage: CoverageArtifact } | null {
+  for (let i = workflows.length - 1; i >= 0; i--) {
+    const cov = workflows[i].artifacts["coverage"] as CoverageArtifact | undefined
+    if (cov) return { workflowId: workflows[i].id, coverage: cov }
+  }
+  return null
+}
+
 function SummaryTab({ payload, command, prefix, queryKey }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string; queryKey: JobDetailQueryKey }) {
   const { t } = useT("jobs")
+  const coverageInfo = latestWorkflowCoverage(payload.workflows)
   return (
     <div className="space-y-4">
       <NeedsAttentionBanner job={payload.job} />
@@ -686,6 +698,8 @@ function SummaryTab({ payload, command, prefix, queryKey }: { payload: JobDetail
           </section>
 
           <TestPlanPanel testPlan={payload.test_plan} />
+
+          {coverageInfo ? <CoverageCard coverage={coverageInfo.coverage} /> : null}
 
           <PendingFeedbackPanel jobId={payload.job.id} comments={payload.pending_feedback} queryKey={queryKey} />
 
@@ -1805,25 +1819,46 @@ type DiffLine = {
   code: string
 }
 
-function AgentDiff({ diff }: { diff: string }) {
+type LineAnnotation = "covered" | "uncovered" | "not_executable"
+
+function AgentDiff({ diff, annotations }: { diff: string; annotations?: Record<string, LineAnnotation> }) {
   const lines = parseUnifiedDiff(diff)
 
   return (
     <div className="max-h-[32rem] overflow-auto bg-white font-mono text-xs max-md:min-h-0 max-md:flex-1 max-md:max-h-none dark:bg-gray-950" data-testid="agent-diff-viewer">
       <table className="min-w-full border-separate border-spacing-0">
         <tbody>
-          {lines.map((line, index) => (
-            <tr className={diffLineClass(line.kind)} data-diff-kind={line.kind} key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}>
-              <td className={diffGutterClass(line.kind)}>{line.oldLine ?? ""}</td>
-              <td className={diffGutterClass(line.kind)}>{line.newLine ?? ""}</td>
-              <td className={diffMarkerClass(line.kind)}>{line.marker}</td>
-              <td className="min-w-[40rem] whitespace-pre px-3 py-0.5 text-gray-900 dark:text-gray-200">{line.code || " "}</td>
-            </tr>
-          ))}
+          {lines.map((line, index) => {
+            const annotation = annotations && line.newLine != null ? annotations[String(line.newLine)] : undefined
+            return (
+              <tr
+                className={diffLineClass(line.kind)}
+                data-coverage={annotation}
+                data-diff-kind={line.kind}
+                key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}
+              >
+                <td className={diffGutterClass(line.kind)}>{line.oldLine ?? ""}</td>
+                <td className={diffGutterClass(line.kind)}>{line.newLine ?? ""}</td>
+                <td className={diffMarkerClass(line.kind)}>{line.marker}</td>
+                <td className={`min-w-[40rem] whitespace-pre px-3 py-0.5 text-gray-900 dark:text-gray-200 ${diffCoverageBorderClass(annotation)}`}>{line.code || " "}</td>
+                <td className="w-4 select-none px-1 text-center">
+                  {annotation === "covered" ? <span className="text-emerald-600 dark:text-emerald-400">✓</span>
+                    : annotation === "uncovered" ? <span className="text-red-600 dark:text-red-400">✗</span>
+                    : null}
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>
   )
+}
+
+function diffCoverageBorderClass(annotation: LineAnnotation | undefined) {
+  if (annotation === "covered") return "border-l-2 border-emerald-500"
+  if (annotation === "uncovered") return "border-l-2 border-red-500"
+  return ""
 }
 
 function parseUnifiedDiff(diff: string) {
@@ -2069,7 +2104,7 @@ function AttachmentCard({ attachment }: { attachment: JobAttachment }) {
   )
 }
 
-function SourceTab({ jobId }: { jobId: string }) {
+function SourceTab({ jobId, coverageInfo }: { jobId: string; coverageInfo: { workflowId: number; coverage: CoverageArtifact } | null }) {
   const [mode, setMode] = useState<"browse" | "diff">("browse")
   const [sourceRef, setSourceRef] = useState<string | null>(null)
   const [sourcePath, setSourcePath] = useState<string | null>(null)
@@ -2091,6 +2126,10 @@ function SourceTab({ jobId }: { jobId: string }) {
 
   const { t } = useT("jobs")
 
+  const diffAnnotations = coverageInfo?.coverage.diff_annotations ?? null
+  const hitMapAttached = Boolean(coverageInfo?.coverage.hit_map_attached)
+  const coverageWorkflowId = coverageInfo?.workflowId ?? null
+
   if (source.isPending) return <PanelMessage>{t("source_loading")}</PanelMessage>
   if (source.isError) return <PanelMessage tone="error">{errorMessage(source.error, t("source_error"))}</PanelMessage>
 
@@ -2102,10 +2141,10 @@ function SourceTab({ jobId }: { jobId: string }) {
       return <SourceShell mode={mode} onModeChange={setMode} showDiffToggle={source.data.branch_commits.length > 0}><PanelMessage tone="error">{errorMessage(sourceDiff.error, t("source_diff_error"))}</PanelMessage></SourceShell>
     }
 
-    return <SourceDiffBrowser mode={mode} onModeChange={setMode} onSelectBaseRef={setDiffBaseRef} onSelectHeadRef={setDiffHeadRef} payload={sourceDiff.data} showDiffToggle={source.data.branch_commits.length > 0} />
+    return <SourceDiffBrowser diffAnnotations={diffAnnotations} mode={mode} onModeChange={setMode} onSelectBaseRef={setDiffBaseRef} onSelectHeadRef={setDiffHeadRef} payload={sourceDiff.data} showDiffToggle={source.data.branch_commits.length > 0} />
   }
 
-  return <SourceBrowser expandedPaths={expandedPaths} mode={mode} onModeChange={setMode} payload={source.data} setExpandedPaths={setExpandedPaths} onSelectPath={(path) => {
+  return <SourceBrowser coverageWorkflowId={coverageWorkflowId} expandedPaths={expandedPaths} hitMapAttached={hitMapAttached} mode={mode} onModeChange={setMode} payload={source.data} setExpandedPaths={setExpandedPaths} onSelectPath={(path) => {
     setSourceRef(source.data.selected_ref)
     setSourcePath(path)
   }} onSelectRef={(ref) => {
@@ -2115,7 +2154,9 @@ function SourceTab({ jobId }: { jobId: string }) {
 }
 
 function SourceBrowser({
+  coverageWorkflowId,
   expandedPaths,
+  hitMapAttached,
   mode,
   onModeChange,
   payload,
@@ -2124,7 +2165,9 @@ function SourceBrowser({
   onSelectRef,
   showDiffToggle
 }: {
+  coverageWorkflowId: number | null
   expandedPaths: Set<string>
+  hitMapAttached: boolean
   mode: "browse" | "diff"
   onModeChange: (mode: "browse" | "diff") => void
   payload: JobSourcePayload
@@ -2138,6 +2181,14 @@ function SourceBrowser({
   const tree = useMemo(() => buildSourceTree(visibleItems), [visibleItems])
   const refOptions = refOptionsFor(payload, [payload.selected_ref])
   const fileLanguage = payload.file ? sourceLanguage(payload.file.language) : null
+  const selectedFilePath = payload.file?.path ?? null
+
+  const hitMap = useQuery({
+    enabled: hitMapAttached && coverageWorkflowId != null && selectedFilePath != null,
+    queryKey: ["workflow_coverage_hit_map", coverageWorkflowId, selectedFilePath],
+    queryFn: () => fetchWorkflowCoverageHitMap(coverageWorkflowId!, selectedFilePath!),
+    staleTime: 5 * 60 * 1000
+  })
 
   if (payload.source_error) return <PanelMessage tone="error">{payload.source_error}</PanelMessage>
 
@@ -2152,6 +2203,8 @@ function SourceBrowser({
       return next
     })
   }
+
+  const hitLines = hitMap.isSuccess && hitMap.data.hit_map_attached ? hitMap.data.lines : null
 
   return (
     <SourceShell mode={mode} onModeChange={onModeChange} showDiffToggle={showDiffToggle}>
@@ -2187,14 +2240,63 @@ function SourceBrowser({
                 <span>{payload.file.language}</span>
                 <span>{formatBytes(payload.file.size)}</span>
               </div>
-              <pre className="m-0 overflow-x-auto p-4 text-sm leading-relaxed text-gray-900 dark:text-gray-100">
-                <code>{fileLanguage ? highlightCode(payload.file.content, fileLanguage) : payload.file.content}</code>
-              </pre>
+              {hitLines ? (
+                <CoverageAnnotatedSource content={payload.file.content} fileLanguage={fileLanguage} hitLines={hitLines} />
+              ) : (
+                <>
+                  {hitMapAttached && !hitMap.isSuccess ? (
+                    <p className="px-4 pt-2 text-xs text-gray-400 dark:text-gray-500">{t("source_coverage_loading")}</p>
+                  ) : hitMapAttached === false && coverageWorkflowId != null && selectedFilePath != null ? (
+                    <p className="px-4 pt-2 text-xs text-gray-400 dark:text-gray-500">{t("source_coverage_expired")}</p>
+                  ) : null}
+                  <pre className="m-0 overflow-x-auto p-4 text-sm leading-relaxed text-gray-900 dark:text-gray-100">
+                    <code>{fileLanguage ? highlightCode(payload.file.content, fileLanguage) : payload.file.content}</code>
+                  </pre>
+                </>
+              )}
             </>
           ) : <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_select_file")}</div>}
         </div>
       </div>
     </SourceShell>
+  )
+}
+
+function CoverageAnnotatedSource({ content, fileLanguage, hitLines }: {
+  content: string
+  fileLanguage: ReturnType<typeof sourceLanguage>
+  hitLines: Record<string, number>
+}) {
+  const lines = content.split("\n")
+  return (
+    <table className="min-w-full border-separate border-spacing-0 font-mono text-sm" data-testid="coverage-annotated-source">
+      <tbody>
+        {lines.map((line, i) => {
+          const lineNum = i + 1
+          const hits = hitLines[String(lineNum)]
+          const rowClass = hits === undefined
+            ? "bg-white dark:bg-gray-950"
+            : hits > 0
+            ? "bg-green-50 dark:bg-green-950/30"
+            : "bg-red-50 dark:bg-red-950/30"
+          return (
+            <tr className={rowClass} data-coverage-hits={hits} data-line={lineNum} key={lineNum}>
+              <td className="w-4 select-none border-r border-gray-200 px-1 text-right text-xs text-gray-400 dark:border-gray-800 dark:text-gray-500">
+                {hits === undefined ? null : hits > 0 ? (
+                  <span className="text-emerald-600 dark:text-emerald-400" title={`${hits} hit${hits !== 1 ? "s" : ""}`}>✓</span>
+                ) : (
+                  <span className="text-red-600 dark:text-red-400" title="not covered">✗</span>
+                )}
+              </td>
+              <td className="w-10 select-none px-2 text-right text-xs text-gray-400 dark:text-gray-600">{lineNum}</td>
+              <td className="min-w-[40rem] whitespace-pre px-3 py-0.5 leading-relaxed text-gray-900 dark:text-gray-100">
+                {fileLanguage ? highlightCode(line, fileLanguage) : line}
+              </td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
   )
 }
 
@@ -2232,6 +2334,7 @@ function SourceShell({
 }
 
 function SourceDiffBrowser({
+  diffAnnotations,
   mode,
   onModeChange,
   onSelectBaseRef,
@@ -2239,6 +2342,7 @@ function SourceDiffBrowser({
   payload,
   showDiffToggle
 }: {
+  diffAnnotations: Record<string, Record<string, LineAnnotation>> | null
   mode: "browse" | "diff"
   onModeChange: (mode: "browse" | "diff") => void
   onSelectBaseRef: (ref: string) => void
@@ -2300,7 +2404,7 @@ function SourceDiffBrowser({
                   <span>+{selectedFile.additions}</span>
                   <span>-{selectedFile.deletions}</span>
                 </div>
-                <AgentDiff diff={selectedFile.patch} />
+                <AgentDiff annotations={diffAnnotations?.[selectedFile.path]} diff={selectedFile.patch} />
               </>
             ) : <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_diff_not_available")}</div>
           ) : <div className="flex h-full min-h-[20rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_select_diff_file")}</div>}

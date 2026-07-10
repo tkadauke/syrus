@@ -201,7 +201,11 @@
     "retry_next": "proxima {{time}}",
     "showing": "Ostenduntur {{first}}–{{last}} ex {{total}}",
     "previous": "Prior",
-    "next": "Sequens"
+    "next": "Sequens",
+    "coverage_trend_label": "Progressus coberturarum (30 dies)",
+    "coverage_trend_aria": "Scintilla progressus coberturarum",
+    "coverage_trend_lines": "Lineae",
+    "coverage_trend_branches": "Rami"
   },
   "memories": {
     "heading": "Memoriae",

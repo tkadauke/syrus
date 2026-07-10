@@ -242,6 +242,31 @@ module Api
           )
         end
 
+        def coverage_trend
+          repository = find_repository
+          days = [ params.fetch(:days, 30).to_i, 90 ].min.clamp(1, 90)
+
+          rows = CoverageSnapshot
+            .where(repository: repository)
+            .where("created_at >= ?", days.days.ago)
+            .order(created_at: :asc)
+            .pluck(:created_at, :lines_pct, :branches_pct, :functions_pct, :branch)
+
+          render json: {
+            repository_id: repository.id,
+            days: days,
+            points: rows.map { |created_at, lines_pct, branches_pct, functions_pct, branch|
+              {
+                date: created_at.to_date.iso8601,
+                lines_pct: lines_pct,
+                branches_pct: branches_pct,
+                functions_pct: functions_pct,
+                branch: branch
+              }
+            }
+          }
+        end
+
         private
 
         def form_payload(repository)

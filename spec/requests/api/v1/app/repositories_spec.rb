@@ -833,4 +833,88 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     expect(response).to have_http_status(:ok)
     expect(repository.reload.feedback_policy).to eq("confirm")
   end
+
+  describe "GET /api/v1/app/repositories/:id/coverage_trend" do
+    def create_snapshot(repository:, workflow:, lines_pct:, branches_pct: nil, functions_pct: nil, branch: "main", created_at: Time.current)
+      CoverageSnapshot.create!(
+        repository: repository,
+        workflow: workflow,
+        sha: "abc#{rand(999)}",
+        branch: branch,
+        lines_pct: lines_pct,
+        branches_pct: branches_pct,
+        functions_pct: functions_pct
+      ).tap { |s| s.update_columns(created_at: created_at) }
+    end
+
+    it "returns ordered coverage points for the repository" do
+      sign_in_as(user)
+      repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+      job = Factories.job(repository: repository)
+      workflow = job.workflows.first
+
+      older = create_snapshot(repository: repository, workflow: workflow, lines_pct: 80.0, branches_pct: 70.0, functions_pct: 90.0, created_at: 5.days.ago)
+      newer = create_snapshot(repository: repository, workflow: workflow, lines_pct: 85.5, branches_pct: 75.0, functions_pct: 92.0, created_at: 1.day.ago)
+
+      get "/api/v1/app/repositories/#{repository.id}/coverage_trend"
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["repository_id"]).to eq(repository.id)
+      expect(body["days"]).to eq(30)
+      points = body["points"]
+      expect(points.size).to eq(2)
+      expect(points.first["date"]).to eq(older.created_at.to_date.iso8601)
+      expect(points.first["lines_pct"].to_f).to eq(80.0)
+      expect(points.first["branches_pct"].to_f).to eq(70.0)
+      expect(points.first["functions_pct"].to_f).to eq(90.0)
+      expect(points.first["branch"]).to eq("main")
+      expect(points.last["date"]).to eq(newer.created_at.to_date.iso8601)
+      expect(points.last["lines_pct"].to_f).to eq(85.5)
+    end
+
+    it "returns empty points when no snapshots exist" do
+      sign_in_as(user)
+      repository = Factories.repository(user: user)
+
+      get "/api/v1/app/repositories/#{repository.id}/coverage_trend"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["points"]).to eq([])
+    end
+
+    it "excludes snapshots older than the requested days window" do
+      sign_in_as(user)
+      repository = Factories.repository(user: user)
+      job = Factories.job(repository: repository)
+      workflow = job.workflows.first
+
+      create_snapshot(repository: repository, workflow: workflow, lines_pct: 70.0, created_at: 40.days.ago)
+      recent = create_snapshot(repository: repository, workflow: workflow, lines_pct: 80.0, created_at: 5.days.ago)
+
+      get "/api/v1/app/repositories/#{repository.id}/coverage_trend", params: { days: 30 }
+
+      expect(response).to have_http_status(:ok)
+      dates = parse_body["points"].map { |p| p["date"] }
+      expect(dates).to include(recent.created_at.to_date.iso8601)
+      expect(dates.size).to eq(1)
+    end
+
+    it "returns 401 when signed out" do
+      repository = Factories.repository(user: user)
+
+      get "/api/v1/app/repositories/#{repository.id}/coverage_trend"
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "returns 404 for another user's repository" do
+      sign_in_as(user)
+      foreign = Factories.repository(user: Factories.user)
+
+      get "/api/v1/app/repositories/#{foreign.id}/coverage_trend"
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
 end
