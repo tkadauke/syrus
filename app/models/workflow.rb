@@ -376,6 +376,7 @@ class Workflow < ApplicationRecord
     trigger_kind == "coding_handoff"
   end
 
+
   # Infrastructure workflows manage their own Job lifecycle via after_success/
   # after_fail hooks. The normal propagate_*_to_job! cascade is skipped so
   # these hidden jobs don't surface in the operator-facing state machine.
@@ -412,6 +413,7 @@ class Workflow < ApplicationRecord
   def purge_coverage_hit_map!
     coverage_hit_map.purge
   end
+
 
   private
 
