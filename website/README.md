@@ -49,7 +49,10 @@ release (`release.yml` → `publish-website`).
 ## Content
 
 Copy lives in `lib/site.ts` (hero, workflow steps, feature pillars, entry
-points) and `lib/legal.ts` (Impressum + privacy). Pages are under `app/`.
+points) and `lib/legal.ts` (Impressum + privacy). Pages are under `src/app/`
+(Next.js App Router; the `src/` directory layout is used so that `src/pages/`
+and `src/content/docs/` can hold the source-of-truth markdown docs alongside
+the framework code).
 
 ## Information Architecture
 
