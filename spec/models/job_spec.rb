@@ -1812,5 +1812,47 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
         expect(job.reload).to be_implemented
       end
     end
+
+    describe "#complete_coding_handoff!" do
+      it "returns the job to implemented while keeping linked_chat_id" do
+        job = Factories.job_record(user: user, repository: repository, state: "coding",
+                                   linked_chat_id: chat_session.id)
+
+        result = job.complete_coding_handoff!
+
+        expect(result).to be(true)
+        expect(job.reload).to be_implemented
+        expect(job.linked_chat_id).to eq(chat_session.id)
+      end
+
+      it "cancels held initial workflows" do
+        job = Factories.job_record(user: user, repository: repository, state: "coding",
+                                   linked_chat_id: chat_session.id)
+        initial_workflow = Workflow.create!(job: job, trigger_kind: "initial")
+        Step.create!(workflow: initial_workflow, kind: "implement", position: 0)
+
+        job.complete_coding_handoff!
+
+        expect(initial_workflow.reload).to be_cancelled
+      end
+
+      it "does not cancel non-initial workflows" do
+        job = Factories.job_record(user: user, repository: repository, state: "coding",
+                                   linked_chat_id: chat_session.id)
+        pr_comment_workflow = Workflow.create!(job: job, trigger_kind: "pr_comment")
+        Step.create!(workflow: pr_comment_workflow, kind: "respond", position: 0)
+
+        job.complete_coding_handoff!
+
+        expect(pr_comment_workflow.reload).to be_queued
+      end
+
+      it "returns false when job is not in coding state" do
+        job = Factories.job_record(user: user, repository: repository, state: "implemented")
+
+        expect(job.complete_coding_handoff!).to be(false)
+        expect(job.reload).to be_implemented
+      end
+    end
   end
 end

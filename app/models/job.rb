@@ -464,6 +464,25 @@ class Job < ApplicationRecord
     true
   end
 
+  # Hand off a Coding Mode Job to Syrus automation for grading.
+  # Unlike release_coding_mode_takeover!, this KEEPS linked_chat_id so
+  # grader results can be routed back to the owning chat session. Cancels
+  # any held initial workflows (their implement step is no longer needed —
+  # the coding session already did the implementation). The caller is
+  # responsible for instantiating and starting a coding_handoff workflow.
+  def complete_coding_handoff!
+    return false unless coding?
+
+    workflows.where(trigger_kind: "initial", state: "queued").find_each do |wf|
+      wf.cancel! if wf.may_cancel?
+      wf.save!
+    end
+
+    release_from_coding! if may_release_from_coding?
+    save!
+    true
+  end
+
   def approve_for_landing!
     return true if approved? || landing? || closed?
 

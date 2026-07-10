@@ -22,10 +22,10 @@ class StepDispatcher
     return unless first
     return if first.runs.any?
 
-    if Feature.coding_mode_enabled? && workflow.job.linked_chat_id.present?
+    if Feature.coding_mode_enabled? && workflow.job.coding?
       Rails.logger.info(
         "[StepDispatcher] workflow #{workflow.id} (#{workflow.trigger_kind}) held: " \
-        "job #{workflow.job_id} locked by chat #{workflow.job.linked_chat_id}"
+        "job #{workflow.job_id} in coding state (linked_chat_id=#{workflow.job.linked_chat_id})"
       )
       return
     end

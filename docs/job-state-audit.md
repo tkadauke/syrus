@@ -27,16 +27,24 @@ states are listed only as `from:` and have no event that enters them.
 ### Coding Mode lock (`linked_chat_id`)
 
 When a Job is in `:coding` state, `linked_chat_id` is set to the owning
-`ChatSession`. `StepDispatcher.start_workflow` skips dispatch while this
-column is non-null (and the `coding_mode` feature flag is on), leaving any
-newly-created workflows queued. They drain when `Job#release_coding_mode_takeover!`
-clears the lock and calls `start_pending_workflows_if_dependencies_satisfied!`.
+`ChatSession`. `StepDispatcher.start_workflow` skips dispatch while the Job is
+in `:coding` state (and the `coding_mode` feature flag is on), leaving any
+newly-created workflows queued.
 
-Two cancel paths:
+Three exit paths from `:coding`:
+
 - **New-job cancel** (`Job#cancel_new_coding_job!`): clears `linked_chat_id` then
   closes the Job via `close` (`coding → closed`).
 - **Takeover cancel** (`Job#release_coding_mode_takeover!`): clears `linked_chat_id`
   then fires `release_from_coding` (`coding → implemented`) and drains queued workflows.
+  Used when the operator discards the coding session without handing off.
+- **Handoff** (`Job#complete_coding_handoff!`): fires `release_from_coding`
+  (`coding → implemented`) but **keeps `linked_chat_id`** so grader results can be
+  routed back to the owning session. Also cancels held `initial` workflows (whose
+  `implement` step the coding session has already performed). The caller then
+  instantiates a `coding_handoff` workflow
+  (prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open)
+  which runs freely because the job is no longer in `:coding` state.
 
 ## Events
 
@@ -50,7 +58,7 @@ Two cancel paths:
 | `approve` | `implemented → approved` | before: assign_approval_metadata | JobsController, app dashboard bulk API, AutoApprovalRule, PollMergeStateJob, PollPullRequestJob |
 | `unapprove` | `approved → implemented` | after: clear_approval_metadata | JobsController, `ChatFeedbackSubmission`, `Job#lock_for_coding_mode!` |
 | `claim_for_coding` | `[queued, implemented] → coding` | none | `Job#lock_for_coding_mode!` |
-| `release_from_coding` | `coding → implemented` | none | `Job#release_coding_mode_takeover!` |
+| `release_from_coding` | `coding → implemented` | none | `Job#release_coding_mode_takeover!`, `Job#complete_coding_handoff!` |
 | `land` | `approved → landing` | none | **None** (see Finding 4) |
 | `start_landing` | `approved → landing` | none | LandingQueueProcessor#land |
 | `mark_merged` | `landing → merged` | after: lambda (finished_at, closure_reason, scheduled task outcome, refresh_epic_auto_state) | **None** (see Finding 2) |

@@ -97,7 +97,7 @@ RSpec.describe StepDispatcher do
       it "leaves the workflow queued and does not create a Run when the flag is on" do
         enable_coding_mode!
         chat = ChatSession.create!(user: job.user)
-        job.update!(linked_chat_id: chat.id)
+        job.update!(state: "coding", linked_chat_id: chat.id)
 
         expect {
           described_class.start_workflow(workflow)
@@ -109,22 +109,22 @@ RSpec.describe StepDispatcher do
       it "logs an info message when blocked by coding mode lock" do
         enable_coding_mode!
         chat = ChatSession.create!(user: job.user)
-        job.update!(linked_chat_id: chat.id)
+        job.update!(state: "coding", linked_chat_id: chat.id)
 
-        expect(Rails.logger).to receive(:info).with(include("held", "locked by chat"))
+        expect(Rails.logger).to receive(:info).with(include("held", "in coding state"))
         described_class.start_workflow(workflow)
       end
 
-      it "starts the workflow normally when the feature flag is off even if linked_chat_id is set" do
+      it "starts the workflow normally when the feature flag is off even if the job is in coding state" do
         chat = ChatSession.create!(user: job.user)
-        job.update!(linked_chat_id: chat.id)
+        job.update!(state: "coding", linked_chat_id: chat.id)
 
         expect {
           described_class.start_workflow(workflow)
         }.to change { s1.runs.count }.by(1)
       end
 
-      it "starts queued workflows after the lock is released" do
+      it "starts queued workflows after the lock is released via release_coding_mode_takeover!" do
         enable_coding_mode!
         chat = ChatSession.create!(user: job.user)
         job.update!(state: "coding", linked_chat_id: chat.id)
@@ -134,6 +134,22 @@ RSpec.describe StepDispatcher do
         job.release_coding_mode_takeover!
 
         expect(s1.runs.reload.count).to eq(1)
+      end
+
+      it "starts a new workflow after handoff even when linked_chat_id is preserved" do
+        enable_coding_mode!
+        chat = ChatSession.create!(user: job.user)
+        job.update!(state: "coding", linked_chat_id: chat.id)
+
+        # Simulate complete_coding_handoff!: job is now :implemented but
+        # linked_chat_id is still set for grader routing.
+        job.update!(state: "implemented")
+        handoff_workflow = Workflow.create!(job: job, trigger_kind: "coding_handoff")
+        step = Step.create!(workflow: handoff_workflow, kind: "grader_fanout", position: 0)
+
+        expect {
+          described_class.start_workflow(handoff_workflow)
+        }.to change { step.runs.count }.by(1)
       end
     end
 
