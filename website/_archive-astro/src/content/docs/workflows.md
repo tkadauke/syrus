@@ -26,13 +26,17 @@ Retries create new Runs without erasing the old transcript.
 
 Trigger: a GitHub issue with the repository's trigger label, or a new cron
 or direct Job that uses the standard issue-to-PR path. Steps:
-`prepare -> retry_until(implement -> grader_fanout -> grader_collect) -> summarize -> test_plan -> pr_open`.
+`prepare -> retry_until(implement -> grader_fanout -> grader_collect) -> coverage_analyze -> summarize -> test_plan -> pr_open`.
 The agent makes and commits the change during `implement`, graders run from
 the repository's `grade:` configuration, and failed required graders feed
-the next bounded repair iteration. `summarize` collects PR copy via MCP and
+the next bounded repair iteration. `coverage_analyze` parses coverage
+artifacts produced by graders when `coverage:` is configured in
+`.syrus.yml`, evaluates thresholds, and pre-renders a PR comment body when
+`pr_comment: true`. `summarize` collects PR copy via MCP and
 amends the commit message. `test_plan` stores reviewer-facing checks, which
 `pr_open` appends as a `Test Plan` section before pushing the branch and
-opening the pull request. For GitHub issue Jobs, the implement prompt includes the
+opening the pull request. When a coverage PR comment body was pre-rendered,
+`pr_open` posts it as a GitHub comment on the newly created PR. For GitHub issue Jobs, the implement prompt includes the
 original issue title and body plus subsequent issue comments in
 chronological order, so clarifications added before the Run starts are part
 of the agent context. A successful Initial workflow leaves the Job open
@@ -41,7 +45,7 @@ with a PR number attached.
 ### PrFeedback
 
 Trigger: new review feedback or PR comments on an existing Syrus PR. Steps:
-`prepare -> retry_until(respond -> grader_fanout -> grader_collect) -> summarize_amend -> try(push)`.
+`prepare -> retry_until(respond -> grader_fanout -> grader_collect) -> coverage_analyze -> coverage_pr_comment -> summarize_amend -> try(push)`.
 The agent receives the new comments plus PR context, commits follow-up
 changes on the existing branch, and graders can force another bounded
 response iteration before `summarize_amend` rewrites the follow-up commit
@@ -54,7 +58,7 @@ rebase; if that conflicts, it expands a recovery branch:
 
 Trigger: operator-confirmed feedback proposed from Syrus Chat on an
 implemented or approved Job. Steps:
-`prepare -> retry_until(respond -> grader_fanout -> grader_collect) -> summarize_amend -> try(push)`.
+`prepare -> retry_until(respond -> grader_fanout -> grader_collect) -> coverage_analyze -> coverage_pr_comment -> summarize_amend -> try(push)`.
 The agent receives the agreed chat feedback as structured workflow input
 and commits follow-up changes on the existing branch. Submitting feedback
 on an approved Job unapproves it so the updated PR returns to review before
@@ -86,7 +90,7 @@ for landing.
 ### Retry
 
 Trigger: an operator retries a failed or completed Job. Steps:
-`prepare -> retry_until(implement -> grader_fanout -> grader_collect) -> summarize -> pr_open`.
+`prepare -> retry_until(implement -> grader_fanout -> grader_collect) -> coverage_analyze -> summarize -> pr_open`.
 It has the same shape as Initial, but runs on the existing Job and branch.
 `pr_open` is idempotent: if a PR already exists, it pushes the new commits
 instead of opening a second PR.
@@ -175,6 +179,8 @@ rolling cap prevents endless CI-failure loops on the same Job.
 | `summarize` | Yes | Collect PR title/body/summary through MCP |
 | `summarize_amend` | Yes | Produce follow-up commit copy for PR feedback and CI-failure workflows |
 | `test_plan` | Yes | Collect reviewer-facing test steps for Initial PR bodies |
+| `coverage_analyze` | No | Parse coverage artifacts, compute diff annotations, evaluate thresholds, and pre-render a PR comment body when `coverage.pr_comment: true` |
+| `coverage_pr_comment` | No | Post or update the coverage report comment on an existing PR (subsequent workflows); always a no-op when no coverage comment body was produced |
 | `pr_open` | No | Push the branch and open the pull request. For cross-fork Jobs (target repository differs from the working repository), opens a **fork review PR** (feature branch → fork default branch) as a staging artifact instead of the upstream PR directly. The upstream PR is created after the fork review PR is approved or merged. |
 | `push` | No | Push commits to an existing PR branch, update the cost footer, and clean-rebase once if the remote branch advanced |
 | `push_agent_rebase` | Yes | Resolve a conflicting follow-up push rebase onto the current remote PR branch |

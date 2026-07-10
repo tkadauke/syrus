@@ -15,6 +15,9 @@ class Workflow
   #   coverage_unavailable: Boolean
   #   sources_status:    [{ "artifact" => String, "found" => Boolean, "lines_pct" => Float }]
   #   hit_map_attached:  Boolean
+  #   pr_comment_body:   String (markdown) — present when coverage.pr_comment: true;
+  #                      consumed by Steps::PrOpen (initial) and Steps::CoveragePrComment
+  #                      (subsequent workflows) to post/update the GitHub PR comment
   module CoverageArtifact
     ARTIFACT_KEY = "coverage"
 

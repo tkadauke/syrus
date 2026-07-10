@@ -36,6 +36,7 @@ module Steps
       if job.pr_number.present?  # idempotent: upstream PR already open (non-fork or post-approval)
         log("pr_open: branch pushed for existing PR ##{job.pr_number}")
         transition_job_to_implemented!
+        post_coverage_comment_if_present
         return
       end
 
@@ -43,6 +44,7 @@ module Steps
         open_fork_review_pr
       else
         open_pr
+        post_coverage_comment_if_present
       end
     end
 
@@ -287,6 +289,32 @@ module Steps
         body = PrCostFooter.apply(PrStackFooter.apply(pr.body.to_s, stack_job), stack_job)
         client.update_pull_request_body(pr_repo.slug, stack_job.pr_number, body)
       end
+    end
+
+    def post_coverage_comment_if_present
+      pr_comment_body = workflow.artifact("coverage")&.[]("pr_comment_body")
+      return unless pr_comment_body.present?
+
+      pr_number = job.pr_number
+      return unless pr_number.present?
+
+      pr_repo   = job.effective_pr_repository
+      client    = GithubClient.for(repository: pr_repo, user: job.user)
+      repo_slug = pr_repo.slug
+
+      existing = client.pr_issue_comments(repo_slug, pr_number).find do |comment|
+        comment.body.to_s.include?(Coverage::PrCommentFormatter::MARKER)
+      end
+
+      if existing
+        client.update_issue_comment(repo_slug, existing.id, pr_comment_body)
+        log("[pr_open] updated coverage comment ##{existing.id} on PR ##{pr_number}")
+      else
+        client.add_issue_comment(repo_slug, pr_number, pr_comment_body)
+        log("[pr_open] posted coverage comment on PR ##{pr_number}")
+      end
+    rescue => e
+      log("[pr_open] failed to post coverage comment: #{e.class}: #{e.message}")
     end
 
     def attribution_footer(implement_run)

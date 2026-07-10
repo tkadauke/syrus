@@ -95,6 +95,53 @@ The workflow chain is created before the workspace clone exists, so Syrus
 reads this setting from `.syrus.yml` on the repository's default branch. If
 the file or setting is absent, adversarial review is disabled.
 
+### `coverage`
+
+`coverage` enables test coverage tracking, threshold enforcement, and PR
+comment reporting. Syrus reads coverage artifacts produced by your grader
+commands and inserts a `coverage_analyze` step after grading.
+
+```yaml
+coverage:
+  sources:
+    - artifact: coverage/lcov.info
+      format: lcov          # lcov | cobertura
+  threshold:
+    lines: 80               # overall line coverage minimum (%)
+    pr_lines: 90            # PR-diff line coverage minimum (%)
+  on_miss: warn             # block | warn | schedule
+  pr_comment: true          # post a coverage report comment on the PR
+  hitmap_ttl_days: 7        # how long to keep the full hit map blob
+```
+
+**`sources`** (required) — list of coverage artifact files and their format.
+LCOV is the recommended format (supported by SimpleCov, Jest/nyc, coverage.py,
+gcov2lcov, and llvm-cov). Cobertura XML is also accepted. Add as many sources
+as you have test suites; Syrus merges them before analysis.
+
+**`threshold`** — optional pass/fail gate. `lines` checks overall line
+coverage; `pr_lines` checks coverage on lines changed in the PR diff. A miss
+triggers `on_miss` behavior:
+
+| `on_miss` | Effect |
+|-----------|--------|
+| `warn` (default) | Step succeeds; threshold miss is recorded in the artifact |
+| `block` | Step fails, stopping the workflow before PR creation |
+| `schedule` | Step succeeds; a new coverage-fix Job is enqueued |
+
+**`pr_comment`** — when `true`, Syrus posts (or updates) a coverage report
+comment on the PR after each workflow run. The comment includes an overall
+summary table with threshold status badges and a collapsible per-file table
+for changed files. Syrus upserts the comment — later runs update the existing
+comment in place rather than creating duplicates. For initial workflows the
+comment is posted by the `pr_open` step; for subsequent workflows
+(`pr_comment`, `chat_feedback`) a dedicated `coverage_pr_comment` step handles
+it.
+
+**`hitmap_ttl_days`** — how long Syrus retains the full line hit map blob
+(default 7 days). The hit map drives source-browser line highlighting and
+diff annotations in the UI.
+
 ### `hooks.post_checkout`
 
 `hooks.post_checkout` commands are optional shell strings. They run only

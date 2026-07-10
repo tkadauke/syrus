@@ -97,6 +97,10 @@ module Steps
         }
       end
 
+      if plan.pr_comment
+        artifact["pr_comment_body"] = Coverage::PrCommentFormatter.new(artifact, plan: plan).format
+      end
+
       artifact
     end
 
