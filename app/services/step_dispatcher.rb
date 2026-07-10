@@ -42,12 +42,26 @@ class StepDispatcher
       return
     end
 
+    if main_health_blocking?(workflow)
+      warn_if_stuck_queued(workflow, "main_branch_broken")
+      return
+    end
+
     run = create_run_and_enqueue(first, workflow,
                                  parent_session_id: parent_session_id,
                                  prompt: prompt)
     workflow.job.log_pending_dependency_warnings!
     log_prepare_skip(run, workflow)
     run
+  end
+
+  # Rebase and stack-rebase workflows must proceed even when main is broken —
+  # they may be part of the recovery path. All other workflows are held.
+  MAIN_HEALTH_EXEMPT_TRIGGERS = %w[ rebase stack_rebase ].freeze
+
+  def self.main_health_blocking?(workflow)
+    return false if MAIN_HEALTH_EXEMPT_TRIGGERS.include?(workflow.trigger_kind)
+    workflow.job.repository.main_health_broken?
   end
 
   def self.cancel_unstartable_rebase_workflow!(workflow, reason)
