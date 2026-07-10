@@ -4633,7 +4633,7 @@ function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { payload: C
   const modeOptions: Array<{ value: ChatMode | ""; label: string }> = [
     { value: "", label: t("mode_default") },
     { value: "planning", label: t("mode_planning") },
-    { value: "coding", label: t("mode_coding") },
+    ...(payload.coding_mode_enabled ? [{ value: "coding" as ChatMode, label: t("mode_coding") }] : []),
     ...(payload.local_mode_enabled ? [{ value: "local" as ChatMode, label: t("mode_local") }] : [])
   ]
   const mode = useMutation({
