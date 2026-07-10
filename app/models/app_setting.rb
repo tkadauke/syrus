@@ -26,6 +26,10 @@ class AppSetting < ApplicationRecord
     only_integer: true,
     greater_than_or_equal_to: 0
   }
+  validates :main_concern_report_threshold, numericality: {
+    only_integer: true,
+    greater_than_or_equal_to: 1
+  }
 
   encrypts :github_app_private_key_pem
 
@@ -48,6 +52,10 @@ class AppSetting < ApplicationRecord
 
   def self.adversarial_review_rounds
     current.adversarial_review_rounds
+  end
+
+  def self.main_concern_report_threshold
+    current.main_concern_report_threshold
   end
 
   # Epic merge-train (see docs/plans/landing-merge-train.md). Default

@@ -105,4 +105,23 @@ RSpec.describe Prompts::GradeFailureFeedback do
     expect(out).not_to include("CALL THE `submit_summary` MCP TOOL")
     expect(out).not_to include(Prompts::SubmitSummaryInstructions::TEXT)
   end
+
+  it "advises calling report_main_concern when graders fail in unmodified files" do
+    iterations = [
+      [
+        { "name" => "tests", "status" => "failed", "exit_code" => 1, "output" => "failure\n" }
+      ]
+    ]
+
+    out = described_class.new(iterations: iterations).to_s
+
+    expect(out).to include("report_main_concern")
+    expect(out).to include("files you did not touch")
+  end
+
+  it "does not include report_main_concern guidance when no iterations exist" do
+    out = described_class.new(iterations: []).to_s
+
+    expect(out).not_to include("report_main_concern")
+  end
 end
