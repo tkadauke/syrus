@@ -39,7 +39,8 @@ class Step
       Entry.new(kind: "merge_train_rebase", handler: "MergeTrainRebase", label: "Rebase integration branch", style: "bg-teal-100 text-teal-700", agentic: false),
       Entry.new(kind: "merge_train_land_after_rebase", handler: "MergeTrainLandAfterRebase", label: "Land Epic after rebase", style: "bg-green-100 text-green-800", agentic: false),
       Entry.new(kind: "manual", handler: "Manual", label: "Manual", style: "bg-gray-100 text-gray-700", agentic: true),
-      Entry.new(kind: "coverage_analyze", handler: "CoverageAnalyze", label: "Analyze coverage", style: "bg-yellow-100 text-yellow-700", agentic: false)
+      Entry.new(kind: "coverage_analyze", handler: "CoverageAnalyze", label: "Analyze coverage", style: "bg-yellow-100 text-yellow-700", agentic: false),
+      Entry.new(kind: "coverage_pr_comment", handler: "CoveragePrComment", label: "Post coverage comment", style: "bg-yellow-100 text-yellow-700", agentic: false)
     ].freeze
 
     BY_KIND = ENTRIES.index_by(&:kind).freeze
