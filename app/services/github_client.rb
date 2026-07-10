@@ -430,6 +430,28 @@ class GithubClient
     raise
   end
 
+  # Summarizes check run state for a commit SHA. Returns a hash:
+  #   { any?: bool, pending?: bool, any_failed?: bool, all_passed?: bool }
+  # Used by PollMainBranchHealthJob to classify default-branch CI health.
+  # "pending" means at least one check is still queued or in_progress.
+  # "any_failed?" is true when any completed check has a FAILED_CONCLUSIONS value.
+  # "all_passed?" is true when every check is completed with a passing conclusion.
+  PASSING_CONCLUSIONS = %w[success neutral skipped].freeze
+
+  def check_runs_summary_for(repo_slug, sha)
+    runs = Array(track_rate_limits { @client.check_runs_for_ref(repo_slug, sha) }.check_runs)
+    return { any?: false, pending?: false, any_failed?: false, all_passed?: false } if runs.empty?
+
+    pending = runs.any? { |cr| cr.status != "completed" }
+    any_failed = runs.any? { |cr| cr.status == "completed" && FAILED_CONCLUSIONS.include?(cr.conclusion) }
+    all_passed = !pending && runs.all? { |cr| PASSING_CONCLUSIONS.include?(cr.conclusion) }
+
+    { any?: true, pending?: pending, any_failed?: any_failed, all_passed?: all_passed }
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug}@#{sha} check_runs_summary: #{e.message}")
+    raise
+  end
+
   # Returns { number:, url: } of the first OPEN PR that claims to close
   # this issue ("Closes #N" / "Fixes #N" / "Resolves #N" in the body, or
   # the manual GitHub "Linked issues" UI), or nil if there isn't one.
