@@ -12,6 +12,11 @@ class AutoRetryScheduler
     return unless workflow.failed?
     return if pending_attempt_exists?
 
+    if workflow.artifact("main_broken")
+      log("auto-retry skipped: main branch broken; workflow will resume once main is fixed")
+      return
+    end
+
     classification = AutoRetryFailureClassifier.call(workflow: workflow)
     unless classification.retryable?
       log("auto-retry skipped: #{classification.reason}")

@@ -162,6 +162,27 @@ RSpec.describe LandingQueueProcessor do
     expect(described_class.call.job).to eq(job)
   end
 
+  it "blocks approved Jobs when the repository has landing_paused set" do
+    job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+    repository.update!(landing_paused: true)
+
+    expect(described_class.call).to be_nil
+    expect(job.reload).to be_approved
+
+    entry = described_class.entries(Job.where(id: job.id)).first
+    expect(entry.blocked_reason).to eq("landing paused: main branch broken")
+  end
+
+  it "resumes landing for a repository once repository.landing_paused is cleared" do
+    job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+    repository.update!(landing_paused: true)
+
+    expect(described_class.call).to be_nil
+
+    repository.update!(landing_paused: false)
+    expect(described_class.call.job).to eq(job)
+  end
+
   it "blocks approved Jobs after a no-op rebase while GitHub still reports unmergeable" do
     job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
     job.update!(pr_mergeable: false)

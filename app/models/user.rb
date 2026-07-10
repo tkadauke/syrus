@@ -115,7 +115,8 @@ class User < ApplicationRecord
     "pr_comment_addressed" => true,
     "pr_merged" => true,
     "epic_completed" => false,
-    "upstream_pr_closed" => true
+    "upstream_pr_closed" => true,
+    "main_broken" => true
   }.freeze
   DASHBOARD_VIEWS = %w[list kanban].freeze
 
