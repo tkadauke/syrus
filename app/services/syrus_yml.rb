@@ -19,6 +19,7 @@ class SyrusYml
   ParseError = Class.new(StandardError)
   ConfigError = Class.new(ParseError)
 
+
   Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :coverage)
   GradeConfig = Data.define(:max_iterations, :steps)
   GradeStep = Data.define(:name, :run, :description, :required, :timeout_minutes)
