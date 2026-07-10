@@ -43,6 +43,7 @@ func NewRootCommand() *cobra.Command {
 	rootCmd.AddCommand(NewWhoamiCommand())
 	rootCmd.AddCommand(NewScheduleCommand())
 	rootCmd.AddCommand(NewSkillCommand())
+	rootCmd.AddCommand(NewLocalCommand())
 	return rootCmd
 }
 

@@ -683,6 +683,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_12_202210) do
     t.index ["validity"], name: "index_jobs_on_validity"
   end
 
+  create_table "local_tunnel_sessions", force: :cascade do |t|
+    t.string "branch"
+    t.integer "chat_session_id"
+    t.datetime "connected_at"
+    t.datetime "created_at", null: false
+    t.datetime "disconnected_at"
+    t.string "repo_slug"
+    t.string "status", default: "connected", null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["user_id", "status"], name: "index_local_tunnel_sessions_on_user_id_and_status"
+    t.index ["user_id"], name: "index_local_tunnel_sessions_on_user_id"
+  end
+
   create_table "main_branch_health_checks", force: :cascade do |t|
     t.datetime "checked_at", null: false
     t.json "ci_failed_checks"
@@ -1253,6 +1267,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_12_202210) do
   add_foreign_key "jobs", "users", column: "claimed_by_user_id"
   add_foreign_key "jobs", "users", column: "dependencies_overridden_by_user_id"
   add_foreign_key "jobs", "users", column: "owner_user_id"
+  add_foreign_key "local_tunnel_sessions", "users"
   add_foreign_key "main_branch_health_checks", "repositories"
   add_foreign_key "main_concern_reports", "jobs"
   add_foreign_key "main_concern_reports", "repositories"

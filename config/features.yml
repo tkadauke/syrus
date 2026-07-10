@@ -24,3 +24,8 @@ features:
     name: "Performance logging"
     description: "Records structured slow request, SQL, and phase events to logs and a short-lived admin diagnostics buffer."
     default: false
+  - slug: local_mode
+    category: "Labs"
+    name: "Local Mode"
+    description: "Enables the syrus local daemon command, which connects your machine to a Syrus chat session via a reverse WebSocket tunnel so the agent can read/write files and run commands locally."
+    default: false
