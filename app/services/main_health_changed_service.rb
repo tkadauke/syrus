@@ -1,14 +1,13 @@
 class MainHealthChangedService
   FIX_MAIN_TITLE = "Fix broken main branch".freeze
+  MAX_RECOVERY_RETRIES = 10
 
   def self.on_health_change!(repository)
     new(repository).on_health_change!
   end
 
   def self.recovered!(repository)
-    # Stub: full recovery logic (resume landing, unblock queued workflows,
-    # emit recovery notification) will be implemented by the recovery Job
-    # in EPIC-161.
+    new(repository).recovered!
   end
 
   def initialize(repository)
@@ -31,10 +30,24 @@ class MainHealthChangedService
     end
   end
 
+  def recovered!
+    Rails.logger.info(
+      "[MainHealthChangedService] #{@repository.slug} main has recovered; resuming landing"
+    )
+    resume_landing!
+    start_blocked_queued_workflows!
+    retried_count = retry_held_jobs!
+    emit_recovery_notification!(retried_count)
+  end
+
   private
 
   def pause_landing!
     @repository.update!(landing_paused: true) unless @repository.landing_paused?
+  end
+
+  def resume_landing!
+    @repository.update!(landing_paused: false) if @repository.landing_paused?
   end
 
   def stamp_active_workflows!
@@ -44,6 +57,41 @@ class MainHealthChangedService
             .find_each do |workflow|
       workflow.set_artifact!("main_broken", true)
     end
+  end
+
+  def start_blocked_queued_workflows!
+    # Queued workflows with no runs were blocked at the StepDispatcher gate
+    # when main was broken. Call start_workflow again now that main is healthy.
+    Workflow
+      .joins(:job)
+      .where(jobs: { repository_id: @repository.id })
+      .where(state: "queued")
+      .where.not(id: Workflow.joins(steps: :runs).select("workflows.id"))
+      .find_each do |workflow|
+        StepDispatcher.start_workflow(workflow)
+      end
+  end
+
+  def retry_held_jobs!
+    retried = 0
+    Workflow
+      .joins(:job)
+      .where(jobs: { repository_id: @repository.id })
+      .where.not(jobs: { state: "closed" })
+      .where(state: "failed")
+      .includes(:job)
+      .each do |workflow|
+        break if retried >= MAX_RECOVERY_RETRIES
+        next unless workflow.artifact("main_broken")
+
+        result = RetryWorkflowEnqueuer.call(
+          job: workflow.job,
+          provider_validation: :none,
+          automatic: true
+        )
+        retried += 1 if result.success?
+      end
+    retried
   end
 
   def spawn_fix_job!
@@ -92,6 +140,23 @@ class MainHealthChangedService
     NotificationService.create_for(
       user: user,
       kind: "main_broken",
+      body: body
+    )
+  end
+
+  def emit_recovery_notification!(retried_count)
+    user = @repository.user
+    return unless user
+
+    body = "Main branch recovered on #{@repository.slug}."
+    if retried_count > 0
+      noun = retried_count == 1 ? "job" : "jobs"
+      body += " #{retried_count} #{noun} queued for auto-retry."
+    end
+
+    NotificationService.create_for(
+      user: user,
+      kind: "main_recovered",
       body: body
     )
   end
