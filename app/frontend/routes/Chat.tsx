@@ -3074,7 +3074,7 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
             aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
             aria-expanded={commandPaletteOpen}
             aria-haspopup="listbox"
-            className="min-h-9 w-full resize-none overflow-y-hidden rounded border border-gray-300 px-3 py-2 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
+            className="min-h-9 w-full resize-none overflow-y-hidden rounded border border-gray-300 py-2 pl-3 pr-8 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
             disabled={send.isPending || systemAction.isPending}
             onChange={(event) => {
               updateText(event.target.value)
@@ -3093,28 +3093,24 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
               <span className="inline-flex shrink-0 items-center rounded border border-gray-300 bg-gray-50 px-1 text-[10px] font-medium text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-500">⇥ {t("suggestion_tab_hint")}</span>
             </div>
           ) : null}
+          {text.trim().length > 0 ? (
+            <button
+              aria-label={t("scratchpad_stash")}
+              className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:text-gray-300 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300 dark:disabled:text-gray-600"
+              disabled={stash.isPending}
+              onClick={() => stash.mutate()}
+              title={t("scratchpad_stash")}
+              type="button"
+            >
+              ^
+            </button>
+          ) : null}
           <span aria-live="polite" className="sr-only">{ghostSuggestion ? t("suggestion_available", { suggestion: ghostSuggestion }) : ""}</span>
         </div>
         <div className="flex items-center gap-2">
           <button aria-label={agentActive ? t("enqueue_message") : t("send_message")} className={`${primaryButton()} inline-flex items-center justify-center`} disabled={send.isPending || systemAction.isPending || systemCommandAction.isPending || (text.trim().length === 0 && walkthrough?.status !== "ready" && attachments.length === 0) || pendingConfirmation != null || attachmentError != null} type="submit">
             {agentActive ? <EnqueueIcon className="h-4 w-4" /> : <SendIcon className="h-4 w-4" />}
           </button>
-          {agentActive && text.trim().length > 0 ? (
-            <button
-              aria-label={t("scratchpad_stash")}
-              className="inline-flex h-9 items-center justify-center rounded border border-gray-300 bg-white px-2.5 text-gray-600 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
-              disabled={stash.isPending}
-              onClick={() => stash.mutate()}
-              title={t("scratchpad_stash")}
-              type="button"
-            >
-              <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
-                <rect height="4" rx="1" width="6" x="9" y="3" />
-                <path d="M9 12h6M9 16h4" />
-              </svg>
-            </button>
-          ) : null}
           {agentActive && !payload.switching_provider ? <StopButton payload={payload} queryKey={queryKey} /> : null}
         </div>
       </div>
@@ -3445,6 +3441,7 @@ function ScratchpadPanel({
             <div className="mt-2 space-y-1">
               {items.map((item, index) => (
                 <ScratchpadItemRow
+                  chatId={chatId}
                   dragTarget={dropIndex === index && dragIndex !== null && dragIndex !== index}
                   index={index}
                   isDragging={dragIndex === index}
@@ -3500,6 +3497,7 @@ function ScratchpadPanel({
 }
 
 function ScratchpadItemRow({
+  chatId,
   dragTarget,
   isDragging,
   item,
@@ -3511,6 +3509,7 @@ function ScratchpadItemRow({
   onDrop,
   onLoadToInput
 }: {
+  chatId: string
   dragTarget: boolean
   index: number
   isDragging: boolean
@@ -3527,8 +3526,8 @@ function ScratchpadItemRow({
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(item.content)
-  const [loadWarning, setLoadWarning] = useState(false)
-  const loadWarningTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [loadPending, setLoadPending] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const update = useMutation({
     mutationFn: () => updateScratchpadItem(item.app_update_path, draft),
@@ -3547,19 +3546,22 @@ function ScratchpadItemRow({
     if (!editing) setDraft(item.content)
   }, [editing, item.content])
 
-  useEffect(() => {
-    return () => {
-      if (loadWarningTimeoutRef.current) clearTimeout(loadWarningTimeoutRef.current)
-    }
-  }, [])
-
-  function handleLoad() {
-    if (text.trim().length === 0) {
+  async function handleLoad() {
+    if (loadPending || remove.isPending) return
+    setLoadError(null)
+    setLoadPending(true)
+    try {
+      if (text.trim().length > 0) {
+        const stashed = await createScratchpadItem(chatId, text)
+        queryClient.setQueryData(queryKey, stashed)
+      }
+      const deleted = await deleteScratchpadItem(item.app_delete_path)
+      queryClient.setQueryData(queryKey, deleted)
       onLoadToInput(item.content)
-    } else {
-      setLoadWarning(true)
-      if (loadWarningTimeoutRef.current) clearTimeout(loadWarningTimeoutRef.current)
-      loadWarningTimeoutRef.current = setTimeout(() => setLoadWarning(false), 3000)
+    } catch (error) {
+      setLoadError(errorMessage(errorAsError(error), "Could not load item."))
+    } finally {
+      setLoadPending(false)
     }
   }
 
@@ -3608,16 +3610,18 @@ function ScratchpadItemRow({
         </svg>
       </button>
 
-      <button
-        className={`min-w-0 flex-1 text-left text-xs transition-colors ${loadWarning ? "text-orange-600 dark:text-orange-400" : "text-gray-700 hover:text-blue-700 dark:text-gray-200 dark:hover:text-blue-300"}`}
-        onClick={handleLoad}
-        title={loadWarning ? t("scratchpad_load_blocked") : t("scratchpad_load")}
-        type="button"
-      >
-        <span className="line-clamp-2 whitespace-pre-wrap break-words">
-          {loadWarning ? t("scratchpad_load_blocked") : item.content}
-        </span>
-      </button>
+      <div className="min-w-0 flex-1">
+        <button
+          className={`w-full text-left text-xs transition-colors ${loadPending ? "text-gray-400 dark:text-gray-500" : "text-gray-700 hover:text-blue-700 dark:text-gray-200 dark:hover:text-blue-300"}`}
+          disabled={loadPending || remove.isPending}
+          onClick={() => void handleLoad()}
+          title={t("scratchpad_load")}
+          type="button"
+        >
+          <span className="line-clamp-2 whitespace-pre-wrap break-words">{item.content}</span>
+        </button>
+        {loadError ? <p className="mt-0.5 text-xs text-red-600 dark:text-red-400">{loadError}</p> : null}
+      </div>
 
       <div className="flex shrink-0 items-center gap-0.5">
         <button

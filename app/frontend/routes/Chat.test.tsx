@@ -1450,14 +1450,14 @@ describe("scratchpad stash button", () => {
     mockDesktopViewport()
   })
 
-  it("does not show the stash button when the agent is idle", async () => {
+  it("shows the stash button when the agent is idle and textarea has text", async () => {
     mockChatRouteFetch(chatPayload({ chat: { agent_busy: false } }))
     renderRoute()
 
     const textarea = await screen.findByPlaceholderText("Ask about this repository...")
     fireEvent.change(textarea, { target: { value: "Draft idea" } })
 
-    expect(screen.queryByRole("button", { name: "Stash" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Stash" })).toBeInTheDocument()
   })
 
   it("does not show the stash button when the textarea is empty and agent is active", async () => {
@@ -1550,12 +1550,23 @@ describe("scratchpad panel", () => {
     expect(screen.getByText("Scratch pad")).toBeInTheDocument()
   })
 
-  it("loads item content into the empty textarea on click", async () => {
-    mockChatRouteFetch(chatPayload({
-      scratchpad_items: [
-        { id: 1, content: "Check the aqueduct route", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
-      ]
-    }))
+  it("loads item content into the empty textarea and deletes the item on click", async () => {
+    const afterDeletePayload = chatPayload({ scratchpad_items: [] })
+
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (String(input) === "/api/v1/app/chats/8/scratchpad_items/1" && (init as RequestInit)?.method === "DELETE") {
+        return Promise.resolve(jsonResponse(afterDeletePayload))
+      }
+      return Promise.resolve(jsonResponse(chatPayload({
+        scratchpad_items: [
+          { id: 1, content: "Check the aqueduct route", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
+        ]
+      })))
+    })
+
     renderRoute()
 
     await screen.findByText("Check the aqueduct route")
@@ -1565,24 +1576,62 @@ describe("scratchpad panel", () => {
     await waitFor(() => {
       expect(textarea).toHaveValue("Check the aqueduct route")
     })
+
+    expect(fetchMock.mock.calls.some((call: unknown[]) =>
+      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items/1" && (call[1] as RequestInit)?.method === "DELETE"
+    )).toBe(true)
   })
 
-  it("shows a warning instead of overwriting non-empty textarea on load", async () => {
-    mockChatRouteFetch(chatPayload({
+  it("auto-stashes existing text and loads item when textarea has content on load", async () => {
+    const afterStashPayload = chatPayload({
       scratchpad_items: [
-        { id: 1, content: "Check the aqueduct route", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
+        { id: 1, content: "Check the aqueduct route", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" },
+        { id: 2, content: "Already have some text", app_update_path: "/api/v1/app/chats/8/scratchpad_items/2", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/2" }
       ]
-    }))
+    })
+    const afterDeletePayload = chatPayload({ scratchpad_items: [
+      { id: 2, content: "Already have some text", app_update_path: "/api/v1/app/chats/8/scratchpad_items/2", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/2" }
+    ] })
+
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (String(input) === "/api/v1/app/chats/8/scratchpad_items" && (init as RequestInit)?.method === "POST") {
+        return Promise.resolve(jsonResponse(afterStashPayload))
+      }
+      if (String(input) === "/api/v1/app/chats/8/scratchpad_items/1" && (init as RequestInit)?.method === "DELETE") {
+        return Promise.resolve(jsonResponse(afterDeletePayload))
+      }
+      return Promise.resolve(jsonResponse(chatPayload({
+        scratchpad_items: [
+          { id: 1, content: "Check the aqueduct route", app_update_path: "/api/v1/app/chats/8/scratchpad_items/1", app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1" }
+        ]
+      })))
+    })
+
     renderRoute()
 
-    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...") as HTMLTextAreaElement
     fireEvent.change(textarea, { target: { value: "Already have some text" } })
 
     await screen.findByText("Check the aqueduct route")
     fireEvent.click(screen.getByText("Check the aqueduct route"))
 
-    expect(await screen.findByText("Clear the input first")).toBeInTheDocument()
-    expect(textarea).toHaveValue("Already have some text")
+    await waitFor(() => {
+      expect(textarea).toHaveValue("Check the aqueduct route")
+    })
+
+    const stashCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
+      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
+    )
+    expect(stashCalls).toHaveLength(1)
+    expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({ scratchpad_item: { content: "Already have some text" } })
+
+    const deleteCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
+      String(call[0]) === "/api/v1/app/chats/8/scratchpad_items/1" && (call[1] as RequestInit)?.method === "DELETE"
+    )
+    expect(deleteCalls).toHaveLength(1)
   })
 
   it("calls DELETE when the delete button is clicked", async () => {
