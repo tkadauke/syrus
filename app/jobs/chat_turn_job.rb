@@ -288,8 +288,10 @@ class ChatTurnJob < ApplicationJob
 
   def important_system_message?(message, text)
     content = message.content.is_a?(Hash) ? message.content : {}
-    content["source"].to_s == "proposal_notification" ||
-      text.match?(/\AProposal .*(confirmed|rejected|withdrawn|created|materialized)/i) ||
+    source = content["source"].to_s
+    return true if source == "proposal_notification"
+    return true if source == "grader_report"
+    text.match?(/\AProposal .*(confirmed|rejected|withdrawn|created|materialized)/i) ||
       text.match?(/\A(Cancelled by operator|Agent turn failed|Agent turn completed|MCP unavailable|Codex resume)/i)
   end
 

@@ -1781,6 +1781,64 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       end
     end
 
+    describe "#start_coding_handoff!" do
+      it "releases the coding lock and fires a coding_handoff workflow" do
+        enable_coding_mode!
+        job = Factories.job_record(user: user, repository: repository, state: "coding",
+                                   linked_chat_id: chat_session.id)
+
+        workflow = job.start_coding_handoff!
+
+        expect(workflow).to be_a(Workflow)
+        expect(workflow.trigger_kind).to eq("coding_handoff")
+        expect(job.reload).not_to be_coding
+        expect(job.linked_chat_id).to eq(chat_session.id)
+      end
+
+      it "returns false when job is not in coding state" do
+        enable_coding_mode!
+        job = Factories.job_record(user: user, repository: repository, state: "implemented")
+
+        expect(job.start_coding_handoff!).to be(false)
+      end
+
+      it "returns false when coding_mode feature is disabled" do
+        job = Factories.job_record(user: user, repository: repository, state: "coding",
+                                   linked_chat_id: chat_session.id)
+
+        expect(job.start_coding_handoff!).to be(false)
+        expect(job.reload).to be_coding
+      end
+
+      it "keeps linked_chat_id set so after_fail/after_success hooks can route to chat" do
+        enable_coding_mode!
+        job = Factories.job_record(user: user, repository: repository, state: "coding",
+                                   linked_chat_id: chat_session.id)
+
+        job.start_coding_handoff!
+
+        expect(job.reload.linked_chat_id).to eq(chat_session.id)
+      end
+    end
+
+    describe "#revert_to_coding_mode!" do
+      it "transitions a running job back to coding state" do
+        job = Factories.job_record(user: user, repository: repository, state: "running",
+                                   linked_chat_id: chat_session.id)
+
+        expect(job.may_revert_to_coding_mode?).to be(true)
+        job.revert_to_coding_mode!
+        job.save!
+
+        expect(job.reload).to be_coding
+      end
+
+      it "is not available from states other than running" do
+        job = Factories.job_record(user: user, repository: repository, state: "implemented")
+        expect(job.may_revert_to_coding_mode?).to be(false)
+      end
+    end
+
     describe "#release_coding_mode_takeover!" do
       it "clears linked_chat_id and returns the job to implemented" do
         job = Factories.job_record(user: user, repository: repository, state: "coding",

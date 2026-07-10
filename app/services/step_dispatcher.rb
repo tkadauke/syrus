@@ -23,11 +23,16 @@ class StepDispatcher
     return if first.runs.any?
 
     if Feature.coding_mode_enabled? && workflow.job.linked_chat_id.present?
-      Rails.logger.info(
-        "[StepDispatcher] workflow #{workflow.id} (#{workflow.trigger_kind}) held: " \
-        "job #{workflow.job_id} locked by chat #{workflow.job.linked_chat_id}"
-      )
-      return
+      # coding_handoff workflows are themselves the mechanism for running
+      # graders after the chat session completes — they must start despite
+      # the lock. All other workflow kinds are held until the lock clears.
+      unless workflow.trigger_kind == "coding_handoff"
+        Rails.logger.info(
+          "[StepDispatcher] workflow #{workflow.id} (#{workflow.trigger_kind}) held: " \
+          "job #{workflow.job_id} locked by chat #{workflow.job.linked_chat_id}"
+        )
+        return
+      end
     end
 
     unless workflow.job.stack_ready_for_execution?

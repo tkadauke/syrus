@@ -79,6 +79,11 @@ module SyrusChatMcp
       ReadWalkthroughFrameTool
     ].freeze
 
+    # Gated by the `coding_mode` feature flag AND chat.coding? (see tools_for_session).
+    CODING_MODE_TOOLS = [
+      CompleteImplementStepTool
+    ].freeze
+
     TOOLS = [
       AttachRepositoryTool,
       ProposeEpicTool,
@@ -103,7 +108,8 @@ module SyrusChatMcp
       RenameChatTool,
       SuggestNextStepTool,
       AskUserQuestionTool,
-      *ADMIN_TOOLS
+      *ADMIN_TOOLS,
+      *CODING_MODE_TOOLS
     ].freeze
 
     def self.tool_names(chat_session = nil, tier: nil)
@@ -127,6 +133,9 @@ module SyrusChatMcp
       # advertised set entirely — the agent never sees them, so it cannot
       # call them against pre-existing walkthrough rows either.
       tools = tools.reject { |tool| walkthrough_tool?(tool) } unless Feature.video_walkthroughs_enabled?
+      # Coding Mode tools are only available when the feature flag is on AND
+      # the chat session is in coding mode.
+      tools = tools.reject { |tool| coding_mode_tool?(tool) } unless Feature.coding_mode_enabled? && chat_session.coding?
       tools.map { |tool| authorize_tool(tool) }
     end
 
@@ -142,6 +151,10 @@ module SyrusChatMcp
 
     def self.walkthrough_tool?(tool)
       WALKTHROUGH_TOOLS.include?(tool)
+    end
+
+    def self.coding_mode_tool?(tool)
+      CODING_MODE_TOOLS.include?(tool)
     end
 
     def self.server_name

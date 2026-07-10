@@ -282,6 +282,13 @@ class Job < ApplicationRecord
       transitions from: :coding, to: :implemented
     end
 
+    # Reverts a running coding_handoff workflow's job back to :coding
+    # when graders fail. The workflow skips propagate_fail_to_job! so
+    # the job remains :running until this event fires in after_fail.
+    event :revert_to_coding_mode do
+      transitions from: :running, to: :coding
+    end
+
     event :start_landing do
       transitions from: :approved, to: :landing
     end
@@ -450,6 +457,23 @@ class Job < ApplicationRecord
 
     update!(linked_chat_id: nil)
     cancel_active_runs_and_close!(reason)
+  end
+
+  # Signal that the coding session is complete and hand off to automation.
+  # Transitions coding → implemented, fires a coding_handoff workflow that
+  # runs graders and (on pass) opens the PR. linked_chat_id is kept so the
+  # workflow's after_success/after_fail hooks can route results back to chat.
+  # Returns the new Workflow on success, false otherwise.
+  def start_coding_handoff!
+    return false unless Feature.coding_mode_enabled?
+    return false unless coding?
+
+    release_from_coding!
+    save!
+
+    workflow = Workflows::CodingHandoff.instantiate(job: self, agent_provider: agent_provider)
+    StepDispatcher.start_workflow(workflow)
+    workflow
   end
 
   # Release a taken-over Job from Coding Mode without discarding it.

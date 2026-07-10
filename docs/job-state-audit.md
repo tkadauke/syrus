@@ -32,7 +32,10 @@ column is non-null (and the `coding_mode` feature flag is on), leaving any
 newly-created workflows queued. They drain when `Job#release_coding_mode_takeover!`
 clears the lock and calls `start_pending_workflows_if_dependencies_satisfied!`.
 
-Two cancel paths:
+Three exit paths:
+- **Handoff** (`Job#start_coding_handoff!`): fires `release_from_coding` (`coding → implemented`),
+  keeps `linked_chat_id` set, instantiates a `coding_handoff` workflow. Grader results route back
+  to the linked chat; `linked_chat_id` is cleared on grader pass.
 - **New-job cancel** (`Job#cancel_new_coding_job!`): clears `linked_chat_id` then
   closes the Job via `close` (`coding → closed`).
 - **Takeover cancel** (`Job#release_coding_mode_takeover!`): clears `linked_chat_id`
@@ -50,7 +53,8 @@ Two cancel paths:
 | `approve` | `implemented → approved` | before: assign_approval_metadata | JobsController, app dashboard bulk API, AutoApprovalRule, PollMergeStateJob, PollPullRequestJob |
 | `unapprove` | `approved → implemented` | after: clear_approval_metadata | JobsController, `ChatFeedbackSubmission`, `Job#lock_for_coding_mode!` |
 | `claim_for_coding` | `[queued, implemented] → coding` | none | `Job#lock_for_coding_mode!` |
-| `release_from_coding` | `coding → implemented` | none | `Job#release_coding_mode_takeover!` |
+| `release_from_coding` | `coding → implemented` | none | `Job#start_coding_handoff!`, `Job#release_coding_mode_takeover!` |
+| `revert_to_coding_mode` | `running → coding` | none | `Workflows::CodingHandoff#after_fail` (when graders fail; keeps linked_chat_id so agent can iterate and re-trigger) |
 | `land` | `approved → landing` | none | **None** (see Finding 4) |
 | `start_landing` | `approved → landing` | none | LandingQueueProcessor#land |
 | `mark_merged` | `landing → merged` | after: lambda (finished_at, closure_reason, scheduled task outcome, refresh_epic_auto_state) | **None** (see Finding 2) |

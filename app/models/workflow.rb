@@ -182,8 +182,12 @@ class Workflow < ApplicationRecord
   # can decide between Retry (failed → queued) and Close. Skips for
   # auto_merge — that has its own fail_landing flow that returns
   # :landing → :implemented (RunJob#record_landing_failure!).
+  # Skips for coding_handoff — grader failures route back to the linked
+  # chat session; after_fail handles job state (revert_to_coding_mode or
+  # mark_failed for non-grader failures like prepare).
   def propagate_fail_to_job!
     return if landing_workflow?
+    return if coding_handoff_workflow?
     return unless job.may_mark_failed?
 
     StateTransition.with_source("propagate") do
@@ -361,6 +365,10 @@ class Workflow < ApplicationRecord
 
   def landing_workflow?
     LANDING_TRIGGER_KINDS.include?(trigger_kind)
+  end
+
+  def coding_handoff_workflow?
+    trigger_kind == "coding_handoff"
   end
 
   private
