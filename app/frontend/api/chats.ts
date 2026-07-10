@@ -382,6 +382,25 @@ export type ChatWalkthroughMedia = {
   created_at: string
 }
 
+export type CodingFilesPayload = {
+  files: string[]
+  checkout_branch: string | null
+}
+
+export type CodingFileContentPayload = {
+  path: string
+  content: string | null
+  binary: boolean
+  too_large: boolean
+  size?: number
+}
+
+export type CodingDiffPayload = {
+  diff: string
+  mode: "cumulative" | "turn"
+  checkout_branch: string | null
+}
+
 export type ChatPayload = {
   message?: string | null
   chat: ChatRecord
@@ -431,6 +450,9 @@ export type ChatPayload = {
     app_switch_provider_path: string
     app_scratchpad_reorder_path: string
     app_cancel_coding_checkout_path?: string
+    app_coding_files_path?: string
+    app_coding_file_path?: string
+    app_coding_diff_path?: string
   }
   gemini_configured: boolean
   walkthroughs_enabled: boolean
@@ -753,4 +775,17 @@ export function cancelPendingAction(path: string) {
 
 export function answerAgentQuestion(path: string, answer: string) {
   return postJson<ChatPayload>(path, { answer })
+}
+
+export function fetchCodingFileTree(path: string) {
+  return getJson<CodingFilesPayload>(path)
+}
+
+export function fetchCodingFileContent(basePath: string, filePath: string) {
+  const params = new URLSearchParams({ path: filePath })
+  return getJson<CodingFileContentPayload>(`${basePath}?${params}`)
+}
+
+export function fetchCodingDiff(path: string, mode: "cumulative" | "turn" = "cumulative") {
+  return getJson<CodingDiffPayload>(`${path}?mode=${mode}`)
 }

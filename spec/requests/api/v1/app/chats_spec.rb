@@ -1414,6 +1414,209 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     end
   end
 
+  describe "GET /api/v1/app/chats/:id/coding_files" do
+    def enable_coding_mode!(enabled: true)
+      feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|
+        record.category = "Labs"
+        record.name = "Coding Mode"
+      end
+      feature.update!(enabled: enabled)
+    end
+
+    it "returns the file tree for a chat with an active coding checkout" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, mode: "coding", coding_checkout_branch: "syrus-chat-42")
+      enable_coding_mode!
+      allow(ChatWorkspace).to receive(:file_tree).with(chat, repository).and_return({
+        files: [ "README.md", "app/models/user.rb" ],
+        checkout_branch: "syrus-chat-42"
+      })
+
+      get "/api/v1/app/chats/#{chat.id}/coding_files"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["files"]).to eq([ "README.md", "app/models/user.rb" ])
+      expect(parse_body["checkout_branch"]).to eq("syrus-chat-42")
+    end
+
+    it "404s when the coding_mode feature flag is off" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-off")
+      enable_coding_mode!(enabled: false)
+
+      get "/api/v1/app/chats/#{chat.id}/coding_files"
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "404s when no repository is attached" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, coding_checkout_branch: "syrus-chat-norepo")
+      enable_coding_mode!
+
+      get "/api/v1/app/chats/#{chat.id}/coding_files"
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "404s when no coding branch is set" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository)
+      enable_coding_mode!
+
+      get "/api/v1/app/chats/#{chat.id}/coding_files"
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "404s when another user's chat is requested" do
+      sign_in_as(Factories.user)
+      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42")
+      enable_coding_mode!
+
+      get "/api/v1/app/chats/#{chat.id}/coding_files"
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "404s when the checkout directory does not exist" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42")
+      enable_coding_mode!
+      allow(ChatWorkspace).to receive(:file_tree).and_return(nil)
+
+      get "/api/v1/app/chats/#{chat.id}/coding_files"
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  describe "GET /api/v1/app/chats/:id/coding_file" do
+    def enable_coding_mode!(enabled: true)
+      feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|
+        record.category = "Labs"
+        record.name = "Coding Mode"
+      end
+      feature.update!(enabled: enabled)
+    end
+
+    it "returns file content for a valid path" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42")
+      enable_coding_mode!
+      allow(ChatWorkspace).to receive(:file_content).with(chat, repository, "README.md").and_return({
+        content: "# Widgets\n", binary: false, too_large: false
+      })
+
+      get "/api/v1/app/chats/#{chat.id}/coding_file", params: { path: "README.md" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["content"]).to eq("# Widgets\n")
+      expect(parse_body["binary"]).to eq(false)
+      expect(parse_body["path"]).to eq("README.md")
+    end
+
+    it "returns 422 when path parameter is missing" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42")
+      enable_coding_mode!
+
+      get "/api/v1/app/chats/#{chat.id}/coding_file"
+
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+
+    it "returns 404 when the file is not found" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42")
+      enable_coding_mode!
+      allow(ChatWorkspace).to receive(:file_content).and_return(nil)
+
+      get "/api/v1/app/chats/#{chat.id}/coding_file", params: { path: "missing.rb" }
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "404s when the coding_mode feature flag is off" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-off")
+      enable_coding_mode!(enabled: false)
+
+      get "/api/v1/app/chats/#{chat.id}/coding_file", params: { path: "README.md" }
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  describe "GET /api/v1/app/chats/:id/coding_diff" do
+    def enable_coding_mode!(enabled: true)
+      feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|
+        record.category = "Labs"
+        record.name = "Coding Mode"
+      end
+      feature.update!(enabled: enabled)
+    end
+
+    it "returns cumulative diff by default" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42")
+      enable_coding_mode!
+      allow(ChatWorkspace).to receive(:coding_diff).with(chat, repository, mode: :cumulative).and_return("diff --git a/README.md\n+added line\n")
+
+      get "/api/v1/app/chats/#{chat.id}/coding_diff"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["diff"]).to include("added line")
+      expect(parse_body["mode"]).to eq("cumulative")
+    end
+
+    it "returns turn diff when mode=turn" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42")
+      enable_coding_mode!
+      allow(ChatWorkspace).to receive(:coding_diff).with(chat, repository, mode: :turn).and_return("diff --git a/foo.rb\n+new line\n")
+
+      get "/api/v1/app/chats/#{chat.id}/coding_diff", params: { mode: "turn" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["diff"]).to include("new line")
+      expect(parse_body["mode"]).to eq("turn")
+    end
+
+    it "returns empty diff payload when no repository is attached" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user)
+      enable_coding_mode!
+
+      get "/api/v1/app/chats/#{chat.id}/coding_diff"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["diff"]).to eq("")
+      expect(parse_body["checkout_branch"]).to be_nil
+    end
+
+    it "404s when the coding_mode feature flag is off" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42")
+      enable_coding_mode!(enabled: false)
+
+      get "/api/v1/app/chats/#{chat.id}/coding_diff"
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "includes new paths in the standard chat payload" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user)
+
+      get "/api/v1/app/chats/#{chat.id}"
+
+      expect(parse_body.dig("paths", "app_coding_files_path")).to eq("/api/v1/app/chats/#{chat.id}/coding_files")
+      expect(parse_body.dig("paths", "app_coding_file_path")).to eq("/api/v1/app/chats/#{chat.id}/coding_file")
+      expect(parse_body.dig("paths", "app_coding_diff_path")).to eq("/api/v1/app/chats/#{chat.id}/coding_diff")
+    end
+  end
+
   it "answers an active agent question" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)

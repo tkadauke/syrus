@@ -58,6 +58,9 @@ import {
   stopChat,
   updateChatProvider,
   cancelCodingCheckout,
+  fetchCodingFileTree,
+  fetchCodingFileContent,
+  fetchCodingDiff,
   updateChatMode,
   updateChatProposal,
   updateChatPinned,
@@ -93,7 +96,10 @@ import {
   type ChatToolGroupItem,
   type ShareChatPayload,
   type SharedChatPayload,
-  type WhiteboardSnapshot
+  type WhiteboardSnapshot,
+  type CodingFilesPayload,
+  type CodingFileContentPayload,
+  type CodingDiffPayload
 } from "../api/chats"
 import { fetchBootstrap } from "../api/bootstrap"
 import { postJobCommand } from "../api/jobs"
@@ -3724,7 +3730,7 @@ function StopButton({ payload, queryKey }: { payload: ChatPayload; queryKey: Cha
   )
 }
 
-type WorkspaceTab = "whiteboard" | "context" | "media"
+type WorkspaceTab = "whiteboard" | "context" | "media" | "files"
 type MobileChatTab = "chat" | WorkspaceTab
 
 function ChatWorkspace({
@@ -3845,7 +3851,7 @@ function ChatWorkspace({
     return (
       <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-gray-950">
         <nav aria-label="Chat mobile tabs" className="flex shrink-0 overflow-x-auto border-b border-gray-200 px-2 pt-2 text-sm font-medium dark:border-gray-700">
-          {(["chat", "whiteboard", "context", "media"] as MobileChatTab[]).map((tab) => (
+          {(codingFilesTabVisible(payload) ? (["chat", "files", "whiteboard", "context", "media"] as MobileChatTab[]) : (["chat", "whiteboard", "context", "media"] as MobileChatTab[])).map((tab) => (
             <button
               className={workspaceTabClass(activeMobileTab === tab)}
               key={tab}
@@ -4139,7 +4145,7 @@ function ChatWorkspacePanel({
     <aside aria-label="Chat workspace" className={`flex min-h-0 min-w-0 flex-1 flex-col rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900 ${fullscreen ? "" : "h-full w-full"}`}>
       {fullscreen || !showTabs ? null : (
         <nav aria-label="Chat workspace tabs" className="flex items-center border-b border-gray-200 px-3 pt-3 text-sm font-medium dark:border-gray-700">
-          {(["whiteboard", "context", "media"] as WorkspaceTab[]).map((tab) => (
+          {(codingFilesTabVisible(payload) ? (["files", "whiteboard", "context", "media"] as WorkspaceTab[]) : (["whiteboard", "context", "media"] as WorkspaceTab[])).map((tab) => (
             <button
               className={workspaceTabClass(activeTab === tab)}
               key={tab}
@@ -4166,7 +4172,7 @@ function ChatWorkspacePanel({
           ) : null}
         </nav>
       )}
-      <div className={`min-h-0 flex-1 ${activeTab === "whiteboard" ? "overflow-hidden p-3" : "overflow-y-auto p-4"}`}>
+      <div className={`min-h-0 flex-1 ${activeTab === "whiteboard" ? "overflow-hidden p-3" : activeTab === "files" ? "overflow-hidden" : "overflow-y-auto p-4"}`}>
         {activeTab === "whiteboard" ? (
           <WhiteboardBoundary>
             <WhiteboardPanel fullscreen={fullscreen} onToggleFullscreen={onToggleWhiteboardFullscreen} payload={payload} />
@@ -4174,6 +4180,7 @@ function ChatWorkspacePanel({
         ) : null}
         {activeTab === "context" ? <Attachments payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} /> : null}
         {activeTab === "media" ? <MediaGallery messages={payload.messages} payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
+        {activeTab === "files" ? <CodingFilesPanel payload={payload} /> : null}
       </div>
     </aside>
   )
@@ -5042,6 +5049,279 @@ function secondaryButton() {
   return "rounded border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
 }
 
+function codingFilesTabVisible(payload: ChatPayload): boolean {
+  return Boolean(
+    payload.coding_mode_enabled &&
+    payload.chat.mode === "coding" &&
+    payload.chat.coding_checkout_branch
+  )
+}
+
+type FileTreeNode = {
+  name: string
+  path: string
+  type: "file" | "directory"
+  children: FileTreeNode[]
+}
+
+function buildFileTree(files: string[]): FileTreeNode[] {
+  const nodeMap = new Map<string, FileTreeNode>()
+
+  for (const filePath of files) {
+    const parts = filePath.split("/")
+    for (let i = 1; i < parts.length; i++) {
+      const dirPath = parts.slice(0, i).join("/")
+      if (!nodeMap.has(dirPath)) {
+        nodeMap.set(dirPath, { name: parts[i - 1], path: dirPath, type: "directory", children: [] })
+      }
+    }
+    nodeMap.set(filePath, { name: parts[parts.length - 1], path: filePath, type: "file", children: [] })
+  }
+
+  for (const [path, node] of nodeMap) {
+    const parts = path.split("/")
+    if (parts.length > 1) {
+      const parentPath = parts.slice(0, -1).join("/")
+      nodeMap.get(parentPath)?.children.push(node)
+    }
+  }
+
+  function sortNodes(nodes: FileTreeNode[]): FileTreeNode[] {
+    return [...nodes]
+      .sort((a, b) => (a.type !== b.type ? (a.type === "directory" ? -1 : 1) : a.name.localeCompare(b.name)))
+      .map((n) => ({ ...n, children: sortNodes(n.children) }))
+  }
+
+  const roots: FileTreeNode[] = []
+  for (const [path, node] of nodeMap) {
+    if (!path.includes("/")) roots.push(node)
+  }
+  return sortNodes(roots)
+}
+
+function diffLineClass(line: string): string {
+  if (line.startsWith("+++") || line.startsWith("---")) {
+    return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+  }
+  if (line.startsWith("@@")) {
+    return "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+  }
+  if (line.startsWith("+")) {
+    return "bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-200"
+  }
+  if (line.startsWith("-")) {
+    return "bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-200"
+  }
+  return "text-gray-800 dark:text-gray-200"
+}
+
+function FileTreeEntry({
+  node,
+  openDirs,
+  selectedFile,
+  onToggleDir,
+  onSelectFile,
+  depth
+}: {
+  node: FileTreeNode
+  openDirs: Set<string>
+  selectedFile: string | null
+  onToggleDir: (path: string) => void
+  onSelectFile: (path: string) => void
+  depth: number
+}) {
+  const indent = depth * 12
+  if (node.type === "directory") {
+    const open = openDirs.has(node.path)
+    return (
+      <div>
+        <button
+          className="flex w-full items-center gap-1 px-2 py-0.5 text-left text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+          onClick={() => onToggleDir(node.path)}
+          style={{ paddingLeft: `${indent + 8}px` }}
+          type="button"
+        >
+          <span aria-hidden="true" className="shrink-0 font-mono text-gray-400 dark:text-gray-500">{open ? "▾" : "▸"}</span>
+          <span className="truncate font-medium">{node.name}</span>
+        </button>
+        {open ? (
+          <div>
+            {node.children.map((child) => (
+              <FileTreeEntry
+                depth={depth + 1}
+                key={child.path}
+                node={child}
+                openDirs={openDirs}
+                selectedFile={selectedFile}
+                onSelectFile={onSelectFile}
+                onToggleDir={onToggleDir}
+              />
+            ))}
+          </div>
+        ) : null}
+      </div>
+    )
+  }
+
+  const selected = selectedFile === node.path
+  return (
+    <button
+      className={`flex w-full items-center gap-1 px-2 py-0.5 text-left text-xs ${selected ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+      onClick={() => onSelectFile(node.path)}
+      style={{ paddingLeft: `${indent + 8}px` }}
+      title={node.path}
+      type="button"
+    >
+      <span className="truncate font-mono">{node.name}</span>
+    </button>
+  )
+}
+
+function CodingFilesPanel({ payload }: { payload: ChatPayload }) {
+  const { t } = useT("chat")
+  const [view, setView] = useState<"files" | "diff">("files")
+  const [diffMode, setDiffMode] = useState<"cumulative" | "turn">("cumulative")
+  const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [openDirs, setOpenDirs] = useState<Set<string>>(new Set())
+
+  const filesPath = payload.paths.app_coding_files_path
+  const fileContentBasePath = payload.paths.app_coding_file_path
+  const diffPath = payload.paths.app_coding_diff_path
+  const agentBusy = payload.agent_busy
+  const refetchInterval = agentBusy ? 3000 : 15000
+
+  const fileTree = useQuery({
+    queryKey: ["coding_files", filesPath],
+    queryFn: () => fetchCodingFileTree(filesPath!),
+    enabled: !!filesPath,
+    refetchInterval
+  })
+
+  const fileContent = useQuery({
+    queryKey: ["coding_file_content", fileContentBasePath, selectedFile],
+    queryFn: () => fetchCodingFileContent(fileContentBasePath!, selectedFile!),
+    enabled: !!fileContentBasePath && !!selectedFile && view === "files",
+    refetchInterval
+  })
+
+  const diffResult = useQuery({
+    queryKey: ["coding_diff", diffPath, diffMode],
+    queryFn: () => fetchCodingDiff(diffPath!, diffMode),
+    enabled: !!diffPath && view === "diff",
+    refetchInterval
+  })
+
+  function toggleDir(path: string) {
+    setOpenDirs((prev) => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      return next
+    })
+  }
+
+  const treeNodes = fileTree.data ? buildFileTree(fileTree.data.files) : []
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex shrink-0 items-center gap-1 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
+        <button
+          className={`rounded px-2 py-1 text-xs font-medium ${view === "files" ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"}`}
+          onClick={() => setView("files")}
+          type="button"
+        >
+          {t("view_files")}
+        </button>
+        <button
+          className={`rounded px-2 py-1 text-xs font-medium ${view === "diff" ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"}`}
+          onClick={() => setView("diff")}
+          type="button"
+        >
+          {t("view_diff")}
+        </button>
+        {view === "diff" ? (
+          <div className="ml-auto flex items-center gap-1">
+            <button
+              className={`rounded px-2 py-1 text-xs ${diffMode === "cumulative" ? "font-semibold text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"}`}
+              onClick={() => setDiffMode("cumulative")}
+              type="button"
+            >
+              {t("diff_tab_cumulative")}
+            </button>
+            <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">·</span>
+            <button
+              className={`rounded px-2 py-1 text-xs ${diffMode === "turn" ? "font-semibold text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"}`}
+              onClick={() => setDiffMode("turn")}
+              type="button"
+            >
+              {t("diff_tab_turn")}
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      {view === "files" ? (
+        <div className="flex min-h-0 flex-1">
+          <div className="w-48 shrink-0 overflow-y-auto border-r border-gray-200 py-1 dark:border-gray-700">
+            {fileTree.isPending ? (
+              <p className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">{t("files_loading")}</p>
+            ) : fileTree.isError ? (
+              <p className="px-3 py-2 text-xs text-red-600 dark:text-red-400">{t("files_error")}</p>
+            ) : treeNodes.length === 0 ? (
+              <p className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">{t("files_empty")}</p>
+            ) : (
+              treeNodes.map((node) => (
+                <FileTreeEntry
+                  depth={0}
+                  key={node.path}
+                  node={node}
+                  openDirs={openDirs}
+                  selectedFile={selectedFile}
+                  onSelectFile={setSelectedFile}
+                  onToggleDir={toggleDir}
+                />
+              ))
+            )}
+          </div>
+          <div className="min-w-0 flex-1 overflow-y-auto">
+            {!selectedFile ? (
+              <p className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{t("file_content_empty")}</p>
+            ) : fileContent.isPending ? (
+              <p className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{t("file_content_loading")}</p>
+            ) : fileContent.isError ? (
+              <p className="px-4 py-3 text-xs text-red-600 dark:text-red-400">{t("file_content_error")}</p>
+            ) : fileContent.data?.binary ? (
+              <p className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{t("file_content_binary")}</p>
+            ) : fileContent.data?.too_large ? (
+              <p className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{t("file_content_too_large")}</p>
+            ) : (
+              <pre className="min-w-0 overflow-x-auto p-3 font-mono text-xs leading-relaxed text-gray-800 dark:text-gray-200">
+                <code>{fileContent.data?.content ?? ""}</code>
+              </pre>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-auto">
+          {diffResult.isPending ? (
+            <p className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{t("diff_loading")}</p>
+          ) : diffResult.isError ? (
+            <p className="px-4 py-3 text-xs text-red-600 dark:text-red-400">{t("diff_error")}</p>
+          ) : !diffResult.data?.diff ? (
+            <p className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{t("diff_empty")}</p>
+          ) : (
+            <pre className="min-w-max font-mono text-xs leading-relaxed">
+              {diffResult.data.diff.split("\n").map((line, i) => (
+                <div className={`px-3 py-px ${diffLineClass(line)}`} key={i}>{line || " "}</div>
+              ))}
+            </pre>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function workspaceTabClass(active: boolean) {
   return `border-b-2 px-3 py-2 ${active ? "border-blue-600 text-blue-700 dark:border-blue-400 dark:text-blue-300" : "border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-100"}`
 }
@@ -5050,6 +5330,7 @@ function workspaceTabLabel(tab: WorkspaceTab) {
   if (tab === "whiteboard") return "Whiteboard"
   if (tab === "context") return "Context"
   if (tab === "media") return "Media"
+  if (tab === "files") return "Files"
 
   return "Chats"
 }
@@ -5065,7 +5346,7 @@ function defaultWorkspaceTab(payload: ChatPayload): WorkspaceTab {
 function storedWorkspaceTab(): WorkspaceTab | null {
   try {
     const value = window.localStorage.getItem(CHAT_WORKSPACE_TAB_KEY)
-    return value === "whiteboard" || value === "context" || value === "media" ? value : null
+    return value === "whiteboard" || value === "context" || value === "media" || value === "files" ? value : null
   } catch (_error) {
     return null
   }

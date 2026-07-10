@@ -739,6 +739,86 @@ module Api
           render_error("server_error", "Could not cancel coding checkout: #{e.message}", status: :internal_server_error)
         end
 
+        def coding_files
+          chat_session = find_chat_session
+          unless Feature.coding_mode_enabled?
+            render_error("feature_disabled", "Coding Mode is not enabled on this instance.", status: :not_found)
+            return
+          end
+
+          unless chat_session.repository
+            render_error("not_found", "No repository attached to this chat.", status: :not_found)
+            return
+          end
+
+          if chat_session.coding_checkout_branch.blank?
+            render_error("not_found", "No active coding checkout for this chat.", status: :not_found)
+            return
+          end
+
+          result = ChatWorkspace.file_tree(chat_session, chat_session.repository)
+          unless result
+            render_error("not_found", "Coding checkout directory not found.", status: :not_found)
+            return
+          end
+
+          render json: result
+        end
+
+        def coding_file
+          chat_session = find_chat_session
+          unless Feature.coding_mode_enabled?
+            render_error("feature_disabled", "Coding Mode is not enabled on this instance.", status: :not_found)
+            return
+          end
+
+          unless chat_session.repository
+            render_error("not_found", "No repository attached to this chat.", status: :not_found)
+            return
+          end
+
+          if chat_session.coding_checkout_branch.blank?
+            render_error("not_found", "No active coding checkout for this chat.", status: :not_found)
+            return
+          end
+
+          file_path = params[:path].to_s.strip
+          if file_path.blank?
+            render_error("validation_failed", "path parameter is required.", status: :unprocessable_content)
+            return
+          end
+
+          result = ChatWorkspace.file_content(chat_session, chat_session.repository, file_path)
+          if result.nil?
+            render_error("not_found", "File not found in coding checkout.", status: :not_found)
+            return
+          end
+
+          render json: result.merge(path: file_path)
+        end
+
+        def coding_diff
+          chat_session = find_chat_session
+          unless Feature.coding_mode_enabled?
+            render_error("feature_disabled", "Coding Mode is not enabled on this instance.", status: :not_found)
+            return
+          end
+
+          unless chat_session.repository
+            render json: { diff: "", mode: "cumulative", checkout_branch: nil }
+            return
+          end
+
+          mode = params[:mode].to_s == "turn" ? :turn : :cumulative
+          diff = ChatWorkspace.coding_diff(chat_session, chat_session.repository, mode: mode)
+
+          render json: {
+            diff: diff,
+            mode: mode.to_s,
+            checkout_branch: chat_session.coding_checkout_branch
+          }
+        end
+
         def search_proposals
           chat_session = find_chat_session
           query = params[:q].to_s.strip
@@ -1023,7 +1103,10 @@ module Api
               app_switch_provider_path: "/api/v1/app/chats/#{chat_session.id}/switch_provider",
               app_scratchpad_reorder_path: "/api/v1/app/chats/#{chat_session.id}/scratchpad_items/reorder",
               app_video_walkthroughs_path: "/api/v1/app/chats/#{chat_session.id}/video_walkthroughs",
-              app_cancel_coding_checkout_path: "/api/v1/app/chats/#{chat_session.id}/coding_checkout"
+              app_cancel_coding_checkout_path: "/api/v1/app/chats/#{chat_session.id}/coding_checkout",
+              app_coding_files_path: "/api/v1/app/chats/#{chat_session.id}/coding_files",
+              app_coding_file_path: "/api/v1/app/chats/#{chat_session.id}/coding_file",
+              app_coding_diff_path: "/api/v1/app/chats/#{chat_session.id}/coding_diff"
             },
             gemini_configured: Current.user.gemini_configured?,
             # Labs flag: gates the composer's record/drag/upload intake. The

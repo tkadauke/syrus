@@ -185,6 +185,9 @@ Rails.application.routes.draw do
         post "chats/:id/pending_actions/:pending_action_id/reject", to: "chats#destroy_pending_action", constraints: { id: /\d+/, pending_action_id: /\d+/ }
         delete "chats/:id/pending_actions/:pending_action_id", to: "chats#destroy_pending_action", constraints: { id: /\d+/, pending_action_id: /\d+/ }
         delete "chats/:id/coding_checkout", to: "chats#cancel_coding_checkout", constraints: { id: /\d+/ }
+        get "chats/:id/coding_files", to: "chats#coding_files", constraints: { id: /\d+/ }
+        get "chats/:id/coding_file", to: "chats#coding_file", constraints: { id: /\d+/ }
+        get "chats/:id/coding_diff", to: "chats#coding_diff", constraints: { id: /\d+/ }
         get "repositories/new", to: "repositories#new"
         get "repositories/:id/edit", to: "repositories#edit", constraints: { id: /\d+/ }
         get "repositories/owners", to: "repositories#owners"

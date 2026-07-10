@@ -1,4 +1,5 @@
 require "fileutils"
+require "find"
 require "open3"
 
 # Persistent per-ChatSession workspace used by top-level chat inspection.
@@ -8,6 +9,8 @@ class ChatWorkspace
   CLONE_DEPTH = 50
   EXCLUDE_ENTRY = ".syrus/".freeze
   CODING_CHECKOUT_BRANCH_PREFIX = "syrus-chat-".freeze
+  EXCLUDED_DIR_NAMES = %w[.git .syrus node_modules].to_set.freeze
+  MAX_FILE_BYTES = 500.kilobytes
 
   def self.data_root
     Pathname.new(ENV["SYRUS_DATA_ROOT"] || File.expand_path("~/.syrus"))
@@ -71,6 +74,29 @@ class ChatWorkspace
   # coding_checkout_uncommitted on the session.
   def self.cancel_coding_checkout!(chat_session, repository)
     new(chat_session).cancel_coding_checkout!(repository)
+  end
+
+  # Returns { files: ["path/to/file", ...], checkout_branch: "..." }
+  # for the coding checkout. Files are sorted and exclude .git, .syrus,
+  # and node_modules trees. Returns nil if the checkout does not exist.
+  def self.file_tree(chat_session, repository)
+    new(chat_session).file_tree(repository)
+  end
+
+  # Returns { content: "...", binary: false, too_large: false } or
+  # { content: nil, binary: true } / { content: nil, too_large: true, size: N }.
+  # relative_path is validated to stay within the checkout directory.
+  # Returns nil if the file or checkout does not exist.
+  def self.file_content(chat_session, repository, relative_path)
+    new(chat_session).file_content(repository, relative_path)
+  end
+
+  # Returns the unified diff for the coding checkout.
+  # mode :cumulative => git diff origin/<default>  (all changes vs remote base)
+  # mode :turn       => git diff HEAD              (uncommitted changes only)
+  # Returns "" on any error or if the checkout does not exist.
+  def self.coding_diff(chat_session, repository, mode: :cumulative)
+    new(chat_session).coding_diff(repository, mode: mode)
   end
 
   # Removes the workspace directory AND the per-chat agent homes.
@@ -235,6 +261,70 @@ class ChatWorkspace
     )
   end
 
+  def file_tree(repository)
+    path = self.class.repo_path_for(@chat_session, repository)
+    return nil unless path.join(".git").directory?
+
+    files = []
+    Find.find(path.to_s) do |entry|
+      basename = File.basename(entry)
+      if File.directory?(entry)
+        Find.prune if self.class::EXCLUDED_DIR_NAMES.include?(basename)
+        next
+      end
+      relative = Pathname.new(entry).relative_path_from(path).to_s
+      files << relative
+    end
+
+    {
+      files: files.sort,
+      checkout_branch: @chat_session.coding_checkout_branch
+    }
+  end
+
+  def file_content(repository, relative_path)
+    path = self.class.repo_path_for(@chat_session, repository)
+    return nil unless path.join(".git").directory?
+
+    safe = safe_checkout_path(path, relative_path)
+    return nil unless safe&.file?
+
+    size = safe.size
+    if size > self.class::MAX_FILE_BYTES
+      return { content: nil, binary: false, too_large: true, size: size }
+    end
+
+    raw = safe.binread
+    if raw.include?("\x00")
+      return { content: nil, binary: true, too_large: false }
+    end
+
+    {
+      content: raw.encode(Encoding::UTF_8, invalid: :replace, undef: :replace),
+      binary: false,
+      too_large: false
+    }
+  end
+
+  def coding_diff(repository, mode: :cumulative)
+    path = self.class.repo_path_for(@chat_session, repository)
+    return "" unless path.join(".git").directory?
+
+    default_branch = repository.default_branch
+
+    if mode.to_sym == :turn
+      # Uncommitted changes vs last commit
+      out, status = Open3.capture2e({ "GIT_TERMINAL_PROMPT" => "0" }, "git", "diff", "HEAD", chdir: path.to_s)
+      status.success? ? out : ""
+    else
+      # All changes from remote base to current working tree
+      out, status = Open3.capture2e({ "GIT_TERMINAL_PROMPT" => "0" }, "git", "diff", "origin/#{default_branch}", chdir: path.to_s)
+      status.success? ? out : ""
+    end
+  rescue StandardError
+    ""
+  end
+
   private
 
   def clone!(repository, path)
@@ -289,5 +379,18 @@ class ChatWorkspace
   def authenticated_url(repository)
     token = GithubClient.for(repository: repository, user: repository.user).access_token
     repository.authenticated_push_url(token)
+  end
+
+  # Returns a Pathname for relative_path resolved within checkout_dir, or nil
+  # if the path is blank, contains traversal sequences, or escapes the root.
+  def safe_checkout_path(checkout_dir, relative_path)
+    return nil if relative_path.blank?
+
+    candidate = checkout_dir.join(relative_path).cleanpath
+    root = checkout_dir.cleanpath
+    return nil if candidate == root
+    return nil unless candidate.to_s.start_with?("#{root}#{File::SEPARATOR}")
+
+    candidate
   end
 end

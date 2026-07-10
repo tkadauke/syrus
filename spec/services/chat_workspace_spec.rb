@@ -198,6 +198,105 @@ RSpec.describe ChatWorkspace do
     end
   end
 
+  describe ".file_tree" do
+    it "returns a sorted flat file list from the coding checkout" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+
+      result = described_class.file_tree(chat_session, repository)
+
+      expect(result).not_to be_nil
+      expect(result[:files]).to be_an(Array)
+      expect(result[:files]).to include("README.md")
+      expect(result[:checkout_branch]).to eq("syrus-chat-#{chat_session.id}")
+    end
+
+    it "excludes .git directory entries" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+
+      result = described_class.file_tree(chat_session, repository)
+
+      expect(result[:files]).not_to include(match(%r{\A\.git/}))
+      expect(result[:files]).not_to include(".git")
+    end
+
+    it "returns nil when the coding checkout directory does not exist" do
+      result = described_class.file_tree(chat_session, repository)
+
+      expect(result).to be_nil
+    end
+  end
+
+  describe ".file_content" do
+    it "returns the content of an existing file" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+
+      result = described_class.file_content(chat_session, repository, "README.md")
+
+      expect(result).not_to be_nil
+      expect(result[:binary]).to eq(false)
+      expect(result[:too_large]).to eq(false)
+      expect(result[:content]).to include("Widgets")
+    end
+
+    it "returns nil for a nonexistent file" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+
+      result = described_class.file_content(chat_session, repository, "no_such_file.rb")
+
+      expect(result).to be_nil
+    end
+
+    it "returns nil for path traversal attempts" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+
+      result = described_class.file_content(chat_session, repository, "../../../etc/passwd")
+
+      expect(result).to be_nil
+    end
+
+    it "returns nil when the checkout does not exist" do
+      result = described_class.file_content(chat_session, repository, "README.md")
+
+      expect(result).to be_nil
+    end
+  end
+
+  describe ".coding_diff" do
+    it "returns cumulative diff (origin vs working tree) for modified tracked files" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      File.write(checkout_path.join("README.md").to_s, "# Changed\n")
+
+      result = described_class.coding_diff(chat_session, repository, mode: :cumulative)
+
+      expect(result).to include("Changed")
+    end
+
+    it "returns turn diff (HEAD vs working tree uncommitted changes)" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      File.write(checkout_path.join("README.md").to_s, "# Turn change\n")
+
+      result = described_class.coding_diff(chat_session, repository, mode: :turn)
+
+      expect(result).to include("Turn change")
+    end
+
+    it "returns empty string when checkout does not exist" do
+      result = described_class.coding_diff(chat_session, repository, mode: :cumulative)
+
+      expect(result).to eq("")
+    end
+
+    it "defaults to cumulative mode" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+
+      result = described_class.coding_diff(chat_session, repository)
+
+      expect(result).to be_a(String)
+    end
+  end
+
   describe ".destroy!" do
     it "removes the workspace path" do
       path = described_class.ensure_root!(chat_session)
