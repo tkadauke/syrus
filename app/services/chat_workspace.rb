@@ -1,4 +1,5 @@
 require "fileutils"
+require "open3"
 
 # Persistent per-ChatSession workspace used by top-level chat inspection.
 # Unlike WorkflowWorkspace, this workspace is long-lived and is not reset
@@ -6,6 +7,7 @@ require "fileutils"
 class ChatWorkspace
   CLONE_DEPTH = 50
   EXCLUDE_ENTRY = ".syrus/".freeze
+  CODING_CHECKOUT_BRANCH_PREFIX = "syrus-chat-".freeze
 
   def self.data_root
     Pathname.new(ENV["SYRUS_DATA_ROOT"] || File.expand_path("~/.syrus"))
@@ -41,6 +43,34 @@ class ChatWorkspace
 
   def self.attach_repository!(chat_session, repository)
     new(chat_session).attach_repository!(repository)
+  end
+
+  # Sets up the writable coding checkout for Coding Mode. Idempotent: if the
+  # checkout is already initialized (coding_checkout_branch is set on the
+  # session), this is a no-op. On first call, replaces any existing shallow
+  # read-only clone with a full clone on a dedicated coding branch.
+  def self.ensure_coding_checkout!(chat_session, repository)
+    new(chat_session).ensure_coding_checkout!(repository)
+  end
+
+  # Returns true if the coding checkout path has uncommitted changes.
+  # Uses git status --porcelain; returns false on any error (e.g. checkout
+  # not yet initialized).
+  def self.uncommitted_changes?(path)
+    return false unless Pathname.new(path.to_s).join(".git").directory?
+
+    output, status = Open3.capture2e("git", "status", "--porcelain", chdir: path.to_s)
+    status.success? && output.strip.present?
+  rescue StandardError
+    false
+  end
+
+  # Discards the coding checkout: switches back to the default branch,
+  # deletes the coding branch locally, and tries to delete the remote branch
+  # if it was pushed. Clears coding_checkout_branch and
+  # coding_checkout_uncommitted on the session.
+  def self.cancel_coding_checkout!(chat_session, repository)
+    new(chat_session).cancel_coding_checkout!(repository)
   end
 
   # Removes the workspace directory AND the per-chat agent homes.
@@ -152,6 +182,59 @@ class ChatWorkspace
     path
   end
 
+  # Sets up a writable full-clone coding checkout on a dedicated branch.
+  # Idempotent: if coding_checkout_branch is already set, returns immediately.
+  # On first call, removes any existing shallow read-only clone and replaces
+  # it with a full (unshallow) clone on a new coding branch.
+  def ensure_coding_checkout!(repository)
+    return if @chat_session.coding_checkout_branch.present?
+
+    ensure_root!
+    path = self.class.repo_path_for(@chat_session, repository)
+    branch = "#{self.class::CODING_CHECKOUT_BRANCH_PREFIX}#{@chat_session.id}"
+
+    # Remove any existing shallow checkout so the full clone gets a clean slate.
+    FileUtils.rm_rf(path.to_s) if path.join(".git").directory?
+
+    full_clone!(repository, path)
+    create_coding_branch!(path, branch)
+    @chat_session.update_columns(coding_checkout_branch: branch)
+    @chat_session.chat_attachments.find_or_create_by!(attachable: repository)
+    path
+  end
+
+  # Resets the coding checkout: switches to the default branch, deletes the
+  # coding branch locally, tries to delete the remote branch, and clears the
+  # coding checkout state on the session.
+  def cancel_coding_checkout!(repository)
+    branch = @chat_session.coding_checkout_branch
+    return unless branch.present?
+
+    path = self.class.repo_path_for(@chat_session, repository)
+    default_branch = repository.default_branch
+
+    if path.join(".git").directory?
+      # Switch to default branch before deleting the coding branch
+      @git.run("checkout", default_branch, chdir: path.to_s, env: @env) rescue nil
+      # Delete the local coding branch
+      @git.run("branch", "-D", branch, chdir: path.to_s, env: @env) rescue nil
+      # Try to delete the remote branch (best-effort; may not have been pushed)
+      begin
+        @git.run(
+          "push", authenticated_url(repository), "--delete", branch,
+          chdir: path.to_s, env: @env
+        )
+      rescue StandardError
+        # Remote branch may not exist; silently continue
+      end
+    end
+
+    @chat_session.update_columns(
+      coding_checkout_branch: nil,
+      coding_checkout_uncommitted: false
+    )
+  end
+
   private
 
   def clone!(repository, path)
@@ -164,6 +247,22 @@ class ChatWorkspace
     )
     @git.run("remote", "set-url", "origin", repository.remote_url, chdir: path.to_s)
     GitInfoExclude.ensure_entry!(path, EXCLUDE_ENTRY)
+  end
+
+  def full_clone!(repository, path)
+    FileUtils.mkdir_p(path.dirname.to_s)
+    @git.run(
+      "clone",
+      "--branch", repository.default_branch,
+      "--no-tags", authenticated_url(repository), path.to_s,
+      env: @env
+    )
+    @git.run("remote", "set-url", "origin", repository.remote_url, chdir: path.to_s)
+    GitInfoExclude.ensure_entry!(path, EXCLUDE_ENTRY)
+  end
+
+  def create_coding_branch!(path, branch)
+    @git.run("checkout", "-b", branch, chdir: path.to_s, env: @env)
   end
 
   def fast_forward!(repository, path)

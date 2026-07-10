@@ -1288,6 +1288,132 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     end
   end
 
+  describe "GET /api/v1/app/chats/:id (coding checkout fields)" do
+    def enable_coding_mode!(enabled: true)
+      feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|
+        record.category = "Labs"
+        record.name = "Coding Mode"
+      end
+      feature.update!(enabled: enabled)
+    end
+
+    it "includes coding_checkout_uncommitted false by default in chat JSON" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository)
+
+      get "/api/v1/app/chats/#{chat.id}"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("chat", "coding_checkout_uncommitted")).to eq(false)
+      expect(parse_body.dig("chat", "coding_checkout_branch")).to be_nil
+    end
+
+    it "reflects coding_checkout_uncommitted true when the session has uncommitted changes" do
+      sign_in_as(user)
+      chat = ChatSession.create!(
+        user: user,
+        repository: repository,
+        coding_checkout_branch: "syrus-chat-99",
+        coding_checkout_uncommitted: true
+      )
+
+      get "/api/v1/app/chats/#{chat.id}"
+
+      expect(parse_body.dig("chat", "coding_checkout_uncommitted")).to eq(true)
+      expect(parse_body.dig("chat", "coding_checkout_branch")).to eq("syrus-chat-99")
+    end
+
+    it "includes app_cancel_coding_checkout_path in the response paths" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository)
+
+      get "/api/v1/app/chats/#{chat.id}"
+
+      expect(parse_body.dig("paths", "app_cancel_coding_checkout_path")).to eq(
+        "/api/v1/app/chats/#{chat.id}/coding_checkout"
+      )
+    end
+  end
+
+  describe "DELETE /api/v1/app/chats/:id/coding_checkout" do
+    def enable_coding_mode!(enabled: true)
+      feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|
+        record.category = "Labs"
+        record.name = "Coding Mode"
+      end
+      feature.update!(enabled: enabled)
+    end
+
+    it "cancels the coding checkout and returns updated chat JSON" do
+      sign_in_as(user)
+      chat = ChatSession.create!(
+        user: user,
+        repository: repository,
+        mode: "coding",
+        coding_checkout_branch: "syrus-chat-#{SecureRandom.hex(4)}",
+        coding_checkout_uncommitted: true
+      )
+      enable_coding_mode!
+      allow(ChatWorkspace).to receive(:cancel_coding_checkout!).with(chat, repository)
+
+      delete "/api/v1/app/chats/#{chat.id}/coding_checkout"
+
+      expect(response).to have_http_status(:ok)
+      expect(ChatWorkspace).to have_received(:cancel_coding_checkout!).with(chat, repository)
+      chat_json = parse_body["chat"]
+      expect(chat_json).to include("id" => chat.id)
+    end
+
+    it "404s when the coding_mode feature flag is off" do
+      sign_in_as(user)
+      chat = ChatSession.create!(
+        user: user,
+        repository: repository,
+        coding_checkout_branch: "syrus-chat-off",
+        coding_checkout_uncommitted: true
+      )
+      enable_coding_mode!(enabled: false)
+
+      delete "/api/v1/app/chats/#{chat.id}/coding_checkout"
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "404s when the chat has no attached repository" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, coding_checkout_branch: "syrus-chat-norepo")
+      enable_coding_mode!
+
+      delete "/api/v1/app/chats/#{chat.id}/coding_checkout"
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "404s when no coding branch is set" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository)
+      enable_coding_mode!
+
+      delete "/api/v1/app/chats/#{chat.id}/coding_checkout"
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "does not let another user cancel the coding checkout" do
+      sign_in_as(Factories.user)
+      chat = ChatSession.create!(
+        user: user,
+        repository: repository,
+        coding_checkout_branch: "syrus-chat-other"
+      )
+      enable_coding_mode!
+
+      delete "/api/v1/app/chats/#{chat.id}/coding_checkout"
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   it "answers an active agent question" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)

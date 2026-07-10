@@ -229,7 +229,8 @@ class ChatSession < ApplicationRecord
           stop_requested_at: stop_requested_at&.iso8601,
           cumulative_input_tokens: cumulative_input_tokens.to_i,
           cumulative_output_tokens: cumulative_output_tokens.to_i,
-          cumulative_cost_usd: cumulative_cost.to_f
+          cumulative_cost_usd: cumulative_cost.to_f,
+          coding_checkout_uncommitted: coding_checkout_uncommitted?
         }
       }
     )
@@ -297,7 +298,8 @@ class ChatSession < ApplicationRecord
       saved_change_to_mode? ||
       saved_change_to_cumulative_input_tokens? ||
       saved_change_to_cumulative_output_tokens? ||
-      saved_change_to_cumulative_cost_usd?
+      saved_change_to_cumulative_cost_usd? ||
+      saved_change_to_coding_checkout_uncommitted?
   end
 
   def attach_initial_repository
