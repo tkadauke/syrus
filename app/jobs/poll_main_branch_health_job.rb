@@ -48,7 +48,7 @@ class PollMainBranchHealthJob < ApplicationJob
     end
 
     repository.reload
-    if repository.main_health != previous_health && repository.main_health_broken?
+    if repository.main_health != previous_health
       MainHealthChangedService.on_health_change!(repository)
     end
   end
