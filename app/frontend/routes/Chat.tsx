@@ -57,6 +57,7 @@ import {
   shareChat,
   stopChat,
   updateChatProvider,
+  cancelCodingCheckout,
   updateChatMode,
   updateChatProposal,
   updateChatPinned,
@@ -4191,6 +4192,38 @@ function BookmarkPickerModal({ bookmarks, onClose, onSelect }: { bookmarks: Chat
   )
 }
 
+function CodingCheckoutBanner({ payload, queryKey, onNotice }: { payload: ChatPayload; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+  const { t } = useT("chat")
+  const queryClient = useQueryClient()
+  const cancelPath = payload.paths.app_cancel_coding_checkout_path
+  const cancel = useMutation({
+    mutationFn: () => cancelCodingCheckout(cancelPath!),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<ChatPayload>(queryKey, updated)
+      onNotice(t("coding_checkout_cancelled_notice"))
+    },
+    onError: () => {
+      onNotice(t("coding_checkout_cancel_error"))
+    }
+  })
+
+  if (!payload.coding_mode_enabled || !payload.chat.coding_checkout_uncommitted || !cancelPath) return null
+
+  return (
+    <div className="flex items-center justify-between rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+      <span>{t("coding_checkout_uncommitted_banner")}</span>
+      <button
+        className="shrink-0 font-medium underline hover:no-underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-50"
+        disabled={cancel.isPending}
+        onClick={() => cancel.mutate()}
+        type="button"
+      >
+        {t("cancel_coding_checkout")}
+      </button>
+    </div>
+  )
+}
+
 function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, queryKey, onNotice }: { bookmarkTarget: BookmarkTarget | null; chatId: string; commandHandlers: ChatSystemCommandHandlers; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const [hasSentFirstMessage, setHasSentFirstMessage] = useState(false)
   const { t } = useT("chat")
@@ -4210,6 +4243,7 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
         <UsageOverlay payload={payload} />
       </div>
       <div className={landing ? "w-full max-w-sm sm:max-w-2xl" : "space-y-3"}>
+        {!landing ? <CodingCheckoutBanner payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
         <Compose key={chatId} autoFocus={landing} chatId={chatId} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} showAttachedRepositories={landing} onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} />
       </div>
     </section>

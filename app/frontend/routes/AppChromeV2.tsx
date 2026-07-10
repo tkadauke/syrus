@@ -5,7 +5,7 @@ import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
-import { createEmptyChat, deleteChat, fetchChat, fetchChats, fetchMoreChatsForGroup, fetchNewChat, hideChat, markChatRead, markChatUnread, renameChat, updateChatPinned, type ChatGroupRecord, type ChatNavRecord, type ChatPayload, type ChatsIndexPayload } from "../api/chats"
+import { cancelCodingCheckout, createEmptyChat, deleteChat, fetchChat, fetchChats, fetchMoreChatsForGroup, fetchNewChat, hideChat, markChatRead, markChatUnread, renameChat, updateChatPinned, type ChatGroupRecord, type ChatNavRecord, type ChatPayload, type ChatsIndexPayload } from "../api/chats"
 import { ApiError, patchJson } from "../api/client"
 import { dashboardApiSearch, fetchDashboard, type DashboardPayload, type DashboardSubject } from "../api/dashboard"
 import { fetchTerminalSessions } from "../api/terminal"
@@ -849,6 +849,9 @@ function RecentChatsSidebar({ onCloseDrawer, onNotice, prefix, userPresent }: { 
                         {chat.pending_proposal_count > 0 && (
                           <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-400 dark:bg-amber-500" />
                         )}
+                        {chat.coding_checkout_uncommitted && (
+                          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-500 dark:bg-amber-400" title="Uncommitted coding changes" />
+                        )}
                         {chat.scratchpad_items_count > 0 && (
                           <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-teal-500 dark:bg-teal-400" title="Has scratch pad items" />
                         )}
@@ -980,6 +983,19 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
     }
   })
 
+  const discardCodingChanges = useMutation({
+    mutationFn: () => cancelCodingCheckout(`/api/v1/app/chats/${chat.id}/coding_checkout`),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
+      void queryClient.invalidateQueries({ queryKey: ["chats", String(chat.id)] })
+      setOpen(false)
+      onNotice(t("chat:coding_checkout_cancelled_notice"))
+    },
+    onError: (error) => {
+      onNotice(error instanceof ApiError && error.message ? error.message : t("chat:coding_checkout_cancel_error"))
+    }
+  })
+
   function submitRename(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (rename.isPending) return
@@ -1056,6 +1072,16 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
           >
             {t("chat:rename")}
           </button>
+          {chat.coding_checkout_uncommitted ? (
+            <button
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-amber-300 dark:hover:bg-amber-950/40"
+              disabled={discardCodingChanges.isPending}
+              onClick={() => discardCodingChanges.mutate()}
+              type="button"
+            >
+              {t("chat:discard_coding_changes")}
+            </button>
+          ) : null}
           <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
           <button
             className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:text-red-300 dark:hover:bg-red-950/40"

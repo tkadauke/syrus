@@ -713,6 +713,32 @@ module Api
           render_error("validation_failed", e.message, status: :unprocessable_content)
         end
 
+        def cancel_coding_checkout
+          chat_session = find_chat_session
+          unless Feature.coding_mode_enabled?
+            render_error("feature_disabled", "Coding Mode is not enabled on this instance.", status: :not_found)
+            return
+          end
+
+          repository = chat_session.repository
+          unless repository
+            render_error("not_found", "No repository attached to this chat.", status: :not_found)
+            return
+          end
+
+          if chat_session.coding_checkout_branch.blank?
+            render_error("not_found", "No active coding checkout for this chat.", status: :not_found)
+            return
+          end
+
+          ChatWorkspace.cancel_coding_checkout!(chat_session, repository)
+          render json: chat_payload(chat_session.reload, message: "Coding checkout cancelled.")
+        rescue ActiveRecord::RecordNotFound
+          raise
+        rescue StandardError => e
+          render_error("server_error", "Could not cancel coding checkout: #{e.message}", status: :internal_server_error)
+        end
+
         def search_proposals
           chat_session = find_chat_session
           query = params[:q].to_s.strip
@@ -996,7 +1022,8 @@ module Api
               app_whiteboard_path: "/api/v1/app/chats/#{chat_session.id}/whiteboard",
               app_switch_provider_path: "/api/v1/app/chats/#{chat_session.id}/switch_provider",
               app_scratchpad_reorder_path: "/api/v1/app/chats/#{chat_session.id}/scratchpad_items/reorder",
-              app_video_walkthroughs_path: "/api/v1/app/chats/#{chat_session.id}/video_walkthroughs"
+              app_video_walkthroughs_path: "/api/v1/app/chats/#{chat_session.id}/video_walkthroughs",
+              app_cancel_coding_checkout_path: "/api/v1/app/chats/#{chat_session.id}/coding_checkout"
             },
             gemini_configured: Current.user.gemini_configured?,
             # Labs flag: gates the composer's record/drag/upload intake. The
@@ -1697,7 +1724,9 @@ module Api
             cumulative_cost_usd: chat_session.cumulative_cost.to_f,
             pending_proposal_count: chat_session.proposals.where(state: "proposed").count +
               chat_session.pending_actions.where(state: "pending").count,
-            scratchpad_items_count: chat_session.scratchpad_items.count
+            scratchpad_items_count: chat_session.scratchpad_items.count,
+            coding_checkout_uncommitted: chat_session.coding_checkout_uncommitted?,
+            coding_checkout_branch: chat_session.coding_checkout_branch
           }
         end
 

@@ -84,6 +84,7 @@ class ChatTurnJob < ApplicationJob
     flush_current_assistant_content!
     capture_session!(provider, result) if result
     @chat.record_turn_usage!(result) if result
+    update_coding_checkout_uncommitted_state!
     touch_chat!
     stop_requested?
     create_terminal_completion_message! unless @cancelled
@@ -121,7 +122,11 @@ class ChatTurnJob < ApplicationJob
 
   def ensure_workspace!
     workspace_path = ChatWorkspace.ensure_root!(@chat)
-    refresh_attached_repository_checkouts!(workspace_path)
+    if coding_mode_active?
+      ensure_coding_checkout!
+    else
+      refresh_attached_repository_checkouts!(workspace_path)
+    end
     workspace_path
   end
 
@@ -200,6 +205,30 @@ class ChatTurnJob < ApplicationJob
     base = parent_session_id.present? ? chat_system.elaboration_guidance.presence : chat_system.to_s
     coding = coding_mode_guidance
     [ base, coding ].compact.join("\n\n")
+  end
+
+  def coding_mode_active?
+    Feature.coding_mode_enabled? && @chat.coding? && @chat.repository.present?
+  end
+
+  def ensure_coding_checkout!
+    ChatWorkspace.ensure_coding_checkout!(@chat, @chat.repository)
+  rescue StandardError => e
+    Rails.logger.warn("[ChatTurnJob] coding checkout setup failed for chat ##{@chat.id}: #{e.class}: #{e.message}")
+  end
+
+  def update_coding_checkout_uncommitted_state!
+    return unless coding_mode_active?
+    return unless @chat.coding_checkout_branch.present?
+
+    path = ChatWorkspace.repo_path_for(@chat, @chat.repository)
+    uncommitted = ChatWorkspace.uncommitted_changes?(path)
+    return if @chat.coding_checkout_uncommitted == uncommitted
+
+    @chat.update_columns(coding_checkout_uncommitted: uncommitted, updated_at: Time.current)
+    @chat.broadcast_header
+  rescue StandardError => e
+    Rails.logger.warn("[ChatTurnJob] coding checkout state check failed for chat ##{@chat.id}: #{e.class}: #{e.message}")
   end
 
   def coding_mode_guidance

@@ -30,6 +30,8 @@ export type ChatRecord = {
   cumulative_cost_usd: number
   pending_proposal_count?: number
   scratchpad_items_count?: number
+  coding_checkout_uncommitted?: boolean
+  coding_checkout_branch?: string | null
 }
 
 export type ChatProviderOption = {
@@ -428,6 +430,7 @@ export type ChatPayload = {
     app_whiteboard_path: string
     app_switch_provider_path: string
     app_scratchpad_reorder_path: string
+    app_cancel_coding_checkout_path?: string
   }
   gemini_configured: boolean
   walkthroughs_enabled: boolean
@@ -596,6 +599,10 @@ export function updateChatProvider(id: number | string, chatProvider: string | n
 
 export function updateChatMode(id: number | string, mode: ChatMode) {
   return patchJson<ChatPayload>(`/api/v1/app/chats/${id}`, { chat: { mode } })
+}
+
+export function cancelCodingCheckout(path: string) {
+  return deleteJson<ChatPayload>(path)
 }
 
 export function clearChatHistory(path: string) {

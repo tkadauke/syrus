@@ -44,6 +44,102 @@ RSpec.describe ChatTurnJob do
     feature.update!(enabled: enabled)
   end
 
+  it "calls ensure_coding_checkout! instead of refreshing repository checkouts in coding mode" do
+    enable_coding_mode!
+    chat.update!(mode: "coding")
+    ensure_called = false
+    refresh_called = false
+    allow(ChatWorkspace).to receive(:ensure_coding_checkout!) do
+      ensure_called = true
+    end
+    allow(ChatWorkspace).to receive(:attach_repository!) do
+      refresh_called = true
+    end
+    ChatTurnJob.agent_runner = ->(**_) { result_fixture(session_id: "s1") }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(ensure_called).to eq(true)
+    expect(refresh_called).to eq(false)
+  end
+
+  it "calls refresh for attached repositories in planning mode, not ensure_coding_checkout!" do
+    ensure_called = false
+    allow(ChatWorkspace).to receive(:ensure_coding_checkout!) { ensure_called = true }
+    FileUtils.mkdir_p(ChatWorkspace.repo_path_for(chat, repository).join(".git"))
+    allow(ChatWorkspace).to receive(:attach_repository!)
+    ChatTurnJob.agent_runner = ->(**_) { result_fixture(session_id: "s1") }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(ensure_called).to eq(false)
+  end
+
+  it "logs a warning and continues when ensure_coding_checkout! fails in coding mode" do
+    enable_coding_mode!
+    chat.update!(mode: "coding")
+    allow(ChatWorkspace).to receive(:ensure_coding_checkout!).and_raise(StandardError, "clone failed")
+    allow(Rails.logger).to receive(:warn)
+    ran_agent = false
+    ChatTurnJob.agent_runner = ->(**_) {
+      ran_agent = true
+      result_fixture(session_id: "s1")
+    }
+
+    expect { described_class.perform_now(chat.id, user_message.id) }.not_to raise_error
+
+    expect(ran_agent).to eq(true)
+    expect(Rails.logger).to have_received(:warn).with(
+      /coding checkout setup failed for chat ##{chat.id}: StandardError: clone failed/
+    )
+  end
+
+  it "updates coding_checkout_uncommitted after the turn when there are uncommitted changes" do
+    enable_coding_mode!
+    chat.update!(mode: "coding", coding_checkout_branch: "syrus-chat-#{chat.id}")
+    path = ChatWorkspace.repo_path_for(chat, repository)
+    allow(ChatWorkspace).to receive(:ensure_coding_checkout!)
+    allow(ChatWorkspace).to receive(:repo_path_for).with(chat, repository).and_return(path)
+    allow(ChatWorkspace).to receive(:uncommitted_changes?).with(path).and_return(true)
+    allow(AppEvents).to receive(:broadcast)
+    ChatTurnJob.agent_runner = ->(**_) { result_fixture(session_id: "s1") }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(chat.reload.coding_checkout_uncommitted).to eq(true)
+  end
+
+  it "does not update coding_checkout_uncommitted when state has not changed" do
+    enable_coding_mode!
+    chat.update!(mode: "coding", coding_checkout_branch: "syrus-chat-#{chat.id}", coding_checkout_uncommitted: false)
+    path = ChatWorkspace.repo_path_for(chat, repository)
+    allow(ChatWorkspace).to receive(:ensure_coding_checkout!)
+    allow(ChatWorkspace).to receive(:repo_path_for).with(chat, repository).and_return(path)
+    allow(ChatWorkspace).to receive(:uncommitted_changes?).with(path).and_return(false)
+    update_columns_called = false
+    allow(chat).to receive(:update_columns).and_wrap_original do |original, **attrs|
+      update_columns_called = true if attrs.key?(:coding_checkout_uncommitted)
+      original.call(**attrs)
+    end
+    ChatTurnJob.agent_runner = ->(**_) { result_fixture(session_id: "s1") }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(update_columns_called).to eq(false)
+  end
+
+  it "skips coding checkout state update when chat has no coding_checkout_branch" do
+    enable_coding_mode!
+    chat.update!(mode: "coding")
+    allow(ChatWorkspace).to receive(:ensure_coding_checkout!)
+    allow(ChatWorkspace).to receive(:uncommitted_changes?)
+    ChatTurnJob.agent_runner = ->(**_) { result_fixture(session_id: "s1") }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(ChatWorkspace).not_to have_received(:uncommitted_changes?)
+  end
+
   it "does not inject the coding mode section when the feature flag is off (planning mode chat)" do
     received = {}
     ChatTurnJob.agent_runner = ->(**kwargs) {

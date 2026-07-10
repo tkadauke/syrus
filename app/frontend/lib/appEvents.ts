@@ -359,7 +359,7 @@ type ChatControlsPayload = {
 
 type ChatHeaderPayload = {
   action: "update_header"
-  chat: Partial<Pick<ChatRecord, "title" | "title_pending" | "pinned_context" | "chat_provider" | "repository" | "stop_requested_at" | "cumulative_input_tokens" | "cumulative_output_tokens" | "cumulative_cost_usd">>
+  chat: Partial<Pick<ChatRecord, "title" | "title_pending" | "pinned_context" | "chat_provider" | "repository" | "stop_requested_at" | "cumulative_input_tokens" | "cumulative_output_tokens" | "cumulative_cost_usd" | "coding_checkout_uncommitted">>
 }
 
 type ChatBookmarkPayload = {
@@ -447,6 +447,7 @@ function chatHeaderPayload(payload: unknown): ChatHeaderPayload | null {
   if (typeof chat.cumulative_input_tokens === "number") updates.cumulative_input_tokens = chat.cumulative_input_tokens
   if (typeof chat.cumulative_output_tokens === "number") updates.cumulative_output_tokens = chat.cumulative_output_tokens
   if (typeof chat.cumulative_cost_usd === "number") updates.cumulative_cost_usd = chat.cumulative_cost_usd
+  if (typeof chat.coding_checkout_uncommitted === "boolean") updates.coding_checkout_uncommitted = chat.coding_checkout_uncommitted
 
   return {
     action: "update_header",

@@ -95,6 +95,109 @@ RSpec.describe ChatWorkspace do
     end
   end
 
+  describe ".ensure_coding_checkout!" do
+    it "full-clones the repository and creates a coding branch on first call" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+
+      path = described_class.repo_path_for(chat_session, repository)
+      expect(path.join(".git")).to exist
+      branch = `git -C #{path} rev-parse --abbrev-ref HEAD`.strip
+      expect(branch).to eq("syrus-chat-#{chat_session.id}")
+      expect(chat_session.reload.coding_checkout_branch).to eq("syrus-chat-#{chat_session.id}")
+    end
+
+    it "is idempotent when coding_checkout_branch is already set" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      branch_before = chat_session.reload.coding_checkout_branch
+      path_before = described_class.repo_path_for(chat_session, repository)
+      mtime_before = File.stat(path_before.join(".git").to_s).mtime
+
+      described_class.ensure_coding_checkout!(chat_session, repository)
+
+      expect(chat_session.reload.coding_checkout_branch).to eq(branch_before)
+      # The .git directory should not have been touched (no re-clone happened)
+      expect(File.stat(path_before.join(".git").to_s).mtime).to eq(mtime_before)
+    end
+
+    it "replaces an existing shallow checkout with a full clone" do
+      shallow_path = described_class.repo_path_for(chat_session, repository)
+      FileUtils.mkdir_p(shallow_path.join(".git").to_s)
+      File.write(shallow_path.join(".git", "shallow").to_s, "stubbed\n")
+
+      described_class.ensure_coding_checkout!(chat_session, repository)
+
+      expect(shallow_path.join(".git")).to exist
+      expect(`git -C #{shallow_path} rev-parse --abbrev-ref HEAD`.strip).to eq("syrus-chat-#{chat_session.id}")
+    end
+
+    it "records a repository attachment on the session" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+
+      expect(chat_session.reload.attached_repositories).to include(repository)
+    end
+  end
+
+  describe ".uncommitted_changes?" do
+    it "returns false for a clean working tree" do
+      described_class.attach_repository!(chat_session, repository)
+      path = described_class.repo_path_for(chat_session, repository)
+
+      expect(described_class.uncommitted_changes?(path)).to eq(false)
+    end
+
+    it "returns true when there is an untracked file" do
+      described_class.attach_repository!(chat_session, repository)
+      path = described_class.repo_path_for(chat_session, repository)
+      File.write(path.join("new_file.txt").to_s, "change\n")
+
+      expect(described_class.uncommitted_changes?(path)).to eq(true)
+    end
+
+    it "returns true when there is a modified tracked file" do
+      described_class.attach_repository!(chat_session, repository)
+      path = described_class.repo_path_for(chat_session, repository)
+      File.open(path.join("README.md").to_s, "a") { |f| f.puts "change" }
+
+      expect(described_class.uncommitted_changes?(path)).to eq(true)
+    end
+
+    it "returns false for a path with no .git directory" do
+      path = Pathname.new("/tmp/not-a-git-repo-#{SecureRandom.hex(4)}")
+      expect(described_class.uncommitted_changes?(path)).to eq(false)
+    end
+  end
+
+  describe ".cancel_coding_checkout!" do
+    it "deletes the coding branch and clears coding checkout state on the session" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      path = described_class.repo_path_for(chat_session, repository)
+      expect(`git -C #{path} rev-parse --abbrev-ref HEAD`.strip).to eq("syrus-chat-#{chat_session.id}")
+
+      described_class.cancel_coding_checkout!(chat_session, repository)
+
+      expect(chat_session.reload.coding_checkout_branch).to be_nil
+      expect(chat_session.coding_checkout_uncommitted).to eq(false)
+      expect(`git -C #{path} rev-parse --abbrev-ref HEAD`.strip).to eq("main")
+    end
+
+    it "is a no-op when coding_checkout_branch is not set" do
+      expect {
+        described_class.cancel_coding_checkout!(chat_session, repository)
+      }.not_to raise_error
+
+      expect(chat_session.reload.coding_checkout_branch).to be_nil
+    end
+
+    it "clears state even when the checkout directory does not exist" do
+      chat_session.update_columns(coding_checkout_branch: "syrus-chat-missing", coding_checkout_uncommitted: true)
+
+      described_class.cancel_coding_checkout!(chat_session, repository)
+
+      expect(chat_session.reload.coding_checkout_branch).to be_nil
+      expect(chat_session.coding_checkout_uncommitted).to eq(false)
+    end
+  end
+
   describe ".destroy!" do
     it "removes the workspace path" do
       path = described_class.ensure_root!(chat_session)
