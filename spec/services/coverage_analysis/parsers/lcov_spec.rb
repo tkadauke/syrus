@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Coverage::Parsers::Lcov do
+RSpec.describe CoverageAnalysis::Parsers::Lcov do
   def parse(content)
     described_class.parse(content)
   end
