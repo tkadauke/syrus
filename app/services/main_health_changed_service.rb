@@ -61,7 +61,7 @@ class MainHealthChangedService
       agent_provider: @repository.effective_agent_provider,
       priority: "high"
     )
-    job.advance_after_triage!
+    job.advance_after_triage! if job.may_advance_after_triage?
   end
 
   def open_fix_job_exists?
