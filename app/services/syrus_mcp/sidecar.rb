@@ -25,7 +25,7 @@ module SyrusMcp
       # Steps::Base#with_mcp_config for the full story.
       server = MCP::Server.new(
         name: "syrus-mcp-sidecar",
-        tools: [ ReadLiveStateTool, ReadMemoryTool, GetCoverageReportTool, SubmitSummaryTool, SubmitTestPlanTool, SubmitAdversarialReviewTool ],
+        tools: [ ReadLiveStateTool, ReadMemoryTool, GetCoverageReportTool, SubmitSummaryTool, SubmitTestPlanTool, SubmitAdversarialReviewTool, ReportMainConcernTool ],
         server_context: { run_id: @run_id }
       )
       transport = MCP::Server::Transports::StdioTransport.new(server)
