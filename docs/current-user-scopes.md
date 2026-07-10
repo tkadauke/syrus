@@ -31,6 +31,7 @@ per-user/private:
   - app/controllers/api/v1/app/job_claims_controller.rb
   - app/controllers/api/v1/app/job_coding_mode_controller.rb
   - app/controllers/api/v1/app/job_lifecycle_controller.rb
+  - app/controllers/api/v1/app/local_daemon_sessions_controller.rb
   - app/controllers/api/v1/app/job_metadata_controller.rb
   - app/controllers/api/v1/app/job_pins_controller.rb
   - app/controllers/api/v1/app/job_run_commands_controller.rb
@@ -113,6 +114,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/job_claims_controller.rb` | per-user/private | Job claim and release actions find jobs through `Current.user.jobs` and broadcast ownership updates back to that user. |
 | `app/controllers/api/v1/app/job_coding_mode_controller.rb` | per-user/private | Opens or reuses a coding-mode ChatSession linked to a Job found through `Current.user.jobs`, and initialises the Job branch checkout inside that user's chat workspace. |
 | `app/controllers/api/v1/app/job_lifecycle_controller.rb` | per-user/private | Retry, approval, cancellation, close, and broadcasts operate on jobs found through `Current.user.jobs`. |
+| `app/controllers/api/v1/app/local_daemon_sessions_controller.rb` | per-user/private | Daemon tunnel sessions are created, read, and destroyed through `Current.user.chat_sessions`; auth tokens belong to the current user. |
 | `app/controllers/api/v1/app/job_metadata_controller.rb` | per-user/private and admin gate | Tags and dependency targets are user-scoped. Dependency override is separately admin-only. |
 | `app/controllers/api/v1/app/job_pins_controller.rb` | per-user/private | Pins are per-user rows on jobs found through `Current.user.jobs`. |
 | `app/controllers/api/v1/app/job_run_commands_controller.rb` | per-user/private | Run commands target jobs found through `Current.user.jobs` and validate agent providers against the current user. |
