@@ -25,7 +25,7 @@ class SyrusYml
   AdversarialReviewConfig = Data.define(:rounds)
   CoverageSource = Data.define(:artifact, :format)
   CoverageThreshold = Data.define(:lines, :pr_lines)
-  CoverageConfig = Data.define(:sources, :threshold, :on_miss, :hitmap_ttl_days, :pr_comment) do
+  CoverageConfig = Data.define(:sources, :threshold, :on_miss, :hitmap_ttl_days, :pr_comment, :schedule_prompt) do
     def threshold_miss?(lines_pct:, pr_delta_pct: nil)
       return false unless threshold
 
@@ -186,7 +186,8 @@ class SyrusYml
       threshold: threshold,
       on_miss: on_miss,
       hitmap_ttl_days: hitmap_ttl_days,
-      pr_comment: ActiveModel::Type::Boolean.new.cast(raw["pr_comment"]) || false
+      pr_comment: ActiveModel::Type::Boolean.new.cast(raw["pr_comment"]) || false,
+      schedule_prompt: raw["schedule_prompt"].to_s.strip.presence
     )
   rescue ArgumentError, TypeError
     raise ParseError, "coverage.hitmap_ttl_days: must be an integer"

@@ -207,8 +207,11 @@ RSpec.describe Steps::CoverageAnalyze do
         write_lcov(content: lcov_all_uncovered)
       end
 
-      it "raises StepFailed when lines_pct is below threshold" do
-        expect { handler.call }.to raise_error(Steps::Base::StepFailed, /Coverage threshold not met/)
+      it "raises StepFailed with a descriptive message when lines_pct is below threshold" do
+        expect { handler.call }.to raise_error(
+          Steps::Base::StepFailed,
+          /Coverage threshold not met \(lines: 0\.0%, threshold: 80\.0%\)\. Add tests and retry this Job\./
+        )
       end
     end
 
