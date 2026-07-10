@@ -1325,7 +1325,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
           aria-expanded={commandPaletteOpen}
           aria-haspopup="listbox"
-          className={`min-h-11 w-full resize-none overflow-y-hidden rounded border border-gray-200 bg-white py-2.5 pl-3 ${textareaPr} text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:min-h-9 sm:py-2 sm:text-sm sm:leading-5 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800`}
+          className={`min-h-11 w-full resize-none overflow-y-hidden rounded border border-gray-200 bg-white py-[5px] pl-3 ${textareaPr} text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:min-h-9 sm:py-[7px] sm:text-sm sm:leading-5 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800`}
           disabled={send.isPending || systemAction.isPending}
           onChange={(event) => {
             updateText(event.target.value)
@@ -1340,7 +1340,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           value={text}
         />
         {ghostSuggestion ? (
-          <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center gap-2 overflow-hidden px-3 py-2 text-base leading-6 sm:text-sm sm:leading-5" data-testid="chat-suggestion-ghost">
+          <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center gap-2 overflow-hidden px-3 py-[5px] text-base leading-6 sm:py-[7px] sm:text-sm sm:leading-5" data-testid="chat-suggestion-ghost">
             <span className="truncate text-gray-400 dark:text-gray-500">{ghostSuggestion}</span>
             <span className="inline-flex shrink-0 items-center rounded border border-gray-300 bg-gray-50 px-1 text-[10px] font-medium text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-500">⇥ {t("suggestion_tab_hint")}</span>
           </div>
