@@ -399,7 +399,17 @@ function primaryHeaderActionKeys(payload: JobDetailPayload, actions: HeaderActio
 
 function HeaderActionsMenu({ actions, command, onRetryFeedback }: { actions: HeaderAction[]; command: ReturnType<typeof useJobCommand>; onRetryFeedback: () => void }) {
   const [open, setOpen] = useState(false)
+  const [alignRight, setAlignRight] = useState(true)
   const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
+  const buttonRef = useRef<HTMLButtonElement>(null)
+
+  function handleToggle() {
+    if (!open && buttonRef.current) {
+      // w-56 = 224px; open left only when the button has enough room to the left
+      setAlignRight(buttonRef.current.getBoundingClientRect().right >= 224)
+    }
+    setOpen((current) => !current)
+  }
 
   return (
     <div className="relative" ref={menuRef}>
@@ -408,13 +418,14 @@ function HeaderActionsMenu({ actions, command, onRetryFeedback }: { actions: Hea
         aria-haspopup="menu"
         className={buttonClass("secondary")}
         disabled={command.isPending}
-        onClick={() => setOpen((current) => !current)}
+        onClick={handleToggle}
+        ref={buttonRef}
         type="button"
       >
         ⋯
       </button>
       {open ? (
-        <div className="absolute right-0 z-20 mt-2 w-56 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900" role="menu">
+        <div className={`absolute ${alignRight ? "right-0" : "left-0"} z-20 mt-2 w-56 rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900`} role="menu">
           {actions.map((action) => (
             <button
               className={menuButtonClass(action.tone)}

@@ -83,6 +83,36 @@ describe("JobDetailView", () => {
     expect(screen.queryByRole("button", { name: "Give feedback" })).not.toBeInTheDocument()
   })
 
+  it("opens the overflow menu aligned to the right-0 edge when the button has room to the left", () => {
+    renderJobDetail(jobPayload())
+    const menuButton = screen.getByRole("button", { name: "⋯" })
+
+    vi.spyOn(menuButton, "getBoundingClientRect").mockReturnValue({
+      right: 300, left: 260, top: 0, bottom: 36, width: 40, height: 36, x: 260, y: 0, toJSON: () => ({})
+    } as DOMRect)
+
+    fireEvent.click(menuButton)
+
+    const menu = screen.getByRole("menu")
+    expect(menu).toHaveClass("right-0")
+    expect(menu).not.toHaveClass("left-0")
+  })
+
+  it("opens the overflow menu aligned to the left-0 edge when the button is near the left viewport edge", () => {
+    renderJobDetail(jobPayload())
+    const menuButton = screen.getByRole("button", { name: "⋯" })
+
+    vi.spyOn(menuButton, "getBoundingClientRect").mockReturnValue({
+      right: 100, left: 60, top: 0, bottom: 36, width: 40, height: 36, x: 60, y: 0, toJSON: () => ({})
+    } as DOMRect)
+
+    fireEvent.click(menuButton)
+
+    const menu = screen.getByRole("menu")
+    expect(menu).toHaveClass("left-0")
+    expect(menu).not.toHaveClass("right-0")
+  })
+
   it("renders dependency blockers as linked Job slugs", () => {
     const parsedDependency = {
       id: 12,
