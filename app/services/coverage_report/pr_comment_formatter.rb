@@ -1,4 +1,4 @@
-module Coverage
+module CoverageReport
   # Formats a coverage artifact into the markdown body for a GitHub PR comment.
   # Used by Steps::CoverageAnalyze (to pre-render and store the body) and by
   # Steps::CoveragePrComment / Steps::PrOpen (to post or update the comment).
@@ -89,10 +89,10 @@ module Coverage
       lines << "|------|-------|---------------|"
 
       file_rows.each do |row|
-        file_pct   = row[:lines_pct] ? format_pct(row[:lines_pct]) : "—"
+        file_pct    = row[:lines_pct] ? format_pct(row[:lines_pct]) : "—"
         changed_pct = row[:total] > 0 ? (row[:covered].to_f / row[:total] * 100) : 0.0
-        warn_flag  = row[:total] > 0 && changed_pct < CHANGED_LINE_WARN_PCT ? " ⚠️" : ""
-        changed    = "#{row[:covered]}/#{row[:total]} covered#{warn_flag}"
+        warn_flag   = row[:total] > 0 && changed_pct < CHANGED_LINE_WARN_PCT ? " ⚠️" : ""
+        changed     = "#{row[:covered]}/#{row[:total]} covered#{warn_flag}"
         lines << "| #{row[:file]} | #{file_pct} | #{changed} |"
       end
 

@@ -303,7 +303,7 @@ module Steps
       repo_slug = pr_repo.slug
 
       existing = client.pr_issue_comments(repo_slug, pr_number).find do |comment|
-        comment.body.to_s.include?(Coverage::PrCommentFormatter::MARKER)
+        comment.body.to_s.include?(CoverageReport::PrCommentFormatter::MARKER)
       end
 
       if existing
