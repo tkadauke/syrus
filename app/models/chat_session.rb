@@ -51,6 +51,7 @@ class ChatSession < ApplicationRecord
   has_one :claude_session, as: :resumable, dependent: :destroy
   has_one :whiteboard, dependent: :destroy
   has_one :linked_job, class_name: "Job", foreign_key: :linked_chat_id, inverse_of: :linked_chat, dependent: :nullify
+  has_one :local_daemon_session, dependent: :destroy
 
   after_update_commit :broadcast_header, if: :header_previously_changed?
   after_create :attach_initial_repository
@@ -255,6 +256,28 @@ class ChatSession < ApplicationRecord
 
     update!(suggested_next_step: nil)
     broadcast_app_suggestion_update
+  end
+
+  def broadcast_daemon_status(status, repo: nil, branch: nil)
+    payload = {
+      action: "update_daemon_status",
+      daemon_connected: daemon_connected?,
+      daemon_status: status,
+      daemon_repo: repo || daemon_repo,
+      daemon_branch: branch || daemon_branch
+    }
+    AppEvents.broadcast(
+      user: user,
+      type: "updated",
+      resource: "chat",
+      id: id,
+      changed: [ "daemon" ],
+      payload: payload
+    )
+  end
+
+  def daemon_connected?
+    daemon_connected
   end
 
   def broadcast_app_suggestion_update

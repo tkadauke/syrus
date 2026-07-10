@@ -24,3 +24,8 @@ features:
     name: "Performance logging"
     description: "Records structured slow request, SQL, and phase events to logs and a short-lived admin diagnostics buffer."
     default: false
+  - slug: local_mode
+    category: "Labs"
+    name: "Local Mode"
+    description: "Connect a local daemon to a chat session via a reverse WebSocket tunnel. The agent can read/write files and run commands on the user's machine."
+    default: false

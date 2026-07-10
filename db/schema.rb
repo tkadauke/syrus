@@ -260,6 +260,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_12_202210) do
     t.decimal "cumulative_cost_usd", precision: 12, scale: 6, default: "0.0", null: false
     t.integer "cumulative_input_tokens", default: 0, null: false
     t.integer "cumulative_output_tokens", default: 0, null: false
+    t.string "daemon_branch"
+    t.boolean "daemon_connected", default: false, null: false
+    t.string "daemon_repo"
     t.datetime "hidden_at"
     t.datetime "last_message_at"
     t.datetime "last_read_at"
@@ -681,6 +684,40 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_12_202210) do
     t.index ["triaging_reason"], name: "index_jobs_on_triaging_reason"
     t.index ["user_id"], name: "index_jobs_on_user_id"
     t.index ["validity"], name: "index_jobs_on_validity"
+  end
+
+  create_table "local_daemon_sessions", force: :cascade do |t|
+    t.string "auth_token", null: false
+    t.integer "chat_session_id", null: false
+    t.datetime "created_at", null: false
+    t.string "daemon_branch"
+    t.string "daemon_repo"
+    t.datetime "disconnected_at"
+    t.datetime "last_heartbeat_at"
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["auth_token"], name: "index_local_daemon_sessions_on_auth_token", unique: true
+    t.index ["chat_session_id"], name: "index_local_daemon_sessions_on_chat_session_id"
+    t.index ["user_id"], name: "index_local_daemon_sessions_on_user_id"
+  end
+
+  create_table "local_tool_calls", force: :cascade do |t|
+    t.integer "chat_session_id", null: false
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "dispatched_at"
+    t.string "error"
+    t.integer "local_daemon_session_id", null: false
+    t.json "result"
+    t.string "state", null: false
+    t.json "tool_input"
+    t.string "tool_name", null: false
+    t.string "tool_use_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_session_id"], name: "index_local_tool_calls_on_chat_session_id"
+    t.index ["local_daemon_session_id", "state"], name: "index_local_tool_calls_on_local_daemon_session_id_and_state"
+    t.index ["local_daemon_session_id"], name: "index_local_tool_calls_on_local_daemon_session_id"
+    t.index ["tool_use_id"], name: "index_local_tool_calls_on_tool_use_id"
   end
 
   create_table "main_branch_health_checks", force: :cascade do |t|
@@ -1253,6 +1290,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_12_202210) do
   add_foreign_key "jobs", "users", column: "claimed_by_user_id"
   add_foreign_key "jobs", "users", column: "dependencies_overridden_by_user_id"
   add_foreign_key "jobs", "users", column: "owner_user_id"
+  add_foreign_key "local_daemon_sessions", "chat_sessions"
+  add_foreign_key "local_daemon_sessions", "users"
+  add_foreign_key "local_tool_calls", "chat_sessions"
+  add_foreign_key "local_tool_calls", "local_daemon_sessions"
   add_foreign_key "main_branch_health_checks", "repositories"
   add_foreign_key "main_concern_reports", "jobs"
   add_foreign_key "main_concern_reports", "repositories"

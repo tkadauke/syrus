@@ -153,6 +153,9 @@ Rails.application.routes.draw do
         get "chats/:chat_id/whiteboard_snapshots", to: "whiteboard_snapshots#index", constraints: { chat_id: /\d+/ }
         post "chats/:chat_id/whiteboard_snapshots", to: "whiteboard_snapshots#create", constraints: { chat_id: /\d+/ }
         post "chats/:chat_id/video_walkthroughs", to: "video_walkthroughs#create", constraints: { chat_id: /\d+/ }
+        get  "chats/:chat_id/local_daemon_session", to: "local_daemon_sessions#show",    constraints: { chat_id: /\d+/ }
+        post "chats/:chat_id/local_daemon_session", to: "local_daemon_sessions#create",   constraints: { chat_id: /\d+/ }
+        delete "chats/:chat_id/local_daemon_session", to: "local_daemon_sessions#destroy", constraints: { chat_id: /\d+/ }
         post "video_walkthroughs/:id/retry", to: "video_walkthroughs#retry", constraints: { id: /\d+/ }
         get "chats/:chat_id/whiteboard_snapshots/:id", to: "whiteboard_snapshots#show", constraints: { chat_id: /\d+/, id: /\d+/ }
         patch "chats/:id/mark_read", to: "chats#mark_read", constraints: { id: /\d+/ }
