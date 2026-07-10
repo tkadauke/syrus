@@ -1,6 +1,6 @@
 require "rexml/document"
 
-module Coverage
+module CoverageAnalysis
   module Parsers
     # Parses Cobertura XML coverage reports into a normalized hit map.
     #

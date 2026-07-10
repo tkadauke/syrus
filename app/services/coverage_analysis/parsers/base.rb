@@ -1,4 +1,4 @@
-module Coverage
+module CoverageAnalysis
   module Parsers
     class Base
       ParseResult = Data.define(:raw, :lines_pct)

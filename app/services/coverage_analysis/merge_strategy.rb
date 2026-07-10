@@ -1,11 +1,11 @@
-module Coverage
+module CoverageAnalysis
   # Merges multiple coverage hit maps (from different test runs or tools) by
   # summing hit counts per line. Totals for lines/branches/functions are also
   # accumulated. Files present in any source appear in the merged result.
   module MergeStrategy
     module_function
 
-    # Takes an array of raw hashes (as produced by Coverage::Parsers::Base#build_result)
+    # Takes an array of raw hashes (as produced by CoverageAnalysis::Parsers::Base#build_result)
     # and returns a single merged hash in the same shape.
     def merge_all(raws)
       merged_hit_map   = {}

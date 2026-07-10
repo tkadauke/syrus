@@ -1,4 +1,4 @@
-module Coverage
+module CoverageAnalysis
   # Result of parsing one coverage artifact file.
   # `raw` is the normalized hit map + totals hash passed to MergeStrategy.
   # Shape of raw:

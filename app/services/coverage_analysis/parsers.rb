@@ -1,8 +1,8 @@
-module Coverage
+module CoverageAnalysis
   module Parsers
     REGISTRY = {
-      "lcov"      => -> { Coverage::Parsers::Lcov },
-      "cobertura" => -> { Coverage::Parsers::Cobertura }
+      "lcov"      => -> { CoverageAnalysis::Parsers::Lcov },
+      "cobertura" => -> { CoverageAnalysis::Parsers::Cobertura }
     }.freeze
 
     module_function
