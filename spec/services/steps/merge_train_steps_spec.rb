@@ -65,6 +65,44 @@ RSpec.describe "Steps::MergeTrain*" do
       expect { step_handler(described_class, "merge_train_assemble", train, a).call }
         .to raise_error(Steps::Base::StepFailed, /not in :landing/)
     end
+
+    it "fails when an epic sibling is open but not yet approved" do
+      a = member_job(issue_number: 1)
+      train = MergeTrain.create!(epic: epic, repository: repository, base_branch: "master")
+      MergeTrainMember.create!(merge_train: train, job: a, position: 0)
+      straggler = Factories.job_record(
+        user: user, repository: repository, epic: epic,
+        issue_number: 2, state: "running", pr_number: 502
+      )
+
+      expect { step_handler(described_class, "merge_train_assemble", train, a).call }
+        .to raise_error(Steps::Base::StepFailed, /cannot assemble.*#{straggler.id}/)
+    end
+
+    it "does not block when the only non-member sibling is closed" do
+      a = member_job(issue_number: 1)
+      train = MergeTrain.create!(epic: epic, repository: repository, base_branch: "master")
+      MergeTrainMember.create!(merge_train: train, job: a, position: 0)
+      Factories.job_record(
+        user: user, repository: repository, epic: epic,
+        issue_number: 2, state: "closed", pr_number: 502
+      )
+
+      expect { step_handler(described_class, "merge_train_assemble", train, a).call }.not_to raise_error
+      expect(train.reload.integration_branch).to be_present
+    end
+
+    it "does not block when the only non-member sibling is approved (waiting for a future train)" do
+      a = member_job(issue_number: 1)
+      train = MergeTrain.create!(epic: epic, repository: repository, base_branch: "master")
+      MergeTrainMember.create!(merge_train: train, job: a, position: 0)
+      Factories.job_record(
+        user: user, repository: repository, epic: epic,
+        issue_number: 2, state: "approved", pr_number: 502
+      )
+
+      expect { step_handler(described_class, "merge_train_assemble", train, a).call }.not_to raise_error
+    end
   end
 
   describe Steps::MergeTrainBuild do
