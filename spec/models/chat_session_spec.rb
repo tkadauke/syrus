@@ -288,6 +288,7 @@ RSpec.describe ChatSession do
           action: "update_header",
           chat: {
             chat_provider: "claude",
+            coding_checkout_uncommitted: false,
             title: "Updated chat",
             title_pending: false,
             pinned_context: nil,
