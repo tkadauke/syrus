@@ -52,8 +52,9 @@ RSpec.describe "website content coverage" do
   end
 
   it "keeps markdown pages free of unfinished stub comments" do
-    markdown_files = Dir[File.expand_path("../../website/**/*.md", __dir__)]
-                       .reject { |p| p.include?("/node_modules/") }
+    markdown_files = Dir[File.expand_path("../../website/**/*.md", __dir__)].reject do |path|
+      path.include?("/node_modules/")
+    end
 
     offenders = markdown_files.select do |path|
       File.read(path).match?(/<!--\s*(STUB|TODO)/i)
