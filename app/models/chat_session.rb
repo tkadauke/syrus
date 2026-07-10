@@ -71,6 +71,10 @@ class ChatSession < ApplicationRecord
             numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :cumulative_cost_usd,
             numericality: { greater_than_or_equal_to: 0 }
+  MODES = %w[ planning coding ].freeze
+
+  enum :mode, { planning: "planning", coding: "coding" }, default: "planning"
+
   validates :chat_provider, inclusion: { in: User::CHAT_PROVIDERS }, allow_nil: true
   validates :share_token, uniqueness: true, allow_nil: true
 
@@ -290,6 +294,7 @@ class ChatSession < ApplicationRecord
     saved_change_to_title? ||
       saved_change_to_pinned_context? ||
       saved_change_to_chat_provider? ||
+      saved_change_to_mode? ||
       saved_change_to_cumulative_input_tokens? ||
       saved_change_to_cumulative_output_tokens? ||
       saved_change_to_cumulative_cost_usd?

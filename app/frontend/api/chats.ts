@@ -6,6 +6,8 @@ export type ChatRepository = {
   repository_path?: string
 }
 
+export type ChatMode = "planning" | "coding"
+
 export type ChatRecord = {
   id: number
   title: string | null
@@ -16,6 +18,7 @@ export type ChatRecord = {
   effective_chat_provider?: string
   effective_chat_provider_label?: string
   chat_provider_options?: ChatProviderOption[]
+  mode?: ChatMode
   chat_path: string
   repository: ChatRepository | null
   turn_in_flight?: boolean
@@ -428,6 +431,7 @@ export type ChatPayload = {
   }
   gemini_configured: boolean
   walkthroughs_enabled: boolean
+  coding_mode_enabled: boolean
 }
 
 export type ChatMessagesPayload = {
@@ -588,6 +592,10 @@ export function updateChatPinned(id: number | string, pinned: boolean) {
 
 export function updateChatProvider(id: number | string, chatProvider: string | null) {
   return patchJson<ChatPayload>(`/api/v1/app/chats/${id}`, { chat: { chat_provider: chatProvider } })
+}
+
+export function updateChatMode(id: number | string, mode: ChatMode) {
+  return patchJson<ChatPayload>(`/api/v1/app/chats/${id}`, { chat: { mode } })
 }
 
 export function clearChatHistory(path: string) {

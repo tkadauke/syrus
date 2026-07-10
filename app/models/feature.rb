@@ -18,4 +18,8 @@ class Feature < ApplicationRecord
   def self.video_walkthroughs_enabled?
     enabled?(:video_walkthroughs)
   end
+
+  def self.coding_mode_enabled?
+    enabled?(:coding_mode)
+  end
 end

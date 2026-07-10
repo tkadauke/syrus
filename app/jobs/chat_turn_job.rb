@@ -167,10 +167,10 @@ class ChatTurnJob < ApplicationJob
 
     if parent_session_id.present?
       elaboration_guidance = Prompts::ChatSystem.new(repository: @chat.repository, chat_session: @chat).elaboration_guidance
-      return [ snapshot, elaboration_guidance.presence, chat_history_fallback, user_text ].compact.join("\n\n---\n\n")
+      return [ snapshot, elaboration_guidance.presence, coding_mode_guidance, chat_history_fallback, user_text ].compact.join("\n\n---\n\n")
     end
 
-    [ Prompts::ChatSystem.new(repository: @chat.repository, chat_session: @chat).to_s, user_text ].join("\n\n")
+    [ Prompts::ChatSystem.new(repository: @chat.repository, chat_session: @chat).to_s, coding_mode_guidance, user_text ].compact.join("\n\n")
   end
 
   # A walkthrough-video message triggers the FIRST-CLASS handoff: rather than
@@ -197,7 +197,16 @@ class ChatTurnJob < ApplicationJob
   # resuming (the resumed session already carries the full system context).
   def system_guidance(parent_session_id)
     chat_system = Prompts::ChatSystem.new(repository: @chat.repository, chat_session: @chat)
-    parent_session_id.present? ? chat_system.elaboration_guidance.presence : chat_system.to_s
+    base = parent_session_id.present? ? chat_system.elaboration_guidance.presence : chat_system.to_s
+    coding = coding_mode_guidance
+    [ base, coding ].compact.join("\n\n")
+  end
+
+  def coding_mode_guidance
+    return nil unless Feature.coding_mode_enabled?
+    return nil unless @chat.coding?
+
+    Prompts::ChatCodingMode.new.to_s
   end
 
   def chat_history_fallback

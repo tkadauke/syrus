@@ -76,6 +76,23 @@ module Api
             return
           end
 
+          if chat_params.respond_to?(:key?) && chat_params.key?(:mode)
+            unless Feature.coding_mode_enabled?
+              render_error("feature_disabled", "Coding Mode is not enabled on this instance.", status: :unprocessable_content)
+              return
+            end
+
+            mode = chat_params[:mode].to_s.strip
+            unless ChatSession::MODES.include?(mode)
+              render_error("validation_failed", "Invalid mode. Must be one of: #{ChatSession::MODES.join(", ")}.", status: :unprocessable_content)
+              return
+            end
+
+            chat_session.update!(mode: mode)
+            render json: chat_payload(chat_session.reload, message: "Chat mode updated.")
+            return
+          end
+
           pinned = if chat_params.respond_to?(:key?) && chat_params.key?(:pinned)
             params[:chat][:pinned]
           else
@@ -985,7 +1002,8 @@ module Api
             # Labs flag: gates the composer's record/drag/upload intake. The
             # video_walkthroughs media list stays in the payload regardless so
             # already-analyzed threads keep their history when the flag is off.
-            walkthroughs_enabled: Feature.video_walkthroughs_enabled?
+            walkthroughs_enabled: Feature.video_walkthroughs_enabled?,
+            coding_mode_enabled: Feature.coding_mode_enabled?
           }
         end
 
@@ -1667,6 +1685,7 @@ module Api
             effective_chat_provider: chat_session.effective_chat_provider,
             effective_chat_provider_label: chat_provider_label(chat_session.effective_chat_provider),
             chat_provider_options: chat_provider_options(chat_session),
+            mode: chat_session.mode,
             chat_path: chat_path(chat_session),
             repository: repository ? repository_json(repository).merge(repository_path: repository_path(repository)) : nil,
             turn_in_flight: chat_session.turn_in_flight?,

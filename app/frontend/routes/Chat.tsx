@@ -57,6 +57,7 @@ import {
   shareChat,
   stopChat,
   updateChatProvider,
+  updateChatMode,
   updateChatProposal,
   updateChatPinned,
   updateQueuedChatMessage,
@@ -74,6 +75,7 @@ import {
   type ChatMessageItem,
   type ChatPendingAction,
   type ChatPendingActionInline,
+  type ChatMode,
   type ChatPayload,
   type ChatProposal,
   type ChatProposalChild,
@@ -306,7 +308,8 @@ function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
       app_scratchpad_reorder_path: ""
     },
     gemini_configured: false,
-    walkthroughs_enabled: false
+    walkthroughs_enabled: false,
+    coding_mode_enabled: false
   }
 }
 
@@ -4580,7 +4583,13 @@ function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { payload: C
       updateRecentChatCache(queryClient, updated.chat)
     }
   })
-
+  const mode = useMutation({
+    mutationFn: (value: ChatMode) => updateChatMode(payload.chat.id, value),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+      updateRecentChatCache(queryClient, updated.chat)
+    }
+  })
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-950/35 p-4" role="presentation">
@@ -4595,6 +4604,23 @@ function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { payload: C
           </button>
         </div>
         <div className="space-y-3 text-sm">
+          {payload.coding_mode_enabled ? (
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("mode_label")}</span>
+              <select
+                aria-label={t("mode_label")}
+                className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:disabled:bg-gray-800"
+                disabled={mode.isPending}
+                onChange={(event) => mode.mutate(event.target.value as ChatMode)}
+                value={payload.chat.mode || "planning"}
+              >
+                <option value="planning">{t("mode_planning")}</option>
+                <option value="coding">{t("mode_coding")}</option>
+              </select>
+              <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("mode_hint")}</span>
+            </label>
+          ) : null}
+          {mode.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(mode.error, t("mode_update_error"))}</div> : null}
           {showProviderSelector ? (
             <label className="block">
               <span className="mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Provider</span>

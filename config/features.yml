@@ -24,3 +24,8 @@ features:
     name: "Walkthrough videos"
     description: "Record or drag a narrated screen recording into a chat; Gemini analyzes it and the chat agent works it toward an Epic. Requires a Gemini API key. Introduced in PR #1627."
     default: false
+  - slug: coding_mode
+    category: "Labs"
+    name: "Coding Mode"
+    description: "Enables Coding Mode for Syrus Chat, allowing the agent to implement code changes directly in the session checkout instead of just planning. Introduced in PR #1554."
+    default: false

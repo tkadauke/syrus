@@ -1189,6 +1189,105 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body["walkthroughs_enabled"]).to eq(true)
   end
 
+  it "includes the chat mode in the payload and defaults to planning" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(parse_body.dig("chat", "mode")).to eq("planning")
+  end
+
+  it "reports coding_mode_enabled false by default" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(parse_body["coding_mode_enabled"]).to eq(false)
+  end
+
+  it "reports coding_mode_enabled true when the labs flag is on" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user)
+    feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|
+      record.category = "Labs"
+      record.name = "Coding Mode"
+    end
+    feature.update!(enabled: true)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(parse_body["coding_mode_enabled"]).to eq(true)
+  end
+
+  describe "PATCH /api/v1/app/chats/:id (mode)" do
+    def enable_coding_mode!(enabled: true)
+      feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|
+        record.category = "Labs"
+        record.name = "Coding Mode"
+      end
+      feature.update!(enabled: enabled)
+    end
+
+    it "switches mode to coding when the feature flag is on" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository)
+      enable_coding_mode!
+
+      patch "/api/v1/app/chats/#{chat.id}", params: { chat: { mode: "coding" } }
+
+      expect(response).to have_http_status(:ok)
+      expect(chat.reload.mode).to eq("coding")
+      expect(parse_body.dig("chat", "mode")).to eq("coding")
+    end
+
+    it "switches mode back to planning" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, mode: "coding")
+      enable_coding_mode!
+
+      patch "/api/v1/app/chats/#{chat.id}", params: { chat: { mode: "planning" } }
+
+      expect(response).to have_http_status(:ok)
+      expect(chat.reload.mode).to eq("planning")
+      expect(parse_body.dig("chat", "mode")).to eq("planning")
+    end
+
+    it "rejects mode changes when coding_mode feature flag is off" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository)
+      enable_coding_mode!(enabled: false)
+
+      patch "/api/v1/app/chats/#{chat.id}", params: { chat: { mode: "coding" } }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(parse_body.dig("error", "code")).to eq("feature_disabled")
+      expect(chat.reload.mode).to eq("planning")
+    end
+
+    it "rejects unknown mode values" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository)
+      enable_coding_mode!
+
+      patch "/api/v1/app/chats/#{chat.id}", params: { chat: { mode: "turbo" } }
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    end
+
+    it "does not allow another user to change the mode" do
+      sign_in_as(Factories.user)
+      chat = ChatSession.create!(user: user, repository: repository)
+      enable_coding_mode!
+
+      patch "/api/v1/app/chats/#{chat.id}", params: { chat: { mode: "coding" } }
+
+      expect(response).to have_http_status(:forbidden)
+    end
+  end
+
   it "answers an active agent question" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
