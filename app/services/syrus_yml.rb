@@ -16,6 +16,7 @@ class SyrusYml
   COVERAGE_DEFAULT_ON_MISS = "warn".freeze
   COVERAGE_DEFAULT_HITMAP_TTL_DAYS = 7
 
+
   ParseError = Class.new(StandardError)
   ConfigError = Class.new(ParseError)
 
