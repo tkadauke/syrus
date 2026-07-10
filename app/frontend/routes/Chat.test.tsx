@@ -2453,6 +2453,7 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
     },
     documents_in_scope: [],
     attachment_results: overrides.attachment_results || [],
+    local_mode_enabled: false,
     whiteboard: {
       version: 1,
       elements: [],
