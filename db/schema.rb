@@ -58,6 +58,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_11_192118) do
     t.datetime "github_app_registered_at"
     t.string "github_app_slug"
     t.integer "grade_max_iterations", default: 5, null: false
+    t.integer "main_concern_report_threshold", default: 2, null: false
     t.integer "max_job_failures", default: 3, null: false
     t.boolean "merge_train_enabled", default: false, null: false
     t.integer "merge_train_max_size", default: 20, null: false
@@ -682,6 +683,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_11_192118) do
     t.index ["validity"], name: "index_jobs_on_validity"
   end
 
+  create_table "main_concern_reports", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.json "failing_tests"
+    t.integer "job_id", null: false
+    t.text "reason", null: false
+    t.integer "repository_id", null: false
+    t.integer "run_id", null: false
+    t.datetime "updated_at", null: false
+    t.integer "workflow_id", null: false
+    t.index ["job_id"], name: "index_main_concern_reports_on_job_id"
+    t.index ["repository_id", "created_at"], name: "index_main_concern_reports_on_repository_id_and_created_at"
+    t.index ["repository_id"], name: "index_main_concern_reports_on_repository_id"
+    t.index ["run_id"], name: "index_main_concern_reports_on_run_id"
+    t.index ["workflow_id"], name: "index_main_concern_reports_on_workflow_id"
+  end
+
   create_table "merge_train_members", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "job_id", null: false
@@ -1221,6 +1238,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_11_192118) do
   add_foreign_key "jobs", "users", column: "claimed_by_user_id"
   add_foreign_key "jobs", "users", column: "dependencies_overridden_by_user_id"
   add_foreign_key "jobs", "users", column: "owner_user_id"
+  add_foreign_key "main_concern_reports", "jobs"
+  add_foreign_key "main_concern_reports", "repositories"
+  add_foreign_key "main_concern_reports", "runs"
+  add_foreign_key "main_concern_reports", "workflows"
   add_foreign_key "merge_train_members", "jobs"
   add_foreign_key "merge_train_members", "merge_trains"
   add_foreign_key "merge_trains", "epics"

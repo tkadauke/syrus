@@ -34,6 +34,10 @@ module Prompts
         Pick the smallest correct change that resolves the failing required
         graders without regressing the passing ones. Inspect the full log
         file directly if the head+tail excerpt isn't sufficient.
+
+        If CI or graders are failing in files you did not touch, call
+        `report_main_concern` with your reasoning before retrying. Do not
+        burn retries on a systemic failure.
       PROMPT
     end
 
