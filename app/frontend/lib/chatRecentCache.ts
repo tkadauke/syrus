@@ -72,6 +72,22 @@ export function updateRecentChatTurnCache(queryClient: QueryClient, chatId: numb
   })
 }
 
+export function updateRecentChatScratchpadCache(queryClient: QueryClient, chatId: number | string, scratchpadItemsCount: number) {
+  queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], (current) => {
+    if (!current || !Array.isArray(current.groups)) return current
+
+    return {
+      ...current,
+      groups: current.groups.map((group) => ({
+        ...group,
+        chats: group.chats.map((chat) => (
+          String(chat.id) === String(chatId) ? { ...chat, scratchpad_items_count: scratchpadItemsCount } : chat
+        ))
+      }))
+    }
+  })
+}
+
 function chatGroupFor(chat: ChatNavRecord): ChatGroupRecord {
   return {
     key: chatGroupKey(chat),

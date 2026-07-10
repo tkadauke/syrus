@@ -1,6 +1,6 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query"
 import type { ChatAgentQuestion, ChatBookmark, ChatMessageItem, ChatPayload, ChatQueuedMessage, ChatRecord, ChatRepository } from "../api/chats"
-import { updateRecentChatHeaderCache, updateRecentChatTurnCache } from "./chatRecentCache"
+import { updateRecentChatHeaderCache, updateRecentChatScratchpadCache, updateRecentChatTurnCache } from "./chatRecentCache"
 
 const DASHBOARD_INVALIDATION_MIN_INTERVAL_MS = 5_000
 const DASHBOARD_INVALIDATION_RETRY_MS = 1_000
@@ -230,6 +230,9 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
   if (controls) {
     let patched = false
     updateRecentChatTurnCache(queryClient, event.id, { turn_in_flight: controls.turn_in_flight, agent_busy: controls.agent_busy })
+    if (controls.scratchpad_items_count !== undefined) {
+      updateRecentChatScratchpadCache(queryClient, event.id, controls.scratchpad_items_count)
+    }
     queryClient.setQueriesData<ChatPayload>(
       { queryKey: ["chats", String(event.id)] },
       (current) => {
@@ -351,6 +354,7 @@ type ChatControlsPayload = {
   stop_requested_at: string | null
   switching_provider?: boolean
   queued_messages?: ChatQueuedMessage[]
+  scratchpad_items_count?: number
 }
 
 type ChatHeaderPayload = {
@@ -418,7 +422,10 @@ function chatControlsPayload(payload: unknown): ChatControlsPayload | null {
     agent_busy: typeof candidate.agent_busy === "boolean" ? candidate.agent_busy : undefined,
     stop_requested_at: candidate.stop_requested_at,
     switching_provider: typeof candidate.switching_provider === "boolean" ? candidate.switching_provider : undefined,
-    queued_messages: isChatQueuedMessages(candidate.queued_messages) ? candidate.queued_messages : undefined
+    queued_messages: isChatQueuedMessages(candidate.queued_messages) ? candidate.queued_messages : undefined,
+    scratchpad_items_count: Array.isArray((candidate as { scratchpad_items?: unknown }).scratchpad_items)
+      ? ((candidate as { scratchpad_items: unknown[] }).scratchpad_items).length
+      : undefined
   }
 }
 

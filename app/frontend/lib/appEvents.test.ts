@@ -237,6 +237,61 @@ describe("applyAppEvent", () => {
     expect(recent?.groups[0].chats[0].agent_busy).toBe(false)
   })
 
+  it("updates scratchpad_items_count in recent chats when update_controls includes scratchpad_items", () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["chats", "recent"], {
+      groups: [{
+        key: "general",
+        label: "General",
+        repository_id: null,
+        chats: [{ ...chatPayload([]).chat, turn_in_flight: false, agent_busy: false, current: false, last_message_at: "2026-05-30T11:00:00Z", unread: false, scratchpad_items_count: 3 }],
+        has_more: false
+      }],
+      repositories: []
+    })
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: {
+        action: "update_controls",
+        turn_in_flight: false,
+        agent_busy: false,
+        stop_requested_at: null,
+        scratchpad_items: []
+      }
+    })
+
+    const recent = queryClient.getQueryData<{ groups: Array<{ chats: Array<{ id: number; scratchpad_items_count: number }> }> }>(["chats", "recent"])
+    expect(recent?.groups[0].chats[0].scratchpad_items_count).toBe(0)
+  })
+
+  it("leaves scratchpad_items_count unchanged in recent chats when update_controls omits scratchpad_items", () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["chats", "recent"], {
+      groups: [{
+        key: "general",
+        label: "General",
+        repository_id: null,
+        chats: [{ ...chatPayload([]).chat, turn_in_flight: false, agent_busy: false, current: false, last_message_at: "2026-05-30T11:00:00Z", unread: false, scratchpad_items_count: 2 }],
+        has_more: false
+      }],
+      repositories: []
+    })
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: {
+        action: "update_controls",
+        turn_in_flight: false,
+        agent_busy: false,
+        stop_requested_at: null
+      }
+    })
+
+    const recent = queryClient.getQueryData<{ groups: Array<{ chats: Array<{ id: number; scratchpad_items_count: number }> }> }>(["chats", "recent"])
+    expect(recent?.groups[0].chats[0].scratchpad_items_count).toBe(2)
+  })
+
   it("applies chat header payloads directly to cached chat data", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
