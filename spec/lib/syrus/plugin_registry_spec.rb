@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Syrus::PluginRegistry do
+RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
   around do |ex|
     described_class.reset!
     ex.run

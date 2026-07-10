@@ -62,7 +62,7 @@ RSpec.describe "Filters::Chips::Workflows" do
       expect(by_field["state"]["values"].map { |v| v["value"] }).to eq(%w[ queued running succeeded failed cancelled ])
       expect(by_field["trigger_kind"]["values"].map { |v| v["value"] }).to include("initial", "pr_comment")
       expect(by_field["trigger_kind"]["values"].map { |v| v["value"] }).not_to include("resume")
-      expect(by_field["agent_provider"]["values"].map { |v| v["value"] }).to eq(AgentProviders::REGISTRY.keys)
+      expect(by_field["agent_provider"]["values"].map { |v| v["value"] }).to eq(User.agent_providers)
       expect(by_field["run_count"]["bucket"]).to eq("number")
       expect(by_field["attention"]["expansions"]).to include("stuck", "just_failed")
     end

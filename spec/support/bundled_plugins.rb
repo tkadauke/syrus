@@ -2,12 +2,17 @@
 # User.agent_providers and model validations work correctly in tests.
 #
 # config/initializers/plugin_registry.rb resets the registry via
-# after_initialize in test mode (giving the plugin_registry_spec clean
-# isolation). This before hook restores the bundled providers before each
-# example. The plugin_registry_spec's own around block resets the registry
-# before ex.run, so examples that need a clean registry still get one.
+# after_initialize in test mode. This before hook restores the bundled
+# providers before each example.
+#
+# Examples tagged :reset_plugin_registry (i.e. plugin_registry_spec) opt out
+# so their around block gets a genuinely empty registry. RSpec hook ordering is
+# around-pre → before → example, so the before hook would otherwise fire after
+# the around reset and repopulate the registry before the example body runs.
 RSpec.configure do |config|
-  config.before do
+  config.before do |example|
+    next if example.metadata[:reset_plugin_registry]
+
     unless Syrus::PluginRegistry.providers_for(:agent_provider).any?
       Syrus::PluginRegistry.register(
         name:    "syrus-claude-agent",
