@@ -8,6 +8,7 @@ import { NoticeToast } from "../components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import { RepositoryTabs } from "../components/RepositoryTabs"
 import { StatusPill as StateStatusPill, TonePill } from "../components/StatusPill"
+import { CoverageSparkline } from "../components/CoverageSparkline"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import {
   archiveRepositoryFromPath,
@@ -116,6 +117,7 @@ function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab:
         </div>
         <div className="space-y-6">
           <RepositoryDetailsCard payload={payload} prefix={prefix} />
+          <CoverageSparkline repositoryId={payload.repository.id} />
           <CredentialNotice payload={payload} />
         </div>
       </div>

@@ -201,6 +201,10 @@
     "retry_next": "next {{time}}",
     "showing": "Showing {{first}}-{{last}} of {{total}}",
     "previous": "Previous",
+    "coverage_trend_label": "Coverage trend (30 days)",
+    "coverage_trend_aria": "Coverage trend sparkline",
+    "coverage_trend_lines": "Lines",
+    "coverage_trend_branches": "Branches",
     "next": "Next"
   },
   "memories": {

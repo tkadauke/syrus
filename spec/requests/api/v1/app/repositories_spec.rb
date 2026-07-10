@@ -902,5 +902,14 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
 
       expect(response).to have_http_status(:unauthorized)
     end
+
+    it "returns 404 for another user's repository" do
+      sign_in_as(user)
+      foreign = Factories.repository(user: Factories.user)
+
+      get "/api/v1/app/repositories/#{foreign.id}/coverage_trend"
+
+      expect(response).to have_http_status(:not_found)
+    end
   end
 end
