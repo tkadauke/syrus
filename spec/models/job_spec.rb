@@ -1657,4 +1657,160 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect(job.errors[:epic]).to include("must belong to the same repository or its upstream")
     end
   end
+
+  describe "Coding Mode lock" do
+    let(:user) { Factories.user }
+    let(:repository) { Factories.repository(user: user) }
+    let(:chat_session) { ChatSession.create!(user: user) }
+
+    def enable_coding_mode!(enabled: true)
+      feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|
+        record.category = "Labs"
+        record.name = "Coding Mode"
+      end
+      feature.update!(enabled: enabled)
+    end
+
+    describe "#locked_by_coding_mode?" do
+      it "returns false when linked_chat_id is nil" do
+        job = Factories.job_record(user: user, repository: repository, state: "queued")
+        expect(job.locked_by_coding_mode?).to be(false)
+      end
+
+      it "returns true when linked_chat_id is set" do
+        job = Factories.job_record(user: user, repository: repository, state: "queued")
+        job.update!(linked_chat_id: chat_session.id)
+        expect(job.locked_by_coding_mode?).to be(true)
+      end
+    end
+
+    describe "#lock_for_coding_mode!" do
+      it "transitions a queued job to coding state and sets linked_chat_id" do
+        enable_coding_mode!
+        job = Factories.job_record(user: user, repository: repository, state: "queued")
+
+        result = job.lock_for_coding_mode!(chat_session)
+
+        expect(result).to be(true)
+        expect(job.reload).to be_coding
+        expect(job.linked_chat_id).to eq(chat_session.id)
+      end
+
+      it "transitions an implemented job to coding state" do
+        enable_coding_mode!
+        job = Factories.job_record(user: user, repository: repository, state: "implemented")
+
+        result = job.lock_for_coding_mode!(chat_session)
+
+        expect(result).to be(true)
+        expect(job.reload).to be_coding
+      end
+
+      it "unapproves an approved job before entering coding state" do
+        enable_coding_mode!
+        job = Factories.job_record(user: user, repository: repository, state: "approved", approved_at: Time.current)
+
+        result = job.lock_for_coding_mode!(chat_session)
+
+        expect(result).to be(true)
+        expect(job.reload).to be_coding
+        expect(job.approved_at).to be_nil
+      end
+
+      it "returns false and does not change state when feature flag is off" do
+        job = Factories.job_record(user: user, repository: repository, state: "queued")
+
+        result = job.lock_for_coding_mode!(chat_session)
+
+        expect(result).to be(false)
+        expect(job.reload).to be_queued
+        expect(job.linked_chat_id).to be_nil
+      end
+
+      it "returns false when already locked by a chat session" do
+        enable_coding_mode!
+        other_chat = ChatSession.create!(user: user)
+        job = Factories.job_record(user: user, repository: repository, state: "queued")
+        job.update!(linked_chat_id: other_chat.id)
+        job.update!(state: "coding")
+
+        result = job.lock_for_coding_mode!(chat_session)
+
+        expect(result).to be(false)
+        expect(job.reload.linked_chat_id).to eq(other_chat.id)
+      end
+
+      it "returns false for an incompatible state (e.g. running)" do
+        enable_coding_mode!
+        job = Factories.job_record(user: user, repository: repository, state: "running")
+
+        result = job.lock_for_coding_mode!(chat_session)
+
+        expect(result).to be(false)
+        expect(job.reload).to be_running
+      end
+    end
+
+    describe "#cancel_new_coding_job!" do
+      it "clears linked_chat_id and closes the job" do
+        job = Factories.job_record(user: user, repository: repository, state: "coding",
+                                   linked_chat_id: chat_session.id)
+
+        result = job.cancel_new_coding_job!
+
+        expect(result).not_to be(false)
+        expect(job.reload).to be_closed
+        expect(job.linked_chat_id).to be_nil
+        expect(job.closure_reason).to eq("cancelled")
+      end
+
+      it "accepts a custom closure reason" do
+        job = Factories.job_record(user: user, repository: repository, state: "coding",
+                                   linked_chat_id: chat_session.id)
+
+        job.cancel_new_coding_job!(reason: "replaced")
+
+        expect(job.reload.closure_reason).to eq("replaced")
+      end
+
+      it "returns false when job is not in coding state" do
+        job = Factories.job_record(user: user, repository: repository, state: "queued")
+
+        expect(job.cancel_new_coding_job!).to be(false)
+        expect(job.reload).to be_queued
+      end
+    end
+
+    describe "#release_coding_mode_takeover!" do
+      it "clears linked_chat_id and returns the job to implemented" do
+        job = Factories.job_record(user: user, repository: repository, state: "coding",
+                                   linked_chat_id: chat_session.id)
+
+        result = job.release_coding_mode_takeover!
+
+        expect(result).to be(true)
+        expect(job.reload).to be_implemented
+        expect(job.linked_chat_id).to be_nil
+      end
+
+      it "drains queued workflows after releasing the lock" do
+        enable_coding_mode!
+        job = Factories.job_record(user: user, repository: repository, state: "coding",
+                                   linked_chat_id: chat_session.id)
+        workflow = Workflow.create!(job: job, trigger_kind: "pr_comment")
+        step = Step.create!(workflow: workflow, kind: "respond", position: 0)
+
+        job.release_coding_mode_takeover!
+
+        expect(step.runs.reload.count).to eq(1)
+      end
+
+      it "returns false when job is not in coding state" do
+        job = Factories.job_record(user: user, repository: repository, state: "implemented")
+
+        expect(job.release_coding_mode_takeover!).to be(false)
+        expect(job.reload).to be_implemented
+      end
+    end
+  end
 end

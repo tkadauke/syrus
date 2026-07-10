@@ -22,6 +22,14 @@ class StepDispatcher
     return unless first
     return if first.runs.any?
 
+    if Feature.coding_mode_enabled? && workflow.job.linked_chat_id.present?
+      Rails.logger.info(
+        "[StepDispatcher] workflow #{workflow.id} (#{workflow.trigger_kind}) held: " \
+        "job #{workflow.job_id} locked by chat #{workflow.job.linked_chat_id}"
+      )
+      return
+    end
+
     unless workflow.job.stack_ready_for_execution?
       cancel_unstartable_rebase_workflow!(workflow, "stack_dependencies_not_ready")
       warn_if_stuck_queued(workflow, "stack_dependencies_not_ready")

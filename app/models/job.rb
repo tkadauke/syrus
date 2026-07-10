@@ -29,6 +29,7 @@ class Job < ApplicationRecord
   belongs_to :claimed_by_user, class_name: "User", optional: true
   belongs_to :target_repository, class_name: "Repository", optional: true
   belongs_to :pr_repository, class_name: "Repository", optional: true
+  belongs_to :linked_chat, class_name: "ChatSession", optional: true
   has_many :job_approvals, dependent: :destroy
   has_many :pr_review_comments, dependent: :destroy
   has_many :approving_users, through: :job_approvals, source: :user
@@ -201,6 +202,10 @@ class Job < ApplicationRecord
     state :approved
     state :landing
     state :closed
+    # Coding Mode state: the job's implement step is owned by a chat session.
+    # Automation is blocked while this state is active; linked_chat_id identifies
+    # the owning session. Exit via release_from_coding (→ implemented) or close.
+    state :coding
 
     event :advance_after_triage do
       transitions from: :triaging, to: :blocked_by_epic, guard: :blocked_by_epic_before_execution?
@@ -265,6 +270,18 @@ class Job < ApplicationRecord
       transitions from: :approved, to: :implemented
     end
 
+    # Coding Mode lifecycle events. `claim_for_coding` enters the :coding state
+    # when a chat session's Coding Mode takes ownership of the implement step.
+    # `release_from_coding` exits back to :implemented (taken-over job cancel /
+    # eventual handoff). Closing a coding job uses the normal `close` event.
+    event :claim_for_coding do
+      transitions from: [ :queued, :implemented ], to: :coding
+    end
+
+    event :release_from_coding do
+      transitions from: :coding, to: :implemented
+    end
+
     event :start_landing do
       transitions from: :approved, to: :landing
     end
@@ -274,7 +291,7 @@ class Job < ApplicationRecord
     # with the after_save callback and just made the wiring harder
     # to read.
     event :close do
-      transitions from: [ :needs_triage, :triaging, :blocked_by_epic, :queued, :running, :implemented, :failed, :approved, :landing ], to: :closed, after: -> {
+      transitions from: [ :needs_triage, :triaging, :blocked_by_epic, :queued, :running, :implemented, :failed, :approved, :landing, :coding ], to: :closed, after: -> {
         self.finished_at = Time.current
         record_outcome_to_scheduled_task! if cron?
         notify_pr_merged
@@ -401,6 +418,50 @@ class Job < ApplicationRecord
   def close_with_reason!(reason)
     update!(closure_reason: reason)
     close!
+  end
+
+  # --- Coding Mode lock ----------------------------------------------------
+
+  def locked_by_coding_mode?
+    linked_chat_id.present?
+  end
+
+  # Claim this Job for a Coding Mode chat session. Unapproves the Job first
+  # if it is currently approved so the coding session can replace the
+  # implement step. Returns false when the feature flag is off, the Job is
+  # already locked, or the state is incompatible (i.e. not queued/implemented).
+  def lock_for_coding_mode!(chat_session)
+    return false unless Feature.coding_mode_enabled?
+    return false if linked_chat_id.present?
+
+    unapprove! if may_unapprove?
+    return false unless may_claim_for_coding?
+
+    self.linked_chat_id = chat_session.id
+    claim_for_coding!
+    save!
+    true
+  end
+
+  # Cancel a Job that was freshly created for Coding Mode (no existing PR).
+  # Clears the link and closes the Job.
+  def cancel_new_coding_job!(reason: "cancelled")
+    return false unless coding?
+
+    update!(linked_chat_id: nil)
+    cancel_active_runs_and_close!(reason)
+  end
+
+  # Release a taken-over Job from Coding Mode without discarding it.
+  # Clears the link and returns the Job to :implemented, then drains any
+  # automation workflows that were queued while the lock was held.
+  def release_coding_mode_takeover!
+    return false unless coding?
+
+    update!(linked_chat_id: nil)
+    release_from_coding! if may_release_from_coding?
+    start_pending_workflows_if_dependencies_satisfied!
+    true
   end
 
   def approve_for_landing!

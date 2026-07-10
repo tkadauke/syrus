@@ -85,6 +85,58 @@ RSpec.describe StepDispatcher do
       }.to change { s1.runs.count }.by(1)
     end
 
+    context "when the job is locked by Coding Mode" do
+      def enable_coding_mode!(enabled: true)
+        feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|
+          record.category = "Labs"
+          record.name = "Coding Mode"
+        end
+        feature.update!(enabled: enabled)
+      end
+
+      it "leaves the workflow queued and does not create a Run when the flag is on" do
+        enable_coding_mode!
+        chat = ChatSession.create!(user: job.user)
+        job.update!(linked_chat_id: chat.id)
+
+        expect {
+          described_class.start_workflow(workflow)
+        }.not_to change { Run.count }
+
+        expect(workflow.reload).to be_queued
+      end
+
+      it "logs an info message when blocked by coding mode lock" do
+        enable_coding_mode!
+        chat = ChatSession.create!(user: job.user)
+        job.update!(linked_chat_id: chat.id)
+
+        expect(Rails.logger).to receive(:info).with(include("held", "locked by chat"))
+        described_class.start_workflow(workflow)
+      end
+
+      it "starts the workflow normally when the feature flag is off even if linked_chat_id is set" do
+        chat = ChatSession.create!(user: job.user)
+        job.update!(linked_chat_id: chat.id)
+
+        expect {
+          described_class.start_workflow(workflow)
+        }.to change { s1.runs.count }.by(1)
+      end
+
+      it "starts queued workflows after the lock is released" do
+        enable_coding_mode!
+        chat = ChatSession.create!(user: job.user)
+        job.update!(state: "coding", linked_chat_id: chat.id)
+        described_class.start_workflow(workflow)
+        expect(s1.runs.reload.count).to eq(0)
+
+        job.release_coding_mode_takeover!
+
+        expect(s1.runs.reload.count).to eq(1)
+      end
+    end
+
     it "cancels blocked rebase workflows instead of leaving them active with no Run" do
       prerequisite = Factories.job_record(repository: job.repository, issue_number: 99, state: "closed", closure_reason: "pr_closed")
       blocked_job = Factories.job_record(
