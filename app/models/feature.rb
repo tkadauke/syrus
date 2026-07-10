@@ -36,6 +36,10 @@ class Feature < ApplicationRecord
     enabled?(:coding_mode)
   end
 
+  def self.local_mode_enabled?
+    enabled?(:local_mode)
+  end
+
   private
 
   def clear_request_enabled_cache

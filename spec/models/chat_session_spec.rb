@@ -40,6 +40,32 @@ RSpec.describe ChatSession do
     expect(session.errors[:chat_provider]).to be_present
   end
 
+  it "allows valid modes" do
+    %w[planning coding local].each do |mode|
+      session = described_class.new(user: repo.user, mode: mode)
+      expect(session).to be_valid, "expected mode #{mode.inspect} to be valid"
+    end
+  end
+
+  it "allows a nil mode" do
+    session = described_class.new(user: repo.user, mode: nil)
+
+    expect(session).to be_valid
+  end
+
+  it "normalizes blank modes to nil" do
+    session = described_class.create!(user: repo.user, mode: "")
+
+    expect(session.mode).to be_nil
+  end
+
+  it "rejects unknown modes" do
+    session = described_class.new(user: repo.user, mode: "turbo")
+
+    expect(session).not_to be_valid
+    expect(session.errors[:mode]).to be_present
+  end
+
   it "resolves chat provider from the session, user chat provider, then user agent provider" do
     inherited = described_class.new(user: Factories.user(agent_provider: "codex"))
     user_override = described_class.new(user: Factories.user(agent_provider: "codex", chat_provider: "claude"))
@@ -292,6 +318,7 @@ RSpec.describe ChatSession do
             title: "Updated chat",
             title_pending: false,
             pinned_context: nil,
+            mode: nil,
             repository: {
               id: repo.id,
               slug: repo.slug

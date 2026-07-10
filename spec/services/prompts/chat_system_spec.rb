@@ -591,4 +591,30 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("Cite specific files and line numbers.")
     expect(out).to include("Inspect prior Jobs (`list_jobs`, `read_job`)")
   end
+
+  it "injects Local Mode guidance when the chat session is in local mode" do
+    chat = ChatSession.create!(user: repo.user, repository: repo, mode: "local")
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(out).to include("## Local Mode")
+    expect(out).to include("syrus local")
+    expect(out).to include("`read_file(path)`")
+    expect(out).to include("`write_file(path, content)`")
+    expect(out).to include("`run_command(command)`")
+  end
+
+  it "omits Local Mode guidance when the chat session has no mode" do
+    chat = ChatSession.create!(user: repo.user, repository: repo)
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(out).not_to include("## Local Mode")
+  end
+
+  it "omits Local Mode guidance when no chat session is present" do
+    out = described_class.new(repository: repo).to_s
+
+    expect(out).not_to include("## Local Mode")
+  end
 end

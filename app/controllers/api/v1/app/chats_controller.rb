@@ -77,14 +77,17 @@ module Api
           end
 
           if chat_params.respond_to?(:key?) && chat_params.key?(:mode)
-            unless Feature.coding_mode_enabled?
+            mode = chat_params[:mode].to_s.strip.presence
+            if mode && !ChatSession::MODES.include?(mode)
+              render_error("validation_failed", "Invalid mode. Must be one of: #{ChatSession::MODES.join(", ")}.", status: :unprocessable_content)
+              return
+            end
+            if mode == "coding" && !Feature.coding_mode_enabled?
               render_error("feature_disabled", "Coding Mode is not enabled on this instance.", status: :unprocessable_content)
               return
             end
-
-            mode = chat_params[:mode].to_s.strip
-            unless ChatSession::MODES.include?(mode)
-              render_error("validation_failed", "Invalid mode. Must be one of: #{ChatSession::MODES.join(", ")}.", status: :unprocessable_content)
+            if mode == "local" && !Feature.local_mode_enabled?
+              render_error("validation_failed", "Local mode is not enabled.", status: :unprocessable_content)
               return
             end
 
@@ -1113,7 +1116,8 @@ module Api
             # video_walkthroughs media list stays in the payload regardless so
             # already-analyzed threads keep their history when the flag is off.
             walkthroughs_enabled: Feature.video_walkthroughs_enabled?,
-            coding_mode_enabled: Feature.coding_mode_enabled?
+            coding_mode_enabled: Feature.coding_mode_enabled?,
+            local_mode_enabled: Feature.local_mode_enabled?
           }
         end
 

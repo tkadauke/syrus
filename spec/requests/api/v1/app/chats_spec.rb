@@ -864,6 +864,64 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(chat.reload.chat_provider).to be_nil
   end
 
+  it "updates chat mode to planning or coding and returns it in the payload" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository)
+
+    patch "/api/v1/app/chats/#{chat.id}", params: { chat: { mode: "planning" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.mode).to eq("planning")
+    expect(parse_body.dig("chat", "mode")).to eq("planning")
+
+    patch "/api/v1/app/chats/#{chat.id}", params: { chat: { mode: "coding" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.mode).to eq("coding")
+    expect(parse_body.dig("chat", "mode")).to eq("coding")
+
+    patch "/api/v1/app/chats/#{chat.id}", params: { chat: { mode: "" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.mode).to be_nil
+    expect(parse_body.dig("chat", "mode")).to be_nil
+  end
+
+  it "rejects local mode when the local_mode feature flag is off" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository)
+
+    patch "/api/v1/app/chats/#{chat.id}", params: { chat: { mode: "local" } }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("Local mode is not enabled.")
+    expect(chat.reload.mode).to be_nil
+  end
+
+  it "accepts local mode when the local_mode feature flag is on" do
+    sign_in_as(user)
+    Feature.create!(slug: "local_mode", category: "Labs", name: "Local Mode", enabled: true)
+    chat = ChatSession.create!(user: user, repository: repository)
+
+    patch "/api/v1/app/chats/#{chat.id}", params: { chat: { mode: "local" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.mode).to eq("local")
+    expect(parse_body.dig("chat", "mode")).to eq("local")
+    expect(parse_body["local_mode_enabled"]).to eq(true)
+  end
+
+  it "rejects an unknown mode value" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository)
+
+    patch "/api/v1/app/chats/#{chat.id}", params: { chat: { mode: "turbo" } }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("Invalid mode")
+    expect(chat.reload.mode).to be_nil
+  end
+
   it "enqueues title generation when an unstarted chat receives its first message" do
     sign_in_as(user)
 

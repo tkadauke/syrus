@@ -2,6 +2,7 @@ class ChatSession < ApplicationRecord
   MESSAGE_PAGE_SIZE = 30
   TITLE_MAX_LENGTH = 120
   SUGGESTED_NEXT_STEP_MAX_BYTES = 200
+  MODES = %w[planning coding local].freeze
 
   belongs_to :user
 
@@ -77,9 +78,11 @@ class ChatSession < ApplicationRecord
   enum :mode, { planning: "planning", coding: "coding" }, default: "planning"
 
   validates :chat_provider, inclusion: { in: User::CHAT_PROVIDERS }, allow_nil: true
+  validates :mode, inclusion: { in: MODES }, allow_nil: true
   validates :share_token, uniqueness: true, allow_nil: true
 
   normalizes :chat_provider, with: ->(value) { value.to_s.strip.presence }
+  normalizes :mode, with: ->(value) { value.to_s.strip.presence }
 
   scope :attached_to_repository, ->(repository) {
     joins(:chat_attachments)
@@ -226,6 +229,7 @@ class ChatSession < ApplicationRecord
           title_pending: title_pending?,
           pinned_context: pinned_context,
           chat_provider: effective_chat_provider,
+          mode: mode,
           repository: repository ? { id: repository.id, slug: repository.slug } : nil,
           stop_requested_at: stop_requested_at&.iso8601,
           cumulative_input_tokens: cumulative_input_tokens.to_i,

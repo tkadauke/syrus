@@ -59,6 +59,7 @@ module Prompts
 
         #{developer_elaboration_guidance}
 
+        #{local_mode_guidance}
         #{attached_context}
 
         #{documents_hint}
@@ -387,6 +388,12 @@ module Prompts
       return "" unless @chat_session&.onboarding?
 
       "\n" + Prompts::ChatOnboarding.new(repository: @repository).to_s
+    end
+
+    def local_mode_guidance
+      return "" unless @chat_session&.mode == "local"
+
+      Prompts::LocalMode.new(repository: @repository).to_s
     end
 
     def developer_elaboration_guidance

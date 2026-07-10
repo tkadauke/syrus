@@ -66,6 +66,7 @@ import {
   updateChatPinned,
   updateQueuedChatMessage,
   type ChatAttachmentResult,
+  type ChatMode,
   type ChatAttachmentRow,
   type ChatAgentQuestion,
   type ChatBranchPayload,
@@ -4627,8 +4628,15 @@ function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { payload: C
       updateRecentChatCache(queryClient, updated.chat)
     }
   })
+
+  const modeOptions: Array<{ value: ChatMode | ""; label: string }> = [
+    { value: "", label: t("mode_default") },
+    { value: "planning", label: t("mode_planning") },
+    { value: "coding", label: t("mode_coding") },
+    ...(payload.local_mode_enabled ? [{ value: "local" as ChatMode, label: t("mode_local") }] : [])
+  ]
   const mode = useMutation({
-    mutationFn: (value: ChatMode) => updateChatMode(payload.chat.id, value),
+    mutationFn: (value: string) => updateChatMode(payload.chat.id, value as ChatMode || null),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       updateRecentChatCache(queryClient, updated.chat)
@@ -4685,6 +4693,29 @@ function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { payload: C
             </label>
           ) : null}
           {provider.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(provider.error, "Provider could not be updated.")}</div> : null}
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("mode_label")}</span>
+            <div className="flex rounded border border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-950" role="group" aria-label={t("mode_label")}>
+              {modeOptions.map(({ value, label }) => (
+                <button
+                  className={[
+                    "flex-1 px-3 py-2 text-sm first:rounded-l last:rounded-r focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-terracotta-500",
+                    (payload.chat.mode ?? "") === value
+                      ? "bg-terracotta-600 font-medium text-white"
+                      : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800",
+                    mode.isPending ? "cursor-not-allowed opacity-50" : ""
+                  ].join(" ")}
+                  disabled={mode.isPending}
+                  key={value || "default"}
+                  onClick={() => mode.mutate(value)}
+                  type="button"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </label>
+          {mode.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(mode.error, t("mode_update_error"))}</div> : null}
           {payload.chat.repository?.repository_path ? (
             <Link className="block rounded border border-gray-200 px-3 py-2 text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-700 dark:text-gray-200 dark:hover:border-blue-800 dark:hover:bg-blue-950 dark:hover:text-blue-200" onClick={onClose} to={withRoutePrefix(`${payload.chat.repository.repository_path}/edit`, prefix)}>
               Repository settings
