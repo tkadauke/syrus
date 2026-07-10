@@ -162,6 +162,8 @@ class WorkflowWorkspace
       "syrus/local-#{@job.id}"
     elsif @job.direct?
       "syrus/direct-#{@job.id}"
+    elsif @job.main_grader?
+      @repository.default_branch
     else
       "syrus/issue-#{@job.issue_number}-#{@job.id}"
     end
@@ -218,6 +220,20 @@ class WorkflowWorkspace
     else
       @git.run("checkout", "-b", @branch_name, chdir: path.to_s)
     end
+
+    checkout_main_sha!
+  end
+
+  # For main_grader workflows: detach HEAD at the exact SHA that was
+  # polled so graders run against a reproducible snapshot regardless
+  # of what lands on main between clone and execution.
+  def checkout_main_sha!
+    return unless @job.main_grader?
+
+    sha = @workflow.artifact("main_sha")
+    return if sha.blank?
+
+    @git.run("checkout", sha, chdir: path.to_s)
   end
 
   def base_branch
