@@ -2030,7 +2030,7 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
     }
   })
   const stash = useMutation({
-    mutationFn: () => createScratchpadItem(chatId, text),
+    mutationFn: (content?: string) => createScratchpadItem(chatId, content ?? text),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       setText("")
@@ -2286,6 +2286,17 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
 
     if (command.name === "/share") {
       systemAction.mutate({ kind: "share" })
+      return
+    }
+
+    if (command.name === "/scratch") {
+      if (argsText) {
+        stash.mutate(argsText, { onSuccess: () => onNotice("Stashed to scratch pad") })
+      } else {
+        setScratchpadOpen(true)
+        setText("")
+        onNotice(null)
+      }
       return
     }
 
@@ -3123,7 +3134,7 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
               aria-label={t("scratchpad_stash")}
               className="inline-flex h-9 items-center justify-center rounded border border-gray-300 bg-white px-2.5 text-gray-600 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
               disabled={stash.isPending}
-              onClick={() => stash.mutate()}
+              onClick={() => stash.mutate(undefined)}
               title={t("scratchpad_stash")}
               type="button"
             >
