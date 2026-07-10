@@ -18,4 +18,8 @@ class Feature < ApplicationRecord
   def self.video_walkthroughs_enabled?
     enabled?(:video_walkthroughs)
   end
+
+  def self.local_mode_enabled?
+    enabled?(:local_mode)
+  end
 end

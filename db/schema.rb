@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_09_183428) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_10_051239) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -653,6 +653,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_09_183428) do
     t.index ["validity"], name: "index_jobs_on_validity"
   end
 
+  create_table "local_tunnel_sessions", force: :cascade do |t|
+    t.string "branch"
+    t.integer "chat_session_id"
+    t.datetime "connected_at"
+    t.datetime "created_at", null: false
+    t.datetime "disconnected_at"
+    t.string "repo_slug"
+    t.string "status", default: "connected", null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["user_id", "status"], name: "index_local_tunnel_sessions_on_user_id_and_status"
+    t.index ["user_id"], name: "index_local_tunnel_sessions_on_user_id"
+  end
+
   create_table "merge_train_members", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "job_id", null: false
@@ -1178,6 +1192,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_09_183428) do
   add_foreign_key "jobs", "users", column: "claimed_by_user_id"
   add_foreign_key "jobs", "users", column: "dependencies_overridden_by_user_id"
   add_foreign_key "jobs", "users", column: "owner_user_id"
+  add_foreign_key "local_tunnel_sessions", "users"
   add_foreign_key "merge_train_members", "jobs"
   add_foreign_key "merge_train_members", "merge_trains"
   add_foreign_key "merge_trains", "epics"
