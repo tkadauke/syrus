@@ -386,6 +386,7 @@ class LandingQueueProcessor
   def blockage_for(job)
     return { blocked_reason: nil, waiting_for: nil, waiting_for_jobs: [] } if job.landing?
     return blocked("landing paused") if job.user.landing_paused?
+    return blocked("landing paused: main branch broken") if job.repository.landing_paused?
     return blocked("repository archived") if job.repository.archived?
     # With merge-trains on, Epic children never land via the per-Job
     # path — they land atomically as part of their Epic's train. Keep
