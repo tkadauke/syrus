@@ -14,7 +14,7 @@ RSpec.describe Steps::CoveragePrComment do
 
   let(:fake_client) { instance_double(GithubClient) }
   let(:pr_comment_body) do
-    "#{Coverage::PrCommentFormatter::MARKER}\n## Test Coverage Report\n\n| Metric | Value |"
+    "#{CoverageReport::PrCommentFormatter::MARKER}\n## Test Coverage Report\n\n| Metric | Value |"
   end
 
   before do
@@ -82,7 +82,7 @@ RSpec.describe Steps::CoveragePrComment do
     context "when an existing coverage comment is found" do
       let(:existing_comment) do
         double("comment", id: 777,
-               body: "#{Coverage::PrCommentFormatter::MARKER}\nold content")
+               body: "#{CoverageReport::PrCommentFormatter::MARKER}\nold content")
       end
 
       before do

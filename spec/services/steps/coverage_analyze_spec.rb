@@ -310,7 +310,7 @@ RSpec.describe Steps::CoverageAnalyze do
         handler.call
         body = workflow.reload.artifact("coverage")["pr_comment_body"]
         expect(body).to be_present
-        expect(body).to include(Coverage::PrCommentFormatter::MARKER)
+        expect(body).to include(CoverageReport::PrCommentFormatter::MARKER)
         expect(body).to include("## Test Coverage Report")
       end
 
