@@ -11,6 +11,11 @@ class SyrusYml
   MAX_ADVERSARIAL_REVIEW_ROUNDS = 10
   GRADE_NAME_PATTERN = /\A[A-Za-z0-9][A-Za-z0-9-]*\z/
 
+  COVERAGE_VALID_FORMATS = %w[lcov cobertura].freeze
+  COVERAGE_VALID_ON_MISS = %w[block warn schedule].freeze
+  COVERAGE_DEFAULT_ON_MISS = "warn".freeze
+  COVERAGE_DEFAULT_HITMAP_TTL_DAYS = 7
+
   ParseError = Class.new(StandardError)
   ConfigError = Class.new(ParseError)
 
@@ -19,6 +24,17 @@ class SyrusYml
   GradeStep = Data.define(:name, :run, :description, :required, :timeout_minutes)
   HooksConfig = Data.define(:post_checkout)
   AdversarialReviewConfig = Data.define(:rounds)
+  CoverageSource = Data.define(:artifact, :format)
+  CoverageThreshold = Data.define(:lines, :pr_lines)
+  CoverageConfig = Data.define(:sources, :threshold, :on_miss, :hitmap_ttl_days, :pr_comment) do
+    def threshold_miss?(lines_pct:, pr_delta_pct: nil)
+      return false unless threshold
+
+      lines_miss = threshold.lines && lines_pct && lines_pct < threshold.lines
+      pr_miss = threshold.pr_lines && pr_delta_pct && pr_delta_pct < threshold.pr_lines
+      lines_miss || pr_miss || false
+    end
+  end
 
   def self.load_file(path)
     new(Pathname.new(path).read).parse
@@ -154,6 +170,69 @@ class SyrusYml
     clamped
   rescue ArgumentError, TypeError
     raise ParseError, "grade.max_iterations: must be an integer"
+  end
+
+  def parse_coverage(raw)
+    return nil if raw.nil?
+    raise ParseError, "coverage: must be a mapping" unless raw.is_a?(Hash)
+
+    sources = parse_coverage_sources(raw["sources"])
+    threshold = parse_coverage_threshold(raw["threshold"])
+
+    on_miss = (raw["on_miss"] || COVERAGE_DEFAULT_ON_MISS).to_s.strip
+    unless COVERAGE_VALID_ON_MISS.include?(on_miss)
+      raise ParseError, "coverage.on_miss: must be one of #{COVERAGE_VALID_ON_MISS.join(', ')}"
+    end
+
+    hitmap_ttl_days = raw.key?("hitmap_ttl_days") ? Integer(raw["hitmap_ttl_days"]) : COVERAGE_DEFAULT_HITMAP_TTL_DAYS
+    raise ParseError, "coverage.hitmap_ttl_days: must be positive" unless hitmap_ttl_days > 0
+
+    CoverageConfig.new(
+      sources: sources,
+      threshold: threshold,
+      on_miss: on_miss,
+      hitmap_ttl_days: hitmap_ttl_days,
+      pr_comment: ActiveModel::Type::Boolean.new.cast(raw["pr_comment"]) || false
+    )
+  rescue ArgumentError, TypeError
+    raise ParseError, "coverage.hitmap_ttl_days: must be an integer"
+  end
+
+  def parse_coverage_sources(raw)
+    raise ParseError, "coverage.sources: must be an array" unless raw.is_a?(Array)
+    raise ParseError, "coverage.sources: must not be empty" if raw.empty?
+
+    raw.each_with_index.map do |item, index|
+      label = "coverage.sources[#{index}]"
+      raise ParseError, "#{label}: must be a mapping" unless item.is_a?(Hash)
+
+      artifact = item["artifact"].to_s.strip
+      raise ParseError, "#{label}.artifact: is required" if artifact.empty?
+
+      format = item["format"].to_s.strip.downcase
+      raise ParseError, "#{label}.format: must be one of #{COVERAGE_VALID_FORMATS.join(', ')}" unless COVERAGE_VALID_FORMATS.include?(format)
+
+      CoverageSource.new(artifact: artifact, format: format)
+    end
+  end
+
+  def parse_coverage_threshold(raw)
+    return nil if raw.nil?
+    raise ParseError, "coverage.threshold: must be a mapping" unless raw.is_a?(Hash)
+
+    lines = raw.key?("lines") ? Float(raw["lines"]) : nil
+    pr_lines = raw.key?("pr_lines") ? Float(raw["pr_lines"]) : nil
+
+    if lines && (lines < 0 || lines > 100)
+      raise ParseError, "coverage.threshold.lines: must be between 0 and 100"
+    end
+    if pr_lines && (pr_lines < 0 || pr_lines > 100)
+      raise ParseError, "coverage.threshold.pr_lines: must be between 0 and 100"
+    end
+
+    CoverageThreshold.new(lines: lines, pr_lines: pr_lines)
+  rescue ArgumentError, TypeError
+    raise ParseError, "coverage.threshold: lines and pr_lines must be numbers"
   end
 
   def parse_adversarial_review_rounds(raw)
