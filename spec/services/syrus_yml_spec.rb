@@ -270,68 +270,127 @@ RSpec.describe SyrusYml do
     }.to raise_error(described_class::ParseError, /grade\.max_iterations: must be an integer/)
   end
 
-  it "returns nil coverage when the coverage key is absent" do
-    config = parse(<<~YAML)
-      grade:
-        - name: tests
-          run: bin/rspec
-    YAML
-
-    expect(config.coverage).to be_nil
-  end
-
-  it "parses shorthand coverage config into a RepoCoveragePlan" do
-    config = parse(<<~YAML)
-      coverage:
-        artifact: coverage/lcov.info
-        threshold:
-          lines: 80
-          pr_lines: 90
-        on_miss: warn
-    YAML
-
-    expect(config.coverage).to be_a(RepoCoveragePlan)
-    expect(config.coverage.sources).to eq([
-      RepoCoveragePlan::Source.new(artifact: "coverage/lcov.info", format: "lcov")
-    ])
-    expect(config.coverage.on_miss).to eq("warn")
-    expect(config.coverage.threshold.lines).to eq(80.0)
-    expect(config.coverage.threshold.pr_lines).to eq(90.0)
-  end
-
-  it "parses multi-source coverage config" do
-    config = parse(<<~YAML)
-      coverage:
-        sources:
-          - artifact: coverage/ruby/lcov.info
-            format: lcov
-          - artifact: coverage/js/lcov.info
-            format: lcov
-        threshold:
-          lines: 80
-        on_miss: schedule
-        schedule_prompt: "Coverage fell below 80%. Add tests to recently changed modules."
-        pr_comment: true
-        hitmap_ttl_days: 14
-    YAML
-
-    expect(config.coverage.sources.size).to eq(2)
-    expect(config.coverage.on_miss).to eq("schedule")
-    expect(config.coverage.hitmap_ttl_days).to eq(14)
-    expect(config.coverage.schedule_prompt).to eq("Coverage fell below 80%. Add tests to recently changed modules.")
-  end
-
-  it "raises ConfigError for invalid coverage configuration" do
-    expect {
-      parse(<<~YAML)
-        coverage:
-          artifact: coverage/lcov.info
-          on_miss: unknown_mode
-      YAML
-    }.to raise_error(described_class::ConfigError, /on_miss.*not valid/)
-  end
-
   it "ConfigError is a subclass of ParseError" do
     expect(described_class::ConfigError.ancestors).to include(described_class::ParseError)
+  end
+
+  describe "coverage: key" do
+    it "parses a full coverage block" do
+      config = parse(<<~YAML)
+        coverage:
+          sources:
+            - artifact: coverage/lcov.info
+              format: lcov
+          threshold:
+            lines: 80
+            pr_lines: 70
+          on_miss: block
+          hitmap_ttl_days: 14
+          pr_comment: true
+      YAML
+
+      cov = config.coverage
+      expect(cov.sources.size).to eq(1)
+      expect(cov.sources.first.artifact).to eq("coverage/lcov.info")
+      expect(cov.sources.first.format).to eq("lcov")
+      expect(cov.threshold.lines).to eq(80.0)
+      expect(cov.threshold.pr_lines).to eq(70.0)
+      expect(cov.on_miss).to eq("block")
+      expect(cov.hitmap_ttl_days).to eq(14)
+      expect(cov.pr_comment).to be true
+    end
+
+    it "defaults on_miss to warn and hitmap_ttl_days to 7" do
+      config = parse(<<~YAML)
+        coverage:
+          sources:
+            - artifact: coverage/lcov.info
+              format: lcov
+      YAML
+
+      expect(config.coverage.on_miss).to eq("warn")
+      expect(config.coverage.hitmap_ttl_days).to eq(7)
+    end
+
+    it "returns nil for coverage when key is absent" do
+      config = parse("grade:\n  - name: tests\n    run: bin/rspec\n")
+      expect(config.coverage).to be_nil
+    end
+
+    it "rejects invalid on_miss value" do
+      expect {
+        parse(<<~YAML)
+          coverage:
+            sources:
+              - artifact: coverage/lcov.info
+                format: lcov
+            on_miss: panic
+        YAML
+      }.to raise_error(described_class::ParseError, /coverage\.on_miss: must be one of/)
+    end
+
+    it "rejects unknown coverage format" do
+      expect {
+        parse(<<~YAML)
+          coverage:
+            sources:
+              - artifact: coverage/report.xml
+                format: jacoco
+        YAML
+      }.to raise_error(described_class::ParseError, /coverage\.sources\[0\]\.format: must be one of/)
+    end
+
+    it "rejects missing artifact path" do
+      expect {
+        parse(<<~YAML)
+          coverage:
+            sources:
+              - format: lcov
+        YAML
+      }.to raise_error(described_class::ParseError, /coverage\.sources\[0\]\.artifact: is required/)
+    end
+
+    it "rejects threshold lines outside 0..100" do
+      expect {
+        parse(<<~YAML)
+          coverage:
+            sources:
+              - artifact: coverage/lcov.info
+                format: lcov
+            threshold:
+              lines: 110
+        YAML
+      }.to raise_error(described_class::ParseError, /coverage\.threshold\.lines: must be between 0 and 100/)
+    end
+
+    describe "CoverageConfig#threshold_miss?" do
+      let(:config) do
+        parse(<<~YAML)
+          coverage:
+            sources:
+              - artifact: coverage/lcov.info
+                format: lcov
+            threshold:
+              lines: 80
+              pr_lines: 70
+        YAML
+      end
+
+      it "returns true when lines_pct is below lines threshold" do
+        expect(config.coverage.threshold_miss?(lines_pct: 75.0)).to be true
+      end
+
+      it "returns true when pr_delta_pct is below pr_lines threshold" do
+        expect(config.coverage.threshold_miss?(lines_pct: 85.0, pr_delta_pct: 60.0)).to be true
+      end
+
+      it "returns false when both are at or above threshold" do
+        expect(config.coverage.threshold_miss?(lines_pct: 90.0, pr_delta_pct: 80.0)).to be false
+      end
+
+      it "returns false when pr_delta_pct is nil" do
+        expect(config.coverage.threshold_miss?(lines_pct: 90.0, pr_delta_pct: nil)).to be false
+      end
+    end
   end
 end
