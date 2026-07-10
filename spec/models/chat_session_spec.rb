@@ -503,6 +503,29 @@ RSpec.describe ChatSession do
     end
   end
 
+  describe "mode" do
+    it "defaults to planning" do
+      session = described_class.create!(user: repo.user)
+
+      expect(session.mode).to eq("planning")
+      expect(session).to be_planning
+      expect(session).not_to be_coding
+    end
+
+    it "accepts coding mode" do
+      session = described_class.new(user: repo.user, mode: "coding")
+
+      expect(session).to be_valid
+      expect(session).to be_coding
+    end
+
+    it "rejects unknown modes" do
+      expect {
+        described_class.new(user: repo.user, mode: "autopilot")
+      }.to raise_error(ArgumentError, /'autopilot' is not a valid mode/)
+    end
+  end
+
   describe "title length" do
     it "rejects titles longer than TITLE_MAX_LENGTH so no code path can overflow" do
       session = described_class.new(user: repo.user, title: "R" * (ChatSession::TITLE_MAX_LENGTH + 1))

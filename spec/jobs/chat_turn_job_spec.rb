@@ -36,6 +36,55 @@ RSpec.describe ChatTurnJob do
     feature.update!(enabled: enabled)
   end
 
+  def enable_coding_mode!(enabled: true)
+    feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|
+      record.category = "Labs"
+      record.name = "Coding Mode"
+    end
+    feature.update!(enabled: enabled)
+  end
+
+  it "does not inject the coding mode section when the feature flag is off (planning mode chat)" do
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
+      result_fixture(session_id: "s1")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(received[:prompt]).not_to include("Coding Mode")
+    expect(received[:prompt]).not_to include("write access to the repository checkout")
+  end
+
+  it "does not inject the coding mode section for a planning-mode chat even when the flag is on" do
+    enable_coding_mode!
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
+      result_fixture(session_id: "s1")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(received[:prompt]).not_to include("Coding Mode")
+  end
+
+  it "injects the coding mode section when the flag is on and the chat is in coding mode" do
+    enable_coding_mode!
+    chat.update!(mode: "coding")
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
+      result_fixture(session_id: "s1")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(received[:prompt]).to include("Coding Mode")
+    expect(received[:prompt]).to include("write access to the repository checkout")
+  end
+
   it "orients the agent to its walkthrough tools (not an analysis dump) for a walkthrough message" do
     enable_walkthroughs!
     walkthrough = ChatVideoWalkthrough.new(
