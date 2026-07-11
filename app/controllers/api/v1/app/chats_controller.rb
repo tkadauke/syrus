@@ -290,6 +290,39 @@ module Api
           render json: chat_payload(chat_session.reload, message: "Stop requested.")
         end
 
+        def daemon_connection
+          chat_session = find_chat_session
+
+          unless Feature.local_mode_enabled?
+            render_error("forbidden", "Local mode is not enabled.", status: :forbidden)
+            return
+          end
+
+          unless chat_session.mode == "local"
+            render_error("validation_failed", "Chat is not in local mode.", status: :unprocessable_content)
+            return
+          end
+
+          state = params[:state].to_s.strip
+          unless ChatSession::DAEMON_STATES.include?(state)
+            render_error("validation_failed", "Invalid state. Must be one of: #{ChatSession::DAEMON_STATES.join(", ")}.", status: :unprocessable_content)
+            return
+          end
+
+          attrs = { local_daemon_state: state }
+          if state == "connected"
+            attrs[:local_daemon_repo] = params[:repo].to_s.strip.presence
+            attrs[:local_daemon_branch] = params[:branch].to_s.strip.presence
+          else
+            attrs[:local_daemon_repo] = nil
+            attrs[:local_daemon_branch] = nil
+          end
+
+          chat_session.update!(attrs)
+
+          render json: { message: "Daemon connection state updated." }
+        end
+
         def switch_provider
           chat_session = find_chat_session
           provider = params[:provider].to_s.strip
@@ -1100,6 +1133,7 @@ module Api
               app_share_path: "/api/v1/app/chats/#{chat_session.id}/share",
               app_enqueue_message_path: "/api/v1/app/chats/#{chat_session.id}/queued_messages",
               app_stop_path: "/api/v1/app/chats/#{chat_session.id}/stop",
+              app_daemon_connection_path: "/api/v1/app/chats/#{chat_session.id}/daemon_connection",
               app_bookmarks_path: "/api/v1/app/chats/#{chat_session.id}/bookmarks",
               app_attachments_path: "/api/v1/app/chats/#{chat_session.id}/attachments",
               app_whiteboard_path: "/api/v1/app/chats/#{chat_session.id}/whiteboard",
@@ -1800,6 +1834,9 @@ module Api
             effective_chat_provider_label: chat_provider_label(chat_session.effective_chat_provider),
             chat_provider_options: chat_provider_options(chat_session),
             mode: chat_session.mode,
+            local_daemon_state: chat_session.local_daemon_state,
+            local_daemon_repo: chat_session.local_daemon_repo,
+            local_daemon_branch: chat_session.local_daemon_branch,
             chat_path: chat_path(chat_session),
             repository: repository ? repository_json(repository).merge(repository_path: repository_path(repository)) : nil,
             turn_in_flight: chat_session.turn_in_flight?,
