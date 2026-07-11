@@ -145,6 +145,7 @@ export type DashboardEpicItem = {
   owner_status: "mine" | "other_owned" | "unclaimed"
   jobs_count: number
   landed_jobs_count: number
+  job_state_counts: Record<string, number>
   created_at: string | null
   updated_at: string | null
   done_at: string | null
