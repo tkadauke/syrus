@@ -14,6 +14,13 @@ module Steps
     MISSING_BASE_FAILURE_PREFIX = "merge_train: missing built base SHA"
     INTEGRATION_CONFLICT_FAILURE_PREFIX = "merge_train: integration PR has merge conflicts"
 
+    # Raised when the base moved and an incremental rebase may recover without
+    # a full rebuild. The Try node in Workflows::MergeTrain catches this failure
+    # code and inserts merge_train_rebase → graders → merge_train_land_after_rebase.
+    class BaseMoved < StepFailed
+      FAILURE_CODE = "merge_train_base_moved".freeze
+    end
+
     def call
       train = merge_train
       client = GithubClient.for(repository: repository, user: job.user)
@@ -52,12 +59,15 @@ module Steps
 
       return if current_base_sha == built_base_sha
 
-      close_open_integration_pr!(
-        train,
-        client,
-        "Superseded by a rebuilt Syrus merge-train because #{train.base_branch} moved while this train was landing."
-      )
-      raise_stale_base!(train, built_base_sha, current_base_sha)
+      # Base moved — record stale-base info and raise a typed failure so the
+      # Try node in Workflows::MergeTrain can insert an incremental rebase
+      # instead of triggering a full rebuild. We do NOT close the integration
+      # PR here: it doesn't exist yet (push hasn't happened), and even if it
+      # did, force-pushing the rebased branch would update it automatically.
+      record_stale_base!(train, built_base_sha, current_base_sha)
+      mark_failure_code!(BaseMoved::FAILURE_CODE)
+      raise BaseMoved,
+            "#{STALE_BASE_FAILURE_PREFIX} from #{built_base_sha.first(12)} to #{current_base_sha.first(12)}; attempting incremental rebase"
     end
 
     def fetch_current_base_sha(train, client)
@@ -69,7 +79,11 @@ module Steps
       git.run("rev-parse", "FETCH_HEAD", chdir: chdir).strip
     end
 
-    def raise_stale_base!(train, built_base_sha, current_base_sha)
+    def mark_failure_code!(code)
+      step.update!(details: step.details.to_h.merge("failure_code" => code))
+    end
+
+    def record_stale_base!(train, built_base_sha, current_base_sha)
       workflow.set_artifact!(
         STALE_BASE_ARTIFACT,
         {
@@ -79,6 +93,10 @@ module Steps
           "reason" => "base_moved"
         }
       )
+    end
+
+    def raise_stale_base!(train, built_base_sha, current_base_sha)
+      record_stale_base!(train, built_base_sha, current_base_sha)
       raise StepFailed,
             "#{STALE_BASE_FAILURE_PREFIX} from #{built_base_sha.first(12)} to #{current_base_sha.first(12)}; rebuild required"
     end
@@ -171,12 +189,18 @@ module Steps
       end
 
       if current_base_sha != built_base_sha
+        # Base moved while the train was landing. Close this integration PR
+        # (the rebased branch will need a fresh one with the updated tip) and
+        # raise BaseMoved so the Try node can insert an incremental rebase.
         close_integration_pr!(
           client,
           pr,
-          "Superseded by a rebuilt Syrus merge-train because #{train.base_branch} moved while this train was landing."
+          "Closed by Syrus because #{train.base_branch} moved while this train was landing; will attempt incremental rebase."
         )
-        raise_stale_base!(train, built_base_sha, current_base_sha)
+        record_stale_base!(train, built_base_sha, current_base_sha)
+        mark_failure_code!(BaseMoved::FAILURE_CODE)
+        raise BaseMoved,
+              "#{STALE_BASE_FAILURE_PREFIX} from #{built_base_sha.first(12)} to #{current_base_sha.first(12)}; attempting incremental rebase"
       end
 
       close_integration_pr!(

@@ -434,6 +434,36 @@ RSpec.describe StepDispatcher do
       expect(retry_workflow.steps.find_by(kind: "landing_fix")).to be_nil
     end
 
+    it "expands the merge_train_land failure branch when base moved" do
+      try_workflow = workflow_with_try_merge_train_land_branch
+      land = try_workflow.steps.find_by!(kind: "merge_train_land")
+      land.update!(details: land.details.merge("failure_code" => Steps::MergeTrainLand::BaseMoved::FAILURE_CODE))
+
+      expect {
+        described_class.fail_from(land)
+      }.to change { try_workflow.steps.count }.by(4)
+        .and change { Run.count }.by(1)
+
+      branch_steps = try_workflow.reload.steps.order(:position).to_a
+      loop_id = try_workflow.steps.find_by!(kind: "grader_collect").loop_id
+
+      expect(branch_steps.map { |s| [ s.kind, s.position, s.iteration, s.loop_id ] }).to eq([
+        [ "merge_train_build",            0, 1, nil ],
+        [ "merge_train_land",             1, 1, nil ],
+        [ "merge_train_rebase",           2, 1, nil ],
+        [ "grader_fanout",                3, 1, loop_id ],
+        [ "grader_collect",               4, 1, loop_id ],
+        [ "merge_train_land_after_rebase", 5, 1, nil ]
+      ])
+      expect(land.reload.next_step).to eq(try_workflow.steps.find_by!(kind: "merge_train_rebase"))
+      expect(try_workflow.steps.find_by!(kind: "merge_train_land_after_rebase").next_step).to be_nil
+      expect(try_workflow.steps.find_by!(kind: "merge_train_rebase").runs.last.trigger_kind).to eq("merge_train")
+      expect(land.details).to include(
+        "try_branch_expanded" => true,
+        "try_branch_failure_code" => Steps::MergeTrainLand::BaseMoved::FAILURE_CODE
+      )
+    end
+
     it "expands a Try failure branch before the continuation step" do
       try_workflow = workflow_with_try_push_branch
       push = try_workflow.steps.find_by!(kind: "push")
@@ -642,6 +672,39 @@ RSpec.describe StepDispatcher do
       review.update!(next_step_id: final_implement.id)
       final_implement.update!(next_step_id: grader_fanout.id)
       grader_fanout.update!(next_step_id: grader_collect.id)
+    end
+  end
+
+  def workflow_with_try_merge_train_land_branch
+    try_id = "try-merge-train-land"
+    Workflow.create!(
+      job: job,
+      trigger_kind: "merge_train",
+      chain_template: [
+        { "type" => "step", "kind" => "merge_train_build" },
+        {
+          "type" => "try",
+          "id" => try_id,
+          "step" => "merge_train_land",
+          "on_failure" => {
+            Steps::MergeTrainLand::BaseMoved::FAILURE_CODE => [
+              { "type" => "step", "kind" => "merge_train_rebase" },
+              {
+                "type" => "retry_until",
+                "max_iterations" => 2,
+                "repair" => %w[ landing_fix ],
+                "check" => %w[ grader_fanout grader_collect ],
+                "repair_first" => false
+              },
+              { "type" => "step", "kind" => "merge_train_land_after_rebase" }
+            ]
+          }
+        }
+      ]
+    ).tap do |wf|
+      build = Step.create!(workflow: wf, kind: "merge_train_build", position: 0)
+      land  = Step.create!(workflow: wf, kind: "merge_train_land", position: 1, details: { "try_id" => try_id })
+      build.update!(next_step_id: land.id)
     end
   end
 
