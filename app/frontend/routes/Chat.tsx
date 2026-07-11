@@ -3519,7 +3519,12 @@ function ScratchpadPanel({
   const [addDraft, setAddDraft] = useState("")
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
+  const [dismissed, setDismissed] = useState(false)
   const addInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (open) setDismissed(false)
+  }, [open])
 
   const create = useMutation({
     mutationFn: () => createScratchpadItem(chatId, addDraft),
@@ -3569,7 +3574,7 @@ function ScratchpadPanel({
     create.mutate()
   }
 
-  const visible = (open ?? false) || items.length > 0 || addFocused
+  const visible = !dismissed && ((open ?? false) || items.length > 0 || addFocused)
   if (!visible) return null
 
   return (
@@ -3599,16 +3604,14 @@ function ScratchpadPanel({
             <path d="m9 18 6-6-6-6" />
           </svg>
         </button>
-        {open && onDismiss ? (
-          <button
-            aria-label={t("scratchpad_dismiss")}
-            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-            onClick={onDismiss}
-            type="button"
-          >
-            <CloseIcon className="h-3.5 w-3.5" />
-          </button>
-        ) : null}
+        <button
+          aria-label={t("scratchpad_dismiss")}
+          className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+          onClick={() => { setDismissed(true); onDismiss?.() }}
+          type="button"
+        >
+          <CloseIcon className="h-3.5 w-3.5" />
+        </button>
       </div>
 
       {!collapsed && (
