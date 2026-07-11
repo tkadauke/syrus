@@ -111,6 +111,53 @@ RSpec.describe LocalTunnelChannel, type: :channel do
 
         perform :receive, { "type" => "tool_result", "result" => { "output" => "hello" } }
       end
+
+      context "with a diff-prefixed call_id" do
+        it "routes head diff results to the local_diff stream" do
+          subscribe
+
+          expect(ActionCable.server).to receive(:broadcast).with(
+            "local_diff:#{user.id}",
+            { type: "diff_result", diff: "diff --git a/foo.rb ...", error: nil, mode: "head" }
+          )
+
+          perform :receive, {
+            "type" => "tool_result",
+            "call_id" => "diff:head:some-uuid",
+            "result" => { "diff" => "diff --git a/foo.rb ..." }
+          }
+        end
+
+        it "routes staged diff results to the local_diff stream" do
+          subscribe
+
+          expect(ActionCable.server).to receive(:broadcast).with(
+            "local_diff:#{user.id}",
+            { type: "diff_result", diff: nil, error: "exit status 128", mode: "staged" }
+          )
+
+          perform :receive, {
+            "type" => "tool_result",
+            "call_id" => "diff:staged:some-uuid",
+            "result" => { "error" => "exit status 128" }
+          }
+        end
+
+        it "does not broadcast to the regular result stream" do
+          subscribe
+
+          expect(ActionCable.server).not_to receive(:broadcast).with(
+            "local_tunnel_result:#{user.id}:diff:head:some-uuid",
+            anything
+          )
+
+          perform :receive, {
+            "type" => "tool_result",
+            "call_id" => "diff:head:some-uuid",
+            "result" => { "diff" => "" }
+          }
+        end
+      end
     end
 
     describe "graceful_disconnect message" do

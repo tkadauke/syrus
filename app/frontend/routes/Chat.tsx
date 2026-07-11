@@ -104,6 +104,7 @@ import { StartEpicButton } from "../components/StartEpicButton"
 import { StopIcon } from "../components/StopIcon"
 import { Markdown, PlainText } from "../lib/Markdown"
 import { linkifySlugs } from "../lib/linkifySlugs"
+import { createConsumer, type Subscription } from "@rails/actioncable"
 import { highlightCode, inferToolResultLanguage } from "../lib/syntaxHighlight"
 import {
   filterSlashCommands,
@@ -306,7 +307,9 @@ function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
       app_scratchpad_reorder_path: ""
     },
     gemini_configured: false,
-    walkthroughs_enabled: false
+    walkthroughs_enabled: false,
+    local_mode_enabled: false,
+    local_tunnel_connected: false
   }
 }
 
@@ -3720,7 +3723,7 @@ function StopButton({ payload, queryKey }: { payload: ChatPayload; queryKey: Cha
   )
 }
 
-type WorkspaceTab = "whiteboard" | "context" | "media"
+type WorkspaceTab = "whiteboard" | "context" | "media" | "diff"
 type MobileChatTab = "chat" | WorkspaceTab
 
 function ChatWorkspace({
@@ -3841,7 +3844,7 @@ function ChatWorkspace({
     return (
       <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-gray-950">
         <nav aria-label="Chat mobile tabs" className="flex shrink-0 overflow-x-auto border-b border-gray-200 px-2 pt-2 text-sm font-medium dark:border-gray-700">
-          {(["chat", "whiteboard", "context", "media"] as MobileChatTab[]).map((tab) => (
+          {(["chat", "whiteboard", "context", "media", ...(payload.local_tunnel_connected ? (["diff"] as MobileChatTab[]) : [])] as MobileChatTab[]).map((tab) => (
             <button
               className={workspaceTabClass(activeMobileTab === tab)}
               key={tab}
@@ -4102,7 +4105,7 @@ function ChatWorkspacePanel({
     <aside aria-label="Chat workspace" className={`flex min-h-0 min-w-0 flex-1 flex-col rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900 ${fullscreen ? "" : "h-full w-full"}`}>
       {fullscreen || !showTabs ? null : (
         <nav aria-label="Chat workspace tabs" className="flex items-center border-b border-gray-200 px-3 pt-3 text-sm font-medium dark:border-gray-700">
-          {(["whiteboard", "context", "media"] as WorkspaceTab[]).map((tab) => (
+          {(["whiteboard", "context", "media", ...(payload.local_tunnel_connected ? (["diff"] as WorkspaceTab[]) : [])] as WorkspaceTab[]).map((tab) => (
             <button
               className={workspaceTabClass(activeTab === tab)}
               key={tab}
@@ -4137,8 +4140,132 @@ function ChatWorkspacePanel({
         ) : null}
         {activeTab === "context" ? <Attachments payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} /> : null}
         {activeTab === "media" ? <MediaGallery messages={payload.messages} payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
+        {activeTab === "diff" && payload.local_tunnel_connected ? <LocalDiffPanel /> : null}
       </div>
     </aside>
+  )
+}
+
+type DiffMode = "head" | "staged"
+
+type LocalDiffState = {
+  diff: string | null
+  mode: DiffMode
+  loading: boolean
+  error: string | null
+}
+
+function renderUnifiedDiff(diff: string): ReactNode[] {
+  const nodes: ReactNode[] = []
+  diff.split("\n").forEach((line, index) => {
+    let className: string
+    if (line.startsWith("+++") || line.startsWith("---")) {
+      className = "text-gray-500 dark:text-gray-400"
+    } else if (line.startsWith("@@")) {
+      className = "text-blue-600 dark:text-blue-400"
+    } else if (line.startsWith("+")) {
+      className = "bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+    } else if (line.startsWith("-")) {
+      className = "bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-300"
+    } else if (line.startsWith("diff ") || line.startsWith("index ")) {
+      className = "font-semibold text-gray-700 dark:text-gray-300"
+    } else {
+      className = "text-gray-700 dark:text-gray-300"
+    }
+    nodes.push(
+      <div className={`block whitespace-pre ${className}`} key={index}>
+        {line || " "}
+      </div>
+    )
+  })
+  return nodes
+}
+
+function LocalDiffPanel() {
+  const [state, setState] = useState<LocalDiffState>({ diff: null, mode: "head", loading: true, error: null })
+  const subscriptionRef = useRef<Subscription | null>(null)
+
+  useEffect(() => {
+    const sub = createConsumer().subscriptions.create(
+      { channel: "LocalDiffChannel" },
+      {
+        connected() {
+          // Initial diff requested automatically by channel on subscribe.
+        },
+        received(data: { type?: string; diff?: string | null; mode?: string; error?: string | null }) {
+          if (data.type !== "diff_result") return
+          const mode: DiffMode = data.mode === "staged" ? "staged" : "head"
+          setState({ diff: data.diff ?? null, mode, loading: false, error: data.error ?? null })
+        }
+      }
+    )
+    subscriptionRef.current = sub
+    return () => sub.unsubscribe()
+  }, [])
+
+  function refresh(mode: DiffMode) {
+    setState((s) => ({ ...s, loading: true, error: null }))
+    subscriptionRef.current?.perform("receive", { mode })
+  }
+
+  const { diff, mode, loading, error } = state
+  const isEmpty = !loading && !error && (diff === null || diff === "")
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex gap-1 rounded border border-gray-200 p-0.5 dark:border-gray-700">
+          <button
+            className={`rounded px-2 py-0.5 text-xs font-medium transition ${mode === "head" ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900" : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"}`}
+            disabled={loading}
+            onClick={() => refresh("head")}
+            type="button"
+          >
+            HEAD
+          </button>
+          <button
+            className={`rounded px-2 py-0.5 text-xs font-medium transition ${mode === "staged" ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900" : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"}`}
+            disabled={loading}
+            onClick={() => refresh("staged")}
+            type="button"
+          >
+            Staged
+          </button>
+        </div>
+        <button
+          aria-label="Refresh diff"
+          className="rounded p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+          disabled={loading}
+          onClick={() => refresh(mode)}
+          title="Refresh"
+          type="button"
+        >
+          <svg aria-hidden="true" className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M23 4v6h-6" />
+            <path d="M1 20v-6h6" />
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+          </svg>
+        </button>
+      </div>
+
+      {loading && diff === null ? (
+        <p className="text-sm text-gray-500 dark:text-gray-400">Loading diff…</p>
+      ) : error ? (
+        <p className="text-sm text-red-600 dark:text-red-400">
+          {error === "not_connected" ? "Daemon not connected." : `Error: ${error}`}
+        </p>
+      ) : isEmpty ? (
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          {mode === "staged" ? "No staged changes." : "No uncommitted changes."}
+        </p>
+      ) : (
+        <div className="overflow-x-auto rounded border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-950">
+          <code className="block p-3 font-mono text-xs leading-5">
+            {renderUnifiedDiff(diff!)}
+          </code>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -4990,6 +5117,7 @@ function workspaceTabLabel(tab: WorkspaceTab) {
   if (tab === "whiteboard") return "Whiteboard"
   if (tab === "context") return "Context"
   if (tab === "media") return "Media"
+  if (tab === "diff") return "Local Diff"
 
   return "Chats"
 }
@@ -5005,7 +5133,7 @@ function defaultWorkspaceTab(payload: ChatPayload): WorkspaceTab {
 function storedWorkspaceTab(): WorkspaceTab | null {
   try {
     const value = window.localStorage.getItem(CHAT_WORKSPACE_TAB_KEY)
-    return value === "whiteboard" || value === "context" || value === "media" ? value : null
+    return value === "whiteboard" || value === "context" || value === "media" || value === "diff" ? value : null
   } catch (_error) {
     return null
   }

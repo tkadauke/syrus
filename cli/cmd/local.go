@@ -372,6 +372,8 @@ func executeLocalToolCall(ctx context.Context, repoRoot string, call localToolCa
 		return executeLocalRunCommand(ctx, repoRoot, call.Params)
 	case "git_diff":
 		return executeLocalGitDiff(ctx, repoRoot)
+	case "git_diff_staged":
+		return executeLocalGitDiffStaged(ctx, repoRoot)
 	case "git_status":
 		return executeLocalGitStatus(ctx, repoRoot)
 	default:
@@ -518,6 +520,14 @@ func executeLocalRunCommand(ctx context.Context, repoRoot string, raw json.RawMe
 
 func executeLocalGitDiff(ctx context.Context, repoRoot string) map[string]any {
 	out, err := exec.CommandContext(ctx, "git", "-C", repoRoot, "diff", "HEAD").Output()
+	if err != nil {
+		return map[string]any{"error": err.Error()}
+	}
+	return map[string]any{"diff": string(out)}
+}
+
+func executeLocalGitDiffStaged(ctx context.Context, repoRoot string) map[string]any {
+	out, err := exec.CommandContext(ctx, "git", "-C", repoRoot, "diff", "--staged").Output()
 	if err != nil {
 		return map[string]any{"error": err.Error()}
 	}

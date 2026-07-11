@@ -47,10 +47,19 @@ class LocalTunnelChannel < ApplicationCable::Channel
     call_id = data["call_id"]
     return unless call_id.present?
 
-    ActionCable.server.broadcast(
-      "local_tunnel_result:#{current_user.id}:#{call_id}",
-      { type: "tool_result", call_id: call_id, result: data["result"] }
-    )
+    if call_id.start_with?("diff:")
+      parts = call_id.split(":", 3)
+      mode = parts[1]
+      ActionCable.server.broadcast(
+        "local_diff:#{current_user.id}",
+        { type: "diff_result", diff: data.dig("result", "diff"), error: data.dig("result", "error"), mode: mode }
+      )
+    else
+      ActionCable.server.broadcast(
+        "local_tunnel_result:#{current_user.id}:#{call_id}",
+        { type: "tool_result", call_id: call_id, result: data["result"] }
+      )
+    end
   end
 
   def handle_graceful_disconnect

@@ -428,6 +428,8 @@ export type ChatPayload = {
   }
   gemini_configured: boolean
   walkthroughs_enabled: boolean
+  local_mode_enabled: boolean
+  local_tunnel_connected: boolean
 }
 
 export type ChatMessagesPayload = {

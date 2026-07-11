@@ -985,7 +985,9 @@ module Api
             # Labs flag: gates the composer's record/drag/upload intake. The
             # video_walkthroughs media list stays in the payload regardless so
             # already-analyzed threads keep their history when the flag is off.
-            walkthroughs_enabled: Feature.video_walkthroughs_enabled?
+            walkthroughs_enabled: Feature.video_walkthroughs_enabled?,
+            local_mode_enabled: Feature.local_mode_enabled?,
+            local_tunnel_connected: Feature.local_mode_enabled? && LocalTunnelSession.connected.exists?(user: Current.user)
           }
         end
 
