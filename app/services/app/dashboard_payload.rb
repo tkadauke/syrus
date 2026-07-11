@@ -850,6 +850,7 @@ module App
         owner_user: owner_user_json(owner_user),
         jobs_count: epic.jobs.size,
         landed_jobs_count: epic_landed_jobs_count(epic),
+        job_state_counts: epic_job_state_counts(epic),
         created_at: epic.created_at&.iso8601,
         updated_at: epic.updated_at&.iso8601,
         done_at: epic.done_at&.iso8601,
@@ -867,6 +868,17 @@ module App
 
     def epic_landed_jobs_count(epic)
       epic.jobs.count { |job| job.closed? && Epic::MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
+    end
+
+    def epic_job_state_counts(epic)
+      epic.jobs.each_with_object(Hash.new(0)) do |job, counts|
+        state = if job.closure_reason == "preempted" || job.closure_reason&.start_with?("external_pr_")
+                  "preempted"
+                else
+                  job.state
+                end
+        counts[state] += 1
+      end.to_h
     end
 
     def owner_json(owner)

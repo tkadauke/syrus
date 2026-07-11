@@ -5116,6 +5116,96 @@ describe("App", () => {
     expect(within(card).queryByText("Needs attention")).not.toBeInTheDocument()
   })
 
+  it("shows a colorful progress bar for in_progress Epic kanban cards", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          dashboardPayload({
+            subject: "epic",
+            view: "kanban",
+            preferences: {
+              sort: { column: "updated_at", direction: "desc" },
+              visible_columns: ["epic", "state", "repository", "updated"],
+              kanban_lanes: ["in_progress"],
+              raw: {}
+            },
+            controls: {
+              ...dashboardPayload().controls,
+              sort_columns: ["title", "state", "repository", "updated_at"],
+              kanban_lanes: [{ key: "in_progress", title: "In progress" }]
+            },
+            lanes: [
+              {
+                key: "in_progress",
+                title: "In progress",
+                count: 1,
+                items: [dashboardEpicItem({ state: "in_progress", jobs_count: 3, job_state_counts: { approved: 1, implemented: 2 } })]
+              }
+            ],
+            kanban_limit: 100
+          })
+        ),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard/epics?view=kanban"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const card = await screen.findByLabelText("EPIC-7 Raise the forum")
+    expect(within(card).getByRole("progressbar", { name: "Epic job progress" })).toBeInTheDocument()
+  })
+
+  it("hides the progress bar for non-in_progress Epic kanban cards", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          dashboardPayload({
+            subject: "epic",
+            view: "kanban",
+            preferences: {
+              sort: { column: "updated_at", direction: "desc" },
+              visible_columns: ["epic", "state", "repository", "updated"],
+              kanban_lanes: ["ready"],
+              raw: {}
+            },
+            controls: {
+              ...dashboardPayload().controls,
+              sort_columns: ["title", "state", "repository", "updated_at"],
+              kanban_lanes: [{ key: "ready", title: "Ready" }]
+            },
+            lanes: [
+              {
+                key: "ready",
+                title: "Ready",
+                count: 1,
+                items: [dashboardEpicItem({ state: "ready", jobs_count: 3, job_state_counts: { approved: 1 } })]
+              }
+            ],
+            kanban_limit: 100
+          })
+        ),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard/epics?view=kanban"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const card = await screen.findByLabelText("EPIC-7 Raise the forum")
+    expect(within(card).queryByRole("progressbar")).not.toBeInTheDocument()
+  })
+
   it("moves Epic kanban cards with drag and drop", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
@@ -15025,6 +15115,8 @@ function dashboardEpicItem(overrides: Record<string, unknown> = {}) {
     owner_status: "unclaimed",
     owner_user: null,
     jobs_count: 1,
+    landed_jobs_count: 0,
+    job_state_counts: {},
     created_at: "2026-05-30T10:00:00Z",
     updated_at: "2026-05-30T12:00:00Z",
     done_at: null,

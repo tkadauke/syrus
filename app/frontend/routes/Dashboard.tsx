@@ -799,7 +799,7 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
         <NeutralStatePill state={item.state} />
         <EpicStuckBadge stuck={item.stuck} />
         <OwnerBadge badge={item.owner_badge} />
-        <EpicProgressPill epic={item} />
+        <EpicProgressBar epic={item} />
         <RepositorySlugLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-blue-700 hover:underline dark:bg-gray-800 dark:text-gray-300 dark:hover:text-blue-300" prefix={prefix} repository={item.repository} />
       </div>
     </article>
@@ -1605,7 +1605,7 @@ function MobileEpicRow({ epic, selected, onToggleOne, prefix }: { epic: Dashboar
         <div className="mb-1">
           <NeutralStatePill state={epic.state} />
           <EpicStuckBadge stuck={epic.stuck} />
-          <EpicProgressPill epic={epic} />
+          <EpicProgressBar epic={epic} />
         </div>
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <span className="font-mono text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{epic.display_number}</span>
@@ -1640,7 +1640,7 @@ function EpicCell({ epic, column, selected, onToggleOne, prefix }: { epic: Dashb
         <div className="flex flex-wrap gap-1">
           <NeutralStatePill state={epic.state} />
           <EpicStuckBadge stuck={epic.stuck} />
-          <EpicProgressPill epic={epic} />
+          <EpicProgressBar epic={epic} />
         </div>
       </td>
     )
@@ -1679,11 +1679,45 @@ function WorkflowsTable({ items, columns, prefix, sortState }: { items: Dashboar
   )
 }
 
-function EpicProgressPill({ epic }: { epic: DashboardEpicItem }) {
-  const { t } = useT("dashboard")
-  if (epic.state !== "in_progress") return null
+const EPIC_PROGRESS_SEGMENTS = [
+  { state: "merged", barColor: "bg-emerald-700", chipStyle: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200" },
+  { state: "approved", barColor: "bg-green-500", chipStyle: "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-200" },
+  { state: "implemented", barColor: "bg-cyan-500", chipStyle: "bg-cyan-100 text-cyan-700 dark:bg-cyan-950/50 dark:text-cyan-200" },
+  { state: "blocked_by_epic", barColor: "bg-amber-400", chipStyle: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-200" },
+]
 
-  return <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-700 dark:bg-gray-800 dark:text-gray-200">{t("epic_progress", { done: epic.landed_jobs_count, total: epic.jobs_count })}</span>
+function EpicProgressBar({ epic }: { epic: DashboardEpicItem }) {
+  const { t } = useT("epics")
+  if (epic.state !== "in_progress" || epic.jobs_count === 0) return null
+
+  const segments = EPIC_PROGRESS_SEGMENTS.map(({ state, barColor, chipStyle }) => {
+    const count = epic.job_state_counts[state] ?? 0
+    return { state, barColor, chipStyle, count, percent: (count / epic.jobs_count) * 100 }
+  })
+  const visibleChips = segments.filter(s => s.count > 0)
+
+  return (
+    <div className="group/progress relative inline-flex items-center">
+      <div
+        aria-label={t("job_progress_label")}
+        className="flex h-1.5 w-20 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700"
+        role="progressbar"
+      >
+        {segments.map(({ state, barColor, percent }) =>
+          percent > 0 ? <div className={`h-1.5 transition-[width] ${barColor}`} key={state} style={{ width: `${percent}%` }} /> : null
+        )}
+      </div>
+      {visibleChips.length > 0 ? (
+        <div className="pointer-events-none absolute bottom-full left-0 z-10 mb-1 hidden flex-wrap gap-1 rounded border border-gray-200 bg-white p-1.5 text-xs shadow-lg group-hover/progress:flex dark:border-gray-700 dark:bg-gray-900">
+          {visibleChips.map(({ state, chipStyle, count }) => (
+            <span className={`rounded px-1.5 py-0.5 font-medium ${chipStyle}`} key={state}>
+              {count} {t(`state_chip.${state}`, { defaultValue: humanizeOption(state) })}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 function EpicStuckBadge({ stuck }: { stuck: boolean }) {
