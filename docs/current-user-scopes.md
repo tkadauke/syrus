@@ -29,6 +29,7 @@ per-user/private:
   - app/controllers/api/v1/app/profiles_controller.rb
   - app/controllers/api/v1/app/job_attachments_controller.rb
   - app/controllers/api/v1/app/job_claims_controller.rb
+  - app/controllers/api/v1/app/job_coding_mode_controller.rb
   - app/controllers/api/v1/app/job_lifecycle_controller.rb
   - app/controllers/api/v1/app/job_metadata_controller.rb
   - app/controllers/api/v1/app/job_pins_controller.rb
@@ -109,6 +110,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Profile reads and writes serialize or mutate the signed-in user's profile details. Team profile payloads omit credentials while using the current user for access context, profile-directory visibility, and owner-label visibility for another operator's recent jobs. |
 | `app/controllers/api/v1/app/job_attachments_controller.rb` | per-user/private | Job attachment changes first find the job via `Current.user.jobs` and broadcast back to that user. |
 | `app/controllers/api/v1/app/job_claims_controller.rb` | per-user/private | Job claim and release actions find jobs through `Current.user.jobs` and broadcast ownership updates back to that user. |
+| `app/controllers/api/v1/app/job_coding_mode_controller.rb` | per-user/private | Opens or reuses a coding-mode ChatSession linked to a Job found through `Current.user.jobs`, and initialises the Job branch checkout inside that user's chat workspace. |
 | `app/controllers/api/v1/app/job_lifecycle_controller.rb` | per-user/private | Retry, approval, cancellation, close, and broadcasts operate on jobs found through `Current.user.jobs`. |
 | `app/controllers/api/v1/app/job_metadata_controller.rb` | per-user/private and admin gate | Tags and dependency targets are user-scoped. Dependency override is separately admin-only. |
 | `app/controllers/api/v1/app/job_pins_controller.rb` | per-user/private | Pins are per-user rows on jobs found through `Current.user.jobs`. |
