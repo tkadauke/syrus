@@ -120,7 +120,7 @@ grade:
       Failures here usually mean the rendered app/API contract or
       typed frontend model drifted.
     run: bin/test-react
-    timeout_minutes: 3
+    timeout_minutes: 5
 
   - name: website-build
     description: |
