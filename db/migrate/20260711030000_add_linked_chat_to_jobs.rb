@@ -1,6 +1,6 @@
 class AddLinkedChatToJobs < ActiveRecord::Migration[8.1]
   def up
-    add_column :jobs, :linked_chat_id, :integer unless column_exists?(:jobs, :linked_chat_id)
+    add_column :jobs, :linked_chat_id, :bigint unless column_exists?(:jobs, :linked_chat_id)
     add_index :jobs, :linked_chat_id unless index_exists?(:jobs, :linked_chat_id)
     add_foreign_key :jobs, :chat_sessions, column: :linked_chat_id unless foreign_key_exists?(:jobs, column: :linked_chat_id)
   end
