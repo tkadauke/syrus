@@ -39,4 +39,46 @@ RSpec.describe Steps::Grader do
     expect(@ws_path.join(details["log_path"]).read).to include("durable output")
     expect(run.reload.job_logs.where(kind: "grade_log").order(:sequence).pluck(:chunk).join).to include("durable output")
   end
+
+  it "buffers grade_log entries to line boundaries so individual chunks don't each become a separate row" do
+    fake_result = ProcessRunner::Result.new(
+      exit_status: 0, timed_out: false, stopped: false,
+      silent_timed_out: false, operator_killed: false,
+      aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+    )
+
+    allow(ProcessRunner).to receive(:new) do |**kwargs|
+      # Simulate RSpec-style output: three dots without newlines, then a newline
+      kwargs[:on_output_chunk]&.call(".")
+      kwargs[:on_output_chunk]&.call(".")
+      kwargs[:on_output_chunk]&.call(".")
+      kwargs[:on_output_chunk]&.call("\n")
+      instance_double(ProcessRunner, run: fake_result)
+    end
+
+    handler.call
+
+    log_entries = run.reload.job_logs.where(kind: "grade_log").order(:sequence).pluck(:chunk)
+    expect(log_entries.length).to eq(1)
+    expect(log_entries.first).to eq("...\n")
+  end
+
+  it "flushes a trailing partial line after the process exits" do
+    fake_result = ProcessRunner::Result.new(
+      exit_status: 0, timed_out: false, stopped: false,
+      silent_timed_out: false, operator_killed: false,
+      aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+    )
+
+    allow(ProcessRunner).to receive(:new) do |**kwargs|
+      # Simulate output that ends without a trailing newline
+      kwargs[:on_output_chunk]&.call("no newline at end")
+      instance_double(ProcessRunner, run: fake_result)
+    end
+
+    handler.call
+
+    log_entries = run.reload.job_logs.where(kind: "grade_log").order(:sequence).pluck(:chunk)
+    expect(log_entries.map(&:strip).join).to include("no newline at end")
+  end
 end

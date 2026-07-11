@@ -34,6 +34,8 @@ module Steps
       started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       exit_code = nil
 
+      line_buffer = +""
+
       File.open(absolute_log_path, "wb") do |file|
         result = ProcessRunner.new(
           env: env,
@@ -46,7 +48,10 @@ module Steps
           on_output_chunk: ->(chunk) do
             file.write(chunk)
             file.flush
-            log(chunk, kind: "grade_log")
+            line_buffer << chunk
+            while (nl = line_buffer.index("\n"))
+              log(line_buffer.slice!(0..nl), kind: "grade_log")
+            end
           end
         ).run
 
@@ -57,6 +62,8 @@ module Steps
           log("[grader:#{name}] timed out after #{timeout_minutes} minutes")
         end
       end
+
+      log(line_buffer, kind: "grade_log") if line_buffer.present?
 
       duration_s = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
       passed = exit_code.to_i.zero?
