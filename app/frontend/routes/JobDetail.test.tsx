@@ -594,6 +594,9 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       can_view_timeline: false,
       can_manage_tags: false,
       can_open_in_coding_mode: false,
+      can_open_in_local_mode: false,
+      can_cancel_local_mode: false,
+      linked_chat_id: null,
       feedback_agent_options: [],
       rebase_agent_options: [],
       retry_agent_options: []
@@ -624,7 +627,9 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       app_attachments_path: "/api/v1/app/jobs/1/attachments",
       app_pin_path: "/api/v1/app/jobs/1/pin",
       app_pending_feedback_path: "/api/v1/app/jobs/1/pending_feedback",
-      app_open_in_coding_mode_path: "/api/v1/app/jobs/1/open_in_coding_mode"
+      app_open_in_coding_mode_path: "/api/v1/app/jobs/1/open_in_coding_mode",
+      app_open_in_local_mode_path: "/api/v1/app/jobs/1/open_in_local_mode",
+      app_cancel_local_mode_path: "/api/v1/app/jobs/1/cancel_local_mode"
     },
     ...overrides
   }
