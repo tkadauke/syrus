@@ -1980,6 +1980,14 @@ describe("scratchpad panel", () => {
     )
     expect(JSON.parse((enqueueCalls[0][1] as RequestInit).body as string)).toMatchObject({ chat_message: { text: "Refactor the aqueduct service" } })
   })
+
+  it("does not show the panel when agent is active but scratchpad is empty", async () => {
+    mockChatRouteFetch({ ...chatPayload({ scratchpad_items: [] }), agent_busy: true })
+    renderRoute()
+
+    await screen.findByPlaceholderText("Queue a follow-up message...")
+    expect(screen.queryByText("Scratch pad")).not.toBeInTheDocument()
+  })
 })
 
 describe("queued message stash", () => {
