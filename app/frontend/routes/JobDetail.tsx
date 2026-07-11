@@ -360,6 +360,7 @@ function headerActions(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"
   if (actions.can_cancel) available.push({ key: "cancel", label: t("cancel"), input: { method: "post", path: paths.app_cancel_path, confirm: t("confirm_cancel") }, tone: "danger" })
   if (actions.can_reopen) available.push({ key: "reopen", label: t("reopen"), input: { method: "post", path: paths.app_reopen_path }, tone: "success" })
   if (actions.can_mark_valid) available.push({ key: "mark_valid", label: t("mark_valid"), input: { method: "post", path: paths.app_mark_valid_path }, tone: "secondary" })
+  if (actions.can_open_in_coding_mode) available.push({ key: "open_in_coding_mode", label: t("open_in_coding_mode"), input: { method: "post", path: paths.app_open_in_coding_mode_path }, tone: "secondary" })
   available.push({ key: "pin", label: payload.pinned ? t("unpin") : t("pin"), input: payload.pinned ? { method: "delete", path: paths.app_pin_path } : { method: "post", path: paths.app_pin_path }, tone: "secondary" })
 
   return available

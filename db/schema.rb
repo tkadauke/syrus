@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_10_061947) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_11_001541) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -598,6 +598,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_10_061947) do
     t.datetime "last_feedback_addressed_at"
     t.datetime "last_seen_comment_at"
     t.datetime "last_seen_fork_review_comment_at"
+    t.bigint "linked_chat_id"
     t.string "local_mergeability_base_sha"
     t.datetime "local_mergeability_checked_at"
     t.string "local_mergeability_head_sha"
@@ -639,6 +640,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_10_061947) do
     t.index ["epic_id"], name: "index_jobs_on_epic_id"
     t.index ["external_pr_number"], name: "index_jobs_on_external_pr_number"
     t.index ["grace_period_expires_at"], name: "index_jobs_on_grace_period_expires_at"
+    t.index ["linked_chat_id"], name: "index_jobs_on_linked_chat_id"
     t.index ["needs_attention"], name: "index_jobs_on_needs_attention"
     t.index ["owner_user_id"], name: "index_jobs_on_owner_user_id"
     t.index ["parent_job_id"], name: "index_jobs_on_parent_job_id"

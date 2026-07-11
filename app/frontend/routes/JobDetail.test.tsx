@@ -592,6 +592,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       can_override_dependencies: false,
       can_view_timeline: false,
       can_manage_tags: false,
+      can_open_in_coding_mode: false,
       feedback_agent_options: [],
       rebase_agent_options: [],
       retry_agent_options: []
@@ -621,7 +622,8 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       app_mark_valid_path: "/api/v1/app/jobs/1/mark_valid",
       app_attachments_path: "/api/v1/app/jobs/1/attachments",
       app_pin_path: "/api/v1/app/jobs/1/pin",
-      app_pending_feedback_path: "/api/v1/app/jobs/1/pending_feedback"
+      app_pending_feedback_path: "/api/v1/app/jobs/1/pending_feedback",
+      app_open_in_coding_mode_path: "/api/v1/app/jobs/1/open_in_coding_mode"
     },
     ...overrides
   }

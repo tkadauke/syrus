@@ -29,6 +29,7 @@ class Job < ApplicationRecord
   belongs_to :claimed_by_user, class_name: "User", optional: true
   belongs_to :target_repository, class_name: "Repository", optional: true
   belongs_to :pr_repository, class_name: "Repository", optional: true
+  belongs_to :linked_chat, class_name: "ChatSession", optional: true
   has_many :job_approvals, dependent: :destroy
   has_many :pr_review_comments, dependent: :destroy
   has_many :approving_users, through: :job_approvals, source: :user

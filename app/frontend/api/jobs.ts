@@ -362,6 +362,7 @@ export type JobActions = {
   can_override_dependencies: boolean
   can_view_timeline: boolean
   can_manage_tags: boolean
+  can_open_in_coding_mode: boolean
   feedback_agent_options: string[]
   rebase_agent_options: string[]
   retry_agent_options: string[]
@@ -403,6 +404,7 @@ export type JobPaths = {
   app_attachments_path: string
   app_pin_path: string
   app_pending_feedback_path?: string
+  app_open_in_coding_mode_path: string
 }
 
 export type JobDetailPayload = {

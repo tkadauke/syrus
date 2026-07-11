@@ -55,7 +55,8 @@ module App
 
     def feature_flags_json
       {
-        terminal: Feature.terminal_enabled?
+        terminal: Feature.terminal_enabled?,
+        coding_mode: Feature.coding_mode_enabled?
       }
     end
 
@@ -711,6 +712,9 @@ module App
         can_override_dependencies: @user.admin?,
         can_view_timeline: @user.admin?,
         can_manage_tags: @job.user_id == @user.id,
+        can_open_in_coding_mode: Feature.coding_mode_enabled? &&
+          (@job.implemented? || @job.approved?) &&
+          @job.branch_name.present?,
         feedback_agent_options: @job.alternate_configured_agent_providers,
         rebase_agent_options: @job.alternate_configured_agent_providers,
         retry_agent_options: @job.retry_with_agent_providers
@@ -743,7 +747,8 @@ module App
         app_mark_valid_path: "/api/v1/app/jobs/#{@job.id}/mark_valid",
         app_attachments_path: "/api/v1/app/jobs/#{@job.id}/attachments",
         app_pin_path: "/api/v1/app/jobs/#{@job.id}/pin",
-        app_pending_feedback_path: "/api/v1/app/jobs/#{@job.id}/pending_feedback"
+        app_pending_feedback_path: "/api/v1/app/jobs/#{@job.id}/pending_feedback",
+        app_open_in_coding_mode_path: "/api/v1/app/jobs/#{@job.id}/open_in_coding_mode"
       }
     end
 

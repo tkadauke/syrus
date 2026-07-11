@@ -32,6 +32,7 @@
   "pin": "Pin",
   "unpin": "Unpin",
   "open_terminal_in_workspace": "Open terminal in workspace",
+  "open_in_coding_mode": "Aperi in Modo Codificandi",
   "retry_failed_step": "Retry failed step",
   "push_commits": "Push commits",
 

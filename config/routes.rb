@@ -91,6 +91,7 @@ Rails.application.routes.draw do
         post "jobs/:job_id/approve", to: "job_lifecycle#approve", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/unapprove", to: "job_lifecycle#unapprove", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/reopen", to: "job_lifecycle#reopen", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/open_in_coding_mode", to: "job_coding_mode#open", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:id/chat_feedback", to: "jobs#chat_feedback", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:job_id/pending_feedback", to: "pending_feedback#index", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/pending_feedback/:id/apply", to: "pending_feedback#apply", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }

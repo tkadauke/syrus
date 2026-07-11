@@ -137,6 +137,67 @@ RSpec.describe ChatWorkspace do
     end
   end
 
+  describe ".ensure_job_branch_checkout!" do
+    let(:job_branch) { "syrus/fix-login-42" }
+
+    before do
+      # Push a job branch to the bare remote so the clone can check it out.
+      Dir.mktmpdir("syrus-chatws-branch-seed") do |tmp|
+        sh("git clone -q #{bare_remote_dir} #{tmp}")
+        sh("git -C #{tmp} checkout -b #{job_branch}")
+        File.write(Pathname.new(tmp).join("feature.txt"), "job feature\n")
+        sh("git -C #{tmp} add feature.txt")
+        sh("git -C #{tmp} commit -q -m 'job commit' --author='Seed <s@e>'")
+        sh("git -C #{tmp} push -q origin #{job_branch}")
+      end
+    end
+
+    it "clones the repository checked out at the job branch" do
+      described_class.ensure_job_branch_checkout!(chat_session, repository, job_branch)
+
+      path = described_class.repo_path_for(chat_session, repository)
+      expect(path.join(".git")).to exist
+      branch = `git -C #{path} rev-parse --abbrev-ref HEAD`.strip
+      expect(branch).to eq(job_branch)
+      expect(chat_session.reload.coding_checkout_branch).to eq(job_branch)
+    end
+
+    it "is idempotent when coding_checkout_branch already equals the job branch" do
+      described_class.ensure_job_branch_checkout!(chat_session, repository, job_branch)
+      path = described_class.repo_path_for(chat_session, repository)
+      mtime_before = File.stat(path.join(".git").to_s).mtime
+
+      described_class.ensure_job_branch_checkout!(chat_session, repository, job_branch)
+
+      expect(File.stat(path.join(".git").to_s).mtime).to eq(mtime_before)
+    end
+
+    it "replaces an existing checkout when called with a different branch" do
+      # First set up a regular coding checkout
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      expect(chat_session.reload.coding_checkout_branch).to eq("syrus-chat-#{chat_session.id}")
+
+      described_class.ensure_job_branch_checkout!(chat_session, repository, job_branch)
+
+      path = described_class.repo_path_for(chat_session, repository)
+      expect(`git -C #{path} rev-parse --abbrev-ref HEAD`.strip).to eq(job_branch)
+      expect(chat_session.reload.coding_checkout_branch).to eq(job_branch)
+    end
+
+    it "records a repository attachment on the session" do
+      described_class.ensure_job_branch_checkout!(chat_session, repository, job_branch)
+
+      expect(chat_session.reload.attached_repositories).to include(repository)
+    end
+
+    it "makes the job branch files accessible in the checkout" do
+      described_class.ensure_job_branch_checkout!(chat_session, repository, job_branch)
+
+      path = described_class.repo_path_for(chat_session, repository)
+      expect(path.join("feature.txt").read).to include("job feature")
+    end
+  end
+
   describe ".uncommitted_changes?" do
     it "returns false for a clean working tree" do
       described_class.attach_repository!(chat_session, repository)

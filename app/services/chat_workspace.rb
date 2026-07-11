@@ -73,6 +73,14 @@ class ChatWorkspace
     new(chat_session).cancel_coding_checkout!(repository)
   end
 
+  # Sets up a writable coding checkout on an existing Job branch.
+  # Idempotent: if coding_checkout_branch is already set to branch_name,
+  # returns immediately. On first call, removes any existing checkout and
+  # replaces it with a full clone checked out at the existing Job branch.
+  def self.ensure_job_branch_checkout!(chat_session, repository, branch_name)
+    new(chat_session).ensure_job_branch_checkout!(repository, branch_name)
+  end
+
   # Removes the workspace directory AND the per-chat agent homes.
   # Agent homes live outside the workspace dir (Codex transcripts,
   # auth.json), so pruning only the workspace would leak them forever.
@@ -203,6 +211,23 @@ class ChatWorkspace
     path
   end
 
+  # Sets up a writable coding checkout on an existing Job branch.
+  # Idempotent: if coding_checkout_branch already equals branch_name, no-op.
+  # Removes any existing checkout, then clones the repo directly at the given
+  # branch so the agent can iterate on the Job's existing implementation.
+  def ensure_job_branch_checkout!(repository, branch_name)
+    return if @chat_session.coding_checkout_branch == branch_name
+
+    ensure_root!
+    path = self.class.repo_path_for(@chat_session, repository)
+
+    FileUtils.rm_rf(path.to_s) if path.join(".git").directory?
+    full_clone_at_branch!(repository, path, branch_name)
+    @chat_session.update_columns(coding_checkout_branch: branch_name)
+    @chat_session.chat_attachments.find_or_create_by!(attachable: repository)
+    path
+  end
+
   # Resets the coding checkout: switches to the default branch, deletes the
   # coding branch locally, tries to delete the remote branch, and clears the
   # coding checkout state on the session.
@@ -250,10 +275,14 @@ class ChatWorkspace
   end
 
   def full_clone!(repository, path)
+    full_clone_at_branch!(repository, path, repository.default_branch)
+  end
+
+  def full_clone_at_branch!(repository, path, branch)
     FileUtils.mkdir_p(path.dirname.to_s)
     @git.run(
       "clone",
-      "--branch", repository.default_branch,
+      "--branch", branch,
       "--no-tags", authenticated_url(repository), path.to_s,
       env: @env
     )
