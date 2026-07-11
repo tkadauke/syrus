@@ -56,7 +56,8 @@ module App
     def feature_flags_json
       {
         terminal: Feature.terminal_enabled?,
-        coding_mode: Feature.coding_mode_enabled?
+        coding_mode: Feature.coding_mode_enabled?,
+        local_mode: Feature.local_mode_enabled?
       }
     end
 
@@ -708,6 +709,9 @@ module App
         can_unapprove: @job.may_unapprove?,
         can_reopen: @job.closed?,
         can_mark_valid: @job.validity_duplicate? || @job.validity_already_implemented?,
+        can_open_in_local_mode: Feature.local_mode_enabled? && (@job.implemented? || @job.approved?) && @job.linked_chat_id.nil?,
+        can_cancel_local_mode: Feature.local_mode_enabled? && @job.coding?,
+        linked_chat_id: @job.linked_chat_id,
         can_claim: @job.claimed_by_user_id != @user.id,
         can_unclaim: @job.claimed_by_user_id == @user.id,
         can_override_dependencies: @user.admin?,
@@ -749,7 +753,9 @@ module App
         app_attachments_path: "/api/v1/app/jobs/#{@job.id}/attachments",
         app_pin_path: "/api/v1/app/jobs/#{@job.id}/pin",
         app_pending_feedback_path: "/api/v1/app/jobs/#{@job.id}/pending_feedback",
-        app_open_in_coding_mode_path: "/api/v1/app/jobs/#{@job.id}/open_in_coding_mode"
+        app_open_in_coding_mode_path: "/api/v1/app/jobs/#{@job.id}/open_in_coding_mode",
+        app_open_in_local_mode_path: "/api/v1/app/jobs/#{@job.id}/open_in_local_mode",
+        app_cancel_local_mode_path: "/api/v1/app/jobs/#{@job.id}/cancel_local_mode"
       }
     end
 

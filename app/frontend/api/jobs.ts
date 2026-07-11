@@ -358,6 +358,9 @@ export type JobActions = {
   can_unapprove: boolean
   can_reopen: boolean
   can_mark_valid: boolean
+  can_open_in_local_mode: boolean
+  can_cancel_local_mode: boolean
+  linked_chat_id: number | null
   can_claim: boolean
   can_unclaim: boolean
   can_override_dependencies: boolean
@@ -406,6 +409,8 @@ export type JobPaths = {
   app_pin_path: string
   app_pending_feedback_path?: string
   app_open_in_coding_mode_path: string
+  app_open_in_local_mode_path: string
+  app_cancel_local_mode_path: string
 }
 
 export type JobDetailPayload = {

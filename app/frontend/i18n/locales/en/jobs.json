@@ -28,6 +28,8 @@
   "unapprove": "Unapprove",
   "cancel": "Cancel",
   "reopen": "Reopen",
+  "open_in_local_mode": "Open in Local Mode",
+  "cancel_local_mode": "Cancel Local Mode",
   "mark_valid": "Mark valid",
   "pin": "Pin",
   "unpin": "Unpin",
@@ -39,6 +41,7 @@
   "confirm_start_over": "Start over with a new Job and abandon this branch?",
   "confirm_unapprove": "Move this Job back to implemented?",
   "confirm_cancel": "Cancel any running work and close this Job?",
+  "confirm_cancel_local_mode": "Release this Job from local mode? Changes not yet pushed will be lost.",
   "confirm_override_dependencies": "Bypass dependency checks for this Job?",
   "confirm_remove_dependency": "Remove this dependency?",
 

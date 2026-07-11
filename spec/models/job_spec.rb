@@ -430,6 +430,26 @@ RSpec.describe Job do
       expect(job.state).to eq("landing")
     end
 
+    it "enters coding state from implemented via enter_local_mode" do
+      job = Factories.job_record(state: "implemented")
+
+      expect { job.enter_local_mode! }.to change(job, :state).from("implemented").to("coding")
+    end
+
+    it "exits coding state back to implemented via exit_local_mode" do
+      job = Factories.job_record(state: "implemented")
+      job.update_columns(state: "coding")
+
+      expect { job.exit_local_mode! }.to change(job, :state).from("coding").to("implemented")
+    end
+
+    it "can close a job in coding state" do
+      job = Factories.job_record(state: "implemented")
+      job.update_columns(state: "coding")
+
+      expect(job.may_close?).to be true
+    end
+
     describe "#record_github_review_approval!" do
       it "creates a JobApproval for the reviewer and approves when policy is satisfied" do
         job = Factories.job

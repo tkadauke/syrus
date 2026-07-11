@@ -158,6 +158,74 @@ module Api
           render_job(job.reload, message: reopen_notice(prior_reason), changed: [ "state" ])
         end
 
+        def open_in_local_mode
+          unless Feature.local_mode_enabled?
+            render_error("forbidden", "Local mode is not enabled.", status: :forbidden)
+            return
+          end
+
+          job = find_job
+          unless job.implemented? || job.approved?
+            render_error("validation_failed", "Only implemented or approved Jobs can be opened in local mode.", status: :unprocessable_content)
+            return
+          end
+          if job.linked_chat_id.present?
+            render_error("validation_failed", "Job is already linked to a local coding session.", status: :unprocessable_content)
+            return
+          end
+
+          chat_id = params[:chat_id].presence
+          chat = if chat_id
+            Current.user.chat_sessions.find_by(id: chat_id, mode: "local")
+          else
+            Current.user.chat_sessions.where(mode: "local").order(updated_at: :desc).first
+          end
+
+          unless chat
+            render_error("validation_failed", "No active Local Mode chat found. Start a chat in Local Mode first.", status: :unprocessable_content)
+            return
+          end
+
+          ApplicationRecord.transaction do
+            if job.approved?
+              review_id = job.approval_evidence&.dig("github_review_id")
+              job.unapprove!
+              Job::ApprovalPropagator.dismiss(job, review_id, user: Current.user)
+            end
+            job.linked_chat_id = chat.id
+            job.enter_local_mode!
+            job.save!
+          end
+
+          render_job(job.reload, message: "Job opened in local mode. Continue in the linked chat.", changed: [ "state" ])
+        end
+
+        def cancel_local_mode
+          unless Feature.local_mode_enabled?
+            render_error("forbidden", "Local mode is not enabled.", status: :forbidden)
+            return
+          end
+
+          job = find_job
+          unless job.coding?
+            render_error("validation_failed", "Job is not in coding state.", status: :unprocessable_content)
+            return
+          end
+
+          ApplicationRecord.transaction do
+            job.linked_chat_id = nil
+            if job.pr_number.present?
+              job.exit_local_mode!
+              job.save!
+            else
+              job.save!
+              job.cancel_active_runs_and_close!("local_mode_cancelled")
+            end
+          end
+
+          render_job(job.reload, message: "Local mode session cancelled.", changed: [ "state" ])
+        end
+
         private
 
         def find_job

@@ -203,6 +203,7 @@ class Job < ApplicationRecord
     state :queued
     state :running
     state :implemented
+    state :coding
     state :failed
     state :approved
     state :landing
@@ -267,6 +268,19 @@ class Job < ApplicationRecord
       transitions from: :failed, to: :queued
     end
 
+    # Operator takes over a Job from the Local Mode chat. Acquires the coding
+    # session on this Job, linking it to the chat so the agent can commit and
+    # trigger graders via complete_implement_step.
+    event :enter_local_mode do
+      transitions from: :implemented, to: :coding
+    end
+
+    # Completes or cancels a local-mode coding session, returning the Job to
+    # :implemented so it can be approved/re-edited normally.
+    event :exit_local_mode do
+      transitions from: :coding, to: :implemented
+    end
+
     event :approve, before: :assign_approval_metadata do
       transitions from: :implemented, to: :approved
     end
@@ -303,7 +317,7 @@ class Job < ApplicationRecord
     # with the after_save callback and just made the wiring harder
     # to read.
     event :close do
-      transitions from: [ :needs_triage, :triaging, :blocked_by_epic, :queued, :running, :implemented, :failed, :approved, :landing, :coding ], to: :closed, after: -> {
+      transitions from: [ :needs_triage, :triaging, :blocked_by_epic, :queued, :running, :implemented, :coding, :failed, :approved, :landing ], to: :closed, after: -> {
         self.finished_at = Time.current
         record_outcome_to_scheduled_task! if cron?
         notify_pr_merged

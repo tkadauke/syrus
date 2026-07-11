@@ -93,7 +93,11 @@ module SyrusChatMcp
       ListFilesTool,
       RunCommandTool,
       GitDiffTool,
-      GitStatusTool
+      GitStatusTool,
+      OpenInLocalModeTool,
+      CancelLocalModeTool,
+      CreateCodingJobTool,
+      CompleteImplementStepTool
     ].freeze
 
     TOOLS = [

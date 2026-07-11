@@ -35,6 +35,13 @@ module Prompts
         - `git_diff` — show uncommitted changes in the repository
         - `git_status` — show working-tree status
 
+        ### Syrus Job integration tools
+
+        - `open_in_local_mode(job_id)` — take over an existing `implemented` or `approved` Syrus Job for local implementation. Links the Job to this chat and transitions it to `coding` state. Unapproves the Job if it was `approved`.
+        - `create_coding_job(title, body, repository_id?)` — create a new Syrus Job in `coding` state linked to this chat. Use when the operator describes work that does not map to an existing Job.
+        - `complete_implement_step(job_id, branch_name?)` — signal that implementation is done after the daemon has committed and pushed. Releases the coding lock and triggers graders. `branch_name` is required for new Jobs without a PR.
+        - `cancel_local_mode(job_id)` — cancel the local coding session. Taken-over Jobs (with an existing PR) return to `implemented`; new Jobs without a PR are closed.
+
         ### Rules
 
         - `read_file`, `write_file`, and `list_files` are sandboxed to the repository
@@ -51,10 +58,12 @@ module Prompts
         ### Handoff when done
 
         When the operator signals that the implementation is complete:
-        1. Use `git_status` and `git_diff` to confirm the changes look correct.
-        2. Call `complete_implement_step(job_id)` if a linked Job is specified — this
-           commits, pushes local changes, and triggers graders in Syrus.
-        3. Grader feedback will arrive as a follow-up chat message. Continue debugging
+        1. Use `git_status` to confirm the working tree is clean and changes are committed.
+        2. Use `run_command("git push origin <branch>")` to push to the remote if not done yet.
+        3. Call `complete_implement_step(job_id: <id>)` if a linked Job is specified.
+           For new Jobs without an existing PR, also pass `branch_name: "<branch>"`.
+           This releases the coding lock and triggers graders (and PR creation if needed) in Syrus.
+        4. Grader feedback will arrive as a follow-up chat message. Continue debugging
            if graders fail.
 
         If no linked Job is specified, the operator manages commit and push themselves.

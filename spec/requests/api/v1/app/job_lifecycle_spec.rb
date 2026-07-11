@@ -224,6 +224,89 @@ RSpec.describe "App API job lifecycle commands", type: :request do
     expect(parse_body.dig("job", "state")).to eq(job.state)
   end
 
+  describe "local mode lifecycle" do
+    let(:chat) { ChatSession.create!(user: user, mode: "local") }
+
+    before { allow(Feature).to receive(:local_mode_enabled?).and_return(true) }
+
+    it "opens an implemented job in local mode and links it to the chat" do
+      implemented = Factories.job_record(repository: repo, state: "implemented", branch_name: "syrus/widget")
+
+      post app_job_path(implemented, "open_in_local_mode"), params: { chat_id: chat.id }, as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(implemented.reload).to be_coding
+      expect(implemented.linked_chat_id).to eq(chat.id)
+      expect(parse_body).to include("message" => "Job opened in local mode. Continue in the linked chat.")
+    end
+
+    it "falls back to the most recent local mode chat when chat_id is omitted" do
+      implemented = Factories.job_record(repository: repo, state: "implemented", branch_name: "syrus/widget")
+      chat # ensure it exists
+
+      post app_job_path(implemented, "open_in_local_mode"), as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(implemented.reload.linked_chat_id).to eq(chat.id)
+    end
+
+    it "returns 422 when no local mode chat exists" do
+      implemented = Factories.job_record(repository: repo, state: "implemented")
+
+      post app_job_path(implemented, "open_in_local_mode"), as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "message")).to include("No active Local Mode chat")
+    end
+
+    it "returns 422 when the job is not implemented or approved" do
+      running = Factories.job_record(repository: repo, state: "running")
+
+      post app_job_path(running, "open_in_local_mode"), params: { chat_id: chat.id }, as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+
+    it "cancels local mode for a taken-over job (has pr) returning it to implemented" do
+      coding = Factories.job_record(repository: repo, state: "implemented", pr_number: 42)
+      coding.update_columns(state: "coding", linked_chat_id: chat.id)
+
+      post app_job_path(coding, "cancel_local_mode"), as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(coding.reload).to be_implemented
+      expect(coding.linked_chat_id).to be_nil
+    end
+
+    it "closes a new coding job (no pr) when cancelling local mode" do
+      coding = Factories.job_record(repository: repo, state: "running", kind: "direct", issue_number: nil)
+      coding.update_columns(state: "coding", linked_chat_id: chat.id, pr_number: nil)
+
+      post app_job_path(coding, "cancel_local_mode"), as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(coding.reload).to be_closed
+      expect(coding.closure_reason).to eq("local_mode_cancelled")
+    end
+
+    it "returns 422 when cancelling local mode on a non-coding job" do
+      implemented = Factories.job_record(repository: repo, state: "implemented")
+
+      post app_job_path(implemented, "cancel_local_mode"), as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+
+    it "returns 403 when local mode feature is disabled" do
+      allow(Feature).to receive(:local_mode_enabled?).and_return(false)
+      implemented = Factories.job_record(repository: repo, state: "implemented")
+
+      post app_job_path(implemented, "open_in_local_mode"), as: :json
+
+      expect(response).to have_http_status(:forbidden)
+    end
+  end
+
   it "does not expose another user's job" do
     other_user = Factories.user
     other_repo = Factories.repository(user: other_user, owner: "globex", name: "private")
