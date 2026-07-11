@@ -85,6 +85,17 @@ module SyrusChatMcp
       SubmitCodingChangesTool
     ].freeze
 
+    # Gated by the `local_mode` labs Feature AND chat_session.mode == "local"
+    # (see tools_for_session). Tools dispatch through the daemon tunnel.
+    LOCAL_MODE_TOOLS = [
+      ReadFileTool,
+      WriteFileTool,
+      ListFilesTool,
+      RunCommandTool,
+      GitDiffTool,
+      GitStatusTool
+    ].freeze
+
     TOOLS = [
       AttachRepositoryTool,
       ProposeEpicTool,
@@ -110,7 +121,8 @@ module SyrusChatMcp
       SuggestNextStepTool,
       AskUserQuestionTool,
       *CODING_TOOLS,
-      *ADMIN_TOOLS
+      *ADMIN_TOOLS,
+      *LOCAL_MODE_TOOLS
     ].freeze
 
     def self.tool_names(chat_session = nil, tier: nil)
@@ -138,6 +150,10 @@ module SyrusChatMcp
       # session is in coding mode, so the agent cannot call them from
       # planning mode even if the feature is enabled instance-wide.
       tools = tools.reject { |tool| coding_tool?(tool) } unless coding_mode_session?(chat_session)
+      # Local mode tools are only advertised when the local_mode feature is
+      # enabled AND the session is in local mode. The daemon connectivity check
+      # happens at call time (a disconnected daemon returns a clear error).
+      tools = tools.reject { |tool| local_mode_tool?(tool) } unless local_mode_active?(chat_session)
       tools.map { |tool| authorize_tool(tool) }
     end
 
@@ -161,6 +177,14 @@ module SyrusChatMcp
 
     def self.coding_mode_session?(chat_session)
       Feature.coding_mode_enabled? && chat_session.coding?
+    end
+
+    def self.local_mode_tool?(tool)
+      LOCAL_MODE_TOOLS.include?(tool)
+    end
+
+    def self.local_mode_active?(chat_session)
+      Feature.local_mode_enabled? && chat_session&.mode == "local"
     end
 
     def self.server_name

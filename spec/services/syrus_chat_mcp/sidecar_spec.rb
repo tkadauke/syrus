@@ -391,4 +391,44 @@ RSpec.describe SyrusChatMcp::Sidecar do
       expect(described_class.tool_names(chat_session, tier: :deferred)).not_to include("get_walkthrough_analysis")
     end
   end
+
+  describe "local mode labs flag" do
+    let(:local_mode_tools) { %w[read_file write_file list_files run_command git_diff git_status] }
+
+    def enable_local_mode
+      feature = Feature.find_or_initialize_by(slug: "local_mode")
+      feature.update!(category: "Labs", name: "Local Mode", enabled: true)
+    end
+
+    it "does not advertise local mode tools for non-local sessions even when feature is enabled" do
+      enable_local_mode
+
+      names = described_class.tool_names(chat_session, tier: :essential)
+
+      expect(names).not_to include(*local_mode_tools)
+    end
+
+    it "advertises local mode tools when feature is enabled and session mode is local" do
+      enable_local_mode
+      local_session = ChatSession.create!(user: user, repository: repository, mode: "local")
+
+      names = described_class.tool_names(local_session, tier: :essential)
+
+      expect(names).to include(*local_mode_tools)
+    end
+
+    it "does not advertise local mode tools when feature is disabled even in local mode" do
+      local_session = ChatSession.create!(user: user, repository: repository, mode: "local")
+
+      names = described_class.tool_names(local_session, tier: :essential)
+
+      expect(names).not_to include(*local_mode_tools)
+    end
+
+    it "includes local mode tools in the tool tier coverage check when session is nil" do
+      all_essential = described_class.tool_names(nil, tier: :essential)
+
+      expect(all_essential).to include(*local_mode_tools)
+    end
+  end
 end

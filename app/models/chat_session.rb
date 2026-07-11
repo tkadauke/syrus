@@ -52,6 +52,7 @@ class ChatSession < ApplicationRecord
   has_one :claude_session, as: :resumable, dependent: :destroy
   has_one :whiteboard, dependent: :destroy
   has_one :linked_job, class_name: "Job", foreign_key: :linked_chat_id, inverse_of: :linked_chat, dependent: :nullify
+  has_one :local_daemon_session, dependent: :destroy
 
   after_update_commit :broadcast_header, if: :header_previously_changed?
   after_create :attach_initial_repository
