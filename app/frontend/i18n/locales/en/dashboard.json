@@ -76,6 +76,7 @@
   "epic_attribution_by_id": "Epic #{{id}}",
 
   "epic_progress": "{{done}}/{{total}} done",
+  "epic_progress_label": "Epic job progress",
   "epic_updated": "Epic updated.",
   "epic_move_error": "Unable to move Epic.",
 

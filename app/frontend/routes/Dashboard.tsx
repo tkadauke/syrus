@@ -1680,42 +1680,36 @@ function WorkflowsTable({ items, columns, prefix, sortState }: { items: Dashboar
 }
 
 const EPIC_PROGRESS_SEGMENTS = [
-  { state: "merged", barColor: "bg-emerald-700", chipStyle: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200" },
-  { state: "approved", barColor: "bg-green-500", chipStyle: "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-200" },
-  { state: "implemented", barColor: "bg-cyan-500", chipStyle: "bg-cyan-100 text-cyan-700 dark:bg-cyan-950/50 dark:text-cyan-200" },
-  { state: "blocked_by_epic", barColor: "bg-amber-400", chipStyle: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-200" },
+  { state: "merged", barColor: "bg-emerald-700" },
+  { state: "approved", barColor: "bg-green-500" },
+  { state: "implemented", barColor: "bg-cyan-500" },
+  { state: "blocked_by_epic", barColor: "bg-amber-400" },
 ]
 
-function EpicProgressBar({ epic }: { epic: DashboardEpicItem }) {
-  const { t } = useT("epics")
+export function EpicProgressBar({ epic }: { epic: DashboardEpicItem }) {
+  const { t } = useT("dashboard")
   if (epic.state !== "in_progress" || epic.jobs_count === 0) return null
 
-  const segments = EPIC_PROGRESS_SEGMENTS.map(({ state, barColor, chipStyle }) => {
+  const segments = EPIC_PROGRESS_SEGMENTS.map(({ state, barColor }) => {
     const count = epic.job_state_counts[state] ?? 0
-    return { state, barColor, chipStyle, count, percent: (count / epic.jobs_count) * 100 }
+    return { state, barColor, count, percent: (count / epic.jobs_count) * 100 }
   })
-  const visibleChips = segments.filter(s => s.count > 0)
+
+  const titleText = segments
+    .filter(s => s.count > 0)
+    .map(s => `${s.count} ${humanizeOption(s.state)}`)
+    .join(", ") || undefined
 
   return (
-    <div className="group/progress relative inline-flex items-center">
-      <div
-        aria-label={t("job_progress_label")}
-        className="flex h-1.5 w-20 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700"
-        role="progressbar"
-      >
-        {segments.map(({ state, barColor, percent }) =>
-          percent > 0 ? <div className={`h-1.5 transition-[width] ${barColor}`} key={state} style={{ width: `${percent}%` }} /> : null
-        )}
-      </div>
-      {visibleChips.length > 0 ? (
-        <div className="pointer-events-none absolute bottom-full left-0 z-10 mb-1 hidden flex-wrap gap-1 rounded border border-gray-200 bg-white p-1.5 text-xs shadow-lg group-hover/progress:flex dark:border-gray-700 dark:bg-gray-900">
-          {visibleChips.map(({ state, chipStyle, count }) => (
-            <span className={`rounded px-1.5 py-0.5 font-medium ${chipStyle}`} key={state}>
-              {count} {t(`state_chip.${state}`, { defaultValue: humanizeOption(state) })}
-            </span>
-          ))}
-        </div>
-      ) : null}
+    <div
+      aria-label={t("epic_progress_label")}
+      className="flex h-1.5 w-20 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700"
+      role="progressbar"
+      title={titleText}
+    >
+      {segments.map(({ state, barColor, percent }) =>
+        percent > 0 ? <div className={`h-1.5 transition-[width] ${barColor}`} key={state} style={{ width: `${percent}%` }} /> : null
+      )}
     </div>
   )
 }

@@ -76,6 +76,7 @@
   "epic_attribution_by_id": "Epica #{{id}}",
 
   "epic_progress": "{{done}}/{{total}} perfecta",
+  "epic_progress_label": "Progressus operum epicae",
   "epic_updated": "Epica renovata.",
   "epic_move_error": "Epica moveri non potest.",
 
