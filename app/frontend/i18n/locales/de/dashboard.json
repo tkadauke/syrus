@@ -76,6 +76,7 @@
   "epic_attribution_by_id": "Epic #{{id}}",
 
   "epic_progress": "{{done}}/{{total}} erledigt",
+  "epic_progress_label": "Epic-Aufgabenfortschritt",
   "epic_updated": "Epic aktualisiert.",
   "epic_move_error": "Epic konnte nicht verschoben werden.",
 
