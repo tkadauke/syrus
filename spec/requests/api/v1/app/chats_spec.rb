@@ -3197,6 +3197,79 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     end
   end
 
+  describe "POST /api/v1/app/chats/:id/daemon_connection" do
+    let(:chat) { ChatSession.create!(user: user, mode: "local") }
+
+    def enable_local_mode
+      Feature.find_or_initialize_by(slug: "local_mode")
+             .update!(category: "Labs", name: "Local Mode", enabled: true)
+    end
+
+    it "returns 401 when not signed in" do
+      post "/api/v1/app/chats/#{chat.id}/daemon_connection", params: { state: "connected" }
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "returns 403 when local mode is not enabled" do
+      sign_in_as(user)
+
+      post "/api/v1/app/chats/#{chat.id}/daemon_connection", params: { state: "connected" }
+
+      expect(response).to have_http_status(:forbidden)
+      expect(parse_body.dig("error", "code")).to eq("forbidden")
+    end
+
+    it "returns 422 when chat is not in local mode" do
+      sign_in_as(user)
+      enable_local_mode
+      other_chat = ChatSession.create!(user: user, mode: "planning")
+
+      post "/api/v1/app/chats/#{other_chat.id}/daemon_connection", params: { state: "connected" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    end
+
+    it "returns 422 for an invalid state" do
+      sign_in_as(user)
+      enable_local_mode
+
+      post "/api/v1/app/chats/#{chat.id}/daemon_connection", params: { state: "flying" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    end
+
+    it "records connected state with repo and branch" do
+      sign_in_as(user)
+      enable_local_mode
+
+      post "/api/v1/app/chats/#{chat.id}/daemon_connection",
+           params: { state: "connected", repo: "acme/widgets", branch: "main" }
+
+      expect(response).to have_http_status(:ok)
+      chat.reload
+      expect(chat.local_daemon_state).to eq("connected")
+      expect(chat.local_daemon_repo).to eq("acme/widgets")
+      expect(chat.local_daemon_branch).to eq("main")
+    end
+
+    it "records disconnected state and clears repo and branch" do
+      sign_in_as(user)
+      enable_local_mode
+      chat.update!(local_daemon_state: "connected", local_daemon_repo: "acme/widgets", local_daemon_branch: "main")
+
+      post "/api/v1/app/chats/#{chat.id}/daemon_connection", params: { state: "disconnected" }
+
+      expect(response).to have_http_status(:ok)
+      chat.reload
+      expect(chat.local_daemon_state).to eq("disconnected")
+      expect(chat.local_daemon_repo).to be_nil
+      expect(chat.local_daemon_branch).to be_nil
+    end
+  end
+
   def create_indexed_message(chat_session, text:, role: "assistant")
     message = chat_session.messages.create!(role: role, content: { "text" => text })
     ChatMessageSearchIndex.insert(message)

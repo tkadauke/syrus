@@ -66,6 +66,26 @@ RSpec.describe ChatSession do
     expect(session.errors[:mode]).to be_present
   end
 
+  it "allows valid daemon states" do
+    %w[connected disconnected].each do |state|
+      session = described_class.new(user: repo.user, local_daemon_state: state)
+      expect(session).to be_valid, "expected local_daemon_state #{state.inspect} to be valid"
+    end
+  end
+
+  it "allows nil daemon state" do
+    session = described_class.new(user: repo.user, local_daemon_state: nil)
+
+    expect(session).to be_valid
+  end
+
+  it "rejects unknown daemon states" do
+    session = described_class.new(user: repo.user, local_daemon_state: "charging")
+
+    expect(session).not_to be_valid
+    expect(session.errors[:local_daemon_state]).to be_present
+  end
+
   it "resolves chat provider from the session, user chat provider, then user agent provider" do
     inherited = described_class.new(user: Factories.user(agent_provider: "codex"))
     user_override = described_class.new(user: Factories.user(agent_provider: "codex", chat_provider: "claude"))
@@ -319,6 +339,9 @@ RSpec.describe ChatSession do
             title_pending: false,
             pinned_context: nil,
             mode: nil,
+            local_daemon_state: nil,
+            local_daemon_repo: nil,
+            local_daemon_branch: nil,
             repository: {
               id: repo.id,
               slug: repo.slug

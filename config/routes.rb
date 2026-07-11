@@ -174,6 +174,7 @@ Rails.application.routes.draw do
         delete "chats/:id/scratchpad_items/:item_id", to: "chats#destroy_scratchpad_item", constraints: { id: /\d+/, item_id: /\d+/ }
         post "chats/:id/agent_questions/:agent_question_id/answer", to: "chats#answer_agent_question", constraints: { id: /\d+/, agent_question_id: /\d+/ }
         post "chats/:id/stop", to: "chats#stop", constraints: { id: /\d+/ }
+        post "chats/:id/daemon_connection", to: "chats#daemon_connection", constraints: { id: /\d+/ }
         post "chats/:id/switch_provider", to: "chats#switch_provider", constraints: { id: /\d+/ }
         post "chats/:id/bookmarks", to: "chats#create_bookmark", constraints: { id: /\d+/ }
         post "chats/:id/attachments", to: "chats#add_attachment", constraints: { id: /\d+/ }

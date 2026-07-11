@@ -308,6 +308,7 @@ function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
       app_share_path: "",
       app_enqueue_message_path: "",
       app_stop_path: "",
+      app_daemon_connection_path: "",
       app_bookmarks_path: "",
       app_attachments_path: "",
       app_video_walkthroughs_path: "",
@@ -435,6 +436,12 @@ function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; paylo
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className={`break-words text-3xl font-semibold ${payload.chat.title_pending ? "animate-pulse text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"}`}>{title}</h1>
+            {payload.local_mode_enabled && payload.chat.mode === "local" && payload.chat.local_daemon_state === "connected" ? (
+              <div className="mt-1 flex items-center gap-1.5 text-sm text-emerald-700 dark:text-emerald-400">
+                <span aria-hidden="true" className="h-2 w-2 rounded-full bg-emerald-500" />
+                <span>{t("local_daemon_connected", { repo: payload.chat.local_daemon_repo ?? "", branch: payload.chat.local_daemon_branch ?? "" })}</span>
+              </div>
+            ) : null}
           </div>
           <button
             aria-label={t("chat_settings")}
@@ -4249,6 +4256,9 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
       {landing ? (
         <h1 className="text-center text-3xl font-semibold tracking-normal text-gray-950 sm:text-4xl dark:text-gray-100">{t("landing_prompt")}</h1>
       ) : null}
+      {payload.local_mode_enabled && payload.chat.mode === "local" ? (
+        <LocalDaemonBanner payload={payload} />
+      ) : null}
       <div className={`relative min-h-0 overflow-hidden rounded border border-gray-200 bg-white transition-all duration-500 ease-out dark:border-gray-700 dark:bg-gray-950 ${landing ? "h-0 w-full max-w-2xl opacity-0" : "flex-1 opacity-100"}`}>
         <MessageStream bookmarkTarget={bookmarkTarget} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
         <UsageOverlay payload={payload} />
@@ -4256,6 +4266,48 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
       <div className={landing ? "w-full max-w-sm sm:max-w-2xl" : "space-y-3"}>
         {!landing ? <CodingCheckoutBanner payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
         <Compose key={chatId} autoFocus={landing} chatId={chatId} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} showAttachedRepositories={landing} onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} />
+      </div>
+    </section>
+  )
+}
+
+function LocalDaemonBanner({ payload }: { payload: ChatPayload }) {
+  const { t } = useT("chat")
+  const [copied, setCopied] = useState(false)
+
+  function copyCommand() {
+    void navigator.clipboard.writeText(t("local_daemon_command")).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  const daemonState = payload.chat.local_daemon_state ?? null
+
+  if (daemonState === "connected") return null
+
+  if (daemonState === "disconnected") {
+    return (
+      <section className="rounded border border-amber-200 bg-white p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+        <div className="font-semibold">{t("local_daemon_disconnected_title")}</div>
+        <p className="mt-1">{t("local_daemon_disconnected_body")}</p>
+      </section>
+    )
+  }
+
+  return (
+    <section className="rounded border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+      <div className="font-semibold">{t("local_daemon_not_connected_title")}</div>
+      <p className="mt-1">{t("local_daemon_not_connected_body")}</p>
+      <div className="mt-3 flex items-center gap-2">
+        <code className="rounded bg-gray-100 px-2 py-1 font-mono text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">{t("local_daemon_command")}</code>
+        <button
+          className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50 hover:text-gray-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100"
+          onClick={copyCommand}
+          type="button"
+        >
+          {copied ? t("local_daemon_copied") : t("local_daemon_copy")}
+        </button>
       </div>
     </section>
   )

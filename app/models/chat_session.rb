@@ -3,6 +3,7 @@ class ChatSession < ApplicationRecord
   TITLE_MAX_LENGTH = 120
   SUGGESTED_NEXT_STEP_MAX_BYTES = 200
   MODES = %w[planning coding local].freeze
+  DAEMON_STATES = %w[connected disconnected].freeze
 
   belongs_to :user
 
@@ -79,6 +80,7 @@ class ChatSession < ApplicationRecord
 
   validates :chat_provider, inclusion: { in: User::CHAT_PROVIDERS }, allow_nil: true
   validates :mode, inclusion: { in: MODES }, allow_nil: true
+  validates :local_daemon_state, inclusion: { in: DAEMON_STATES }, allow_nil: true
   validates :share_token, uniqueness: true, allow_nil: true
 
   normalizes :chat_provider, with: ->(value) { value.to_s.strip.presence }
@@ -230,6 +232,9 @@ class ChatSession < ApplicationRecord
           pinned_context: pinned_context,
           chat_provider: effective_chat_provider,
           mode: mode,
+          local_daemon_state: local_daemon_state,
+          local_daemon_repo: local_daemon_repo,
+          local_daemon_branch: local_daemon_branch,
           repository: repository ? { id: repository.id, slug: repository.slug } : nil,
           stop_requested_at: stop_requested_at&.iso8601,
           cumulative_input_tokens: cumulative_input_tokens.to_i,
@@ -301,6 +306,9 @@ class ChatSession < ApplicationRecord
       saved_change_to_pinned_context? ||
       saved_change_to_chat_provider? ||
       saved_change_to_mode? ||
+      saved_change_to_local_daemon_state? ||
+      saved_change_to_local_daemon_repo? ||
+      saved_change_to_local_daemon_branch? ||
       saved_change_to_cumulative_input_tokens? ||
       saved_change_to_cumulative_output_tokens? ||
       saved_change_to_cumulative_cost_usd? ||

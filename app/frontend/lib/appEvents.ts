@@ -359,7 +359,7 @@ type ChatControlsPayload = {
 
 type ChatHeaderPayload = {
   action: "update_header"
-  chat: Partial<Pick<ChatRecord, "title" | "title_pending" | "pinned_context" | "chat_provider" | "repository" | "stop_requested_at" | "cumulative_input_tokens" | "cumulative_output_tokens" | "cumulative_cost_usd" | "coding_checkout_uncommitted">>
+  chat: Partial<Pick<ChatRecord, "title" | "title_pending" | "pinned_context" | "chat_provider" | "mode" | "local_daemon_state" | "local_daemon_repo" | "local_daemon_branch" | "repository" | "stop_requested_at" | "cumulative_input_tokens" | "cumulative_output_tokens" | "cumulative_cost_usd" | "coding_checkout_uncommitted">>
 }
 
 type ChatBookmarkPayload = {
@@ -442,6 +442,10 @@ function chatHeaderPayload(payload: unknown): ChatHeaderPayload | null {
   if (typeof chat.title_pending === "boolean") updates.title_pending = chat.title_pending
   if (typeof chat.pinned_context === "string" || chat.pinned_context === null) updates.pinned_context = chat.pinned_context
   if (typeof chat.chat_provider === "string") updates.chat_provider = chat.chat_provider
+  if (typeof chat.mode === "string" || chat.mode === null) updates.mode = chat.mode as ChatRecord["mode"]
+  if (typeof chat.local_daemon_state === "string" || chat.local_daemon_state === null) updates.local_daemon_state = chat.local_daemon_state as ChatRecord["local_daemon_state"]
+  if (typeof chat.local_daemon_repo === "string" || chat.local_daemon_repo === null) updates.local_daemon_repo = chat.local_daemon_repo
+  if (typeof chat.local_daemon_branch === "string" || chat.local_daemon_branch === null) updates.local_daemon_branch = chat.local_daemon_branch
   if (isChatRepository(chat.repository) || chat.repository === null) updates.repository = chat.repository
   if (typeof chat.stop_requested_at === "string" || chat.stop_requested_at === null) updates.stop_requested_at = chat.stop_requested_at
   if (typeof chat.cumulative_input_tokens === "number") updates.cumulative_input_tokens = chat.cumulative_input_tokens

@@ -263,6 +263,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_12_202210) do
     t.datetime "hidden_at"
     t.datetime "last_message_at"
     t.datetime "last_read_at"
+    t.string "local_daemon_branch"
+    t.string "local_daemon_repo"
+    t.string "local_daemon_state"
     t.string "mode", default: "planning", null: false
     t.boolean "onboarding", default: false, null: false
     t.boolean "pinned", default: false, null: false

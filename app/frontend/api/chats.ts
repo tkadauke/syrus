@@ -19,6 +19,9 @@ export type ChatRecord = {
   effective_chat_provider_label?: string
   chat_provider_options?: ChatProviderOption[]
   mode?: ChatMode | null
+  local_daemon_state?: "connected" | "disconnected" | null
+  local_daemon_repo?: string | null
+  local_daemon_branch?: string | null
   chat_path: string
   repository: ChatRepository | null
   turn_in_flight?: boolean
@@ -443,6 +446,7 @@ export type ChatPayload = {
     app_share_path: string
     app_enqueue_message_path: string
     app_stop_path: string
+    app_daemon_connection_path: string
     app_bookmarks_path: string
     app_attachments_path: string
     app_video_walkthroughs_path: string
