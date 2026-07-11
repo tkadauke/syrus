@@ -849,7 +849,8 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(item).to include(
         "jobs_count" => 4,
         "landed_jobs_count" => 2,
-        "all_jobs_closed" => false
+        "all_jobs_closed" => false,
+        "job_state_counts" => { "closed" => 2, "preempted" => 1, "implemented" => 1 }
       )
     end
 
