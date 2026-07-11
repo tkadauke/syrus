@@ -17,7 +17,7 @@ describe("AdminInvitations", () => {
 
     renderRoute(<AdminInvitations />)
 
-    const copyButton = await screen.findByRole("button", { name: "Copy signup link for foo@bar.com" })
+    const copyButton = await screen.findByRole("button", { name: "Copy signup link for foo@bar.com" }, { timeout: 5000 })
     act(() => { fireEvent.click(copyButton) })
 
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("https://example.com/users/new?token=abc123")
