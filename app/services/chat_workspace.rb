@@ -234,6 +234,7 @@ class ChatWorkspace
     create_coding_branch!(path, branch)
     @chat_session.update_columns(coding_checkout_branch: branch)
     @chat_session.chat_attachments.find_or_create_by!(attachable: repository)
+    ChatWorkspacePrepareJob.perform_later(@chat_session.id, repository.id)
     path
   end
 
@@ -251,6 +252,7 @@ class ChatWorkspace
     full_clone_at_branch!(repository, path, branch_name)
     @chat_session.update_columns(coding_checkout_branch: branch_name)
     @chat_session.chat_attachments.find_or_create_by!(attachable: repository)
+    ChatWorkspacePrepareJob.perform_later(@chat_session.id, repository.id)
     path
   end
 
