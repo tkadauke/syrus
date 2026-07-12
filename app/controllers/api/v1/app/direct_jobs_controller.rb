@@ -2,6 +2,9 @@ module Api
   module V1
     module App
       class DirectJobsController < BaseController
+        include FileAttachmentParams
+        self.attachment_param_key = :job_attachment
+
         def new
           render json: form_payload
         end
@@ -83,13 +86,12 @@ module Api
         def attach_initial_job_attachments(job)
           errors = []
 
-          Array(params.dig(:job_attachment, :files)).compact_blank.each do |file|
+          uploaded_files.each do |file|
             attachment = job.job_attachments.build(attachment_type: "uploaded_file")
             attachment.file.attach(file)
             errors.concat(attachment.errors.full_messages) unless attachment.save
           end
 
-          google_doc_url = params.dig(:job_attachment, :google_doc_url).to_s.strip
           if google_doc_url.present?
             attachment = job.job_attachments.build(
               attachment_type: "google_doc_link",

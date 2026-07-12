@@ -2,6 +2,9 @@ module Api
   module V1
     module App
       class JobAttachmentsController < BaseController
+        include FileAttachmentParams
+        self.attachment_param_key = :job_attachment
+
         def create
           job = find_job
           created, errors = create_attachments(job)
@@ -65,14 +68,6 @@ module Api
           end
 
           [ created, errors ]
-        end
-
-        def uploaded_files
-          Array(params.dig(:job_attachment, :files)).compact_blank
-        end
-
-        def google_doc_url
-          params.dig(:job_attachment, :google_doc_url).to_s.strip
         end
 
         def attachment_create_message(created, errors)

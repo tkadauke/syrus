@@ -2,6 +2,9 @@ module Api
   module V1
     module App
       class Credentials::DocumentsController < CredentialsController
+        include FileAttachmentParams
+        self.attachment_param_key = :document
+
         def index
           render json: documents_payload(Current.user)
         end
@@ -48,14 +51,6 @@ module Api
         end
 
         private
-
-        def uploaded_files
-          Array(params.dig(:document, :files)).compact_blank
-        end
-
-        def google_doc_url
-          params.dig(:document, :google_doc_url).to_s.strip
-        end
       end
     end
   end
