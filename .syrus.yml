@@ -131,3 +131,15 @@ grade:
     run: npm --prefix website ci && npm --prefix website run sync-release && npm --prefix website run build
     required: true
     timeout_minutes: 5
+
+coverage:
+  sources:
+    - artifact: coverage/lcov.info
+      format: lcov
+    - artifact: coverage/js/lcov.info
+      format: lcov
+  threshold:
+    lines: 70
+  on_miss: warn
+  pr_comment: true
+  hitmap_ttl_days: 7

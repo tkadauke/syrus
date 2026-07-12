@@ -106,4 +106,8 @@ group :test do
   # Stub HTTP and replay GitHub responses [https://github.com/vcr/vcr, https://github.com/bblimke/webmock]
   gem "vcr"
   gem "webmock"
+
+  # Code coverage reporting — produces LCOV output for coverage_analyze step
+  gem "simplecov"
+  gem "simplecov-lcov"
 end
