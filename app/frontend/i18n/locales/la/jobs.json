@@ -425,5 +425,7 @@
   "run_agent_fallback": "agens",
   "transcript_kind_agent": "Agens",
   "transcript_kind_tool": "Instrumentum",
-  "transcript_kind_system": "Systema"
+  "transcript_kind_system": "Systema",
+  "main_branch_broken_waiting": "Hoc opus manet dum ramus principalis recuperatur.",
+  "main_branch_broken_view": "Vide sanitatem receptaculi"
 }

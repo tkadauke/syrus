@@ -314,6 +314,7 @@ module Api
             can_release_triage_jobs: can_release_triage_jobs?,
             needs_triage_jobs: needs_triage_jobs_json(repository),
             credential_status: credential_status_json(repository),
+            health_history: health_history_json(repository),
             jobs: jobs.map { |job| job_json(job) },
             pagination: pagination_json(page: page, total_jobs: total_jobs, total_pages: total_pages, repository: repository),
             paths: {
@@ -461,7 +462,11 @@ module Api
             github_url: "https://github.com/#{repository.slug}",
             created_at: repository.created_at.iso8601,
             owner_user: owner_user_json(repository.user),
-            github_rate_limit: github_rate_limit_json(repository.user)
+            github_rate_limit: github_rate_limit_json(repository.user),
+            ci_health: repository.ci_health,
+            grader_health: repository.grader_health,
+            main_health: repository.main_health,
+            last_health_checked_sha: repository.last_health_checked_sha
           }
         end
 
@@ -712,6 +717,32 @@ module Api
               preview: "Jobs using this rule also need the safe tag before landing."
             }
           ]
+        end
+
+        def health_history_json(repository)
+          checks = repository.main_branch_health_checks.recent.limit(30)
+          {
+            ci_health: repository.ci_health,
+            grader_health: repository.grader_health,
+            main_health: repository.main_health,
+            last_health_checked_sha: repository.last_health_checked_sha,
+            records: checks.map { |check| health_check_json(check, repository) }
+          }
+        end
+
+        def health_check_json(check, repository)
+          sha_url = "https://github.com/#{repository.slug}/commit/#{check.sha}"
+          {
+            id: check.id,
+            sha: check.sha.to_s[0, 7],
+            sha_url: sha_url,
+            checked_at: check.checked_at.iso8601,
+            ci_health: check.ci_health,
+            grader_health: check.grader_health,
+            source: check.source,
+            ci_failed_checks: check.ci_failed_checks || [],
+            grader_failed_names: check.grader_failed_names || []
+          }
         end
 
         def find_repository

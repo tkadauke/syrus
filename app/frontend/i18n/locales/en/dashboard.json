@@ -124,5 +124,8 @@
     "finished": "Finished",
     "agent": "Agent",
     "cleaned_up_at": "Cleaned up at"
-  }
+  },
+  "broken_main_banner": "Main branch is broken — queued jobs are held.",
+  "broken_main_view_details": "View details",
+  "broken_main_dismiss": "Dismiss"
 }

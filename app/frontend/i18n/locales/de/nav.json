@@ -68,7 +68,8 @@
     "resume_landing": "Landing fortsetzen",
     "pause_landing": "Landing pausieren",
     "unable_to_rename": "Smart-Ordner konnte nicht umbenannt werden.",
-    "unable_to_delete": "Smart-Ordner konnte nicht gelöscht werden."
+    "unable_to_delete": "Smart-Ordner konnte nicht gelöscht werden.",
+    "landing_paused_broken_main": "Landing pausiert — Hauptzweig ist kaputt."
   },
   "filters_layout": {
     "folders_and_filters": "Ordner und Filter",

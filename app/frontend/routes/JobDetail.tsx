@@ -224,6 +224,14 @@ export function JobDetailView({ payload, queryKey, activeTab, onSelectTab, prefi
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("command_error"))}</PanelMessage> : null}
+      {payload.job.state === "queued" && payload.repository.main_health === "broken" ? (
+        <div className="flex items-center gap-3 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-900 dark:bg-amber-950/40" role="alert">
+          <span className="text-amber-800 dark:text-amber-200">{t("main_branch_broken_waiting")}</span>
+          <Link className="shrink-0 rounded border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-800 hover:bg-amber-50 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200 dark:hover:bg-amber-900" to={withRoutePrefix(payload.repository.repository_path, prefix)}>
+            {t("main_branch_broken_view")}
+          </Link>
+        </div>
+      ) : null}
       {feedbackPanelOpen ? (
         <JobFeedbackPanel
           error={feedback.error}

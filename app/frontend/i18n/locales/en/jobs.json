@@ -425,5 +425,7 @@
   "run_agent_fallback": "agent",
   "transcript_kind_agent": "Agent",
   "transcript_kind_tool": "Tool",
-  "transcript_kind_system": "System"
+  "transcript_kind_system": "System",
+  "main_branch_broken_waiting": "This job is waiting for the main branch to recover.",
+  "main_branch_broken_view": "View repository health"
 }

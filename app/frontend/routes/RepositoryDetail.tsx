@@ -23,6 +23,8 @@ import {
   retryFailedRepositoryJobs,
   type RepositoryDetailJob,
   type RepositoryDetailPayload,
+  type RepositoryHealthCheckRecord,
+  type RepositoryHealthHistory,
   type RepositoryIssue,
   type RepositoryIssuesPayload
 } from "../api/repositories"
@@ -113,6 +115,7 @@ function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab:
           <RepositorySummary payload={payload} />
           <Actions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
           <NeedsTriageJobs payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
+          {payload.health_history ? <MainBranchHealthSection history={payload.health_history} repository={payload.repository} /> : null}
           <RecentJobs payload={payload} prefix={prefix} setupStatus={setupStatus} />
         </div>
         <div className="space-y-6">
@@ -640,6 +643,133 @@ function NeedsTriageJobs({ payload, prefix, queryKey, onNotice }: { payload: Rep
       </div>
       {release.isError ? <PanelMessage tone="error">{errorMessage(release.error, "Unable to release job for triage.")}</PanelMessage> : null}
     </section>
+  )
+}
+
+type HealthTone = "green" | "red" | "gray"
+
+function healthTone(health: string): HealthTone {
+  if (health === "healthy") return "green"
+  if (health === "broken") return "red"
+  return "gray"
+}
+
+function MainBranchHealthSection({ history, repository }: { history: RepositoryHealthHistory; repository: RepositoryDetailPayload["repository"] }) {
+  const { t } = useT("settings")
+  const shaUrl = history.last_health_checked_sha
+    ? `https://github.com/${repository.slug}/commit/${history.last_health_checked_sha}`
+    : null
+
+  return (
+    <section>
+      <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
+        {t("repository.main_branch_health")}
+      </h2>
+      <div className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+        <div className="flex flex-wrap gap-4">
+          <HealthBadge label={t("repository.health_ci")} health={history.ci_health} />
+          <HealthBadge label={t("repository.health_graders")} health={history.grader_health} />
+          {shaUrl && history.last_health_checked_sha ? (
+            <div className="text-xs text-gray-500 dark:text-gray-400 self-center">
+              {t("repository.health_checked_sha")}{" "}
+              <a className="font-mono hover:underline text-blue-600 dark:text-blue-400" href={shaUrl} rel="noopener" target="_blank">
+                {history.last_health_checked_sha.slice(0, 7)}
+              </a>
+            </div>
+          ) : null}
+        </div>
+        {history.ci_health === "broken" && history.records.length > 0 ? (
+          <FailingChecks checks={history.records[0].ci_failed_checks} />
+        ) : null}
+        <HealthHistoryTable records={history.records} t={t} />
+      </div>
+    </section>
+  )
+}
+
+function HealthBadge({ label, health }: { label: string; health: string }) {
+  const { t } = useT("settings")
+  const tone = healthTone(health)
+  const labelText = health === "healthy"
+    ? t("repository.health_healthy")
+    : health === "broken"
+      ? t("repository.health_broken")
+      : t("repository.health_unknown")
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</span>
+      <StatusPill tone={tone}>{labelText}</StatusPill>
+    </div>
+  )
+}
+
+function FailingChecks({ checks }: { checks: Array<{ name: string; url: string }> }) {
+  if (checks.length === 0) return null
+  return (
+    <ul className="space-y-1 text-sm">
+      {checks.map((check) => (
+        <li key={check.name} className="flex items-center gap-1.5 text-red-700 dark:text-red-300">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
+          {check.url ? (
+            <a className="hover:underline" href={check.url} rel="noopener" target="_blank">{check.name}</a>
+          ) : (
+            <span>{check.name}</span>
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function HealthHistoryTable({ records, t }: { records: RepositoryHealthCheckRecord[]; t: (key: string) => string }) {
+  if (records.length === 0) {
+    return <p className="text-sm text-gray-500 dark:text-gray-400">{t("repository.health_no_history")}</p>
+  }
+
+  return (
+    <div>
+      <h3 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">{t("repository.health_history_heading")}</h3>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+          <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
+            <tr>
+              <th className="px-3 py-2">{t("repository.health_col_time")}</th>
+              <th className="px-3 py-2">{t("repository.health_col_sha")}</th>
+              <th className="px-3 py-2">{t("repository.health_col_ci")}</th>
+              <th className="px-3 py-2">{t("repository.health_col_graders")}</th>
+              <th className="px-3 py-2">{t("repository.health_col_failures")}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+            {records.map((record) => (
+              <HealthHistoryRow key={record.id} record={record} t={t} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function HealthHistoryRow({ record, t }: { record: RepositoryHealthCheckRecord; t: (key: string) => string }) {
+  const failureNames = [
+    ...record.ci_failed_checks.map((c) => c.name),
+    ...record.grader_failed_names
+  ]
+  return (
+    <tr>
+      <td className="px-3 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap">{formatRelative(record.checked_at)}</td>
+      <td className="px-3 py-2">
+        <a className="font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline" href={record.sha_url} rel="noopener" target="_blank">
+          {record.sha}
+        </a>
+      </td>
+      <td className="px-3 py-2"><StatusPill tone={healthTone(record.ci_health)}>{record.ci_health}</StatusPill></td>
+      <td className="px-3 py-2"><StatusPill tone={healthTone(record.grader_health)}>{record.grader_health}</StatusPill></td>
+      <td className="px-3 py-2 text-xs text-gray-600 dark:text-gray-400">
+        {failureNames.length > 0 ? failureNames.join(", ") : null}
+      </td>
+    </tr>
   )
 }
 

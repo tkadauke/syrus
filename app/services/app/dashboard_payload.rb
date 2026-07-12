@@ -105,6 +105,7 @@ module App
           ownership: ownership_json,
           filter: current_filter.to_h,
           landing_queue: landing_queue_json,
+          broken_repositories: broken_repositories_json,
           smart_folders: smart_folders_json,
           active_smart_folder_id: active_smart_folder&.id,
           items: current_result.fetch(:items),
@@ -1061,6 +1062,19 @@ module App
       }
       json[:entries] = landing_queue_entries_json if landing_queue_visible?
       json
+    end
+
+    def broken_repositories_json
+      user.repositories.active.select(&:main_health_broken?).map do |repo|
+        {
+          id: repo.id,
+          slug: repo.slug,
+          main_health: repo.main_health,
+          ci_health: repo.ci_health,
+          grader_health: repo.grader_health,
+          repository_path: repository_path(repo)
+        }
+      end
     end
 
     def landing_queue_visible?

@@ -11,6 +11,15 @@ export type DashboardRepository = {
   repository_path: string
 }
 
+export type DashboardBrokenRepository = {
+  id: number
+  slug: string
+  main_health: string
+  ci_health: string
+  grader_health: string
+  repository_path: string
+}
+
 export type DashboardOwner = {
   id: number
   email_address: string
@@ -279,6 +288,7 @@ export type DashboardPayload = {
     toggle_path: string
     entries?: DashboardLandingQueueEntry[]
   }
+  broken_repositories?: DashboardBrokenRepository[]
   ownership: {
     scope: string
     owner_id: number | null

@@ -124,5 +124,8 @@
     "finished": "Perfectum",
     "agent": "Agens",
     "cleaned_up_at": "Purgatum"
-  }
+  },
+  "broken_main_banner": "Ramus principalis fractus est — officia expectantia tenentur.",
+  "broken_main_view_details": "Vide details",
+  "broken_main_dismiss": "Dimitte"
 }

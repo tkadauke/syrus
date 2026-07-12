@@ -135,4 +135,51 @@ RSpec.describe PollMainBranchHealthJob do
       described_class.perform_now(repository.id)
     }.not_to have_enqueued_job(MainGraderWorkflowJob)
   end
+
+  describe "MainBranchHealthCheck recording" do
+    it "records a ci_poll health check when ci_health is determined" do
+      stub_sha(sha)
+      stub_check_runs({ any?: true, pending?: false, any_failed?: false, all_passed?: true, failed_checks: [] })
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to change(MainBranchHealthCheck, :count).by(1)
+
+      check = MainBranchHealthCheck.last
+      expect(check.source).to eq("ci_poll")
+      expect(check.sha).to eq(sha)
+      expect(check.ci_health).to eq("healthy")
+      expect(check.repository).to eq(repository)
+    end
+
+    it "records failed_checks from the GitHub summary" do
+      failed = [{ name: "RSpec", url: "https://github.com/check/42" }]
+      stub_sha(sha)
+      stub_check_runs({ any?: true, pending?: false, any_failed?: true, all_passed?: false, failed_checks: failed })
+
+      described_class.perform_now(repository.id)
+
+      check = MainBranchHealthCheck.last
+      expect(check.ci_health).to eq("broken")
+      expect(check.ci_failed_checks).to eq([{ "name" => "RSpec", "url" => "https://github.com/check/42" }])
+    end
+
+    it "does not record a health check when checks are still pending" do
+      stub_sha(sha)
+      stub_check_runs({ any?: true, pending?: true, any_failed?: false, all_passed?: false, failed_checks: [] })
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.not_to change(MainBranchHealthCheck, :count)
+    end
+
+    it "does not record a health check when no CI checks exist" do
+      stub_sha(sha)
+      stub_check_runs({ any?: false, pending?: false, any_failed?: false, all_passed?: false, failed_checks: [] })
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.not_to change(MainBranchHealthCheck, :count)
+    end
+  end
 end
