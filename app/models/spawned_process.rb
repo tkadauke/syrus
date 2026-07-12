@@ -4,7 +4,7 @@ class SpawnedProcess < ApplicationRecord
   # `kind:` to ProcessRunner. We use a CONSTANT instead of an AR enum
   # so the validation error is explicit ("kind 'mcp_sidecar' is not in
   # the strict list") rather than the silent AR coercion enum gives.
-  KINDS = %w[ agent grader git prepare ].freeze
+  KINDS = %w[ agent grader git prepare chat_prepare ].freeze
 
   # Terminal outcomes. Surfaced to the admin UI as colored pills.
   OUTCOMES = %w[

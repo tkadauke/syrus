@@ -135,6 +135,20 @@ RSpec.describe ChatWorkspace do
 
       expect(chat_session.reload.attached_repositories).to include(repository)
     end
+
+    it "enqueues ChatWorkspacePrepareJob after setting up the coding checkout" do
+      expect {
+        described_class.ensure_coding_checkout!(chat_session, repository)
+      }.to have_enqueued_job(ChatWorkspacePrepareJob).with(chat_session.id, repository.id).on_queue("chat")
+    end
+
+    it "does not enqueue ChatWorkspacePrepareJob when coding checkout is already set" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+
+      expect {
+        described_class.ensure_coding_checkout!(chat_session, repository)
+      }.not_to have_enqueued_job(ChatWorkspacePrepareJob)
+    end
   end
 
   describe ".ensure_job_branch_checkout!" do
@@ -188,6 +202,20 @@ RSpec.describe ChatWorkspace do
       described_class.ensure_job_branch_checkout!(chat_session, repository, job_branch)
 
       expect(chat_session.reload.attached_repositories).to include(repository)
+    end
+
+    it "enqueues ChatWorkspacePrepareJob after setting up the job branch checkout" do
+      expect {
+        described_class.ensure_job_branch_checkout!(chat_session, repository, job_branch)
+      }.to have_enqueued_job(ChatWorkspacePrepareJob).with(chat_session.id, repository.id).on_queue("chat")
+    end
+
+    it "does not enqueue ChatWorkspacePrepareJob when already on the same job branch" do
+      described_class.ensure_job_branch_checkout!(chat_session, repository, job_branch)
+
+      expect {
+        described_class.ensure_job_branch_checkout!(chat_session, repository, job_branch)
+      }.not_to have_enqueued_job(ChatWorkspacePrepareJob)
     end
 
     it "makes the job branch files accessible in the checkout" do
