@@ -32,6 +32,13 @@ export default defineConfig({
     alias: {
       react: `${rootDir}node_modules/react`,
       "react-dom": `${rootDir}node_modules/react-dom`
+    },
+    coverage: {
+      provider: "v8",
+      reporter: ["lcov"],
+      reportsDirectory: "coverage/js",
+      include: ["app/frontend/**"],
+      exclude: ["app/frontend/**/*.test.*", "app/frontend/**/*.spec.*"]
     }
   }
 })

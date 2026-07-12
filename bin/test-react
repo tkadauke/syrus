@@ -10,7 +10,7 @@ npm run typecheck &
 typecheck_pid=$!
 
 set +e
-npx vitest run --maxWorkers "$vitest_max_workers"
+npx vitest run --coverage --maxWorkers "$vitest_max_workers"
 vitest_exit=$?
 set -e
 

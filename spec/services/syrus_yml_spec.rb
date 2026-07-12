@@ -141,6 +141,35 @@ RSpec.describe SyrusYml do
     expect(described_class.load_repo(@dir).grade.steps.first.run).to eq("bin/rspec")
   end
 
+  it "parses the two-source coverage config from the repo's own .syrus.yml" do
+    write_config(<<~YAML)
+      coverage:
+        sources:
+          - artifact: coverage/lcov.info
+            format: lcov
+          - artifact: coverage/js/lcov.info
+            format: lcov
+        threshold:
+          lines: 70
+        on_miss: warn
+        pr_comment: true
+        hitmap_ttl_days: 7
+    YAML
+
+    plan = described_class.load_repo(@dir).coverage
+
+    expect(plan).not_to be_nil
+    expect(plan.sources.size).to eq(2)
+    expect(plan.sources[0].artifact).to eq("coverage/lcov.info")
+    expect(plan.sources[0].format).to eq("lcov")
+    expect(plan.sources[1].artifact).to eq("coverage/js/lcov.info")
+    expect(plan.sources[1].format).to eq("lcov")
+    expect(plan.threshold.lines).to eq(70.0)
+    expect(plan.on_miss).to eq("warn")
+    expect(plan.pr_comment).to be true
+    expect(plan.hitmap_ttl_days).to eq(7)
+  end
+
   it "defaults required to true and coerces advisory steps through Rails boolean semantics" do
     config = parse(<<~YAML)
       grade:

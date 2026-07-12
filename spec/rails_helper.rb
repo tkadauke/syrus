@@ -1,3 +1,23 @@
+# SimpleCov must be started before any application code is required so that
+# it can instrument every file from the first load. COVERAGE=false skips it.
+if ENV['COVERAGE'] != 'false'
+  require 'simplecov'
+  require 'simplecov-lcov'
+
+  SimpleCov::Formatter::LcovFormatter.config do |c|
+    c.report_with_single_file = true
+    c.single_report_path = 'coverage/lcov.info'
+  end
+  SimpleCov.formatter = SimpleCov::Formatter::LcovFormatter
+  SimpleCov.start 'rails' do
+    add_filter '/spec/'
+    add_filter '/config/'
+    add_filter '/db/'
+    add_filter '/bin/'
+    enable_coverage :branch
+  end
+end
+
 # This file is copied to spec/ when you run 'rails generate rspec:install'
 require 'spec_helper'
 ENV['RAILS_ENV'] ||= 'test'
