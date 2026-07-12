@@ -63,16 +63,22 @@ RSpec.describe SyrusChatMcp::CompleteImplementStepTool do
     expect(response.dig(:result, :content, 0, :text)).to include("not found")
   end
 
-  it "does not execute any side effect on confirmation (execution wired by sibling job)" do
-    # Force auto-load so PendingActions.for can find the handler in isolation runs.
-    PendingActions::CompleteImplementStep
-    job = Factories.job_record(repository: repository, state: "open")
+  it "dispatches a coding_handoff workflow on confirmation" do
+    feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|
+      record.category = "Labs"
+      record.name = "Coding Mode"
+    end
+    feature.update!(enabled: true)
+    job = Factories.job_record(user: user, repository: repository, state: "coding",
+                               linked_chat_id: chat_session.id)
     chat_session.chat_attachments.create!(attachable: job)
     response = call_tool(job_id: job.id)
     pending_action = chat_session.pending_actions.find(payload(response)[:pending_action_id])
 
+    allow(StepDispatcher).to receive(:start_workflow)
     expect { pending_action.confirm!(user: user) }.not_to raise_error
     expect(pending_action.reload).to be_confirmed
-    expect(pending_action.result).to be_nil
+    expect(pending_action.result).to be_a(Workflow)
+    expect(pending_action.result.trigger_kind).to eq("coding_handoff")
   end
 end
