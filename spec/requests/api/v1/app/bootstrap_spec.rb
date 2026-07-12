@@ -122,8 +122,6 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "local_mode" => false,
       "performance_logging" => false,
       "terminal" => false,
-      "v2_sidebar_subject_selector" => false,
-      "v2_ui" => false,
       "video_walkthroughs" => false
     )
   end
