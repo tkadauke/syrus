@@ -786,22 +786,24 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
   return (
     <article
       aria-label={`${item.display_number} ${item.title}`}
-      className="cursor-grab rounded border border-gray-200 bg-white p-3 shadow-sm active:cursor-grabbing dark:border-gray-700 dark:bg-gray-900"
+      className="cursor-grab overflow-hidden rounded border border-gray-200 bg-white shadow-sm active:cursor-grabbing dark:border-gray-700 dark:bg-gray-900"
       draggable
       onDragEnd={onDragEnd}
       onDragStart={(event) => onDragStart(item, event)}
     >
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-        <CopyableSlug className="text-xs font-semibold uppercase" slug={item.display_number} />
-        <Link className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.paths.epic_path, prefix)}>{item.title}</Link>
+      <div className="p-3">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <CopyableSlug className="text-xs font-semibold uppercase" slug={item.display_number} />
+          <Link className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.paths.epic_path, prefix)}>{item.title}</Link>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
+          <NeutralStatePill state={item.state} />
+          <EpicStuckBadge stuck={item.stuck} />
+          <OwnerBadge badge={item.owner_badge} />
+          <RepositorySlugLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-blue-700 hover:underline dark:bg-gray-800 dark:text-gray-300 dark:hover:text-blue-300" prefix={prefix} repository={item.repository} />
+        </div>
       </div>
-      <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
-        <NeutralStatePill state={item.state} />
-        <EpicStuckBadge stuck={item.stuck} />
-        <OwnerBadge badge={item.owner_badge} />
-        <EpicProgressBar epic={item} />
-        <RepositorySlugLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-blue-700 hover:underline dark:bg-gray-800 dark:text-gray-300 dark:hover:text-blue-300" prefix={prefix} repository={item.repository} />
-      </div>
+      <EpicProgressBar epic={item} fullWidth />
     </article>
   )
 }
@@ -1686,7 +1688,7 @@ const EPIC_PROGRESS_SEGMENTS = [
   { state: "blocked_by_epic", barColor: "bg-amber-400" },
 ]
 
-export function EpicProgressBar({ epic }: { epic: DashboardEpicItem }) {
+export function EpicProgressBar({ epic, fullWidth = false }: { epic: DashboardEpicItem; fullWidth?: boolean }) {
   const { t } = useT("dashboard")
   if (epic.state !== "in_progress" || epic.jobs_count === 0) return null
 
@@ -1703,7 +1705,7 @@ export function EpicProgressBar({ epic }: { epic: DashboardEpicItem }) {
   return (
     <div
       aria-label={t("epic_progress_label")}
-      className="flex h-1.5 w-20 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700"
+      className={fullWidth ? "flex h-1.5 w-full bg-gray-200 dark:bg-gray-700" : "flex h-1.5 w-20 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700"}
       role="progressbar"
       title={titleText}
     >
