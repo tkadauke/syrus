@@ -81,7 +81,8 @@ module SyrusChatMcp
 
     # Gated by the `coding_mode` labs Feature AND chat.coding? (see tools_for_session).
     CODING_TOOLS = [
-      CompleteImplementStepTool
+      CompleteImplementStepTool,
+      SubmitCodingChangesTool
     ].freeze
 
     TOOLS = [

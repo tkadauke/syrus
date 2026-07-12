@@ -50,6 +50,23 @@ Workflow workspaces or a scratch directory, and keeps the PTY alive while
 the browser navigates away. Returning to the page reconnects the xterm.js
 pane to the existing session; killing a tab ends that session.
 
+## Coding Mode
+
+When the `coding_mode` feature flag is enabled and a chat session is in coding
+mode, the chat agent gains tools to implement changes directly in a repository
+checkout and hand them off to Syrus automation.
+
+The `complete_implement_step` chat tool signals that a coding session on an
+existing Job is complete and ready for graders, summarize, and PR open. The
+`submit_coding_changes` chat tool creates a new direct Job from committed branch
+changes and immediately dispatches the same CodingHandoff workflow — this is the
+primary path when planning and implementation happen in the same chat session:
+talk in chat, commit changes to a branch, push, call the tool, and Syrus takes
+over from graders onward.
+
+Both tools create a pending action that the operator must confirm before Syrus
+dispatches any automation.
+
 ## Epics
 
 Epics group related Jobs inside one repository. They are useful when a
