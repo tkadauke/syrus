@@ -32,6 +32,10 @@ gem "mcp"
 gem "docx"
 gem "pdf-reader"
 
+# Runtime XML parsing for Cobertura coverage reports. Ruby 3.4 no longer
+# guarantees this default gem is available unless it is bundled explicitly.
+gem "rexml"
+
 # CommonMark / GitHub-style markdown renderer for chat messages.
 # Used by repositories/chats/_message.html.erb to render user + assistant
 # text content. unsafe rendering is off by default so raw HTML in chat
