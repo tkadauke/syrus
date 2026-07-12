@@ -89,6 +89,25 @@ RSpec.describe ReconcileJobStatesJob do
     end
   end
 
+  describe "Job :running with latest workflow :cancelled" do
+    it "drops the Job to :failed when no active work remains" do
+      build_workflow(state: "cancelled")
+      job.update!(state: "running")
+
+      expect { described_class.new.perform }
+        .to change { job.reload.state }.from("running").to("failed")
+    end
+
+    it "leaves the Job alone when another active workflow exists" do
+      build_workflow(state: "cancelled", started_at: 10.minutes.ago, finished_at: 9.minutes.ago)
+      build_workflow(state: "running", started_at: 1.minute.ago, finished_at: nil)
+      job.update!(state: "running")
+
+      expect { described_class.new.perform }
+        .not_to change { job.reload.state }
+    end
+  end
+
   describe "Job already consistent with latest workflow" do
     it "is a no-op when Job :implemented matches workflow :succeeded" do
       build_workflow(state: "succeeded")

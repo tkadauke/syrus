@@ -409,12 +409,14 @@ RSpec.describe ReapStaleRunsJob do
       # A :queued Run, older than the grace window, on a :running
       # Workflow — the shape left behind when a worker dies between
       # StepDispatcher creating the next Step's Run and the inline loop
-      # running it.
-      def queued_orphan
+      # running it. The successor Step is still queued in that normal
+      # inline-orphan case; a separate spec covers the narrower
+      # Step-started/Run-not-started crash window.
+      def queued_orphan(step_state: "queued")
         workflow = Workflow.create!(job: job, trigger_kind: "auto_merge")
         workflow.update_columns(state: "running", started_at: 20.minutes.ago)
         step = Step.create!(workflow: workflow, kind: "grader", position: 0)
-        step.update_columns(state: "running")
+        step.update_columns(state: step_state)
         run = step.runs.create!(job: job, trigger_kind: "auto_merge")
         run.update_columns(
           state: "queued",
@@ -445,6 +447,18 @@ RSpec.describe ReapStaleRunsJob do
 
         expect { described_class.perform_now }
           .not_to change { enqueued_run_job_count(run) }
+      end
+
+      it "re-enqueues a queued Run whose Step already started even if an old root RunJob appears active" do
+        _workflow, step, run = queued_orphan(step_state: "running")
+        root_run = step.runs.create!(job: job, trigger_kind: "auto_merge")
+        stub_active_root_run_ids(root_run.id)
+        ActiveJob::Base.queue_adapter.enqueued_jobs.clear
+
+        expect { described_class.perform_now }
+          .to change { enqueued_run_job_count(run) }.by(1)
+
+        expect(run.reload.state).to eq("queued")
       end
 
       it "does not treat a failed root RunJob as an active inline driver" do
