@@ -473,6 +473,12 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   must say why so reviewers can audit the call. `AGENTS.md` is a symlink to
   `CLAUDE.md`; preserve that relationship and edit the shared guidance through
   `CLAUDE.md`.
+- **Feature flag descriptions are timeless.** `config/features.yml`
+  descriptions must not reference PR numbers, issue numbers, or phrases like
+  "Introduced in PR #123." or "Added in #456." That information is in git
+  history; in the YAML it becomes stale and misleading once the flag is widely
+  deployed. Describe only what the flag does and any operator requirements
+  (e.g. "Requires a Gemini API key.").
 - **SPA routes must be registered in Rails and React together.** Every path
   declared in `app/frontend/routes/App.tsx` (and any nested route file it
   references) needs a matching `get "...", to: "spa#show"` entry in

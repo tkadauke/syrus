@@ -7,17 +7,17 @@ features:
   - slug: chat_polish
     category: "UI Experiments"
     name: "Chat polish"
-    description: "Subtle chat animations: new messages fade in, the new-messages jump scrolls smoothly. Motion-safe (respects reduced-motion). Introduced in PR #1655."
+    description: "Subtle chat animations: new messages fade in, the new-messages jump scrolls smoothly. Motion-safe (respects reduced-motion)."
     default: false
   - slug: video_walkthroughs
     category: "Labs"
     name: "Walkthrough videos"
-    description: "Record or drag a narrated screen recording into a chat; Gemini analyzes it and the chat agent works it toward an Epic. Requires a Gemini API key. Introduced in PR #1627."
+    description: "Record or drag a narrated screen recording into a chat; Gemini analyzes it and the chat agent works it toward an Epic. Requires a Gemini API key."
     default: false
   - slug: coding_mode
     category: "Labs"
     name: "Coding Mode"
-    description: "Enables Coding Mode for Syrus Chat, allowing the agent to implement code changes directly in the session checkout instead of just planning. Introduced in PR #1554."
+    description: "Enables Coding Mode for Syrus Chat, allowing the agent to implement code changes directly in the session checkout instead of just planning."
     default: false
   - slug: performance_logging
     category: "Operations"
