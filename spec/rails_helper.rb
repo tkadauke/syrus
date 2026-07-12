@@ -1,6 +1,12 @@
 # SimpleCov must be started before any application code is required so that
 # it can instrument every file from the first load. COVERAGE=false skips it.
 if ENV['COVERAGE'] != 'false'
+  # Bootsnap's ISEq compile cache calls RubyVM::InstructionSequence#to_binary,
+  # which raises "should not compile with coverage" when Coverage is active.
+  # Disable the cache before Bootsnap is loaded (config/boot.rb) so the two
+  # can coexist. DISABLE_BOOTSNAP_COMPILE_CACHE is checked in Bootsnap.default_setup.
+  ENV['DISABLE_BOOTSNAP_COMPILE_CACHE'] = '1'
+
   require 'simplecov'
   require 'simplecov-lcov'
 
