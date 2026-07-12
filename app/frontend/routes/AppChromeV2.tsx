@@ -70,7 +70,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const data = bootstrap.data ?? initialBootstrap
   const user = data?.current_user
   const showAdminSubnav = Boolean(user?.admin && isAdminPath(normalizedPath))
-  const showDashboardSidebarSubjects = Boolean(data?.feature_flags?.v2_sidebar_subject_selector)
+  const showDashboardSidebarSubjects = true
   const quote = useMemo(randomPubliliusSyrusQuote, [])
   const showQuote = !normalizedPath.startsWith("/chats") && !normalizedPath.startsWith("/terminal")
   const inOnboarding = Boolean(data?.setup && !data.setup.complete)
