@@ -28,6 +28,9 @@ hooks:
     - git checkout -- db/schema.rb 2>/dev/null || true
     - git checkout -- db/structure.sql 2>/dev/null || true
 
+adversarial_review:
+  rounds: 1
+
 # Each grader's `description:` is surfaced in the UI (tooltip on the
 # grader name + above the output panel on failure) and prepended to
 # the per-grader block in the agent's grade-failure prompt. Authoring
