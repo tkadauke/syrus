@@ -318,6 +318,97 @@ RSpec.describe "Steps::MergeTrain*" do
       expect { handler.call }.to raise_error(Steps::Base::StepFailed, /not rebased onto the integration branch/)
       expect(train.reload.state).not_to eq("grading")
     end
+
+    it "fails when a member branch has a placeholder commit subject" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      handler = step_handler(described_class, "merge_train_build", train, a)
+      git = stub_git(handler)
+      allow(git).to receive(:run)
+        .with("log", "basesha123..FETCH_HEAD", "--format=%s", chdir: "/tmp/ws")
+        .and_return("Syrus implement step (will be rewritten by summarize)\n")
+
+      expect { handler.call }
+        .to raise_error(Steps::Base::StepFailed, /placeholder commit.*summarize.*not have completed/m)
+      expect(train.reload.state).not_to eq("grading")
+    end
+
+    it "passes the placeholder check when all member commit subjects are proper" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      handler = step_handler(described_class, "merge_train_build", train, a)
+      git = stub_git(handler)
+      allow(git).to receive(:run)
+        .with("log", "basesha123..FETCH_HEAD", "--format=%s", chdir: "/tmp/ws")
+        .and_return("Add greeting helper\nFix a typo\n")
+
+      expect { handler.call }.not_to raise_error
+      expect(train.reload.state).to eq("grading")
+    end
+
+    it "fails when the integration branch contains duplicate patches" do
+      a = member_job(issue_number: 1)
+      b = member_job(issue_number: 2)
+      train = build_train([ a, b ])
+      handler = step_handler(described_class, "merge_train_build", train, b)
+      git = stub_git(handler)
+
+      sha1 = "a" * 40
+      sha2 = "b" * 40
+      dup_diff = "diff --git a/foo.rb b/foo.rb\nindex 000..111 100644\n--- a/foo.rb\n+++ b/foo.rb\n+same patch\n"
+      allow(git).to receive(:run)
+        .with("log", "--format=%H", "basesha123..HEAD", chdir: "/tmp/ws")
+        .and_return("#{sha1}\n#{sha2}\n")
+      allow(git).to receive(:run)
+        .with("diff-tree", "-p", "--no-commit-id", sha1, chdir: "/tmp/ws")
+        .and_return(dup_diff)
+      allow(git).to receive(:run)
+        .with("diff-tree", "-p", "--no-commit-id", sha2, chdir: "/tmp/ws")
+        .and_return(dup_diff)
+      allow(git).to receive(:run)
+        .with("log", "-1", "--format=%s", sha2, chdir: "/tmp/ws")
+        .and_return("Add same thing\n")
+
+      expect { handler.call }
+        .to raise_error(Steps::Base::StepFailed, /duplicate commit.*same patch.*deduplicating/m)
+      expect(train.reload.state).not_to eq("grading")
+    end
+
+    it "passes the duplicate check when all commits have distinct patches" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      handler = step_handler(described_class, "merge_train_build", train, a)
+      git = stub_git(handler)
+
+      sha1 = "a" * 40
+      sha2 = "b" * 40
+      allow(git).to receive(:run)
+        .with("log", "--format=%H", "basesha123..HEAD", chdir: "/tmp/ws")
+        .and_return("#{sha1}\n#{sha2}\n")
+      allow(git).to receive(:run)
+        .with("diff-tree", "-p", "--no-commit-id", sha1, chdir: "/tmp/ws")
+        .and_return("diff --git a/foo.rb b/foo.rb\n+patch one\n")
+      allow(git).to receive(:run)
+        .with("diff-tree", "-p", "--no-commit-id", sha2, chdir: "/tmp/ws")
+        .and_return("diff --git a/bar.rb b/bar.rb\n+patch two\n")
+
+      expect { handler.call }.not_to raise_error
+      expect(train.reload.state).to eq("grading")
+    end
+
+    it "skips the duplicate check and succeeds when the integration branch has only one commit" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      handler = step_handler(described_class, "merge_train_build", train, a)
+      git = stub_git(handler)
+
+      allow(git).to receive(:run)
+        .with("log", "--format=%H", "basesha123..HEAD", chdir: "/tmp/ws")
+        .and_return("#{'a' * 40}\n")
+
+      expect { handler.call }.not_to raise_error
+      expect(train.reload.state).to eq("grading")
+    end
   end
 
   describe Steps::MergeTrainLand do

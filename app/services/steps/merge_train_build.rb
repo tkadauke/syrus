@@ -16,11 +16,24 @@ module Steps
   # branch — which fails if a rebase is genuinely mid-flight — then (b)
   # require a clean worktree and (c) that the integration branch is an
   # ancestor of the result (so a wrong-base rebase is caught).
+  #
+  # Before integrating each member Syrus checks the member's commit log for
+  # placeholder commit subjects (created by the implement step before the
+  # summarize step rewrites them). After all members are integrated Syrus
+  # scans the integration branch for patch-id duplicates — pairs of commits
+  # that apply the identical diff — and hard-fails so noisy or corrupted
+  # history can't reach the base branch.
   class MergeTrainBuild < Base
     include MergeTrainStep
 
     AUTHENTICATED_GIT_FAILURE_PATTERN =
       /Invalid username or token|Authentication failed/i.freeze
+
+    # Commit subjects that indicate an implement step whose summarize step
+    # never completed. Any member carrying one of these must not land.
+    PLACEHOLDER_COMMIT_SUBJECTS = [
+      "Syrus implement step (will be rewritten by summarize)"
+    ].freeze
 
     def call
       train = merge_train
@@ -33,10 +46,10 @@ module Steps
       @integration = train.integration_branch.presence || "syrus/merge-train-epic-#{train.epic_id}-#{train.id}"
 
       fetch_branch!(train.base_branch)
-      base_sha = @git.run("rev-parse", "FETCH_HEAD", chdir: @chdir).strip
-      workflow.set_artifact!("merge_train_base_sha", base_sha)
+      @base_sha = @git.run("rev-parse", "FETCH_HEAD", chdir: @chdir).strip
+      workflow.set_artifact!("merge_train_base_sha", @base_sha)
       @git.run("checkout", "-B", @integration, "FETCH_HEAD", chdir: @chdir)
-      log("merge_train: integration branch #{@integration} started at #{train.base_branch}@#{base_sha.first(9)}")
+      log("merge_train: integration branch #{@integration} started at #{train.base_branch}@#{@base_sha.first(9)}")
 
       members.each do |member|
         branch = member.branch_name
@@ -45,6 +58,8 @@ module Steps
         fetch_branch!(branch)
         integrate!(member, branch)
       end
+
+      check_duplicate_patch_ids!
 
       @git.run("checkout", @integration, chdir: @chdir)
       sha = @git.run("rev-parse", "HEAD", chdir: @chdir).strip
@@ -87,6 +102,8 @@ module Steps
     # Replay the member's commits onto the integration tip on a scratch
     # branch, then fast-forward the integration branch to the result.
     def integrate!(member, branch)
+      check_for_placeholder_commits!(member, branch)
+
       temp = "__mt_member_#{member.id}"
       @git.run("checkout", "-B", temp, "FETCH_HEAD", chdir: @chdir)
 
@@ -148,6 +165,50 @@ module Steps
         integration_branch: @integration,
         pr_number: member.pr_number
       ).to_s
+    end
+
+    # Guard against placeholder commit subjects reaching the base branch.
+    # Checks every commit on the member's branch above the base for a
+    # known placeholder subject. A placeholder means the summarize step
+    # didn't complete and the commit message was never rewritten.
+    def check_for_placeholder_commits!(member, branch)
+      subjects = @git.run("log", "#{@base_sha}..FETCH_HEAD", "--format=%s", chdir: @chdir)
+                     .to_s.lines.map(&:strip).reject(&:empty?)
+      found = subjects.find { |s| PLACEHOLDER_COMMIT_SUBJECTS.include?(s) }
+      return unless found
+
+      raise StepFailed,
+        "merge_train: member #{member.slug} (#{branch}) contains a placeholder commit " \
+        "(\"#{found}\") — the summarize step may not have completed. " \
+        "Re-approve the Epic after the member branch is updated with a proper commit message."
+    end
+
+    # Guard against duplicate patches reaching the base branch. After all
+    # members are integrated we scan every commit above the base; two commits
+    # with the identical diff (same fingerprint) indicate that the same
+    # change landed twice — typically from overlapping or redundant member
+    # branches. Hard-fail so the operator can deduplicate before re-approving.
+    def check_duplicate_patch_ids!
+      shas = @git.run("log", "--format=%H", "#{@base_sha}..HEAD", chdir: @chdir)
+                 .to_s.lines.map(&:strip).reject(&:empty?)
+      return if shas.size < 2
+
+      seen = {}
+      shas.each do |sha|
+        diff = @git.run("diff-tree", "-p", "--no-commit-id", sha, chdir: @chdir).to_s
+        next if diff.empty?
+
+        fingerprint = Digest::SHA256.hexdigest(diff)
+
+        if (dupe_sha = seen[fingerprint])
+          subj = @git.run("log", "-1", "--format=%s", sha, chdir: @chdir).to_s.strip
+          raise StepFailed,
+            "merge_train: duplicate commits #{sha.first(9)} and #{dupe_sha.first(9)} apply the same patch " \
+            "(\"#{subj.truncate(80)}\") — re-approve the Epic after deduplicating the member branches"
+        end
+
+        seen[fingerprint] = sha
+      end
     end
 
     def skip_revalidated_grade_steps!(sha)
