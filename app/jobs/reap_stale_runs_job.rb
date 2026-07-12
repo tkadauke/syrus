@@ -49,6 +49,7 @@ class ReapStaleRunsJob < ApplicationJob
     requeue_orphaned_queued_runs      # inline-drive successor never enqueued
     start_orphaned_queued_workflows   # workflow committed, first Run never created
     cancel_unstarted_terminal_queued_steps
+    fail_orphaned_workflows_with_failed_hard_stop
     finish_orphaned_terminal_workflows
     reconcile_missed_worker_died_auto_retries
   end
@@ -359,6 +360,32 @@ class ReapStaleRunsJob < ApplicationJob
     end
   end
 
+  # Recovery for a missed hard-failure propagation: a Step reached
+  # :failed, no Run remains active, but downstream queued Steps still
+  # make Workflow#active_descendants? true. That shape cannot advance
+  # without a worker, and finish_orphaned_terminal_workflows below
+  # deliberately skips it because the queued tail is still active.
+  #
+  # Preserve the queued tail. Workflow#fail intentionally leaves
+  # downstream Steps alone so "Retry from failed step" can reopen the
+  # failed Step and continue through the existing chain.
+  def fail_orphaned_workflows_with_failed_hard_stop
+    Workflow.where(state: "running")
+            .where("started_at < ?", ORPHAN_RUN_GRACE_PERIOD.ago)
+            .find_each do |workflow|
+      next unless workflow.steps.active.exists?
+      next if Run.where(step_id: workflow.steps.select(:id)).active.exists?
+
+      failed_step = latest_orphaned_hard_failure_step(workflow)
+      next unless failed_step
+
+      reason = orphaned_hard_failure_reason(workflow, failed_step)
+      workflow.failure_reason = reason
+      workflow.artifacts = (workflow.artifacts || {}).merge("failure_reason" => reason)
+      fail_workflow!(workflow, log_reason: "failed #{failed_step.kind} step with queued tail and no active runs")
+    end
+  end
+
   # Recovery for the post-step gap: the last Run and Step reached a
   # terminal state, but the StepDispatcher callback that should
   # transition the Workflow itself never completed. At that point
@@ -399,22 +426,59 @@ class ReapStaleRunsJob < ApplicationJob
     nil
   end
 
+  CONTINUABLE_FAILURE_STEP_KINDS = %w[
+    grade
+    grader
+    grader_collect
+  ].freeze
+
+  def latest_orphaned_hard_failure_step(workflow)
+    return unless orphaned_workflow_outcome(workflow) == :failed
+
+    step = workflow.steps.where(state: "failed").order(position: :desc).first
+    return unless step
+    return if CONTINUABLE_FAILURE_STEP_KINDS.include?(step.kind)
+    return if unexpanded_try_failure?(step)
+
+    step
+  end
+
+  def unexpanded_try_failure?(step)
+    details = step.details.to_h
+    details["try_id"].present? && !details["try_branch_expanded"]
+  end
+
+  def orphaned_hard_failure_reason(workflow, failed_step)
+    existing = workflow.failure_reason.presence || workflow.artifact("failure_reason").presence
+    return existing if existing.present?
+
+    failed_run = failed_step.runs.where(state: "failed").order(created_at: :desc).first ||
+      workflow.runs.where(state: "failed").order(created_at: :desc).first
+    return "#{failed_run.agent_outcome} during #{failed_step.kind}" if failed_run&.agent_outcome.present?
+
+    "#{failed_step.kind} failed with no active runs"
+  end
+
   def succeed_workflow!(workflow)
     return unless workflow.may_succeed?
 
     Rails.logger.info("[ReapStaleRunsJob] Workflow ##{workflow.id} succeeded: all steps/runs are terminal")
-    workflow.succeed!
-    workflow.save!
+    StateTransition.with_source("reconciler") do
+      workflow.succeed!
+      workflow.save!
+    end
   rescue StandardError => e
     Rails.logger.warn("[ReapStaleRunsJob] workflow succeed failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
   end
 
-  def fail_workflow!(workflow)
+  def fail_workflow!(workflow, log_reason: "all steps/runs are terminal")
     return unless workflow.may_fail?
 
-    Rails.logger.info("[ReapStaleRunsJob] Workflow ##{workflow.id} failed: all steps/runs are terminal")
-    workflow.fail!
-    workflow.save!
+    Rails.logger.info("[ReapStaleRunsJob] Workflow ##{workflow.id} failed: #{log_reason}")
+    StateTransition.with_source("reconciler") do
+      workflow.fail!
+      workflow.save!
+    end
   rescue StandardError => e
     Rails.logger.warn("[ReapStaleRunsJob] workflow fail failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
   end

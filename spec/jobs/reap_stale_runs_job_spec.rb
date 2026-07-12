@@ -624,6 +624,61 @@ RSpec.describe ReapStaleRunsJob do
         expect(workflow.reload).to be_failed
       end
 
+      it "fails a running workflow whose hard-stop failed step is followed by a queued tail" do
+        workflow = Workflow.create!(job: job, trigger_kind: "merge_train")
+        workflow.update_columns(
+          state: "running",
+          started_at: (ReapStaleRunsJob::ORPHAN_RUN_GRACE_PERIOD + 30.seconds).ago
+        )
+        assemble = Step.create!(workflow: workflow, kind: "merge_train_assemble", position: 0)
+        build = Step.create!(workflow: workflow, kind: "merge_train_build", position: 1)
+        prepare = Step.create!(workflow: workflow, kind: "prepare", position: 2)
+        assemble.update!(next_step_id: build.id)
+        build.update!(next_step_id: prepare.id)
+
+        assemble_run = assemble.runs.create!(job: job, trigger_kind: "merge_train")
+        assemble.update_columns(state: "succeeded", started_at: 5.minutes.ago, finished_at: 4.minutes.ago)
+        assemble_run.update_columns(state: "succeeded", started_at: 5.minutes.ago, finished_at: 4.minutes.ago)
+
+        build_run = build.runs.create!(job: job, trigger_kind: "merge_train")
+        build.update_columns(state: "failed", started_at: 5.minutes.ago, finished_at: 4.minutes.ago)
+        build_run.update_columns(
+          state: "failed",
+          agent_outcome: "worker_died",
+          started_at: 5.minutes.ago,
+          finished_at: 4.minutes.ago
+        )
+
+        described_class.perform_now
+
+        expect(workflow.reload).to be_failed
+        expect(workflow.failure_reason).to eq("worker_died during merge_train_build")
+        expect(workflow.artifact("failure_reason")).to eq("worker_died during merge_train_build")
+        expect(prepare.reload).to be_queued
+        transition = StateTransition.for_subject(workflow).where(to_state: "failed").last
+        expect(transition.source).to eq("reconciler")
+      end
+
+      it "does not hard-fail continuable grader failures with queued downstream work" do
+        workflow = Workflow.create!(job: job, trigger_kind: "initial")
+        workflow.update_columns(
+          state: "running",
+          started_at: (ReapStaleRunsJob::ORPHAN_RUN_GRACE_PERIOD + 30.seconds).ago
+        )
+        grader = Step.create!(workflow: workflow, kind: "grader", position: 0)
+        collect = Step.create!(workflow: workflow, kind: "grader_collect", position: 1)
+        grader.update!(next_step_id: collect.id)
+
+        run = grader.runs.create!(job: job, trigger_kind: "initial")
+        grader.update_columns(state: "failed", started_at: 5.minutes.ago, finished_at: 4.minutes.ago)
+        run.update_columns(state: "failed", started_at: 5.minutes.ago, finished_at: 4.minutes.ago)
+
+        described_class.perform_now
+
+        expect(workflow.reload).to be_running
+        expect(collect.reload).to be_queued
+      end
+
       it "cancels queued steps whose only runs were cancelled before starting and finishes the workflow" do
         workflow = Workflow.create!(job: job, trigger_kind: "initial")
         workflow.update_columns(
