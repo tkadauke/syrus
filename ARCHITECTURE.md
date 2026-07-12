@@ -1105,8 +1105,6 @@ Several layers, each catching different failure modes:
 - **Feature flags** — declared in `config/features.yml`, synchronized
   into `Feature` rows, serialized through the bootstrap
   `feature_flags` payload, and toggled by admins at `/admin/features`.
-  `v2_ui` enables the redesigned app shell. `v2_sidebar_subject_selector`
-  controls the dashboard subject selector inside the V2 sidebar.
   `terminal` gates the interactive terminal experience.
 - **`/settings/edit`** — admin settings toggles (signups open, max job
   failures, merge-train enablement, etc.); redirects non-admins to
