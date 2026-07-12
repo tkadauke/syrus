@@ -1,13 +1,18 @@
 module PendingActions
   # Confirmed when the operator accepts handoff from a Coding Mode session.
-  # The full execution (push validation, PR open, grader dispatch) is wired
-  # by the coding session infrastructure in a sibling Epic Job; this handler
-  # records the intent so the pending action lifecycle completes cleanly.
+  # Transitions the job out of :coding and fires a CodingHandoff workflow so
+  # graders, summarize, and PR automation run.
   class CompleteImplementStep < Base
     action_key "complete_implement_step"
 
     def execute
-      nil
+      job = action_user_job
+      raise ArgumentError, "job is not in coding state" unless job.coding?
+
+      workflow = job.start_coding_handoff!
+      raise ArgumentError, "could not start coding handoff" unless workflow
+
+      workflow
     end
 
     def validate_payload(errors)
