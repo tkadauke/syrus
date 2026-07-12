@@ -5,28 +5,11 @@ RSpec.describe Workflows::Retry do
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
   let(:job) { Factories.job_record(user: user, repository: repository, state: "open") }
 
-  context "without coverage configured" do
-    before { allow(RepoCoveragePlanReader).to receive(:for_job).and_return(nil) }
+  it "materializes the standard chain with coverage_analyze always present" do
+    workflow = described_class.instantiate(job: job)
 
-    it "materializes the standard chain without coverage_analyze" do
-      workflow = described_class.instantiate(job: job)
-
-      expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[ prepare implement grader_fanout grader_collect summarize test_plan pr_open ]
-      )
-    end
-  end
-
-  context "with coverage configured" do
-    let(:coverage_plan) { instance_double(RepoCoveragePlan) }
-    before { allow(RepoCoveragePlanReader).to receive(:for_job).and_return(coverage_plan) }
-
-    it "inserts coverage_analyze after grader_collect and before summarize" do
-      workflow = described_class.instantiate(job: job)
-
-      expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[ prepare implement grader_fanout grader_collect coverage_analyze summarize test_plan pr_open ]
-      )
-    end
+    expect(workflow.steps.order(:position).pluck(:kind)).to eq(
+      %w[ prepare implement grader_fanout grader_collect coverage_analyze summarize test_plan pr_open ]
+    )
   end
 end

@@ -26,17 +26,11 @@ class SyrusYml
   GradeStep = Data.define(:name, :run, :description, :required, :timeout_minutes)
   HooksConfig = Data.define(:post_checkout)
   AdversarialReviewConfig = Data.define(:rounds)
-  CoverageSource = Data.define(:artifact, :format)
-  CoverageThreshold = Data.define(:lines, :pr_lines)
-  CoverageConfig = Data.define(:sources, :threshold, :on_miss, :hitmap_ttl_days, :pr_comment, :schedule_prompt) do
-    def threshold_miss?(lines_pct:, pr_delta_pct: nil)
-      return false unless threshold
-
-      lines_miss = threshold.lines && lines_pct && lines_pct < threshold.lines
-      pr_miss = threshold.pr_lines && pr_delta_pct && pr_delta_pct < threshold.pr_lines
-      lines_miss || pr_miss || false
-    end
-  end
+  # Backward-compat aliases — point to the canonical RepoCoveragePlan types so
+  # existing code and specs that reference SyrusYml::CoverageConfig etc. still work.
+  CoverageSource    = RepoCoveragePlan::Source
+  CoverageThreshold = RepoCoveragePlan::Threshold
+  CoverageConfig    = RepoCoveragePlan
 
   def self.load_file(path)
     new(Pathname.new(path).read).parse
@@ -68,11 +62,6 @@ class SyrusYml
   end
 
   private
-
-  def parse_coverage(raw)
-    return nil if raw.nil?
-    RepoCoveragePlan.from_config(raw)
-  end
 
   def parse_adversarial_review(raw)
     return nil if raw.nil?
@@ -189,7 +178,7 @@ class SyrusYml
     hitmap_ttl_days = raw.key?("hitmap_ttl_days") ? Integer(raw["hitmap_ttl_days"]) : COVERAGE_DEFAULT_HITMAP_TTL_DAYS
     raise ParseError, "coverage.hitmap_ttl_days: must be positive" unless hitmap_ttl_days > 0
 
-    CoverageConfig.new(
+    RepoCoveragePlan.new(
       sources: sources,
       threshold: threshold,
       on_miss: on_miss,
@@ -215,7 +204,7 @@ class SyrusYml
       format = item["format"].to_s.strip.downcase
       raise ParseError, "#{label}.format: must be one of #{COVERAGE_VALID_FORMATS.join(', ')}" unless COVERAGE_VALID_FORMATS.include?(format)
 
-      CoverageSource.new(artifact: artifact, format: format)
+      RepoCoveragePlan::Source.new(artifact: artifact, format: format)
     end
   end
 
@@ -233,7 +222,7 @@ class SyrusYml
       raise ParseError, "coverage.threshold.pr_lines: must be between 0 and 100"
     end
 
-    CoverageThreshold.new(lines: lines, pr_lines: pr_lines)
+    RepoCoveragePlan::Threshold.new(lines: lines, branches: nil, pr_lines: pr_lines)
   rescue ArgumentError, TypeError
     raise ParseError, "coverage.threshold: lines and pr_lines must be numbers"
   end

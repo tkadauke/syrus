@@ -11,37 +11,19 @@ RSpec.describe Workflows::Initial do
     )
   end
 
-  context "without coverage configured" do
-    before { allow(RepoCoveragePlanReader).to receive(:for_job).and_return(nil) }
+  it "materializes the standard chain with coverage_analyze always present" do
+    workflow = described_class.instantiate(job: job)
 
-    it "materializes the standard chain without coverage_analyze" do
-      workflow = described_class.instantiate(job: job)
-
-      expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[ prepare implement grader_fanout grader_collect summarize test_plan pr_open ]
-      )
-    end
+    expect(workflow.steps.order(:position).pluck(:kind)).to eq(
+      %w[ prepare implement grader_fanout grader_collect coverage_analyze summarize test_plan pr_open ]
+    )
   end
 
-  context "with coverage configured" do
-    let(:coverage_plan) { instance_double(RepoCoveragePlan) }
-    before { allow(RepoCoveragePlanReader).to receive(:for_job).and_return(coverage_plan) }
+  it "places coverage_analyze outside the retry_until loop" do
+    workflow = described_class.instantiate(job: job)
 
-    it "inserts coverage_analyze after grader_collect and before summarize" do
-      workflow = described_class.instantiate(job: job)
-
-      kinds = workflow.steps.order(:position).pluck(:kind)
-      expect(kinds).to eq(
-        %w[ prepare implement grader_fanout grader_collect coverage_analyze summarize test_plan pr_open ]
-      )
-    end
-
-    it "places coverage_analyze outside the retry_until loop" do
-      workflow = described_class.instantiate(job: job)
-
-      steps = workflow.steps.order(:position).index_by(&:kind)
-      expect(steps["coverage_analyze"].loop_id).to be_nil
-      expect(steps["grader_collect"].loop_id).not_to be_nil
-    end
+    steps = workflow.steps.order(:position).index_by(&:kind)
+    expect(steps["coverage_analyze"].loop_id).to be_nil
+    expect(steps["grader_collect"].loop_id).not_to be_nil
   end
 end

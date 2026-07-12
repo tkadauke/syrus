@@ -30,11 +30,11 @@ module Workflows
           repair: [ :respond ],
           check: [ :grader_fanout, :grader_collect ]
         ),
-        coverage_analyze_for(job),
+        "coverage_analyze",
         "coverage_pr_comment",
         "summarize_amend",
         follow_up_push(max_iterations: AppSetting.grade_max_iterations)
-      ].compact
+      ]
     end
 
     # Mark the most recently-addressed PR comment so the feedback

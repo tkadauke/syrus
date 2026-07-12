@@ -25,9 +25,11 @@ class RepoCoveragePlanReader
     file = client.file_content_at(repository.slug, CONFIG_FILE, repository.default_branch)
     return nil unless file
 
-    config = SyrusYml.new(file.fetch(:content)).parse
-    config.coverage
-  rescue SyrusYml::ParseError => e
+    raw = YAML.safe_load(file.fetch(:content)) || {}
+    return nil unless raw.is_a?(Hash) && raw.key?("coverage")
+
+    RepoCoveragePlan.from_config(raw["coverage"])
+  rescue SyrusYml::ParseError, Psych::SyntaxError => e
     Rails.logger.warn("[RepoCoveragePlanReader] coverage disabled for #{repository.slug}: #{e.message}")
     nil
   rescue StandardError => e
