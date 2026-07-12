@@ -2634,38 +2634,6 @@ describe("App", () => {
     })
   })
 
-  it("does not carry the current dashboard view when switching subjects", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
-      const path = String(input)
-      const subject = path.includes("subject=epic") ? "epic" : "job"
-      const view = subject === "job" ? "kanban" : "list"
-
-      return Promise.resolve(
-        new Response(JSON.stringify(dashboardPayload({ subject, view })), { status: 200, headers: { "Content-Type": "application/json" } })
-      )
-    })
-
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/dashboard/epics?view=list"]}>
-          <App />
-          <LocationProbe />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
-
-    fireEvent.click(await screen.findByRole("link", { name: "Jobs" }))
-
-    await waitFor(() => {
-      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/dashboard/jobs")
-    })
-    expect(screen.getByTestId("location")).not.toHaveTextContent("view=")
-    expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/dashboard?subject=job",
-      expect.objectContaining({ credentials: "same-origin" })
-    )
-  })
-
   it("does not carry the current dashboard view when switching subjects in the v2 sidebar", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
