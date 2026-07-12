@@ -6,9 +6,10 @@ module PendingActions
     action_key "submit_coding_changes"
 
     def execute
-      repository = user.repositories.active.find(payload.fetch("repository_id"))
-      branch     = payload.fetch("branch")
+      repository  = user.repositories.active.find(payload.fetch("repository_id"))
+      branch      = payload.fetch("branch")
       description = payload.fetch("description")
+      title       = payload["title"].presence
 
       # Create the job directly in :queued state to skip the triage → queued
       # transition (which would trigger create_initial_run_if_needed). The
@@ -16,8 +17,8 @@ module PendingActions
       job = user.jobs.create!(
         repository: repository,
         kind: "direct",
-        issue_title: GenerateJobTitleJob::PENDING_TITLE,
-        title_pending: true,
+        issue_title: title || GenerateJobTitleJob::PENDING_TITLE,
+        title_pending: title.nil?,
         issue_body: description,
         branch_name: branch,
         linked_chat_id: chat_session.id,
@@ -31,7 +32,7 @@ module PendingActions
       workflow = job.start_coding_handoff!
       raise ArgumentError, "could not start coding handoff (feature may be disabled or state invalid)" unless workflow
 
-      GenerateJobTitleJob.perform_later(job)
+      GenerateJobTitleJob.perform_later(job) if title.nil?
 
       workflow
     end
