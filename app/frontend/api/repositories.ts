@@ -147,6 +147,7 @@ export type RepositoryDetailPayload = {
     queued: number
     failed_7d: number
   }
+  health_history?: RepositoryHealthHistory
   retry_failed_jobs: {
     count: number
     agent_provider: string
@@ -214,6 +215,30 @@ export type RepositoryDetailRecord = {
     resource: string
     observed_at: string
   } | null
+  ci_health: string
+  grader_health: string
+  main_health: string
+  last_health_checked_sha: string | null
+}
+
+export type RepositoryHealthCheckRecord = {
+  id: number
+  sha: string
+  sha_url: string
+  checked_at: string
+  ci_health: string
+  grader_health: string
+  source: string
+  ci_failed_checks: Array<{ name: string; url: string }>
+  grader_failed_names: string[]
+}
+
+export type RepositoryHealthHistory = {
+  ci_health: string
+  grader_health: string
+  main_health: string
+  last_health_checked_sha: string | null
+  records: RepositoryHealthCheckRecord[]
 }
 
 export type RepositoryOwnerUser = {

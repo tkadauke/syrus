@@ -35,15 +35,22 @@ class PollMainBranchHealthJob < ApplicationJob
 
     previous_health = repository.main_health
 
-    if summary[:any_failed?]
+    new_ci_health = if summary[:any_failed?]
+      "broken"
+    elsif summary[:all_passed?]
+      "healthy"
+    end
+
+    if new_ci_health
       repository.update_columns(
-        ci_health: "broken",
+        ci_health: new_ci_health,
         last_health_checked_sha: sha
       )
-    elsif summary[:all_passed?]
-      repository.update_columns(
-        ci_health: "healthy",
-        last_health_checked_sha: sha
+      MainBranchHealthCheck.record_ci_poll(
+        repository: repository,
+        sha: sha,
+        ci_health: new_ci_health,
+        ci_failed_checks: summary[:failed_checks]
       )
     end
 

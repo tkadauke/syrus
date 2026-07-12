@@ -440,13 +440,15 @@ class GithubClient
 
   def check_runs_summary_for(repo_slug, sha)
     runs = Array(track_rate_limits { @client.check_runs_for_ref(repo_slug, sha) }.check_runs)
-    return { any?: false, pending?: false, any_failed?: false, all_passed?: false } if runs.empty?
+    return { any?: false, pending?: false, any_failed?: false, all_passed?: false, failed_checks: [] } if runs.empty?
 
     pending = runs.any? { |cr| cr.status != "completed" }
-    any_failed = runs.any? { |cr| cr.status == "completed" && FAILED_CONCLUSIONS.include?(cr.conclusion) }
+    failed_runs = runs.select { |cr| cr.status == "completed" && FAILED_CONCLUSIONS.include?(cr.conclusion) }
+    any_failed = failed_runs.any?
     all_passed = !pending && runs.all? { |cr| PASSING_CONCLUSIONS.include?(cr.conclusion) }
+    failed_checks = failed_runs.map { |cr| { name: cr.name.to_s, url: cr.html_url.to_s } }
 
-    { any?: true, pending?: pending, any_failed?: any_failed, all_passed?: all_passed }
+    { any?: true, pending?: pending, any_failed?: any_failed, all_passed?: all_passed, failed_checks: failed_checks }
   rescue Octokit::TooManyRequests => e
     Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug}@#{sha} check_runs_summary: #{e.message}")
     raise

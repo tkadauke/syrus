@@ -8,6 +8,7 @@ export type JobRepository = {
   default_branch: string
   review_policy: "self" | "two_person" | "final_say"
   feedback_policy: "auto" | "confirm"
+  main_health: string
   repository_path: string
 }
 

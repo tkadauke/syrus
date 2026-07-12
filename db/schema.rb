@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_10_061516) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_12_202210) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -653,6 +653,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_10_061516) do
     t.index ["validity"], name: "index_jobs_on_validity"
   end
 
+  create_table "main_branch_health_checks", force: :cascade do |t|
+    t.datetime "checked_at", null: false
+    t.json "ci_failed_checks"
+    t.string "ci_health", default: "unknown", null: false
+    t.datetime "created_at", null: false
+    t.json "grader_failed_names"
+    t.string "grader_health", default: "unknown", null: false
+    t.integer "repository_id", null: false
+    t.string "sha", null: false
+    t.string "source", null: false
+    t.datetime "updated_at", null: false
+    t.index ["repository_id", "checked_at"], name: "idx_mbhc_repo_checked_at"
+    t.index ["repository_id"], name: "index_main_branch_health_checks_on_repository_id"
+  end
+
   create_table "merge_train_members", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "job_id", null: false
@@ -1181,6 +1196,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_10_061516) do
   add_foreign_key "jobs", "users", column: "claimed_by_user_id"
   add_foreign_key "jobs", "users", column: "dependencies_overridden_by_user_id"
   add_foreign_key "jobs", "users", column: "owner_user_id"
+  add_foreign_key "main_branch_health_checks", "repositories"
   add_foreign_key "merge_train_members", "jobs"
   add_foreign_key "merge_train_members", "merge_trains"
   add_foreign_key "merge_trains", "epics"
