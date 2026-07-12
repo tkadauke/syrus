@@ -101,8 +101,17 @@ class ReapStaleRunsJob < ApplicationJob
   # act when NO active RunJob is driving the Run's Workflow — if one
   # is, the inline loop still owns the successor and re-enqueuing would
   # duplicate it (and risk a false worker_died if both reach the Run).
+  #
+  # Exception: if the Step itself is already :running while the Run is
+  # still :queued, the worker died after `step.start!` but before
+  # `run.start!`. That transition window should be milliseconds; after
+  # the grace period it is safer to re-enqueue even when an old root
+  # RunJob still appears active in SolidQueue. This is the JOB-1540
+  # wedge: the Workflow is "active" forever, but no Run can make
+  # progress.
+  #
   # The grace period covers the create/enqueue commit race for a
-  # Workflow's very first Run.
+  # Workflow's very first Run and the tiny Step-start/Run-start window.
   def requeue_orphaned_queued_runs
     cutoff = ORPHAN_RUN_GRACE_PERIOD.ago
     candidates = Run.where(state: "queued").where("created_at < ?", cutoff).to_a
@@ -112,9 +121,15 @@ class ReapStaleRunsJob < ApplicationJob
     candidates.each do |run|
       workflow = run.step&.workflow
       next unless workflow&.running? || workflow&.queued?
-      next if driven_workflow_ids.include?(workflow.id)
+      step_started_without_run = run.step&.running? && run.started_at.nil?
+      next if driven_workflow_ids.include?(workflow.id) && !step_started_without_run
 
-      Rails.logger.info("[ReapStaleRunsJob] Run ##{run.id} re-enqueued: :queued with no SolidQueue::Job and no active worker driving Workflow ##{workflow.id} (inline-drive orphan)")
+      reason = if step_started_without_run
+        "running Step ##{run.step_id} still has queued Run ##{run.id}"
+      else
+        ":queued with no SolidQueue::Job and no active worker driving Workflow ##{workflow.id} (inline-drive orphan)"
+      end
+      Rails.logger.info("[ReapStaleRunsJob] Run ##{run.id} re-enqueued: #{reason}")
       run.reenqueue!
     end
   rescue ActiveRecord::StatementInvalid => e

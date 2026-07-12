@@ -133,6 +133,20 @@ class ReconcileJobStatesJob < ApplicationJob
                   reason: "latest workflow :failed but Job stuck at :running",
                   steps: %i[ mark_failed! ])
 
+      when [ "running", "cancelled" ]
+        # Workflow was cancelled (operator stop, deploy interruption,
+        # or workflow cascade), but the Job missed the terminal
+        # propagation and still looks active. With no active work left,
+        # surface it as failed so the normal Retry / Start-over actions
+        # are available instead of leaving it in the dashboard's running
+        # set forever.
+        return nil if job.any_active_run?
+        return nil if job.workflows.where(state: %w[ queued running ]).exists?
+
+        new(job, target_state: "failed",
+                  reason: "latest workflow :cancelled but Job stuck at :running",
+                  steps: %i[ mark_failed! ])
+
       when [ "queued", "succeeded" ]
         # Should rarely happen — implies an old workflow finished
         # but the Job got bounced back to :queued without a new
