@@ -439,6 +439,7 @@ RSpec.describe ChatPendingAction do
       # Force auto-load of handlers that are only referenced by string key
       # in ChatPendingAction::ACTIONS, so their action_key registrations run.
       PendingActions::CompleteImplementStep
+      PendingActions::SubmitCodingChanges
       all_keys = ChatPendingAction::ACTIONS + ChatPendingAction::ACTION_TYPES
       all_keys.each do |key|
         expect(PendingActions::REGISTRY).to have_key(key), "registry missing '#{key}'"
