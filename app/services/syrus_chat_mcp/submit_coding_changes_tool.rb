@@ -27,13 +27,17 @@ module SyrusChatMcp
         description: {
           type: "string",
           description: "Description of what was implemented. Becomes the Job prompt body."
+        },
+        title: {
+          type: "string",
+          description: "A short human-readable title for this job. When provided, used directly and skips background title generation."
         }
       },
       required: %w[branch description]
     )
 
     class << self
-      def call(branch:, description:, repository_id: nil, server_context:)
+      def call(branch:, description:, repository_id: nil, title: nil, server_context:)
         chat_session = server_context.fetch(:chat_session)
 
         return SyrusChatMcp.invalid("Coding Mode is not enabled") unless Feature.coding_mode_enabled?
@@ -47,14 +51,17 @@ module SyrusChatMcp
         description = description.to_s.strip
         return SyrusChatMcp.invalid("description is required") if description.blank?
 
+        payload = {
+          "repository_id" => repository.id,
+          "branch" => branch,
+          "description" => description
+        }
+        payload["title"] = title.to_s.strip if title.present?
+
         pending_action = chat_session.pending_actions.create!(
           action: "submit_coding_changes",
           state: "pending",
-          payload: {
-            "repository_id" => repository.id,
-            "branch" => branch,
-            "description" => description
-          },
+          payload: payload,
           requested_by: "agent"
         )
 

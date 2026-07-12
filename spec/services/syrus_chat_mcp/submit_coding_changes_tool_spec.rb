@@ -58,6 +58,24 @@ RSpec.describe SyrusChatMcp::SubmitCodingChangesTool do
     )
   end
 
+  it "stores title in the payload when provided" do
+    response = call_tool(branch: "feature/my-work", description: "Add user profile page", title: "Add user profile page")
+    body = payload(response)
+    pending_action = chat_session.pending_actions.find(body[:pending_action_id])
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(pending_action.payload).to include("title" => "Add user profile page")
+  end
+
+  it "omits title from the payload when not provided" do
+    response = call_tool(branch: "feature/my-work", description: "Add user profile page")
+    body = payload(response)
+    pending_action = chat_session.pending_actions.find(body[:pending_action_id])
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(pending_action.payload).not_to have_key("title")
+  end
+
   it "accepts an explicit repository_id" do
     other_repo = Factories.repository(user: user)
 

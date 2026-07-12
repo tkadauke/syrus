@@ -75,13 +75,41 @@ RSpec.describe PendingActions::SubmitCodingChanges do
     expect(action.result.job.branch_name).to eq("feature/my-work")
   end
 
-  it "enqueues GenerateJobTitleJob for the created Job" do
+  it "enqueues GenerateJobTitleJob for the created Job when title is absent" do
     action = pending_action
 
     allow(StepDispatcher).to receive(:start_workflow)
     expect {
       action.confirm!(user: user)
     }.to have_enqueued_job(GenerateJobTitleJob)
+  end
+
+  context "when title is provided in the payload" do
+    def pending_action_with_title
+      chat_session.pending_actions.create!(
+        action: "submit_coding_changes",
+        payload: {
+          "repository_id" => repository.id,
+          "branch" => "feature/my-work",
+          "description" => "Add user profile page",
+          "title" => "User Profile Page"
+        },
+        requested_by: "agent"
+      )
+    end
+
+    it "sets issue_title from the payload and skips GenerateJobTitleJob" do
+      action = pending_action_with_title
+
+      allow(StepDispatcher).to receive(:start_workflow)
+      expect {
+        action.confirm!(user: user)
+      }.not_to have_enqueued_job(GenerateJobTitleJob)
+
+      job = action.result.job
+      expect(job.issue_title).to eq("User Profile Page")
+      expect(job.title_pending).to be(false)
+    end
   end
 
   it "raises RecordNotFound when the repository belongs to another user" do
