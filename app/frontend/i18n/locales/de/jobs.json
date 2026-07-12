@@ -425,5 +425,7 @@
   "run_agent_fallback": "Agent",
   "transcript_kind_agent": "Agent",
   "transcript_kind_tool": "Werkzeug",
-  "transcript_kind_system": "System"
+  "transcript_kind_system": "System",
+  "main_branch_broken_waiting": "Dieser Job wartet auf die Wiederherstellung des Hauptzweigs.",
+  "main_branch_broken_view": "Repository-Gesundheit ansehen"
 }

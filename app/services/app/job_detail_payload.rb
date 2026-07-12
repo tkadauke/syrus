@@ -142,6 +142,7 @@ module App
         review_policy: repository.review_policy,
         feedback_policy: repository.feedback_policy,
         credential_mode: repository.credential_mode,
+        main_health: repository.main_health,
         repository_path: repository_path(repository)
       }
     end

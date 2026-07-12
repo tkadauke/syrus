@@ -68,7 +68,8 @@
     "resume_landing": "Resume landing",
     "pause_landing": "Pause landing",
     "unable_to_rename": "Unable to rename smart folder.",
-    "unable_to_delete": "Unable to delete smart folder."
+    "unable_to_delete": "Unable to delete smart folder.",
+    "landing_paused_broken_main": "Landing paused — main branch is broken."
   },
   "filters_layout": {
     "folders_and_filters": "Folders and filters",

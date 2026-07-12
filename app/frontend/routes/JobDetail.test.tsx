@@ -546,7 +546,8 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       default_branch: "main",
       review_policy: "self",
       feedback_policy: "confirm",
-      repository_path: "/repositories/2"
+      repository_path: "/repositories/2",
+      main_health: "unknown"
     },
     epic: null,
     origin_chat: null,

@@ -15,7 +15,7 @@ import { StatusPill, TonePill } from "../components/StatusPill"
 import { FilterBar } from "../components/FilterBar"
 import { workflowSlug } from "../lib/slugs"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
-import { bulkDashboardEpics, bulkDashboardJobs, fetchDashboard, recordDashboardFilterUsage, updateDashboardEpicState, updateDashboardPreferences, type DashboardBulkEpicAction, type DashboardBulkJobAction, type DashboardEpicItem, type DashboardItem, type DashboardJobItem, type DashboardLandingQueueEntry, type DashboardLane, type DashboardPayload, type DashboardRepository, type DashboardSubject, type DashboardWorkflowItem } from "../api/dashboard"
+import { bulkDashboardEpics, bulkDashboardJobs, fetchDashboard, recordDashboardFilterUsage, updateDashboardEpicState, updateDashboardPreferences, type DashboardBrokenRepository, type DashboardBulkEpicAction, type DashboardBulkJobAction, type DashboardEpicItem, type DashboardItem, type DashboardJobItem, type DashboardLandingQueueEntry, type DashboardLane, type DashboardPayload, type DashboardRepository, type DashboardSubject, type DashboardWorkflowItem } from "../api/dashboard"
 import type { LandingQueueBlockerJob } from "../api/jobs"
 
 const KANBAN_CARDS_PER_PAGE = 20
@@ -58,6 +58,7 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
         <DashboardCreateActions payload={payload} prefix={prefix} />
       </header>
       <ReadinessPanel prefix={prefix} readiness={readiness} />
+      <BrokenMainBanners prefix={prefix} repositories={payload.broken_repositories ?? []} />
 
       {isDesktop ? (
         <>
@@ -114,6 +115,45 @@ export function ReadinessPanel({ prefix, readiness }: { prefix: string; readines
         ))}
       </div>
     </section>
+  )
+}
+
+function BrokenMainBanners({ prefix, repositories }: { prefix: string; repositories: DashboardBrokenRepository[] }) {
+  const { t } = useT("dashboard")
+  const [dismissed, setDismissed] = useState<Set<number>>(() => new Set())
+  const visible = repositories.filter((repo) => !dismissed.has(repo.id))
+
+  if (visible.length === 0) return null
+
+  return (
+    <div className="space-y-2">
+      {visible.map((repo) => (
+        <div className="flex items-center justify-between gap-3 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm dark:border-red-900 dark:bg-red-950/40" key={repo.id} role="alert">
+          <span className="text-red-800 dark:text-red-200">
+            <span className="font-mono font-medium">{repo.slug}</span>
+            {" — "}{t("broken_main_banner")}
+          </span>
+          <div className="flex shrink-0 items-center gap-2">
+            <Link
+              className="rounded border border-red-300 bg-white px-2 py-1 text-xs font-medium text-red-800 hover:bg-red-50 dark:border-red-800 dark:bg-red-950 dark:text-red-200 dark:hover:bg-red-900"
+              to={withRoutePrefix(repo.repository_path, prefix)}
+            >
+              {t("broken_main_view_details")}
+            </Link>
+            <button
+              aria-label={t("broken_main_dismiss")}
+              className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-200"
+              onClick={() => setDismissed((prev) => new Set([...prev, repo.id]))}
+              type="button"
+            >
+              <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }
 
