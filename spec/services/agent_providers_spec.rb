@@ -54,6 +54,23 @@ RSpec.describe AgentProviders do
       )
     end
 
+    it "delegates to the OpenCode provider class method for opencode provider" do
+      expect(AgentProviders::OpenCode).to receive(:invoke_one_shot).with(
+        hash_including(user: user, scope: "test-scope")
+      ).and_return(fake_result)
+
+      described_class.run_one_shot(
+        provider: "opencode",
+        user: user,
+        runner: nil,
+        scope: "test-scope",
+        prompt: "hello",
+        log_sink: ->(*) {},
+        timeout: 30,
+        max_turns: 1
+      )
+    end
+
     it "raises ConfigurationError for unknown provider" do
       expect {
         described_class.run_one_shot(

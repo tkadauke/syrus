@@ -127,7 +127,7 @@ RSpec.describe DirectJobTitleGenerator do
       api_key: "sk-test",
       endpoint_url: nil
     )
-    expect(seen[:opencode_home]).to eq(File.join(data_root, "agent_homes", "direct_job_title", user.id.to_s, "opencode"))
+    expect(seen[:opencode_home]).to eq(File.join(data_root, "agent_homes", "direct-job-title", user.id.to_s, "opencode"))
   ensure
     ENV["SYRUS_DATA_ROOT"] = old_data_root
     FileUtils.rm_rf(data_root) if data_root

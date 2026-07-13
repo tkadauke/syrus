@@ -2,6 +2,25 @@ module AgentProviders
   class OpenCode < Base
     def self.provider = "opencode"
 
+    def self.invoke_one_shot(workspace_path:, user:, runner:, scope:, prompt:, log_sink:, timeout:, max_turns:)
+      raise ConfigurationError, "OpenCode is not configured" unless user.opencode_configured?
+
+      OpenCodeInvocation.new(
+        workspace_path,
+        prompt: prompt,
+        backend_config: OpenCodeInvocation::BackendConfig.new(
+          backend: user.opencode_backend,
+          model: user.opencode_model,
+          api_key: user.opencode_api_key,
+          endpoint_url: user.opencode_endpoint_url
+        ),
+        log_sink: log_sink,
+        runner: runner,
+        timeout: timeout,
+        opencode_home: File.join(WorkflowWorkspace.data_root, "agent_homes", scope, user.id.to_s, provider)
+      ).run
+    end
+
     private
 
     def invoke(workspace_path:, prompt:, log_sink:, timeout:, mcp:, resume_session_id:, **_ignored)
