@@ -1062,6 +1062,8 @@ function BookmarkControl({ item, payload, queryKey, onNotice }: { item: Extract<
   const [open, setOpen] = useState(false)
   const [label, setLabel] = useState("")
   const [copied, setCopied] = useState(false)
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current) }, [])
   const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
   const bookmark = useMutation({
     mutationFn: () => createChatBookmark(appendSearch(payload.paths.app_bookmarks_path, search), item.id, label),
@@ -1083,7 +1085,7 @@ function BookmarkControl({ item, payload, queryKey, onNotice }: { item: Extract<
   function handleCopy() {
     void navigator.clipboard.writeText(item.text).then(() => {
       setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+      copyTimeoutRef.current = setTimeout(() => setCopied(false), 1500)
     })
   }
 
@@ -4275,11 +4277,13 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
 function LocalDaemonBanner({ payload }: { payload: ChatPayload }) {
   const { t } = useT("chat")
   const [copied, setCopied] = useState(false)
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current) }, [])
 
   function copyCommand() {
     void navigator.clipboard.writeText(t("local_daemon_command")).then(() => {
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000)
     })
   }
 
