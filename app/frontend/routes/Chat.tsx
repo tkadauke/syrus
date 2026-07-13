@@ -4989,6 +4989,7 @@ function asExcalidrawFiles(files: ChatWhiteboardScene["files"]) {
 
 function cleanWhiteboardAppState(value: unknown): ChatWhiteboardScene["appState"] {
   const appState = safeJsonObject(value)
+  delete appState.activeTool
   delete appState.selectedElementIds
   delete appState.selectedGroupIds
   delete appState.collaborators

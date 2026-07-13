@@ -12409,6 +12409,63 @@ describe("App", () => {
     expect(excalidrawMock.lastInitialData?.appState).toEqual({ viewBackgroundColor: "#ffffff" })
   })
 
+  it("strips activeTool from whiteboard appState so elements remain selectable after mount", async () => {
+    const payload = chatPayload()
+    payload.whiteboard.appState = {
+      viewBackgroundColor: "#ffffff",
+      activeTool: { type: "rectangle", customType: null }
+    }
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("button", { name: "Draw on whiteboard" })).toBeInTheDocument()
+    expect(excalidrawMock.lastInitialData?.appState).toEqual({ viewBackgroundColor: "#ffffff" })
+  })
+
+  it("strips activeTool from appState when applying a remote whiteboard scene update", async () => {
+    excalidrawMock.updateScene.mockClear()
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/whiteboard" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(JSON.stringify({
+          scene_json: {
+            elements: [{ id: "agent-box", type: "rectangle" }],
+            appState: { activeTool: { type: "rectangle", customType: null }, viewBackgroundColor: "#ffffff" },
+            files: {}
+          },
+          version: 3
+        }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(await screen.findByRole("button", { name: "Draw on whiteboard" }))
+
+    await waitFor(() => {
+      expect(excalidrawMock.updateScene).toHaveBeenCalledWith({
+        elements: [{ id: "agent-box", type: "rectangle" }],
+        appState: { viewBackgroundColor: "#ffffff" }
+      })
+    })
+  })
+
   it("keeps the chat visible when the whiteboard render fails", async () => {
     excalidrawMock.throwOnRender = true
     vi.spyOn(console, "error").mockImplementation(() => {})

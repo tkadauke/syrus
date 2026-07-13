@@ -70,6 +70,21 @@ RSpec.describe Whiteboard do
     expect(whiteboard.current_state.fetch("appState")).to eq("viewBackgroundColor" => "#ffffff")
   end
 
+  it "strips activeTool from appState so remote scene updates do not switch the user's active tool" do
+    whiteboard = described_class.create!(
+      chat_session: chat_session,
+      scene_json: {
+        "elements" => [],
+        "appState" => {
+          "viewBackgroundColor" => "#ffffff",
+          "activeTool" => { "type" => "rectangle", "customType" => nil }
+        }
+      }
+    )
+
+    expect(whiteboard.current_state.fetch("appState")).to eq("viewBackgroundColor" => "#ffffff")
+  end
+
   it "caps the scene element count" do
     whiteboard = described_class.new(
       chat_session: chat_session,

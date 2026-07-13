@@ -3,6 +3,7 @@ class Whiteboard < ApplicationRecord
   ELEMENT_LIMIT_MESSAGE = "Whiteboard at element limit (1000). Operator must clear or remove some shapes before adding more."
   EMPTY_SCENE = { "elements" => [], "appState" => {}, "files" => {} }.freeze
   TRANSIENT_APP_STATE_KEYS = %w[
+    activeTool
     collaborators
     selectedElementIds
     selectedGroupIds
