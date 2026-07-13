@@ -203,12 +203,11 @@ class Job < ApplicationRecord
     state :queued
     state :running
     state :implemented
-    state :coding
     state :failed
     state :approved
     state :landing
     state :closed
-    # Coding Mode state: the job's implement step is owned by a chat session.
+    # Coding Mode / Local Mode state: the job's implement step is owned by a chat session.
     # Automation is blocked while this state is active; linked_chat_id identifies
     # the owning session. Exit via release_from_coding (→ implemented) or close.
     state :coding

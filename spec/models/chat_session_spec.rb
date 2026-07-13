@@ -60,10 +60,8 @@ RSpec.describe ChatSession do
   end
 
   it "rejects unknown modes" do
-    session = described_class.new(user: repo.user, mode: "turbo")
-
-    expect(session).not_to be_valid
-    expect(session.errors[:mode]).to be_present
+    expect { described_class.new(user: repo.user, mode: "turbo") }
+      .to raise_error(ArgumentError, /'turbo' is not a valid mode/)
   end
 
   it "allows valid daemon states" do
@@ -338,7 +336,7 @@ RSpec.describe ChatSession do
             title: "Updated chat",
             title_pending: false,
             pinned_context: nil,
-            mode: nil,
+            mode: "planning",
             local_daemon_state: nil,
             local_daemon_repo: nil,
             local_daemon_branch: nil,
