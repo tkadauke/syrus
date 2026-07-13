@@ -99,3 +99,17 @@ Rebases a chain of dependent PR branches in dependency order, then resumes landi
 **Step chain:** `prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open`
 
 Validates the agent's committed work with graders (no repair loop — graders must pass), then opens the PR. On grader failure, reverts the Job to `:coding` so the agent can fix and re-run. On grader pass, opens the PR and notifies the linked chat.
+
+## local_mode_handoff
+
+**When it fires:** An operator confirms a handoff from a Local Mode chat session (labs feature `local_mode`).
+
+**Step chain:** Similar to `coding_handoff` — runs graders on committed changes and opens the PR.
+
+Like `coding_handoff`, requires operator confirmation before the workflow dispatches.
+
+## main_grader
+
+**When it fires:** An internal trigger for running graders against the main branch (used for automated main-branch health checks).
+
+This trigger kind is infrastructure-facing and not surfaced in the operator Job state machine. It does not produce a PR or appear in the normal Job workflow list.
