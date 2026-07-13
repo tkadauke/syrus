@@ -8,6 +8,7 @@ import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../
 import { ApiError } from "../api/client"
 import { dashboardApiSearch } from "../api/dashboard"
 import { CopyableSlug } from "../components/CopyableSlug"
+import { SlugHoverCard } from "../components/SlugHoverCard"
 import { DashboardSmartFolderNav } from "../components/DashboardSmartFolderNav"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import { NoticeToast } from "../components/NoticeToast"
@@ -793,7 +794,9 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
     >
       <div className="p-3">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <CopyableSlug className="text-xs font-semibold uppercase" slug={item.display_number} />
+          <SlugHoverCard id={item.id} kind="epic">
+            <CopyableSlug className="text-xs font-semibold uppercase" slug={item.display_number} />
+          </SlugHoverCard>
           <Link className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.paths.epic_path, prefix)}>{item.title}</Link>
         </div>
         <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
@@ -1379,9 +1382,13 @@ function JobSlugMetadata({ job, prefix }: { job: DashboardJobItem; prefix: strin
   if (job.epic) {
     return (
       <span className="inline-flex items-center">
-        <Link className="text-gray-500 hover:text-blue-700 hover:underline dark:text-gray-400 dark:hover:text-blue-300" to={withRoutePrefix(job.epic.path, prefix)}>{job.epic.display_number}</Link>
+        <SlugHoverCard id={job.epic.id} kind="epic">
+          <Link className="text-gray-500 hover:text-blue-700 hover:underline dark:text-gray-400 dark:hover:text-blue-300" to={withRoutePrefix(job.epic.path, prefix)}>{job.epic.display_number}</Link>
+        </SlugHoverCard>
         <span>/</span>
-        <CopyableSlug slug={`JOB-${job.id}`} />
+        <SlugHoverCard id={job.id} kind="job">
+          <CopyableSlug slug={`JOB-${job.id}`} />
+        </SlugHoverCard>
       </span>
     )
   }
@@ -1610,7 +1617,9 @@ function MobileEpicRow({ epic, selected, onToggleOne, prefix }: { epic: Dashboar
           <EpicProgressBar epic={epic} />
         </div>
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <span className="font-mono text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{epic.display_number}</span>
+          <SlugHoverCard id={epic.id} kind="epic">
+            <span className="font-mono text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{epic.display_number}</span>
+          </SlugHoverCard>
           <Link aria-label={`${epic.display_number} ${epic.title}`} className="rounded-sm text-sm font-semibold leading-snug text-blue-600 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-300" to={withRoutePrefix(epic.paths.epic_path, prefix)}>{epic.title}</Link>
         </div>
         {compactText(epic.description) ? <p className="mt-1 line-clamp-2 text-sm leading-snug text-gray-500 dark:text-gray-400">{compactText(epic.description)}</p> : null}
@@ -1632,7 +1641,9 @@ function EpicCell({ epic, column, selected, onToggleOne, prefix }: { epic: Dashb
     return (
       <td className="max-w-md px-4 py-3">
         <Link className="font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(epic.paths.epic_path, prefix)}>{epic.title}</Link>
-        <div className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{epic.display_number}</div>
+        <div className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">
+          <SlugHoverCard id={epic.id} kind="epic">{epic.display_number}</SlugHoverCard>
+        </div>
       </td>
     )
   }

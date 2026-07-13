@@ -9,6 +9,7 @@ import { AnsiText } from "../components/AnsiText"
 import { CloseIcon } from "../components/CloseIcon"
 import { KeyValue } from "../components/KeyValue"
 import { CopyableSlug } from "../components/CopyableSlug"
+import { SlugHoverCard } from "../components/SlugHoverCard"
 import { NoticeToast } from "../components/NoticeToast"
 import { StatusPill } from "../components/StatusPill"
 import { Markdown } from "../lib/Markdown"
@@ -2695,7 +2696,11 @@ function DependencyLink({ dependency, prefix }: { dependency: JobDependency; pre
   const label = dependencyLabel(dependency, t)
   if (dependency.pending || !target) return <span>{label}</span>
 
-  return <Link className="text-blue-700 underline hover:no-underline" to={withRoutePrefix(target.job_path, prefix)}>{label}</Link>
+  return (
+    <SlugHoverCard id={target.id} kind="job">
+      <Link className="text-blue-700 underline hover:no-underline" to={withRoutePrefix(target.job_path, prefix)}>{label}</Link>
+    </SlugHoverCard>
+  )
 }
 
 function jobSlug(id: number) {
