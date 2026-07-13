@@ -10,7 +10,11 @@ interface SlugHoverCardProps {
 }
 
 function detectPointerFine(): boolean {
-  return typeof window !== "undefined" && window.matchMedia("(hover: hover) and (pointer: fine)").matches
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(hover: hover) and (pointer: fine)").matches
+  )
 }
 
 export function SlugHoverCard({ kind, id, children }: SlugHoverCardProps) {
