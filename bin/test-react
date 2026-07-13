@@ -2,7 +2,7 @@
 # Runs React/TypeScript unit tests for the SPA migration.
 set -euo pipefail
 
-vitest_max_workers="${VITEST_MAX_WORKERS:-4}"
+vitest_max_workers="${VITEST_MAX_WORKERS:-8}"
 
 # Run typecheck and vitest in parallel so total wall time is the max of the
 # two rather than their sum. Both must pass; errors from either are surfaced.
