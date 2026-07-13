@@ -1145,6 +1145,7 @@ function LandingQueueJobGroup({
 function LandingQueueBlockerCell({ job, column, attribution, prefix }: { job: LandingQueueBlockerJob; column: string; attribution: string | null; prefix: string }) {
   if (column === "checkbox") return <td className="px-4 py-3 align-top" />
   if (column === "landing_queue_position") return <td className="px-4 py-3" />
+  if (column === "landing_queue_blocked_reason") return <td className="px-4 py-3" />
   if (column === "issue" || column === "title") {
     return (
       <td className="max-w-md px-4 py-3">
@@ -1335,6 +1336,9 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
   }
   if (column === "landing_queue_position") {
     return <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-600 dark:text-gray-300">{job.landing_queue_position ? `#${job.landing_queue_position}` : "-"}</td>
+  }
+  if (column === "landing_queue_blocked_reason") {
+    return <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{job.landing_queue_blocked_reason ?? "-"}</td>
   }
   if (column === "repository") {
     return <td className="px-4 py-3"><RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-blue-700 hover:underline dark:text-gray-300 dark:hover:text-blue-300" prefix={prefix} repository={job.repository} /></td>

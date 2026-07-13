@@ -108,6 +108,7 @@
     "issue": "Issue",
     "title": "Title",
     "landing_queue_position": "Queue",
+    "landing_queue_blocked_reason": "Blocked reason",
     "latest": "Latest",
     "workflows_count": "Workflows count",
     "started": "Started",

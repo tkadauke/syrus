@@ -108,6 +108,7 @@
     "issue": "Quaestio",
     "title": "Titulus",
     "landing_queue_position": "Ordo",
+    "landing_queue_blocked_reason": "Causa impedimenti",
     "latest": "Recentissimum",
     "workflows_count": "Numerus cursuum",
     "started": "Coeptum",

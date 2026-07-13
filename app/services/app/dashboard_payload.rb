@@ -45,6 +45,7 @@ module App
         "issue" => "Issue",
         "state" => "State",
         "landing_queue_position" => "Queue",
+        "landing_queue_blocked_reason" => "Blocked reason",
         "repository" => "Repository",
         "owner" => "Owner",
         "latest" => "Latest",
@@ -774,6 +775,7 @@ module App
         pr_url: job.pr_number.present? ? App::Presentation.job_pr_url(job) : App::Presentation.external_pr_url(job),
         latest_workflow_state: App::Presentation.workflow_dashboard_state(job.latest_workflow_state, job.latest_workflow_trigger_kind),
         landing_queue_position: landing_queue_position_for(job),
+        landing_queue_blocked_reason: landing_queue_blocked_reason_for(job),
         landing_queue_entry_key: landing_queue_entry_key_for(job),
         retry_state: ::App::RetryState.for(job),
         created_at: job.created_at&.iso8601,
@@ -1097,8 +1099,18 @@ module App
       landing_queue_positions[job.id] if landing_queue_visible?
     end
 
+    def landing_queue_blocked_reason_for(job)
+      landing_queue_blocked_reasons[job.id] if landing_queue_visible?
+    end
+
     def landing_queue_entry_key_for(job)
       landing_queue_entry_keys[job.id] if landing_queue_visible?
+    end
+
+    def landing_queue_job_entries
+      return [] unless landing_queue_visible?
+
+      @landing_queue_job_entries ||= LandingQueueProcessor.entries(jobs_base_scope)
     end
 
     def landing_queue_positions
@@ -1106,12 +1118,22 @@ module App
 
       @landing_queue_positions ||= begin
         position = 0
-        LandingQueueProcessor.entries(jobs_base_scope).each_with_object({}) do |entry, positions|
+        landing_queue_job_entries.each_with_object({}) do |entry, positions|
           next unless entry.eligible?
 
           position += 1
           positions[entry.job_id] = position
         end
+      end
+    end
+
+    def landing_queue_blocked_reasons
+      return {} unless landing_queue_visible?
+
+      @landing_queue_blocked_reasons ||= landing_queue_job_entries.each_with_object({}) do |entry, reasons|
+        next if entry.eligible?
+
+        reasons[entry.job_id] = entry.blocked_reason
       end
     end
 
@@ -1171,7 +1193,7 @@ module App
     end
 
     def required_columns_for(table)
-      return %w[checkbox landing_queue_position issue] if table == "jobs" && landing_queue_visible?
+      return %w[checkbox landing_queue_position landing_queue_blocked_reason issue] if table == "jobs" && landing_queue_visible?
 
       User::DASHBOARD_REQUIRED_COLUMNS.fetch(table)
     end

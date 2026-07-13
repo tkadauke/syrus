@@ -108,6 +108,7 @@
     "issue": "Aufgabe",
     "title": "Titel",
     "landing_queue_position": "Warteschlange",
+    "landing_queue_blocked_reason": "Blockierungsgrund",
     "latest": "Neueste",
     "workflows_count": "Anzahl Arbeitsabläufe",
     "started": "Gestartet",

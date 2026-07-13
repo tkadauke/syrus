@@ -417,6 +417,26 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(body.fetch("items").map { |item| item.fetch("id") }).to eq([ eligible.id, blocked.id ])
       positions = body.fetch("items").index_by { |item| item.fetch("id") }.transform_values { |item| item.fetch("landing_queue_position") }
       expect(positions).to include(eligible.id => 1, blocked.id => nil)
+      blocked_reasons = body.fetch("items").index_by { |item| item.fetch("id") }.transform_values { |item| item.fetch("landing_queue_blocked_reason") }
+      expect(blocked_reasons).to include(eligible.id => nil, blocked.id => "missing pull request")
+    end
+
+    it "includes landing_queue_blocked_reason in landing queue required columns" do
+      repo.update!(auto_merge_enabled: true)
+      folder = SmartFolder.create!(
+        user: user,
+        subject_type: "job",
+        name: "Landing queue",
+        kind: "user_defined",
+        filter: SmartFolder.attention_preset_filter("landing_queue")
+      )
+
+      get "/api/v1/app/dashboard", params: { subject: "job", smart_folder_id: folder.id }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("controls", "columns", "required")).to include(
+        { "key" => "landing_queue_blocked_reason", "title" => "Blocked reason" }
+      )
     end
 
     it "includes transitive landing queue blockers and dependency edges by group" do

@@ -95,6 +95,7 @@ export type DashboardJobItem = {
   pr_url: string | null
   latest_workflow_state: string
   landing_queue_position: number | null
+  landing_queue_blocked_reason: string | null
   landing_queue_entry_key: string | null
   retry_state?: JobRetryState
   created_at: string | null
