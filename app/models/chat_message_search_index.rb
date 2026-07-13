@@ -131,10 +131,6 @@ class ChatMessageSearchIndex < SearchRecord
 
     private
 
-    def bind(value)
-      ActiveRecord::Relation::QueryAttribute.new(nil, value, ActiveRecord::Type::Value.new)
-    end
-
     def mark_indexed!(message_id)
       connection.exec_insert(
         "INSERT OR REPLACE INTO chat_search_metadata (key, value) VALUES (?, ?)",

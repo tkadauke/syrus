@@ -69,12 +69,12 @@ RSpec.describe CoverageSnapshot do
     end
   end
 
-  describe ".for_branch" do
+  describe ".on_branch" do
     it "returns only snapshots for the given branch" do
       main_snap   = create_snapshot(branch: "main")
       feature_snap = create_snapshot(branch: "feature/x")
 
-      results = described_class.for_branch("main")
+      results = described_class.on_branch("main")
       expect(results).to include(main_snap)
       expect(results).not_to include(feature_snap)
     end

@@ -7,7 +7,6 @@ class CoverageSnapshot < ApplicationRecord
     self.data ||= {} if has_attribute?(:data)
   end
 
-  scope :for_branch, ->(branch) { where(branch: branch) }
   scope :on_branch, ->(branch) { where(branch: branch) }
   scope :since, ->(time) { where(created_at: time..) }
   scope :recent, ->(n) { order(created_at: :desc).limit(n) }

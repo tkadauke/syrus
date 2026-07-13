@@ -69,11 +69,5 @@ class EpicSearchIndex < SearchRecord
 
       rows.map(&:symbolize_keys)
     end
-
-    private
-
-    def bind(value)
-      ActiveRecord::Relation::QueryAttribute.new(nil, value, ActiveRecord::Type::Value.new)
-    end
   end
 end

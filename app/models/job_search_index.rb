@@ -72,10 +72,6 @@ class JobSearchIndex < SearchRecord
 
     private
 
-    def bind(value)
-      ActiveRecord::Relation::QueryAttribute.new(nil, value, ActiveRecord::Type::Value.new)
-    end
-
     def body_for(job)
       [ job.issue_body, (job.description if job.respond_to?(:description)) ].compact_blank.join("\n\n")
     end
