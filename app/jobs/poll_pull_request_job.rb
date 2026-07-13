@@ -426,15 +426,19 @@ class PollPullRequestJob < ApplicationJob
   def react_to_ci_failures
     head_sha = @pr.head&.sha
     return unless head_sha.present?
+
+    # Fetch all check runs in one API call: updates the landing-gate cache
+    # (pr_checks_state) AND collects failure details for ci_failure workflows.
+    detail = @client.check_runs_detail_for(@slug, head_sha)
+    cache_pr_checks_state(head_sha, detail)
+
     return if @job.last_ci_handled_sha == head_sha   # already reacted to this commit
     return if ci_failure_cap_reached?
     return if pending_ci_failure_run?
     return if provider_circuit_open?("ci_failure")
+    return unless detail[:any_failed?]
 
-    failed = @client.failed_check_runs_for(@slug, head_sha)
-    return if failed.empty?
-
-    enqueue_ci_failure_run(head_sha, failed)
+    enqueue_ci_failure_run(head_sha, detail[:failed_checks])
   rescue Octokit::Forbidden, Octokit::Unauthorized => e
     # Check-runs requires `Checks: read` (fine-grained) or `repo`
     # (classic). PR-comment polling above doesn't, so we treat
@@ -445,6 +449,15 @@ class PollPullRequestJob < ApplicationJob
     reason = strip_docs_url(e.message)
     @job.user.mark_gh_api_blocked!("check-runs: #{reason}")
     Rails.logger.warn("[PollPullRequestJob] #{@job.slug}: ci_failure path disabled — #{reason[0, 160]}")
+  end
+
+  def cache_pr_checks_state(head_sha, detail)
+    state = if detail[:any_failed?] then "failing"
+             elsif detail[:pending?] then "pending"
+             elsif detail[:all_passed?] then "passing"
+             else "unknown"
+             end
+    @job.update_columns(pr_checks_sha: head_sha, pr_checks_state: state, pr_checks_checked_at: Time.current)
   end
 
   # Octokit error messages are shaped:

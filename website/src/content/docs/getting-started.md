@@ -258,7 +258,10 @@ read the diff, check CI, comment, request changes, approve, or merge.
 If you comment on the PR, Syrus can pick up feedback on a later PR poll
 and create a follow-up Workflow on the same Job. If CI failures are
 enabled for your installation, failing checks can also create repair
-Workflows on Syrus-owned PRs.
+Workflows on Syrus-owned PRs. A Job remains in the landing queue — and
+does not merge — until every PR check has passed; if checks are still
+running (pending) or any required check has failed, the Job is held with
+a status message explaining the specific reason.
 
 The first-run guide is complete when your first Epic lands (all of its
 child Jobs merge); the **Setup** tab then drops off the navigation.

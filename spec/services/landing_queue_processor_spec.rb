@@ -389,6 +389,123 @@ RSpec.describe LandingQueueProcessor do
     expect(entry.blocked_reason).to include("auto-merge not enabled")
   end
 
+  describe "CI cleanliness gate" do
+    it "blocks a job with an active ci_failure workflow with a specific message" do
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      Workflows::CiFailure.instantiate(job: job).update!(state: "running")
+
+      expect(described_class.call).to be_nil
+      expect(job.reload).to be_approved
+      entry = described_class.entries(Job.where(id: job.id)).first
+      expect(entry.blocked_reason).to eq("ci_failure workflow in progress on #{job.slug}")
+    end
+
+    it "blocks a job whose PR checks are cached as failing" do
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      job.update_columns(pr_checks_sha: "abc123", pr_checks_state: "failing", pr_checks_checked_at: Time.current)
+
+      expect(described_class.call).to be_nil
+      expect(job.reload).to be_approved
+      entry = described_class.entries(Job.where(id: job.id)).first
+      expect(entry.blocked_reason).to eq("PR checks failing on #{job.slug}")
+    end
+
+    it "blocks a job whose PR checks are cached as pending" do
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      job.update_columns(pr_checks_sha: "abc123", pr_checks_state: "pending", pr_checks_checked_at: Time.current)
+
+      expect(described_class.call).to be_nil
+      expect(job.reload).to be_approved
+      entry = described_class.entries(Job.where(id: job.id)).first
+      expect(entry.blocked_reason).to eq("PR checks pending on #{job.slug}")
+    end
+
+    it "allows landing when PR checks are cached as passing" do
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      job.update_columns(pr_checks_sha: "abc123", pr_checks_state: "passing", pr_checks_checked_at: Time.current)
+
+      workflow = described_class.call
+
+      expect(workflow.job).to eq(job)
+      expect(job.reload).to be_landing
+    end
+
+    it "allows landing when pr_checks_state is nil (never polled)" do
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+
+      workflow = described_class.call
+
+      expect(workflow.job).to eq(job)
+      expect(job.reload).to be_landing
+    end
+
+    it "blocks an Epic member when a sibling has an active ci_failure workflow" do
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      ready = queue_job(issue_number: 1, approved_at: 2.minutes.ago, epic: epic)
+      sibling = queue_job(issue_number: 2, approved_at: 1.minute.ago, epic: epic)
+      Workflows::CiFailure.instantiate(job: sibling).update!(state: "running")
+
+      expect(described_class.call).to be_nil
+      expect(ready.reload).to be_approved
+      entry = described_class.entries(Job.where(id: ready.id)).first
+      expect(entry.blocked_reason).to eq("ci_failure workflow in progress on #{sibling.slug}")
+      expect(entry.waiting_for_jobs.map(&:id)).to eq([sibling.id])
+    end
+
+    it "blocks an Epic member when a sibling's PR checks are failing" do
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      ready = queue_job(issue_number: 1, approved_at: 2.minutes.ago, epic: epic)
+      sibling = queue_job(issue_number: 2, approved_at: 1.minute.ago, epic: epic)
+      sibling.update_columns(pr_checks_sha: "abc123", pr_checks_state: "failing", pr_checks_checked_at: Time.current)
+
+      expect(described_class.call).to be_nil
+      expect(ready.reload).to be_approved
+      entry = described_class.entries(Job.where(id: ready.id)).first
+      expect(entry.blocked_reason).to eq("PR checks failing on #{sibling.slug}")
+      expect(entry.waiting_for_jobs.map(&:id)).to eq([sibling.id])
+    end
+
+    it "blocks an Epic member when a sibling's PR checks are pending" do
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      ready = queue_job(issue_number: 1, approved_at: 2.minutes.ago, epic: epic)
+      sibling = queue_job(issue_number: 2, approved_at: 1.minute.ago, epic: epic)
+      sibling.update_columns(pr_checks_sha: "def456", pr_checks_state: "pending", pr_checks_checked_at: Time.current)
+
+      expect(described_class.call).to be_nil
+      expect(ready.reload).to be_approved
+      entry = described_class.entries(Job.where(id: ready.id)).first
+      expect(entry.blocked_reason).to eq("PR checks pending on #{sibling.slug}")
+    end
+
+    it "prefers failing over pending when an Epic has both kinds of sibling issues" do
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      ready = queue_job(issue_number: 1, approved_at: 3.minutes.ago, epic: epic)
+      failing_sib = queue_job(issue_number: 2, approved_at: 2.minutes.ago, epic: epic)
+      pending_sib = queue_job(issue_number: 3, approved_at: 1.minute.ago, epic: epic)
+      failing_sib.update_columns(pr_checks_sha: "abc", pr_checks_state: "failing", pr_checks_checked_at: Time.current)
+      pending_sib.update_columns(pr_checks_sha: "def", pr_checks_state: "pending", pr_checks_checked_at: Time.current)
+
+      entry = described_class.entries(Job.where(id: ready.id)).first
+      expect(entry.blocked_reason).to eq("PR checks failing on #{failing_sib.slug}")
+    end
+
+    it "does not block an Epic member for a sibling that is closed" do
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      ready = queue_job(issue_number: 1, approved_at: 1.minute.ago, epic: epic)
+      closed = Factories.job_record(
+        user: user, repository: repository, epic: epic,
+        issue_number: 2, pr_number: 2,
+        state: "closed", closure_reason: "pr_merged"
+      )
+      closed.update_columns(pr_checks_sha: "abc", pr_checks_state: "failing", pr_checks_checked_at: Time.current)
+
+      workflow = described_class.call
+
+      expect(workflow.job).to eq(ready)
+      expect(ready.reload).to be_landing
+    end
+  end
+
   describe ".try_land!" do
     it "enqueues an immediate landing-queue pass when no specific Job is given" do
       expect {

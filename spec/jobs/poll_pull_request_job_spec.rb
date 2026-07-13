@@ -742,6 +742,91 @@ RSpec.describe PollPullRequestJob do
     end
   end
 
+  describe "pr_checks_state caching" do
+    let(:sha) { "cac1234567890000000000000000000000000000" }
+
+    before do
+      stub_pr(head_sha: sha)
+      stub_reviews([])
+      stub_issue_comments([])
+      stub_review_comments([])
+    end
+
+    it "caches state as 'failing' when any check has a failed conclusion" do
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "failure", html_url: "u", output: { summary: "fail" } }
+      ])
+
+      described_class.perform_now(job.id)
+
+      job.reload
+      expect(job.pr_checks_sha).to eq(sha)
+      expect(job.pr_checks_state).to eq("failing")
+      expect(job.pr_checks_checked_at).to be_present
+    end
+
+    it "caches state as 'pending' when any check is still running" do
+      stub_check_runs(sha, [
+        { name: "test", status: "in_progress", conclusion: nil, html_url: "u", output: { summary: nil } }
+      ])
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload.pr_checks_state).to eq("pending")
+    end
+
+    it "caches state as 'passing' when all checks completed successfully" do
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "success", html_url: "u", output: { summary: "ok" } }
+      ])
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload.pr_checks_state).to eq("passing")
+    end
+
+    it "caches state as 'unknown' when there are no check runs" do
+      stub_check_runs(sha, [])
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload.pr_checks_state).to eq("unknown")
+    end
+
+    it "updates the cache even when last_ci_handled_sha matches (state can change for the same SHA)" do
+      job.update!(last_ci_handled_sha: sha)
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "success", html_url: "u", output: { summary: "ok" } }
+      ])
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload.pr_checks_state).to eq("passing")
+      expect(job.reload.pr_checks_sha).to eq(sha)
+    end
+
+    it "updates the cache even when the ci_failure cap is reached" do
+      3.times { Workflow.create!(job: job, trigger_kind: "ci_failure", state: "succeeded", created_at: 30.minutes.ago) }
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "failure", html_url: "u", output: { summary: "fail" } }
+      ])
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload.pr_checks_state).to eq("failing")
+    end
+
+    it "stores pr_checks_sha matching the PR head SHA" do
+      stub_check_runs(sha, [
+        { name: "lint", status: "completed", conclusion: "success", html_url: "u", output: { summary: "clean" } }
+      ])
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload.pr_checks_sha).to eq(sha)
+    end
+  end
+
   describe "guards" do
     it "no-ops when the Job is already closed" do
       stub_pr  # Need it because before block doesn't always run for guards

@@ -401,7 +401,20 @@ class LandingQueueProcessor
     return blocked("auto-merge not enabled for repository") unless job.repository.auto_merge_enabled?
     return blocked("review requested changes") if job.needs_attention_reason == "upstream_pr_changes_requested"
     return blocked("missing pull request") if job.pr_number.blank?
+    # Surface a specific reason when a ci_failure workflow is the active one, so
+    # operators can distinguish "agent is fixing CI" from other in-progress workflow types.
+    if job.workflows.active.where(trigger_kind: "ci_failure").exists?
+      return blocked("ci_failure workflow in progress on #{job.slug}")
+    end
     return blocked("active workflow") if job.workflows.active.exists?
+    # Block on failing or pending PR check-run state cached by PollPullRequestJob.
+    # nil / "unknown" / "passing" allow landing; only "failing" and "pending" hold.
+    case job.pr_checks_state
+    when "failing"
+      return blocked("PR checks failing on #{job.slug}")
+    when "pending"
+      return blocked("PR checks pending on #{job.slug}")
+    end
     return blocked(MERGEABILITY_WAIT_REASON) if waiting_for_github_mergeability?(job)
     return blocked(RebaseLoopGuard::BLOCK_REASON) if RebaseLoopGuard.waiting_after_noop?(job)
     return blocked(RebaseAttemptGuard::BLOCK_REASON) if RebaseAttemptGuard.blocking_landing?(job)
@@ -409,6 +422,13 @@ class LandingQueueProcessor
     if job.epic
       unapproved_siblings = unapproved_epic_siblings(job)
       return blocked("waiting for epic siblings to be approved", waiting_for_jobs: unapproved_siblings) if unapproved_siblings.any?
+
+      if (blocker = ci_failure_workflow_epic_sibling(job))
+        return blocked("ci_failure workflow in progress on #{blocker.slug}", waiting_for_jobs: [blocker])
+      end
+      if (check_issue = pr_checks_unclean_epic_sibling(job))
+        return blocked("PR checks #{check_issue[:label]} on #{check_issue[:sibling].slug}", waiting_for_jobs: [check_issue[:sibling]])
+      end
     end
 
     parent = job.parent_job
@@ -447,6 +467,27 @@ class LandingQueueProcessor
        .where.not(state: %w[ approved closed ])
        .order(:id)
        .to_a
+  end
+
+  def ci_failure_workflow_epic_sibling(job)
+    Job.where(epic_id: job.epic_id)
+       .where.not(id: job.id)
+       .joins(:workflows)
+       .where(workflows: { state: %w[running queued], trigger_kind: "ci_failure" })
+       .order(:id)
+       .first
+  end
+
+  def pr_checks_unclean_epic_sibling(job)
+    base = Job.where(epic_id: job.epic_id).where.not(id: job.id).where.not(state: "closed")
+
+    failing = base.where(pr_checks_state: "failing").order(:id).first
+    return { sibling: failing, label: "failing" } if failing
+
+    pending_sibling = base.where(pr_checks_state: "pending").order(:id).first
+    return { sibling: pending_sibling, label: "pending" } if pending_sibling
+
+    nil
   end
 
   def merged?(job)
