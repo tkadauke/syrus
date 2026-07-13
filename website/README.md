@@ -48,11 +48,14 @@ release (`release.yml` → `publish-website`).
 
 ## Content
 
-Copy lives in `lib/site.ts` (hero, workflow steps, feature pillars, entry
-points). Pages are under `src/app/` (Next.js App Router, `src/` directory
-layout). The markdown under `src/pages/`, `src/content/docs/`, and
-`src/site-pages/` is archived positioning/docs copy that the Next.js build
-does not consume; `_archive-astro/` remains the frozen pre-migration snapshot.
+Marketing copy lives in `lib/site.ts` (hero, workflow steps, feature
+pillars, entry points). Pages are under `src/app/` (Next.js App Router,
+`src/` directory layout). Product documentation source lives under
+`src/content/docs/`; keep it current with product behavior even while the
+static docs publishing surface is being migrated. The markdown under
+`src/pages/` and `src/site-pages/` is legacy positioning copy retained for
+content migration reference; `_archive-astro/` remains the frozen
+pre-migration snapshot.
 
 ## Information Architecture
 

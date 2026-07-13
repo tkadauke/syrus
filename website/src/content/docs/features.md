@@ -8,6 +8,44 @@ description: Product feature reference for Jobs, Epics, schedules, chats, creden
 This page is the product-level reference. Use [Concepts](/docs/concepts)
 for the data model and [Workflows](/docs/workflows) for execution chains.
 
+## Repositories And Trigger Labels
+
+A Repository connects Syrus to one GitHub repository. Repository settings
+control the GitHub slug, default branch, trigger label, polling, prepare
+behavior, agent-provider override, PR cost footer, approval policy, and
+landing behavior.
+
+The trigger label is the normal ingestion path for GitHub issue work.
+Syrus polls active repositories, lists open issues, and creates a Job when
+an issue has that repository's trigger label. The repository issues panel
+can also delegate an issue by adding the trigger label through the same
+GitHub credential path Syrus uses for polling. A `syrus-skip-prepare` label
+skips the prepare step for that Job.
+
+Syrus is polling-only. It does not require inbound GitHub webhooks for issue
+ingestion, PR feedback, CI-failure detection, mergeability checks, fork
+review approval, or closed-PR resolution.
+
+## GitHub Issue Ingestion
+
+An ingested GitHub issue becomes an `issue` Job. The first implementation
+Run receives the issue title, body, image attachments that Syrus can fetch,
+and subsequent issue comments in chronological order, so clarifications
+added before the agent starts are part of the work prompt.
+
+Issue bodies can declare runtime dependencies with lines such as
+`Depends-on: #123`, `Blocked-by: owner/repo#456`, or equivalent Job/Epic
+references. Syrus records parsed dependency edges and blocks Workflow
+dispatch until every dependency reaches a successful terminal outcome such
+as merged, externally merged, approved when appropriate, or no changes.
+Admins can override dependency gates, and operators can add or remove manual
+dependencies from the app.
+
+If the labeled issue was created by a GitHub handle mapped to a Syrus
+`product_owner`, Syrus creates the Job in `needs_triage` instead of starting
+implementation. A developer or admin releases it from the repository
+overview after review.
+
 ## Jobs
 
 A Job is the unit operators track in the UI. It represents one thread of
@@ -16,7 +54,8 @@ work from a GitHub issue, scheduled task, direct prompt, or chat proposal.
 Jobs show the repository, source prompt, state, priority, credential mode,
 agent provider, active Workflow, past Workflows, transcripts, captured
 diffs, PR link, attachments, dependencies, and logs. Operators can retry,
-cancel, run again, change priority, approve, or inspect the related PR.
+cancel, run again, change priority, approve or unapprove, open feedback
+forms, poll PR feedback now, request a rebase, or inspect the related PR.
 When a Job came from a chat proposal, or belongs to an Epic that came from a
 chat proposal, the Jobs UI links back to the originating chat message.
 
@@ -27,6 +66,74 @@ Job kinds:
 | `issue` | A GitHub issue selected by trigger label or delegated from the repository issues panel. |
 | `cron` | A scheduled task fire. |
 | `direct` | An operator-created prompt with no GitHub issue. |
+
+## Workflows, Steps, And Runs
+
+Every Job is implemented through one or more Workflows. A Workflow is a
+single attempt for a trigger kind such as initial implementation, PR
+feedback, retry, CI failure, rebase, auto-merge, merge-train, coding handoff,
+or local-mode handoff. A Workflow owns a shared workspace under
+`$SYRUS_DATA_ROOT/workflows/<workflow_id>/` until the Workflow reaches a
+terminal state.
+
+Workflows are made of Steps. Some Steps are deterministic service work
+(`prepare`, `grader_fanout`, `grader_collect`, `push`, `pr_open`,
+`auto_merge`); others invoke the configured agent (`implement`, `respond`,
+`analyze_and_fix`, `landing_fix`, `agent_rebase`). Each Step owns Runs,
+which are the individual attempts with provider metadata, transcript,
+diagnostics, cost, and output artifacts. Retrying a Step creates a new Run
+without erasing prior history.
+
+The common initial path is:
+
+```text
+prepare -> retry_until(implement -> graders) -> coverage_analyze -> summarize -> test_plan -> pr_open
+```
+
+Prepare installs dependencies from `.syrus.yml` or conservative lockfile
+auto-detection. Explicit `.syrus.yml` prepare failures stop the Workflow;
+auto-detected prepare failures are recorded as soft failures and still hand
+off to the agent. Graders come from `.syrus.yml`, run as independent Step
+rows, and feed bounded repair iterations when required graders fail.
+
+See [Workflows](/docs/workflows) for every built-in chain.
+
+## Pull Requests, Feedback, Retries, Rebases, And Approvals
+
+When an initial, retry, direct, cron, coding-handoff, or local-mode handoff
+Workflow reaches `pr_open`, Syrus pushes the branch and opens or updates a
+GitHub PR. The PR body prefers the agent-submitted title/body/test plan,
+then falls back to a generated summary, then to a templated default. Diff
+capture uses GitHub-style three-dot comparison against the default branch so
+base-branch movement does not pollute the displayed change.
+
+Syrus polls existing PRs for review comments, PR comments, failed CI checks,
+mergeability, review approvals, and closed state. New PR feedback creates a
+`pr_comment` Workflow on the existing branch; operator-confirmed chat
+feedback creates `chat_feedback`. Both use the same shape: prepare, agent
+response, graders, optional coverage comment, summarize-amend, then push.
+Feedback watermarking tracks both seen and addressed timestamps so the same
+comment is not repeatedly re-enqueued.
+
+Retries create a new `retry` Workflow on the same Job and branch. Operators
+can retry with the current agent provider or, when configured, switch to
+another provider for the retry. Transient provider failures can be
+auto-retried with backoff; provider-wide transient failures open a circuit
+breaker so Syrus does not burn automatic retries during an outage.
+
+If GitHub reports a controlled PR branch as unmergeable, Syrus opens a
+`rebase` Workflow. It first tries a deterministic `git rebase`; conflicts
+fall to the agent; successful rebases are pushed with an explicit
+`--force-with-lease` against the observed remote SHA. Dependent stacks use a
+`stack_rebase` Workflow so branches are rebased root-first and landing can
+resume in dependency order.
+
+Approval behavior is repository policy. A self-review policy can approve a
+Job automatically after implementation. Two-person and final-say policies
+record approvals from matched GitHub reviews or app actions, then move
+approved Jobs into the landing queue when the policy is satisfied. Approved
+Jobs run a final `auto_merge` Workflow before GitHub merge; failed final
+graders can trigger a bounded `landing_fix` repair loop.
 
 ## Notifications
 
@@ -125,6 +232,12 @@ Supported schedule kinds:
 The `pr_pileup_policy` controls what happens if the last scheduled PR is
 still open: `skip`, `pile`, or `replace`. Repeated failures can
 auto-pause a task until an operator fixes and resumes it.
+
+Cron templates are reusable prompt and schedule presets. Applying a template
+copies its current values into the scheduled task; later template edits do
+not rewrite existing tasks. A scheduled Job that makes no repository changes
+can close successfully as `no_changes`, which is the expected result for
+survey or maintenance prompts that find nothing to do.
 
 ## Chats
 
@@ -306,6 +419,21 @@ the instance declares features in `config/features.yml`. The page groups
 declared flags by category, shows the slug and description for each flag,
 and hides the admin navigation item entirely when no flags are declared.
 
+## Walkthrough Videos
+
+When the `video_walkthroughs` feature flag is enabled, chats can accept
+narrated screen recordings as walkthroughs. Upload and analysis are gated by
+the feature flag: when disabled, the composer hides video intake, upload
+endpoints return 404, and walkthrough MCP tools are not advertised.
+
+When enabled, Syrus stores the video with Active Storage, analyzes it with
+Gemini, persists the structured transcript and findings, and presents the
+walkthrough as a first-class chat message. The chat agent can fetch the
+analysis, request a closer segment analysis, or ask for a crisp still frame
+when precise on-screen text needs OCR. The original large video is
+transcoded to a compact stored copy when possible, and retention is governed
+by instance settings.
+
 ## Direct Jobs
 
 Direct Jobs are for work that should start from an operator prompt instead
@@ -338,6 +466,23 @@ so every web, worker, console, and migration context that reads users needs
 the same stable `ACTIVE_RECORD_ENCRYPTION_*` keys, or `RAILS_MASTER_KEY`
 when those keys live in Rails credentials.
 
+## Credentials And Provider Selection
+
+Syrus separates GitHub credentials from agent-provider credentials. GitHub
+access comes from an installation token when the repository owner has an
+active GitHub App installation, or from the user's PAT fallback otherwise.
+Agent access comes from each user's configured Claude and/or Codex
+credentials. Gemini keys are used for walkthrough-video understanding only;
+Gemini is not a code or chat agent provider.
+
+Provider selection is layered. A user has default agent and chat providers.
+A repository can override the implementation provider, and repository
+memberships can override it per user. Direct Jobs, retries, PR-feedback
+polls, and rebase commands can choose another configured provider when the
+UI offers that option. Existing agent sessions are only resumed when the
+provider matches; switching providers starts from reconstructed context
+instead of pretending the provider can resume a foreign session.
+
 ## GitHub App And PAT Behavior
 
 Repositories prefer an active GitHub App installation when one is linked
@@ -349,6 +494,12 @@ that run.
 Clone remotes use anonymous GitHub URLs. Token-bearing push URLs are
 constructed for the individual push command and are not written into
 `.git/config`.
+
+Cross-fork work keeps review and upstream submission separate. When the
+working repository differs from the target repository, `pr_open` creates a
+fork review PR first. Approval or merge of that fork PR is detected by
+polling, then Syrus opens the upstream PR and continues normal feedback,
+approval, and landing behavior there.
 
 ## Multi-User Model
 
@@ -368,6 +519,20 @@ without turning every run into a shared global credential.
 
 For team workflows, fork-based development, and open source contributions,
 see [Collaboration](/docs/collaboration).
+
+## Admin And API Surfaces
+
+The operator app uses authenticated `/api/v1/app/*` JSON endpoints for the
+SPA, CLI, chat, repository, Job, Epic, schedule, approval, inbox, checkout,
+test-plan, and settings flows. Admin-only screens add queue, run,
+installation, user, feature-flag, health, and operational controls. Admin
+chat tools expose similar diagnostics, but mutating actions create pending
+actions and require operator confirmation.
+
+Public documentation should describe these surfaces at the capability level:
+what operators can do, what credentials are required, and which actions need
+confirmation. It should not promise a stable unauthenticated public API; the
+current API is app-scoped and expects normal Syrus authentication.
 
 ## Spending Insights
 
