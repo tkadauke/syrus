@@ -89,6 +89,10 @@ class ChatSession < ApplicationRecord
   scope :visible, -> { where(hidden_at: nil) }
   scope :hidden, -> { where.not(hidden_at: nil) }
 
+  MODES.each do |m|
+    define_method(:"#{m}?") { mode == m }
+  end
+
   def self.fallback_title_for(repository)
     return unless repository
 
