@@ -1,6 +1,6 @@
 class AddModeToChatSessions < ActiveRecord::Migration[8.1]
   def up
-    add_column :chat_sessions, :mode, :string, default: "planning", null: false unless column_exists?(:chat_sessions, :mode)
+    add_column :chat_sessions, :mode, :string unless column_exists?(:chat_sessions, :mode)
   end
 
   def down

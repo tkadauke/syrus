@@ -74,10 +74,6 @@ class ChatSession < ApplicationRecord
             numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :cumulative_cost_usd,
             numericality: { greater_than_or_equal_to: 0 }
-  MODES = %w[ planning coding ].freeze
-
-  enum :mode, { planning: "planning", coding: "coding" }, default: "planning"
-
   validates :chat_provider, inclusion: { in: User::CHAT_PROVIDERS }, allow_nil: true
   validates :mode, inclusion: { in: MODES }, allow_nil: true
   validates :local_daemon_state, inclusion: { in: DAEMON_STATES }, allow_nil: true

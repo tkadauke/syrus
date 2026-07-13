@@ -555,25 +555,24 @@ RSpec.describe ChatSession do
   end
 
   describe "mode" do
-    it "defaults to planning" do
+    it "defaults to nil" do
       session = described_class.create!(user: repo.user)
 
-      expect(session.mode).to eq("planning")
-      expect(session).to be_planning
-      expect(session).not_to be_coding
+      expect(session.mode).to be_nil
     end
 
     it "accepts coding mode" do
       session = described_class.new(user: repo.user, mode: "coding")
 
       expect(session).to be_valid
-      expect(session).to be_coding
+      expect(session.mode).to eq("coding")
     end
 
-    it "rejects unknown modes" do
-      expect {
-        described_class.new(user: repo.user, mode: "autopilot")
-      }.to raise_error(ArgumentError, /'autopilot' is not a valid mode/)
+    it "rejects unknown modes with a validation error" do
+      session = described_class.new(user: repo.user, mode: "autopilot")
+
+      expect(session).not_to be_valid
+      expect(session.errors[:mode]).to be_present
     end
   end
 

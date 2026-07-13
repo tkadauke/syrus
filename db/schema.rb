@@ -266,7 +266,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_12_202210) do
     t.string "local_daemon_branch"
     t.string "local_daemon_repo"
     t.string "local_daemon_state"
-    t.string "mode", default: "planning", null: false
+    t.string "mode"
     t.boolean "onboarding", default: false, null: false
     t.boolean "pinned", default: false, null: false
     t.text "pinned_context"
