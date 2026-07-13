@@ -36,6 +36,9 @@
   "retry_failed_step": "Retry failed step",
   "push_commits": "Push commits",
 
+  "preview_see_more": "Mehr anzeigen",
+  "preview_generating_title": "Titel wird generiert…",
+
   "confirm_start_over": "Start over with a new Job and abandon this branch?",
   "confirm_unapprove": "Move this Job back to implemented?",
   "confirm_cancel": "Cancel any running work and close this Job?",

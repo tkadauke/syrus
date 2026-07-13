@@ -86,5 +86,7 @@
   "create_and_start": "Epicam crea et effectionem incipe",
   "start_implementing": "Effectionem incipe",
   "waiting_on_dependencies": "Exspectat {{names}}",
-  "starting": "Incipitur..."
+  "starting": "Incipitur...",
+
+  "preview_see_more": "Vide amplius"
 }

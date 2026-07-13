@@ -36,6 +36,9 @@
   "retry_failed_step": "Retry failed step",
   "push_commits": "Push commits",
 
+  "preview_see_more": "Vide amplius",
+  "preview_generating_title": "Titulus generatur…",
+
   "confirm_start_over": "Start over with a new Job and abandon this branch?",
   "confirm_unapprove": "Move this Job back to implemented?",
   "confirm_cancel": "Cancel any running work and close this Job?",

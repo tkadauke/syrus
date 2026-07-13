@@ -86,5 +86,7 @@
   "create_and_start": "Epic erstellen & Umsetzung starten",
   "start_implementing": "Umsetzung starten",
   "waiting_on_dependencies": "Wartet auf {{names}}",
-  "starting": "Wird gestartet..."
+  "starting": "Wird gestartet...",
+
+  "preview_see_more": "Mehr anzeigen"
 }

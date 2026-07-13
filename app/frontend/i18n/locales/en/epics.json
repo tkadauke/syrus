@@ -86,5 +86,7 @@
   "create_and_start": "Create Epic & Start Implementing",
   "start_implementing": "Start implementing",
   "waiting_on_dependencies": "Waiting on {{names}}",
-  "starting": "Starting..."
+  "starting": "Starting...",
+
+  "preview_see_more": "See more"
 }
