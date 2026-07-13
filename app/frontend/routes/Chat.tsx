@@ -80,7 +80,6 @@ import {
   type ChatMessageItem,
   type ChatPendingAction,
   type ChatPendingActionInline,
-  type ChatMode,
   type ChatPayload,
   type ChatProposal,
   type ChatProposalChild,

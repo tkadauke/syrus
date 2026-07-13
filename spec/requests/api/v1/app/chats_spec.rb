@@ -866,6 +866,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
   it "updates chat mode to planning or coding and returns it in the payload" do
     sign_in_as(user)
+    Feature.create!(slug: "coding_mode", category: "Labs", name: "Coding Mode", enabled: true)
     chat = ChatSession.create!(user: user, repository: repository)
 
     patch "/api/v1/app/chats/#{chat.id}", params: { chat: { mode: "planning" } }
@@ -1247,13 +1248,13 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body["walkthroughs_enabled"]).to eq(true)
   end
 
-  it "includes the chat mode in the payload and defaults to planning" do
+  it "includes the chat mode in the payload and defaults to nil" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user)
 
     get "/api/v1/app/chats/#{chat.id}"
 
-    expect(parse_body.dig("chat", "mode")).to eq("planning")
+    expect(parse_body.dig("chat", "mode")).to be_nil
   end
 
   it "reports coding_mode_enabled false by default" do
@@ -1321,7 +1322,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
       expect(response).to have_http_status(:unprocessable_entity)
       expect(parse_body.dig("error", "code")).to eq("feature_disabled")
-      expect(chat.reload.mode).to eq("planning")
+      expect(chat.reload.mode).to be_nil
     end
 
     it "rejects unknown mode values" do
