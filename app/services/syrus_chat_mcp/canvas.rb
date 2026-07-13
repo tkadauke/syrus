@@ -169,8 +169,11 @@ module SyrusChatMcp
     def text_element(content:, x:, y:, font_size: nil)
       font_size = integer_or_default(font_size, 20)
       text = content.to_s
+      lines = text.split("\n", -1)
+      line_count = [ lines.length, 1 ].max
+      longest_line = lines.max_by(&:length) || ""
 
-      base_element(type: "text", x: x, y: y, width: [ text.length * font_size * 0.6, font_size ].max.round(2), height: (font_size * 1.25).round(2)).merge(
+      base_element(type: "text", x: x, y: y, width: [ longest_line.length * font_size * 0.6, font_size ].max.round(2), height: (font_size * 1.25 * line_count).round(2)).merge(
         "text" => text,
         "originalText" => text,
         "fontSize" => font_size,
@@ -191,8 +194,11 @@ module SyrusChatMcp
     # container's `boundElements`.
     def bound_label_element(container:, text:, font_size: 20)
       label = text.to_s
-      width = [ label.length * font_size * 0.6, font_size * 2 ].max.round(2)
-      height = (font_size * 1.25).round(2)
+      lines = label.split("\n", -1)
+      line_count = [ lines.length, 1 ].max
+      longest_line = lines.max_by(&:length) || ""
+      width = [ longest_line.length * font_size * 0.6, font_size * 2 ].max.round(2)
+      height = (font_size * 1.25 * line_count).round(2)
       x = container.fetch("x").to_f + (container.fetch("width").to_f - width) / 2.0
       y = container.fetch("y").to_f + (container.fetch("height").to_f - height) / 2.0
 
@@ -205,7 +211,8 @@ module SyrusChatMcp
         "verticalAlign" => "middle",
         "baseline" => font_size,
         "lineHeight" => 1.25,
-        "containerId" => container.fetch("id")
+        "containerId" => container.fetch("id"),
+        "autoResize" => true
       )
     end
 
