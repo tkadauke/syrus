@@ -296,6 +296,7 @@ module SyrusChatMcp
       PauseLandingQueueTool,
       ResumeLandingQueueTool,
       ReadQueueTool,
+      SearchSyrusDocsTool,
       GetWalkthroughAnalysisTool,
       AnalyzeWalkthroughSegmentTool,
       ReadWalkthroughFrameTool
