@@ -12,20 +12,17 @@
 # inserts fail silently via insert_with_save's rescue, and they all
 # share the row's heartbeat thread (started in the master).
 class InstanceVersion < ApplicationRecord
+  include TracksFinishedAt
+
   ROLES = %w[ web worker local ].freeze
   HEARTBEAT_STALE_THRESHOLD = 2.minutes
   REAPER_STALE_THRESHOLD = 5.minutes
 
   validates :hostname, :role, :version, :started_at, presence: true
 
-  scope :running, -> { where(finished_at: nil) }
-  scope :finished, -> { where.not(finished_at: nil) }
   scope :fresh, ->(threshold = HEARTBEAT_STALE_THRESHOLD) {
     running.where("last_heartbeat_at IS NULL AND started_at > :t OR last_heartbeat_at > :t", t: threshold.ago)
   }
-
-  def running? = finished_at.nil?
-  def finished? = !running?
 
   def seconds_since_heartbeat
     return nil if last_heartbeat_at.nil?

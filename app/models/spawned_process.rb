@@ -1,4 +1,6 @@
 class SpawnedProcess < ApplicationRecord
+  include TracksFinishedAt
+
   # The strict set of process kinds we know how to handle. Adding a
   # new kind means appending it here AND wiring the caller to pass
   # `kind:` to ProcessRunner. We use a CONSTANT instead of an AR enum
@@ -29,17 +31,12 @@ class SpawnedProcess < ApplicationRecord
   validates :command, :hostname, :started_at, presence: true
   validates :outcome, inclusion: { in: OUTCOMES, allow_nil: true }
 
-  scope :running, -> { where(finished_at: nil) }
-  scope :finished, -> { where.not(finished_at: nil) }
   scope :stale, ->(threshold = STALE_THRESHOLD) {
     running.where("(last_chunk_at IS NULL AND started_at < :t) OR last_chunk_at < :t", t: threshold.ago)
   }
   scope :recent_or_active, ->(window = 1.hour) {
     where("finished_at IS NULL OR finished_at >= ?", window.ago)
   }
-
-  def running? = finished_at.nil?
-  def finished? = !running?
 
   def stale?(threshold = STALE_THRESHOLD)
     return false if finished?

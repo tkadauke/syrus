@@ -1,4 +1,6 @@
 class TerminalSession < ApplicationRecord
+  include TracksFinishedAt
+
   OUTCOMES = %w[ exited killed orphaned ].freeze
 
   belongs_to :user
@@ -8,12 +10,6 @@ class TerminalSession < ApplicationRecord
 
   validates :name, :working_directory, :auth_token, :started_at, presence: true
   validates :outcome, inclusion: { in: OUTCOMES, allow_nil: true }
-
-  scope :running, -> { where(finished_at: nil) }
-  scope :finished, -> { where.not(finished_at: nil) }
-
-  def running? = finished_at.nil?
-  def finished? = !running?
 
   def relay_ready? = relay_address.present?
 
