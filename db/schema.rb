@@ -1787,7 +1787,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_180000) do
   add_foreign_key "notifications", "users"
   add_foreign_key "platform_identities", "users"
   add_foreign_key "pr_review_comments", "jobs"
+<<<<<<< HEAD
   add_foreign_key "pr_review_comments", "workflows", column: "handling_workflow_id"
+=======
+>>>>>>> c360121d (Resolve db/schema.rb merge conflict from PlatformIdentity feature branch)
   add_foreign_key "repositories", "installations"
   add_foreign_key "repositories", "repositories", column: "upstream_repository_id"
   add_foreign_key "repositories", "users"
