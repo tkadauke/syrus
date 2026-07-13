@@ -30,6 +30,9 @@ function makePayload(overrides: {
       agent_provider: "claude",
       chat_provider: null,
       codex_auth_mode: overrides.codex_auth_mode ?? "api_key",
+      opencode_backend: null,
+      opencode_model: null,
+      opencode_endpoint_url: null,
       agent_max_turns: 200,
       scheduling_paused: false,
       auto_approve_mode: "never",
@@ -44,6 +47,7 @@ function makePayload(overrides: {
       claude_oauth_token: false,
       codex_api_key: false,
       codex_auth_json: false,
+      opencode_api_key: false,
       gemini_api_key: false,
       api_token: null,
       ...overrides.credential_status
@@ -55,6 +59,7 @@ function makePayload(overrides: {
       chat_providers: [],
       roles: ["developer", "product_owner"],
       codex_auth_modes: ["api_key", "chatgpt_login"],
+      opencode_backends: ["openai_api", "ollama", "azure_openai"],
       agent_max_turns: { min: 0, max: 1000 },
       clearable_credentials: [],
       auto_approve_modes: [{ value: "never", label: "Never", preview: "No auto-approval." }]
