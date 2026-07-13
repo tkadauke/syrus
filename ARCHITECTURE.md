@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-07-06._
+_Last reviewed: 2026-07-13._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -293,6 +293,9 @@ period case ends in `failed` via `ReapStaleRunsJob`, not `cancelled`.
 | `replay` | operator replay of a failed/retryable path | uses the retry Workflow template |
 | `manual` | operator: explicit manual prompt | freeform |
 | `resume` | operator continuation of a captured provider session | freeform prompt against retained session context |
+| `coding_handoff` | Coding Mode: chat agent commits implementation and operator confirms | skips the agent implement step; runs graders → summarize → PR open (or summarize_amend → push for an existing PR); reverts Job to `coding` on grader failure |
+| `local_mode_handoff` | Local Mode daemon completes implementation via `complete_implement_step` | skips agent implement; runs graders, then opens a new PR or updates the existing one depending on whether `pr_number` is set |
+| `main_grader` | `PollAllMainBranchHealthJob` detects a new default-branch HEAD SHA | runs graders against the repository's default branch; updates `repository.grader_health` and calls `MainHealthChangedService` on health transitions; excluded from the operator dashboard |
 
 State changes reach the browser through app events; see
 [UI surface](#ui-surface) for how updates land in React.
@@ -319,10 +322,28 @@ default. Carries `default_branch`, `polling_enabled`, `trigger_label`
 for the owning user's Job runs. `review_policy` governs how approvals are
 counted (`self` — any reviewer including the author; `two_person` — at
 least one non-author approval; `final_say` — a designated
-`RepositoryFinalApprover` must be among the approvers). Upstream fork
-metadata (`upstream_owner`, `upstream_name`, `upstream_default_branch`)
-links a fork to its origin repository. Archive blocks polling even if
-`polling_enabled` is true.
+`RepositoryFinalApprover` must be among the approvers). `feedback_policy`
+controls when PR comments trigger a `pr_comment` follow-up Workflow:
+`"auto"` (default for older repos) acts on any actionable comment;
+`"confirm"` (default for new repos) acts only on comments from the Job
+owner. Upstream fork metadata (`upstream_owner`, `upstream_name`,
+`upstream_default_branch`) links a fork to its origin repository. Archive
+blocks polling even if `polling_enabled` is true.
+
+`main_health` is a computed property (`"healthy"`, `"broken"`, or
+`"unknown"`) derived from two independently tracked signals:
+`ci_health` (based on GitHub check-run results for the default branch
+HEAD SHA, updated by `PollAllMainBranchHealthJob`) and `grader_health`
+(based on `.syrus.yml` grader runs against the default branch HEAD,
+updated by `MainGrader` workflows). `MainHealthChangedService` responds
+to health transitions: when main breaks it pauses landing, stamps
+in-flight Workflows with a `"main_broken"` artifact, spawns a "Fix
+broken main" direct Job, and emits a notification; when main recovers it
+resumes landing and auto-retries held Workflows. The `report_main_concern`
+MCP tool lets agents self-report suspicion that main was already broken
+before their changes; `MainConcernAggregator` applies crowd-quorum logic
+to trigger the shared broken-main response once enough agents report within
+the rolling window.
 
 ### User
 
@@ -478,6 +499,7 @@ deliberately includes preempted Jobs.
 | `WorkflowWorkspacePruneJob` | every 2 hours | Removes old terminal Workflow workspaces |
 | `SyncAgentSkillsJob` | every hour | Synchronizes agent skill metadata |
 | `SyncInstallationsJob` | every 5 min | Refreshes GitHub App installation links |
+| `PollAllMainBranchHealthJob` | every 5 min | Fans out to per-repo default-branch health polling; triggers `MainGrader` workflows on new HEAD SHAs |
 | `ReconcileJobStatesJob` | every 5 min | Repairs drift between Job state and terminal evidence |
 Plus one Solid Queue housekeeping entry, `clear_solid_queue_finished_jobs`,
 which is production-only because dev wipes the Solid Queue tables
@@ -525,13 +547,20 @@ PollAllPullRequestsJob
       → fetch issue comments, review comments, reviews, checks
       → filter to events newer than max(last_seen_comment_at,
         last_feedback_addressed_at)
-      → if any new comment exists:
+      → qualifies_for_workflow? = actionable AND (job_owner? OR feedback_policy_auto?)
+      → if qualifying comment exists:
           Workflows::PrFeedback.instantiate(...)
           StepDispatcher.start_workflow(...)
       → if checks on pr.head.sha are failing AND sha != last_ci_handled_sha:
           Workflows::CiFailure.instantiate(...)
           StepDispatcher.start_workflow(...)
       → bump last_seen_comment_at / last_ci_handled_sha as watermarks
+  → PollForkReviewPrJob per Job with fork_review_pr_number
+      → monitor fork review PR approvals, CHANGES_REQUESTED reviews, and merges
+      → on approval: ForkReviewApprover records a JobApproval, opens upstream PR
+      → on rejection: set needs_attention, queue pr_comment workflow
+      → grace period (default 24h) when fork PR closed without merge
+      → watermark: last_seen_fork_review_comment_at
 ```
 
 Chat feedback is not poller-created. In a repository-scoped chat, the
@@ -543,6 +572,13 @@ the operator confirms it, `ChatPendingAction#apply!` instantiates
 Workflow. The Job must be `implemented` or `approved`; confirming
 feedback on an approved Job unapproves it so the landing queue does not
 merge stale work.
+
+`feedback_policy` on the repository controls which comments trigger a
+`pr_comment` Workflow: `"auto"` acts on any actionable comment from any
+author; `"confirm"` (the default for newly registered repositories)
+acts only on comments from the Job owner. Comments from other authors
+are still ingested and watermarked but do not auto-enqueue feedback
+Workflows in `confirm` mode.
 
 Chat proposals share the same dependency model before and after
 confirmation. `propose_job` can depend on existing Jobs, existing Epics,
@@ -657,7 +693,7 @@ Current Workflow chains:
 
 | Trigger | Chain |
 |---|---|
-| `initial` | `prepare → optional loop(implement → adversarial_review) → retry_until(implement → grader_fanout → grader_collect) → summarize → test_plan → pr_open` |
+| `initial` | `prepare → optional loop(implement → adversarial_review) → retry_until(implement → grader_fanout → grader_collect) → coverage_analyze → summarize → test_plan → pr_open` |
 | `pr_comment` | `prepare → retry_until(respond → grader_fanout → grader_collect) → summarize_amend → push` |
 | `chat_feedback` | `prepare → retry_until(respond → grader_fanout → grader_collect) → summarize_amend → push` |
 | `ci_failure` | `prepare → analyze_and_fix → summarize_amend → push` |
@@ -667,6 +703,9 @@ Current Workflow chains:
 | `stack_rebase` | `stack_auto_rebase → stack_agent_rebase → stack_force_push` |
 | `auto_merge` | `mergeability_preflight → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → push → auto_merge` |
 | `merge_train` | `merge_train_assemble → merge_train_build → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → merge_train_land` |
+| `coding_handoff` | `prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open` (no existing PR) or `prepare → grader_fanout → grader_collect → summarize_amend → push` (PR already open) |
+| `local_mode_handoff` | `prepare → grader_fanout → grader_collect → summarize_amend → push` (PR already open) or `prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open` (no PR yet) |
+| `main_grader` | `grader_fanout → grader_collect` (no retry loop; result drives `repository.grader_health`; anchor Job is closed and excluded from dashboard) |
 
 `prepare` reads `.syrus.yml` or auto-detects setup commands from
 lockfiles. Explicit `.syrus.yml` commands are operator intent and
@@ -682,7 +721,13 @@ Agentic Steps (`implement`, `adversarial_review`, `respond`,
 and manual) invoke the Workflow's
 configured provider through `AgentProviders::*`. Non-agentic Steps run
 service code: graders, git push/force-push, PR opening, mergeability
-gates, merge API calls, and merge-train assembly/landing.
+gates, merge API calls, merge-train assembly/landing, and
+`coverage_analyze`. `coverage_analyze` runs after `grader_collect` in
+initial (and compatible) Workflows: it reads a `coverage:` block from
+`.syrus.yml`, parses coverage artifacts produced by graders, merges and
+normalizes them, computes per-file and diff-level annotations, stores a
+`CoverageSnapshot`, and evaluates any configured threshold. Skipped
+silently if no coverage configuration is present.
 
 The optional `adversarial_review` loop applies only to Initial
 Workflows. `RepoAdversarialReviewPlan` reads repository configuration
@@ -764,6 +809,10 @@ What happens to a single labeled issue, from label to merge:
      grade loop and can request another implementation round.
    - Grader Steps run configured `.syrus.yml` checks; failures append
      another bounded repair/check iteration.
+   - The `coverage_analyze` Step runs after graders pass: it parses
+     any coverage artifacts, merges them, stores a `CoverageSnapshot`,
+     and evaluates the configured threshold. Skipped when no coverage
+     configuration is present in `.syrus.yml`.
    - The `summarize` Step asks the agent to call `submit_summary`
      unless the implement Step already provided PR copy.
    - The `test_plan` Step asks the agent to call `submit_test_plan`
@@ -891,6 +940,20 @@ agent at it over stdio. Today's tool surface:
   `adversarial_review` Step requires this tool call; the stored
   critique is fed into later review-loop iterations, while the verdict
   is retained for audit/future control.
+- `get_coverage_report()` — returns the coverage artifact from the most
+  recent `coverage_analyze` step: summary, per-file breakdown, diff
+  annotations, and any threshold miss. Returns `coverage_unavailable`
+  when no coverage configuration is present or no artifact has been
+  written yet.
+- `read_memory(id:)` — reads the full content of a `ChatMemory` owned
+  by the current Job's user. Agents use this to recall prior session
+  notes without having every memory inlined into the system prompt.
+- `report_main_concern(reason:, failing_tests:)` — agents call this
+  when graders or tests are failing in files they did not modify,
+  suggesting the main branch was already broken before their changes.
+  `MainConcernAggregator` applies crowd-quorum logic and triggers the
+  shared broken-main response once enough agents report within the
+  rolling window.
 
 The sidecar lives in-process with Rails, so tool handlers are plain
 ActiveRecord calls scoped to the active Run. No network, no auth
@@ -915,6 +978,29 @@ write/edit tools disabled; they inspect code, maintain notes and
 whiteboard state, and propose or queue work rather than editing a
 repository checkout directly.
 
+`ChatSession#mode` is a three-value enum that controls how implementation
+work originates from a chat session:
+
+- `planning` (default) — agent plans and proposes work; implementation
+  belongs to Workflow Runs, not the chat workspace.
+- `coding` (labs; `coding_mode` feature flag) — the agent codes
+  directly in the chat workspace and then calls `submit_coding_changes`
+  to create a Job from the committed branch and kick off a
+  `coding_handoff` Workflow (graders → summarize → PR open). On grader
+  failure the Job reverts to `coding` state so the operator can fix and
+  re-submit. Uses `CodingHandoff` workflow.
+- `local` (labs; `local_mode` feature flag) — the agent delegates
+  file-system and shell work to the user's own machine via a
+  reverse WebSocket tunnel established by `syrus local` (Go CLI). The
+  daemon connects to `LocalTunnelChannel` (Action Cable), authenticates
+  with a per-session token, and receives tool-call dispatches from the
+  chat agent. The agent then calls `complete_implement_step` to signal
+  that implementation is done, triggering a `local_mode_handoff`
+  Workflow (graders → summarize → PR open or amend). `LocalDaemonSession`
+  tracks connection state, heartbeat, and the repo/branch the daemon
+  has checked out. The `open_in_local_mode` chat MCP tool lets the agent
+  take over an existing implemented/approved Job for local-mode editing.
+
 `ChatSession` carries two optional fields that enable additional sharing
 features. `share_token` (unique, nullable) enables read-only access for
 teammates who have the link — shared chats are visible without
@@ -938,8 +1024,11 @@ that chat session. Its tools cover:
 - Operator actions: propose GitHub issues, Syrus Jobs, Epics, or an
   Epic with child Jobs; delete proposals; schedule recurring work;
   schedule/list/cancel one-shot chat wakeups; update Job
-  title/description copy; and submit chat feedback, retry, rebase, or
-  cancel Jobs visible to the session.
+  title/description copy; submit chat feedback, retry, rebase, or
+  cancel Jobs visible to the session; `submit_coding_changes` to
+  create a Job from committed branch work (Coding Mode); and
+  `open_in_local_mode` / `complete_implement_step` to manage Local
+  Mode implementation handoff.
 - Collaboration state: ask blocking operator questions, set bookmarks,
   read/search/manage chat memories, and mutate the chat whiteboard
   through scene/drawing tools.
