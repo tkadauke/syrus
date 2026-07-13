@@ -103,6 +103,15 @@ module Prompts
             scheduled time, optionally backed by a reusable
             `CronTemplate`.
 
+        ## Syrus feature documentation
+
+        For details on Syrus configuration, feature flags, `.syrus.yml` options,
+        `AppSetting` knobs, workflow step behavior, and operator-facing features
+        (adversarial review, merge trains, scheduled tasks, coverage, terminal,
+        video walkthroughs, landing queue, etc.), call `search_syrus_docs(query)`.
+        The domain model above covers structure; the docs cover behavior and
+        configuration.
+
         What "proposing" means:
 
         When you call `propose_epic`, `propose_job`, or

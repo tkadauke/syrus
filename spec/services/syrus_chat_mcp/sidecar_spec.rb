@@ -220,6 +220,11 @@ RSpec.describe SyrusChatMcp::Sidecar do
       expect(names).not_to include("repo_info", "rename_chat", "ask_user_question", "admin_overview")
     end
 
+    it "registers search_syrus_docs in DEFERRED_TOOLS" do
+      expect(SyrusChatMcp::DeferredSidecar::DEFERRED_TOOLS).to include(SyrusChatMcp::SearchSyrusDocsTool)
+      expect(SyrusChatMcp::DeferredSidecar.tool_names(chat_session)).to include("search_syrus_docs")
+    end
+
     it "keeps deferred tool schemas callable through the deferred server" do
       server = server_for(chat_session, tier: :deferred)
       _ = jsonrpc(server, "initialize", id: 0)

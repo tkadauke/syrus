@@ -474,6 +474,13 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   existing page over adding a parallel one; if the navigation contract
   changes, update `website/README.md` too. PRs that add product behavior
   while leaving the public docs stale are incomplete.
+- **Feature documentation is mandatory.** When adding or changing any
+  operator-facing feature — configuration keys, feature flags, `AppSetting`
+  columns, new step kinds, new trigger kinds, or changes to existing behavior
+  — update the matching file under `config/syrus_docs/` in the same PR. New
+  features that have no existing doc file should create one following the
+  format in the existing files. PRs that add operator-facing behavior while
+  leaving the docs stale are incomplete, same as public website docs.
 - **Prompts** all live under `app/services/prompts/` as PORO classes
   (`Prompts::Initial`, `Prompts::PrFeedback`, `Prompts::PullRequestSummary`,
   `Prompts::SubmitSummaryInstructions`, `Prompts::TestPlan`,
