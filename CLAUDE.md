@@ -70,6 +70,12 @@ same Workflow pipeline.
 - `stack_rebase` — maintenance Run that rebases a dependent PR stack
   branch-by-branch, force-pushes each updated branch, then resumes
   landing for approved stack Jobs.
+- `coding_handoff` — triggered after a coding-mode chat session commits
+  and hands off via `complete_implement_step` (existing Job) or
+  `submit_coding_changes` (creates a new direct Job); requires operator
+  confirmation before dispatching. On grader pass, opens the PR and
+  notifies the linked chat. On grader failure, reverts the Job to `:coding`
+  so the agent can fix and re-run.
 
 ### Per-Workflow pipeline (`app/jobs/run_job.rb`, `app/services/workflows/`, `app/services/steps/`)
 
@@ -92,6 +98,7 @@ rebase:      auto_rebase → agent_rebase → force_push
 stack_rebase: stack_auto_rebase → stack_agent_rebase → stack_force_push
 auto_merge:  mergeability_preflight → prepare → retry_until(graders, repair: landing_fix) → push → auto_merge
 merge_train: merge_train_assemble → merge_train_build → prepare → retry_until(graders, repair: landing_fix) → merge_train_land
+coding_handoff: prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open
 ```
 
 Key steps:
@@ -304,11 +311,19 @@ updates, notably chat message tails, queued chat messages, controls,
 and whiteboard changes.
 
 Chat turns run in persistent chat workspaces, not repository workflow
-workspaces. Attached repository checkouts under chat workspaces are
-read-only to agents; chat can inspect code and queue/propose Jobs, Epics,
-or issues, but implementation belongs in workflow Runs. While a chat turn
-is busy, follow-up user messages are stored as `ChatQueuedMessage`s and
-delivered sequentially after the current turn finishes.
+workspaces. In normal planning sessions, attached repository checkouts
+are read-only to agents; chat can inspect code and queue/propose Jobs,
+Epics, or issues. In **Coding Mode** (labs feature `coding_mode`), the
+chat workspace gets a writable full clone on a dedicated branch so the
+agent can implement directly. `ChatWorkspacePrepareJob` auto-installs
+dependencies after every coding checkout (`:chat` queue, same soft-fail
+semantics as the workflow `prepare` step). After committing, the agent
+calls `complete_implement_step` (to hand off an existing Job) or
+`submit_coding_changes` (to create a new direct Job from the branch) —
+both create a pending action that requires operator confirmation before
+the `coding_handoff` Workflow is dispatched. While a chat turn is busy,
+follow-up user messages are stored as `ChatQueuedMessage`s and delivered
+sequentially after the current turn finishes.
 
 Chat proposal tools can express runtime dependencies when drafting work:
 `depends_on` for Job proposal slugs in the same chat, `depends_on_job_ids` for
