@@ -96,8 +96,7 @@ module SyrusChatMcp
       GitStatusTool,
       OpenInLocalModeTool,
       CancelLocalModeTool,
-      CreateCodingJobTool,
-      CompleteImplementStepTool
+      CreateCodingJobTool
     ].freeze
 
     TOOLS = [
@@ -180,7 +179,8 @@ module SyrusChatMcp
     end
 
     def self.coding_mode_session?(chat_session)
-      Feature.coding_mode_enabled? && chat_session.coding?
+      return false unless chat_session
+      (Feature.coding_mode_enabled? && chat_session.coding?) || local_mode_active?(chat_session)
     end
 
     def self.local_mode_tool?(tool)

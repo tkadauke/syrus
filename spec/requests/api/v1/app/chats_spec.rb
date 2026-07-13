@@ -896,7 +896,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "message")).to eq("Local mode is not enabled.")
-    expect(chat.reload.mode).to be_nil
+    expect(chat.reload.mode).to eq("planning")
   end
 
   it "accepts local mode when the local_mode feature flag is on" do
@@ -920,7 +920,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "message")).to include("Invalid mode")
-    expect(chat.reload.mode).to be_nil
+    expect(chat.reload.mode).to eq("planning")
   end
 
   it "enqueues title generation when an unstarted chat receives its first message" do
