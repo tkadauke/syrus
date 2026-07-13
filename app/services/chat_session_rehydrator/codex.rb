@@ -16,7 +16,7 @@ require "json"
 class ChatSessionRehydrator::Codex
   BASH_TOOL_NAME = "bash"
 
-  def initialize(chat_session, session_id: nil)
+  def initialize(chat_session, session_id: nil, cwd: nil)
     @chat_session = chat_session
     @session_id   = session_id || chat_session.claude_session&.session_id
   end

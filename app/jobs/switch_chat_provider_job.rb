@@ -54,12 +54,8 @@ class SwitchChatProviderJob < ApplicationJob
   def rehydrate_for(provider, session_id, workspace_path)
     return nil unless @chat.messages.exists?
 
-    case provider
-    when "claude"
-      ChatSessionRehydrator::Claude.new(@chat, session_id: session_id, cwd: workspace_path).call
-    when "codex"
-      ChatSessionRehydrator::Codex.new(@chat, session_id: session_id).call
-    end
+    klass = ChatSessionRehydrator.for(provider)
+    klass&.new(@chat, session_id: session_id, cwd: workspace_path)&.call
   end
 
   def write_claude_session_to_disk!(workspace_path, session_id, jsonl)
