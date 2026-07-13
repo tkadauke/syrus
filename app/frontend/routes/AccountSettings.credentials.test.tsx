@@ -46,8 +46,8 @@ function makePayload(overrides: {
       agent_provider: "claude",
       chat_provider: null,
       codex_auth_mode: overrides.codex_auth_mode ?? "api_key",
-      opencode_backend: null,
-      opencode_model: null,
+      opencode_backend: "openai_api",
+      opencode_model: "gpt-5.2",
       opencode_endpoint_url: null,
       agent_max_turns: 200,
       scheduling_paused: false,
@@ -63,7 +63,7 @@ function makePayload(overrides: {
       claude_oauth_token: true,
       codex_api_key: true,
       codex_auth_json: false,
-      opencode_api_key: false,
+      opencode_api_key: true,
       gemini_api_key: true,
       api_token: null,
       ...overrides.credential_status
@@ -147,11 +147,12 @@ describe("CredentialsRoute (provider cards)", () => {
     expect(await screen.findByTestId("credential-card-github")).toBeInTheDocument()
     expect(screen.getByTestId("credential-card-claude")).toBeInTheDocument()
     expect(screen.getByTestId("credential-card-codex")).toBeInTheDocument()
+    expect(screen.getByTestId("credential-card-opencode")).toBeInTheDocument()
     expect(screen.getByTestId("credential-card-gemini")).toBeInTheDocument()
 
     // Every card shows its connected state — no password field impersonating
     // a saved secret, and no page-wide Save button for the section.
-    expect(screen.getAllByText("Connected")).toHaveLength(4)
+    expect(screen.getAllByText("Connected")).toHaveLength(5)
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument()
   })
 

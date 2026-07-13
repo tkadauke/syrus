@@ -42,6 +42,8 @@ type CardProps = {
 
 type OpenCodeBackend = "openai_api" | "ollama" | "azure_openai"
 
+const DEFAULT_OPENCODE_BACKENDS: OpenCodeBackend[] = ["openai_api", "ollama", "azure_openai"]
+
 const OPENCODE_BACKEND_OPTIONS: Record<OpenCodeBackend, { label: string; modelPlaceholder: string; endpointPlaceholder?: string }> = {
   openai_api: {
     label: "OpenAI API",
@@ -822,25 +824,26 @@ export function OpenCodeCredentialCard({ payload, onNotice }: CardProps) {
   const queryClient = useQueryClient()
   const { headingRef, focusHeading } = useCardFocus()
   const actions = useCredentialActions(onNotice, focusHeading)
-  const initialBackend = normalizedOpenCodeBackend(payload.user.opencode_backend || "", payload.options.opencode_backends)
-  const [editing, setEditing] = useState(false)
-  const [backend, setBackend] = useState<OpenCodeBackend>(initialBackend)
+  const opencodeBackends = openCodeBackends(payload)
+  const savedBackend = normalizedOpenCodeBackend(payload.user.opencode_backend || "", opencodeBackends)
+  const connected = opencodeConfigured({
+    backend: savedBackend,
+    model: payload.user.opencode_model || "",
+    apiKeySet: !!payload.credential_status.opencode_api_key,
+    endpointUrl: payload.user.opencode_endpoint_url || ""
+  })
+  const [editing, setEditing] = useState(!connected)
+  const [backend, setBackend] = useState<OpenCodeBackend>(savedBackend)
   const [model, setModel] = useState(payload.user.opencode_model || "")
   const [apiKey, setApiKey] = useState("")
   const [endpointUrl, setEndpointUrl] = useState(payload.user.opencode_endpoint_url || "")
   const backendOption = OPENCODE_BACKEND_OPTIONS[backend]
   const needsApiKey = backend === "openai_api" || backend === "azure_openai"
   const needsEndpoint = backend === "ollama" || backend === "azure_openai"
-  const connected = opencodeConfigured({
-    backend,
-    model,
-    apiKeySet: payload.credential_status.opencode_api_key,
-    endpointUrl
-  })
   const showEditor = editing || !connected
 
   useEffect(() => {
-    const nextBackend = normalizedOpenCodeBackend(payload.user.opencode_backend || "", payload.options.opencode_backends)
+    const nextBackend = normalizedOpenCodeBackend(payload.user.opencode_backend || "", openCodeBackends(payload))
     setBackend(nextBackend)
     setModel(payload.user.opencode_model || "")
     setEndpointUrl(payload.user.opencode_endpoint_url || "")
@@ -881,10 +884,10 @@ export function OpenCodeCredentialCard({ payload, onNotice }: CardProps) {
             <select
               autoFocus={editing}
               className={`mt-2 ${inputClass()}`}
-              onChange={(event) => setBackend(normalizedOpenCodeBackend(event.target.value, payload.options.opencode_backends))}
+              onChange={(event) => setBackend(normalizedOpenCodeBackend(event.target.value, opencodeBackends))}
               value={backend}
             >
-              {payload.options.opencode_backends.map((option) => (
+              {opencodeBackends.map((option) => (
                 <option key={option} value={option}>{openCodeBackendLabel(option)}</option>
               ))}
             </select>
@@ -1003,6 +1006,14 @@ function OpenCodeConfigPreview({
       </pre>
     </section>
   )
+}
+
+function openCodeBackends(payload: CredentialsPayload): OpenCodeBackend[] {
+  const allowedBackends = payload.options.opencode_backends
+  if (!Array.isArray(allowedBackends) || allowedBackends.length === 0) return DEFAULT_OPENCODE_BACKENDS
+
+  const knownBackends = allowedBackends.filter(isOpenCodeBackend)
+  return knownBackends.length > 0 ? knownBackends : DEFAULT_OPENCODE_BACKENDS
 }
 
 function normalizedOpenCodeBackend(value: string, allowedBackends: string[]): OpenCodeBackend {
