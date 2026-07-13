@@ -1412,34 +1412,74 @@ module Api
           %w[Document RepositoryDocument].include?(raw.to_s) ? "Document" : raw.to_s
         end
 
+        ATTACHMENT_SEARCH_SCOPE_METHODS = {
+          "Repository" => :repository_attachment_search_scope,
+          "Job"        => :job_attachment_search_scope,
+          "Document"   => :document_attachment_search_scope,
+          "Epic"       => :epic_attachment_search_scope
+        }.freeze
+
+        ATTACHMENT_FILTER_SCOPE_METHODS = {
+          "Repository" => :filter_repository_attachment_scope,
+          "Job"        => :filter_job_attachment_scope,
+          "Document"   => :filter_titled_attachment_scope,
+          "Epic"       => :filter_titled_attachment_scope
+        }.freeze
+
+        ATTACHMENT_FINDER_METHODS = {
+          "Repository" => :find_repository_attachment,
+          "Job"        => :find_job_attachment,
+          "Document"   => :find_document_attachment,
+          "Epic"       => :find_epic_attachment
+        }.freeze
+
+        ATTACHMENT_LABEL_FORMATTERS = {
+          Repository => ->(r) { r.slug },
+          Epic       => ->(r) { [ r.slug, r.title.presence ].compact.join(": ") },
+          Job        => ->(r) { "#{r.slug}: #{r.issue_title.presence || r.issue_number || r.kind}" },
+          Document   => ->(r) { "#{r.title} (#{r.repository&.slug})" }
+        }.freeze
+
         def attachment_search_scope(type)
-          case type
-          when "Repository"
-            Current.user.repositories.active.order(:owner, :name, :id)
-          when "Job"
-            Current.user.jobs.includes(:repository).order(created_at: :desc, id: :desc)
-          when "Document"
-            Document.where(user: Current.user, attachable_type: "Repository").includes(:attachable).order(:title, :id)
-          when "Epic"
-            Current.user.epics.includes(:repository).order(:id)
-          end
+          method_name = ATTACHMENT_SEARCH_SCOPE_METHODS[type]
+          send(method_name) if method_name
+        end
+
+        def repository_attachment_search_scope
+          Current.user.repositories.active.order(:owner, :name, :id)
+        end
+
+        def job_attachment_search_scope
+          Current.user.jobs.includes(:repository).order(created_at: :desc, id: :desc)
+        end
+
+        def document_attachment_search_scope
+          Document.where(user: Current.user, attachable_type: "Repository").includes(:attachable).order(:title, :id)
+        end
+
+        def epic_attachment_search_scope
+          Current.user.epics.includes(:repository).order(:id)
         end
 
         def filter_attachment_scope(scope, type, query)
+          method_name = ATTACHMENT_FILTER_SCOPE_METHODS[type]
+          method_name ? send(method_name, scope, query) : scope
+        end
+
+        def filter_repository_attachment_scope(scope, query)
           like = "%#{ActiveRecord::Base.sanitize_sql_like(query)}%"
-          case type
-          when "Repository"
-            scope.where("owner LIKE ? OR name LIKE ?", like, like)
-          when "Job"
-            id = Integer(query, exception: false)
-            id ? scope.where("issue_title LIKE ? OR issue_body LIKE ? OR jobs.id = ?", like, like, id) : scope.where("issue_title LIKE ? OR issue_body LIKE ?", like, like)
-          when "Document"
-            scope.where("title LIKE ?", like)
-          when "Epic"
-            scope.where("title LIKE ?", like)
-          else
-            scope
-          end
+          scope.where("owner LIKE ? OR name LIKE ?", like, like)
+        end
+
+        def filter_job_attachment_scope(scope, query)
+          like = "%#{ActiveRecord::Base.sanitize_sql_like(query)}%"
+          id = Integer(query, exception: false)
+          id ? scope.where("issue_title LIKE ? OR issue_body LIKE ? OR jobs.id = ?", like, like, id) : scope.where("issue_title LIKE ? OR issue_body LIKE ?", like, like)
+        end
+
+        def filter_titled_attachment_scope(scope, query)
+          like = "%#{ActiveRecord::Base.sanitize_sql_like(query)}%"
+          scope.where("title LIKE ?", like)
         end
 
         def attachable_result_json(record)
@@ -1810,16 +1850,24 @@ module Api
         end
 
         def find_attachable_by_id(type, id)
-          case type
-          when "Repository"
-            Current.user.repositories.active.find(id)
-          when "Job"
-            Current.user.jobs.find(id)
-          when "Document"
-            Document.where(user: Current.user, attachable_type: "Repository").find(id)
-          when "Epic"
-            Current.user.epics.find(id)
-          end
+          method_name = ATTACHMENT_FINDER_METHODS[type]
+          send(method_name, id) if method_name
+        end
+
+        def find_repository_attachment(id)
+          Current.user.repositories.active.find(id)
+        end
+
+        def find_job_attachment(id)
+          Current.user.jobs.find(id)
+        end
+
+        def find_document_attachment(id)
+          Document.where(user: Current.user, attachable_type: "Repository").find(id)
+        end
+
+        def find_epic_attachment(id)
+          Current.user.epics.find(id)
         end
 
         def chat_json(chat_session)
@@ -1902,13 +1950,8 @@ module Api
         end
 
         def attachment_label(record)
-          case record
-          when Repository then record.slug
-          when Epic then [ record.slug, record.title.presence ].compact.join(": ")
-          when Job then "#{record.slug}: #{record.issue_title.presence || record.issue_number || record.kind}"
-          when Document then "#{record.title} (#{record.repository&.slug})"
-          else record.try(:name).presence || record.try(:title).presence || "#{record.class.name} ##{record.id}"
-          end
+          formatter = ATTACHMENT_LABEL_FORMATTERS[record.class]
+          formatter ? formatter.call(record) : record.try(:name).presence || record.try(:title).presence || "#{record.class.name} ##{record.id}"
         end
 
         def pending_action_label(action)

@@ -188,4 +188,43 @@ RSpec.describe CredentialProbe do
     expect(captured[:env]).to include("CODEX_API_KEY" => "sk-codex-secret")
     expect(captured[:command]).to include("codex", "exec", "--json")
   end
+
+  it "raises ArgumentError for an unknown credential" do
+    expect {
+      described_class.call(user: user, credential: "unknown_credential")
+    }.to raise_error(ArgumentError, /Unknown credential/)
+  end
+
+  describe "codex_auth_json credential" do
+    let(:auth_json) { Factories.codex_auth_json(access_token: "access-test") }
+    let(:user) do
+      Factories.user(codex_auth_mode: "chatgpt_login", codex_auth_json: auth_json)
+    end
+
+    it "rejects codex_auth_json tests when Codex is in API key mode" do
+      user.update!(codex_auth_mode: "api_key", codex_api_key: "sk-test", codex_auth_json: auth_json)
+
+      result = described_class.call(user: user, credential: "codex_auth_json")
+
+      expect(result.ok).to be false
+      expect(result.message).to eq("Codex is set to API key mode.")
+    end
+
+    it "reports missing auth.json when not configured" do
+      user.update!(codex_auth_json: nil)
+
+      result = described_class.call(user: user, credential: "codex_auth_json")
+
+      expect(result.ok).to be false
+      expect(result.message).to eq("Codex ChatGPT auth.json is not configured.")
+    end
+  end
+
+  describe "CREDENTIAL_PROBE_METHODS registry" do
+    it "covers all expected credential types" do
+      expect(described_class::CREDENTIAL_PROBE_METHODS.keys).to match_array(
+        %w[github_token claude_oauth_token codex_api_key codex_auth_json gemini_api_key]
+      )
+    end
+  end
 end

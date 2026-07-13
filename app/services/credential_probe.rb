@@ -72,19 +72,19 @@ class CredentialProbe
     Result.new(credential: "github_token", ok: false, message: "Could not reach GitHub to verify the token. Try again in a moment.", details: {})
   end
 
+  CREDENTIAL_PROBE_METHODS = {
+    "github_token"       => :probe_github,
+    "claude_oauth_token" => :probe_claude,
+    "codex_api_key"      => :probe_codex,
+    "codex_auth_json"    => :probe_codex,
+    "gemini_api_key"     => :probe_gemini
+  }.freeze
+
   def call
-    case credential
-    when "github_token"
-      probe_github
-    when "claude_oauth_token"
-      probe_claude
-    when "codex_api_key", "codex_auth_json"
-      probe_codex
-    when "gemini_api_key"
-      probe_gemini
-    else
-      raise ArgumentError, "Unknown credential: #{credential}"
-    end
+    probe_method = CREDENTIAL_PROBE_METHODS[credential]
+    raise ArgumentError, "Unknown credential: #{credential}" unless probe_method
+
+    send(probe_method)
   end
 
   # Validate a pasted-but-unsaved Gemini API key (the setup sheet's
@@ -226,15 +226,25 @@ class CredentialProbe
     failure("Claude CLI is not installed or not on PATH.")
   end
 
+  CODEX_CREDENTIAL_SPECS = {
+    "codex_api_key" => {
+      credential_attr: :codex_api_key,
+      missing_message: "Codex API key is not configured.",
+      required_mode: "api_key",
+      wrong_mode_message: "Codex is set to ChatGPT auth.json mode."
+    },
+    "codex_auth_json" => {
+      credential_attr: :codex_auth_json,
+      missing_message: "Codex ChatGPT auth.json is not configured.",
+      required_mode: "chatgpt_login",
+      wrong_mode_message: "Codex is set to API key mode."
+    }
+  }.freeze
+
   def probe_codex
-    case credential
-    when "codex_api_key"
-      return missing("Codex API key is not configured.") if user.codex_api_key.blank?
-      return wrong_mode("Codex is set to ChatGPT auth.json mode.") unless user.codex_auth_mode == "api_key"
-    when "codex_auth_json"
-      return missing("Codex ChatGPT auth.json is not configured.") if user.codex_auth_json.blank?
-      return wrong_mode("Codex is set to API key mode.") unless user.codex_auth_mode == "chatgpt_login"
-    end
+    spec = CODEX_CREDENTIAL_SPECS.fetch(credential)
+    return missing(spec[:missing_message]) if user.send(spec[:credential_attr]).blank?
+    return wrong_mode(spec[:wrong_mode_message]) unless user.codex_auth_mode == spec[:required_mode]
 
     Dir.mktmpdir("syrus-codex-probe-") do |workspace|
       codex_home = File.join(workspace, ".codex")

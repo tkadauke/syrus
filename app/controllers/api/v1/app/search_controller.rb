@@ -57,21 +57,38 @@ module Api
           end
         end
 
+        SEARCH_ROWS_DISPATCH = {
+          "job"  => :job_search_rows,
+          "epic" => :epic_search_rows,
+          "chat" => :chat_search_rows
+        }.freeze
+
+        RESULT_JSON_DISPATCH = {
+          "job"  => :job_result_json,
+          "epic" => :epic_result_json,
+          "chat" => :chat_result_json
+        }.freeze
+
         def search_rows(type, query, limit)
-          case type
-          when "job"
-            merge_slug_rows(
-              JobSearchIndex.search(query, user_id: Current.user.id, limit: limit),
-              job_slug_rows(query)
-            ).first(limit)
-          when "epic"
-            merge_slug_rows(
-              EpicSearchIndex.search(query, user_id: Current.user.id, limit: limit),
-              epic_slug_rows(query)
-            ).first(limit)
-          when "chat"
-            ChatMessageSearchIndex.search(query, user_id: Current.user.id, limit: limit)
-          end
+          send(SEARCH_ROWS_DISPATCH.fetch(type), query, limit)
+        end
+
+        def job_search_rows(query, limit)
+          merge_slug_rows(
+            JobSearchIndex.search(query, user_id: Current.user.id, limit: limit),
+            job_slug_rows(query)
+          ).first(limit)
+        end
+
+        def epic_search_rows(query, limit)
+          merge_slug_rows(
+            EpicSearchIndex.search(query, user_id: Current.user.id, limit: limit),
+            epic_slug_rows(query)
+          ).first(limit)
+        end
+
+        def chat_search_rows(query, limit)
+          ChatMessageSearchIndex.search(query, user_id: Current.user.id, limit: limit)
         end
 
         def merge_slug_rows(search_rows, slug_rows)
@@ -115,14 +132,7 @@ module Api
         end
 
         def result_json(row)
-          case row.fetch(:type)
-          when "job"
-            job_result_json(row)
-          when "epic"
-            epic_result_json(row)
-          when "chat"
-            chat_result_json(row)
-          end
+          send(RESULT_JSON_DISPATCH.fetch(row.fetch(:type)), row)
         end
 
         def job_result_json(row)
