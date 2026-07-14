@@ -286,9 +286,10 @@ RUN apt-get update -qq && \
 # stage. This is the layer that previously ran `mise install ...` and
 # took ~13 min cold; now it's a fast COPY of artifacts that were
 # compiled once and stay cached.
+COPY --from=runtime-cache /opt/mise /opt/mise-seed
 COPY --from=runtime-cache /opt/mise /opt/mise
 COPY --from=runtime-cache /usr/local/bin/mise /usr/local/bin/mise
-RUN chown -R 1000:1000 /opt/mise
+RUN chown -R 1000:1000 /opt/mise-seed /opt/mise
 
 # Package managers that don't ship with their default runtime. Python
 # tools live in an isolated venv so `poetry` stays executable without
@@ -302,7 +303,7 @@ RUN npm install -g yarn pnpm && npm cache clean --force && \
     ln -s /opt/python-tools/bin/poetry /usr/local/bin/poetry && \
     ln -s /opt/python-tools/bin/uv /usr/local/bin/uv
 
-ENV PATH="/opt/mise/installs/go/${MISE_GO_VERSION}/bin:/opt/python-tools/bin:/opt/mise/shims:${PATH}" \
+ENV PATH="/opt/python-tools/bin:/opt/mise/shims:${PATH}" \
     MISE_DATA_DIR=/opt/mise
 
 # ============================================================================

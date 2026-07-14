@@ -1,5 +1,13 @@
 #!/bin/bash -e
 
+# Seed /opt/mise from /opt/mise-seed when the volume is empty. cp -rn
+# (no-clobber) is safe for partially-populated volumes; reshim rebuilds
+# shims so seeded installs are immediately on PATH.
+if [ -d /opt/mise-seed ] && [ -z "$(ls -A /opt/mise/installs 2>/dev/null)" ]; then
+  cp -rn /opt/mise-seed/. /opt/mise/
+  /usr/local/bin/mise reshim
+fi
+
 # If running the rails server then create or migrate existing database
 if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
   ./bin/rails db:prepare
