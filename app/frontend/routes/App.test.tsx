@@ -8339,9 +8339,11 @@ describe("App", () => {
               pr_cost_footer_enabled: true,
               auto_merge_enabled: true,
               trust_clean_rebase_grade: false,
+              main_branch_health_enabled: true,
               main_branch_repair_enabled: false,
               agent_provider: "codex",
               auto_approve_mode: "if_graders_pass",
+              feedback_policy: "confirm",
               github_owner_id: "123",
               github_repository_id: "456"
             }
@@ -14604,8 +14606,11 @@ function repositoryFormPayload(overrides: Partial<{
       pr_cost_footer_enabled: true,
       auto_merge_enabled: false,
       trust_clean_rebase_grade: false,
+      main_branch_health_enabled: true,
+      main_branch_repair_enabled: true,
       agent_provider: "",
       auto_approve_mode: "never",
+      feedback_policy: "confirm",
       github_owner_id: null,
       github_repository_id: null,
       repository_path: null
