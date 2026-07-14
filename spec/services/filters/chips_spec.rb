@@ -160,6 +160,30 @@ RSpec.describe "Filters::Chips" do
       )
     end
 
+    it "queued: excludes jobs with a running infrastructure workflow (e.g. main_grader)" do
+      plain_queued = Factories.job_record(repository: repo, issue_number: 30, state: "queued")
+      grader_running = Factories.job_record(repository: repo, issue_number: 31, state: "queued")
+      grader_done = Factories.job_record(repository: repo, issue_number: 32, state: "queued")
+
+      Workflow.create!(job: grader_running, trigger_kind: "main_grader", state: "running")
+      Workflow.create!(job: grader_done, trigger_kind: "main_grader", state: "succeeded")
+
+      expect(run(field: "attention", op: "is", value: "queued")).to contain_exactly(
+        plain_queued,
+        grader_done
+      )
+    end
+
+    it "in_progress: includes queued jobs with a running infrastructure workflow" do
+      grader_running = Factories.job_record(repository: repo, issue_number: 33, state: "queued")
+      plain_queued = Factories.job_record(repository: repo, issue_number: 34, state: "queued")
+
+      Workflow.create!(job: grader_running, trigger_kind: "main_grader", state: "running")
+
+      expect(run(field: "attention", op: "is", value: "in_progress")).to include(grader_running)
+      expect(run(field: "attention", op: "is", value: "in_progress")).not_to include(plain_queued)
+    end
+
     it "inbox: returns only actionable review, repair, and idle feedback jobs" do
       failed = Factories.job_record(repository: repo, issue_number: 11, state: "failed")
       implemented = Factories.job_record(repository: repo, issue_number: 12, state: "implemented")

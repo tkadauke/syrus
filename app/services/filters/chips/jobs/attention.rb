@@ -156,7 +156,11 @@ module Filters
 
         def apply_queued
           queued_workflow_job_ids = latest_workflow_job_ids("queued")
-          scope.where(state: "queued").or(scope.open_threads.where(id: queued_workflow_job_ids))
+          # Infrastructure workflows skip propagate_start_to_job!, leaving the job :queued while the workflow runs; exclude them so they appear in_progress instead.
+          running_infra_ids = Workflow.where(state: "running", trigger_kind: Workflow::INFRASTRUCTURE_TRIGGER_KINDS).select(:job_id)
+          scope.where(state: "queued")
+               .where.not(id: running_infra_ids)
+               .or(scope.open_threads.where(id: queued_workflow_job_ids))
         end
 
         def apply_inbox
