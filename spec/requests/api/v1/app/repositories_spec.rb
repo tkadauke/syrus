@@ -317,6 +317,34 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
+  it "includes workflow_path in health history records linked to a grader workflow" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user)
+    grader_job = Job.create!(
+      user: user,
+      repository: repository,
+      kind: "main_grader",
+      issue_title: "main_grader:abc",
+      issue_number: nil
+    )
+    workflow = Workflows::MainGrader.instantiate(job: grader_job, artifacts: { "main_sha" => "abc123" })
+    check_with = MainBranchHealthCheck.record_grader_workflow(
+      repository: repository, sha: "abc123", grader_health: "healthy", workflow: workflow
+    )
+    check_without = MainBranchHealthCheck.record_ci_poll(
+      repository: repository, sha: "abc123", ci_health: "healthy"
+    )
+
+    get "/api/v1/app/repositories/#{repository.id}"
+
+    expect(response).to have_http_status(:ok)
+    records = parse_body.dig("health_history", "records")
+    linked = records.find { |r| r["id"] == check_with.id }
+    unlinked = records.find { |r| r["id"] == check_without.id }
+    expect(linked["workflow_path"]).to eq("/jobs/#{grader_job.id}?tab=workflows#workflow-#{workflow.id}")
+    expect(unlinked["workflow_path"]).to be_nil
+  end
+
   it "returns repository GitHub issues" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets", trigger_label: "syrus")

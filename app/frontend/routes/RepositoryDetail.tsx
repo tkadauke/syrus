@@ -121,6 +121,7 @@ function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab:
               history={payload.health_history}
               onNotice={setNotice}
               page={payload.pagination.page}
+              prefix={prefix}
               queryKey={queryKey}
               repository={payload.repository}
               resumePath={payload.paths.app_resume_landing_repository_path}
@@ -668,6 +669,7 @@ function MainBranchHealthSection({
   history,
   onNotice,
   page,
+  prefix,
   queryKey,
   repository,
   resumePath
@@ -675,6 +677,7 @@ function MainBranchHealthSection({
   history: RepositoryHealthHistory
   onNotice: (message: string | null) => void
   page: number
+  prefix: string
   queryKey: RepositoryDetailQueryKey
   repository: RepositoryDetailPayload["repository"]
   resumePath: string
@@ -742,7 +745,7 @@ function MainBranchHealthSection({
         {history.ci_health === "broken" && history.records.length > 0 ? (
           <FailingChecks checks={history.records[0].ci_failed_checks} />
         ) : null}
-        <HealthHistoryTable records={history.records} t={t} />
+        <HealthHistoryTable records={history.records} prefix={prefix} t={t} />
       </div>
     </section>
   )
@@ -784,7 +787,7 @@ function FailingChecks({ checks }: { checks: Array<{ name: string; url: string }
   )
 }
 
-function HealthHistoryTable({ records, t }: { records: RepositoryHealthCheckRecord[]; t: (key: string) => string }) {
+function HealthHistoryTable({ records, prefix, t }: { records: RepositoryHealthCheckRecord[]; prefix: string; t: (key: string) => string }) {
   if (records.length === 0) {
     return <p className="text-sm text-gray-500 dark:text-gray-400">{t("repository.health_no_history")}</p>
   }
@@ -805,7 +808,7 @@ function HealthHistoryTable({ records, t }: { records: RepositoryHealthCheckReco
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
             {records.map((record) => (
-              <HealthHistoryRow key={record.id} record={record} t={t} />
+              <HealthHistoryRow key={record.id} prefix={prefix} record={record} t={t} />
             ))}
           </tbody>
         </table>
@@ -814,11 +817,12 @@ function HealthHistoryTable({ records, t }: { records: RepositoryHealthCheckReco
   )
 }
 
-function HealthHistoryRow({ record, t }: { record: RepositoryHealthCheckRecord; t: (key: string) => string }) {
+function HealthHistoryRow({ prefix, record, t }: { prefix: string; record: RepositoryHealthCheckRecord; t: (key: string) => string }) {
   const failureNames = [
     ...record.ci_failed_checks.map((c) => c.name),
     ...record.grader_failed_names
   ]
+  const graderPill = <StatusPill tone={healthTone(record.grader_health)}>{healthLabel(record.grader_health, t)}</StatusPill>
   return (
     <tr>
       <td className="px-3 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap">{formatRelative(record.checked_at)}</td>
@@ -828,7 +832,11 @@ function HealthHistoryRow({ record, t }: { record: RepositoryHealthCheckRecord; 
         </a>
       </td>
       <td className="px-3 py-2"><StatusPill tone={healthTone(record.ci_health)}>{healthLabel(record.ci_health, t)}</StatusPill></td>
-      <td className="px-3 py-2"><StatusPill tone={healthTone(record.grader_health)}>{healthLabel(record.grader_health, t)}</StatusPill></td>
+      <td className="px-3 py-2">
+        {record.workflow_path ? (
+          <Link to={withRoutePrefix(record.workflow_path, prefix)}>{graderPill}</Link>
+        ) : graderPill}
+      </td>
       <td className="px-3 py-2 text-xs text-gray-600 dark:text-gray-400">
         {failureNames.length > 0 ? failureNames.join(", ") : null}
       </td>

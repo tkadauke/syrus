@@ -739,7 +739,7 @@ module Api
         end
 
         def health_history_json(repository)
-          checks = repository.main_branch_health_checks.recent.limit(30)
+          checks = repository.main_branch_health_checks.recent.includes(workflow: :job).limit(30)
           {
             ci_health: repository.ci_health,
             grader_health: repository.grader_health,
@@ -763,7 +763,8 @@ module Api
             grader_health: check.grader_health,
             source: check.source,
             ci_failed_checks: check.ci_failed_checks || [],
-            grader_failed_names: check.grader_failed_names || []
+            grader_failed_names: check.grader_failed_names || [],
+            workflow_path: check.workflow ? ::App::WorkflowNavigation.path(check.workflow) : nil
           }
         end
 

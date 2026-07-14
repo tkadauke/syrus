@@ -61,6 +61,7 @@ module Workflows
       repository.update!(grader_health: health)
       MainBranchHealthCheck.record_grader_workflow(
         repository: repository,
+        workflow: workflow,
         sha: workflow.artifact("main_sha").to_s.presence || "unknown",
         grader_health: health,
         grader_failed_names: failed_names

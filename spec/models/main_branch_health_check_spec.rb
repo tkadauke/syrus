@@ -134,6 +134,21 @@ RSpec.describe MainBranchHealthCheck do
       )
       expect(check.grader_failed_names).to be_nil
     end
+
+    it "stores the workflow association when provided" do
+      workflow = Factories.job(repository: repository).workflows.first
+      check = MainBranchHealthCheck.record_grader_workflow(
+        repository: repository, sha: "abc", grader_health: "healthy", workflow: workflow
+      )
+      expect(check.workflow).to eq(workflow)
+    end
+
+    it "stores nil workflow when not provided" do
+      check = MainBranchHealthCheck.record_grader_workflow(
+        repository: repository, sha: "abc", grader_health: "healthy"
+      )
+      expect(check.workflow).to be_nil
+    end
   end
 
   describe ".conclusive_grader_result_exists?" do

@@ -239,6 +239,7 @@ export type RepositoryHealthCheckRecord = {
   source: string
   ci_failed_checks: Array<{ name: string; url: string }>
   grader_failed_names: string[]
+  workflow_path: string | null
 }
 
 export type RepositoryHealthHistory = {

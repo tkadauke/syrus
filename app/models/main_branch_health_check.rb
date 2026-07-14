@@ -4,6 +4,7 @@ class MainBranchHealthCheck < ApplicationRecord
   RETAIN_AFTER = 7.days
 
   belongs_to :repository
+  belongs_to :workflow, optional: true
 
   validates :sha, presence: true
   validates :checked_at, presence: true
@@ -34,9 +35,10 @@ class MainBranchHealthCheck < ApplicationRecord
     )
   end
 
-  def self.record_grader_workflow(repository:, sha:, grader_health:, grader_failed_names: nil)
+  def self.record_grader_workflow(repository:, sha:, grader_health:, grader_failed_names: nil, workflow: nil)
     create!(
       repository: repository,
+      workflow: workflow,
       sha: sha,
       checked_at: Time.current,
       ci_health: repository.ci_health,

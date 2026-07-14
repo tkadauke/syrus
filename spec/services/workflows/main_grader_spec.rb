@@ -53,6 +53,13 @@ RSpec.describe Workflows::MainGrader do
       expect(repository.reload.grader_health).to eq("healthy")
     end
 
+    it "links the created health check record to the workflow" do
+      described_class.after_success(workflow)
+
+      check = MainBranchHealthCheck.last
+      expect(check.workflow).to eq(workflow)
+    end
+
     it "closes the anchor Job" do
       described_class.after_success(workflow)
 
@@ -108,6 +115,15 @@ RSpec.describe Workflows::MainGrader do
       expect(check.source).to eq("grader_workflow")
       expect(check.grader_health).to eq("broken")
       expect(check.grader_failed_names).to eq([ "rspec" ])
+    end
+
+    it "links the created health check record to the workflow" do
+      create_failed_required_grader!(workflow)
+
+      described_class.after_fail(workflow)
+
+      check = MainBranchHealthCheck.last
+      expect(check.workflow).to eq(workflow)
     end
 
     it "does not mark grader_health broken when setup fails before graders run" do
