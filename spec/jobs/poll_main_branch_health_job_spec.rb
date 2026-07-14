@@ -126,7 +126,7 @@ RSpec.describe PollMainBranchHealthJob do
   end
 
   it "does not call MainHealthChangedService when health was already broken" do
-    repository.update!(ci_health: "broken", last_health_checked_sha: sha)
+    repository.update!(ci_health: "broken", last_health_checked_sha: sha, last_graded_sha: sha)
     stub_sha(sha)
 
     expect_any_instance_of(GithubClient).not_to receive(:check_runs_summary_for)
