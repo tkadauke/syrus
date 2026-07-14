@@ -45,6 +45,11 @@ RSpec.describe MainGraderWorkflowJob do
     described_class.perform_now(repository.id, sha)
   end
 
+  it "records last_graded_sha on the repository when creating a grading job" do
+    described_class.perform_now(repository.id, sha)
+    expect(repository.reload.last_graded_sha).to eq(sha)
+  end
+
   it "returns early when the repository does not exist" do
     expect {
       described_class.perform_now(0, sha)
@@ -71,6 +76,34 @@ RSpec.describe MainGraderWorkflowJob do
     expect {
       described_class.perform_now(repository.id, sha)
     }.not_to change(Job, :count)
+  end
+
+  it "skips creation when an open main_grader job exists for a different SHA" do
+    Job.create!(
+      user: user,
+      repository: repository,
+      kind: "main_grader",
+      issue_title: "main_grader:oldsha",
+      issue_number: nil
+    )
+
+    expect {
+      described_class.perform_now(repository.id, sha)
+    }.not_to change(Job, :count)
+  end
+
+  it "does not update last_graded_sha when skipping due to an active grading job" do
+    repository.update_columns(last_graded_sha: "previoussha")
+    Job.create!(
+      user: user,
+      repository: repository,
+      kind: "main_grader",
+      issue_title: "main_grader:oldsha",
+      issue_number: nil
+    )
+
+    described_class.perform_now(repository.id, sha)
+    expect(repository.reload.last_graded_sha).to eq("previoussha")
   end
 
   it "creates a new workflow when a closed main_grader job exists for the same SHA" do
@@ -100,20 +133,6 @@ RSpec.describe MainGraderWorkflowJob do
 
   it "allows creation when the only prior grader result for the SHA is unknown" do
     MainBranchHealthCheck.record_grader_workflow(repository: repository, sha: sha, grader_health: "unknown")
-
-    expect {
-      described_class.perform_now(repository.id, sha)
-    }.to change(Job, :count).by(1)
-  end
-
-  it "allows a new workflow for a different SHA even when another is active" do
-    Job.create!(
-      user: user,
-      repository: repository,
-      kind: "main_grader",
-      issue_title: "main_grader:oldsha",
-      issue_number: nil
-    )
 
     expect {
       described_class.perform_now(repository.id, sha)

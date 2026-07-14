@@ -73,16 +73,16 @@ RSpec.describe PollMainBranchHealthJob do
     expect(repository.last_health_checked_sha).to eq(sha)
   end
 
-  it "skips the job early when SHA matches last checked and health is known" do
-    repository.update!(last_health_checked_sha: sha, ci_health: "healthy", grader_health: "healthy")
+  it "skips the job early when SHA matches last checked, health is known, and SHA has been graded" do
+    repository.update!(last_health_checked_sha: sha, last_graded_sha: sha, ci_health: "healthy", grader_health: "healthy")
     stub_sha(sha)
 
     expect_any_instance_of(GithubClient).not_to receive(:check_runs_summary_for)
     described_class.perform_now(repository.id)
   end
 
-  it "re-checks even when SHA matches if health is unknown" do
-    repository.update!(last_health_checked_sha: sha)
+  it "re-checks CI even when SHA matches if health is unknown" do
+    repository.update!(last_health_checked_sha: sha, last_graded_sha: sha)
     stub_sha(sha)
     stub_check_runs({ any?: true, pending?: false, any_failed?: false, all_passed?: true })
 
@@ -143,7 +143,7 @@ RSpec.describe PollMainBranchHealthJob do
     described_class.perform_now(repository.id)
   end
 
-  it "enqueues MainGraderWorkflowJob when the SHA changes" do
+  it "enqueues MainGraderWorkflowJob when the SHA has not been graded yet" do
     stub_sha(sha)
     stub_check_runs({ any?: true, pending?: false, any_failed?: false, all_passed?: true })
 
@@ -172,13 +172,24 @@ RSpec.describe PollMainBranchHealthJob do
     expect(repository.reload.grader_health).to eq("unknown")
   end
 
-  it "does not enqueue MainGraderWorkflowJob when the SHA is unchanged and health is known" do
-    repository.update!(last_health_checked_sha: sha, ci_health: "healthy", grader_health: "healthy")
+  it "does not enqueue MainGraderWorkflowJob when the SHA has already been graded" do
+    repository.update!(last_health_checked_sha: sha, last_graded_sha: sha, ci_health: "healthy", grader_health: "healthy")
     stub_sha(sha)
 
     expect {
       described_class.perform_now(repository.id)
     }.not_to have_enqueued_job(MainGraderWorkflowJob)
+  end
+
+  it "enqueues MainGraderWorkflowJob when SHA is current but has not been graded yet" do
+    # SHA hasn't changed for CI purposes but grading hasn't run for it yet
+    repository.update!(last_health_checked_sha: sha, ci_health: "healthy", grader_health: "healthy")
+    stub_sha(sha)
+    stub_check_runs({ any?: true, pending?: false, any_failed?: false, all_passed?: true, failed_checks: [] })
+
+    expect {
+      described_class.perform_now(repository.id)
+    }.to have_enqueued_job(MainGraderWorkflowJob).with(repository.id, sha)
   end
 
   describe "MainBranchHealthCheck recording" do

@@ -847,6 +847,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_14_190310) do
     t.string "grader_health", default: "unknown", null: false
     t.integer "installation_id"
     t.boolean "landing_paused", default: false, null: false
+    t.string "last_graded_sha"
     t.string "last_health_checked_sha"
     t.text "last_poll_error"
     t.datetime "last_poll_started_at"

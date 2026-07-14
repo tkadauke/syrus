@@ -16,6 +16,7 @@ class PollMainBranchHealthJob < ApplicationJob
 
     sha_changed = sha != repository.last_health_checked_sha
     previous_health = repository.main_health
+    grading_needed = sha != repository.last_graded_sha
 
     # Health is scoped to the default-branch SHA. When main advances, stale
     # healthy states from the prior SHA must not leak onto the new one while
@@ -31,11 +32,19 @@ class PollMainBranchHealthJob < ApplicationJob
         grader_health: repository.grader_health_broken? ? "broken" : "unknown"
       )
       repository.reload
-      MainGraderWorkflowJob.perform_later(repository.id, sha)
     end
 
-    # Skip when SHA unchanged and health is already known — no new information.
-    return if !sha_changed && !repository.main_health_unknown?
+    # Fire the grader workflow when the SHA hasn't been graded yet.
+    # MainGraderWorkflowJob enforces at-most-one active grading job per repo;
+    # if one is already running it will skip and PollMainBranchHealthJob will
+    # retry on the next tick (grading_needed stays true until last_graded_sha
+    # is updated by MainGraderWorkflowJob on successful job creation).
+    MainGraderWorkflowJob.perform_later(repository.id, sha) if grading_needed
+
+    # Skip CI health check when SHA unchanged, health is already known, and
+    # grading is also up to date — nothing new to evaluate.
+    return if !sha_changed && !repository.main_health_unknown? && !grading_needed
+
 
     already_recorded_no_ci = repository.ci_health_not_configured? && repository.last_health_checked_sha == sha
     summary = client.check_runs_summary_for(repository.slug, sha)

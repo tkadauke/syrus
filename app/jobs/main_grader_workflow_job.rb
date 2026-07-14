@@ -1,21 +1,21 @@
 class MainGraderWorkflowJob < ApplicationJob
   queue_as :default
 
-  limits_concurrency to: 1, key: ->(repo_id, sha) { "main_grader:#{repo_id}:#{sha}" }
+  limits_concurrency to: 1, key: ->(repo_id, *) { "main_grader:#{repo_id}" }
 
   # Creates a main_grader Job + Workflow that runs .syrus.yml graders against
   # the given SHA on the repository's default branch.
   #
-  # Idempotency: SolidQueue's limits_concurrency prevents two runs for the
-  # same repo+sha from overlapping. Additionally, a DB check skips creation
-  # when an open main_grader Job already exists for this repository and SHA
-  # (stored in issue_title for queryability without a new column).
+  # At most one active grading workflow is allowed per repository. If another
+  # is already running (for any SHA), this is a no-op — the poll job will
+  # re-trigger for the latest SHA once the active one finishes, guided by
+  # repository.last_graded_sha.
   def perform(repository_id, sha)
     repository = Repository.find_by(id: repository_id)
     return unless repository
     return if repository.archived?
     return if MainBranchHealthCheck.conclusive_grader_result_exists?(repository: repository, sha: sha)
-    return if active_workflow_for_sha?(repository, sha)
+    return if active_grading_workflow?(repository)
 
     user = repository.user
     return unless user
@@ -34,20 +34,18 @@ class MainGraderWorkflowJob < ApplicationJob
         artifacts: { "main_sha" => sha }
       )
 
+      repository.update_columns(last_graded_sha: sha)
+
       StepDispatcher.start_workflow(workflow)
     end
   end
 
   private
 
-  # Returns true if there is already an open main_grader Job for this
-  # repository grading the same SHA. issue_title carries the SHA so we
-  # can check without JSON querying workflow artifacts.
-  def active_workflow_for_sha?(repository, sha)
+  def active_grading_workflow?(repository)
     Job.where(
       repository: repository,
-      kind: "main_grader",
-      issue_title: "main_grader:#{sha}"
+      kind: "main_grader"
     ).where.not(state: "closed").exists?
   end
 end
