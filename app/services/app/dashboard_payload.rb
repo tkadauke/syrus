@@ -357,7 +357,10 @@ module App
     end
 
     def jobs_base_scope
-      @jobs_base_scope ||= apply_ownership_scope(Job.where(repository_id: active_repo_ids), :job)
+      @jobs_base_scope ||= apply_ownership_scope(
+        Job.where(repository_id: active_repo_ids).where.not(kind: "main_grader"),
+        :job
+      )
     end
 
     def epics_base_scope

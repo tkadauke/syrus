@@ -1021,6 +1021,16 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(body["items"].map { |item| item.fetch("id") }).to eq([ closed.id ])
     end
 
+    it "excludes main_grader jobs from the operator-facing job list" do
+      visible = Factories.job_record(repository: repo, owner_user: user, issue_number: 10, issue_title: "Build aqueduct", kind: "issue", state: "queued")
+      Factories.job_record(repository: repo, owner_user: user, issue_number: nil, issue_title: "main_grader:abc123", kind: "main_grader", state: "queued")
+
+      get "/api/v1/app/dashboard", params: { subject: "job", view: "list", smart_folder_id: "all" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["items"].map { |item| item.fetch("id") }).to contain_exactly(visible.id)
+    end
+
     it "keeps an active empty when-present smart folder visible" do
       SmartFolder.ensure_builtins!
       folder = SmartFolder.find_by!(user_id: nil, subject_type: "job", name: "Landing queue")
