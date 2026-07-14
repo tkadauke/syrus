@@ -8339,6 +8339,7 @@ describe("App", () => {
               pr_cost_footer_enabled: true,
               auto_merge_enabled: true,
               trust_clean_rebase_grade: false,
+              main_branch_repair_enabled: false,
               agent_provider: "codex",
               auto_approve_mode: "if_graders_pass",
               github_owner_id: "123",
