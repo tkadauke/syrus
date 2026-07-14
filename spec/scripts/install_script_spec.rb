@@ -10,7 +10,7 @@ RSpec.describe "install.sh" do
     expect(script).to include('info "Next steps:"')
     expect(script).to include('info "  1. Open http://localhost:${port} and create the first admin account."')
     expect(script).to include('info "  2. Complete /onboarding: GitHub credentials, agent, first repository."')
-    expect(script).to include('info "  3. Logs: docker compose logs -f web worker   Stop: docker compose down"')
+    expect(script).to include('info "  3. Logs: docker compose -p $PROJECT logs -f web worker   Stop: docker compose -p $PROJECT down"')
     expect(script).to include('info "  4. Read README.md or website docs for next steps."')
   end
 end
