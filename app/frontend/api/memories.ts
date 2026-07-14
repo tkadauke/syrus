@@ -65,6 +65,8 @@ export type MemoryInput = {
 export type MemoryUpdateInput = {
   content?: string
   kind?: MemoryKind
+  scope?: MemoryScope
+  scope_id?: number | null
 }
 
 export function fetchMemories(search: string) {

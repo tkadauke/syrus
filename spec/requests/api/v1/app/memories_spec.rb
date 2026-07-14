@@ -112,20 +112,64 @@ RSpec.describe "API: /api/v1/app/memories", type: :request do
     expect(parse_body["message"]).to eq("Memory created.")
   end
 
-  it "updates only content and kind" do
+  it "updates content and kind" do
     sign_in_as(user)
     memory = memory_for(user, kind: "reference")
 
     patch "/api/v1/app/memories/#{memory.id}", params: {
-      memory: {
-        kind: "decision",
-        scope: "global",
-        content: "Keep app API payloads compact."
-      }
+      memory: { kind: "decision", content: "Keep app API payloads compact." }
     }
 
     expect(response).to have_http_status(:ok)
     expect(memory.reload).to have_attributes(kind: "decision", scope: "repository", content: "Keep app API payloads compact.")
+  end
+
+  it "updates scope from repository to global and clears scope_id and published" do
+    sign_in_as(user)
+    memory = memory_for(user, published: true)
+
+    patch "/api/v1/app/memories/#{memory.id}", params: { memory: { scope: "global" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(memory.reload).to have_attributes(scope: "global", scope_id: nil, published: false)
+  end
+
+  it "updates scope from global to repository" do
+    sign_in_as(user)
+    memory = memory_for(user, scope: "global", scope_id: nil)
+
+    patch "/api/v1/app/memories/#{memory.id}", params: {
+      memory: { scope: "repository", scope_id: repository.id }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(memory.reload).to have_attributes(scope: "repository", scope_id: repository.id)
+  end
+
+  it "updates the repository on a repository-scoped memory" do
+    sign_in_as(user)
+    second_repository = Factories.repository(user: user, owner: "acme", name: "gadgets")
+    memory = memory_for(user, scope_id: repository.id)
+
+    patch "/api/v1/app/memories/#{memory.id}", params: {
+      memory: { scope: "repository", scope_id: second_repository.id }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(memory.reload.scope_id).to eq(second_repository.id)
+  end
+
+  it "rejects updating scope_id to a repository not owned by the memory owner" do
+    sign_in_as(user)
+    memory = memory_for(user, scope_id: repository.id)
+
+    patch "/api/v1/app/memories/#{memory.id}", params: {
+      memory: { scope: "repository", scope_id: other_repository.id }
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    expect(memory.reload.scope_id).to eq(repository.id)
   end
 
   it "forbids non-admin writes to another user's memories" do

@@ -252,7 +252,12 @@ function MemoryModal({ memory, mode, payload, onClose, onNotice }: { memory?: Me
     }
   })
   const update = useMutation({
-    mutationFn: () => updateMemory(memory?.paths.app_memory_path || "", { content, kind }),
+    mutationFn: () => updateMemory(memory?.paths.app_memory_path || "", {
+      content,
+      kind,
+      scope,
+      scope_id: scope === "repository" ? Number(scopeId) : null
+    }),
     onSuccess: (nextPayload) => {
       queryClient.invalidateQueries({ queryKey: ["memories"] })
       onNotice(nextPayload.message || "Memory updated.")
@@ -312,17 +317,15 @@ function MemoryModal({ memory, mode, payload, onClose, onNotice }: { memory?: Me
                 {payload.kinds.map((option) => <option key={option} value={option}>{kindLabel(option)}</option>)}
               </select>
             </label>
-            {mode === "create" ? (
-              <label className={labelClass()} htmlFor="memory-scope">
-                {t('memories.modal_scope')}
-                <select id="memory-scope" className={fieldClass()} onChange={(event) => setScope(event.target.value as MemoryScope)} value={scope}>
-                  {payload.scopes.map((option) => <option key={option} value={option}>{option === "global" ? "Global" : "Repository"}</option>)}
-                </select>
-              </label>
-            ) : null}
+            <label className={labelClass()} htmlFor="memory-scope">
+              {t('memories.modal_scope')}
+              <select id="memory-scope" className={fieldClass()} onChange={(event) => setScope(event.target.value as MemoryScope)} value={scope}>
+                {payload.scopes.map((option) => <option key={option} value={option}>{option === "global" ? "Global" : "Repository"}</option>)}
+              </select>
+            </label>
           </div>
 
-          {mode === "create" && scope === "repository" ? (
+          {scope === "repository" ? (
             <label className={labelClass()} htmlFor="memory-repository">
               {t('memories.modal_repository')}
               <select

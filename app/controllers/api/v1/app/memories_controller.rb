@@ -22,7 +22,17 @@ module Api
           memory = find_memory_for_write
           return unless memory
 
-          if memory.update(update_memory_params)
+          attrs = update_memory_params.to_h.symbolize_keys
+
+          if attrs[:scope] == "global"
+            attrs.merge!(scope_id: nil, published: false)
+          elsif attrs[:scope_id].present?
+            unless memory.user.repositories.exists?(id: attrs[:scope_id])
+              return render_error("validation_failed", "Repository must belong to the memory owner.", status: :unprocessable_content)
+            end
+          end
+
+          if memory.update(attrs)
             render json: memories_payload.merge(message: "Memory updated.")
           else
             render_validation_error(memory)
@@ -168,7 +178,7 @@ module Api
         end
 
         def update_memory_params
-          normalized_memory_params.permit(:content, :kind)
+          normalized_memory_params.permit(:content, :kind, :scope, :scope_id)
         end
 
         def normalized_memory_params
