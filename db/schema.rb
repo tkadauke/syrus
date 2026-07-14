@@ -751,8 +751,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_14_190310) do
     t.string "sha", null: false
     t.string "source", null: false
     t.datetime "updated_at", null: false
+    t.integer "workflow_id"
     t.index ["repository_id", "checked_at"], name: "idx_mbhc_repo_checked_at"
     t.index ["repository_id"], name: "index_main_branch_health_checks_on_repository_id"
+    t.index ["workflow_id"], name: "index_main_branch_health_checks_on_workflow_id"
   end
 
   create_table "main_concern_reports", force: :cascade do |t|
@@ -1318,6 +1320,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_14_190310) do
   add_foreign_key "local_tool_calls", "local_daemon_sessions"
   add_foreign_key "local_tunnel_sessions", "users"
   add_foreign_key "main_branch_health_checks", "repositories"
+  add_foreign_key "main_branch_health_checks", "workflows"
   add_foreign_key "main_concern_reports", "jobs"
   add_foreign_key "main_concern_reports", "repositories"
   add_foreign_key "main_concern_reports", "runs"
