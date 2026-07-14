@@ -305,7 +305,8 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
       "app_poll_repository_path" => "/api/v1/app/repositories/#{repository.id}/poll",
       "app_archive_repository_path" => "/api/v1/app/repositories/#{repository.id}/archive",
       "app_retry_failed_jobs_repository_path" => "/api/v1/app/repositories/#{repository.id}/retry_failed_jobs",
-      "app_resume_landing_repository_path" => "/api/v1/app/repositories/#{repository.id}/resume_landing"
+      "app_resume_landing_repository_path" => "/api/v1/app/repositories/#{repository.id}/resume_landing",
+      "app_run_main_branch_graders_repository_path" => "/api/v1/app/repositories/#{repository.id}/run_main_branch_graders"
     )
     expect(body["paths"].keys).not_to include("poll_repository_path", "archive_repository_path", "retry_failed_jobs_repository_path")
   end
@@ -921,6 +922,53 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(repository.reload.feedback_policy).to eq("confirm")
+  end
+
+  it "enqueues main branch graders for the tracked SHA" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets", last_health_checked_sha: "abc1234def5678")
+
+    expect {
+      post "/api/v1/app/repositories/#{repository.id}/run_main_branch_graders", params: { return_to: "detail", page: 1 }
+    }.to have_enqueued_job(MainGraderWorkflowJob).with(repository.id, "abc1234def5678")
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Graders enqueued for abc1234 on acme/widgets.")
+    expect(parse_body.dig("repository", "slug")).to eq("acme/widgets")
+  end
+
+  it "rejects run_main_branch_graders for an archived repository" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets", last_health_checked_sha: "abc1234")
+    repository.archive!
+
+    post "/api/v1/app/repositories/#{repository.id}/run_main_branch_graders"
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("archived")
+  end
+
+  it "rejects run_main_branch_graders when no SHA has been tracked yet" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+    repository.update_columns(last_health_checked_sha: nil)
+
+    post "/api/v1/app/repositories/#{repository.id}/run_main_branch_graders"
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("No branch SHA tracked")
+  end
+
+  it "includes run_main_branch_graders path in the detail payload" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+
+    get "/api/v1/app/repositories/#{repository.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("paths", "app_run_main_branch_graders_repository_path")).to eq(
+      "/api/v1/app/repositories/#{repository.id}/run_main_branch_graders"
+    )
   end
 
   describe "GET /api/v1/app/repositories/:id/coverage_trend" do

@@ -229,7 +229,8 @@
     "resume_landing_anyway": "Opera tamen resume",
     "resume_landing_confirm": "Sanitas rami principalis nondum viridis est. Opera resumere potest officia tardare, plura officia idem vitium reparare, conflictus rebase creare, et signa consumere. Opera tamen resumere?",
     "health_source_ci_poll": "CI",
-    "health_source_grader_workflow": "Examinatores"
+    "health_source_grader_workflow": "Examinatores",
+    "run_graders_now": "Examinatores nunc agere"
   },
   "memories": {
     "heading": "Memoriae",

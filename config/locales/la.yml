@@ -89,6 +89,8 @@ la:
         other: "%{count} quaestiones clausae sunt."
       bulk_delegate_failed: "Quaestiones delegare non potuit: %{error}"
       bulk_close_failed: "Quaestiones claudere non potuit: %{error}"
+      run_main_branch_graders_enqueued: "Examinatores pro %{sha} in %{slug} in ordinem positi sunt."
+      no_sha_to_grade: "Nullum SHA rami adhuc indagatum — prius repositorium interroga."
 
     job_pins:
       pinned: "Opus adfixa est."

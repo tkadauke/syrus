@@ -217,6 +217,24 @@ module Api
           )
         end
 
+        def run_main_branch_graders
+          repository = find_repository
+          if repository.archived?
+            render_error("validation_failed", I18n.t("api.repositories.archived_first", slug: repository.slug), status: :unprocessable_content)
+            return
+          end
+
+          sha = repository.last_health_checked_sha
+          if sha.blank?
+            render_error("validation_failed", I18n.t("api.repositories.no_sha_to_grade"), status: :unprocessable_content)
+            return
+          end
+
+          MainGraderWorkflowJob.perform_later(repository.id, sha)
+          message = I18n.t("api.repositories.run_main_branch_graders_enqueued", sha: sha[0, 7], slug: repository.slug)
+          render json: repository_command_payload(repository, message: message)
+        end
+
         def release_needs_triage_job
           repository = find_repository
           unless can_release_triage_jobs?
@@ -338,6 +356,7 @@ module Api
               app_retry_failed_jobs_repository_path: "/api/v1/app/repositories/#{repository.id}/retry_failed_jobs",
               app_release_needs_triage_job_repository_path: "/api/v1/app/repositories/#{repository.id}/release_needs_triage_job",
               app_resume_landing_repository_path: "/api/v1/app/repositories/#{repository.id}/resume_landing",
+              app_run_main_branch_graders_repository_path: "/api/v1/app/repositories/#{repository.id}/run_main_branch_graders",
               repositories_path: repositories_path,
               repository_documents_path: repository_documents_path(repository),
               repository_scheduled_tasks_path: repository_scheduled_tasks_path(repository)

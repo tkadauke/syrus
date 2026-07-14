@@ -122,6 +122,8 @@ en:
         other: "%{count} issues closed."
       bulk_delegate_failed: "Failed to delegate issues: %{error}"
       bulk_close_failed: "Failed to close issues: %{error}"
+      run_main_branch_graders_enqueued: "Graders enqueued for %{sha} on %{slug}."
+      no_sha_to_grade: "No branch SHA tracked yet — poll the repository first."
 
     job_pins:
       pinned: "Job pinned."

@@ -214,6 +214,7 @@ Rails.application.routes.draw do
             post :retry_failed_jobs
             post :release_needs_triage_job
             post :resume_landing
+            post :run_main_branch_graders
             get :coverage_trend
           end
         end

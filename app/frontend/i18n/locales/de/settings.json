@@ -229,7 +229,8 @@
     "resume_landing_anyway": "Arbeit trotzdem fortsetzen",
     "resume_landing_confirm": "Die Main-Branch-Gesundheit ist weiterhin nicht grün. Wenn Arbeit fortgesetzt wird, können Jobs länger dauern, mehrere Jobs dasselbe Problem beheben, Rebase-Konflikte entstehen und Tokens verschwendet werden. Arbeit trotzdem fortsetzen?",
     "health_source_ci_poll": "CI",
-    "health_source_grader_workflow": "Graders"
+    "health_source_grader_workflow": "Graders",
+    "run_graders_now": "Graders jetzt ausführen"
   },
   "memories": {
     "heading": "Erinnerungen",

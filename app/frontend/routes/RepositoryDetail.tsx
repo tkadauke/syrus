@@ -22,6 +22,7 @@ import {
   releaseNeedsTriageRepositoryJob,
   resumeRepositoryLanding,
   retryFailedRepositoryJobs,
+  runMainBranchGraders,
   type RepositoryDetailJob,
   type RepositoryDetailPayload,
   type RepositoryHealthCheckRecord,
@@ -116,17 +117,7 @@ function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab:
           <RepositorySummary payload={payload} />
           <Actions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
           <NeedsTriageJobs payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
-          {payload.health_history ? (
-            <MainBranchHealthSection
-              history={payload.health_history}
-              onNotice={setNotice}
-              page={payload.pagination.page}
-              prefix={prefix}
-              queryKey={queryKey}
-              repository={payload.repository}
-              resumePath={payload.paths.app_resume_landing_repository_path}
-            />
-          ) : null}
+          {payload.health_history ? <MainBranchHealthSection history={payload.health_history} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} /> : null}
           <RecentJobs payload={payload} prefix={prefix} setupStatus={setupStatus} />
         </div>
         <div className="space-y-6">
@@ -666,30 +657,23 @@ function healthTone(health: string): HealthTone {
   return "gray"
 }
 
-function MainBranchHealthSection({
-  history,
-  onNotice,
-  page,
-  prefix,
-  queryKey,
-  repository,
-  resumePath
-}: {
-  history: RepositoryHealthHistory
-  onNotice: (message: string | null) => void
-  page: number
-  prefix: string
-  queryKey: RepositoryDetailQueryKey
-  repository: RepositoryDetailPayload["repository"]
-  resumePath: string
-}) {
+function MainBranchHealthSection({ history, payload, prefix, queryKey, onNotice }: { history: RepositoryHealthHistory; payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey; onNotice: (message: string | null) => void }) {
   const { t } = useT("settings")
   const queryClient = useQueryClient()
+  const repository = payload.repository
   const shaUrl = history.last_health_checked_sha
     ? `https://github.com/${repository.slug}/commit/${history.last_health_checked_sha}`
     : null
+  const search = queryKey[3]
+  const graders = useMutation({
+    mutationFn: () => runMainBranchGraders(appendSearch(payload.paths.app_run_main_branch_graders_repository_path, search), payload.pagination.page),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+      onNotice(updated.message || null)
+    }
+  })
   const resumeWork = useMutation({
-    mutationFn: () => resumeRepositoryLanding(resumePath, page),
+    mutationFn: () => resumeRepositoryLanding(payload.paths.app_resume_landing_repository_path, payload.pagination.page),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       onNotice(updated.message || null)
@@ -709,7 +693,7 @@ function MainBranchHealthSection({
         {t("repository.main_branch_health")}
       </h2>
       <div className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-        <div className="flex flex-wrap gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           <HealthBadge label={t("repository.health_ci")} health={history.ci_health} />
           <HealthBadge label={t("repository.health_graders")} health={history.grader_health} />
           {shaUrl && history.last_health_checked_sha ? (
@@ -720,6 +704,14 @@ function MainBranchHealthSection({
               </a>
             </div>
           ) : null}
+          <button
+            className={buttonClass("gray")}
+            disabled={graders.isPending}
+            onClick={() => { onNotice(null); graders.mutate() }}
+            type="button"
+          >
+            {t("repository.run_graders_now")}
+          </button>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
           {repository.main_branch_health_enabled ? null : <span>{t("repository.health_enforcement_disabled")}</span>}
@@ -747,6 +739,7 @@ function MainBranchHealthSection({
           <FailingChecks checks={history.records[0].ci_failed_checks} />
         ) : null}
         <HealthHistoryTable records={history.records} prefix={prefix} t={t} />
+        {graders.isError ? <PanelMessage tone="error">{errorMessage(graders.error, "Run graders command failed.")}</PanelMessage> : null}
       </div>
     </section>
   )

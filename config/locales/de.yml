@@ -89,6 +89,8 @@ de:
         other: "%{count} Issues geschlossen."
       bulk_delegate_failed: "Issues konnten nicht delegiert werden: %{error}"
       bulk_close_failed: "Issues konnten nicht geschlossen werden: %{error}"
+      run_main_branch_graders_enqueued: "Graders für %{sha} auf %{slug} in die Warteschlange gestellt."
+      no_sha_to_grade: "Noch kein Branch-SHA erfasst — bitte zuerst das Repository abfragen."
 
     job_pins:
       pinned: "Job angeheftet."
