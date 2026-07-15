@@ -580,6 +580,8 @@ module App
         cache_read_input_tokens: run.cache_read_input_tokens,
         agent_diff_present: run.agent_diff.present?,
         agent_diff_bytes: run.agent_diff&.bytesize || 0,
+        step_agent_diff_present: run.step_agent_diff.present?,
+        step_agent_diff_bytes: run.step_agent_diff&.bytesize || 0,
         job_log_count: run.job_logs.size,
         rate_limited: run.job_logs.any? { |log| log.kind == "rate_limited" },
         failure_classification: failure_classification_json(run.run_failure_classification),

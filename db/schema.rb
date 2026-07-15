@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_14_190310) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_15_024907) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -972,6 +972,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_14_190310) do
     t.string "agent_provider", default: "claude", null: false
     t.text "agent_summary"
     t.integer "agent_turns"
+    t.string "base_sha"
     t.integer "cache_creation_input_tokens"
     t.integer "cache_read_input_tokens"
     t.decimal "cost_usd", precision: 12, scale: 6
@@ -987,6 +988,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_14_190310) do
     t.text "prompt"
     t.datetime "started_at"
     t.string "state", default: "queued", null: false
+    t.text "step_agent_diff", limit: 16777215
     t.integer "step_id"
     t.string "trigger_kind", null: false
     t.datetime "updated_at", null: false

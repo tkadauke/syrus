@@ -72,6 +72,8 @@ module Admin
         updated_at: run.updated_at,
         agent_diff_present: run.agent_diff.present?,
         agent_diff_bytes: run.agent_diff&.bytesize || 0,
+        step_agent_diff_present: run.step_agent_diff.present?,
+        step_agent_diff_bytes: run.step_agent_diff&.bytesize || 0,
         job_log_count: run.job_logs.size,
         agent_session: session_payload,
         failure_classification: failure_classification(run.run_failure_classification),

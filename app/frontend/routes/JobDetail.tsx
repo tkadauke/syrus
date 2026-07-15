@@ -1698,7 +1698,7 @@ function PrepareFailurePanel({ failure }: { failure: PrepareFailure }) {
 function RunRow({ run, payload, command, active = false }: { run: JobRun; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; active?: boolean }) {
   const { t } = useT("jobs")
   const [gradeLogOpen, setGradeLogOpen] = useState(false)
-  const [artifactView, setArtifactView] = useState<"transcript" | "diff" | null>(null)
+  const [artifactView, setArtifactView] = useState<"transcript" | "diff" | "step_diff" | null>(null)
   const gradeLog = useMutation({
     mutationFn: (path: string) => fetchJobGradeLog(path),
     onSuccess: () => {
@@ -1714,7 +1714,7 @@ function RunRow({ run, payload, command, active = false }: { run: JobRun; payloa
   })
   const artifactsLoading = artifacts.isFetching && !artifacts.data
 
-  function showArtifacts(view: "transcript" | "diff") {
+  function showArtifacts(view: "transcript" | "diff" | "step_diff") {
     setGradeLogOpen(false)
     setArtifactView((current) => current === view ? null : view)
   }
@@ -1758,6 +1758,11 @@ function RunRow({ run, payload, command, active = false }: { run: JobRun; payloa
               {artifactsLoading && artifactView === "diff" ? t("run_loading") : t("run_diff")}
             </button>
           ) : null}
+          {run.step_agent_diff_present ? (
+            <button className={buttonClass("secondary")} disabled={artifactsLoading} onClick={() => showArtifacts("step_diff")} type="button">
+              {artifactsLoading && artifactView === "step_diff" ? t("run_loading") : t("run_step_diff")}
+            </button>
+          ) : null}
           {run.can_stop ? <CommandButton command={command} input={{ method: "post", path: run.app_stop_path }} tone="danger">{t("run_stop")}</CommandButton> : null}
           {run.can_diagnose ? <CommandButton command={command} input={{ method: "post", path: run.app_diagnose_path }} tone="secondary">{t("run_diagnose")}</CommandButton> : null}
           {run.can_resume ? <CommandButton command={command} input={{ method: "post", path: payload.paths.app_resume_path, body: { source_run_id: run.id } }} tone="secondary">{t("run_resume")}</CommandButton> : null}
@@ -1778,7 +1783,7 @@ function RunRow({ run, payload, command, active = false }: { run: JobRun; payloa
   )
 }
 
-function RunArtifactsPanel({ payload, view, onClose }: { payload: Awaited<ReturnType<typeof fetchJobRunArtifacts>>; view: "transcript" | "diff"; onClose: () => void }) {
+function RunArtifactsPanel({ payload, view, onClose }: { payload: Awaited<ReturnType<typeof fetchJobRunArtifacts>>; view: "transcript" | "diff" | "step_diff"; onClose: () => void }) {
   const { t } = useT("jobs")
   if (view === "diff") {
     return (
@@ -1786,6 +1791,17 @@ function RunArtifactsPanel({ payload, view, onClose }: { payload: Awaited<Return
         <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_diff")}</ArtifactPanelHeader>
         {payload.agent_diff ? (
           <AgentDiff diff={payload.agent_diff} />
+        ) : <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_diff")}</p>}
+      </section>
+    )
+  }
+
+  if (view === "step_diff") {
+    return (
+      <section className={artifactPanelClass()}>
+        <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_step_diff")}</ArtifactPanelHeader>
+        {payload.step_agent_diff ? (
+          <AgentDiff diff={payload.step_agent_diff} />
         ) : <p className="p-3 text-sm text-gray-400 dark:text-gray-500">{t("artifact_no_diff")}</p>}
       </section>
     )

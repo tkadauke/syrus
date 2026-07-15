@@ -96,6 +96,7 @@ module Api
             run_id: run.id,
             agent_diff: run.agent_diff,
             agent_diff_bytes: run.agent_diff&.bytesize || 0,
+            step_agent_diff: run.step_agent_diff,
             logs_count: logs.size,
             logs: logs
           }

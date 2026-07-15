@@ -464,12 +464,27 @@ RSpec.describe "App API job detail", type: :request do
       "run_id" => run.id,
       "agent_diff" => "diff --git a/app.rb b/app.rb\n+puts 'forum'\n",
       "agent_diff_bytes" => run.agent_diff.bytesize,
+      "step_agent_diff" => nil,
       "logs_count" => 2
     )
     expect(body["logs"].map { |log| log.slice("sequence", "kind", "chunk") }).to eq([
       { "sequence" => 0, "kind" => "stdout", "chunk" => "first line" },
       { "sequence" => 1, "kind" => "stderr", "chunk" => "second line" }
     ])
+  end
+
+  it "returns step_agent_diff in artifact payload when present" do
+    run = job.initial_run
+    run.update!(
+      agent_diff: "diff --git a/a.rb b/a.rb\n+line1\n+line2\n",
+      step_agent_diff: "diff --git a/a.rb b/a.rb\n+line2\n"
+    )
+
+    get "/api/v1/app/jobs/#{job.id}/runs/#{run.id}/artifacts"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["step_agent_diff"]).to eq("diff --git a/a.rb b/a.rb\n+line2\n")
   end
 
   it "returns workflows in descending creation order" do

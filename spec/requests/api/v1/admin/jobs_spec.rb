@@ -222,6 +222,7 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
                                    agent_provider: "codex",
                                    state: "succeeded", agent_outcome: "success",
                                    agent_turns: 7, agent_diff: "diff --git ...",
+                                   step_agent_diff: "diff --git a/app.rb b/app.rb\n+new line\n",
                                    started_at: 1.minute.ago, finished_at: Time.current)
       implement.update!(state: "succeeded", finished_at: Time.current)
       wf.update!(state: "succeeded", finished_at: Time.current, cleaned_up_at: Time.current)
@@ -293,6 +294,8 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
       expect(run_payload["agent_turns"]).to eq(7)
       expect(run_payload["agent_diff_present"]).to be true
       expect(run_payload["agent_diff_bytes"]).to be > 0
+      expect(run_payload["step_agent_diff_present"]).to be true
+      expect(run_payload["step_agent_diff_bytes"]).to be > 0
       expect(run_payload["agent_session"]["session_id"]).to eq("abc-123")
       expect(run_payload["agent_session"]["provider"]).to eq("codex")
       expect(run_payload["agent_session"]["transcript_lines"]).to eq(2)

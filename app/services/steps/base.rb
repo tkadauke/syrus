@@ -209,6 +209,10 @@ module Steps
                        chdir: workspace.path.to_s)
     end
 
+    def diff_against_sha(sha)
+      GitRunner.new.run("diff", "#{sha}...HEAD", chdir: workspace.path.to_s)
+    end
+
     def default_branch_ref
       "origin/#{repository.default_branch}"
     end
@@ -230,6 +234,7 @@ module Steps
       yield if block_given?
 
       log(log_message)
+      base_sha = head_sha
       run_agent(prompt: run.prompt)
 
       commit_agent_changes(commit_message)
@@ -238,7 +243,8 @@ module Steps
       diff = diff_against_default
       raise StepFailed, "agent produced no changes" if diff.blank?
 
-      run.update!(agent_diff: diff, head_sha: head_sha)
+      step_diff = diff_against_sha(base_sha)
+      run.update!(agent_diff: diff, head_sha: head_sha, base_sha: base_sha, step_agent_diff: step_diff)
     end
 
     # Agent edits files; we commit them locally with a placeholder

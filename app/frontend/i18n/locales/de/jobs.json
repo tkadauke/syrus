@@ -202,6 +202,7 @@
 
   "run_transcript": "Transcript",
   "run_diff": "Diff",
+  "run_step_diff": "Step-Diff",
   "run_loading": "Loading...",
   "run_stop": "Stop",
   "run_diagnose": "Diagnose",
@@ -236,6 +237,7 @@
   "prepare_failure_failed": "failed",
 
   "artifact_header_diff": "Agent diff",
+  "artifact_header_step_diff": "Step-Diff",
   "artifact_header_transcript": "Transcript",
   "artifact_no_diff": "No diff captured for this run.",
   "artifact_no_transcript": "No transcript rows captured for this run.",

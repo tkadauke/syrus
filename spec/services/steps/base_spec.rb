@@ -209,6 +209,7 @@ RSpec.describe Steps::Base do
 
   describe "#perform_agentic_change_step" do
     let(:fake_ws) { instance_double(WorkflowWorkspace, setup: nil, path: Rails.root) }
+    let(:step_diff) { "diff --git a/foo.rb b/foo.rb\n+bar" }
 
     before do
       allow(handler).to receive(:workspace).and_return(fake_ws)
@@ -216,6 +217,7 @@ RSpec.describe Steps::Base do
       allow(handler).to receive(:commit_agent_changes)
       allow(handler).to receive(:assert_branch_history_intact!)
       allow(handler).to receive(:diff_against_default).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
+      allow(handler).to receive(:diff_against_sha).and_return(step_diff)
       allow(handler).to receive(:head_sha).and_return("abc123")
     end
 
@@ -234,7 +236,32 @@ RSpec.describe Steps::Base do
 
       expect(run.reload.agent_diff).to eq("diff --git a/foo.rb b/foo.rb\n+bar")
       expect(run.head_sha).to eq("abc123")
+      expect(run.base_sha).to eq("abc123")
+      expect(run.step_agent_diff).to eq(step_diff)
       expect(run.job_logs.last.chunk).to eq("invoking shared path")
+    end
+
+    it "captures base_sha before the agent runs and step_agent_diff after commit" do
+      allow(handler).to receive(:head_sha).and_return("before-sha", "after-sha")
+      specific_step_diff = "diff --git a/new.rb b/new.rb\n+added line"
+      allow(handler).to receive(:diff_against_sha).with("before-sha").and_return(specific_step_diff)
+
+      handler.perform_agentic_change_step(log_message: "capturing step diff", commit_message: "msg")
+
+      run.reload
+      expect(run.base_sha).to eq("before-sha")
+      expect(run.head_sha).to eq("after-sha")
+      expect(run.step_agent_diff).to eq(specific_step_diff)
+    end
+
+    it "when base_sha equals head_sha the step_agent_diff matches agent_diff" do
+      allow(handler).to receive(:diff_against_sha).with("abc123").and_return("diff --git a/foo.rb b/foo.rb\n+bar")
+
+      handler.perform_agentic_change_step(log_message: "same sha", commit_message: "msg")
+
+      run.reload
+      expect(run.base_sha).to eq("abc123")
+      expect(run.step_agent_diff).to eq(run.agent_diff)
     end
 
     it "fails unchanged agent runs before recording diff metadata" do
@@ -251,6 +278,8 @@ RSpec.describe Steps::Base do
 
       expect(run.reload.agent_diff).to be_nil
       expect(run.head_sha).to be_nil
+      expect(run.base_sha).to be_nil
+      expect(run.step_agent_diff).to be_nil
     end
   end
 
