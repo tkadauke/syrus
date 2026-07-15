@@ -152,4 +152,15 @@ RSpec.describe "Docker image scripts" do
     expect(compose_yml).to include("      - syrus-search:/home/rails/.syrus-search\n")
     expect(compose_yml).not_to include("syrus-search:/home/rails/.syrus-search:ro")
   end
+
+  it "mounts the mise cache volume on the worker only, not the web pod" do
+    expect(deploy).to include('ensure_mise_cache "$label" "$kubeconfig" "$namespace"')
+    expect(deploy).to include('patch_mise_mount "$kubeconfig" "$namespace" "syrus-worker"')
+    expect(deploy).to include('"mountPath": "/opt/mise"')
+    expect(deploy).to include('"readOnly": false')
+    expect(deploy).not_to include('patch_mise_mount "$kubeconfig" "$namespace" "syrus-web"')
+
+    expect(deploy).to include('MISE_PVC_NAME="${MISE_PVC_NAME:-syrus-mise-cache}"')
+    expect(deploy).to include('MISE_PVC_SIZE="${MISE_PVC_SIZE:-20Gi}"')
+  end
 end
