@@ -78,4 +78,17 @@ RSpec.describe "Dockerfile" do
     expect(worker_deps).to include("PATH=\"/opt/python-tools/bin:/opt/mise/shims:${PATH}\"")
     expect(worker_dev).to include("RUN go version")
   end
+
+  it "seeds /opt/mise from /opt/mise-seed on first boot via the entrypoint" do
+    worker_deps = worker_deps_stage
+    entrypoint = Rails.root.join("bin/docker-entrypoint").read
+
+    expect(worker_deps).to include("COPY --from=runtime-cache /opt/mise /opt/mise-seed")
+    expect(worker_deps).to include("COPY --from=runtime-cache /opt/mise /opt/mise")
+    expect(worker_deps).to include("chown -R 1000:1000 /opt/mise-seed /opt/mise")
+
+    expect(entrypoint).to include("[ -d /opt/mise-seed ]")
+    expect(entrypoint).to include("cp -rn /opt/mise-seed/. /opt/mise/")
+    expect(entrypoint).to include("mise reshim")
+  end
 end

@@ -152,4 +152,15 @@ RSpec.describe "Docker image scripts" do
     expect(compose_yml).to include("      - syrus-search:/home/rails/.syrus-search\n")
     expect(compose_yml).not_to include("syrus-search:/home/rails/.syrus-search:ro")
   end
+
+  it "mounts the mise cache as a named volume on the worker service only" do
+    expect(compose_yml).to include("      - syrus-mise-cache:/opt/mise\n")
+    expect(compose_yml).to include("  syrus-mise-cache:\n")
+
+    # Scope: only the worker needs the mise cache; setup and web do not.
+    web_section = compose_yml[/^  web:.*?(?=^  \w)/m] || ""
+    setup_section = compose_yml[/^  setup:.*?(?=^  \w)/m] || ""
+    expect(web_section).not_to include("syrus-mise-cache")
+    expect(setup_section).not_to include("syrus-mise-cache")
+  end
 end
