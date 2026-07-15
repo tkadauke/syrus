@@ -14,6 +14,81 @@ RSpec.describe ChatProposal do
     )
   end
 
+  describe "media_ids" do
+    it "defaults to an empty array" do
+      proposal = described_class.new(chat_session: chat_session)
+      expect(proposal.media_ids).to eq([])
+    end
+
+    it "rejects entries that do not match the expected format" do
+      proposal = described_class.new(
+        chat_session: chat_session,
+        slug: "media-bad",
+        title: "Bad media",
+        body: "x",
+        media_ids: ["bogus", "snapshot:", "photo:1", "snapshot:abc"]
+      )
+
+      expect(proposal).not_to be_valid
+      expect(proposal.errors[:media_ids].join).to match(/invalid entry/)
+    end
+
+    it "accepts valid format entries when IDs belong to the session" do
+      snapshot = WhiteboardSnapshot.create!(
+        chat_session: chat_session,
+        name: "Test",
+        scene_json: { "elements" => [], "appState" => {} },
+        snapshot_kind: "manual",
+        element_count: 0
+      )
+
+      proposal = described_class.new(
+        chat_session: chat_session,
+        slug: "media-ok",
+        title: "OK media",
+        body: "x",
+        media_ids: ["snapshot:#{snapshot.id}"]
+      )
+
+      expect(proposal).to be_valid
+    end
+
+    it "rejects a snapshot ID that belongs to a different chat session" do
+      other_session = ChatSession.create!(user: user, repository: repository)
+      snapshot = WhiteboardSnapshot.create!(
+        chat_session: other_session,
+        name: "Other snapshot",
+        scene_json: { "elements" => [], "appState" => {} },
+        snapshot_kind: "manual",
+        element_count: 0
+      )
+
+      proposal = described_class.new(
+        chat_session: chat_session,
+        slug: "media-cross",
+        title: "Cross-session snapshot",
+        body: "x",
+        media_ids: ["snapshot:#{snapshot.id}"]
+      )
+
+      expect(proposal).not_to be_valid
+      expect(proposal.errors[:media_ids].join).to match(/does not belong to this chat session/)
+    end
+
+    it "rejects a chat_image ID that is not attached to the session" do
+      proposal = described_class.new(
+        chat_session: chat_session,
+        slug: "media-cross-image",
+        title: "Cross-session image",
+        body: "x",
+        media_ids: ["chat_image:99999"]
+      )
+
+      expect(proposal).not_to be_valid
+      expect(proposal.errors[:media_ids].join).to match(/does not belong to this chat session/)
+    end
+  end
+
   it "creates a proposed syrus issue proposal by default" do
     proposal = described_class.create!(
       chat_session: chat_session,

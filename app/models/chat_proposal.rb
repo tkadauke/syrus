@@ -1,6 +1,8 @@
 require "set"
 
 class ChatProposal < ApplicationRecord
+  MEDIA_ID_FORMAT = /\A(snapshot|chat_image):\d+\z/
+
   STATE_ALIASES = {
     "pending" => "proposed",
     "filed" => "confirmed",
@@ -10,6 +12,7 @@ class ChatProposal < ApplicationRecord
   attribute :state, :string, default: "proposed"
 
   after_initialize :default_cross_entity_dependencies
+  after_initialize :default_media_ids
 
   belongs_to :chat_session
   belongs_to :repository, optional: true
@@ -62,6 +65,8 @@ class ChatProposal < ApplicationRecord
   validates :slug, uniqueness: { scope: :chat_session_id }
   validate :repository_belongs_to_chat_user
   validate :target_epic_matches_repository
+  validate :media_ids_valid_format
+  validate :media_ids_belong_to_chat_session, on: :create
 
   before_validation :default_repository, on: :create
 
@@ -193,6 +198,42 @@ class ChatProposal < ApplicationRecord
   def default_cross_entity_dependencies
     self.depends_on_epic_ids = [] if has_attribute?(:depends_on_epic_ids) && depends_on_epic_ids.nil?
     self.depends_on_job_ids = [] if has_attribute?(:depends_on_job_ids) && depends_on_job_ids.nil?
+  end
+
+  def default_media_ids
+    self.media_ids = [] if has_attribute?(:media_ids) && media_ids.nil?
+  end
+
+  def media_ids_valid_format
+    return unless media_ids.is_a?(Array)
+
+    media_ids.each do |ref|
+      next if MEDIA_ID_FORMAT.match?(ref.to_s)
+
+      errors.add(:media_ids, "contains invalid entry '#{ref}'; must be snapshot:ID or chat_image:ID")
+    end
+  end
+
+  def media_ids_belong_to_chat_session
+    return unless chat_session && media_ids.is_a?(Array)
+
+    media_ids.each do |ref|
+      next unless MEDIA_ID_FORMAT.match?(ref.to_s)
+
+      kind, id_str = ref.split(":", 2)
+      id = id_str.to_i
+
+      case kind
+      when "snapshot"
+        unless chat_session.whiteboard_snapshots.exists?(id)
+          errors.add(:media_ids, "contains snapshot:#{id} that does not belong to this chat session")
+        end
+      when "chat_image"
+        unless chat_session.attached_repository_documents.exists?(id)
+          errors.add(:media_ids, "contains chat_image:#{id} that does not belong to this chat session")
+        end
+      end
+    end
   end
 
   def repository_belongs_to_chat_user

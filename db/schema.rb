@@ -214,6 +214,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_15_201012) do
     t.integer "job_id"
     t.string "kind", default: "syrus_issue", null: false
     t.string "labels"
+    t.json "media_ids", null: false
     t.integer "parent_proposal_id"
     t.datetime "rejected_at"
     t.integer "repository_id"

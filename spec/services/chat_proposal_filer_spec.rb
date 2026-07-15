@@ -309,5 +309,105 @@ RSpec.describe ChatProposalFiler do
 
       expect(job_proposal.reload.job.epic).to be_nil
     end
+
+    describe "media_ids" do
+      def whiteboard_snapshot(chat_session:)
+        WhiteboardSnapshot.create!(
+          chat_session: chat_session,
+          name: "My snapshot",
+          scene_json: { "elements" => [{ "id" => "abc" }], "appState" => {} },
+          snapshot_kind: "manual",
+          element_count: 1
+        )
+      end
+
+      def chat_image_document(chat_session:)
+        doc = Document.new(kind: "file", attachable: user, user: user)
+        doc.file.attach(io: StringIO.new("pixels"), filename: "photo.png", content_type: "image/png")
+        doc.save!
+        ChatAttachment.create!(
+          chat_session: chat_session,
+          attachable: doc,
+          suppress_header_broadcast: true
+        )
+        doc
+      end
+
+      it "creates a pending_snapshot Document for each snapshot:ID media ref" do
+        snapshot = whiteboard_snapshot(chat_session: session)
+        job_proposal = proposal(
+          slug: "media-snap",
+          title: "Snappy job",
+          media_ids: ["snapshot:#{snapshot.id}"]
+        )
+
+        described_class.new(user: user, repository: repository).file!([ job_proposal ])
+
+        job = job_proposal.reload.job
+        expect(job.job_attachments.count).to eq(1)
+        attachment = job.job_attachments.first
+        expect(attachment).to have_attributes(
+          kind: "pending_snapshot",
+          title: "My snapshot",
+          source_url: "snapshot:#{snapshot.id}"
+        )
+        expect(attachment.content_cache).to include("abc")
+      end
+
+      it "creates a file Document for each chat_image:ID media ref by re-associating the blob" do
+        doc = chat_image_document(chat_session: session)
+        job_proposal = proposal(
+          slug: "media-img",
+          title: "Image job",
+          media_ids: ["chat_image:#{doc.id}"]
+        )
+
+        described_class.new(user: user, repository: repository).file!([ job_proposal ])
+
+        job = job_proposal.reload.job
+        expect(job.job_attachments.count).to eq(1)
+        attachment = job.job_attachments.first
+        expect(attachment).to have_attributes(
+          kind: "file",
+          title: doc.title,
+          source_url: "chat_image:#{doc.id}"
+        )
+        expect(attachment.file.blob).to eq(doc.file.blob)
+      end
+
+      it "skips a snapshot media ref silently when the snapshot was deleted after proposal creation" do
+        snapshot = whiteboard_snapshot(chat_session: session)
+        job_proposal = proposal(
+          slug: "media-missing-snap",
+          title: "Missing snapshot job",
+          media_ids: ["snapshot:#{snapshot.id}"]
+        )
+        snapshot.destroy!
+
+        expect {
+          described_class.new(user: user, repository: repository).file!([ job_proposal ])
+        }.not_to raise_error
+
+        expect(job_proposal.reload.job.job_attachments).to be_empty
+      end
+
+      it "skips a chat_image media ref silently when the document was deleted after proposal creation" do
+        doc = chat_image_document(chat_session: session)
+        job_proposal = proposal(
+          slug: "media-missing-img",
+          title: "Missing image job",
+          media_ids: ["chat_image:#{doc.id}"]
+        )
+        doc.file.purge
+        ChatAttachment.where(attachable: doc).destroy_all
+        doc.destroy!
+
+        expect {
+          described_class.new(user: user, repository: repository).file!([ job_proposal ])
+        }.not_to raise_error
+
+        expect(job_proposal.reload.job.job_attachments).to be_empty
+      end
+    end
   end
 end

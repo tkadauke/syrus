@@ -123,7 +123,7 @@ class ChatProposalFiler
     # Don't advance here — the filer's main loop runs
     # advance_after_triage AFTER wiring dependencies so the
     # Job-level auto-start callback sees the correct dep graph.
-    user.jobs.create!(
+    job = user.jobs.create!(
       repository: target_repository,
       epic: proposal.target_epic,
       kind: "direct",
@@ -133,6 +133,10 @@ class ChatProposalFiler
       agent_provider: target_repository.effective_agent_provider,
       state: Job.initial_state_for_creator(user)
     )
+
+    attach_media_to_job!(proposal, job)
+
+    job
   end
 
   def create_epic(proposal)
@@ -150,6 +154,46 @@ class ChatProposalFiler
 
   def attach_to_chat_session!(proposal, attachable)
     proposal.chat_session.chat_attachments.find_or_create_by!(attachable: attachable)
+  end
+
+  def attach_media_to_job!(proposal, job)
+    Array(proposal.media_ids).each do |ref|
+      attach_single_media_ref!(ref, proposal, job)
+    end
+  end
+
+  def attach_single_media_ref!(ref, proposal, job)
+    kind, id_str = ref.split(":", 2)
+    id = id_str.to_i
+
+    case kind
+    when "snapshot"
+      snapshot = proposal.chat_session.whiteboard_snapshots.find_by(id: id)
+      return unless snapshot
+
+      job.job_attachments.create!(
+        kind: "pending_snapshot",
+        title: snapshot.name.presence || "Whiteboard Snapshot",
+        content_cache: snapshot.scene_json.to_json,
+        source_url: ref
+      )
+    when "chat_image"
+      document = proposal.chat_session.attached_repository_documents.find_by(id: id)
+      return unless document&.file&.attached?
+
+      new_doc = job.job_attachments.build(
+        kind: "file",
+        title: document.title,
+        filename: document.filename,
+        content_type: document.content_type,
+        byte_size: document.byte_size,
+        source_url: ref
+      )
+      new_doc.file.attach(document.file.blob)
+      new_doc.save!
+    end
+  rescue StandardError => e
+    Rails.logger.warn("[ChatProposalFiler] skipped media #{ref} for #{job.slug}: #{e.class}: #{e.message}")
   end
 
   def file_github_issue(proposal)

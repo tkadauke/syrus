@@ -1,7 +1,7 @@
 require "uri"
 
 class Document < ApplicationRecord
-  KINDS = %w[file google_doc].freeze
+  KINDS = %w[file google_doc pending_snapshot].freeze
   MAX_FILE_SIZE = 20.megabytes
   MAX_CONTENT_CACHE_SIZE = 64.kilobytes
   MAX_ATTACHMENTS_PER_JOB = 10
@@ -48,6 +48,10 @@ class Document < ApplicationRecord
 
   def google_doc?
     kind == "google_doc"
+  end
+
+  def pending_snapshot?
+    kind == "pending_snapshot"
   end
 
   def uploaded_file?
@@ -126,6 +130,7 @@ class Document < ApplicationRecord
     self.title = title.to_s.strip
     self.title = filename if title.blank? && file?
     self.title = "Google Doc" if title.blank? && google_doc?
+    self.title = "Whiteboard Snapshot" if title.blank? && pending_snapshot?
   end
 
   def file_document_has_valid_file
