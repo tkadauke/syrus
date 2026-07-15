@@ -214,6 +214,12 @@ export type JobTestPlan = {
   notes: string | null
 }
 
+export type JobAdversarialReviewIteration = {
+  iteration: number
+  critique: string
+  verdict: "needs_work" | "approved"
+}
+
 export type LandingQueueBlockerJob = {
   id: number
   title: string

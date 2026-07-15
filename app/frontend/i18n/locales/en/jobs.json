@@ -237,10 +237,21 @@
 
   "artifact_header_diff": "Agent diff",
   "artifact_header_transcript": "Transcript",
+  "artifact_header_summary": "Summary",
+  "artifact_header_test_plan": "Test plan",
+  "artifact_header_adversarial_review": "Adversarial review",
   "artifact_no_diff": "No diff captured for this run.",
   "artifact_no_transcript": "No transcript rows captured for this run.",
   "artifact_close": "Close artifact viewer",
   "artifact_grade_log_title": "grade log",
+
+  "step_btn_summary": "Summary",
+  "step_btn_test_plan": "Test Plan",
+  "step_btn_adversarial_review": "Review",
+
+  "adversarial_review_round": "Round {{n}}",
+  "adversarial_review_verdict_approved": "Approved",
+  "adversarial_review_verdict_needs_work": "Needs work",
 
   "source_loading": "Loading source browser...",
   "source_error": "Unable to load source browser.",

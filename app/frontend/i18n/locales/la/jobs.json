@@ -237,10 +237,21 @@
 
   "artifact_header_diff": "Agent diff",
   "artifact_header_transcript": "Transcript",
+  "artifact_header_summary": "Summa",
+  "artifact_header_test_plan": "Consilium probandi",
+  "artifact_header_adversarial_review": "Recensio adversaria",
   "artifact_no_diff": "No diff captured for this run.",
   "artifact_no_transcript": "No transcript rows captured for this run.",
   "artifact_close": "Close artifact viewer",
   "artifact_grade_log_title": "grade log",
+
+  "step_btn_summary": "Summa",
+  "step_btn_test_plan": "Consilium probandi",
+  "step_btn_adversarial_review": "Recensio",
+
+  "adversarial_review_round": "Orbis {{n}}",
+  "adversarial_review_verdict_approved": "Probatum",
+  "adversarial_review_verdict_needs_work": "Opus amplius",
 
   "source_loading": "Loading source browser...",
   "source_error": "Unable to load source browser.",

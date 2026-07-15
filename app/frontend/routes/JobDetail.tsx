@@ -34,6 +34,7 @@ import {
   replacePendingFeedback,
   submitJobFeedback,
   type CoverageArtifact,
+  type JobAdversarialReviewIteration,
   type JobAttachment,
   type JobDependency,
   type JobApprovalRecord,
@@ -1382,9 +1383,9 @@ function WorkflowCard({ workflow, payload, command, prefix }: { workflow: JobWor
       {branchDivergence ? <BranchDivergencePanel command={command} divergence={branchDivergence} payload={payload} prefix={prefix} workflow={workflow} /> : null}
       <div className="mt-4 overflow-hidden rounded border border-gray-200 dark:border-gray-700">
         {stepItems.map((item, index) => item.type === "loop" ? (
-          <LoopGroup command={command} item={item} key={item.loopId} payload={payload} />
+          <LoopGroup command={command} item={item} key={item.loopId} payload={payload} workflowArtifacts={workflow.artifacts} />
         ) : (
-          <DisplayStepCard command={command} item={item} key={displayStepItemKey(item)} numberLabel={index + 1} payload={payload} />
+          <DisplayStepCard command={command} item={item} key={displayStepItemKey(item)} numberLabel={index + 1} payload={payload} workflowArtifacts={workflow.artifacts} />
         ))}
       </div>
     </section>
@@ -1455,7 +1456,7 @@ function shortSha(sha: string | null) {
   return sha ? sha.slice(0, 7) : "unknown"
 }
 
-function LoopGroup({ item, payload, command }: { item: LoopStepItem; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand> }) {
+function LoopGroup({ item, payload, command, workflowArtifacts }: { item: LoopStepItem; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; workflowArtifacts?: Record<string, unknown> | null }) {
   const { t } = useT("jobs")
   const [open, setOpen] = useState(false)
   const status = loopDisplayStatus(item)
@@ -1485,7 +1486,7 @@ function LoopGroup({ item, payload, command }: { item: LoopStepItem; payload: Jo
                 {t("loop_iteration", { n: iteration.iteration })}
               </div>
               {iteration.items.map((stepItem, index) => (
-                <DisplayStepCard command={command} item={stepItem} key={displayStepItemKey(stepItem)} numberLabel={index + 1} payload={payload} />
+                <DisplayStepCard command={command} item={stepItem} key={displayStepItemKey(stepItem)} numberLabel={index + 1} payload={payload} workflowArtifacts={workflowArtifacts} />
               ))}
             </section>
           ))}
@@ -1495,13 +1496,13 @@ function LoopGroup({ item, payload, command }: { item: LoopStepItem; payload: Jo
   )
 }
 
-function DisplayStepCard({ item, payload, command, numberLabel }: { item: DisplayStepItem; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; numberLabel: number | string }) {
-  if (item.type === "grade") return <GradeGroup command={command} item={item} numberLabel={numberLabel} payload={payload} />
+function DisplayStepCard({ item, payload, command, numberLabel, workflowArtifacts }: { item: DisplayStepItem; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; numberLabel: number | string; workflowArtifacts?: Record<string, unknown> | null }) {
+  if (item.type === "grade") return <GradeGroup command={command} item={item} numberLabel={numberLabel} payload={payload} workflowArtifacts={workflowArtifacts} />
 
-  return <StepCard command={command} numberLabel={numberLabel} payload={payload} step={item.step} />
+  return <StepCard command={command} numberLabel={numberLabel} payload={payload} step={item.step} workflowArtifacts={workflowArtifacts} />
 }
 
-function GradeGroup({ item, payload, command, numberLabel }: { item: GradeStepItem; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; numberLabel: number | string }) {
+function GradeGroup({ item, payload, command, numberLabel, workflowArtifacts }: { item: GradeStepItem; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; numberLabel: number | string; workflowArtifacts?: Record<string, unknown> | null }) {
   const { t } = useT("jobs")
   const [open, setOpen] = useState(false)
   const status = gradeDisplayStatus(item)
@@ -1539,6 +1540,7 @@ function GradeGroup({ item, payload, command, numberLabel }: { item: GradeStepIt
                 numberLabel={index + 1}
                 payload={payload}
                 step={phase.step}
+                workflowArtifacts={workflowArtifacts}
               />
             ))}
           </div>
@@ -1614,13 +1616,26 @@ function GraderDetails({ details }: { details: Record<string, unknown> }) {
   )
 }
 
-function StepCard({ step, payload, command, numberLabel, displayName, metadataLabel }: { step: JobStep; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; numberLabel: number | string; displayName?: string; metadataLabel?: string }) {
+function StepCard({ step, payload, command, numberLabel, displayName, metadataLabel, workflowArtifacts }: { step: JobStep; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; numberLabel: number | string; displayName?: string; metadataLabel?: string; workflowArtifacts?: Record<string, unknown> | null }) {
   const { t } = useT("jobs")
   const [open, setOpen] = useState(false)
+  const [artifactView, setArtifactView] = useState<"summary" | "test_plan" | "adversarial_review" | null>(null)
   const runs = sortedRunsNewestFirst(step.runs)
   const activeRun = runs.find((run) => isActiveState(run.state))
   const displayStatus = activeRun ? activeRun.state : step.display_status
   const prepareFailure = prepareFailureDetails(step)
+
+  const artifacts = workflowArtifacts ?? {}
+  const summaryArtifact = (step.kind === "summarize" || step.kind === "summarize_amend")
+    ? (typeof artifacts.summary === "string" && artifacts.summary ? artifacts.summary : null)
+    : null
+  const testPlanArtifact = step.kind === "test_plan" ? stepArtifactTestPlan(artifacts.test_plan) : null
+  const adversarialReviewArtifact = step.kind === "adversarial_review" ? stepArtifactAdversarialReview(artifacts.adversarial_review_iterations) : null
+  const hasAnyArtifactBtn = summaryArtifact !== null || testPlanArtifact !== null || adversarialReviewArtifact !== null
+
+  function toggleArtifact(view: "summary" | "test_plan" | "adversarial_review") {
+    setArtifactView((current) => current === view ? null : view)
+  }
 
   return (
     <div className="border-b border-gray-200 bg-white last:border-b-0 dark:border-gray-700 dark:bg-gray-900">
@@ -1641,12 +1656,33 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
       </button>
       {open ? (
         <div className="border-t border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950">
-          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-            <span>{metadataLabel || step.kind}</span>
-            {step.loop_id ? <span>{t("step_metadata_iteration", { n: step.iteration ?? 1 })}</span> : null}
-            {activeRun && step.state !== activeRun.state ? <SmallPill>{t("step_state_display", { state: step.state.replaceAll("_", " ") })}</SmallPill> : null}
-            {step.latest ? <SmallPill>{t("step_latest")}</SmallPill> : null}
-            <span>{formatDate(step.started_at || step.created_at)}</span>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+              <span>{metadataLabel || step.kind}</span>
+              {step.loop_id ? <span>{t("step_metadata_iteration", { n: step.iteration ?? 1 })}</span> : null}
+              {activeRun && step.state !== activeRun.state ? <SmallPill>{t("step_state_display", { state: step.state.replaceAll("_", " ") })}</SmallPill> : null}
+              {step.latest ? <SmallPill>{t("step_latest")}</SmallPill> : null}
+              <span>{formatDate(step.started_at || step.created_at)}</span>
+            </div>
+            {hasAnyArtifactBtn ? (
+              <div className="flex flex-wrap gap-2">
+                {summaryArtifact !== null ? (
+                  <button className={buttonClass("secondary")} onClick={() => toggleArtifact("summary")} type="button">
+                    {t("step_btn_summary")}
+                  </button>
+                ) : null}
+                {testPlanArtifact !== null ? (
+                  <button className={buttonClass("secondary")} onClick={() => toggleArtifact("test_plan")} type="button">
+                    {t("step_btn_test_plan")}
+                  </button>
+                ) : null}
+                {adversarialReviewArtifact !== null ? (
+                  <button className={buttonClass("secondary")} onClick={() => toggleArtifact("adversarial_review")} type="button">
+                    {t("step_btn_adversarial_review")}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           {activeRun ? <ActiveRunBanner run={activeRun} /> : null}
           {prepareFailure ? <PrepareFailurePanel failure={prepareFailure} /> : null}
@@ -1660,9 +1696,104 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
               {runs.map((run) => <RunRow active={activeRun?.id === run.id} command={command} key={run.id} payload={payload} run={run} />)}
             </div>
           ) : <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">{t("section_no_runs")}</p>}
+          {artifactView === "summary" && summaryArtifact ? (
+            <StepSummaryPanel onClose={() => setArtifactView(null)} summary={summaryArtifact} />
+          ) : null}
+          {artifactView === "test_plan" && testPlanArtifact ? (
+            <StepTestPlanPanel onClose={() => setArtifactView(null)} testPlan={testPlanArtifact} />
+          ) : null}
+          {artifactView === "adversarial_review" && adversarialReviewArtifact ? (
+            <StepAdversarialReviewPanel iterations={adversarialReviewArtifact} onClose={() => setArtifactView(null)} />
+          ) : null}
         </div>
       ) : null}
     </div>
+  )
+}
+
+function stepArtifactTestPlan(raw: unknown): { steps: string[]; notes: string | null } | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
+  const obj = raw as Record<string, unknown>
+  const steps = Array.isArray(obj.steps) ? obj.steps.filter((s): s is string => typeof s === "string") : []
+  if (steps.length === 0 && !obj.notes) return null
+  return { steps, notes: typeof obj.notes === "string" ? obj.notes : null }
+}
+
+function stepArtifactAdversarialReview(raw: unknown): JobAdversarialReviewIteration[] | null {
+  if (!Array.isArray(raw) || raw.length === 0) return null
+  const result: JobAdversarialReviewIteration[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue
+    const obj = item as Record<string, unknown>
+    if (typeof obj.iteration === "number" && typeof obj.critique === "string" && (obj.verdict === "approved" || obj.verdict === "needs_work")) {
+      result.push({ iteration: obj.iteration, critique: obj.critique, verdict: obj.verdict })
+    }
+  }
+  return result.length > 0 ? result : null
+}
+
+function StepSummaryPanel({ summary, onClose }: { summary: string; onClose: () => void }) {
+  const { t } = useT("jobs")
+  return (
+    <section className={artifactPanelClass()}>
+      <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_summary")}</ArtifactPanelHeader>
+      <div className="overflow-auto p-3 max-md:min-h-0 max-md:flex-1">
+        <p className="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">{summary}</p>
+      </div>
+    </section>
+  )
+}
+
+function StepTestPlanPanel({ testPlan, onClose }: { testPlan: { steps: string[]; notes: string | null }; onClose: () => void }) {
+  const { t } = useT("jobs")
+  return (
+    <section className={artifactPanelClass()}>
+      <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_test_plan")}</ArtifactPanelHeader>
+      <div className="overflow-auto p-3 max-md:min-h-0 max-md:flex-1">
+        {testPlan.steps.length > 0 ? (
+          <ol className="list-decimal space-y-1 pl-5 text-sm text-gray-700 dark:text-gray-300">
+            {testPlan.steps.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}
+          </ol>
+        ) : null}
+        {testPlan.notes ? <p className="mt-3 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">{testPlan.notes}</p> : null}
+      </div>
+    </section>
+  )
+}
+
+function StepAdversarialReviewPanel({ iterations, onClose }: { iterations: JobAdversarialReviewIteration[]; onClose: () => void }) {
+  const { t } = useT("jobs")
+  const lastIndex = iterations.length - 1
+  return (
+    <section className={artifactPanelClass()}>
+      <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_adversarial_review")}</ArtifactPanelHeader>
+      <div className="divide-y divide-gray-200 overflow-auto max-md:min-h-0 max-md:flex-1 dark:divide-gray-700">
+        {iterations.map((iteration, index) => {
+          const isFinal = index === lastIndex
+          const isApproved = iteration.verdict === "approved"
+          const verdictLabel = isApproved ? t("adversarial_review_verdict_approved") : t("adversarial_review_verdict_needs_work")
+          return (
+            <div className="p-3" key={iteration.iteration}>
+              <div className="flex items-center gap-2">
+                <h5 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+                  {t("adversarial_review_round", { n: iteration.iteration })}
+                </h5>
+                {isFinal ? (
+                  <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold ${isApproved ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300" : "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300"}`}>
+                    {verdictLabel}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                    {verdictLabel}
+                  </span>
+                )}
+              </div>
+              <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">{iteration.critique}</p>
+            </div>
+          )
+        })}
+      </div>
+    </section>
   )
 }
 
