@@ -435,6 +435,16 @@ function DisclosureIcon({ collapsed }: { collapsed: boolean }) {
   )
 }
 
+function CheckoutIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M12 3v12" />
+      <path d="m8 11 4 4 4-4" />
+      <path d="M5 21h14" />
+    </svg>
+  )
+}
+
 function HeaderBrand({ title, instanceUrl }: { title: string; instanceUrl: string }) {
   const normalizedUrl = normalizeInstanceUrl(instanceUrl)
 
@@ -1344,27 +1354,32 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
                           const epicCollapsed = collapsedEpics.has(entry.epicId)
                           return [
                             <li key={`epic-${entry.epicId}`}>
-                              <button
-                                type="button"
-                                onClick={() => toggleEpic(entry.epicId)}
-                                className="w-full flex flex-col overflow-hidden px-3 py-1 text-gray-500 hover:bg-gray-50"
-                              >
-                                <div className="flex items-center gap-1 w-full">
+                              <div className="flex items-center overflow-hidden">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleEpic(entry.epicId)}
+                                  aria-expanded={!epicCollapsed}
+                                  className="flex min-w-0 flex-1 items-center gap-1 px-3 py-1 text-gray-500 hover:bg-gray-50"
+                                >
                                   <DisclosureIcon collapsed={epicCollapsed} />
-                                  <span className="text-xs font-semibold">EPIC-{entry.epicId}</span>
-                                  <span className="ml-auto text-xs text-gray-400">{entry.jobs.length}</span>
-                                  {epicFullyImplemented(entry.jobs) && (
-                                    <span
-                                      role="button"
-                                      onClick={(e) => { e.stopPropagation(); void checkoutEpicComplete(entry.epicId, group.repositorySlug) }}
-                                      className="ml-2 text-xs text-blue-600 hover:underline cursor-pointer"
-                                    >
-                                      Checkout
-                                    </span>
-                                  )}
-                                </div>
-                                <span className="text-[11px] text-gray-400 truncate min-w-0 pl-5 text-left">{entry.epicTitle}</span>
-                              </button>
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-left text-xs font-semibold">EPIC-{entry.epicId}</span>
+                                    <span className="block truncate text-left text-[11px] text-gray-400">{entry.epicTitle}</span>
+                                  </span>
+                                  <span className="job-group__count">{entry.jobs.length}</span>
+                                </button>
+                                {epicFullyImplemented(entry.jobs) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => void checkoutEpicComplete(entry.epicId, group.repositorySlug)}
+                                    title={`Checkout EPIC-${entry.epicId}`}
+                                    aria-label={`Checkout EPIC-${entry.epicId} – fully implemented`}
+                                    className="mr-2 grid h-5 w-5 shrink-0 place-items-center rounded border border-slate-200 text-slate-500 hover:border-slate-300 hover:text-terracotta-600"
+                                  >
+                                    <CheckoutIcon />
+                                  </button>
+                                )}
+                              </div>
                             </li>,
                             ...(!epicCollapsed ? entry.jobs.map((job) => (
                               <JobRow
