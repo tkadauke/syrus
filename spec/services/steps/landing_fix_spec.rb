@@ -24,6 +24,7 @@ RSpec.describe Steps::LandingFix do
     allow(handler).to receive(:commit_agent_changes)
     allow(handler).to receive(:assert_branch_history_intact!)
     allow(handler).to receive(:diff_against_default).and_return("diff --git a/app.rb b/app.rb\n+ok")
+    allow(handler).to receive(:diff_against_sha).and_return("diff --git a/app.rb b/app.rb\n+ok")
     allow(handler).to receive(:head_sha).and_return("def456")
     allow(handler).to receive(:recent_branch_commits).and_return([
       { sha: "abcdef123456", subject: "Fix dashboard state" }

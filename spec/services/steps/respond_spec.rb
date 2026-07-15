@@ -35,6 +35,7 @@ RSpec.describe Steps::Respond do
     allow(handler).to receive(:commit_agent_changes)
     allow(handler).to receive(:assert_branch_history_intact!)
     allow(handler).to receive(:diff_against_default).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
+    allow(handler).to receive(:diff_against_sha).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
     allow(handler).to receive(:head_sha).and_return("abc123")
 
     issue = Struct.new(:title, :body).new("Add greeting helper", "We need a greeting helper.")
@@ -74,6 +75,7 @@ RSpec.describe Steps::Respond do
     allow(chat_handler).to receive(:commit_agent_changes)
     allow(chat_handler).to receive(:assert_branch_history_intact!)
     allow(chat_handler).to receive(:diff_against_default).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
+    allow(chat_handler).to receive(:diff_against_sha).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
     allow(chat_handler).to receive(:head_sha).and_return("abc789")
 
     chat_handler.call
@@ -140,6 +142,7 @@ RSpec.describe Steps::Respond do
     allow(new_handler).to receive(:commit_agent_changes)
     allow(new_handler).to receive(:assert_branch_history_intact!)
     allow(new_handler).to receive(:diff_against_default).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
+    allow(new_handler).to receive(:diff_against_sha).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
     allow(new_handler).to receive(:head_sha).and_return("abc456")
 
     new_handler.call
@@ -198,6 +201,7 @@ RSpec.describe Steps::Respond do
     allow(chat_handler).to receive(:commit_agent_changes)
     allow(chat_handler).to receive(:assert_branch_history_intact!)
     allow(chat_handler).to receive(:diff_against_default).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
+    allow(chat_handler).to receive(:diff_against_sha).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
     allow(chat_handler).to receive(:head_sha).and_return("abc789")
 
     chat_handler.call

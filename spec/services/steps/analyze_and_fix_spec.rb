@@ -36,6 +36,7 @@ RSpec.describe Steps::AnalyzeAndFix do
     allow(handler).to receive(:commit_agent_changes)
     allow(handler).to receive(:assert_branch_history_intact!)
     allow(handler).to receive(:diff_against_default).and_return("diff --git a/spec/foo_spec.rb b/spec/foo_spec.rb\n+bar")
+    allow(handler).to receive(:diff_against_sha).and_return("diff --git a/spec/foo_spec.rb b/spec/foo_spec.rb\n+bar")
     allow(handler).to receive(:head_sha).and_return("def456")
 
     issue = Struct.new(:title, :body).new("Add greeting helper", "We need a greeting helper.")
