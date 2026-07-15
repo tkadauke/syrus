@@ -282,6 +282,7 @@ module SyrusChatMcp
       DrawImageTool,
       MoveElementTool,
       DeleteElementTool,
+      ListChatMediaTool,
       SaveCanvasTool,
       ClearCanvasTool,
       LoadCanvasTool,
