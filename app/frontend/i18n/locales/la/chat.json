@@ -192,5 +192,17 @@
   "walkthrough_too_large": "Hoc video maius quam 500 MB est. Praecide aut minore resolutione memora.",
   "walkthrough_too_long": "Hoc video {{actual}} longum est — perambulationes ad {{limit}} finiuntur ut analysis celeris gratuitaque maneat.",
   "walkthrough_uploading": "Sursum fertur {{percent}}%",
-  "walkthrough_window_hint": "Consilium: fenestram parvam serva ut analysis celerior sit"
+  "walkthrough_window_hint": "Consilium: fenestram parvam serva ut analysis celerior sit",
+  "job_status_tab": "Opera",
+  "job_status_loading": "Opera onerantur...",
+  "job_status_error": "Status operum onerari non potuit.",
+  "job_status_empty": "Nulla propositio confirmata adhuc.",
+  "job_status_step": "Gradus: {{step}}",
+  "job_status_pr": "PR #{{number}}",
+  "job_status_epic_progress": "{{done}}/{{total}}",
+  "job_status_expand_epic": "{{title}} expandere",
+  "job_status_collapse_epic": "{{title}} contrahere",
+  "job_status_blocker_awaiting_review": "Recognitionem exspectat",
+  "job_status_blocker_landing_failed": "Descensus defecit",
+  "job_status_blocker_dependency_failed": "Necessitudo defecit"
 }

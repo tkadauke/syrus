@@ -182,7 +182,15 @@ and open in a full-size preview. The chat workspace also includes a Media tab
 that gathers image attachments into a downloadable gallery and lists saved
 whiteboard snapshots with element counts, relative timestamps, and a Load
 action that merges the snapshot back onto the current canvas after preserving
-existing work. PDFs are passed to the agent
+existing work.
+Once at least one proposal in the current chat session has been confirmed, a
+Jobs tab appears in the workspace panel. It groups confirmed proposals into
+their respective Epics (collapsible, with a done/total progress pill) and
+shows remaining standalone Jobs as a flat list. Each card displays the Job
+state, the active workflow step or PR link, and a red blocker banner when
+operator action is required (awaiting review, landing failed, or a failed
+dependency). Clicking a card navigates to the Job detail page. The feed
+updates in real time when any Job originating from this chat session changes. PDFs are passed to the agent
 without an inline preview.
 Clearing a non-empty canvas automatically saves the previous scene first.
 

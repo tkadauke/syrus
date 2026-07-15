@@ -192,5 +192,17 @@
   "walkthrough_too_large": "Das Video ist größer als 500 MB. Kürze es oder nimm mit niedrigerer Auflösung auf.",
   "walkthrough_too_long": "Das Video ist {{actual}} lang — Walkthroughs sind auf {{limit}} begrenzt, damit die Analyse schnell und im Gratis-Kontingent bleibt.",
   "walkthrough_uploading": "Wird hochgeladen {{percent}}%",
-  "walkthrough_window_hint": "Tipp: Halte das Fenster klein für eine schnellere Analyse"
+  "walkthrough_window_hint": "Tipp: Halte das Fenster klein für eine schnellere Analyse",
+  "job_status_tab": "Jobs",
+  "job_status_loading": "Jobs werden geladen...",
+  "job_status_error": "Job-Status konnte nicht geladen werden.",
+  "job_status_empty": "Noch keine bestätigten Vorschläge.",
+  "job_status_step": "Schritt: {{step}}",
+  "job_status_pr": "PR #{{number}}",
+  "job_status_epic_progress": "{{done}}/{{total}}",
+  "job_status_expand_epic": "{{title}} erweitern",
+  "job_status_collapse_epic": "{{title}} einklappen",
+  "job_status_blocker_awaiting_review": "Wartet auf Überprüfung",
+  "job_status_blocker_landing_failed": "Landen fehlgeschlagen",
+  "job_status_blocker_dependency_failed": "Abhängigkeit fehlgeschlagen"
 }

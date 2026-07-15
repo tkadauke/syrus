@@ -1183,6 +1183,68 @@ describe("chat message image attachments", () => {
   })
 })
 
+describe("chat jobs tab", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
+    mockDesktopViewport()
+  })
+
+  it("does not show the Jobs tab when there are no confirmed proposals", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({ chat: { confirmed_proposal_count: 0 } })))
+    })
+
+    renderRoute()
+
+    await screen.findByText("Discuss aqueducts.")
+    expect(screen.queryByRole("button", { name: "Jobs" })).not.toBeInTheDocument()
+  })
+
+  it("shows the Jobs tab when there is at least one confirmed proposal", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/job_status") {
+        return Promise.resolve(jsonResponse([]))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({ chat: { confirmed_proposal_count: 1 } })))
+    })
+
+    renderRoute()
+
+    await screen.findByText("Discuss aqueducts.")
+    expect(screen.getByRole("button", { name: "Jobs" })).toBeInTheDocument()
+  })
+
+  it("shows the job status panel content when the Jobs tab is active", async () => {
+    window.localStorage.setItem("syrus.chat.workspace.tab", "jobs")
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/job_status") {
+        return Promise.resolve(jsonResponse([]))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({ chat: { confirmed_proposal_count: 2 } })))
+    })
+
+    renderRoute()
+
+    expect(await screen.findByText("No confirmed proposals yet.")).toBeInTheDocument()
+  })
+})
+
 describe("chat attachment detach confirmation", () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -2421,6 +2483,7 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
       cumulative_input_tokens: 12400,
       cumulative_output_tokens: 3200,
       cumulative_cost_usd: 0.0123,
+      confirmed_proposal_count: 0,
       ...overrides.chat
     },
     chat_available: true,

@@ -32,6 +32,7 @@ export type ChatRecord = {
   cumulative_output_tokens: number
   cumulative_cost_usd: number
   pending_proposal_count?: number
+  confirmed_proposal_count?: number
   scratchpad_items_count?: number
   coding_checkout_uncommitted?: boolean
   coding_checkout_branch?: string | null
@@ -795,4 +796,37 @@ export function fetchCodingFileContent(basePath: string, filePath: string) {
 
 export function fetchCodingDiff(path: string, mode: "cumulative" | "turn" = "cumulative") {
   return getJson<CodingDiffPayload>(`${path}?mode=${mode}`)
+}
+
+export type ChatJobStatusBlocker = {
+  reason: "awaiting_review" | "landing_failed" | "dependency_failed"
+  description: string
+}
+
+export type ChatJobStatusJobItem = {
+  kind: "job"
+  job_id: number
+  slug: string
+  title: string | null
+  state: string
+  workflow_step: string | null
+  pr_number: number | null
+  pr_url: string | null
+  blocker: ChatJobStatusBlocker | null
+}
+
+export type ChatJobStatusEpicItem = {
+  kind: "epic"
+  epic_id: number
+  slug: string
+  title: string | null
+  state: string
+  progress: { done: number; total: number }
+  children: ChatJobStatusJobItem[]
+}
+
+export type ChatJobStatusItem = ChatJobStatusEpicItem | ChatJobStatusJobItem
+
+export function fetchChatJobStatus(chatId: string | number) {
+  return getJson<ChatJobStatusItem[]>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/job_status`)
 }

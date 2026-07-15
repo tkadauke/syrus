@@ -1897,6 +1897,7 @@ module Api
             cumulative_cost_usd: chat_session.cumulative_cost.to_f,
             pending_proposal_count: chat_session.proposals.where(state: "proposed").count +
               chat_session.pending_actions.where(state: "pending").count,
+            confirmed_proposal_count: chat_session.proposals.confirmed.count,
             scratchpad_items_count: chat_session.scratchpad_items.count,
             coding_checkout_uncommitted: chat_session.coding_checkout_uncommitted?,
             coding_checkout_branch: chat_session.coding_checkout_branch

@@ -127,6 +127,7 @@ import {
 } from "../lib/slashCommands"
 import { createReportIssue } from "../api/reportIssues"
 import { useT } from "../hooks/useT"
+import { ChatJobStatusPanel } from "./ChatJobStatusPanel"
 
 const WHITEBOARD_SAVE_DEBOUNCE_MS = 500
 const CHAT_ENTER_SUBMIT_MIN_WIDTH = 1024
@@ -3952,7 +3953,7 @@ function StopButton({ payload, queryKey }: { payload: ChatPayload; queryKey: Cha
   )
 }
 
-type WorkspaceTab = "whiteboard" | "context" | "media" | "files" | "diff"
+type WorkspaceTab = "whiteboard" | "context" | "media" | "files" | "diff" | "jobs"
 type MobileChatTab = "chat" | WorkspaceTab
 
 function ChatWorkspace({
@@ -4073,7 +4074,7 @@ function ChatWorkspace({
     return (
       <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-gray-950">
         <nav aria-label="Chat mobile tabs" className="flex shrink-0 overflow-x-auto border-b border-gray-200 px-2 pt-2 text-sm font-medium dark:border-gray-700">
-          {(["chat", "whiteboard", "context", "media", ...(codingFilesTabVisible(payload) ? (["files"] as MobileChatTab[]) : []), ...(payload.local_tunnel_connected ? (["diff"] as MobileChatTab[]) : [])] as MobileChatTab[]).map((tab) => (
+          {(["chat", "whiteboard", "context", "media", ...(codingFilesTabVisible(payload) ? (["files"] as MobileChatTab[]) : []), ...(payload.local_tunnel_connected ? (["diff"] as MobileChatTab[]) : []), ...(jobsTabVisible(payload) ? (["jobs"] as MobileChatTab[]) : [])] as MobileChatTab[]).map((tab) => (
             <button
               className={workspaceTabClass(activeMobileTab === tab)}
               key={tab}
@@ -4414,7 +4415,7 @@ function ChatWorkspacePanel({
     <aside aria-label="Chat workspace" className={`flex min-h-0 min-w-0 flex-1 flex-col rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900 ${fullscreen ? "" : "h-full w-full"}`}>
       {fullscreen || !showTabs ? null : (
         <nav aria-label="Chat workspace tabs" className="flex items-center border-b border-gray-200 px-3 pt-3 text-sm font-medium dark:border-gray-700">
-          {(["whiteboard", "context", "media", ...(codingFilesTabVisible(payload) ? (["files"] as WorkspaceTab[]) : []), ...(payload.local_tunnel_connected ? (["diff"] as WorkspaceTab[]) : [])] as WorkspaceTab[]).map((tab) => (
+          {(["whiteboard", "context", "media", ...(codingFilesTabVisible(payload) ? (["files"] as WorkspaceTab[]) : []), ...(payload.local_tunnel_connected ? (["diff"] as WorkspaceTab[]) : []), ...(jobsTabVisible(payload) ? (["jobs"] as WorkspaceTab[]) : [])] as WorkspaceTab[]).map((tab) => (
             <button
               className={workspaceTabClass(activeTab === tab)}
               key={tab}
@@ -4451,6 +4452,7 @@ function ChatWorkspacePanel({
         {activeTab === "media" ? <MediaGallery messages={payload.messages} payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
         {activeTab === "files" ? <CodingFilesPanel payload={payload} /> : null}
         {activeTab === "diff" && payload.local_tunnel_connected ? <LocalDiffPanel /> : null}
+        {activeTab === "jobs" ? <ChatJobStatusPanel chatId={payload.chat.id} /> : null}
       </div>
     </aside>
   )
@@ -5481,6 +5483,10 @@ function codingFilesTabVisible(payload: ChatPayload): boolean {
   )
 }
 
+function jobsTabVisible(payload: ChatPayload): boolean {
+  return (payload.chat.confirmed_proposal_count ?? 0) > 0
+}
+
 type FileTreeNode = {
   name: string
   path: string
@@ -5756,6 +5762,7 @@ function workspaceTabLabel(tab: WorkspaceTab) {
   if (tab === "media") return "Media"
   if (tab === "files") return "Files"
   if (tab === "diff") return "Local Diff"
+  if (tab === "jobs") return "Jobs"
 
   return "Chats"
 }
@@ -5771,7 +5778,7 @@ function defaultWorkspaceTab(payload: ChatPayload): WorkspaceTab {
 function storedWorkspaceTab(): WorkspaceTab | null {
   try {
     const value = window.localStorage.getItem(CHAT_WORKSPACE_TAB_KEY)
-    return value === "whiteboard" || value === "context" || value === "media" || value === "files" || value === "diff" ? value : null
+    return value === "whiteboard" || value === "context" || value === "media" || value === "files" || value === "diff" || value === "jobs" ? value : null
   } catch (_error) {
     return null
   }
