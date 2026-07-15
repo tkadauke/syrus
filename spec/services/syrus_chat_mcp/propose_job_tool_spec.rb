@@ -169,6 +169,52 @@ RSpec.describe SyrusChatMcp::ProposeJobTool do
     expect(chat_session.proposals.find_by(title: "Misfile the edict")).to be_nil
   end
 
+  it "stores media_ids on the proposal when media is provided" do
+    snapshot = WhiteboardSnapshot.create!(
+      chat_session: chat_session,
+      name: "Board snapshot",
+      scene_json: { "elements" => [], "appState" => {} },
+      snapshot_kind: "manual",
+      element_count: 0
+    )
+
+    response = call_tool(
+      repo: repository.slug,
+      title: "Media job",
+      description: "Attach the whiteboard.",
+      media: [ "snapshot:#{snapshot.id}" ]
+    )
+
+    proposal = chat_session.proposals.find_by!(title: "Media job")
+    expect(response[:result][:isError]).to be_falsey
+    expect(proposal.media_ids).to eq([ "snapshot:#{snapshot.id}" ])
+  end
+
+  it "stores an empty media_ids array when media is omitted" do
+    response = call_tool(
+      repo: repository.slug,
+      title: "No media job",
+      description: "Nothing to attach."
+    )
+
+    proposal = chat_session.proposals.find_by!(title: "No media job")
+    expect(response[:result][:isError]).to be_falsey
+    expect(proposal.media_ids).to eq([])
+  end
+
+  it "returns an error for invalid media format" do
+    response = call_tool(
+      repo: repository.slug,
+      title: "Bad media job",
+      description: "Invalid reference.",
+      media: [ "invalid-format" ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("invalid entry")
+    expect(chat_session.proposals.find_by(title: "Bad media job")).to be_nil
+  end
+
   it "broadcasts an update_proposal event after creating the proposal" do
     allow(AppEvents).to receive(:broadcast)
 

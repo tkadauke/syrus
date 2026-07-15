@@ -17,6 +17,8 @@ module SyrusChatMcp
       Never write `JOB-{id}` using this number. The actual Job ID is assigned
       only when the operator confirms, and will appear as `JOB-<id>` in the
       next turn's system prompt under "Recent proposal activity".
+      To attach the current whiteboard, call save_canvas first and pass the
+      returned snapshot_id as "snapshot:ID" in the media array.
     DESC
 
     input_schema(
@@ -27,13 +29,18 @@ module SyrusChatMcp
         description: { type: "string", description: "Markdown Job description." },
         depends_on_epic_ids: { type: "array", items: { type: "integer" }, description: "Optional existing Epic IDs this Job depends on." },
         depends_on_job_ids: { type: "array", items: { type: "integer" }, description: "Optional existing Job IDs this Job depends on." },
-        depends_on: { type: "array", items: { type: "string" }, description: "Optional Job proposal slugs from this chat session. Prefer declaring a dependency when this job builds on or needs to be tested against another proposal in the same session; omit only when the work is genuinely independent. The operator can instruct otherwise." }
+        depends_on: { type: "array", items: { type: "string" }, description: "Optional Job proposal slugs from this chat session. Prefer declaring a dependency when this job builds on or needs to be tested against another proposal in the same session; omit only when the work is genuinely independent. The operator can instruct otherwise." },
+        media: {
+          type: "array",
+          items: { type: "string" },
+          description: "Media references to attach to the Job. Call save_canvas first to get a snapshot ID (\"snapshot:42\"), or pass chat image IDs as \"chat_image:123\". Omit if no media is relevant."
+        }
       },
       required: %w[repo title description]
     )
 
     class << self
-      def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [], depends_on_epic_ids: [], depends_on_job_ids: [])
+      def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [], depends_on_epic_ids: [], depends_on_job_ids: [], media: [])
         chat_session = server_context.fetch(:chat_session)
         repository = repository_for(chat_session, repo)
         title = title.to_s.strip
@@ -68,7 +75,8 @@ module SyrusChatMcp
             body: description,
             kind: "job",
             depends_on_epic_ids: depends_on_epic_ids,
-            depends_on_job_ids: depends_on_job_ids
+            depends_on_job_ids: depends_on_job_ids,
+            media_ids: Array(media)
           )
           dependencies.each do |dependency|
             ChatProposalDependency.create!(proposal: proposal, depends_on: dependency)

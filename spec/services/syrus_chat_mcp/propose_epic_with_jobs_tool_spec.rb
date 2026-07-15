@@ -368,6 +368,41 @@ RSpec.describe SyrusChatMcp::ProposeEpicWithJobsTool do
     expect(chat_session.proposals.where(slug: "new-epic").count).to eq(0)
   end
 
+  it "stores media_ids on child job proposals when media is provided" do
+    snapshot = WhiteboardSnapshot.create!(
+      chat_session: chat_session,
+      name: "Board snapshot",
+      scene_json: { "elements" => [], "appState" => {} },
+      snapshot_kind: "manual",
+      element_count: 0
+    )
+
+    response = call_tool(
+      epic: { slug: "media-epic", title: "Media Epic", description: "Attach media to jobs.", target_repo: repository.slug },
+      jobs: [
+        {
+          slug: "media-job",
+          target_repo: repository.slug,
+          title: "Job with media",
+          description: "Attach the whiteboard.",
+          media: [ "snapshot:#{snapshot.id}" ]
+        },
+        {
+          slug: "no-media-job",
+          target_repo: repository.slug,
+          title: "Job without media",
+          description: "Nothing to attach."
+        }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be_falsey
+    media_job = chat_session.proposals.find_by!(slug: "media-job")
+    no_media_job = chat_session.proposals.find_by!(slug: "no-media-job")
+    expect(media_job.media_ids).to eq([ "snapshot:#{snapshot.id}" ])
+    expect(no_media_job.media_ids).to eq([])
+  end
+
   it "broadcasts an update_proposal event after creating the proposal" do
     allow(AppEvents).to receive(:broadcast)
 

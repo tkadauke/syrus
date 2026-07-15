@@ -48,7 +48,12 @@ module SyrusChatMcp
               title: { type: "string", description: "Child Job title." },
               description: { type: "string", description: "Child Job prompt/body." },
               depends_on_epic_ids: { type: "array", items: { type: "integer" }, description: "Existing Epic IDs this child Job depends on." },
-              depends_on: { type: "array", items: { type: "string" }, description: "Sibling job slugs or job proposal slugs from other cards in this chat session. Default to linear chains — if jobs share a test path (e.g. backend → frontend → agent handoff that consumes both), chain them even when code changes don't overlap directly. Only omit a dependency when the jobs are genuinely independently deployable and testable end-to-end. The operator can instruct otherwise." }
+              depends_on: { type: "array", items: { type: "string" }, description: "Sibling job slugs or job proposal slugs from other cards in this chat session. Default to linear chains — if jobs share a test path (e.g. backend → frontend → agent handoff that consumes both), chain them even when code changes don't overlap directly. Only omit a dependency when the jobs are genuinely independently deployable and testable end-to-end. The operator can instruct otherwise." },
+              media: {
+                type: "array",
+                items: { type: "string" },
+                description: "Media references to attach to this child Job. Call save_canvas first to get a snapshot ID (\"snapshot:42\"), or pass chat image IDs as \"chat_image:123\". Omit if no media is relevant."
+              }
             },
             required: %w[slug title description]
           },
@@ -140,7 +145,8 @@ module SyrusChatMcp
           description: job["description"].to_s.strip,
           target_repo: job["target_repo"].to_s.strip.presence || default_repo,
           depends_on_epic_ids: normalize_integer_list(job["depends_on_epic_ids"]),
-          depends_on: normalize_string_list(job["depends_on"])
+          depends_on: normalize_string_list(job["depends_on"]),
+          media_ids: Array(job["media"])
         }
       end
 
@@ -287,6 +293,7 @@ module SyrusChatMcp
             kind: "syrus_issue",
             labels: nil,
             depends_on_epic_ids: job[:depends_on_epic_ids],
+            media_ids: job[:media_ids],
             state: "proposed",
             edited_at: child.persisted? ? Time.current : nil
           )
