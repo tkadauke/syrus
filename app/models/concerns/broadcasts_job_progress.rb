@@ -29,6 +29,16 @@ module BroadcastsJobProgress
     }
 
     AppUserChannel.broadcast_to(owner_job.user, event.as_json)
+
+    ChatProposal.confirmed.where(job: owner_job).distinct.pluck(:chat_session_id).each do |session_id|
+      AppEvents.broadcast(
+        user: owner_job.user,
+        type: "chat.updated",
+        resource: "chat",
+        id: session_id,
+        payload: { action: "job_status_changed", job_id: owner_job.id }
+      )
+    end
   end
 
   def saved_changes_for_job_progress?

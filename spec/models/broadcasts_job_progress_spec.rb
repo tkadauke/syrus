@@ -4,6 +4,7 @@ RSpec.describe BroadcastsJobProgress do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:job) { Factories.job_record(user: user, repository: repository, state: "queued") }
+  let(:chat_session) { ChatSession.create!(user: user) }
 
   before do
     allow(AppUserChannel).to receive(:broadcast_to)
@@ -75,5 +76,71 @@ RSpec.describe BroadcastsJobProgress do
     run.update!(last_heartbeat_at: Time.current)
 
     expect(AppUserChannel).not_to have_received(:broadcast_to)
+  end
+
+  describe "chat session broadcasts" do
+    it "broadcasts a chat.updated event to confirmed chat sessions linked to the job" do
+      ChatProposal.create!(
+        chat_session: chat_session,
+        job: job,
+        kind: "job",
+        state: "confirmed",
+        slug: "linked-proposal",
+        title: "Linked proposal",
+        body: "Do the thing."
+      )
+
+      Workflow.create!(job: job, trigger_kind: "initial")
+
+      expect(AppUserChannel).to have_received(:broadcast_to).with(
+        user,
+        hash_including(
+          "type" => "chat.updated",
+          "resource" => "chat",
+          "id" => chat_session.id,
+          "payload" => { "action" => "job_status_changed", "job_id" => job.id }
+        )
+      )
+    end
+
+    it "does not broadcast a chat.updated event when no confirmed proposals link the job" do
+      ChatProposal.create!(
+        chat_session: chat_session,
+        job: job,
+        kind: "job",
+        state: "proposed",
+        slug: "unconfirmed-proposal",
+        title: "Unconfirmed proposal",
+        body: "Not yet confirmed."
+      )
+
+      Workflow.create!(job: job, trigger_kind: "initial")
+
+      expect(AppUserChannel).not_to have_received(:broadcast_to).with(
+        user,
+        hash_including("type" => "chat.updated")
+      )
+    end
+
+    it "broadcasts to each distinct chat session exactly once when multiple proposals link the same session" do
+      2.times do |i|
+        ChatProposal.create!(
+          chat_session: chat_session,
+          job: job,
+          kind: "job",
+          state: "confirmed",
+          slug: "proposal-#{i}",
+          title: "Proposal #{i}",
+          body: "The #{i}th proposal."
+        )
+      end
+
+      Workflow.create!(job: job, trigger_kind: "initial")
+
+      expect(AppUserChannel).to have_received(:broadcast_to).with(
+        user,
+        hash_including("type" => "chat.updated", "id" => chat_session.id)
+      ).once
+    end
   end
 end

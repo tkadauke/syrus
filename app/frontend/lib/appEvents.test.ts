@@ -477,6 +477,25 @@ describe("applyAppEvent", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["chats"] })
   })
+
+  it("dispatches a syrus:job-status-changed DOM event for job_status_changed payloads", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    const dispatched: CustomEvent[] = []
+    window.addEventListener("syrus:job-status-changed", (e) => dispatched.push(e as CustomEvent))
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: {
+        action: "job_status_changed",
+        job_id: 77
+      }
+    })
+
+    expect(dispatched).toHaveLength(1)
+    expect(dispatched[0].detail).toEqual({ job_id: 77, chat_session_id: 9 })
+    expect(invalidate).not.toHaveBeenCalled()
+  })
 })
 
 function event(resource: string, id: number | null) {

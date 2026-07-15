@@ -334,6 +334,16 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
     return true
   }
 
+  const jobStatusChanged = chatJobStatusChangedPayload(event.payload)
+  if (jobStatusChanged) {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("syrus:job-status-changed", {
+        detail: { job_id: jobStatusChanged.job_id, chat_session_id: event.id }
+      }))
+    }
+    return true
+  }
+
   return false
 }
 
@@ -386,6 +396,11 @@ type ChatSuggestionPayload = {
 type ChatUpdateProposalPayload = {
   action: "update_proposal"
   proposal_id: number
+}
+
+type ChatJobStatusChangedPayload = {
+  action: "job_status_changed"
+  job_id: number
 }
 
 function chatReplaceTailPayload(payload: unknown): ChatReplaceTailPayload | null {
@@ -521,6 +536,16 @@ function chatUpdateProposalPayload(payload: unknown): ChatUpdateProposalPayload 
   if (typeof candidate.proposal_id !== "number") return null
 
   return { action: "update_proposal", proposal_id: candidate.proposal_id }
+}
+
+function chatJobStatusChangedPayload(payload: unknown): ChatJobStatusChangedPayload | null {
+  if (!payload || typeof payload !== "object") return null
+
+  const candidate = payload as Partial<ChatJobStatusChangedPayload>
+  if (candidate.action !== "job_status_changed") return null
+  if (typeof candidate.job_id !== "number") return null
+
+  return { action: "job_status_changed", job_id: candidate.job_id }
 }
 
 function isChatMessages(value: unknown): value is ChatMessageItem[] {
