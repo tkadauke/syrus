@@ -39,9 +39,25 @@ class WorkflowWorkspacePruneJob < ApplicationJob
       n += 1
     end
 
-    # Failed: longer retention for the retry UI.
+    # Failed infrastructure workflows: same short backstop as succeeded/cancelled.
+    # These are never operator-retried so there is no reason to hold their workspace
+    # for the full retry window. The fail event should have already cleaned up
+    # immediately; this sweeps any that slipped through (e.g. worker killed
+    # between the state transition and the cleanup call).
+    infra_cutoff = RETAIN_AFTER_SUCCESS_OR_CANCEL.ago
+    Workflow.where(state: "failed")
+            .where(trigger_kind: Workflow::INFRASTRUCTURE_TRIGGER_KINDS)
+            .where(cleaned_up_at: nil)
+            .where("finished_at IS NOT NULL AND finished_at < ?", infra_cutoff)
+            .find_each do |wf|
+      WorkflowWorkspace.cleanup_for(wf)
+      n += 1
+    end
+
+    # Failed non-infrastructure: longer retention for the retry UI.
     f_cutoff = RETAIN_AFTER_FAILURE.ago
     Workflow.where(state: "failed")
+            .where.not(trigger_kind: Workflow::INFRASTRUCTURE_TRIGGER_KINDS)
             .where(cleaned_up_at: nil)
             .where("finished_at IS NOT NULL AND finished_at < ?", f_cutoff)
             .find_each do |wf|
@@ -90,7 +106,11 @@ class WorkflowWorkspacePruneJob < ApplicationJob
       next unless wf.terminal?
       next unless wf.finished_at
 
-      retention = (wf.succeeded? || wf.cancelled?) ? RETAIN_AFTER_SUCCESS_OR_CANCEL : RETAIN_AFTER_FAILURE
+      retention = if wf.succeeded? || wf.cancelled? || wf.infrastructure_workflow?
+        RETAIN_AFTER_SUCCESS_OR_CANCEL
+      else
+        RETAIN_AFTER_FAILURE
+      end
       next unless wf.finished_at < retention.ago
 
       WorkflowWorkspace.cleanup_for(wf)

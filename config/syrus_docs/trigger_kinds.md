@@ -113,3 +113,10 @@ Like `coding_handoff`, requires operator confirmation before the workflow dispat
 **When it fires:** An internal trigger for running graders against the main branch (used for automated main-branch health checks).
 
 This trigger kind is infrastructure-facing and not surfaced in the operator Job state machine. It does not produce a PR or appear in the normal Job workflow list.
+
+**Workspace lifecycle:** Infrastructure workflows (those in `Workflow::INFRASTRUCTURE_TRIGGER_KINDS`) clean their workspace immediately on both success and failure — they do not hold the workspace for the 7-day "Retry from failed step" window that normal failed workflows retain. This is enforced at two layers:
+
+1. The `fail` AASM event in `Workflow` calls `cleanup_workspace!` immediately for infrastructure workflows.
+2. `WorkflowWorkspacePruneJob#db_sweep` and `#filesystem_sweep` apply `RETAIN_AFTER_SUCCESS_OR_CANCEL` (2 hours) as a backstop for infrastructure failed workflows instead of the normal `RETAIN_AFTER_FAILURE` (7 days).
+
+**Retry/Reopen suppression:** Infrastructure Jobs and their anchor workflows are not operator-retryable. The "Retry from failed step", "Retry implementation", and "Reopen" UI actions are suppressed for infrastructure jobs in `App::JobDetailPayload` and `App::JobRetryActions`.

@@ -710,7 +710,7 @@ module App
         can_cancel: @job.open?,
         can_approve: @job.can_add_job_approval?(@user),
         can_unapprove: @job.may_unapprove?,
-        can_reopen: @job.closed?,
+        can_reopen: @job.closed? && !@job.infrastructure?,
         can_mark_valid: @job.validity_duplicate? || @job.validity_already_implemented?,
         can_open_in_local_mode: Feature.local_mode_enabled? && (@job.implemented? || @job.approved?) && @job.linked_chat_id.nil?,
         can_cancel_local_mode: Feature.local_mode_enabled? && @job.coding?,

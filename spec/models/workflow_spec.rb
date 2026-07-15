@@ -409,6 +409,66 @@ RSpec.describe Workflow do
     end
   end
 
+  describe "infrastructure workflow cleanup on fail" do
+    let(:user) { Factories.user }
+    let(:repo) { Factories.repository(user: user) }
+
+    def make_infra_workflow
+      infra_job = Job.create!(
+        user: user,
+        owner_user: user,
+        repository: repo,
+        kind: "main_grader",
+        issue_title: "main_grader:abc123"
+      )
+      wf = described_class.create!(
+        job: infra_job,
+        trigger_kind: "main_grader",
+        state: "running",
+        started_at: 1.minute.ago
+      )
+      allow(wf).to receive(:dispatch_hook)
+      wf
+    end
+
+    it "cleans up the workspace immediately on fail — no retry window holds it" do
+      wf = make_infra_workflow
+      allow(WorkflowWorkspace).to receive(:cleanup_for) do |w|
+        w.update_columns(cleaned_up_at: Time.current)
+      end
+
+      wf.fail!
+      wf.save!
+
+      expect(WorkflowWorkspace).to have_received(:cleanup_for).with(wf)
+      expect(wf.reload.cleaned_up_at).to be_present
+    end
+
+    it "leaves the retry_available? false after fail (workspace was cleaned)" do
+      wf = make_infra_workflow
+      allow(WorkflowWorkspace).to receive(:cleanup_for) do |w|
+        w.update_columns(cleaned_up_at: Time.current)
+      end
+
+      wf.fail!
+      wf.save!
+
+      expect(wf.reload.retry_available?).to eq(false)
+    end
+
+    it "does NOT clean up on fail for a retryable (non-infrastructure) workflow" do
+      retryable_wf = described_class.create!(job: job, trigger_kind: "initial", state: "running", started_at: 1.minute.ago)
+      Step.create!(workflow: retryable_wf, kind: "implement", position: 0, state: "failed", started_at: 1.minute.ago, finished_at: Time.current)
+
+      expect(WorkflowWorkspace).not_to receive(:cleanup_for)
+      retryable_wf.fail!
+      retryable_wf.save!
+
+      expect(retryable_wf.reload.cleaned_up_at).to be_nil
+      expect(retryable_wf.retry_available?).to eq(true)
+    end
+  end
+
   describe "artifacts" do
     let(:wf) { described_class.create!(job: job, trigger_kind: "initial") }
 

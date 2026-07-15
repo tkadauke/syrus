@@ -74,12 +74,17 @@ class Workflow < ApplicationRecord
     # commit before summarize fails). WorkflowWorkspacePruneJob
     # eventually cleans up via cleanup_workspace! if no retry
     # arrives within the retention window.
+    #
+    # Exception: infrastructure workflows are never operator-retried;
+    # their workspace is cleaned up immediately on failure so they
+    # don't accumulate on the PVC between recurring check cycles.
     event :fail do
       transitions from: [ :queued, :running ], to: :failed, after: -> {
         self.finished_at = Time.current
         cancel_orphan_active_runs!
         propagate_fail_to_job!
         dispatch_hook(:after_fail)
+        cleanup_workspace! if infrastructure_workflow?
       }
     end
 

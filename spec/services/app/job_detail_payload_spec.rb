@@ -449,5 +449,61 @@ RSpec.describe App::JobDetailPayload do
         step_kind: "auto_merge"
       )
     end
+
+    it "suppresses all retry actions for infrastructure (main_grader) workflows" do
+      infra_job = Job.create!(
+        user: user,
+        owner_user: user,
+        repository: repo,
+        kind: "main_grader",
+        issue_title: "main_grader:abc123",
+        state: "closed",
+        finished_at: Time.current,
+        closure_reason: "pr_merged"
+      )
+      create_failed_workflow(infra_job, trigger_kind: "main_grader", failed_step_kind: "grader")
+
+      actions = payload_for(infra_job).fetch(:actions)
+
+      expect(actions[:can_retry]).to be(false)
+      expect(actions[:can_retry_from_failed_step]).to be(false)
+      expect(actions[:retry_implementation_action]).to be_nil
+      expect(actions[:retry_failed_step_action]).to be_nil
+    end
+  end
+
+  describe "#actions_json can_reopen" do
+    it "is true for a closed non-infrastructure job" do
+      job = Factories.job_record(
+        user: user,
+        repository: repo,
+        state: "closed",
+        closure_reason: "pr_merged"
+      )
+
+      expect(payload_for(job).dig(:actions, :can_reopen)).to be(true)
+    end
+
+    it "is false for a closed infrastructure (main_grader) job" do
+      infra_job = Job.create!(
+        user: user,
+        owner_user: user,
+        repository: repo,
+        kind: "main_grader",
+        issue_title: "main_grader:abc123",
+        state: "closed",
+        finished_at: Time.current,
+        closure_reason: "pr_merged"
+      )
+      Workflow.create!(job: infra_job, trigger_kind: "main_grader", user: user, state: "succeeded")
+
+      expect(payload_for(infra_job).dig(:actions, :can_reopen)).to be(false)
+    end
+
+    it "is false for an open job" do
+      job = Factories.job_record(user: user, repository: repo, state: "running")
+
+      expect(payload_for(job).dig(:actions, :can_reopen)).to be(false)
+    end
   end
 end

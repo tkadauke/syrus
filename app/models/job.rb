@@ -161,6 +161,10 @@ class Job < ApplicationRecord
     kind == "main_grader"
   end
 
+  def infrastructure?
+    Workflow::INFRASTRUCTURE_TRIGGER_KINDS.include?(latest_workflow_trigger_kind)
+  end
+
   def claimed?
     claimed_by_user_id.present?
   end

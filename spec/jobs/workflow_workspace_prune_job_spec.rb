@@ -19,9 +19,24 @@ RSpec.describe WorkflowWorkspacePruneJob do
     FileUtils.rm_rf(data_root)
   end
 
-  def make_workflow(state:, finished_at: nil, cleaned_up_at: nil)
+  def make_workflow(state:, finished_at: nil, cleaned_up_at: nil, trigger_kind: "initial")
     job = Factories.job
-    wf  = Workflow.create!(job: job, trigger_kind: "initial")
+    wf  = Workflow.create!(job: job, trigger_kind: trigger_kind)
+    wf.update_columns(state: state, finished_at: finished_at, cleaned_up_at: cleaned_up_at)
+    wf
+  end
+
+  def make_infra_workflow(state:, finished_at: nil, cleaned_up_at: nil)
+    user = Factories.user
+    repo = Factories.repository(user: user)
+    infra_job = Job.create!(
+      user: user,
+      owner_user: user,
+      repository: repo,
+      kind: "main_grader",
+      issue_title: "main_grader:abc123"
+    )
+    wf = Workflow.create!(job: infra_job, trigger_kind: "main_grader", user: user)
     wf.update_columns(state: state, finished_at: finished_at, cleaned_up_at: cleaned_up_at)
     wf
   end
@@ -91,6 +106,43 @@ RSpec.describe WorkflowWorkspacePruneJob do
   it "db_sweep skips active workflows even if they're old" do
     active = make_workflow(state: "running", finished_at: nil)
     expect(WorkflowWorkspace).not_to receive(:cleanup_for).with(active)
+    described_class.perform_now
+  end
+
+  # ---- db_sweep: failed infrastructure uses short retention -------
+
+  it "db_sweep cleans a failed infrastructure workflow past RETAIN_AFTER_SUCCESS_OR_CANCEL" do
+    old = make_infra_workflow(
+      state: "failed",
+      finished_at: (described_class::RETAIN_AFTER_SUCCESS_OR_CANCEL + 1.minute).ago
+    )
+    expect(WorkflowWorkspace).to receive(:cleanup_for).with(old)
+    described_class.perform_now
+  end
+
+  it "db_sweep leaves a failed infrastructure workflow inside RETAIN_AFTER_SUCCESS_OR_CANCEL alone" do
+    recent = make_infra_workflow(state: "failed", finished_at: 1.minute.ago)
+    expect(WorkflowWorkspace).not_to receive(:cleanup_for).with(recent)
+    described_class.perform_now
+  end
+
+  it "db_sweep does NOT hold a failed infrastructure workflow for RETAIN_AFTER_FAILURE (no retry)" do
+    # A failed infrastructure workflow finished just past the short window but
+    # well inside the long failure window — it must be swept, not held.
+    mid = make_infra_workflow(
+      state: "failed",
+      finished_at: (described_class::RETAIN_AFTER_SUCCESS_OR_CANCEL + 1.hour).ago
+    )
+    expect(WorkflowWorkspace).to receive(:cleanup_for).with(mid)
+    described_class.perform_now
+  end
+
+  it "db_sweep still holds a failed non-infrastructure workflow inside RETAIN_AFTER_FAILURE" do
+    mid = make_workflow(
+      state: "failed",
+      finished_at: (described_class::RETAIN_AFTER_SUCCESS_OR_CANCEL + 1.hour).ago
+    )
+    expect(WorkflowWorkspace).not_to receive(:cleanup_for).with(mid)
     described_class.perform_now
   end
 
