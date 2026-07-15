@@ -957,6 +957,21 @@ describe("chat compose image attachments", () => {
     expect(annotateButton.querySelector("span")).toHaveClass("group-hover:opacity-100", "group-focus-visible:opacity-100")
     expect(screen.getByRole("button", { name: "Remove screen.png" }).querySelector("svg")).toBeInTheDocument()
   })
+
+  it("removes the textarea required constraint when an attachment is present without text", async () => {
+    mockChatRouteFetch()
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    expect(textarea).toBeRequired()
+
+    fireEvent.change(screen.getByLabelText("Chat attachments"), {
+      target: { files: [new File(["pixels"], "attach.png", { type: "image/png" })] }
+    })
+
+    await screen.findByRole("button", { name: "Remove attach.png" })
+    expect(textarea).not.toBeRequired()
+  })
 })
 
 describe("chat composer paste-to-attach", () => {

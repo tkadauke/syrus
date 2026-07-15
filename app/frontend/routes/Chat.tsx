@@ -3220,7 +3220,7 @@ function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, 
             onPaste={handlePaste}
             placeholder={ghostSuggestion ? "" : payload.switching_provider ? t("switching_to_provider", { provider: providerLabel(payload.chat.chat_provider ?? "") }) : agentActive ? t("queue_followup") : payload.chat.repository ? t("ask_repository") : t("ask_anything")}
             ref={textareaRef}
-            required
+            required={attachments.length === 0 && walkthrough?.status !== "ready"}
             rows={1}
             value={text}
           />
