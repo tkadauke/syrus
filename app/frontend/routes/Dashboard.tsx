@@ -133,7 +133,10 @@ function RepositoryHealthBanners({ prefix, repositories }: { prefix: string; rep
         <div className="flex items-center justify-between gap-3 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm dark:border-red-900 dark:bg-red-950/40" key={repo.id} role="alert">
           <span className="text-red-800 dark:text-red-200">
             <span className="font-mono font-medium">{repo.slug}</span>
-            {" — "}{t(repo.main_health === "inconclusive" ? "main_health_inconclusive_banner" : "broken_main_banner")}
+            {" — "}{t(repo.main_health === "inconclusive"
+              ? (repo.landing_paused ? "main_health_inconclusive_banner" : "main_health_inconclusive_banner_not_held")
+              : (repo.landing_paused ? "broken_main_banner" : "broken_main_banner_not_held")
+            )}
           </span>
           <div className="flex shrink-0 items-center gap-2">
             <Link

@@ -341,6 +341,19 @@ RSpec.describe "App API dashboard commands", type: :request do
       )
     end
 
+    it "includes landing_paused in health_blocked_repositories entries" do
+      repo.update!(grader_health: "broken", landing_paused: true)
+      other = Factories.repository(user: user, owner: "acme", name: "widgets2")
+      other.update!(grader_health: "broken", landing_paused: false)
+
+      get "/api/v1/app/dashboard", params: { subject: "job" }
+
+      expect(response).to have_http_status(:ok)
+      entries = parse_body["health_blocked_repositories"]
+      expect(entries.find { |r| r["id"] == repo.id }).to include("landing_paused" => true)
+      expect(entries.find { |r| r["id"] == other.id }).to include("landing_paused" => false)
+    end
+
     it "adds landing queue positions when the landing smart folder is active" do
       repo.update!(auto_merge_enabled: true)
       first = Factories.job_record(

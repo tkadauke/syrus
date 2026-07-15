@@ -128,7 +128,9 @@
     "cleaned_up_at": "Bereinigt am"
   },
   "broken_main_banner": "Hauptzweig ist defekt — Jobs in der Warteschlange werden gehalten.",
+  "broken_main_banner_not_held": "Hauptzweig ist defekt.",
   "main_health_inconclusive_banner": "Hauptzweig-Gesundheit ist uneindeutig — Jobs in der Warteschlange werden zur Prüfung gehalten.",
+  "main_health_inconclusive_banner_not_held": "Hauptzweig-Gesundheit ist uneindeutig.",
   "broken_main_view_details": "Details ansehen",
   "broken_main_dismiss": "Ausblenden"
 }

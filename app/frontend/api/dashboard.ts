@@ -17,6 +17,7 @@ export type DashboardHealthBlockedRepository = {
   main_health: string
   ci_health: string
   grader_health: string
+  landing_paused: boolean
   repository_path: string
 }
 

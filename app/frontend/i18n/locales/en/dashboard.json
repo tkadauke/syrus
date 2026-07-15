@@ -128,7 +128,9 @@
     "cleaned_up_at": "Cleaned up at"
   },
   "broken_main_banner": "Main branch is broken — queued jobs are held.",
+  "broken_main_banner_not_held": "Main branch is broken.",
   "main_health_inconclusive_banner": "Main branch health is inconclusive — queued jobs are held for review.",
+  "main_health_inconclusive_banner_not_held": "Main branch health is inconclusive.",
   "broken_main_view_details": "View details",
   "broken_main_dismiss": "Dismiss"
 }

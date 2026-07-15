@@ -1087,6 +1087,7 @@ module App
           main_health: repo.main_health,
           ci_health: repo.ci_health,
           grader_health: repo.grader_health,
+          landing_paused: repo.landing_paused,
           repository_path: repository_path(repo)
         }
       end
