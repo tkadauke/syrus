@@ -300,4 +300,28 @@ RSpec.describe "Filters::Chips" do
       expect(run(field: "attention", op: "is", value: "merged_this_week")).to contain_exactly(merged)
     end
   end
+
+  describe "job_type" do
+    it "is:user returns only user-facing jobs (issue, direct)" do
+      issue_job  = Factories.job_record(repository: repo, issue_number: 1, kind: "issue")
+      direct_job = Factories.job_record(repository: repo, issue_number: nil, kind: "direct")
+      Factories.job_record(repository: repo, issue_number: nil, kind: "main_grader")
+
+      expect(run(field: "job_type", op: "is", value: "user")).to contain_exactly(issue_job, direct_job)
+    end
+
+    it "is:system returns only main_grader jobs" do
+      Factories.job_record(repository: repo, issue_number: 1, kind: "issue")
+      system_job = Factories.job_record(repository: repo, issue_number: nil, kind: "main_grader")
+
+      expect(run(field: "job_type", op: "is", value: "system")).to contain_exactly(system_job)
+    end
+
+    it "is_not:user returns only system jobs" do
+      Factories.job_record(repository: repo, issue_number: 1, kind: "issue")
+      system_job = Factories.job_record(repository: repo, issue_number: nil, kind: "main_grader")
+
+      expect(run(field: "job_type", op: "is_not", value: "user")).to contain_exactly(system_job)
+    end
+  end
 end

@@ -18,6 +18,20 @@ class SmartFolder < ApplicationRecord
     }
   end
 
+  # Like attention_preset_filter but also pins the results to user-facing
+  # job kinds (issue, cron, direct). All predefined job smart folders use
+  # this so system/infrastructure jobs (main_grader) don't clutter the
+  # operator's normal workflow views. The "All jobs" link uses no filter
+  # and deliberately bypasses this restriction.
+  def self.user_job_attention_preset_filter(preset)
+    {
+      "and" => [
+        { "field" => "attention", "op" => "is", "value" => preset },
+        { "field" => "job_type", "op" => "is", "value" => "user" }
+      ]
+    }
+  end
+
   def self.epic_attention(preset)
     attention_preset_filter(preset)
   end
@@ -31,21 +45,25 @@ class SmartFolder < ApplicationRecord
     # when populated — so an empty sidebar means there's nothing
     # urgent. When populated, they sit near the top where the
     # operator will notice them.
-    { key: "pinned",           name: "Pinned",                 visibility: :when_present, filter: attention_preset_filter("pinned") },
-    { key: "in_progress",      name: "In progress",            visibility: :when_present, filter: attention_preset_filter("in_progress") },
-    { key: "queued",           name: "Queued",                 visibility: :when_present, filter: attention_preset_filter("queued") },
-    { key: "invalid",          name: "Invalid",                visibility: :when_present, filter: attention_preset_filter("needs_review") },
-    { key: "awaiting_epic",    name: "Awaiting Epic",          visibility: :when_present, filter: attention_preset_filter("awaiting_epic") },
+    { key: "pinned",           name: "Pinned",                 visibility: :when_present, filter: user_job_attention_preset_filter("pinned") },
+    { key: "in_progress",      name: "In progress",            visibility: :when_present, filter: user_job_attention_preset_filter("in_progress") },
+    { key: "queued",           name: "Queued",                 visibility: :when_present, filter: user_job_attention_preset_filter("queued") },
+    { key: "invalid",          name: "Invalid",                visibility: :when_present, filter: user_job_attention_preset_filter("needs_review") },
+    { key: "awaiting_epic",    name: "Awaiting Epic",          visibility: :when_present, filter: user_job_attention_preset_filter("awaiting_epic") },
 
     # Tier 2: always-on routing.
-    { key: "inbox",            name: "Inbox",                  visibility: :always,       filter: attention_preset_filter("inbox") },
-    { key: "landing_queue",    name: "Landing queue",          visibility: :when_present, filter: attention_preset_filter("landing_queue") },
-    { key: "just_failed",      name: "Just failed",            visibility: :when_present, filter: attention_preset_filter("just_failed") },
-    { key: "blocked",          name: "Blocked",                visibility: :when_present, filter: attention_preset_filter("blocked") },
+    { key: "inbox",            name: "Inbox",                  visibility: :always,       filter: user_job_attention_preset_filter("inbox") },
+    { key: "landing_queue",    name: "Landing queue",          visibility: :when_present, filter: user_job_attention_preset_filter("landing_queue") },
+    { key: "just_failed",      name: "Just failed",            visibility: :when_present, filter: user_job_attention_preset_filter("just_failed") },
+    { key: "blocked",          name: "Blocked",                visibility: :when_present, filter: user_job_attention_preset_filter("blocked") },
 
     # Tier 3: historical lookups, tucked into "More" disclosure.
-    { key: "stale",            name: "Stale",                  visibility: :on_demand,    filter: attention_preset_filter("stale") },
-    { key: "merged_this_week", name: "Merged this week",       visibility: :on_demand,    filter: attention_preset_filter("merged_this_week") }
+    { key: "stale",            name: "Stale",                  visibility: :on_demand,    filter: user_job_attention_preset_filter("stale") },
+    { key: "merged_this_week", name: "Merged this week",       visibility: :on_demand,    filter: user_job_attention_preset_filter("merged_this_week") },
+
+    # Shows every job including system/infrastructure kinds. Most folders
+    # filter these out via job_type:user; this one intentionally does not.
+    { key: "all_jobs",         name: "All jobs",               visibility: :on_demand,    filter: { "and" => [] } }
   ].freeze
   BUILTIN_DEFINITIONS = JOB_BUILTINS
 

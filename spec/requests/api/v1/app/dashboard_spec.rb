@@ -941,7 +941,8 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(body["active_smart_folder_id"]).to eq(inbox_folder.id)
       expect(body["filter"]).to eq(
         "and" => [
-          { "field" => "attention", "op" => "is", "value" => "inbox" }
+          { "field" => "attention", "op" => "is", "value" => "inbox" },
+          { "field" => "job_type", "op" => "is", "value" => "user" }
         ]
       )
       expect(body["items"].map { |item| item.fetch("id") }).to eq([ inbox_job.id ])
@@ -1021,14 +1022,38 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(body["items"].map { |item| item.fetch("id") }).to eq([ closed.id ])
     end
 
-    it "excludes main_grader jobs from the operator-facing job list" do
-      visible = Factories.job_record(repository: repo, owner_user: user, issue_number: 10, issue_title: "Build aqueduct", kind: "issue", state: "queued")
-      Factories.job_record(repository: repo, owner_user: user, issue_number: nil, issue_title: "main_grader:abc123", kind: "main_grader", state: "queued")
+    it "includes system jobs in the all-jobs view when no smart folder filter is active" do
+      user_job = Factories.job_record(repository: repo, owner_user: user, issue_number: 10, issue_title: "Build aqueduct", kind: "issue", state: "queued")
+      system_job = Factories.job_record(repository: repo, owner_user: user, issue_number: nil, issue_title: "main_grader:abc123", kind: "main_grader", state: "queued")
 
       get "/api/v1/app/dashboard", params: { subject: "job", view: "list", smart_folder_id: "all" }
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body["items"].map { |item| item.fetch("id") }).to contain_exactly(visible.id)
+      expect(parse_body["items"].map { |item| item.fetch("id") }).to contain_exactly(user_job.id, system_job.id)
+    end
+
+    it "excludes system jobs from predefined smart folder views via the job_type:user filter" do
+      SmartFolder.ensure_builtins!
+      queued_folder = SmartFolder.find_by!(user_id: nil, subject_type: "job", name: "Queued")
+      user_job = Factories.job_record(repository: repo, owner_user: user, issue_number: 10, state: "queued")
+      Factories.job_record(repository: repo, owner_user: user, issue_number: nil, kind: "main_grader", state: "queued")
+
+      get "/api/v1/app/dashboard", params: { subject: "job", view: "list", smart_folder_id: queued_folder.id }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["items"].map { |item| item.fetch("id") }).to contain_exactly(user_job.id)
+    end
+
+    it "shows system jobs in the All jobs builtin smart folder" do
+      SmartFolder.ensure_builtins!
+      all_folder = SmartFolder.find_by!(user_id: nil, subject_type: "job", name: "All jobs")
+      user_job = Factories.job_record(repository: repo, owner_user: user, issue_number: 10, state: "queued")
+      system_job = Factories.job_record(repository: repo, owner_user: user, issue_number: nil, kind: "main_grader", state: "queued")
+
+      get "/api/v1/app/dashboard", params: { subject: "job", view: "list", smart_folder_id: all_folder.id }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["items"].map { |item| item.fetch("id") }).to contain_exactly(user_job.id, system_job.id)
     end
 
     it "keeps an active empty when-present smart folder visible" do

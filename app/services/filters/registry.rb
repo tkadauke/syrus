@@ -9,6 +9,7 @@ module Filters
   #
   # state                         job
   # kind                          job
+  # job_type                      job
   # priority                      job
   # agent_provider                job
   # closure_reason                job
@@ -53,6 +54,7 @@ module Filters
       # Thread / metadata
       "state"                         => "Filters::Chips::Jobs::State",
       "kind"                          => "Filters::Chips::Jobs::Kind",
+      "job_type"                      => "Filters::Chips::Jobs::JobType",
       "priority"                      => "Filters::Chips::Jobs::Priority",
       "agent_provider"                => "Filters::Chips::Jobs::AgentProvider",
       "closure_reason"                => "Filters::Chips::Jobs::ClosureReason",
