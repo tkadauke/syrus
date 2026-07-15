@@ -16,7 +16,17 @@ module Steps
   # reaper trips.
   class Prepare < Base
     PER_COMMAND_TIMEOUT = 10.minutes.to_i
+    MISE_INSTALL_TIMEOUT = 5.minutes.to_i
     OUTPUT_TAIL_BYTES = 8.kilobytes
+
+    MISE_VERSION_FILES = %w[
+      .tool-versions
+      .mise.toml
+      .ruby-version
+      .python-version
+      .node-version
+      .go-version
+    ].freeze
 
     # Mirror of AgentInvocation::ENV_FORWARD. Prep commands
     # run with EXACTLY this env (unsetenv_others: true) so the
@@ -33,6 +43,7 @@ module Steps
     def call
       workspace.setup
       sync_fork_with_upstream! if repository.upstream_repository_id.present?
+      run_mise_install if mise_version_file?
       plan = RepoPrepPlan.for(workspace.path)
 
       log("[prepare] source: #{plan.source}")
@@ -302,6 +313,41 @@ module Steps
           git merge upstream/#{upstream_branch}
           git push origin #{repository.default_branch}
       MSG
+    end
+
+    def mise_version_file?
+      MISE_VERSION_FILES.any? { |f| workspace.path.join(f).exist? }
+    end
+
+    def run_mise_install
+      log("[prepare] version file detected; running mise install")
+      buffer = new_log_buffer
+      tail = +""
+      result = ProcessRunner.new(
+        env: env,
+        command: [ "mise", "install" ],
+        chdir: workspace.path,
+        timeout: MISE_INSTALL_TIMEOUT,
+        kind: "prepare",
+        run: run,
+        workflow: workflow,
+        on_output_chunk: ->(chunk) {
+          append_output_tail(tail, chunk)
+          stream_buffered_chunk(buffer, chunk)
+        }
+      ).run
+      flush_log_buffer(buffer)
+      return if result.success? && !result.timed_out
+
+      failure = prepare_failure_payload("mise install", result, tail)
+      record_mise_install_soft_failure!(failure)
+    end
+
+    def record_mise_install_soft_failure!(failure)
+      soft = failure.merge("soft" => true)
+      step.update!(details: (step.details || {}).merge("mise_install_failure" => soft))
+      workflow.set_artifact!("mise_install_failure", soft)
+      log("[prepare] WARNING (mise install, non-fatal): #{prepare_failure_message(failure)}")
     end
 
     def env

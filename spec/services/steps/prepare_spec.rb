@@ -321,6 +321,110 @@ RSpec.describe Steps::Prepare do
     end
   end
 
+  describe "mise install" do
+    let(:success_result) do
+      ProcessRunner::Result.new(
+        exit_status: 0, timed_out: false, stopped: false,
+        silent_timed_out: false, operator_killed: false,
+        aliveness_failed: false, duration_s: 0.5, spawned_process_id: nil
+      )
+    end
+
+    let(:failure_result) do
+      ProcessRunner::Result.new(
+        exit_status: 1, timed_out: false, stopped: false,
+        silent_timed_out: false, operator_killed: false,
+        aliveness_failed: false, duration_s: 0.5, spawned_process_id: nil
+      )
+    end
+
+    it "skips mise install when no version files are present" do
+      # Empty workspace: no lockfiles and no version files → nothing runs
+      handler.call
+
+      chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+      expect(chunks).not_to include("mise install")
+      expect(workflow.reload.artifact("mise_install_failure")).to be_nil
+    end
+
+    Steps::Prepare::MISE_VERSION_FILES.each do |version_file|
+      it "detects #{version_file} and runs mise install" do
+        File.write(@ws_path.join(version_file), "ruby 3.4.0\n")
+        fake_runner = instance_double(ProcessRunner, run: success_result)
+        allow(ProcessRunner).to receive(:new).and_return(fake_runner)
+
+        handler.call
+
+        expect(ProcessRunner).to have_received(:new).with(
+          hash_including(command: [ "mise", "install" ], timeout: Steps::Prepare::MISE_INSTALL_TIMEOUT)
+        )
+        expect(workflow.reload.artifact("mise_install_failure")).to be_nil
+      end
+    end
+
+    context "when a version file is present" do
+      before { File.write(@ws_path.join(".tool-versions"), "ruby 3.4.0\n") }
+
+      it "runs mise install in the workspace directory with the scrubbed env" do
+        captured_kwargs = nil
+        fake_runner = instance_double(ProcessRunner, run: success_result)
+        allow(ProcessRunner).to receive(:new) do |**kwargs|
+          captured_kwargs = kwargs if kwargs[:command] == [ "mise", "install" ]
+          fake_runner
+        end
+
+        handler.call
+
+        expect(captured_kwargs).to include(
+          command: [ "mise", "install" ],
+          chdir: @ws_path,
+          timeout: Steps::Prepare::MISE_INSTALL_TIMEOUT
+        )
+        # Env must come from the scrubbed PREP_ENV_FORWARD list, not the raw worker env
+        expect(captured_kwargs[:env]).not_to have_key("BUNDLE_WITHOUT")
+        expect(captured_kwargs[:env]).not_to have_key("RAILS_ENV")
+      end
+
+      it "soft-fails when mise install exits non-zero — records artifact and continues" do
+        fake_runner = instance_double(ProcessRunner, run: failure_result)
+        allow(ProcessRunner).to receive(:new).and_return(fake_runner)
+
+        expect { handler.call }.not_to raise_error
+
+        failure = workflow.reload.artifact("mise_install_failure")
+        expect(failure).to include(
+          "command" => "mise install",
+          "exit_status" => 1,
+          "soft" => true
+        )
+        expect(step.reload.details["mise_install_failure"]).to eq(failure)
+
+        chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+        expect(chunks).to include("[prepare] WARNING (mise install, non-fatal)")
+      end
+
+      it "soft-fails when mise install times out — records artifact and continues" do
+        timed_out_result = ProcessRunner::Result.new(
+          exit_status: nil, timed_out: true, stopped: false,
+          silent_timed_out: false, operator_killed: false,
+          aliveness_failed: false, duration_s: Steps::Prepare::MISE_INSTALL_TIMEOUT.to_f,
+          spawned_process_id: nil
+        )
+        fake_runner = instance_double(ProcessRunner, run: timed_out_result)
+        allow(ProcessRunner).to receive(:new).and_return(fake_runner)
+
+        expect { handler.call }.not_to raise_error
+
+        failure = workflow.reload.artifact("mise_install_failure")
+        expect(failure).to include("soft" => true, "timed_out" => true)
+
+        chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+        expect(chunks).to include("[prepare] WARNING (mise install, non-fatal)")
+        expect(chunks).to include("timed out after")
+      end
+    end
+  end
+
   describe "#stream_buffered" do
     it "coalesces a 640 KB burst instead of flushing each byte-threshold chunk" do
       data = 40.times.map { |i| i.to_s.rjust(4, "0") + ("x" * (16 * 1024 - 4)) }.join
