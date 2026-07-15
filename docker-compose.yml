@@ -61,8 +61,10 @@ services:
     volumes:
       - syrus-data:/home/rails/.syrus
       - syrus-search:/home/rails/.syrus-search
+      - syrus-mise-cache:/opt/mise
     command: ["./bin/jobs"]
 
 volumes:
   syrus-data:
   syrus-search:
+  syrus-mise-cache:
