@@ -21,6 +21,7 @@ RSpec.describe PendingActions::SubmitCodingChanges do
       payload: {
         "repository_id" => repository.id,
         "branch" => "feature/my-work",
+        "title" => "User Profile Page",
         "description" => "Add user profile page"
       },
       requested_by: "agent"
@@ -39,6 +40,7 @@ RSpec.describe PendingActions::SubmitCodingChanges do
     expect(job).to have_attributes(
       kind: "direct",
       branch_name: "feature/my-work",
+      issue_title: "User Profile Page",
       issue_body: "Add user profile page",
       linked_chat_id: chat_session.id,
       repository: repository
@@ -75,47 +77,23 @@ RSpec.describe PendingActions::SubmitCodingChanges do
     expect(action.result.job.branch_name).to eq("feature/my-work")
   end
 
-  it "enqueues GenerateJobTitleJob for the created Job when title is absent" do
+  it "sets issue_title from the payload and does not enqueue GenerateJobTitleJob" do
     action = pending_action
 
     allow(StepDispatcher).to receive(:start_workflow)
     expect {
       action.confirm!(user: user)
-    }.to have_enqueued_job(GenerateJobTitleJob)
-  end
+    }.not_to have_enqueued_job(GenerateJobTitleJob)
 
-  context "when title is provided in the payload" do
-    def pending_action_with_title
-      chat_session.pending_actions.create!(
-        action: "submit_coding_changes",
-        payload: {
-          "repository_id" => repository.id,
-          "branch" => "feature/my-work",
-          "description" => "Add user profile page",
-          "title" => "User Profile Page"
-        },
-        requested_by: "agent"
-      )
-    end
-
-    it "sets issue_title from the payload and skips GenerateJobTitleJob" do
-      action = pending_action_with_title
-
-      allow(StepDispatcher).to receive(:start_workflow)
-      expect {
-        action.confirm!(user: user)
-      }.not_to have_enqueued_job(GenerateJobTitleJob)
-
-      job = action.result.job
-      expect(job.issue_title).to eq("User Profile Page")
-      expect(job.title_pending).to be(false)
-    end
+    job = action.result.job
+    expect(job.issue_title).to eq("User Profile Page")
+    expect(job.title_pending).to be(false)
   end
 
   it "raises RecordNotFound when the repository belongs to another user" do
     other_user = Factories.user
     other_repo = Factories.repository(user: other_user)
-    action = pending_action({ payload: { "repository_id" => other_repo.id, "branch" => "main", "description" => "stuff" } })
+    action = pending_action({ payload: { "repository_id" => other_repo.id, "branch" => "main", "title" => "stuff", "description" => "stuff" } })
 
     expect { action.confirm!(user: user) }.to raise_error(ActiveRecord::RecordNotFound)
   end
@@ -130,7 +108,7 @@ RSpec.describe PendingActions::SubmitCodingChanges do
   it "validates that repository_id is present in the payload" do
     action = chat_session.pending_actions.build(
       action: "submit_coding_changes",
-      payload: { "branch" => "main", "description" => "stuff" },
+      payload: { "branch" => "main", "title" => "stuff", "description" => "stuff" },
       requested_by: "agent"
     )
 
@@ -141,7 +119,7 @@ RSpec.describe PendingActions::SubmitCodingChanges do
   it "validates that branch is present in the payload" do
     action = chat_session.pending_actions.build(
       action: "submit_coding_changes",
-      payload: { "repository_id" => repository.id, "description" => "stuff" },
+      payload: { "repository_id" => repository.id, "title" => "stuff", "description" => "stuff" },
       requested_by: "agent"
     )
 
@@ -149,10 +127,21 @@ RSpec.describe PendingActions::SubmitCodingChanges do
     expect(action.errors.to_a).to include(match(/branch/))
   end
 
+  it "validates that title is present in the payload" do
+    action = chat_session.pending_actions.build(
+      action: "submit_coding_changes",
+      payload: { "repository_id" => repository.id, "branch" => "main", "description" => "stuff" },
+      requested_by: "agent"
+    )
+
+    expect(action).not_to be_valid
+    expect(action.errors.to_a).to include(match(/title/))
+  end
+
   it "validates that description is present in the payload" do
     action = chat_session.pending_actions.build(
       action: "submit_coding_changes",
-      payload: { "repository_id" => repository.id, "branch" => "main" },
+      payload: { "repository_id" => repository.id, "branch" => "main", "title" => "stuff" },
       requested_by: "agent"
     )
 

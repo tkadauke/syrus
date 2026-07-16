@@ -40,6 +40,7 @@ module PendingActions
     def validate_payload(errors)
       errors.add(:payload, "repository_id is required") unless payload["repository_id"].present?
       errors.add(:payload, "branch is required") unless payload["branch"].present?
+      errors.add(:payload, "title is required") unless payload["title"].present?
       errors.add(:payload, "description is required") unless payload["description"].present?
     end
 

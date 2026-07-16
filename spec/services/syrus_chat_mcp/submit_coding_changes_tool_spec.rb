@@ -38,7 +38,7 @@ RSpec.describe SyrusChatMcp::SubmitCodingChangesTool do
   before { enable_coding_mode! }
 
   it "creates a pending action for the chat session's repository" do
-    response = call_tool(branch: "feature/my-work", description: "Add user profile page")
+    response = call_tool(branch: "feature/my-work", title: "Add user profile page", description: "Adds a user profile page with avatar and bio fields.")
     body = payload(response)
     pending_action = chat_session.pending_actions.find(body[:pending_action_id])
 
@@ -54,26 +54,18 @@ RSpec.describe SyrusChatMcp::SubmitCodingChangesTool do
     expect(pending_action.payload).to eq(
       "repository_id" => repository.id,
       "branch" => "feature/my-work",
-      "description" => "Add user profile page"
+      "title" => "Add user profile page",
+      "description" => "Adds a user profile page with avatar and bio fields."
     )
   end
 
-  it "stores title in the payload when provided" do
-    response = call_tool(branch: "feature/my-work", description: "Add user profile page", title: "Add user profile page")
+  it "stores title in the payload" do
+    response = call_tool(branch: "feature/my-work", title: "Add user profile page", description: "Adds a user profile page.")
     body = payload(response)
     pending_action = chat_session.pending_actions.find(body[:pending_action_id])
 
     expect(response.dig(:result, :isError)).to be_falsey
     expect(pending_action.payload).to include("title" => "Add user profile page")
-  end
-
-  it "omits title from the payload when not provided" do
-    response = call_tool(branch: "feature/my-work", description: "Add user profile page")
-    body = payload(response)
-    pending_action = chat_session.pending_actions.find(body[:pending_action_id])
-
-    expect(response.dig(:result, :isError)).to be_falsey
-    expect(pending_action.payload).not_to have_key("title")
   end
 
   it "accepts an explicit repository_id" do
@@ -82,7 +74,8 @@ RSpec.describe SyrusChatMcp::SubmitCodingChangesTool do
     response = call_tool(
       repository_id: other_repo.id,
       branch: "feature/my-work",
-      description: "Implement feature"
+      title: "Implement feature",
+      description: "Implements the feature."
     )
     body = payload(response)
     pending_action = chat_session.pending_actions.find(body[:pending_action_id])
@@ -94,7 +87,7 @@ RSpec.describe SyrusChatMcp::SubmitCodingChangesTool do
   it "returns an error when coding mode is disabled" do
     Feature.find_by(slug: "coding_mode")&.update!(enabled: false)
 
-    response = call_tool(branch: "feature/my-work", description: "Implement feature")
+    response = call_tool(branch: "feature/my-work", title: "Implement feature", description: "Implements the feature.")
 
     expect(response.dig(:result, :isError)).to be(true)
     expect(response.dig(:result, :content, 0, :text)).to include("not enabled")
@@ -104,7 +97,8 @@ RSpec.describe SyrusChatMcp::SubmitCodingChangesTool do
     response = call_tool(
       repository_id: 999_999_999,
       branch: "feature/my-work",
-      description: "Implement feature"
+      title: "Implement feature",
+      description: "Implements the feature."
     )
 
     expect(response.dig(:result, :isError)).to be(true)
@@ -112,14 +106,21 @@ RSpec.describe SyrusChatMcp::SubmitCodingChangesTool do
   end
 
   it "returns an error when branch is blank" do
-    response = call_tool(branch: "   ", description: "Implement feature")
+    response = call_tool(branch: "   ", title: "Implement feature", description: "Implements the feature.")
 
     expect(response.dig(:result, :isError)).to be(true)
     expect(response.dig(:result, :content, 0, :text)).to include("branch")
   end
 
+  it "returns an error when title is blank" do
+    response = call_tool(branch: "feature/my-work", title: "   ", description: "Implements the feature.")
+
+    expect(response.dig(:result, :isError)).to be(true)
+    expect(response.dig(:result, :content, 0, :text)).to include("title")
+  end
+
   it "returns an error when description is blank" do
-    response = call_tool(branch: "feature/my-work", description: "   ")
+    response = call_tool(branch: "feature/my-work", title: "Implement feature", description: "   ")
 
     expect(response.dig(:result, :isError)).to be(true)
     expect(response.dig(:result, :content, 0, :text)).to include("description")
@@ -137,7 +138,7 @@ RSpec.describe SyrusChatMcp::SubmitCodingChangesTool do
       jsonrpc: "2.0",
       id: 1,
       method: "tools/call",
-      params: { name: "submit_coding_changes", arguments: { branch: "main", description: "stuff" } }
+      params: { name: "submit_coding_changes", arguments: { branch: "main", title: "stuff", description: "stuff" } }
     }.to_json)
     response = JSON.parse(raw, symbolize_names: true)
 
@@ -146,7 +147,7 @@ RSpec.describe SyrusChatMcp::SubmitCodingChangesTool do
   end
 
   it "creates a Job and dispatches CodingHandoff on confirmation" do
-    response = call_tool(branch: "feature/my-work", description: "Implement feature")
+    response = call_tool(branch: "feature/my-work", title: "Implement feature", description: "Implements the feature.")
     pending_action = chat_session.pending_actions.find(payload(response)[:pending_action_id])
 
     allow(StepDispatcher).to receive(:start_workflow)

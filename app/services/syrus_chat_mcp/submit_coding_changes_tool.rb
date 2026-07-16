@@ -24,20 +24,20 @@ module SyrusChatMcp
           type: "string",
           description: "The git branch containing the committed implementation."
         },
-        description: {
-          type: "string",
-          description: "Description of what was implemented. Becomes the Job prompt body."
-        },
         title: {
           type: "string",
-          description: "A short human-readable title for this job. When provided, used directly and skips background title generation."
+          description: "A short, one-line title for this job (e.g. \"Add dark mode toggle\"). Keep it under 80 characters."
+        },
+        description: {
+          type: "string",
+          description: "A brief, one-paragraph summary of what was implemented — 2 to 4 sentences maximum. Do NOT include git logs, file listings, command output, or exhaustive change lists. The operator reads this in a small confirmation card, so brevity is essential."
         }
       },
-      required: %w[branch description]
+      required: %w[branch title description]
     )
 
     class << self
-      def call(branch:, description:, repository_id: nil, title: nil, server_context:)
+      def call(branch:, title:, description:, repository_id: nil, server_context:)
         chat_session = server_context.fetch(:chat_session)
 
         return SyrusChatMcp.invalid("Coding Mode is not enabled") unless Feature.coding_mode_enabled?
@@ -48,15 +48,18 @@ module SyrusChatMcp
         branch = branch.to_s.strip
         return SyrusChatMcp.invalid("branch is required") if branch.blank?
 
+        title = title.to_s.strip
+        return SyrusChatMcp.invalid("title is required") if title.blank?
+
         description = description.to_s.strip
         return SyrusChatMcp.invalid("description is required") if description.blank?
 
         payload = {
           "repository_id" => repository.id,
           "branch" => branch,
+          "title" => title,
           "description" => description
         }
-        payload["title"] = title.to_s.strip if title.present?
 
         pending_action = chat_session.pending_actions.create!(
           action: "submit_coding_changes",
