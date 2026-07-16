@@ -1650,6 +1650,67 @@ RSpec.describe ChatTurnJob do
     expect(chat.reload.stop_requested_at).to be_nil
   end
 
+  describe "#tool_result_summary" do
+    subject(:job) do
+      j = described_class.new
+      j.instance_variable_set(:@chat, chat)
+      j.instance_variable_set(:@user_message, user_message)
+      j
+    end
+
+    it "extracts text from the canonical 'content' key used by ChatTurnJob" do
+      message = chat.messages.create!(
+        role: "tool_result",
+        tool_name: "Read",
+        tool_use_id: "tu_abc",
+        content: {
+          "type" => "tool_result",
+          "tool_use_id" => "tu_abc",
+          "content" => [{ "type" => "text", "text" => "file contents here" }],
+          "is_error" => false
+        }
+      )
+
+      summary = job.send(:tool_result_summary, message)
+      expect(summary).to include("file contents here")
+      expect(summary).to include("ok")
+    end
+
+    it "falls back to the legacy 'result' key for older messages" do
+      message = chat.messages.create!(
+        role: "tool_result",
+        tool_name: "Bash",
+        tool_use_id: "tu_def",
+        content: {
+          "type" => "tool_result",
+          "tool_use_id" => "tu_def",
+          "result" => "hello",
+          "is_error" => false
+        }
+      )
+
+      summary = job.send(:tool_result_summary, message)
+      expect(summary).to include("hello")
+    end
+
+    it "reports error status when is_error is true" do
+      message = chat.messages.create!(
+        role: "tool_result",
+        tool_name: "Bash",
+        tool_use_id: "tu_err",
+        content: {
+          "type" => "tool_result",
+          "tool_use_id" => "tu_err",
+          "content" => [{ "type" => "text", "text" => "command not found" }],
+          "is_error" => true
+        }
+      )
+
+      summary = job.send(:tool_result_summary, message)
+      expect(summary).to include("error")
+    end
+  end
+
   def result_fixture(**overrides)
     attrs = {
       turns: 1,

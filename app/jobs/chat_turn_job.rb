@@ -356,7 +356,7 @@ class ChatTurnJob < ApplicationJob
 
   def tool_result_summary(message)
     content = message.content.is_a?(Hash) ? message.content : {}
-    result = content["result"]
+    result = content["content"] || content["result"]
     text = tool_result_text(result)
     tool_name = message.tool_name.presence || "tool"
     status = content["is_error"] ? "error" : "ok"

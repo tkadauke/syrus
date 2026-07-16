@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
-import { ChatRoute, storedWorkspaceCollapsed, asExcalidrawElements, VALID_EXCALIDRAW_TYPES, getStartingPhrase, shouldAnimateMessageEntrance } from "./Chat"
+import { ChatRoute, storedWorkspaceCollapsed, asExcalidrawElements, VALID_EXCALIDRAW_TYPES, getStartingPhrase, shouldAnimateMessageEntrance, renderChatMessages } from "./Chat"
 
 describe("storedWorkspaceCollapsed", () => {
   beforeEach(() => {
@@ -2540,3 +2540,80 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
     }
   }
 }
+
+describe("renderChatMessages tool_result content key", () => {
+  it("renders result_body from the canonical 'content' key, not the legacy 'result' key", () => {
+    const messages = [
+      {
+        type: "message" as const,
+        id: 1,
+        role: "tool_use" as const,
+        tool_name: "Read",
+        content: { type: "tool_use", id: "tu_1", name: "Read", input: { file_path: "/foo.rb" } },
+        text: "",
+        bookmarkable: false
+      },
+      {
+        type: "message" as const,
+        id: 2,
+        role: "tool_result" as const,
+        tool_name: "Read",
+        content: {
+          type: "tool_result",
+          tool_use_id: "tu_1",
+          content: [{ type: "text", text: "file contents here" }],
+          is_error: false
+        },
+        text: "",
+        bookmarkable: false
+      }
+    ]
+
+    const items = renderChatMessages(messages)
+    expect(items).toHaveLength(1)
+    const group = items[0]
+    expect(group.type).toBe("tool_group")
+    if (group.type === "tool_group") {
+      expect(group.calls).toHaveLength(1)
+      expect(group.calls[0].result_body).not.toBe("(empty)")
+      expect(group.calls[0].result_body).toContain("file contents here")
+    }
+  })
+
+  it("also handles legacy 'result' key for backwards compatibility", () => {
+    const messages = [
+      {
+        type: "message" as const,
+        id: 3,
+        role: "tool_use" as const,
+        tool_name: "Bash",
+        content: { type: "tool_use", id: "tu_2", name: "Bash", input: { command: "echo hi" } },
+        text: "",
+        bookmarkable: false
+      },
+      {
+        type: "message" as const,
+        id: 4,
+        role: "tool_result" as const,
+        tool_name: "Bash",
+        content: {
+          type: "tool_result",
+          tool_use_id: "tu_2",
+          result: "hi\n",
+          is_error: false
+        },
+        text: "",
+        bookmarkable: false
+      }
+    ]
+
+    const items = renderChatMessages(messages)
+    expect(items).toHaveLength(1)
+    const group = items[0]
+    expect(group.type).toBe("tool_group")
+    if (group.type === "tool_group") {
+      expect(group.calls[0].result_body).not.toBe("(empty)")
+      expect(group.calls[0].result_body).toContain("hi")
+    }
+  })
+})
