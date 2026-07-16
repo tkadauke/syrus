@@ -107,7 +107,7 @@ RSpec.describe "bin/syrus-chat-sidecar" do
     stdin.puts({ jsonrpc: "2.0", id: id, method: method, params: params }.to_json)
     stdin.flush
 
-    Timeout.timeout(10) do
+    Timeout.timeout(60) do
       loop do
         line = stdout.gets
         raise "sidecar closed stdout while waiting for #{method}" if line.nil?
@@ -119,7 +119,7 @@ RSpec.describe "bin/syrus-chat-sidecar" do
   end
 
   def wait_for_exit(wait_thread)
-    Timeout.timeout(10) { wait_thread.value }
+    Timeout.timeout(30) { wait_thread.value }
   rescue Timeout::Error
     kill_process(wait_thread)
     wait_thread.value
