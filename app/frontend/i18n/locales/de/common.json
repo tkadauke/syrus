@@ -117,5 +117,14 @@
   "password_match": {
     "match": "Passwörter stimmen überein",
     "mismatch": "Stimmt noch nicht überein"
+  },
+  "route_error": {
+    "heading": "Etwas ist schiefgelaufen",
+    "go_back": "Zurück",
+    "reload_page": "Seite neu laden",
+    "send_report": "Fehlerbericht senden",
+    "already_reported": "Fehler bereits gemeldet",
+    "reported_as": "Gemeldet als JOB-{{job_id}}",
+    "report_failed": "Bericht konnte nicht gesendet werden — Seite neu laden"
   }
 }

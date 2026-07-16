@@ -117,5 +117,14 @@
   "password_match": {
     "match": "Tesserae congruunt",
     "mismatch": "Nondum congruunt"
+  },
+  "route_error": {
+    "heading": "Aliquid mali accidit",
+    "go_back": "Redi",
+    "reload_page": "Paginam recarica",
+    "send_report": "Mitte nuntium errorum",
+    "already_reported": "Error iam nuntiatus",
+    "reported_as": "Nuntiatus ut MUNUS-{{job_id}}",
+    "report_failed": "Nuntium mitti non potuit — paginam recarica"
   }
 }

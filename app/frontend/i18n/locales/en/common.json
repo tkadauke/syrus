@@ -117,5 +117,14 @@
   "password_match": {
     "match": "Passwords match",
     "mismatch": "Doesn't match yet"
+  },
+  "route_error": {
+    "heading": "Something went wrong",
+    "go_back": "Go back",
+    "reload_page": "Reload page",
+    "send_report": "Send error report",
+    "already_reported": "Error already reported",
+    "reported_as": "Reported as JOB-{{job_id}}",
+    "report_failed": "Could not send report — try refreshing"
   }
 }

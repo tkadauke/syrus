@@ -6,6 +6,7 @@ import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../
 import { authPrimaryButtonClass } from "../lib/buttonStyles"
 import { isDesktopShell } from "../lib/desktopShell"
 import { NoticeToast } from "../components/NoticeToast"
+import { RouteErrorBoundary } from "../components/RouteErrorBoundary"
 import { NotificationsRoute } from "../components/Notifications"
 import { useAppEvents } from "../lib/useAppEvents"
 import { AdminConsole } from "./AdminConsole"
@@ -432,8 +433,8 @@ function publicCta(publicState: BootstrapPayload["public"], prefix: string, invi
 
 function renderAppRoutes(initialBootstrap: BootstrapPayload | null) {
   return appRouteDefinitions.flatMap(({ path, element }) => [
-    <Route element={element} key={path} path={path} />,
-    <Route element={element} key={`/app-shell${path}`} path={`/app-shell${path}`} />
+    <Route element={<RouteErrorBoundary key={path}>{element}</RouteErrorBoundary>} key={path} path={path} />,
+    <Route element={<RouteErrorBoundary key={`/app-shell${path}`}>{element}</RouteErrorBoundary>} key={`/app-shell${path}`} path={`/app-shell${path}`} />
   ]).concat([
     <Route element={<OnboardingShell initialBootstrap={initialBootstrap} />} key="/onboarding" path="/onboarding" />,
     <Route element={<OnboardingShell initialBootstrap={initialBootstrap} />} key="/app-shell/onboarding" path="/app-shell/onboarding" />
