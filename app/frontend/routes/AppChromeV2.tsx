@@ -171,6 +171,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         <SidebarContent
           csrfToken={data?.csrf_token}
           dashboardSubnavEnabled={true}
+          featureFlags={data?.feature_flags ?? {}}
           navItems={navItems}
           onCloseDrawer={() => setDrawerOpen(false)}
           onNotice={setNotice}
@@ -221,6 +222,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           <SidebarContent
             csrfToken={data?.csrf_token}
             dashboardSubnavEnabled={false}
+            featureFlags={data?.feature_flags ?? {}}
             navItems={navItems}
             onCloseDrawer={() => setDrawerOpen(false)}
             onNotice={setNotice}
@@ -386,6 +388,7 @@ function hasFeatureFlags(featureFlags: Record<string, boolean>) {
 function SidebarContent({
   csrfToken,
   dashboardSubnavEnabled,
+  featureFlags,
   navItems,
   onCloseDrawer,
   onNotice,
@@ -397,6 +400,7 @@ function SidebarContent({
 }: {
   csrfToken?: string
   dashboardSubnavEnabled: boolean
+  featureFlags: Record<string, boolean>
   navItems: Array<{ id: string; label: string; to: string; active: boolean; icon: ReactNode; badge?: number }>
   onCloseDrawer: () => void
   onNotice: (message: string | null) => void
@@ -489,7 +493,7 @@ function SidebarContent({
             })}
           </nav>
         </div>
-        <RecentChatsSidebar onCloseDrawer={onCloseDrawer} onNotice={onNotice} prefix={prefix} userPresent={Boolean(user)} />
+        <RecentChatsSidebar featureFlags={featureFlags} onCloseDrawer={onCloseDrawer} onNotice={onNotice} prefix={prefix} userPresent={Boolean(user)} />
       </div>
       <ShellNotices />
       <div className="shrink-0 border-t border-gray-200 p-3 dark:border-gray-800">

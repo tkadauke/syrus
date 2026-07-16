@@ -569,6 +569,102 @@ describe("SidebarSearchForm", () => {
   })
 })
 
+describe("chat row mode icons", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    vi.restoreAllMocks()
+  })
+
+  it("shows planning icon by default when chat has no mode set", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
+      groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Planning chat" })] })]
+    }))
+
+    renderAppChrome(undefined, { queryClient })
+
+    await screen.findByText("Planning chat")
+    expect(screen.getByTestId("mode-icon-planning")).toBeInTheDocument()
+  })
+
+  it("shows coding icon when coding_mode feature is enabled and chat mode is coding", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
+      groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Coding chat", mode: "coding" })] })]
+    }))
+
+    renderAppChrome(undefined, {
+      queryClient,
+      bootstrap: bootstrapPayload({ feature_flags: { coding_mode: true } })
+    })
+
+    await screen.findByText("Coding chat")
+    expect(screen.getByTestId("mode-icon-coding")).toBeInTheDocument()
+    expect(screen.queryByTestId("mode-icon-planning")).not.toBeInTheDocument()
+  })
+
+  it("falls back to planning icon when coding_mode flag is disabled even if chat mode is coding", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
+      groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Coding chat", mode: "coding" })] })]
+    }))
+
+    renderAppChrome(undefined, {
+      queryClient,
+      bootstrap: bootstrapPayload({ feature_flags: {} })
+    })
+
+    await screen.findByText("Coding chat")
+    expect(screen.getByTestId("mode-icon-planning")).toBeInTheDocument()
+    expect(screen.queryByTestId("mode-icon-coding")).not.toBeInTheDocument()
+  })
+
+  it("shows local icon when local_mode feature is enabled and chat mode is local", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
+      groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Local chat", mode: "local" })] })]
+    }))
+
+    renderAppChrome(undefined, {
+      queryClient,
+      bootstrap: bootstrapPayload({ feature_flags: { local_mode: true } })
+    })
+
+    await screen.findByText("Local chat")
+    expect(screen.getByTestId("mode-icon-local")).toBeInTheDocument()
+    expect(screen.queryByTestId("mode-icon-planning")).not.toBeInTheDocument()
+  })
+
+  it("falls back to planning icon when local_mode flag is disabled even if chat mode is local", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
+      groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Local chat", mode: "local" })] })]
+    }))
+
+    renderAppChrome(undefined, {
+      queryClient,
+      bootstrap: bootstrapPayload({ feature_flags: {} })
+    })
+
+    await screen.findByText("Local chat")
+    expect(screen.getByTestId("mode-icon-planning")).toBeInTheDocument()
+    expect(screen.queryByTestId("mode-icon-local")).not.toBeInTheDocument()
+  })
+
+  it("wraps status dots in a group-hover:hidden container so they hide when the action menu appears", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData(["chats", "recent"], chatsIndexPayload({
+      groups: [chatGroup({ chats: [chatNav({ id: 1, title: "Active chat", turn_in_flight: true })] })]
+    }))
+
+    renderAppChrome(undefined, { queryClient })
+
+    await screen.findByText("Active chat")
+    const activityMarker = screen.getByTitle("Chat turn active")
+    expect(activityMarker.parentElement?.className).toContain("group-hover:hidden")
+  })
+})
+
 describe("chatSectionsFromPayload", () => {
   it("deduplicates loaded chats that overlap with main query groups", () => {
     const sections = chatSectionsFromPayload(
@@ -605,11 +701,12 @@ function renderAppChrome(
     initialEntries?: string[]
     queryClient?: QueryClient
     routeWrapper?: boolean
+    bootstrap?: BootstrapPayload
   } = {}
 ) {
   const queryClient = options.queryClient ?? new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const chrome = (
-    <AppChromeV2 initialBootstrap={bootstrapPayload()}>
+    <AppChromeV2 initialBootstrap={options.bootstrap ?? bootstrapPayload()}>
       {ui}
     </AppChromeV2>
   )

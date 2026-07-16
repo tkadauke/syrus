@@ -5,7 +5,7 @@ import { type FormEvent, useMemo, useState } from "react"
 import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { cancelCodingCheckout, deleteChat, fetchChat, fetchChats, fetchMoreChatsForGroup, hideChat, markChatRead, markChatUnread, renameChat, updateChatPinned, type ChatNavRecord, type ChatPayload, type ChatsIndexPayload } from "../../api/chats"
+import { cancelCodingCheckout, deleteChat, fetchChat, fetchChats, fetchMoreChatsForGroup, hideChat, markChatRead, markChatUnread, renameChat, updateChatPinned, type ChatMode, type ChatNavRecord, type ChatPayload, type ChatsIndexPayload } from "../../api/chats"
 import { ApiError } from "../../api/client"
 import { CloseIcon } from "../../components/CloseIcon"
 import { PinIcon } from "../../components/PinIcon"
@@ -18,11 +18,13 @@ import { chatQueryKey } from "../Chat"
 // (RecentChatsSidebar) with its activity marker and per-chat actions menu.
 // Entry point rendered by the sidebar. Depends only on leaf modules.
 
-export function RecentChatsSidebar({ onCloseDrawer, onNotice, prefix, userPresent }: { onCloseDrawer: () => void; onNotice: (message: string | null) => void; prefix: string; userPresent: boolean }) {
+export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, prefix, userPresent }: { featureFlags: Record<string, boolean>; onCloseDrawer: () => void; onNotice: (message: string | null) => void; prefix: string; userPresent: boolean }) {
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { t } = useTranslation(["common", "chat"])
+  const codingModeEnabled = featureFlags.coding_mode === true
+  const localModeEnabled = featureFlags.local_mode === true
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => new Set())
   const [loadedSections, setLoadedSections] = useState<Record<string, { chats: ChatNavRecord[]; has_more: boolean }>>({})
   const [loadingSections, setLoadingSections] = useState<Set<string>>(() => new Set())
@@ -197,20 +199,23 @@ export function RecentChatsSidebar({ onCloseDrawer, onNotice, prefix, userPresen
                         onClick={onCloseDrawer}
                         to={withRoutePrefix(chat.chat_path, prefix)}
                       >
-                        <RecentChatActivityMarker active={Boolean(chat.turn_in_flight || chat.agent_busy)} unread={unread} />
-                        {chat.pending_proposal_count > 0 && (
-                          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-400 dark:bg-amber-500" />
-                        )}
-                        {chat.coding_checkout_uncommitted && (
-                          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-500 dark:bg-amber-400" title={t("nav:title_uncommitted")} />
-                        )}
-                        {chat.scratchpad_items_count > 0 && (
-                          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-teal-500 dark:bg-teal-400" title={t("nav:title_scratchpad")} />
-                        )}
+                        <ChatModeIcon codingModeEnabled={codingModeEnabled} localModeEnabled={localModeEnabled} mode={chat.mode} />
                         {chat.pinned ? (
                           <PinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-600 dark:text-blue-300" />
                         ) : null}
                         <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{sidebarChatTitle(chat, t("chat:new_title"))}</span>
+                        <span className="flex shrink-0 items-start gap-1 group-hover:hidden">
+                          <RecentChatActivityMarker active={Boolean(chat.turn_in_flight || chat.agent_busy)} unread={unread} />
+                          {chat.pending_proposal_count > 0 && (
+                            <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-400 dark:bg-amber-500" />
+                          )}
+                          {chat.coding_checkout_uncommitted && (
+                            <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-500 dark:bg-amber-400" title={t("nav:title_uncommitted")} />
+                          )}
+                          {chat.scratchpad_items_count > 0 && (
+                            <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-teal-500 dark:bg-teal-400" title={t("nav:title_scratchpad")} />
+                          )}
+                        </span>
                       </Link>
                       <RecentChatActionsMenu
                         chat={chat}
@@ -275,6 +280,31 @@ function RecentChatActivityMarker({ active, unread }: { active: boolean; unread:
   }
 
   return <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${unread ? "bg-blue-600 dark:bg-blue-400" : "bg-transparent"}`} />
+}
+
+function ChatModeIcon({ codingModeEnabled, localModeEnabled, mode }: { codingModeEnabled: boolean; localModeEnabled: boolean; mode?: ChatMode | null }) {
+  if (codingModeEnabled && mode === "coding") {
+    return (
+      <svg aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-indigo-400 dark:text-indigo-400" data-testid="mode-icon-coding" fill="none" viewBox="0 0 24 24">
+        <polyline points="4 17 10 11 4 5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+        <line stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" x1="12" x2="20" y1="19" y2="19" />
+      </svg>
+    )
+  }
+  if (localModeEnabled && mode === "local") {
+    return (
+      <svg aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500 dark:text-emerald-400" data-testid="mode-icon-local" fill="none" viewBox="0 0 24 24">
+        <path d="M4 17.5V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v11.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+        <path d="M2 19h20" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+      </svg>
+    )
+  }
+  return (
+    <svg aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-300 dark:text-gray-600" data-testid="mode-icon-planning" fill="none" viewBox="0 0 24 24">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+      <path d="M14 2v6h6M16 13H8M16 17H8" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+    </svg>
+  )
 }
 
 function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelete, onHide, onNotice, onTogglePin, search }: {
