@@ -80,6 +80,20 @@ RSpec.describe "API: /api/v1/app/admin/features", type: :request do
     expect(parse_body["feature"]).to include("slug" => "new_dashboard", "enabled" => true)
   end
 
+  it "deduplicates features with the same slug declared multiple times" do
+    sign_in_as(admin)
+    allow(Features::SyncFromYaml).to receive(:declarations).and_return([
+      { slug: "new_dashboard", category: "Navigation", name: "New dashboard", description: "First copy.", default_enabled: false },
+      { slug: "new_dashboard", category: "Navigation", name: "New dashboard", description: "Duplicate copy.", default_enabled: false }
+    ])
+
+    get "/api/v1/app/admin/features"
+
+    expect(response).to have_http_status(:ok)
+    nav_features = parse_body["categories"].find { |c| c["category"] == "Navigation" }["features"]
+    expect(nav_features.map { |f| f["slug"] }).to eq(["new_dashboard"])
+  end
+
   it "does not update undeclared features" do
     sign_in_as(admin)
     Feature.create!(slug: "old_feature", category: "Old", name: "Old feature", enabled: false)

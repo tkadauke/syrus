@@ -35,7 +35,7 @@ module Api
           end
 
           def declared_features
-            declarations = Features::SyncFromYaml.declarations
+            declarations = Features::SyncFromYaml.declarations.uniq { |d| d.fetch(:slug) }
             records = Feature.where(slug: declarations.map { |declaration| declaration.fetch(:slug) }).index_by(&:slug)
 
             declarations.map do |declaration|

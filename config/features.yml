@@ -29,23 +29,3 @@ features:
     name: "Local Mode"
     description: "Enables the Local chat mode and the `syrus local` daemon command. The agent connects to a daemon running on the user's local machine via a reverse WebSocket tunnel to read/write files and run commands locally."
     default: false
-  - slug: local_mode
-    category: "Labs"
-    name: "Local Mode"
-    description: "Connect a local daemon to a chat session via a reverse WebSocket tunnel. The agent can read/write files and run commands on the user's machine."
-    default: false
-  - slug: local_mode
-    category: "Labs"
-    name: "Local Mode"
-    description: "Enables the Local chat mode, where the agent connects to a daemon running on the user's local machine via a reverse WebSocket tunnel."
-    default: false
-  - slug: local_mode
-    category: "Labs"
-    name: "Local Mode"
-    description: "Enables the Local chat mode, where the agent connects to a daemon running on the user's local machine via a reverse WebSocket tunnel."
-    default: false
-  - slug: local_mode
-    category: "Labs"
-    name: "Local Mode"
-    description: "Enables the syrus local daemon command, which connects your machine to a Syrus chat session via a reverse WebSocket tunnel so the agent can read/write files and run commands locally."
-    default: false
