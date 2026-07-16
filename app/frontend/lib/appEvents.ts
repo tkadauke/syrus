@@ -250,7 +250,7 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
     queryClient.setQueriesData<ChatPayload>(
       { queryKey: ["chats", String(event.id)] },
       (current) => {
-        if (!current) return current
+        if (!current || !Array.isArray(current.messages)) return current
         patched = true
 
         return {
@@ -276,7 +276,7 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
     queryClient.setQueriesData<ChatPayload>(
       { queryKey: ["chats", String(event.id)] },
       (current) => {
-        if (!current) return current
+        if (!current || !Array.isArray(current.messages)) return current
         const recentChats = Array.isArray(current.recent_chats) ? current.recent_chats : []
         patched = true
         return {
@@ -297,7 +297,7 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
     queryClient.setQueriesData<ChatPayload>(
       { queryKey: ["chats", String(event.id)] },
       (current) => {
-        if (!current) return current
+        if (!current || !Array.isArray(current.messages)) return current
         const bookmarks = Array.isArray(current.bookmarks) ? current.bookmarks : []
         patched = true
         return { ...current, bookmarks: upsertBookmark(bookmarks, bookmark.bookmark) }
@@ -312,7 +312,7 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
     queryClient.setQueriesData<ChatPayload>(
       { queryKey: ["chats", String(event.id)] },
       (current) => {
-        if (!current) return current
+        if (!current || !Array.isArray(current.messages)) return current
         patched = true
         return { ...current, agent_questions: agentQuestions.agent_questions }
       }
@@ -326,7 +326,7 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
     queryClient.setQueriesData<ChatPayload>(
       { queryKey: ["chats", String(event.id)] },
       (current) => {
-        if (!current) return current
+        if (!current || !Array.isArray(current.messages)) return current
         patched = true
         return {
           ...current,

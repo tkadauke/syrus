@@ -548,6 +548,42 @@ describe("applyAppEvent", () => {
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["chats"] })
   })
 
+  it("does not corrupt job_status cache when update_controls arrives", () => {
+    const queryClient = new QueryClient()
+    const jobStatusData = [{ kind: "job", job_id: 1, slug: "JOB-1", title: "Test", state: "open", workflow_step: null, pr_number: null, pr_url: null, blocker: null }]
+    queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "hello")]))
+    queryClient.setQueryData(["chats", "9", "job_status"], jobStatusData)
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: {
+        action: "update_controls",
+        turn_in_flight: false,
+        agent_busy: false,
+        stop_requested_at: null
+      }
+    })
+
+    expect(queryClient.getQueryData(["chats", "9", "job_status"])).toEqual(jobStatusData)
+  })
+
+  it("does not corrupt job_status cache when update_header arrives", () => {
+    const queryClient = new QueryClient()
+    const jobStatusData = [{ kind: "job", job_id: 1, slug: "JOB-1", title: "Test", state: "open", workflow_step: null, pr_number: null, pr_url: null, blocker: null }]
+    queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "hello")]))
+    queryClient.setQueryData(["chats", "9", "job_status"], jobStatusData)
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: {
+        action: "update_header",
+        chat: { title: "New Title" }
+      }
+    })
+
+    expect(queryClient.getQueryData(["chats", "9", "job_status"])).toEqual(jobStatusData)
+  })
+
   it("dispatches a syrus:job-status-changed DOM event for job_status_changed payloads", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
