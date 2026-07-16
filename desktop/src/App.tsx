@@ -1353,7 +1353,7 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
                           }
                           const epicCollapsed = collapsedEpics.has(entry.epicId)
                           return [
-                            <li key={`epic-${entry.epicId}`}>
+                            <li key={`epic-${entry.epicId}`} className="overflow-hidden">
                               <div className="flex items-center overflow-hidden">
                                 <button
                                   type="button"
