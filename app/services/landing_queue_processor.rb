@@ -496,7 +496,7 @@ class LandingQueueProcessor
 
     parent = job.parent_job
     if parent && !merged?(parent)
-      return blocked("waiting for ##{parent.issue_number || parent.id} to merge", parent)
+      return blocked("waiting for #{parent.slug} to merge", parent)
     end
 
     dependency = job.dependencies_overridden_at.present? ? nil : unmerged_dependency(job)
@@ -566,7 +566,7 @@ class LandingQueueProcessor
   def dependency_label(waiting)
     return waiting if waiting.is_a?(String)
 
-    "##{waiting.issue_number || waiting.id}"
+    waiting.slug
   end
 
   def audit(job, message)

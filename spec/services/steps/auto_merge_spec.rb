@@ -258,7 +258,7 @@ RSpec.describe Steps::AutoMerge do
     expect(client).not_to have_received(:merge_pull_request)
     expect(workflow.reload.artifact("pending_auto_merge")).to eq("waiting_for_parent")
     expect(run.reload).to be_cancelled
-    expect(run.job_logs.find { |log| log.chunk.include?("waiting for parent #6 to merge") }.kind).to eq("system")
+    expect(run.job_logs.find { |log| log.chunk.include?("waiting for parent #{parent.slug} to merge") }.kind).to eq("system")
   end
 
   {

@@ -190,7 +190,7 @@ module Steps
     def queue_until_parent_merges!
       parent = job.parent_job
       workflow.set_artifact!("pending_auto_merge", "waiting_for_parent")
-      log("auto_merge: waiting for parent ##{parent.pr_number || parent.id} to merge; queued auto-merge will re-evaluate after stack rebase", kind: "system")
+      log("auto_merge: waiting for parent #{parent.slug} to merge; queued auto-merge will re-evaluate after stack rebase", kind: "system")
       cancel_workflow!
     end
 

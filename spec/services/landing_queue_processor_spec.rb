@@ -138,7 +138,7 @@ RSpec.describe LandingQueueProcessor do
     expect(workflow.job).to eq(ready)
     expect(blocked.reload).to be_approved
     entry = described_class.entries(Job.where(id: blocked.id)).first
-    expect(entry.blocked_reason).to include("waiting for #1 to merge")
+    expect(entry.blocked_reason).to include("waiting for #{prerequisite.slug} to merge")
   end
 
   it "explains when an approved Job is waiting for an Epic dependency" do
