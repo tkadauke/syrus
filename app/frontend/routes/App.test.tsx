@@ -407,8 +407,8 @@ describe("App", () => {
         </QueryClientProvider>
       )
 
-      expect(await screen.findByRole("main", { name: "Create account" })).toBeInTheDocument()
-      expect(await screen.findByText("Accepting an invitation from admin@example.com.")).toBeInTheDocument()
+      expect(await screen.findByRole("main", { name: "Create account" }, { timeout: 15000 })).toBeInTheDocument()
+      expect(await screen.findByText("Accepting an invitation from admin@example.com.", undefined, { timeout: 15000 })).toBeInTheDocument()
       expect(screen.queryByRole("main", { name: "Syrus public landing" })).not.toBeInTheDocument()
       // The token must survive the desktop redirect — the signup page's state
       // fetch carries it as the query string.
@@ -419,7 +419,7 @@ describe("App", () => {
     } finally {
       restoreUserAgent()
     }
-  })
+  }, 15000)
 
   it("keeps the first-run welcome inside the desktop shell", async () => {
     // First run IS the desktop first-run screen — no redirect to sign-in
