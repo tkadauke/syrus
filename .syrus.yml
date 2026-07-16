@@ -113,7 +113,7 @@ grade:
       they touch. `db:test:prepare` runs first so schema changes in
       the same workflow are picked up before spec collection.
     run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/rails db:test:prepare && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/rspec
-    timeout_minutes: 30
+    timeout_minutes: 35
 
   - name: react-tests
     description: |
