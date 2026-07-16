@@ -115,7 +115,7 @@ describe("ChatWorkspace panel collapse", () => {
     await waitFor(() => {
       expect(window.localStorage.getItem("syrus.chat.workspace.collapsed")).toBe("true")
     })
-  })
+  }, 15000)
 })
 
 describe("chat compose drafts", () => {

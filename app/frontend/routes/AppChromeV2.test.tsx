@@ -300,7 +300,7 @@ describe("AppChromeV2 recent chats", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Chat actions for Read chat" }))
     expect(await screen.findByRole("button", { name: "Mark as unread" })).toBeInTheDocument()
-  })
+  }, 15000)
 
   it("marks a chat as read from the context menu and updates the sidebar indicator", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {

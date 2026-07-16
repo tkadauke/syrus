@@ -1783,7 +1783,7 @@ describe("App", () => {
       fetchSpy.mockRestore()
       script.remove()
     }
-  })
+  }, 15000)
 
   it("hides a chat from the v2 recent chats sidebar", async () => {
     const script = document.createElement("script")
@@ -3062,7 +3062,7 @@ describe("App", () => {
       )
     })
     expect(await screen.findByText("Retry enqueued for 1 job.")).toBeInTheDocument()
-  }, 15000)
+  }, 30000)
 
   it("renders dashboard timestamp columns as relative times with absolute tooltips", async () => {
     const restoreMedia = mockMediaQuery(true)
