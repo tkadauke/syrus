@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { BrowserRouter } from "react-router-dom"
 import { I18nextProvider } from "react-i18next"
 import { App } from "./routes/App"
+import { AppErrorBoundary } from "./components/AppErrorBoundary"
 import i18n from "./i18n"
 
 const root = document.getElementById("syrus-spa-root")
@@ -15,7 +16,9 @@ if (root) {
       <I18nextProvider i18n={i18n}>
         <QueryClientProvider client={queryClient}>
           <BrowserRouter>
-            <App />
+            <AppErrorBoundary>
+              <App />
+            </AppErrorBoundary>
           </BrowserRouter>
         </QueryClientProvider>
       </I18nextProvider>

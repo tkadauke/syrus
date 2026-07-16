@@ -126,5 +126,8 @@
     "already_reported": "Fehler bereits gemeldet",
     "reported_as": "Gemeldet als JOB-{{job_id}}",
     "report_failed": "Bericht konnte nicht gesendet werden — Seite neu laden"
+  },
+  "errorBoundary": {
+    "appCrashHeading": "Ein unerwarteter Fehler ist aufgetreten."
   }
 }

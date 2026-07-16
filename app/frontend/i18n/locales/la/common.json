@@ -126,5 +126,8 @@
     "already_reported": "Error iam nuntiatus",
     "reported_as": "Nuntiatus ut MUNUS-{{job_id}}",
     "report_failed": "Nuntium mitti non potuit — paginam recarica"
+  },
+  "errorBoundary": {
+    "appCrashHeading": "Error inopinatus accidit."
   }
 }

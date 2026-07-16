@@ -126,5 +126,8 @@
     "already_reported": "Error already reported",
     "reported_as": "Reported as JOB-{{job_id}}",
     "report_failed": "Could not send report — try refreshing"
+  },
+  "errorBoundary": {
+    "appCrashHeading": "An unexpected error has occurred."
   }
 }
