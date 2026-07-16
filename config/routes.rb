@@ -217,6 +217,7 @@ Rails.application.routes.draw do
             post :resume_landing
             post :run_main_branch_graders
             post :sync_fork
+            post :check_ci_now
             get :coverage_trend
           end
         end

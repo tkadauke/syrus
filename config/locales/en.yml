@@ -126,6 +126,8 @@ en:
       fork_sync_enqueued: "Syncing %{slug} with its upstream."
       not_fork_syncable: "%{slug} is not a fork with an in-instance upstream."
       no_sha_to_grade: "No branch SHA tracked yet — poll the repository first."
+      check_ci_now_enqueued: "CI check enqueued for %{slug}."
+      ci_not_configured: "No CI checks found for %{slug}."
 
     job_pins:
       pinned: "Job pinned."

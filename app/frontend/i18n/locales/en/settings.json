@@ -230,7 +230,8 @@
     "resume_landing_confirm": "Main branch health is still not green. Resuming work can make jobs take longer, make multiple jobs fix the same problem, cause rebase conflicts, and waste tokens. Resume work anyway?",
     "health_source_ci_poll": "CI",
     "health_source_grader_workflow": "Graders",
-    "run_graders_now": "Run graders now"
+    "run_graders_now": "Run graders now",
+    "check_ci_now": "Check CI now"
   },
   "memories": {
     "heading": "Memories",

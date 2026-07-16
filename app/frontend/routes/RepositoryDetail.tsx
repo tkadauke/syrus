@@ -23,6 +23,7 @@ import {
   resumeRepositoryLanding,
   retryFailedRepositoryJobs,
   runMainBranchGraders,
+  checkCiNow,
   type RepositoryDetailJob,
   type RepositoryDetailPayload,
   type RepositoryHealthCheckRecord,
@@ -672,6 +673,13 @@ function MainBranchHealthSection({ history, payload, prefix, queryKey, onNotice 
       onNotice(updated.message || null)
     }
   })
+  const ciCheck = useMutation({
+    mutationFn: () => checkCiNow(appendSearch(payload.paths.app_check_ci_now_repository_path, search), payload.pagination.page),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+      onNotice(updated.message || null)
+    }
+  })
   const resumeWork = useMutation({
     mutationFn: () => resumeRepositoryLanding(payload.paths.app_resume_landing_repository_path, payload.pagination.page),
     onSuccess: (updated) => {
@@ -712,6 +720,16 @@ function MainBranchHealthSection({ history, payload, prefix, queryKey, onNotice 
           >
             {t("repository.run_graders_now")}
           </button>
+          {history.ci_health !== "not_configured" ? (
+            <button
+              className={buttonClass("gray")}
+              disabled={ciCheck.isPending}
+              onClick={() => { onNotice(null); ciCheck.mutate() }}
+              type="button"
+            >
+              {t("repository.check_ci_now")}
+            </button>
+          ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
           {repository.main_branch_health_enabled ? null : <span>{t("repository.health_enforcement_disabled")}</span>}
@@ -740,6 +758,7 @@ function MainBranchHealthSection({ history, payload, prefix, queryKey, onNotice 
         ) : null}
         <HealthHistoryTable records={history.records} prefix={prefix} t={t} />
         {graders.isError ? <PanelMessage tone="error">{errorMessage(graders.error, "Run graders command failed.")}</PanelMessage> : null}
+        {ciCheck.isError ? <PanelMessage tone="error">{errorMessage(ciCheck.error, "Check CI command failed.")}</PanelMessage> : null}
       </div>
     </section>
   )

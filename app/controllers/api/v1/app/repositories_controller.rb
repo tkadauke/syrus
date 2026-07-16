@@ -246,6 +246,23 @@ module Api
           render json: repository_command_payload(repository, message: I18n.t("api.repositories.fork_sync_enqueued", slug: repository.slug))
         end
 
+        def check_ci_now
+          repository = find_repository
+          if repository.archived?
+            render_error("validation_failed", I18n.t("api.repositories.archived_first", slug: repository.slug), status: :unprocessable_content)
+            return
+          end
+
+          if repository.ci_health_not_configured?
+            render_error("validation_failed", I18n.t("api.repositories.ci_not_configured", slug: repository.slug), status: :unprocessable_content)
+            return
+          end
+
+          PollMainBranchHealthJob.perform_later(repository.id)
+          message = I18n.t("api.repositories.check_ci_now_enqueued", slug: repository.slug)
+          render json: repository_command_payload(repository, message: message)
+        end
+
         def release_needs_triage_job
           repository = find_repository
           unless can_release_triage_jobs?
@@ -368,6 +385,7 @@ module Api
               app_release_needs_triage_job_repository_path: "/api/v1/app/repositories/#{repository.id}/release_needs_triage_job",
               app_resume_landing_repository_path: "/api/v1/app/repositories/#{repository.id}/resume_landing",
               app_run_main_branch_graders_repository_path: "/api/v1/app/repositories/#{repository.id}/run_main_branch_graders",
+              app_check_ci_now_repository_path: "/api/v1/app/repositories/#{repository.id}/check_ci_now",
               repositories_path: repositories_path,
               repository_documents_path: repository_documents_path(repository),
               repository_scheduled_tasks_path: repository_scheduled_tasks_path(repository)

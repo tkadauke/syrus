@@ -311,7 +311,8 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
       "app_archive_repository_path" => "/api/v1/app/repositories/#{repository.id}/archive",
       "app_retry_failed_jobs_repository_path" => "/api/v1/app/repositories/#{repository.id}/retry_failed_jobs",
       "app_resume_landing_repository_path" => "/api/v1/app/repositories/#{repository.id}/resume_landing",
-      "app_run_main_branch_graders_repository_path" => "/api/v1/app/repositories/#{repository.id}/run_main_branch_graders"
+      "app_run_main_branch_graders_repository_path" => "/api/v1/app/repositories/#{repository.id}/run_main_branch_graders",
+      "app_check_ci_now_repository_path" => "/api/v1/app/repositories/#{repository.id}/check_ci_now"
     )
     expect(body["paths"].keys).not_to include("poll_repository_path", "archive_repository_path", "retry_failed_jobs_repository_path")
   end
@@ -977,6 +978,54 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("paths", "app_run_main_branch_graders_repository_path")).to eq(
       "/api/v1/app/repositories/#{repository.id}/run_main_branch_graders"
+    )
+  end
+
+  it "enqueues a CI check poll for check_ci_now" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+    repository.update_columns(ci_health: "healthy")
+
+    expect {
+      post "/api/v1/app/repositories/#{repository.id}/check_ci_now", params: { return_to: "detail", page: 1 }
+    }.to have_enqueued_job(PollMainBranchHealthJob).with(repository.id)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("CI check enqueued for acme/widgets.")
+    expect(parse_body.dig("repository", "slug")).to eq("acme/widgets")
+  end
+
+  it "rejects check_ci_now for an archived repository" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+    repository.archive!
+
+    post "/api/v1/app/repositories/#{repository.id}/check_ci_now"
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("archived")
+  end
+
+  it "rejects check_ci_now when CI is not configured" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+    repository.update_columns(ci_health: "not_configured")
+
+    post "/api/v1/app/repositories/#{repository.id}/check_ci_now"
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("No CI checks found")
+  end
+
+  it "includes check_ci_now path in the detail payload" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+
+    get "/api/v1/app/repositories/#{repository.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("paths", "app_check_ci_now_repository_path")).to eq(
+      "/api/v1/app/repositories/#{repository.id}/check_ci_now"
     )
   end
 

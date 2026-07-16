@@ -194,6 +194,7 @@ export type RepositoryDetailPayload = {
     app_release_needs_triage_job_repository_path: string
     app_resume_landing_repository_path: string
     app_run_main_branch_graders_repository_path: string
+    app_check_ci_now_repository_path: string
     repositories_path: string
     repository_documents_path: string
     repository_scheduled_tasks_path: string
@@ -425,6 +426,10 @@ export function resumeRepositoryLanding(path: string, page: number) {
 }
 
 export function runMainBranchGraders(path: string, page: number) {
+  return postJson<RepositoryDetailPayload>(path, { return_to: "detail", page })
+}
+
+export function checkCiNow(path: string, page: number) {
   return postJson<RepositoryDetailPayload>(path, { return_to: "detail", page })
 }
 
