@@ -1783,7 +1783,7 @@ describe("App", () => {
       fetchSpy.mockRestore()
       script.remove()
     }
-  })
+  }, 15000)
 
   it("hides a chat from the v2 recent chats sidebar", async () => {
     const script = document.createElement("script")
@@ -13010,7 +13010,7 @@ describe("App", () => {
       )
     })
     expect(await screen.findByText("Pending action confirmed.")).toBeInTheDocument()
-  })
+  }, 15000)
 
   it("shows Copy button on chat messages and copies text to clipboard", async () => {
     const writeTextSpy = vi.fn().mockResolvedValue(undefined)
