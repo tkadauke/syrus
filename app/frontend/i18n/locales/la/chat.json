@@ -18,7 +18,6 @@
   "no_shared_chat_messages": "Hoc colloquium commune nullos nuntios habet.",
   "chat_settings": "Optiones Colloquii",
   "mode_label": "Modus",
-  "mode_default": "Ordinarius",
   "mode_planning": "Consiliandi",
   "mode_coding": "Scribendi",
   "mode_local": "Localis",

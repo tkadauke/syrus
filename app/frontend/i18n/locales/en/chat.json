@@ -18,7 +18,6 @@
   "no_shared_chat_messages": "This shared chat has no messages.",
   "chat_settings": "Chat settings",
   "mode_label": "Mode",
-  "mode_default": "Default",
   "mode_planning": "Planning",
   "mode_coding": "Coding",
   "mode_local": "Local",

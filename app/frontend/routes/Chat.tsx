@@ -4813,8 +4813,7 @@ function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { payload: C
     }
   })
 
-  const modeOptions: Array<{ value: ChatMode | ""; label: string }> = [
-    { value: "", label: t("mode_default") },
+  const modeOptions: Array<{ value: ChatMode; label: string }> = [
     { value: "planning", label: t("mode_planning") },
     ...(payload.coding_mode_enabled ? [{ value: "coding" as ChatMode, label: t("mode_coding") }] : []),
     ...(payload.local_mode_enabled ? [{ value: "local" as ChatMode, label: t("mode_local") }] : [])
@@ -4840,23 +4839,6 @@ function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { payload: C
           </button>
         </div>
         <div className="space-y-3 text-sm">
-          {payload.coding_mode_enabled ? (
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("mode_label")}</span>
-              <select
-                aria-label={t("mode_label")}
-                className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:disabled:bg-gray-800"
-                disabled={mode.isPending}
-                onChange={(event) => mode.mutate(event.target.value as ChatMode)}
-                value={payload.chat.mode || "planning"}
-              >
-                <option value="planning">{t("mode_planning")}</option>
-                <option value="coding">{t("mode_coding")}</option>
-              </select>
-              <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("mode_hint")}</span>
-            </label>
-          ) : null}
-          {mode.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(mode.error, t("mode_update_error"))}</div> : null}
           {showProviderSelector ? (
             <label className="block">
               <span className="mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Provider</span>
@@ -4884,13 +4866,13 @@ function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { payload: C
                 <button
                   className={[
                     "flex-1 px-3 py-2 text-sm first:rounded-l last:rounded-r focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-terracotta-500",
-                    (payload.chat.mode ?? "") === value
+                    (payload.chat.mode || "planning") === value
                       ? "bg-terracotta-600 font-medium text-white"
                       : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800",
                     mode.isPending ? "cursor-not-allowed opacity-50" : ""
                   ].join(" ")}
                   disabled={mode.isPending}
-                  key={value || "default"}
+                  key={value}
                   onClick={() => mode.mutate(value)}
                   type="button"
                 >
@@ -4898,6 +4880,7 @@ function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { payload: C
                 </button>
               ))}
             </div>
+            <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("mode_hint")}</span>
           </label>
           {mode.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(mode.error, t("mode_update_error"))}</div> : null}
           {payload.chat.repository?.repository_path ? (
