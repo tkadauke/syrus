@@ -1240,6 +1240,25 @@ describe("chat jobs tab", () => {
     expect(screen.getByRole("button", { name: "Jobs" })).toBeInTheDocument()
   })
 
+  it("shows the Jobs tab when there is at least one linked direct job", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/job_status") {
+        return Promise.resolve(jsonResponse([]))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({ chat: { confirmed_proposal_count: 0, linked_direct_job_count: 1 } })))
+    })
+
+    renderRoute()
+
+    await screen.findByText("Discuss aqueducts.")
+    expect(screen.getByRole("button", { name: "Jobs" })).toBeInTheDocument()
+  })
+
   it("shows the job status panel content when the Jobs tab is active", async () => {
     window.localStorage.setItem("syrus.chat.workspace.tab", "jobs")
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {

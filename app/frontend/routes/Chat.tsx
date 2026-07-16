@@ -5467,7 +5467,8 @@ function codingFilesTabVisible(payload: ChatPayload): boolean {
 }
 
 function jobsTabVisible(payload: ChatPayload): boolean {
-  return (payload.chat.confirmed_proposal_count ?? 0) > 0
+  return (payload.chat.confirmed_proposal_count ?? 0) > 0 ||
+    (payload.chat.linked_direct_job_count ?? 0) > 0
 }
 
 type FileTreeNode = {

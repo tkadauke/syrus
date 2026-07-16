@@ -33,6 +33,7 @@ export type ChatRecord = {
   cumulative_cost_usd: number
   pending_proposal_count?: number
   confirmed_proposal_count?: number
+  linked_direct_job_count?: number
   scratchpad_items_count?: number
   coding_checkout_uncommitted?: boolean
   coding_checkout_branch?: string | null

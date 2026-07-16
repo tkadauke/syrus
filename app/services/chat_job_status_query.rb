@@ -59,6 +59,12 @@ class ChatJobStatusQuery
       result << item if item
     end
 
+    proposal_job_ids = job_proposals.filter_map { |p| p.job&.id }.to_set
+    Job.where(linked_chat_id: @chat_session.id, kind: "direct")
+       .includes(:repository)
+       .where.not(id: proposal_job_ids)
+       .each { |job| result << build_job_hash(job) }
+
     result.sort_by { |item| item[:latest_updated_at] || item[:updated_at] || "" }.reverse
   end
 
@@ -68,6 +74,10 @@ class ChatJobStatusQuery
     job = proposal.job
     return nil unless job
 
+    build_job_hash(job)
+  end
+
+  def build_job_hash(job)
     {
       kind:          "job",
       job_id:        job.id,
