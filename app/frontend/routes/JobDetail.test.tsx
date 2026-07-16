@@ -324,6 +324,71 @@ describe("JobDetailView", () => {
     expect(screen.getByText("warned")).toHaveClass("text-amber-700")
     expect(screen.getByTestId("run-transcript-log-stream")).not.toHaveTextContent("\u001b[32m")
   })
+
+  it("shows a Summary button in the run row for summarize steps and renders summary as markdown", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      job_id: 1, run_id: 30, agent_diff: null, agent_diff_bytes: 0, logs_count: 1,
+      logs: [{ id: 1, sequence: 1, kind: "assistant", chunk: "done", created_at: "2026-07-01T10:00:00Z" }]
+    }))
+
+    renderJobDetail(jobPayload({
+      workflows: [
+        workflow({
+          id: 5,
+          artifacts: { summary: "## Key changes\n\nFixed **all the bugs**." },
+          steps: [
+            step({ id: 10, kind: "summarize", display_name: "Summarize", runs: [ run({ id: 30, job_log_count: 1 }) ] })
+          ]
+        })
+      ],
+      workflows_pagination: workflowPagination(1)
+    }), { activeTab: "workflows" })
+
+    fireEvent.click(screen.getByRole("button", { name: /Summarize/ }))
+
+    const runCard = screen.getByText(/Run #30/).closest("div.rounded")!
+    const buttons = within(runCard as HTMLElement).getAllByRole("button")
+    const buttonLabels = buttons.map((b) => b.textContent)
+    expect(buttonLabels).toContain("Transcript")
+    expect(buttonLabels).toContain("Summary")
+    expect(buttonLabels.indexOf("Summary")).toBeGreaterThan(buttonLabels.indexOf("Transcript"))
+
+    fireEvent.click(within(runCard as HTMLElement).getByRole("button", { name: "Summary" }))
+
+    expect(await screen.findByRole("heading", { name: "Summary" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Key changes" })).toBeInTheDocument()
+    expect(document.querySelector("strong")).toHaveTextContent("all the bugs")
+  })
+
+  it("shows a Test Plan button in the run row for test_plan steps", () => {
+    renderJobDetail(jobPayload({
+      workflows: [
+        workflow({
+          id: 6,
+          artifacts: { test_plan: { steps: ["Run bin/rspec", "Run bin/test-react"], notes: null } },
+          steps: [
+            step({ id: 11, kind: "test_plan", display_name: "Test plan", runs: [ run({ id: 31, job_log_count: 1 }) ] })
+          ]
+        })
+      ],
+      workflows_pagination: workflowPagination(1)
+    }), { activeTab: "workflows" })
+
+    fireEvent.click(screen.getByRole("button", { name: /Test plan/ }))
+
+    const runCard = screen.getByText(/Run #31/).closest("div.rounded")!
+    const buttons = within(runCard as HTMLElement).getAllByRole("button")
+    const buttonLabels = buttons.map((b) => b.textContent)
+    expect(buttonLabels).toContain("Transcript")
+    expect(buttonLabels).toContain("Test Plan")
+    expect(buttonLabels.indexOf("Test Plan")).toBeGreaterThan(buttonLabels.indexOf("Transcript"))
+
+    fireEvent.click(within(runCard as HTMLElement).getByRole("button", { name: "Test Plan" }))
+
+    expect(screen.getByRole("heading", { name: "Test plan" })).toBeInTheDocument()
+    const items = screen.getAllByRole("listitem")
+    expect(items.map((i) => i.textContent)).toEqual(["Run bin/rspec", "Run bin/test-react"])
+  })
 })
 
 describe("TestPlanPanel", () => {

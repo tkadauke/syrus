@@ -1679,7 +1679,6 @@ function GraderDetails({ details }: { details: Record<string, unknown> }) {
 function StepCard({ step, payload, command, numberLabel, displayName, metadataLabel, workflowArtifacts }: { step: JobStep; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; numberLabel: number | string; displayName?: string; metadataLabel?: string; workflowArtifacts?: Record<string, unknown> | null }) {
   const { t } = useT("jobs")
   const [open, setOpen] = useState(false)
-  const [artifactView, setArtifactView] = useState<"summary" | "test_plan" | "adversarial_review" | null>(null)
   const runs = sortedRunsNewestFirst(step.runs)
   const activeRun = runs.find((run) => isActiveState(run.state))
   const displayStatus = activeRun ? activeRun.state : step.display_status
@@ -1691,11 +1690,6 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
     : null
   const testPlanArtifact = step.kind === "test_plan" ? stepArtifactTestPlan(artifacts.test_plan) : null
   const adversarialReviewArtifact = step.kind === "adversarial_review" ? stepArtifactAdversarialReview(artifacts.adversarial_review_iterations) : null
-  const hasAnyArtifactBtn = summaryArtifact !== null || testPlanArtifact !== null || adversarialReviewArtifact !== null
-
-  function toggleArtifact(view: "summary" | "test_plan" | "adversarial_review") {
-    setArtifactView((current) => current === view ? null : view)
-  }
 
   return (
     <div className="border-b border-gray-200 bg-white last:border-b-0 dark:border-gray-700 dark:bg-gray-900">
@@ -1716,34 +1710,13 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
       </button>
       {open ? (
         <div className="border-t border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-              <span>{metadataLabel || step.kind}</span>
-              {step.loop_id ? <span>{t("step_metadata_iteration", { n: step.iteration ?? 1 })}</span> : null}
-              {activeRun && step.state !== activeRun.state ? <SmallPill>{t("step_state_display", { state: step.state.replaceAll("_", " ") })}</SmallPill> : null}
-              {step.latest ? <SmallPill>{t("step_latest")}</SmallPill> : null}
-              <span>{formatDate(step.started_at || step.created_at)}</span>
-              {step.finished_at ? <span>{formatDuration(step.started_at, step.finished_at)}</span> : null}
-            </div>
-            {hasAnyArtifactBtn ? (
-              <div className="flex flex-wrap gap-2">
-                {summaryArtifact !== null ? (
-                  <button className={buttonClass("secondary")} onClick={() => toggleArtifact("summary")} type="button">
-                    {t("step_btn_summary")}
-                  </button>
-                ) : null}
-                {testPlanArtifact !== null ? (
-                  <button className={buttonClass("secondary")} onClick={() => toggleArtifact("test_plan")} type="button">
-                    {t("step_btn_test_plan")}
-                  </button>
-                ) : null}
-                {adversarialReviewArtifact !== null ? (
-                  <button className={buttonClass("secondary")} onClick={() => toggleArtifact("adversarial_review")} type="button">
-                    {t("step_btn_adversarial_review")}
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
+          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+            <span>{metadataLabel || step.kind}</span>
+            {step.loop_id ? <span>{t("step_metadata_iteration", { n: step.iteration ?? 1 })}</span> : null}
+            {activeRun && step.state !== activeRun.state ? <SmallPill>{t("step_state_display", { state: step.state.replaceAll("_", " ") })}</SmallPill> : null}
+            {step.latest ? <SmallPill>{t("step_latest")}</SmallPill> : null}
+            <span>{formatDate(step.started_at || step.created_at)}</span>
+            {step.finished_at ? <span>{formatDuration(step.started_at, step.finished_at)}</span> : null}
           </div>
           {activeRun ? <ActiveRunBanner run={activeRun} /> : null}
           {prepareFailure ? <PrepareFailurePanel failure={prepareFailure} /> : null}
@@ -1754,18 +1727,20 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
           ) : null}
           {runs.length > 0 ? (
             <div className="mt-3 space-y-2">
-              {runs.map((run) => <RunRow active={activeRun?.id === run.id} command={command} key={run.id} payload={payload} run={run} />)}
+              {runs.map((run, idx) => (
+                <RunRow
+                  active={activeRun?.id === run.id}
+                  command={command}
+                  key={run.id}
+                  payload={payload}
+                  run={run}
+                  stepAdversarialReviewArtifact={idx === 0 ? adversarialReviewArtifact : null}
+                  stepSummaryArtifact={idx === 0 ? summaryArtifact : null}
+                  stepTestPlanArtifact={idx === 0 ? testPlanArtifact : null}
+                />
+              ))}
             </div>
           ) : <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">{t("section_no_runs")}</p>}
-          {artifactView === "summary" && summaryArtifact ? (
-            <StepSummaryPanel onClose={() => setArtifactView(null)} summary={summaryArtifact} />
-          ) : null}
-          {artifactView === "test_plan" && testPlanArtifact ? (
-            <StepTestPlanPanel onClose={() => setArtifactView(null)} testPlan={testPlanArtifact} />
-          ) : null}
-          {artifactView === "adversarial_review" && adversarialReviewArtifact ? (
-            <StepAdversarialReviewPanel iterations={adversarialReviewArtifact} onClose={() => setArtifactView(null)} />
-          ) : null}
         </div>
       ) : null}
     </div>
@@ -1799,7 +1774,7 @@ function StepSummaryPanel({ summary, onClose }: { summary: string; onClose: () =
     <section className={artifactPanelClass()}>
       <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_summary")}</ArtifactPanelHeader>
       <div className="overflow-auto p-3 max-md:min-h-0 max-md:flex-1">
-        <p className="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">{summary}</p>
+        <Markdown className="chat-prose text-sm text-gray-700 dark:text-gray-300" text={summary} />
       </div>
     </section>
   )
@@ -1887,10 +1862,11 @@ function PrepareFailurePanel({ failure }: { failure: PrepareFailure }) {
   )
 }
 
-function RunRow({ run, payload, command, active = false }: { run: JobRun; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; active?: boolean }) {
+function RunRow({ run, payload, command, active = false, stepSummaryArtifact = null, stepTestPlanArtifact = null, stepAdversarialReviewArtifact = null }: { run: JobRun; payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; active?: boolean; stepSummaryArtifact?: string | null; stepTestPlanArtifact?: { steps: string[]; notes: string | null } | null; stepAdversarialReviewArtifact?: JobAdversarialReviewIteration[] | null }) {
   const { t } = useT("jobs")
   const [gradeLogOpen, setGradeLogOpen] = useState(false)
-  const [artifactView, setArtifactView] = useState<"transcript" | "diff" | "step_diff" | null>(null)
+  const [artifactView, setArtifactView] = useState<"transcript" | "diff" | "step_diff" | "summary" | "test_plan" | "adversarial_review" | null>(null)
+  const isRunArtifactView = artifactView === "transcript" || artifactView === "diff" || artifactView === "step_diff"
   const gradeLog = useMutation({
     mutationFn: (path: string) => fetchJobGradeLog(path),
     onSuccess: () => {
@@ -1901,12 +1877,17 @@ function RunRow({ run, payload, command, active = false }: { run: JobRun; payloa
   const artifacts = useQuery({
     queryKey: ["job_run_artifacts", String(payload.job.id), String(run.id)],
     queryFn: () => fetchJobRunArtifacts(run.app_artifacts_path),
-    enabled: artifactView != null,
+    enabled: isRunArtifactView,
     refetchInterval: artifactView === "transcript" && isActiveState(run.state) ? 2000 : false
   })
-  const artifactsLoading = artifacts.isFetching && !artifacts.data
+  const artifactsLoading = isRunArtifactView && artifacts.isFetching && !artifacts.data
 
   function showArtifacts(view: "transcript" | "diff" | "step_diff") {
+    setGradeLogOpen(false)
+    setArtifactView((current) => current === view ? null : view)
+  }
+
+  function toggleStepArtifact(view: "summary" | "test_plan" | "adversarial_review") {
     setGradeLogOpen(false)
     setArtifactView((current) => current === view ? null : view)
   }
@@ -1945,6 +1926,21 @@ function RunRow({ run, payload, command, active = false }: { run: JobRun; payloa
               {artifactsLoading && artifactView === "transcript" ? t("run_loading") : t("run_transcript")}
             </button>
           ) : null}
+          {stepSummaryArtifact !== null ? (
+            <button className={buttonClass("secondary")} onClick={() => toggleStepArtifact("summary")} type="button">
+              {t("step_btn_summary")}
+            </button>
+          ) : null}
+          {stepTestPlanArtifact !== null ? (
+            <button className={buttonClass("secondary")} onClick={() => toggleStepArtifact("test_plan")} type="button">
+              {t("step_btn_test_plan")}
+            </button>
+          ) : null}
+          {stepAdversarialReviewArtifact !== null ? (
+            <button className={buttonClass("secondary")} onClick={() => toggleStepArtifact("adversarial_review")} type="button">
+              {t("step_btn_adversarial_review")}
+            </button>
+          ) : null}
           {run.agent_diff_present ? (
             <button className={buttonClass("secondary")} disabled={artifactsLoading} onClick={() => showArtifacts("diff")} type="button">
               {artifactsLoading && artifactView === "diff" ? t("run_loading") : t("run_diff")}
@@ -1966,7 +1962,16 @@ function RunRow({ run, payload, command, active = false }: { run: JobRun; payloa
         </div>
       </div>
       {artifacts.isError ? <p className="mt-3 text-xs text-red-700 dark:text-red-300">{errorMessage(artifacts.error, t("run_artifacts_error"))}</p> : null}
-      {artifactView && artifacts.data ? <RunArtifactsPanel onClose={() => setArtifactView(null)} payload={artifacts.data} view={artifactView} /> : null}
+      {isRunArtifactView && artifacts.data ? <RunArtifactsPanel onClose={() => setArtifactView(null)} payload={artifacts.data} view={artifactView as "transcript" | "diff" | "step_diff"} /> : null}
+      {artifactView === "summary" && stepSummaryArtifact ? (
+        <StepSummaryPanel onClose={() => setArtifactView(null)} summary={stepSummaryArtifact} />
+      ) : null}
+      {artifactView === "test_plan" && stepTestPlanArtifact ? (
+        <StepTestPlanPanel onClose={() => setArtifactView(null)} testPlan={stepTestPlanArtifact} />
+      ) : null}
+      {artifactView === "adversarial_review" && stepAdversarialReviewArtifact ? (
+        <StepAdversarialReviewPanel iterations={stepAdversarialReviewArtifact} onClose={() => setArtifactView(null)} />
+      ) : null}
       {gradeLog.isError ? <p className="mt-3 text-xs text-red-700 dark:text-red-300">{errorMessage(gradeLog.error, t("run_grade_log_error"))}</p> : null}
       {gradeLogOpen && gradeLog.data ? (
         <RunGradeLogPanel onClose={() => setGradeLogOpen(false)} payload={gradeLog.data} />
