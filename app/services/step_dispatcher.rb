@@ -229,12 +229,32 @@ class StepDispatcher
     return false unless loop_node&.fetch("type") == "loop"
     return false unless loop_step_kinds(loop_node).last == "adversarial_review"
 
-    if @from_step.iteration < loop_max_iterations(loop_node)
+    if last_adversarial_review_approved?
+      cancel_and_skip_to_next!(implement_step: @from_step.next_step)
+      true
+    elsif @from_step.iteration < loop_max_iterations(loop_node)
       enqueue_next_loop_iteration!(loop_node)
       true
     else
       false
     end
+  end
+
+  def last_adversarial_review_approved?
+    @workflow.artifacts
+      &.dig("adversarial_review_iterations")
+      &.last
+      &.fetch("verdict", nil) == "approved"
+  end
+
+  def cancel_and_skip_to_next!(implement_step:)
+    return unless implement_step
+    continuation = implement_step.next_step
+    if implement_step.may_cancel?
+      implement_step.cancel!
+      implement_step.save!
+    end
+    self.class.create_run_and_enqueue(continuation, @workflow) if continuation
   end
 
   def handle_loop_iteration

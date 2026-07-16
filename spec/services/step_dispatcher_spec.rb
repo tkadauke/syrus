@@ -676,6 +676,92 @@ RSpec.describe StepDispatcher do
 
       expect(dispatcher.send(:prior_iteration_session_id)).to eq("implementer-session")
     end
+
+    it "skips final implement and enqueues grader_fanout when reviewer approves mid-loop (iteration 1 of 2)" do
+      review_workflow = workflow_with_adversarial_review_loop(max_iterations: 2)
+      review = review_workflow.steps.find_by!(kind: "adversarial_review", iteration: 1)
+      final_implement = review_workflow.steps.where(kind: "implement").where.not(loop_id: review.loop_id).sole
+      grader_fanout = review_workflow.steps.find_by!(kind: "grader_fanout")
+
+      review_workflow.set_artifact!("adversarial_review_iterations", [
+        { "iteration" => 1, "critique" => "LGTM", "verdict" => "approved" }
+      ])
+
+      original_step_count = review_workflow.steps.count
+
+      expect {
+        described_class.advance_from(review)
+      }.to change { grader_fanout.runs.count }.by(1)
+
+      expect(review_workflow.reload.steps.count).to eq(original_step_count)
+      expect(final_implement.reload).to be_cancelled
+      expect(review_workflow.steps.where(loop_id: review.loop_id, iteration: 2)).to be_empty
+    end
+
+    it "skips final implement and enqueues grader_fanout when reviewer approves at last iteration (iteration 2 of 2)" do
+      review_workflow = workflow_with_adversarial_review_loop(max_iterations: 2)
+      review1 = review_workflow.steps.find_by!(kind: "adversarial_review", iteration: 1)
+      final_implement = review_workflow.steps.where(kind: "implement").where.not(loop_id: review1.loop_id).sole
+      grader_fanout = review_workflow.steps.find_by!(kind: "grader_fanout")
+
+      # Materialize the second loop iteration (as enqueue_next_loop_iteration! would)
+      implement2 = Step.create!(workflow: review_workflow, kind: "implement", position: 3,
+                                iteration: 2, loop_id: review1.loop_id)
+      review2 = Step.create!(workflow: review_workflow, kind: "adversarial_review", position: 4,
+                              iteration: 2, loop_id: review1.loop_id)
+      review_workflow.steps.where("position >= 3").where.not(id: [ implement2.id, review2.id ])
+                     .update_all("position = position + 2")
+      review1.update!(next_step_id: implement2.id)
+      implement2.update!(next_step_id: review2.id)
+      review2.update!(next_step_id: final_implement.id)
+
+      review_workflow.set_artifact!("adversarial_review_iterations", [
+        { "iteration" => 1, "critique" => "needs work", "verdict" => "needs_work" },
+        { "iteration" => 2, "critique" => "LGTM", "verdict" => "approved" }
+      ])
+
+      original_step_count = review_workflow.reload.steps.count
+
+      expect {
+        described_class.advance_from(review2)
+      }.to change { grader_fanout.runs.count }.by(1)
+
+      expect(review_workflow.reload.steps.count).to eq(original_step_count)
+      expect(final_implement.reload).to be_cancelled
+    end
+
+    it "does not skip final implement when verdict is needs_work with iterations remaining" do
+      review_workflow = workflow_with_adversarial_review_loop(max_iterations: 2)
+      review = review_workflow.steps.find_by!(kind: "adversarial_review", iteration: 1)
+      final_implement = review_workflow.steps.where(kind: "implement").where.not(loop_id: review.loop_id).sole
+
+      review_workflow.set_artifact!("adversarial_review_iterations", [
+        { "iteration" => 1, "critique" => "needs more work", "verdict" => "needs_work" }
+      ])
+
+      expect {
+        described_class.advance_from(review)
+      }.to change { review_workflow.steps.count }.by(2)
+
+      expect(final_implement.runs.reload).to be_empty
+      expect(final_implement.reload).to be_queued
+    end
+
+    it "falls through to final implement when verdict is needs_work and iterations exhausted" do
+      review_workflow = workflow_with_adversarial_review_loop(max_iterations: 1)
+      review = review_workflow.steps.find_by!(kind: "adversarial_review", iteration: 1)
+      final_implement = review_workflow.steps.where(kind: "implement").where.not(loop_id: review.loop_id).sole
+
+      review_workflow.set_artifact!("adversarial_review_iterations", [
+        { "iteration" => 1, "critique" => "still needs work", "verdict" => "needs_work" }
+      ])
+
+      expect {
+        described_class.advance_from(review)
+      }.to change { final_implement.runs.count }.by(1)
+
+      expect(final_implement.reload).to be_queued
+    end
   end
 
   describe "Step#after_update_commit advance integration" do
