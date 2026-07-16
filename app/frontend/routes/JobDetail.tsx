@@ -1822,7 +1822,7 @@ function StepTestPlanPanel({ testPlan, onClose }: { testPlan: { steps: string[];
   )
 }
 
-function StepAdversarialReviewPanel({ iterations, onClose }: { iterations: JobAdversarialReviewIteration[]; onClose: () => void }) {
+export function StepAdversarialReviewPanel({ iterations, onClose }: { iterations: JobAdversarialReviewIteration[]; onClose: () => void }) {
   const { t } = useT("jobs")
   const lastIndex = iterations.length - 1
   return (
@@ -1849,7 +1849,7 @@ function StepAdversarialReviewPanel({ iterations, onClose }: { iterations: JobAd
                   </span>
                 )}
               </div>
-              <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">{iteration.critique}</p>
+              <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={iteration.critique} />
             </div>
           )
         })}

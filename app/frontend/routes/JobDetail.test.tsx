@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter, useLocation } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { JobDetailPayload, JobRun, JobSourcePayload, JobStep, JobWorkflow } from "../api/jobs"
-import { FeedbackHistoryPanel, JobDetailView, TestPlanPanel } from "./JobDetail"
+import { FeedbackHistoryPanel, JobDetailView, StepAdversarialReviewPanel, TestPlanPanel } from "./JobDetail"
 
 describe("JobDetailView", () => {
   afterEach(() => {
@@ -352,6 +352,57 @@ describe("TestPlanPanel", () => {
     render(<TestPlanPanel testPlan={null} />)
 
     expect(screen.queryByRole("heading", { name: "Test plan" })).not.toBeInTheDocument()
+  })
+})
+
+describe("StepAdversarialReviewPanel", () => {
+  it("renders critique as markdown", () => {
+    render(
+      <StepAdversarialReviewPanel
+        iterations={[{ iteration: 1, verdict: "approved", critique: "**Great** work with `clean` code." }]}
+        onClose={() => {}}
+      />
+    )
+
+    expect(screen.getByText("Great").tagName).toBe("STRONG")
+    expect(screen.getByText("clean").tagName).toBe("CODE")
+  })
+
+  it("shows approved verdict badge on the final iteration", () => {
+    render(
+      <StepAdversarialReviewPanel
+        iterations={[{ iteration: 1, verdict: "approved", critique: "Looks good." }]}
+        onClose={() => {}}
+      />
+    )
+
+    expect(screen.getByText("Approved")).toBeInTheDocument()
+  })
+
+  it("shows needs-work verdict badge on the final iteration", () => {
+    render(
+      <StepAdversarialReviewPanel
+        iterations={[{ iteration: 1, verdict: "needs_work", critique: "Fix the tests." }]}
+        onClose={() => {}}
+      />
+    )
+
+    expect(screen.getByText("Needs work")).toBeInTheDocument()
+  })
+
+  it("renders multiple rounds with round labels", () => {
+    render(
+      <StepAdversarialReviewPanel
+        iterations={[
+          { iteration: 1, verdict: "needs_work", critique: "Not yet." },
+          { iteration: 2, verdict: "approved", critique: "Now it is." }
+        ]}
+        onClose={() => {}}
+      />
+    )
+
+    expect(screen.getByText("Round 1")).toBeInTheDocument()
+    expect(screen.getByText("Round 2")).toBeInTheDocument()
   })
 })
 
