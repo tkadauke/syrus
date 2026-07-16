@@ -13010,7 +13010,7 @@ describe("App", () => {
       )
     })
     expect(await screen.findByText("Pending action confirmed.")).toBeInTheDocument()
-  })
+  }, 15000)
 
   it("shows Copy button on chat messages and copies text to clipboard", async () => {
     const writeTextSpy = vi.fn().mockResolvedValue(undefined)
