@@ -204,5 +204,7 @@
   "job_status_collapse_epic": "Collapse {{title}}",
   "job_status_blocker_awaiting_review": "Awaiting review",
   "job_status_blocker_landing_failed": "Landing failed",
-  "job_status_blocker_dependency_failed": "Dependency failed"
+  "job_status_blocker_dependency_failed": "Dependency failed",
+  "job_status_hide_closed": "Hide closed",
+  "job_status_show_closed": "Show closed"
 }

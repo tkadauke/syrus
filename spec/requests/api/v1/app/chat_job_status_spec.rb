@@ -73,6 +73,7 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
         expect(item["pr_number"]).to be_nil
         expect(item["pr_url"]).to be_nil
         expect(item["blocker"]).to be_nil
+        expect(item["updated_at"]).to eq(job.updated_at.iso8601)
       end
 
       it "includes pr_number and pr_url when the job has an open PR" do
@@ -257,7 +258,7 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
     end
 
     describe "epic items" do
-      it "returns an epic item with progress and nested child job items" do
+      it "returns an epic item with progress, nested child job items, and latest_updated_at" do
         epic = Factories.epic(user: user, repository: repository, title: "Big refactor")
 
         done_job = Factories.job_record(
@@ -298,12 +299,14 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
         expect(epic_item["state"]).to eq("backlog")
         expect(epic_item.dig("progress", "done")).to eq(1)
         expect(epic_item.dig("progress", "total")).to eq(2)
+        expect(epic_item["latest_updated_at"]).to be_present
 
         children = epic_item["children"]
         expect(children.size).to eq(2)
         expect(children).to all(include("kind" => "job"))
         child_slugs = children.map { |c| c["slug"] }
         expect(child_slugs).to contain_exactly(done_job.slug, open_job.slug)
+        expect(children).to all(include("updated_at"))
       end
 
       it "places job proposals without an epic parent as standalone items" do
@@ -348,6 +351,97 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
         get "/api/v1/app/chats/#{chat_session.id}/job_status"
 
         expect(parse_body).to eq([])
+      end
+    end
+
+    describe "sort order" do
+      it "returns standalone jobs sorted by updated_at desc" do
+        older_job = Factories.job_record(user: user, repository: repository, state: "running", issue_title: "Older")
+        newer_job = Factories.job_record(user: user, repository: repository, state: "running", issue_title: "Newer")
+
+        older_job.update_column(:updated_at, 2.hours.ago)
+        newer_job.update_column(:updated_at, 1.hour.ago)
+
+        ChatProposal.create!(
+          chat_session: chat_session, slug: "older-job", kind: "job",
+          title: "Older", body: "Old.", state: "confirmed",
+          job: older_job, repository: repository
+        )
+        ChatProposal.create!(
+          chat_session: chat_session, slug: "newer-job", kind: "job",
+          title: "Newer", body: "New.", state: "confirmed",
+          job: newer_job, repository: repository
+        )
+
+        get "/api/v1/app/chats/#{chat_session.id}/job_status"
+
+        items = parse_body
+        expect(items.map { |i| i["slug"] }).to eq([ newer_job.slug, older_job.slug ])
+      end
+
+      it "returns epic children sorted by updated_at desc" do
+        epic = Factories.epic(user: user, repository: repository, title: "Sort epic")
+
+        older_child = Factories.job_record(user: user, repository: repository, state: "running", issue_title: "Older child")
+        newer_child = Factories.job_record(user: user, repository: repository, state: "running", issue_title: "Newer child")
+
+        older_child.update_column(:updated_at, 2.hours.ago)
+        newer_child.update_column(:updated_at, 1.hour.ago)
+
+        epic_proposal = ChatProposal.create!(
+          chat_session: chat_session, slug: "sort-epic", kind: "epic",
+          title: "Sort epic", body: "Sort.", state: "confirmed",
+          epic: epic, repository: repository
+        )
+        ChatProposal.create!(
+          chat_session: chat_session, slug: "older-child", kind: "job",
+          title: "Older child", body: "Old.", state: "confirmed",
+          job: older_child, repository: repository, parent_proposal: epic_proposal
+        )
+        ChatProposal.create!(
+          chat_session: chat_session, slug: "newer-child", kind: "job",
+          title: "Newer child", body: "New.", state: "confirmed",
+          job: newer_child, repository: repository, parent_proposal: epic_proposal
+        )
+
+        get "/api/v1/app/chats/#{chat_session.id}/job_status"
+
+        children = parse_body.first["children"]
+        expect(children.map { |c| c["slug"] }).to eq([ newer_child.slug, older_child.slug ])
+      end
+
+      it "interleaves epics and standalone jobs by updated_at desc" do
+        standalone = Factories.job_record(user: user, repository: repository, state: "running", issue_title: "Standalone")
+        child_job  = Factories.job_record(user: user, repository: repository, state: "running", issue_title: "Child")
+        epic       = Factories.epic(user: user, repository: repository, title: "My epic")
+
+        standalone.update_column(:updated_at, 1.hour.ago)
+        child_job.update_column(:updated_at, 3.hours.ago)
+
+        epic_proposal = ChatProposal.create!(
+          chat_session: chat_session, slug: "my-epic", kind: "epic",
+          title: "My epic", body: "Epic.", state: "confirmed",
+          epic: epic, repository: repository
+        )
+        ChatProposal.create!(
+          chat_session: chat_session, slug: "child-job", kind: "job",
+          title: "Child", body: "Child.", state: "confirmed",
+          job: child_job, repository: repository, parent_proposal: epic_proposal
+        )
+        ChatProposal.create!(
+          chat_session: chat_session, slug: "standalone-job", kind: "job",
+          title: "Standalone", body: "Alone.", state: "confirmed",
+          job: standalone, repository: repository
+        )
+
+        get "/api/v1/app/chats/#{chat_session.id}/job_status"
+
+        items = parse_body
+        expect(items.size).to eq(2)
+        # standalone updated 1 hour ago, epic's latest child updated 3 hours ago
+        expect(items.first["kind"]).to eq("job")
+        expect(items.first["slug"]).to eq(standalone.slug)
+        expect(items.last["kind"]).to eq("epic")
       end
     end
   end

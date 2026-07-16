@@ -813,6 +813,7 @@ export type ChatJobStatusJobItem = {
   pr_number: number | null
   pr_url: string | null
   blocker: ChatJobStatusBlocker | null
+  updated_at: string
 }
 
 export type ChatJobStatusEpicItem = {
@@ -823,6 +824,7 @@ export type ChatJobStatusEpicItem = {
   state: string
   progress: { done: number; total: number }
   children: ChatJobStatusJobItem[]
+  latest_updated_at: string
 }
 
 export type ChatJobStatusItem = ChatJobStatusEpicItem | ChatJobStatusJobItem

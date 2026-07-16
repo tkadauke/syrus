@@ -200,5 +200,7 @@
   "job_status_collapse_epic": "{{title}} einklappen",
   "job_status_blocker_awaiting_review": "Wartet auf Überprüfung",
   "job_status_blocker_landing_failed": "Landen fehlgeschlagen",
-  "job_status_blocker_dependency_failed": "Abhängigkeit fehlgeschlagen"
+  "job_status_blocker_dependency_failed": "Abhängigkeit fehlgeschlagen",
+  "job_status_hide_closed": "Abgeschlossene ausblenden",
+  "job_status_show_closed": "Abgeschlossene anzeigen"
 }

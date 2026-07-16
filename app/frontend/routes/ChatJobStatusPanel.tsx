@@ -74,9 +74,13 @@ function JobStatusCard({ job, onClick }: { job: ChatJobStatusJobItem; onClick: (
   )
 }
 
-function EpicSection({ epic, onJobClick }: { epic: ChatJobStatusEpicItem; onJobClick: (jobId: number) => void }) {
+function EpicSection({ epic, hideClosedJobs, onJobClick }: { epic: ChatJobStatusEpicItem; hideClosedJobs: boolean; onJobClick: (jobId: number) => void }) {
   const [expanded, setExpanded] = useState(true)
   const { t } = useT("chat")
+
+  const visibleChildren = hideClosedJobs
+    ? epic.children.filter((j) => j.state !== "closed")
+    : epic.children
 
   const ariaLabel = expanded
     ? t("job_status_collapse_epic", { title: epic.title || epic.slug })
@@ -112,9 +116,9 @@ function EpicSection({ epic, onJobClick }: { epic: ChatJobStatusEpicItem; onJobC
           </svg>
         </div>
       </button>
-      {expanded && epic.children.length > 0 ? (
+      {expanded && visibleChildren.length > 0 ? (
         <div className="divide-y divide-gray-100 border-t border-gray-100 dark:divide-gray-800 dark:border-gray-800">
-          {epic.children.map((job) => (
+          {visibleChildren.map((job) => (
             <JobStatusCard key={job.job_id} job={job} onClick={() => onJobClick(job.job_id)} />
           ))}
         </div>
@@ -127,6 +131,7 @@ export function ChatJobStatusPanel({ chatId }: { chatId: string | number }) {
   const queryClient = useQueryClient()
   const { t } = useT("chat")
   const navigate = useNavigate()
+  const [hideClosedJobs, setHideClosedJobs] = useState(false)
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["chats", String(chatId), "job_status"],
@@ -162,18 +167,41 @@ export function ChatJobStatusPanel({ chatId }: { chatId: string | number }) {
   const epics = items.filter((item): item is ChatJobStatusEpicItem => item.kind === "epic")
   const jobs = items.filter((item): item is ChatJobStatusJobItem => item.kind === "job")
 
+  const visibleEpics = hideClosedJobs
+    ? epics.filter((epic) => epic.children.some((j) => j.state !== "closed"))
+    : epics
+
+  const visibleJobs = hideClosedJobs
+    ? jobs.filter((j) => j.state !== "closed")
+    : jobs
+
+  const hasClosedItems =
+    jobs.some((j) => j.state === "closed") ||
+    epics.some((epic) => epic.children.some((j) => j.state === "closed"))
+
   function navigateToJob(jobId: number) {
     navigate(`/jobs/${jobId}`)
   }
 
   return (
     <div className="space-y-3">
-      {epics.map((epic) => (
-        <EpicSection epic={epic} key={epic.epic_id} onJobClick={navigateToJob} />
+      {hasClosedItems ? (
+        <div className="flex justify-end">
+          <button
+            className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            onClick={() => setHideClosedJobs((h) => !h)}
+            type="button"
+          >
+            {hideClosedJobs ? t("job_status_show_closed") : t("job_status_hide_closed")}
+          </button>
+        </div>
+      ) : null}
+      {visibleEpics.map((epic) => (
+        <EpicSection epic={epic} hideClosedJobs={hideClosedJobs} key={epic.epic_id} onJobClick={navigateToJob} />
       ))}
-      {jobs.length > 0 ? (
+      {visibleJobs.length > 0 ? (
         <div className="divide-y divide-gray-100 rounded border border-gray-200 dark:divide-gray-800 dark:border-gray-700">
-          {jobs.map((job) => (
+          {visibleJobs.map((job) => (
             <JobStatusCard job={job} key={job.job_id} onClick={() => navigateToJob(job.job_id)} />
           ))}
         </div>

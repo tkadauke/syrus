@@ -38,16 +38,19 @@ class ChatJobStatusQuery
 
       children_proposals = epic_children[epic_proposal.id]
       child_items        = children_proposals.filter_map { |p| build_job_item(p) }
+                             .sort_by { |c| c[:updated_at] }.reverse
       done_count         = children_proposals.count { |p| p.job && job_done?(p.job) }
+      latest_updated_at  = child_items.map { |c| c[:updated_at] }.max || epic.updated_at.iso8601
 
       result << {
-        kind:     "epic",
-        epic_id:  epic.id,
-        slug:     epic.slug,
-        title:    epic.title,
-        state:    epic.state,
-        progress: { done: done_count, total: child_items.size },
-        children: child_items
+        kind:              "epic",
+        epic_id:           epic.id,
+        slug:              epic.slug,
+        title:             epic.title,
+        state:             epic.state,
+        progress:          { done: done_count, total: child_items.size },
+        children:          child_items,
+        latest_updated_at: latest_updated_at
       }
     end
 
@@ -56,7 +59,7 @@ class ChatJobStatusQuery
       result << item if item
     end
 
-    result
+    result.sort_by { |item| item[:latest_updated_at] || item[:updated_at] || "" }.reverse
   end
 
   private
@@ -74,7 +77,8 @@ class ChatJobStatusQuery
       workflow_step: current_workflow_step(job),
       pr_number:     job.pr_number,
       pr_url:        job_pr_url(job),
-      blocker:       blocker_for(job)
+      blocker:       blocker_for(job),
+      updated_at:    job.updated_at.iso8601
     }
   end
 

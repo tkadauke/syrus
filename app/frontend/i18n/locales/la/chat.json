@@ -204,5 +204,7 @@
   "job_status_collapse_epic": "{{title}} contrahere",
   "job_status_blocker_awaiting_review": "Recognitionem exspectat",
   "job_status_blocker_landing_failed": "Descensus defecit",
-  "job_status_blocker_dependency_failed": "Necessitudo defecit"
+  "job_status_blocker_dependency_failed": "Necessitudo defecit",
+  "job_status_hide_closed": "Clausa abscondere",
+  "job_status_show_closed": "Clausa monstrare"
 }

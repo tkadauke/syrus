@@ -42,6 +42,7 @@ function jobItem(overrides: Partial<ChatJobStatusItem & { kind: "job" }> = {}): 
     pr_number: null,
     pr_url: null,
     blocker: null,
+    updated_at: "2026-01-01T12:00:00Z",
     ...overrides
   }
 }
@@ -54,6 +55,7 @@ function epicItem(overrides: Partial<ChatJobStatusItem & { kind: "epic" }> = {})
     title: "Aqueduct renovation",
     state: "in_progress",
     progress: { done: 1, total: 3 },
+    latest_updated_at: "2026-01-01T12:00:00Z",
     children: [
       {
         kind: "job",
@@ -64,7 +66,8 @@ function epicItem(overrides: Partial<ChatJobStatusItem & { kind: "epic" }> = {})
         workflow_step: null,
         pr_number: null,
         pr_url: null,
-        blocker: null
+        blocker: null,
+        updated_at: "2026-01-01T12:00:00Z"
       }
     ],
     ...overrides
@@ -210,6 +213,115 @@ describe("ChatJobStatusPanel epic tree", () => {
     fireEvent.click(screen.getByRole("button", { name: /Expand Aqueduct renovation/ }))
 
     expect(await screen.findByText("Survey route")).toBeInTheDocument()
+  })
+})
+
+describe("ChatJobStatusPanel hide closed", () => {
+  it("does not show the hide-closed button when no jobs are closed", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
+      jobItem({ state: "running" })
+    ]))
+
+    renderPanel()
+
+    await screen.findByText("Inspect the aqueduct")
+    expect(screen.queryByRole("button", { name: /hide closed/i })).not.toBeInTheDocument()
+  })
+
+  it("shows the hide-closed button when at least one standalone job is closed", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
+      jobItem({ state: "closed" })
+    ]))
+
+    renderPanel()
+
+    expect(await screen.findByRole("button", { name: /hide closed/i })).toBeInTheDocument()
+  })
+
+  it("hides closed standalone jobs when the toggle is clicked", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
+      jobItem({ job_id: 1, slug: "JOB-1", title: "Open job", state: "running" }),
+      jobItem({ job_id: 2, slug: "JOB-2", title: "Closed job", state: "closed" })
+    ]))
+
+    renderPanel()
+
+    expect(await screen.findByText("Open job")).toBeInTheDocument()
+    expect(screen.getByText("Closed job")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: /hide closed/i }))
+
+    expect(screen.getByText("Open job")).toBeInTheDocument()
+    expect(screen.queryByText("Closed job")).not.toBeInTheDocument()
+  })
+
+  it("shows closed jobs again when the toggle is clicked a second time", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
+      jobItem({ job_id: 1, slug: "JOB-1", title: "Closed job", state: "closed" })
+    ]))
+
+    renderPanel()
+
+    await screen.findByText("Closed job")
+    fireEvent.click(screen.getByRole("button", { name: /hide closed/i }))
+    expect(screen.queryByText("Closed job")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: /show closed/i }))
+    expect(await screen.findByText("Closed job")).toBeInTheDocument()
+  })
+
+  it("hides closed children inside an epic but keeps open children visible", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
+      epicItem({
+        children: [
+          { kind: "job", job_id: 10, slug: "JOB-10", title: "Open child", state: "running", workflow_step: null, pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T12:00:00Z" },
+          { kind: "job", job_id: 11, slug: "JOB-11", title: "Closed child", state: "closed", workflow_step: null, pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T11:00:00Z" }
+        ]
+      })
+    ]))
+
+    renderPanel()
+
+    expect(await screen.findByText("Open child")).toBeInTheDocument()
+    expect(screen.getByText("Closed child")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: /hide closed/i }))
+
+    expect(screen.getByText("Open child")).toBeInTheDocument()
+    expect(screen.queryByText("Closed child")).not.toBeInTheDocument()
+    expect(screen.getByText("Aqueduct renovation")).toBeInTheDocument()
+  })
+
+  it("hides the entire epic when all its children are closed and hide is active", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
+      epicItem({
+        children: [
+          { kind: "job", job_id: 10, slug: "JOB-10", title: "Done child", state: "closed", workflow_step: null, pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T12:00:00Z" }
+        ]
+      })
+    ]))
+
+    renderPanel()
+
+    expect(await screen.findByText("Aqueduct renovation")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: /hide closed/i }))
+
+    expect(screen.queryByText("Aqueduct renovation")).not.toBeInTheDocument()
+  })
+
+  it("shows the hide-closed button when an epic has at least one closed child", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
+      epicItem({
+        children: [
+          { kind: "job", job_id: 10, slug: "JOB-10", title: "Closed child", state: "closed", workflow_step: null, pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T12:00:00Z" }
+        ]
+      })
+    ]))
+
+    renderPanel()
+
+    expect(await screen.findByRole("button", { name: /hide closed/i })).toBeInTheDocument()
   })
 })
 
