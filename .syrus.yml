@@ -68,7 +68,7 @@ grade:
       boot — it can't claim a connection per thread. Bump
       RAILS_MAX_THREADS / config/database.yml's pool, or trim the
       queue's thread count.
-    run: bin/check-thread-budget
+    run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && bin/check-thread-budget
     timeout_minutes: 1
 
   - name: feature-slugs
@@ -122,7 +122,7 @@ grade:
       Vitest first, then `tsc --noEmit` through `bin/test-react`.
       Failures here usually mean the rendered app/API contract or
       typed frontend model drifted.
-    run: bin/test-react
+    run: "[ -d node_modules ] || npm ci && bin/test-react"
     timeout_minutes: 10
 
   - name: website-build
