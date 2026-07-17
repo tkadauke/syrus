@@ -1329,69 +1329,76 @@ RSpec.describe ChatTurnJob do
   end
 
   it "records available and unavailable MCP tools while suppressing pending-only MCP health" do
-    ChatTurnJob.agent_runner = ->(log_sink:, **_) {
-      log_sink.call(
-        "[mcp_servers] syrus-chat-sidecar=pending syrus-chat-deferred-sidecar=pending",
-        kind: "system",
-        mcp_servers: [
-          { "name" => "syrus-chat-sidecar", "status" => "pending" },
-          { "name" => "syrus-chat-deferred-sidecar", "status" => "pending" }
-        ]
-      )
-      log_sink.call(
+    Dir.mktmpdir("syrus-mcp-sidecar-logs") do |dir|
+      saved_data_root = ENV["SYRUS_DATA_ROOT"]
+      ENV["SYRUS_DATA_ROOT"] = dir
+
+      ChatTurnJob.agent_runner = ->(log_sink:, **_) {
+        log_sink.call(
+          "[mcp_servers] syrus-chat-sidecar=pending syrus-chat-deferred-sidecar=pending",
+          kind: "system",
+          mcp_servers: [
+            { "name" => "syrus-chat-sidecar", "status" => "pending" },
+            { "name" => "syrus-chat-deferred-sidecar", "status" => "pending" }
+          ]
+        )
+        log_sink.call(
+          "[mcp_servers] syrus-chat-sidecar=connected syrus-chat-deferred-sidecar=connected",
+          kind: "system",
+          mcp_servers: [
+            { "name" => "syrus-chat-sidecar", "status" => "connected" },
+            { "name" => "syrus-chat-deferred-sidecar", "status" => "connected" }
+          ]
+        )
+        log_sink.call(
+          "[mcp_servers] syrus-chat-sidecar=failed syrus-chat-deferred-sidecar=failed",
+          kind: "system",
+          mcp_servers: [
+            { "name" => "syrus-chat-sidecar", "status" => "failed" },
+            { "name" => "syrus-chat-deferred-sidecar", "status" => "failed" }
+          ]
+        )
+        result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+      }
+
+      described_class.perform_now(chat.id, user_message.id)
+
+      mcp_messages = chat.messages.where(role: "system").order(:id).last(2)
+      expect(mcp_messages.map { |message| message.content["text"] }).to eq([
         "[mcp_servers] syrus-chat-sidecar=connected syrus-chat-deferred-sidecar=connected",
-        kind: "system",
-        mcp_servers: [
-          { "name" => "syrus-chat-sidecar", "status" => "connected" },
-          { "name" => "syrus-chat-deferred-sidecar", "status" => "connected" }
-        ]
+        "[mcp_servers] syrus-chat-sidecar=failed syrus-chat-deferred-sidecar=failed"
+      ])
+
+      connected, failed = mcp_messages
+      expect(connected.content.dig("mcp_health", 0)).to include(
+        "name" => "syrus-chat-sidecar",
+        "status" => "connected",
+        "available_tools" => include("propose_job", "repo_info"),
+        "pending_tools" => [],
+        "unavailable_tools" => []
       )
-      log_sink.call(
-        "[mcp_servers] syrus-chat-sidecar=failed syrus-chat-deferred-sidecar=failed",
-        kind: "system",
-        mcp_servers: [
-          { "name" => "syrus-chat-sidecar", "status" => "failed" },
-          { "name" => "syrus-chat-deferred-sidecar", "status" => "failed" }
-        ]
+      expect(connected.content.dig("mcp_health", 1)).to include(
+        "name" => "syrus-chat-deferred-sidecar",
+        "status" => "connected",
+        "available_tools" => include("draw_shape", "read_workflow"),
+        "pending_tools" => [],
+        "unavailable_tools" => []
       )
-      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
-    }
-
-    described_class.perform_now(chat.id, user_message.id)
-
-    mcp_messages = chat.messages.where(role: "system").order(:id).last(2)
-    expect(mcp_messages.map { |message| message.content["text"] }).to eq([
-      "[mcp_servers] syrus-chat-sidecar=connected syrus-chat-deferred-sidecar=connected",
-      "[mcp_servers] syrus-chat-sidecar=failed syrus-chat-deferred-sidecar=failed"
-    ])
-
-    connected, failed = mcp_messages
-    expect(connected.content.dig("mcp_health", 0)).to include(
-      "name" => "syrus-chat-sidecar",
-      "status" => "connected",
-      "available_tools" => include("propose_job", "repo_info"),
-      "pending_tools" => [],
-      "unavailable_tools" => []
-    )
-    expect(connected.content.dig("mcp_health", 1)).to include(
-      "name" => "syrus-chat-deferred-sidecar",
-      "status" => "connected",
-      "available_tools" => include("draw_shape", "read_workflow"),
-      "pending_tools" => [],
-      "unavailable_tools" => []
-    )
-    expect(failed.content.dig("mcp_health", 0)).to include(
-      "status" => "failed",
-      "available_tools" => [],
-      "pending_tools" => [],
-      "unavailable_tools" => include("propose_job", "repo_info")
-    )
-    expect(failed.content.dig("mcp_health", 1)).to include(
-      "status" => "failed",
-      "available_tools" => [],
-      "pending_tools" => [],
-      "unavailable_tools" => include("draw_shape", "read_workflow")
-    )
+      expect(failed.content.dig("mcp_health", 0)).to include(
+        "status" => "failed",
+        "available_tools" => [],
+        "pending_tools" => [],
+        "unavailable_tools" => include("propose_job", "repo_info")
+      )
+      expect(failed.content.dig("mcp_health", 1)).to include(
+        "status" => "failed",
+        "available_tools" => [],
+        "pending_tools" => [],
+        "unavailable_tools" => include("draw_shape", "read_workflow")
+      )
+    ensure
+      ENV["SYRUS_DATA_ROOT"] = saved_data_root
+    end
   end
 
   it "attaches failed MCP sidecar stderr to unavailable MCP health messages" do
