@@ -22,6 +22,12 @@
 
 ROOT = File.expand_path("..", __dir__)
 ENV["BUNDLE_GEMFILE"] ||= File.join(ROOT, "Gemfile")
+# syrus_bundle_env only overrides BUNDLE_PATH when it is unset. In a grader
+# subprocess the harness environment carries BUNDLE_PATH pointing at the
+# worker's own gem set, not the repo's vendor/bundle. Clear it so
+# syrus_bundle_env can discover and activate the right installed gems.
+ENV.delete("BUNDLE_PATH")
+ENV.delete("BUNDLE_APP_CONFIG")
 require_relative "../config/syrus_bundle_env"
 require "bundler/setup"
 require "erb"
