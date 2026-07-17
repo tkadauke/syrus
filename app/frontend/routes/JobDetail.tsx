@@ -279,7 +279,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, activeTab,
         />
       ) : null}
 
-      <TabNav active={activeTab} attachmentsCount={payload.attachments.length} workflowsCount={payload.job.workflows_count} onSelect={onSelectTab} />
+      <TabNav active={activeTab} attachmentsCount={(payload.attachments ?? []).length} workflowsCount={payload.job.workflows_count} onSelect={onSelectTab} />
 
       {activeTab === "summary" ? <SummaryTab command={command} payload={payload} prefix={prefix} queryKey={queryKey} /> : null}
       {activeTab === "workflows" ? <WorkflowsTab command={command} payload={payload} prefix={prefix} /> : null}
@@ -1334,7 +1334,7 @@ function TimelinePanel({ canView, jobId, prefix, runsCount }: { canView: boolean
 
 function AttachmentPreview({ attachments }: { attachments: JobAttachment[] }) {
   const { t } = useT("jobs")
-  if (attachments.length === 0) return null
+  if (!attachments || attachments.length === 0) return null
 
   return (
     <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">

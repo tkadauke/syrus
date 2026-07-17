@@ -5236,9 +5236,9 @@ function Attachments({ payload, queryKey, onNotice }: { payload: ChatPayload; pr
       </div>
       <section>
         <div className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">In-scope documents</div>
-        {payload.documents_in_scope.length > 0 ? (
+        {(payload.documents_in_scope ?? []).length > 0 ? (
           <div className="space-y-1">
-            {payload.documents_in_scope.map((document) => (
+            {(payload.documents_in_scope ?? []).map((document) => (
               <div className="rounded border border-gray-200 px-2 py-1.5 text-xs dark:border-gray-700" key={document.id}>
                 <div className="font-medium text-gray-800 dark:text-gray-100">{document.title}</div>
                 <div className="font-mono text-[0.7rem] text-gray-500 dark:text-gray-400">{document.repository_slug}</div>
@@ -5266,9 +5266,9 @@ function AttachmentGroup({ label, rows, queryKey, onNotice }: { label: string; r
   return (
     <section>
       <div className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{label}</div>
-      {rows.length > 0 ? (
+      {(rows ?? []).length > 0 ? (
         <div className="space-y-1">
-          {rows.map((row) => {
+          {(rows ?? []).map((row) => {
             const rowId = String(row.id)
             const pending = pendingDetachId === rowId
             return (
@@ -5412,7 +5412,7 @@ function AddAttachment({ payload, prefix, queryKey, onAttached, onNotice }: { pa
         </div>
       </div>
       <div className="space-y-0 border-t border-gray-100 dark:border-gray-800">
-        {payload.attachment_results.length > 0 ? payload.attachment_results.map((record) => (
+        {(payload.attachment_results ?? []).length > 0 ? (payload.attachment_results ?? []).map((record) => (
           <button
             className="block w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 disabled:text-gray-300 dark:text-gray-300 dark:hover:bg-blue-950 dark:hover:text-blue-200 dark:disabled:text-gray-600"
             disabled={add.isPending}

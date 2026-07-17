@@ -541,7 +541,7 @@ function DashboardTable({ payload, prefix, setupStatus }: { payload: DashboardPa
 
   if (payload.view === "kanban") return <DashboardKanban payload={payload} prefix={prefix} setupStatus={setupStatus} />
 
-  if (payload.items.length === 0) {
+  if ((payload.items ?? []).length === 0) {
     if (payload.total === 0 && payload.counts[`${payload.subject}s` as keyof DashboardPayload["counts"]] === 0) {
       const emptyState = dashboardEmptyState(payload, t)
       return (
@@ -560,10 +560,11 @@ function DashboardTable({ payload, prefix, setupStatus }: { payload: DashboardPa
   }
 
   const columns = dashboardVisibleColumns(payload)
-  if (payload.subject === "job") return <JobsDashboardTable columns={columns} items={payload.items.filter((item): item is DashboardJobItem => item.type === "job")} landingQueueEntries={payload.landing_queue.entries ?? []} prefix={prefix} sortState={sortState} t={t} />
-  if (payload.subject === "workflow") return <WorkflowsTable columns={columns} items={payload.items.filter((item): item is DashboardWorkflowItem => item.type === "workflow")} prefix={prefix} sortState={sortState} />
+  const items = payload.items ?? []
+  if (payload.subject === "job") return <JobsDashboardTable columns={columns} items={items.filter((item): item is DashboardJobItem => item.type === "job")} landingQueueEntries={payload.landing_queue.entries ?? []} prefix={prefix} sortState={sortState} t={t} />
+  if (payload.subject === "workflow") return <WorkflowsTable columns={columns} items={items.filter((item): item is DashboardWorkflowItem => item.type === "workflow")} prefix={prefix} sortState={sortState} />
 
-  return <EpicsTable columns={epicTableColumns(columns)} items={payload.items.filter((item): item is DashboardEpicItem => item.type === "epic")} prefix={prefix} sortState={sortState} />
+  return <EpicsTable columns={epicTableColumns(columns)} items={items.filter((item): item is DashboardEpicItem => item.type === "epic")} prefix={prefix} sortState={sortState} />
 }
 
 function DashboardKanban({ payload, prefix, setupStatus }: { payload: DashboardPayload; prefix: string; setupStatus: ReturnType<typeof useSetupStatus> }) {
@@ -571,7 +572,7 @@ function DashboardKanban({ payload, prefix, setupStatus }: { payload: DashboardP
   const queryClient = useQueryClient()
   const [draggedEpic, setDraggedEpic] = useState<DashboardEpicItem | null>(null)
   const [dragOverLane, setDragOverLane] = useState<string | null>(null)
-  const [optimisticLanes, setOptimisticLanes] = useState(payload.lanes)
+  const [optimisticLanes, setOptimisticLanes] = useState(payload.lanes ?? [])
   const [notice, setNotice] = useState<string | null>(null)
   const moveEpic = useMutation({
     mutationFn: ({ epic, targetState }: { epic: DashboardEpicItem; sourceState: string; targetState: string }) => updateDashboardEpicState(epic.paths.app_state_path, targetState),
@@ -585,10 +586,10 @@ function DashboardKanban({ payload, prefix, setupStatus }: { payload: DashboardP
   })
 
   useEffect(() => {
-    setOptimisticLanes(payload.lanes)
+    setOptimisticLanes(payload.lanes ?? [])
   }, [payload.lanes])
 
-  if (payload.lanes.length === 0) {
+  if ((payload.lanes ?? []).length === 0) {
     return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">{t("no_lanes")}</div>
   }
 
@@ -648,7 +649,7 @@ function DashboardKanban({ payload, prefix, setupStatus }: { payload: DashboardP
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {moveEpic.isError ? <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200" role="alert">{errorMessage(moveEpic.error, t("epic_move_error"))}</div> : null}
       <div className="select-none overflow-x-auto pb-2">
-        <div className="grid min-w-[56rem] gap-3" style={{ gridTemplateColumns: `repeat(${payload.lanes.length}, minmax(14rem, 1fr))` }}>
+        <div className="grid min-w-[56rem] gap-3" style={{ gridTemplateColumns: `repeat(${(payload.lanes ?? []).length}, minmax(14rem, 1fr))` }}>
           {optimisticLanes.map((lane) => (
             <KanbanLane
               draggingOver={dragOverLane === lane.key}
