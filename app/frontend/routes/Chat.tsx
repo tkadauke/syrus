@@ -1062,7 +1062,9 @@ function BookmarkControl({ item, payload, queryKey, onNotice }: { item: Extract<
   const [open, setOpen] = useState(false)
   const [label, setLabel] = useState("")
   const [copied, setCopied] = useState(false)
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
+  useEffect(() => () => { if (copyTimeoutRef.current !== null) clearTimeout(copyTimeoutRef.current) }, [])
   const bookmark = useMutation({
     mutationFn: () => createChatBookmark(appendSearch(payload.paths.app_bookmarks_path, search), item.id, label),
     onSuccess: (updated) => {
@@ -1083,7 +1085,8 @@ function BookmarkControl({ item, payload, queryKey, onNotice }: { item: Extract<
   function handleCopy() {
     void navigator.clipboard.writeText(item.text).then(() => {
       setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+      if (copyTimeoutRef.current !== null) clearTimeout(copyTimeoutRef.current)
+      copyTimeoutRef.current = setTimeout(() => setCopied(false), 1500)
     })
   }
 
