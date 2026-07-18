@@ -81,7 +81,7 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("## Memory")
     expect(out).to include("Use the Syrus memory MCP tools to persist facts across conversations.")
     expect(out).to include("Do NOT write to the filesystem for memory")
-    expect(out).to include("write_memory(kind, scope, name, description, content)")
+    expect(out).to include("write_memory(kind, scope, content)")
     expect(out).to include("list_memories")
     expect(out).to include("search_memories(query)")
     expect(out).to include("Recommend; don't decide.")
@@ -143,9 +143,18 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("Use the Syrus memory MCP tools to persist facts across conversations.")
     expect(out).to include("Do NOT write to the filesystem for memory")
     expect(out).to include("When to save:")
-    expect(out).to include("write_memory(kind, scope, name, description, content)")
+    expect(out).to include("write_memory(kind, scope, content)")
     expect(out).to include("publish_memory(memory_id)")
-    expect(out).to include("`user`, `feedback`, `project`, `reference`, `decision`")
+    expect(out).to include("`user_pref`, `feedback`, `project_fact`, `reference`, `decision`")
+  end
+
+  it "uses kind names that match ChatMemory::KIND" do
+    out = described_class.new(repository: repo).to_s
+
+    expect(out).to include("`user_pref`")
+    expect(out).to include("`project_fact`")
+    expect(out).not_to match(/\*\*Kinds:\*\*.*\buser\b(?!_pref)/)
+    expect(out).not_to match(/\*\*Kinds:\*\*.*\bproject\b(?!_fact)/)
   end
 
   it "renders own repository memories for attached repositories" do

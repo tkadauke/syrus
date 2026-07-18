@@ -41,9 +41,9 @@ module Prompts
         architectural choices.
 
         **Tools:**
-        - `write_memory(kind, scope, name, description, content)` -- create
-          or update. Upserts by name. `scope: global` for cross-repo facts;
-          `scope: repository` + `scope_id` for repo-specific ones.
+        - `write_memory(kind, scope, content)` -- create a memory.
+          `scope: global` for cross-repo facts; `scope: repository` +
+          `scope_id` (repository id) for repo-specific ones.
         - `list_memories` / `search_memories(query)` -- retrieve. Call when
           prior context seems relevant.
         - `read_memory(memory_id)` -- read the full content of a specific
@@ -53,7 +53,7 @@ module Prompts
         - `publish_memory(memory_id)` -- share with all users in that scope.
         - `unpublish_memory(memory_id)` -- make it private again.
 
-        **Kinds:** `user`, `feedback`, `project`, `reference`, `decision`.
+        **Kinds:** `user_pref`, `feedback`, `project_fact`, `reference`, `decision`.
 
         #{environment_snapshot}
 
