@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe SyrusChatMcp::SubmitCodingChangesTool do
+  include ActiveJob::TestHelper
+
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
@@ -160,23 +162,12 @@ RSpec.describe SyrusChatMcp::SubmitCodingChangesTool do
     expect(response.dig(:result, :content, 0, :text)).to include("not found")
   end
 
-  it "creates a Job and dispatches CodingHandoff on confirmation" do
+  it "enqueues CodingHandoffConfirmJob and leaves result nil on confirmation" do
     response = call_tool(branch: "feature/my-work", title: "Implement feature", description: "Implements the feature.")
     pending_action = chat_session.pending_actions.find(payload(response)[:pending_action_id])
 
-    allow(StepDispatcher).to receive(:start_workflow)
-    expect { pending_action.confirm!(user: user) }.not_to raise_error
+    expect { pending_action.confirm!(user: user) }.to have_enqueued_job(CodingHandoffConfirmJob).with(pending_action.id)
     expect(pending_action.reload).to be_confirmed
-    expect(pending_action.result).to be_a(Workflow)
-    expect(pending_action.result.trigger_kind).to eq("coding_handoff")
-    expect(pending_action.result.job).to have_attributes(
-      kind: "direct",
-      linked_chat_id: chat_session.id
-    )
-    expect(pending_action.result.job.branch_name).to match(%r{\Asyrus/chat-#{chat_session.id}-handoff-\d+\z})
-    expect(pending_action.result.artifact("coding_handoff")).to include(
-      "source_branch" => "feature/my-work",
-      "head_sha" => "abc123"
-    )
+    expect(pending_action.result).to be_nil
   end
 end
