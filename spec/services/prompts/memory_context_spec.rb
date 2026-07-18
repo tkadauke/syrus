@@ -56,6 +56,24 @@ RSpec.describe Prompts::MemoryContext do
     expect(output).to include("- [#{fact.id}] project_fact: This repo uses Rails.")
   end
 
+  it "ranks high-confidence memories before low-confidence ones" do
+    ChatMemory.create!(user: user, kind: "feedback", scope: "repository", scope_id: repository.id, content: "Low confidence.", confidence: 0.3)
+    ChatMemory.create!(user: user, kind: "feedback", scope: "repository", scope_id: repository.id, content: "High confidence.", confidence: 0.9)
+
+    output = described_class.new(user: user, repository_ids: [ repository.id ]).to_s
+
+    expect(output.index("High confidence.")).to be < output.index("Low confidence.")
+  end
+
+  it "ranks repository-scoped memories above global ones" do
+    ChatMemory.create!(user: user, kind: "feedback", scope: "global", content: "Global feedback.")
+    ChatMemory.create!(user: user, kind: "feedback", scope: "repository", scope_id: repository.id, content: "Repository feedback.")
+
+    output = described_class.new(user: user, repository_ids: [ repository.id ]).to_s
+
+    expect(output.index("Repository feedback.")).to be < output.index("Global feedback.")
+  end
+
   it "uses safe byte truncation for compact index content" do
     memory = create_memory(kind: "reference", content: "#{"a" * 119}€tail")
 

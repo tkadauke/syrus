@@ -410,6 +410,28 @@ RSpec.describe Prompts::ChatSystem do
     expect(out.index("Attached context:")).to be < out.index("What Syrus is")
   end
 
+  it "ranks high-confidence memories before low-confidence ones" do
+    chat = ChatSession.create!(user: repo.user, repository: repo)
+    ChatMemory.create!(user: repo.user, kind: "project_fact", scope: "global", content: "Low confidence fact.", confidence: 0.3)
+    ChatMemory.create!(user: repo.user, kind: "project_fact", scope: "global", content: "High confidence fact.", confidence: 0.9)
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(out.index("High confidence fact.")).to be < out.index("Low confidence fact.")
+  end
+
+  it "ranks repository-scoped memories above global ones when a repository is attached" do
+    chat = ChatSession.create!(user: repo.user, repository: repo)
+    attached_repo = Factories.repository(user: repo.user)
+    chat.chat_attachments.create!(attachable: attached_repo)
+    ChatMemory.create!(user: repo.user, kind: "project_fact", scope: "global", content: "Global fact.")
+    ChatMemory.create!(user: repo.user, kind: "project_fact", scope: "repository", scope_id: attached_repo.id, content: "Repository-scoped fact.")
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(out.index("Repository-scoped fact.")).to be < out.index("Global fact.")
+  end
+
   it "caps rendered memory text by byte budget" do
     chat = ChatSession.create!(user: repo.user, repository: repo)
     ChatMemory.create!(

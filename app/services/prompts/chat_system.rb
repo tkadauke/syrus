@@ -491,7 +491,7 @@ module Prompts
       return [] unless @chat_session
 
       memories = ChatMemory.visible_to(@chat_session.user, attached_repositories)
-                           .order(:scope, :kind, :created_at)
+                           .order(Arel.sql("CASE WHEN scope = 'repository' THEN 0 ELSE 1 END, confidence IS NULL ASC, confidence DESC, last_verified_at IS NULL ASC, last_verified_at DESC, created_at DESC"))
       remaining = 2.kilobytes
       rendered = 0
       total = memories.size

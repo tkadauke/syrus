@@ -12,7 +12,9 @@ module Prompts
     def to_s
       return "" unless @user
 
-      memories = ChatMemory.visible_to(@user, @repository_ids).order(:created_at, :id).to_a
+      memories = ChatMemory.visible_to(@user, @repository_ids)
+                           .order(Arel.sql("CASE WHEN scope = 'repository' THEN 0 ELSE 1 END, confidence IS NULL ASC, confidence DESC, last_verified_at IS NULL ASC, last_verified_at DESC, created_at DESC"))
+                           .to_a
       return "" if memories.empty?
 
       [
