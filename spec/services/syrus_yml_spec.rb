@@ -29,8 +29,8 @@ RSpec.describe SyrusYml do
 
     expect(config.grade.max_iterations).to eq(5)
     expect(config.grade.steps).to eq([
-      described_class::GradeStep.new(name: "tests", run: "bin/rspec", description: nil, required: true, timeout_minutes: 15),
-      described_class::GradeStep.new(name: "lint", run: "bin/rubocop", description: nil, required: true, timeout_minutes: 5)
+      described_class::GradeStep.new(name: "tests", run: "bin/rspec", description: nil, required: true, timeout_minutes: 15, when_files_changed: nil),
+      described_class::GradeStep.new(name: "lint", run: "bin/rubocop", description: nil, required: true, timeout_minutes: 5, when_files_changed: nil)
     ])
   end
 
@@ -45,7 +45,7 @@ RSpec.describe SyrusYml do
 
     expect(config.grade.max_iterations).to eq(7)
     expect(config.grade.steps).to eq([
-      described_class::GradeStep.new(name: "tests", run: "bin/rspec", description: nil, required: true, timeout_minutes: 15)
+      described_class::GradeStep.new(name: "tests", run: "bin/rspec", description: nil, required: true, timeout_minutes: 15, when_files_changed: nil)
     ])
   end
 
@@ -183,6 +183,43 @@ RSpec.describe SyrusYml do
 
     expect(config.grade.steps.first.required).to be(false)
     expect(config.grade.steps.second.required).to be(false)
+  end
+
+  it "parses when_files_changed as an array of glob patterns" do
+    config = parse(<<~YAML)
+      grade:
+        - name: website-build
+          run: npm --prefix website run build
+          when_files_changed:
+            - "website/**"
+            - "docs/**"
+        - name: rspec
+          run: bin/rspec
+    YAML
+
+    expect(config.grade.steps.first.when_files_changed).to eq(%w[website/** docs/**])
+    expect(config.grade.steps.second.when_files_changed).to be_nil
+  end
+
+  it "returns nil for when_files_changed when the key is absent" do
+    config = parse(<<~YAML)
+      grade:
+        - name: tests
+          run: bin/rspec
+    YAML
+
+    expect(config.grade.steps.first.when_files_changed).to be_nil
+  end
+
+  it "rejects a non-array when_files_changed" do
+    expect {
+      parse(<<~YAML)
+        grade:
+          - name: website-build
+            run: npm run build
+            when_files_changed: "website/**"
+      YAML
+    }.to raise_error(described_class::ParseError, /when_files_changed: must be an array/)
   end
 
   it "parses optional grader descriptions" do

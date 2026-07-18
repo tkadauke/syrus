@@ -43,6 +43,11 @@ grade:
       run: npm run typecheck
       required: false
       timeout_minutes: 10
+    - name: website-build
+      run: npm --prefix website run build
+      when_files_changed:
+        - "website/**"
+        - "docs/**"
 ```
 
 The short form (array) uses instance-wide `AppSetting.grade_max_iterations`:
@@ -62,6 +67,25 @@ grade:
 | `description` | no | — | Human-readable label |
 | `required` | no | `true` | Non-required failures warn but don't block |
 | `timeout_minutes` | no | 15 | Clamped to 30 max |
+| `when_files_changed` | no | — | Array of glob patterns; grader is skipped at fanout time if none of the PR's changed files match |
+
+### when_files_changed
+
+`when_files_changed` is an optional array of glob strings on any grader step. When set, Syrus computes the PR's changed files via `git diff --name-only <base>...HEAD` at fanout time and skips the grader if none of the changed files match any of the supplied patterns. An absent or empty list means the grader always runs.
+
+```yaml
+grade:
+  - name: website-build
+    run: npm --prefix website run build
+    when_files_changed:
+      - "website/**"
+      - "docs/**"
+  - name: rspec
+    run: bin/rspec
+    # no when_files_changed → always runs
+```
+
+Glob matching uses `File::FNM_DOTMATCH` so `*` and `**` cross directory separators — `website/**` matches any file under the `website/` directory at any depth, including dotfiles. If the git diff command fails (e.g. no commits on the branch yet), Syrus logs a warning, treats the changed-file list as empty, and skips any grader with `when_files_changed` set while still running graders without it.
 
 ### grade.max_iterations
 

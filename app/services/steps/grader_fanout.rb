@@ -29,11 +29,35 @@ module Steps
         return
       end
 
-      materialize_grader_steps!(plan.graders)
-      log("[grader_fanout] materialized #{plan.graders.size} grader Step(s)")
+      files = changed_files
+      active_graders, skipped_graders = plan.graders.partition { |g| files_match?(g, files) }
+      skipped_graders.each { |g| log("[grader_fanout] skipped #{g.name} (no matching files changed)") }
+
+      if active_graders.empty?
+        log("[grader_fanout] all graders skipped — collect Step will pass through")
+        return
+      end
+
+      materialize_grader_steps!(active_graders)
+      log("[grader_fanout] materialized #{active_graders.size} grader Step(s)")
     end
 
     private
+
+    def changed_files
+      GitRunner.new.run("diff", "--name-only", "#{default_branch_ref}...HEAD", chdir: workspace.path.to_s)
+        .split("\n").map(&:strip).reject(&:empty?)
+    rescue GitRunner::GitError => e
+      log("[grader_fanout] warning: could not determine changed files: #{e.message}")
+      []
+    end
+
+    def files_match?(grader, changed_files)
+      return true if grader.when_files_changed.nil? || grader.when_files_changed.empty?
+      changed_files.any? do |file|
+        grader.when_files_changed.any? { |pattern| File.fnmatch(pattern, file, File::FNM_DOTMATCH) }
+      end
+    end
 
     def record_plan_source!(plan)
       workflow.set_artifact!("grade_plan_source", plan.source)
@@ -85,7 +109,8 @@ module Steps
               "command" => grader.command,
               "description" => grader.description,
               "required" => grader.required,
-              "timeout_minutes" => grader.timeout_minutes
+              "timeout_minutes" => grader.timeout_minutes,
+              "when_files_changed" => grader.when_files_changed
             }
           )
         end

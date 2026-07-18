@@ -23,7 +23,7 @@ class SyrusYml
 
   Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :coverage)
   GradeConfig = Data.define(:max_iterations, :steps)
-  GradeStep = Data.define(:name, :run, :description, :required, :timeout_minutes)
+  GradeStep = Data.define(:name, :run, :description, :required, :timeout_minutes, :when_files_changed)
   HooksConfig = Data.define(:post_checkout)
   AdversarialReviewConfig = Data.define(:rounds)
   # Backward-compat aliases — point to the canonical RepoCoveragePlan types so
@@ -131,12 +131,19 @@ class SyrusYml
     run = raw["run"].to_s.strip
     raise ParseError, "#{label}.run: is required" if run.empty?
 
+    when_files_changed = raw["when_files_changed"]
+    if !when_files_changed.nil?
+      raise ParseError, "#{label}.when_files_changed: must be an array" unless when_files_changed.is_a?(Array)
+      when_files_changed = when_files_changed.map { |p| p.to_s.strip }.reject(&:empty?)
+    end
+
     GradeStep.new(
       name: name,
       run: run,
       description: raw["description"].to_s.strip.presence,
       required: raw.key?("required") ? ActiveModel::Type::Boolean.new.cast(raw["required"]) : true,
-      timeout_minutes: parse_timeout_minutes(raw.fetch("timeout_minutes", DEFAULT_GRADE_TIMEOUT_MINUTES), name)
+      timeout_minutes: parse_timeout_minutes(raw.fetch("timeout_minutes", DEFAULT_GRADE_TIMEOUT_MINUTES), name),
+      when_files_changed: when_files_changed
     )
   end
 
