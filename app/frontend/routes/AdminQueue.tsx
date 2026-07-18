@@ -166,13 +166,13 @@ function QueueTabPanel({ tab, payload }: { tab: QueueTab; payload: unknown }) {
 
   switch (tab) {
     case "active":
-      return <JobsTable emptyLabel={t("queue.no_active")} jobs={(payload as ActiveQueuePayload).jobs} showClaimed />
+      return <JobsTable emptyLabel={t("queue.no_active")} jobs={(payload as ActiveQueuePayload).jobs ?? []} showClaimed />
     case "pending":
       return <PendingTable payload={payload as PendingQueuePayload} />
     case "failed":
       return <FailuresTable payload={payload as FailedQueuePayload} />
     case "recurring":
-      return <RecurringTable tasks={(payload as RecurringQueuePayload).tasks} />
+      return <RecurringTable tasks={(payload as RecurringQueuePayload).tasks ?? []} />
     case "workers":
       return <WorkersPanel payload={payload as WorkersQueuePayload} />
   }
@@ -180,11 +180,12 @@ function QueueTabPanel({ tab, payload }: { tab: QueueTab; payload: unknown }) {
 
 function PendingTable({ payload }: { payload: PendingQueuePayload }) {
   const { t } = useT("admin")
+  const jobs = payload.jobs ?? []
 
   return (
     <>
-      <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{t("queue.showing_of", { shown: payload.jobs.length, total: payload.total })}</div>
-      <JobsTable emptyLabel={t("queue.no_queued")} jobs={payload.jobs} />
+      <div className="border-b border-gray-200 dark:border-gray-700 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{t("queue.showing_of", { shown: jobs.length, total: payload.total ?? 0 })}</div>
+      <JobsTable emptyLabel={t("queue.no_queued")} jobs={jobs} />
     </>
   )
 }
@@ -224,8 +225,9 @@ function JobsTable({ jobs, showClaimed = false, emptyLabel }: { jobs: QueueJob[]
 
 function FailuresTable({ payload }: { payload: FailedQueuePayload }) {
   const { t } = useT("admin")
+  const failures = payload.failures ?? []
 
-  if (payload.failures.length === 0) return <PanelMessage>{t("queue.no_failures", { since: formatDate(payload.since) })}</PanelMessage>
+  if (failures.length === 0) return <PanelMessage>{t("queue.no_failures", { since: formatDate(payload.since) })}</PanelMessage>
 
   return (
     <div className="overflow-x-auto">
@@ -240,7 +242,7 @@ function FailuresTable({ payload }: { payload: FailedQueuePayload }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-          {payload.failures.map((failure: QueueFailure) => (
+          {failures.map((failure: QueueFailure) => (
             <tr key={failure.id}>
               <td className="px-4 py-2 text-gray-600 dark:text-gray-300">{formatDate(failure.created_at)}</td>
               <td className="px-4 py-2 font-medium text-gray-900 dark:text-gray-100">{failure.class_name || "-"}</td>
@@ -291,8 +293,8 @@ function RecurringTable({ tasks }: { tasks: QueueRecurringTask[] }) {
 function WorkersPanel({ payload }: { payload: WorkersQueuePayload }) {
   return (
     <div className="space-y-6 p-4">
-      <WorkerTable workers={payload.workers} />
-      <ProcessTable processes={payload.all_processes} />
+      <WorkerTable workers={payload.workers ?? []} />
+      <ProcessTable processes={payload.all_processes ?? []} />
     </div>
   )
 }
