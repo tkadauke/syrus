@@ -8664,10 +8664,12 @@ describe("App", () => {
       )
     })
     expect(await screen.findByRole("main", { name: "Epic" })).toBeInTheDocument()
-    expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/epics/7",
-      expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
-    )
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/epics/7",
+        expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
+      )
+    })
   })
 
   it("renders the edit Epic form with React shell links", async () => {
