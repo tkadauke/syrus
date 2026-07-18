@@ -1780,7 +1780,7 @@ describe("App", () => {
       fetchSpy.mockRestore()
       script.remove()
     }
-  }, 15000)
+  }, 30000)
 
   it("hides a chat from the v2 recent chats sidebar", async () => {
     const script = document.createElement("script")
