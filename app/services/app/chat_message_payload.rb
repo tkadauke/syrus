@@ -88,7 +88,9 @@ module App
       epic_dependency_tokens = proposal.epic_dependency_tokens
       dependency_records = proposal.dependencies.order(:slug).reject { |dependency| epic_dependency_tokens.include?(dependency.slug) }
       epic_dependency_records = epic_dependency_json(proposal)
-      visible_dependencies = dependency_records.map { |dependency| dependency_json(dependency) } + epic_dependency_records
+      job_id_dependency_records = job_id_dependency_json(proposal)
+      epic_id_dependency_records = epic_id_dependency_json(proposal)
+      visible_dependencies = dependency_records.map { |dependency| dependency_json(dependency) } + epic_dependency_records + job_id_dependency_records + epic_id_dependency_records
       dependency_slugs = dependency_records.map(&:slug) + epic_dependency_tokens
       base = {
         id: proposal.id,
@@ -184,6 +186,42 @@ module App
             }
           end
         end
+      end
+    end
+
+    def job_id_dependency_json(proposal)
+      job_ids = proposal.depends_on_job_ids.presence
+      return [] if job_ids.blank?
+
+      job_records = proposal.chat_session.user.jobs.where(id: job_ids).index_by(&:id)
+      job_ids.filter_map { |id| job_records[id] }.map do |job|
+        {
+          slug: job.slug,
+          title: job.title,
+          state: job.state,
+          confirmed: true,
+          anchor_message_id: nil,
+          materialized_label: job.slug,
+          materialized_path: job_path(job)
+        }
+      end
+    end
+
+    def epic_id_dependency_json(proposal)
+      epic_ids = proposal.depends_on_epic_ids.presence
+      return [] if epic_ids.blank?
+
+      epic_records = proposal.chat_session.user.epics.where(id: epic_ids).index_by(&:id)
+      epic_ids.filter_map { |id| epic_records[id] }.map do |epic|
+        {
+          slug: "epic:#{epic.id}",
+          title: epic.slug,
+          display_label: epic.slug,
+          state: epic.state,
+          confirmed: true,
+          anchor_message_id: nil,
+          materialized_path: epic_path(epic)
+        }
       end
     end
 

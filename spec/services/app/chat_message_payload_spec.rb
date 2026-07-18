@@ -326,4 +326,90 @@ RSpec.describe App::ChatMessagePayload do
     expect(payload.fetch(:has_dependencies)).to be(false)
     expect(payload.fetch(:dependencies)).to eq([])
   end
+
+  it "includes depends_on_job_ids entries in visible_dependencies" do
+    job = Factories.job_record(user: user, repository: repository, issue_title: "Build search index", state: "open")
+    proposal = chat.proposals.create!(
+      repository: repository,
+      kind: "job",
+      state: "proposed",
+      slug: "chat-search-ui",
+      title: "Chat search UI",
+      body: "Expose search.",
+      depends_on_job_ids: [ job.id ]
+    )
+    message = chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal created." })
+
+    payload = described_class.messages([ message ], repository: repository).first.fetch(:proposal)
+
+    expect(payload.fetch(:has_dependencies)).to be(true)
+    expect(payload.fetch(:dependencies)).to include(
+      hash_including(
+        slug: job.slug,
+        title: job.title,
+        state: job.state,
+        confirmed: true,
+        anchor_message_id: nil,
+        materialized_label: job.slug,
+        materialized_path: "/jobs/#{job.id}"
+      )
+    )
+  end
+
+  it "includes depends_on_epic_ids entries in visible_dependencies" do
+    epic = Factories.epic(user: user, repository: repository)
+    proposal = chat.proposals.create!(
+      repository: repository,
+      kind: "job",
+      state: "proposed",
+      slug: "chat-epic-followup",
+      title: "Epic follow-up job",
+      body: "Do this after the epic.",
+      depends_on_epic_ids: [ epic.id ]
+    )
+    message = chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal created." })
+
+    payload = described_class.messages([ message ], repository: repository).first.fetch(:proposal)
+
+    expect(payload.fetch(:has_dependencies)).to be(true)
+    expect(payload.fetch(:dependencies)).to include(
+      hash_including(
+        slug: "epic:#{epic.id}",
+        title: epic.slug,
+        display_label: epic.slug,
+        state: epic.state,
+        confirmed: true,
+        anchor_message_id: nil,
+        materialized_path: "/epics/#{epic.id}"
+      )
+    )
+  end
+
+  it "still shows dependency_edges dependencies when depends_on_job_ids and depends_on_epic_ids are empty" do
+    dependency = chat.proposals.create!(
+      repository: repository,
+      kind: "job",
+      state: "confirmed",
+      slug: "upstream-task",
+      title: "Upstream task",
+      body: "Do first."
+    )
+    dependent = chat.proposals.create!(
+      repository: repository,
+      kind: "job",
+      state: "proposed",
+      slug: "downstream-task",
+      title: "Downstream task",
+      body: "Do after.",
+      depends_on_job_ids: [],
+      depends_on_epic_ids: []
+    )
+    ChatProposalDependency.create!(proposal: dependent, depends_on: dependency)
+    message = chat.messages.create!(role: "assistant", proposal: dependent, content: { "text" => "Proposal created." })
+
+    payload = described_class.messages([ message ], repository: repository).first.fetch(:proposal)
+
+    expect(payload.fetch(:has_dependencies)).to be(true)
+    expect(payload.fetch(:dependencies)).to include(hash_including(slug: "upstream-task"))
+  end
 end
