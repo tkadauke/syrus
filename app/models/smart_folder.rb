@@ -41,6 +41,11 @@ class SmartFolder < ApplicationRecord
   end
 
   JOB_BUILTINS = [
+    # Pinned at the top so operators can always reach the unfiltered list
+    # and see a live count. Uses no filter so all job kinds appear (including
+    # system/infrastructure kinds that the attention-preset folders hide).
+    { key: "all_jobs",         name: "All jobs",               visibility: :always,       filter: { "and" => [] } },
+
     # Tier 1: high-priority alerts. Each appears above the fold only
     # when populated — so an empty sidebar means there's nothing
     # urgent. When populated, they sit near the top where the
@@ -59,11 +64,7 @@ class SmartFolder < ApplicationRecord
 
     # Tier 3: historical lookups, tucked into "More" disclosure.
     { key: "stale",            name: "Stale",                  visibility: :on_demand,    filter: user_job_attention_preset_filter("stale") },
-    { key: "merged_this_week", name: "Merged this week",       visibility: :on_demand,    filter: user_job_attention_preset_filter("merged_this_week") },
-
-    # Shows every job including system/infrastructure kinds. Most folders
-    # filter these out via job_type:user; this one intentionally does not.
-    { key: "all_jobs",         name: "All jobs",               visibility: :on_demand,    filter: { "and" => [] } }
+    { key: "merged_this_week", name: "Merged this week",       visibility: :on_demand,    filter: user_job_attention_preset_filter("merged_this_week") }
   ].freeze
   BUILTIN_DEFINITIONS = JOB_BUILTINS
 

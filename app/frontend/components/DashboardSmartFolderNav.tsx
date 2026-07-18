@@ -36,10 +36,9 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
     }
   })
-  const allPath = dashboardLink(`${prefix}${subjectPath(payload.subject)}`, { view: payload.view, smart_folder_id: payload.subject === "job" ? "all" : null })
-  const allJobsSelected = payload.subject === "job" && payload.active_smart_folder_id == null && new URLSearchParams(search).get("smart_folder_id") === "all"
+  const allPath = dashboardLink(`${prefix}${subjectPath(payload.subject)}`, { view: payload.view })
   const allJobsLink = (
-    <Link className={folderClass(payload.subject === "job" ? allJobsSelected : payload.active_smart_folder_id == null)} onClick={() => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: null })} to={allPath}>
+    <Link className={folderClass(payload.active_smart_folder_id == null)} onClick={() => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: null })} to={allPath}>
       All {subjectLabel(payload.subject, 2)}
     </Link>
   )
@@ -142,11 +141,10 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
       <nav aria-label={t("smart_folders_aria")} className="space-y-1">
         {payload.subject === "job" ? null : allJobsLink}
         {primaryFolders.map((folder) => <SmartFolderLink folder={folder} key={folder.id} onSelect={() => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: folder.id })} prefix={prefix} />)}
-        {moreFolders.length > 0 || payload.subject === "job" ? (
-          <details className="space-y-1" open={allJobsSelected || moreFolders.some((folder) => folder.active) || undefined}>
+        {moreFolders.length > 0 ? (
+          <details className="space-y-1" open={moreFolders.some((folder) => folder.active) || undefined}>
             <summary className="list-none cursor-pointer px-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("smart_folder.more")}</summary>
             <div className="space-y-1">
-              {payload.subject === "job" ? allJobsLink : null}
               {moreFolders.map((folder) => <SmartFolderLink folder={folder} key={folder.id} onSelect={() => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: folder.id })} prefix={prefix} />)}
             </div>
           </details>

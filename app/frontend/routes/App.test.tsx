@@ -2683,7 +2683,7 @@ describe("App", () => {
     }
   })
 
-  it("persists and clears the selected dashboard smart folder", async () => {
+  it("persists the selected dashboard smart folder including All jobs", async () => {
     const restoreMedia = mockMediaQuery(false)
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
@@ -2694,7 +2694,30 @@ describe("App", () => {
       }
 
       return Promise.resolve(
-        new Response(JSON.stringify(dashboardPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
+        new Response(JSON.stringify(dashboardPayload({
+          smart_folders: [
+            {
+              id: 5,
+              name: "All jobs",
+              kind: "builtin",
+              subject_type: "job",
+              visibility: "always",
+              count: 0,
+              active: false,
+              path: "/dashboard/jobs?smart_folder_id=5"
+            },
+            {
+              id: 7,
+              name: "My work",
+              kind: "user_defined",
+              subject_type: "job",
+              visibility: "user_defined",
+              count: 1,
+              active: false,
+              path: "/dashboard/jobs?smart_folder_id=7"
+            }
+          ]
+        })), { status: 200, headers: { "Content-Type": "application/json" } })
       )
     })
 
@@ -2709,8 +2732,7 @@ describe("App", () => {
 
       fireEvent.click(await screen.findByText("Folders and filters"))
       fireEvent.click(screen.getByRole("link", { name: "My work 1" }))
-      fireEvent.click(screen.getByText("More"))
-      fireEvent.click(screen.getByRole("link", { name: "All jobs" }))
+      fireEvent.click(screen.getByRole("link", { name: "All jobs 0" }))
 
       await waitFor(() => {
         expect(fetchSpy).toHaveBeenCalledWith(
@@ -2724,7 +2746,7 @@ describe("App", () => {
           "/api/v1/app/dashboard/preferences",
           expect.objectContaining({
             method: "PATCH",
-            body: JSON.stringify({ subject: "job", smart_folder_id: null })
+            body: JSON.stringify({ subject: "job", smart_folder_id: 5 })
           })
         )
       })
@@ -4135,6 +4157,16 @@ describe("App", () => {
                 active_smart_folder_id: 3,
                 smart_folders: [
                   {
+                    id: 5,
+                    name: "All jobs",
+                    kind: "builtin",
+                    subject_type: "job",
+                    visibility: "always",
+                    count: 1982,
+                    active: false,
+                    path: "/dashboard/jobs?smart_folder_id=5"
+                  },
+                  {
                     id: 1,
                     name: "Inbox",
                     kind: "builtin",
@@ -4211,13 +4243,14 @@ describe("App", () => {
       expect(primaryNav).toContainElement(foldersPanel)
       expect(dashboardLink.parentElement).toContainElement(dashboardSections)
       expect(dashboardLink.parentElement).toContainElement(foldersPanel)
+      expect(within(foldersPanel).getByRole("link", { name: "All jobs 1982" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?smart_folder_id=5")
       expect(within(foldersPanel).getByRole("link", { name: "Inbox 3" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?smart_folder_id=1")
       const moreGroup = within(foldersPanel).getByText("More").closest("details")
       expect(moreGroup).not.toBeNull()
-      expect(within(moreGroup!).getByRole("link", { name: "All jobs" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?view=list&smart_folder_id=all")
+      expect(within(moreGroup!).queryByRole("link", { name: /All jobs/ })).not.toBeInTheDocument()
       expect(within(moreGroup!).getByRole("link", { name: "Stale 1" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?smart_folder_id=2")
       expect(within(moreGroup!).getByRole("link", { name: "Merged this week 0" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?smart_folder_id=3")
-      expect(within(foldersPanel).getAllByRole("link", { name: "All jobs" })).toHaveLength(1)
+      expect(within(foldersPanel).getAllByRole("link", { name: /All jobs/ })).toHaveLength(1)
       expect(screen.getByRole("button", { name: /Attention preset.*Merged this week/ })).toBeInTheDocument()
       const savedReviewLink = within(foldersPanel).getByRole("link", { name: "Saved review 2" })
       expect(savedReviewLink).toHaveAttribute("href", "/app-shell/dashboard/jobs?smart_folder_id=4")
