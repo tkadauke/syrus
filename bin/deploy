@@ -144,8 +144,22 @@ fi
 # of headroom.
 ROLLOUT_TIMEOUT="${ROLLOUT_TIMEOUT:-15m}"
 
+# Ensure the search-database volume is writable by the Rails user on the named
+# K8s deployment. Named PVC/named-volume mounts are root-owned by default;
+# setting fsGroup 1000 triggers kernel-level group ownership on attach so the
+# Rails process can create/write the SQLite file at boot. fsGroupChangePolicy
+# OnRootMismatch limits the ownership pass to volumes that are not already
+# correctly owned — fast on restarts after the first run.
+patch_search_mount() {
+  local kubeconfig="$1" namespace="$2" deployment="$3" readonly_flag="$4"
+  echo "→ ${deployment}: patching search volume securityContext (readOnly=${readonly_flag})"
+  KUBECONFIG="$kubeconfig" kubectl patch deployment "$deployment" -n "$namespace" \
+    --type merge -p '{"spec":{"template":{"spec":{"securityContext":{"fsGroup": 1000,"fsGroupChangePolicy": "OnRootMismatch"}}}}}' >/dev/null
+}
+
 rollout() {
   local label="$1" kubeconfig="$2" namespace="$3"
+  patch_search_mount "$kubeconfig" "$namespace" "syrus-web" "false"
   flux_suspend_with_watchdog "$kubeconfig" "$label"
   echo "→ ${label}: rollout restart in ${namespace}"
   KUBECONFIG="$kubeconfig" kubectl rollout restart -n "$namespace" "${DEPLOYMENTS[@]}"
