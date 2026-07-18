@@ -347,7 +347,7 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
       repository: repository, sha: "abc123", grader_health: "healthy", workflow: workflow
     )
     check_without = MainBranchHealthCheck.record_ci_poll(
-      repository: repository, sha: "abc123", ci_health: "healthy"
+      repository: repository, sha: "def456", ci_health: "healthy"
     )
 
     get "/api/v1/app/repositories/#{repository.id}"

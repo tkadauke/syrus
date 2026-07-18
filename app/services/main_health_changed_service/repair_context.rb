@@ -186,7 +186,7 @@ class MainHealthChangedService
     end
 
     def build_grader_log_attachment(sha, checks)
-      sections = checks.select { |check| check.source == "grader_workflow" }.filter_map do |check|
+      sections = checks.select { |check| check.workflow.present? || Array(check.grader_failed_names).compact_blank.any? }.filter_map do |check|
         grader_check_section(check)
       end
 

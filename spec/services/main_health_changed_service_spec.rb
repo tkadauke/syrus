@@ -845,8 +845,10 @@ RSpec.describe MainHealthChangedService do
         ci_health: "healthy",
         grader_health: "healthy"
       )
-      expect(MainBranchHealthCheck.where(repository: repository, sha: "fixed456", source: "ci_poll", ci_health: "healthy")).to exist
-      expect(MainBranchHealthCheck.where(repository: repository, sha: "fixed456", source: "grader_workflow", grader_health: "healthy", workflow: workflow)).to exist
+      merged = MainBranchHealthCheck.where(repository: repository, sha: "fixed456", ci_health: "healthy", grader_health: "healthy")
+      expect(merged).to exist
+      expect(merged.count).to eq(1)
+      expect(merged.first.workflow).to eq(workflow)
       expect(Notification.last).to have_attributes(user: user, kind: "main_recovered")
     end
 
