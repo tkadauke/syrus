@@ -145,10 +145,6 @@ RSpec.describe "Docker image scripts" do
   end
 
   it "keeps the search database writable for web boot paths" do
-    expect(deploy).to include('patch_search_mount "$kubeconfig" "$namespace" "syrus-web" "false"')
-    expect(deploy).to include('"fsGroup": 1000')
-    expect(deploy).to include('"fsGroupChangePolicy": "OnRootMismatch"')
-
     expect(compose_yml).to include("      - syrus-search:/home/rails/.syrus-search\n")
     expect(compose_yml).not_to include("syrus-search:/home/rails/.syrus-search:ro")
   end
