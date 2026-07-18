@@ -57,7 +57,7 @@ describe("EpicPreviewCard", () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(epicPayload()))
     renderCard(7)
     await waitFor(() => expect(screen.getByText("Onboarding flow")).toBeInTheDocument())
-    expect(screen.getByText("EPIC-7")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy EPIC-7 to clipboard" })).toBeInTheDocument()
     expect(screen.getByText("in progress")).toBeInTheDocument()
   })
 

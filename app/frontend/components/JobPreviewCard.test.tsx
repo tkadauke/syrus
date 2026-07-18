@@ -37,7 +37,7 @@ describe("JobPreviewCard", () => {
     }))
     renderCard(42)
     await waitFor(() => expect(screen.getByText("Add dark mode")).toBeInTheDocument())
-    expect(screen.getByText("JOB-42")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy JOB-42 to clipboard" })).toBeInTheDocument()
     expect(screen.getByText("open")).toBeInTheDocument()
   })
 

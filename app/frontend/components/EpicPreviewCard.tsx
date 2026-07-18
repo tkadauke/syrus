@@ -3,6 +3,7 @@ import { Link } from "react-router-dom"
 import type { EpicDetailJob } from "../api/epics"
 import { fetchEpicDetail } from "../api/epics"
 import { useT } from "../hooks/useT"
+import { CopyableSlug } from "./CopyableSlug"
 import { StatusPill } from "./StatusPill"
 
 const PROGRESS_SEGMENTS = [
@@ -54,7 +55,7 @@ export function EpicPreviewCard({ id }: { id: number }) {
   return (
     <div className="w-80 rounded-lg border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900">
       <div className="mb-2 flex items-center gap-2">
-        <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{epic.display_number}</span>
+        <CopyableSlug className="text-xs" slug={epic.display_number} />
         <StatusPill state={epic.state} />
       </div>
       <p className="mb-2 text-sm font-medium text-gray-900 dark:text-gray-100">{epic.title}</p>
