@@ -117,28 +117,27 @@ RSpec.describe MainBranchHealthCheck do
       expect(check.ci_failed_checks).to be_nil
     end
 
-    it "returns the existing record for an identical CI signal" do
-      failed_checks = [{ name: "RSpec", url: "https://github.com/check/42" }]
+    it "updates the existing record when called again for the same SHA" do
       first = MainBranchHealthCheck.record_ci_poll(
         repository: repository,
         sha: "abc",
         ci_health: "broken",
-        ci_failed_checks: failed_checks
+        ci_failed_checks: [{ name: "RSpec", url: "https://github.com/check/42" }]
       )
 
-      second = nil
+      updated = nil
       expect {
-        second = MainBranchHealthCheck.record_ci_poll(
+        updated = MainBranchHealthCheck.record_ci_poll(
           repository: repository,
           sha: "abc",
           ci_health: "broken",
-          ci_failed_checks: failed_checks
+          ci_failed_checks: [{ name: "RSpec", url: "https://github.com/check/42" }]
         )
       }.not_to change(MainBranchHealthCheck, :count)
-      expect(second).to eq(first)
+      expect(updated).to eq(first)
     end
 
-    it "creates a new record when CI failures change" do
+    it "updates ci fields in place when CI failures change" do
       MainBranchHealthCheck.record_ci_poll(
         repository: repository,
         sha: "abc",
@@ -146,13 +145,52 @@ RSpec.describe MainBranchHealthCheck do
         ci_failed_checks: [{ name: "RSpec" }]
       )
 
+      updated = nil
       expect {
-        MainBranchHealthCheck.record_ci_poll(
+        updated = MainBranchHealthCheck.record_ci_poll(
           repository: repository,
           sha: "abc",
           ci_health: "broken",
           ci_failed_checks: [{ name: "React" }]
         )
+      }.not_to change(MainBranchHealthCheck, :count)
+      expect(updated.ci_failed_checks).to eq([{ "name" => "React" }])
+    end
+
+    it "merges ci data onto an existing grader_workflow row for the same SHA" do
+      repository.update!(ci_health: "unknown", grader_health: "unknown")
+      grader_row = MainBranchHealthCheck.record_grader_workflow(
+        repository: repository, sha: "cafe", grader_health: "healthy"
+      )
+
+      merged = nil
+      expect {
+        merged = MainBranchHealthCheck.record_ci_poll(
+          repository: repository, sha: "cafe", ci_health: "broken",
+          ci_failed_checks: [{ name: "tests" }]
+        )
+      }.not_to change(MainBranchHealthCheck, :count)
+
+      expect(merged).to eq(grader_row)
+      expect(merged.source).to eq("grader_workflow")
+      expect(merged.ci_health).to eq("broken")
+      expect(merged.ci_failed_checks).to eq([{ "name" => "tests" }])
+      expect(merged.grader_health).to eq("healthy")
+    end
+
+    it "creates a separate row for a different SHA" do
+      MainBranchHealthCheck.record_ci_poll(repository: repository, sha: "abc", ci_health: "healthy")
+
+      expect {
+        MainBranchHealthCheck.record_ci_poll(repository: repository, sha: "def", ci_health: "broken")
+      }.to change(MainBranchHealthCheck, :count).by(1)
+    end
+
+    it "does not merge onto concern_quorum rows" do
+      MainBranchHealthCheck.record_concern_quorum(repository: repository, sha: "abc")
+
+      expect {
+        MainBranchHealthCheck.record_ci_poll(repository: repository, sha: "abc", ci_health: "healthy")
       }.to change(MainBranchHealthCheck, :count).by(1)
     end
   end
@@ -196,7 +234,7 @@ RSpec.describe MainBranchHealthCheck do
       expect(check.workflow).to be_nil
     end
 
-    it "returns the existing record for an identical grader workflow signal" do
+    it "updates the existing record when called again for the same SHA" do
       workflow = Factories.job(repository: repository).workflows.first
       first = MainBranchHealthCheck.record_grader_workflow(
         repository: repository,
@@ -206,9 +244,9 @@ RSpec.describe MainBranchHealthCheck do
         grader_failed_names: [ "rspec" ]
       )
 
-      second = nil
+      updated = nil
       expect {
-        second = MainBranchHealthCheck.record_grader_workflow(
+        updated = MainBranchHealthCheck.record_grader_workflow(
           repository: repository,
           workflow: workflow,
           sha: "abc",
@@ -216,10 +254,10 @@ RSpec.describe MainBranchHealthCheck do
           grader_failed_names: [ "rspec" ]
         )
       }.not_to change(MainBranchHealthCheck, :count)
-      expect(second).to eq(first)
+      expect(updated).to eq(first)
     end
 
-    it "keeps separate grader records for separate workflows" do
+    it "updates grader fields in place when a different workflow runs for the same SHA" do
       first_workflow = Factories.job(repository: repository).workflows.first
       second_workflow = Factories.job(repository: repository).workflows.first
       MainBranchHealthCheck.record_grader_workflow(
@@ -230,15 +268,100 @@ RSpec.describe MainBranchHealthCheck do
         grader_failed_names: [ "rspec" ]
       )
 
+      updated = nil
       expect {
-        MainBranchHealthCheck.record_grader_workflow(
+        updated = MainBranchHealthCheck.record_grader_workflow(
           repository: repository,
           workflow: second_workflow,
           sha: "abc",
-          grader_health: "broken",
-          grader_failed_names: [ "rspec" ]
+          grader_health: "healthy",
+          grader_failed_names: nil
+        )
+      }.not_to change(MainBranchHealthCheck, :count)
+      expect(updated.workflow).to eq(second_workflow)
+      expect(updated.grader_health).to eq("healthy")
+    end
+
+    it "merges grader data onto an existing ci_poll row for the same SHA" do
+      repository.update!(ci_health: "unknown", grader_health: "unknown")
+      ci_row = MainBranchHealthCheck.record_ci_poll(
+        repository: repository, sha: "dead", ci_health: "broken",
+        ci_failed_checks: [{ name: "tests" }]
+      )
+
+      merged = nil
+      expect {
+        merged = MainBranchHealthCheck.record_grader_workflow(
+          repository: repository, sha: "dead", grader_health: "healthy"
+        )
+      }.not_to change(MainBranchHealthCheck, :count)
+
+      expect(merged).to eq(ci_row)
+      expect(merged.source).to eq("ci_poll")
+      expect(merged.grader_health).to eq("healthy")
+      expect(merged.ci_health).to eq("broken")
+      expect(merged.ci_failed_checks).to eq([{ "name" => "tests" }])
+    end
+
+    it "does not merge onto concern_quorum rows" do
+      MainBranchHealthCheck.record_concern_quorum(repository: repository, sha: "abc")
+
+      expect {
+        MainBranchHealthCheck.record_grader_workflow(
+          repository: repository, sha: "abc", grader_health: "healthy"
         )
       }.to change(MainBranchHealthCheck, :count).by(1)
+    end
+  end
+
+  describe "cross-source deduplication" do
+    it "produces one row when ci_poll arrives before grader_workflow" do
+      repository.update!(ci_health: "unknown", grader_health: "unknown")
+
+      MainBranchHealthCheck.record_ci_poll(
+        repository: repository, sha: "abcdef", ci_health: "broken",
+        ci_failed_checks: [{ name: "rspec" }]
+      )
+      MainBranchHealthCheck.record_grader_workflow(
+        repository: repository, sha: "abcdef", grader_health: "broken",
+        grader_failed_names: ["rubocop"]
+      )
+
+      checks = MainBranchHealthCheck.where(repository: repository, sha: "abcdef")
+      expect(checks.count).to eq(1)
+      row = checks.first
+      expect(row.ci_health).to eq("broken")
+      expect(row.grader_health).to eq("broken")
+      expect(row.ci_failed_checks).to eq([{ "name" => "rspec" }])
+      expect(row.grader_failed_names).to eq(["rubocop"])
+    end
+
+    it "produces one row when grader_workflow arrives before ci_poll" do
+      repository.update!(ci_health: "unknown", grader_health: "unknown")
+
+      MainBranchHealthCheck.record_grader_workflow(
+        repository: repository, sha: "fedcba", grader_health: "healthy"
+      )
+      MainBranchHealthCheck.record_ci_poll(
+        repository: repository, sha: "fedcba", ci_health: "healthy"
+      )
+
+      checks = MainBranchHealthCheck.where(repository: repository, sha: "fedcba")
+      expect(checks.count).to eq(1)
+      row = checks.first
+      expect(row.ci_health).to eq("healthy")
+      expect(row.grader_health).to eq("healthy")
+    end
+
+    it "creates a separate row for a different SHA" do
+      MainBranchHealthCheck.record_ci_poll(repository: repository, sha: "sha1", ci_health: "healthy")
+      MainBranchHealthCheck.record_grader_workflow(repository: repository, sha: "sha1", grader_health: "healthy")
+
+      expect {
+        MainBranchHealthCheck.record_ci_poll(repository: repository, sha: "sha2", ci_health: "broken")
+      }.to change(MainBranchHealthCheck, :count).by(1)
+
+      expect(MainBranchHealthCheck.where(repository: repository).count).to eq(2)
     end
   end
 
@@ -291,6 +414,91 @@ RSpec.describe MainBranchHealthCheck do
       described_class.record_grader_workflow(repository: repository, sha: "abc", grader_health: "healthy")
 
       expect(described_class.conclusive_grader_result_exists?(repository: repository, sha: "def")).to be(false)
+    end
+
+    it "returns true on a merged row created by ci_poll then grader_workflow" do
+      described_class.record_ci_poll(repository: repository, sha: "abc", ci_health: "broken")
+      described_class.record_grader_workflow(repository: repository, sha: "abc", grader_health: "healthy")
+
+      expect(described_class.conclusive_grader_result_exists?(repository: repository, sha: "abc")).to be(true)
+    end
+  end
+
+  describe ".settled_ci_result_exists?" do
+    it "returns true for a healthy ci result" do
+      described_class.record_ci_poll(repository: repository, sha: "abc", ci_health: "healthy")
+
+      expect(described_class.settled_ci_result_exists?(repository: repository, sha: "abc")).to be(true)
+    end
+
+    it "returns true for a broken ci result" do
+      described_class.record_ci_poll(repository: repository, sha: "abc", ci_health: "broken")
+
+      expect(described_class.settled_ci_result_exists?(repository: repository, sha: "abc")).to be(true)
+    end
+
+    it "returns true for a not_configured ci result" do
+      described_class.record_ci_poll(repository: repository, sha: "abc", ci_health: "not_configured")
+
+      expect(described_class.settled_ci_result_exists?(repository: repository, sha: "abc")).to be(true)
+    end
+
+    it "returns false when ci_health is unknown" do
+      described_class.record_ci_poll(repository: repository, sha: "abc", ci_health: "unknown")
+
+      expect(described_class.settled_ci_result_exists?(repository: repository, sha: "abc")).to be(false)
+    end
+
+    it "does not match another SHA" do
+      described_class.record_ci_poll(repository: repository, sha: "abc", ci_health: "healthy")
+
+      expect(described_class.settled_ci_result_exists?(repository: repository, sha: "def")).to be(false)
+    end
+
+    it "returns true on a merged row created by grader_workflow then ci_poll" do
+      described_class.record_grader_workflow(repository: repository, sha: "abc", grader_health: "healthy")
+      described_class.record_ci_poll(repository: repository, sha: "abc", ci_health: "broken")
+
+      expect(described_class.settled_ci_result_exists?(repository: repository, sha: "abc")).to be(true)
+    end
+  end
+
+  describe ".settled_grader_result_exists?" do
+    it "returns true for a healthy grader result" do
+      described_class.record_grader_workflow(repository: repository, sha: "abc", grader_health: "healthy")
+
+      expect(described_class.settled_grader_result_exists?(repository: repository, sha: "abc")).to be(true)
+    end
+
+    it "returns true for a broken grader result" do
+      described_class.record_grader_workflow(repository: repository, sha: "abc", grader_health: "broken")
+
+      expect(described_class.settled_grader_result_exists?(repository: repository, sha: "abc")).to be(true)
+    end
+
+    it "returns true for an inconclusive grader result" do
+      described_class.record_grader_workflow(repository: repository, sha: "abc", grader_health: "inconclusive")
+
+      expect(described_class.settled_grader_result_exists?(repository: repository, sha: "abc")).to be(true)
+    end
+
+    it "returns false when grader_health is unknown" do
+      described_class.record_grader_workflow(repository: repository, sha: "abc", grader_health: "unknown")
+
+      expect(described_class.settled_grader_result_exists?(repository: repository, sha: "abc")).to be(false)
+    end
+
+    it "does not match another SHA" do
+      described_class.record_grader_workflow(repository: repository, sha: "abc", grader_health: "healthy")
+
+      expect(described_class.settled_grader_result_exists?(repository: repository, sha: "def")).to be(false)
+    end
+
+    it "returns true on a merged row created by ci_poll then grader_workflow" do
+      described_class.record_ci_poll(repository: repository, sha: "abc", ci_health: "broken")
+      described_class.record_grader_workflow(repository: repository, sha: "abc", grader_health: "broken")
+
+      expect(described_class.settled_grader_result_exists?(repository: repository, sha: "abc")).to be(true)
     end
   end
 
