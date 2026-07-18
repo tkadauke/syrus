@@ -6,7 +6,7 @@
 #     their compose project label (covers compose v1 underscore and v2
 #     hyphen container names alike) and removed by ID; unless --keep-data, the
 #     data volumes go too — found by the same label PLUS the known names
-#     (syrus_syrus-data, syrus_syrus-search) as a fallback. Teardown is
+#     (syrus_syrus-data, syrus_syrus-search, syrus_syrus-mise-cache) as a fallback. Teardown is
 #     VERIFIED by re-listing afterwards; anything left behind is reported
 #     honestly (step status `failed`) and the script exits 3
 #   - images whose repository BASENAME is exactly `syrus-backend` or
@@ -174,7 +174,7 @@ export COMPOSE_PROJECT_NAME=syrus
 # the reliable way to enumerate the stack regardless of container naming
 # scheme (v1 `syrus_web_1` underscores vs v2 hyphens).
 COMPOSE_LABEL_FILTER="label=com.docker.compose.project=syrus"
-KNOWN_VOLUMES="syrus_syrus-data syrus_syrus-search"
+KNOWN_VOLUMES="syrus_syrus-data syrus_syrus-search syrus_syrus-mise-cache"
 
 docker_ready=0
 if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
@@ -293,8 +293,8 @@ if [ "$docker_ready" = "1" ]; then
     info "Docker: stop and remove the syrus containers (volumes KEPT: --keep-data)"
   else
     info "Docker: remove the syrus containers AND the data volumes (found by"
-    info "        compose label; known names syrus_syrus-data, syrus_syrus-search"
-    info "        as a fallback) — verified by re-listing after teardown"
+    info "        compose label; known names syrus_syrus-data, syrus_syrus-search,"
+    info "        syrus_syrus-mise-cache as a fallback) — verified by re-listing after teardown"
   fi
   info "Docker images: syrus-backend and syrus-local images (exact repository"
   info "               basename, any registry) — plain docker rmi per tag, never -f"

@@ -5,7 +5,7 @@
 #     their compose project label (covers compose v1 underscore and v2
 #     hyphen container names alike) and removed by ID; unless --keep-data, the
 #     data volumes go too - found by the same label PLUS the known names
-#     (syrus_syrus-data, syrus_syrus-search) as a fallback. Teardown is
+#     (syrus_syrus-data, syrus_syrus-search, syrus_syrus-mise-cache) as a fallback. Teardown is
 #     VERIFIED by re-listing afterwards; anything left behind is reported
 #     honestly (step status `failed`) and the script exits 3
 #   - images whose repository BASENAME is exactly `syrus-backend` or
@@ -404,7 +404,7 @@ $runOncePath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce"
 # `syrus_` volume prefix stable for docker-compose v1 and odd invocation dirs.
 $env:COMPOSE_PROJECT_NAME = "syrus"
 $script:ComposeLabelFilter = "label=com.docker.compose.project=syrus"
-$script:KnownVolumes = @("syrus_syrus-data", "syrus_syrus-search")
+$script:KnownVolumes = @("syrus_syrus-data", "syrus_syrus-search", "syrus_syrus-mise-cache")
 
 $dockerReady = Test-DockerDaemon
 
@@ -416,8 +416,8 @@ if ($dockerReady) {
     Write-Info "Docker: stop and remove the syrus containers (volumes KEPT: --keep-data)"
   } else {
     Write-Info "Docker: remove the syrus containers AND the data volumes (found by"
-    Write-Info "        compose label; known names syrus_syrus-data, syrus_syrus-search"
-    Write-Info "        as a fallback) - verified by re-listing after teardown"
+    Write-Info "        compose label; known names syrus_syrus-data, syrus_syrus-search,"
+    Write-Info "        syrus_syrus-mise-cache as a fallback) - verified by re-listing after teardown"
   }
   Write-Info "Docker images: syrus-backend and syrus-local images (exact repository"
   Write-Info "               basename, any registry) - plain docker rmi per tag, never -f"

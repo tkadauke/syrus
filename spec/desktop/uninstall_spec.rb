@@ -54,7 +54,7 @@ RSpec.describe "uninstall scripts" do
     containers = File.join(dir, "containers.txt")
     volumes = File.join(dir, "volumes.txt")
     File.write(containers, "cid-web\ncid-worker\ncid-setup\n")
-    File.write(volumes, "syrus_syrus-data\nsyrus_syrus-search\n")
+    File.write(volumes, "syrus_syrus-data\nsyrus_syrus-mise-cache\nsyrus_syrus-search\n")
     volume_rm_body =
       if stuck_volumes
         "exit 1"
@@ -208,7 +208,7 @@ RSpec.describe "uninstall scripts" do
           # Volumes by label PLUS the known names as a fallback, then verified.
           expect(calls).to include("volume ls -q --filter label=com.docker.compose.project=syrus")
           expect(calls).to include("volume inspect syrus_syrus-data")
-          expect(calls).to include("volume rm syrus_syrus-data syrus_syrus-search")
+          expect(calls).to include("volume rm syrus_syrus-data syrus_syrus-mise-cache syrus_syrus-search")
           # Images are removed per repo:tag with a plain rmi — never -f (that
           # would untag every tag sharing the ID) — matched by exact repository
           # basename under any registry; my-syrus-backend and nginx survive.
@@ -564,7 +564,7 @@ RSpec.describe "uninstall scripts" do
       [
         "-p", "syrus",
         "label=com.docker.compose.project=syrus",
-        "syrus_syrus-data", "syrus_syrus-search",
+        "syrus_syrus-data", "syrus_syrus-search", "syrus_syrus-mise-cache",
         "--remove-orphans"
       ].each do |token|
         expect(script_text).to include(token), "uninstall.sh: missing #{token.inspect}"
