@@ -310,6 +310,85 @@ RSpec.describe App::ChatMessagePayload do
     )
   end
 
+  it "uses the job title as label for submit_coding_changes pending actions" do
+    action = chat.pending_actions.create!(
+      action: "submit_coding_changes",
+      requested_by: "agent",
+      payload: {
+        "repository_id" => repository.id,
+        "branch" => "syrus/chat-42-handoff-7",
+        "title" => "Add dark mode toggle",
+        "description" => "Implemented a dark mode toggle in the settings panel."
+      }
+    )
+    message = chat.messages.create!(role: "assistant", pending_action: action, content: { "text" => "Submit?" })
+
+    payload = described_class.messages([ message ], repository: repository).first.fetch(:pending_action)
+
+    expect(payload.fetch(:label)).to eq("Add dark mode toggle")
+  end
+
+  it "includes branch, steps, and description in detail for submit_coding_changes pending actions" do
+    action = chat.pending_actions.create!(
+      action: "submit_coding_changes",
+      requested_by: "agent",
+      payload: {
+        "repository_id" => repository.id,
+        "branch" => "syrus/chat-42-handoff-7",
+        "title" => "Add dark mode toggle",
+        "description" => "Implemented a dark mode toggle in the settings panel."
+      }
+    )
+    message = chat.messages.create!(role: "assistant", pending_action: action, content: { "text" => "Submit?" })
+
+    payload = described_class.messages([ message ], repository: repository).first.fetch(:pending_action)
+
+    expect(payload.fetch(:detail)).to include("**Branch:** syrus/chat-42-handoff-7")
+    expect(payload.fetch(:detail)).to include("Push branch to GitHub using server-side credentials")
+    expect(payload.fetch(:detail)).to include("Create a new direct Job")
+    expect(payload.fetch(:detail)).to include("`coding_handoff` workflow")
+    expect(payload.fetch(:detail)).to include("---")
+    expect(payload.fetch(:detail)).to include("Implemented a dark mode toggle in the settings panel.")
+  end
+
+  it "includes repository slug and path as resource fields for submit_coding_changes pending actions" do
+    action = chat.pending_actions.create!(
+      action: "submit_coding_changes",
+      requested_by: "agent",
+      payload: {
+        "repository_id" => repository.id,
+        "branch" => "syrus/chat-42-handoff-7",
+        "title" => "Add dark mode toggle",
+        "description" => "Implemented a dark mode toggle in the settings panel."
+      }
+    )
+    message = chat.messages.create!(role: "assistant", pending_action: action, content: { "text" => "Submit?" })
+
+    payload = described_class.messages([ message ], repository: repository).first.fetch(:pending_action)
+
+    expect(payload.fetch(:resource_title)).to eq("acme/widgets")
+    expect(payload.fetch(:resource_url)).to eq("/repositories/#{repository.id}")
+  end
+
+  it "omits resource fields for submit_coding_changes when the repository is not found" do
+    action = chat.pending_actions.create!(
+      action: "submit_coding_changes",
+      requested_by: "agent",
+      payload: {
+        "repository_id" => 999_999,
+        "branch" => "syrus/chat-42-handoff-7",
+        "title" => "Add dark mode toggle",
+        "description" => "Implemented a dark mode toggle in the settings panel."
+      }
+    )
+    message = chat.messages.create!(role: "assistant", pending_action: action, content: { "text" => "Submit?" })
+
+    payload = described_class.messages([ message ], repository: repository).first.fetch(:pending_action)
+
+    expect(payload).not_to have_key(:resource_title)
+    expect(payload).not_to have_key(:resource_url)
+  end
+
   it "returns empty dependency details when a proposal has no dependencies" do
     proposal = chat.proposals.create!(
       repository: repository,

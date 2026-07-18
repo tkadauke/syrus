@@ -74,6 +74,12 @@ module App
         else
           base
         end
+      when "submit_coding_changes"
+        if (repo = action.user.repositories.active.find_by(id: payload["repository_id"]))
+          base.merge(resource_title: repo.slug, resource_url: repository_path(repo))
+        else
+          base
+        end
       else
         base
       end
@@ -268,6 +274,8 @@ module App
         "Submit feedback on #{::App::Presentation.job_slug(payload['job_id'])}"
       when "reopen_epic_and_attach_job"
         "Reopen Epic ##{payload['epic_id']} and attach #{::App::Presentation.job_slug(payload['job_id'])}"
+      when "submit_coding_changes"
+        payload["title"].presence || action.action_type.to_s.humanize
       else
         payload["label"].presence || action.action_type.to_s.humanize
       end
@@ -283,6 +291,17 @@ module App
           [ payload["label"], payload["cron_expression"] ].compact_blank.join(" — ").presence,
           payload["prompt"].presence
         ].compact.join("\n\n").presence
+      when "submit_coding_changes"
+        branch = payload["branch"].presence
+        description = payload["description"].presence
+        steps = <<~MARKDOWN.strip
+          **Branch:** #{branch}
+
+          1. Push branch to GitHub using server-side credentials
+          2. Create a new direct Job
+          3. Run the `coding_handoff` workflow (graders → summarize → PR open)
+        MARKDOWN
+        [ steps, description ].compact.join("\n\n---\n\n")
       end
     end
 
