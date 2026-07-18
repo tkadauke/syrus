@@ -29,7 +29,15 @@ module SyrusMcp
           id: memory.id,
           kind: memory.kind,
           scope: memory.scope,
+          scope_id: memory.scope_id,
           content: memory.content,
+          source_type: memory.source_type,
+          source_id: memory.source_id,
+          author: memory.author,
+          confidence: memory.confidence,
+          last_verified_at: memory.last_verified_at&.iso8601,
+          expires_at: memory.expires_at&.iso8601,
+          visibility: memory.visibility,
           created_at: memory.created_at.iso8601
         }
 

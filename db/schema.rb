@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_18_012421) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_18_220254) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -130,21 +130,46 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_18_012421) do
   end
 
   create_table "chat_memories", force: :cascade do |t|
+    t.string "author"
+    t.float "confidence"
     t.text "content", null: false
     t.datetime "created_at", null: false
     t.datetime "deleted_at"
     t.integer "deleted_by_user_id"
     t.binary "embedding"
+    t.datetime "expires_at"
     t.string "kind", null: false
+    t.datetime "last_verified_at"
     t.boolean "published", default: false, null: false
     t.string "scope", null: false
     t.bigint "scope_id"
+    t.bigint "source_id"
+    t.string "source_type"
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.string "visibility"
     t.index ["deleted_at"], name: "index_chat_memories_on_deleted_at"
     t.index ["deleted_by_user_id"], name: "index_chat_memories_on_deleted_by_user_id"
     t.index ["scope_id", "published", "scope"], name: "index_chat_memories_on_scope_id_and_published_and_scope"
     t.index ["user_id", "scope", "scope_id"], name: "index_chat_memories_on_user_id_and_scope_and_scope_id"
+  end
+
+  create_table "chat_memory_audit_events", force: :cascade do |t|
+    t.string "actor_kind", null: false
+    t.integer "actor_run_id"
+    t.integer "actor_user_id"
+    t.integer "chat_memory_id", null: false
+    t.datetime "created_at", null: false
+    t.string "event_type", null: false
+    t.float "new_confidence"
+    t.text "new_content"
+    t.string "new_kind"
+    t.float "previous_confidence"
+    t.text "previous_content"
+    t.string "previous_kind"
+    t.index ["actor_run_id"], name: "index_chat_memory_audit_events_on_actor_run_id"
+    t.index ["actor_user_id"], name: "index_chat_memory_audit_events_on_actor_user_id"
+    t.index ["chat_memory_id"], name: "index_chat_memory_audit_events_on_chat_memory_id"
   end
 
   create_table "chat_messages", force: :cascade do |t|
@@ -1323,6 +1348,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_18_012421) do
   add_foreign_key "chat_bookmarks", "chat_messages"
   add_foreign_key "chat_memories", "users"
   add_foreign_key "chat_memories", "users", column: "deleted_by_user_id"
+  add_foreign_key "chat_memory_audit_events", "chat_memories"
+  add_foreign_key "chat_memory_audit_events", "runs", column: "actor_run_id"
+  add_foreign_key "chat_memory_audit_events", "users", column: "actor_user_id"
   add_foreign_key "chat_messages", "chat_pending_actions", column: "pending_action_id"
   add_foreign_key "chat_messages", "chat_proposals", column: "proposal_id"
   add_foreign_key "chat_messages", "chat_sessions"

@@ -12,7 +12,7 @@ module SyrusChatMcp
       properties: {
         content: { type: "string", description: "Memory content." },
         kind: { type: "string", enum: ChatMemory::KIND, description: "Memory kind." },
-        scope: { type: "string", enum: ChatMemory::SCOPE, description: "Memory scope: global or repository." },
+        scope: { type: "string", enum: ChatMemory::TOOL_SCOPES, description: "Memory scope: global or repository." },
         scope_id: { type: "integer", description: "Repository id when scope is repository." }
       },
       required: %w[content kind scope]
@@ -27,7 +27,7 @@ module SyrusChatMcp
 
         return SyrusChatMcp.invalid("content is required") if content.empty?
         return SyrusChatMcp.invalid("kind must be one of #{ChatMemory::KIND.join(', ')}") unless ChatMemory::KIND.include?(kind)
-        return SyrusChatMcp.invalid("scope must be global or repository") unless ChatMemory::SCOPE.include?(scope)
+        return SyrusChatMcp.invalid("scope must be global or repository") unless ChatMemory::TOOL_SCOPES.include?(scope)
 
         repository = nil
         if scope == "repository"

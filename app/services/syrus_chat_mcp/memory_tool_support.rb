@@ -14,7 +14,14 @@ module SyrusChatMcp
         deleted_at: memory.deleted_at&.iso8601,
         deleted_by_user_id: memory.deleted_by_user_id,
         created_at: memory.created_at.iso8601,
-        updated_at: memory.updated_at.iso8601
+        updated_at: memory.updated_at.iso8601,
+        source_type: memory.source_type,
+        source_id: memory.source_id,
+        author: memory.author,
+        confidence: memory.confidence,
+        last_verified_at: memory.last_verified_at&.iso8601,
+        expires_at: memory.expires_at&.iso8601,
+        visibility: memory.visibility
       }
     end
 
@@ -73,7 +80,7 @@ module SyrusChatMcp
 
     def apply_memory_filters(scope, requested_scope:, kind:)
       if requested_scope.present?
-        return SyrusChatMcp.invalid("scope must be global or repository") unless ChatMemory::SCOPE.include?(requested_scope)
+        return SyrusChatMcp.invalid("scope must be global or repository") unless ChatMemory::TOOL_SCOPES.include?(requested_scope)
 
         scope = scope.where(scope: requested_scope)
       end

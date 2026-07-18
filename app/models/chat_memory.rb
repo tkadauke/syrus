@@ -1,6 +1,10 @@
 class ChatMemory < ApplicationRecord
   KIND = %w[ user_pref project_fact feedback reference decision ].freeze
-  SCOPE = %w[ global repository ].freeze
+  SCOPE = %w[ global repository team instance ].freeze
+  TOOL_SCOPES = %w[ global repository ].freeze
+  SOURCE_TYPES = %w[ chat job workflow run manual insight admin ].freeze
+  AUTHORS = %w[ user system agent ].freeze
+  VISIBILITIES = %w[ private repository team instance ].freeze
   CONTENT_MAX_LENGTH = 2000
 
   belongs_to :user
@@ -14,6 +18,9 @@ class ChatMemory < ApplicationRecord
   validate :scope_id_matches_scope
   validate :published_only_for_repository_scope
   validate :deleted_by_requires_deleted_at
+
+  after_create :emit_created_audit_event
+  after_update :emit_updated_audit_event
 
   scope :active, -> { where(deleted_at: nil) }
   scope :global_scope, -> { where(scope: "global", scope_id: nil) }
@@ -41,7 +48,8 @@ class ChatMemory < ApplicationRecord
   end
 
   def soft_delete_by!(actor)
-    update!(deleted_at: Time.current, deleted_by_user: actor)
+    update!(deleted_at: Time.current, deleted_by_user: actor.is_a?(User) ? actor : nil)
+    emit_deleted_audit_event(actor)
   end
 
   def deleted?
@@ -49,6 +57,45 @@ class ChatMemory < ApplicationRecord
   end
 
   private
+
+  def emit_created_audit_event
+    ChatMemoryAuditEvent.record!(
+      chat_memory: self,
+      event_type: "created",
+      actor: nil,
+      new_content: content,
+      new_kind: kind,
+      new_confidence: confidence
+    )
+  end
+
+  def emit_updated_audit_event
+    return unless saved_change_to_content? || saved_change_to_kind? || saved_change_to_confidence?
+    return if saved_change_to_deleted_at?
+
+    ChatMemoryAuditEvent.record!(
+      chat_memory: self,
+      event_type: "updated",
+      actor: nil,
+      previous_content: content_before_last_save,
+      new_content: content,
+      previous_kind: kind_before_last_save,
+      new_kind: kind,
+      previous_confidence: confidence_before_last_save,
+      new_confidence: confidence
+    )
+  end
+
+  def emit_deleted_audit_event(actor)
+    ChatMemoryAuditEvent.record!(
+      chat_memory: self,
+      event_type: "deleted",
+      actor: actor,
+      previous_content: content,
+      previous_kind: kind,
+      previous_confidence: confidence
+    )
+  end
 
   def scope_id_matches_scope
     if repository? && scope_id.blank?

@@ -65,11 +65,116 @@ RSpec.describe ChatMemory do
     expect(memory.deleted_by_user).to eq(owner)
   end
 
+  it "soft deletes by a Run actor without setting deleted_by_user" do
+    memory = build_memory
+    memory.save!
+    run = Factories.job.initial_run
+
+    memory.soft_delete_by!(run)
+
+    expect(memory).to be_deleted
+    expect(memory.deleted_by_user).to be_nil
+  end
+
   it "requires deleted_at when deleted_by_user is set" do
     memory = build_memory(deleted_by_user: owner)
 
     expect(memory).not_to be_valid
     expect(memory.errors[:deleted_by_user]).to include("requires deleted_at")
+  end
+
+  describe "SCOPE constant" do
+    it "includes team and instance in addition to global and repository" do
+      expect(described_class::SCOPE).to include("global", "repository", "team", "instance")
+    end
+  end
+
+  describe "audit events" do
+    it "emits a created event on save" do
+      memory = build_memory
+      expect { memory.save! }.to change(ChatMemoryAuditEvent, :count).by(1)
+
+      event = ChatMemoryAuditEvent.last
+      expect(event.event_type).to eq("created")
+      expect(event.new_content).to eq(memory.content)
+      expect(event.new_kind).to eq(memory.kind)
+      expect(event.actor_kind).to eq("system")
+    end
+
+    it "emits an updated event when content changes" do
+      memory = build_memory
+      memory.save!
+
+      expect { memory.update!(content: "New content.") }
+        .to change(ChatMemoryAuditEvent, :count).by(1)
+
+      event = ChatMemoryAuditEvent.last
+      expect(event.event_type).to eq("updated")
+      expect(event.previous_content).to eq("The repo uses Rails.")
+      expect(event.new_content).to eq("New content.")
+    end
+
+    it "emits an updated event when kind changes" do
+      memory = build_memory
+      memory.save!
+
+      expect { memory.update!(kind: "feedback") }
+        .to change(ChatMemoryAuditEvent, :count).by(1)
+
+      event = ChatMemoryAuditEvent.last
+      expect(event.event_type).to eq("updated")
+      expect(event.previous_kind).to eq("project_fact")
+      expect(event.new_kind).to eq("feedback")
+    end
+
+    it "does not emit an updated event for non-audited field changes" do
+      memory = build_memory
+      memory.save!
+
+      expect { memory.update!(published: true) }
+        .not_to change(ChatMemoryAuditEvent, :count)
+    end
+
+    it "emits a deleted event via soft_delete_by! with user actor" do
+      memory = build_memory
+      memory.save!
+      initial_count = ChatMemoryAuditEvent.count
+
+      memory.soft_delete_by!(owner)
+
+      new_events = ChatMemoryAuditEvent.where("id > ?", ChatMemoryAuditEvent.order(:id).offset(initial_count - 1).pick(:id) || 0)
+      delete_event = ChatMemoryAuditEvent.order(:id).last
+      expect(delete_event.event_type).to eq("deleted")
+      expect(delete_event.actor_kind).to eq("user")
+      expect(delete_event.actor_user).to eq(owner)
+      expect(delete_event.previous_content).to eq(memory.content)
+    end
+
+    it "emits a deleted event via soft_delete_by! with run actor" do
+      memory = build_memory
+      memory.save!
+      run = Factories.job.initial_run
+
+      memory.soft_delete_by!(run)
+
+      delete_event = ChatMemoryAuditEvent.order(:id).last
+      expect(delete_event.event_type).to eq("deleted")
+      expect(delete_event.actor_kind).to eq("agent")
+      expect(delete_event.actor_run).to eq(run)
+      expect(delete_event.actor_user).to be_nil
+    end
+
+    it "does not emit an updated event when only deleted_at changes" do
+      memory = build_memory
+      memory.save!
+      initial_count = ChatMemoryAuditEvent.count
+
+      memory.soft_delete_by!(owner)
+
+      # Only the created event + deleted event, no spurious updated event
+      events_after = ChatMemoryAuditEvent.where(chat_memory: memory).order(:id)
+      expect(events_after.map(&:event_type)).to eq(%w[ created deleted ])
+    end
   end
 
   describe ".visible_to" do

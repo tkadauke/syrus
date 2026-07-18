@@ -35,9 +35,37 @@ RSpec.describe SyrusMcp::ReadMemoryTool do
         "id"         => memory.id,
         "kind"       => "project_fact",
         "scope"      => "repository",
+        "scope_id"   => memory.scope_id,
         "content"    => "The deploy pipeline runs on Buildkite.",
         "created_at" => memory.created_at.iso8601
       )
+    end
+
+    it "includes provenance fields in the payload" do
+      memory = ChatMemory.create!(
+        user: run.job.user,
+        kind: "feedback",
+        scope: "global",
+        content: "Always prefer short functions.",
+        source_type: "job",
+        source_id: run.job_id,
+        author: "agent",
+        confidence: 0.8,
+        visibility: "private"
+      )
+
+      response = call(id: memory.id)
+
+      payload = JSON.parse(response.content.first[:text])
+      expect(payload).to include(
+        "source_type" => "job",
+        "source_id"   => run.job_id,
+        "author"      => "agent",
+        "confidence"  => be_within(0.01).of(0.8),
+        "visibility"  => "private"
+      )
+      expect(payload["last_verified_at"]).to be_nil
+      expect(payload["expires_at"]).to be_nil
     end
 
     it "returns a tool error for an unknown memory id" do
