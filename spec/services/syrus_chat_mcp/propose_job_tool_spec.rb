@@ -169,6 +169,53 @@ RSpec.describe SyrusChatMcp::ProposeJobTool do
     expect(chat_session.proposals.find_by(title: "Misfile the edict")).to be_nil
   end
 
+  it "rejects a done Epic and creates no proposal" do
+    epic = Factories.epic(user: user, repository: repository, state: "done")
+
+    response = call_tool(
+      repo: repository.slug,
+      epic_id: epic.id,
+      title: "Propose into done Epic",
+      description: "This should not pass."
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("Epic #{epic.id} is done")
+    expect(response[:result][:content].first[:text]).to include("cannot propose a Job into a closed Epic")
+    expect(chat_session.proposals.find_by(title: "Propose into done Epic")).to be_nil
+  end
+
+  it "rejects an archived Epic and creates no proposal" do
+    epic = Factories.epic(user: user, repository: repository, state: "archived")
+
+    response = call_tool(
+      repo: repository.slug,
+      epic_id: epic.id,
+      title: "Propose into archived Epic",
+      description: "This should not pass."
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("Epic #{epic.id} is archived")
+    expect(response[:result][:content].first[:text]).to include("cannot propose a Job into a closed Epic")
+    expect(chat_session.proposals.find_by(title: "Propose into archived Epic")).to be_nil
+  end
+
+  it "accepts an in_progress Epic and creates the proposal" do
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+
+    response = call_tool(
+      repo: repository.slug,
+      epic_id: epic.id,
+      title: "Propose into in_progress Epic",
+      description: "This should succeed."
+    )
+
+    expect(response[:result][:isError]).to be_falsey
+    proposal = chat_session.proposals.find_by!(title: "Propose into in_progress Epic")
+    expect(proposal.target_epic).to eq(epic)
+  end
+
   it "broadcasts an update_proposal event after creating the proposal" do
     allow(AppEvents).to receive(:broadcast)
 

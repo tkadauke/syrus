@@ -70,7 +70,9 @@ module SyrusChatMcp
         normalized_epic = normalize_epic(epic_attrs)
         target_epic = target_epic_for(user, normalized_epic[:epic_id])
         return SyrusChatMcp.invalid("unknown epic_id: #{normalized_epic[:epic_id]}") if normalized_epic[:epic_id] && !target_epic
-        return SyrusChatMcp.invalid("archived epics cannot receive child Job proposals") if target_epic&.archived?
+        if target_epic&.state&.in?(%w[done archived])
+          return SyrusChatMcp.invalid("Epic #{normalized_epic[:epic_id]} is #{target_epic.state} — cannot propose a Job into a closed Epic. Re-open the Epic or choose a different one.")
+        end
 
         normalized_epic[:title] = target_epic.title if target_epic && normalized_epic[:title].blank?
         normalized_epic[:description] = target_epic.description.to_s if target_epic && normalized_epic[:description].blank?

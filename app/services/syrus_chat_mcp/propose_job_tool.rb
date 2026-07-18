@@ -48,6 +48,9 @@ module SyrusChatMcp
 
         target_epic = target_epic_for(chat_session, repository, epic_id)
         return SyrusChatMcp.invalid("epic_id was not found in #{repository.slug}") if epic_id.present? && !target_epic
+        if target_epic && target_epic.state.in?(%w[done archived])
+          return SyrusChatMcp.invalid("Epic #{epic_id} is #{target_epic.state} — cannot propose a Job into a closed Epic. Re-open the Epic or choose a different one.")
+        end
 
         dependencies, unknown_slugs = dependency_proposals(chat_session, depends_on)
         return SyrusChatMcp.invalid("unknown depends_on slug(s): #{unknown_slugs.join(', ')}") if unknown_slugs.any?

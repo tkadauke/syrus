@@ -132,6 +132,53 @@ RSpec.describe SyrusChatMcp::ProposeEpicWithJobsTool do
     expect(chat_session.proposals.count).to eq(0)
   end
 
+  it "rejects a done Epic and creates no proposals" do
+    done_epic = Factories.epic(user: user, repository: repository, state: "done")
+
+    response = call_tool(
+      epic: { slug: "add-to-done", epic_id: done_epic.id },
+      jobs: [
+        { slug: "child", title: "Child", description: "Build it." }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("Epic #{done_epic.id} is done")
+    expect(response[:result][:content].first[:text]).to include("cannot propose a Job into a closed Epic")
+    expect(chat_session.proposals.count).to eq(0)
+  end
+
+  it "rejects an archived Epic and creates no proposals" do
+    archived_epic = Factories.epic(user: user, repository: repository, state: "archived")
+
+    response = call_tool(
+      epic: { slug: "add-to-archived", epic_id: archived_epic.id },
+      jobs: [
+        { slug: "child", title: "Child", description: "Build it." }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("Epic #{archived_epic.id} is archived")
+    expect(response[:result][:content].first[:text]).to include("cannot propose a Job into a closed Epic")
+    expect(chat_session.proposals.count).to eq(0)
+  end
+
+  it "accepts an in_progress Epic and creates proposals" do
+    in_progress_epic = Factories.epic(user: user, repository: repository, state: "in_progress", title: "Active work", description: "Work in flight.")
+
+    response = call_tool(
+      epic: { slug: "add-to-in-progress", epic_id: in_progress_epic.id },
+      jobs: [
+        { slug: "child-job", title: "Child Job", description: "Build it." }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be_falsey
+    proposal = chat_session.proposals.find_by!(slug: "add-to-in-progress")
+    expect(proposal.target_epic).to eq(in_progress_epic)
+  end
+
   it "stores cross-card Job proposal dependencies on child Jobs" do
     prerequisite = chat_session.proposals.create!(
       repository: repository,
