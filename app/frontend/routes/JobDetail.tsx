@@ -153,7 +153,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, activeTab,
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("command_error"))}</PanelMessage> : null}
       {payload.job.state === "queued" && payload.repository.landing_paused && payload.repository.main_health !== "healthy" ? (
-        <div className="flex items-center gap-3 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-900 dark:bg-amber-950/40" role="alert">
+        <div className="banner-warning flex items-center gap-3 px-4 py-3 text-sm" role="alert">
           <span className="text-amber-800 dark:text-amber-200">{t("main_branch_health_waiting")}</span>
           <Link className="shrink-0 rounded border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-800 hover:bg-amber-50 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200 dark:hover:bg-amber-900" to={withRoutePrefix(payload.repository.repository_path, prefix)}>
             {t("main_branch_health_view")}
@@ -335,7 +335,7 @@ function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: numbe
   const isPending = apply.isPending || ignore.isPending || replace.isPending
 
   return (
-    <section className="rounded border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/60 dark:bg-amber-950/30">
+    <section className="banner-warning p-4">
       <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-200">{t("pending_feedback_title")}</h2>
       <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
         {t("pending_feedback_description")}
@@ -482,7 +482,7 @@ function RetryStatePanel({ payload }: { payload: JobDetailPayload }) {
   if (!retry || (retry.state_label === "No failure" && !retry.classification)) return null
 
   return (
-    <section className={`rounded border px-4 py-3 text-sm ${retry.auto_retry_exhausted ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-200" : retry.provider_circuit_open ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200" : "border-gray-200 bg-white text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"}`}>
+    <section className={`px-4 py-3 text-sm ${retry.auto_retry_exhausted ? "banner-error" : retry.provider_circuit_open ? "banner-warning" : "banner-muted"}`}>
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-semibold">{retry.state_label}</span>
         <SmallPill>{retry.classification_label}</SmallPill>
@@ -529,7 +529,7 @@ function UnsatisfiedDependencies({ payload, command, prefix }: { payload: JobDet
   const { t } = useT("jobs")
   const count = payload.unsatisfied_dependencies.length
   return (
-    <section className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
+    <section className="banner-warning px-4 py-3 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <span className="font-medium">{t("blocked_on", { count })}</span>

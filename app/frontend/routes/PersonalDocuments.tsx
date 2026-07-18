@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent, ReactNode } from "react"
 import { useState } from "react"
 import { NoticeToast } from "../components/NoticeToast"
+import { PanelMessage } from "../components/PanelMessage"
 import {
   addCredentialDocuments,
   deleteCredentialDocument,
@@ -191,14 +192,5 @@ function DocumentsError({ error }: { error: Error }) {
   return <PanelMessage tone="error">{errorMessage(error, "Unable to load personal documents.")}</PanelMessage>
 }
 
-function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
-  const { t } = useT("settings")
-  const colors = {
-    error: "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300",
-    success: "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300",
-    muted: "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400"
-  }
-  return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
-}
 
 

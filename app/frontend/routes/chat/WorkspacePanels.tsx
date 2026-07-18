@@ -321,7 +321,7 @@ function MediaGallery({ messages, payload, queryKey, onNotice }: { messages: Cha
       {snapshots.isPending ? <PanelMessage>Loading snapshots...</PanelMessage> : null}
       {snapshots.isError ? <PanelMessage tone="error">{errorMessage(snapshots.error, "Unable to load snapshots.")}</PanelMessage> : null}
       {snapshotError ? <PanelMessage tone="error">{snapshotError}</PanelMessage> : null}
-      {whiteboardLocked ? <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">Canvas is busy. Wait for drawing to finish before loading a snapshot.</div> : null}
+      {whiteboardLocked ? <div className="banner-warning p-3 text-sm">Canvas is busy. Wait for drawing to finish before loading a snapshot.</div> : null}
 
       {snapshotItems.length > 0 ? (
         <section className="space-y-2">
@@ -541,7 +541,7 @@ class WhiteboardBoundary extends Component<{ children: ReactNode }, WhiteboardBo
       return (
         <section>
           <div className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Whiteboard</div>
-          <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+          <div className="banner-error p-3 text-sm">
             Whiteboard unavailable.
           </div>
         </section>
@@ -745,12 +745,7 @@ export function UsageOverlay({ payload }: { payload: ChatPayload }) {
 }
 
 export function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
-  const colors = {
-    error: "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-200",
-    success: "border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-200",
-    muted: "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-  }
-  return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
+  return <div className={`banner-${tone} p-4 text-sm`}>{children}</div>
 }
 
 function FileTreeEntry({

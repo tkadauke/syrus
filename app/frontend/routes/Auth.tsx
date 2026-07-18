@@ -331,13 +331,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
-  const colors = {
-    error: "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300",
-    success: "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300",
-    muted: "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
-  }
-
-  return <div className={`rounded border p-3 text-sm ${colors[tone]}`}>{children}</div>
+  return <div className={`banner-${tone} p-3 text-sm`}>{children}</div>
 }
 
 // The JSON auth endpoints return app-root paths ("/onboarding", "/dashboard");

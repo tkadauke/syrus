@@ -120,10 +120,6 @@ function Stepper({ patDone, appDone, active }: { patDone: boolean; appDone: bool
 }
 
 function Box({ tone, children }: { tone: "ok" | "muted" | "error"; children: React.ReactNode }) {
-  const toneClass = tone === "ok"
-    ? "border-green-200 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300"
-    : tone === "error"
-      ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
-      : "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400"
-  return <p className={`rounded border px-3 py-2 text-sm ${toneClass}`} role={tone === "error" ? "alert" : tone === "ok" ? "status" : undefined}>{children}</p>
+  const toneClass = tone === "ok" ? "banner-success" : tone === "error" ? "banner-error" : "banner-muted"
+  return <p className={`${toneClass} px-3 py-2 text-sm`} role={tone === "error" ? "alert" : tone === "ok" ? "status" : undefined}>{children}</p>
 }

@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @config "../../../config/tailwind.config.js";
+@import "./intent.css";
 
 /*
  * Lightweight typography for markdown-rendered chat messages.

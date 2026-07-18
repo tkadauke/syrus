@@ -419,13 +419,9 @@ function Loading({ children }: { children: React.ReactNode }) {
 }
 
 function Box({ tone, children }: { tone: "muted" | "error" | "ok"; children: React.ReactNode }) {
-  const toneClass = tone === "error"
-    ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
-    : tone === "ok"
-      ? "border-green-200 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300"
-      : "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400"
+  const toneClass = tone === "error" ? "banner-error" : tone === "ok" ? "banner-success" : "banner-muted"
   const role = tone === "error" ? "alert" : tone === "ok" ? "status" : undefined
-  return <p className={`rounded border px-3 py-2 text-sm ${toneClass}`} role={role}>{children}</p>
+  return <p className={`${toneClass} px-3 py-2 text-sm`} role={role}>{children}</p>
 }
 
 function Spinner({ light }: { light?: boolean }) {

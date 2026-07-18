@@ -8,6 +8,7 @@ import i18n from "../i18n"
 import { useT } from "../hooks/useT"
 import { NoticeToast } from "../components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
+import { PanelMessage } from "../components/PanelMessage"
 import {
   cacheCredentials,
   ClaudeCredentialCard,
@@ -334,7 +335,7 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t('account_settings.api_token_desc')}</p>
 
       {newToken ? (
-        <div className="mt-3 rounded border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 p-3">
+        <div className="banner-success mt-3 p-3">
           <div className="text-xs font-medium uppercase text-emerald-700 dark:text-emerald-300">{t('account_settings.new_token')}</div>
           <code className="mt-1 block break-all font-mono text-sm">{newToken}</code>
         </div>
@@ -392,15 +393,6 @@ function CredentialsError({ error }: { error: Error }) {
   return <PanelMessage tone="error">{errorMessage(error, "Unable to load credentials.")}</PanelMessage>
 }
 
-function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
-  const { t } = useT("settings")
-  const colors = {
-    error: "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300",
-    success: "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300",
-    muted: "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400"
-  }
-  return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
-}
 
 function inputFromPayload(payload: CredentialsPayload): CredentialsInput {
   const chatProvider = payload.user.chat_provider || ""

@@ -7,6 +7,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { NoticeToast } from "../components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
+import { PanelMessage } from "../components/PanelMessage"
 import {
   createDirectJob,
   fetchDirectJobForm,
@@ -325,12 +326,4 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
-  const colors = {
-    error: "border-red-200 bg-red-50 text-red-700 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-200",
-    success: "border-green-200 bg-green-50 text-green-700 dark:border-green-900/70 dark:bg-green-950/40 dark:text-green-200",
-    muted: "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-  }
-  return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
-}
 

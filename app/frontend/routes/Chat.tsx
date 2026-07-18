@@ -96,7 +96,7 @@ function SharedChatView({ payload }: { payload: SharedChatPayload }) {
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-3 dark:border-gray-700">
         <h1 className="break-words text-2xl font-semibold text-gray-900 dark:text-gray-100">{payload.chat.title || t("shared_chat_fallback_title")}</h1>
-        <span className="rounded border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-medium text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200">{t("view_only")}</span>
+        <span className="banner-info px-3 py-1 text-sm font-medium">{t("view_only")}</span>
       </header>
       <section className="min-h-0 flex-1 overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-950">
         <ReadOnlyMessageStream payload={payload} />
@@ -809,7 +809,7 @@ function CodingCheckoutBanner({ payload, queryKey, onNotice }: { payload: ChatPa
   if (!payload.coding_mode_enabled || !payload.chat.coding_checkout_uncommitted || !cancelPath) return null
 
   return (
-    <div className="flex items-center justify-between rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+    <div className="banner-warning flex items-center justify-between px-3 py-2 text-sm">
       <span>{t("coding_checkout_uncommitted_banner")}</span>
       <button
         className="shrink-0 font-medium underline hover:no-underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-50"
@@ -879,7 +879,7 @@ function LocalDaemonBanner({ payload }: { payload: ChatPayload }) {
   }
 
   return (
-    <section className="rounded border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+    <section className="banner-muted p-4 text-sm">
       <div className="font-semibold">{t("local_daemon_not_connected_title")}</div>
       <p className="mt-1">{t("local_daemon_not_connected_body")}</p>
       <div className="mt-3 flex items-center gap-2">
@@ -899,7 +899,7 @@ function LocalDaemonBanner({ payload }: { payload: ChatPayload }) {
 function AgentQuestions({ questions, queryKey, onNotice }: { questions: ChatAgentQuestion[]; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const { t } = useT("chat")
   return (
-    <section aria-label={t("aria_agent_questions")} className="w-full max-w-3xl space-y-3 rounded border border-blue-200 bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-950/60">
+    <section aria-label={t("aria_agent_questions")} className="banner-info w-full max-w-3xl space-y-3 p-3">
       {questions.map((question) => <AgentQuestionPrompt key={question.id} question={question} queryKey={queryKey} onNotice={onNotice} />)}
     </section>
   )

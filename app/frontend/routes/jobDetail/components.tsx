@@ -67,12 +67,7 @@ export function SmallPill({ children }: { children: ReactNode }) {
 }
 
 export function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
-  const colors = {
-    error: "border-red-200 bg-red-50 text-red-700 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-200",
-    success: "border-green-200 bg-green-50 text-green-700 dark:border-green-900/70 dark:bg-green-950/40 dark:text-green-200",
-    muted: "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-  }
-  return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
+  return <div className={`banner-${tone} p-4 text-sm`}>{children}</div>
 }
 
 // Live wall-clock, ticking every second while `active`. Used so a

@@ -92,10 +92,10 @@ function AdminQueue({ tab }: { tab: QueueTab }) {
       </nav>
 
       {reaper.isSuccess ? (
-        <p className="rounded border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200">{reaper.data.message}</p>
+        <p className="banner-success px-3 py-2 text-sm">{reaper.data.message}</p>
       ) : null}
       {reaper.isError ? (
-        <p className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 px-3 py-2 text-sm text-red-700 dark:text-red-300">{t("queue.reaper_error")}</p>
+        <p className="banner-error px-3 py-2 text-sm">{t("queue.reaper_error")}</p>
       ) : null}
 
       {queue.isPending ? <PanelMessage>{t("queue.loading")}</PanelMessage> : null}

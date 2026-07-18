@@ -425,7 +425,7 @@ function PanelMessage({ children }: { children: string }) {
 
 function MemoriesError({ error }: { error: unknown }) {
   const { t } = useT("settings")
-  return <section className="rounded border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">{errorMessage(error, "Unable to load memories.")}</section>
+  return <section className="banner-error p-4 text-sm">{errorMessage(error, "Unable to load memories.")}</section>
 }
 
 function errorMessage(error: unknown, fallback: string) {

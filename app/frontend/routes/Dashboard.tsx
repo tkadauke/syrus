@@ -103,7 +103,7 @@ export function ReadinessPanel({ prefix, readiness }: { prefix: string; readines
   if (failingChecks.length === 0) return null
 
   return (
-    <section aria-label={t("system_readiness")} className="rounded border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/40">
+    <section aria-label={t("system_readiness")} className="banner-warning p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-amber-950 dark:text-amber-100">{t("readiness_title")}</h2>
@@ -156,7 +156,7 @@ function RepositoryHealthBanners({ prefix, repositories }: { prefix: string; rep
           : null
 
         return (
-          <div className="flex flex-col gap-2 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm dark:border-red-900 dark:bg-red-950/40 sm:flex-row sm:items-center sm:justify-between" key={repo.id} role="alert">
+          <div className="banner-error flex flex-col gap-2 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between" key={repo.id} role="alert">
             <div className="min-w-0">
               <span className="text-red-800 dark:text-red-200">
                 <span className="font-mono font-medium">{repo.slug}</span>

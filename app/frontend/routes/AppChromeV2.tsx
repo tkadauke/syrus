@@ -291,10 +291,10 @@ function FlashBanner({ flash }: { flash?: BootstrapPayload["flash"] }) {
   if (!flash?.alert && flash?.notice && visible) return <NoticeToast message={flash.notice} onDismiss={() => setVisible(false)} />
   if (!visible) return null
 
-  const tone = flash?.alert ? "border-red-200 bg-red-50 text-red-700" : "border-green-200 bg-green-50 text-green-700"
+  const tone = flash?.alert ? "banner-error" : "banner-success"
   return (
     <div className="mx-auto max-w-[96rem] px-6 pt-4">
-      <p className={`inline-block rounded border px-3 py-2 text-sm ${tone}`}>{message}</p>
+      <p className={`inline-block px-3 py-2 text-sm ${tone}`}>{message}</p>
     </div>
   )
 }
@@ -313,13 +313,13 @@ function SystemAlertsBanner({ alerts, prefix }: { alerts?: BootstrapPayload["sys
 
 function SystemAlertItem({ alert, prefix }: { alert: NonNullable<BootstrapPayload["system_alerts"]>[number]; prefix: string }) {
   const tone = {
-    alarm: "border-red-200 bg-red-50 text-red-900",
-    warn: "border-amber-200 bg-amber-50 text-amber-900",
-    info: "border-blue-200 bg-blue-50 text-blue-900"
-  }[alert.severity] || "border-gray-200 bg-gray-50 text-gray-900"
+    alarm: "banner-error",
+    warn: "banner-warning",
+    info: "banner-info"
+  }[alert.severity] || "banner-muted"
 
   return (
-    <article className={`rounded border px-4 py-3 text-sm ${tone}`}>
+    <article className={`px-4 py-3 text-sm ${tone}`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 space-y-2">
           <h2 className="font-semibold">{alert.title}</h2>

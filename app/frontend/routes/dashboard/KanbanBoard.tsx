@@ -99,7 +99,7 @@ export function DashboardKanban({ payload, prefix, setupStatus }: { payload: Das
   return (
     <>
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {moveEpic.isError ? <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200" role="alert">{errorMessage(moveEpic.error, t("epic_move_error"))}</div> : null}
+      {moveEpic.isError ? <div className="banner-error p-3 text-sm" role="alert">{errorMessage(moveEpic.error, t("epic_move_error"))}</div> : null}
       <div className="select-none overflow-x-auto pb-2">
         <div className="grid min-w-[56rem] gap-3" style={{ gridTemplateColumns: `repeat(${(payload.lanes ?? []).length}, minmax(14rem, 1fr))` }}>
           {optimisticLanes.map((lane) => (

@@ -13,13 +13,7 @@ export function StatusPill({ children, tone }: { children: ReactNode; tone: "gre
 }
 
 export function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "warning" }) {
-  const { t } = useT("settings")
-  const colors = {
-    error: "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300",
-    muted: "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400",
-    warning: "border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200"
-  }
-  return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
+  return <div className={`banner-${tone} p-4 text-sm`}>{children}</div>
 }
 
 export function stateFilterClass(active: boolean) {

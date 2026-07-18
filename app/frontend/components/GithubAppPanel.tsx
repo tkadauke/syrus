@@ -182,10 +182,8 @@ export function GithubAppPanel({ onClose, onSaved }: { onClose: () => void; onSa
 }
 
 function Box({ tone, children }: { tone: "ok" | "muted"; children: React.ReactNode }) {
-  const toneClass = tone === "ok"
-    ? "border-green-200 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300"
-    : "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400"
-  return <p className={`rounded border px-3 py-2 text-sm ${toneClass}`} role={tone === "ok" ? "status" : undefined}>{children}</p>
+  const toneClass = tone === "ok" ? "banner-success" : "banner-muted"
+  return <p className={`${toneClass} px-3 py-2 text-sm`} role={tone === "ok" ? "status" : undefined}>{children}</p>
 }
 
 function Spinner() {
