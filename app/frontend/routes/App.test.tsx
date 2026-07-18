@@ -931,7 +931,6 @@ describe("App", () => {
       expect(screen.getByRole("button", { name: "Switch to dark mode" })).toBeInTheDocument()
       expect(screen.getByRole("link", { name: "Profile" })).toHaveAttribute("href", "/app-shell/profiles/1")
       expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/app-shell/profile")
-      expect(screen.getByRole("link", { name: "My Profile" })).toHaveAttribute("href", "/app-shell/profiles/1")
       expect(screen.getByRole("link", { name: "Admin" })).toHaveAttribute("href", "/app-shell/admin")
       expect(screen.getByRole("link", { name: "Admin" })).toHaveAttribute("title", "Curia — The Roman Senate house")
       expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument()

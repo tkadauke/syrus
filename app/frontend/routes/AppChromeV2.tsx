@@ -706,7 +706,6 @@ function SettingsPopup({ csrfToken, onCloseDrawer, prefix, showTeamProfile, user
           </button>
           <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profiles/${user.id}`}>{t("nav:profile")}</Link>
           <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profile`}>{t("nav:settings")}</Link>
-          {showTeamProfile ? <Link className={popupLinkClass()} onClick={onCloseDrawer} to={`${prefix}/profiles/${user.id}`}>{t("nav:my_profile")}</Link> : null}
           {user.admin ? <Link className="block px-4 py-2 font-medium text-blue-600 hover:bg-gray-50 dark:text-blue-300 dark:hover:bg-gray-800" onClick={onCloseDrawer} title="Curia — The Roman Senate house" to={`${prefix}/admin`}>{t("nav:admin")}</Link> : null}
           <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
           <form action="/session" method="post">

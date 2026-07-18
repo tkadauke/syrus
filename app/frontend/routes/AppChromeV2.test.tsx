@@ -40,6 +40,28 @@ describe("AppChromeV2", () => {
     expect(notices.compareDocumentPosition(accountRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
+  it("shows exactly one profile link in the settings popup even when showTeamProfile is true", () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const { unmount } = render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/repositories"]}>
+          <AppChromeV2 initialBootstrap={bootstrapPayload({ team_user_count: 3 })}>
+            <div />
+          </AppChromeV2>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /operator@example\.com/i }))
+
+    const profileLinks = screen.getAllByRole("link", { name: /^Profile$/i })
+    expect(profileLinks).toHaveLength(1)
+    expect(profileLinks[0]).toHaveAttribute("href", "/profiles/1")
+    expect(screen.queryByRole("link", { name: /^My Profile$/i })).toBeNull()
+
+    unmount()
+  })
+
   it("reuses an existing unstarted chat without creating a chat", async () => {
     const createEmptyChat = vi.spyOn(chatsApi, "createEmptyChat")
     const fetchNewChat = vi.spyOn(chatsApi, "fetchNewChat")
