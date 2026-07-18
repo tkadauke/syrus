@@ -2288,6 +2288,33 @@ describe("scratchpad panel via + menu", () => {
   })
 })
 
+describe("AgentQuestionPrompt markdown rendering", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("renders bold markdown in question text as a <strong> element", async () => {
+    mockChatRouteFetch(chatPayload({
+      agent_questions: [{
+        id: 1,
+        question: "Should we use **fiber** or threads?",
+        options: null,
+        asked_at: "2026-07-18T12:00:00Z",
+        app_answer_path: "/api/v1/app/chats/8/agent_questions/1/answer"
+      }]
+    }))
+
+    renderRoute()
+
+    await screen.findByRole("region", { name: "Agent questions" })
+    const strong = document.querySelector("strong")
+    expect(strong).not.toBeNull()
+    expect(strong).toHaveTextContent("fiber")
+    expect(screen.queryByText(/\*\*fiber\*\*/)).not.toBeInTheDocument()
+  })
+})
+
 function renderRoute() {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -2505,7 +2532,7 @@ function proposal(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Array<Record<string, unknown>>; bookmarks?: Array<Record<string, unknown>>; attachment_groups?: Record<string, Array<Record<string, unknown>>>; attachment_results?: Array<Record<string, unknown>>; scratchpad_items?: Array<Record<string, unknown>>; queued_messages?: Array<Record<string, unknown>> } = {}) {
+function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Array<Record<string, unknown>>; bookmarks?: Array<Record<string, unknown>>; attachment_groups?: Record<string, Array<Record<string, unknown>>>; attachment_results?: Array<Record<string, unknown>>; scratchpad_items?: Array<Record<string, unknown>>; queued_messages?: Array<Record<string, unknown>>; agent_questions?: Array<Record<string, unknown>> } = {}) {
   return {
     chat: {
       id: 8,
@@ -2541,7 +2568,7 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
     bookmarks: overrides.bookmarks || [],
     recent_chats: [],
     pending_actions: [],
-    agent_questions: [],
+    agent_questions: overrides.agent_questions || [],
     queued_messages: overrides.queued_messages || [],
     scratchpad_items: overrides.scratchpad_items || [],
     attachment_groups: {

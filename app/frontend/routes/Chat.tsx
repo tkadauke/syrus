@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { Markdown } from "../lib/Markdown"
 import type { CSSProperties, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, UIEvent } from "react"
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
@@ -936,7 +937,7 @@ function AgentQuestionPrompt({ question, queryKey, onNotice }: { question: ChatA
 
   return (
     <div className="space-y-3 rounded border border-blue-200 bg-white p-3 text-sm dark:border-blue-800 dark:bg-gray-950">
-      <div className="font-medium text-gray-900 dark:text-gray-100">{question.question}</div>
+      <Markdown className="font-medium text-gray-900 dark:text-gray-100" text={question.question} />
       {submit.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(submit.error, "Answer could not be submitted.")}</div> : null}
       {options.length > 0 ? (
         <div className="flex flex-col gap-2">
