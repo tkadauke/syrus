@@ -2,6 +2,10 @@ class AutoRetryScheduler
   MAX_ATTEMPTS = 3
   BACKOFFS = [ 5.minutes, 20.minutes, 1.hour ].freeze
 
+  WORKER_DIED_CLASSIFICATION = "worker_died"
+  MAX_WORKER_DIED_ATTEMPTS = 20
+  WORKER_DIED_BACKOFF = 30.seconds
+
   def self.schedule_for_workflow(...) = new(...).schedule_for_workflow
 
   def initialize(workflow:)
@@ -25,8 +29,10 @@ class AutoRetryScheduler
 
     run = latest_failed_run
     agent_provider = run&.agent_provider.presence || workflow.agent_provider
+    worker_died = classification.classification == WORKER_DIED_CLASSIFICATION
     attempt_number = next_attempt_number(agent_provider, classification.classification)
-    if attempt_number > MAX_ATTEMPTS
+    max_attempts = worker_died ? MAX_WORKER_DIED_ATTEMPTS : MAX_ATTEMPTS
+    if attempt_number > max_attempts
       log("auto-retry skipped: budget exhausted for #{agent_provider}/#{classification.classification}")
       return
     end
@@ -34,6 +40,7 @@ class AutoRetryScheduler
     retry_kind = retry_kind_for(run)
     return if retry_kind.nil?
 
+    backoff = worker_died ? WORKER_DIED_BACKOFF : BACKOFFS.fetch(attempt_number - 1)
     attempt = AutoRetryAttempt.create!(
       job: workflow.job,
       workflow: workflow,
@@ -42,11 +49,11 @@ class AutoRetryScheduler
       failure_classification: classification.classification,
       retry_kind: retry_kind,
       attempt_number: attempt_number,
-      scheduled_at: Time.current + BACKOFFS.fetch(attempt_number - 1)
+      scheduled_at: Time.current + backoff
     )
 
     AutoRetryJob.set(wait_until: attempt.scheduled_at, priority: workflow.job.solid_queue_priority).perform_later(attempt.id)
-    log("auto-retry scheduled in #{BACKOFFS.fetch(attempt_number - 1).inspect} via #{retry_kind}")
+    log("auto-retry scheduled in #{backoff.inspect} via #{retry_kind}")
     attempt
   rescue StandardError => e
     Rails.logger.warn("[AutoRetryScheduler] workflow ##{workflow&.id}: #{e.class}: #{e.message}")
