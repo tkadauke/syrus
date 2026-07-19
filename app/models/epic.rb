@@ -106,7 +106,7 @@ class Epic < ApplicationRecord
       transitions from: %i[backlog ready in_progress done], to: :archived, after: -> {
         self.state = "archived"
         self.archived_at = Time.current
-        restore_child_epic_blocks!
+        close_child_jobs_on_archive!
       }
     end
   end
@@ -260,8 +260,10 @@ class Epic < ApplicationRecord
       if target_state == "in_progress"
         claim!(user, force: true) unless claimed?
         unblock_child_jobs!
-      elsif (was_in_progress && %w[backlog ready].include?(target_state)) || target_state == "archived"
+      elsif was_in_progress && %w[backlog ready].include?(target_state)
         restore_child_epic_blocks!
+      elsif target_state == "archived"
+        close_child_jobs_on_archive!
       end
     end
   end
@@ -371,6 +373,17 @@ class Epic < ApplicationRecord
     jobs.find_each do |job|
       job.epic = self
       job.restore_epic_block_if_not_started!
+    end
+  end
+
+  def close_child_jobs_on_archive!
+    jobs.find_each do |job|
+      next if job.closed?
+      job.workflows.active.find_each do |workflow|
+        workflow.cancel! if workflow.may_cancel?
+        workflow.save!
+      end
+      job.close_with_reason!("epic_archived")
     end
   end
 

@@ -86,6 +86,10 @@ Jobs are confirmed, then mark it done automatically when all child Jobs
 close through merged PR or no-change outcomes. When every child Job is
 closed but at least one did not complete successfully, operators can use
 **Mark as done** or drag the Epic to **Done** instead of archiving it.
+Archiving an Epic immediately closes all of its child Jobs with reason
+`epic_archived`, cancelling any active workflows. This is irreversible
+through the archive action alone — reopen individual Jobs manually if
+needed.
 Product owners can create and refine backlog Epics, but developers own
 elaboration: product owners cannot move Epics to `ready`, `in_progress`,
 or `done`, and cannot add Jobs to Epics directly.

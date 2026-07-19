@@ -760,25 +760,44 @@ RSpec.describe Epic do
     expect(job.workflows.first).to be_cancelled
   end
 
-  it "archives Epics, stamps archived_at, and restores child Epic blocks" do
+  it "archives Epics, stamps archived_at, and closes child Jobs with epic_archived reason" do
     epic = described_class.create!(user: user, repository: repository, title: "Retire", state: "ready")
     job = Factories.job_record(user: user, repository: repository, issue_number: 20, epic: epic, state: "blocked_by_epic")
     epic.start!
     run = job.reload.runs.first
 
-    expect(epic).to receive(:restore_child_epic_blocks!).and_call_original
-
     freeze_time do
       expect {
         epic.archive!
       }.to change { epic.reload.state }.from("in_progress").to("archived")
-        .and change { job.reload.state }.from("queued").to("blocked_by_epic")
+        .and change { job.reload.state }.from("queued").to("closed")
 
       expect(epic.archived_at).to eq(Time.current)
     end
 
+    expect(job.reload.closure_reason).to eq("epic_archived")
     expect(run.reload).to be_cancelled
     expect(job.workflows.first).to be_cancelled
+  end
+
+  it "closes child Jobs in any open state when the Epic is archived" do
+    epic = described_class.create!(user: user, repository: repository, title: "Mothball", state: "ready")
+    queued_job = Factories.job_record(user: user, repository: repository, issue_number: 21, epic: epic, state: "queued")
+    triaging_job = Factories.job_record(user: user, repository: repository, issue_number: 22, epic: epic, state: "triaging")
+    blocked_job = Factories.job_record(user: user, repository: repository, issue_number: 23, epic: epic, state: "blocked_by_epic")
+    already_closed = Factories.job_record(user: user, repository: repository, issue_number: 24, epic: epic)
+    already_closed.update!(closure_reason: "pr_merged")
+    already_closed.close!
+
+    epic.archive!
+
+    expect(queued_job.reload).to be_closed
+    expect(queued_job.closure_reason).to eq("epic_archived")
+    expect(triaging_job.reload).to be_closed
+    expect(triaging_job.closure_reason).to eq("epic_archived")
+    expect(blocked_job.reload).to be_closed
+    expect(blocked_job.closure_reason).to eq("epic_archived")
+    expect(already_closed.reload.closure_reason).to eq("pr_merged")
   end
 
   it "auto-completes in-progress Epics when all child Jobs are merged" do
@@ -837,7 +856,7 @@ RSpec.describe Epic do
     end
   end
 
-  it "allows operator override into archived with child Epic block restoration" do
+  it "allows operator override into archived and closes child Jobs" do
     epic = described_class.create!(user: user, repository: repository, title: "Archive override", state: "ready")
     job = Factories.job_record(user: user, repository: repository, issue_number: 20, epic: epic, state: "blocked_by_epic")
     epic.start!
@@ -845,11 +864,13 @@ RSpec.describe Epic do
     freeze_time do
       expect {
         epic.override_state!("archived")
-      }.to change { job.reload.state }.from("queued").to("blocked_by_epic")
+      }.to change { job.reload.state }.from("queued").to("closed")
 
       expect(epic.reload).to be_archived
       expect(epic.archived_at).to eq(Time.current)
     end
+
+    expect(job.reload.closure_reason).to eq("epic_archived")
   end
 
   it "auto-reopens a recently done Epic when a new Job is assigned to it" do
