@@ -23,6 +23,10 @@ class RunCompletionReconciler
     case step.kind
     when "pr_open"
       reconcile_pr_open
+    when "auto_merge"
+      reconcile_auto_merge
+    when "merge_train_land", "merge_train_land_after_rebase"
+      reconcile_merge_train_land
     else
       unreconciled
     end
@@ -79,6 +83,48 @@ class RunCompletionReconciler
     end
 
     nil
+  end
+
+  def reconcile_auto_merge
+    pr_number = job.pr_number
+    return unreconciled unless pr_number.present?
+
+    client = GithubClient.for(repository: job.repository, user: job.user)
+    pr = client.pull_request(job.repository.slug, pr_number, bypass_cache: true)
+    return unreconciled unless pr[:merged]
+
+    run.succeed!
+    run.save!
+    step.succeed!
+    step.save!
+
+    StepDispatcher.advance_from(step.reload) if workflow.reload.running?
+    finish_workflow_if_terminal!
+
+    Result.new(reconciled: true, reason: "auto_merge: PR ##{pr_number} already merged on GitHub")
+  rescue Octokit::NotFound, Octokit::Error => e
+    Result.new(reconciled: false, reason: "auto_merge: GitHub check failed: #{e.message}")
+  end
+
+  def reconcile_merge_train_land
+    pr_number = workflow.artifact(Steps::MergeTrainLand::INTEGRATION_PR_ARTIFACT).to_s.presence
+    return unreconciled unless pr_number.present?
+
+    client = GithubClient.for(repository: job.repository, user: job.user)
+    pr = client.pull_request(job.repository.slug, pr_number.to_i, bypass_cache: true)
+    return unreconciled unless pr[:merged]
+
+    run.succeed!
+    run.save!
+    step.succeed!
+    step.save!
+
+    StepDispatcher.advance_from(step.reload) if workflow.reload.running?
+    finish_workflow_if_terminal!
+
+    Result.new(reconciled: true, reason: "merge_train_land: integration PR ##{pr_number} already merged on GitHub")
+  rescue Octokit::NotFound, Octokit::Error => e
+    Result.new(reconciled: false, reason: "merge_train_land: GitHub check failed: #{e.message}")
   end
 
   def unreconciled
