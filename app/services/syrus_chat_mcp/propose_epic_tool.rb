@@ -24,8 +24,8 @@ module SyrusChatMcp
         description: { type: "string", description: "Markdown Epic description." },
         attached_repos: { type: "array", items: { type: "string" }, description: "Optional repository slugs or ids. The first repo is used as the Epic repository." },
         depends_on_job_ids: { type: "array", items: { type: "integer" }, description: "Optional existing Job IDs this Epic depends on." },
-        depends_on_proposal_slugs: { type: "array", items: { type: "string" }, description: "Optional Epic proposal slugs in this chat session that this Epic depends on." },
-        depends_on: { type: "array", items: { type: "string" }, description: "Optional proposal slugs that must be confirmed first." }
+        depends_on_proposal_slugs: { type: "array", items: { type: "string" }, description: "Optional Epic proposal slugs in this chat session that this Epic depends on. Prefer this over calling add_epic_dependency after confirmation — declaring it here wires the epic-to-epic ordering automatically in a single transaction at confirmation time." },
+        depends_on: { type: "array", items: { type: "string" }, description: "Optional proposal slugs or string-encoded Epic ids (e.g. epic:42) that must be confirmed first. For cross-epic sequencing, prefer depends_on_proposal_slugs — both fields are merged, but depends_on_proposal_slugs is more explicit." }
       },
       required: %w[title description]
     )

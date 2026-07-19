@@ -20,6 +20,10 @@ module SyrusChatMcp
       Epic and Job IDs are assigned only when the operator confirms, and will
       appear as `EPIC-<id>` and `JOB-<id>` in the next turn's system prompt
       under "Recent proposal activity".
+      To sequence multiple epics, set epic.depends_on_proposal_slugs on each
+      dependent epic card — the system resolves slugs to Epic IDs at
+      confirmation time, making post-confirmation add_epic_dependency calls
+      unnecessary.
     DESC
 
     input_schema(
@@ -33,7 +37,7 @@ module SyrusChatMcp
             description: { type: "string", description: "Epic description." },
             target_repo: { type: "string", description: "Repository slug owner/name. Defaults to the chat repository." },
             depends_on_job_ids: { type: "array", items: { type: "integer" }, description: "Existing Job IDs this Epic depends on." },
-            depends_on_proposal_slugs: { type: "array", items: { type: "string" }, description: "Epic proposal slugs in this chat session that this Epic depends on." },
+            depends_on_proposal_slugs: { type: "array", items: { type: "string" }, description: "Epic proposal slugs in this chat session that this Epic depends on. Declaring this here wires the epic-to-epic dependency automatically at confirmation time — preferred over calling add_epic_dependency afterward." },
             depends_on: { type: "array", items: { type: "string" }, description: "Proposal slugs or string-encoded Epic ids, for example epic:42, this Epic depends on." }
           },
           required: %w[slug]
