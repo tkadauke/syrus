@@ -17,17 +17,19 @@ module SyrusChatMcp
     )
 
     class << self
+      include McpToolPayloads::WorkflowPayload
+
       def call(workflow_id:, server_context:)
         workflow = find_workflow!(workflow_id, includes: { steps: :runs })
 
-        SyrusChatMcp.success(workflow: workflow_payload(workflow))
+        SyrusChatMcp.success(workflow: workflow_detail_payload(workflow))
       end
 
       private
 
-      def workflow_payload(workflow)
-        runs = workflow.steps.flat_map(&:runs)
-        latest_run = runs.max_by { |run| [ run.created_at || Time.at(0), run.id || 0 ] }
+      def workflow_detail_payload(workflow)
+        runs = workflow_step_runs(workflow)
+        latest_run = latest_run_for(runs)
 
         {
           id: workflow.id,
@@ -35,7 +37,7 @@ module SyrusChatMcp
           trigger_kind: workflow.trigger_kind,
           state: workflow.state,
           agent_provider: workflow.agent_provider,
-          summary: SyrusChatMcp::ListJobWorkflowsTool.snippet(workflow.artifact("summary").presence || latest_run&.agent_summary, 300),
+          summary: text_snippet(workflow.artifact("summary").presence || latest_run&.agent_summary, 300),
           step_count: workflow.steps.size,
           run_count: runs.size,
           total_cost_usd: decimal_payload(workflow.total_cost_usd),
@@ -55,16 +57,16 @@ module SyrusChatMcp
           run_count: step.runs.size,
           started_at: step.started_at&.iso8601,
           finished_at: step.finished_at&.iso8601,
-          runs: step.runs.map { |run| run_payload(run) }
+          runs: step.runs.map { |run| run_detail_payload(run) }
         }
       end
 
-      def run_payload(run)
+      def run_detail_payload(run)
         {
           id: run.id,
           state: run.state,
           agent_outcome: run.agent_outcome,
-          agent_summary: SyrusChatMcp::ListJobWorkflowsTool.snippet(run.agent_summary, 500),
+          agent_summary: text_snippet(run.agent_summary, 500),
           started_at: run.started_at&.iso8601,
           finished_at: run.finished_at&.iso8601,
           cost_usd: decimal_payload(run.cost_usd)

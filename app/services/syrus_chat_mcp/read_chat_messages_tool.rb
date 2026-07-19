@@ -2,6 +2,9 @@ require "mcp"
 
 module SyrusChatMcp
   class ReadChatMessagesTool < MCP::Tool
+    extend AuthorizationSupport
+    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
+
     tool_name "read_chat_messages"
 
     description "Read a page of messages from one of this user's chat sessions."
@@ -16,9 +19,7 @@ module SyrusChatMcp
 
     class << self
       def call(server_context:, chat_session_id:, page: 1)
-        current_chat = server_context.fetch(:chat_session)
-        chat_session = ChatSession.find_by(id: chat_session_id, user_id: current_chat.user_id)
-        return SyrusChatMcp.invalid("chat session not found") unless chat_session
+        chat_session = find_chat_session!(chat_session_id)
 
         page = normalize_page(page)
         total_messages = chat_session.messages.count

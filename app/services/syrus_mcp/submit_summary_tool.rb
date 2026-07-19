@@ -41,6 +41,8 @@ module SyrusMcp
 
       def call(pr_title:, pr_body:, summary:, server_context:)
         run = SyrusMcp.run_from_context(server_context)
+        context = McpToolContext.from_run(run)
+        return SyrusMcp.not_authorized unless McpToolPolicy.capability_permitted?(context, :submit_summary)
 
         title   = SyrusMcp.utf8(pr_title).strip
         body    = SyrusMcp.utf8(pr_body).strip

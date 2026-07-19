@@ -3,8 +3,37 @@
 # may use for the given context. Sidecars intersect this set with their own
 # TOOLS/DEFERRED_TOOLS arrays so tier registration stays in the sidecar.
 class McpToolPolicy
+  # Capabilities that workflow-surface submit tools require. Maps a symbolic
+  # capability name to the set of workflow roles that hold it. Roles absent
+  # from the list do not have the capability and must not call the tool.
+  WORKFLOW_CAPABILITIES = {
+    submit_summary:            [
+      AgentRole::WORKFLOW_IMPLEMENT,
+      AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
+      AgentRole::WORKFLOW_REBASE_CONFLICT,
+      AgentRole::WORKFLOW_MANUAL
+    ].freeze,
+    submit_test_plan:          [
+      AgentRole::WORKFLOW_IMPLEMENT,
+      AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
+      AgentRole::WORKFLOW_REBASE_CONFLICT,
+      AgentRole::WORKFLOW_MANUAL
+    ].freeze,
+    submit_adversarial_review: [
+      AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER,
+      AgentRole::WORKFLOW_MANUAL
+    ].freeze
+  }.freeze
+
   def self.for(context)
     new(context).allowed_tools
+  end
+
+  # Returns true when a context's role holds the named workflow capability.
+  # Non-workflow roles always return false so the check is safe to call for any context.
+  def self.capability_permitted?(context, capability)
+    permitted_roles = WORKFLOW_CAPABILITIES.fetch(capability.to_sym, [])
+    permitted_roles.include?(context.role)
   end
 
   def initialize(context)
@@ -26,9 +55,11 @@ class McpToolPolicy
 
   private
 
-  # All workflow run tools (behavior-preserving: same set as today's hardcoded list).
+  # Per-step workflow tool set. Submit tools are role-specific so the
+  # adversarial reviewer cannot call submit_summary/submit_test_plan and
+  # non-reviewer roles cannot call submit_adversarial_review.
   def workflow_tools
-    [
+    base = [
       SyrusMcp::ReadLiveStateTool,
       Mcp::Tools::ReadMemoryTool,
       Mcp::Tools::WriteMemoryTool,
@@ -36,11 +67,14 @@ class McpToolPolicy
       Mcp::Tools::SearchMemoriesTool,
       Mcp::Tools::ListMemoriesTool,
       SyrusMcp::GetCoverageReportTool,
-      SyrusMcp::SubmitSummaryTool,
-      SyrusMcp::SubmitTestPlanTool,
-      SyrusMcp::SubmitAdversarialReviewTool,
       SyrusMcp::ReportMainConcernTool
     ]
+
+    if @context.role == AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER
+      base + [ SyrusMcp::SubmitAdversarialReviewTool ]
+    else
+      base + [ SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool ]
+    end
   end
 
   # Chat tool set mirrors the existing tools_for_session filtering logic,

@@ -16,6 +16,8 @@ module SyrusChatMcp
     )
 
     class << self
+      include McpToolPayloads::JobPayload
+
       def call(server_context:, query:, state: nil, limit: 20)
         chat_session = server_context.fetch(:chat_session)
         query = query.to_s.strip
@@ -28,7 +30,7 @@ module SyrusChatMcp
 
         SyrusChatMcp.success(
           total: total,
-          results: scope.order(updated_at: :desc, id: :desc).limit(normalize_limit(limit)).map { |job| job_payload(job) }
+          results: scope.order(updated_at: :desc, id: :desc).limit(normalize_limit(limit)).map { |job| job_search_payload(job) }
         )
       end
 
@@ -51,20 +53,6 @@ module SyrusChatMcp
 
       def optional_search_columns
         Job.column_names & %w[body description issue_body]
-      end
-
-      def job_payload(job)
-        {
-          id: job.id,
-          repository_slug: job.repository&.slug,
-          kind: job.kind,
-          issue_title: job.issue_title,
-          state: job.state,
-          pr_number: job.pr_number || job.external_pr_number,
-          priority: job.priority,
-          created_at: job.created_at&.iso8601,
-          updated_at: job.updated_at&.iso8601
-        }
       end
     end
   end

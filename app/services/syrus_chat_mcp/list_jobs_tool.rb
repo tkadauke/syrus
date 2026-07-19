@@ -15,6 +15,8 @@ module SyrusChatMcp
     )
 
     class << self
+      include McpToolPayloads::JobPayload
+
       def call(server_context:, state: "open", label: nil, limit: 20)
         chat_session = server_context.fetch(:chat_session)
         state = state.to_s.presence || "open"
@@ -27,7 +29,7 @@ module SyrusChatMcp
         return scope if scope.is_a?(MCP::Tool::Response)
 
         SyrusChatMcp.success(
-          jobs: scope.limit(limit).map { |job| job_payload(job) }
+          jobs: scope.limit(limit).map { |job| job_list_payload(job) }
         )
       end
 
@@ -43,24 +45,6 @@ module SyrusChatMcp
         return scope.where(skip_prepare: true) if label == Job::PREPARE_SKIP_LABEL
 
         SyrusChatMcp.invalid("label filtering only supports #{Job::PREPARE_SKIP_LABEL.inspect} across user scope")
-      end
-
-      def job_payload(job)
-        {
-          id: job.id,
-          repository_slug: job.repository&.slug,
-          kind: job.kind,
-          issue_number: job.issue_number,
-          pr_number: job.pr_number || job.external_pr_number,
-          branch_name: job.branch_name,
-          state: job.state,
-          closure_reason: job.closure_reason,
-          agent_provider: job.agent_provider,
-          priority: job.priority,
-          issue_title: job.issue_title,
-          created_at: job.created_at&.iso8601,
-          updated_at: job.updated_at&.iso8601
-        }
       end
     end
   end

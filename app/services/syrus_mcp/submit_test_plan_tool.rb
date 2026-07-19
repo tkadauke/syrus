@@ -32,6 +32,8 @@ module SyrusMcp
     class << self
       def call(steps:, notes: nil, server_context:)
         run = SyrusMcp.run_from_context(server_context)
+        context = McpToolContext.from_run(run)
+        return SyrusMcp.not_authorized unless McpToolPolicy.capability_permitted?(context, :submit_test_plan)
 
         normalized_steps = Array(steps).map { |step| SyrusMcp.utf8(step).strip }.reject(&:empty?)
         normalized_notes = SyrusMcp.utf8(notes).strip.presence

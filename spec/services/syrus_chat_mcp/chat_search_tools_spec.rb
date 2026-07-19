@@ -115,14 +115,14 @@ RSpec.describe "SyrusChatMcp chat search tools" do
       response = call_tool("read_chat_messages", chat_session_id: other_user_chat.id)
 
       expect(response[:result][:isError]).to be(true)
-      expect(response[:result][:content].first[:text]).to include("chat session not found")
+      expect(response[:result][:content].first[:text]).to include("not_authorized")
     end
 
     it "handles a missing chat gracefully" do
       response = call_tool("read_chat_messages", chat_session_id: ChatSession.maximum(:id).to_i + 100)
 
       expect(response[:result][:isError]).to be(true)
-      expect(response[:result][:content].first[:text]).to include("chat session not found")
+      expect(response[:result][:content].first[:text]).to include("not_authorized")
     end
   end
 

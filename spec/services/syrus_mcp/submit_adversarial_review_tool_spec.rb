@@ -1,7 +1,15 @@
 require "rails_helper"
 
 RSpec.describe SyrusMcp::SubmitAdversarialReviewTool do
-  let(:run) { Factories.job.initial_run }
+  # submit_adversarial_review is role-gated to WORKFLOW_ADVERSARIAL_REVIEWER,
+  # which is assigned when the step.kind is "grader". Using initial_run would
+  # produce WORKFLOW_IMPLEMENT and trigger the capability guard.
+  let(:run) do
+    job = Factories.job
+    workflow = job.latest_workflow
+    step = Step.create!(workflow: workflow, kind: "grader", position: 99)
+    step.runs.create!(job: job, trigger_kind: workflow.trigger_kind)
+  end
 
   def call(critique: "The implementation needs a missing edge-case test.", verdict: "needs_work")
     described_class.call(critique: critique, verdict: verdict, server_context: { run: run })
@@ -68,5 +76,17 @@ RSpec.describe SyrusMcp::SubmitAdversarialReviewTool do
   it "exposes the expected tool name and required schema" do
     expect(described_class.tool_name).to eq("submit_adversarial_review")
     expect(described_class.input_schema_value.to_h[:required]).to match_array(%w[critique verdict])
+  end
+
+  it "returns not_authorized when called from an implement-role step" do
+    implement_run = Factories.job.initial_run
+    response = described_class.call(
+      critique: "Looks fine.", verdict: "approved",
+      server_context: { run: implement_run }
+    )
+
+    expect(response).to be_error
+    payload = JSON.parse(response.content.first[:text], symbolize_names: true)
+    expect(payload).to eq(error: "not_authorized")
   end
 end

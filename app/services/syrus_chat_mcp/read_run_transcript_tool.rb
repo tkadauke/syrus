@@ -19,6 +19,8 @@ module SyrusChatMcp
     )
 
     class << self
+      include McpToolPayloads::WorkflowPayload
+
       def call(run_id:, server_context:, page: 1, per: 50)
         run = find_run!(run_id)
 
@@ -37,7 +39,7 @@ module SyrusChatMcp
           page: page,
           per: per,
           total_pages: total_pages(total_chunks, per),
-          chunks: logs.offset((page - 1) * per).limit(per).map { |log| log_payload(log) }
+          chunks: logs.offset((page - 1) * per).limit(per).map { |log| run_log_payload(log) }
         )
       end
 
@@ -55,14 +57,6 @@ module SyrusChatMcp
         return 0 if total_chunks.zero?
 
         (total_chunks.to_f / per).ceil
-      end
-
-      def log_payload(log)
-        {
-          sequence: log.sequence,
-          kind: log.kind,
-          chunk: log.chunk
-        }
       end
     end
   end

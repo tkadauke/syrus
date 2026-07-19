@@ -9,9 +9,10 @@ RSpec.describe SyrusMcp::Sidecar do
   let(:run) { Factories.job.initial_run }
 
   def server_for(run)
+    context = McpToolContext.from_run(Run.includes(:step, job: :repository).find(run.id))
     MCP::Server.new(
       name: "syrus-mcp-sidecar",
-      tools: [ SyrusMcp::ReadLiveStateTool, Mcp::Tools::ReadMemoryTool, SyrusMcp::GetCoverageReportTool, SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool, SyrusMcp::SubmitAdversarialReviewTool, SyrusMcp::ReportMainConcernTool ],
+      tools: McpToolPolicy.for(context),
       server_context: { run_id: run.id }
     )
   end
@@ -33,7 +34,10 @@ RSpec.describe SyrusMcp::Sidecar do
       _ = jsonrpc(server_for(run), "initialize", id: 0)
       response = jsonrpc(server_for(run), "tools/list", id: 1)
       tool_names = response[:result][:tools].map { |t| t[:name] }
-      expect(tool_names).to eq(%w[read_live_state read_memory get_coverage_report submit_summary submit_test_plan submit_adversarial_review report_main_concern])
+      expect(tool_names).to contain_exactly(
+        *%w[read_live_state read_memory write_memory delete_memory search_memories list_memories get_coverage_report report_main_concern submit_summary submit_test_plan]
+      )
+      expect(tool_names).not_to include("submit_adversarial_review")
     end
 
     it "exposes read_live_state as a read-only tool without arbitrary job lookup arguments" do
@@ -123,8 +127,17 @@ RSpec.describe SyrusMcp::Sidecar do
   end
 
   describe "tools/call submit_adversarial_review" do
+    # Adversarial review is role-gated: only runs whose step.kind == "grader"
+    # (WORKFLOW_ADVERSARIAL_REVIEWER) have this tool in their sidecar tool list.
+    let(:grader_run) do
+      job = Factories.job
+      workflow = job.latest_workflow
+      step = Step.create!(workflow: workflow, kind: "grader", position: 99)
+      step.runs.create!(job: job, trigger_kind: workflow.trigger_kind)
+    end
+
     it "persists the review findings on the Workflow via the JSON-RPC path" do
-      response = jsonrpc(server_for(run), "tools/call", params: {
+      response = jsonrpc(server_for(grader_run), "tools/call", params: {
         name: "submit_adversarial_review",
         arguments: {
           critique: "No blocking issues found.",
@@ -133,13 +146,24 @@ RSpec.describe SyrusMcp::Sidecar do
       })
 
       expect(response[:result][:isError]).to be_falsey
-      expect(run.workflow.reload.artifact("adversarial_review_iterations")).to eq([
+      expect(grader_run.workflow.reload.artifact("adversarial_review_iterations")).to eq([
         {
-          "iteration" => run.step.iteration,
+          "iteration" => grader_run.step.iteration,
           "critique" => "No blocking issues found.",
           "verdict" => "approved"
         }
       ])
+    end
+
+    it "returns not_authorized when called from a non-grader step (implement role)" do
+      response = jsonrpc(server_for(run), "tools/call", params: {
+        name: "submit_adversarial_review",
+        arguments: { critique: "x", verdict: "approved" }
+      })
+
+      # The tool is not registered in the implement-role sidecar, so the
+      # MCP server returns a JSON-RPC error (method not found).
+      expect(response[:error]).to be_present
     end
   end
 

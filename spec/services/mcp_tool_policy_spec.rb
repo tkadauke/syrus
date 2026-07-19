@@ -16,7 +16,7 @@ RSpec.describe McpToolPolicy do
   describe "workflow roles" do
     let(:run) { Factories.job.initial_run }
 
-    it "returns the full run-sidecar tool set for any workflow role" do
+    it "returns submit_summary and submit_test_plan for implement roles, not submit_adversarial_review" do
       context = McpToolContext.from_run(run)
       tools   = described_class.for(context)
 
@@ -30,10 +30,41 @@ RSpec.describe McpToolPolicy do
         SyrusMcp::GetCoverageReportTool,
         SyrusMcp::SubmitSummaryTool,
         SyrusMcp::SubmitTestPlanTool,
-        SyrusMcp::SubmitAdversarialReviewTool,
         SyrusMcp::ReportMainConcernTool
       )
-      expect(tools.size).to eq(11)
+      expect(tools).not_to include(SyrusMcp::SubmitAdversarialReviewTool)
+      expect(tools.size).to eq(10)
+    end
+
+    it "returns submit_adversarial_review but not submit_summary for the adversarial_reviewer role" do
+      context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER, user: user)
+      tools   = described_class.for(context)
+
+      expect(tools).to include(SyrusMcp::ReadLiveStateTool, SyrusMcp::SubmitAdversarialReviewTool)
+      expect(tools).not_to include(SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool)
+      expect(tools.size).to eq(9)
+    end
+
+    describe ".capability_permitted?" do
+      it "permits submit_summary for the implement role" do
+        context = McpToolContext.from_run(run)
+        expect(described_class.capability_permitted?(context, :submit_summary)).to be(true)
+      end
+
+      it "denies submit_adversarial_review for the implement role" do
+        context = McpToolContext.from_run(run)
+        expect(described_class.capability_permitted?(context, :submit_adversarial_review)).to be(false)
+      end
+
+      it "permits submit_adversarial_review for the adversarial_reviewer role" do
+        context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER, user: user)
+        expect(described_class.capability_permitted?(context, :submit_adversarial_review)).to be(true)
+      end
+
+      it "denies submit_summary for the adversarial_reviewer role" do
+        context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER, user: user)
+        expect(described_class.capability_permitted?(context, :submit_summary)).to be(false)
+      end
     end
   end
 

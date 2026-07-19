@@ -26,6 +26,10 @@ module SyrusMcp
     MCP::Tool::Response.new([ { type: "text", text: "Error: #{reason}" } ], error: true)
   end
 
+  def self.not_authorized
+    MCP::Tool::Response.new([ { type: "text", text: { error: "not_authorized" }.to_json } ], error: true)
+  end
+
   def self.utf8(text)
     string = text.to_s
     if string.encoding == Encoding::ASCII_8BIT

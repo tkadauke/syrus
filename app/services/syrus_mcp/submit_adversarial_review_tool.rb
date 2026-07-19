@@ -31,6 +31,8 @@ module SyrusMcp
     class << self
       def call(critique:, verdict:, server_context:)
         run = SyrusMcp.run_from_context(server_context)
+        context = McpToolContext.from_run(run)
+        return SyrusMcp.not_authorized unless McpToolPolicy.capability_permitted?(context, :submit_adversarial_review)
 
         normalized_critique = SyrusMcp.utf8(critique).strip
         normalized_verdict = SyrusMcp.utf8(verdict).strip

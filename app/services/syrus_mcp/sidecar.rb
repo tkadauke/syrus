@@ -11,6 +11,16 @@ module SyrusMcp
     end
 
     def run
+      # Build a role-specific tool list so each step kind only sees the
+      # submission tools that are appropriate for it. McpToolPolicy.for(context)
+      # returns the full workflow tool set filtered by the run's role:
+      # - WORKFLOW_ADVERSARIAL_REVIEWER gets submit_adversarial_review, not submit_summary/test_plan.
+      # - All other workflow roles get submit_summary/test_plan, not submit_adversarial_review.
+      tools = SyrusMcp.with_database_connection do
+        context = McpToolContext.from_run(Run.includes(:step, job: :repository).find(@run_id))
+        McpToolPolicy.for(context)
+      end
+
       # Server name MUST match the --mcp-config key and the binary
       # basename ("syrus-mcp-sidecar"). claude-code derives MCP tool
       # prefixes inconsistently between fresh sessions (uses config key)
@@ -19,19 +29,7 @@ module SyrusMcp
       # Steps::Base#with_mcp_config for the full story.
       server = MCP::Server.new(
         name: "syrus-mcp-sidecar",
-        tools: [
-          ReadLiveStateTool,
-          Mcp::Tools::ReadMemoryTool,
-          Mcp::Tools::WriteMemoryTool,
-          Mcp::Tools::DeleteMemoryTool,
-          Mcp::Tools::SearchMemoriesTool,
-          Mcp::Tools::ListMemoriesTool,
-          GetCoverageReportTool,
-          SubmitSummaryTool,
-          SubmitTestPlanTool,
-          SubmitAdversarialReviewTool,
-          ReportMainConcernTool
-        ],
+        tools: tools,
         server_context: { run_id: @run_id }
       )
       transport = MCP::Server::Transports::StdioTransport.new(server)

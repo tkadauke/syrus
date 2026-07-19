@@ -29,6 +29,69 @@ RSpec.describe SyrusChatMcp::AuthorizationSupport do
       .to raise_error(described_class::AuthorizationError, "job not found or not accessible")
   end
 
+  it "restricts find_job! to allowed_job_ids when the context limits scope" do
+    allowed_job = Factories.job(repository: repository)
+    blocked_job = Factories.job(repository: repository)
+
+    restricted = McpToolContext.new(
+      surface: :chat, role: AgentRole::CHAT_PLANNER, user: user,
+      allowed_job_ids: [ allowed_job.id ]
+    )
+    allow(McpToolContext).to receive(:from_server_context).and_return(restricted)
+
+    with_context do
+      expect(tool.find_job!(allowed_job.id)).to eq(allowed_job)
+      expect { tool.find_job!(blocked_job.id) }
+        .to raise_error(described_class::AuthorizationError, "job not found or not accessible")
+    end
+  end
+
+  it "finds workflows belonging to the current user" do
+    job = Factories.job(repository: repository)
+    workflow = job.latest_workflow
+
+    expect(with_context { tool.find_workflow!(workflow.id) }).to eq(workflow)
+  end
+
+  it "raises AuthorizationError when find_workflow! sees another user's workflow" do
+    other_workflow = Factories.job(repository: Factories.repository(user: Factories.user)).latest_workflow
+
+    expect { with_context { tool.find_workflow!(other_workflow.id) } }
+      .to raise_error(described_class::AuthorizationError, "workflow not found or not accessible")
+  end
+
+  it "finds runs belonging to the current user" do
+    run = Factories.job(repository: repository).initial_run
+
+    expect(with_context { tool.find_run!(run.id) }).to eq(run)
+  end
+
+  it "raises AuthorizationError when find_run! sees another user's run" do
+    other_run = Factories.job(repository: Factories.repository(user: Factories.user)).initial_run
+
+    expect { with_context { tool.find_run!(other_run.id) } }
+      .to raise_error(described_class::AuthorizationError, "run not found or not accessible")
+  end
+
+  it "finds chat sessions belonging to the current user" do
+    other_chat = ChatSession.create!(user: user, repository: repository)
+
+    expect(with_context { tool.find_chat_session!(other_chat.id) }).to eq(other_chat)
+  end
+
+  it "raises AuthorizationError when find_chat_session! sees another user's chat session" do
+    other_user = Factories.user
+    other_chat = ChatSession.create!(user: other_user, repository: Factories.repository(user: other_user))
+
+    expect { with_context { tool.find_chat_session!(other_chat.id) } }
+      .to raise_error(described_class::AuthorizationError, "chat session not found or not accessible")
+  end
+
+  it "raises AuthorizationError when find_chat_session! is given a non-existent id" do
+    expect { with_context { tool.find_chat_session!(ChatSession.maximum(:id).to_i + 999) } }
+      .to raise_error(described_class::AuthorizationError, "chat session not found or not accessible")
+  end
+
   it "returns a not_authorized tool error when registered tools raise AuthorizationError" do
     raising_tool = Class.new(MCP::Tool) do
       tool_name "raising_tool"
