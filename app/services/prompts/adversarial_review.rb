@@ -1,16 +1,22 @@
 module Prompts
   class AdversarialReview
-    def initialize(issue:, diff:, prior_findings:)
+    FEEDBACK_TRIGGER_KINDS = %w[pr_comment chat_feedback].freeze
+
+    def initialize(issue:, diff:, prior_findings:, workflow_kind: nil, feedback_context: nil)
       @issue = issue
       @diff = diff.to_s
       @prior_findings = Array(prior_findings)
+      @workflow_kind = workflow_kind.to_s
+      @feedback_context = feedback_context.to_s
     end
 
     def to_s
       [
         "You are running the adversarial_review step for Syrus.",
         independence,
+        workflow_context,
         job_context,
+        feedback_history,
         current_diff,
         prior_review_context,
         submission_instructions
@@ -18,6 +24,10 @@ module Prompts
     end
 
     private
+
+    def feedback_workflow?
+      FEEDBACK_TRIGGER_KINDS.include?(@workflow_kind)
+    end
 
     def independence
       <<~TEXT.strip
@@ -28,6 +38,13 @@ module Prompts
       TEXT
     end
 
+    def workflow_context
+      return nil unless feedback_workflow?
+
+      kind_label = @workflow_kind == "chat_feedback" ? "chat feedback" : "PR comment feedback"
+      "This is a #{kind_label} workflow. The changes under review address operator feedback on an existing PR, not a fresh implementation."
+    end
+
     def job_context
       [
         "Job description:",
@@ -36,9 +53,17 @@ module Prompts
       ].join("\n\n")
     end
 
+    def feedback_history
+      return nil unless feedback_workflow? && @feedback_context.present?
+
+      label = @workflow_kind == "chat_feedback" ? "Chat feedback being addressed" : "PR comments being addressed"
+      "#{label}:\n\n#{@feedback_context}"
+    end
+
     def current_diff
+      agentic_label = feedback_workflow? ? "respond" : "implement"
       [
-        "Current implementation diff from the latest succeeded implement step:",
+        "Current diff from the latest succeeded #{agentic_label} step:",
         "```diff",
         @diff.presence || "(No diff captured.)",
         "```"

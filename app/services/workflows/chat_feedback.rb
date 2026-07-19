@@ -15,6 +15,7 @@ module Workflows
     def self.steps_for(job)
       [
         "prepare",
+        adversarial_review_loop(job),
         Workflows::RetryUntil.new(
           max_iterations: AppSetting.grade_max_iterations,
           repair: [ :respond ],
@@ -24,7 +25,14 @@ module Workflows
         "coverage_pr_comment",
         "summarize_amend",
         follow_up_push(max_iterations: AppSetting.grade_max_iterations)
-      ]
+      ].compact
+    end
+
+    def self.adversarial_review_loop(job)
+      rounds = adversarial_review_rounds(job)
+      return nil unless rounds.positive?
+
+      Workflows::Loop.new(max_iterations: rounds, steps: [ :respond, :adversarial_review ])
     end
   end
 end

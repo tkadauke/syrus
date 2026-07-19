@@ -28,11 +28,15 @@ module Steps
           .first&.latest_run&.claude_session&.session_id
     end
 
+    FEEDBACK_TRIGGER_KINDS = %w[pr_comment chat_feedback].freeze
+
     def reviewer_prompt
       Prompts::AdversarialReview.new(
         issue: review_issue,
-        diff: latest_implement_diff,
-        prior_findings: review_iterations
+        diff: latest_agentic_diff,
+        prior_findings: review_iterations,
+        workflow_kind: workflow.trigger_kind,
+        feedback_context: feedback_context_text
       ).to_s
     end
 
@@ -40,14 +44,45 @@ module Steps
       job.synthetic_issue || Struct.new(:title, :body).new(job.issue_title.to_s, job.issue_body.to_s)
     end
 
-    def latest_implement_diff
+    def latest_agentic_diff
+      agentic_kind = feedback_workflow? ? "respond" : "implement"
       workflow.steps
-        .where(kind: "implement", state: "succeeded")
+        .where(kind: agentic_kind, state: "succeeded")
         .order(:position)
         .last
         &.latest_run
         &.agent_diff
-        .presence || raise(StepFailed, "no succeeded implement diff available for adversarial_review")
+        .presence || raise(StepFailed, "no succeeded #{agentic_kind} diff available for adversarial_review")
+    end
+
+    def feedback_workflow?
+      FEEDBACK_TRIGGER_KINDS.include?(workflow.trigger_kind)
+    end
+
+    def feedback_context_text
+      return nil unless feedback_workflow?
+
+      if workflow.trigger_kind == "chat_feedback"
+        workflow.artifact("chat_feedback").to_s.presence
+      else
+        render_pr_comments(Array(workflow.artifact("pr_comments")))
+      end
+    end
+
+    def render_pr_comments(comments)
+      return nil if comments.empty?
+
+      comments.map { |c| render_pr_comment(c) }.join("\n\n")
+    end
+
+    def render_pr_comment(c)
+      author = c["author"].presence || "reviewer"
+      body   = c["body"].to_s
+      if c["path"].present?
+        "[Inline on #{c["path"]}:#{c["line"]}] @#{author}: #{body}"
+      else
+        "@#{author}: #{body}"
+      end
     end
 
     def review_iterations

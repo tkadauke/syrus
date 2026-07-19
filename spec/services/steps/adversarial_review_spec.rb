@@ -83,4 +83,130 @@ RSpec.describe Steps::AdversarialReview do
 
     expect { handler.call }.to raise_error(Steps::Base::StepFailed, /submit_adversarial_review/)
   end
+
+  context "in a pr_comment feedback workflow" do
+    let(:user) { Factories.user(github_token: "ghp_test") }
+    let(:repository) { Factories.repository(user: user) }
+    let(:feedback_job) do
+      Factories.job_record(
+        user: user,
+        repository: repository,
+        state: "open",
+        issue_title: "Feedback job",
+        issue_body: "Original task body."
+      )
+    end
+    let(:feedback_workflow) do
+      Workflow.create!(
+        job: feedback_job,
+        trigger_kind: "pr_comment",
+        agent_provider: "claude",
+        chain_template: []
+      )
+    end
+    let(:respond_step) do
+      Step.create!(workflow: feedback_workflow, kind: "respond", position: 1, iteration: 1,
+                   state: "succeeded", loop_id: "fb-loop-1")
+    end
+    let(:respond_run) do
+      Run.create!(job: feedback_job, step: respond_step, trigger_kind: "pr_comment", state: "succeeded",
+                  agent_diff: "diff --git a/foo.rb b/foo.rb\n+# addressed feedback\n")
+    end
+    let(:fb_review_step) do
+      Step.create!(workflow: feedback_workflow, kind: "adversarial_review", position: 2, iteration: 1,
+                   loop_id: "fb-loop-1")
+    end
+    let(:fb_run) { Run.create!(job: feedback_job, step: fb_review_step, trigger_kind: "pr_comment") }
+    let(:fb_handler) { described_class.new(fb_run) }
+
+    before do
+      fake_ws = instance_double(WorkflowWorkspace, setup: true, path: Pathname.new("/tmp/workspace"))
+      allow(fb_handler).to receive(:workspace).and_return(fake_ws)
+      respond_run # ensure persisted
+      feedback_workflow.set_artifact!("pr_comments", [
+        { "author" => "alice", "body" => "Please add error handling.", "path" => nil, "line" => nil }
+      ])
+    end
+
+    it "reads the respond step diff, not an implement diff" do
+      expect(fb_handler).to receive(:run_agent) do |prompt: nil, **|
+        expect(prompt).to include("addressed feedback")
+        expect(prompt).to include("respond step")
+        feedback_workflow.set_artifact!("adversarial_review_iterations", [
+          { "iteration" => 1, "critique" => "Fine.", "verdict" => "approved" }
+        ])
+      end
+
+      fb_handler.call
+    end
+
+    it "includes the PR feedback context and workflow kind in the prompt" do
+      expect(fb_handler).to receive(:run_agent) do |prompt: nil, **|
+        expect(prompt).to include("PR comment feedback workflow")
+        expect(prompt).to include("alice")
+        expect(prompt).to include("Please add error handling.")
+        feedback_workflow.set_artifact!("adversarial_review_iterations", [
+          { "iteration" => 1, "critique" => "Fine.", "verdict" => "approved" }
+        ])
+      end
+
+      fb_handler.call
+    end
+
+    it "raises StepFailed when no respond diff exists" do
+      respond_run.update!(agent_diff: nil)
+
+      expect { fb_handler.call }.to raise_error(Steps::Base::StepFailed, /respond diff/)
+    end
+  end
+
+  context "in a chat_feedback workflow" do
+    let(:user) { Factories.user(github_token: "ghp_test") }
+    let(:repository) { Factories.repository(user: user) }
+    let(:chat_job) do
+      Factories.job_record(user: user, repository: repository, state: "open",
+                           issue_title: "Chat job", issue_body: "Original task.")
+    end
+    let(:chat_workflow) do
+      Workflow.create!(
+        job: chat_job,
+        trigger_kind: "chat_feedback",
+        agent_provider: "claude",
+        chain_template: []
+      )
+    end
+    let(:chat_respond_step) do
+      Step.create!(workflow: chat_workflow, kind: "respond", position: 1, iteration: 1,
+                   state: "succeeded", loop_id: "chat-loop-1")
+    end
+    let(:chat_respond_run) do
+      Run.create!(job: chat_job, step: chat_respond_step, trigger_kind: "chat_feedback", state: "succeeded",
+                  agent_diff: "diff --git a/bar.rb b/bar.rb\n+# chat addressed\n")
+    end
+    let(:chat_review_step) do
+      Step.create!(workflow: chat_workflow, kind: "adversarial_review", position: 2, iteration: 1,
+                   loop_id: "chat-loop-1")
+    end
+    let(:chat_run) { Run.create!(job: chat_job, step: chat_review_step, trigger_kind: "chat_feedback") }
+    let(:chat_handler) { described_class.new(chat_run) }
+
+    before do
+      fake_ws = instance_double(WorkflowWorkspace, setup: true, path: Pathname.new("/tmp/workspace"))
+      allow(chat_handler).to receive(:workspace).and_return(fake_ws)
+      chat_respond_run # ensure persisted
+      chat_workflow.set_artifact!("chat_feedback", "Please refactor the helper method.")
+    end
+
+    it "includes chat feedback context and workflow kind in the prompt" do
+      expect(chat_handler).to receive(:run_agent) do |prompt: nil, **|
+        expect(prompt).to include("chat feedback workflow")
+        expect(prompt).to include("Please refactor the helper method.")
+        chat_workflow.set_artifact!("adversarial_review_iterations", [
+          { "iteration" => 1, "critique" => "Looks good.", "verdict" => "approved" }
+        ])
+      end
+
+      chat_handler.call
+    end
+  end
 end

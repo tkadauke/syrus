@@ -103,6 +103,14 @@ module Workflows
       "coverage_analyze" if RepoCoveragePlanReader.for_job(job)
     end
 
+    def self.adversarial_review_rounds(job)
+      plan = RepoAdversarialReviewPlan.for_job(job)
+      return plan.rounds if plan.enabled?
+      return plan.rounds if plan.source == ".syrus.yml" && plan.note.nil?
+
+      AppSetting.adversarial_review_rounds
+    end
+
     def self.follow_up_push(max_iterations: nil)
       Workflows::Try.new(:push).on_failure(
         "remote_branch_advanced_rebase_conflict",

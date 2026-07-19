@@ -75,12 +75,5 @@ module Workflows
       )
     end
 
-    def self.adversarial_review_rounds(job)
-      plan = RepoAdversarialReviewPlan.for_job(job)
-      return plan.rounds if plan.enabled?
-      return plan.rounds if plan.source == ".syrus.yml" && plan.note.nil?
-
-      AppSetting.adversarial_review_rounds
-    end
   end
 end
