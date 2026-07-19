@@ -3,8 +3,7 @@ require "rails_helper"
 RSpec.describe SmartFolder do
   it "creates the built-in folders as system-owned rows" do
     # 12 Job built-ins + 9 Epic + 4 Workflow + 4 Admin User
-    # + 3 Spawned Process + 6 Admin Queue = 38. Job count stays
-    # 12 — all_jobs moved to position 0, not added or removed.
+    # + 3 Spawned Process + 6 Admin Queue = 38.
     expect { described_class.ensure_builtins! }.to change(described_class, :count).by(38)
 
     expect(described_class::JOB_BUILTINS).to eq(described_class::BUILTIN_DEFINITIONS)
@@ -99,7 +98,7 @@ RSpec.describe SmartFolder do
     described_class.ensure_builtins!
     by_name = described_class.builtins.to_h { |f| [ f.name, f.visibility ] }
 
-    expect(by_name["All jobs"]).to eq(:always)
+    expect(by_name["All jobs"]).to eq(:on_demand)
     expect(by_name["Inbox"]).to eq(:always)
     expect(by_name["Landing queue"]).to eq(:when_present)
     expect(by_name["Pinned"]).to eq(:when_present)

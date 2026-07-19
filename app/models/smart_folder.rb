@@ -41,10 +41,11 @@ class SmartFolder < ApplicationRecord
   end
 
   JOB_BUILTINS = [
-    # Pinned at the top so operators can always reach the unfiltered list
-    # and see a live count. Uses no filter so all job kinds appear (including
-    # system/infrastructure kinds that the attention-preset folders hide).
-    { key: "all_jobs",         name: "All jobs",               visibility: :always,       filter: { "and" => [] } },
+    # First item under "More" — the unfiltered list is useful for lookups
+    # but too broad to occupy prime sidebar real estate. Uses no filter so
+    # all job kinds appear (including system/infrastructure kinds that the
+    # attention-preset folders hide).
+    { key: "all_jobs",         name: "All jobs",               visibility: :on_demand,    filter: { "and" => [] } },
 
     # Tier 1: high-priority alerts. Each appears above the fold only
     # when populated — so an empty sidebar means there's nothing
