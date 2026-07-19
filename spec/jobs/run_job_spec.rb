@@ -1050,6 +1050,79 @@ RSpec.describe RunJob do
     out
   end
 
+  describe "SIGTERM shutdown at step boundary" do
+    it "exits cleanly at the inter-step boundary without failing the successor Run" do
+      RunJob.agent_runner = ->(workspace_path:, **_) {
+        current = Run.last
+        File.write(File.join(workspace_path, "feature.rb"), "def greet = 'hello'\n") if current.step.kind == "implement"
+        AgentInvocation::Result.new(turns: 4, exit_status: 0, timed_out: false, is_error: false, outcome: "success", final_text: nil, session_id: nil)
+      }
+
+      # Simulate SIGTERM arriving right after implement completes: set the shutdown
+      # flag when next_inline_run is called while the current step is implement.
+      allow_any_instance_of(RunJob).to receive(:next_inline_run).and_wrap_original do |original, *args|
+        result = original.call(*args)
+        run_job = original.receiver
+        if result && run_job.instance_variable_get(:@step)&.kind == "implement"
+          run_job.instance_variable_set(:@shutdown_requested, true)
+        end
+        result
+      end
+
+      job
+      RunJob.perform_now(job.initial_run.id)
+
+      wf = job.workflows.last
+      implement_step = wf.steps.find_by(kind: "implement")
+      expect(implement_step.reload.state).to eq("succeeded")
+
+      # The successor step's Run is still queued — not started or failed — because
+      # RunJob exited cleanly at the step boundary instead of advancing.
+      successor_run = implement_step.next_step.runs.first
+      expect(successor_run.state).to eq("queued")
+
+      # Workflow is not failed (it still has queued work to do)
+      expect(wf.reload.state).not_to eq("failed")
+    end
+
+    it "does not start a new step if shutdown is requested before perform_step" do
+      step_kinds_executed = []
+      RunJob.agent_runner = ->(workspace_path:, **_) {
+        current = Run.last
+        step_kinds_executed << current.step.kind
+        File.write(File.join(workspace_path, "feature.rb"), "def greet = 'hello'\n") if current.step.kind == "implement"
+        AgentInvocation::Result.new(turns: 4, exit_status: 0, timed_out: false, is_error: false, outcome: "success", final_text: nil, session_id: nil)
+      }
+
+      # Simulate SIGTERM arriving after implement's Run is picked up as next_run
+      # but before its perform_step is called: set the flag while @step is still
+      # "implement" (the step that just succeeded), so the top-of-loop guard fires.
+      allow_any_instance_of(RunJob).to receive(:next_inline_run).and_wrap_original do |original, *args|
+        result = original.call(*args)
+        run_job = original.receiver
+        if result && run_job.instance_variable_get(:@step)&.kind == "prepare"
+          run_job.instance_variable_set(:@shutdown_requested, true)
+        end
+        result
+      end
+
+      job
+      RunJob.perform_now(job.initial_run.id)
+
+      wf = job.workflows.last
+      prepare_step = wf.steps.find_by(kind: "prepare")
+      expect(prepare_step.reload.state).to eq("succeeded")
+
+      # implement's Run is queued — the top-of-loop `break if @shutdown_requested`
+      # fired before perform_step was called for implement.
+      implement_step = wf.steps.find_by(kind: "implement")
+      expect(implement_step.runs.first.state).to eq("queued")
+
+      # Agent runner should never have been called for implement
+      expect(step_kinds_executed).not_to include("implement")
+    end
+  end
+
   describe "global agent concurrency cap" do
     include ActiveJob::TestHelper
 

@@ -82,10 +82,21 @@ class RunJob < ApplicationJob
     # pod holding the on-disk workspace (see Run#resume_worker_queue).
     @workflow&.record_worker_hostname!
 
+    @shutdown_requested = false
+    prior_trap = Signal.trap("TERM") do
+      @shutdown_requested = true
+      prior_trap.call if prior_trap.respond_to?(:call)
+    end
+
     loop do
+      break if @shutdown_requested
       perform_step
       next_run = next_inline_run
       break unless next_run
+      if @shutdown_requested
+        Rails.logger.info("[RunJob] SIGTERM — yielding at step boundary for Run ##{@run.id}, successor Run ##{next_run.id} will be re-enqueued by reaper")
+        break
+      end
       @run = next_run
       @step = @run.step
       @handler = nil
@@ -99,6 +110,7 @@ class RunJob < ApplicationJob
       raise
     end
   ensure
+    Signal.trap("TERM", prior_trap) if prior_trap
     Thread.current[:syrus_current_run] = nil
     Thread.current[:syrus_in_run_job] = nil
   end
@@ -327,8 +339,13 @@ class RunJob < ApplicationJob
 
   def continue_inline_after_controlled_failure
     loop do
+      break if @shutdown_requested
       next_run = next_inline_run
       break unless next_run
+      if @shutdown_requested
+        Rails.logger.info("[RunJob] SIGTERM — yielding at step boundary for Run ##{@run.id}, successor Run ##{next_run.id} will be re-enqueued by reaper")
+        break
+      end
 
       @run = next_run
       @step = @run.step
