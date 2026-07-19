@@ -233,7 +233,7 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
           <SlugHoverCard id={item.id} kind="epic">
             <CopyableSlug className="text-xs font-semibold uppercase" slug={item.display_number} />
           </SlugHoverCard>
-          <Link className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.paths.epic_path, prefix)}>{item.title}</Link>
+          <Link className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-300" draggable={false} to={withRoutePrefix(item.paths.epic_path, prefix)}>{item.title}</Link>
         </div>
         <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
           <NeutralStatePill state={item.state} />
