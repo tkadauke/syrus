@@ -68,6 +68,22 @@ RSpec.describe SyrusChatMcp::SuggestNextStepTool do
     expect(description).not_to match(/up to \d+ characters/)
   end
 
+  it "prohibits UI-only action suggestions in the tool description and text parameter description" do
+    response = jsonrpc(server, "tools/list")
+    tool = response.dig(:result, :tools).find { |entry| entry[:name] == "suggest_next_step" }
+
+    tool_description = tool[:description]
+    param_description = tool.dig(:inputSchema, :properties, :text, :description)
+
+    exclusion_fragment = "Do not suggest UI actions the operator must take in the Syrus interface"
+    expect(tool_description).to include(exclusion_fragment)
+    expect(param_description).to include(exclusion_fragment)
+
+    chat_fragment = "only suggest messages the agent can respond to in chat"
+    expect(tool_description).to include(chat_fragment)
+    expect(param_description).to include(chat_fragment)
+  end
+
   it "rejects blank text" do
     response = call_tool(text: "   ")
 

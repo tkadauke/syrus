@@ -9,7 +9,10 @@ module SyrusChatMcp
       shown as tab-completable ghost text in the chat composer, so write
       it in the operator's voice (e.g. "Create an Epic from these
       findings"). Call this at most once, at the end of a turn, and only
-      when one clear next step exists.
+      when one clear next step exists. Do not suggest UI actions the
+      operator must take in the Syrus interface (e.g. "Confirm the job",
+      "Approve the proposal") — only suggest messages the agent can
+      respond to in chat.
     DESC
 
     input_schema(
@@ -17,6 +20,9 @@ module SyrusChatMcp
         text: {
           type: "string",
           description: "Concise, actionable next message in the operator's voice. " \
+                       "Do not suggest UI actions the operator must take in the Syrus interface " \
+                       "(e.g. \"Confirm the job\", \"Approve the proposal\") — only suggest messages " \
+                       "the agent can respond to in chat. " \
                        "Stored suggestions are truncated to #{ChatSession::SUGGESTED_NEXT_STEP_MAX_BYTES} bytes " \
                        "(#{ChatSession::SUGGESTED_NEXT_STEP_MAX_BYTES} plain ASCII characters; fewer when the " \
                        "text uses accented characters or emoji, which take multiple bytes each)."
