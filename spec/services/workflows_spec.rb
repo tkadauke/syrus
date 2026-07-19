@@ -468,6 +468,8 @@ RSpec.describe Workflows do
     end
 
     it "instantiates PrFeedback with respond → grader_fanout → grader_collect → summarize_amend → try(push)" do
+      allow(RepoAdversarialReviewPlan).to receive(:for_job).with(job)
+        .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml"))
       wf = Workflows::PrFeedback.instantiate(job: job)
       expect(wf.steps.pluck(:kind)).to eq(%w[ prepare respond grader_fanout grader_collect coverage_analyze coverage_pr_comment summarize_amend push ])
       expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ respond grader_fanout grader_collect ])
@@ -484,6 +486,8 @@ RSpec.describe Workflows do
     end
 
     it "instantiates ChatFeedback with chat markdown artifacts and the PR feedback chain shape" do
+      allow(RepoAdversarialReviewPlan).to receive(:for_job).with(job)
+        .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml"))
       wf = Workflows::ChatFeedback.instantiate(
         job: job,
         artifacts: { "chat_feedback" => "Please tighten the dashboard copy." },

@@ -29,6 +29,11 @@ RSpec.describe Steps::Respond do
   end
 
   before do
+    allow(RepoAdversarialReviewPlan).to receive(:for_job)
+      .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml"))
+  end
+
+  before do
     fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
     allow(handler).to receive(:workspace).and_return(fake_ws)
     allow(handler).to receive(:run_agent)
