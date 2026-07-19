@@ -5364,6 +5364,43 @@ describe("App", () => {
     expect(within(targetLane).queryByRole("link", { name: "Raise the forum" })).not.toBeInTheDocument()
   })
 
+  it("renders Epic kanban cards without overflow-hidden on the draggable article", async () => {
+    const payload = dashboardPayload({
+      subject: "epic",
+      view: "kanban",
+      total: 1,
+      preferences: {
+        sort: { column: "updated_at", direction: "desc" },
+        visible_columns: ["epic", "state", "repository", "updated"],
+        kanban_lanes: ["ready"],
+        raw: {}
+      },
+      controls: {
+        ...dashboardPayload().controls,
+        sort_columns: ["title", "state", "repository", "updated_at"],
+        kanban_lanes: [{ key: "ready", title: "Ready" }]
+      },
+      lanes: [{ key: "ready", title: "Ready", count: 1, items: [dashboardEpicItem()] }],
+      kanban_limit: 100
+    })
+    vi.spyOn(window, "fetch").mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } }))
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard/epics?view=kanban"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const card = await screen.findByLabelText("EPIC-7 Raise the forum")
+    // overflow-hidden on a draggable element prevents the browser's drag ghost image from
+    // following the cursor, making the card appear stuck during drag (regression: bc93acd1)
+    expect(card.className).not.toContain("overflow-hidden")
+  })
+
   it("renders the admin queue route from the app admin queue API", async () => {
     const restoreMedia = mockMediaQuery(false)
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(

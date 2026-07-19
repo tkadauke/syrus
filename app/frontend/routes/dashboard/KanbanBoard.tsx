@@ -223,7 +223,7 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
   return (
     <article
       aria-label={`${item.display_number} ${item.title}`}
-      className="cursor-grab overflow-hidden rounded border border-gray-200 bg-white shadow-sm active:cursor-grabbing dark:border-gray-700 dark:bg-gray-900"
+      className="cursor-grab rounded border border-gray-200 bg-white shadow-sm active:cursor-grabbing dark:border-gray-700 dark:bg-gray-900"
       draggable
       onDragEnd={onDragEnd}
       onDragStart={(event) => onDragStart(item, event)}

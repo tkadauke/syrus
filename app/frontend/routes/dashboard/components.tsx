@@ -135,7 +135,7 @@ export function EpicProgressBar({ epic, fullWidth = false }: { epic: DashboardEp
   return (
     <div
       aria-label={t("epic_progress_label")}
-      className={fullWidth ? "flex h-1.5 w-full bg-gray-200 dark:bg-gray-700" : "flex h-1.5 w-20 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700"}
+      className={fullWidth ? "flex h-1.5 w-full overflow-hidden rounded-b bg-gray-200 dark:bg-gray-700" : "flex h-1.5 w-20 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700"}
       role="progressbar"
       title={titleText}
     >
