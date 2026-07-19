@@ -2,7 +2,7 @@ require "mcp"
 
 module SyrusChatMcp
   class UnpublishMemoryTool < MCP::Tool
-    extend MemoryToolSupport
+    extend Mcp::Tools::MemoryToolSupport
 
     tool_name "unpublish_memory"
 
@@ -18,7 +18,8 @@ module SyrusChatMcp
     class << self
       def call(memory_id:, server_context:)
         chat_session = server_context.fetch(:chat_session)
-        memory = owned_memory_for(chat_session, memory_id)
+        id = Integer(memory_id, exception: false)
+        memory = id && ChatMemory.active.find_by(id: id, user_id: chat_session.user_id)
         return SyrusChatMcp.invalid("memory not found or not owned: #{memory_id}") unless memory
 
         memory.update!(published: false)

@@ -11,7 +11,7 @@ RSpec.describe SyrusMcp::Sidecar do
   def server_for(run)
     MCP::Server.new(
       name: "syrus-mcp-sidecar",
-      tools: [ SyrusMcp::ReadLiveStateTool, SyrusMcp::ReadMemoryTool, SyrusMcp::GetCoverageReportTool, SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool, SyrusMcp::SubmitAdversarialReviewTool, SyrusMcp::ReportMainConcernTool ],
+      tools: [ SyrusMcp::ReadLiveStateTool, Mcp::Tools::ReadMemoryTool, SyrusMcp::GetCoverageReportTool, SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool, SyrusMcp::SubmitAdversarialReviewTool, SyrusMcp::ReportMainConcernTool ],
       server_context: { run_id: run.id }
     )
   end

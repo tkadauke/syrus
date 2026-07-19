@@ -118,8 +118,8 @@ module SyrusChatMcp
       CancelJobTool,
       RetryJobTool,
       SetJobPriorityTool,
-      WriteMemoryTool,
-      ReadMemoryTool,
+      Mcp::Tools::WriteMemoryTool,
+      Mcp::Tools::ReadMemoryTool,
       RepoInfoTool,
       SubmitChatFeedbackTool,
       RenameChatTool,
@@ -144,52 +144,15 @@ module SyrusChatMcp
     end
 
     def self.tools_for_session(tools, chat_session)
-      tools = tools.select do |tool|
-        !admin_tool?(tool) || chat_session.user.admin?
-      end
-      # Labs flag: when walkthroughs are disabled the tools vanish from the
-      # advertised set entirely — the agent never sees them, so it cannot
-      # call them against pre-existing walkthrough rows either.
-      tools = tools.reject { |tool| walkthrough_tool?(tool) } unless Feature.video_walkthroughs_enabled?
-      # Labs flag: coding tools only appear when the flag is on AND the
-      # session is in coding mode, so the agent cannot call them from
-      # planning mode even if the feature is enabled instance-wide.
-      tools = tools.reject { |tool| coding_tool?(tool) } unless coding_mode_session?(chat_session)
-      # Local mode tools are only advertised when the local_mode feature is
-      # enabled AND the session is in local mode. The daemon connectivity check
-      # happens at call time (a disconnected daemon returns a clear error).
-      tools = tools.reject { |tool| local_mode_tool?(tool) } unless local_mode_active?(chat_session)
-      tools.map { |tool| authorize_tool(tool) }
+      context = McpToolContext.from_chat_session(chat_session)
+      allowed = McpToolPolicy.for(context)
+      tools.select { |tool| allowed.include?(tool) }.map { |tool| authorize_tool(tool) }
     end
 
     def self.authorize_tool(tool)
       tool.extend(AuthorizationSupport) unless tool.singleton_class < AuthorizationSupport
       tool.singleton_class.prepend(AuthorizationSupport::ToolDispatch) unless tool.singleton_class < AuthorizationSupport::ToolDispatch
       tool
-    end
-
-    def self.admin_tool?(tool)
-      ADMIN_TOOLS.include?(tool)
-    end
-
-    def self.walkthrough_tool?(tool)
-      WALKTHROUGH_TOOLS.include?(tool)
-    end
-
-    def self.coding_tool?(tool)
-      CODING_TOOLS.include?(tool)
-    end
-
-    def self.coding_mode_session?(chat_session)
-      Feature.coding_mode_enabled? && chat_session.coding?
-    end
-
-    def self.local_mode_tool?(tool)
-      LOCAL_MODE_TOOLS.include?(tool)
-    end
-
-    def self.local_mode_active?(chat_session)
-      Feature.local_mode_enabled? && chat_session&.mode == "local"
     end
 
     def self.server_name
@@ -262,9 +225,9 @@ module SyrusChatMcp
       RemoveEpicDependencyTool,
       AddJobDependencyTool,
       RemoveJobDependencyTool,
-      SearchMemoriesTool,
-      ListMemoriesTool,
-      DeleteMemoryTool,
+      Mcp::Tools::SearchMemoriesTool,
+      Mcp::Tools::ListMemoriesTool,
+      Mcp::Tools::DeleteMemoryTool,
       PublishMemoryTool,
       UnpublishMemoryTool,
       ListRepoDocumentsTool,

@@ -203,11 +203,16 @@ RSpec.describe SyrusChatMcp::Sidecar do
     end
 
     it "assigns every chat MCP tool file to exactly one tier" do
-      file_tool_names = Dir[Rails.root.join("app/services/syrus_chat_mcp/*_tool.rb")]
+      # Gather tool file basenames from the sidecar-specific directories AND the
+      # shared mcp/tools/ namespace (memory tools migrated there in this refactor).
+      sidecar_tool_names = Dir[Rails.root.join("app/services/syrus_chat_mcp/*_tool.rb")]
         .map { |path| File.basename(path, ".rb").sub(/_tool\z/, "") }
-        .sort
+      shared_tool_names = Dir[Rails.root.join("app/services/mcp/tools/*_tool.rb")]
+        .map { |path| File.basename(path, ".rb").sub(/_tool\z/, "") }
+      file_tool_names = (sidecar_tool_names + shared_tool_names).sort
+
       essential_names = described_class.tool_names(tier: :essential)
-      deferred_names = described_class.tool_names(tier: :deferred)
+      deferred_names  = described_class.tool_names(tier: :deferred)
 
       expect(essential_names & deferred_names).to be_empty
       expect((essential_names + deferred_names).sort).to eq(file_tool_names)
