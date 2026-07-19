@@ -78,6 +78,29 @@ RSpec.describe ClaudeInvocation do
         "GIT_TERMINAL_PROMPT" => "0"
       )
     end
+
+    it "passes on_session_id callback through to the runner" do
+      received_callback = nil
+      runner = ->(**kwargs) {
+        received_callback = kwargs[:on_session_id]
+        result_fixture
+      }
+      callback = ->(_) {}
+      described_class.new("/tmp/wkt", prompt: "x", oauth_token: "x",
+                          runner: runner, on_session_id: callback).run
+      expect(received_callback).to eq(callback)
+    end
+
+    it "defaults on_session_id to a no-op when not provided" do
+      received_callback = nil
+      runner = ->(**kwargs) {
+        received_callback = kwargs[:on_session_id]
+        result_fixture
+      }
+      described_class.new("/tmp/wkt", prompt: "x", oauth_token: "x", runner: runner).run
+      expect(received_callback).to respond_to(:call)
+      expect { received_callback.call("sid") }.not_to raise_error
+    end
   end
 
   describe AgentInvocation::Result do

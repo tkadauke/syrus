@@ -14,7 +14,8 @@ class ClaudeInvocation
                  required_mcp_tools: nil,
                  env: nil,
                  stop_requested: -> { false },
-                 process_started: ->(_process) { })
+                 process_started: ->(_process) { },
+                 on_session_id: ->(_session_id) { })
     @workspace_path = workspace_path.to_s
     @prompt = prompt
     @oauth_token = oauth_token
@@ -31,6 +32,7 @@ class ClaudeInvocation
     @env = env || {}
     @stop_requested = stop_requested
     @process_started = process_started
+    @on_session_id = on_session_id
   end
 
   def run
@@ -48,7 +50,8 @@ class ClaudeInvocation
       disallowed_tools: @disallowed_tools,
       env: @env,
       stop_requested: @stop_requested,
-      process_started: @process_started
+      process_started: @process_started,
+      on_session_id: @on_session_id
     )
   end
 
@@ -67,7 +70,8 @@ class ClaudeInvocation
                      max_turns:, mcp_config: nil, image_paths: nil, file_paths: nil, resume_session_id: nil,
                      env: nil,
                      disallowed_tools: nil,
-                     stop_requested: -> { false }, process_started: ->(_process) { })
+                     stop_requested: -> { false }, process_started: ->(_process) { },
+                     on_session_id: ->(_session_id) { })
     env = agent_env(oauth_token: oauth_token, workspace_path: workspace_path).merge(env || {})
     cmd = [ "claude", "--print" ]
     # `--mcp-config <configs...>` is variadic — claude keeps consuming
@@ -119,6 +123,9 @@ class ClaudeInvocation
           update = update.compact
           if update[:is_error] && update[:outcome] == "success"
             update[:outcome] = metadata[:outcome].presence || "api_error"
+          end
+          if update[:session_id] && metadata[:session_id].nil?
+            on_session_id.call(update[:session_id])
           end
           metadata.merge!(update)
         end
