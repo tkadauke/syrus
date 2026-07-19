@@ -2857,7 +2857,7 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "PR #34" })).toHaveAttribute("target", "_blank")
     expect(document.querySelectorAll("[data-status-pill='true']")).toHaveLength(4)
     for (const label of screen.getAllByText("Retryable failure")) {
-      expect(label.closest("[data-status-pill='true']")).toHaveClass("rounded-full", "ring-1")
+      expect(label.closest("[data-status-pill='true']")).toHaveClass("chip-muted")
     }
     expect(screen.getAllByRole("link", { name: "acme/widgets" }).some((link) => link.getAttribute("href") === "/app-shell/repositories/3")).toBe(true)
     expect(screen.getAllByText("acme/widgets").length).toBeGreaterThan(0)
