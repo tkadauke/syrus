@@ -122,6 +122,19 @@ RSpec.describe AgentProviders::Claude do
         "S3_SECRET_ACCESS_KEY" => "sk"
       )
     end
+
+    it "persists live_session_id on the Run when on_session_id callback fires" do
+      RunJob.agent_runner = ->(**kwargs) {
+        kwargs[:on_session_id].call("sid-live-abc")
+        AgentInvocation::Result.new(turns: 1, exit_status: 0, timed_out: false,
+                                    is_error: false, outcome: "success",
+                                    final_text: nil, session_id: "sid-live-abc")
+      }
+
+      adapter.run(prompt: "do it", log_sink: ->(*, **) {}, max_turns: 5)
+
+      expect(run.reload.live_session_id).to eq("sid-live-abc")
+    end
   end
 
   describe "#run_once" do

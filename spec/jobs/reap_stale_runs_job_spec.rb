@@ -729,6 +729,114 @@ RSpec.describe ReapStaleRunsJob do
     end
   end
 
+  describe "partial JSONL rescue on reap" do
+    def running_agentic_run(live_session_id:)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial")
+      step = Step.create!(workflow: workflow, kind: "implement", position: 0)
+      age = Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes
+      run = step.runs.create!(job: job, trigger_kind: "initial")
+      run.update_columns(
+        state: "running",
+        started_at: age.ago,
+        last_heartbeat_at: age.ago,
+        live_session_id: live_session_id
+      )
+      [ workflow, step, run ]
+    end
+
+    around do |example|
+      Dir.mktmpdir do |home|
+        saved = ENV["HOME"]
+        ENV["HOME"] = home
+        example.run
+      ensure
+        ENV["HOME"] = saved
+      end
+    end
+
+    it "creates a ClaudeSession from JSONL on disk when live_session_id is set and file exists" do
+      workflow, _step, run = running_agentic_run(live_session_id: "partial-abc123")
+      path = ClaudeSession.canonical_path_for(
+        home: ENV["HOME"],
+        cwd: WorkflowWorkspace.path_for(workflow).to_s,
+        session_id: "partial-abc123"
+      )
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, "{\"type\":\"assistant\"}\n")
+
+      described_class.perform_now
+
+      session = run.reload.claude_session
+      expect(session).not_to be_nil
+      expect(session.session_id).to eq("partial-abc123")
+      expect(session.provider).to eq("claude")
+      expect(session.transcript_jsonl).to include("assistant")
+    end
+
+    it "does not create a ClaudeSession when the JSONL file does not exist" do
+      _workflow, _step, run = running_agentic_run(live_session_id: "missing-session")
+
+      expect { described_class.perform_now }.not_to change { ClaudeSession.count }
+
+      expect(run.reload.claude_session).to be_nil
+    end
+
+    it "does not create a ClaudeSession when live_session_id is blank" do
+      _workflow, _step, run = running_agentic_run(live_session_id: nil)
+
+      expect { described_class.perform_now }.not_to change { ClaudeSession.count }
+    end
+
+    it "skips rescue and does not duplicate when a ClaudeSession already exists" do
+      workflow, _step, run = running_agentic_run(live_session_id: "already-captured")
+      ClaudeSession.create!(
+        resumable: run,
+        provider: "claude",
+        session_id: "already-captured",
+        transcript_jsonl: "{\"type\":\"old\"}\n"
+      )
+      path = ClaudeSession.canonical_path_for(
+        home: ENV["HOME"],
+        cwd: WorkflowWorkspace.path_for(workflow).to_s,
+        session_id: "already-captured"
+      )
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, "{\"type\":\"new\"}\n")
+
+      expect { described_class.perform_now }.not_to change { ClaudeSession.count }
+
+      expect(run.reload.claude_session.transcript_jsonl).not_to include("new")
+    end
+
+    it "enables resume_failed_step scheduling when partial session is rescued from disk" do
+      workflow, _step, run = running_agentic_run(live_session_id: "resume-session-xyz")
+      path = ClaudeSession.canonical_path_for(
+        home: ENV["HOME"],
+        cwd: WorkflowWorkspace.path_for(workflow).to_s,
+        session_id: "resume-session-xyz"
+      )
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, "{\"type\":\"system\"}\n")
+
+      expect {
+        described_class.perform_now
+      }.to change { AutoRetryAttempt.where(retry_kind: "resume_failed_step").count }.by(1)
+
+      attempt = AutoRetryAttempt.last
+      expect(attempt.run_id).to eq(run.id)
+    end
+
+    it "falls back to failed_step retry when no JSONL is on disk" do
+      _workflow, _step, run = running_agentic_run(live_session_id: "no-file-session")
+
+      expect {
+        described_class.perform_now
+      }.to change { AutoRetryAttempt.where(retry_kind: "failed_step").count }.by(1)
+
+      expect(run.reload.claude_session).to be_nil
+    end
+  end
+
   describe "Run.stale scope" do
     it "includes a running run whose last_heartbeat_at is past the threshold" do
       run = running_run(heartbeat_age: Run::STALE_HEARTBEAT_THRESHOLD + 1.minute)

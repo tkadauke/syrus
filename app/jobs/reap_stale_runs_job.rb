@@ -275,6 +275,29 @@ class ReapStaleRunsJob < ApplicationJob
     (root_run_ids + inline_run_ids).map(&:to_i).to_set
   end
 
+  def try_rescue_partial_session(run)
+    return unless run.step&.agentic?
+    return if run.claude_session.present?
+    return unless (session_id = run.live_session_id.presence)
+
+    jsonl = ClaudeSession.canonical_transcript_jsonl(
+      home: ENV.fetch("HOME", "/root"),
+      cwd: WorkflowWorkspace.path_for(run.workflow).to_s,
+      session_id: session_id
+    )
+    return if jsonl.blank?
+
+    ClaudeSession.create!(
+      resumable: run,
+      provider: "claude",
+      session_id: session_id,
+      transcript_jsonl: jsonl
+    )
+    Rails.logger.info("[ReapStaleRunsJob] partial session rescued for Run ##{run.id}: #{session_id}")
+  rescue StandardError => e
+    Rails.logger.warn("[ReapStaleRunsJob] partial session rescue failed for Run ##{run.id}: #{e.message}")
+  end
+
   def reap!(run, reason:, guard_live_work: false)
     if guard_live_work && (deferral_reason = live_work_deferral_reason(run))
       Rails.logger.info("[ReapStaleRunsJob] Run ##{run.id} not reaped yet despite #{reason}: #{deferral_reason}")
@@ -287,6 +310,8 @@ class ReapStaleRunsJob < ApplicationJob
     end
 
     return unless run.may_fail?
+
+    try_rescue_partial_session(run)
 
     Rails.logger.info("[ReapStaleRunsJob] Run ##{run.id} reaped: #{reason}")
     run.agent_outcome = "worker_died"
