@@ -178,6 +178,48 @@ RSpec.describe Steps::CoverageAnalyze do
       expect(pr_delta["total"]).to eq(3)
       expect(pr_delta["pct"]).to be_within(0.01).of(66.67)
     end
+
+    context "when LCOV SF: paths are absolute (vitest/v8 output)" do
+      let(:absolute_lcov) do
+        <<~LCOV
+          TN:
+          SF:#{@ws_path}/app/models/user.rb
+          DA:1,5
+          DA:2,0
+          DA:3,3
+          LF:3
+          LH:2
+          BRF:0
+          BRH:0
+          FNF:1
+          FNH:1
+          end_of_record
+        LCOV
+      end
+
+      before do
+        write_lcov(content: absolute_lcov)
+      end
+
+      it "normalizes absolute SF: paths and annotates diff lines" do
+        handler.call
+
+        artifact = workflow.reload.artifact("coverage")
+        annotations = artifact.dig("diff_annotations", "app/models/user.rb")
+        expect(annotations["1"]).to eq("covered")
+        expect(annotations["2"]).to eq("uncovered")
+        expect(annotations["3"]).to eq("covered")
+      end
+
+      it "computes pr_delta correctly when SF: paths are absolute" do
+        handler.call
+
+        pr_delta = workflow.reload.artifact("coverage")["pr_delta"]
+        expect(pr_delta["covered"]).to eq(2)
+        expect(pr_delta["total"]).to eq(3)
+        expect(pr_delta["pct"]).to be_within(0.01).of(66.67)
+      end
+    end
   end
 
   context "threshold enforcement" do

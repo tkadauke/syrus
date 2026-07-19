@@ -53,8 +53,9 @@ module Steps
 
         begin
           result = CoverageAnalysis::Parsers.for(source.format).parse(artifact_path.read)
+          normalized_raw = normalize_hit_map_paths(result.raw)
           CoverageAnalysis::ParsedSource.new(artifact: source.artifact, format: source.format,
-                                     found: true, raw: result.raw, lines_pct: result.lines_pct)
+                                     found: true, raw: normalized_raw, lines_pct: result.lines_pct)
         rescue => e
           log("[coverage_analyze] failed to parse #{source.artifact} (#{source.format}): #{e.message}")
           CoverageAnalysis::ParsedSource.new(artifact: source.artifact, format: source.format,
@@ -109,6 +110,13 @@ module Steps
       parsed_sources.map do |s|
         { "artifact" => s.artifact, "found" => s.found, "lines_pct" => s.lines_pct }
       end
+    end
+
+    def normalize_hit_map_paths(raw)
+      prefix = workspace.path.to_s + "/"
+      hit_map    = raw[:hit_map].transform_keys    { |k| k.start_with?(prefix) ? k.delete_prefix(prefix) : k }
+      file_stats = raw[:file_stats].transform_keys { |k| k.start_with?(prefix) ? k.delete_prefix(prefix) : k }
+      raw.merge(hit_map: hit_map, file_stats: file_stats)
     end
 
     def attach_hit_map(hit_map, ttl_days)
