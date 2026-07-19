@@ -399,6 +399,11 @@ RSpec.describe RunJob do
 
   describe "PrFeedback workflow (pr_comment → respond → grade → summarize_amend → try(push))" do
     before do
+      allow(RepoAdversarialReviewPlan).to receive(:for_job)
+        .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml"))
+    end
+
+    before do
       # Initial workflow first so the branch exists on origin.
       job; drain_workflow!(job)
       WebMock.reset_executed_requests!
