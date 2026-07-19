@@ -815,7 +815,7 @@ RSpec.describe ClaudeInvocation do
 
   describe "cross-pod session restore (#ensure_session_on_disk)" do
     let(:home_dir) { Dir.mktmpdir }
-    let(:workspace_path) { "/syrus-home/.syrus/workflows/99" }
+    let(:workspace_path) { File.join(home_dir, ".syrus", "workflows", "99") }
     let(:session_id) { "abc-cross-pod-#{SecureRandom.hex(4)}" }
     let(:log_lines) { [] }
     let(:log_sink) { ->(msg, **) { log_lines << msg } }
