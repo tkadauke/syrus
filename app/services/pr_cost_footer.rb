@@ -14,7 +14,9 @@ class PrCostFooter
     stripped = strip_existing(body.to_s.rstrip)
     return stripped unless @job.repository.pr_cost_footer_enabled?
 
-    [ stripped, "", START_MARKER, sentence, END_MARKER ].join("\n")
+    parts = [ sentence ]
+    parts << backlinks if backlinks.present?
+    [ stripped, "", START_MARKER, *parts, END_MARKER ].join("\n")
   end
 
   def sentence
@@ -22,6 +24,21 @@ class PrCostFooter
   end
 
   private
+
+  def backlinks
+    return nil if host.blank?
+
+    links = []
+    if (epic = @job.epic)
+      links << "[#{App::Presentation.epic_slug(epic)}](#{host}/epics/#{epic.number})"
+    end
+    links << "[#{App::Presentation.job_slug(@job)}](#{host}/jobs/#{@job.id})"
+    links.join(" / ")
+  end
+
+  def host
+    @host ||= ENV["SYRUS_APP_HOST"].to_s.sub(%r{/\z}, "")
+  end
 
   def strip_existing(body)
     body.gsub(/\n*#{Regexp.escape(START_MARKER)}.*?#{Regexp.escape(END_MARKER)}\s*/m, "").rstrip

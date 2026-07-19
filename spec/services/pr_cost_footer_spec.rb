@@ -47,4 +47,61 @@ RSpec.describe PrCostFooter do
     expect(body).to eq("Body")
     expect(body).not_to include("total cost")
   end
+
+  context "with SYRUS_APP_HOST configured" do
+    around do |ex|
+      old = ENV["SYRUS_APP_HOST"]
+      ENV["SYRUS_APP_HOST"] = "https://syrus.example.com"
+      ex.run
+    ensure
+      old ? (ENV["SYRUS_APP_HOST"] = old) : ENV.delete("SYRUS_APP_HOST")
+    end
+
+    it "appends a JOB backlink for epicless jobs" do
+      body = described_class.apply("Body", job)
+
+      expect(body).to include("[JOB-#{job.id}](https://syrus.example.com/jobs/#{job.id})")
+      expect(body).not_to include("EPIC-")
+    end
+
+    it "appends EPIC and JOB backlinks when the job belongs to an epic" do
+      epic = Factories.epic(repository: repository)
+      job.update!(epic: epic)
+
+      body = described_class.apply("Body", job)
+
+      expect(body).to include("[EPIC-#{epic.number}](https://syrus.example.com/epics/#{epic.number})")
+      expect(body).to include("[JOB-#{job.id}](https://syrus.example.com/jobs/#{job.id})")
+      expect(body).to include(
+        "[EPIC-#{epic.number}](https://syrus.example.com/epics/#{epic.number})" \
+        " / " \
+        "[JOB-#{job.id}](https://syrus.example.com/jobs/#{job.id})"
+      )
+    end
+
+    it "strips a trailing slash from the host when building backlinks" do
+      ENV["SYRUS_APP_HOST"] = "https://syrus.example.com/"
+
+      body = described_class.apply("Body", job)
+
+      expect(body).to include("[JOB-#{job.id}](https://syrus.example.com/jobs/#{job.id})")
+      expect(body).not_to include("//jobs/")
+    end
+  end
+
+  context "without SYRUS_APP_HOST configured" do
+    around do |ex|
+      old = ENV.delete("SYRUS_APP_HOST")
+      ex.run
+    ensure
+      ENV["SYRUS_APP_HOST"] = old if old
+    end
+
+    it "omits backlinks when host is not set" do
+      body = described_class.apply("Body", job)
+
+      expect(body).not_to include("JOB-")
+      expect(body).not_to include("EPIC-")
+    end
+  end
 end
