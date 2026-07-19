@@ -764,4 +764,99 @@ RSpec.describe ClaudeInvocation do
       end
     end
   end
+
+  describe "cross-pod session restore (#ensure_session_on_disk)" do
+    let(:home_dir) { Dir.mktmpdir }
+    let(:workspace_path) { "/syrus-home/.syrus/workflows/99" }
+    let(:session_id) { "abc-cross-pod-#{SecureRandom.hex(4)}" }
+    let(:log_lines) { [] }
+    let(:log_sink) { ->(msg, **) { log_lines << msg } }
+    let(:invocation) { described_class.new(workspace_path, prompt: "x", oauth_token: "x") }
+
+    around do |example|
+      saved = ENV["HOME"]
+      ENV["HOME"] = home_dir
+      example.run
+    ensure
+      ENV["HOME"] = saved
+      FileUtils.rm_rf(home_dir)
+    end
+
+    def expected_path
+      ClaudeSession.canonical_path_for(home: home_dir, cwd: workspace_path, session_id: session_id)
+    end
+
+    it "writes the transcript to disk when session is in DB but file is missing" do
+      run = Factories.job.initial_run
+      ClaudeSession.create!(resumable: run, session_id: session_id, transcript_jsonl: "{\"type\":\"system\"}\n")
+
+      invocation.send(:ensure_session_on_disk, session_id, workspace_path, log_sink)
+
+      expect(File.exist?(expected_path)).to be true
+      expect(File.read(expected_path)).to eq("{\"type\":\"system\"}\n")
+      expect(log_lines).to include(a_string_matching(/restored session.*from DB/))
+    end
+
+    it "is a no-op when the file already exists on disk (same-pod resume)" do
+      run = Factories.job.initial_run
+      ClaudeSession.create!(resumable: run, session_id: session_id, transcript_jsonl: "db content")
+      FileUtils.mkdir_p(File.dirname(expected_path))
+      File.write(expected_path, "existing disk content")
+
+      invocation.send(:ensure_session_on_disk, session_id, workspace_path, log_sink)
+
+      expect(File.read(expected_path)).to eq("existing disk content")
+      expect(log_lines).to be_empty
+    end
+
+    it "is a no-op when session is not in DB" do
+      invocation.send(:ensure_session_on_disk, session_id, workspace_path, log_sink)
+
+      expect(File.exist?(expected_path)).to be false
+      expect(log_lines).to be_empty
+    end
+
+    it "is a no-op when session is in DB but transcript_jsonl is nil" do
+      run = Factories.job.initial_run
+      ClaudeSession.create!(resumable: run, session_id: session_id, transcript_jsonl: nil)
+
+      invocation.send(:ensure_session_on_disk, session_id, workspace_path, log_sink)
+
+      expect(File.exist?(expected_path)).to be false
+      expect(log_lines).to be_empty
+    end
+
+    it "logs a warning and does not raise when disk write fails" do
+      run = Factories.job.initial_run
+      ClaudeSession.create!(resumable: run, session_id: session_id, transcript_jsonl: "{}")
+      allow(FileUtils).to receive(:mkdir_p).and_raise(Errno::EACCES, "Permission denied")
+
+      expect { invocation.send(:ensure_session_on_disk, session_id, workspace_path, log_sink) }.not_to raise_error
+      expect(log_lines).to include(a_string_matching(/session restore failed.*Permission denied/))
+    end
+
+    it "restores the session file before spawning the subprocess" do
+      run = Factories.job.initial_run
+      sid = "spawn-order-test-#{SecureRandom.hex(4)}"
+      ClaudeSession.create!(resumable: run, session_id: sid, transcript_jsonl: "{\"v\":1}\n")
+      expected = ClaudeSession.canonical_path_for(home: home_dir, cwd: workspace_path, session_id: sid)
+      file_existed_at_spawn = nil
+
+      allow(Open3).to receive(:popen2e) do |_env, *_args, **_opts, &blk|
+        file_existed_at_spawn = File.exist?(expected)
+        rd, wr = IO.pipe
+        wr.close
+        fake_wait = Struct.new(:value, :pid).new(Struct.new(:exitstatus).new(0), 0)
+        blk.call($stdin, rd, fake_wait)
+        rd.close
+      end
+
+      described_class.new(workspace_path, prompt: "x", oauth_token: "x",
+                          log_sink: ->(_msg, **) {},
+                          resume_session_id: sid).run
+
+      expect(file_existed_at_spawn).to be true
+      expect(File.read(expected)).to eq("{\"v\":1}\n")
+    end
+  end
 end

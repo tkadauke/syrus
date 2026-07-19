@@ -73,6 +73,7 @@ class ClaudeInvocation
                      stop_requested: -> { false }, process_started: ->(_process) { },
                      on_session_id: ->(_session_id) { })
     env = agent_env(oauth_token: oauth_token, workspace_path: workspace_path).merge(env || {})
+    ensure_session_on_disk(resume_session_id, workspace_path, log_sink) if resume_session_id.present?
     cmd = [ "claude", "--print" ]
     # `--mcp-config <configs...>` is variadic — claude keeps consuming
     # subsequent positional args as additional configs until it sees
@@ -158,6 +159,24 @@ class ClaudeInvocation
       cache_creation_input_tokens: metadata[:cache_creation_input_tokens],
       cache_read_input_tokens: metadata[:cache_read_input_tokens]
     )
+  end
+
+  def ensure_session_on_disk(session_id, workspace_path, log_sink)
+    path = ClaudeSession.canonical_path_for(
+      home: ENV.fetch("HOME", "/root"),
+      cwd: workspace_path,
+      session_id: session_id
+    )
+    return if File.exist?(path)
+
+    session = ClaudeSession.find_by(session_id: session_id)
+    return unless session&.transcript_jsonl.present?
+
+    FileUtils.mkdir_p(File.dirname(path))
+    File.write(path, session.transcript_jsonl)
+    log_sink.call("[ClaudeInvocation] restored session #{session_id} from DB to #{path}", kind: "system")
+  rescue StandardError => e
+    log_sink.call("[ClaudeInvocation] session restore failed for #{session_id}: #{e.message}", kind: "system")
   end
 
   def agent_env(oauth_token:, workspace_path:)
