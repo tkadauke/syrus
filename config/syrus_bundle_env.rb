@@ -40,4 +40,11 @@ if (bundle_path_absent || bundle_path_stale) && prepared_bundle == syrus_bundle
   ENV["BUNDLE_APP_CONFIG"] ||= syrus_bundle_config
   ENV["BUNDLE_USER_HOME"] ||= File.join(deps, "bundle-home")
   ENV["BUNDLE_USER_CACHE"] ||= File.join(deps, "bundle-cache")
+elsif (bundle_path_absent || bundle_path_stale) && prepared_bundle
+  # Vendor-bundle fallback: if BUNDLE_APP_CONFIG points to a path that does not
+  # exist (e.g. the stale Syrus worker deps config inherited by grader subprocesses),
+  # clear it so bundler resolves config from the project's .bundle/config instead of
+  # falling back to ~/.bundle/config and inadvertently ignoring the workspace bundle.
+  app_config = ENV["BUNDLE_APP_CONFIG"].to_s
+  ENV.delete("BUNDLE_APP_CONFIG") if !app_config.empty? && !File.exist?(app_config)
 end
