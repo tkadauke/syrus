@@ -15567,7 +15567,7 @@ function objectOverrides(value: unknown): Record<string, unknown> {
 function expectRunningPill(label: HTMLElement) {
   const pill = label.closest("[data-status-pill='true']")
 
-  expect(pill).toHaveClass("bg-blue-50", "text-blue-700")
+  expect(pill).toHaveClass("chip-info")
   expect(pill?.querySelector("[data-running-spinner='true']")).toHaveClass("animate-spin")
 }
 
