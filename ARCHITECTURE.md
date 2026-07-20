@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-07-13._
+_Last reviewed: 2026-07-20._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -170,6 +170,7 @@ determining whether the Job is ready to merge.
 | `external_pr_merged` | tracked preempting PR merged |
 | `external_pr_closed` | tracked preempting PR closed without merge |
 | `pr_approved` | operator accepted an approved PR as successful without auto-merge |
+| `epic_archived` | the parent Epic was archived, cascading to close all non-closed child Jobs with their active workflows cancelled first |
 
 States and transitions:
 
@@ -295,7 +296,7 @@ period case ends in `failed` via `ReapStaleRunsJob`, not `cancelled`.
 | `resume` | operator continuation of a captured provider session | freeform prompt against retained session context |
 | `coding_handoff` | Coding Mode: chat agent commits implementation and operator confirms | skips the agent implement step; runs graders → summarize → PR open (or summarize_amend → push for an existing PR); reverts Job to `coding` on grader failure |
 | `local_mode_handoff` | Local Mode daemon completes implementation via `complete_implement_step` | skips agent implement; runs graders, then opens a new PR or updates the existing one depending on whether `pr_number` is set |
-| `main_grader` | `PollAllMainBranchHealthJob` detects a new default-branch HEAD SHA | runs graders against the repository's default branch; updates `repository.grader_health` and calls `MainHealthChangedService` on health transitions; excluded from the operator dashboard |
+| `main_grader` | `PollAllMainBranchHealthJob` detects a new default-branch HEAD SHA | runs graders against the repository's default branch; updates `repository.grader_health` and calls `MainHealthChangedService` on health transitions; excluded from the operator dashboard; routes to the `:runs` queue (subject to `AppSetting.max_concurrent_agent_runs` cap) |
 
 State changes reach the browser through app events; see
 [UI surface](#ui-surface) for how updates land in React.
@@ -694,8 +695,8 @@ Current Workflow chains:
 | Trigger | Chain |
 |---|---|
 | `initial` | `prepare → optional loop(implement → adversarial_review) → retry_until(implement → grader_fanout → grader_collect) → coverage_analyze → summarize → test_plan → pr_open` |
-| `pr_comment` | `prepare → retry_until(respond → grader_fanout → grader_collect) → summarize_amend → push` |
-| `chat_feedback` | `prepare → retry_until(respond → grader_fanout → grader_collect) → summarize_amend → push` |
+| `pr_comment` | `prepare → optional loop(respond → adversarial_review) → retry_until(respond → grader_fanout → grader_collect) → coverage_analyze → coverage_pr_comment → summarize_amend → push` |
+| `chat_feedback` | `prepare → optional loop(respond → adversarial_review) → retry_until(respond → grader_fanout → grader_collect) → coverage_analyze → coverage_pr_comment → summarize_amend → push` |
 | `ci_failure` | `prepare → analyze_and_fix → summarize_amend → push` |
 | `retry` / `replay` | same shape as `initial`, reusing the existing branch and PR if present |
 | `manual` / `resume` | `manual` |
@@ -705,7 +706,7 @@ Current Workflow chains:
 | `merge_train` | `merge_train_assemble → merge_train_build → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → merge_train_land` |
 | `coding_handoff` | `prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open` (no existing PR) or `prepare → grader_fanout → grader_collect → summarize_amend → push` (PR already open) |
 | `local_mode_handoff` | `prepare → grader_fanout → grader_collect → summarize_amend → push` (PR already open) or `prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open` (no PR yet) |
-| `main_grader` | `grader_fanout → grader_collect` (no retry loop; result drives `repository.grader_health`; anchor Job is closed and excluded from dashboard) |
+| `main_grader` | `grader_fanout → grader_collect` (no retry loop; result drives `repository.grader_health`; anchor Job is closed and excluded from dashboard; routes to `:runs` queue) |
 
 `prepare` reads `.syrus.yml` or auto-detects setup commands from
 lockfiles. Explicit `.syrus.yml` commands are operator intent and
@@ -727,15 +728,23 @@ initial (and compatible) Workflows: it reads a `coverage:` block from
 `.syrus.yml`, parses coverage artifacts produced by graders, merges and
 normalizes them, computes per-file and diff-level annotations, stores a
 `CoverageSnapshot`, and evaluates any configured threshold. Skipped
-silently if no coverage configuration is present.
+silently if no coverage configuration is present. In feedback Workflows
+(`pr_comment`, `chat_feedback`) a `coverage_pr_comment` Step follows
+immediately: it posts or updates the coverage report as a PR comment
+using the body computed by `coverage_analyze`; a no-op when coverage is
+unconfigured, the plan has `pr_comment: false`, or the Job has no PR.
 
-The optional `adversarial_review` loop applies only to Initial
-Workflows. `RepoAdversarialReviewPlan` reads repository configuration
-from `.syrus.yml` and falls back to `AppSetting.adversarial_review_rounds`
-when appropriate. Each loop iteration runs implementation, then an
-independent reviewer prompt over the succeeded diff; the reviewer must
-call `submit_adversarial_review` with `approved` or `needs_work`.
-The verdict is recorded for audit/future control; today
+The optional `adversarial_review` loop applies to Initial, Retry,
+`pr_comment`, and `chat_feedback` Workflows. `RepoAdversarialReviewPlan`
+reads repository configuration from `.syrus.yml` and falls back to
+`AppSetting.adversarial_review_rounds` when appropriate. Each loop
+iteration runs the agentic step (`implement` for initial/retry, `respond`
+for feedback workflows), then an independent reviewer prompt over the
+succeeded diff; the reviewer must call `submit_adversarial_review` with
+`approved` or `needs_work`. The reviewer prompt is framed for the
+workflow kind: feedback reviewers receive the full PR-comment or chat
+feedback context so they can judge whether the agent addressed what was
+asked. The verdict is recorded for audit/future control; today
 `StepDispatcher` runs the configured number of review rounds and feeds
 prior findings into each next implementation iteration before advancing.
 
@@ -948,6 +957,17 @@ agent at it over stdio. Today's tool surface:
 - `read_memory(id:)` — reads the full content of a `ChatMemory` owned
   by the current Job's user. Agents use this to recall prior session
   notes without having every memory inlined into the system prompt.
+- `write_memory(content:, kind:)` — creates a repository-scoped memory
+  record stamped with `author: agent` and `source_id: run.id` for
+  provenance. Scope is always forced to `repository` so agents cannot
+  write global memories.
+- `delete_memory(memory_id:)` — soft-deletes a repository-scoped memory,
+  recording an audit event with `actor_run_id` for traceability.
+- `search_memories(query:, kind:, limit:)` — content-searches
+  repository-scoped memories visible to the current user (their own plus
+  published memories from other users in the same repo).
+- `list_memories(kind:, limit:)` — lists repository-scoped memories
+  visible to the current user.
 - `report_main_concern(reason:, failing_tests:)` — agents call this
   when graders or tests are failing in files they did not modify,
   suggesting the main branch was already broken before their changes.
@@ -1113,16 +1133,25 @@ Several layers, each catching different failure modes:
    `queued` successor Runs that were created for inline execution before
    their worker died, and finishes terminal Workflows left active by a
    crash.
-4. **Re-entrancy guard** — distinct from the terminal-state bailout.
-   On entry, `RunJob#perform` first bails silently if the Run is
-   already `terminal?` (idempotent retry). Only if the Run is
-   already in `running` state — which only happens when the prior
-   worker crashed — does it call `fail!` and skip execution.
+4. **`RunJob` execution guards** — two distinct safety rails inside
+   `RunJob#perform`. The *re-entrancy guard* bails silently if the Run
+   is already `terminal?` (idempotent retry), or calls `fail!` and skips
+   execution if the Run is already `running` — which only happens when
+   the prior worker crashed. The *SIGTERM checkpoint* installs a trap
+   that sets a `@shutdown_requested` flag and chains to the prior handler;
+   the inline step loop checks this flag at the top of each iteration and
+   at every inter-step boundary (one Step succeeded, successor is
+   `:queued`). On shutdown it breaks cleanly; `ReapStaleRunsJob`
+   re-enqueues the queued successor with no wasted retry budget. The prior
+   trap is always restored in `ensure`.
 5. **Failure classification + auto-retry** — failed Runs persist a
    `RunFailureClassification` from diagnostics, logs, spawned process
-   outcomes, and agent outcome. `AutoRetryScheduler` can retry
-   transient failures with bounded backoff, unless
-   `ProviderCircuitBreaker` has opened for that provider.
+   outcomes, and agent outcome. `AutoRetryScheduler` splits `worker_died`
+   (deploy kills, OOM, pod eviction) from real agent failures: worker-death
+   events draw from a separate 20-attempt budget and retry after 30 seconds
+   flat, so a rolling deploy cannot exhaust the 3-attempt budget used for
+   actual failures. `ProviderCircuitBreaker` suppresses automatic retries
+   during provider-wide outages.
 6. **Subprocess inventory** — `ProcessRunner` registers agent, grader,
    git, and prepare subprocesses as `SpawnedProcess` rows with
    heartbeats, host metrics, and a cross-pod kill switch. An in-process
