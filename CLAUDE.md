@@ -145,6 +145,10 @@ Key steps:
   commands from `.syrus.yml`, materialize one immutable `grader` Step per
   configured grader, and aggregate required failures. `Workflows::RetryUntil`
   appends bounded repair/check iterations using `AppSetting.grade_max_iterations`.
+  Graders support an optional `when_files_changed` array of glob patterns; at
+  fanout time Syrus computes changed files via `git diff --name-only <base>...HEAD`
+  and skips any grader whose patterns don't match — useful for expensive checks
+  like website builds that only matter when relevant files changed.
 - **`landing_fix`** — Agentic repair step inside auto-merge. It runs only
   after final graders fail on the exact PR branch Syrus is about to land;
   successful repairs are pushed before the merge API call.
