@@ -89,17 +89,19 @@ sweeps old terminal workspaces after 7 days.
 Current chains:
 
 ```
-initial:     prepare → retry_until(implement → graders) → summarize → test_plan → pr_open
-pr_comment:  prepare → retry_until(respond → graders) → summarize_amend → try(push)
-chat_feedback: prepare → retry_until(respond → graders) → summarize_amend → try(push)
+initial:     prepare → [loop(implement → adversarial_review)] → retry_until(implement → graders) → coverage_analyze → summarize → test_plan → pr_open
+pr_comment:  prepare → [loop(respond → adversarial_review)] → retry_until(respond → graders) → coverage_analyze → coverage_pr_comment → summarize_amend → try(push)
+chat_feedback: prepare → [loop(respond → adversarial_review)] → retry_until(respond → graders) → coverage_analyze → coverage_pr_comment → summarize_amend → try(push)
 ci_failure:  prepare → analyze_and_fix → summarize_amend → try(push)
-retry:       prepare → retry_until(implement → graders) → summarize → test_plan → pr_open
+retry:       prepare → [loop(implement → adversarial_review)] → retry_until(implement → graders) → coverage_analyze → summarize → test_plan → pr_open
 rebase:      auto_rebase → agent_rebase → force_push
 stack_rebase: stack_auto_rebase → stack_agent_rebase → stack_force_push
 auto_merge:  mergeability_preflight → prepare → retry_until(graders, repair: landing_fix) → push → auto_merge
 merge_train: merge_train_assemble → merge_train_build → prepare → retry_until(graders, repair: landing_fix) → merge_train_land
 coding_handoff: prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open
 ```
+
+`[loop(...)]` steps are conditional: the `adversarial_review` loop only appears when `adversarial_review_rounds > 0` (per `.syrus.yml` or `AppSetting`); `coverage_analyze` only appears when a coverage plan is configured for the repository.
 
 Key steps:
 
@@ -168,6 +170,15 @@ Key steps:
   branches work under App or PAT credentials; land pushes the integration
   branch, merges one integration PR into base, then comments on and closes the
   member PRs.
+- **`adversarial_review`** — Independent critic agent that reads the issue
+  and the diff from the preceding `implement` (or `respond`) step, then calls
+  `submit_adversarial_review(verdict, critique)`. Verdict `approved` exits the
+  loop (findings carry forward but no re-implement needed); `needs_work` feeds
+  findings back to the next `implement`/`respond` iteration via `prior_findings`
+  in the prompt. The reviewer's workspace changes are discarded — it is
+  read-only. Runs in feedback workflows (`pr_comment`, `chat_feedback`) as
+  well as `initial`/`retry`; skipped in `ci_failure`, `auto_merge`, and
+  maintenance workflows.
 - **`summarize`** / **`summarize_amend`** — Short agentic step that
   asks the agent to call `submit_summary`.
   If the upstream agentic step (`implement` for `summarize`; `respond` or
@@ -187,11 +198,17 @@ Key steps:
   open the PR if needed.
 
 **MCP sidecar** — `bin/syrus-mcp-sidecar`, spawned by `claude` over stdio
-via a per-step `mcp.json` tempfile. Exposes `read_live_state(detail)`,
-a read-only current Job/Workflow/Run/queue/chat snapshot for agents,
-`submit_summary(pr_title, pr_body, summary)`, and
-`submit_test_plan(steps, notes)`, which write directly onto the Workflow's
-`artifacts` bag and append `JobLog` audit lines.
+via a per-step `mcp.json` tempfile. Tools available to workflow agents:
+`read_live_state(detail)` — read-only Job/Workflow/Run/queue snapshot;
+`read_memory`, `write_memory`, `delete_memory`, `search_memories`,
+`list_memories` — repository-scoped `ChatMemory` access (writes stamp
+`author: agent`, `source_type: run`);
+`get_coverage_report` — coverage summary for the current run;
+`submit_summary(pr_title, pr_body, summary)` and
+`submit_test_plan(steps, notes)` — write to Workflow `artifacts` and append
+`JobLog` audit lines;
+`submit_adversarial_review(verdict, critique)` — used by the `adversarial_review` step;
+`report_main_concern(failing_tests, reason)` — flag broken-main suspicion.
 The config key and binary basename must match (`syrus-mcp-sidecar`) so the
 agent can invoke the tool name registered in the MCP config. See
 `app/services/syrus_mcp/`.
@@ -482,9 +499,10 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   format in the existing files. PRs that add operator-facing behavior while
   leaving the docs stale are incomplete, same as public website docs.
 - **Prompts** all live under `app/services/prompts/` as PORO classes
-  (`Prompts::Initial`, `Prompts::PrFeedback`, `Prompts::PullRequestSummary`,
+  (`Prompts::Initial`, `Prompts::PrFeedback`, `Prompts::CiFailure`,
+  `Prompts::AdversarialReview`, `Prompts::PullRequestSummary`,
   `Prompts::SubmitSummaryInstructions`, `Prompts::TestPlan`,
-  `Prompts::Rebase`, `Prompts::PushRebase`,
+  `Prompts::Rebase`, `Prompts::PushRebase`, `Prompts::LandingFix`,
   `Prompts::ScheduledTask`, `Prompts::DirectJob`, `Prompts::EpicContext`,
   `Prompts::VideoWalkthroughAnalysis`, `Prompts::VideoWalkthroughContext`,
   `Prompts::VideoWalkthroughReport`, `Prompts::VideoWalkthroughSegment`).
@@ -1063,6 +1081,12 @@ Required runtime env:
 - **`claude --mcp-config` is variadic.** It consumes positional args
   until the next flag, so it MUST be slotted between two flags — never
   immediately before the prompt. (Commit `d9d094e`.)
+- **Agent prompts go via stdin, not argv.** The adversarial-review prompt
+  embeds the full implementation diff; after a long session it exceeded
+  Linux's 128 KiB per-argument limit (`Errno::E2BIG`). `AgentInvocation`
+  now sends the prompt over stdin (via `--stdin` / piped input). Never
+  pass long prompts as positional argv to `claude` or `codex exec`.
+  (Commit `77eccaa7`.)
 - **Action Cable's `async` adapter is process-local.** Use `solid_cable`
   in dev (`config/cable.yml`) so app events emitted by `bin/jobs` reach
   browser subscribers connected to the Rails server.
@@ -1111,7 +1135,7 @@ app/services/github_app_installation_syncer.rb # sync GitHub App installations
 app/services/installation_linker.rb          # links repositories to installations by owner
 app/services/job_dependency_parser.rb        # parses Depends-on / Blocked-by issue lines
 app/services/syrus_mcp/sidecar.rb            # MCP::Server boot + SIGTERM trap
-app/services/syrus_mcp/submit_summary_tool.rb # the one MCP tool (writes to Workflow#artifacts)
+app/services/syrus_mcp/                      # all MCP sidecar tools (submit_summary, adversarial_review, memory, etc.)
 app/services/prompts/                        # all agent prompts (PORO)
 app/services/pr_summarizer.rb                # second-shot fallback
 app/jobs/poll_*.rb                           # polling jobs (cron-style; see config/recurring.yml)
