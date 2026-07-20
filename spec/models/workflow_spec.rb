@@ -221,6 +221,26 @@ RSpec.describe Workflow do
         .to change { job.reload.state }.from("running").to("failed")
     end
 
+    it "does not propagate failure to Job on workflow.fail! for coding_handoff workflows" do
+      job.update!(state: "running")
+      wf = described_class.create!(job: job, trigger_kind: "coding_handoff", state: "running", started_at: 1.minute.ago)
+
+      expect { wf.fail!; wf.save! }
+        .not_to change { job.reload.state }
+
+      expect(job.reload.state).to eq("running")
+    end
+
+    it "does not propagate failure to Job on workflow.fail! for local_mode_handoff workflows" do
+      job.update!(state: "running")
+      wf = described_class.create!(job: job, trigger_kind: "local_mode_handoff", state: "running", started_at: 1.minute.ago)
+
+      expect { wf.fail!; wf.save! }
+        .not_to change { job.reload.state }
+
+      expect(job.reload.state).to eq("running")
+    end
+
     it "returns landing Jobs to implemented on workflow.fail! for auto_merge workflows" do
       job.update!(state: "landing")
       wf = described_class.create!(job: job, trigger_kind: "auto_merge", state: "running", started_at: 1.minute.ago)

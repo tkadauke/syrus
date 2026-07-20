@@ -198,6 +198,7 @@ class Workflow < ApplicationRecord
   def propagate_fail_to_job!
     return if landing_workflow?
     return if coding_handoff_workflow?
+    return if local_mode_handoff_workflow?
     return if infrastructure_workflow?
     return unless job.may_mark_failed?
 
@@ -421,6 +422,10 @@ class Workflow < ApplicationRecord
 
   def coding_handoff_workflow?
     trigger_kind == "coding_handoff"
+  end
+
+  def local_mode_handoff_workflow?
+    trigger_kind == "local_mode_handoff"
   end
 
 

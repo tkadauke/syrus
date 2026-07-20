@@ -104,9 +104,13 @@ Validates the agent's committed work with graders (no repair loop — graders mu
 
 **When it fires:** An operator confirms a handoff from a Local Mode chat session (labs feature `local_mode`).
 
-**Step chain:** Similar to `coding_handoff` — runs graders on committed changes and opens the PR.
+**Step chain:** Similar to `coding_handoff`. When no PR exists: `prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open`. When a PR already exists (taken-over implemented Job): `prepare → grader_fanout → grader_collect → summarize_amend → try(push)`.
 
 Like `coding_handoff`, requires operator confirmation before the workflow dispatches.
+
+**On grader failure:** The workflow does not propagate failure to the Job via the normal `propagate_fail_to_job!` path. Instead, `after_fail` reverts the Job to `:coding` so the operator can fix the issues and re-run `complete_implement_step`. If a linked chat session exists, the grader failure report is posted there to trigger an agent turn. This makes the "fix → `complete_implement_step` again" cycle documented in coding mode's system prompt work correctly.
+
+**On non-grader failure** (e.g. `prepare` failed): `after_fail` drives the Job to `:failed` manually so the operator has the normal Retry path.
 
 ## main_grader
 
