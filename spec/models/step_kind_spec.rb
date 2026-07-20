@@ -28,4 +28,97 @@ RSpec.describe Step::Kind do
     expect(described_class.label_for("auto_merge")).to eq("Auto-merge")
     expect(described_class.style_for("auto_merge")).to eq("bg-green-100 text-green-700")
   end
+
+  describe "required_mcp_tools" do
+    it "returns submit_summary for summarize and summarize_amend" do
+      expect(described_class.fetch("summarize").required_mcp_tools).to eq(%w[submit_summary])
+      expect(described_class.fetch("summarize_amend").required_mcp_tools).to eq(%w[submit_summary])
+    end
+
+    it "returns submit_test_plan for test_plan" do
+      expect(described_class.fetch("test_plan").required_mcp_tools).to eq(%w[submit_test_plan])
+    end
+
+    it "returns submit_adversarial_review for adversarial_review" do
+      expect(described_class.fetch("adversarial_review").required_mcp_tools).to eq(%w[submit_adversarial_review])
+    end
+
+    it "returns empty array for non-submission steps" do
+      %w[implement respond prepare pr_open push grader grader_collect].each do |kind|
+        expect(described_class.fetch(kind).required_mcp_tools).to eq([]),
+          "expected #{kind} to have no required_mcp_tools"
+      end
+    end
+  end
+
+  describe "fail_policy" do
+    it "returns :advance for grader (advances past failure to let siblings run)" do
+      expect(described_class.fetch("grader").fail_policy).to eq(:advance)
+    end
+
+    it "returns :loop_iteration for grader_collect and grade (drives retry loop)" do
+      expect(described_class.fetch("grader_collect").fail_policy).to eq(:loop_iteration)
+      expect(described_class.fetch("grade").fail_policy).to eq(:loop_iteration)
+    end
+
+    it "returns :default for all other step kinds" do
+      %w[prepare implement respond summarize pr_open push auto_merge landing_fix].each do |kind|
+        expect(described_class.fetch(kind).fail_policy).to eq(:default),
+          "expected #{kind} to have :default fail_policy"
+      end
+    end
+  end
+
+  describe "reconcile_strategy" do
+    it "returns :pr_open for pr_open" do
+      expect(described_class.fetch("pr_open").reconcile_strategy).to eq(:pr_open)
+    end
+
+    it "returns :auto_merge for auto_merge" do
+      expect(described_class.fetch("auto_merge").reconcile_strategy).to eq(:auto_merge)
+    end
+
+    it "returns :merge_train_land for both merge_train_land and merge_train_land_after_rebase" do
+      expect(described_class.fetch("merge_train_land").reconcile_strategy).to eq(:merge_train_land)
+      expect(described_class.fetch("merge_train_land_after_rebase").reconcile_strategy).to eq(:merge_train_land)
+    end
+
+    it "returns nil for non-reconcilable steps" do
+      %w[prepare implement respond summarize push grader grader_collect].each do |kind|
+        expect(described_class.fetch(kind).reconcile_strategy).to be_nil,
+          "expected #{kind} to have no reconcile_strategy"
+      end
+    end
+  end
+
+  describe "skip_if_artifact" do
+    it "returns 'test_plan' for test_plan (skipped when artifact already present)" do
+      expect(described_class.fetch("test_plan").skip_if_artifact).to eq("test_plan")
+    end
+
+    it "returns nil for all other step kinds" do
+      %w[prepare implement summarize pr_open push grader grader_collect].each do |kind|
+        expect(described_class.fetch(kind).skip_if_artifact).to be_nil,
+          "expected #{kind} to have no skip_if_artifact"
+      end
+    end
+  end
+
+  describe "triggers_auto_approval" do
+    it "returns true for grade and grader_collect (the terminal grader steps)" do
+      expect(described_class.fetch("grade").triggers_auto_approval).to be(true)
+      expect(described_class.fetch("grader_collect").triggers_auto_approval).to be(true)
+    end
+
+    it "returns false for individual grader steps (only the collector fires auto-approval)" do
+      expect(described_class.fetch("grader").triggers_auto_approval).to be(false)
+    end
+
+    it "returns false for all non-grader steps" do
+      %w[prepare implement respond summarize pr_open push auto_merge].each do |kind|
+        expect(described_class.fetch(kind).triggers_auto_approval).to be(false),
+          "expected #{kind} to not trigger auto-approval"
+      end
+    end
+  end
 end

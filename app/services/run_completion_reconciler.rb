@@ -20,16 +20,12 @@ class RunCompletionReconciler
     return unreconciled unless step&.running?
     return unreconciled unless workflow&.running?
 
-    case step.kind
-    when "pr_open"
-      reconcile_pr_open
-    when "auto_merge"
-      reconcile_auto_merge
-    when "merge_train_land", "merge_train_land_after_rebase"
-      reconcile_merge_train_land
-    else
-      unreconciled
-    end
+    strategy = Step::Kind.fetch(step.kind).reconcile_strategy
+    return unreconciled unless strategy
+
+    send(:"reconcile_#{strategy}")
+  rescue ArgumentError
+    unreconciled
   end
 
   private
