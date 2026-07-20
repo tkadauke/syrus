@@ -18,18 +18,21 @@ class AutoRetryJob < ApplicationJob
     end
   end
 
+  RETRY_DISPATCH = {
+    "failed_step"        => :retry_failed_step,
+    "resume_failed_step" => :resume_failed_step,
+    "retry_workflow"     => :retry_workflow
+  }.freeze
+
   private
 
   def perform_retry(attempt)
-    case attempt.retry_kind
-    when "failed_step"
-      if attempt.workflow.retry_available?
-        RetryFailedStepEnqueuer.call(workflow: attempt.workflow)
-      else
-        retry_workflow(attempt)
-      end
-    when "resume_failed_step"
-      resume_failed_step(attempt)
+    send(RETRY_DISPATCH.fetch(attempt.retry_kind, :retry_workflow), attempt)
+  end
+
+  def retry_failed_step(attempt)
+    if attempt.workflow.retry_available?
+      RetryFailedStepEnqueuer.call(workflow: attempt.workflow)
     else
       retry_workflow(attempt)
     end
