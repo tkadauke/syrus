@@ -97,38 +97,31 @@ module Api
           params[:subject_type].to_s.presence_in(SmartFolder::SUBJECT_TYPES) || "job"
         end
 
+        SUBJECT_DASHBOARD_ROUTE = {
+          "admin_user"      => :admin_users_path,
+          "admin_queue"     => :admin_queue_root_path,
+          "workflow"        => :dashboard_workflows_path,
+          "epic"            => :dashboard_epics_path,
+          "spawned_process" => :admin_processes_path
+        }.freeze
+
+        SUBJECT_LEGACY_FILTER = {
+          "admin_user"      => ->(params, user) { Admin::Users::Filter.from_params(params, user: user).to_h },
+          "admin_queue"     => ->(params, _)    { Admin::Queue::Filter.from_params(params, tab: :active).to_h },
+          "workflow"        => ->(params, _)    { Workflows::Filter.from_params(params).to_h },
+          "epic"            => ->(params, _)    { Epics::Filter.from_params(params).to_h },
+          "spawned_process" => ->(params, _)    { Admin::SpawnedProcesses::Filter.from_params(params).to_h }
+        }.freeze
+
+        DEFAULT_LEGACY_FILTER = ->(params, _) { Jobs::Filter.from_params(params).to_h }
+
         def dashboard_path_for(subject_type, **query)
-          case subject_type
-          when "admin_user"
-            admin_users_path(query)
-          when "admin_queue"
-            admin_queue_root_path(query)
-          when "workflow"
-            dashboard_workflows_path(query)
-          when "epic"
-            dashboard_epics_path(query)
-          when "spawned_process"
-            admin_processes_path(query)
-          else
-            dashboard_jobs_path(query)
-          end
+          route = SUBJECT_DASHBOARD_ROUTE.fetch(subject_type, :dashboard_jobs_path)
+          send(route, query)
         end
 
         def legacy_filter_tree(subject_type)
-          case subject_type
-          when "admin_user"
-            Admin::Users::Filter.from_params(params, user: Current.user).to_h
-          when "admin_queue"
-            Admin::Queue::Filter.from_params(params, tab: :active).to_h
-          when "workflow"
-            Workflows::Filter.from_params(params).to_h
-          when "epic"
-            Epics::Filter.from_params(params).to_h
-          when "spawned_process"
-            Admin::SpawnedProcesses::Filter.from_params(params).to_h
-          else
-            Jobs::Filter.from_params(params).to_h
-          end
+          SUBJECT_LEGACY_FILTER.fetch(subject_type, DEFAULT_LEGACY_FILTER).call(params, Current.user)
         end
 
         def parsed_filter_tree

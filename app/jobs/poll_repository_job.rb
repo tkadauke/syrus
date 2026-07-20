@@ -171,22 +171,21 @@ class PollRepositoryJob < ApplicationJob
   end
 
   def ingest_epic_marker!(marker, issue, repository)
-    case marker[:kind]
-    when :epic_declaration
-      epic_url = issue_url(repository, issue.number)
-      Epic.find_or_create_by!(
-        user: repository.user,
-        repository: repository,
-        github_issue_url: epic_url
-      ) do |epic|
-        epic.title = marker[:name]
-        epic.description = issue_body(issue)
-      end
-      Rails.logger.info("[PollRepositoryJob] #{repository.slug}##{issue.number} ingested as Epic")
-      :epic
-    when :child_of_epic
-      ingest_child_of_epic!(marker, issue, repository)
+    send(:"ingest_#{marker[:kind]}!", marker, issue, repository)
+  end
+
+  def ingest_epic_declaration!(marker, issue, repository)
+    epic_url = issue_url(repository, issue.number)
+    Epic.find_or_create_by!(
+      user: repository.user,
+      repository: repository,
+      github_issue_url: epic_url
+    ) do |epic|
+      epic.title = marker[:name]
+      epic.description = issue_body(issue)
     end
+    Rails.logger.info("[PollRepositoryJob] #{repository.slug}##{issue.number} ingested as Epic")
+    :epic
   end
 
   def ingest_child_of_epic!(marker, issue, repository)
