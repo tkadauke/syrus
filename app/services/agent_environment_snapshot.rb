@@ -121,16 +121,10 @@ class AgentEnvironmentSnapshot
   end
 
   def required_mcp_tools_for(step)
-    case step&.kind
-    when "summarize", "summarize_amend"
-      %w[submit_summary]
-    when "test_plan"
-      %w[submit_test_plan]
-    when "adversarial_review"
-      %w[submit_adversarial_review]
-    else
-      []
-    end
+    return [] unless step
+    Step::Kind.fetch(step.kind).required_mcp_tools
+  rescue ArgumentError
+    []
   end
 
   def admin_links(job, workflow, run)

@@ -126,12 +126,10 @@ class Step < ApplicationRecord
   end
 
   def saved_change_to_succeeded_grade?
-    # Auto-approval fires after the iteration's terminal step
-    # succeeds: legacy "grade" (single-step fanout) and new
-    # "grader_collect" (per-grader fanout). Per-grader "grader"
-    # Steps don't fire auto-approval individually — only the
-    # collector does.
-    saved_change_to_state_to_succeeded? && %w[ grade grader_collect ].include?(kind)
+    saved_change_to_state_to_succeeded? &&
+      Step::Kind.fetch(kind).triggers_auto_approval
+  rescue ArgumentError
+    false
   end
 
   def advance_next_step!

@@ -199,18 +199,10 @@ class StepDispatcher
   def fail!
     return if @workflow.terminal?
 
-    # Per-kind failure policy:
-    #   "grader"          → silent: advance to next sibling. All graders in
-    #                       an iteration run regardless of individual outcome;
-    #                       grader_collect aggregates the decision.
-    #   "grader_collect"  → loop iteration (Phase B's loop terminal kind).
-    #   "grade"           → loop iteration (legacy single-Step grader kept
-    #                       for backwards compat with existing workflows).
-    #   default           → workflow fails (existing behavior).
-    case @from_step&.kind
-    when "grader"
+    case @from_step && Step::Kind.fetch(@from_step.kind).fail_policy
+    when :advance
       advance!
-    when "grader_collect", "grade"
+    when :loop_iteration
       handle_loop_iteration
     else
       return if handle_try_failure
@@ -562,7 +554,10 @@ class StepDispatcher
   end
 
   def skippable_queued_step?(step)
-    step.kind == "test_plan" && @workflow.artifact("test_plan").present?
+    artifact_key = Step::Kind.fetch(step.kind).skip_if_artifact
+    artifact_key && @workflow.artifact(artifact_key).present?
+  rescue ArgumentError
+    false
   end
 
   def skip_queued_step!(step)
