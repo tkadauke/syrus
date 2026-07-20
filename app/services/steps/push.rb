@@ -56,11 +56,6 @@ module Steps
       nil
     end
 
-
-    def mark_failure_code!(code)
-      step.update!(details: step.details.to_h.merge("failure_code" => code))
-    end
-
     def update_managed_pr_footers
       return if job.pr_number.blank?
 

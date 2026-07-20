@@ -64,6 +64,10 @@ module Steps
       error.output.to_s.match?(PUSH_REJECTED_PATTERN)
     end
 
+    def mark_failure_code!(code)
+      step.update!(details: step.details.to_h.merge("failure_code" => code))
+    end
+
     def workspace_dependency_env
       WorkspaceDependencyEnv.for(workspace.path)
     end
@@ -248,6 +252,28 @@ module Steps
 
     def head_sha
       GitRunner.new.run("rev-parse", "HEAD", chdir: workspace.path.to_s).strip
+    end
+
+    def fetch_issue
+      return job.synthetic_issue if job.cron? || job.direct?
+      GithubClient.for(repository: repository, user: job.user).fetch_issue(repository.slug, job.issue_number)
+    end
+
+    # Last N non-merge commits on the working branch. Best-effort — returns []
+    # rather than crashing if the workspace isn't set up or git log fails.
+    def recent_branch_commits(limit: 10)
+      workspace.setup
+      raw = GitRunner.new.run(
+        "log", "--no-merges", "-n", limit.to_s, "--format=%H%x09%s", "HEAD",
+        chdir: workspace.path.to_s
+      )
+      raw.each_line.map do |line|
+        sha, subject = line.chomp.split("\t", 2)
+        { sha: sha, subject: subject }
+      end
+    rescue StandardError => e
+      log("[#{step.kind}] could not read commit history: #{e.class}: #{e.message}")
+      []
     end
 
     def streaming_git(env: {})

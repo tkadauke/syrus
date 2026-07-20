@@ -1,4 +1,6 @@
 class PollForkReviewPrJob < ApplicationJob
+  include GithubPrPollHelpers
+
   queue_as :default
 
   # One concurrent poll per Job — prevents concurrent approval handling.
@@ -188,24 +190,4 @@ class PollForkReviewPrJob < ApplicationJob
     @job.update!(last_seen_fork_review_comment_at: latest) if latest
   end
 
-  def serialize_comment(c)
-    {
-      "author"     => c.user&.login,
-      "body"       => c.body,
-      "path"       => (c.respond_to?(:path) ? c.path : nil),
-      "line"       => (c.respond_to?(:line) ? c.line : nil),
-      "diff_hunk"  => (c.respond_to?(:diff_hunk) ? c.diff_hunk : nil),
-      "created_at" => c.created_at&.iso8601
-    }
-  end
-
-  def review_submitted_at(review)
-    value = review.respond_to?(:submitted_at) ? review.submitted_at : nil
-    return value if value.respond_to?(:to_time) && !value.is_a?(String)
-    return if value.blank?
-
-    Time.zone.parse(value.to_s)
-  rescue ArgumentError
-    nil
-  end
 end

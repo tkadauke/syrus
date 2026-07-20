@@ -79,10 +79,6 @@ module Steps
       git.run("rev-parse", "FETCH_HEAD", chdir: chdir).strip
     end
 
-    def mark_failure_code!(code)
-      step.update!(details: step.details.to_h.merge("failure_code" => code))
-    end
-
     def record_stale_base!(train, built_base_sha, current_base_sha)
       workflow.set_artifact!(
         STALE_BASE_ARTIFACT,

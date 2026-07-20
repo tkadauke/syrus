@@ -18,10 +18,6 @@ module Workflows
       prepare_skipped_for?(job) ? chain.reject { |s| s == "prepare" } : chain
     end
 
-    def self.prepare_skipped_for?(job)
-      job.skip_prepare?
-    end
-
     def self.after_success(workflow)
       return unless Feature.coding_mode_enabled?
 

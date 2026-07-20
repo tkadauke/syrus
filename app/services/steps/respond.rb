@@ -88,27 +88,6 @@ module Steps
       nil
     end
 
-    # Last N commit subjects on the working branch, newest first.
-    # Best-effort — workspace setup may not have happened yet, the
-    # git log may fail, etc. — return [] rather than crashing the
-    # prompt build.
-    def recent_branch_commits(limit: 10)
-      workspace.setup
-      raw = GitRunner.new.run("log",
-        "--no-merges",
-        "-n", limit.to_s,
-        "--format=%H%x09%s",
-        "HEAD",
-        chdir: workspace.path.to_s)
-      raw.each_line.map do |line|
-        sha, subject = line.chomp.split("\t", 2)
-        { sha: sha, subject: subject }
-      end
-    rescue StandardError => e
-      log("[respond] could not read commit history for prompt: #{e.class}: #{e.message}")
-      []
-    end
-
     # The polling job stashes raw comment data on the workflow
     # artifact when instantiating; rehydrate it into objects that
     # Prompts::PrFeedback expects (responds to #user.login,

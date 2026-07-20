@@ -30,8 +30,5 @@ module Workflows
       prepare_skipped_for?(job) ? chain.reject { |node| node == "prepare" } : chain
     end
 
-    def self.prepare_skipped_for?(job)
-      job.skip_prepare?
-    end
   end
 end

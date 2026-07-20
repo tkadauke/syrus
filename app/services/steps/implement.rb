@@ -49,11 +49,6 @@ module Steps
       end
     end
 
-    def fetch_issue
-      return job.synthetic_issue if job.cron? || job.direct?
-      GithubClient.for(repository: repository, user: job.user).fetch_issue(repository.slug, job.issue_number)
-    end
-
     def fetch_initial_issue_comments
       return [] unless job.issue?
 

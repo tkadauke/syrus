@@ -95,8 +95,8 @@ module Workflows
       step_kinds
     end
 
-    def self.prepare_skipped_for?(_job)
-      false
+    def self.prepare_skipped_for?(job)
+      job.skip_prepare?
     end
 
     def self.coverage_analyze_for(job)

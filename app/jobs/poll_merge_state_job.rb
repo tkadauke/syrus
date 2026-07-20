@@ -1,4 +1,6 @@
 class PollMergeStateJob < ApplicationJob
+  include GithubPrPollHelpers
+
   queue_as :default
   REBASE_MERGEABLE_STATES = %w[behind dirty].freeze
 
@@ -103,21 +105,11 @@ class PollMergeStateJob < ApplicationJob
       next unless approver
       next if @job.job_approvals.where(user: approver).exists?
 
-      submitted_at = parse_review_submitted_at(review)
+      submitted_at = review_submitted_at(review)
       @job.job_approvals.create!(user: approver, approved_at: submitted_at || Time.current)
     rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
       # Concurrent poller created the record between exists? and create!
     end
-  end
-
-  def parse_review_submitted_at(review)
-    value = review.respond_to?(:submitted_at) ? review.submitted_at : nil
-    return value if value.respond_to?(:to_time) && !value.is_a?(String)
-    return nil if value.blank?
-
-    Time.zone.parse(value.to_s)
-  rescue ArgumentError
-    nil
   end
 
   def dispatch_rebase
@@ -151,10 +143,6 @@ class PollMergeStateJob < ApplicationJob
   # approved) and the front-of-queue prefetch set get rebased here.
   def rebase_deferred_until_front_of_queue?
     @job.approved? && !LandingQueueProcessor.rebase_prefetch_candidate?(@job)
-  end
-
-  def we_control_head?(pr)
-    pr.head&.repo&.full_name == pr.base&.repo&.full_name
   end
 
   def audit(message)

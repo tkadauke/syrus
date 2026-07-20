@@ -29,27 +29,5 @@ module Steps
       append_grade_failure_feedback(prompt)
     end
 
-    def fetch_issue
-      GithubClient.for(repository: repository, user: job.user).fetch_issue(repository.slug, job.issue_number)
-    end
-
-    def recent_branch_commits(limit: 10)
-      workspace.setup
-      raw = GitRunner.new.run(
-        "log",
-        "--no-merges",
-        "-n", limit.to_s,
-        "--format=%H%x09%s",
-        "HEAD",
-        chdir: workspace.path.to_s
-      )
-      raw.each_line.map do |line|
-        sha, subject = line.chomp.split("\t", 2)
-        { sha: sha, subject: subject }
-      end
-    rescue StandardError => e
-      log("[landing_fix] could not read commit history for prompt: #{e.class}: #{e.message}")
-      []
-    end
   end
 end

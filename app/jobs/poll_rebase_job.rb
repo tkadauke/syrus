@@ -1,4 +1,6 @@
 class PollRebaseJob < ApplicationJob
+  include GithubPrPollHelpers
+
   queue_as :default
 
   # Cap how many consecutive failed rebase attempts we make per Job
@@ -76,13 +78,6 @@ class PollRebaseJob < ApplicationJob
   end
 
   private
-
-  # Same-repo head means we have push access via the operator's
-  # github_token. Forks would need maintainer-edits opt-in and a
-  # different push URL; out of scope for v1.
-  def we_control_head?(pr)
-    pr.head&.repo&.full_name == pr.base&.repo&.full_name
-  end
 
   def pending_rebase?
     RebaseWorkflowSelector.active_for_stack?(@job)
