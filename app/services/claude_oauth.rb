@@ -55,6 +55,14 @@ class ClaudeOauth
     Begin.new(authorize_url: url, verifier: verifier, state: state, redirect_uri: redirect_uri)
   end
 
+  # Returns true when the value looks like a long-lived Claude Code OAuth token
+  # (sk-ant-* prefix) rather than a one-time authorization code. Used by the
+  # exchange endpoint to short-circuit when a user pastes a token directly
+  # instead of the code from the provider page.
+  def self.looks_like_token?(value)
+    value.to_s.strip.start_with?("sk-ant-")
+  end
+
   # Exchange an authorization code for a long-lived token. `code` may be the
   # raw query-string value or the `code#state` form from the paste flow.
   # Returns the access token string. Raises ClaudeOauth::Error on any failure.

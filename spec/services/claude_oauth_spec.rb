@@ -32,6 +32,27 @@ RSpec.describe ClaudeOauth do
     end
   end
 
+  describe ".looks_like_token?" do
+    it "returns true for sk-ant- prefixed values" do
+      expect(described_class.looks_like_token?("sk-ant-oat01-abc123")).to be true
+      expect(described_class.looks_like_token?("sk-ant-api03-xyz")).to be true
+    end
+
+    it "returns false for authorization codes" do
+      expect(described_class.looks_like_token?("auth-code#state-value")).to be false
+      expect(described_class.looks_like_token?("shortcode")).to be false
+    end
+
+    it "strips whitespace before checking" do
+      expect(described_class.looks_like_token?("  sk-ant-oat01-abc  ")).to be true
+    end
+
+    it "returns false for blank input" do
+      expect(described_class.looks_like_token?("")).to be false
+      expect(described_class.looks_like_token?(nil)).to be false
+    end
+  end
+
   describe ".exchange" do
     let(:token_url) { described_class::TOKEN_URL }
 

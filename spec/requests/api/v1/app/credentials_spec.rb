@@ -335,6 +335,32 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(parse_body.dig("error", "code")).to eq("oauth_not_started")
   end
 
+  it "saves a long-lived token directly when a sk-ant- value is pasted instead of an auth code" do
+    sign_in_as(user)
+    post "/api/v1/app/credentials/claude_oauth_start"
+
+    probe = CredentialProbe::Result.new(credential: "claude_oauth_token", ok: true, message: "Claude OAuth token is valid.", details: {})
+    expect(CredentialProbe).to receive(:call).with(user: user, credential: "claude_oauth_token").and_return(probe)
+
+    post "/api/v1/app/credentials/claude_oauth_exchange", params: { code: "sk-ant-oat01-direct-token" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("credential_test", "ok")).to be true
+    expect(user.reload.claude_oauth_token).to eq("sk-ant-oat01-direct-token")
+  end
+
+  it "saves a long-lived token directly even without a prior oauth start" do
+    sign_in_as(user)
+
+    probe = CredentialProbe::Result.new(credential: "claude_oauth_token", ok: true, message: "Claude OAuth token is valid.", details: {})
+    expect(CredentialProbe).to receive(:call).with(user: user, credential: "claude_oauth_token").and_return(probe)
+
+    post "/api/v1/app/credentials/claude_oauth_exchange", params: { code: "sk-ant-oat01-no-flow-needed" }
+
+    expect(response).to have_http_status(:ok)
+    expect(user.reload.claude_oauth_token).to eq("sk-ant-oat01-no-flow-needed")
+  end
+
   it "starts the Codex OAuth flow using the CLI paste callback" do
     sign_in_as(user)
     expect(CodexOauth).to receive(:start_callback_listener).with(user: user).and_return(true)
