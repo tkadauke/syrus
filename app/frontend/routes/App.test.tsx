@@ -1235,10 +1235,10 @@ describe("App", () => {
       if (path === "/api/v1/app/chats/search/messages?q=needle&chat_session_id=77") {
         return Promise.resolve(new Response(JSON.stringify({
           matches: [
-            chatSearchMatch({ message_id: 11, role: "assistant", snippet: "First <b>needle</b>", created_at: "2026-06-20T10:00:00Z" }),
-            chatSearchMatch({ message_id: 12, role: "user", snippet: "Second <b>needle</b>", created_at: "2026-06-20T10:01:00Z" }),
-            chatSearchMatch({ message_id: 13, role: "assistant", snippet: "Third <b>needle</b>", created_at: "2026-06-20T10:02:00Z" }),
-            chatSearchMatch({ message_id: 14, role: "tool_result", snippet: "Fourth <b>needle</b>", created_at: "2026-06-20T10:03:00Z" })
+            chatSearchMatch({ message_id: 11, role: "assistant", snippet: "First <b>needle</b>" }),
+            chatSearchMatch({ message_id: 12, role: "user", snippet: "Second <b>needle</b>" }),
+            chatSearchMatch({ message_id: 13, role: "assistant", snippet: "Third <b>needle</b>" }),
+            chatSearchMatch({ message_id: 14, role: "tool_result", snippet: "Fourth <b>needle</b>" })
           ]
         }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
@@ -16140,7 +16140,7 @@ function chatSearchMatch(overrides: Record<string, unknown> = {}) {
     message_id: 11,
     role: "assistant",
     snippet: "Best <b>needle</b>",
-    created_at: "2026-06-20T10:00:00Z",
+    created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
     ...overrides
   }
 }
