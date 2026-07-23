@@ -1209,6 +1209,11 @@ describe("App", () => {
   })
 
   it("renders v2 chat search result cards, expands matches, and follows message links", async () => {
+    // Freeze Date so the fixture's created_at ("2026-06-20") stays in the
+    // "5 days ago" range and Intl.RelativeTimeFormat produces "X days ago",
+    // not "last month" (which happens once the gap crosses 30 days).
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(new Date("2026-06-25T12:00:00Z"))
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
     script.type = "application/json"
@@ -1273,6 +1278,7 @@ describe("App", () => {
         )
       })
     } finally {
+      vi.useRealTimers()
       fetchSpy.mockRestore()
       script.remove()
     }
