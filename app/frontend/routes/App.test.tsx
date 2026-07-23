@@ -16090,6 +16090,7 @@ function stubChatStreamSize(metrics: { scrollHeight: number; clientHeight: numbe
 }
 
 function chatSearchPayload() {
+  const recentDate = new Date(Date.now() - 2 * 60 * 1000).toISOString()
   return {
     results: [
       {
@@ -16098,9 +16099,9 @@ function chatSearchPayload() {
         best_snippet: "Best <b>needle</b> <i>ignored</i>",
         best_match_message_id: 11,
         top_matches: [
-          chatSearchMatch({ message_id: 11, role: "assistant", snippet: "Best <b>needle</b> <i>ignored</i>", created_at: "2026-06-20T10:00:00Z" }),
-          chatSearchMatch({ message_id: 13, role: "assistant", snippet: "Third <b>needle</b>", created_at: "2026-06-20T10:02:00Z" }),
-          chatSearchMatch({ message_id: 14, role: "tool_result", snippet: "Fourth <b>needle</b>", created_at: "2026-06-20T10:03:00Z" })
+          chatSearchMatch({ message_id: 11, role: "assistant", snippet: "Best <b>needle</b> <i>ignored</i>", created_at: recentDate }),
+          chatSearchMatch({ message_id: 13, role: "assistant", snippet: "Third <b>needle</b>", created_at: recentDate }),
+          chatSearchMatch({ message_id: 14, role: "tool_result", snippet: "Fourth <b>needle</b>", created_at: recentDate })
         ],
         total_match_count: 4,
         has_more_matches: true
