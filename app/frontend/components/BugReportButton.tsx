@@ -115,7 +115,7 @@ export function BugReportButton({ context, position = "bottom-left" }: { context
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       <button
         aria-label={t("bug_report.title")}
-        className={`fixed bottom-4 ${position === "bottom-right" ? "right-4" : "left-4"} z-40 flex h-12 w-12 items-center justify-center rounded-full bg-rose-600 text-xl font-semibold text-white shadow-lg shadow-rose-900/20 hover:bg-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 dark:focus:ring-offset-gray-950 disabled:cursor-wait disabled:opacity-60`}
+        className={`fixed bottom-4 ${position === "bottom-right" ? "right-4" : "left-4"} z-40 hidden sm:flex h-12 w-12 items-center justify-center rounded-full bg-rose-600 text-xl font-semibold text-white shadow-lg shadow-rose-900/20 hover:bg-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 dark:focus:ring-offset-gray-950 disabled:cursor-wait disabled:opacity-60`}
         disabled={capturing}
         onClick={() => void openDialog()}
         title={t("bug_report.title")}
