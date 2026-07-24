@@ -516,7 +516,7 @@ function DashboardFilterBar({ payload, pathname, search }: { payload: DashboardP
 
 const legacyFilterKeys = ["state", "repository_id", "kind", "trigger_kind", "job_id", "attention", "tag_ids", "pr", "age"]
 
-function DashboardTable({ payload, prefix, setupStatus }: { payload: DashboardPayload; prefix: string; setupStatus: ReturnType<typeof useSetupStatus> }) {
+export function DashboardTable({ payload, prefix, setupStatus }: { payload: DashboardPayload; prefix: string; setupStatus: ReturnType<typeof useSetupStatus> }) {
   const { t } = useT("dashboard")
   const queryClient = useQueryClient()
   const updateSort = useMutation({
@@ -527,7 +527,10 @@ function DashboardTable({ payload, prefix, setupStatus }: { payload: DashboardPa
   })
   const storedSortColumn = sortValue(payload.preferences.sort, "column")
   const storedSortDirection = sortValue(payload.preferences.sort, "direction")
-  const queueSortOutsideLanding = payload.subject === "job" && storedSortColumn === "landing_queue_position" && !payload.landing_queue.visible
+  const isOnLandingQueueFolder = payload.smart_folders.some(
+    (f) => f.id === payload.active_smart_folder_id && f.attention_preset === "landing_queue"
+  )
+  const queueSortOutsideLanding = payload.subject === "job" && storedSortColumn === "landing_queue_position" && !isOnLandingQueueFolder
   const effectiveSortColumn = queueSortOutsideLanding ? "created_at" : storedSortColumn
   const effectiveSortDirection = queueSortOutsideLanding ? "desc" : storedSortDirection
   const [queueSortResetRequested, setQueueSortResetRequested] = useState(false)

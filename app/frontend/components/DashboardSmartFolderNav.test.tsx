@@ -86,6 +86,7 @@ function folder(values: Partial<DashboardSmartFolder>): DashboardSmartFolder {
     position: 4,
     count: 3,
     active: false,
+    attention_preset: null,
     path: "/dashboard/jobs?smart_folder_id=101",
     ...values
   }

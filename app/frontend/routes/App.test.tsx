@@ -3873,6 +3873,19 @@ describe("App", () => {
       subject: "job",
       view: "list",
       active_smart_folder_id: 7,
+      smart_folders: [
+        {
+          id: 7,
+          name: "Landing queue",
+          kind: "builtin",
+          subject_type: "job",
+          visibility: "when_present",
+          count: 1,
+          active: true,
+          attention_preset: "landing_queue",
+          path: "/dashboard/jobs?smart_folder_id=7"
+        }
+      ],
       preferences: {
         ...dashboardPayload().preferences,
         sort: { column: "landing_queue_position", direction: "asc" }

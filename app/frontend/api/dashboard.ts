@@ -238,6 +238,7 @@ export type DashboardSmartFolder = {
   count: number
   active: boolean
   filter?: Record<string, unknown>
+  attention_preset: string | null
   path: string
 }
 

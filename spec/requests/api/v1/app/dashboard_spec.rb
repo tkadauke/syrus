@@ -969,14 +969,15 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(folders_by_name.fetch("Pinned")).to include(
         "kind" => "builtin",
         "visibility" => "when_present",
-        "count" => 1
+        "count" => 1,
+        "attention_preset" => "pinned"
       )
       expect(folders_by_name.fetch("Queued")).to include(
         "kind" => "builtin",
         "visibility" => "when_present",
         "count" => 1
       )
-      expect(folders_by_name.fetch("Inbox")).to include("count" => 1)
+      expect(folders_by_name.fetch("Inbox")).to include("count" => 1, "attention_preset" => "inbox")
       expect(folders_by_name.fetch("Just failed")).to include(
         "kind" => "builtin",
         "visibility" => "when_present",
@@ -994,8 +995,22 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(folders_by_name.fetch("Running jobs")).to include(
         "kind" => "user_defined",
         "visibility" => "user_defined",
-        "count" => 0
+        "count" => 0,
+        "attention_preset" => nil
       )
+    end
+
+    it "includes attention_preset on smart folders for the landing queue sort race fix" do
+      SmartFolder.ensure_builtins!
+      lq_folder = SmartFolder.find_builtin_by_attention("landing_queue")
+      Factories.job_record(repository: repo, owner_user: user, issue_number: 10, issue_title: "Land me", state: "approved")
+
+      get "/api/v1/app/dashboard", params: { subject: "job", smart_folder_id: lq_folder.id }
+
+      expect(response).to have_http_status(:ok)
+      folders_by_name = parse_body["smart_folders"].index_by { |f| f.fetch("name") }
+      expect(folders_by_name.fetch("Landing queue")).to include("attention_preset" => "landing_queue")
+      expect(folders_by_name.fetch("Inbox")).to include("attention_preset" => "inbox")
     end
 
     it "defaults the plain jobs list dashboard to Inbox and keeps All jobs addressable" do

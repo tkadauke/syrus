@@ -28,6 +28,7 @@ module App
             count: count,
             active: active_smart_folder&.id == folder.id,
             filter: folder.filter,
+            attention_preset: folder.attention_preset,
             path: dashboard_path_for(subject, smart_folder_id: folder.id)
           }
         end
