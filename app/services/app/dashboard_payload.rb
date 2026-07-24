@@ -258,6 +258,10 @@ module App
           id = Integer(user.dashboard_preferences.dig(subject.pluralize, "last_smart_folder_id"), exception: false)
         end
 
+        if id.nil? && default_inbox_smart_folder?
+          id = SmartFolder.find_builtin_by_attention("inbox")&.id
+        end
+
         id&.to_s || "null"
       end
     end
