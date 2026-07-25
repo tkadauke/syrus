@@ -1222,7 +1222,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
                   <span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded border border-gray-200 bg-white text-xs font-semibold text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">PDF</span>
                 )}
                 <span className="max-w-48 truncate" title={attachment.name}>{attachment.name}</span>
-                <button aria-label={`Remove ${attachment.name}`} className="rounded p-1 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100" onClick={() => removeAttachment(index)} type="button">
+                <button aria-label={`Remove ${attachment.name}`} className="rounded p-2 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-100" onClick={() => removeAttachment(index)} type="button">
                   <CloseIcon className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -1282,11 +1282,11 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
       {showAttachedRepositories && attachedRepositories.length > 0 ? (
         <div className="mb-3 flex w-full flex-wrap gap-2">
           {attachedRepositories.map((repository) => (
-            <span className="flex h-9 max-w-full items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200" key={repository.id}>
+            <span className="flex min-h-[44px] max-w-full items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200" key={repository.id}>
               <span className="truncate" title={repository.label}>{repository.label}</span>
               <button
                 aria-label={`Detach repository ${repository.label}`}
-                className="rounded-full p-0.5 text-blue-600 hover:bg-blue-100 hover:text-blue-900 disabled:text-blue-300 dark:text-blue-300 dark:hover:bg-blue-900 dark:hover:text-blue-100 dark:disabled:text-blue-700"
+                className="rounded-full p-2 text-blue-600 hover:bg-blue-100 hover:text-blue-900 disabled:text-blue-300 dark:text-blue-300 dark:hover:bg-blue-900 dark:hover:text-blue-100 dark:disabled:text-blue-700"
                 disabled={detachRepository.isPending}
                 onClick={() => detachRepository.mutate(repository.app_detach_path)}
                 title={`Detach repository ${repository.label}`}
