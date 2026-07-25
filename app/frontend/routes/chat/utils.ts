@@ -79,7 +79,7 @@ export function appendSearch(path: string, search: string) {
 }
 
 export function primaryButton() {
-  return "flex h-9 items-center justify-center rounded bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-60 dark:bg-blue-500 dark:hover:bg-blue-400"
+  return "flex h-11 items-center justify-center rounded bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-60 dark:bg-blue-500 dark:hover:bg-blue-400"
 }
 
 export function secondaryButton() {

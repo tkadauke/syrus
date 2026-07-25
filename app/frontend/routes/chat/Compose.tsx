@@ -1264,7 +1264,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
           {walkthrough.status === "ready" || walkthrough.status === "failed" ? (
             <button
               aria-label={t("walkthrough_remove")}
-              className="rounded-full p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700"
+              className="rounded-full p-2 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700"
               onClick={() => {
                 setWalkthrough(null)
                 // Clear any walkthrough-scoped error (e.g. one-at-a-time) so
@@ -1314,7 +1314,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
           aria-expanded={attachmentPopoverOpen}
           aria-label={t("add_attachment")}
           aria-haspopup="dialog"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded border border-gray-300 bg-white text-xl leading-none text-gray-700 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded border border-gray-300 bg-white text-xl leading-none text-gray-700 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
           disabled={send.isPending || systemAction.isPending}
           onClick={() => setAttachmentPopoverOpen((open) => !open)}
           ref={addAttachmentButtonRef}
@@ -1421,7 +1421,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
           {agentActive && text.trim().length > 0 ? (
             <button
               aria-label={t("scratchpad_stash")}
-              className="inline-flex h-9 items-center justify-center rounded border border-gray-300 bg-white px-2.5 text-gray-600 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
+              className="inline-flex h-11 items-center justify-center rounded border border-gray-300 bg-white px-2.5 text-gray-600 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
               disabled={stash.isPending}
               onClick={() => stash.mutate(undefined)}
               title={t("scratchpad_stash")}
@@ -1661,7 +1661,7 @@ function QueuedMessageRow({ chatId, message, position, queryKey }: { chatId: str
         </button>
         <button
           aria-label={t("scratchpad_stash")}
-          className="rounded p-1 text-gray-400 hover:bg-white hover:text-blue-600 disabled:text-gray-300 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-blue-300 dark:disabled:text-gray-700"
+          className="rounded p-2 text-gray-400 hover:bg-white hover:text-blue-600 disabled:text-gray-300 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-blue-300 dark:disabled:text-gray-700"
           disabled={stash.isPending || remove.isPending}
           onClick={() => stash.mutate()}
           title={t("scratchpad_stash")}
@@ -1675,7 +1675,7 @@ function QueuedMessageRow({ chatId, message, position, queryKey }: { chatId: str
         </button>
         <button
           aria-label={`Delete queued message ${position}`}
-          className="rounded p-1 text-gray-400 hover:bg-white hover:text-red-600 disabled:text-gray-300 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-red-300 dark:disabled:text-gray-700"
+          className="rounded p-2 text-gray-400 hover:bg-white hover:text-red-600 disabled:text-gray-300 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-red-300 dark:disabled:text-gray-700"
           disabled={remove.isPending || stash.isPending}
           onClick={() => remove.mutate()}
           type="button"
@@ -1725,7 +1725,7 @@ function StopButton({ payload, queryKey }: { payload: ChatPayload; queryKey: Cha
     onSuccess: (updated) => queryClient.setQueryData(queryKey, updated)
   })
   return (
-    <button aria-label={t("aria_stop_agent")} className="inline-flex h-9 items-center justify-center rounded border border-red-200 bg-white px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-400 dark:border-red-800 dark:bg-gray-900 dark:text-red-300 dark:hover:bg-red-950 dark:disabled:text-gray-600" disabled={Boolean(payload.chat.stop_requested_at) || stop.isPending} onClick={() => stop.mutate()} type="button">
+    <button aria-label={t("aria_stop_agent")} className="inline-flex h-11 items-center justify-center rounded border border-red-200 bg-white px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-400 dark:border-red-800 dark:bg-gray-900 dark:text-red-300 dark:hover:bg-red-950 dark:disabled:text-gray-600" disabled={Boolean(payload.chat.stop_requested_at) || stop.isPending} onClick={() => stop.mutate()} type="button">
       <StopIcon className={`h-4 w-4 ${payload.chat.stop_requested_at || stop.isPending ? "opacity-50" : ""}`} />
     </button>
   )

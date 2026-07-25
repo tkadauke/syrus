@@ -169,7 +169,7 @@ export function clampSidebarWidth(width: number) {
 }
 
 export function sidebarLinkClass(active: boolean) {
-  return `inline-flex w-full items-center gap-2 rounded px-2.5 py-2 font-medium ${active ? "text-blue-700 dark:text-blue-300 sm:bg-blue-50 dark:sm:bg-blue-900/30" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`
+  return `inline-flex min-h-[44px] w-full items-center gap-2 rounded px-2.5 py-2 font-medium ${active ? "text-blue-700 dark:text-blue-300 sm:bg-blue-50 dark:sm:bg-blue-900/30" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`
 }
 
 export function recentChatLinkClass(active: boolean) {
@@ -177,7 +177,7 @@ export function recentChatLinkClass(active: boolean) {
 }
 
 export function adminSubnavLinkClass(active: boolean) {
-  return `block whitespace-nowrap rounded px-3 py-2 font-medium ${active ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200" : "text-gray-700 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300"}`
+  return `block whitespace-nowrap rounded px-3 py-3 font-medium ${active ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200" : "text-gray-700 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300"}`
 }
 
 export function popupLinkClass() {

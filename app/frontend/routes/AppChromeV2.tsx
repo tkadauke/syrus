@@ -240,7 +240,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           <div className="flex min-w-0 items-center gap-2">
             <button
               aria-label={t("nav:open_sidebar")}
-              className="min-w-0 text-left text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-300"
+              className="inline-flex min-h-[44px] min-w-0 items-center text-lg font-semibold text-gray-900 hover:text-blue-600 dark:text-white dark:hover:text-blue-300"
               onClick={() => setDrawerOpen(true)}
               type="button"
             >
@@ -447,7 +447,7 @@ function SidebarContent({
             {user ? <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} onNavigate={onCloseDrawer} prefix={prefix} /> : null}
             <button
               aria-label={t("nav:close_sidebar")}
-              className="inline-flex h-8 w-8 items-center justify-center rounded text-gray-700 hover:bg-gray-100 hover:text-blue-600 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300 lg:hidden"
+              className="inline-flex h-11 w-11 items-center justify-center rounded text-gray-700 hover:bg-gray-100 hover:text-blue-600 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300 lg:hidden"
               onClick={onCloseDrawer}
               type="button"
             >

@@ -12048,7 +12048,7 @@ describe("App", () => {
 
     const stop = await screen.findByRole("button", { name: "Stop agent" })
     expect(screen.queryByRole("button", { name: "Send message" })).not.toBeInTheDocument()
-    expect(stop).toHaveClass("h-9", "px-3")
+    expect(stop).toHaveClass("h-11", "px-3")
     expect(stop).not.toHaveClass("py-1.5", "px-4", "py-2")
   })
 
