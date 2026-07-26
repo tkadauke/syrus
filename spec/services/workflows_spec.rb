@@ -31,7 +31,7 @@ RSpec.describe Workflows do
     it "creates the workflow + chain for Initial in transaction" do
       allow(RepoAdversarialReviewPlan).to receive(:for_job)
         .with(job)
-        .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml"))
+        .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml", criteria: []))
 
       wf = Workflows::Initial.instantiate(job: job)
       expect(wf).to be_persisted
@@ -57,7 +57,7 @@ RSpec.describe Workflows do
     it "inserts the adversarial review loop before the grade loop for Initial when enabled" do
       allow(RepoAdversarialReviewPlan).to receive(:for_job)
         .with(job)
-        .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 2, source: ".syrus.yml", note: nil))
+        .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 2, source: ".syrus.yml", note: nil, criteria: []))
 
       wf = Workflows::Initial.instantiate(job: job)
       review_loop_id = wf.steps.find_by!(kind: "adversarial_review").loop_id
@@ -100,7 +100,7 @@ RSpec.describe Workflows do
     it "keeps the Initial chain unchanged when adversarial review rounds is zero" do
       allow(RepoAdversarialReviewPlan).to receive(:for_job)
         .with(job)
-        .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml"))
+        .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml", criteria: []))
       AppSetting.current.update!(adversarial_review_rounds: 0)
 
       wf = Workflows::Initial.instantiate(job: job)
@@ -134,7 +134,7 @@ RSpec.describe Workflows do
     it "falls back to AppSetting adversarial review rounds when the repo has no plan" do
       allow(RepoAdversarialReviewPlan).to receive(:for_job)
         .with(job)
-        .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml"))
+        .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml", criteria: []))
       AppSetting.current.update!(adversarial_review_rounds: 1)
 
       wf = Workflows::Initial.instantiate(job: job)
@@ -166,7 +166,7 @@ RSpec.describe Workflows do
     it "records the configured adversarial review round budget in the chain template" do
       allow(RepoAdversarialReviewPlan).to receive(:for_job)
         .with(job)
-        .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 2, source: ".syrus.yml", note: nil))
+        .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 2, source: ".syrus.yml", note: nil, criteria: []))
 
       wf = Workflows::Initial.instantiate(job: job)
 
@@ -469,7 +469,7 @@ RSpec.describe Workflows do
 
     it "instantiates PrFeedback with respond → grader_fanout → grader_collect → summarize_amend → try(push)" do
       allow(RepoAdversarialReviewPlan).to receive(:for_job).with(job)
-        .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml"))
+        .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml", criteria: []))
       wf = Workflows::PrFeedback.instantiate(job: job)
       expect(wf.steps.pluck(:kind)).to eq(%w[ prepare respond grader_fanout grader_collect coverage_analyze coverage_pr_comment summarize_amend push ])
       expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ respond grader_fanout grader_collect ])
@@ -487,7 +487,7 @@ RSpec.describe Workflows do
 
     it "instantiates ChatFeedback with chat markdown artifacts and the PR feedback chain shape" do
       allow(RepoAdversarialReviewPlan).to receive(:for_job).with(job)
-        .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml"))
+        .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml", criteria: []))
       wf = Workflows::ChatFeedback.instantiate(
         job: job,
         artifacts: { "chat_feedback" => "Please tighten the dashboard copy." },

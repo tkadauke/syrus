@@ -98,9 +98,14 @@ Enables an independent reviewer agent that critiques the implementation before g
 ```yaml
 adversarial_review:
   rounds: 2
+  criteria:
+    - Verify all new endpoints enforce authentication
+    - Check that database queries use parameterized inputs
 ```
 
 `rounds` controls how many implement→review iterations run. Range: 0–10. Rounds set here override the instance-wide `AppSetting.adversarial_review_rounds`. Set to `0` to disable.
+
+`criteria` is an optional array of strings directing the reviewer toward repository-specific concerns. When present, each entry is included as a focus area in the reviewer prompt, supplementing the standard review checklist. Omitting `criteria` or supplying an empty array keeps existing behaviour. Blank entries are silently dropped.
 
 ## coverage
 

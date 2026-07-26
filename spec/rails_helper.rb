@@ -76,7 +76,7 @@ RSpec.configure do |config|
     # don't silently rely on rescue StandardError catching a WebMock error.
     # Specs that need adversarial review enabled override this in a local before.
     allow(RepoAdversarialReviewPlan).to receive(:for_job)
-      .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml"))
+      .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml", criteria: []))
   end
 
   config.after do

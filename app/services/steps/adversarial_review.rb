@@ -36,8 +36,15 @@ module Steps
         diff: latest_agentic_diff,
         prior_findings: review_iterations,
         workflow_kind: workflow.trigger_kind,
-        feedback_context: feedback_context_text
+        feedback_context: feedback_context_text,
+        criteria: adversarial_review_criteria
       ).to_s
+    end
+
+    def adversarial_review_criteria
+      SyrusYml.load_repo(workspace.path).adversarial_review&.criteria || []
+    rescue SyrusYml::ParseError, Errno::ENOENT
+      []
     end
 
     def review_issue

@@ -2,18 +2,20 @@ module Prompts
   class AdversarialReview
     FEEDBACK_TRIGGER_KINDS = %w[pr_comment chat_feedback].freeze
 
-    def initialize(issue:, diff:, prior_findings:, workflow_kind: nil, feedback_context: nil)
+    def initialize(issue:, diff:, prior_findings:, workflow_kind: nil, feedback_context: nil, criteria: [])
       @issue = issue
       @diff = diff.to_s
       @prior_findings = Array(prior_findings)
       @workflow_kind = workflow_kind.to_s
       @feedback_context = feedback_context.to_s
+      @criteria = Array(criteria)
     end
 
     def to_s
       [
         "You are running the adversarial_review step for Syrus.",
         independence,
+        custom_criteria,
         workflow_context,
         job_context,
         feedback_history,
@@ -27,6 +29,13 @@ module Prompts
 
     def feedback_workflow?
       FEEDBACK_TRIGGER_KINDS.include?(@workflow_kind)
+    end
+
+    def custom_criteria
+      return nil if @criteria.empty?
+
+      lines = @criteria.map { |c| "- #{c}" }.join("\n")
+      "In addition to general review concerns, pay particular attention to the following criteria:\n#{lines}"
     end
 
     def independence

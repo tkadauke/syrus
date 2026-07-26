@@ -30,7 +30,7 @@ RSpec.describe Steps::Respond do
 
   before do
     allow(RepoAdversarialReviewPlan).to receive(:for_job)
-      .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml"))
+      .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml", criteria: []))
   end
 
   before do

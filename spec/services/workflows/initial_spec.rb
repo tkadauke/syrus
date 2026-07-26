@@ -7,7 +7,7 @@ RSpec.describe Workflows::Initial do
 
   before do
     allow(RepoAdversarialReviewPlan).to receive(:for_job).and_return(
-      RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "disabled")
+      RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "disabled", criteria: [])
     )
   end
 

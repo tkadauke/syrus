@@ -113,6 +113,67 @@ RSpec.describe SyrusYml do
     }.to raise_error(described_class::ParseError, /adversarial_review\.rounds: must be an integer/)
   end
 
+  it "parses adversarial_review criteria when present" do
+    config = parse(<<~YAML)
+      adversarial_review:
+        rounds: 1
+        criteria:
+          - Verify all new endpoints enforce authentication
+          - Check that database queries use parameterized inputs
+    YAML
+
+    expect(config.adversarial_review.criteria).to eq([
+      "Verify all new endpoints enforce authentication",
+      "Check that database queries use parameterized inputs"
+    ])
+  end
+
+  it "defaults adversarial_review criteria to [] when absent" do
+    config = parse(<<~YAML)
+      adversarial_review:
+        rounds: 1
+    YAML
+
+    expect(config.adversarial_review.criteria).to eq([])
+  end
+
+  it "accepts an empty adversarial_review criteria array" do
+    config = parse(<<~YAML)
+      adversarial_review:
+        rounds: 1
+        criteria: []
+    YAML
+
+    expect(config.adversarial_review.criteria).to eq([])
+  end
+
+  it "rejects a non-array adversarial_review criteria value" do
+    expect {
+      parse(<<~YAML)
+        adversarial_review:
+          rounds: 1
+          criteria: "enforce auth"
+      YAML
+    }.to raise_error(described_class::ParseError, /adversarial_review\.criteria: must be an array of strings/)
+  end
+
+  it "strips blank entries from adversarial_review criteria" do
+    config = parse(<<~YAML)
+      adversarial_review:
+        rounds: 1
+        criteria:
+          - Enforce authentication
+          - "   "
+          - ""
+          - Check parameterized queries
+    YAML
+
+    expect(config.adversarial_review.criteria).to eq([
+      "Enforce authentication",
+      "Check parameterized queries"
+    ])
+  end
+
   it "rejects non-mapping hooks" do
     expect {
       parse(<<~YAML)

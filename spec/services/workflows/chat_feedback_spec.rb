@@ -7,7 +7,7 @@ RSpec.describe Workflows::ChatFeedback do
 
   before do
     allow(RepoAdversarialReviewPlan).to receive(:for_job).and_return(
-      RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "disabled")
+      RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "disabled", criteria: [])
     )
   end
 
@@ -36,7 +36,7 @@ RSpec.describe Workflows::ChatFeedback do
   context "when adversarial review is enabled" do
     before do
       allow(RepoAdversarialReviewPlan).to receive(:for_job).and_return(
-        RepoAdversarialReviewPlan::Result.new(rounds: 2, source: ".syrus.yml", note: nil)
+        RepoAdversarialReviewPlan::Result.new(rounds: 2, source: ".syrus.yml", note: nil, criteria: [])
       )
     end
 

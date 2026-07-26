@@ -28,6 +28,26 @@ RSpec.describe RepoAdversarialReviewPlan do
     expect(result).to be_enabled
     expect(result.rounds).to eq(2)
     expect(result.source).to eq(".syrus.yml")
+    expect(result.criteria).to eq([])
+  end
+
+  it "carries criteria from the repository .syrus.yml" do
+    allow(client).to receive(:file_content_at)
+      .with("acme/widgets", ".syrus.yml", "main")
+      .and_return(content: <<~YAML, size: 80)
+        adversarial_review:
+          rounds: 1
+          criteria:
+            - Verify authentication on new endpoints
+            - No internal state in error messages
+      YAML
+
+    result = described_class.new(repository: repository, user: user, client: client).resolve
+
+    expect(result.criteria).to eq([
+      "Verify authentication on new endpoints",
+      "No internal state in error messages"
+    ])
   end
 
   it "is disabled when .syrus.yml is absent" do
@@ -38,6 +58,7 @@ RSpec.describe RepoAdversarialReviewPlan do
     expect(result).not_to be_enabled
     expect(result.rounds).to eq(0)
     expect(result.note).to eq("no .syrus.yml")
+    expect(result.criteria).to eq([])
   end
 
   it "is disabled when adversarial review is not configured" do

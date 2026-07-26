@@ -34,7 +34,7 @@ class SyrusYml
   # e.g. schema.rb across SQLite/MySQL) — grader-validated, not diff-validated.
   GeneratedStep = Data.define(:command, :sources, :generates, :codegen_ignore)
   HooksConfig = Data.define(:post_checkout)
-  AdversarialReviewConfig = Data.define(:rounds)
+  AdversarialReviewConfig = Data.define(:rounds, :criteria)
   # Backward-compat aliases — point to the canonical RepoCoveragePlan types so
   # existing code and specs that reference SyrusYml::CoverageConfig etc. still work.
   CoverageSource    = RepoCoveragePlan::Source
@@ -138,7 +138,8 @@ class SyrusYml
     end
 
     AdversarialReviewConfig.new(
-      rounds: parse_adversarial_review_rounds(raw["rounds"])
+      rounds: parse_adversarial_review_rounds(raw["rounds"]),
+      criteria: parse_adversarial_review_criteria(raw["criteria"])
     )
   end
 
@@ -298,6 +299,13 @@ class SyrusYml
     RepoCoveragePlan::Threshold.new(lines: lines, branches: nil, pr_lines: pr_lines)
   rescue ArgumentError, TypeError
     raise ParseError, "coverage.threshold: lines and pr_lines must be numbers"
+  end
+
+  def parse_adversarial_review_criteria(raw)
+    return [] if raw.nil?
+    raise ParseError, "adversarial_review.criteria: must be an array of strings" unless raw.is_a?(Array)
+
+    raw.map { |item| item.to_s.strip }.reject(&:empty?)
   end
 
   def parse_adversarial_review_rounds(raw)

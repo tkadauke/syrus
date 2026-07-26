@@ -47,9 +47,21 @@ Rounds range: 0–10. Default is 0 (disabled).
 ```yaml
 adversarial_review:
   rounds: 2
+  criteria:
+    - Verify all new endpoints enforce authentication
+    - Check that database queries use parameterized inputs
+    - Confirm error messages do not leak internal state
 ```
 
 Per-repo configuration overrides the instance-wide setting. Set `rounds: 0` to disable for a specific repo even when the instance default is non-zero.
+
+### criteria
+
+`criteria` is an optional array of strings under the `adversarial_review` key. Each entry is a reviewer focus area specific to the repository — security patterns, API contracts, coding standards, or any concern the operator wants the reviewer to always check.
+
+When `criteria` is present and non-empty, the reviewer prompt includes a "pay particular attention to the following criteria" section listing each item. These criteria supplement (not replace) the standard review checklist: the reviewer still checks for bugs, regressions, missing edge cases, and maintainability issues on top of any operator-provided criteria.
+
+`criteria` is optional. Omitting it keeps existing behaviour. An empty array is valid. Blank entries are silently dropped.
 
 ## Session continuity
 

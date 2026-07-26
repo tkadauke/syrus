@@ -6,7 +6,7 @@
 class RepoAdversarialReviewPlan
   CONFIG_FILE = SyrusYml::CONFIG_FILE
 
-  Result = Data.define(:rounds, :source, :note) do
+  Result = Data.define(:rounds, :source, :note, :criteria) do
     def enabled?
       rounds.to_i.positive?
     end
@@ -35,7 +35,7 @@ class RepoAdversarialReviewPlan
     review = config.adversarial_review
     return disabled(source: ".syrus.yml", note: "no adversarial_review configured") unless review
 
-    Result.new(rounds: review.rounds, source: ".syrus.yml", note: nil)
+    Result.new(rounds: review.rounds, source: ".syrus.yml", note: nil, criteria: review.criteria)
   rescue SyrusYml::ParseError => e
     disabled(source: ".syrus.yml", note: e.message)
   rescue StandardError => e
@@ -59,6 +59,6 @@ class RepoAdversarialReviewPlan
   end
 
   def disabled(source:, note:)
-    Result.new(rounds: 0, source: source, note: note)
+    Result.new(rounds: 0, source: source, note: note, criteria: [])
   end
 end

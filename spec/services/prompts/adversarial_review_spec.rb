@@ -10,13 +10,15 @@ RSpec.describe Prompts::AdversarialReview do
       diff: diff,
       prior_findings: prior_findings,
       workflow_kind: workflow_kind,
-      feedback_context: feedback_context
+      feedback_context: feedback_context,
+      criteria: criteria
     ).to_s
   end
 
   let(:prior_findings) { [] }
   let(:workflow_kind) { nil }
   let(:feedback_context) { nil }
+  let(:criteria) { [] }
 
   it "includes independence instruction" do
     expect(prompt).to include("independent reviewer")
@@ -38,6 +40,27 @@ RSpec.describe Prompts::AdversarialReview do
 
   it "includes submit_adversarial_review tool instructions" do
     expect(prompt).to include("submit_adversarial_review")
+  end
+
+  context "with criteria" do
+    let(:criteria) { [ "Verify all endpoints enforce authentication", "No internal state in errors" ] }
+
+    it "includes the pay-particular-attention section" do
+      expect(prompt).to include("pay particular attention")
+    end
+
+    it "lists each criterion" do
+      expect(prompt).to include("- Verify all endpoints enforce authentication")
+      expect(prompt).to include("- No internal state in errors")
+    end
+  end
+
+  context "without criteria" do
+    let(:criteria) { [] }
+
+    it "does not include the pay-particular-attention section" do
+      expect(prompt).not_to include("pay particular attention")
+    end
   end
 
   context "with prior findings" do

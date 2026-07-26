@@ -84,6 +84,81 @@ RSpec.describe Steps::AdversarialReview do
     expect { handler.call }.to raise_error(Steps::Base::StepFailed, /submit_adversarial_review/)
   end
 
+  context "when workspace .syrus.yml has criteria" do
+    before do
+      syrus_yml_path = Pathname.new("/tmp/workspace/.syrus.yml")
+      allow(syrus_yml_path).to receive(:exist?).and_return(true)
+      allow(File).to receive(:read).with(syrus_yml_path.to_s).and_return(<<~YAML)
+        adversarial_review:
+          rounds: 1
+          criteria:
+            - Verify endpoints enforce authentication
+            - No internal state in errors
+      YAML
+      allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_return(
+        SyrusYml::Config.new(
+          prepare: nil,
+          grade: nil,
+          hooks: nil,
+          adversarial_review: SyrusYml::AdversarialReviewConfig.new(
+            rounds: 1,
+            criteria: [ "Verify endpoints enforce authentication", "No internal state in errors" ]
+          ),
+          coverage: nil,
+          formatters: [],
+          generated: []
+        )
+      )
+    end
+
+    it "passes criteria to the prompt" do
+      expect(handler).to receive(:run_agent) do |prompt: nil, **|
+        expect(prompt).to include("pay particular attention")
+        expect(prompt).to include("Verify endpoints enforce authentication")
+        expect(prompt).to include("No internal state in errors")
+        workflow.set_artifact!("adversarial_review_iterations", [
+          { "iteration" => review_step.iteration, "critique" => "OK.", "verdict" => "approved" }
+        ])
+      end
+
+      handler.call
+    end
+  end
+
+  context "when workspace .syrus.yml is missing" do
+    before do
+      allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_raise(Errno::ENOENT)
+    end
+
+    it "defaults criteria to [] without raising" do
+      expect(handler).to receive(:run_agent) do |prompt: nil, **|
+        expect(prompt).not_to include("pay particular attention")
+        workflow.set_artifact!("adversarial_review_iterations", [
+          { "iteration" => review_step.iteration, "critique" => "Fine.", "verdict" => "approved" }
+        ])
+      end
+
+      handler.call
+    end
+  end
+
+  context "when workspace .syrus.yml has a parse error" do
+    before do
+      allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_raise(SyrusYml::ParseError, "bad yaml")
+    end
+
+    it "defaults criteria to [] without raising" do
+      expect(handler).to receive(:run_agent) do |prompt: nil, **|
+        expect(prompt).not_to include("pay particular attention")
+        workflow.set_artifact!("adversarial_review_iterations", [
+          { "iteration" => review_step.iteration, "critique" => "Fine.", "verdict" => "approved" }
+        ])
+      end
+
+      handler.call
+    end
+  end
+
   context "in a pr_comment feedback workflow" do
     let(:user) { Factories.user(github_token: "ghp_test") }
     let(:repository) { Factories.repository(user: user) }
