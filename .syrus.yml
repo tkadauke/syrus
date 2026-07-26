@@ -30,6 +30,32 @@ hooks:
 
 adversarial_review:
   rounds: 1
+  criteria:
+    - If the diff adds or changes operator-facing behavior (AppSetting columns,
+      .syrus.yml keys, step or trigger kinds, feature flags, MCP tools), verify
+      that config/syrus_docs/ is updated in the same PR. If product-facing
+      behavior changes, verify website/src/site-pages/ or
+      website/src/content/docs/ is updated too, or the PR body explains why no
+      update is needed.
+    - If the diff adds new public methods, service classes, or step handlers,
+      check whether the change includes corresponding spec additions or
+      modifications. The rspec grader verifies the suite passes, but does not
+      check whether new code paths are actually exercised by new examples.
+    - Check for dead code and duplication: if the diff introduces a helper
+      method, service class, or utility, search the codebase for existing
+      methods that do the same thing and flag obvious copy-paste or parallel
+      implementations.
+    - If the diff introduces a case statement or if/elsif chain that branches
+      on trigger_kind, job.kind, step.kind, or similar type attributes of
+      domain objects, flag it. New per-kind behavior should be added to the
+      corresponding handler class or registry (Workflow::TriggerKind,
+      Step::Kind) rather than scattered as branches inside shared methods.
+    - If new Workflow.create! or Run.create! calls appear in the diff, verify
+      that user_id is derived from the parent Job's user, not hardcoded or
+      inferred from a different source.
+    - If config/features.yml is changed, verify that new or updated feature
+      flag descriptions do not reference PR numbers, issue numbers, or phrases
+      like "introduced in" or "added in" — descriptions must be timeless.
 
 # Each grader's `description:` is surfaced in the UI (tooltip on the
 # grader name + above the output panel on failure) and prepended to
