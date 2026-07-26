@@ -3,6 +3,8 @@ require "rails_helper"
 RSpec.describe "SyrusChatMcp spending, diff, and tag tools" do
   include ActiveSupport::Testing::TimeHelpers
 
+  let!(:_bootstrap_admin) { Factories.user(admin: true) }
+
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }

@@ -3,6 +3,8 @@ require "rails_helper"
 RSpec.describe "SyrusChatMcp side-effect pending tools" do
   include ActiveJob::TestHelper
 
+  let!(:_bootstrap_admin) { Factories.user(admin: true) }
+
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }

@@ -22,7 +22,8 @@ module SyrusChatMcp
         task_id = Integer(scheduled_task_id, exception: false)
         return SyrusChatMcp.invalid("scheduled_task_id is required") unless task_id
 
-        task = ScheduledTask.alive.where(user: chat_session.user).find_by(id: task_id)
+        scope = chat_session.user.admin? ? ScheduledTask.alive : ScheduledTask.alive.where(user: chat_session.user)
+        task = scope.find_by(id: task_id)
         return SyrusChatMcp.invalid("scheduled task not found: #{task_id}") unless task
 
         create_pending_action!(

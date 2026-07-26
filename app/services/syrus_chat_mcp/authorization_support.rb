@@ -31,6 +31,8 @@ module SyrusChatMcp
       end
     end
 
+    def admin? = current_user.admin?
+
     def current_user = chat_session.user
 
     def chat_session = server_context.fetch(:chat_session)
@@ -40,7 +42,7 @@ module SyrusChatMcp
     end
 
     def find_job!(id, includes: nil)
-      scope = current_user.jobs
+      scope = admin? ? Job.all : current_user.jobs
       scope = scope.includes(includes) if includes
       scope.find_by!(id: id)
     rescue ActiveRecord::RecordNotFound
@@ -48,7 +50,7 @@ module SyrusChatMcp
     end
 
     def find_epic!(id, includes: nil)
-      scope = current_user.epics
+      scope = admin? ? Epic.all : current_user.epics
       scope = scope.includes(includes) if includes
       scope.find_by!(id: id)
     rescue ActiveRecord::RecordNotFound
@@ -56,8 +58,7 @@ module SyrusChatMcp
     end
 
     def find_workflow!(id, includes: nil)
-      scope = Workflow.joins(job: :repository)
-              .where(repositories: { user_id: current_user.id })
+      scope = admin? ? Workflow.all : Workflow.joins(job: :repository).where(repositories: { user_id: current_user.id })
       scope = scope.includes(includes) if includes
       scope.find_by!(id: id)
     rescue ActiveRecord::RecordNotFound
@@ -65,14 +66,15 @@ module SyrusChatMcp
     end
 
     def find_run!(id)
-      Run.joins(step: { workflow: { job: :repository } })
-         .where(repositories: { user_id: current_user.id })
-         .find_by!(id: id)
+      scope = admin? ? Run.all : Run.joins(step: { workflow: { job: :repository } }).where(repositories: { user_id: current_user.id })
+      scope.find_by!(id: id)
     rescue ActiveRecord::RecordNotFound
       raise AuthorizationError, "run not found or not accessible"
     end
 
     def authorize_resource!(resource, action: :read)
+      return resource if admin?
+
       owner = resource.try(:user) || resource.try(:repository)&.user
       raise AuthorizationError, "not authorized" unless owner == current_user
 

@@ -3,7 +3,7 @@ module SyrusChatMcp
     private
 
     def scheduled_tasks_for(chat_session)
-      ScheduledTask.alive.where(user: chat_session.user)
+      chat_session.user.admin? ? ScheduledTask.alive : ScheduledTask.alive.where(user: chat_session.user)
     end
 
     def find_scheduled_task(chat_session, scheduled_task_id)

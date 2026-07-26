@@ -6,7 +6,8 @@ module SyrusChatMcp
       normalized_id = Integer(job_id, exception: false)
       return [ nil, SyrusChatMcp.invalid("job_id is required") ] unless normalized_id
 
-      job = chat_session.user.jobs.find_by(id: normalized_id)
+      scope = chat_session.user.admin? ? Job.all : chat_session.user.jobs
+      job = scope.find_by(id: normalized_id)
       return [ nil, SyrusChatMcp.invalid("job not found: #{normalized_id}") ] unless job
 
       [ job, nil ]
@@ -16,7 +17,8 @@ module SyrusChatMcp
       normalized_id = Integer(epic_id, exception: false)
       return [ nil, SyrusChatMcp.invalid("epic_id is required") ] unless normalized_id
 
-      epic = Epic.where(repository: chat_session.user.repositories.active).find_by(id: normalized_id)
+      scope = chat_session.user.admin? ? Epic.all : Epic.where(repository: chat_session.user.repositories.active)
+      epic = scope.find_by(id: normalized_id)
       return [ nil, SyrusChatMcp.invalid("epic not found: #{normalized_id}") ] unless epic
 
       [ epic, nil ]

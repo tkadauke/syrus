@@ -21,7 +21,7 @@ module SyrusChatMcp
         query = query.to_s.strip
         return SyrusChatMcp.invalid("query must be at least 2 characters") if query.length < 2
 
-        scope = chat_session.user.jobs
+        scope = chat_session.user.admin? ? Job.all : chat_session.user.jobs
         scope = scope.where(state: state.to_s) if state.to_s.strip.present?
         scope = apply_search(scope, query)
         total = scope.count

@@ -21,7 +21,8 @@ module SyrusChatMcp
         return SyrusChatMcp.invalid("state must be open or closed") unless %w[open closed].include?(state)
 
         limit = normalize_limit(limit)
-        scope = chat_session.user.jobs.order(created_at: :desc, id: :desc)
+        base_scope = chat_session.user.admin? ? Job.all : chat_session.user.jobs
+        scope = base_scope.order(created_at: :desc, id: :desc)
         scope = state == "open" ? scope.open_threads : scope.closed_threads
         scope = apply_label_filter(scope, label)
         return scope if scope.is_a?(MCP::Tool::Response)

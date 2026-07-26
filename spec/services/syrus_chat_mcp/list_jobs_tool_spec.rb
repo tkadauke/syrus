@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe SyrusChatMcp::ListJobsTool do
+  let!(:_bootstrap_admin) { Factories.user(admin: true) }
+
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user, trigger_label: "syrus") }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }

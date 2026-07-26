@@ -18,7 +18,7 @@ module SyrusChatMcp
         chat_session = server_context.fetch(:chat_session)
         page = normalize_page(page)
         per_page = normalize_per_page(per_page)
-        scope = chat_session.user.repositories.active.order(:owner, :name, :id)
+        scope = chat_session.user.admin? ? Repository.active.order(:owner, :name, :id) : chat_session.user.repositories.active.order(:owner, :name, :id)
         total_count = scope.count
         repositories = scope.offset((page - 1) * per_page).limit(per_page)
 

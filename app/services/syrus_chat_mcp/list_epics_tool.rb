@@ -21,7 +21,8 @@ module SyrusChatMcp
         state = state.to_s.presence
         return SyrusChatMcp.invalid("state must be one of #{Epic::STATES.join(", ")}") if state && !Epic::STATES.include?(state)
 
-        scope = Epic.where(repository: chat_session.user.repositories.active)
+        repo_scope = chat_session.user.admin? ? Repository.all : chat_session.user.repositories.active
+        scope = Epic.where(repository: repo_scope)
                             .left_outer_joins(:jobs)
                             .select(
                               "epics.*",

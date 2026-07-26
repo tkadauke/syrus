@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe SyrusChatMcp::ListRepositoriesTool do
+  let!(:_bootstrap_admin) { Factories.user(admin: true) }
+
   let(:user) { Factories.user }
   let(:chat_session) { ChatSession.create!(user: user) }
 
