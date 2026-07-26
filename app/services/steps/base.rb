@@ -24,6 +24,7 @@ module Steps
   # failed, and increments the Workflow's failure_count.
   class Base
     class StepFailed < StandardError; end
+    class NoChangesProduced < StepFailed; end
     DEFAULT_AGENT_RESUME = Object.new.freeze
 
     # Shared buffering thresholds — used by buffered_log_sink (agent
@@ -296,7 +297,7 @@ module Steps
       assert_branch_history_intact!
 
       diff = diff_against_default
-      raise StepFailed, "agent produced no changes" if diff.blank?
+      raise NoChangesProduced, "agent produced no changes" if diff.blank?
 
       step_diff = diff_against_sha(base_sha)
       run.update!(agent_diff: diff, head_sha: head_sha, base_sha: base_sha, step_agent_diff: step_diff)

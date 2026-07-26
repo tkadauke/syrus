@@ -677,6 +677,27 @@ describe "running / failed lifecycle (new in this commit)" do
         end
       end
 
+      it "transitions :running → :no_change_needed via mark_no_change_needed!" do
+        job = Factories.job_record(state: "running")
+        expect { job.mark_no_change_needed!; job.save! }
+          .to change { job.reload.state }.from("running").to("no_change_needed")
+      end
+
+      it "mark_no_change_needed! is illegal from anything except :running" do
+        %w[triaging queued implemented approved landing failed closed].each do |state|
+          job = Factories.job_record(state: state)
+          expect(job.may_mark_no_change_needed?).to be(false), "expected may_mark_no_change_needed? to be false from :#{state}"
+        end
+      end
+
+      it "no_change_needed? returns true only from :no_change_needed" do
+        job = Factories.job_record(state: "no_change_needed")
+        expect(job.no_change_needed?).to be(true)
+
+        other = Factories.job_record(state: "failed")
+        expect(other.no_change_needed?).to be(false)
+      end
+
       it "start_running! is illegal from :triaging / :approved / :landing / :failed / :closed" do
         %w[triaging approved landing failed closed].each do |state|
           job = Factories.job_record(state: state)
@@ -692,6 +713,18 @@ describe "running / failed lifecycle (new in this commit)" do
         failed = Factories.job_record(state: "failed")
         failed.close!; failed.save!
         expect(failed.reload).to be_closed
+      end
+
+      it "close! accepts :no_change_needed (operator acknowledges work was already done)" do
+        job = Factories.job_record(state: "no_change_needed")
+        expect { job.close!; job.save! }
+          .to change { job.reload.state }.from("no_change_needed").to("closed")
+      end
+
+      it "no_change_needed job is open? (semi-terminal)" do
+        job = Factories.job_record(state: "no_change_needed")
+        expect(job.open?).to be(true)
+        expect(job.closed?).to be(false)
       end
     end
 

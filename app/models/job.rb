@@ -239,6 +239,10 @@ class Job < ApplicationRecord
     # the owning session. Exit via release_from_coding/exit_local_mode (→ implemented) or close.
     state :coding
     state :failed
+    # Agent ran to completion and correctly determined the requested work was
+    # already done — no diff was produced. Semi-terminal: the operator can
+    # close the Job or give feedback if the agent may have missed something.
+    state :no_change_needed
     state :approved
     state :landing
     state :closed
@@ -291,6 +295,14 @@ class Job < ApplicationRecord
     # to attempt again (failed → queued) or Close.
     event :mark_failed do
       transitions from: :running, to: :failed
+    end
+
+    # Fired by Workflow#fail's after-callback when the failing step
+    # raised NoChangesProduced — the agent ran correctly but found
+    # nothing to do. Distinct from :failed so the UI can surface
+    # Close / Give Feedback rather than retry actions.
+    event :mark_no_change_needed do
+      transitions from: :running, to: :no_change_needed
     end
 
     # Retry pathway: the operator clicked Retry on a failed Job.
@@ -356,7 +368,7 @@ class Job < ApplicationRecord
     # with the after_save callback and just made the wiring harder
     # to read.
     event :close do
-      transitions from: [ :needs_triage, :triaging, :blocked_by_epic, :queued, :running, :implemented, :failed, :approved, :landing, :coding ], to: :closed, after: -> {
+      transitions from: [ :needs_triage, :triaging, :blocked_by_epic, :queued, :running, :implemented, :failed, :no_change_needed, :approved, :landing, :coding ], to: :closed, after: -> {
         self.finished_at = Time.current
         record_outcome_to_scheduled_task! if cron?
         notify_pr_merged

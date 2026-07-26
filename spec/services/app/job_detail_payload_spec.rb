@@ -426,6 +426,61 @@ RSpec.describe App::JobDetailPayload do
 
       expect(payload_for(job).dig(:actions, :can_restart)).to be(true)
     end
+
+    it "is false for a no_change_needed job" do
+      job = Factories.job_record(user: user, repository: repo, state: "no_change_needed")
+
+      expect(payload_for(job).dig(:actions, :can_restart)).to be(false)
+    end
+  end
+
+  describe "#actions_json for no_change_needed state" do
+    def create_no_change_workflow(job)
+      workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        agent_provider: job.agent_provider,
+        state: "failed",
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago
+      )
+      step = workflow.steps.create!(
+        kind: "implement",
+        position: 1,
+        state: "failed",
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago
+      )
+      run = Run.create!(job: job, step: step, trigger_kind: "initial", state: "failed")
+      run.create_run_diagnostic!(error_class: "Steps::Base::NoChangesProduced", error_message: "agent produced no changes")
+      workflow
+    end
+
+    it "suppresses retry_implementation_action for no_change_needed jobs" do
+      job = Factories.job_record(user: user, repository: repo, state: "no_change_needed")
+      create_no_change_workflow(job)
+
+      actions = payload_for(job).fetch(:actions)
+
+      expect(actions[:can_retry]).to be(false)
+      expect(actions[:retry_implementation_action]).to be_nil
+    end
+
+    it "suppresses retry_failed_step_action for no_change_needed jobs" do
+      job = Factories.job_record(user: user, repository: repo, state: "no_change_needed")
+      create_no_change_workflow(job)
+
+      actions = payload_for(job).fetch(:actions)
+
+      expect(actions[:can_retry_from_failed_step]).to be(false)
+      expect(actions[:retry_failed_step_action]).to be_nil
+    end
+
+    it "allows closing a no_change_needed job" do
+      job = Factories.job_record(user: user, repository: repo, state: "no_change_needed")
+
+      expect(payload_for(job).dig(:actions, :can_cancel)).to be(true)
+    end
   end
 
   describe "#actions_json retry actions" do

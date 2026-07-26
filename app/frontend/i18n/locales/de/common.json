@@ -146,6 +146,7 @@
     "succeeded": "erfolgreich",
     "success": "erfolgreich",
     "failed": "fehlgeschlagen",
+    "no_change_needed": "keine Änderung nötig",
     "cancelled": "abgebrochen",
     "invalid": "ungültig",
     "unmergeable": "nicht mergebar",

@@ -195,17 +195,39 @@ class Workflow < ApplicationRecord
   # Skips for coding_handoff — grader failures route back to the linked
   # chat session; after_fail handles job state (revert_to_coding_mode or
   # mark_failed for non-grader failures like prepare).
+  #
+  # When the failing step raised NoChangesProduced (agent ran correctly
+  # but found nothing to do), the Job lands in :no_change_needed rather
+  # than :failed so the UI surfaces Close / Give Feedback instead of
+  # retry actions.
   def propagate_fail_to_job!
     return if landing_workflow?
     return if coding_handoff_workflow?
     return if local_mode_handoff_workflow?
     return if infrastructure_workflow?
-    return unless job.may_mark_failed?
 
-    StateTransition.with_source("propagate") do
-      job.mark_failed!
-      job.save!
+    if no_changes_produced_failure?
+      return unless job.may_mark_no_change_needed?
+
+      StateTransition.with_source("propagate") do
+        job.mark_no_change_needed!
+        job.save!
+      end
+    else
+      return unless job.may_mark_failed?
+
+      StateTransition.with_source("propagate") do
+        job.mark_failed!
+        job.save!
+      end
     end
+  end
+
+  def no_changes_produced_failure?
+    runs.where(state: "failed")
+        .joins(:run_diagnostic)
+        .where(run_diagnostics: { error_class: "Steps::Base::NoChangesProduced" })
+        .exists?
   end
 
   # When a workflow succeeds, the Job's state usually has already

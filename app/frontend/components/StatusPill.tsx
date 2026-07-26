@@ -12,7 +12,8 @@ const STATE_LATIN: Record<string, string> = {
   approved:    "Probatum est — It is proven",
   landing:     "Propinquat — It draws near",
   merged:      "In annales scriptum — Written in the annals",
-  closed:      "Cecidit — It fell",
+  closed:           "Cecidit — It fell",
+  no_change_needed: "Iam factum est — It was already done",
   // Run / step states
   running:     "Currit — It runs",
   success:     "Successit — It has succeeded",

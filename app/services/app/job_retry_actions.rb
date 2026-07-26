@@ -37,6 +37,7 @@ module App
     end
 
     def failed_step_action
+      return if job.no_change_needed?
       return if latest_workflow&.infrastructure_workflow?
       return unless latest_workflow&.retry_available?
       return unless failed_step
@@ -63,6 +64,7 @@ module App
     end
 
     def implementation_retry_available?
+      return false if job.no_change_needed?
       return false if latest_workflow&.infrastructure_workflow?
       eligibility = RetryWorkflowEligibility.call(job: job)
       return false unless eligibility.eligible?

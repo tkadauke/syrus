@@ -16,6 +16,8 @@ Present in: `initial`, `pr_comment`, `chat_feedback`, `ci_failure`, `retry`, `au
 
 Agentic. The primary coding step: the agent reads the issue, explores the repo, writes code, and commits. Used in initial and retry workflows.
 
+**No-change outcome:** When the agent runs successfully but produces no diff (it correctly determined the requested work was already done), the step raises `Steps::Base::NoChangesProduced`. The workflow fails as normal, but `propagate_fail_to_job!` detects this error class and transitions the Job to `:no_change_needed` instead of `:failed`. The `:no_change_needed` state is semi-terminal — the operator can close the Job (the work was indeed already done) or give feedback (the agent may have missed something). Retry actions are suppressed; this outcome is non-retryable by the auto-retry scheduler.
+
 ### respond
 
 Agentic. Addresses PR review feedback or chat feedback. Reads the new comments and makes the requested changes.

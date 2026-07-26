@@ -221,6 +221,28 @@ RSpec.describe Workflow do
         .to change { job.reload.state }.from("running").to("failed")
     end
 
+    it "drives :running → :no_change_needed on workflow.fail! when the failing run has a NoChangesProduced diagnostic" do
+      job.update!(state: "running")
+      wf = described_class.create!(job: job, trigger_kind: "initial", state: "running", started_at: 1.minute.ago)
+      step = Step.create!(workflow: wf, kind: "implement", position: 0, state: "failed", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+      run = Run.create!(job: job, step: step, trigger_kind: "initial", state: "failed")
+      run.create_run_diagnostic!(error_class: "Steps::Base::NoChangesProduced", error_message: "agent produced no changes")
+
+      expect { wf.fail!; wf.save! }
+        .to change { job.reload.state }.from("running").to("no_change_needed")
+    end
+
+    it "drives :running → :failed (not :no_change_needed) for other failure types even with NoChangesProduced on a different run" do
+      job.update!(state: "running")
+      wf = described_class.create!(job: job, trigger_kind: "initial", state: "running", started_at: 1.minute.ago)
+      step = Step.create!(workflow: wf, kind: "implement", position: 0, state: "failed", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+      run = Run.create!(job: job, step: step, trigger_kind: "initial", state: "failed")
+      run.create_run_diagnostic!(error_class: "Steps::Base::StepFailed", error_message: "some other error")
+
+      expect { wf.fail!; wf.save! }
+        .to change { job.reload.state }.from("running").to("failed")
+    end
+
     it "does not propagate failure to Job on workflow.fail! for coding_handoff workflows" do
       job.update!(state: "running")
       wf = described_class.create!(job: job, trigger_kind: "coding_handoff", state: "running", started_at: 1.minute.ago)

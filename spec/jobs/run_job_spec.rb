@@ -663,7 +663,7 @@ RSpec.describe RunJob do
       expect(full).not_to include("Co-Authored-By:")
     end
 
-    it "no-changes path: agent surveys, finds nothing → Run fails (implement step), Workflow + Job fail" do
+    it "no-changes path: agent surveys, finds nothing → Run fails (implement step), Workflow fails, Job → no_change_needed" do
       RunJob.agent_runner = ->(workspace_path:, **_) {
         # Don't write anything — no diff.
         AgentInvocation::Result.new(turns: 1, exit_status: 0, timed_out: false, is_error: false, outcome: "success", final_text: nil, session_id: nil)
@@ -678,6 +678,7 @@ RSpec.describe RunJob do
       expect(wf.state).to eq("failed")
       implement_run = wf.steps.find_by(kind: "implement").runs.first
       expect(implement_run.state).to eq("failed")
+      expect(job.state).to eq("no_change_needed")
     end
   end
 
@@ -702,13 +703,14 @@ RSpec.describe RunJob do
   end
 
   describe "implement step: agent produced no changes" do
-    it "Run + Step + Workflow fail; no PR opened" do
+    it "Run + Step + Workflow fail; Job → no_change_needed; no PR opened" do
       RunJob.agent_runner = ->(**_) {
         AgentInvocation::Result.new(turns: 1, exit_status: 0, timed_out: false, is_error: false, outcome: "success", final_text: nil, session_id: nil)
       }
       job; drain_workflow!(job)
 
       expect(job.workflows.last.state).to eq("failed")
+      expect(job.reload.state).to eq("no_change_needed")
       expect(@pr_stub).not_to have_been_requested
     end
   end

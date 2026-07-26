@@ -37,7 +37,7 @@ export function HeaderActions({ payload, command, feedbackPanelOpen, onToggleFee
   const visibleKeys = primaryHeaderActionKeys(payload, actions)
   const visibleActions = visibleKeys.map((key) => actions.find((action) => action.key === key)).filter((action): action is HeaderAction => Boolean(action))
   const overflowActions = actions.filter((action) => !visibleKeys.includes(action.key))
-  const canGiveFeedback = ["implemented", "failed"].includes(payload.job.state)
+  const canGiveFeedback = ["implemented", "failed", "no_change_needed"].includes(payload.job.state)
 
   return (
     <>
@@ -150,6 +150,8 @@ function primaryHeaderActionKeys(payload: JobDetailPayload, actions: HeaderActio
     add("retry_failed_step")
     add("retry_implementation")
     add("restart")
+  } else if (jobState === "no_change_needed") {
+    add("cancel")
   } else if (availableKeys.has("reopen")) {
     add("reopen")
   } else if (availableKeys.has("retry_failed_step")) {
