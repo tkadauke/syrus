@@ -35,9 +35,11 @@ function renderBlocks(text: string): ReactNode[] {
       }
       if (index < lines.length) index += 1
       blocks.push(
-        <pre key={`block-${key++}`}>
-          <code>{code.join("\n")}</code>
-        </pre>
+        <div key={`block-${key++}`} className="overflow-x-auto">
+          <pre>
+            <code>{code.join("\n")}</code>
+          </pre>
+        </div>
       )
       continue
     }

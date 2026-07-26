@@ -56,6 +56,13 @@ describe("Markdown", () => {
     expect(links[0]).toHaveAttribute("href", "/custom")
   })
 
+  it("renders fenced code blocks as scrollable pre > code elements", () => {
+    const { container } = render(<Markdown text={"```\nconst x = 1\n```"} />)
+    const pre = container.querySelector("pre")
+    expect(pre).toBeInTheDocument()
+    expect(pre?.querySelector("code")?.textContent).toBe("const x = 1")
+  })
+
   it("renders plain text without applying markdown semantics", () => {
     const text = "1. keep this literal\n**not bold** and `not code`\n- not a list item"
     const { container } = render(<PlainText text={text} />)

@@ -56,6 +56,9 @@
   border-radius: 0.5rem;
   overflow-x: auto;
   line-height: 1.45;
+  white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
 }
 .chat-prose pre code {
   background: transparent;
