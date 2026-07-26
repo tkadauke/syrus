@@ -499,14 +499,25 @@ RSpec.describe MainHealthChangedService do
         }.not_to change { Job.count }
       end
 
-      it "emits a main_recovered notification instead of main_broken" do
+      it "emits a main_recovered notification instead of main_broken when landing was paused" do
+        repository.update!(landing_paused: true)
         described_class.on_health_change!(repository)
         expect(Notification.last&.kind).to eq("main_recovered")
       end
 
+      it "does not emit a recovered notification when landing was not paused" do
+        described_class.on_health_change!(repository)
+        expect(Notification.last).to be_nil
+      end
 
-      it "delegates to recovered!" do
+      it "delegates to recovered! when landing is paused" do
+        repository.update!(landing_paused: true)
         expect(described_class).to receive(:recovered!).with(repository)
+        described_class.on_health_change!(repository)
+      end
+
+      it "does not delegate to recovered! when landing is not paused" do
+        expect(described_class).not_to receive(:recovered!)
         described_class.on_health_change!(repository)
       end
     end

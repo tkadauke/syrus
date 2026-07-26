@@ -54,7 +54,7 @@ class MainHealthChangedService
     elsif @repository.main_health_inconclusive?
       pause_landing!
       emit_inconclusive_notification!
-    elsif @repository.main_health == "healthy"
+    elsif @repository.main_health == "healthy" && @repository.landing_paused?
       self.class.recovered!(@repository)
     end
   end
