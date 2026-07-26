@@ -199,7 +199,9 @@ RSpec.describe LocalTunnelChannel, type: :channel do
       stub_const("#{described_class}::HEARTBEAT_INTERVAL", 0.01.seconds)
 
       subscribe_to(daemon_session)
-      sleep 0.1
+      # Give the thread enough time to complete a full cycle (sleep + DB reload +
+      # mark_disconnected!) even under CI load; 0.1s was too tight.
+      sleep 2.0
 
       expect(daemon_session.reload.disconnected_at).not_to be_nil
       expect(transmissions).to include({ "type" => "disconnected", "reason" => "heartbeat_timeout" })
