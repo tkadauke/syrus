@@ -113,5 +113,18 @@ RSpec.describe StateTransition do
 
       expect(described_class.for_subject(job).count).to eq(starting_count)
     end
+
+    it "logs a warning and does not raise when StateTransition.create! fails" do
+      job.workflows.destroy_all
+      job.runs.destroy_all
+      job.update!(state: "queued")
+      allow(described_class).to receive(:create!).and_raise(ActiveRecord::StatementInvalid, "disk full")
+      allow(Rails.logger).to receive(:warn)
+
+      # The state machine transition must succeed even though the audit write fails.
+      expect { job.start_running!; job.save! }.not_to raise_error
+      expect(job.reload.state).to eq("running")
+      expect(Rails.logger).to have_received(:warn).with(/failed to record Job##{job.id}/)
+    end
   end
 end
