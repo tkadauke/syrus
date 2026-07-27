@@ -10562,7 +10562,7 @@ describe("App", () => {
     expect(screen.queryByRole("navigation", { name: "Recent chats" })).not.toBeInTheDocument()
     expect(screen.getByText("12.4k in", { exact: false })).toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "New chat" })).not.toBeInTheDocument()
-    expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveClass("dark:bg-gray-950", "dark:text-gray-100")
+    expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveClass("dark:bg-gray-900", "dark:text-gray-100")
     fireEvent.change(screen.getByPlaceholderText("Ask about this repository..."), { target: { value: "Now inspect proposals" } })
     fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
@@ -10770,14 +10770,16 @@ describe("App", () => {
     const chip = screen.getByText("acme/widgets")
     const textarea = screen.getByPlaceholderText("Ask about this repository...")
     const composeForm = textarea.closest("form")
-    // The textarea sits inside a relative wrapper (for the ghost-text
-    // suggestion overlay); the compose row is one level further up.
-    const composeRow = textarea.parentElement?.parentElement
+    // The textarea sits inside a relative wrapper; in the new two-row layout the
+    // send button is embedded at the bottom-right of that wrapper, and the attach
+    // button lives in a toolbar row that is the next sibling of the wrapper.
+    const textareaWrapper = textarea.parentElement
+    const toolbar = textareaWrapper?.nextElementSibling
     expect(chip).toBeInTheDocument()
     expect(chip.closest("div")).toHaveClass("w-full")
     expect(chip.compareDocumentPosition(textarea) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.getByRole("button", { name: "Add attachment" }).parentElement).toBe(composeRow)
-    expect(screen.getByRole("button", { name: "Send message" }).closest("div")?.parentElement).toBe(composeRow)
+    expect(screen.getByRole("button", { name: "Send message" }).closest("div")?.parentElement).toBe(textareaWrapper)
+    expect(toolbar?.contains(screen.getByRole("button", { name: "Add attachment" }))).toBeTruthy()
     expect(composeForm).not.toBeNull()
     fireEvent.click(screen.getByRole("button", { name: "Detach repository acme/widgets" }))
 
@@ -12063,8 +12065,8 @@ describe("App", () => {
 
     const stop = await screen.findByRole("button", { name: "Stop agent" })
     expect(screen.queryByRole("button", { name: "Send message" })).not.toBeInTheDocument()
-    expect(stop).toHaveClass("h-11", "px-3")
-    expect(stop).not.toHaveClass("py-1.5", "px-4", "py-2")
+    expect(stop).toHaveClass("h-8", "w-8")
+    expect(stop).not.toHaveClass("h-11", "px-3")
   })
 
   it("shows a starting state before the chat agent process is running", async () => {
