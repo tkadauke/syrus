@@ -183,6 +183,23 @@ describe("ImageAnnotationModal", () => {
     expect(screen.getByRole("button", { name: "Rectangle" })).toHaveAttribute("aria-pressed", "true")
   })
 
+  it("Escape in text input dismisses the input without closing the modal", async () => {
+    const onClose = vi.fn()
+    renderModal({ onClose })
+    await waitForLoaded()
+
+    fireEvent.click(screen.getByRole("button", { name: "Text" }))
+    fireEvent.pointerDown(screen.getByLabelText("Annotation canvas"), { clientX: 30, clientY: 32, pointerId: 1 })
+
+    const input = screen.getByPlaceholderText("Type, then press Enter")
+    expect(input).toBeVisible()
+
+    fireEvent.keyDown(input, { key: "Escape" })
+
+    expect(screen.queryByPlaceholderText("Type, then press Enter")).not.toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   function renderModal(overrides: Partial<Parameters<typeof ImageAnnotationModal>[0]> = {}) {
     const props = {
       dataUrl: sourceDataUrl,

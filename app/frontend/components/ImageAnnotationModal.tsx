@@ -280,6 +280,7 @@ export function ImageAnnotationModal({ dataUrl, name, onDone, onClose }: { dataU
 
     if (event.key === "Escape") {
       event.preventDefault()
+      event.stopPropagation()
       setTextPlacement(null)
     }
   }
