@@ -923,6 +923,40 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(chat.reload.mode).to be_nil
   end
 
+  it "updates chat_effort and returns it in the payload" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository)
+
+    patch "/api/v1/app/chats/#{chat.id}", params: { chat: { chat_effort: "medium" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.chat_effort).to eq("medium")
+    expect(parse_body.dig("chat", "chat_effort")).to eq("medium")
+
+    patch "/api/v1/app/chats/#{chat.id}", params: { chat: { chat_effort: "high" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.chat_effort).to eq("high")
+    expect(parse_body.dig("chat", "chat_effort")).to eq("high")
+
+    patch "/api/v1/app/chats/#{chat.id}", params: { chat: { chat_effort: "" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.chat_effort).to be_nil
+    expect(parse_body.dig("chat", "chat_effort")).to be_nil
+  end
+
+  it "rejects an unknown chat_effort value" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository)
+
+    patch "/api/v1/app/chats/#{chat.id}", params: { chat: { chat_effort: "ultra" } }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("Invalid effort level")
+    expect(chat.reload.chat_effort).to be_nil
+  end
+
   it "enqueues title generation when an unstarted chat receives its first message" do
     sign_in_as(user)
 

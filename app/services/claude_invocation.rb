@@ -12,6 +12,7 @@ class ClaudeInvocation
                  resume_session_id: nil,
                  disallowed_tools: nil,
                  required_mcp_tools: nil,
+                 effort_level: nil,
                  env: nil,
                  stop_requested: -> { false },
                  process_started: ->(_process) { },
@@ -29,6 +30,7 @@ class ClaudeInvocation
     @resume_session_id = resume_session_id
     @disallowed_tools = Array(disallowed_tools).compact
     @required_mcp_tools = Array(required_mcp_tools).compact_blank.map(&:to_s)
+    @effort_level = effort_level.to_s.presence
     @env = env || {}
     @stop_requested = stop_requested
     @process_started = process_started
@@ -48,6 +50,7 @@ class ClaudeInvocation
       file_paths: @file_paths,
       resume_session_id: @resume_session_id,
       disallowed_tools: @disallowed_tools,
+      effort_level: @effort_level,
       env: @env,
       stop_requested: @stop_requested,
       process_started: @process_started,
@@ -70,6 +73,7 @@ class ClaudeInvocation
                      max_turns:, mcp_config: nil, image_paths: nil, file_paths: nil, resume_session_id: nil,
                      env: nil,
                      disallowed_tools: nil,
+                     effort_level: nil,
                      stop_requested: -> { false }, process_started: ->(_process) { },
                      on_session_id: ->(_session_id) { })
     env = agent_env(oauth_token: oauth_token, workspace_path: workspace_path).merge(env || {})
@@ -98,6 +102,7 @@ class ClaudeInvocation
     # process timeout (AgentInvocation::DEFAULT_TIMEOUT_SECONDS) still bounds runaway
     # loops, so we're not unbounded on wall time even uncapped.
     cmd += [ "--max-turns", max_turns.to_s ] if max_turns && max_turns.positive?
+    cmd += [ "--effort", effort_level ] if effort_level.present? && effort_level != "none"
 
     metadata = {
       turns: nil, is_error: false, outcome: nil, final_text: nil, session_id: nil,

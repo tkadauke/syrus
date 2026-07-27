@@ -37,6 +37,7 @@ export type ChatRecord = {
   scratchpad_items_count?: number
   coding_checkout_uncommitted?: boolean
   coding_checkout_branch?: string | null
+  chat_effort?: string | null
 }
 
 export type ChatProviderOption = {
@@ -629,6 +630,10 @@ export function updateChatProvider(id: number | string, chatProvider: string | n
 
 export function updateChatMode(id: number | string, mode: ChatMode | null) {
   return patchJson<ChatPayload>(`/api/v1/app/chats/${id}`, { chat: { mode: mode ?? "" } })
+}
+
+export function updateChatEffort(id: number | string, effort: string | null) {
+  return patchJson<ChatPayload>(`/api/v1/app/chats/${id}`, { chat: { chat_effort: effort ?? "" } })
 }
 
 export function cancelCodingCheckout(path: string) {

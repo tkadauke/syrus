@@ -1495,6 +1495,31 @@ RSpec.describe ChatTurnJob do
     )
   end
 
+  it "passes effort_level to the agent runner when chat_effort is set" do
+    chat.update!(chat_effort: "high")
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
+      result_fixture(session_id: "s1")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(received[:effort_level]).to eq("high")
+  end
+
+  it "passes nil effort_level to the agent runner when chat_effort is not set" do
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
+      result_fixture(session_id: "s1")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    expect(received[:effort_level]).to be_nil
+  end
+
   it "writes a system message and skips the agent when Claude credentials are missing" do
     user.update!(claude_oauth_token: nil)
     called = false
