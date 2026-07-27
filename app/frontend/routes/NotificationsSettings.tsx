@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useState, type ReactNode } from "react"
+import { useState } from "react"
 import {
   fetchNotificationPreferences,
   updateNotificationPreferences,
@@ -7,6 +7,7 @@ import {
   type NotificationPreferencesPayload
 } from "../api/notifications"
 import { NoticeToast } from "../components/NoticeToast"
+import { PanelMessage } from "../components/PanelMessage"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 
@@ -144,12 +145,4 @@ function NotificationPreferenceToggles({
   )
 }
 
-function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  const { t } = useT("settings")
-  const colors = {
-    error: "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300",
-    muted: "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400"
-  }
-  return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
-}
 

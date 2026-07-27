@@ -6,6 +6,8 @@ module Jobs
   # exists to bridge the controller's flat URL params + an optional
   # active SmartFolder into a single AST tree.
   class Filter
+    include Filters::BaseFilter
+
     # Flat URL-param keys the legacy dropdown filter bar still emits.
     # Each is translated to one or more AST chips by `from_params`.
     LEGACY_URL_KEYS = %w[ state repository_id kind pr age attention tag_ids ].freeze
@@ -32,12 +34,6 @@ module Jobs
       new(tree, user: user)
     end
 
-    # Build a Filter directly from an AST tree (hash shape). Used by
-    # smart_folder_counts and by callers that already hold a tree.
-    def self.from_tree(tree, user: nil)
-      new(tree, user: user)
-    end
-
     def initialize(tree, user: nil)
       @ast = Filters::Ast.parse(tree)
       @user = user
@@ -47,46 +43,13 @@ module Jobs
       Filters::Compiler.call(@ast, scope: scope, user: @user, subject: :job)
     end
 
-    # True if the tree contains any chip.
-    def active?
-      chips.any?
-    end
-
     # True if the tree contains an `attention: pinned` chip anywhere.
     # The controller uses this to order results by pin timestamp.
     def pinned?
       chips.any? { |chip| chip.field == "attention" && chip.value.to_s == "pinned" }
     end
 
-    # AST tree as a JSON-friendly Hash. Suitable for SmartFolder#filter
-    # storage and for JSON-encoding into a hidden form field.
-    def to_h
-      Filters::Ast.serialize(@ast)
-    end
-
-    # base64-url-encoded JSON for embedding in the dashboard URL as
-    # `?q=<encoded>` — the chip-bar UI's wire format.
-    def to_query_param
-      Filters::QueryParam.encode(to_h)
-    end
-
     private
-
-    # Walk the AST and yield every Chip node anywhere in the tree.
-    def chips
-      collected = []
-      walk = ->(node) {
-        case node
-        when Filters::Ast::Chip   then collected << node
-        when Filters::Ast::AndNode, Filters::Ast::OrNode
-          node.children.each(&walk)
-        when Filters::Ast::NotNode
-          walk.call(node.child)
-        end
-      }
-      walk.call(@ast)
-      collected
-    end
 
     # ---- URL-param → AST tree adapter ----
 
@@ -144,27 +107,5 @@ module Jobs
       { "and" => chips }
     end
     private_class_method :build_tree_from_url_params
-
-    def self.chip(field, op, value)
-      h = { "field" => field, "op" => op }
-      h["value"] = value unless value.nil?
-      h
-    end
-    private_class_method :chip
-
-    # AND-merge two trees: { and: [..., folder_chips..., url_chips...] }.
-    # Both trees may already be AndNodes; flatten one level so we don't
-    # nest unnecessarily.
-    def self.merge_and(folder_tree, url_tree)
-      children = [ folder_tree, url_tree ].flat_map do |tree|
-        if tree.is_a?(Hash) && tree["and"].is_a?(Array)
-          tree["and"]
-        else
-          [ tree ]
-        end
-      end
-      { "and" => children }
-    end
-    private_class_method :merge_and
   end
 end

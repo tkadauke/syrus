@@ -87,7 +87,7 @@ function replaceOrPrependChat(chats: ChatNavRecord[], chat: ChatNavRecord) {
   ]
 }
 
-function chatGroupFor(chat: ChatNavRecord): ChatGroupRecord {
+export function chatGroupFor(chat: ChatNavRecord): ChatGroupRecord {
   return {
     key: chatGroupKey(chat),
     label: chat.repository?.slug || "General",
@@ -97,6 +97,6 @@ function chatGroupFor(chat: ChatNavRecord): ChatGroupRecord {
   }
 }
 
-function chatGroupKey(chat: ChatNavRecord) {
+export function chatGroupKey(chat: ChatNavRecord) {
   return chat.repository ? `repository-${chat.repository.id}` : "general"
 }

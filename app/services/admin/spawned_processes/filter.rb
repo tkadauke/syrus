@@ -1,6 +1,8 @@
 module Admin
   module SpawnedProcesses
     class Filter
+      include Filters::BaseFilter
+
       LEGACY_URL_KEYS = %w[ state kind hostname run_id workflow_id since ].freeze
 
       def self.from_params(params, smart_folder: nil, user: nil)
@@ -11,10 +13,6 @@ module Admin
         tree = [ folder_tree, q_tree, url_tree ].compact.reduce { |acc, next_tree| merge_and(acc, next_tree) }
         default = tree.nil? && !all_state_param?(params)
         new(tree || Filters::Ast.serialize(Filters::Ast::EMPTY), user: user, default: default)
-      end
-
-      def self.from_tree(tree, user: nil)
-        new(tree, user: user)
       end
 
       def initialize(tree, user: nil, default: false)
@@ -28,20 +26,8 @@ module Admin
         Filters::Compiler.call(@ast, scope: scope, user: @user, subject: :spawned_process)
       end
 
-      def active?
-        chips.any?
-      end
-
       def default?
         @default
-      end
-
-      def to_h
-        Filters::Ast.serialize(@ast)
-      end
-
-      def to_query_param
-        Filters::QueryParam.encode(to_h)
       end
 
       def self.default_tree
@@ -77,39 +63,6 @@ module Admin
       end
       private_class_method :all_state_param?
 
-      def self.chip(field, op, value)
-        { "field" => field, "op" => op, "value" => value }
-      end
-      private_class_method :chip
-
-      def self.merge_and(left_tree, right_tree)
-        children = [ left_tree, right_tree ].flat_map do |tree|
-          if tree.is_a?(Hash) && tree["and"].is_a?(Array)
-            tree["and"]
-          else
-            [ tree ]
-          end
-        end
-        { "and" => children }
-      end
-      private_class_method :merge_and
-
-      private
-
-      def chips
-        collected = []
-        walk = ->(node) {
-          case node
-          when Filters::Ast::Chip then collected << node
-          when Filters::Ast::AndNode, Filters::Ast::OrNode
-            node.children.each(&walk)
-          when Filters::Ast::NotNode
-            walk.call(node.child)
-          end
-        }
-        walk.call(@ast)
-        collected
-      end
     end
   end
 end

@@ -7,6 +7,7 @@ import { ApiError } from "../api/client"
 import { fetchProfile, fetchProfiles, type TeamProfileActivity, type TeamProfileCounts, type TeamProfileDetail, type TeamProfileEpic, type TeamProfileJob, type TeamProfileRepository, type TeamProfileSummary } from "../api/profiles"
 import { StatusPill } from "../components/StatusPill"
 import { useT } from "../hooks/useT"
+import { PanelMessage } from "../components/PanelMessage"
 
 export function TeamDirectoryRoute() {
   const { t } = useT("settings")
@@ -209,11 +210,6 @@ function Avatar({ avatarUrl, displayName, size = "normal" }: { avatarUrl: string
   }
 
   return <div aria-hidden="true" className={`${dimension} flex shrink-0 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800 font-semibold text-gray-500 dark:text-gray-400 ring-1 ring-gray-200 dark:ring-gray-700`}>{initials}</div>
-}
-
-function PanelMessage({ children }: { children: ReactNode }) {
-  const { t } = useT("settings")
-  return <div className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 text-sm text-gray-600 dark:text-gray-400">{children}</div>
 }
 
 function ProfilesError({ error }: { error: Error }) {

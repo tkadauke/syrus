@@ -16,6 +16,7 @@ import {
 } from "../api/repositoryDocuments"
 import { RepositoryTabs } from "../components/RepositoryTabs"
 import { useT } from "../hooks/useT"
+import { PanelMessage } from "../components/PanelMessage"
 import { errorMessage } from "../lib/errorMessage"
 import { formatBytes } from "../lib/format"
 
@@ -262,15 +263,6 @@ function RepositoryDocumentsError({ error }: { error: Error }) {
   return <PanelMessage tone="error">{errorMessage(error, "Unable to load repository documents.")}</PanelMessage>
 }
 
-function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "success" }) {
-  const { t } = useT("settings")
-  const colors = {
-    error: "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300",
-    success: "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300",
-    muted: "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400"
-  }
-  return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
-}
 
 function primaryButton() {
   return "rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900"

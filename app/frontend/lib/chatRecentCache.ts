@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query"
-import type { ChatGroupRecord, ChatNavRecord, ChatRecord, ChatsIndexPayload } from "../api/chats"
+import type { ChatNavRecord, ChatRecord, ChatsIndexPayload } from "../api/chats"
+import { chatGroupFor, chatGroupKey } from "./chatCache"
 
 export function upsertRecentChatCache(queryClient: QueryClient, chat: ChatRecord, occurredAt = new Date().toISOString()) {
   queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], (current) => {
@@ -88,16 +89,3 @@ export function updateRecentChatScratchpadCache(queryClient: QueryClient, chatId
   })
 }
 
-function chatGroupFor(chat: ChatNavRecord): ChatGroupRecord {
-  return {
-    key: chatGroupKey(chat),
-    label: chat.repository?.slug || "General",
-    repository_id: chat.repository?.id ?? null,
-    chats: [],
-    has_more: false
-  }
-}
-
-function chatGroupKey(chat: ChatNavRecord) {
-  return chat.repository ? `repository-${chat.repository.id}` : "general"
-}

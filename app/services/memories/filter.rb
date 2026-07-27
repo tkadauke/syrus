@@ -1,22 +1,20 @@
 module Memories
   class Filter
+    include Filters::BaseFilter
+
     LEGACY_URL_KEYS = %w[ scope kind published q search repository_id ].freeze
 
     def self.from_params(params, user:)
       new(build_tree_from_params(params), user: user)
     end
 
-    def initialize(tree, user:)
+    def initialize(tree, user: nil)
       @ast = Filters::Ast.parse(tree || Filters::Ast.serialize(Filters::Ast::EMPTY))
       @user = user
     end
 
     def apply(scope)
       Filters::Compiler.call(@ast, scope: scope, user: @user, subject: :memory)
-    end
-
-    def to_h
-      Filters::Ast.serialize(@ast)
     end
 
     def self.build_tree_from_params(params)
@@ -64,24 +62,5 @@ module Memories
       { "and" => chips }
     end
     private_class_method :build_tree_from_url_params
-
-    def self.chip(field, op, value)
-      h = { "field" => field, "op" => op }
-      h["value"] = value unless value.nil?
-      h
-    end
-    private_class_method :chip
-
-    def self.merge_and(left, right)
-      children = [ left, right ].flat_map do |tree|
-        if tree.is_a?(Hash) && tree["and"].is_a?(Array)
-          tree["and"]
-        else
-          [ tree ]
-        end
-      end
-      { "and" => children }
-    end
-    private_class_method :merge_and
   end
 end

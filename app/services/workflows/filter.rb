@@ -3,6 +3,8 @@ module Workflows
   # Jobs::Filter / Epics::Filter so controllers and SmartFolders can pass
   # either the chip-bar q param, legacy flat params, or a stored AST tree.
   class Filter
+    include Filters::BaseFilter
+
     LEGACY_URL_KEYS = %w[ state trigger_kind job_id ].freeze
 
     def self.from_params(params, smart_folder: nil, user: nil)
@@ -16,10 +18,6 @@ module Workflows
       new(tree, user: user)
     end
 
-    def self.from_tree(tree, user: nil)
-      new(tree, user: user)
-    end
-
     def initialize(tree, user: nil)
       @ast = Filters::Ast.parse(tree)
       @user = user
@@ -29,24 +27,12 @@ module Workflows
       Filters::Compiler.call(@ast, scope: scope, user: @user, subject: :workflow)
     end
 
-    def active?
-      chips.any?
-    end
-
     def default?
       to_h == Filters::Ast.serialize(Filters::Ast::EMPTY)
     end
 
     def pinned?
       false
-    end
-
-    def to_h
-      Filters::Ast.serialize(@ast)
-    end
-
-    def to_query_param
-      Filters::QueryParam.encode(to_h)
     end
 
     def self.build_tree_from_url_params(params)
@@ -78,39 +64,5 @@ module Workflows
       Filters::Chips::Workflows::TriggerKind.values
     end
     private_class_method :workflow_trigger_kinds
-
-    def self.chip(field, op, value)
-      { "field" => field, "op" => op, "value" => value }
-    end
-    private_class_method :chip
-
-    def self.merge_and(left_tree, right_tree)
-      children = [ left_tree, right_tree ].flat_map do |tree|
-        if tree.is_a?(Hash) && tree["and"].is_a?(Array)
-          tree["and"]
-        else
-          [ tree ]
-        end
-      end
-      { "and" => children }
-    end
-    private_class_method :merge_and
-
-    private
-
-    def chips
-      collected = []
-      walk = ->(node) {
-        case node
-        when Filters::Ast::Chip then collected << node
-        when Filters::Ast::AndNode, Filters::Ast::OrNode
-          node.children.each(&walk)
-        when Filters::Ast::NotNode
-          walk.call(node.child)
-        end
-      }
-      walk.call(@ast)
-      collected
-    end
   end
 end
