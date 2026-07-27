@@ -881,6 +881,46 @@ describe "running / failed lifecycle (new in this commit)" do
     end
   end
 
+  describe "#record_outcome_to_scheduled_task!" do
+    let(:user) { Factories.user }
+    let(:repository) { Factories.repository(user: user) }
+    let(:task) do
+      ScheduledTask.create!(
+        user: user, repository: repository,
+        name: "Hourly sweep", prompt: "do the thing",
+        kind: "cron", cron_expression: "0 * * * *"
+      )
+    end
+    let(:cron_job) do
+      Job.create!(user: user, repository: repository, kind: "cron", scheduled_task: task)
+    end
+
+    it "calls record_success! on the scheduled_task for normal closure reasons" do
+      cron_job.update!(state: "closed", closure_reason: "pr_merged", finished_at: Time.current)
+      expect(task).to receive(:record_success!)
+      cron_job.send(:record_outcome_to_scheduled_task!)
+    end
+
+    it "calls record_failure! when closure_reason is too_many_failures" do
+      cron_job.update!(state: "closed", closure_reason: "too_many_failures", finished_at: Time.current)
+      expect(task).to receive(:record_failure!)
+      cron_job.send(:record_outcome_to_scheduled_task!)
+    end
+
+    it "calls neither record_success! nor record_failure! when replaced_by_scheduled_task" do
+      cron_job.update!(state: "closed", closure_reason: "replaced_by_scheduled_task", finished_at: Time.current)
+      expect(task).not_to receive(:record_success!)
+      expect(task).not_to receive(:record_failure!)
+      cron_job.send(:record_outcome_to_scheduled_task!)
+    end
+
+    it "is a no-op when job has no scheduled_task" do
+      job = Job.create!(user: user, repository: repository, issue_number: 1)
+      job.update!(state: "closed", closure_reason: "pr_merged", finished_at: Time.current)
+      expect { job.send(:record_outcome_to_scheduled_task!) }.not_to raise_error
+    end
+  end
+
   describe "#reopen! resets failure_count" do
     it "resets failure_count to 0 on reopen" do
       AppSetting.current.update!(max_job_failures: 3)

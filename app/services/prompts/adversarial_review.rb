@@ -1,6 +1,9 @@
 module Prompts
   class AdversarialReview
-    FEEDBACK_TRIGGER_KINDS = %w[pr_comment chat_feedback].freeze
+    FEEDBACK_KIND_LABELS = {
+      chat_feedback: { context: "chat feedback",       history: "Chat feedback being addressed" },
+      pr_comment:    { context: "PR comment feedback", history: "PR comments being addressed"   }
+    }.freeze
 
     def initialize(issue:, diff:, prior_findings:, workflow_kind: nil, feedback_context: nil, criteria: [])
       @issue = issue
@@ -27,8 +30,12 @@ module Prompts
 
     private
 
+    def feedback_kind
+      Workflow::TriggerKind.feedback_kind_for(@workflow_kind)
+    end
+
     def feedback_workflow?
-      FEEDBACK_TRIGGER_KINDS.include?(@workflow_kind)
+      feedback_kind.present?
     end
 
     def custom_criteria
@@ -50,7 +57,7 @@ module Prompts
     def workflow_context
       return nil unless feedback_workflow?
 
-      kind_label = @workflow_kind == "chat_feedback" ? "chat feedback" : "PR comment feedback"
+      kind_label = FEEDBACK_KIND_LABELS.fetch(feedback_kind)[:context]
       "This is a #{kind_label} workflow. The changes under review address operator feedback on an existing PR, not a fresh implementation."
     end
 
@@ -65,7 +72,7 @@ module Prompts
     def feedback_history
       return nil unless feedback_workflow? && @feedback_context.present?
 
-      label = @workflow_kind == "chat_feedback" ? "Chat feedback being addressed" : "PR comments being addressed"
+      label = FEEDBACK_KIND_LABELS.fetch(feedback_kind)[:history]
       "#{label}:\n\n#{@feedback_context}"
     end
 

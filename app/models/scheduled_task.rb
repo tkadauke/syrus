@@ -5,6 +5,7 @@ class ScheduledTask < ApplicationRecord
 
   KINDS = %w[ cron one_shot ].freeze
   STATES = %w[ scheduled paused auto_paused fired ].freeze
+  PAUSE_STATES = { "operator" => "paused", "auto" => "auto_paused" }.freeze
   PR_PILEUP_POLICIES = %w[ skip pile replace ].freeze
   MIN_CRON_INTERVAL = 1.hour
 
@@ -144,10 +145,7 @@ class ScheduledTask < ApplicationRecord
   end
 
   def pause!(reason: "operator")
-    case reason
-    when "operator"   then update!(state: "paused")
-    when "auto"       then update!(state: "auto_paused")
-    end
+    update!(state: PAUSE_STATES.fetch(reason))
   end
 
   def resume!

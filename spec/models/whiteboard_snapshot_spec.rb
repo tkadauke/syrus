@@ -80,6 +80,26 @@ RSpec.describe WhiteboardSnapshot do
     end
   end
 
+  describe ".default_name_for" do
+    it "prefixes auto_clear names with 'Before clear'" do
+      travel_to Time.zone.local(2026, 6, 25, 10, 0, 0) do
+        expect(described_class.default_name_for("auto_clear")).to eq("Before clear - Jun 25 10:00")
+      end
+    end
+
+    it "prefixes auto_before_load names with 'Before load'" do
+      travel_to Time.zone.local(2026, 6, 25, 10, 0, 0) do
+        expect(described_class.default_name_for("auto_before_load")).to eq("Before load - Jun 25 10:00")
+      end
+    end
+
+    it "uses 'Snapshot' as the default prefix for manual kind" do
+      travel_to Time.zone.local(2026, 6, 25, 10, 0, 0) do
+        expect(described_class.default_name_for("manual")).to eq("Snapshot - Jun 25 10:00")
+      end
+    end
+  end
+
   it "is destroyed with its chat session" do
     snapshot = described_class.create!(
       chat_session: chat_session,

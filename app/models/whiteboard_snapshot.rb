@@ -1,5 +1,6 @@
 class WhiteboardSnapshot < ApplicationRecord
   SNAPSHOT_KINDS = %w[manual auto_clear auto_before_load].freeze
+  KIND_PREFIXES = { "auto_clear" => "Before clear", "auto_before_load" => "Before load" }.freeze
 
   belongs_to :chat_session
 
@@ -33,12 +34,7 @@ class WhiteboardSnapshot < ApplicationRecord
   end
 
   def self.default_name_for(kind)
-    prefix = case kind
-    when "auto_clear" then "Before clear"
-    when "auto_before_load" then "Before load"
-    else "Snapshot"
-    end
-
+    prefix = KIND_PREFIXES.fetch(kind, "Snapshot")
     "#{prefix} - #{Time.current.strftime('%b %-d %H:%M')}"
   end
 end

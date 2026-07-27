@@ -12,6 +12,10 @@ class Job < ApplicationRecord
 
   KINDS = %w[ issue cron direct main_grader ].freeze
   MAIN_GRADER_CLOSURE_REASON = "main_grader".freeze
+  SCHEDULED_TASK_OUTCOMES = {
+    "too_many_failures"          => :record_failure!,
+    "replaced_by_scheduled_task" => nil              # bookkeeping only; no counter update
+  }.freeze
   SYSTEM_KIND_MAIN_BRANCH_REPAIR = "main_branch_repair".freeze
   SYSTEM_KINDS = [ SYSTEM_KIND_MAIN_BRANCH_REPAIR ].freeze
   MAIN_BRANCH_REPAIR_TITLE = "Fix broken main branch".freeze
@@ -608,14 +612,8 @@ class Job < ApplicationRecord
   # a failure for the parent.
   def record_outcome_to_scheduled_task!
     return unless scheduled_task
-    case closure_reason
-    when "too_many_failures"
-      scheduled_task.record_failure!
-    when "replaced_by_scheduled_task"
-      # bookkeeping close; don't move the success/failure counters
-    else
-      scheduled_task.record_success!
-    end
+    outcome = SCHEDULED_TASK_OUTCOMES.fetch(closure_reason, :record_success!)
+    scheduled_task.public_send(outcome) if outcome
   end
 
   private

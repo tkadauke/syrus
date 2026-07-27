@@ -228,6 +228,28 @@ RSpec.describe ScheduledTask do
     end
   end
 
+  describe "#pause!" do
+    it "transitions to paused when reason is operator (default)" do
+      task = build_cron
+      task.save!
+      task.pause!
+      expect(task.reload.state).to eq("paused")
+    end
+
+    it "transitions to auto_paused when reason is auto" do
+      task = build_cron
+      task.save!
+      task.pause!(reason: "auto")
+      expect(task.reload.state).to eq("auto_paused")
+    end
+
+    it "raises on unknown reason" do
+      task = build_cron
+      task.save!
+      expect { task.pause!(reason: "bogus") }.to raise_error(KeyError)
+    end
+  end
+
   describe "soft delete" do
     it "stamps archived_at without removing the row" do
       task = build_cron

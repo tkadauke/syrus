@@ -28,8 +28,6 @@ module Steps
           .first&.latest_run&.claude_session&.session_id
     end
 
-    FEEDBACK_TRIGGER_KINDS = %w[pr_comment chat_feedback].freeze
-
     def reviewer_prompt
       Prompts::AdversarialReview.new(
         issue: review_issue,
@@ -63,15 +61,16 @@ module Steps
     end
 
     def feedback_workflow?
-      FEEDBACK_TRIGGER_KINDS.include?(workflow.trigger_kind)
+      Workflow::TriggerKind.feedback_kind_for(workflow.trigger_kind).present?
     end
 
     def feedback_context_text
       return nil unless feedback_workflow?
 
-      if workflow.trigger_kind == "chat_feedback"
+      case Workflow::TriggerKind.feedback_kind_for(workflow.trigger_kind)
+      when :chat_feedback
         workflow.artifact("chat_feedback").to_s.presence
-      else
+      when :pr_comment
         render_pr_comments(Array(workflow.artifact("pr_comments")))
       end
     end
