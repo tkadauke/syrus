@@ -83,6 +83,33 @@ describe("JobPreviewCard", () => {
     renderCard(5)
     await waitFor(() => expect(screen.getByText("Generating title…")).toBeInTheDocument())
   })
+
+  it("renders the title as a link to the job detail page", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      job: { id: 42, state: "open", issue_title: "Add dark mode", issue_body: "" }
+    }))
+    renderCard(42)
+    await waitFor(() => expect(screen.getByRole("link", { name: "Add dark mode" })).toBeInTheDocument())
+    expect(screen.getByRole("link", { name: "Add dark mode" })).toHaveAttribute("href", "/jobs/42")
+  })
+
+  it("renders markdown headings without raw ## syntax", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      job: { id: 1, state: "open", issue_title: "T", issue_body: "## Problem\nNeeds fixing." }
+    }))
+    renderCard(1)
+    await waitFor(() => expect(screen.getByText("Problem")).toBeInTheDocument())
+    expect(screen.queryByText(/## Problem/)).not.toBeInTheDocument()
+  })
+
+  it("does not render img elements from the body", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      job: { id: 1, state: "open", issue_title: "T", issue_body: '<img src="https://example.com/logo.png" alt="logo">' }
+    }))
+    renderCard(1)
+    await waitFor(() => expect(screen.getByRole("link", { name: "See more" })).toBeInTheDocument())
+    expect(document.querySelector("img")).not.toBeInTheDocument()
+  })
 })
 
 describe("JobPreviewSkeleton", () => {

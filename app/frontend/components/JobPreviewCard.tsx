@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
 import { fetchJobDetail } from "../api/jobs"
 import { useT } from "../hooks/useT"
+import { Markdown } from "../lib/Markdown"
 import { CopyableSlug } from "./CopyableSlug"
 import { StatusPill } from "./StatusPill"
 
@@ -27,11 +28,18 @@ export function JobPreviewCard({ id }: { id: number }) {
         <CopyableSlug className="text-xs" slug={`JOB-${id}`} />
         <StatusPill state={job.state} />
       </div>
-      {title && <p className="mb-2 text-sm font-medium text-gray-900 dark:text-gray-100">{title}</p>}
+      {title && (
+        <Link
+          to={`/jobs/${id}`}
+          className="mb-2 block text-sm font-medium text-gray-900 hover:underline dark:text-gray-100"
+        >
+          {title}
+        </Link>
+      )}
       {truncatedBody && (
-        <p className="mb-3 line-clamp-6 whitespace-pre-wrap text-xs text-gray-600 dark:text-gray-400">
-          {truncatedBody}
-        </p>
+        <div className="mb-3 line-clamp-6 text-xs text-gray-600 dark:text-gray-400 [&_code]:rounded [&_code]:bg-gray-100 [&_code]:px-0.5 [&_code]:font-mono dark:[&_code]:bg-gray-800 [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-semibold [&_pre]:rounded [&_pre]:bg-gray-100 [&_pre]:p-1.5 [&_pre]:font-mono dark:[&_pre]:bg-gray-800 [&_pre_code]:bg-transparent [&_pre_code]:px-0">
+          <Markdown text={truncatedBody} />
+        </div>
       )}
       <Link className="text-xs text-blue-600 hover:underline dark:text-blue-400" to={`/jobs/${id}`}>
         {t("preview_see_more")}
