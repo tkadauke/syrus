@@ -137,6 +137,52 @@ describe("ImageAnnotationModal", () => {
     expect(contexts[1].fillText).toHaveBeenCalledWith("Review this", 30, 32)
   })
 
+  it("switches tool via keyboard shortcut", async () => {
+    renderModal()
+    await waitForLoaded()
+
+    const shortcuts: Array<[string, string]> = [
+      ["e", "Ellipse"],
+      ["l", "Line"],
+      ["a", "Arrow"],
+      ["p", "Freehand"],
+      ["t", "Text"],
+      ["r", "Rectangle"]
+    ]
+
+    for (const [key, toolName] of shortcuts) {
+      fireEvent.keyDown(window, { key })
+      expect(screen.getByRole("button", { name: toolName })).toHaveAttribute("aria-pressed", "true")
+    }
+  })
+
+  it("ignores tool shortcuts when textPlacement is active", async () => {
+    renderModal()
+    await waitForLoaded()
+
+    fireEvent.click(screen.getByRole("button", { name: "Text" }))
+    fireEvent.pointerDown(screen.getByLabelText("Annotation canvas"), { clientX: 30, clientY: 32, pointerId: 1 })
+    expect(screen.getByPlaceholderText("Type, then press Enter")).toBeVisible()
+
+    fireEvent.keyDown(window, { key: "r" })
+    expect(screen.getByRole("button", { name: "Text" })).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByRole("button", { name: "Rectangle" })).toHaveAttribute("aria-pressed", "false")
+  })
+
+  it("ignores tool shortcuts when modifier keys are held", async () => {
+    renderModal()
+    await waitForLoaded()
+
+    fireEvent.keyDown(window, { key: "e", ctrlKey: true })
+    expect(screen.getByRole("button", { name: "Rectangle" })).toHaveAttribute("aria-pressed", "true")
+
+    fireEvent.keyDown(window, { key: "e", metaKey: true })
+    expect(screen.getByRole("button", { name: "Rectangle" })).toHaveAttribute("aria-pressed", "true")
+
+    fireEvent.keyDown(window, { key: "e", altKey: true })
+    expect(screen.getByRole("button", { name: "Rectangle" })).toHaveAttribute("aria-pressed", "true")
+  })
+
   function renderModal(overrides: Partial<Parameters<typeof ImageAnnotationModal>[0]> = {}) {
     const props = {
       dataUrl: sourceDataUrl,

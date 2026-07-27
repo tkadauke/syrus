@@ -31,6 +31,15 @@ const COLORS = [
   { key: "black", value: "#000000" }
 ]
 
+const TOOL_SHORTCUTS: Record<string, Tool> = {
+  r: "rectangle",
+  e: "ellipse",
+  l: "line",
+  a: "arrow",
+  p: "freehand",
+  t: "text"
+}
+
 const STROKE_WIDTH = 3
 const TEXT_FONT = "bold 20px sans-serif"
 const MAX_UNDO_STEPS = 50
@@ -118,12 +127,18 @@ export function ImageAnnotationModal({ dataUrl, name, onDone, onClose }: { dataU
       if (event.key.toLowerCase() === "z" && (event.metaKey || event.ctrlKey)) {
         event.preventDefault()
         undo()
+        return
+      }
+
+      if (!textPlacement && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        const mapped = TOOL_SHORTCUTS[event.key.toLowerCase()]
+        if (mapped) setTool(mapped)
       }
     }
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [onClose, undo])
+  }, [onClose, textPlacement, undo])
 
   function canvasPoint(event: ReactPointerEvent<HTMLCanvasElement>): Point {
     const canvas = event.currentTarget
