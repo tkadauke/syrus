@@ -40,6 +40,10 @@ class Feature < ApplicationRecord
     enabled?(:local_mode)
   end
 
+  def self.agent_insights_enabled?
+    enabled?(:agent_insights)
+  end
+
   private
 
   def clear_request_enabled_cache

@@ -83,7 +83,9 @@ class Step
                 reconcile_strategy: :merge_train_land),
       Entry.new(kind: "manual",             handler: "Manual",             label: "Manual",                     style: "bg-gray-100 text-gray-700",   agentic: true),
       Entry.new(kind: "coverage_analyze",   handler: "CoverageAnalyze",    label: "Analyze coverage",           style: "bg-yellow-100 text-yellow-700", agentic: false),
-      Entry.new(kind: "coverage_pr_comment", handler: "CoveragePrComment", label: "Post coverage comment",     style: "bg-yellow-100 text-yellow-700", agentic: false)
+      Entry.new(kind: "coverage_pr_comment", handler: "CoveragePrComment", label: "Post coverage comment",     style: "bg-yellow-100 text-yellow-700", agentic: false),
+      Entry.new(kind: "agent_insight_run",  handler: "AgentInsightRun",   label: "Agent insight analysis",    style: "bg-amber-100 text-amber-700",   agentic: true),
+      Entry.new(kind: "auto_close",         handler: "AutoClose",          label: "Auto-close",                style: "bg-gray-100 text-gray-500",     agentic: false)
     ].freeze
 
     BY_KIND = ENTRIES.index_by(&:kind).freeze

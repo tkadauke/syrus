@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_19_003743) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_27_123116) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -548,6 +548,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_19_003743) do
     t.index ["repository_id", "type"], name: "index_input_sources_on_repository_and_type", unique: true
     t.index ["repository_id"], name: "index_input_sources_on_repository_id"
     t.index ["user_id"], name: "index_input_sources_on_user_id"
+  end
+
+  create_table "insight_suggestions", force: :cascade do |t|
+    t.datetime "accepted_at"
+    t.string "category", null: false
+    t.float "confidence", default: 0.5, null: false
+    t.datetime "created_at", null: false
+    t.integer "created_job_id"
+    t.datetime "dismissed_at"
+    t.json "evidence"
+    t.integer "job_id", null: false
+    t.text "memory_suggestion"
+    t.integer "repository_id", null: false
+    t.string "severity", default: "medium", null: false
+    t.string "state", default: "pending", null: false
+    t.text "suggested_prompt"
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_job_id"], name: "index_insight_suggestions_on_created_job_id"
+    t.index ["job_id"], name: "index_insight_suggestions_on_job_id"
+    t.index ["repository_id", "created_at"], name: "index_insight_suggestions_on_repository_id_and_created_at"
+    t.index ["repository_id"], name: "index_insight_suggestions_on_repository_id"
+    t.index ["state"], name: "index_insight_suggestions_on_state"
   end
 
   create_table "installations", force: :cascade do |t|
@@ -1397,6 +1420,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_19_003743) do
   add_foreign_key "grader_conclusions", "workflows"
   add_foreign_key "input_sources", "repositories"
   add_foreign_key "input_sources", "users"
+  add_foreign_key "insight_suggestions", "jobs"
+  add_foreign_key "insight_suggestions", "jobs", column: "created_job_id"
+  add_foreign_key "insight_suggestions", "repositories"
   add_foreign_key "installations", "users"
   add_foreign_key "invitations", "users", column: "invited_by_id"
   add_foreign_key "job_approvals", "jobs"

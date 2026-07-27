@@ -10,7 +10,7 @@ class Job < ApplicationRecord
   include JobExecutionAccessors
   include JobLifecycle
 
-  KINDS = %w[ issue cron direct main_grader ].freeze
+  KINDS = %w[ issue cron direct main_grader agent_insight ].freeze
   MAIN_GRADER_CLOSURE_REASON = "main_grader".freeze
   SCHEDULED_TASK_OUTCOMES = {
     "too_many_failures"          => :record_failure!,
@@ -96,6 +96,8 @@ class Job < ApplicationRecord
   validate  :issue_number_blank_for_cron, if: :cron?
   validate  :issue_number_blank_for_direct, if: :direct?
   validate  :issue_number_blank_for_main_grader, if: :main_grader?
+  validate  :issue_number_blank_for_agent_insight, if: :agent_insight?
+  validate  :agent_insights_feature_enabled, if: :agent_insight?
   validate  :epic_belongs_to_same_user_and_repository
   before_validation :default_owner_user, on: :create
   before_validation :default_agent_provider, on: :create
@@ -185,6 +187,10 @@ class Job < ApplicationRecord
 
   def main_grader?
     kind == "main_grader"
+  end
+
+  def agent_insight?
+    kind == "agent_insight"
   end
 
   def main_branch_repair?
@@ -1079,6 +1085,14 @@ class Job < ApplicationRecord
 
   def issue_number_blank_for_main_grader
     errors.add(:issue_number, "must be blank for main_grader Jobs") if issue_number.present?
+  end
+
+  def issue_number_blank_for_agent_insight
+    errors.add(:issue_number, "must be blank for agent_insight Jobs") if issue_number.present?
+  end
+
+  def agent_insights_feature_enabled
+    errors.add(:kind, "agent_insights feature is disabled") unless Feature.agent_insights_enabled?
   end
 
   def saved_change_to_stack_parent_resolved_terminal?

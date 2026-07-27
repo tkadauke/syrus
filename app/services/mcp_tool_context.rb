@@ -82,6 +82,8 @@ class McpToolContext
       AgentRole::WORKFLOW_SUMMARY_TEST_PLAN
     when "grader"
       AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER
+    when "agent_insight_run"
+      AgentRole::AGENT_INSIGHT
     else
       AgentRole::WORKFLOW_IMPLEMENT
     end

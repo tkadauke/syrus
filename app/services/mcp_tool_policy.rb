@@ -46,6 +46,8 @@ class McpToolPolicy
       workflow_tools
     when *AgentRole::CHAT_ROLES
       chat_tools
+    when AgentRole::AGENT_INSIGHT
+      insight_tools
     when *AgentRole::HELPER_ROLES
       []
     else
@@ -115,5 +117,20 @@ class McpToolPolicy
     return tools if @context.role == AgentRole::CHAT_LOCAL && Feature.local_mode_enabled?
 
     tools.reject { |tool| SyrusChatMcp::Sidecar::LOCAL_MODE_TOOLS.include?(tool) }
+  end
+
+  # Insight agents: read-live-state + memory tools + submit_insight (when
+  # the feature flag is on). No submit_summary / submit_test_plan /
+  # submit_adversarial_review — insight jobs never open PRs.
+  def insight_tools
+    tools = [
+      SyrusMcp::ReadLiveStateTool,
+      Mcp::Tools::ReadMemoryTool,
+      Mcp::Tools::WriteMemoryTool,
+      Mcp::Tools::SearchMemoriesTool,
+      Mcp::Tools::ListMemoriesTool
+    ]
+    tools << SyrusMcp::SubmitInsightTool if Feature.agent_insights_enabled?
+    tools
   end
 end
