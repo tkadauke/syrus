@@ -22,6 +22,7 @@
   "mode_coding": "Implementierung",
   "mode_local": "Lokal",
   "mode_update_error": "Modus konnte nicht aktualisiert werden.",
+  "mode_selector_label": "Modus ändern",
   "local_daemon_not_connected_title": "Lokaler Daemon nicht verbunden",
   "local_daemon_not_connected_body": "Führen Sie diesen Befehl in Ihrem Repository aus:",
   "local_daemon_command": "syrus local",
