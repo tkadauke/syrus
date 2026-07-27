@@ -8,7 +8,7 @@ import { GeminiSetupSheet } from "../../components/GeminiSetupSheet"
 import { AnalyzingHint, annotationHoldLabel, annotationIdleHintKind, annotationShortcutLabel, formatClock, RECORDER_WARNING_SECONDS, shouldShowAnnotationSurfaceNote, useNativeRecorderHud, useWalkthroughRecorder, WalkthroughRecorderHUD } from "../../components/WalkthroughRecorder"
 import { isWalkthroughVideoFile, MAX_WALKTHROUGH_BYTES, MAX_WALKTHROUGH_DURATION_SECONDS, measureVideoDuration, retryVideoWalkthrough, uploadVideoWalkthrough } from "../../api/videoWalkthroughs"
 import { refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
-import { attachChatRepository, branchChat, clearChatHistory, createChat, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatWhiteboard, rejectChatProposal, renameChat, sendChatMessage, shareChat, stopChat, updateChatMode, updateChatPinned, updateQueuedChatMessage, type ChatBranchPayload, type ChatCreatedPayload, type ChatMode, type ChatPayload, type ChatProposal, type ChatQueuedMessage, type ShareChatPayload } from "../../api/chats"
+import { attachChatRepository, branchChat, clearChatHistory, createChat, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatWhiteboard, rejectChatProposal, renameChat, sendChatMessage, shareChat, stopChat, updateChatMode, updateChatModel, updateChatPinned, updateQueuedChatMessage, type ChatBranchPayload, type ChatCreatedPayload, type ChatMode, type ChatPayload, type ChatProposal, type ChatQueuedMessage, type ShareChatPayload } from "../../api/chats"
 import { postJobCommand } from "../../api/jobs"
 import { CloseIcon } from "../../components/CloseIcon"
 import { EnqueueIcon } from "../../components/EnqueueIcon"
@@ -266,6 +266,12 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       setText("")
+    }
+  })
+  const updateModel = useMutation({
+    mutationFn: (model: string | null) => updateChatModel(chatId, model),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
     }
   })
   const commandPaletteOpen = commandQuery != null
@@ -1390,6 +1396,23 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
             +
           </button>
           <ChatModeSelector chatId={chatId} payload={payload} queryKey={queryKey} />
+          {(payload.chat.available_chat_models?.length ?? 0) > 0 ? (
+            <select
+              aria-label={t("aria_chat_model")}
+              className="h-8 rounded border border-gray-300 bg-white px-2 py-0 text-xs text-gray-700 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
+              disabled={updateModel.isPending || agentActive}
+              value={payload.chat.chat_model ?? ""}
+              onChange={(event) => {
+                const value = event.target.value || null
+                updateModel.mutate(value)
+              }}
+            >
+              <option value="">{t("chat_model_default")}</option>
+              {payload.chat.available_chat_models!.map((model) => (
+                <option key={model.value} value={model.value}>{model.label}</option>
+              ))}
+            </select>
+          ) : null}
         </div>
         {attachmentPopoverOpen ? (
           <div

@@ -201,6 +201,44 @@ RSpec.describe ChatProviders::Claude do
       expect(seen).not_to include(a_string_matching(/turns=0/))
       expect(seen).to include(a_string_matching(/continuing from recent history/))
     end
+
+    it "passes chat_model to the runner as model: when the session has one set" do
+      chat.update!(chat_model: "claude-sonnet-4-6")
+
+      received = nil
+      runner = ->(**kwargs) { received = kwargs; result_fixture }
+      adapter = described_class.new(chat: chat, runner: runner)
+
+      adapter.invoke(
+        workspace_path: "/tmp/chat-workspace",
+        prompt: "Hello.",
+        log_sink: ->(*, **) { },
+        mcp_config: "/tmp/mcp.json",
+        resume_session_id: nil,
+        stop_requested: -> { false },
+        process_started: ->(_process) { }
+      )
+
+      expect(received[:model]).to eq("claude-sonnet-4-6")
+    end
+
+    it "passes nil as model: to the runner when no chat_model is set" do
+      received = nil
+      runner = ->(**kwargs) { received = kwargs; result_fixture }
+      adapter = described_class.new(chat: chat, runner: runner)
+
+      adapter.invoke(
+        workspace_path: "/tmp/chat-workspace",
+        prompt: "Hello.",
+        log_sink: ->(*, **) { },
+        mcp_config: "/tmp/mcp.json",
+        resume_session_id: nil,
+        stop_requested: -> { false },
+        process_started: ->(_process) { }
+      )
+
+      expect(received[:model]).to be_nil
+    end
   end
 
   describe "#session_capture" do

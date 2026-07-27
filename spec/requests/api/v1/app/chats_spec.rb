@@ -3291,6 +3291,73 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     end
   end
 
+  it "exposes available_chat_models for claude sessions and an empty array for other providers" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body.dig("chat", "available_chat_models")).to include(
+      include("value" => "claude-opus-4-7", "label" => "Claude Opus 4.7"),
+      include("value" => "claude-sonnet-4-6", "label" => "Claude Sonnet 4.6"),
+      include("value" => "claude-haiku-4-5-20251001", "label" => "Claude Haiku 4.5")
+    )
+    expect(body.dig("chat", "chat_model")).to be_nil
+  end
+
+  it "returns empty available_chat_models when the effective provider is not claude" do
+    sign_in_as(user)
+    user.update!(codex_api_key: "sk-test")
+    chat = ChatSession.create!(user: user, repository: repository, chat_provider: "codex")
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("chat", "available_chat_models")).to eq([])
+  end
+
+  it "updates chat_model to a valid Claude model and returns it in the payload" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository)
+
+    patch "/api/v1/app/chats/#{chat.id}", params: { chat: { chat_model: "claude-sonnet-4-6" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.chat_model).to eq("claude-sonnet-4-6")
+    expect(parse_body.dig("chat", "chat_model")).to eq("claude-sonnet-4-6")
+    expect(parse_body["message"]).to eq("Chat model updated.")
+
+    patch "/api/v1/app/chats/#{chat.id}", params: { chat: { chat_model: "" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.chat_model).to be_nil
+    expect(parse_body.dig("chat", "chat_model")).to be_nil
+  end
+
+  it "rejects an invalid chat_model value for a claude session" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository)
+
+    patch "/api/v1/app/chats/#{chat.id}", params: { chat: { chat_model: "gpt-4o" } }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("Invalid chat model.")
+    expect(chat.reload.chat_model).to be_nil
+  end
+
+  it "rejects a chat_model when the session's effective provider has no supported models" do
+    sign_in_as(user)
+    user.update!(codex_api_key: "sk-test")
+    chat = ChatSession.create!(user: user, repository: repository, chat_provider: "codex")
+
+    patch "/api/v1/app/chats/#{chat.id}", params: { chat: { chat_model: "claude-sonnet-4-6" } }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(chat.reload.chat_model).to be_nil
+  end
+
   def create_indexed_message(chat_session, text:, role: "assistant")
     message = chat_session.messages.create!(role: role, content: { "text" => text })
     ChatMessageSearchIndex.insert(message)

@@ -127,6 +127,7 @@ module ChatProviders
         file_paths: file_paths,
         resume_session_id: resume_session_id,
         disallowed_tools: disallowed_tools,
+        model: chat.chat_model.presence,
         env: env,
         stop_requested: stop_requested,
         process_started: process_started

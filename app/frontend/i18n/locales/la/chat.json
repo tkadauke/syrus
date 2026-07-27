@@ -216,6 +216,8 @@
   "aria_refresh_diff": "Diff renovare",
   "aria_refresh": "Renovare",
   "aria_chat_provider": "Praebitor colloquii",
+  "aria_chat_model": "Exemplar colloquii",
+  "chat_model_default": "Exemplar praedefinitum",
   "ph_search_name_id": "Per nomen aut id quaerere...",
   "submit": "Submittere",
   "aria_chat_workspace": "Area colloquii",
