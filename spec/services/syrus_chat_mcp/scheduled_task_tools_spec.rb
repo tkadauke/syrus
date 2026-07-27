@@ -13,6 +13,7 @@ RSpec.describe "SyrusChatMcp scheduled task tools" do
       tools: [
         SyrusChatMcp::ListScheduledTasksTool,
         SyrusChatMcp::ReadScheduledTaskTool,
+        SyrusChatMcp::UpdateScheduledTaskTool,
         SyrusChatMcp::PauseScheduledTaskTool,
         SyrusChatMcp::ResumeScheduledTaskTool,
         SyrusChatMcp::DeleteScheduledTaskTool
@@ -295,5 +296,136 @@ RSpec.describe "SyrusChatMcp scheduled task tools" do
       pr_pileup_policy: "skip",
       consecutive_failure_count: 3
     )
+  end
+
+  it "updates name and prompt on a scheduled task" do
+    task = create_scheduled_task(name: "Old name", prompt: "Old prompt")
+
+    response = call_tool("update_scheduled_task",
+      scheduled_task_id: task.id,
+      name: "New name",
+      prompt: "New prompt"
+    )
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    result = payload(response).fetch(:scheduled_task)
+    expect(result).to include(label: "New name", prompt: "New prompt")
+    expect(task.reload).to have_attributes(name: "New name", prompt: "New prompt")
+  end
+
+  it "updates cron_expression on a cron task" do
+    task = create_scheduled_task(cron_expression: "0 9 * * *")
+
+    response = call_tool("update_scheduled_task",
+      scheduled_task_id: task.id,
+      cron_expression: "0 18 * * *"
+    )
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(payload(response).dig(:scheduled_task, :cron_expression)).to eq("0 18 * * *")
+    expect(task.reload.cron_expression).to eq("0 18 * * *")
+  end
+
+  it "updates pr_pileup_policy on a scheduled task" do
+    task = create_scheduled_task(pr_pileup_policy: "skip")
+
+    response = call_tool("update_scheduled_task",
+      scheduled_task_id: task.id,
+      pr_pileup_policy: "pile"
+    )
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(payload(response).dig(:scheduled_task, :pr_pileup_policy)).to eq("pile")
+    expect(task.reload.pr_pileup_policy).to eq("pile")
+  end
+
+  it "rejects cron_expression on a one_shot task" do
+    task = create_scheduled_task(
+      kind: "one_shot",
+      fire_at: 1.day.from_now,
+      cron_expression: nil
+    )
+
+    response = call_tool("update_scheduled_task",
+      scheduled_task_id: task.id,
+      cron_expression: "0 9 * * *"
+    )
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(response.dig(:result, :content, 0, :text)).to include("one_shot")
+  end
+
+  it "rejects fire_at on a cron task" do
+    task = create_scheduled_task(kind: "cron", cron_expression: "0 9 * * *")
+
+    response = call_tool("update_scheduled_task",
+      scheduled_task_id: task.id,
+      fire_at: 1.day.from_now.iso8601
+    )
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(response.dig(:result, :content, 0, :text)).to include("cron task")
+  end
+
+  it "surfaces validation errors for an invalid cron expression" do
+    task = create_scheduled_task(cron_expression: "0 9 * * *")
+
+    response = call_tool("update_scheduled_task",
+      scheduled_task_id: task.id,
+      cron_expression: "not-a-cron"
+    )
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(response.dig(:result, :content, 0, :text)).to match(/cron/i)
+    expect(task.reload.cron_expression).to eq("0 9 * * *")
+  end
+
+  it "returns an error when no fields are provided" do
+    task = create_scheduled_task
+
+    response = call_tool("update_scheduled_task", scheduled_task_id: task.id)
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(response.dig(:result, :content, 0, :text)).to include("no fields provided")
+  end
+
+  it "rejects updating a scheduled task owned by another user" do
+    other_repository = Factories.repository
+    other_task = other_repository.scheduled_tasks.create!(
+      user: other_repository.user,
+      kind: "cron",
+      name: "Other task",
+      prompt: "Ignore this.",
+      cron_expression: "0 3 * * *",
+      pr_pileup_policy: "skip"
+    )
+
+    response = call_tool("update_scheduled_task",
+      scheduled_task_id: other_task.id,
+      name: "Hijacked name"
+    )
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(response.dig(:result, :content, 0, :text)).to include("scheduled task not found")
+    expect(other_task.reload.name).to eq("Other task")
+  end
+
+  it "allows admin to update any scheduled task" do
+    admin_session = ChatSession.create!(user: Factories.user(admin: true))
+    task = create_scheduled_task(name: "Owned by regular user")
+
+    admin_server = MCP::Server.new(
+      name: "syrus-chat-sidecar",
+      tools: [ SyrusChatMcp::UpdateScheduledTaskTool ],
+      server_context: { chat_session: admin_session }
+    )
+    raw = admin_server.handle_json({
+      jsonrpc: "2.0", id: 1, method: "tools/call",
+      params: { name: "update_scheduled_task", arguments: { scheduled_task_id: task.id, name: "Admin updated" } }
+    }.to_json)
+    response = JSON.parse(raw, symbolize_names: true)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(task.reload.name).to eq("Admin updated")
   end
 end
