@@ -17,6 +17,7 @@ module McpToolPayloads
         agent_provider: job.agent_provider,
         priority: job.priority,
         issue_title: job.issue_title,
+        scheduled_task_id: job.scheduled_task_id,
         dependencies: job.dependencies.order(:id).filter_map { |dep| dependency_payload(dep) },
         created_at: job.created_at&.iso8601,
         updated_at: job.updated_at&.iso8601

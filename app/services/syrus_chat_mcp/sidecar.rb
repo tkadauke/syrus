@@ -254,6 +254,7 @@ module SyrusChatMcp
       ListWakeupsTool,
       CancelWakeupTool,
       ListScheduledTasksTool,
+      ReadScheduledTaskTool,
       PauseScheduledTaskTool,
       ResumeScheduledTaskTool,
       DeleteScheduledTaskTool,

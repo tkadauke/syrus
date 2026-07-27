@@ -25,9 +25,16 @@ module SyrusChatMcp
         id: task.id,
         repository_slug: task.repository&.slug,
         label: task.name,
+        kind: task.kind,
+        state: task.state,
         cron_expression: task.cron_expression,
+        fire_at: task.fire_at&.iso8601,
+        pr_pileup_policy: task.pr_pileup_policy,
         enabled: scheduled_task_enabled?(task),
         last_fired_at: task.last_fired_at&.iso8601,
+        last_successful_fire_at: task.last_successful_fire_at&.iso8601,
+        consecutive_failure_count: task.consecutive_failure_count,
+        next_fire_at: task.next_fire_at&.iso8601,
         created_at: task.created_at.iso8601
       }
     end

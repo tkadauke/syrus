@@ -66,6 +66,24 @@ RSpec.describe SyrusChatMcp::ReadJobTool do
     expect(payload[:job]).to include(id: other.id)
   end
 
+  it "includes scheduled_task_id for cron jobs" do
+    task = repository.scheduled_tasks.create!(
+      user: user,
+      kind: "cron",
+      name: "Nightly task",
+      prompt: "Review the repo.",
+      cron_expression: "0 3 * * *",
+      pr_pileup_policy: "skip"
+    )
+    job = Factories.job(repository: repository, kind: "cron", issue_number: nil, scheduled_task: task)
+
+    response = call_tool(job_id: job.id)
+    payload = response_payload(response)
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(payload[:job]).to include(scheduled_task_id: task.id)
+  end
+
   it "returns all workflows in newest-first index order" do
     job = Factories.job(repository: repository)
     older = job.latest_workflow
