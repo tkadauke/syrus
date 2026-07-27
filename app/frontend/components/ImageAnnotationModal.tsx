@@ -442,6 +442,16 @@ export function ImageAnnotationModal({
         return
       }
 
+      // Delete selected shape
+      if ((event.key === "Delete" || event.key === "Backspace") && !textPlacement && selectedShapeId) {
+        event.preventDefault()
+        const prev = shapesRef.current
+        pushUndo(prev)
+        setShapes(prev.filter(s => s.id !== selectedShapeId))
+        setSelectedShapeId(null)
+        return
+      }
+
       if (!textPlacement && !event.metaKey && !event.ctrlKey && !event.altKey) {
         const mapped = TOOL_SHORTCUTS[event.key.toLowerCase()]
         if (mapped) setTool(mapped)
