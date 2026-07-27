@@ -1,7 +1,7 @@
 import { ChevronDownIcon, HideIcon } from "./icons"
 import { type ChatSection, activeChatIdFromPath, chatSectionsFromPayload, recentChatLinkClass, sidebarChatTitle, withRoutePrefix } from "./helpers"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { type FormEvent, useMemo, useState } from "react"
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
 import { Link, useLocation, useNavigate } from "react-router-dom"
@@ -18,6 +18,16 @@ import { chatQueryKey } from "../Chat"
 // (RecentChatsSidebar) with its activity marker and per-chat actions menu.
 // Entry point rendered by the sidebar. Depends only on leaf modules.
 
+function findScrollParent(el: HTMLElement): HTMLElement | null {
+  let parent = el.parentElement
+  while (parent) {
+    const overflow = getComputedStyle(parent).overflowY
+    if (overflow === "auto" || overflow === "scroll") return parent
+    parent = parent.parentElement
+  }
+  return null
+}
+
 export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, prefix, userPresent }: { featureFlags: Record<string, boolean>; onCloseDrawer: () => void; onNotice: (message: string | null) => void; prefix: string; userPresent: boolean }) {
   const location = useLocation()
   const navigate = useNavigate()
@@ -30,6 +40,10 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
   const [loadingSections, setLoadingSections] = useState<Set<string>>(() => new Set())
   const [hidingChatIds, setHidingChatIds] = useState<Set<number>>(() => new Set())
   const [deletingChatIds, setDeletingChatIds] = useState<Set<number>>(() => new Set())
+  const [draggingOverChatId, setDraggingOverChatId] = useState<number | null>(null)
+  const navigateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const sidebarRootRef = useRef<HTMLDivElement>(null)
+  const scrollRafRef = useRef<number | null>(null)
   const activeChatId = activeChatIdFromPath(location.pathname)
   const chats = useQuery({
     queryKey: ["chats", "recent"],
@@ -162,10 +176,53 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
     })
   }
 
+  useEffect(() => {
+    return () => {
+      if (navigateTimerRef.current !== null) clearTimeout(navigateTimerRef.current)
+      if (scrollRafRef.current !== null) cancelAnimationFrame(scrollRafRef.current)
+    }
+  }, [])
+
   if (!userPresent) return null
 
   return (
-    <div className="px-3 pb-4">
+    <div
+      className="px-3 pb-4"
+      onDragEnd={() => {
+        if (scrollRafRef.current !== null) cancelAnimationFrame(scrollRafRef.current)
+        scrollRafRef.current = null
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+        if (scrollRafRef.current !== null) cancelAnimationFrame(scrollRafRef.current)
+        scrollRafRef.current = null
+      }}
+      onDragOver={(e) => {
+        e.preventDefault()
+        const container = findScrollParent(e.currentTarget)
+        if (!container) return
+        const rect = container.getBoundingClientRect()
+        const relY = e.clientY - rect.top
+        if (scrollRafRef.current !== null) {
+          cancelAnimationFrame(scrollRafRef.current)
+          scrollRafRef.current = null
+        }
+        if (relY < 60) {
+          const scrollUp = () => {
+            container.scrollBy(0, -8)
+            scrollRafRef.current = requestAnimationFrame(scrollUp)
+          }
+          scrollRafRef.current = requestAnimationFrame(scrollUp)
+        } else if (relY > rect.height - 60) {
+          const scrollDown = () => {
+            container.scrollBy(0, 8)
+            scrollRafRef.current = requestAnimationFrame(scrollDown)
+          }
+          scrollRafRef.current = requestAnimationFrame(scrollDown)
+        }
+      }}
+      ref={sidebarRootRef}
+    >
       <nav aria-label={t("nav:recent_chats_aria")} className="space-y-4">
         {sections.map((section) => {
           const collapsed = collapsedSections.has(section.key)
@@ -193,7 +250,27 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
                   const active = chat.current || chat.id === activeChatId
                   const unread = chat.unread && !active
                   return (
-                    <div className="group relative flex min-w-0 items-center" key={chat.id}>
+                    <div
+                      className={`group relative flex min-w-0 items-center rounded${draggingOverChatId === chat.id ? " animate-drag-blink dark:animate-drag-blink-dark" : ""}`}
+                      key={chat.id}
+                      onDragEnter={(e) => {
+                        e.preventDefault()
+                        if (draggingOverChatId === chat.id) return
+                        if (navigateTimerRef.current !== null) clearTimeout(navigateTimerRef.current)
+                        setDraggingOverChatId(chat.id)
+                        navigateTimerRef.current = setTimeout(() => {
+                          navigate(withRoutePrefix(chat.chat_path, prefix))
+                          onCloseDrawer()
+                          setDraggingOverChatId(null)
+                        }, 1000)
+                      }}
+                      onDragLeave={(e) => {
+                        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
+                        if (navigateTimerRef.current !== null) clearTimeout(navigateTimerRef.current)
+                        setDraggingOverChatId(null)
+                      }}
+                      onDragOver={(e) => e.preventDefault()}
+                    >
                       <Link
                         className={`${recentChatLinkClass(active)} pr-9`}
                         onClick={onCloseDrawer}

@@ -47,11 +47,32 @@ module.exports = {
         "progress-indeterminate": {
           from: { transform: "translateX(-100%)" },
           to: { transform: "translateX(300%)" }
+        },
+        // Drag-over blink: three highlight pulses over 1 second, timed so the
+        // navigation fires exactly when the animation ends. Light and dark
+        // variants use different highlight colors to match each sidebar theme.
+        "drag-blink": {
+          "0%, 100%": { backgroundColor: "transparent" },
+          "16%": { backgroundColor: "#f3f4f6" },
+          "33%": { backgroundColor: "transparent" },
+          "50%": { backgroundColor: "#f3f4f6" },
+          "66%": { backgroundColor: "transparent" },
+          "83%": { backgroundColor: "#f3f4f6" }
+        },
+        "drag-blink-dark": {
+          "0%, 100%": { backgroundColor: "transparent" },
+          "16%": { backgroundColor: "#374151" },
+          "33%": { backgroundColor: "transparent" },
+          "50%": { backgroundColor: "#374151" },
+          "66%": { backgroundColor: "transparent" },
+          "83%": { backgroundColor: "#374151" }
         }
       },
       animation: {
         "chat-message-in": "chat-message-in 0.25s ease-out both",
-        "progress-indeterminate": "progress-indeterminate 1.4s ease-in-out infinite"
+        "progress-indeterminate": "progress-indeterminate 1.4s ease-in-out infinite",
+        "drag-blink": "drag-blink 1s ease-in-out 1 forwards",
+        "drag-blink-dark": "drag-blink-dark 1s ease-in-out 1 forwards"
       }
     }
   }
