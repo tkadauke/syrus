@@ -30,11 +30,11 @@ RSpec.describe "API: /api/v1/app/memories", type: :request do
     expect(parse_body.dig("error", "code")).to eq("unauthorized")
   end
 
-  it "lists own memories and published memories from attached repositories" do
+  it "lists only the current user's own memories" do
     sign_in_as(user)
     own_global = memory_for(user, scope: "global", scope_id: nil, kind: "user_pref", content: "Prefer concise status updates.")
     own_repo = memory_for(user, content: "Use SQLite in test.")
-    published = memory_for(other, scope_id: repository.id, content: "Shared deploy runbook.", published: true)
+    memory_for(other, scope_id: repository.id, content: "Shared deploy runbook.", published: true)
     memory_for(other, scope_id: repository.id, content: "Private draft.")
     memory_for(other, scope_id: other_repository.id, content: "Different repo.", published: true)
 
@@ -42,7 +42,7 @@ RSpec.describe "API: /api/v1/app/memories", type: :request do
 
     expect(response).to have_http_status(:ok)
     ids = parse_body["memories"].map { |row| row["id"] }
-    expect(ids).to contain_exactly(own_global.id, own_repo.id, published.id)
+    expect(ids).to contain_exactly(own_global.id, own_repo.id)
     expect(parse_body["repositories"]).to include("id" => repository.id, "name" => "acme/widgets")
     expect(parse_body["filter"]).to eq("and" => [])
     expect(parse_body.dig("controls", "filter_schema").map { |field| field["field"] }).to include("content", "scope", "kind", "repository_id", "published")

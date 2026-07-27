@@ -119,9 +119,7 @@ module Api
         def visible_memories
           return ChatMemory.active if Current.user.admin?
 
-          repository_ids = Current.user.repositories.active.select(:id)
           ChatMemory.active.where(user_id: Current.user.id)
-            .or(ChatMemory.active.where(scope: "repository", scope_id: repository_ids, published: true))
         end
 
         def find_memory_for_write
