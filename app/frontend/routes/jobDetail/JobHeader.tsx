@@ -174,8 +174,19 @@ function HeaderActionsMenu({ actions, command, onRetryFeedback }: { actions: Hea
 
   function handleToggle() {
     if (!open && buttonRef.current) {
-      // w-56 = 224px; open left only when the button has enough room to the left
-      setAlignRight(buttonRef.current.getBoundingClientRect().right >= 224)
+      const rect = buttonRef.current.getBoundingClientRect()
+      let containerLeft = 0
+      let el: HTMLElement | null = buttonRef.current.parentElement
+      while (el && el !== document.documentElement) {
+        const ox = window.getComputedStyle(el).overflowX
+        if (ox === "auto" || ox === "scroll" || ox === "hidden") {
+          containerLeft = el.getBoundingClientRect().left
+          break
+        }
+        el = el.parentElement
+      }
+      // w-56 = 224px; open left only when the menu won't be clipped by its scroll container
+      setAlignRight(rect.right - 224 >= containerLeft)
     }
     setOpen((current) => !current)
   }

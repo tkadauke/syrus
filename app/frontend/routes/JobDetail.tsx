@@ -103,50 +103,48 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, activeTab,
   return (
     <>
       <header className="space-y-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-start gap-3">
-              <h1 className="break-words text-3xl font-semibold text-gray-900 dark:text-gray-100">
-                <CopyableSlug slug={jobSlug(payload.job.id)} />
-                <span className="px-2 text-gray-400 dark:text-gray-500">·</span>
-                <PendingJobTitle pending={Boolean(payload.job.title_pending)} title={title} />
-              </h1>
-              <div className="mt-1.5 shrink-0"><JobStateBadge state={payload.job.summary_state} /></div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="mt-1 break-words text-sm text-gray-600 dark:text-gray-300">
-                <Link className="font-mono hover:underline" to={withRoutePrefix(payload.repository.repository_path, prefix)}>{payload.repository.slug}</Link>
-                <span className="px-2 text-gray-300 dark:text-gray-600">/</span>
-                <JobSourceLink payload={payload} prefix={prefix} />
-              </p>
-              {payload.job.agent_provider ? <SmallPill>{payload.job.agent_provider}</SmallPill> : null}
-              {payload.job.credential_mode ? <SmallPill>{payload.job.credential_mode}</SmallPill> : null}
-            </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
-              <span>{t("workflow_count", { count: payload.job.workflows_count })} · {t("run_count", { count: payload.job.runs_count })}</span>
-              {payload.job.total_cost_usd == null ? null : <span>· {formatCurrency(payload.job.total_cost_usd)}</span>}
-              {payload.job.prepare_skipped ? <span className="font-medium text-amber-700">· {t("prepare_skipped")}</span> : null}
-              {payload.job.source_chat ? (
-                <span>
-                  · <Link className="font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(payload.job.source_chat.path, prefix)}>{payload.job.source_chat.label}</Link>
-                </span>
-              ) : null}
-              {payload.origin_chat ? (
-                <span>
-                  · <Link className="inline-flex items-center gap-1 font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(`/chats/${payload.origin_chat.chat_session_id}#message-${payload.origin_chat.message_id}`, prefix)}>
-                    <ChatBubbleIcon />
-                    <span>{t("view_in_chat")}</span>
-                  </Link>
-                </span>
-              ) : null}
-            </div>
+        <div className="min-w-0">
+          <h1 className="break-words text-3xl font-semibold text-gray-900 dark:text-gray-100">
+            <CopyableSlug slug={jobSlug(payload.job.id)} />
+            <span className="px-2 text-gray-400 dark:text-gray-500">·</span>
+            <PendingJobTitle pending={Boolean(payload.job.title_pending)} title={title} />
+          </h1>
+          <div className="mt-1.5 flex flex-wrap items-center justify-between gap-3">
+            <div className="shrink-0"><JobStateBadge state={payload.job.summary_state} /></div>
+            <HeaderActions
+              command={command}
+              feedbackPanelOpen={feedbackPanelOpen}
+              onToggleFeedbackPanel={() => setFeedbackPanelOpen((current) => !current)}
+              payload={payload}
+            />
           </div>
-          <HeaderActions
-            command={command}
-            feedbackPanelOpen={feedbackPanelOpen}
-            onToggleFeedbackPanel={() => setFeedbackPanelOpen((current) => !current)}
-            payload={payload}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="mt-1 break-words text-sm text-gray-600 dark:text-gray-300">
+              <Link className="font-mono hover:underline" to={withRoutePrefix(payload.repository.repository_path, prefix)}>{payload.repository.slug}</Link>
+              <span className="px-2 text-gray-300 dark:text-gray-600">/</span>
+              <JobSourceLink payload={payload} prefix={prefix} />
+            </p>
+            {payload.job.agent_provider ? <SmallPill>{payload.job.agent_provider}</SmallPill> : null}
+            {payload.job.credential_mode ? <SmallPill>{payload.job.credential_mode}</SmallPill> : null}
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
+            <span>{t("workflow_count", { count: payload.job.workflows_count })} · {t("run_count", { count: payload.job.runs_count })}</span>
+            {payload.job.total_cost_usd == null ? null : <span>· {formatCurrency(payload.job.total_cost_usd)}</span>}
+            {payload.job.prepare_skipped ? <span className="font-medium text-amber-700">· {t("prepare_skipped")}</span> : null}
+            {payload.job.source_chat ? (
+              <span>
+                · <Link className="font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(payload.job.source_chat.path, prefix)}>{payload.job.source_chat.label}</Link>
+              </span>
+            ) : null}
+            {payload.origin_chat ? (
+              <span>
+                · <Link className="inline-flex items-center gap-1 font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(`/chats/${payload.origin_chat.chat_session_id}#message-${payload.origin_chat.message_id}`, prefix)}>
+                  <ChatBubbleIcon />
+                  <span>{t("view_in_chat")}</span>
+                </Link>
+              </span>
+            ) : null}
+          </div>
         </div>
       </header>
 
