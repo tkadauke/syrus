@@ -64,6 +64,7 @@
   },
   "image_annotation": {
     "annotate": "{{name}} annotieren",
+    "tool_select": "Auswählen",
     "tool_rectangle": "Rechteck",
     "tool_ellipse": "Ellipse",
     "tool_line": "Linie",
