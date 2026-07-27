@@ -78,10 +78,12 @@ class ChatSession < ApplicationRecord
   enum :mode, { planning: "planning", coding: "coding", local: "local" }, validate: { allow_nil: true }
 
   validates :chat_provider, inclusion: { in: User::CHAT_PROVIDERS }, allow_nil: true
+  validates :chat_model, length: { maximum: 100 }, allow_nil: true
   validates :local_daemon_state, inclusion: { in: DAEMON_STATES }, allow_nil: true
   validates :share_token, uniqueness: true, allow_nil: true
 
   normalizes :chat_provider, with: ->(value) { value.to_s.strip.presence }
+  normalizes :chat_model, with: ->(value) { value.to_s.strip.presence }
   normalizes :mode, with: ->(value) { value.to_s.strip.presence }
 
   scope :attached_to_repository, ->(repository) {
@@ -325,6 +327,7 @@ class ChatSession < ApplicationRecord
     saved_change_to_title? ||
       saved_change_to_pinned_context? ||
       saved_change_to_chat_provider? ||
+      saved_change_to_chat_model? ||
       saved_change_to_mode? ||
       saved_change_to_local_daemon_state? ||
       saved_change_to_local_daemon_repo? ||

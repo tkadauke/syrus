@@ -77,6 +77,21 @@ module Api
             return
           end
 
+          if chat_params.respond_to?(:key?) && chat_params.key?(:chat_model)
+            model = chat_params[:chat_model].to_s.strip.presence
+            if model
+              valid_models = available_chat_models_for(chat_session).map { |m| m[:value] }
+              unless valid_models.include?(model)
+                render_error("validation_failed", "Invalid chat model.", status: :unprocessable_content)
+                return
+              end
+            end
+
+            chat_session.update!(chat_model: model)
+            render json: chat_payload(chat_session.reload, message: "Chat model updated.")
+            return
+          end
+
           if chat_params.respond_to?(:key?) && chat_params.key?(:mode)
             mode = chat_params[:mode].to_s.strip.presence
             if mode && !ChatSession::MODES.include?(mode)
@@ -922,6 +937,12 @@ module Api
           end
         end
 
+        CLAUDE_CHAT_MODELS = [
+          { value: "claude-opus-4-7", label: "Claude Opus 4.7" },
+          { value: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
+          { value: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5" }
+        ].freeze
+
         def chat_json(chat_session)
           repository = chat_session.repository
           {
@@ -934,6 +955,8 @@ module Api
             effective_chat_provider: chat_session.effective_chat_provider,
             effective_chat_provider_label: chat_provider_label(chat_session.effective_chat_provider),
             chat_provider_options: chat_provider_options(chat_session),
+            chat_model: chat_session.chat_model,
+            available_chat_models: available_chat_models_for(chat_session),
             mode: chat_session.mode,
             local_daemon_state: chat_session.local_daemon_state,
             local_daemon_repo: chat_session.local_daemon_repo,
@@ -973,6 +996,12 @@ module Api
         def attachment_label(record)
           formatter = ATTACHMENT_LABEL_FORMATTERS[record.class]
           formatter ? formatter.call(record) : record.try(:name).presence || record.try(:title).presence || "#{record.class.name} ##{record.id}"
+        end
+
+        def available_chat_models_for(chat_session)
+          return [] unless chat_session.effective_chat_provider == "claude"
+
+          CLAUDE_CHAT_MODELS
         end
 
       end
