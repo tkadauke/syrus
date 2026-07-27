@@ -22,6 +22,7 @@
   "mode_coding": "Coding",
   "mode_local": "Local",
   "mode_update_error": "Mode could not be updated.",
+  "mode_selector_label": "Change mode",
   "local_daemon_not_connected_title": "Local daemon not connected",
   "local_daemon_not_connected_body": "Run this command in your repository to begin:",
   "local_daemon_command": "syrus local",

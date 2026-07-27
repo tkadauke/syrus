@@ -22,6 +22,7 @@
   "mode_coding": "Programmatisatio",
   "mode_local": "Localis",
   "mode_update_error": "Modus mutari non potuit.",
+  "mode_selector_label": "Mutare modum",
   "local_daemon_not_connected_title": "Daemon localis non coniunctus",
   "local_daemon_not_connected_body": "Hunc iussionem in receptaculo tuo exsequere:",
   "local_daemon_command": "syrus local",

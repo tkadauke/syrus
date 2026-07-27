@@ -8,7 +8,7 @@ import { GeminiSetupSheet } from "../../components/GeminiSetupSheet"
 import { AnalyzingHint, annotationHoldLabel, annotationIdleHintKind, annotationShortcutLabel, formatClock, RECORDER_WARNING_SECONDS, shouldShowAnnotationSurfaceNote, useNativeRecorderHud, useWalkthroughRecorder, WalkthroughRecorderHUD } from "../../components/WalkthroughRecorder"
 import { isWalkthroughVideoFile, MAX_WALKTHROUGH_BYTES, MAX_WALKTHROUGH_DURATION_SECONDS, measureVideoDuration, retryVideoWalkthrough, uploadVideoWalkthrough } from "../../api/videoWalkthroughs"
 import { refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
-import { attachChatRepository, branchChat, clearChatHistory, createChat, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatWhiteboard, rejectChatProposal, renameChat, sendChatMessage, shareChat, stopChat, updateChatPinned, updateQueuedChatMessage, type ChatBranchPayload, type ChatCreatedPayload, type ChatPayload, type ChatProposal, type ChatQueuedMessage, type ShareChatPayload } from "../../api/chats"
+import { attachChatRepository, branchChat, clearChatHistory, createChat, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatWhiteboard, rejectChatProposal, renameChat, sendChatMessage, shareChat, stopChat, updateChatMode, updateChatPinned, updateQueuedChatMessage, type ChatBranchPayload, type ChatCreatedPayload, type ChatMode, type ChatPayload, type ChatProposal, type ChatQueuedMessage, type ShareChatPayload } from "../../api/chats"
 import { postJobCommand } from "../../api/jobs"
 import { CloseIcon } from "../../components/CloseIcon"
 import { EnqueueIcon } from "../../components/EnqueueIcon"
@@ -1389,7 +1389,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
           >
             +
           </button>
-          <div />
+          <ChatModeSelector chatId={chatId} payload={payload} queryKey={queryKey} />
         </div>
         {attachmentPopoverOpen ? (
           <div
@@ -1448,6 +1448,97 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
       </div>
       </form>
     </>
+  )
+}
+
+function ChatModeSelector({ chatId, payload, queryKey }: { chatId: string; payload: ChatPayload; queryKey: ChatQueryKey }) {
+  const { t } = useT("chat")
+  const queryClient = useQueryClient()
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const dropdownRef = useRef<HTMLDivElement | null>(null)
+
+  const modeOptions: Array<{ value: ChatMode; label: string }> = [
+    { value: "planning", label: t("mode_planning") },
+    ...(payload.coding_mode_enabled ? [{ value: "coding" as ChatMode, label: t("mode_coding") }] : []),
+    ...(payload.local_mode_enabled ? [{ value: "local" as ChatMode, label: t("mode_local") }] : [])
+  ]
+
+  const mode = useMutation({
+    mutationFn: (value: ChatMode) => updateChatMode(chatId, value),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+      updateRecentChatCache(queryClient, updated.chat)
+    }
+  })
+
+  useEffect(() => {
+    if (!dropdownOpen) return
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as Node | null
+      if (!target) return
+      if (dropdownRef.current?.contains(target)) return
+      if (buttonRef.current?.contains(target)) return
+      setDropdownOpen(false)
+    }
+    document.addEventListener("pointerdown", handlePointerDown)
+    return () => document.removeEventListener("pointerdown", handlePointerDown)
+  }, [dropdownOpen])
+
+  if (modeOptions.length <= 1) return null
+
+  const currentMode = payload.chat.mode || "planning"
+  const currentLabel = modeOptions.find((opt) => opt.value === currentMode)?.label ?? t("mode_planning")
+
+  return (
+    <div className="relative">
+      <button
+        aria-expanded={dropdownOpen}
+        aria-haspopup="listbox"
+        aria-label={t("mode_selector_label")}
+        className="flex items-center gap-1 rounded border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+        disabled={mode.isPending}
+        onClick={() => setDropdownOpen((open) => !open)}
+        ref={buttonRef}
+        type="button"
+      >
+        <span>{currentLabel}</span>
+        <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {dropdownOpen ? (
+        <div
+          className="absolute bottom-full left-0 z-20 mb-1 min-w-[7rem] overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
+          ref={dropdownRef}
+          role="listbox"
+        >
+          {modeOptions.map(({ value, label }) => (
+            <button
+              aria-selected={currentMode === value}
+              className={`flex w-full items-center px-3 py-2 text-left text-sm ${
+                currentMode === value
+                  ? "bg-terracotta-50 font-medium text-terracotta-700 dark:bg-terracotta-950 dark:text-terracotta-200"
+                  : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+              }`}
+              key={value}
+              onClick={() => {
+                mode.mutate(value)
+                setDropdownOpen(false)
+              }}
+              role="option"
+              type="button"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : mode.isError ? (
+        <div className="absolute bottom-full left-0 z-20 mb-1 whitespace-nowrap rounded border border-red-200 bg-white px-2 py-1 text-xs text-red-700 dark:border-red-800 dark:bg-gray-950 dark:text-red-300">
+          {t("mode_update_error")}
+        </div>
+      ) : null}
+    </div>
   )
 }
 
