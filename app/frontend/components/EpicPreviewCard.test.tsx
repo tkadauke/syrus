@@ -124,6 +124,25 @@ describe("EpicPreviewCard", () => {
     expect(items[items.length - 1]).toContain("Merged job")
   })
 
+  it("renders the epic title as a link to the epic detail page", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(epicPayload()))
+    renderCard(7)
+    await waitFor(() => expect(screen.getByRole("link", { name: "Onboarding flow" })).toBeInTheDocument())
+    expect(screen.getByRole("link", { name: "Onboarding flow" })).toHaveAttribute("href", "/epics/7")
+  })
+
+  it("renders each child job row as a link to the job detail page", async () => {
+    const fixedJobs: EpicDetailJob[] = [
+      { id: 10, label: "JOB-10", title: "First job", path: "/jobs/10", state: "open", owner_user_id: null, owner_user: null, repository_slug: "owner/repo" },
+      { id: 20, label: "JOB-20", title: "Second job", path: "/jobs/20", state: "merged", owner_user_id: null, owner_user: null, repository_slug: "owner/repo" },
+    ]
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ ...epicPayload({ jobs_count: 2 }), jobs: fixedJobs }))
+    renderCard(7)
+    await waitFor(() => expect(screen.getByText("First job")).toBeInTheDocument())
+    expect(screen.getByRole("link", { name: /First job/ })).toHaveAttribute("href", "/jobs/10")
+    expect(screen.getByRole("link", { name: /Second job/ })).toHaveAttribute("href", "/jobs/20")
+  })
+
   it("renders a See More link pointing to the epic detail page", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(epicPayload()))
     renderCard(7)

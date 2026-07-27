@@ -58,7 +58,9 @@ export function EpicPreviewCard({ id }: { id: number }) {
         <CopyableSlug className="text-xs" slug={epic.display_number} />
         <StatusPill state={epic.state} />
       </div>
-      <p className="mb-2 text-sm font-medium text-gray-900 dark:text-gray-100">{epic.title}</p>
+      <Link className="mb-2 block text-sm font-medium text-gray-900 hover:underline dark:text-gray-100" to={`/epics/${id}`}>
+        {epic.title}
+      </Link>
       {totalCount > 0 && (
         <div
           aria-label={t("job_progress_label")}
@@ -82,9 +84,14 @@ export function EpicPreviewCard({ id }: { id: number }) {
       {previewJobs.length > 0 && (
         <ul className="mb-3 space-y-1">
           {previewJobs.map((job: EpicDetailJob) => (
-            <li className="flex min-w-0 items-center gap-2 text-xs text-gray-700 dark:text-gray-300" key={job.id}>
-              <StatusPill state={job.state} />
-              <span className="truncate">{job.title}</span>
+            <li key={job.id}>
+              <Link
+                className="flex min-w-0 items-center gap-2 rounded text-xs text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
+                to={`/jobs/${job.id}`}
+              >
+                <StatusPill state={job.state} />
+                <span className="truncate">{job.title}</span>
+              </Link>
             </li>
           ))}
         </ul>
