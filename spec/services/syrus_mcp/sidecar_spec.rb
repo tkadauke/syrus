@@ -127,12 +127,12 @@ RSpec.describe SyrusMcp::Sidecar do
   end
 
   describe "tools/call submit_adversarial_review" do
-    # Adversarial review is role-gated: only runs whose step.kind == "grader"
+    # Adversarial review is role-gated: only runs whose step.kind == "adversarial_review"
     # (WORKFLOW_ADVERSARIAL_REVIEWER) have this tool in their sidecar tool list.
     let(:grader_run) do
       job = Factories.job
       workflow = job.latest_workflow
-      step = Step.create!(workflow: workflow, kind: "grader", position: 99)
+      step = Step.create!(workflow: workflow, kind: "adversarial_review", position: 99)
       step.runs.create!(job: job, trigger_kind: workflow.trigger_kind)
     end
 
@@ -155,7 +155,7 @@ RSpec.describe SyrusMcp::Sidecar do
       ])
     end
 
-    it "returns not_authorized when called from a non-grader step (implement role)" do
+    it "returns not_authorized when called from a non-adversarial-review step (implement role)" do
       response = jsonrpc(server_for(run), "tools/call", params: {
         name: "submit_adversarial_review",
         arguments: { critique: "x", verdict: "approved" }
