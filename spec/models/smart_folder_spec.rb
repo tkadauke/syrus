@@ -242,6 +242,29 @@ RSpec.describe SmartFolder do
     expect(results.fetch("Queued")).to contain_exactly(queued)
   end
 
+  it "scopes attention-preset job built-ins to the current user by default" do
+    described_class.ensure_builtins_for_subject!(:job)
+
+    attention_folders = described_class.builtins(:job).reject { |f| f.name == "All jobs" }
+    owner_chip = { "field" => "owner_user_id", "op" => "is", "value" => "me" }
+
+    attention_folders.each do |folder|
+      chips = Array(folder.filter["and"])
+      expect(chips).to include(owner_chip),
+        "expected #{folder.name} filter to include owner_user_id=me chip, got: #{chips.inspect}"
+    end
+  end
+
+  it "does not add owner filter chip to the All jobs built-in" do
+    described_class.ensure_builtins_for_subject!(:job)
+
+    all_jobs = described_class.builtins(:job).find_by!(name: "All jobs")
+    owner_chip = { "field" => "owner_user_id", "op" => "is", "value" => "me" }
+
+    expect(Array(all_jobs.filter["and"])).not_to include(owner_chip)
+    expect(all_jobs.filter).to eq("and" => [])
+  end
+
   it "requires user-defined folders to belong to a user" do
     folder = described_class.new(name: "Mine", kind: "user_defined", filter: { "state" => "open" })
 

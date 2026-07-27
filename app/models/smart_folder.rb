@@ -27,7 +27,8 @@ class SmartFolder < ApplicationRecord
     {
       "and" => [
         { "field" => "attention", "op" => "is", "value" => preset },
-        { "field" => "job_type", "op" => "is", "value" => "user" }
+        { "field" => "job_type", "op" => "is", "value" => "user" },
+        { "field" => "owner_user_id", "op" => "is", "value" => "me" }
       ]
     }
   end
