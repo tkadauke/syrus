@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom"
 import type { ChatJobStatusBlocker, ChatJobStatusEpicItem, ChatJobStatusItem, ChatJobStatusJobItem } from "../api/chats"
 import { fetchChatJobStatus } from "../api/chats"
 import { useT } from "../hooks/useT"
+import { CopyableSlug } from "../components/CopyableSlug"
+import { SlugHoverCard } from "../components/SlugHoverCard"
 import { StatusPill } from "../components/StatusPill"
 
 function jobBorderClass(job: ChatJobStatusJobItem): string {
@@ -48,7 +50,11 @@ function JobStatusCard({ job, onClick }: { job: ChatJobStatusJobItem; onClick: (
             {job.title || job.slug}
           </p>
           <div className="mt-0.5 flex items-center gap-2">
-            <span className="font-mono text-xs text-gray-400 dark:text-gray-500">{job.slug}</span>
+            <span onClick={(e) => e.stopPropagation()}>
+              <SlugHoverCard kind="job" id={job.job_id}>
+                <CopyableSlug slug={job.slug} className="text-xs" />
+              </SlugHoverCard>
+            </span>
             {job.workflow_step ? (
               <span className="truncate text-xs text-gray-500 dark:text-gray-400">
                 {t("job_status_step", { step: job.workflow_step.replaceAll("_", " ") })}
@@ -95,7 +101,11 @@ function EpicSection({ epic, hideClosedJobs, onJobClick }: { epic: ChatJobStatus
         type="button"
       >
         <div className="flex min-w-0 items-center gap-2">
-          <span className="font-mono text-xs font-medium text-gray-500 dark:text-gray-400">{epic.slug}</span>
+          <span onClick={(e) => e.stopPropagation()}>
+            <SlugHoverCard kind="epic" id={epic.epic_id}>
+              <CopyableSlug slug={epic.slug} className="text-xs font-medium" />
+            </SlugHoverCard>
+          </span>
           <span className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{epic.title}</span>
         </div>
         <div className="flex shrink-0 items-center gap-2">

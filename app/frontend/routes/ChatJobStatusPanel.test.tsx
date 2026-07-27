@@ -92,6 +92,12 @@ describe("ChatJobStatusPanel empty state", () => {
 })
 
 describe("ChatJobStatusPanel job cards", () => {
+  beforeEach(() => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+  })
+
   it("renders a standalone job card with title and slug", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([jobItem()]))
 
@@ -133,6 +139,31 @@ describe("ChatJobStatusPanel job cards", () => {
     await waitFor(() => {
       expect(screen.getByTestId("location")).toHaveTextContent("/jobs/42")
     })
+  })
+
+  it("copies the job slug to clipboard when the slug button is clicked", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([jobItem()]))
+
+    renderPanel()
+
+    const copyButton = await screen.findByRole("button", { name: "Copy JOB-42 to clipboard" })
+    fireEvent.click(copyButton)
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("JOB-42")
+  })
+
+  it("does not navigate when the job slug button is clicked", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([jobItem()]))
+
+    renderPanel()
+
+    await screen.findByText("Inspect the aqueduct")
+    const locationBefore = screen.getByTestId("location").textContent
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy JOB-42 to clipboard" }))
+
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(screen.getByTestId("location").textContent).toBe(locationBefore)
   })
 })
 
@@ -177,6 +208,12 @@ describe("ChatJobStatusPanel blocker banner", () => {
 })
 
 describe("ChatJobStatusPanel epic tree", () => {
+  beforeEach(() => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+  })
+
   it("renders an epic section with title and progress pill", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([epicItem()]))
 
@@ -210,6 +247,29 @@ describe("ChatJobStatusPanel epic tree", () => {
     fireEvent.click(screen.getByRole("button", { name: /Expand Aqueduct renovation/ }))
 
     expect(await screen.findByText("Survey route")).toBeInTheDocument()
+  })
+
+  it("copies the epic slug to clipboard when the slug button is clicked", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([epicItem()]))
+
+    renderPanel()
+
+    const copyButton = await screen.findByRole("button", { name: "Copy EPIC-5 to clipboard" })
+    fireEvent.click(copyButton)
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("EPIC-5")
+  })
+
+  it("does not toggle the epic section when the epic slug button is clicked", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([epicItem()]))
+
+    renderPanel()
+
+    expect(await screen.findByText("Survey route")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy EPIC-5 to clipboard" }))
+
+    expect(screen.getByText("Survey route")).toBeInTheDocument()
   })
 })
 
