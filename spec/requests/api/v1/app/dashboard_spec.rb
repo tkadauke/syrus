@@ -1029,7 +1029,8 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(body["filter"]).to eq(
         "and" => [
           { "field" => "attention", "op" => "is", "value" => "inbox" },
-          { "field" => "job_type", "op" => "is", "value" => "user" }
+          { "field" => "job_type", "op" => "is", "value" => "user" },
+          { "field" => "owner_user_id", "op" => "is", "value" => "me" }
         ]
       )
       expect(body["items"].map { |item| item.fetch("id") }).to eq([ inbox_job.id ])
