@@ -1145,7 +1145,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
         />
       ) : null}
       <form
-        className={`relative rounded border border-gray-200 bg-white p-3 transition-shadow dark:border-gray-700 dark:bg-gray-900 ${isDragOver ? "ring-2 ring-blue-400 dark:ring-blue-500" : ""}`}
+        className={`relative transition-shadow ${isDragOver ? "ring-2 ring-blue-400 dark:ring-blue-500" : ""}`}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
@@ -1298,34 +1298,109 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
           ))}
         </div>
       ) : null}
-      <div className="flex items-end justify-between gap-3">
-        <input
-          accept={payload.walkthroughs_enabled ? "image/*,application/pdf,video/webm,video/mp4,video/quicktime" : "image/*,application/pdf"}
-          aria-label={t("chat_attachments")}
-          className="hidden"
+      <input
+        accept={payload.walkthroughs_enabled ? "image/*,application/pdf,video/webm,video/mp4,video/quicktime" : "image/*,application/pdf"}
+        aria-label={t("chat_attachments")}
+        className="hidden"
+        disabled={send.isPending || systemAction.isPending}
+        multiple
+        onChange={(event) => handleAttachmentChange(event.target.files)}
+        ref={fileInputRef}
+        type="file"
+      />
+      <div className="relative">
+        <textarea
+          aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
+          aria-expanded={commandPaletteOpen}
+          aria-haspopup="listbox"
+          className="min-h-9 w-full resize-none overflow-y-hidden rounded border border-gray-200 bg-white py-2 pl-3 pr-8 pb-12 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
           disabled={send.isPending || systemAction.isPending}
-          multiple
-          onChange={(event) => handleAttachmentChange(event.target.files)}
-          ref={fileInputRef}
-          type="file"
+          onChange={(event) => {
+            updateText(event.target.value)
+            if (clearConfirmationOpen) setClearConfirmationOpen(false)
+          }}
+          onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
+          placeholder={ghostSuggestion ? "" : payload.switching_provider ? t("switching_to_provider", { provider: providerLabel(payload.chat.chat_provider ?? "") }) : agentActive ? t("queue_followup") : payload.chat.repository ? t("ask_repository") : t("ask_anything")}
+          ref={textareaRef}
+          required={attachments.length === 0 && walkthrough?.status !== "ready"}
+          rows={1}
+          value={text}
         />
-        <button
-          aria-controls={attachmentPopoverOpen ? "chat-attachment-popover" : undefined}
-          aria-expanded={attachmentPopoverOpen}
-          aria-label={t("add_attachment")}
-          aria-haspopup="dialog"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded border border-gray-300 bg-white text-xl leading-none text-gray-700 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
-          disabled={send.isPending || systemAction.isPending}
-          onClick={() => setAttachmentPopoverOpen((open) => !open)}
-          ref={addAttachmentButtonRef}
-          type="button"
-        >
-          +
-        </button>
+        {ghostSuggestion ? (
+          <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center gap-2 overflow-hidden px-3 py-2 text-base leading-6 sm:text-sm sm:leading-5" data-testid="chat-suggestion-ghost">
+            <span className="truncate text-gray-400 dark:text-gray-500">{ghostSuggestion}</span>
+            <span className="inline-flex shrink-0 items-center rounded border border-gray-300 bg-gray-50 px-1 text-[10px] font-medium text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-500">⇥ {t("suggestion_tab_hint")}</span>
+          </div>
+        ) : null}
+        {!agentActive && text.trim().length > 0 ? (
+          <button
+            aria-label={t("scratchpad_stash")}
+            className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:text-gray-300 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300 dark:disabled:text-gray-600"
+            disabled={stash.isPending}
+            onClick={() => stash.mutate(undefined)}
+            title={t("scratchpad_stash_tab")}
+            type="button"
+          >
+            ^
+          </button>
+        ) : null}
+        <span aria-live="polite" className="sr-only">{ghostSuggestion ? t("suggestion_available", { suggestion: ghostSuggestion }) : ""}</span>
+        <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1">
+          <button
+            aria-label={agentActive ? t("enqueue_message") : t("send_message")}
+            className="flex h-8 w-8 items-center justify-center rounded bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-60 dark:bg-blue-500 dark:hover:bg-blue-400"
+            disabled={send.isPending || systemAction.isPending || systemCommandAction.isPending || (text.trim().length === 0 && walkthrough?.status !== "ready" && attachments.length === 0) || pendingConfirmation != null || attachmentError != null}
+            type="submit"
+          >
+            {agentActive ? <EnqueueIcon className="h-4 w-4" /> : <SendIcon className="h-4 w-4" />}
+          </button>
+          {agentActive && text.trim().length > 0 ? (
+            <button
+              aria-label={t("scratchpad_stash")}
+              className="flex h-8 w-8 items-center justify-center rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
+              disabled={stash.isPending}
+              onClick={() => stash.mutate(undefined)}
+              title={t("scratchpad_stash")}
+              type="button"
+            >
+              <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+                <rect height="4" rx="1" width="6" x="9" y="3" />
+                <path d="M9 12h6M9 16h4" />
+              </svg>
+            </button>
+          ) : null}
+          {agentActive && !payload.switching_provider ? (
+            <StopButton
+              className="flex h-8 w-8 items-center justify-center rounded border border-red-200 bg-white text-red-700 hover:bg-red-50 disabled:text-gray-400 dark:border-red-800 dark:bg-gray-900 dark:text-red-300 dark:hover:bg-red-950 dark:disabled:text-gray-600"
+              payload={payload}
+              queryKey={queryKey}
+            />
+          ) : null}
+        </div>
+      </div>
+      <div className="relative flex items-center justify-between mt-2">
+        <div className="flex items-center gap-2">
+          <button
+            aria-controls={attachmentPopoverOpen ? "chat-attachment-popover" : undefined}
+            aria-expanded={attachmentPopoverOpen}
+            aria-label={t("add_attachment")}
+            aria-haspopup="dialog"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded border border-gray-300 bg-white text-xl leading-none text-gray-700 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
+            disabled={send.isPending || systemAction.isPending}
+            onClick={() => setAttachmentPopoverOpen((open) => !open)}
+            ref={addAttachmentButtonRef}
+            type="button"
+          >
+            +
+          </button>
+          <div />
+        </div>
         {attachmentPopoverOpen ? (
           <div
             aria-label={t("add_attachment")}
-            className="absolute bottom-[4.25rem] left-3 z-20 w-[min(22rem,calc(100%-1.5rem))] overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
+            className="absolute bottom-full left-0 z-20 w-[min(22rem,calc(100%-1.5rem))] overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
             id="chat-attachment-popover"
             onKeyDown={handleAttachmentPopoverKeyDown}
             ref={attachmentPopoverRef}
@@ -1375,67 +1450,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
             <AddAttachment payload={payload} prefix={prefix} queryKey={queryKey} onAttached={() => setAttachmentPopoverOpen(false)} onNotice={onNotice} />
           </div>
         ) : null}
-        <div className="relative min-w-0 flex-1">
-          <textarea
-            aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
-            aria-expanded={commandPaletteOpen}
-            aria-haspopup="listbox"
-            className="min-h-9 w-full resize-none overflow-y-hidden rounded border border-gray-300 py-2 pl-3 pr-8 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
-            disabled={send.isPending || systemAction.isPending}
-            onChange={(event) => {
-              updateText(event.target.value)
-              if (clearConfirmationOpen) setClearConfirmationOpen(false)
-            }}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            placeholder={ghostSuggestion ? "" : payload.switching_provider ? t("switching_to_provider", { provider: providerLabel(payload.chat.chat_provider ?? "") }) : agentActive ? t("queue_followup") : payload.chat.repository ? t("ask_repository") : t("ask_anything")}
-            ref={textareaRef}
-            required={attachments.length === 0 && walkthrough?.status !== "ready"}
-            rows={1}
-            value={text}
-          />
-          {ghostSuggestion ? (
-            <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center gap-2 overflow-hidden px-3 py-2 text-base leading-6 sm:text-sm sm:leading-5" data-testid="chat-suggestion-ghost">
-              <span className="truncate text-gray-400 dark:text-gray-500">{ghostSuggestion}</span>
-              <span className="inline-flex shrink-0 items-center rounded border border-gray-300 bg-gray-50 px-1 text-[10px] font-medium text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-500">⇥ {t("suggestion_tab_hint")}</span>
-            </div>
-          ) : null}
-          {!agentActive && text.trim().length > 0 ? (
-            <button
-              aria-label={t("scratchpad_stash")}
-              className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:text-gray-300 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300 dark:disabled:text-gray-600"
-              disabled={stash.isPending}
-              onClick={() => stash.mutate(undefined)}
-              title={t("scratchpad_stash_tab")}
-              type="button"
-            >
-              ^
-            </button>
-          ) : null}
-          <span aria-live="polite" className="sr-only">{ghostSuggestion ? t("suggestion_available", { suggestion: ghostSuggestion }) : ""}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button aria-label={agentActive ? t("enqueue_message") : t("send_message")} className={`${primaryButton()} inline-flex items-center justify-center`} disabled={send.isPending || systemAction.isPending || systemCommandAction.isPending || (text.trim().length === 0 && walkthrough?.status !== "ready" && attachments.length === 0) || pendingConfirmation != null || attachmentError != null} type="submit">
-            {agentActive ? <EnqueueIcon className="h-4 w-4" /> : <SendIcon className="h-4 w-4" />}
-          </button>
-          {agentActive && text.trim().length > 0 ? (
-            <button
-              aria-label={t("scratchpad_stash")}
-              className="inline-flex h-11 items-center justify-center rounded border border-gray-300 bg-white px-2.5 text-gray-600 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
-              disabled={stash.isPending}
-              onClick={() => stash.mutate(undefined)}
-              title={t("scratchpad_stash")}
-              type="button"
-            >
-              <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
-                <rect height="4" rx="1" width="6" x="9" y="3" />
-                <path d="M9 12h6M9 16h4" />
-              </svg>
-            </button>
-          ) : null}
-          {agentActive && !payload.switching_provider ? <StopButton payload={payload} queryKey={queryKey} /> : null}
-        </div>
+        <div />
       </div>
       </form>
     </>
@@ -1716,7 +1731,7 @@ function useSubmitChatWithEnter() {
   return enabled
 }
 
-function StopButton({ payload, queryKey }: { payload: ChatPayload; queryKey: ChatQueryKey }) {
+function StopButton({ className, payload, queryKey }: { className?: string; payload: ChatPayload; queryKey: ChatQueryKey }) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
   const search = queryKey[2]
@@ -1725,7 +1740,7 @@ function StopButton({ payload, queryKey }: { payload: ChatPayload; queryKey: Cha
     onSuccess: (updated) => queryClient.setQueryData(queryKey, updated)
   })
   return (
-    <button aria-label={t("aria_stop_agent")} className="inline-flex h-11 items-center justify-center rounded border border-red-200 bg-white px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-400 dark:border-red-800 dark:bg-gray-900 dark:text-red-300 dark:hover:bg-red-950 dark:disabled:text-gray-600" disabled={Boolean(payload.chat.stop_requested_at) || stop.isPending} onClick={() => stop.mutate()} type="button">
+    <button aria-label={t("aria_stop_agent")} className={className ?? "inline-flex h-11 items-center justify-center rounded border border-red-200 bg-white px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-400 dark:border-red-800 dark:bg-gray-900 dark:text-red-300 dark:hover:bg-red-950 dark:disabled:text-gray-600"} disabled={Boolean(payload.chat.stop_requested_at) || stop.isPending} onClick={() => stop.mutate()} type="button">
       <StopIcon className={`h-4 w-4 ${payload.chat.stop_requested_at || stop.isPending ? "opacity-50" : ""}`} />
     </button>
   )
