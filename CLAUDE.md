@@ -25,7 +25,7 @@ existing `Job`s.
 The state machines (AASM):
 
 ```
-Job (one per issue):       open ⇄ closed
+Job (one per issue):       open ⇄ closed; no_change_needed (semi-terminal)
 Workflow (one per attempt): queued → running → succeeded | failed | cancelled
 Step (one per step):        queued → running → succeeded | failed | cancelled
 Run (one per step):         queued → running → succeeded | failed | cancelled
@@ -182,7 +182,9 @@ Key steps:
   in the prompt. The reviewer's workspace changes are discarded — it is
   read-only. Runs in feedback workflows (`pr_comment`, `chat_feedback`) as
   well as `initial`/`retry`; skipped in `ci_failure`, `auto_merge`, and
-  maintenance workflows.
+  maintenance workflows. `.syrus.yml` accepts an optional `criteria` array in
+  the `adversarial_review` block to inject repository-specific checklist items
+  into the reviewer prompt (additive — the default checklist still runs).
 - **`summarize`** / **`summarize_amend`** — Short agentic step that
   asks the agent to call `submit_summary`.
   If the upstream agentic step (`implement` for `summarize`; `respond` or
@@ -319,8 +321,11 @@ when consecutive failure count hits the `AppSetting.max_job_failures`
 threshold; the operator must unpause the task to re-enable it.
 
 "No changes" is the explicit happy path for cron Jobs — the agent
-surveys, calls `submit_summary` with a one-line note, and the Job closes
-with reason `no_changes`.
+surveys, calls `submit_summary` with a one-line note, and exits without
+committing anything. The Job lands in `no_change_needed` (a semi-terminal
+state); the operator can Close it (work already done) or Give Feedback
+(agent may have missed something). Retry actions are suppressed for this
+state.
 
 ### Live UI
 
