@@ -214,6 +214,10 @@ describe("ChatJobStatusPanel epic tree", () => {
 })
 
 describe("ChatJobStatusPanel hide closed", () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
   it("does not show the hide-closed button when no jobs are closed", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
       jobItem({ state: "running" })
@@ -319,6 +323,40 @@ describe("ChatJobStatusPanel hide closed", () => {
     renderPanel()
 
     expect(await screen.findByRole("button", { name: /hide closed/i })).toBeInTheDocument()
+  })
+
+  it("persists the hide-closed preference to localStorage and restores it on remount", async () => {
+    const items = [jobItem({ job_id: 1, slug: "JOB-1", title: "Closed job", state: "closed" })]
+    vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(items)))
+
+    const { unmount } = render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <Routes>
+            <Route element={<ChatJobStatusPanel chatId={8} />} path="/app-shell/chats/:id" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await screen.findByText("Closed job")
+    fireEvent.click(screen.getByRole("button", { name: /hide closed/i }))
+    expect(screen.queryByText("Closed job")).not.toBeInTheDocument()
+
+    unmount()
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <Routes>
+            <Route element={<ChatJobStatusPanel chatId={8} />} path="/app-shell/chats/:id" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await screen.findByRole("button", { name: /show closed/i })
+    expect(screen.queryByText("Closed job")).not.toBeInTheDocument()
   })
 })
 

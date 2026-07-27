@@ -131,7 +131,9 @@ export function ChatJobStatusPanel({ chatId }: { chatId: string | number }) {
   const queryClient = useQueryClient()
   const { t } = useT("chat")
   const navigate = useNavigate()
-  const [hideClosedJobs, setHideClosedJobs] = useState(false)
+  const [hideClosedJobs, setHideClosedJobs] = useState(
+    () => localStorage.getItem("chat_jobs_hide_closed") === "true"
+  )
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["chats", String(chatId), "job_status"],
@@ -189,7 +191,11 @@ export function ChatJobStatusPanel({ chatId }: { chatId: string | number }) {
         <div className="flex justify-end">
           <button
             className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-            onClick={() => setHideClosedJobs((h) => !h)}
+            onClick={() => setHideClosedJobs((h) => {
+              const next = !h
+              localStorage.setItem("chat_jobs_hide_closed", String(next))
+              return next
+            })}
             type="button"
           >
             {hideClosedJobs ? t("job_status_show_closed") : t("job_status_hide_closed")}
