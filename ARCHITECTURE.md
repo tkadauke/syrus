@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-07-20._
+_Last reviewed: 2026-07-27._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -177,6 +177,7 @@ States and transitions:
 ```ruby
 state :triaging, initial: true
 state :blocked_by_epic, :queued, :running, :implemented, :failed
+state :no_change_needed  # agent ran correctly but found nothing to change; semi-terminal
 state :approved, :landing
 state :closed
 
@@ -184,6 +185,7 @@ event :advance_after_triage
 event :start_running
 event :mark_implemented
 event :mark_failed
+event :mark_no_change_needed  # raised when implement step finds no diff
 event :retry_after_failure
 event :approve / :unapprove
 event :start_landing / :defer_landing / :fail_landing
@@ -747,6 +749,10 @@ feedback context so they can judge whether the agent addressed what was
 asked. The verdict is recorded for audit/future control; today
 `StepDispatcher` runs the configured number of review rounds and feeds
 prior findings into each next implementation iteration before advancing.
+Operators can add an optional `criteria` list to the `adversarial_review`
+block in `.syrus.yml`; when present, the reviewer prompt inserts a "pay
+particular attention" section listing each criterion. Criteria are
+additive — the standard review checklist still applies.
 
 `respond` is shared by `pr_comment` and `chat_feedback` Workflows. The
 PR-comment path composes `Prompts::PrFeedback` from GitHub comments,
@@ -1057,7 +1063,11 @@ that chat session. Its tools cover:
   confirmed actions such as killing a subprocess, pausing/unpausing
   polling or runs, pausing user scheduling, retrying failed Steps,
   cleaning workspaces, clearing GitHub cache, and refreshing
-  installations.
+  installations. Admin users also bypass per-user scope checks on
+  standard resource-reading tools (jobs, epics, workflows, runs,
+  repositories, scheduled tasks), so they can inspect any user's work
+  through the chat interface. Chat messages, personal memories, canvas
+  files, and creation tools remain user-scoped regardless of role.
 
 Most chat actions stop at a confirmation boundary. `ChatPendingAction`
 stores these proposed mutations, with `pending` actions shown to the
