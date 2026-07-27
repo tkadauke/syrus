@@ -11,6 +11,7 @@ import enSettings from "./locales/en/settings.json"
 import enAdmin from "./locales/en/admin.json"
 import enAuth from "./locales/en/auth.json"
 import enLanding from "./locales/en/landing.json"
+import enInsights from "./locales/en/insights.json"
 
 import deCommon from "./locales/de/common.json"
 import deNav from "./locales/de/nav.json"
@@ -22,6 +23,7 @@ import deSettings from "./locales/de/settings.json"
 import deAdmin from "./locales/de/admin.json"
 import deAuth from "./locales/de/auth.json"
 import deLanding from "./locales/de/landing.json"
+import deInsights from "./locales/de/insights.json"
 
 import laCommon from "./locales/la/common.json"
 import laNav from "./locales/la/nav.json"
@@ -33,6 +35,7 @@ import laSettings from "./locales/la/settings.json"
 import laAdmin from "./locales/la/admin.json"
 import laAuth from "./locales/la/auth.json"
 import laLanding from "./locales/la/landing.json"
+import laInsights from "./locales/la/insights.json"
 
 import { readInitialBootstrap } from "../api/bootstrap"
 
@@ -46,7 +49,7 @@ i18n.use(initReactI18next).init({
   lng: detectedLocale,
   fallbackLng: "en",
   defaultNS: "common",
-  ns: ["common", "nav", "jobs", "epics", "dashboard", "chat", "settings", "admin", "auth", "landing"],
+  ns: ["common", "nav", "jobs", "epics", "dashboard", "chat", "settings", "admin", "auth", "landing", "insights"],
   resources: {
     en: {
       common: enCommon,
@@ -58,7 +61,8 @@ i18n.use(initReactI18next).init({
       settings: enSettings,
       admin: enAdmin,
       auth: enAuth,
-      landing: enLanding
+      landing: enLanding,
+      insights: enInsights
     },
     de: {
       common: deCommon,
@@ -70,7 +74,8 @@ i18n.use(initReactI18next).init({
       settings: deSettings,
       admin: deAdmin,
       auth: deAuth,
-      landing: deLanding
+      landing: deLanding,
+      insights: deInsights
     },
     la: {
       common: laCommon,
@@ -82,7 +87,8 @@ i18n.use(initReactI18next).init({
       settings: laSettings,
       admin: laAdmin,
       auth: laAuth,
-      landing: laLanding
+      landing: laLanding,
+      insights: laInsights
     }
   },
   interpolation: {

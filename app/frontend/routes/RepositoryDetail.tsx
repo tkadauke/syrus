@@ -14,7 +14,7 @@ import { RepositoryTabs } from "../components/RepositoryTabs"
 import { StatusPill as StateStatusPill, TonePill } from "../components/StatusPill"
 import { CoverageSparkline } from "../components/CoverageSparkline"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
-import { archiveRepositoryFromPath, fetchRepositoryDetail, fetchRepositoryIssues, pollRepositoryDetail, releaseNeedsTriageRepositoryJob, retryFailedRepositoryJobs, type RepositoryDetailJob, type RepositoryDetailPayload } from "../api/repositories"
+import { archiveRepositoryFromPath, fetchRepositoryDetail, fetchRepositoryIssues, pollRepositoryDetail, releaseNeedsTriageRepositoryJob, retryFailedRepositoryJobs, runInsightAnalysis, type RepositoryDetailJob, type RepositoryDetailPayload } from "../api/repositories"
 import { errorMessage } from "../lib/errorMessage"
 
 export function RepositoryDetailRoute() {
@@ -235,6 +235,15 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
       navigate(withRoutePrefix(payload.paths.repositories_path, prefix))
     }
   })
+  const runInsight = useMutation({
+    mutationFn: () => runInsightAnalysis(payload.paths.app_run_insight_analysis_repository_path!),
+    onSuccess: (updated) => {
+      if ("repository" in updated && "tabs" in updated) {
+        queryClient.setQueryData(queryKey, updated)
+      }
+      onNotice((updated as { message?: string | null }).message || "Insight analysis started.")
+    }
+  })
   const disabled = poll.isPending || retryFailed.isPending || archive.isPending
 
   function archiveRepository() {
@@ -252,6 +261,27 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
         <button className={buttonClass("blue")} disabled={disabled} onClick={() => { onNotice(null); poll.mutate() }} type="button">{t('repository.poll_now')}</button>
         {retry.count > 0 ? (
           <button className={buttonClass("amber")} disabled={disabled || retry.provider_circuit.open} onClick={() => { onNotice(null); retryFailed.mutate() }} type="button">Retry {retry.count} failed with {retry.agent_provider_label}</button>
+        ) : null}
+        {payload.agent_insights_enabled && payload.paths.app_run_insight_analysis_repository_path ? (
+          payload.active_insight_job ? (
+            <Link className={buttonClass("gray")} to={withRoutePrefix(payload.active_insight_job.job_path, prefix)}>
+              Insight analysis running
+            </Link>
+          ) : (
+            <button
+              className={buttonClass("gray")}
+              disabled={disabled || runInsight.isPending}
+              onClick={() => { onNotice(null); runInsight.mutate() }}
+              type="button"
+            >
+              {runInsight.isPending ? "Starting…" : "Run insight analysis"}
+            </button>
+          )
+        ) : null}
+        {payload.agent_insights_enabled && payload.paths.repository_insights_path ? (
+          <Link className={buttonClass("gray")} to={withRoutePrefix(payload.paths.repository_insights_path, prefix)}>
+            View insights
+          </Link>
         ) : null}
         <div className="relative" ref={moreMenuRef}>
           <button
@@ -280,6 +310,7 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
       {poll.isError ? <PanelMessage tone="error">{errorMessage(poll.error, "Repository poll failed.")}</PanelMessage> : null}
       {retryFailed.isError ? <PanelMessage tone="error">{errorMessage(retryFailed.error, "Retry failed jobs command failed.")}</PanelMessage> : null}
       {archive.isError ? <PanelMessage tone="error">{errorMessage(archive.error, "Archive failed.")}</PanelMessage> : null}
+      {runInsight.isError ? <PanelMessage tone="error">{errorMessage(runInsight.error, "Failed to start insight analysis.")}</PanelMessage> : null}
     </>
   )
 }

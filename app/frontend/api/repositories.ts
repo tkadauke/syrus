@@ -201,7 +201,16 @@ export type RepositoryDetailPayload = {
     repositories_path: string
     repository_documents_path: string
     repository_scheduled_tasks_path: string
+    app_run_insight_analysis_repository_path?: string
+    repository_insights_path?: string
   }
+  agent_insights_enabled?: boolean
+  active_insight_job?: {
+    id: number
+    slug: string
+    state: string
+    job_path: string
+  } | null
 }
 
 export type RepositoryDetailRecord = {
@@ -514,4 +523,8 @@ export function archiveRepository(id: number) {
 
 export function unarchiveRepository(id: number) {
   return postJson<RepositoriesPayload>(`/api/v1/app/repositories/${id}/unarchive`)
+}
+
+export function runInsightAnalysis(path: string) {
+  return postJson<RepositoryDetailPayload | RepositoriesPayload>(path)
 }

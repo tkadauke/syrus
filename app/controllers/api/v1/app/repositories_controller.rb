@@ -330,6 +330,39 @@ module Api
           )
         end
 
+        def run_insight_analysis
+          unless Feature.agent_insights_enabled?
+            render_error("agent_insights_disabled", "Agent Insights is not enabled.", status: :not_found)
+            return
+          end
+
+          repository = find_repository
+
+          if repository.jobs.where(kind: "agent_insight").where.not(state: "closed").exists?
+            render json: repository_command_payload(
+              repository,
+              message: "An insight analysis job is already running for #{repository.slug}."
+            )
+            return
+          end
+
+          user = Current.user
+          job = Job.transaction do
+            j = user.jobs.create!(
+              repository: repository,
+              kind: "agent_insight",
+              issue_number: nil,
+              issue_title: "Insight analysis: #{repository.slug}",
+              owner_user: user
+            )
+            workflow = Workflows::AgentInsight.instantiate(job: j)
+            StepDispatcher.start_workflow(workflow)
+            j
+          end
+
+          render json: repository_command_payload(repository, message: "Insight analysis started for #{repository.slug}.")
+        end
+
         def coverage_trend
           repository = find_repository
           days = [ params.fetch(:days, 30).to_i, 1 ].max
@@ -393,7 +426,7 @@ module Api
             .limit(PER_PAGE)
             .offset((page - 1) * PER_PAGE)
 
-          {
+          payload = {
             message: message,
             repository: repository_detail_json(repository),
             tabs: repository_tabs_json(repository),
@@ -421,6 +454,15 @@ module Api
               repository_scheduled_tasks_path: repository_scheduled_tasks_path(repository)
             }
           }
+
+          if Feature.agent_insights_enabled?
+            payload[:agent_insights_enabled] = true
+            payload[:active_insight_job] = active_insight_job_json(repository)
+            payload[:paths][:app_run_insight_analysis_repository_path] = "/api/v1/app/repositories/#{repository.id}/run_insight_analysis"
+            payload[:paths][:repository_insights_path] = "/repositories/#{repository.id}/insights"
+          end
+
+          payload
         end
 
         def repository_issues_payload(repository, state:, message: nil)
@@ -611,12 +653,26 @@ module Api
         end
 
         def repository_tabs_json(repository)
-          [
+          tabs = [
             { key: "overview", label: "Overview", path: repository_path(repository) },
             { key: "github_issues", label: "GitHub Issues", path: repository_path(repository, tab: "github_issues") },
             { key: "documents", label: "Documents", path: repository_documents_path(repository) },
             { key: "scheduled_tasks", label: "Scheduled Tasks", path: repository_scheduled_tasks_path(repository) }
           ]
+          tabs << { key: "insights", label: "Insights", path: "/repositories/#{repository.id}/insights" } if Feature.agent_insights_enabled?
+          tabs
+        end
+
+        def active_insight_job_json(repository)
+          job = repository.jobs.where(kind: "agent_insight").where.not(state: "closed").order(created_at: :desc).first
+          return nil unless job
+
+          {
+            id: job.id,
+            slug: job.slug,
+            state: job.state,
+            job_path: job_path(job)
+          }
         end
 
         def repository_counts_json(repository)

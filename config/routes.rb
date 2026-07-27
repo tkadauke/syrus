@@ -220,8 +220,11 @@ Rails.application.routes.draw do
             post :sync_fork
             post :check_ci_now
             get :coverage_trend
+            post :run_insight_analysis
           end
         end
+        get "repositories/:repository_id/insight_suggestions", to: "insight_suggestions#index"
+        patch "insight_suggestions/:id", to: "insight_suggestions#update"
         get "workflows/:workflow_id/coverage_hit_map", to: "workflows#coverage_hit_map", constraints: { workflow_id: /\d+/ }
         get "repositories/:repository_id/documents", to: "repository_documents#index"
         post "repositories/:repository_id/documents", to: "repository_documents#create"
@@ -240,6 +243,8 @@ Rails.application.routes.draw do
         end
 
         namespace :admin do
+          get "insights", to: "insights#index"
+          post "insights/:id/promote_memory", to: "insights#promote_memory"
           get "overview", to: "overview#show"
           get "queue/:tab", to: "queue#show", as: :queue, constraints: { tab: /active|pending|failed|recurring|workers/ }
           post "queue/reap_stale_runs", to: "queue#reap_stale_runs"
@@ -372,6 +377,7 @@ Rails.application.routes.draw do
   get "repositories", to: "spa#show", as: :repositories
   get "repositories/new", to: "spa#show", as: :new_repository
   get "repositories/:id/edit", to: "spa#show", as: :edit_repository, constraints: { id: /\d+/ }
+  get "repositories/:id/insights", to: "spa#show", as: :repository_insights, constraints: { id: /\d+/ }
   get "repositories/:id", to: "spa#show", as: :repository, constraints: { id: /\d+/ }
   resources :repositories, only: [] do
     # Repository-scoped chat routes were retired — the chat surface is
@@ -447,6 +453,7 @@ Rails.application.routes.draw do
   get "admin/users", to: "spa#show", as: :admin_users
   get "admin/users/:id", to: "spa#show", as: :admin_user, constraints: { id: /\d+/ }
   get "admin/features", to: "spa#show", as: :admin_features
+  get "admin/insights", to: "spa#show", as: :admin_insights
   get "admin/console", to: "spa#show", as: :admin_console
   get "admin/installations", to: "spa#show", as: :admin_installations
   get "admin/github_app/register", to: "spa#show", as: :admin_github_app_register
