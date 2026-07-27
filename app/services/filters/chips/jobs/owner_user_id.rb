@@ -35,7 +35,7 @@ module Filters
           case op
           when :is
             case value.to_s
-            when "me"        then scope.where(owned_by_user_condition)
+            when "me"        then effectively_owned_by_me
             when "unclaimed" then scope.where(no_owner_condition)
             else
               id = Integer(value, exception: false)
@@ -43,7 +43,7 @@ module Filters
             end
           when :is_not
             case value.to_s
-            when "me"        then scope.where.not(id: scope.where(owned_by_user_condition).select(:id))
+            when "me"        then scope.where.not(id: effectively_owned_by_me.select(:id))
             when "unclaimed" then scope.where.not(id: scope.where(no_owner_condition).select(:id))
             else
               id = Integer(value, exception: false)
@@ -57,10 +57,10 @@ module Filters
 
         private
 
-        def owned_by_user_condition
-          return Job.arel_table[:id].eq(nil) unless user
+        def effectively_owned_by_me
+          return scope.none unless user
 
-          Job.arel_table[:owner_user_id].eq(user.id)
+          scope.merge(Job.effectively_owned_by(user))
         end
 
         def no_owner_condition

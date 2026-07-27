@@ -17,7 +17,14 @@ RSpec.describe Filters::Chips::Jobs::OwnerUserId do
   let!(:mine) { Factories.job(user: user, repository: repo, owner_user: user) }
   let!(:theirs) { Factories.job(user: user, repository: repo, owner_user: other_user) }
   let!(:unclaimed) do
+    Factories.job(user: other_user, repository: repo).tap { |j| j.update_columns(owner_user_id: nil) }
+  end
+  # Epic children have owner_user_id: nil but user_id: creator
+  let!(:epic_child_mine) do
     Factories.job(user: user, repository: repo).tap { |j| j.update_columns(owner_user_id: nil) }
+  end
+  let!(:epic_child_theirs) do
+    Factories.job(user: other_user, repository: repo).tap { |j| j.update_columns(owner_user_id: nil) }
   end
 
   describe "is me" do
@@ -33,6 +40,14 @@ RSpec.describe Filters::Chips::Jobs::OwnerUserId do
       expect(run(op: "is", value: "me")).not_to include(unclaimed)
     end
 
+    it "includes Epic-child jobs where owner_user_id is nil but user_id matches" do
+      expect(run(op: "is", value: "me")).to include(epic_child_mine)
+    end
+
+    it "excludes Epic-child jobs where owner_user_id is nil and user_id belongs to another user" do
+      expect(run(op: "is", value: "me")).not_to include(epic_child_theirs)
+    end
+
     it "returns no results when no user is provided" do
       expect(run(op: "is", value: "me", current_user: nil)).to be_empty
     end
@@ -40,7 +55,7 @@ RSpec.describe Filters::Chips::Jobs::OwnerUserId do
 
   describe "is unclaimed" do
     it "returns jobs with no owner set" do
-      expect(run(op: "is", value: "unclaimed")).to contain_exactly(unclaimed)
+      expect(run(op: "is", value: "unclaimed")).to contain_exactly(unclaimed, epic_child_mine, epic_child_theirs)
     end
 
     it "excludes jobs owned by anyone" do
@@ -63,6 +78,12 @@ RSpec.describe Filters::Chips::Jobs::OwnerUserId do
       result = run(op: "is_not", value: "me")
       expect(result).not_to include(mine)
       expect(result).to include(theirs, unclaimed)
+    end
+
+    it "excludes Epic-child jobs where user_id matches the current user" do
+      result = run(op: "is_not", value: "me")
+      expect(result).not_to include(epic_child_mine)
+      expect(result).to include(epic_child_theirs)
     end
   end
 
@@ -92,7 +113,7 @@ RSpec.describe Filters::Chips::Jobs::OwnerUserId do
 
   describe "is_unset" do
     it "returns jobs with no owner" do
-      expect(run(op: "is_unset")).to contain_exactly(unclaimed)
+      expect(run(op: "is_unset")).to contain_exactly(unclaimed, epic_child_mine, epic_child_theirs)
     end
   end
 
