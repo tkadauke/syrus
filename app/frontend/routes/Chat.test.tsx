@@ -1790,6 +1790,47 @@ describe("scratchpad stash button", () => {
   })
 })
 
+describe("composer stop button", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("shows the stop button inside the textarea wrapper when agent is active", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      return Promise.resolve(jsonResponse({ ...chatPayload(), agent_busy: true }))
+    })
+    renderRoute()
+
+    await screen.findByPlaceholderText("Queue a follow-up message...")
+    expect(screen.getByRole("button", { name: "Stop agent" })).toBeInTheDocument()
+  })
+
+  it("does not show the stop button when agent is idle", async () => {
+    mockChatRouteFetch(chatPayload())
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    expect(screen.queryByRole("button", { name: "Stop agent" })).not.toBeInTheDocument()
+  })
+
+  it("does not show the stop button when switching provider", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      return Promise.resolve(jsonResponse({ ...chatPayload(), agent_busy: true, switching_provider: true }))
+    })
+    renderRoute()
+
+    await screen.findByRole("textbox")
+    expect(screen.queryByRole("button", { name: "Stop agent" })).not.toBeInTheDocument()
+  })
+})
+
 describe("scratchpad panel", () => {
   beforeEach(() => {
     window.localStorage.clear()
