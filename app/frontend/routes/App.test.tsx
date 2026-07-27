@@ -8378,10 +8378,12 @@ describe("App", () => {
       )
     })
     expect(await screen.findByRole("main", { name: "Repository" })).toBeInTheDocument()
-    expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/repositories/3",
-      expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
-    )
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/repositories/3",
+        expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
+      )
+    })
   })
 
   it("renders the edit repository form and patches repository settings", async () => {
