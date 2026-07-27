@@ -2,15 +2,17 @@ require "mcp"
 
 module SyrusChatMcp
   class AskUserQuestionTool < MCP::Tool
-    ASK_TIMEOUT_SECONDS = 300
-    POLL_INTERVAL_SECONDS = 1
-
     tool_name "ask_user_question"
 
     description <<~DESC
-      Ask the operator a structured question in the current chat and wait
-      until they answer. Use options for a short multiple-choice question;
-      omit options when a free-form answer is needed.
+      Ask the operator a structured question in the current chat and park the
+      conversation until they answer. Use options for a short multiple-choice
+      question; omit options when a free-form answer is needed.
+
+      After calling this tool, you MUST immediately end your turn — do not call
+      any other tools or produce any further text. The operator's answer will
+      start a new conversation turn, at which point you should continue the task
+      using that answer.
     DESC
 
     input_schema(
@@ -40,7 +42,10 @@ module SyrusChatMcp
           asked_at: Time.current
         )
 
-        wait_for_answer(record)
+        SyrusChatMcp.success(
+          question_id: record.id,
+          message: "Question recorded. You MUST end your turn now — do not call any more tools or produce any further output. The operator's answer will arrive as the next message in a new conversation turn."
+        )
       rescue ActiveRecord::RecordInvalid => e
         SyrusChatMcp.invalid(e.record.errors.full_messages.to_sentence)
       end
@@ -55,25 +60,6 @@ module SyrusChatMcp
         return false if normalized.empty? || normalized.length != options.length
 
         normalized
-      end
-
-      def wait_for_answer(record)
-        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + ASK_TIMEOUT_SECONDS
-
-        loop do
-          record.reload
-          return SyrusChatMcp.success(answer: record.answer.to_s) if record.answered_at.present?
-          break if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
-
-          sleep(POLL_INTERVAL_SECONDS)
-        end
-
-        unless record.expire!
-          record.reload
-          return SyrusChatMcp.success(answer: record.answer.to_s) if record.answered_at.present?
-        end
-
-        SyrusChatMcp.tool_error("Timed out waiting for operator answer.")
       end
     end
   end

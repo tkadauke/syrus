@@ -26,30 +26,16 @@ RSpec.describe SyrusChatMcp::AskUserQuestionTool do
     JSON.parse(response.fetch(:result).fetch(:content).first.fetch(:text), symbolize_names: true)
   end
 
-  it "creates a question, waits for an answer, and returns it" do
-    allow(described_class).to receive(:sleep) do
-      ChatAgentQuestion.sole.answer!("Careful")
-    end
-
+  it "creates a question and returns immediately with question_id" do
     response = call_tool(question: "Which implementation path?", options: [ "Fast", "Careful" ])
 
     question = chat_session.agent_questions.sole
     expect(question.question).to eq("Which implementation path?")
     expect(question.options).to eq([ "Fast", "Careful" ])
-    expect(question.answer).to eq("Careful")
+    expect(question.answer).to be_nil
+    expect(question.answered_at).to be_nil
     expect(response[:result][:isError]).to be_falsey
-    expect(response_payload(response)).to eq(answer: "Careful")
-  end
-
-  it "expires the question and returns a tool error on timeout" do
-    stub_const("#{described_class}::ASK_TIMEOUT_SECONDS", 0)
-
-    response = call_tool(question: "Are you still there?")
-
-    question = chat_session.agent_questions.sole
-    expect(question.expired_at).to be_present
-    expect(response[:result][:isError]).to eq(true)
-    expect(response[:result][:content].first[:text]).to match(/Timed out/)
+    expect(response_payload(response)).to include(question_id: question.id)
   end
 
   it "rejects invalid options" do

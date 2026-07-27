@@ -15,7 +15,7 @@ RSpec.describe ChatAgentQuestion do
     expect(question.reload.answer).to eq("Yes")
   end
 
-  it "records an answer as a user chat message" do
+  it "records an answer as a user chat message and enqueues a new turn" do
     question = chat_session.agent_questions.create!(question: "Deploy now?", options: [ "Yes", "No" ], asked_at: Time.current)
 
     expect(question.answer_and_record!("No")).to eq(true)
@@ -25,6 +25,21 @@ RSpec.describe ChatAgentQuestion do
       content: { "text" => "No" }
     )
     expect(chat_session.reload.last_message_at).to be_present
+    expect(ChatTurnJob).to have_been_enqueued.with(chat_session.id, chat_session.messages.sole.id)
+  end
+
+  it "does not enqueue a ChatTurnJob when an agent turn is already running" do
+    SpawnedProcess.create!(
+      kind: "agent",
+      command: "claude --print",
+      workdir: chat_session.workspace_root.to_s,
+      hostname: "worker-1",
+      started_at: Time.current
+    )
+    question = chat_session.agent_questions.create!(question: "Deploy now?", asked_at: Time.current)
+
+    expect { question.answer_and_record!("Yes") }.not_to have_enqueued_job(ChatTurnJob)
+    expect(question.reload.answer).to eq("Yes")
   end
 
   it "expires an unanswered question" do

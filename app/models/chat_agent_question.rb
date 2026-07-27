@@ -24,14 +24,22 @@ class ChatAgentQuestion < ApplicationRecord
   end
 
   def answer_and_record!(value)
+    enqueue_turn = false
+    user_message_id = nil
+
     with_lock do
       return false unless active?
 
+      enqueue_turn = !chat_session.agent_busy?
       now = Time.current
-      chat_session.messages.create!(role: "user", content: { "text" => value.to_s })
+      user_message = chat_session.messages.create!(role: "user", content: { "text" => value.to_s })
+      user_message_id = user_message.id
       chat_session.update!(last_message_at: now, title: chat_session.title.presence)
       update!(answer: value.to_s, answered_at: now)
     end
+
+    ChatTurnJob.perform_later(chat_session_id, user_message_id) if enqueue_turn
+    true
   end
 
   def expire!

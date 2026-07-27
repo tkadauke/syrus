@@ -1676,7 +1676,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     end
   end
 
-  it "answers an active agent question" do
+  it "answers an active agent question and enqueues a new chat turn" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
     question = chat.agent_questions.create!(question: "Which branch?", options: [ "main", "release" ], asked_at: Time.current)
@@ -1695,6 +1695,26 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       "role" => "user",
       "text" => "release"
     ))
+    expect(ChatTurnJob).to have_been_enqueued.with(chat.id, chat.messages.last.id)
+  end
+
+  it "does not enqueue a ChatTurnJob when answering an agent question while a turn is already running" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    SpawnedProcess.create!(
+      kind: "agent",
+      command: "claude --print",
+      workdir: chat.workspace_root.to_s,
+      hostname: "worker-1",
+      started_at: Time.current
+    )
+    question = chat.agent_questions.create!(question: "Which branch?", options: [ "main", "release" ], asked_at: Time.current)
+
+    post "/api/v1/app/chats/#{chat.id}/agent_questions/#{question.id}/answer", params: { answer: "release" }
+
+    expect(response).to have_http_status(:ok)
+    expect(question.reload.answer).to eq("release")
+    expect(ChatTurnJob).not_to have_been_enqueued
   end
 
   it "rejects blank or inactive agent question answers" do
