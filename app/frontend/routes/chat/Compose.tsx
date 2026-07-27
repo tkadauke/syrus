@@ -8,7 +8,7 @@ import { GeminiSetupSheet } from "../../components/GeminiSetupSheet"
 import { AnalyzingHint, annotationHoldLabel, annotationIdleHintKind, annotationShortcutLabel, formatClock, RECORDER_WARNING_SECONDS, shouldShowAnnotationSurfaceNote, useNativeRecorderHud, useWalkthroughRecorder, WalkthroughRecorderHUD } from "../../components/WalkthroughRecorder"
 import { isWalkthroughVideoFile, MAX_WALKTHROUGH_BYTES, MAX_WALKTHROUGH_DURATION_SECONDS, measureVideoDuration, retryVideoWalkthrough, uploadVideoWalkthrough } from "../../api/videoWalkthroughs"
 import { refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
-import { attachChatRepository, branchChat, clearChatHistory, createChat, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatWhiteboard, rejectChatProposal, renameChat, sendChatMessage, shareChat, stopChat, updateChatMode, updateChatModel, updateChatPinned, updateQueuedChatMessage, type ChatBranchPayload, type ChatCreatedPayload, type ChatMode, type ChatPayload, type ChatProposal, type ChatQueuedMessage, type ShareChatPayload } from "../../api/chats"
+import { attachChatRepository, branchChat, clearChatHistory, createChat, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatWhiteboard, rejectChatProposal, renameChat, sendChatMessage, shareChat, stopChat, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateQueuedChatMessage, type ChatBranchPayload, type ChatCreatedPayload, type ChatMode, type ChatPayload, type ChatProposal, type ChatQueuedMessage, type ShareChatPayload } from "../../api/chats"
 import { postJobCommand } from "../../api/jobs"
 import { CloseIcon } from "../../components/CloseIcon"
 import { EnqueueIcon } from "../../components/EnqueueIcon"
@@ -272,6 +272,15 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
     mutationFn: (model: string | null) => updateChatModel(chatId, model),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
+    }
+  })
+  const updateEffort = useMutation({
+    mutationFn: (effort: string | null) => updateChatEffort(chatId, effort),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+    },
+    onError: () => {
+      onNotice(t("effort_update_error"))
     }
   })
   const commandPaletteOpen = commandQuery != null
@@ -1467,7 +1476,19 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
             <AddAttachment payload={payload} prefix={prefix} queryKey={queryKey} onAttached={() => setAttachmentPopoverOpen(false)} onNotice={onNotice} />
           </div>
         ) : null}
-        <div />
+        {payload.chat.effective_chat_provider === "claude" ? (
+          <select
+            aria-label={t("effort_label")}
+            className="rounded border border-gray-200 bg-white py-1 pl-2 pr-6 text-xs text-gray-600 hover:bg-gray-50 disabled:text-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
+            disabled={updateEffort.isPending}
+            value={payload.chat.chat_effort ?? "none"}
+            onChange={(e) => updateEffort.mutate(e.target.value === "none" ? null : e.target.value)}
+          >
+            <option value="none">{t("effort_none")}</option>
+            <option value="medium">{t("effort_medium")}</option>
+            <option value="high">{t("effort_high")}</option>
+          </select>
+        ) : <div />}
       </div>
       </form>
     </>

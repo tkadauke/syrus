@@ -247,5 +247,10 @@
   "aria_hidden_chats": "Ausgeblendete Chats",
   "aria_chat_search": "Chat-Suche",
   "queued_messages": "Eingereihte Nachrichten",
-  "no_dependencies": "Keine Abhängigkeiten"
+  "no_dependencies": "Keine Abhängigkeiten",
+  "effort_label": "Aufwand",
+  "effort_none": "Keiner",
+  "effort_medium": "Mittel",
+  "effort_high": "Hoch",
+  "effort_update_error": "Aufwandsstufe konnte nicht aktualisiert werden."
 }

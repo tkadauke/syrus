@@ -4,6 +4,7 @@ class ChatSession < ApplicationRecord
   SUGGESTED_NEXT_STEP_MAX_BYTES = 200
   MODES = %w[planning coding local].freeze
   DAEMON_STATES = %w[connected disconnected].freeze
+  EFFORT_LEVELS = %w[none medium high].freeze
 
   belongs_to :user
 
@@ -80,6 +81,7 @@ class ChatSession < ApplicationRecord
   validates :chat_provider, inclusion: { in: User::CHAT_PROVIDERS }, allow_nil: true
   validates :chat_model, length: { maximum: 100 }, allow_nil: true
   validates :local_daemon_state, inclusion: { in: DAEMON_STATES }, allow_nil: true
+  validates :chat_effort, inclusion: { in: EFFORT_LEVELS }, allow_nil: true
   validates :share_token, uniqueness: true, allow_nil: true
 
   normalizes :chat_provider, with: ->(value) { value.to_s.strip.presence }

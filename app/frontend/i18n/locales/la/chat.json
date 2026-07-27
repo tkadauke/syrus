@@ -247,5 +247,10 @@
   "aria_hidden_chats": "Colloquia occulta",
   "aria_chat_search": "Quaestio colloquii",
   "queued_messages": "Nuntii in ordine",
-  "no_dependencies": "Nullae dependentiae"
+  "no_dependencies": "Nullae dependentiae",
+  "effort_label": "Labor",
+  "effort_none": "Nullus",
+  "effort_medium": "Medius",
+  "effort_high": "Altus",
+  "effort_update_error": "Gradus laboris mutari non potuit."
 }

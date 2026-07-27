@@ -247,5 +247,10 @@
   "aria_hidden_chats": "Hidden chats",
   "aria_chat_search": "Chat search",
   "queued_messages": "Queued messages",
-  "no_dependencies": "No dependencies"
+  "no_dependencies": "No dependencies",
+  "effort_label": "Effort",
+  "effort_none": "None",
+  "effort_medium": "Medium",
+  "effort_high": "High",
+  "effort_update_error": "Effort level could not be updated."
 }

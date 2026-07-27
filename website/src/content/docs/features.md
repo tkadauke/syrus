@@ -251,6 +251,13 @@ deny Claude's file-editing tools (`Write`, `Edit`, `MultiEdit`, and
 `NotebookEdit`) so the planning surface does not patch repository files
 directly.
 
+For Claude-backed chats, the composer toolbar exposes a per-chat **Effort**
+selector (None / Medium / High). Selecting a non-None level passes the
+corresponding `--effort` flag to Claude, which controls extended thinking depth
+for every turn in the session. The setting persists with the chat so operators
+can dial reasoning intensity for complex planning sessions without affecting
+other chats.
+
 When the chat agent is already running, operators can queue follow-up
 messages instead of waiting for the turn to finish. Queued messages remain
 editable and deletable until Syrus promotes the next one into the transcript

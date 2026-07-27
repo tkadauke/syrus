@@ -112,6 +112,18 @@ module Api
             return
           end
 
+          if chat_params.respond_to?(:key?) && chat_params.key?(:chat_effort)
+            effort = chat_params[:chat_effort].to_s.strip.presence
+            if effort && !ChatSession::EFFORT_LEVELS.include?(effort)
+              render_error("validation_failed", "Invalid effort level. Must be one of: #{ChatSession::EFFORT_LEVELS.join(", ")}.", status: :unprocessable_content)
+              return
+            end
+
+            chat_session.update!(chat_effort: effort)
+            render json: chat_payload(chat_session.reload, message: "Chat effort updated.")
+            return
+          end
+
           pinned = if chat_params.respond_to?(:key?) && chat_params.key?(:pinned)
             params[:chat][:pinned]
           else
@@ -976,7 +988,8 @@ module Api
             linked_direct_job_count: Job.where(linked_chat_id: chat_session.id, kind: "direct").count,
             scratchpad_items_count: chat_session.scratchpad_items.count,
             coding_checkout_uncommitted: chat_session.coding_checkout_uncommitted?,
-            coding_checkout_branch: chat_session.coding_checkout_branch
+            coding_checkout_branch: chat_session.coding_checkout_branch,
+            chat_effort: chat_session.chat_effort
           }
         end
 
