@@ -234,5 +234,6 @@
   "search_type_filters_aria": "Filtra generis quaerendi",
   "loading_search_aria": "Eventus quaerendi onerantur",
   "onboarding_aria": "Introductio",
-  "terminal_aria": "Terminale"
+  "terminal_aria": "Terminale",
+  "page_title_terminal": "Terminale"
 }

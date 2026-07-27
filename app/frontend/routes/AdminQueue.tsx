@@ -6,6 +6,7 @@ import type { ReactNode } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { useT } from "../hooks/useT"
+import { usePageTitle } from "../hooks/usePageTitle"
 import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { FilterBar } from "../components/FilterBar"
@@ -39,6 +40,7 @@ export function AdminQueueRoute() {
 
 function AdminQueue({ tab }: { tab: QueueTab }) {
   const { t } = useT("admin")
+  usePageTitle(t("page_title_queue"))
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()

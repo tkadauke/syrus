@@ -234,5 +234,6 @@
   "search_type_filters_aria": "Suchtyp-Filter",
   "loading_search_aria": "Suchergebnisse werden geladen",
   "onboarding_aria": "Einführung",
-  "terminal_aria": "Terminal"
+  "terminal_aria": "Terminal",
+  "page_title_terminal": "Terminal"
 }

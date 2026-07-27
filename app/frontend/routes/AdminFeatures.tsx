@@ -7,12 +7,14 @@ import {
   type AdminFeaturesPayload
 } from "../api/adminFeatures"
 import { useT } from "../hooks/useT"
+import { usePageTitle } from "../hooks/usePageTitle"
 import { errorMessage } from "../lib/errorMessage"
 
 const queryKey = ["admin", "features"] as const
 
 export function AdminFeatures() {
   const { t } = useT("admin")
+  usePageTitle(t("page_title_features"))
   const features = useQuery({
     queryKey,
     queryFn: fetchAdminFeatures

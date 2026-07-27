@@ -1,5 +1,10 @@
 {
   "title": "Administration",
+  "page_title_queue": "Warteschlange — Administration",
+  "page_title_stuck": "Blockierte Jobs — Administration",
+  "page_title_processes": "Prozesse — Administration",
+  "page_title_users": "Benutzer — Administration",
+  "page_title_features": "Funktionen — Administration",
   "nav_overview": "Übersicht",
   "nav_queue": "Warteschlange",
   "nav_stuck": "Blockiert",

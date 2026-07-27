@@ -5,11 +5,13 @@ import { fetchHiddenChats, unhideChat, type HiddenChatRecord } from "../api/chat
 import { NoticeToast } from "../components/NoticeToast"
 import { PanelMessage } from "../components/PanelMessage"
 import { useT } from "../hooks/useT"
+import { usePageTitle } from "../hooks/usePageTitle"
 import { errorMessage } from "../lib/errorMessage"
 
 export function HiddenChatsRoute() {
   const [notice, setNotice] = useState<string | null>(null)
   const { t } = useT("chat")
+  usePageTitle(t("hidden.heading"))
 
   return (
     <main aria-label={t("aria_hidden_chats")} className="mx-auto max-w-4xl space-y-6 p-6">

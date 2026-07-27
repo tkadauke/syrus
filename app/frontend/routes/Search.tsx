@@ -6,6 +6,7 @@ import { useState } from "react"
 import { fetchSearch, type SearchResult, type SearchResultType } from "../api/search"
 import { ChevronIcon } from "../components/ChevronIcon"
 import { useT } from "../hooks/useT"
+import { usePageTitle } from "../hooks/usePageTitle"
 
 type SearchFilter = SearchResultType | "all"
 
@@ -36,6 +37,7 @@ const typeStyles: Record<SearchResultType, { border: string; badge: string; labe
 
 export function SearchRoute() {
   const { t } = useT("common")
+  usePageTitle(t("search.heading"))
   const location = useLocation()
   const params = new URLSearchParams(location.search)
   const query = params.get("q")?.trim() || ""

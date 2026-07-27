@@ -1,5 +1,10 @@
 {
   "title": "Administratio",
+  "page_title_queue": "Ordo — Administratio",
+  "page_title_stuck": "Opera Impedita — Administratio",
+  "page_title_processes": "Processus — Administratio",
+  "page_title_users": "Utentes — Administratio",
+  "page_title_features": "Facultates — Administratio",
   "nav_overview": "Conspectus",
   "nav_queue": "Ordo",
   "nav_stuck": "Impedita",

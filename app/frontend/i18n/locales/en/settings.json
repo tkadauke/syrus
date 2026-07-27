@@ -635,5 +635,7 @@
   "aria_repo_documents": "Repository documents",
   "aria_repositories": "Repositories",
   "aria_personal_documents": "Personal documents",
-  "aria_notification_settings": "Notification settings"
+  "aria_notification_settings": "Notification settings",
+  "page_title_schedules": "Schedules",
+  "page_title_repo_schedules": "Schedules — {{slug}}"
 }

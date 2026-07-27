@@ -6,6 +6,7 @@ import { useEffect, useState } from "react"
 import { useLocation } from "react-router-dom"
 import i18n from "../i18n"
 import { useT } from "../hooks/useT"
+import { usePageTitle } from "../hooks/usePageTitle"
 import { NoticeToast } from "../components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import {
@@ -52,6 +53,7 @@ export function PreferencesRoute() {
 
 function AccountSettingsPage({ description, label, section }: { description: string; label: string; section: AccountSettingsSection }) {
   const { t } = useT("settings")
+  usePageTitle(label)
   const [notice, setNotice] = useState<string | null>(null)
 
   return (

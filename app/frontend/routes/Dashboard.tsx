@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useT } from "../hooks/useT"
+import { usePageTitle } from "../hooks/usePageTitle"
 import { useBackendOutage } from "../hooks/useBackendUpdate"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { ApiError } from "../api/client"
@@ -21,6 +22,8 @@ import { dashboardApiSearch, fetchDashboardChrome, fetchDashboardRows, mergeDash
 import { errorMessage } from "../lib/errorMessage"
 
 export function DashboardRoute() {
+  const { t } = useT("dashboard")
+  usePageTitle(t("title"))
   const location = useLocation()
   const search = dashboardApiSearch(location.pathname, location.search)
   const dashboardChrome = useQuery({
@@ -39,7 +42,6 @@ export function DashboardRoute() {
     return mergeDashboardPayload(dashboardChrome.data, dashboardRows.data)
   }, [dashboardChrome.data, dashboardRows.data])
 
-  const { t } = useT("dashboard")
   if (!payload && (dashboardChrome.isPending || dashboardRows.isPending)) return <main aria-label={t("title")} className="p-6 text-sm text-gray-600 dark:text-gray-300">{t("loading")}</main>
   if (dashboardChrome.isError) return <DashboardError error={dashboardChrome.error} />
   if (dashboardRows.isError) return <DashboardError error={dashboardRows.error} />

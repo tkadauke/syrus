@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { useT } from "../hooks/useT"
+import { usePageTitle } from "../hooks/usePageTitle"
 import { NoticeToast } from "../components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import {
@@ -24,6 +25,7 @@ type RepositoryAction = {
 
 export function RepositoriesIndex() {
   const { t } = useT("settings")
+  usePageTitle(t("repositories.heading"))
   const location = useLocation()
   const repositories = useQuery({
     queryKey: ["repositories"],

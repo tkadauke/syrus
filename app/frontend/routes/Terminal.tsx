@@ -9,12 +9,14 @@ import { useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { createTerminalSession, fetchTerminalSessions, killTerminalSession, type TerminalSessionRecord, type TerminalSessionsPayload } from "../api/terminal"
 import { useT } from "../hooks/useT"
+import { usePageTitle } from "../hooks/usePageTitle"
 import { CloseIcon } from "../components/CloseIcon"
 
 const terminalSessionsQueryKey = ["terminal_sessions"] as const
 
 export function TerminalRoute() {
   const { t } = useT("common")
+  usePageTitle(t("page_title_terminal"))
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()

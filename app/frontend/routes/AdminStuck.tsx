@@ -5,11 +5,13 @@ import { Link, useLocation } from "react-router-dom"
 import { fetchAdminStuck, type StuckItem } from "../api/adminStuck"
 import { workflowSlug } from "../lib/slugs"
 import { useT } from "../hooks/useT"
+import { usePageTitle } from "../hooks/usePageTitle"
 
 const POLL_INTERVAL_MS = 30_000
 
 export function AdminStuck() {
   const { t } = useT("admin")
+  usePageTitle(t("page_title_stuck"))
   const location = useLocation()
   const prefix = routePrefix(location.pathname)
   const stuck = useQuery({

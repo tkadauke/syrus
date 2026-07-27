@@ -3,6 +3,7 @@ import type { FormEvent, ReactNode } from "react"
 import { useState } from "react"
 import { Link } from "react-router-dom"
 import { useT } from "../hooks/useT"
+import { usePageTitle } from "../hooks/usePageTitle"
 import { NoticeToast } from "../components/NoticeToast"
 import {
   createTag,
@@ -19,6 +20,7 @@ const queryKey = ["tags"] as const
 
 export function Tags() {
   const { t } = useT("settings")
+  usePageTitle(t("tags.heading"))
   const [notice, setNotice] = useState<string | null>(null)
   const tags = useQuery({
     queryKey,

@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { useT } from "../hooks/useT"
+import { usePageTitle } from "../hooks/usePageTitle"
 import { NoticeToast } from "../components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import { RepositoryTabs } from "../components/RepositoryTabs"
@@ -39,6 +40,7 @@ export function RepositoryDetailRoute() {
     queryFn: () => fetchRepositoryIssues(id, state),
     enabled: id.length > 0 && tab === "github_issues"
   })
+  usePageTitle(detail.data?.repository.slug ?? issues.data?.repository.slug)
 
   return (
     <main aria-label={t('repository.aria_repository')} className="mx-auto max-w-[96rem] space-y-6 p-6">

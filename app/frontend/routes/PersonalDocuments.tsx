@@ -11,6 +11,7 @@ import {
   type PersonalDocumentsPayload
 } from "../api/credentials"
 import { useT } from "../hooks/useT"
+import { usePageTitle } from "../hooks/usePageTitle"
 import { PanelMessage } from "../components/PanelMessage"
 import { errorMessage } from "../lib/errorMessage"
 import { formatBytes } from "../lib/format"
@@ -19,6 +20,7 @@ const queryKey = ["personal-documents"] as const
 
 export function PersonalDocumentsRoute() {
   const { t } = useT("settings")
+  usePageTitle(t("personal_documents.heading"))
   const documents = useQuery({
     queryKey,
     queryFn: fetchCredentialDocuments

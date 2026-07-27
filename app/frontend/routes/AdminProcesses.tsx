@@ -5,6 +5,7 @@ import type { ReactNode } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { useT } from "../hooks/useT"
+import { usePageTitle } from "../hooks/usePageTitle"
 import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
 import { AdminSmartFolderNav } from "../components/AdminSmartFolderNav"
 import { FilterBar } from "../components/FilterBar"
@@ -19,6 +20,7 @@ import { workflowSlug } from "../lib/slugs"
 
 export function AdminProcessesIndex() {
   const { t } = useT("admin")
+  usePageTitle(t("page_title_processes"))
   const location = useLocation()
   const queryClient = useQueryClient()
   const prefix = routePrefix(location.pathname)

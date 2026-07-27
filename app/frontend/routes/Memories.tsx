@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { useT } from "../hooks/useT"
+import { usePageTitle } from "../hooks/usePageTitle"
 import {
   createMemory,
   deleteMemory,
@@ -40,6 +41,7 @@ const kindClasses: Record<string, string> = {
 
 export function MemoriesRoute() {
   const { t } = useT("settings")
+  usePageTitle(t("memories.heading"))
   const location = useLocation()
   const search = location.search || ""
   const [notice, setNotice] = useState<string | null>(null)

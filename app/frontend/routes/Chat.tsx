@@ -11,6 +11,7 @@ import { fetchBootstrap, readInitialBootstrap } from "../api/bootstrap"
 import { CloseIcon } from "../components/CloseIcon"
 import { GearIcon } from "../components/GearIcon"
 import { useT } from "../hooks/useT"
+import { usePageTitle } from "../hooks/usePageTitle"
 import { errorMessage } from "../lib/errorMessage"
 import { type ChatQueryKey, CHAT_WORKSPACE_COLLAPSED_KEY, CHAT_WORKSPACE_MIN_WIDTH, CHAT_WORKSPACE_TAB_KEY, CHAT_WORKSPACE_WIDTH_KEY } from "./chat/constants"
 import { findChatMessageAnchor, isMessageStreamAtBottom, isMessageStreamNearTop, messageIdFromHash, messageStreamNeedsOlderMessages, scrollChatMessageIntoView, scrollMessageStreamToBottom } from "./chat/messageStream"
@@ -47,6 +48,8 @@ export function ChatRoute() {
     )
   })
 
+  usePageTitle(chat.isSuccess ? chatDisplayTitle(chat.data.chat) : undefined)
+
   useEffect(() => {
     if (!id) return
 
@@ -77,6 +80,7 @@ export function SharedChatRoute() {
     queryFn: () => fetchSharedChat(token),
     enabled: token.length > 0
   })
+  usePageTitle(chat.isSuccess ? (chat.data.chat.title || undefined) : undefined)
 
   return (
     <main

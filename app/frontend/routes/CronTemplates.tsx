@@ -16,6 +16,7 @@ import {
   type CronTemplateRow
 } from "../api/cronTemplates"
 import { useT } from "../hooks/useT"
+import { usePageTitle } from "../hooks/usePageTitle"
 import { errorMessage } from "../lib/errorMessage"
 
 const defaultPolicies = ["skip", "pile", "replace"]
@@ -29,6 +30,7 @@ const emptyTemplate: CronTemplateInput = {
 }
 export function CronTemplatesIndex() {
   const { t } = useT("settings")
+  usePageTitle(t("cron_templates.heading"))
   const location = useLocation()
   const basePath = routeBase(location.pathname)
   const templates = useQuery({

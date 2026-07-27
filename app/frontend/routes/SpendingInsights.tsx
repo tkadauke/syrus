@@ -5,12 +5,14 @@ import { useMemo, useState, type FormEvent } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { fetchSpending, type SpendingBreakdownRow, type SpendingPayload, type SpendingTriggerRow } from "../api/spending"
 import { useT } from "../hooks/useT"
+import { usePageTitle } from "../hooks/usePageTitle"
 
 type SortKey = "label" | "jobs_count" | "total_usd" | "average_job_usd" | "last_30_days_usd" | "runs_count" | "average_usd"
 type SortState = { key: SortKey; direction: "asc" | "desc" }
 
 export function SpendingInsightsRoute() {
   const { t } = useT("common")
+  usePageTitle(t("spending.title"))
   const location = useLocation()
   const spending = useQuery({
     queryKey: ["insights", "spending", location.search],

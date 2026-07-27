@@ -635,5 +635,7 @@
   "aria_repo_documents": "Documenta repositorii",
   "aria_repositories": "Repositoria",
   "aria_personal_documents": "Documenta personalia",
-  "aria_notification_settings": "Optiones nuntiorum"
+  "aria_notification_settings": "Optiones nuntiorum",
+  "page_title_schedules": "Agenda",
+  "page_title_repo_schedules": "Agenda — {{slug}}"
 }

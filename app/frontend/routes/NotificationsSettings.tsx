@@ -9,6 +9,7 @@ import {
 import { NoticeToast } from "../components/NoticeToast"
 import { PanelMessage } from "../components/PanelMessage"
 import { useT } from "../hooks/useT"
+import { usePageTitle } from "../hooks/usePageTitle"
 import { errorMessage } from "../lib/errorMessage"
 
 const queryKey = ["notification_preferences"] as const
@@ -37,6 +38,7 @@ const desktopNotificationPreferenceLabels: Array<{ kind: NotificationPreferenceK
 
 export function NotificationsSettingsRoute() {
   const { t } = useT("settings")
+  usePageTitle(t("notifications.heading"))
   const [notice, setNotice] = useState<string | null>(null)
 
   return (

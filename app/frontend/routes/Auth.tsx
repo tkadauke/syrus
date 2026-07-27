@@ -6,6 +6,7 @@ import { useEffect, useState } from "react"
 import { Trans } from "react-i18next"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { useT } from "../hooks/useT"
+import { usePageTitle } from "../hooks/usePageTitle"
 import { authPrimaryButtonClass } from "../lib/buttonStyles"
 import { NoticeToast } from "../components/NoticeToast"
 import { CapsLockHint, EmailValidityHint, PasswordMatchHint, PasswordStrengthMeter } from "../components/PasswordFeedback"
@@ -21,6 +22,7 @@ import { errorMessage } from "../lib/errorMessage"
 
 export function SignInRoute() {
   const { t } = useT("auth")
+  usePageTitle(t("sign_in.title"))
   const location = useLocation()
   const prefix = routePrefix(location.pathname)
   const [emailAddress, setEmailAddress] = useState("")
@@ -86,6 +88,7 @@ export function SignInRoute() {
 
 export function SignUpRoute() {
   const { t } = useT("auth")
+  usePageTitle(t("sign_up.title"))
   const location = useLocation()
   const prefix = routePrefix(location.pathname)
   const signup = useQuery({
@@ -195,6 +198,7 @@ function SignUpForm({ payload, prefix }: { payload: SignupPayload; prefix: strin
 
 export function PasswordRequestRoute() {
   const { t } = useT("auth")
+  usePageTitle(t("password_request.title"))
   const location = useLocation()
   const prefix = routePrefix(location.pathname)
   const [emailAddress, setEmailAddress] = useState("")
@@ -243,6 +247,7 @@ export function PasswordRequestRoute() {
 
 export function PasswordResetRoute() {
   const { t } = useT("auth")
+  usePageTitle(t("password_reset.title"))
   const params = useParams()
   const location = useLocation()
   const prefix = routePrefix(location.pathname)

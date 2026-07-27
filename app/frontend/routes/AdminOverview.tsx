@@ -3,9 +3,11 @@ import { useQuery } from "@tanstack/react-query"
 import { Link, useLocation } from "react-router-dom"
 import { fetchAdminOverview, type AdminOverviewPayload } from "../api/adminOverview"
 import { useT } from "../hooks/useT"
+import { usePageTitle } from "../hooks/usePageTitle"
 
 export function AdminOverview() {
   const { t } = useT("admin")
+  usePageTitle(t("title"))
   const location = useLocation()
   const prefix = routePrefix(location.pathname)
   const overview = useQuery({

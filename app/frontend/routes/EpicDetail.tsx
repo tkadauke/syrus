@@ -10,6 +10,7 @@ import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { NoticeToast } from "../components/NoticeToast"
 import { CloseIcon } from "../components/CloseIcon"
 import { useT } from "../hooks/useT"
+import { usePageTitle } from "../hooks/usePageTitle"
 import {
   addEpicDependency,
   archiveEpic,
@@ -55,6 +56,11 @@ export function EpicDetailRoute() {
     queryFn: () => fetchEpicDetail(id),
     enabled: id.length > 0
   })
+  const epicData = epic.data?.epic
+  const pageTitle = epicData
+    ? `${epicData.display_number}: ${epicData.title}`
+    : (id ? `EPIC-${id}` : undefined)
+  usePageTitle(pageTitle)
 
   return (
     <main aria-label={t("detail_label")} className="mx-auto max-w-[96rem] space-y-6 p-6">

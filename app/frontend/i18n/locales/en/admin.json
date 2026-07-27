@@ -1,5 +1,10 @@
 {
   "title": "Admin",
+  "page_title_queue": "Queue — Admin",
+  "page_title_stuck": "Stuck Jobs — Admin",
+  "page_title_processes": "Processes — Admin",
+  "page_title_users": "Users — Admin",
+  "page_title_features": "Features — Admin",
   "nav_overview": "Overview",
   "nav_queue": "Queue",
   "nav_stuck": "Stuck",

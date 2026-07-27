@@ -18,9 +18,11 @@ import {
   type AdminUserRow
 } from "../api/adminUsers"
 import { useT } from "../hooks/useT"
+import { usePageTitle } from "../hooks/usePageTitle"
 
 export function AdminUsersIndex() {
   const { t } = useT("admin")
+  usePageTitle(t("page_title_users"))
   const location = useLocation()
   const queryClient = useQueryClient()
   const prefix = routePrefix(location.pathname)

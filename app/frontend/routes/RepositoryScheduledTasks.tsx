@@ -14,6 +14,7 @@ import {
 import { RepositoryTabs } from "../components/RepositoryTabs"
 import { toRomanDate } from "../lib/romanCalendar"
 import { useT } from "../hooks/useT"
+import { usePageTitle } from "../hooks/usePageTitle"
 import { PanelMessage } from "../components/PanelMessage"
 import { errorMessage } from "../lib/errorMessage"
 
@@ -27,6 +28,8 @@ export function RepositoryScheduledTasksRoute() {
     queryFn: () => fetchRepositoryScheduledTasks(repositoryId),
     enabled: repositoryId.length > 0
   })
+  const slug = tasks.data?.repository.slug
+  usePageTitle(slug ? t("page_title_repo_schedules", { slug }) : t("page_title_schedules"))
 
   return (
     <main aria-label={t("aria_repo_scheduled_tasks")} className="mx-auto max-w-[96rem] space-y-6 p-6">

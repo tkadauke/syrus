@@ -4,6 +4,7 @@ import type { FormEvent } from "react"
 import { useEffect, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { useT } from "../hooks/useT"
+import { usePageTitle } from "../hooks/usePageTitle"
 import { KeyValue } from "../components/KeyValue"
 import { CopyableSlug } from "../components/CopyableSlug"
 import { NoticeToast } from "../components/NoticeToast"
@@ -47,6 +48,11 @@ export function JobDetailRoute() {
     placeholderData: keepPreviousData
   })
   const payload = detail.isSuccess ? mergeJobWorkflowsPayload(detail.data, workflows.data) : null
+  const job = detail.data?.job
+  const pageTitle = job
+    ? (job.issue_title ? `${jobSlug(job.id)}: ${job.issue_title}` : jobSlug(job.id))
+    : (id ? `JOB-${id}` : undefined)
+  usePageTitle(pageTitle)
 
   function selectTab(tab: JobTab) {
     const search = new URLSearchParams(location.search)
