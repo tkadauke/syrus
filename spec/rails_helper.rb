@@ -16,10 +16,10 @@ if ENV['COVERAGE'] != 'false'
   end
   SimpleCov.formatter = SimpleCov::Formatter::LcovFormatter
   SimpleCov.start 'rails' do
-    add_filter '/spec/'
-    add_filter '/config/'
-    add_filter '/db/'
-    add_filter '/bin/'
+    skip '/spec/'
+    skip '/config/'
+    skip '/db/'
+    skip '/bin/'
     enable_coverage :branch
   end
 end
