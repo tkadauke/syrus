@@ -1153,20 +1153,26 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect(job.priority).to eq("medium")
     end
 
-    it "accepts high, medium, and low" do
-      %w[high medium low].each do |p|
+    it "accepts urgent, high, medium, and low" do
+      %w[urgent high medium low].each do |p|
         job = Job.new(user: user, repository: repository, issue_number: 1, priority: p)
         expect(job).to be_valid, "expected #{p} to be valid"
       end
     end
 
     it "rejects unknown priority values" do
-      job = Job.new(user: user, repository: repository, issue_number: 1, priority: "urgent")
+      job = Job.new(user: user, repository: repository, issue_number: 1, priority: "critical")
       expect(job).not_to be_valid
       expect(job.errors[:priority]).to be_present
     end
 
     describe "#solid_queue_priority" do
+      it "maps urgent to a lower integer than high" do
+        urgent_job = Job.new(priority: "urgent")
+        high_job = Job.new(priority: "high")
+        expect(urgent_job.solid_queue_priority).to be < high_job.solid_queue_priority
+      end
+
       it "maps high to a lower integer than medium" do
         high_job = Job.new(priority: "high")
         medium_job = Job.new(priority: "medium")

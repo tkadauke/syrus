@@ -5,7 +5,7 @@ module Filters
         filter_name "priority"
         label "Priority"
         column :priority
-        values "high", "medium", "low"
+        values "urgent", "high", "medium", "low"
       end
     end
   end

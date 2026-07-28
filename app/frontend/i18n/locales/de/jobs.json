@@ -74,6 +74,7 @@
   "detail_state": "Status",
   "detail_owner": "Besitzer",
   "detail_priority": "Priorität",
+  "priority_urgent": "Dringend",
   "detail_validity": "Gültigkeit",
   "detail_epic": "Epic",
   "detail_branch": "Branch",

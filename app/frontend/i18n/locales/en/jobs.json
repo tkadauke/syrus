@@ -74,6 +74,7 @@
   "detail_state": "State",
   "detail_owner": "Owner",
   "detail_priority": "Priority",
+  "priority_urgent": "Urgent",
   "detail_validity": "Validity",
   "detail_epic": "Epic",
   "detail_branch": "Branch",
