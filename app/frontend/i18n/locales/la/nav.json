@@ -138,7 +138,48 @@
     "from": "Ab",
     "to": "Ad",
     "min": "Minimum",
-    "max": "Maximum"
+    "max": "Maximum",
+    "or": "aut",
+    "complex_filter": "colandrum complexum",
+    "wrap_in_not": "In NON claude",
+    "remove_not": "NON tolle",
+    "not_prefix": "NON",
+    "remove_filter": "Colandrum {{label}} tolle",
+    "remove_value": "{{label}} tolle",
+    "unset": "(vacuum)",
+    "ago": "ante",
+    "op": {
+      "is": "est",
+      "is_not": "non est",
+      "is_one_of": "est unum ex",
+      "is_none_of": "est nullum ex",
+      "contains": "continet",
+      "contains_any": "continet aliquod",
+      "contains_all": "continet omnia",
+      "contains_none": "continet nullum",
+      "is_true": "est verum",
+      "is_false": "est falsum",
+      "is_set": "est positum",
+      "is_unset": "non est positum",
+      "between": "inter",
+      "within_last": "intra ultimum",
+      "more_than_ago": "plus quam ante"
+    },
+    "time_unit": {
+      "minutes": "minutas",
+      "hours": "horas",
+      "days": "dies",
+      "weeks": "hebdomades",
+      "months": "menses"
+    },
+    "bucket": {
+      "enum": "catalogus",
+      "string": "textus",
+      "boolean": "ita/non",
+      "date": "dies",
+      "number": "numerus",
+      "fk": "relatio"
+    }
   },
   "notifications": {
     "title": "Nuntii",

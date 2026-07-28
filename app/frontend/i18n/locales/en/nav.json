@@ -138,7 +138,48 @@
     "from": "From",
     "to": "To",
     "min": "Min",
-    "max": "Max"
+    "max": "Max",
+    "or": "or",
+    "complex_filter": "complex filter",
+    "wrap_in_not": "Wrap in NOT",
+    "remove_not": "Remove NOT",
+    "not_prefix": "NOT",
+    "remove_filter": "Remove {{label}} filter",
+    "remove_value": "Remove {{label}}",
+    "unset": "(unset)",
+    "ago": "ago",
+    "op": {
+      "is": "is",
+      "is_not": "is not",
+      "is_one_of": "is one of",
+      "is_none_of": "is none of",
+      "contains": "contains",
+      "contains_any": "contains any",
+      "contains_all": "contains all",
+      "contains_none": "contains none",
+      "is_true": "is true",
+      "is_false": "is false",
+      "is_set": "is set",
+      "is_unset": "is unset",
+      "between": "between",
+      "within_last": "within last",
+      "more_than_ago": "more than ago"
+    },
+    "time_unit": {
+      "minutes": "minutes",
+      "hours": "hours",
+      "days": "days",
+      "weeks": "weeks",
+      "months": "months"
+    },
+    "bucket": {
+      "enum": "list",
+      "string": "text",
+      "boolean": "yes/no",
+      "date": "date",
+      "number": "number",
+      "fk": "reference"
+    }
   },
   "notifications": {
     "title": "Notifications",

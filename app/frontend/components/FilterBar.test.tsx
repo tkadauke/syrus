@@ -2,6 +2,7 @@ import { jsonResponse } from "../testSupport"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter, useLocation } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
+import i18n from "../i18n"
 import { FilterBar, type FilterSchemaField } from "./FilterBar"
 
 const filterSchema: FilterSchemaField[] = [
@@ -193,7 +194,7 @@ describe("FilterBar", () => {
     fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
 
     expect(screen.getByText("Suggested")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "State is Closed" }).compareDocumentPosition(screen.getByRole("button", { name: "State enum" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByRole("button", { name: "State is Closed" }).compareDocumentPosition(screen.getByRole("button", { name: "State list" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     fireEvent.click(screen.getByRole("button", { name: "State is Closed" }))
 
@@ -505,7 +506,7 @@ describe("FilterBar", () => {
     expect(screen.getByPlaceholderText("Search filters...")).toBeInTheDocument()
     expect(decodedFilterFromLocation()).toBeNull()
 
-    fireEvent.click(screen.getByRole("button", { name: "Kind enum" }))
+    fireEvent.click(screen.getByRole("button", { name: "Kind list" }))
 
     await waitFor(() => {
       expect(decodedFilterFromLocation()).toEqual({
@@ -521,6 +522,39 @@ describe("FilterBar", () => {
     })
     expect(screen.queryByPlaceholderText("Search filters...")).not.toBeInTheDocument()
     expect(screen.getByRole("dialog", { name: "Kind filter settings" })).toBeInTheDocument()
+  })
+
+  it("renders operators and unset placeholder using translation keys", () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+        <FilterBar
+          filter={{ and: [{ field: "state", op: "is_none_of", value: [] }] }}
+          filterSchema={filterSchema}
+          pathname="/dashboard/jobs"
+          search=""
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole("button", { name: "State is none of (unset)" })).toBeInTheDocument()
+  })
+
+  it("renders translated bucket labels in the add-filter menu", () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+        <FilterBar
+          filter={null}
+          filterSchema={filterSchema}
+          pathname="/dashboard/jobs"
+          search=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+
+    expect(screen.getByRole("button", { name: "State list" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Repository reference" })).toBeInTheDocument()
   })
 
   it("closes an open chip editor with Escape or an outside click", () => {
@@ -554,6 +588,99 @@ describe("FilterBar", () => {
     expect(screen.getByRole("dialog", { name: "State filter settings" })).toBeInTheDocument()
     fireEvent.pointerDown(document.body)
     expect(screen.queryByRole("dialog", { name: "State filter settings" })).not.toBeInTheDocument()
+  })
+})
+
+describe("FilterBar German locale", () => {
+  afterEach(async () => {
+    await i18n.changeLanguage("en")
+    vi.restoreAllMocks()
+  })
+
+  it("renders operators in German when locale is de", async () => {
+    await i18n.changeLanguage("de")
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+        <FilterBar
+          filter={{ and: [{ field: "state", op: "is", value: "open" }] }}
+          filterSchema={filterSchema}
+          pathname="/dashboard/jobs"
+          search=""
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole("button", { name: "State ist Open" })).toBeInTheDocument()
+  })
+
+  it("renders unset placeholder in German when locale is de", async () => {
+    await i18n.changeLanguage("de")
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+        <FilterBar
+          filter={{ and: [{ field: "state", op: "is_none_of", value: [] }] }}
+          filterSchema={filterSchema}
+          pathname="/dashboard/jobs"
+          search=""
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole("button", { name: "State ist keines von (leer)" })).toBeInTheDocument()
+  })
+
+  it("renders time units in German in the date filter editor", async () => {
+    await i18n.changeLanguage("de")
+
+    const dateFilterSchema: FilterSchemaField[] = [
+      {
+        field: "created_at",
+        label: "Created",
+        bucket: "date",
+        operators: ["within_last"],
+        values: []
+      }
+    ]
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+        <FilterBar
+          filter={{ and: [{ field: "created_at", op: "within_last", value: { n: 7, unit: "days" } }] }}
+          filterSchema={dateFilterSchema}
+          pathname="/dashboard/jobs"
+          search=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "Created in den letzten 7 Tagen" }))
+
+    const unitSelect = screen.getByLabelText("Einheit")
+    expect(within(unitSelect.closest("label")!).getByRole("option", { name: "Tagen" })).toBeInTheDocument()
+    expect(within(unitSelect.closest("label")!).getByRole("option", { name: "Wochen" })).toBeInTheDocument()
+    expect(within(unitSelect.closest("label")!).getByRole("option", { name: "Monaten" })).toBeInTheDocument()
+  })
+
+  it("renders bucket labels in German in the add-filter menu", async () => {
+    await i18n.changeLanguage("de")
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+        <FilterBar
+          filter={null}
+          filterSchema={filterSchema}
+          pathname="/dashboard/jobs"
+          search=""
+        />
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Filter hinzufügen" }))
+
+    expect(screen.getByRole("button", { name: "State Liste" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Repository Referenz" })).toBeInTheDocument()
   })
 })
 

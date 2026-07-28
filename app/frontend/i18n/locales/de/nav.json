@@ -138,7 +138,48 @@
     "from": "Von",
     "to": "Bis",
     "min": "Min",
-    "max": "Max"
+    "max": "Max",
+    "or": "oder",
+    "complex_filter": "komplexer Filter",
+    "wrap_in_not": "In NICHT einschließen",
+    "remove_not": "NICHT entfernen",
+    "not_prefix": "NICHT",
+    "remove_filter": "Filter {{label}} entfernen",
+    "remove_value": "{{label}} entfernen",
+    "unset": "(leer)",
+    "ago": "zurück",
+    "op": {
+      "is": "ist",
+      "is_not": "ist nicht",
+      "is_one_of": "ist eines von",
+      "is_none_of": "ist keines von",
+      "contains": "enthält",
+      "contains_any": "enthält eines von",
+      "contains_all": "enthält alle",
+      "contains_none": "enthält keines von",
+      "is_true": "ist wahr",
+      "is_false": "ist falsch",
+      "is_set": "ist gesetzt",
+      "is_unset": "ist nicht gesetzt",
+      "between": "zwischen",
+      "within_last": "in den letzten",
+      "more_than_ago": "vor mehr als"
+    },
+    "time_unit": {
+      "minutes": "Minuten",
+      "hours": "Stunden",
+      "days": "Tagen",
+      "weeks": "Wochen",
+      "months": "Monaten"
+    },
+    "bucket": {
+      "enum": "Liste",
+      "string": "Text",
+      "boolean": "Ja/Nein",
+      "date": "Datum",
+      "number": "Zahl",
+      "fk": "Referenz"
+    }
   },
   "notifications": {
     "title": "Benachrichtigungen",
