@@ -216,7 +216,8 @@
     "entity_epic": "Epicus",
     "entity_user": "Usor",
     "entity_repository": "Repositorium",
-    "scope_range": "{{scope}} / {{start}} ad {{end}}"
+    "scope_range": "{{scope}} / {{start}} ad {{end}}",
+    "scope_all_users": "Omnes utentes"
   },
   "shell": {
     "spa_aria": "Syrus SPA",

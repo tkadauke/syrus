@@ -41,7 +41,7 @@ function SpendingInsights({ payload, pathname, search }: { payload: SpendingPayl
         <div>
           <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("spending.eyebrow")}</p>
           <h1 className="mt-1 text-3xl font-semibold text-gray-900 dark:text-gray-100">{t("spending.title")}</h1>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t("spending.scope_range", { scope: payload.scope.label, start: payload.filters.start_date, end: payload.filters.end_date })}</p>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t("spending.scope_range", { scope: payload.scope.admin ? t("spending.scope_all_users") : payload.scope.label, start: payload.filters.start_date, end: payload.filters.end_date })}</p>
         </div>
         <DateRangeForm pathname={pathname} search={search} payload={payload} />
       </header>
