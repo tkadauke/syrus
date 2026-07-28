@@ -87,6 +87,12 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
   const search = queryKey[2]
   const agentActive = isAgentActive(payload)
   const queuedMessages = payload.queued_messages || []
+  // Textarea right padding grows with each button visible in the embedded group
+  // (Send → Stash → Stop, left-to-right). Send is leftmost so its left edge moves
+  // furthest from the right edge as more buttons appear: ~40 px (1), ~76 px (2),
+  // ~112 px (3). Each class adds a comfortable buffer above those thresholds.
+  const inlineButtonCount = 1 + (text.trim().length > 0 ? 1 : 0) + (agentActive && !payload.switching_provider ? 1 : 0)
+  const textareaPr = inlineButtonCount >= 3 ? "pr-32" : inlineButtonCount === 2 ? "pr-24" : "pr-12"
   const [dismissedSuggestion, setDismissedSuggestion] = useState<string | null>(null)
   const suggestionShownAtRef = useRef(0)
   const commandQuery = slashCommandQuery(text)
@@ -1313,7 +1319,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
           aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
           aria-expanded={commandPaletteOpen}
           aria-haspopup="listbox"
-          className="min-h-9 w-full resize-none overflow-y-hidden rounded border border-gray-200 bg-white py-2 pl-3 pr-12 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
+          className={`min-h-9 w-full resize-none overflow-y-hidden rounded border border-gray-200 bg-white py-2 pl-3 ${textareaPr} text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800`}
           disabled={send.isPending || systemAction.isPending}
           onChange={(event) => {
             updateText(event.target.value)
