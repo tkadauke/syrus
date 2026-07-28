@@ -532,8 +532,23 @@ describe("FeedbackHistoryPanel", () => {
 
     expect(screen.getByRole("heading", { name: "Feedback history" })).toBeInTheDocument()
     expect(screen.getByText("Chat feedback")).toBeInTheDocument()
-    expect(screen.getByText(/Please tighten the dashboard copy/)).toHaveClass("whitespace-pre-wrap", "break-words")
+    expect(screen.getByText(/Please tighten the dashboard copy/)).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "WF-2" })).toHaveAttribute("href", "/app-shell/workflows/2")
+  })
+
+  it("renders markdown syntax in chat feedback text", () => {
+    renderFeedbackHistory([
+      workflow({
+        id: 7,
+        trigger_kind: "chat_feedback",
+        created_at: "2026-06-02T10:00:00Z",
+        artifacts: { chat_feedback: "Please **tighten** the copy.\n- Keep it short\n- Be direct" }
+      })
+    ])
+
+    expect(screen.getByText("tighten").tagName).toBe("STRONG")
+    expect(screen.getByText("Keep it short")).toBeInTheDocument()
+    expect(screen.getByText("Be direct")).toBeInTheDocument()
   })
 
   it("shows the PR review note for PR comment workflows", () => {
