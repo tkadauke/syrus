@@ -1,6 +1,7 @@
 import { SortableColumnHeader, TimestampCell, useMediaQuery, ExternalMetadataLink, MetadataLine, NeutralStatePill, OwnerBadge, PendingJobTitle, RepositorySlugLink, WorkflowBadges } from "./components"
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { formatRelativeDate } from "../../lib/relativeTime"
+import { translateBlockedReason } from "../../lib/translateBlockedReason"
 import { bulkButtonClass, columnAriaSort, formatCurrency, humanizeOption, jobDateValue, pluralize, withRoutePrefix } from "./helpers"
 import type { DashboardSortState } from "./helpers"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
@@ -500,7 +501,7 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
     return <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-600 dark:text-gray-300">{job.landing_queue_position ? `#${job.landing_queue_position}` : "-"}</td>
   }
   if (column === "landing_queue_blocked_reason") {
-    return <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{job.landing_queue_blocked_reason ?? "-"}</td>
+    return <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{job.landing_queue_blocked_reason ? translateBlockedReason(job.landing_queue_blocked_reason, t) : "-"}</td>
   }
   if (column === "repository") {
     return <td className="px-4 py-3"><RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-blue-700 hover:underline dark:text-gray-300 dark:hover:text-blue-300" prefix={prefix} repository={job.repository} /></td>

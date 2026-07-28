@@ -6,6 +6,7 @@ import { type FormEvent, type ReactNode } from "react"
 import { useEffect, useRef, useState } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { buttonClass } from "../lib/buttonClasses"
+import { translateBlockedReason } from "../lib/translateBlockedReason"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { NoticeToast } from "../components/NoticeToast"
 import { CloseIcon } from "../components/CloseIcon"
@@ -181,7 +182,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
                 {t("dep", { count: payload.summary.dependency_edge_count })}
               </span>
             ) : null}
-            {payload.summary.blocked ? <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">{payload.summary.blocked_reason || t("blocked")}</span> : null}
+            {payload.summary.blocked ? <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">{payload.summary.blocked_reason ? translateBlockedReason(payload.summary.blocked_reason, t) : t("blocked")}</span> : null}
           </div>
         </div>
       </header>
