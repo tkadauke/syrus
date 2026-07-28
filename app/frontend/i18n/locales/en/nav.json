@@ -128,6 +128,7 @@
     "no_matching_filters": "No matching filters",
     "operator": "Operator",
     "or_alternative": "+ OR alternative",
+    "or": "or",
     "value": "Value",
     "nothing_selected": "Nothing selected yet",
     "search_by_name": "Search by name...",
@@ -139,7 +140,6 @@
     "to": "To",
     "min": "Min",
     "max": "Max",
-    "or": "or",
     "complex_filter": "complex filter",
     "wrap_in_not": "Wrap in NOT",
     "remove_not": "Remove NOT",
@@ -180,6 +180,45 @@
       "number": "number",
       "fk": "reference"
     }
+  },
+  "filter_fields": {
+    "queue_name": "Queue",
+    "job_class": "Job class",
+    "failed_since": "Failed since"
+  },
+  "filter_operators": {
+    "is": "is",
+    "is_not": "is not",
+    "is_one_of": "is one of",
+    "is_none_of": "is none of",
+    "contains": "contains",
+    "not_contains": "does not contain",
+    "contains_any": "contains any",
+    "contains_all": "contains all",
+    "contains_none": "contains none",
+    "starts_with": "starts with",
+    "ends_with": "ends with",
+    "gt": "greater than",
+    "lt": "less than",
+    "gte": "greater than or equal",
+    "lte": "less than or equal",
+    "between": "between",
+    "within_last": "within last",
+    "more_than_ago": "more than ago",
+    "before": "before",
+    "after": "after",
+    "is_set": "is set",
+    "is_unset": "is not set",
+    "is_true": "is true",
+    "is_false": "is false"
+  },
+  "smart_folder_names": {
+    "failed_today": "Failed today",
+    "failed_this_hour": "Failed this hour",
+    "admin_queue_runs": "Runs",
+    "admin_queue_chat": "Chat",
+    "admin_queue_default": "Default",
+    "admin_queue_merges": "Merges"
   },
   "notifications": {
     "title": "Notifications",

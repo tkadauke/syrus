@@ -128,6 +128,7 @@
     "no_matching_filters": "Keine passenden Filter",
     "operator": "Operator",
     "or_alternative": "+ ODER Alternative",
+    "or": "oder",
     "value": "Wert",
     "nothing_selected": "Noch nichts ausgewählt",
     "search_by_name": "Nach Name suchen...",
@@ -139,7 +140,6 @@
     "to": "Bis",
     "min": "Min",
     "max": "Max",
-    "or": "oder",
     "complex_filter": "komplexer Filter",
     "wrap_in_not": "In NICHT einschließen",
     "remove_not": "NICHT entfernen",
@@ -180,6 +180,45 @@
       "number": "Zahl",
       "fk": "Referenz"
     }
+  },
+  "filter_fields": {
+    "queue_name": "Warteschlange",
+    "job_class": "Aufgabenklasse",
+    "failed_since": "Fehlgeschlagen seit"
+  },
+  "filter_operators": {
+    "is": "ist",
+    "is_not": "ist nicht",
+    "is_one_of": "ist eines von",
+    "is_none_of": "ist keines von",
+    "contains": "enthält",
+    "not_contains": "enthält nicht",
+    "contains_any": "enthält eines von",
+    "contains_all": "enthält alle von",
+    "contains_none": "enthält keines von",
+    "starts_with": "beginnt mit",
+    "ends_with": "endet mit",
+    "gt": "größer als",
+    "lt": "kleiner als",
+    "gte": "größer oder gleich",
+    "lte": "kleiner oder gleich",
+    "between": "zwischen",
+    "within_last": "innerhalb der letzten",
+    "more_than_ago": "vor mehr als",
+    "before": "vor",
+    "after": "nach",
+    "is_set": "ist gesetzt",
+    "is_unset": "ist nicht gesetzt",
+    "is_true": "ist wahr",
+    "is_false": "ist falsch"
+  },
+  "smart_folder_names": {
+    "failed_today": "Heute fehlgeschlagen",
+    "failed_this_hour": "In dieser Stunde fehlgeschlagen",
+    "admin_queue_runs": "Läufe",
+    "admin_queue_chat": "Chat",
+    "admin_queue_default": "Standard",
+    "admin_queue_merges": "Zusammenführungen"
   },
   "notifications": {
     "title": "Benachrichtigungen",

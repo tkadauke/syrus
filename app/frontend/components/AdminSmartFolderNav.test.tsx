@@ -101,25 +101,56 @@ describe("AdminSmartFolderNav", () => {
     expect(screen.queryByRole("link", { name: "Manage" })).not.toBeInTheDocument()
   })
 
-  it("renders built-in folder name from key translation when key is present", () => {
-    renderNav({
-      folders: [
-        {
-          id: 1,
-          name: "Failed today",
-          key: "failed_today",
-          kind: "builtin",
-          subject_type: "admin_queue",
-          visibility: "primary",
-          position: 0,
-          count: 5,
-          active: false,
-          path: "/admin/queue/active?smart_folder_id=1"
-        }
-      ]
-    })
+  it("translates builtin folder names using i18n_key", () => {
+    const foldersWithKey: AdminSmartFolder[] = [
+      {
+        id: 1,
+        name: "Runs",
+        i18n_key: "admin_queue_runs",
+        kind: "builtin",
+        subject_type: "admin_queue",
+        visibility: "always",
+        position: 0,
+        count: 5,
+        active: false,
+        path: "/admin/queue/active?smart_folder_id=1"
+      },
+      {
+        id: 2,
+        name: "Failed today",
+        i18n_key: "failed_today",
+        kind: "builtin",
+        subject_type: "admin_queue",
+        visibility: "always",
+        position: 1,
+        count: 0,
+        active: false,
+        path: "/admin/queue/failed?smart_folder_id=2"
+      }
+    ]
+    renderNav({ folders: foldersWithKey })
 
-    expect(screen.getByRole("link", { name: "Failed today 5" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Runs 5" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Failed today 0" })).toBeInTheDocument()
+  })
+
+  it("falls back to folder.name when i18n_key is absent", () => {
+    const foldersWithoutKey: AdminSmartFolder[] = [
+      {
+        id: 1,
+        name: "Custom builtin",
+        kind: "builtin",
+        subject_type: "admin_queue",
+        visibility: "always",
+        position: 0,
+        count: 3,
+        active: false,
+        path: "/admin/queue/active?smart_folder_id=1"
+      }
+    ]
+    renderNav({ folders: foldersWithoutKey })
+
+    expect(screen.getByRole("link", { name: "Custom builtin 3" })).toBeInTheDocument()
   })
 
   it("hides save controls when the active folder filter has not changed", () => {
@@ -199,7 +230,6 @@ function smartFolders(): AdminSmartFolder[] {
     {
       id: 1,
       name: "Stuck",
-      key: null,
       kind: "builtin",
       subject_type: "admin_queue",
       visibility: "primary",
@@ -211,7 +241,6 @@ function smartFolders(): AdminSmartFolder[] {
     {
       id: 10,
       name: "Saved queue",
-      key: null,
       kind: "user_defined",
       subject_type: "admin_queue",
       visibility: "primary",
@@ -224,7 +253,6 @@ function smartFolders(): AdminSmartFolder[] {
     {
       id: 11,
       name: "Escalations",
-      key: null,
       kind: "user_defined",
       subject_type: "admin_queue",
       visibility: "primary",

@@ -29,7 +29,7 @@ module Admin
         {
           id: folder.id,
           name: folder.name,
-          key: folder.builtin_key,
+          i18n_key: builtin_i18n_key(folder),
           position: folder.position,
           kind: folder.kind,
           subject_type: folder.subject_type,
@@ -45,6 +45,13 @@ module Admin
     private
 
     attr_reader :subject, :user, :active_folder, :base_scope, :filter_class, :path_context
+
+    def builtin_i18n_key(folder)
+      return nil unless folder.builtin?
+
+      definitions = SmartFolder::BUILTINS_BY_SUBJECT.fetch(folder.subject_type, [])
+      definitions.find { |d| d[:name] == folder.name }&.fetch(:key, nil)&.to_s
+    end
 
     def candidate_folders
       @candidate_folders ||= SmartFolder
