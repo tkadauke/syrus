@@ -1313,7 +1313,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
           aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
           aria-expanded={commandPaletteOpen}
           aria-haspopup="listbox"
-          className="min-h-9 w-full resize-none overflow-y-hidden rounded border border-gray-200 bg-white py-2 pl-3 pr-8 pb-12 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
+          className="min-h-9 w-full resize-none overflow-y-hidden rounded border border-gray-200 bg-white py-2 pl-3 pr-12 text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800"
           disabled={send.isPending || systemAction.isPending}
           onChange={(event) => {
             updateText(event.target.value)
@@ -1333,20 +1333,8 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
             <span className="inline-flex shrink-0 items-center rounded border border-gray-300 bg-gray-50 px-1 text-[10px] font-medium text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-500">⇥ {t("suggestion_tab_hint")}</span>
           </div>
         ) : null}
-        {!agentActive && text.trim().length > 0 ? (
-          <button
-            aria-label={t("scratchpad_stash")}
-            className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:text-gray-300 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300 dark:disabled:text-gray-600"
-            disabled={stash.isPending}
-            onClick={() => stash.mutate(undefined)}
-            title={t("scratchpad_stash_tab")}
-            type="button"
-          >
-            ^
-          </button>
-        ) : null}
         <span aria-live="polite" className="sr-only">{ghostSuggestion ? t("suggestion_available", { suggestion: ghostSuggestion }) : ""}</span>
-        <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1">
+        <div className="absolute bottom-2 right-2 flex items-center gap-1">
           <button
             aria-label={agentActive ? t("enqueue_message") : t("send_message")}
             className="flex h-8 w-8 items-center justify-center rounded bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-60 dark:bg-blue-500 dark:hover:bg-blue-400"
@@ -1355,13 +1343,13 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
           >
             {agentActive ? <EnqueueIcon className="h-4 w-4" /> : <SendIcon className="h-4 w-4" />}
           </button>
-          {agentActive && text.trim().length > 0 ? (
+          {text.trim().length > 0 ? (
             <button
               aria-label={t("scratchpad_stash")}
               className="flex h-8 w-8 items-center justify-center rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
               disabled={stash.isPending}
               onClick={() => stash.mutate(undefined)}
-              title={t("scratchpad_stash")}
+              title={agentActive ? t("scratchpad_stash") : t("scratchpad_stash_tab")}
               type="button"
             >
               <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -1387,7 +1375,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
             aria-expanded={attachmentPopoverOpen}
             aria-label={t("add_attachment")}
             aria-haspopup="dialog"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded border border-gray-300 bg-white text-xl leading-none text-gray-700 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded border border-gray-300 bg-white text-sm leading-none text-gray-700 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
             disabled={send.isPending || systemAction.isPending}
             onClick={() => setAttachmentPopoverOpen((open) => !open)}
             ref={addAttachmentButtonRef}
