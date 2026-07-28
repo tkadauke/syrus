@@ -109,7 +109,7 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(body.dig("preferences", "sort")).to include("column" => "title", "direction" => "asc")
       expect(body["controls"]).to include(
         "views" => %w[list kanban],
-        "sort_columns" => %w[title state repository landing_queue_position created_at started_at],
+        "sort_columns" => %w[title state repository landing_queue_position created_at started_at priority],
         "sort_directions" => %w[asc desc],
         "columns" => {
           "required" => [
