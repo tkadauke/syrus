@@ -567,7 +567,10 @@
     "github_quota_not_recorded": "GitHub quota not yet recorded.",
     "github_quota_prefix": "GitHub API quota:",
     "github_quota_suffix": "remaining ({{resource}} bucket).",
-    "aria_pause_scheduling": "Pause scheduling"
+    "aria_pause_scheduling": "Pause scheduling",
+    "preferences_saved_notice": "Preferences saved.",
+    "profile_saved_notice": "Profile updated.",
+    "agent_settings_saved_notice": "Agent settings updated."
   },
   "credential_cards": {
     "connected": "Connected",

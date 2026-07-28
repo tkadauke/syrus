@@ -567,7 +567,10 @@
     "github_quota_not_recorded": "GitHub-Kontingent noch nicht aufgezeichnet.",
     "github_quota_prefix": "GitHub API-Kontingent:",
     "github_quota_suffix": "verbleibend ({{resource}}-Bucket).",
-    "aria_pause_scheduling": "Planung pausieren"
+    "aria_pause_scheduling": "Planung pausieren",
+    "preferences_saved_notice": "Einstellungen gespeichert.",
+    "profile_saved_notice": "Profil aktualisiert.",
+    "agent_settings_saved_notice": "Agenteneinstellungen aktualisiert."
   },
   "credential_cards": {
     "connected": "Verbunden",
