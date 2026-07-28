@@ -86,7 +86,10 @@
     "colors": "Annotierungsfarbe",
     "canvas": "Annotierungsfläche",
     "text_input": "Annotierungstext",
-    "text_placeholder": "Eingeben, dann Enter drücken"
+    "text_placeholder": "Eingeben, dann Enter drücken",
+    "discard_confirm": "Alle Anmerkungen verwerfen?",
+    "discard": "Verwerfen",
+    "keep_editing": "Weiter bearbeiten"
   },
   "epic_start": {
     "in_progress": "In Bearbeitung",

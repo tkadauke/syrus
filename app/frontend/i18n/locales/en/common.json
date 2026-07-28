@@ -86,7 +86,10 @@
     "colors": "Annotation color",
     "canvas": "Annotation canvas",
     "text_input": "Annotation text",
-    "text_placeholder": "Type, then press Enter"
+    "text_placeholder": "Type, then press Enter",
+    "discard_confirm": "Discard all annotations?",
+    "discard": "Discard",
+    "keep_editing": "Keep Editing"
   },
   "epic_start": {
     "in_progress": "In progress",

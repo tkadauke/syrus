@@ -86,7 +86,10 @@
     "colors": "Color annotationum",
     "canvas": "Area annotationum",
     "text_input": "Textus annotationum",
-    "text_placeholder": "Scribe, deinde Enter preme"
+    "text_placeholder": "Scribe, deinde Enter preme",
+    "discard_confirm": "Omnibus annotationibus deletis?",
+    "discard": "Dele",
+    "keep_editing": "Perge"
   },
   "epic_start": {
     "in_progress": "In progressu",
