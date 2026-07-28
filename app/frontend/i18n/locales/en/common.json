@@ -72,7 +72,9 @@
     "attachments_hint": "Up to 9 additional files, 20 MB each. Accepted: images, PDF, text, Markdown.",
     "attachments_remove": "Remove {{filename}}",
     "attachments_too_large": "{{filename}} exceeds the 20 MB limit and was not added.",
-    "attachments_max_reached": "You can attach at most 9 additional files."
+    "attachments_max_reached": "You can attach at most 9 additional files.",
+    "include_transcript": "Include chat transcript",
+    "transcript_preview": "Transcript preview"
   },
   "image_annotation": {
     "annotate": "Annotate {{name}}",

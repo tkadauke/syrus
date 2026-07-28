@@ -1,7 +1,8 @@
 import { useMutation } from "@tanstack/react-query"
 import type { ChangeEvent, FormEvent, KeyboardEvent, ReactNode } from "react"
-import { useEffect, useState } from "react"
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react"
 import { createBugReport } from "../api/bugReports"
+import type { ChatMessageItem } from "../api/chats"
 import { useT } from "../hooks/useT"
 import { CloseIcon } from "./CloseIcon"
 import { NoticeToast } from "./NoticeToast"
@@ -18,23 +19,23 @@ type ScreenshotCaptures = Partial<Record<Exclude<ScreenshotChoice, "none">, Scre
 const MAX_FULL_PAGE_SCREENSHOT_PIXELS = 8_000_000
 const MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024
 const MAX_EXTRA_ATTACHMENTS = 9
+const TRANSCRIPT_PREVIEW_MAX_CHARS = 300
 const ACCEPTED_ATTACHMENT_TYPES = [
   "text/plain", "text/markdown", "text/x-markdown", "application/pdf",
   "image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml",
   ".txt", ".md", ".markdown", ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"
 ].join(",")
 
-export function BugReportButton({
-  bugReportMode,
-  context,
-  position = "bottom-left",
-  reportIssueRepoSlug
-}: {
+export interface BugReportButtonHandle {
+  open: (messages?: ChatMessageItem[]) => void
+}
+
+export const BugReportButton = forwardRef<BugReportButtonHandle, {
   bugReportMode?: "direct_job" | "github_issue" | null
   context: string
   position?: "bottom-left" | "bottom-right"
   reportIssueRepoSlug?: string | null
-}) {
+}>(function BugReportButton({ bugReportMode, context, position = "bottom-left", reportIssueRepoSlug }, ref) {
   const { t } = useT("common")
   const [open, setOpen] = useState(false)
   const [capturing, setCapturing] = useState(false)
@@ -46,9 +47,25 @@ export function BugReportButton({
   const [captureError, setCaptureError] = useState<string | null>(null)
   const [attachments, setAttachments] = useState<File[]>([])
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
+  const [transcriptMessages, setTranscriptMessages] = useState<ChatMessageItem[]>([])
+  const [includeTranscript, setIncludeTranscript] = useState(false)
   const [notice, setNotice] = useState<ReactNode>(null)
+
+  // Always-current reference to openDialog so the imperative handle never closes
+  // over a stale version of the function.
+  const openDialogRef = useRef<((messages?: ChatMessageItem[]) => void) | null>(null)
+
   const bugReport = useMutation({
-    mutationFn: () => createBugReport({ title, description, screenshot: selectedScreenshot(captures, screenshotChoice), attachments }),
+    mutationFn: () => {
+      const allAttachments = [...attachments]
+      if (includeTranscript && transcriptMessages.length > 0) {
+        const text = serializeTranscript(transcriptMessages)
+        if (text.trim().length > 0) {
+          allAttachments.push(new File([text], "chat-transcript.txt", { type: "text/plain" }))
+        }
+      }
+      return createBugReport({ title, description, screenshot: selectedScreenshot(captures, screenshotChoice), attachments: allAttachments })
+    },
     onSuccess: (payload) => {
       setOpen(false)
       setTitle("")
@@ -58,6 +75,8 @@ export function BugReportButton({
       setCaptureError(null)
       setAttachments([])
       setAttachmentError(null)
+      setTranscriptMessages([])
+      setIncludeTranscript(false)
 
       if (payload.issue_url) {
         const issueUrl = payload.issue_url
@@ -77,7 +96,16 @@ export function BugReportButton({
 
   useEffect(() => () => revokeCaptures(captures), [captures])
 
-  async function openDialog() {
+  // Keep the ref up to date so the imperative handle always calls the latest openDialog.
+  openDialogRef.current = (messages?: ChatMessageItem[]) => void openDialog(messages ?? [])
+
+  useImperativeHandle(ref, () => ({
+    open(messages?: ChatMessageItem[]) {
+      openDialogRef.current?.(messages)
+    }
+  }), [])
+
+  async function openDialog(withMessages: ChatMessageItem[] = []) {
     bugReport.reset()
     setTitle(`${context} bug`)
     setDescription("")
@@ -86,6 +114,8 @@ export function BugReportButton({
     setCaptureError(null)
     setAttachments([])
     setAttachmentError(null)
+    setTranscriptMessages(withMessages)
+    setIncludeTranscript(false)
     setNotice(null)
     setCapturing(true)
 
@@ -133,6 +163,8 @@ export function BugReportButton({
     setCaptureError(null)
     setAttachments([])
     setAttachmentError(null)
+    setTranscriptMessages([])
+    setIncludeTranscript(false)
     setOpen(false)
   }
 
@@ -177,6 +209,10 @@ export function BugReportButton({
     event.preventDefault()
     event.currentTarget.requestSubmit()
   }
+
+  const visibleTranscriptMessages = transcriptMessages.filter(
+    (m) => (m.role === "user" || m.role === "assistant") && m.text.trim().length > 0
+  )
 
   const isGitHubIssueMode = bugReportMode === "github_issue"
   const submitLabel = bugReport.isPending
@@ -307,6 +343,30 @@ export function BugReportButton({
                 ) : null}
               </div>
 
+              {visibleTranscriptMessages.length > 0 ? (
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                    <input
+                      checked={includeTranscript}
+                      className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                      onChange={(e) => setIncludeTranscript(e.target.checked)}
+                      type="checkbox"
+                    />
+                    {t("bug_report.include_transcript")}
+                  </label>
+                  {includeTranscript ? (
+                    <div aria-label={t("bug_report.transcript_preview")} className="max-h-48 overflow-y-auto rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 text-xs text-gray-600 dark:text-gray-400 space-y-3">
+                      {visibleTranscriptMessages.map((m, i) => (
+                        <div key={i}>
+                          <div className="font-semibold text-gray-700 dark:text-gray-300">[{m.role === "user" ? "User" : "Assistant"}]</div>
+                          <p className="mt-0.5 whitespace-pre-wrap font-mono">{truncateForPreview(m.text)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
               {bugReport.isError ? (
                 <p className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 px-3 py-2 text-sm text-red-700 dark:text-red-300" role="alert">
                   {errorMessage(bugReport.error, t("bug_report.error"))}
@@ -327,7 +387,7 @@ export function BugReportButton({
       ) : null}
     </>
   )
-}
+})
 
 function ScreenshotOption({
   capture,
@@ -460,4 +520,16 @@ function revokeCaptures(captures: ScreenshotCaptures) {
       URL.revokeObjectURL(capture.previewUrl)
     }
   })
+}
+
+function serializeTranscript(messages: ChatMessageItem[]): string {
+  return messages
+    .filter((m) => (m.role === "user" || m.role === "assistant") && m.text.trim().length > 0)
+    .map((m) => `[${m.role === "user" ? "User" : "Assistant"}]\n${m.text}`)
+    .join("\n\n")
+}
+
+function truncateForPreview(text: string): string {
+  if (text.length <= TRANSCRIPT_PREVIEW_MAX_CHARS) return text
+  return text.slice(0, TRANSCRIPT_PREVIEW_MAX_CHARS) + "…"
 }

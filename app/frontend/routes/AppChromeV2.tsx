@@ -4,15 +4,16 @@ import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, adminNavItemActive, adminSubnavLi
 import { RecentChatsSidebar } from "./appChromeV2/RecentChatsSidebar"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { BRAND_ICON_SRC } from "../lib/brandIcon"
-import { type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react"
+import { type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
-import { createEmptyChat, fetchNewChat, type ChatsIndexPayload } from "../api/chats"
+import { createEmptyChat, fetchNewChat, type ChatMessageItem, type ChatsIndexPayload } from "../api/chats"
 import { patchJson } from "../api/client"
 import { dashboardApiSearch, fetchDashboardChrome, type DashboardChromePayload, type DashboardSubject } from "../api/dashboard"
 import { fetchTerminalSessions } from "../api/terminal"
-import { BugReportButton } from "../components/BugReportButton"
+import { BugReportButton, type BugReportButtonHandle } from "../components/BugReportButton"
+import { BugReportContext } from "../lib/bugReportContext"
 import { BuildBadge } from "../components/BuildBadge"
 import { CloseIcon } from "../components/CloseIcon"
 import { DashboardSmartFolderNav } from "../components/DashboardSmartFolderNav"
@@ -61,6 +62,10 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const [sidebarResize, setSidebarResize] = useState<{ startX: number; startWidth: number } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const mainRef = useRef<HTMLElement | null>(null)
+  const bugReportRef = useRef<BugReportButtonHandle | null>(null)
+  const openBugReport = useCallback((messages?: ChatMessageItem[]) => {
+    bugReportRef.current?.open(messages)
+  }, [])
   const pageContent = redirectsToSetup(data, normalizedPath)
     ? <Navigate replace to={`${prefix}/onboarding`} />
     : children ?? <Outlet />
@@ -166,6 +171,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   }
 
   return (
+    <BugReportContext.Provider value={{ openBugReport }}>
     <div className="flex h-[100dvh] overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white">
       <aside className="relative hidden shrink-0 lg:flex" style={{ width: `${sidebarWidth}px` }}>
         <SidebarContent
@@ -265,9 +271,10 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         )}
         {showQuote ? <PubliliusSyrusFooter quote={quote} /> : null}
       </main>
-      {user ? <BugReportButton bugReportMode={data?.app?.bug_report_mode ?? null} context={bugReportContext(location.pathname)} position="bottom-right" reportIssueRepoSlug={data?.app?.report_issue_repo_slug ?? null} /> : null}
+      {user ? <BugReportButton bugReportMode={data?.app?.bug_report_mode ?? null} context={bugReportContext(location.pathname)} position="bottom-right" ref={bugReportRef} reportIssueRepoSlug={data?.app?.report_issue_repo_slug ?? null} /> : null}
       <BuildBadge builtAt={data?.app?.built_at} revision={data?.app?.revision} version={data?.app?.version} />
     </div>
+    </BugReportContext.Provider>
   )
 }
 

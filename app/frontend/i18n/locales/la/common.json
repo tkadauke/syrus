@@ -72,7 +72,9 @@
     "attachments_hint": "Ad novem fasciculos additos, 20 MB singuli. Accepti: imagines, PDF, textus, Markdown.",
     "attachments_remove": "Remove {{filename}}",
     "attachments_too_large": "{{filename}} limitem 20 MB excedit et non adhibitus est.",
-    "attachments_max_reached": "Ad summum novem fasciculos adicere potes."
+    "attachments_max_reached": "Ad summum novem fasciculos adicere potes.",
+    "include_transcript": "Conloquii textum addere",
+    "transcript_preview": "Praevisa textus"
   },
   "image_annotation": {
     "annotate": "Annota {{name}}",

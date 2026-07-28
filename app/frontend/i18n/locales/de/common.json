@@ -72,7 +72,9 @@
     "attachments_hint": "Bis zu 9 zusätzliche Dateien, jeweils max. 20 MB. Akzeptiert: Bilder, PDF, Text, Markdown.",
     "attachments_remove": "{{filename}} entfernen",
     "attachments_too_large": "{{filename}} überschreitet das 20-MB-Limit und wurde nicht hinzugefügt.",
-    "attachments_max_reached": "Sie können maximal 9 zusätzliche Dateien anhängen."
+    "attachments_max_reached": "Sie können maximal 9 zusätzliche Dateien anhängen.",
+    "include_transcript": "Chat-Verlauf einschließen",
+    "transcript_preview": "Vorschau des Verlaufs"
   },
   "image_annotation": {
     "annotate": "{{name}} annotieren",

@@ -11815,49 +11815,56 @@ describe("App", () => {
     })))
   })
 
-  it("files GitHub issues from the report slash command", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      const path = String(input)
-      if (path === "/api/v1/app/report_issue" && init?.method === "POST") {
-        return Promise.resolve(new Response(JSON.stringify({ issue_url: "https://github.com/tkadauke/syrus/issues/123" }), { status: 201, headers: { "Content-Type": "application/json" } }))
-      }
+  it("opens the bug report dialog from the /report slash command with transcript opt-in", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload())
+    document.body.appendChild(script)
 
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/bug_reports") {
+        return Promise.resolve(new Response(JSON.stringify({ message: "Bug report queued." }), { status: 201, headers: { "Content-Type": "application/json" } }))
+      }
       return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
 
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
-          <App />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
-
-    const input = await screen.findByPlaceholderText("Ask about this repository...")
-    fireEvent.change(input, { target: { value: "/report" } })
-    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
-
-    const dialog = await screen.findByRole("dialog", { name: "File a GitHub issue about Syrus" })
-    const bodyInput = within(dialog).getByLabelText("Body") as HTMLTextAreaElement
-    expect(bodyInput.value).toContain("Chat: Aqueduct planning")
-    expect(bodyInput.value).toContain("URL: http://localhost:3000/app-shell/chats/8")
-
-    fireEvent.change(within(dialog).getByLabelText("Title"), { target: { value: "Report from chat" } })
-    fireEvent.change(bodyInput, { target: { value: "Filed from chat context." } })
-    fireEvent.click(within(dialog).getByRole("button", { name: "Submit" }))
-
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/report_issue",
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({ title: "Report from chat", body: "Filed from chat context." })
-        })
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
       )
-    })
-    expect(await screen.findByText("Issue filed — https://github.com/tkadauke/syrus/issues/123")).toBeInTheDocument()
-    expect(screen.queryByRole("dialog", { name: "File a GitHub issue about Syrus" })).not.toBeInTheDocument()
-    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8/message", expect.objectContaining({ method: "POST" }))
+
+      const input = await screen.findByPlaceholderText("Ask about this repository...")
+      fireEvent.change(input, { target: { value: "/report" } })
+      fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+
+      // /report opens the full bug report dialog (via BugReportButton) instead of the old simple dialog
+      const dialog = await screen.findByRole("dialog", { name: "Report a bug" })
+      expect(dialog).toBeInTheDocument()
+
+      // Since chat messages are passed to the dialog, the transcript opt-in checkbox appears
+      expect(within(dialog).getByRole("checkbox", { name: /include chat transcript/i })).toBeInTheDocument()
+
+      // Submit the report without the transcript
+      fireEvent.click(within(dialog).getByRole("button", { name: "Create Job" }))
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/bug_reports",
+          expect.objectContaining({ method: "POST" })
+        )
+      })
+      expect(await screen.findByRole("status")).toHaveTextContent("Bug report queued.")
+      expect(screen.queryByRole("dialog", { name: "Report a bug" })).not.toBeInTheDocument()
+      expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8/message", expect.objectContaining({ method: "POST" }))
+    } finally {
+      script.remove()
+    }
   })
 
   it("sends registered skill slash commands as generated prompts through the normal chat message path", async () => {
