@@ -289,6 +289,8 @@ class MainHealthChangedService
   def blocking_fix_job_reason(job)
     if job.needs_triage? || job.triaging? || job.queued? || job.running? || job.coding?
       "active"
+    elsif job.approved? || job.landing?
+      "landing"
     else
       "waiting"
     end

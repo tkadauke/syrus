@@ -137,7 +137,7 @@ export function MainBranchHealthSection({ history, payload, prefix, queryKey, on
         ) : history.main_branch_repair.blocking_job ? (
           <div className="rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 text-sm text-gray-600 dark:text-gray-300">
             {t(
-              history.main_branch_repair.blocked_reason === "active" ? "repository.health_repair_active" : "repository.health_repair_waiting",
+              history.main_branch_repair.blocked_reason === "active" ? "repository.health_repair_active" : history.main_branch_repair.blocked_reason === "landing" ? "repository.health_repair_landing" : "repository.health_repair_waiting",
               { slug: history.main_branch_repair.blocking_job.slug }
             )}{" "}
             <a className="font-medium text-blue-600 dark:text-blue-400 hover:underline" href={history.main_branch_repair.blocking_job.job_path}>

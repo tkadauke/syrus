@@ -116,6 +116,7 @@
   "broken_main_view_details": "Details ansehen",
   "broken_main_repair_active": "Reparatur läuft:",
   "broken_main_repair_waiting": "Reparatur wartet:",
+  "broken_main_repair_landing": "Reparatur landet:",
   "broken_main_repair_failed_jobs": "Fehlgeschlagene Reparaturen:",
   "broken_main_repair_waiting_for_signals": "Wartet auf CI- und Grader-Signale.",
   "broken_main_repair_cap": "Reparatur-Limit erreicht.",
