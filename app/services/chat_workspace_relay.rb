@@ -32,6 +32,13 @@ class ChatWorkspaceRelay
   class << self
     # Starts the relay server in a background thread. Idempotent: a second call
     # while the server is running is a no-op.
+    #
+    # In development, Rails code-reloading (Zeitwerk) unloads and reloads
+    # autoloaded constants between requests/jobs. After a reload @server and
+    # @relay_address are nil, so to_prepare re-fires start!. The old server
+    # thread (which survived the reload) still holds the port, so TCPServer.new
+    # raises EADDRINUSE. We rescue that case and restore @relay_address so the
+    # relay keeps working without rebinding.
     def start!
       MUTEX.synchronize do
         return if @server
@@ -39,7 +46,15 @@ class ChatWorkspaceRelay
         host = ENV["SYRUS_TERMINAL_HOST"].presence || "127.0.0.1"
         port = ENV["SYRUS_WORKSPACE_RELAY_PORT"].to_i.nonzero? || DEFAULT_PORT
 
-        @server = TCPServer.new(host, port)
+        begin
+          @server = TCPServer.new(host, port)
+        rescue Errno::EADDRINUSE
+          # Port already bound from a previous code-load cycle (dev reloading).
+          # The old server thread is still running; just restore the address reference.
+          @relay_address = "#{host}:#{port}"
+          return
+        end
+
         @relay_address = "#{host}:#{port}"
 
         @server_thread = Thread.new do

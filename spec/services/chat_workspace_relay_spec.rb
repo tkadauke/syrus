@@ -43,6 +43,22 @@ RSpec.describe ChatWorkspaceRelay do
       described_class.start!
       expect(described_class.relay_address).to eq(first)
     end
+
+    it "survives a Zeitwerk-style reload: restores relay_address after EADDRINUSE" do
+      # Simulate what Rails code-reloading does: the pre-reload server thread
+      # survives (holding the port), while class-level ivars are wiped.
+      # We stop the existing server cleanly, then hold the port externally to
+      # guarantee EADDRINUSE on the next TCPServer.new call — no GC uncertainty.
+      described_class.stop!
+      external_hold = TCPServer.new("127.0.0.1", relay_port)
+
+      begin
+        expect { described_class.start! }.not_to raise_error
+        expect(described_class.relay_address).to eq("127.0.0.1:#{relay_port}")
+      ensure
+        external_hold.close
+      end
+    end
   end
 
   describe ".relay_address=" do
