@@ -37,7 +37,16 @@ class PrCostFooter
   end
 
   def host
-    @host ||= ENV["SYRUS_APP_HOST"].to_s.sub(%r{/\z}, "")
+    @host ||= begin
+      raw = ENV["SYRUS_APP_HOST"].to_s.sub(%r{/\z}, "")
+      if raw.blank?
+        ""
+      elsif raw.start_with?("http://", "https://")
+        raw
+      else
+        "https://#{raw}"
+      end
+    end
   end
 
   def strip_existing(body)

@@ -89,6 +89,48 @@ RSpec.describe PrCostFooter do
     end
   end
 
+  context "with SYRUS_APP_HOST set to a bare hostname" do
+    around do |ex|
+      old = ENV["SYRUS_APP_HOST"]
+      ENV["SYRUS_APP_HOST"] = "syrus.example.com"
+      ex.run
+    ensure
+      old ? (ENV["SYRUS_APP_HOST"] = old) : ENV.delete("SYRUS_APP_HOST")
+    end
+
+    it "prepends https:// so backlinks are absolute URLs" do
+      body = described_class.apply("Body", job)
+
+      expect(body).to include("[JOB-#{job.id}](https://syrus.example.com/jobs/#{job.id})")
+      expect(body).not_to include("(syrus.example.com/")
+    end
+
+    it "prepends https:// and strips a trailing slash from a bare hostname" do
+      ENV["SYRUS_APP_HOST"] = "syrus.example.com/"
+
+      body = described_class.apply("Body", job)
+
+      expect(body).to include("[JOB-#{job.id}](https://syrus.example.com/jobs/#{job.id})")
+      expect(body).not_to include("//jobs/")
+    end
+  end
+
+  context "with SYRUS_APP_HOST set to an http:// URL" do
+    around do |ex|
+      old = ENV["SYRUS_APP_HOST"]
+      ENV["SYRUS_APP_HOST"] = "http://syrus.example.com"
+      ex.run
+    ensure
+      old ? (ENV["SYRUS_APP_HOST"] = old) : ENV.delete("SYRUS_APP_HOST")
+    end
+
+    it "leaves the existing http:// scheme untouched" do
+      body = described_class.apply("Body", job)
+
+      expect(body).to include("[JOB-#{job.id}](http://syrus.example.com/jobs/#{job.id})")
+    end
+  end
+
   context "without SYRUS_APP_HOST configured" do
     around do |ex|
       old = ENV.delete("SYRUS_APP_HOST")
