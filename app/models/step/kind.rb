@@ -85,7 +85,11 @@ class Step
       Entry.new(kind: "coverage_analyze",   handler: "CoverageAnalyze",    label: "Analyze coverage",           style: "bg-yellow-100 text-yellow-700", agentic: false),
       Entry.new(kind: "coverage_pr_comment", handler: "CoveragePrComment", label: "Post coverage comment",     style: "bg-yellow-100 text-yellow-700", agentic: false),
       Entry.new(kind: "agent_insight_run",  handler: "AgentInsightRun",   label: "Agent insight analysis",    style: "bg-amber-100 text-amber-700",   agentic: true),
-      Entry.new(kind: "auto_close",         handler: "AutoClose",          label: "Auto-close",                style: "bg-gray-100 text-gray-500",     agentic: false)
+      Entry.new(kind: "auto_close",         handler: "AutoClose",          label: "Auto-close",                style: "bg-gray-100 text-gray-500",     agentic: false),
+      Entry.new(kind: "preflight_grader",         handler: "PreflightGrader",         label: "Preflight grader",         style: "bg-gray-100 text-gray-500",     agentic: false,
+                fail_policy: :advance),
+      Entry.new(kind: "preflight_grader_fanout",  handler: "PreflightGraderFanout",  label: "Plan preflight graders",   style: "bg-violet-100 text-violet-700", agentic: false),
+      Entry.new(kind: "preflight_grader_collect", handler: "PreflightGraderCollect", label: "Preflight grader check",   style: "bg-violet-100 text-violet-700", agentic: false)
     ].freeze
 
     BY_KIND = ENTRIES.index_by(&:kind).freeze

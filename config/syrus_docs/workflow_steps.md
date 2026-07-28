@@ -140,6 +140,29 @@ Non-agentic. Parses coverage artifacts produced by graders, merges multiple sour
 
 Non-agentic. Posts the formatted coverage summary as a PR comment when `pr_comment: true` is set in `.syrus.yml`.
 
+## Preflight grader steps (main_branch_repair)
+
+### preflight_grader_fanout
+
+Non-agentic. Materializes one `preflight_grader` Step per configured grader at the start of a `main_branch_repair` workflow. Unlike `grader_fanout`, this step:
+
+- Runs **all** configured graders regardless of `when_files_changed` (no PR diff exists before the implement step)
+- Does **not** check the `GraderConclusionCache` for reuse (always runs fresh)
+- Is not inside a retry loop (no `apply_loop_max_iterations!`)
+
+### preflight_grader
+
+Non-agentic. Identical to `grader` but writes logs to `.syrus/grade-output/preflight/<name>.log` to avoid collisions with the main grade loop's per-iteration log files.
+
+### preflight_grader_collect
+
+Non-agentic. Aggregates preflight grader results. Two outcomes:
+
+- **All required graders passed:** Sets the `preflight_passed` workflow artifact, cancels all downstream steps (`prepare`, `implement`, the grade loop, `summarize`, `test_plan`, `pr_open`), and returns. The dispatcher advances past the cancelled steps and marks the workflow succeeded. `Workflows::MainBranchRepair#after_success` detects the artifact and marks the repository healthy without the agent ever running.
+- **Any required grader failed:** Logs the failure and returns normally so the chain continues to `prepare → implement`.
+
+Unlike `grader_collect`, this step never raises `StepFailed` — a grader failure here means "proceed to implement", not "fail the workflow."
+
 ## Coding handoff steps
 
 ### grader_fanout / grader_collect

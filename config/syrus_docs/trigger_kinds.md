@@ -112,6 +112,16 @@ Like `coding_handoff`, requires operator confirmation before the workflow dispat
 
 **On non-grader failure** (e.g. `prepare` failed): `after_fail` drives the Job to `:failed` manually so the operator has the normal Retry path.
 
+## main_branch_repair
+
+**When it fires:** Spawned automatically by `MainHealthChangedService` when the repository's main branch is detected as broken (grader health transitions to broken).
+
+**Step chain:** `preflight_grader_fanout → [preflight_grader steps] → preflight_grader_collect → prepare → retry_until(implement, grader_fanout, grader_collect) → summarize → test_plan → pr_open`
+
+The workflow runs a preflight grader check before invoking the agent. If the preflight graders all pass (indicating the broken signal was a false positive), `preflight_grader_collect` cancels the implement chain and the workflow closes immediately — the agent never runs. `after_success` then updates `grader_health` to healthy, calls `MainHealthChangedService.on_health_change!`, and closes the anchor job.
+
+If any required preflight grader fails, the chain continues normally to the implement step. The agent fixes the broken code, graders validate the fix, and a PR is opened. `PollPullRequestJob` calls `MainHealthChangedService.repair_landed!` when the PR merges.
+
 ## main_grader
 
 **When it fires:** An internal trigger for running graders against the main branch (used for automated main-branch health checks).
