@@ -60,7 +60,11 @@ Emergency kill switch: pause workflow execution. `RunJob` checks this flag and r
 
 **Type:** string · **Default:** "tkadauke/syrus"
 
-GitHub repo slug used for the in-app "Report an issue" link. Change to your own fork slug on self-hosted instances.
+Controls where in-app bug reports are sent. The slug is also used for the "Report an issue" link displayed in the UI.
+
+**Routing logic:** when a user submits a bug report, Syrus checks whether an active `Repository` record exists for this slug (system-wide match) or whether the user has a fork of it (`upstream_owner`/`upstream_name` match). If either is found, the report is filed as a direct Syrus Job against that repository. If neither is found, the report is filed as a plain GitHub issue via the API using the user's PAT; screenshots and attachments are uploaded to GitHub's asset CDN and embedded inline in the issue body.
+
+On self-hosted instances, set this to the `owner/name` of your own Syrus fork. If the fork is tracked in Syrus as a repository, reports will be routed as Jobs; if not, they will be filed as GitHub issues against that slug.
 
 ### max_concurrent_agent_runs
 
