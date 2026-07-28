@@ -880,9 +880,10 @@ export function ImageAnnotationModal({
             </button>
           </div>
         </div>
-        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
-          <div className="flex items-center gap-2">
-            <div className="relative max-h-[calc(100dvh-6rem)] max-w-[calc(100vw-4rem)]" style={canvasStyle}>
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          {/* Canvas viewport — clips zoom overflow so the zoom bar stays visible */}
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
+            <div className="relative max-h-[calc(100dvh-6rem)] max-w-full" style={canvasStyle}>
               <div
                 className="relative"
                 style={{ transform: wrapperTransform, transformOrigin: "0 0" }}
@@ -912,42 +913,42 @@ export function ImageAnnotationModal({
                 ) : null}
               </div>
             </div>
+          </div>
 
-            {/* Zoom bar */}
-            <div className="flex flex-col items-center gap-1 self-stretch justify-center py-2">
-              <button
-                aria-label={t("image_annotation.zoom_in")}
-                className={secondaryButton() + " px-2 py-1 text-base font-bold"}
-                disabled={zoom >= ZOOM_MAX}
-                onClick={() => changeZoom(ZOOM_STEP)}
-                type="button"
-              >
-                +
-              </button>
-              <input
-                aria-label={t("image_annotation.zoom_label")}
-                className="h-24"
-                max={ZOOM_MAX}
-                min={ZOOM_MIN}
-                onChange={(e) => setZoom(clampZoom(Number(e.target.value)))}
-                step={0.05}
-                style={{ writingMode: "vertical-lr", direction: "rtl", appearance: "slider-vertical" } as unknown as React.CSSProperties}
-                type="range"
-                value={zoom}
-              />
-              <button
-                aria-label={t("image_annotation.zoom_out")}
-                className={secondaryButton() + " px-2 py-1 text-base font-bold"}
-                disabled={zoom <= ZOOM_MIN}
-                onClick={() => changeZoom(-ZOOM_STEP)}
-                type="button"
-              >
-                −
-              </button>
-              <span className="text-xs text-gray-500 dark:text-gray-400" aria-live="polite">
-                {Math.round(zoom * 100)}%
-              </span>
-            </div>
+          {/* Zoom bar — pinned to the right edge, outside the canvas overflow area */}
+          <div className="flex flex-shrink-0 flex-col items-center gap-1 justify-center border-l border-gray-200 bg-white py-2 px-2 dark:border-gray-700 dark:bg-gray-900">
+            <button
+              aria-label={t("image_annotation.zoom_in")}
+              className={secondaryButton() + " px-2 py-1 text-base font-bold"}
+              disabled={zoom >= ZOOM_MAX}
+              onClick={() => changeZoom(ZOOM_STEP)}
+              type="button"
+            >
+              +
+            </button>
+            <input
+              aria-label={t("image_annotation.zoom_label")}
+              className="h-24"
+              max={ZOOM_MAX}
+              min={ZOOM_MIN}
+              onChange={(e) => setZoom(clampZoom(Number(e.target.value)))}
+              step={0.05}
+              style={{ writingMode: "vertical-lr", direction: "rtl", appearance: "slider-vertical" } as unknown as React.CSSProperties}
+              type="range"
+              value={zoom}
+            />
+            <button
+              aria-label={t("image_annotation.zoom_out")}
+              className={secondaryButton() + " px-2 py-1 text-base font-bold"}
+              disabled={zoom <= ZOOM_MIN}
+              onClick={() => changeZoom(-ZOOM_STEP)}
+              type="button"
+            >
+              −
+            </button>
+            <span className="text-xs text-gray-500 dark:text-gray-400" aria-live="polite">
+              {Math.round(zoom * 100)}%
+            </span>
           </div>
         </div>
       </section>
