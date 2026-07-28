@@ -18,11 +18,11 @@ module BugReports
       system_repo || user_fork_repo ? :direct_job : :github_issue
     end
 
-    def call(title:, description:, screenshot:)
+    def call(title:, description:, screenshot: nil, attachments: [])
       if (repo = system_repo || user_fork_repo)
         route_to_creator(repo, title: title, description: description, screenshot: screenshot)
       else
-        route_to_github_issue(title: title, description: description)
+        route_to_github_issue(title: title, description: description, screenshot: screenshot, attachments: attachments)
       end
     end
 
@@ -57,9 +57,9 @@ module BugReports
       end
     end
 
-    def route_to_github_issue(title:, description:)
+    def route_to_github_issue(title:, description:, screenshot: nil, attachments: [])
       result = BugReports::GithubIssueCreator.new(user: user).call(
-        title: title, description: description
+        title: title, description: description, screenshot: screenshot, attachments: attachments
       )
       if result.success?
         Result.new(issue_url: result.issue_url, mode: :github_issue)

@@ -1,3 +1,5 @@
+require "net/http"
+
 class GithubClient
   USER_AGENT = "Syrus/0.1 (+https://github.com/tkadauke/syrus)".freeze
   DELETE_BRANCH_TRANSIENT_RETRY_DELAYS = [ 0.5, 1.5 ].freeze
@@ -163,6 +165,29 @@ class GithubClient
   rescue Octokit::TooManyRequests => e
     Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited creating issue on #{repo_slug}: #{e.message}")
     raise
+  end
+
+  # Uploads a file to GitHub's issue asset CDN using the undocumented two-step
+  # flow that GitHub's web UI uses when you paste an image into an issue textarea:
+  # 1. POST to /{owner}/{repo}/upload/policies/assets to get S3 presigned fields
+  # 2. Multipart POST directly to S3 with those fields plus the file
+  # Returns the https://github.com/user-attachments/assets/{uuid} URL on success,
+  # nil on any failure (so callers can add a fallback note and still file the issue).
+  def upload_issue_asset(repo_slug, io:, content_type:, filename:)
+    owner, repo = repo_slug.split("/", 2)
+    io.rewind if io.respond_to?(:rewind)
+    file_body = io.read.b
+
+    policy = fetch_upload_policy(owner, repo, filename: filename, size: file_body.bytesize, content_type: content_type)
+    return nil unless policy
+
+    uploaded = upload_asset_to_s3(policy["upload_url"], form: policy["form"], body: file_body, filename: filename, content_type: content_type)
+    return nil unless uploaded
+
+    policy.dig("asset", "href")
+  rescue => e
+    Rails.logger.warn("[GithubClient] upload_issue_asset #{repo_slug}/#{filename} failed: #{e.class}: #{e.message}")
+    nil
   end
 
   def readiness_check!
@@ -822,5 +847,55 @@ class GithubClient
     JobLog.append!(run: run, chunk: chunk, kind: "rate_limited")
   rescue => e
     Rails.logger.warn("[GithubClient] rate_limit log write failed: #{e.message}")
+  end
+
+  def fetch_upload_policy(owner, repo, filename:, size:, content_type:)
+    uri = URI("https://github.com/#{owner}/#{repo}/upload/policies/assets")
+    response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 10, read_timeout: 30) do |http|
+      req = Net::HTTP::Post.new(uri)
+      req["Authorization"] = "Bearer #{@access_token}"
+      req["Content-Type"] = "application/json"
+      req["Accept"] = "application/json"
+      req["User-Agent"] = USER_AGENT
+      req.body = { name: filename, size: size, content_type: content_type }.to_json
+      http.request(req)
+    end
+    return nil unless response.is_a?(Net::HTTPSuccess)
+    JSON.parse(response.body)
+  rescue => e
+    Rails.logger.warn("[GithubClient] fetch_upload_policy #{owner}/#{repo}: #{e.class}: #{e.message}")
+    nil
+  end
+
+  def upload_asset_to_s3(upload_url, form:, body:, filename:, content_type:)
+    uri = URI(upload_url)
+    boundary = "----SyrusAssetBoundary#{SecureRandom.hex(8)}"
+    multipart = build_s3_multipart(boundary, form: form || {}, body: body, filename: filename, content_type: content_type)
+    response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", open_timeout: 10, read_timeout: 60) do |http|
+      req = Net::HTTP::Post.new(uri)
+      req["Content-Type"] = "multipart/form-data; boundary=#{boundary}"
+      req.body = multipart
+      http.request(req)
+    end
+    response.is_a?(Net::HTTPSuccess) || response.is_a?(Net::HTTPRedirection)
+  rescue => e
+    Rails.logger.warn("[GithubClient] upload_asset_to_s3 #{upload_url}: #{e.class}: #{e.message}")
+    false
+  end
+
+  def build_s3_multipart(boundary, form:, body:, filename:, content_type:)
+    crlf = "\r\n"
+    result = "".b
+    form.each do |key, value|
+      result << "--#{boundary}#{crlf}".b
+      result << "Content-Disposition: form-data; name=\"#{key}\"#{crlf}#{crlf}".b
+      result << "#{value}#{crlf}".b
+    end
+    result << "--#{boundary}#{crlf}".b
+    result << "Content-Disposition: form-data; name=\"file\"; filename=\"#{filename}\"#{crlf}".b
+    result << "Content-Type: #{content_type}#{crlf}#{crlf}".b
+    result << body
+    result << "#{crlf}--#{boundary}--#{crlf}".b
+    result
   end
 end

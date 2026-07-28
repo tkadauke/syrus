@@ -682,6 +682,149 @@ RSpec.describe GithubClient do
     end
   end
 
+  describe "#upload_issue_asset" do
+    let(:client) { GithubClient.for_user(user) }
+    let(:policy_url) { "https://github.com/acme/widgets/upload/policies/assets" }
+    let(:s3_url) { "https://objects.githubusercontent.com/github-production-repository/uploads/some-path" }
+    let(:asset_href) { "https://github.com/user-attachments/assets/abc123-uuid-here" }
+
+    def stub_policy(status: 201, body: nil)
+      stub_request(:post, policy_url).to_return(
+        status: status,
+        headers: { "Content-Type" => "application/json" },
+        body: (body || {
+          upload_url: s3_url,
+          form: { "key" => "uploads/some-path", "Content-Type" => "image/png" },
+          asset: { href: asset_href }
+        }).to_json
+      )
+    end
+
+    def stub_s3(status: 204)
+      stub_request(:post, s3_url).to_return(status: status, body: "")
+    end
+
+    it "uploads a file and returns the GitHub asset URL" do
+      stub_policy
+      stub_s3
+
+      result = client.upload_issue_asset(
+        "acme/widgets",
+        io: StringIO.new("\x89PNG\r\n\x1A\nfakedata"),
+        content_type: "image/png",
+        filename: "screenshot.png"
+      )
+
+      expect(result).to eq(asset_href)
+    end
+
+    it "sends a Bearer token in the policy request" do
+      policy_stub = stub_request(:post, policy_url)
+        .with(headers: { "Authorization" => "Bearer ghp_test_token" })
+        .to_return(
+          status: 201,
+          headers: { "Content-Type" => "application/json" },
+          body: {
+            upload_url: s3_url,
+            form: { "key" => "uploads/some-path", "Content-Type" => "image/png" },
+            asset: { href: asset_href }
+          }.to_json
+        )
+      stub_s3
+
+      client.upload_issue_asset(
+        "acme/widgets",
+        io: StringIO.new("x"),
+        content_type: "image/png",
+        filename: "shot.png"
+      )
+
+      expect(policy_stub).to have_been_requested
+    end
+
+    it "sends the filename, size, and content_type in the policy request body" do
+      content = "PNG data here"
+      policy_stub = stub_request(:post, policy_url)
+        .with(body: { name: "capture.png", size: content.bytesize, content_type: "image/png" }.to_json)
+        .to_return(
+          status: 201,
+          headers: { "Content-Type" => "application/json" },
+          body: {
+            upload_url: s3_url,
+            form: { "key" => "uploads/some-path", "Content-Type" => "image/png" },
+            asset: { href: asset_href }
+          }.to_json
+        )
+      stub_s3
+
+      client.upload_issue_asset(
+        "acme/widgets",
+        io: StringIO.new(content),
+        content_type: "image/png",
+        filename: "capture.png"
+      )
+
+      expect(policy_stub).to have_been_requested
+    end
+
+    it "returns nil when the policy request fails" do
+      stub_policy(status: 422)
+
+      result = client.upload_issue_asset(
+        "acme/widgets",
+        io: StringIO.new("data"),
+        content_type: "image/png",
+        filename: "shot.png"
+      )
+
+      expect(result).to be_nil
+    end
+
+    it "returns nil when the S3 upload fails" do
+      stub_policy
+      stub_s3(status: 500)
+
+      result = client.upload_issue_asset(
+        "acme/widgets",
+        io: StringIO.new("\x89PNG\r\n\x1A\nfakedata"),
+        content_type: "image/png",
+        filename: "shot.png"
+      )
+
+      expect(result).to be_nil
+    end
+
+    it "accepts a 302 redirect from S3 as a successful upload" do
+      stub_policy
+      stub_request(:post, s3_url).to_return(status: 302, headers: { "Location" => "https://github.com/some-redirect" }, body: "")
+
+      result = client.upload_issue_asset(
+        "acme/widgets",
+        io: StringIO.new("x"),
+        content_type: "image/png",
+        filename: "shot.png"
+      )
+
+      expect(result).to eq(asset_href)
+    end
+
+    it "rewinds the io before reading to handle already-read streams" do
+      io = StringIO.new("already read content")
+      io.read  # advance to EOF
+      stub_policy
+      stub_s3
+
+      result = client.upload_issue_asset(
+        "acme/widgets",
+        io: io,
+        content_type: "image/png",
+        filename: "shot.png"
+      )
+
+      expect(result).to eq(asset_href)
+    end
+  end
+
   describe "#merge_upstream" do
     it "POSTs to the merge-upstream endpoint with the branch" do
       stub = stub_request(:post, "https://api.github.com/repos/acme/widgets/merge-upstream")

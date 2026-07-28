@@ -8,7 +8,7 @@ module BugReports
       @user = user
     end
 
-    def call(title:, description:)
+    def call(title:, description:, screenshot: nil, attachments: [])
       if user.github_token.blank?
         return Result.new(
           error_code: "github_token_required",
@@ -17,14 +17,43 @@ module BugReports
       end
 
       title = title.to_s.strip.presence || "In-app bug report"
-      body = description.to_s.strip
+      repo_slug = AppSetting.report_issue_repo_slug
+      client = GithubClient.for_user(user)
 
-      issue = GithubClient.for_user(user).create_issue(
-        AppSetting.report_issue_repo_slug,
-        title: title,
-        body: body
-      )
+      body_parts = [ description.to_s.strip ]
 
+      if screenshot.present?
+        url = client.upload_issue_asset(
+          repo_slug,
+          io: screenshot,
+          content_type: screenshot.content_type.presence || "image/png",
+          filename: screenshot.original_filename.presence || "screenshot.png"
+        )
+        body_parts << if url
+          "![Screenshot](#{url})"
+        else
+          "_Attachment could not be uploaded automatically. Please attach it manually._"
+        end
+      end
+
+      extra_attachments = Array(attachments).select(&:present?)
+      if extra_attachments.any?
+        lines = extra_attachments.map do |attachment|
+          name = attachment.original_filename.presence || "attachment"
+          url = client.upload_issue_asset(
+            repo_slug,
+            io: attachment,
+            content_type: attachment.content_type.presence || "application/octet-stream",
+            filename: name
+          )
+          url ? "- [#{name}](#{url})" : "- _#{name} could not be uploaded automatically. Please attach it manually._"
+        end
+        body_parts << lines.join("\n")
+      end
+
+      body = body_parts.reject(&:blank?).join("\n\n")
+
+      issue = client.create_issue(repo_slug, title: title, body: body)
       Result.new(issue_url: issue.html_url)
     rescue Octokit::Error => e
       Result.new(

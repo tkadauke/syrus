@@ -6,7 +6,8 @@ module Api
           result = ::BugReports::Router.new(user: Current.user).call(
             title: params[:title],
             description: params[:description],
-            screenshot: params[:screenshot]
+            screenshot: params[:screenshot],
+            attachments: Array(params[:attachments]).compact
           )
 
           if result.error_code == "github_token_required"
