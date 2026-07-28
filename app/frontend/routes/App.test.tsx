@@ -2942,7 +2942,7 @@ describe("App", () => {
     expect(screen.queryByPlaceholderText("Search filters...")).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
     fireEvent.change(screen.getByPlaceholderText("Search filters..."), { target: { value: "state" } })
-    fireEvent.click(screen.getByRole("button", { name: "State enum" }))
+    fireEvent.click(screen.getByRole("button", { name: "State list" }))
     expect(await screen.findByRole("dialog", { name: "State filter settings" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Apply filter" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Done" })).not.toBeInTheDocument()
@@ -2967,7 +2967,7 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("button", { name: "+ OR alternative" }))
     expect(screen.queryByRole("dialog", { name: "State filter settings" })).not.toBeInTheDocument()
     expect(screen.getByPlaceholderText("Search filters...")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "State enum" }))
+    fireEvent.click(screen.getByRole("button", { name: "State list" }))
 
     await waitFor(() => {
       expect(latestFilterTree).toEqual({
@@ -2983,7 +2983,7 @@ describe("App", () => {
     })
     fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
     fireEvent.change(screen.getByPlaceholderText("Search filters..."), { target: { value: "parent" } })
-    fireEvent.click(screen.getByRole("button", { name: "Has parent boolean" }))
+    fireEvent.click(screen.getByRole("button", { name: "Has parent yes/no" }))
     await waitFor(() => {
       expect(latestFilterTree).toEqual({
         and: [
@@ -4599,7 +4599,7 @@ describe("App", () => {
       expect(within(smartFoldersPanel).queryByRole("button", { name: "Update My work" })).not.toBeInTheDocument()
 
       fireEvent.click(await screen.findByRole("button", { name: "+ Add filter" }))
-      fireEvent.click(screen.getByRole("button", { name: "Kind enum" }))
+      fireEvent.click(screen.getByRole("button", { name: "Kind list" }))
 
       await waitFor(() => {
         expect(dashboardRequests.some((request) => {
@@ -4610,7 +4610,7 @@ describe("App", () => {
       expect(await within(smartFoldersPanel).findByRole("button", { name: "Update My work" })).toBeInTheDocument()
 
       fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
-      fireEvent.click(screen.getByRole("button", { name: "Has parent boolean" }))
+      fireEvent.click(screen.getByRole("button", { name: "Has parent yes/no" }))
 
       await waitFor(() => {
         const latestRequest = dashboardRequests.at(-1)
@@ -4693,7 +4693,7 @@ describe("App", () => {
       expect(within(smartFoldersPanel).queryByLabelText("Folder name")).not.toBeInTheDocument()
 
       fireEvent.click(await screen.findByRole("button", { name: "+ Add filter" }))
-      fireEvent.click(screen.getByRole("button", { name: "Kind enum" }))
+      fireEvent.click(screen.getByRole("button", { name: "Kind list" }))
 
       await waitFor(() => {
         const latestRequest = dashboardRequests.at(-1)
@@ -5500,7 +5500,7 @@ describe("App", () => {
       expect(screen.getByText("runs")).toBeInTheDocument()
       expect(screen.getByRole("button", { name: /Queue is Runs/ })).toBeInTheDocument()
       fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
-      expect(screen.getByRole("button", { name: "Job class string" })).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Job class text" })).toBeInTheDocument()
       expect(screen.getByRole("link", { name: "Runs 1" })).toHaveAttribute("href", "/app-shell/admin/queue/active?smart_folder_id=1")
       expect(screen.getByRole("link", { name: "All queue" })).toHaveAttribute("href", "/app-shell/admin/queue/active")
       expect(screen.getByRole("link", { name: "Failed" })).toHaveAttribute("href", "/app-shell/admin/queue/failed")
@@ -6044,7 +6044,7 @@ describe("App", () => {
       expect(screen.getByText("worker-a")).toBeInTheDocument()
       expect(screen.getByRole("button", { name: /State is Running/ })).toBeInTheDocument()
       fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
-      expect(screen.getByRole("button", { name: "Hostname enum" })).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Hostname list" })).toBeInTheDocument()
       expect(screen.getByRole("link", { name: "Running 1" })).toHaveAttribute("href", "/app-shell/admin/processes?smart_folder_id=3")
       expect(screen.getByRole("link", { name: "Detail" })).toHaveAttribute("href", "/app-shell/admin/processes/8")
       expect(screen.getByRole("button", { name: "Kill" })).toBeInTheDocument()
@@ -6314,7 +6314,7 @@ describe("App", () => {
       expect(screen.getByText("operator@example.com")).toBeInTheDocument()
       expect(screen.getByRole("button", { name: /GH rate is Low/ })).toBeInTheDocument()
       fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
-      expect(screen.getByRole("button", { name: "Email string" })).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Email text" })).toBeInTheDocument()
       expect(screen.getByRole("link", { name: "Operator" })).toHaveAttribute("href", "/app-shell/admin/users/5")
       expect(screen.getByRole("link", { name: "Rate limit low 1" })).toHaveAttribute("href", "/app-shell/admin/users?smart_folder_id=5")
       expect(screen.getByText("More")).toBeInTheDocument()

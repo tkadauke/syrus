@@ -40,7 +40,7 @@ describe("MemoriesRoute", () => {
     await screen.findByText("Use Rails for the app.")
     fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
     fireEvent.change(screen.getByPlaceholderText("Search filters..."), { target: { value: "published" } })
-    fireEvent.click(screen.getByRole("button", { name: "Published boolean" }))
+    fireEvent.click(screen.getByRole("button", { name: "Published yes/no" }))
 
     await waitFor(() => {
       expect(fetchSpy.mock.calls.some(([url]) => String(url).startsWith("/api/v1/app/memories?q="))).toBe(true)

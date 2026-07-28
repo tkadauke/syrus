@@ -5,7 +5,7 @@ import { useT } from "../hooks/useT"
 import { CloseIcon } from "./CloseIcon"
 
 import type { FilterChip, FilterLinkBuilder, FilterLinkUpdates, FilterNode, FilterOption, FilterPath, FilterSchemaField, FilterSuggestion, FilterSuggestionSearchConfig, FilterTree } from "./filterBar/types"
-import { clearFiltersLink, defaultFilterChip, defaultFilterValue, encodeFilterTree, filterChipClass, filterChipLabel, filterInputClass, filterLabelClass, filterMetaFor, filterNodeAtPath, filterNotClass, filterOptions, filterPlaceholder, filterSlotInner, filterSlotIsNegated, filterTreeFromPayload, humanizeOp, isFilterChip, isMultiValueOp, isObjectValue, isPredicateOp, linkFromSearch, normalizedFilterTree, removeFilterNodeAtPath, replaceFilterNodeAtPath, suggestionFilterNode, loadFkOptions, loadFilterSuggestions, toggleFilterNegation, topFilterChildren, useFormattedFilterValue } from "./filterBar/helpers"
+import { clearFiltersLink, defaultFilterChip, defaultFilterValue, encodeFilterTree, filterChipClass, filterChipLabel, filterInputClass, filterLabelClass, filterMetaFor, filterNodeAtPath, filterNotClass, filterOptions, filterPlaceholder, filterSlotInner, filterSlotIsNegated, filterTreeFromPayload, isFilterChip, isMultiValueOp, isObjectValue, isPredicateOp, linkFromSearch, normalizedFilterTree, removeFilterNodeAtPath, replaceFilterNodeAtPath, suggestionFilterNode, loadFkOptions, loadFilterSuggestions, toggleFilterNegation, topFilterChildren, translateBucket, translateOp, useFormattedFilterValue } from "./filterBar/helpers"
 export { filterTreeFromPayload, filterTreesEqual, smartFolderFiltersFromTree, topFilterChildren } from "./filterBar/helpers"
 export type { FilterChip, FilterGroup, FilterLinkBuilder, FilterNode, FilterOption, FilterSchemaField, FilterSuggestion, FilterTree } from "./filterBar/types"
 
@@ -300,14 +300,14 @@ export function FilterBar({
               ) : null}
               {filteredSchema.map((field) => (
                 <button
-                  aria-label={`${field.label} ${field.bucket}`}
+                  aria-label={`${field.label} ${translateBucket(field.bucket, t)}`}
                   className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
                   key={field.field}
                   onClick={() => addFilter(field)}
                   type="button"
                 >
                   <span>{field.label}</span>
-                  <span className="text-xs text-gray-400 dark:text-gray-500">{field.bucket}</span>
+                  <span className="text-xs text-gray-400 dark:text-gray-500">{translateBucket(field.bucket, t)}</span>
                 </button>
               ))}
               {filteredSchema.length === 0 && filteredSuggestions.length === 0 ? <div className="px-3 py-2 text-sm text-gray-400 dark:text-gray-500">{t("filter_bar.no_matching_filters")}</div> : null}
@@ -344,14 +344,15 @@ function FilterNodeChip({
   onRemove: (path: FilterPath) => void
   onToggleNegation: (index: number) => void
 }) {
+  const { t } = useT("nav")
   const negated = filterSlotIsNegated(node)
   const inner = filterSlotInner(node)
   if (isFilterChip(inner)) {
     return (
       <span className={filterChipClass(negated)}>
-        <button aria-label={negated ? "Remove NOT" : "Wrap in NOT"} className={filterNotClass(negated)} onClick={() => onToggleNegation(index)} title={negated ? "Remove NOT" : "Wrap in NOT"} type="button">¬</button>
+        <button aria-label={negated ? t("filter_bar.remove_not") : t("filter_bar.wrap_in_not")} className={filterNotClass(negated)} onClick={() => onToggleNegation(index)} title={negated ? t("filter_bar.remove_not") : t("filter_bar.wrap_in_not")} type="button">¬</button>
         <FilterChipButton chip={inner} controls={controls} negated={negated} onClick={() => onEdit([index])} />
-        <button aria-label={`Remove ${filterChipLabel(inner, controls)} filter`} className="inline-flex h-5 w-5 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={() => onRemove([index])} type="button">
+        <button aria-label={t("filter_bar.remove_filter", { label: filterChipLabel(inner, controls) })} className="inline-flex h-5 w-5 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-200" onClick={() => onRemove([index])} type="button">
           <CloseIcon className="h-3.5 w-3.5" />
         </button>
       </span>
@@ -361,20 +362,20 @@ function FilterNodeChip({
   if (inner && "or" in inner && Array.isArray(inner.or)) {
     return (
       <span className={negated ? "inline-flex flex-wrap items-center gap-1 rounded border border-rose-300 bg-rose-50 px-1.5 py-0.5 text-sm dark:border-rose-800 dark:bg-rose-950" : "inline-flex flex-wrap items-center gap-1 rounded border border-indigo-300 bg-indigo-50 px-1.5 py-0.5 text-sm dark:border-indigo-800 dark:bg-indigo-950"}>
-        <button aria-label={negated ? "Remove NOT" : "Wrap in NOT"} className={filterNotClass(negated)} onClick={() => onToggleNegation(index)} title={negated ? "Remove NOT" : "Wrap in NOT"} type="button">¬</button>
+        <button aria-label={negated ? t("filter_bar.remove_not") : t("filter_bar.wrap_in_not")} className={filterNotClass(negated)} onClick={() => onToggleNegation(index)} title={negated ? t("filter_bar.remove_not") : t("filter_bar.wrap_in_not")} type="button">¬</button>
         <span className={negated ? "text-xs font-semibold text-rose-700 dark:text-rose-200" : "text-xs font-semibold text-indigo-700 dark:text-indigo-200"}>(</span>
         {inner.or.map((child, childIndex) => (
           <span className="inline-flex items-center gap-1" key={childIndex}>
-            {childIndex > 0 ? <span className="text-xs font-semibold uppercase text-indigo-500 dark:text-indigo-300">or</span> : null}
+            {childIndex > 0 ? <span className="text-xs font-semibold uppercase text-indigo-500 dark:text-indigo-300">{t("filter_bar.or")}</span> : null}
             {isFilterChip(child) ? (
               <span className="inline-flex items-center gap-1 rounded border border-gray-300 bg-gray-50 px-2 py-1 dark:border-gray-700 dark:bg-gray-800">
                 <FilterChipButton chip={child} controls={controls} onClick={() => onEdit([index, childIndex])} />
-                <button aria-label={`Remove ${filterChipLabel(child, controls)} filter`} className="inline-flex h-5 w-5 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-200" onClick={() => onRemove([index, childIndex])} type="button">
+                <button aria-label={t("filter_bar.remove_filter", { label: filterChipLabel(child, controls) })} className="inline-flex h-5 w-5 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-200" onClick={() => onRemove([index, childIndex])} type="button">
                   <CloseIcon className="h-3.5 w-3.5" />
                 </button>
               </span>
             ) : (
-              <span className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">complex filter</span>
+              <span className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">{t("filter_bar.complex_filter")}</span>
             )}
           </span>
         ))}
@@ -383,17 +384,19 @@ function FilterNodeChip({
     )
   }
 
-  return <span className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">complex filter</span>
+  return <span className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">{t("filter_bar.complex_filter")}</span>
 }
 
 function FilterChipButton({ chip, controls, negated = false, onClick }: { chip: FilterChip; controls: FilterSchemaField[]; negated?: boolean; onClick: () => void }) {
+  const { t } = useT("nav")
   const meta = filterMetaFor(controls, chip.field)
   const formattedValue = useFormattedFilterValue(chip, meta)
-  const label = `${negated ? "NOT " : ""}${meta?.label || chip.field} ${humanizeOp(chip.op)}${isPredicateOp(chip.op) ? "" : ` ${formattedValue}`}`
+  const opLabel = translateOp(chip.op, t)
+  const label = `${negated ? t("filter_bar.not_prefix") + " " : ""}${meta?.label || chip.field} ${opLabel}${isPredicateOp(chip.op) ? "" : ` ${formattedValue}`}`
   return (
     <button aria-label={label} className="inline-flex items-baseline gap-1 text-left" onClick={onClick} type="button">
       <span className="font-medium text-gray-700 dark:text-gray-200">{meta?.label || chip.field}</span>
-      <span className="text-xs text-gray-500 dark:text-gray-400">{humanizeOp(chip.op)}</span>
+      <span className="text-xs text-gray-500 dark:text-gray-400">{opLabel}</span>
       {isPredicateOp(chip.op) ? null : <span className="font-mono text-gray-900 dark:text-white">{formattedValue}</span>}
     </button>
   )
@@ -413,7 +416,7 @@ function FilterChipEditor({ chip, editorRef, meta, onAddAlternative, onChange }:
         <label className={filterLabelClass()} htmlFor={`filter-op-${meta.field}`}>
           {t("filter_bar.operator")}
           <select className={filterInputClass("mt-1 block rounded px-2 py-1.5")} id={`filter-op-${meta.field}`} onChange={(event) => updateOp(event.target.value)} value={chip.op}>
-            {meta.operators.map((op) => <option key={op} value={op}>{humanizeOp(op)}</option>)}
+            {meta.operators.map((op) => <option key={op} value={op}>{translateOp(op, t)}</option>)}
           </select>
         </label>
         <FilterValueEditor chip={chip} meta={meta} onChange={onChange} />
@@ -569,7 +572,7 @@ function TypeaheadFilterValueEditor({ chip, meta, multi, onChange }: { chip: Fil
               return (
                 <span className="inline-flex items-center gap-1 rounded bg-indigo-100 px-2 py-0.5 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200" key={value}>
                   {option.label}
-                  <button aria-label={`Remove ${option.label}`} className="inline-flex h-4 w-4 items-center justify-center rounded text-indigo-500 hover:bg-indigo-200 hover:text-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900 dark:hover:text-indigo-100" onClick={() => removeValue(value)} type="button">
+                  <button aria-label={t("filter_bar.remove_value", { label: option.label })} className="inline-flex h-4 w-4 items-center justify-center rounded text-indigo-500 hover:bg-indigo-200 hover:text-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900 dark:hover:text-indigo-100" onClick={() => removeValue(value)} type="button">
                     <CloseIcon className="h-3 w-3" />
                   </button>
                 </span>
@@ -641,7 +644,7 @@ function MultiFilterValueEditor({ chip, meta, onChange, options }: { chip: Filte
             selectedOptions.map((option) => (
               <span className="inline-flex items-center gap-1 rounded bg-indigo-100 px-2 py-0.5 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200" key={String(option.value)}>
                 {option.label}
-                <button aria-label={`Remove ${option.label}`} className="inline-flex h-4 w-4 items-center justify-center rounded text-indigo-500 hover:bg-indigo-200 hover:text-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900 dark:hover:text-indigo-100" onClick={() => removeValue(String(option.value))} type="button">
+                <button aria-label={t("filter_bar.remove_value", { label: option.label })} className="inline-flex h-4 w-4 items-center justify-center rounded text-indigo-500 hover:bg-indigo-200 hover:text-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900 dark:hover:text-indigo-100" onClick={() => removeValue(String(option.value))} type="button">
                   <CloseIcon className="h-3 w-3" />
                 </button>
               </span>
@@ -690,7 +693,7 @@ function DateFilterValueEditor({ chip, onChange }: { chip: FilterChip; onChange:
         <label className={filterLabelClass()} htmlFor="filter-date-unit">
           {t("filter_bar.unit")}
           <select className={filterInputClass("mt-1 block rounded px-2 py-1.5")} id="filter-date-unit" onChange={(event) => onChange({ ...chip, value: { ...value, unit: event.target.value } })} value={String(value.unit || "days")}>
-            {["minutes", "hours", "days", "weeks", "months"].map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+            {["minutes", "hours", "days", "weeks", "months"].map((unit) => <option key={unit} value={unit}>{t(`filter_bar.time_unit.${unit}`)}</option>)}
           </select>
         </label>
       </div>

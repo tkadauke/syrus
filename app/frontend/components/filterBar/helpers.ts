@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 
+import { useT } from "../../hooks/useT"
 import type { FilterChip, FilterLinkBuilder, FilterLinkUpdates, FilterNode, FilterOption, FilterPath, FilterSchemaField, FilterSuggestion, FilterSuggestionSearchConfig, FilterTree } from "./types"
 
 // Pure filter-tree helpers extracted from FilterBar.tsx: encode/normalize/diff
@@ -153,18 +154,30 @@ export function filterChipLabel(chip: FilterChip, controls: FilterSchemaField[])
   return filterMetaFor(controls, chip.field)?.label || chip.field
 }
 
-export function formatFilterValue(chip: FilterChip, meta: FilterSchemaField | null) {
-  if (chip.value === null || chip.value === undefined || chip.value === "") return "(unset)"
-  if (Array.isArray(chip.value)) return chip.value.length > 0 ? chip.value.map((value) => labelForOption(value, meta)).join(", ") : "(unset)"
+export function formatFilterValue(
+  chip: FilterChip,
+  meta: FilterSchemaField | null,
+  {
+    unsetLabel = "(unset)",
+    agoLabel = "ago",
+    translateUnit = (u: string) => u
+  }: { unsetLabel?: string; agoLabel?: string; translateUnit?: (unit: string) => string } = {}
+) {
+  if (chip.value === null || chip.value === undefined || chip.value === "") return unsetLabel
+  if (Array.isArray(chip.value)) return chip.value.length > 0 ? chip.value.map((value) => labelForOption(value, meta)).join(", ") : unsetLabel
   if (isObjectValue(chip.value)) {
-    if ("n" in chip.value && "unit" in chip.value) return `${chip.value.n} ${chip.value.unit}${chip.op === "more_than_ago" ? " ago" : ""}`
+    if ("n" in chip.value && "unit" in chip.value) return `${chip.value.n} ${translateUnit(String(chip.value.unit || ""))}${chip.op === "more_than_ago" ? ` ${agoLabel}` : ""}`
     return JSON.stringify(chip.value)
   }
   return labelForOption(chip.value, meta)
 }
 
 export function useFormattedFilterValue(chip: FilterChip, meta: FilterSchemaField | null) {
-  const fallback = formatFilterValue(chip, meta)
+  const { t } = useT("nav")
+  const unsetLabel = t("filter_bar.unset")
+  const agoLabel = t("filter_bar.ago")
+  const translateUnit = (unit: string) => t(`filter_bar.time_unit.${unit}`, { defaultValue: unit })
+  const fallback = formatFilterValue(chip, meta, { unsetLabel, agoLabel, translateUnit })
   const values = useMemo(() => filterValueList(chip.value), [chip.value])
   const [loadedOptions, setLoadedOptions] = useState<FilterOption[]>([])
 
@@ -189,7 +202,7 @@ export function useFormattedFilterValue(chip: FilterChip, meta: FilterSchemaFiel
 
   const loadedByValue = new Map(loadedOptions.map((option) => [String(option.value), option.label]))
   if (Array.isArray(chip.value)) {
-    return chip.value.length > 0 ? chip.value.map((value) => loadedByValue.get(String(value)) || labelForOption(value, meta)).join(", ") : "(unset)"
+    return chip.value.length > 0 ? chip.value.map((value) => loadedByValue.get(String(value)) || labelForOption(value, meta)).join(", ") : unsetLabel
   }
 
   return loadedByValue.get(String(chip.value)) || fallback
@@ -225,6 +238,14 @@ export function isObjectValue(value: unknown): value is Record<string, unknown> 
 
 export function humanizeOp(op: string) {
   return op.replace(/_/g, " ")
+}
+
+export function translateOp(op: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
+  return t(`filter_bar.op.${op}`, { defaultValue: humanizeOp(op) })
+}
+
+export function translateBucket(bucket: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
+  return t(`filter_bar.bucket.${bucket}`, { defaultValue: bucket })
 }
 
 export function filterChipClass(negated: boolean) {
