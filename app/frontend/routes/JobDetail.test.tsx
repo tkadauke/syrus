@@ -594,6 +594,80 @@ describe("FeedbackHistoryPanel", () => {
   })
 })
 
+describe("PrioritySelector", () => {
+  it("renders a select with the current priority selected", () => {
+    renderJobDetail(jobPayload({ job: { ...baseJob(), priority: "high" } }))
+
+    const select = screen.getByRole("combobox", { name: "Priority" })
+    expect(select).toHaveValue("high")
+  })
+
+  it("changes priority without a dialog for non-urgent values", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(jobPayload({ job: { ...baseJob(), priority: "low" } }))
+    )
+    renderJobDetail(jobPayload({ job: { ...baseJob(), priority: "medium" } }))
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Priority" }), { target: { value: "low" } })
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/priority",
+        expect.objectContaining({ method: "PATCH", body: JSON.stringify({ priority: "low" }) })
+      )
+    })
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+
+  it("shows the urgent confirmation dialog when urgent is selected", () => {
+    renderJobDetail(jobPayload({ job: { ...baseJob(), priority: "high" } }))
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Priority" }), { target: { value: "urgent" } })
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument()
+    expect(screen.getByText(/pause all other jobs in this repository/)).toBeInTheDocument()
+  })
+
+  it("does not call the endpoint when the urgent dialog is cancelled", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch")
+    renderJobDetail(jobPayload({ job: { ...baseJob(), priority: "high" } }))
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Priority" }), { target: { value: "urgent" } })
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/jobs/1/priority", expect.anything())
+  })
+
+  it("calls the priority endpoint when the urgent dialog is confirmed", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(jobPayload({ job: { ...baseJob(), priority: "urgent" } }))
+    )
+    renderJobDetail(jobPayload({ job: { ...baseJob(), priority: "high" } }))
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Priority" }), { target: { value: "urgent" } })
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/priority",
+        expect.objectContaining({ method: "PATCH", body: JSON.stringify({ priority: "urgent" }) })
+      )
+    })
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+
+  it("closes the urgent dialog when Escape is pressed", () => {
+    renderJobDetail(jobPayload({ job: { ...baseJob(), priority: "medium" } }))
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Priority" }), { target: { value: "urgent" } })
+    expect(screen.getByRole("dialog")).toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: "Escape" })
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+})
+
 describe("SourceTab", () => {
   it("keeps expanded directories open after selecting a file", async () => {
     mockJobSourceRequests()
@@ -811,7 +885,8 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       app_pending_feedback_path: "/api/v1/app/jobs/1/pending_feedback",
       app_open_in_coding_mode_path: "/api/v1/app/jobs/1/open_in_coding_mode",
       app_open_in_local_mode_path: "/api/v1/app/jobs/1/open_in_local_mode",
-      app_cancel_local_mode_path: "/api/v1/app/jobs/1/cancel_local_mode"
+      app_cancel_local_mode_path: "/api/v1/app/jobs/1/cancel_local_mode",
+      app_priority_path: "/api/v1/app/jobs/1/priority"
     },
     ...overrides
   }

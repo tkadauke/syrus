@@ -434,6 +434,7 @@ export type JobPaths = {
   app_open_in_coding_mode_path: string
   app_open_in_local_mode_path: string
   app_cancel_local_mode_path: string
+  app_priority_path: string
 }
 
 export type JobDetailPayload = {
@@ -617,6 +618,10 @@ export function ignorePendingFeedback(jobId: number, commentId: number) {
 
 export function replacePendingFeedback(jobId: number, commentId: number, body: string) {
   return postJson<PendingFeedbackActionPayload>(`/api/v1/app/jobs/${jobId}/pending_feedback/${commentId}/replace`, { body })
+}
+
+export function updateJobPriority(path: string, priority: string) {
+  return patchJson<JobDetailPayload>(path, { priority })
 }
 
 export function createJobAttachments(path: string, values: { files: File[]; googleDocUrl: string }) {

@@ -412,7 +412,8 @@ module App
         app_pending_feedback_path: "/api/v1/app/jobs/#{@job.id}/pending_feedback",
         app_open_in_coding_mode_path: "/api/v1/app/jobs/#{@job.id}/open_in_coding_mode",
         app_open_in_local_mode_path: "/api/v1/app/jobs/#{@job.id}/open_in_local_mode",
-        app_cancel_local_mode_path: "/api/v1/app/jobs/#{@job.id}/cancel_local_mode"
+        app_cancel_local_mode_path: "/api/v1/app/jobs/#{@job.id}/cancel_local_mode",
+        app_priority_path: "/api/v1/app/jobs/#{@job.id}/priority"
       }
     end
 

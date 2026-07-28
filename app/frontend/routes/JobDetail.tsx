@@ -13,7 +13,7 @@ import { Markdown } from "../lib/Markdown"
 import { translateBlockedReason } from "../lib/translateBlockedReason"
 import { workflowSlug } from "../lib/slugs"
 import { buttonClass } from "../lib/buttonClasses"
-import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobDetail, fetchJobWorkflows, ignorePendingFeedback, replacePendingFeedback, submitJobFeedback, type JobApprovalRecord, type JobApprovalStatus, type JobDetailPayload, type JobTestPlan, type JobWorkflow, type PendingFeedbackComment } from "../api/jobs"
+import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobDetail, fetchJobWorkflows, ignorePendingFeedback, replacePendingFeedback, submitJobFeedback, updateJobPriority, type JobApprovalRecord, type JobApprovalStatus, type JobDetailPayload, type JobTestPlan, type JobWorkflow, type PendingFeedbackComment } from "../api/jobs"
 import { CoverageCard } from "../components/CoverageCard"
 import { errorMessage } from "../lib/errorMessage"
 import type { JobDetailQueryKey, JobTab, JobWorkflowsQueryKey } from "./jobDetail/queryKeys"
@@ -267,7 +267,7 @@ function SummaryTab({ payload, command, prefix, queryKey }: { payload: JobDetail
             <div className="mt-3 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
               <KeyValue label={t("detail_state")}><StatusPill state={payload.job.summary_state} /></KeyValue>
               <KeyValue label={t("detail_owner")}><JobOwnerLabel command={command} payload={payload} prefix={prefix} /></KeyValue>
-              <KeyValue label={t("detail_priority")}><SmallPill>{payload.job.priority}</SmallPill></KeyValue>
+              <KeyValue label={t("detail_priority")}><PrioritySelector currentPriority={payload.job.priority} priorityPath={payload.paths.app_priority_path} queryKey={queryKey} /></KeyValue>
               <KeyValue label={t("detail_validity")}><span className="capitalize">{payload.job.validity}</span></KeyValue>
               {payload.epic ? <KeyValue label={t("detail_epic")}><EpicSummaryLink epic={payload.epic} prefix={prefix} /></KeyValue> : null}
               {payload.job.branch_name ? <KeyValue label={t("detail_branch")}><code className="break-all">{payload.job.branch_name}</code></KeyValue> : null}
@@ -284,6 +284,122 @@ function SummaryTab({ payload, command, prefix, queryKey }: { payload: JobDetail
           <DependenciesPanel command={command} payload={payload} prefix={prefix} />
         </div>
       </div>
+    </div>
+  )
+}
+
+const JOB_PRIORITIES = ["urgent", "high", "medium", "low"] as const
+
+function PrioritySelector({ currentPriority, priorityPath, queryKey }: { currentPriority: string; priorityPath: string; queryKey: JobDetailQueryKey }) {
+  const { t } = useT("jobs")
+  const queryClient = useQueryClient()
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [pendingPriority, setPendingPriority] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const mutation = useMutation({
+    mutationFn: (priority: string) => updateJobPriority(priorityPath, priority),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey })
+      void queryClient.invalidateQueries({ queryKey: ["jobs"], exact: true })
+      setError(null)
+    },
+    onError: () => setError(t("priority_update_error"))
+  })
+
+  function handleChange(value: string) {
+    if (value === "urgent") {
+      setPendingPriority("urgent")
+      setShowConfirm(true)
+    } else {
+      mutation.mutate(value)
+    }
+  }
+
+  function handleConfirm() {
+    if (pendingPriority) mutation.mutate(pendingPriority)
+    setShowConfirm(false)
+    setPendingPriority(null)
+  }
+
+  function handleCancel() {
+    setShowConfirm(false)
+    setPendingPriority(null)
+  }
+
+  const labels: Record<string, string> = {
+    urgent: t("priority_urgent"),
+    high: t("priority_high"),
+    medium: t("priority_medium"),
+    low: t("priority_low")
+  }
+
+  return (
+    <span className="inline-flex flex-col gap-1">
+      <select
+        aria-label={t("detail_priority")}
+        className="rounded border border-gray-300 bg-white py-0.5 pl-1.5 pr-6 text-xs text-gray-700 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300"
+        disabled={mutation.isPending}
+        onChange={(e) => handleChange(e.target.value)}
+        value={currentPriority}
+      >
+        {JOB_PRIORITIES.map((p) => (
+          <option key={p} value={p}>{labels[p]}</option>
+        ))}
+      </select>
+      {error ? <span className="text-xs text-red-600 dark:text-red-400" role="alert">{error}</span> : null}
+      {showConfirm ? <UrgentConfirmDialog onCancel={handleCancel} onConfirm={handleConfirm} /> : null}
+    </span>
+  )
+}
+
+function UrgentConfirmDialog({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+  const { t } = useT("jobs")
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onCancel()
+    }
+    document.addEventListener("keydown", onKeyDown)
+    return () => document.removeEventListener("keydown", onKeyDown)
+  }, [onCancel])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onCancel}
+    >
+      <section
+        aria-labelledby="urgent-confirm-title"
+        aria-modal="true"
+        className="w-full max-w-md rounded-lg bg-white shadow-xl dark:bg-gray-900"
+        role="dialog"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="space-y-4 p-5">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="urgent-confirm-title">
+            {t("priority_urgent_confirm_title")}
+          </h2>
+          <p className="text-sm text-gray-700 dark:text-gray-300">{t("priority_urgent_confirm_body_1")}</p>
+          <p className="text-sm text-gray-700 dark:text-gray-300">{t("priority_urgent_confirm_body_2")}</p>
+          <div className="flex justify-end gap-3">
+            <button
+              className="rounded border border-gray-300 px-4 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+              onClick={onCancel}
+              type="button"
+            >
+              {t("priority_cancel")}
+            </button>
+            <button
+              className="rounded bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700"
+              onClick={onConfirm}
+              type="button"
+            >
+              {t("priority_urgent_confirm_button")}
+            </button>
+          </div>
+        </div>
+      </section>
     </div>
   )
 }
