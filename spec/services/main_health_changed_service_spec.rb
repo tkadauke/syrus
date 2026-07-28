@@ -100,7 +100,7 @@ RSpec.describe MainHealthChangedService do
         expect(workflow.reload.artifact("main_broken")).to be_nil
       end
 
-      it "spawns a high-priority direct Job to fix the broken main" do
+      it "spawns an urgent-priority direct Job to fix the broken main" do
         expect {
           described_class.on_health_change!(repository)
         }.to change { repository.jobs.where(kind: "direct").count }.by(1)
@@ -109,7 +109,7 @@ RSpec.describe MainHealthChangedService do
         expect(fix_job).to have_attributes(
           issue_title: MainHealthChangedService::FIX_MAIN_TITLE,
           system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
-          priority: "high",
+          priority: "urgent",
           kind: "direct",
           state: "queued"
         )
@@ -410,7 +410,7 @@ RSpec.describe MainHealthChangedService do
         expect(replacement).to have_attributes(
           issue_title: MainHealthChangedService::FIX_MAIN_TITLE,
           state: "queued",
-          priority: "high"
+          priority: "urgent"
         )
       end
 

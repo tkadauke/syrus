@@ -55,7 +55,7 @@ RSpec.describe Filters::Schema do
     it "still respects per-chip overrides for bucket and values" do
       schema = described_class.chip_for("priority")
       expect(schema["bucket"]).to eq("enum")
-      expect(schema["values"].map { |v| v["value"] }).to eq(%w[high medium low])
+      expect(schema["values"].map { |v| v["value"] }).to eq(%w[urgent high medium low])
     end
 
     it "embeds preset expansions on chips that declare them" do
