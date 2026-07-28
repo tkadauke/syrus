@@ -785,7 +785,8 @@ class Job < ApplicationRecord
   # observable behavior as the v0 single-Run flow, but each
   # phase is now its own attemptable step.
   def create_initial_run
-    workflow = Workflows::Initial.instantiate(job: self, agent_provider: agent_provider)
+    template = main_branch_repair? ? Workflows::MainBranchRepair : Workflows::Initial
+    workflow = template.instantiate(job: self, agent_provider: agent_provider)
     prompt = if direct?
       Prompts::DirectJob.new(
         prompt: issue_body.to_s,
