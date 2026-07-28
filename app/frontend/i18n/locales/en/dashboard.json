@@ -116,6 +116,7 @@
   "broken_main_view_details": "View details",
   "broken_main_repair_active": "Repair running:",
   "broken_main_repair_waiting": "Repair waiting:",
+  "broken_main_repair_landing": "Repair landing:",
   "broken_main_repair_failed_jobs": "Failed repairs:",
   "broken_main_repair_waiting_for_signals": "Waiting for CI and grader signals.",
   "broken_main_repair_cap": "Repair cap reached.",

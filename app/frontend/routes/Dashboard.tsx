@@ -171,7 +171,7 @@ function RepositoryHealthBanners({ prefix, repositories }: { prefix: string; rep
                 <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-red-700 dark:text-red-200">
                   {blockingJob ? (
                     <span>
-                      {t(repair.blocked_reason === "active" ? "broken_main_repair_active" : "broken_main_repair_waiting")}{" "}
+                      {t(repair.blocked_reason === "active" ? "broken_main_repair_active" : repair.blocked_reason === "landing" ? "broken_main_repair_landing" : "broken_main_repair_waiting")}{" "}
                       <Link className="font-medium underline underline-offset-2" to={withRoutePrefix(blockingJob.job_path, prefix)}>
                         {blockingJob.slug}
                       </Link>

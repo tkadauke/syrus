@@ -116,6 +116,7 @@
   "broken_main_view_details": "Vide details",
   "broken_main_repair_active": "Reparatio agit:",
   "broken_main_repair_waiting": "Reparatio exspectat:",
+  "broken_main_repair_landing": "Reparatio inserit:",
   "broken_main_repair_failed_jobs": "Reparationes defectae:",
   "broken_main_repair_waiting_for_signals": "Signa CI et examinatorum exspectantur.",
   "broken_main_repair_cap": "Terminus reparationum attactus est.",

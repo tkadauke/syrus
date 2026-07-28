@@ -330,6 +330,54 @@ RSpec.describe MainHealthChangedService do
         }.not_to change { repository.jobs.where(kind: "direct").count }
       end
 
+      it "reports blocked_reason 'waiting' for an implemented repair Job" do
+        repair_job = repository.jobs.create!(
+          user: user,
+          kind: "direct",
+          system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+          issue_title: "repair awaiting review",
+          issue_body: "fixing main",
+          agent_provider: "claude",
+          priority: "high",
+          state: "implemented"
+        )
+
+        status = described_class.new(repository).repair_status
+        expect(status).to include(blocked_reason: "waiting", blocking_job: repair_job)
+      end
+
+      it "reports blocked_reason 'landing' for an approved repair Job" do
+        repair_job = repository.jobs.create!(
+          user: user,
+          kind: "direct",
+          system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+          issue_title: "repair approved",
+          issue_body: "fixing main",
+          agent_provider: "claude",
+          priority: "high",
+          state: "approved"
+        )
+
+        status = described_class.new(repository).repair_status
+        expect(status).to include(blocked_reason: "landing", blocking_job: repair_job)
+      end
+
+      it "reports blocked_reason 'landing' for a landing repair Job" do
+        repair_job = repository.jobs.create!(
+          user: user,
+          kind: "direct",
+          system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+          issue_title: "repair landing",
+          issue_body: "fixing main",
+          agent_provider: "claude",
+          priority: "high",
+          state: "landing"
+        )
+
+        status = described_class.new(repository).repair_status
+        expect(status).to include(blocked_reason: "landing", blocking_job: repair_job)
+      end
+
       it "spawns another fix Job while failed repair Jobs are below the cap" do
         repository.jobs.create!(
           user: user,
