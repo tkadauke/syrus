@@ -690,19 +690,19 @@ RSpec.describe GithubClient do
 
     def stub_branch_exists
       allow(octokit).to receive(:ref)
-        .with("acme/widgets", "refs/heads/bug-report-media")
+        .with("acme/widgets", "heads/bug-report-media")
         .and_return(fake_ref)
     end
 
     def stub_branch_missing
       allow(octokit).to receive(:ref)
-        .with("acme/widgets", "refs/heads/bug-report-media")
+        .with("acme/widgets", "heads/bug-report-media")
         .and_raise(Octokit::NotFound)
       allow(octokit).to receive(:repository)
         .with("acme/widgets")
         .and_return(fake_repo)
       allow(octokit).to receive(:ref)
-        .with("acme/widgets", "refs/heads/main")
+        .with("acme/widgets", "heads/main")
         .and_return(fake_ref)
       allow(octokit).to receive(:create_ref)
         .with("acme/widgets", "refs/heads/bug-report-media", "abc123sha")

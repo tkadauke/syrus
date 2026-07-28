@@ -851,10 +851,10 @@ class GithubClient
   end
 
   def ensure_bug_report_branch!(repo_slug, branch)
-    @client.ref(repo_slug, "refs/heads/#{branch}")
+    @client.ref(repo_slug, "heads/#{branch}")
   rescue Octokit::NotFound
     repo_info = @client.repository(repo_slug)
-    tip_sha = @client.ref(repo_slug, "refs/heads/#{repo_info.default_branch}").object.sha
+    tip_sha = @client.ref(repo_slug, "heads/#{repo_info.default_branch}").object.sha
     @client.create_ref(repo_slug, "refs/heads/#{branch}", tip_sha)
   end
 end
