@@ -18,12 +18,22 @@ module BugReports
 
       title = title.to_s.strip.presence || "In-app bug report"
       repo_slug = AppSetting.report_issue_repo_slug
-      client = GithubClient.for_user(user)
+      issue_client = GithubClient.for_user(user)
+
+      # Use installation token for asset upload if available — the undocumented
+      # upload/policies/assets endpoint is more likely to accept it than a PAT.
+      target_repo = Repository.active.find_by("LOWER(CONCAT(owner, '/', name)) = ?", repo_slug.downcase)
+      upload_client = begin
+        target_repo ? GithubClient.for(repository: target_repo, user: user) : issue_client
+      rescue => e
+        Rails.logger.warn("[BugReports::GithubIssueCreator] falling back to PAT for uploads: #{e.class}: #{e.message}")
+        issue_client
+      end
 
       body_parts = [ description.to_s.strip ]
 
       if screenshot.present?
-        url = client.upload_issue_asset(
+        url = upload_client.upload_issue_asset(
           repo_slug,
           io: screenshot,
           content_type: screenshot.content_type.presence || "image/png",
@@ -40,7 +50,7 @@ module BugReports
       if extra_attachments.any?
         lines = extra_attachments.map do |attachment|
           name = attachment.original_filename.presence || "attachment"
-          url = client.upload_issue_asset(
+          url = upload_client.upload_issue_asset(
             repo_slug,
             io: attachment,
             content_type: attachment.content_type.presence || "application/octet-stream",
@@ -53,7 +63,7 @@ module BugReports
 
       body = body_parts.reject(&:blank?).join("\n\n")
 
-      issue = client.create_issue(repo_slug, title: title, body: body)
+      issue = issue_client.create_issue(repo_slug, title: title, body: body)
       Result.new(issue_url: issue.html_url)
     rescue Octokit::Error => e
       Result.new(

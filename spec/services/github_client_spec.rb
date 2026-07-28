@@ -780,6 +780,19 @@ RSpec.describe GithubClient do
       expect(result).to be_nil
     end
 
+    it "logs a warning with the HTTP status code when the policy request returns a non-2xx response" do
+      stub_policy(status: 403, body: { error: "Forbidden" })
+
+      expect(Rails.logger).to receive(:warn).with(/\[GithubClient\] fetch_upload_policy acme\/widgets: HTTP 403/)
+
+      client.upload_issue_asset(
+        "acme/widgets",
+        io: StringIO.new("data"),
+        content_type: "image/png",
+        filename: "shot.png"
+      )
+    end
+
     it "returns nil when the S3 upload fails" do
       stub_policy
       stub_s3(status: 500)
@@ -792,6 +805,20 @@ RSpec.describe GithubClient do
       )
 
       expect(result).to be_nil
+    end
+
+    it "logs a warning with the HTTP status code when the S3 upload returns a non-success response" do
+      stub_policy
+      stub_s3(status: 500)
+
+      expect(Rails.logger).to receive(:warn).with(/\[GithubClient\] upload_asset_to_s3 #{Regexp.escape(s3_url)}: HTTP 500/)
+
+      client.upload_issue_asset(
+        "acme/widgets",
+        io: StringIO.new("data"),
+        content_type: "image/png",
+        filename: "shot.png"
+      )
     end
 
     it "accepts a 302 redirect from S3 as a successful upload" do

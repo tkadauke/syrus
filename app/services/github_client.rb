@@ -860,7 +860,10 @@ class GithubClient
       req.body = { name: filename, size: size, content_type: content_type }.to_json
       http.request(req)
     end
-    return nil unless response.is_a?(Net::HTTPSuccess)
+    unless response.is_a?(Net::HTTPSuccess)
+      Rails.logger.warn("[GithubClient] fetch_upload_policy #{owner}/#{repo}: HTTP #{response.code} #{response.body.to_s.truncate(300)}")
+      return nil
+    end
     JSON.parse(response.body)
   rescue => e
     Rails.logger.warn("[GithubClient] fetch_upload_policy #{owner}/#{repo}: #{e.class}: #{e.message}")
@@ -877,7 +880,12 @@ class GithubClient
       req.body = multipart
       http.request(req)
     end
-    response.is_a?(Net::HTTPSuccess) || response.is_a?(Net::HTTPRedirection)
+    if response.is_a?(Net::HTTPSuccess) || response.is_a?(Net::HTTPRedirection)
+      true
+    else
+      Rails.logger.warn("[GithubClient] upload_asset_to_s3 #{upload_url}: HTTP #{response.code}")
+      false
+    end
   rescue => e
     Rails.logger.warn("[GithubClient] upload_asset_to_s3 #{upload_url}: #{e.class}: #{e.message}")
     false
