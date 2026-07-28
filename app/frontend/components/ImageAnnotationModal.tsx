@@ -10,7 +10,7 @@ type LineShape    = { id: string; kind: "line";       x1: number; y1: number; x2
 type ArrowShape   = { id: string; kind: "arrow";      x1: number; y1: number; x2: number; y2: number; color: string }
 type FreehandShape = { id: string; kind: "freehand";  points: Array<{ x: number; y: number }>; color: string }
 type TextShape    = { id: string; kind: "text";       x: number; y: number; value: string; color: string }
-type Shape = RectShape | EllipseShape | LineShape | ArrowShape | FreehandShape | TextShape
+export type Shape = RectShape | EllipseShape | LineShape | ArrowShape | FreehandShape | TextShape
 
 type Tool     = "select" | "rectangle" | "ellipse" | "line" | "arrow" | "freehand" | "text"
 type DrawTool = "rectangle" | "ellipse" | "line" | "arrow" | "freehand"
@@ -303,9 +303,10 @@ function makePreviewShape(kind: DrawTool, start: Point, end: Point, color: strin
 // --- Component ---
 
 export function ImageAnnotationModal({
-  dataUrl, name, onDone, onClose
+  dataUrl, name, initialShapes, originalDataUrl, onDone, onClose
 }: {
-  dataUrl: string; name: string; onDone: (annotatedDataUrl: string) => void; onClose: () => void
+  dataUrl: string; name: string; initialShapes?: Shape[]; originalDataUrl?: string
+  onDone: (annotatedDataUrl: string, shapes: Shape[]) => void; onClose: () => void
 }) {
   const { t } = useT("common")
   const imageCanvasRef   = useRef<HTMLCanvasElement | null>(null)
@@ -314,6 +315,8 @@ export function ImageAnnotationModal({
   const futureRef        = useRef<Shape[][]>([])
   const interactionRef   = useRef<Interaction | null>(null)
   const shapesRef        = useRef<Shape[]>([])
+  // Captured at mount; stable ref avoids adding initialShapes to the image-load effect deps
+  const initialShapesRef = useRef<Shape[]>(initialShapes ?? [])
 
   const [tool,              setTool]              = useState<Tool>("rectangle")
   const [color,             setColor]             = useState(COLORS[0].value)
@@ -377,7 +380,8 @@ export function ImageAnnotationModal({
     renderCanvas(shapes, selectedShapeId, context, canvas)
   }, [shapes, selectedShapeId, imageSize])
 
-  // Load image onto image canvas
+  // Load image onto image canvas; prefer originalDataUrl when re-opening an annotated attachment
+  const baseImageUrl = originalDataUrl ?? dataUrl
   useEffect(() => {
     let cancelled = false
     const image = new Image()
@@ -400,13 +404,13 @@ export function ImageAnnotationModal({
       overlayContext.clearRect(0, 0, width, height)
       pastRef.current = []
       futureRef.current = []
-      setShapes([])
+      setShapes(initialShapesRef.current)
       setImageSize({ width, height })
       syncHistoryCounts()
     }
-    image.src = dataUrl
+    image.src = baseImageUrl
     return () => { cancelled = true }
-  }, [dataUrl, syncHistoryCounts])
+  }, [baseImageUrl, syncHistoryCounts])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -635,7 +639,7 @@ export function ImageAnnotationModal({
     // Re-render without selection overlay before compositing
     renderCanvas(shapes, null, overlayContext, overlayCanvas)
     imageContext.drawImage(overlayCanvas, 0, 0)
-    onDone(imageCanvas.toDataURL("image/png"))
+    onDone(imageCanvas.toDataURL("image/png"), shapesRef.current)
   }
 
   const canvasStyle = imageSize ? { aspectRatio: `${imageSize.width} / ${imageSize.height}` } : undefined

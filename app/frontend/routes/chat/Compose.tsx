@@ -1230,10 +1230,16 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
                     {annotatingIndex === index ? (
                       <ImageAnnotationModal
                         dataUrl={attachment.dataUrl}
+                        initialShapes={attachment.shapes}
                         name={attachment.name}
+                        originalDataUrl={attachment.originalDataUrl}
                         onClose={() => setAnnotatingIndex(null)}
-                        onDone={(annotatedDataUrl) => {
-                          setAttachments((current) => current.map((item, attachmentIndex) => attachmentIndex === index ? { ...item, dataUrl: annotatedDataUrl, mimeType: "image/png" } : item))
+                        onDone={(annotatedDataUrl, shapes) => {
+                          setAttachments((current) => current.map((item, attachmentIndex) =>
+                            attachmentIndex === index
+                              ? { ...item, dataUrl: annotatedDataUrl, mimeType: "image/png", shapes, originalDataUrl: item.originalDataUrl ?? item.dataUrl }
+                              : item
+                          ))
                           setAnnotatingIndex(null)
                         }}
                       />

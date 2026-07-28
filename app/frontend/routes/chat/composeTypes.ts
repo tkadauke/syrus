@@ -1,4 +1,5 @@
 import type { ChatMessageAttachmentInput } from "../../api/chats"
+import type { Shape } from "../../components/ImageAnnotationModal"
 import type { SlashCommand } from "../../lib/slashCommands"
 
 // Compose-related types extracted from Chat.tsx so the composer (chat/Compose.tsx)
@@ -46,4 +47,8 @@ export type ChatSystemCommandAction =
   | { kind: "job"; action: "cancel" | "retry"; jobId: string }
   | { kind: "clear-canvas" }
 
-export type ChatComposeAttachment = ChatMessageAttachmentInput & { size: number }
+export type ChatComposeAttachment = ChatMessageAttachmentInput & {
+  size: number
+  shapes?: Shape[]
+  originalDataUrl?: string
+}

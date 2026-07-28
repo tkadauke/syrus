@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { ImageAnnotationModal } from "./ImageAnnotationModal"
+import { ImageAnnotationModal, type Shape } from "./ImageAnnotationModal"
 
 const sourceDataUrl = "data:image/jpeg;base64,c291cmNl"
 
@@ -71,7 +71,7 @@ describe("ImageAnnotationModal", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Done" }))
 
-    expect(onDone).toHaveBeenCalledWith(expect.stringMatching(/^data:image\/png;base64,\S+/))
+    expect(onDone).toHaveBeenCalledWith(expect.stringMatching(/^data:image\/png;base64,\S+/), expect.any(Array))
     expect(contexts[0].drawImage).toHaveBeenCalled()
   })
 
@@ -679,9 +679,43 @@ describe("ImageAnnotationModal", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Done" }))
 
-    expect(onDone).toHaveBeenCalledWith(expect.stringMatching(/^data:image\/png;base64,\S+/))
+    expect(onDone).toHaveBeenCalledWith(expect.stringMatching(/^data:image\/png;base64,\S+/), expect.any(Array))
     // Image canvas should have the overlay composited onto it
     expect(contexts[0].drawImage).toHaveBeenCalled()
+  })
+
+  // --- Shape persistence across open/close cycles ---
+
+  it("re-opening with initialShapes renders them and keeps undo stack empty", async () => {
+    const initialShapes: Shape[] = [
+      { id: "s1", kind: "rectangle", x: 10, y: 10, w: 40, h: 30, color: "#ef4444" }
+    ]
+    renderModal({ initialShapes })
+    await waitForLoaded()
+
+    // Undo stack is empty — no changes made in this session yet
+    expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled()
+
+    // Initial shape is rendered onto the overlay canvas
+    await waitFor(() => {
+      expect(contexts[1].rect).toHaveBeenCalledWith(10, 10, 40, 30)
+    })
+  })
+
+  it("Done passes the current shape list back alongside the annotated data URL", async () => {
+    const initialShapes: Shape[] = [
+      { id: "s1", kind: "rectangle", x: 10, y: 10, w: 40, h: 30, color: "#ef4444" }
+    ]
+    const onDone = vi.fn()
+    renderModal({ initialShapes, onDone })
+    await waitForLoaded()
+
+    fireEvent.click(screen.getByRole("button", { name: "Done" }))
+
+    expect(onDone).toHaveBeenCalledWith(
+      expect.stringMatching(/^data:image\/png;base64,\S+/),
+      expect.arrayContaining([expect.objectContaining({ id: "s1", kind: "rectangle" })])
+    )
   })
 
   function renderModal(overrides: Partial<Parameters<typeof ImageAnnotationModal>[0]> = {}) {
