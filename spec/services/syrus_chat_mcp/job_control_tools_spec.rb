@@ -123,10 +123,19 @@ RSpec.describe "SyrusChatMcp job control tools" do
     expect(job.reload.priority).to eq("high")
   end
 
-  it "rejects invalid job priorities" do
+  it "sets a job priority to urgent" do
     job = Factories.job_record(repository: repository, state: "queued", priority: "medium")
 
     response = call_tool("set_job_priority", job_id: job.id, priority: "urgent")
+
+    expect(payload(response)).to include(job_id: job.id, previous_priority: "medium", new_priority: "urgent")
+    expect(job.reload.priority).to eq("urgent")
+  end
+
+  it "rejects invalid job priorities" do
+    job = Factories.job_record(repository: repository, state: "queued", priority: "medium")
+
+    response = call_tool("set_job_priority", job_id: job.id, priority: "critical")
 
     expect(response.dig(:error, :message)).to include("Invalid params")
     expect(job.reload.priority).to eq("medium")

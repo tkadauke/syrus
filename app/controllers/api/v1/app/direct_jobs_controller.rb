@@ -148,6 +148,7 @@ module Api
 
         def priority_options
           [
+            { value: "urgent", label: "Urgent", description: "Runs before all other priorities" },
             { value: "high", label: "High", description: "Runs before medium and low" },
             { value: "medium", label: "Medium", description: "Default" },
             { value: "low", label: "Low", description: "Yields to higher-priority jobs" }

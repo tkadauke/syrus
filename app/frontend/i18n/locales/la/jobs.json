@@ -74,6 +74,7 @@
   "detail_state": "Status",
   "detail_owner": "Dominus",
   "detail_priority": "Prioritas",
+  "priority_urgent": "Urgens",
   "detail_validity": "Validitas",
   "detail_epic": "Epicum",
   "detail_branch": "Ramus",

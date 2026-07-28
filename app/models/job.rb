@@ -22,16 +22,16 @@ class Job < ApplicationRecord
   CREDENTIAL_MODES = %w[ app pat ].freeze
   PREPARE_SKIP_LABEL = "syrus-skip-prepare".freeze
 
-  PRIORITIES = %w[ high medium low ].freeze
+  PRIORITIES = %w[ urgent high medium low ].freeze
   STACK_BASES = %w[ auto main ].freeze
   VALIDITIES = %w[ valid duplicate already_implemented ].freeze
   TRIAGING_REASONS = %w[ classifier_pending pending_epic_ref classifier_uncertain ].freeze
   APPROVAL_VIAS = %w[ operator bulk github_review auto_rule ].freeze
   # Maps priority label → SolidQueue priority integer. SolidQueue dispatches
-  # lower numbers first, so high-priority jobs (0) run before medium (10) and
-  # low (20). The gap of 10 between levels leaves room for future additions
+  # lower numbers first, so urgent (-10) runs before high (0), medium (10),
+  # and low (20). The gap of 10 between levels leaves room for future additions
   # without renumbering existing entries.
-  PRIORITY_TO_SQ = { "high" => 0, "medium" => 10, "low" => 20 }.freeze
+  PRIORITY_TO_SQ = { "urgent" => -10, "high" => 0, "medium" => 10, "low" => 20 }.freeze
   attr_accessor :prepare_skip_reason_override, :pending_dependency_warnings, :notify_job_implemented_on_transition
 
   belongs_to :user

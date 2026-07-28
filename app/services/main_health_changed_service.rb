@@ -254,7 +254,7 @@ class MainHealthChangedService
       issue_title: FIX_MAIN_TITLE,
       issue_body: fix_job_prompt,
       agent_provider: @repository.effective_agent_provider,
-      priority: "high"
+      priority: "urgent"
     )
     attach_repair_context!(job)
     job.advance_after_triage! if job.may_advance_after_triage?
