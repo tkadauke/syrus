@@ -110,6 +110,39 @@ describe("JobPreviewCard", () => {
     await waitFor(() => expect(screen.getByRole("link", { name: "See more" })).toBeInTheDocument())
     expect(document.querySelector("img")).not.toBeInTheDocument()
   })
+
+  it("compact: applies line-clamp-1 to title and hides body and see-more link", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      job: { id: 42, state: "open", issue_title: "Add dark mode", issue_body: "The app needs a dark mode." }
+    }))
+    render(
+      <QueryClientProvider client={client()}>
+        <MemoryRouter>
+          <JobPreviewCard compact id={42} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    await waitFor(() => expect(screen.getByText("Add dark mode")).toBeInTheDocument())
+    const titleLink = screen.getByRole("link", { name: "Add dark mode" })
+    expect(titleLink.className).toContain("line-clamp-1")
+    expect(screen.queryByText("The app needs a dark mode.")).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "See more" })).not.toBeInTheDocument()
+  })
+
+  it("compact: still shows slug and state badge", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      job: { id: 42, state: "open", issue_title: "Add dark mode", issue_body: "" }
+    }))
+    render(
+      <QueryClientProvider client={client()}>
+        <MemoryRouter>
+          <JobPreviewCard compact id={42} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    await waitFor(() => expect(screen.getByRole("button", { name: "Copy JOB-42 to clipboard" })).toBeInTheDocument())
+    expect(screen.getByText("open")).toBeInTheDocument()
+  })
 })
 
 describe("JobPreviewSkeleton", () => {

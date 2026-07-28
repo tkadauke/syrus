@@ -6,7 +6,7 @@ import { Markdown } from "../lib/Markdown"
 import { CopyableSlug } from "./CopyableSlug"
 import { StatusPill } from "./StatusPill"
 
-export function JobPreviewCard({ id }: { id: number }) {
+export function JobPreviewCard({ id, compact = false }: { id: number; compact?: boolean }) {
   const { t } = useT("jobs")
   const { data, isPending } = useQuery({
     queryKey: ["jobs", String(id)],
@@ -23,7 +23,7 @@ export function JobPreviewCard({ id }: { id: number }) {
   const title = job.issue_title ?? (job.title_pending ? t("preview_generating_title") : "")
 
   return (
-    <div className="w-80 rounded-lg border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+    <div className={compact ? "w-40 min-h-14 rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" : "w-80 rounded-lg border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900"}>
       <div className="mb-2 flex items-center gap-2">
         <CopyableSlug className="text-xs" slug={`JOB-${id}`} />
         <StatusPill state={job.state} />
@@ -31,19 +31,21 @@ export function JobPreviewCard({ id }: { id: number }) {
       {title && (
         <Link
           to={`/jobs/${id}`}
-          className="mb-2 block text-sm font-medium text-gray-900 hover:underline dark:text-gray-100"
+          className={`mb-2 block text-sm font-medium text-gray-900 hover:underline dark:text-gray-100 ${compact ? "line-clamp-1" : "line-clamp-2"}`}
         >
           {title}
         </Link>
       )}
-      {truncatedBody && (
+      {!compact && truncatedBody && (
         <div className="mb-3 line-clamp-6 text-xs text-gray-600 dark:text-gray-400 [&_code]:rounded [&_code]:bg-gray-100 [&_code]:px-0.5 [&_code]:font-mono dark:[&_code]:bg-gray-800 [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-semibold [&_pre]:rounded [&_pre]:bg-gray-100 [&_pre]:p-1.5 [&_pre]:font-mono dark:[&_pre]:bg-gray-800 [&_pre_code]:bg-transparent [&_pre_code]:px-0">
           <Markdown text={truncatedBody} />
         </div>
       )}
-      <Link className="text-xs text-blue-600 hover:underline dark:text-blue-400" to={`/jobs/${id}`}>
-        {t("preview_see_more")}
-      </Link>
+      {!compact && (
+        <Link className="text-xs text-blue-600 hover:underline dark:text-blue-400" to={`/jobs/${id}`}>
+          {t("preview_see_more")}
+        </Link>
+      )}
     </div>
   )
 }

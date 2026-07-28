@@ -194,7 +194,7 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
     return (
       <article className={`rounded border p-3 shadow-sm ${item.needs_attention ? "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30" : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"}`}>
         <div className="flex items-start justify-between gap-1">
-          <Link className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(item.title_pending)} title={item.title} /></Link>
+          <Link className="line-clamp-2 text-sm font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(item.title_pending)} title={item.title} /></Link>
           {item.needs_attention ? <span aria-label={t("needs_attention_aria")} className="mt-0.5 shrink-0 rounded bg-amber-200 px-1 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-800 dark:text-amber-200">!</span> : null}
         </div>
         <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
@@ -216,7 +216,7 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
     return (
       <article className="rounded border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-900">
         <Link className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.path, prefix)}>{slug}</Link>
-        <Link className="mt-1 block text-sm text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.job.path, prefix)}><PendingJobTitle pending={Boolean(item.job.title_pending)} title={item.job.title} /></Link>
+        <Link className="mt-1 line-clamp-2 block text-sm text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.job.path, prefix)}><PendingJobTitle pending={Boolean(item.job.title_pending)} title={item.job.title} /></Link>
         <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
           <WorkflowBadges state={item.state} triggerAriaPrefix="Workflow trigger" triggerKind={item.trigger_kind} />
           <OwnerBadge badge={item.job.owner_badge} />
@@ -238,7 +238,7 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
           <SlugHoverCard id={item.id} kind="epic">
             <CopyableSlug className="text-xs font-semibold uppercase" slug={item.display_number} />
           </SlugHoverCard>
-          <Link className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-300" draggable={false} to={withRoutePrefix(item.paths.epic_path, prefix)}>{item.title}</Link>
+          <Link className="line-clamp-2 text-sm font-medium text-blue-600 hover:underline dark:text-blue-300" draggable={false} to={withRoutePrefix(item.paths.epic_path, prefix)}>{item.title}</Link>
         </div>
         <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
           <NeutralStatePill state={item.state} />

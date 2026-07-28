@@ -149,6 +149,37 @@ describe("EpicPreviewCard", () => {
     await waitFor(() => expect(screen.getByRole("link", { name: "See more" })).toBeInTheDocument())
     expect(screen.getByRole("link", { name: "See more" })).toHaveAttribute("href", "/epics/7")
   })
+
+  it("compact: applies line-clamp-1 to title and hides progress bar, description, child jobs, and see-more link", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(epicPayload()))
+    render(
+      <QueryClientProvider client={client()}>
+        <MemoryRouter>
+          <EpicPreviewCard compact id={7} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    await waitFor(() => expect(screen.getByText("Onboarding flow")).toBeInTheDocument())
+    const titleLink = screen.getByRole("link", { name: "Onboarding flow" })
+    expect(titleLink.className).toContain("line-clamp-1")
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument()
+    expect(screen.queryByText("Make onboarding easy.")).not.toBeInTheDocument()
+    expect(screen.queryByRole("listitem")).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "See more" })).not.toBeInTheDocument()
+  })
+
+  it("compact: still shows display number and state badge", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(epicPayload()))
+    render(
+      <QueryClientProvider client={client()}>
+        <MemoryRouter>
+          <EpicPreviewCard compact id={7} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    await waitFor(() => expect(screen.getByRole("button", { name: "Copy EPIC-7 to clipboard" })).toBeInTheDocument())
+    expect(screen.getByText("in progress")).toBeInTheDocument()
+  })
 })
 
 describe("EpicPreviewSkeleton", () => {
