@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { MemoryRouter, useLocation } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import type { ChatGroupRecord, ChatNavRecord, ChatsIndexPayload } from "../../api/chats"
+import type { ChatBookmark, ChatGroupRecord, ChatNavRecord, ChatPayload, ChatsIndexPayload } from "../../api/chats"
 import { RecentChatsSidebar } from "./RecentChatsSidebar"
 
 function LocationProbe() {
@@ -188,6 +188,64 @@ describe("RecentChatsSidebar mark-as-read/unread label", () => {
     fireEvent.click(screen.getByRole("button", { name: "Chat actions for Read Chat" }))
 
     expect(screen.getByRole("button", { name: "Mark as unread" })).toBeInTheDocument()
+  })
+})
+
+describe("RecentChatsSidebar bookmarks menu", () => {
+  function renderWithBookmarks(bookmarks: ChatBookmark[], chatId = 1) {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({
+      groups: [chatGroup({ chats: [chatNav({ id: chatId, title: "Chat With Bookmarks" })] })]
+    }))
+    queryClient.setQueryData(["chats", String(chatId), ""], { bookmarks } as unknown as ChatPayload)
+
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/"]}>
+          <RecentChatsSidebar
+            featureFlags={{}}
+            onCloseDrawer={() => {}}
+            onNotice={() => {}}
+            prefix=""
+            userPresent
+          />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+  }
+
+  it("wraps bookmark list in a scrollable container when there are more than 6 bookmarks", () => {
+    const bookmarks = Array.from({ length: 7 }, (_, i): ChatBookmark => ({
+      id: i + 1,
+      label: `Bookmark ${i + 1}`,
+      chat_message_id: i + 100
+    }))
+    renderWithBookmarks(bookmarks)
+
+    fireEvent.click(screen.getByRole("button", { name: "Chat actions for Chat With Bookmarks" }))
+
+    const firstLink = screen.getByRole("link", { name: "Bookmark 1" })
+    const scrollContainer = firstLink.closest("div")
+    expect(scrollContainer).toHaveClass("overflow-y-auto")
+    expect(scrollContainer).toHaveClass("max-h-48")
+  })
+
+  it("renders a divider between the bookmark area and the Pin button when there are bookmarks", () => {
+    renderWithBookmarks([{ id: 1, label: "A bookmark", chat_message_id: 10 }])
+
+    fireEvent.click(screen.getByRole("button", { name: "Chat actions for Chat With Bookmarks" }))
+
+    const pinButton = screen.getByRole("button", { name: /pin/i })
+    expect(pinButton.previousElementSibling).toHaveClass("border-t")
+  })
+
+  it("renders a divider between the bookmark area and the Pin button when there are no bookmarks", () => {
+    renderWithBookmarks([])
+
+    fireEvent.click(screen.getByRole("button", { name: "Chat actions for Chat With Bookmarks" }))
+
+    const pinButton = screen.getByRole("button", { name: /pin/i })
+    expect(pinButton.previousElementSibling).toHaveClass("border-t")
   })
 })
 

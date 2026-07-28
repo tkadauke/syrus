@@ -485,24 +485,27 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
           ) : bookmarks.length > 0 ? (
             <>
               <div className="px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">{t("chat:bookmarks")}</div>
-              {bookmarks.map((bookmark) => {
-                const anchorMessageId = bookmark.anchor_message_id ?? bookmark.chat_message_id
+              <div className="max-h-48 overflow-y-auto">
+                {bookmarks.map((bookmark) => {
+                  const anchorMessageId = bookmark.anchor_message_id ?? bookmark.chat_message_id
 
-                return (
-                  <a
-                    className="block truncate px-3 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-blue-950 dark:hover:text-blue-200"
-                    href={active ? `#message-${anchorMessageId}` : withRoutePrefix(`${chat.chat_path}#message-${anchorMessageId}`, prefix)}
-                    key={bookmark.id}
-                    onClick={() => setOpen(false)}
-                  >
-                    {bookmark.label}
-                  </a>
-                )
-              })}
+                  return (
+                    <a
+                      className="block truncate px-3 py-2 text-gray-700 hover:bg-blue-50 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-blue-950 dark:hover:text-blue-200"
+                      href={active ? `#message-${anchorMessageId}` : withRoutePrefix(`${chat.chat_path}#message-${anchorMessageId}`, prefix)}
+                      key={bookmark.id}
+                      onClick={() => setOpen(false)}
+                    >
+                      {bookmark.label}
+                    </a>
+                  )
+                })}
+              </div>
             </>
           ) : (
             <div className="px-3 py-2 text-gray-400 dark:text-gray-500">{t("chat:no_bookmarks")}</div>
           )}
+          <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
           <button
             className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
             onClick={() => {
