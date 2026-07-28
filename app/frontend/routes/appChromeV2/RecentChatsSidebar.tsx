@@ -247,7 +247,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
               </h2>
               <div className="space-y-0.5">
                 {visibleChats.map((chat) => {
-                  const active = chat.current || chat.id === activeChatId
+                  const active = chat.id === activeChatId
                   const unread = chat.unread && !active
                   return (
                     <div
@@ -402,7 +402,7 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
-  const active = chat.current || chat.id === activeChatIdFromPath(location.pathname)
+  const active = chat.id === activeChatIdFromPath(location.pathname)
   const queryKey = chatQueryKey(String(chat.id), search)
   const cachedChatData = queryClient.getQueryData<ChatPayload>(queryKey)
   const chatBookmarks = useQuery({
