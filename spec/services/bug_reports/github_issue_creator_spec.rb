@@ -36,7 +36,7 @@ RSpec.describe BugReports::GithubIssueCreator do
   end
 
   describe "upload client selection" do
-    let(:issue_client) { instance_double(GithubClient) }
+    let(:issue_client) { instance_spy(GithubClient) }
     let(:fake_issue) { double("issue", html_url: fake_issue_url) }
 
     before do
