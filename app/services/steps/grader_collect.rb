@@ -24,6 +24,13 @@ module Steps
       aggregate_status = GraderConclusionCache.aggregate_status_for(failed_required)
       record_grader_conclusions!(grader_steps, aggregate_status)
 
+      grader_fingerprint = workflow.artifact(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY)
+      if current_head_sha.present? && grader_steps.any?
+        log("[grader_collect] grader conclusion cached for #{current_head_sha.first(7)} (fingerprint: #{grader_fingerprint&.first(8)})")
+      else
+        log("[grader_collect] grader conclusion NOT cached — sha=#{current_head_sha.inspect} steps=#{grader_steps.size}")
+      end
+
       if failed_required.empty?
         log("[grader_collect] all required graders passed (#{grader_steps.size} grader Step(s) ran)")
         record_landing_validation!
@@ -128,7 +135,9 @@ module Steps
     def current_head_sha
       return @current_head_sha if defined?(@current_head_sha)
 
-      @current_head_sha = GitRunner.new.run("rev-parse", "HEAD", chdir: workspace.path.to_s).strip
+      @current_head_sha =
+        workflow.artifact(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY).presence ||
+        GitRunner.new.run("rev-parse", "HEAD", chdir: workspace.path.to_s).strip
     rescue StandardError => e
       Rails.logger.warn("[GraderCollect] current HEAD capture failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
       @current_head_sha = nil

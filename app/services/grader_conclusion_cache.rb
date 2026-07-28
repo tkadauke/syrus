@@ -3,6 +3,7 @@ require "digest"
 class GraderConclusionCache
   ARTIFACT_FINGERPRINT_KEY = "grade_plan_fingerprint".freeze
   ARTIFACT_CACHE_HIT_KEY = "grader_conclusion_cache_hit".freeze
+  ARTIFACT_HEAD_SHA_KEY = "grade_plan_head_sha".freeze
 
   def self.fingerprint_for_plan(plan)
     fingerprint_for_graders(plan.graders)
