@@ -520,7 +520,7 @@ function RecentChatActionsMenu({ chat, deleteDisabled = false, disabled, onDelet
             onClick={() => chat.unread ? markRead.mutate() : markUnread.mutate()}
             type="button"
           >
-            {chat.unread ? "Mark as read" : "Mark as unread"}
+            {chat.unread ? t("chat:mark_as_read") : t("chat:mark_as_unread")}
           </button>
           <button
             className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"

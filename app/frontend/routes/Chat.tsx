@@ -663,7 +663,7 @@ function ChatWorkspace({
               onClick={() => selectMobileTab(tab)}
               type="button"
             >
-              {mobileChatTabLabel(tab)}
+              {mobileChatTabLabel(tab, t)}
             </button>
           ))}
         </nav>
@@ -964,7 +964,7 @@ function AgentQuestionPrompt({ question, queryKey, onNotice }: { question: ChatA
         <button className={primaryButton()} disabled={submit.isPending || answer.trim().length === 0} type="submit">{t("submit")}</button>
       </form>
       <button className={`${secondaryButton()} flex w-full justify-start text-left`} disabled={submit.isPending} onClick={declineAnswer} type="button">
-        Decline to answer
+        {t("decline_to_answer")}
       </button>
     </div>
   )

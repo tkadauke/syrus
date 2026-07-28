@@ -6,7 +6,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { ChatRoute } from "./Chat"
 import { getStartingPhrase } from "./chat/streamChrome"
 import { shouldAnimateMessageEntrance } from "./chat/MessageCards"
-import { storedWorkspaceCollapsed } from "./chat/workspaceTabs"
+import { storedWorkspaceCollapsed, workspaceTabLabel, mobileChatTabLabel } from "./chat/workspaceTabs"
 import { renderChatMessages } from "./chat/streamBuilders"
 import { asExcalidrawElements, VALID_EXCALIDRAW_TYPES } from "./chat/whiteboardScene"
 
@@ -25,6 +25,32 @@ describe("storedWorkspaceCollapsed", () => {
 
     window.localStorage.setItem("syrus.chat.workspace.collapsed", "true")
     expect(storedWorkspaceCollapsed()).toBe(true)
+  })
+})
+
+describe("workspaceTabLabel", () => {
+  const mockT = (key: string) => `T:${key}`
+
+  it("maps each workspace tab to its translation key", () => {
+    expect(workspaceTabLabel("whiteboard", mockT)).toBe("T:tab_whiteboard")
+    expect(workspaceTabLabel("context", mockT)).toBe("T:tab_context")
+    expect(workspaceTabLabel("media", mockT)).toBe("T:tab_media")
+    expect(workspaceTabLabel("files", mockT)).toBe("T:tab_files")
+    expect(workspaceTabLabel("diff", mockT)).toBe("T:tab_diff")
+    expect(workspaceTabLabel("jobs", mockT)).toBe("T:tab_jobs")
+  })
+})
+
+describe("mobileChatTabLabel", () => {
+  const mockT = (key: string) => `T:${key}`
+
+  it("uses tab_chat for the chat tab", () => {
+    expect(mobileChatTabLabel("chat", mockT)).toBe("T:tab_chat")
+  })
+
+  it("delegates to workspaceTabLabel for workspace tabs", () => {
+    expect(mobileChatTabLabel("whiteboard", mockT)).toBe("T:tab_whiteboard")
+    expect(mobileChatTabLabel("jobs", mockT)).toBe("T:tab_jobs")
   })
 })
 

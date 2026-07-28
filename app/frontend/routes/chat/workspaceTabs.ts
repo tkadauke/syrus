@@ -23,19 +23,19 @@ export function workspaceTabClass(active: boolean) {
   return `border-b-2 px-3 py-2 ${active ? "border-blue-600 text-blue-700 dark:border-blue-400 dark:text-blue-300" : "border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-100"}`
 }
 
-export function workspaceTabLabel(tab: WorkspaceTab) {
-  if (tab === "whiteboard") return "Whiteboard"
-  if (tab === "context") return "Context"
-  if (tab === "media") return "Media"
-  if (tab === "files") return "Files"
-  if (tab === "diff") return "Local Diff"
-  if (tab === "jobs") return "Jobs"
+export function workspaceTabLabel(tab: WorkspaceTab, t: (key: string) => string) {
+  if (tab === "whiteboard") return t("tab_whiteboard")
+  if (tab === "context") return t("tab_context")
+  if (tab === "media") return t("tab_media")
+  if (tab === "files") return t("tab_files")
+  if (tab === "diff") return t("tab_diff")
+  if (tab === "jobs") return t("tab_jobs")
 
-  return "Chats"
+  return t("tab_chat")
 }
 
-export function mobileChatTabLabel(tab: MobileChatTab) {
-  return tab === "chat" ? "Chat" : workspaceTabLabel(tab)
+export function mobileChatTabLabel(tab: MobileChatTab, t: (key: string) => string) {
+  return tab === "chat" ? t("tab_chat") : workspaceTabLabel(tab, t)
 }
 
 export function defaultWorkspaceTab(payload: ChatPayload): WorkspaceTab {

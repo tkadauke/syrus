@@ -173,6 +173,24 @@ describe("RecentChatsSidebar auto-scroll during drag", () => {
   })
 })
 
+describe("RecentChatsSidebar mark-as-read/unread label", () => {
+  it("shows 'Mark as read' for an unread chat", () => {
+    renderSidebar([chatNav({ id: 1, title: "Unread Chat", unread: true })])
+
+    fireEvent.click(screen.getByRole("button", { name: "Chat actions for Unread Chat" }))
+
+    expect(screen.getByRole("button", { name: "Mark as read" })).toBeInTheDocument()
+  })
+
+  it("shows 'Mark as unread' for a read chat", () => {
+    renderSidebar([chatNav({ id: 1, title: "Read Chat", unread: false })])
+
+    fireEvent.click(screen.getByRole("button", { name: "Chat actions for Read Chat" }))
+
+    expect(screen.getByRole("button", { name: "Mark as unread" })).toBeInTheDocument()
+  })
+})
+
 function chatNav(overrides: Partial<ChatNavRecord> = {}): ChatNavRecord {
   return {
     id: 1,

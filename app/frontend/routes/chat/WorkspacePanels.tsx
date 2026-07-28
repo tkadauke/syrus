@@ -74,7 +74,7 @@ export function ChatWorkspacePanel({
               onClick={() => onSelectTab(tab)}
               type="button"
             >
-              {workspaceTabLabel(tab)}
+              {workspaceTabLabel(tab, t)}
             </button>
           ))}
           {onToggleCollapse ? (
@@ -194,7 +194,7 @@ function LocalDiffPanel() {
             onClick={() => refresh("staged")}
             type="button"
           >
-            Staged
+            {t("diff_mode_staged")}
           </button>
         </div>
         <button
@@ -214,14 +214,14 @@ function LocalDiffPanel() {
       </div>
 
       {loading && diff === null ? (
-        <p className="text-sm text-gray-500 dark:text-gray-400">Loading diff…</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{t("diff_loading")}</p>
       ) : error ? (
         <p className="text-sm text-red-600 dark:text-red-400">
-          {error === "not_connected" ? "Daemon not connected." : `Error: ${error}`}
+          {error === "not_connected" ? t("local_diff_daemon_not_connected") : t("local_diff_error", { code: error })}
         </p>
       ) : isEmpty ? (
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          {mode === "staged" ? "No staged changes." : "No uncommitted changes."}
+          {mode === "staged" ? t("local_diff_no_staged") : t("local_diff_no_uncommitted")}
         </p>
       ) : (
         <div className="overflow-x-auto rounded border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-950">
@@ -304,7 +304,7 @@ function MediaGallery({ messages, payload, queryKey, onNotice }: { messages: Cha
         }
       })
       await queryClient.invalidateQueries({ queryKey: ["whiteboard_snapshots", String(payload.chat.id)] })
-      onNotice(`Loaded ${fullSnapshot.name || "snapshot"} onto canvas`)
+      onNotice(t("snapshot_loaded", { name: fullSnapshot.name || t("snapshot_name_default") }))
     } catch (error) {
       setSnapshotError(errorMessage(errorAsError(error), "Snapshot could not be loaded."))
     } finally {
@@ -313,15 +313,15 @@ function MediaGallery({ messages, payload, queryKey, onNotice }: { messages: Cha
   }
 
   if (images.length === 0 && snapshotItems.length === 0 && walkthroughs.length === 0 && !snapshots.isPending && !snapshots.isError) {
-    return <PanelMessage>No media shared yet.</PanelMessage>
+    return <PanelMessage>{t("media_empty")}</PanelMessage>
   }
 
   return (
     <div className="space-y-5">
-      {snapshots.isPending ? <PanelMessage>Loading snapshots...</PanelMessage> : null}
+      {snapshots.isPending ? <PanelMessage>{t("snapshots_loading")}</PanelMessage> : null}
       {snapshots.isError ? <PanelMessage tone="error">{errorMessage(snapshots.error, "Unable to load snapshots.")}</PanelMessage> : null}
       {snapshotError ? <PanelMessage tone="error">{snapshotError}</PanelMessage> : null}
-      {whiteboardLocked ? <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">Canvas is busy. Wait for drawing to finish before loading a snapshot.</div> : null}
+      {whiteboardLocked ? <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">{t("canvas_busy")}</div> : null}
 
       {snapshotItems.length > 0 ? (
         <section className="space-y-2">
@@ -344,7 +344,7 @@ function MediaGallery({ messages, payload, queryKey, onNotice }: { messages: Cha
                     onClick={() => void loadSnapshot(snapshot)}
                     type="button"
                   >
-                    {loadingSnapshotId === snapshot.id ? "Loading..." : "Load"}
+                    {loadingSnapshotId === snapshot.id ? t("common:loading") : t("snapshot_load")}
                   </button>
                 </div>
               </article>
@@ -408,7 +408,7 @@ function MediaGallery({ messages, payload, queryKey, onNotice }: { messages: Cha
                       download={attachment.name || "image"}
                       href={src}
                     >
-                      Download
+                      {t("image_download")}
                     </a>
                   </div>
                   <figcaption className="truncate text-xs text-gray-600 dark:text-gray-300" title={name}>{name}</figcaption>
@@ -479,7 +479,7 @@ export function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { pay
                   </option>
                 ))}
               </select>
-              <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">Effective: {payload.chat.effective_chat_provider_label || "Default"}</span>
+              <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("chat_settings_effective_provider", { label: payload.chat.effective_chat_provider_label || t("chat_settings_effective_default") })}</span>
             </label>
           ) : null}
           {provider.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(provider.error, "Provider could not be updated.")}</div> : null}
@@ -509,11 +509,11 @@ export function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { pay
           {mode.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(mode.error, t("mode_update_error"))}</div> : null}
           {payload.chat.repository?.repository_path ? (
             <Link className="block rounded border border-gray-200 px-3 py-2 text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-700 dark:text-gray-200 dark:hover:border-blue-800 dark:hover:bg-blue-950 dark:hover:text-blue-200" onClick={onClose} to={withRoutePrefix(`${payload.chat.repository.repository_path}/edit`, prefix)}>
-              Repository settings
+              {t("chat_settings_repo")}
             </Link>
           ) : null}
           <Link className="block rounded border border-gray-200 px-3 py-2 text-gray-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-gray-700 dark:text-gray-200 dark:hover:border-blue-800 dark:hover:bg-blue-950 dark:hover:text-blue-200" onClick={onClose} to={withRoutePrefix("/credentials", prefix)}>
-            Chat credentials
+            {t("chat_settings_credentials")}
           </Link>
         </div>
       </section>
@@ -523,6 +523,18 @@ export function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { pay
 
 type WhiteboardBoundaryState = {
   failed: boolean
+}
+
+function WhiteboardErrorFallback() {
+  const { t } = useT("chat")
+  return (
+    <section>
+      <div className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("whiteboard_title")}</div>
+      <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+        {t("whiteboard_unavailable")}
+      </div>
+    </section>
+  )
 }
 
 class WhiteboardBoundary extends Component<{ children: ReactNode }, WhiteboardBoundaryState> {
@@ -538,14 +550,7 @@ class WhiteboardBoundary extends Component<{ children: ReactNode }, WhiteboardBo
 
   render() {
     if (this.state.failed) {
-      return (
-        <section>
-          <div className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Whiteboard</div>
-          <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
-            Whiteboard unavailable.
-          </div>
-        </section>
-      )
+      return <WhiteboardErrorFallback />
     }
 
     return this.props.children
@@ -553,6 +558,7 @@ class WhiteboardBoundary extends Component<{ children: ReactNode }, WhiteboardBo
 }
 
 function WhiteboardPanel({ fullscreen, onToggleFullscreen, payload }: { fullscreen: boolean; onToggleFullscreen: () => void; payload: ChatPayload }) {
+  const { t } = useT("chat")
   const [Excalidraw, setExcalidraw] = useState<ExcalidrawComponent | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -693,7 +699,7 @@ function WhiteboardPanel({ fullscreen, onToggleFullscreen, payload }: { fullscre
   return (
     <section className="flex h-full min-h-0 flex-col">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <div className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Whiteboard</div>
+        <div className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("whiteboard_title")}</div>
         <div className="flex items-center gap-2">
           <button
             aria-pressed={fullscreen}
@@ -701,7 +707,7 @@ function WhiteboardPanel({ fullscreen, onToggleFullscreen, payload }: { fullscre
             onClick={onToggleFullscreen}
             type="button"
           >
-            {fullscreen ? "Exit fullscreen" : "Fullscreen"}
+            {fullscreen ? t("fullscreen_exit") : t("fullscreen_enter")}
           </button>
         </div>
       </div>
@@ -720,17 +726,17 @@ function WhiteboardPanel({ fullscreen, onToggleFullscreen, payload }: { fullscre
           />
         ) : (
           <div className="flex h-full items-center justify-center p-4 text-sm text-gray-500 dark:text-gray-400">
-            {loadError || "Loading canvas..."}
+            {loadError || t("canvas_loading")}
           </div>
         )}
         {scene.elements.length === 0 ? (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-gray-400 dark:text-gray-500">
-            Empty canvas. Start sketching, or ask the agent to draw something.
+            {t("canvas_empty_hint")}
           </div>
         ) : null}
       </div>
       <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-        {saveError || `${scene.elements.length} canvas ${scene.elements.length === 1 ? "element" : "elements"}`}
+        {saveError || t("canvas_elements", { count: scene.elements.length })}
       </div>
     </section>
   )
