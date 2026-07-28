@@ -26,6 +26,8 @@ Enables Coding Mode for Syrus Chat. When active, the chat workspace gets a writa
 
 Reclamation is safe and transparent: before deleting, any un-pushed commits are pushed to the coding branch, and any uncommitted work is snapshotted into a WIP commit pushed to a `syrus-wip/chat-<id>` tag ref (keeping the branch history clean). The session keeps its `coding_checkout_branch`, so the next chat turn re-clones the branch and re-applies the WIP snapshot before the agent runs — the agent cannot tell the workspace was ever removed. If a backup push fails, the on-disk checkout is preserved rather than deleted. See `AppSetting.chat_coding_workspace_budget_mb`.
 
+**Multi-pod (Kubernetes) setup.** The three coding sidebar endpoints (`coding_files`, `coding_file`, `coding_diff`) proxy to a lightweight HTTP relay running on the `chat` queue worker. The relay address is recorded per-session in `chat_sessions.coding_relay_address`. For web pods to reach the worker relay, set `SYRUS_TERMINAL_HOST` to the worker pod IP via the Downward API field `status.podIP` on worker pods — the same setting used by the terminal feature. In single-host and Docker Compose deployments the relay binds to `127.0.0.1` and both web and worker share the same host, so no additional configuration is needed.
+
 ## video_walkthroughs
 
 **Category:** Labs

@@ -1,3 +1,6 @@
+require "net/http"
+require "uri"
+
 module Api
   module V1
     module App
@@ -820,9 +823,9 @@ module Api
             return
           end
 
-          result = ChatWorkspace.file_tree(chat_session, chat_session.repository)
+          result = proxy_to_coding_relay(chat_session, "files")
           unless result
-            render_error("not_found", "Coding checkout directory not found.", status: :not_found)
+            render_error("not_found", "Coding checkout not available.", status: :not_found)
             return
           end
 
@@ -852,13 +855,13 @@ module Api
             return
           end
 
-          result = ChatWorkspace.file_content(chat_session, chat_session.repository, file_path)
+          result = proxy_to_coding_relay(chat_session, "file", params: { path: file_path })
           if result.nil?
             render_error("not_found", "File not found in coding checkout.", status: :not_found)
             return
           end
 
-          render json: result.merge(path: file_path)
+          render json: result
         end
 
         def coding_diff
@@ -874,13 +877,13 @@ module Api
           end
 
           mode = params[:mode].to_s == "turn" ? :turn : :cumulative
-          diff = ChatWorkspace.coding_diff(chat_session, chat_session.repository, mode: mode)
+          result = proxy_to_coding_relay(chat_session, "diff", params: { mode: params[:mode] })
 
-          render json: {
-            diff: diff,
-            mode: mode.to_s,
-            checkout_branch: chat_session.coding_checkout_branch
-          }
+          if result
+            render json: result
+          else
+            render json: { diff: "", mode: mode.to_s, checkout_branch: chat_session.coding_checkout_branch }
+          end
         end
 
         def search_proposals
@@ -899,6 +902,28 @@ module Api
         end
 
         private
+
+        def proxy_to_coding_relay(chat_session, path, params: {})
+          relay_address = chat_session.coding_relay_address
+          return nil if relay_address.blank?
+
+          query_string = params.merge(session_id: chat_session.id).to_query
+          uri = URI("http://#{relay_address}/workspace/#{path}?#{query_string}")
+
+          http = Net::HTTP.new(uri.host, uri.port)
+          http.open_timeout = 5
+          http.read_timeout = 5
+
+          request = Net::HTTP::Get.new(uri)
+          request["Authorization"] = "Bearer #{chat_session.coding_relay_token}"
+
+          response = http.request(request)
+          return nil unless response.is_a?(Net::HTTPSuccess)
+
+          JSON.parse(response.body)
+        rescue StandardError
+          nil
+        end
 
         # Walkthrough videos shared in this chat, for the workspace media panel.
         # Metadata only — the video itself is far too large to inline (unlike the

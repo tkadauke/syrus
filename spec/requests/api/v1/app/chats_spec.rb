@@ -1516,14 +1516,17 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       feature.update!(enabled: enabled)
     end
 
-    it "returns the file tree for a chat with an active coding checkout" do
+    it "returns the file tree proxied from the coding relay" do
       sign_in_as(user)
-      chat = ChatSession.create!(user: user, repository: repository, mode: "coding", coding_checkout_branch: "syrus-chat-42")
+      chat = ChatSession.create!(user: user, repository: repository, mode: "coding",
+        coding_checkout_branch: "syrus-chat-42",
+        coding_relay_address: "127.0.0.1:9283",
+        coding_relay_token: "test-relay-token")
       enable_coding_mode!
-      allow(ChatWorkspace).to receive(:file_tree).with(chat, repository).and_return({
-        files: [ "README.md", "app/models/user.rb" ],
-        checkout_branch: "syrus-chat-42"
-      })
+      stub_request(:get, "http://127.0.0.1:9283/workspace/files")
+        .with(query: hash_including("session_id" => chat.id.to_s),
+              headers: { "Authorization" => "Bearer test-relay-token" })
+        .to_return(status: 200, body: { files: [ "README.md", "app/models/user.rb" ], checkout_branch: "syrus-chat-42" }.to_json)
 
       get "/api/v1/app/chats/#{chat.id}/coding_files"
 
@@ -1572,11 +1575,22 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "404s when the checkout directory does not exist" do
+    it "404s when relay address is blank (relay not yet started)" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42")
       enable_coding_mode!
-      allow(ChatWorkspace).to receive(:file_tree).and_return(nil)
+
+      get "/api/v1/app/chats/#{chat.id}/coding_files"
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "404s when the relay connection is refused" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42",
+        coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
+      enable_coding_mode!
+      stub_request(:get, "http://127.0.0.1:9283/workspace/files").to_raise(Errno::ECONNREFUSED)
 
       get "/api/v1/app/chats/#{chat.id}/coding_files"
 
@@ -1593,13 +1607,15 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       feature.update!(enabled: enabled)
     end
 
-    it "returns file content for a valid path" do
+    it "returns file content proxied from the coding relay" do
       sign_in_as(user)
-      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42")
+      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42",
+        coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
       enable_coding_mode!
-      allow(ChatWorkspace).to receive(:file_content).with(chat, repository, "README.md").and_return({
-        content: "# Widgets\n", binary: false, too_large: false
-      })
+      stub_request(:get, "http://127.0.0.1:9283/workspace/file")
+        .with(query: hash_including("session_id" => chat.id.to_s, "path" => "README.md"),
+              headers: { "Authorization" => "Bearer test-relay-token" })
+        .to_return(status: 200, body: { content: "# Widgets\n", binary: false, too_large: false, path: "README.md" }.to_json)
 
       get "/api/v1/app/chats/#{chat.id}/coding_file", params: { path: "README.md" }
 
@@ -1619,11 +1635,22 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       expect(response).to have_http_status(:unprocessable_content)
     end
 
-    it "returns 404 when the file is not found" do
+    it "returns 404 when relay address is blank" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42")
       enable_coding_mode!
-      allow(ChatWorkspace).to receive(:file_content).and_return(nil)
+
+      get "/api/v1/app/chats/#{chat.id}/coding_file", params: { path: "missing.rb" }
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "returns 404 when the relay connection is refused" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42",
+        coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
+      enable_coding_mode!
+      stub_request(:get, "http://127.0.0.1:9283/workspace/file").to_raise(Errno::ECONNREFUSED)
 
       get "/api/v1/app/chats/#{chat.id}/coding_file", params: { path: "missing.rb" }
 
@@ -1650,11 +1677,15 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       feature.update!(enabled: enabled)
     end
 
-    it "returns cumulative diff by default" do
+    it "returns cumulative diff proxied from the coding relay" do
       sign_in_as(user)
-      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42")
+      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42",
+        coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
       enable_coding_mode!
-      allow(ChatWorkspace).to receive(:coding_diff).with(chat, repository, mode: :cumulative).and_return("diff --git a/README.md\n+added line\n")
+      stub_request(:get, "http://127.0.0.1:9283/workspace/diff")
+        .with(query: hash_including("session_id" => chat.id.to_s),
+              headers: { "Authorization" => "Bearer test-relay-token" })
+        .to_return(status: 200, body: { diff: "diff --git a/README.md\n+added line\n", mode: "cumulative", checkout_branch: "syrus-chat-42" }.to_json)
 
       get "/api/v1/app/chats/#{chat.id}/coding_diff"
 
@@ -1665,9 +1696,13 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
     it "returns turn diff when mode=turn" do
       sign_in_as(user)
-      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42")
+      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42",
+        coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
       enable_coding_mode!
-      allow(ChatWorkspace).to receive(:coding_diff).with(chat, repository, mode: :turn).and_return("diff --git a/foo.rb\n+new line\n")
+      stub_request(:get, "http://127.0.0.1:9283/workspace/diff")
+        .with(query: hash_including("session_id" => chat.id.to_s, "mode" => "turn"),
+              headers: { "Authorization" => "Bearer test-relay-token" })
+        .to_return(status: 200, body: { diff: "diff --git a/foo.rb\n+new line\n", mode: "turn", checkout_branch: "syrus-chat-42" }.to_json)
 
       get "/api/v1/app/chats/#{chat.id}/coding_diff", params: { mode: "turn" }
 
@@ -1686,6 +1721,30 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       expect(response).to have_http_status(:ok)
       expect(parse_body["diff"]).to eq("")
       expect(parse_body["checkout_branch"]).to be_nil
+    end
+
+    it "returns empty diff when relay address is blank" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42")
+      enable_coding_mode!
+
+      get "/api/v1/app/chats/#{chat.id}/coding_diff"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["diff"]).to eq("")
+    end
+
+    it "returns empty diff when the relay connection is refused" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42",
+        coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
+      enable_coding_mode!
+      stub_request(:get, "http://127.0.0.1:9283/workspace/diff").to_raise(Errno::ECONNREFUSED)
+
+      get "/api/v1/app/chats/#{chat.id}/coding_diff"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["diff"]).to eq("")
     end
 
     it "404s when the coding_mode feature flag is off" do
