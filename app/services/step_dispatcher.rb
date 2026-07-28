@@ -52,6 +52,16 @@ class StepDispatcher
     end
     clear_start_blocked!(workflow, MAIN_HEALTH_BLOCK_REASON)
 
+    if urgent_blocking?(workflow)
+      reason = URGENT_BLOCK_REASON
+      return if start_blocked_backoff_active?(workflow, reason)
+
+      record_start_blocked!(workflow, reason, backoff: START_BLOCKED_BACKOFF)
+      warn_if_stuck_queued(workflow, reason)
+      return
+    end
+    clear_start_blocked!(workflow, URGENT_BLOCK_REASON)
+
     run = create_run_and_enqueue(first, workflow,
                                  parent_session_id: parent_session_id,
                                  prompt: prompt)
@@ -66,6 +76,7 @@ class StepDispatcher
   # The fix-main direct job must also be exempt: it IS the recovery agent.
   MAIN_HEALTH_EXEMPT_TRIGGERS = %w[ rebase stack_rebase main_grader ].freeze
   MAIN_HEALTH_BLOCK_REASON = "main_branch_broken"
+  URGENT_BLOCK_REASON = "urgent_job_active"
   START_BLOCKED_BACKOFF = 5.minutes
 
   def self.main_health_blocking?(workflow)
@@ -76,6 +87,15 @@ class StepDispatcher
     return false unless repository.main_branch_health_enabled?
 
     repository.landing_paused? && repository.main_health != "healthy"
+  end
+
+  def self.urgent_blocking?(workflow)
+    return false if workflow.job.priority == "urgent"
+
+    workflow.job.repository.jobs
+      .where(priority: "urgent")
+      .where.not(state: "closed")
+      .exists?
   end
 
   def self.start_blocked_backoff_active?(workflow, reason)

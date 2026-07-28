@@ -450,6 +450,7 @@ class Job < ApplicationRecord
   after_update_commit :cancel_queued_chat_pending_actions, if: :saved_change_to_closed?
   after_update_commit :purge_coverage_hit_maps_on_close, if: :saved_change_to_closed?
   after_update_commit :ensure_main_branch_repair_after_close, if: :saved_change_to_closed_main_branch_repair?
+  after_update_commit :enqueue_urgent_job_closed, if: :saved_change_to_closed_urgent_job?
   after_update_commit :start_dependent_jobs_after_approval, if: :saved_change_to_approved?
   after_update_commit :cancel_queued_retry_workflows_after_approval, if: :saved_change_to_approved?
   after_update_commit :enqueue_landing_queue_processor, if: :saved_change_needs_landing_queue_processor?
@@ -651,6 +652,10 @@ class Job < ApplicationRecord
     saved_change_to_closed? && main_branch_repair?
   end
 
+  def saved_change_to_closed_urgent_job?
+    saved_change_to_closed? && priority == "urgent"
+  end
+
   def saved_change_to_implemented_main_branch_repair?
     saved_change_to_implemented? && main_branch_repair?
   end
@@ -665,6 +670,10 @@ class Job < ApplicationRecord
     else
       MainHealthChangedService.ensure_repair_job!(repository)
     end
+  end
+
+  def enqueue_urgent_job_closed
+    UrgentJobClosedJob.perform_later(repository_id)
   end
 
   def cancel_queued_retry_workflows_after_approval

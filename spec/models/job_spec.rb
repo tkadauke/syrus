@@ -2137,4 +2137,25 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       end
     end
   end
+
+  describe "urgent job closed callback" do
+    let(:repository) { Factories.repository }
+    let(:user) { repository.user }
+
+    it "enqueues UrgentJobClosedJob when an urgent job closes" do
+      job = Factories.job_record(user: user, repository: repository, priority: "urgent", state: "queued")
+      clear_enqueued_jobs
+      expect {
+        job.close!
+      }.to have_enqueued_job(UrgentJobClosedJob).with(job.repository_id)
+    end
+
+    it "does not enqueue UrgentJobClosedJob when a non-urgent job closes" do
+      job = Factories.job_record(user: user, repository: repository, priority: "medium", state: "queued")
+      clear_enqueued_jobs
+      expect {
+        job.close!
+      }.not_to have_enqueued_job(UrgentJobClosedJob)
+    end
+  end
 end
