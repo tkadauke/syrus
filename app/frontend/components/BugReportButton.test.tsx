@@ -38,8 +38,8 @@ describe("BugReportButton", () => {
 
   afterEach(() => {
     // Clean up prototype stubs defined above.
-    delete (HTMLElement.prototype as Record<string, unknown>).setPointerCapture
-    delete (HTMLElement.prototype as Record<string, unknown>).releasePointerCapture
+    delete (HTMLElement.prototype as unknown as Record<string, unknown>).setPointerCapture
+    delete (HTMLElement.prototype as unknown as Record<string, unknown>).releasePointerCapture
   })
 
   it("is always visible — no hidden class", () => {
