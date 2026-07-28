@@ -1831,6 +1831,63 @@ describe("composer stop button", () => {
   })
 })
 
+describe("composer textarea right padding", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("uses pr-12 when agent is idle and textarea is empty", async () => {
+    mockChatRouteFetch(chatPayload())
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    expect(textarea).toHaveClass("pr-12")
+    expect(textarea).not.toHaveClass("pr-24")
+    expect(textarea).not.toHaveClass("pr-32")
+  })
+
+  it("uses pr-24 when text is typed (stash button appears)", async () => {
+    mockChatRouteFetch(chatPayload())
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "some text" } })
+    expect(textarea).toHaveClass("pr-24")
+    expect(textarea).not.toHaveClass("pr-12")
+  })
+
+  it("uses pr-24 when agent is active and textarea is empty (stop button appears)", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      return Promise.resolve(jsonResponse({ ...chatPayload(), agent_busy: true }))
+    })
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Queue a follow-up message...")
+    expect(textarea).toHaveClass("pr-24")
+    expect(textarea).not.toHaveClass("pr-12")
+  })
+
+  it("uses pr-32 when agent is active and text is typed (send + stash + stop buttons)", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      return Promise.resolve(jsonResponse({ ...chatPayload(), agent_busy: true }))
+    })
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Queue a follow-up message...")
+    fireEvent.change(textarea, { target: { value: "some text" } })
+    expect(textarea).toHaveClass("pr-32")
+    expect(textarea).not.toHaveClass("pr-12")
+    expect(textarea).not.toHaveClass("pr-24")
+  })
+})
+
 describe("scratchpad panel", () => {
   beforeEach(() => {
     window.localStorage.clear()
