@@ -36,6 +36,41 @@ function renderSidebar(
   )
 }
 
+describe("RecentChatsSidebar active chat highlighting", () => {
+  it("does not highlight a chat as active when the URL is not /chats/:id even if current=true", () => {
+    renderSidebar([chatNav({ id: 1, title: "My Chat", current: true })])
+
+    const link = screen.getByRole("link", { name: "My Chat" })
+    // Active chats get bg-blue-50; inactive chats only get bg-blue-50 on hover.
+    // The class string contains "bg-blue-50" only when active.
+    expect(link.className).not.toContain("bg-blue-50")
+  })
+
+  it("highlights a chat as active when the URL matches /chats/:id", () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({
+      groups: [chatGroup({ chats: [chatNav({ id: 42, title: "Active Chat", chat_path: "/chats/42" })] })]
+    }))
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/chats/42"]}>
+          <RecentChatsSidebar
+            featureFlags={{}}
+            onCloseDrawer={() => {}}
+            onNotice={() => {}}
+            prefix=""
+            userPresent
+          />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const link = screen.getByRole("link", { name: "Active Chat" })
+    expect(link.className).toContain("bg-blue-50")
+  })
+})
+
 describe("RecentChatsSidebar drag-over blink and navigate", () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => vi.useRealTimers())
