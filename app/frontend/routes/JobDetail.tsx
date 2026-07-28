@@ -461,7 +461,9 @@ export function FeedbackHistoryPanel({ workflows, prefix }: { workflows: JobWork
               {workflow.trigger_kind === "chat_feedback" ? (
                 <>
                   <FeedbackSourceBadge source={artifacts.feedback_source} />
-                  <pre className="mt-2 whitespace-pre-wrap break-words text-sm text-gray-700 dark:text-gray-300">{typeof chatFeedback === "string" ? chatFeedback : ""}</pre>
+                  <div className="mt-2 text-sm text-gray-700 dark:text-gray-300 [&_code]:rounded [&_code]:bg-gray-100 [&_code]:px-0.5 [&_code]:font-mono dark:[&_code]:bg-gray-800 [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-semibold [&_pre]:rounded [&_pre]:bg-gray-100 [&_pre]:p-1.5 [&_pre]:font-mono dark:[&_pre]:bg-gray-800 [&_pre_code]:bg-transparent [&_pre_code]:px-0">
+                    <Markdown text={typeof chatFeedback === "string" ? chatFeedback : ""} />
+                  </div>
                 </>
               ) : (
                 <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">{t("feedback_trigger_pr_review_text")}</p>
