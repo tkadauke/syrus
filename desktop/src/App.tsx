@@ -499,7 +499,7 @@ function StatusPill({ state, className = "" }: { state: string; className?: stri
   )
 }
 
-function InboxView({ instanceUrl }: { instanceUrl: string }) {
+export function InboxView({ instanceUrl }: { instanceUrl: string }) {
   const queryClient = useQueryClient()
   const [navigation, setNavigation] = useState<PopoverNavigationState>({ view: "inbox" })
   const [checkoutStatusByRepo, setCheckoutStatusByRepo] = useState<CheckoutStatusByRepo>({})
@@ -516,6 +516,7 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
   const toastTimerRef = useRef<number | null>(null)
   const [isMarkingAllNotificationsRead, setIsMarkingAllNotificationsRead] = useState(false)
   const [installingCliFromBanner, setInstallingCliFromBanner] = useState(false)
+  const [isCheckingOut, setIsCheckingOut] = useState(false)
   const composeRef = useRef<HTMLElement>(null)
   const composeButtonRef = useRef<HTMLButtonElement>(null)
   const feedbackSubmitButtonRef = useRef<HTMLButtonElement>(null)
@@ -849,6 +850,7 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
   const checkoutEpicComplete = async (epicId: number, repoSlug: string) => {
     const command = `syrus checkout EPIC-${epicId} --complete`
     clearToast()
+    setIsCheckingOut(true)
 
     try {
       await window.syrusDesktop.checkoutJob({
@@ -865,6 +867,8 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
         message: checkoutError instanceof Error ? checkoutError.message : "Epic checkout failed.",
         copyCommand: command
       }, 7000)
+    } finally {
+      setIsCheckingOut(false)
     }
   }
 
@@ -894,6 +898,7 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
   const checkoutJob = async (job: SyrusJobItem) => {
     const command = `syrus checkout JOB-${job.id}`
     clearToast()
+    setIsCheckingOut(true)
 
     try {
       const result = await window.syrusDesktop.checkoutJob({
@@ -910,6 +915,8 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
         message: checkoutError instanceof Error ? checkoutError.message : "Local checkout failed.",
         copyCommand: command
       }, 7000)
+    } finally {
+      setIsCheckingOut(false)
     }
   }
 
@@ -1062,6 +1069,27 @@ function InboxView({ instanceUrl }: { instanceUrl: string }) {
 
   return (
     <main className="relative flex h-screen min-h-screen flex-col bg-slate-50 text-slate-950">
+      {isCheckingOut && (
+        <div
+          role="status"
+          aria-label="Checking out branch…"
+          className="absolute inset-0 z-50 flex items-center justify-center bg-slate-100/80"
+        >
+          <svg
+            aria-hidden="true"
+            className="h-8 w-8 animate-spin text-slate-400"
+            viewBox="0 0 24 24"
+            fill="none"
+          >
+            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+            <path
+              fill="currentColor"
+              className="opacity-75"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+            />
+          </svg>
+        </div>
+      )}
       <header className={navigation.view === "feedback" ? "relative flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3" : "flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3"}>
         {navigation.view === "feedback" ? (
           <>
