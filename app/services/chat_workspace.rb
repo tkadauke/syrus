@@ -326,6 +326,7 @@ class ChatWorkspace
       ensure_root!
       restore_coding_checkout!(repository, path, existing_branch)
       @chat_session.chat_attachments.find_or_create_by!(attachable: repository)
+      write_relay_credentials!
       return path
     end
 
@@ -340,6 +341,7 @@ class ChatWorkspace
     @chat_session.update_columns(coding_checkout_branch: branch)
     @chat_session.chat_attachments.find_or_create_by!(attachable: repository)
     ChatWorkspacePrepareJob.perform_later(@chat_session.id, repository.id)
+    write_relay_credentials!
     path
   end
 
@@ -360,6 +362,7 @@ class ChatWorkspace
     bytes = self.class.du_bytes(path)
     backup_coding_checkout!(repository, path, branch)
     FileUtils.rm_rf(path.to_s)
+    clear_relay_credentials!
     bytes
   end
 
@@ -614,6 +617,18 @@ class ChatWorkspace
   def authenticated_url(repository)
     token = GithubClient.for(repository: repository, user: repository.user).access_token
     repository.authenticated_push_url(token)
+  end
+
+  def write_relay_credentials!
+    relay_address = ChatWorkspaceRelay.relay_address
+    return unless relay_address.present? && @chat_session.coding_relay_address.blank?
+
+    token = SecureRandom.hex(32)
+    @chat_session.update_columns(coding_relay_address: relay_address, coding_relay_token: token)
+  end
+
+  def clear_relay_credentials!
+    @chat_session.update_columns(coding_relay_address: nil, coding_relay_token: nil)
   end
 
   # Returns a Pathname for relative_path resolved within checkout_dir, or nil

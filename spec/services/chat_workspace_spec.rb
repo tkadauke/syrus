@@ -149,6 +149,51 @@ RSpec.describe ChatWorkspace do
         described_class.ensure_coding_checkout!(chat_session, repository)
       }.not_to have_enqueued_job(ChatWorkspacePrepareJob)
     end
+
+    context "relay credentials" do
+      before { ChatWorkspaceRelay.relay_address = "127.0.0.1:9283" }
+      after  { ChatWorkspaceRelay.relay_address = nil }
+
+      it "writes coding_relay_address and coding_relay_token when relay is present" do
+        described_class.ensure_coding_checkout!(chat_session, repository)
+
+        chat_session.reload
+        expect(chat_session.coding_relay_address).to eq("127.0.0.1:9283")
+        expect(chat_session.coding_relay_token).to be_present
+        expect(chat_session.coding_relay_token.length).to eq(64)
+      end
+
+      it "does not overwrite existing relay credentials on a second call" do
+        described_class.ensure_coding_checkout!(chat_session, repository)
+        original_token = chat_session.reload.coding_relay_token
+
+        described_class.ensure_coding_checkout!(chat_session, repository)
+
+        expect(chat_session.reload.coding_relay_token).to eq(original_token)
+      end
+
+      it "does not write relay credentials when relay_address is nil" do
+        ChatWorkspaceRelay.relay_address = nil
+
+        described_class.ensure_coding_checkout!(chat_session, repository)
+
+        expect(chat_session.reload.coding_relay_address).to be_nil
+        expect(chat_session.reload.coding_relay_token).to be_nil
+      end
+
+      it "re-writes relay credentials after a reclaim cleared them" do
+        described_class.ensure_coding_checkout!(chat_session, repository)
+        described_class.reclaim_coding_checkout!(chat_session)
+        chat_session.reload
+        expect(chat_session.coding_relay_address).to be_nil
+
+        described_class.ensure_coding_checkout!(chat_session, repository)
+
+        chat_session.reload
+        expect(chat_session.coding_relay_address).to eq("127.0.0.1:9283")
+        expect(chat_session.coding_relay_token).to be_present
+      end
+    end
   end
 
   describe ".ensure_job_branch_checkout!" do
@@ -655,6 +700,20 @@ RSpec.describe ChatWorkspace do
 
       expect(coding_path.join(".git")).not_to exist   # oldest evicted
       expect(newer_path.join(".git")).to exist          # newest kept
+    end
+
+    it "clears coding_relay_address and coding_relay_token on reclaim" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      chat_session.update_columns(
+        coding_relay_address: "127.0.0.1:9283",
+        coding_relay_token: "tok"
+      )
+
+      described_class.reclaim_coding_checkout!(chat_session)
+
+      chat_session.reload
+      expect(chat_session.coding_relay_address).to be_nil
+      expect(chat_session.coding_relay_token).to be_nil
     end
 
     it "prune_idle! never touches a coding checkout (no blind deletion)" do

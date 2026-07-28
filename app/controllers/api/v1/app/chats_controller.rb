@@ -989,6 +989,7 @@ module Api
             scratchpad_items_count: chat_session.scratchpad_items.count,
             coding_checkout_uncommitted: chat_session.coding_checkout_uncommitted?,
             coding_checkout_branch: chat_session.coding_checkout_branch,
+            coding_relay_ready: chat_session.coding_relay_address.present?,
             chat_effort: chat_session.chat_effort
           }
         end
