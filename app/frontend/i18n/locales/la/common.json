@@ -78,6 +78,7 @@
     "color_white": "Album",
     "color_black": "Nigrum",
     "undo": "Revoca",
+    "redo": "Repete",
     "cancel": "Omitte",
     "done": "Factum",
     "close": "Claude editorem annotationum",

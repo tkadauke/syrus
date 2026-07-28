@@ -78,6 +78,7 @@
     "color_white": "White",
     "color_black": "Black",
     "undo": "Undo",
+    "redo": "Redo",
     "cancel": "Cancel",
     "done": "Done",
     "close": "Close annotation editor",

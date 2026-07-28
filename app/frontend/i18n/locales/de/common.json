@@ -78,6 +78,7 @@
     "color_white": "Weiß",
     "color_black": "Schwarz",
     "undo": "Rückgängig",
+    "redo": "Wiederholen",
     "cancel": "Abbrechen",
     "done": "Fertig",
     "close": "Annotierungseditor schließen",
