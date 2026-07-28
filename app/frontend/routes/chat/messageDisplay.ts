@@ -8,7 +8,7 @@
 import type { ChatMessageItem, ChatPayload, ChatRenderItem } from "../../api/chats"
 import { contentRecord } from "./utils"
 import { renderMessage } from "./streamBuilders"
-import { formatRelativeDate } from "../../lib/relativeTime"
+import { formatRelativeDate, intlLocale } from "../../lib/relativeTime"
 
 export type ChatMessageImageAttachment = { name: string; mime_type: string; data: string }
 
@@ -64,7 +64,7 @@ export function formatMessageTimestamp(createdAt: string): string {
   if (diffHours < 24) return formatRelativeDate(date, now.getTime())
 
   const sameYear = date.getFullYear() === now.getFullYear()
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(intlLocale(), {
     year: sameYear ? undefined : "numeric",
     month: "numeric",
     day: "numeric",
