@@ -729,6 +729,24 @@ RSpec.describe GithubClient do
       expect(result).to match(%r{\Ahttps://raw\.githubusercontent\.com/acme/widgets/bug-report-media/bug-report-attachments/[0-9a-f-]+/screenshot\.png\z})
     end
 
+    it "passes raw binary content to create_contents without base64 encoding" do
+      stub_branch_exists
+      binary_data = "\x89PNG\r\n\x1A\nfakedata"
+      allow(octokit).to receive(:create_contents)
+        .with("acme/widgets", anything, anything, binary_data.b, branch: "bug-report-media")
+        .and_return(double("contents_response"))
+
+      client.upload_issue_asset(
+        "acme/widgets",
+        io: StringIO.new(binary_data),
+        content_type: "image/png",
+        filename: "screenshot.png"
+      )
+
+      expect(octokit).to have_received(:create_contents)
+        .with("acme/widgets", anything, anything, binary_data.b, branch: "bug-report-media")
+    end
+
     it "creates the branch when it does not exist, then writes the file" do
       stub_branch_missing
       stub_create_contents

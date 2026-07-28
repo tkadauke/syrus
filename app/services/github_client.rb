@@ -182,7 +182,7 @@ class GithubClient
       repo_slug,
       path,
       "Add bug report attachment",
-      Base64.strict_encode64(file_body),
+      file_body,
       branch: branch
     )
     "https://raw.githubusercontent.com/#{owner}/#{repo_name}/#{branch}/#{path}"
