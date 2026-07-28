@@ -287,5 +287,6 @@
   "chat_settings_repo": "Repository-Einstellungen",
   "chat_settings_credentials": "Chat-Anmeldedaten",
   "chat_settings_effective_provider": "Wirksam: {{label}}",
-  "chat_settings_effective_default": "Standard"
+  "chat_settings_effective_default": "Standard",
+  "provider_update_error": "Anbieter konnte nicht aktualisiert werden."
 }
