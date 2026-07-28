@@ -47,6 +47,8 @@ module BugReports
     end
 
     def route_to_creator(repository, title:, description:, screenshot:)
+      # Extra attachments are not forwarded — Creator stores the screenshot as a
+      # job_attachment; inline embedding is only needed on the GitHub-issue path.
       result = BugReports::Creator.new(user: user, repository: repository).call(
         title: title, description: description, screenshot: screenshot
       )

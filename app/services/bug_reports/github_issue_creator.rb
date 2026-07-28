@@ -20,8 +20,8 @@ module BugReports
       repo_slug = AppSetting.report_issue_repo_slug
       issue_client = GithubClient.for_user(user)
 
-      # Use installation token for asset upload if available — the undocumented
-      # upload/policies/assets endpoint is more likely to accept it than a PAT.
+      # Use the installation-backed client for uploads when available — it has
+      # write access to the target repo, which create_contents requires.
       target_repo = Repository.active.find_by("LOWER(CONCAT(owner, '/', name)) = ?", repo_slug.downcase)
       upload_client = begin
         target_repo ? GithubClient.for(repository: target_repo, user: user) : issue_client

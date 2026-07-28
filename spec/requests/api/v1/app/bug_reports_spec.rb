@@ -145,25 +145,11 @@ RSpec.describe "API: /api/v1/app/bug_reports", type: :request do
 
     context "with screenshot attachment" do
       let(:user_with_token) { Factories.user(github_token: "ghp_bugtest") }
-      let(:policy_url) { "https://github.com/upstream-org/syrus/upload/policies/assets" }
-      let(:s3_url) { "https://objects.githubusercontent.com/github-production-repository/uploads/shot" }
-      let(:asset_href) { "https://github.com/user-attachments/assets/dead-beef-uuid" }
+      let(:asset_url) { "https://raw.githubusercontent.com/upstream-org/syrus/bug-report-media/bug-report-attachments/uuid/capture.png" }
 
       before do
         AppSetting.current.update!(report_issue_repo_slug: "upstream-org/syrus")
         sign_in_as(user_with_token)
-      end
-
-      def stub_policy_returning(href:, s3_upload_url:)
-        stub_request(:post, policy_url).to_return(
-          status: 201,
-          headers: { "Content-Type" => "application/json" },
-          body: {
-            upload_url: s3_upload_url,
-            form: { "key" => "uploads/shot", "Content-Type" => "image/png" },
-            asset: { href: href }
-          }.to_json
-        )
       end
 
       def stub_github_issue(expected_body)
@@ -177,9 +163,8 @@ RSpec.describe "API: /api/v1/app/bug_reports", type: :request do
       end
 
       it "uploads the screenshot and embeds it as a markdown image in the issue body" do
-        stub_policy_returning(href: asset_href, s3_upload_url: s3_url)
-        stub_request(:post, s3_url).to_return(status: 204, body: "")
-        issue_stub = stub_github_issue("Bug here.\n\n![Screenshot](#{asset_href})")
+        allow_any_instance_of(GithubClient).to receive(:upload_issue_asset).and_return(asset_url)
+        issue_stub = stub_github_issue("Bug here.\n\n![Screenshot](#{asset_url})")
 
         post "/api/v1/app/bug_reports", params: {
           title: "Screenshot bug",
@@ -191,27 +176,8 @@ RSpec.describe "API: /api/v1/app/bug_reports", type: :request do
         expect(issue_stub).to have_been_requested
       end
 
-      it "sends a bearer token to the policy endpoint" do
-        policy_stub = stub_request(:post, policy_url)
-          .with(headers: { "Authorization" => "Bearer ghp_bugtest" })
-          .to_return(
-            status: 201, headers: { "Content-Type" => "application/json" },
-            body: { upload_url: s3_url, form: {}, asset: { href: asset_href } }.to_json
-          )
-        stub_request(:post, s3_url).to_return(status: 204, body: "")
-        stub_request(:post, "https://api.github.com/repos/upstream-org/syrus/issues")
-          .to_return(status: 201, headers: { "Content-Type" => "application/json" },
-                     body: { number: 55, html_url: "https://github.com/upstream-org/syrus/issues/55" }.to_json)
-
-        post "/api/v1/app/bug_reports", params: {
-          title: "T", description: "D", screenshot: upload_png
-        }
-
-        expect(policy_stub).to have_been_requested
-      end
-
       it "still files the issue with a fallback note when the screenshot upload fails" do
-        stub_request(:post, policy_url).to_return(status: 500, body: "")
+        allow_any_instance_of(GithubClient).to receive(:upload_issue_asset).and_return(nil)
         issue_stub = stub_github_issue(
           "Bug here.\n\n_Attachment could not be uploaded automatically. Please attach it manually._"
         )
@@ -227,25 +193,9 @@ RSpec.describe "API: /api/v1/app/bug_reports", type: :request do
       end
 
       it "embeds additional attachments as a markdown list" do
-        extra_s3_url = "https://objects.githubusercontent.com/github-production-repository/uploads/extra"
-        extra_href = "https://github.com/user-attachments/assets/extra-uuid-here"
-
-        stub_request(:post, policy_url)
-          .to_return(
-            status: 201, headers: { "Content-Type" => "application/json" },
-            body: { upload_url: s3_url, form: {}, asset: { href: asset_href } }.to_json
-          )
-          .then
-          .to_return(
-            status: 201, headers: { "Content-Type" => "application/json" },
-            body: { upload_url: extra_s3_url, form: {}, asset: { href: extra_href } }.to_json
-          )
-        stub_request(:post, s3_url).to_return(status: 204, body: "")
-        stub_request(:post, extra_s3_url).to_return(status: 204, body: "")
-
-        issue_stub = stub_github_issue(
-          "Details.\n\n![Screenshot](#{asset_href})\n\n- [log.txt](#{extra_href})"
-        )
+        extra_url = "https://raw.githubusercontent.com/upstream-org/syrus/bug-report-media/bug-report-attachments/uuid2/log.txt"
+        allow_any_instance_of(GithubClient).to receive(:upload_issue_asset).and_return(asset_url, extra_url)
+        issue_stub = stub_github_issue("Details.\n\n![Screenshot](#{asset_url})\n\n- [log.txt](#{extra_url})")
 
         log_file = Rack::Test::UploadedFile.new(StringIO.new("log content"), "text/plain", original_filename: "log.txt")
         post "/api/v1/app/bug_reports", params: {
