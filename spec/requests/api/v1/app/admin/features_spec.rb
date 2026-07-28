@@ -5,8 +5,8 @@ RSpec.describe "API: /api/v1/app/admin/features", type: :request do
   let(:non_admin) { Factories.user(admin: false) }
   let(:declarations) do
     [
-      { slug: "new_dashboard", category: "Navigation", name: "New dashboard", description: "Use the redesigned dashboard.", default_enabled: false },
-      { slug: "fast_queue", category: "Operations", name: "Fast queue", description: nil, default_enabled: true }
+      { slug: "new_dashboard", category: "Navigation", name: "New dashboard", description: "Use the redesigned dashboard.", default_enabled: false, name_i18n_key: "features.slugs.new_dashboard.name", description_i18n_key: "features.slugs.new_dashboard.description" },
+      { slug: "fast_queue", category: "Operations", name: "Fast queue", description: nil, default_enabled: true, name_i18n_key: "features.slugs.fast_queue.name", description_i18n_key: nil }
     ]
   end
 
@@ -51,7 +51,9 @@ RSpec.describe "API: /api/v1/app/admin/features", type: :request do
             "category" => "Navigation",
             "name" => "New dashboard",
             "description" => "Use the redesigned dashboard.",
-            "enabled" => false
+            "enabled" => false,
+            "name_i18n_key" => "features.slugs.new_dashboard.name",
+            "description_i18n_key" => "features.slugs.new_dashboard.description"
           }
         ]
       },
@@ -63,7 +65,9 @@ RSpec.describe "API: /api/v1/app/admin/features", type: :request do
             "category" => "Operations",
             "name" => "Fast queue",
             "description" => nil,
-            "enabled" => true
+            "enabled" => true,
+            "name_i18n_key" => "features.slugs.fast_queue.name",
+            "description_i18n_key" => nil
           }
         ]
       }
@@ -77,7 +81,7 @@ RSpec.describe "API: /api/v1/app/admin/features", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(Feature.find_by!(slug: "new_dashboard")).to be_enabled
-    expect(parse_body["feature"]).to include("slug" => "new_dashboard", "enabled" => true)
+    expect(parse_body["feature"]).to include("slug" => "new_dashboard", "enabled" => true, "name_i18n_key" => "features.slugs.new_dashboard.name")
   end
 
   it "deduplicates features with the same slug declared multiple times" do

@@ -107,7 +107,42 @@
     "no_features_heading": "Keine Funktionen deklariert",
     "no_features_body": "Funktionssteuerelemente erscheinen hier, nachdem config/features.yml mindestens eine Funktion deklariert.",
     "enabled": "Aktiviert",
-    "disabled": "Deaktiviert"
+    "disabled": "Deaktiviert",
+    "categories": {
+      "labs": "Labore",
+      "ui_experiments": "UI-Experimente",
+      "operations": "Betrieb"
+    },
+    "slugs": {
+      "terminal": {
+        "name": "Terminal",
+        "description": "Aktiviert die interaktive Terminal-Erfahrung."
+      },
+      "chat_polish": {
+        "name": "Chat-Politur",
+        "description": "Subtile Chat-Animationen: Neue Nachrichten blenden sanft ein, der Sprung zu neuen Nachrichten scrollt flüssig. Bewegungssicher (respektiert reduzierte Bewegung)."
+      },
+      "video_walkthroughs": {
+        "name": "Walkthrough-Videos",
+        "description": "Nimm eine kommentierte Bildschirmaufnahme auf oder ziehe sie in einen Chat; Gemini analysiert sie und der Chat-Agent arbeitet sie zu einem Epic aus. Erfordert einen Gemini-API-Schlüssel."
+      },
+      "coding_mode": {
+        "name": "Coding-Modus",
+        "description": "Aktiviert den Coding-Modus für Syrus Chat, sodass der Agent Code-Änderungen direkt in der Sitzungskasse implementieren kann, anstatt nur zu planen."
+      },
+      "performance_logging": {
+        "name": "Leistungsprotokollierung",
+        "description": "Zeichnet strukturierte langsame Anfragen, SQL- und Phasenereignisse in Protokollen und einem kurzlebigen Admin-Diagnosepuffer auf."
+      },
+      "local_mode": {
+        "name": "Lokaler Modus",
+        "description": "Aktiviert den lokalen Chat-Modus und den Daemon-Befehl `syrus local`. Der Agent verbindet sich über einen umgekehrten WebSocket-Tunnel mit einem Daemon auf der lokalen Maschine des Benutzers zum Lesen/Schreiben von Dateien und zur lokalen Befehlsausführung."
+      },
+      "agent_insights": {
+        "name": "Agenten-Einblicke",
+        "description": "Aktiviert Agenten-Einblick-Analysejobs, die aktuelle Workflow-Ausführungen untersuchen und Verbesserungsvorschläge aufzeigen."
+      }
+    }
   },
   "invitations": {
     "heading": "Einladungen",

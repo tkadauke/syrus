@@ -107,7 +107,42 @@
     "no_features_heading": "No features declared",
     "no_features_body": "Feature controls will appear here after config/features.yml declares at least one feature.",
     "enabled": "Enabled",
-    "disabled": "Disabled"
+    "disabled": "Disabled",
+    "categories": {
+      "labs": "Labs",
+      "ui_experiments": "UI Experiments",
+      "operations": "Operations"
+    },
+    "slugs": {
+      "terminal": {
+        "name": "Terminal",
+        "description": "Enables the interactive terminal experience."
+      },
+      "chat_polish": {
+        "name": "Chat polish",
+        "description": "Subtle chat animations: new messages fade in, the new-messages jump scrolls smoothly. Motion-safe (respects reduced-motion)."
+      },
+      "video_walkthroughs": {
+        "name": "Walkthrough videos",
+        "description": "Record or drag a narrated screen recording into a chat; Gemini analyzes it and the chat agent works it toward an Epic. Requires a Gemini API key."
+      },
+      "coding_mode": {
+        "name": "Coding Mode",
+        "description": "Enables Coding Mode for Syrus Chat, allowing the agent to implement code changes directly in the session checkout instead of just planning."
+      },
+      "performance_logging": {
+        "name": "Performance logging",
+        "description": "Records structured slow request, SQL, and phase events to logs and a short-lived admin diagnostics buffer."
+      },
+      "local_mode": {
+        "name": "Local Mode",
+        "description": "Enables the Local chat mode and the `syrus local` daemon command. The agent connects to a daemon running on the user's local machine via a reverse WebSocket tunnel to read/write files and run commands locally."
+      },
+      "agent_insights": {
+        "name": "Agent Insights",
+        "description": "Enables agent insight analysis jobs that inspect recent workflow runs and surface improvement suggestions."
+      }
+    }
   },
   "invitations": {
     "heading": "Invitations",

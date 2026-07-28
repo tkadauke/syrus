@@ -107,7 +107,42 @@
     "no_features_heading": "Nullae proprietates declaratae",
     "no_features_body": "Moderamina proprietatum hic appareant postquam config/features.yml saltem unam proprietatem declarat.",
     "enabled": "Activatum",
-    "disabled": "Desactivatum"
+    "disabled": "Desactivatum",
+    "categories": {
+      "labs": "Labora",
+      "ui_experiments": "Experimenta Interfaciei",
+      "operations": "Operationes"
+    },
+    "slugs": {
+      "terminal": {
+        "name": "Terminale",
+        "description": "Experientiam terminalem interactivam activat."
+      },
+      "chat_polish": {
+        "name": "Ornamenta Colloquii",
+        "description": "Animationes subtiles colloquii: nuntii novi leniter appareant, transitus ad novos nuntios leniter volvit. Motu tutum (reductionem motus observat)."
+      },
+      "video_walkthroughs": {
+        "name": "Videones Perambulationis",
+        "description": "Capturam narratam imaginum scaenicae recipe vel trahe in colloquium; Gemini eam analyzat et agens colloquii ad Epicum pergit. Clave API Gemini opus est."
+      },
+      "coding_mode": {
+        "name": "Modus Codicis",
+        "description": "Modum Codicis pro Colloquio Syrus activat, permittens agenti mutationes codicis directe in extractione sessionis exsequi potius quam solum ordinare."
+      },
+      "performance_logging": {
+        "name": "Notatio Perfectionis",
+        "description": "Petitiones lentes structuratae, SQL, et eventus phasium in schedas et instrumentum diagnoseos administrationis breve notantur."
+      },
+      "local_mode": {
+        "name": "Modus Localis",
+        "description": "Modum colloquii localis et mandatum daemonis `syrus local` activat. Agens ad daemonem in machina locali utentis per canalem WebSocket inversum connectitur ut fasciculos legat vel scribat et mandata localiter exsequatur."
+      },
+      "agent_insights": {
+        "name": "Perspectus Agentis",
+        "description": "Opera analytica perspectuum agentis activat quae cursus recentes operis inspiciunt et suggestiones meliorationis exhibent."
+      }
+    }
   },
   "invitations": {
     "heading": "Invitationes",

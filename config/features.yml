@@ -2,35 +2,49 @@ features:
   - slug: terminal
     category: "Labs"
     name: "Terminal"
+    name_i18n_key: "features.slugs.terminal.name"
     description: "Enables the interactive terminal experience."
+    description_i18n_key: "features.slugs.terminal.description"
     default: false
   - slug: chat_polish
     category: "UI Experiments"
     name: "Chat polish"
+    name_i18n_key: "features.slugs.chat_polish.name"
     description: "Subtle chat animations: new messages fade in, the new-messages jump scrolls smoothly. Motion-safe (respects reduced-motion)."
+    description_i18n_key: "features.slugs.chat_polish.description"
     default: false
   - slug: video_walkthroughs
     category: "Labs"
     name: "Walkthrough videos"
+    name_i18n_key: "features.slugs.video_walkthroughs.name"
     description: "Record or drag a narrated screen recording into a chat; Gemini analyzes it and the chat agent works it toward an Epic. Requires a Gemini API key."
+    description_i18n_key: "features.slugs.video_walkthroughs.description"
     default: false
   - slug: coding_mode
     category: "Labs"
     name: "Coding Mode"
+    name_i18n_key: "features.slugs.coding_mode.name"
     description: "Enables Coding Mode for Syrus Chat, allowing the agent to implement code changes directly in the session checkout instead of just planning."
+    description_i18n_key: "features.slugs.coding_mode.description"
     default: false
   - slug: performance_logging
     category: "Operations"
     name: "Performance logging"
+    name_i18n_key: "features.slugs.performance_logging.name"
     description: "Records structured slow request, SQL, and phase events to logs and a short-lived admin diagnostics buffer."
+    description_i18n_key: "features.slugs.performance_logging.description"
     default: false
   - slug: local_mode
     category: "Labs"
     name: "Local Mode"
+    name_i18n_key: "features.slugs.local_mode.name"
     description: "Enables the Local chat mode and the `syrus local` daemon command. The agent connects to a daemon running on the user's local machine via a reverse WebSocket tunnel to read/write files and run commands locally."
+    description_i18n_key: "features.slugs.local_mode.description"
     default: false
   - slug: agent_insights
     category: "Labs"
     name: "Agent Insights"
+    name_i18n_key: "features.slugs.agent_insights.name"
     description: "Enables agent insight analysis jobs that inspect recent workflow runs and surface improvement suggestions."
+    description_i18n_key: "features.slugs.agent_insights.description"
     default: false

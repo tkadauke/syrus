@@ -39,7 +39,7 @@ module Api
             records = Feature.where(slug: declarations.map { |declaration| declaration.fetch(:slug) }).index_by(&:slug)
 
             declarations.map do |declaration|
-              records[declaration.fetch(:slug)] || Feature.new(
+              feature = records[declaration.fetch(:slug)] || Feature.new(
                 slug: declaration.fetch(:slug),
                 category: declaration.fetch(:category),
                 name: declaration.fetch(:name),
@@ -47,6 +47,9 @@ module Api
                 default_enabled: declaration.fetch(:default_enabled),
                 enabled: declaration.fetch(:default_enabled)
               )
+              feature.name_i18n_key = declaration[:name_i18n_key]
+              feature.description_i18n_key = declaration[:description_i18n_key]
+              feature
             end
           end
 
@@ -65,7 +68,9 @@ module Api
               category: feature.category,
               name: feature.name,
               description: feature.description,
-              enabled: feature.enabled?
+              enabled: feature.enabled?,
+              name_i18n_key: feature.name_i18n_key,
+              description_i18n_key: feature.description_i18n_key
             }
           end
 

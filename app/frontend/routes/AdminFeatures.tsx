@@ -34,6 +34,10 @@ export function AdminFeatures() {
   )
 }
 
+function categoryI18nKey(category: string) {
+  return `features.categories.${category.toLowerCase().replace(/[\s-]+/g, "_")}`
+}
+
 function FeaturesView({ payload }: { payload: AdminFeaturesPayload }) {
   const { t } = useT("admin")
   if (payload.categories.length === 0) {
@@ -47,14 +51,17 @@ function FeaturesView({ payload }: { payload: AdminFeaturesPayload }) {
 
   return (
     <div className="space-y-8">
-      {payload.categories.map((category) => (
-        <section aria-label={category.category} className="space-y-3" key={category.category}>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{category.category}</h2>
-          <div className="grid gap-3 md:grid-cols-2">
-            {category.features.map((feature) => <FeatureCard feature={feature} key={feature.slug} />)}
-          </div>
-        </section>
-      ))}
+      {payload.categories.map((category) => {
+        const categoryLabel = t(categoryI18nKey(category.category), { defaultValue: category.category })
+        return (
+          <section aria-label={categoryLabel} className="space-y-3" key={category.category}>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{categoryLabel}</h2>
+            <div className="grid gap-3 md:grid-cols-2">
+              {category.features.map((feature) => <FeatureCard feature={feature} key={feature.slug} />)}
+            </div>
+          </section>
+        )
+      })}
     </div>
   )
 }
@@ -81,11 +88,16 @@ function FeatureCard({ feature }: { feature: AdminFeature }) {
     }
   })
 
+  const featureName = feature.name_i18n_key ? t(feature.name_i18n_key, { defaultValue: feature.name }) : feature.name
+  const featureDescription = feature.description_i18n_key
+    ? t(feature.description_i18n_key, { defaultValue: feature.description ?? "" })
+    : feature.description
+
   return (
     <article className="rounded border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{feature.name}</h3>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{featureName}</h3>
           <p className="mt-1 break-all font-mono text-xs text-gray-500 dark:text-gray-400">{feature.slug}</p>
         </div>
         <label className="inline-flex shrink-0 items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200">
@@ -100,7 +112,7 @@ function FeatureCard({ feature }: { feature: AdminFeature }) {
           <span className="h-6 w-11 rounded-full bg-gray-300 after:mt-0.5 after:ml-0.5 after:block after:h-5 after:w-5 after:rounded-full after:bg-white after:transition peer-checked:bg-blue-600 peer-checked:after:translate-x-5 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-blue-600 peer-disabled:opacity-60 dark:bg-gray-700 dark:peer-checked:bg-blue-500" />
         </label>
       </div>
-      {feature.description ? <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">{feature.description}</p> : null}
+      {featureDescription ? <p className="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">{featureDescription}</p> : null}
       {toggleFeature.isError ? <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(toggleFeature.error, t("features.error_update"))}</p> : null}
     </article>
   )
