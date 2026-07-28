@@ -54,7 +54,7 @@ function RouteErrorFallback({ error, componentStack, fingerprint: fp, alreadyRep
       const description = `${componentStack}\n\n${error.stack ?? ""}`
       const result = await createBugReport({ title, description })
       markFingerprint(fp)
-      setJobId(result.job_id)
+      setJobId(result.job_id ?? null)
       setReportState("success")
     } catch {
       setReportState("error")

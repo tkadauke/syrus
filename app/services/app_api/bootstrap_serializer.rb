@@ -59,7 +59,9 @@ module AppApi
         revision: app_revision,
         revision_url: app_revision_url,
         version: app_version,
-        built_at: app_built_at
+        built_at: app_built_at,
+        bug_report_mode: user ? BugReports::Router.mode_for(user: user)&.to_s : nil,
+        report_issue_repo_slug: AppSetting.report_issue_repo_slug
       }
     end
 

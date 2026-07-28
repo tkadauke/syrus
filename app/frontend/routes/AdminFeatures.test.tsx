@@ -195,7 +195,9 @@ function bootstrapPayload(overrides: Partial<BootstrapPayload> = {}): BootstrapP
       revision: "dev",
       revision_url: null,
       version: null,
-      built_at: null
+      built_at: null,
+      bug_report_mode: null,
+      report_issue_repo_slug: "tkadauke/syrus"
     },
     setup_status: null,
     public: {

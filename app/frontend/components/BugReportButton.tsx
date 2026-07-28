@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query"
-import type { FormEvent, KeyboardEvent } from "react"
+import type { FormEvent, KeyboardEvent, ReactNode } from "react"
 import { useEffect, useState } from "react"
 import { createBugReport } from "../api/bugReports"
 import { useT } from "../hooks/useT"
@@ -17,7 +17,17 @@ type ScreenshotCaptures = Partial<Record<Exclude<ScreenshotChoice, "none">, Scre
 
 const MAX_FULL_PAGE_SCREENSHOT_PIXELS = 8_000_000
 
-export function BugReportButton({ context, position = "bottom-left" }: { context: string; position?: "bottom-left" | "bottom-right" }) {
+export function BugReportButton({
+  bugReportMode,
+  context,
+  position = "bottom-left",
+  reportIssueRepoSlug
+}: {
+  bugReportMode?: "direct_job" | "github_issue" | null
+  context: string
+  position?: "bottom-left" | "bottom-right"
+  reportIssueRepoSlug?: string | null
+}) {
   const { t } = useT("common")
   const [open, setOpen] = useState(false)
   const [capturing, setCapturing] = useState(false)
@@ -27,17 +37,30 @@ export function BugReportButton({ context, position = "bottom-left" }: { context
   const [captures, setCaptures] = useState<ScreenshotCaptures>({})
   const [screenshotChoice, setScreenshotChoice] = useState<ScreenshotChoice>("viewport")
   const [captureError, setCaptureError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const [notice, setNotice] = useState<ReactNode>(null)
   const bugReport = useMutation({
     mutationFn: () => createBugReport({ title, description, screenshot: selectedScreenshot(captures, screenshotChoice) }),
     onSuccess: (payload) => {
       setOpen(false)
-      setNotice(payload.message || t("bug_report.queued"))
       setTitle("")
       setDescription("")
       setCaptures({})
       setScreenshotChoice("viewport")
       setCaptureError(null)
+
+      if (payload.issue_url) {
+        const issueUrl = payload.issue_url
+        setNotice(
+          <span>
+            {t("bug_report.filed")}{" "}
+            <a className="underline hover:no-underline" href={issueUrl} rel="noreferrer" target="_blank">
+              {t("bug_report.view_issue")}
+            </a>
+          </span>
+        )
+      } else {
+        setNotice(payload.message || t("bug_report.queued"))
+      }
     }
   })
 
@@ -110,6 +133,11 @@ export function BugReportButton({ context, position = "bottom-left" }: { context
     event.currentTarget.requestSubmit()
   }
 
+  const isGitHubIssueMode = bugReportMode === "github_issue"
+  const submitLabel = bugReport.isPending
+    ? (isGitHubIssueMode ? t("bug_report.submitting_issue") : t("bug_report.submitting"))
+    : (isGitHubIssueMode ? t("bug_report.submit_issue") : t("bug_report.submit"))
+
   return (
     <>
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
@@ -128,7 +156,14 @@ export function BugReportButton({ context, position = "bottom-left" }: { context
           <section aria-labelledby="bug-report-title" aria-modal="true" className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-lg bg-white dark:bg-gray-900 shadow-xl" role="dialog">
             <form className="space-y-5 p-5 sm:p-6" onKeyDown={submitOnShortcut} onSubmit={submit}>
               <div className="flex items-start justify-between gap-4">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id="bug-report-title">{t("bug_report.title")}</h2>
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id="bug-report-title">{t("bug_report.title")}</h2>
+                  {bugReportMode === "direct_job" ? (
+                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{t("bug_report.mode_direct_job")}</p>
+                  ) : bugReportMode === "github_issue" && reportIssueRepoSlug ? (
+                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{t("bug_report.mode_github_issue", { slug: reportIssueRepoSlug })}</p>
+                  ) : null}
+                </div>
                 <button
                   aria-label={t("bug_report.close")}
                   className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-950"
@@ -200,7 +235,7 @@ export function BugReportButton({ context, position = "bottom-left" }: { context
                   {t("bug_report.cancel")}
                 </button>
                 <button className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500 disabled:bg-blue-300 dark:disabled:bg-blue-900" disabled={bugReport.isPending} type="submit">
-                  {bugReport.isPending ? t("bug_report.submitting") : t("bug_report.submit")}
+                  {submitLabel}
                 </button>
               </div>
             </form>

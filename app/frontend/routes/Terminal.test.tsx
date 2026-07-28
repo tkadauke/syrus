@@ -390,7 +390,7 @@ function bootstrapPayload(overrides: Partial<BootstrapPayload> = {}): BootstrapP
     gemini_configured: false
     },
     team_user_count: 1,
-    app: { revision: "dev", revision_url: null, version: null, built_at: null },
+    app: { revision: "dev", revision_url: null, version: null, built_at: null, bug_report_mode: null, report_issue_repo_slug: "tkadauke/syrus" },
     public: {
       first_signup: false,
       signups_open: false,

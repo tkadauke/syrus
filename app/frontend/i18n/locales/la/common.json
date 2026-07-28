@@ -60,7 +60,13 @@
     "cancel": "Omitte",
     "submit": "Munus crea",
     "submitting": "Creans…",
-    "queued": "Nuntium errorum in ordine positum."
+    "submit_issue": "Quaestionem depone",
+    "submitting_issue": "Deponens…",
+    "queued": "Nuntium errorum in ordine positum.",
+    "filed": "Nuntium errorum depositum.",
+    "view_issue": "Vide apud GitHub",
+    "mode_direct_job": "Haec relatio ut munus Syri deponetur.",
+    "mode_github_issue": "Haec relatio ut quaestio GitHub apud {{slug}} deponetur."
   },
   "image_annotation": {
     "annotate": "Annota {{name}}",

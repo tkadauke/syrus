@@ -60,7 +60,13 @@
     "cancel": "Abbrechen",
     "submit": "Aufgabe erstellen",
     "submitting": "Wird erstellt...",
-    "queued": "Fehlerbericht in die Warteschlange gestellt."
+    "submit_issue": "Problem melden",
+    "submitting_issue": "Wird gemeldet...",
+    "queued": "Fehlerbericht in die Warteschlange gestellt.",
+    "filed": "Fehlerbericht eingereicht.",
+    "view_issue": "Auf GitHub ansehen",
+    "mode_direct_job": "Dieser Bericht wird als Syrus-Aufgabe eingereicht.",
+    "mode_github_issue": "Dieser Bericht wird als GitHub-Issue bei {{slug}} eingereicht."
   },
   "image_annotation": {
     "annotate": "{{name}} annotieren",

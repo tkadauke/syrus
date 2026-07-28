@@ -31,6 +31,11 @@ export type BootstrapPayload = {
     // When the backend image was built (SYRUS_BUILT_AT, UTC ISO-8601); null
     // when the image predates the stamp. Feeds the badge's hover tooltip.
     built_at: string | null
+    // Which submission path the bug-report dialog will take for this user.
+    bug_report_mode: "direct_job" | "github_issue" | null
+    // The configured report_issue_repo_slug (e.g. "tkadauke/syrus"); used
+    // in the GitHub-issue indicator line shown inside the dialog.
+    report_issue_repo_slug: string
   }
   setup_status: {
     state: "not_started" | "first_admin" | "credentials_only" | "repository_only" | "ready_for_first_chat" | "first_chat_started" | "first_successful_job"

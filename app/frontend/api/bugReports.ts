@@ -8,7 +8,8 @@ export type BugReportInput = {
 
 export type BugReportPayload = {
   message: string
-  job_id: number
+  job_id?: number
+  issue_url?: string
 }
 
 export function createBugReport(input: BugReportInput) {

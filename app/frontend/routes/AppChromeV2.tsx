@@ -265,7 +265,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         )}
         {showQuote ? <PubliliusSyrusFooter quote={quote} /> : null}
       </main>
-      {user ? <BugReportButton context={bugReportContext(location.pathname)} position="bottom-right" /> : null}
+      {user ? <BugReportButton bugReportMode={data?.app?.bug_report_mode ?? null} context={bugReportContext(location.pathname)} position="bottom-right" reportIssueRepoSlug={data?.app?.report_issue_repo_slug ?? null} /> : null}
       <BuildBadge builtAt={data?.app?.built_at} revision={data?.app?.revision} version={data?.app?.version} />
     </div>
   )

@@ -60,7 +60,13 @@
     "cancel": "Cancel",
     "submit": "Create Job",
     "submitting": "Creating...",
-    "queued": "Bug report queued."
+    "submit_issue": "File Issue",
+    "submitting_issue": "Filing...",
+    "queued": "Bug report queued.",
+    "filed": "Bug report filed.",
+    "view_issue": "View on GitHub",
+    "mode_direct_job": "This report will be filed as a Syrus Job.",
+    "mode_github_issue": "This report will be filed as a GitHub issue on {{slug}}."
   },
   "image_annotation": {
     "annotate": "Annotate {{name}}",
