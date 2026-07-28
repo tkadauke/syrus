@@ -567,7 +567,10 @@
     "github_quota_not_recorded": "Quota GitHub nondum adnotata.",
     "github_quota_prefix": "Quota API GitHub:",
     "github_quota_suffix": "reliquae (situs {{resource}}).",
-    "aria_pause_scheduling": "Ordinationem intermittere"
+    "aria_pause_scheduling": "Ordinationem intermittere",
+    "preferences_saved_notice": "Praeferentiae servatae.",
+    "profile_saved_notice": "Profilum renovatum.",
+    "agent_settings_saved_notice": "Commissa agentis renovata."
   },
   "credential_cards": {
     "connected": "Conexum",

@@ -7725,6 +7725,10 @@ describe("App", () => {
         agent_max_turns: 42
       }))
     })
+    await waitFor(() => {
+      expect(screen.getByText("Agent settings updated.")).toBeInTheDocument()
+      expect(screen.queryByText("Credentials updated.")).not.toBeInTheDocument()
+    })
   })
 
   it("renders and saves the preferences route", async () => {
@@ -7764,6 +7768,10 @@ describe("App", () => {
         scheduling_paused: true
       }))
       expect(JSON.parse(String(patchCall?.[1]?.body)).user).not.toHaveProperty("notification_preferences")
+    })
+    await waitFor(() => {
+      expect(screen.getByText("Preferences saved.")).toBeInTheDocument()
+      expect(screen.queryByText("Credentials updated.")).not.toBeInTheDocument()
     })
   })
 

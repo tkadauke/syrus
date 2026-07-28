@@ -163,12 +163,21 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
   const queryClient = useQueryClient()
   const [values, setValues] = useState<CredentialsInput>(inputFromPayload(payload))
   const roleOptions = payload.options.roles || ["developer", "product_owner"]
+  const sectionNoticeKey: Partial<Record<AccountSettingsSection, string>> = {
+    preferences: "account_settings.preferences_saved_notice",
+    profile: "account_settings.profile_saved_notice",
+    agent: "account_settings.agent_settings_saved_notice",
+  }
   const save = useMutation({
     mutationFn: () => updateCredentials(values),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      // cacheCredentials strips the server's generic "Credentials updated."
+      // message before caching so the payload-message effect in
+      // CredentialsAccountPanel cannot overwrite the section-specific notice.
+      cacheCredentials(queryClient, updated)
       setValues(inputFromPayload(updated))
-      onNotice(updated.message || "Credentials updated.")
+      const key = sectionNoticeKey[section]
+      onNotice(key ? t(key) : (updated.message ?? ""))
     }
   })
 
