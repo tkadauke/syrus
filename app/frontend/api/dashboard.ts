@@ -231,6 +231,7 @@ export type DashboardColumnOption = {
 export type DashboardSmartFolder = {
   id: number
   name: string
+  key: string | null
   kind: string
   position: number
   subject_type: string

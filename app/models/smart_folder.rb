@@ -239,6 +239,11 @@ class SmartFolder < ApplicationRecord
     builtins.find { |folder| folder.attention_preset == preset }
   end
 
+  def builtin_key
+    return nil unless builtin?
+    BUILTINS_BY_SUBJECT.fetch(subject_type, []).find { |d| d[:name] == name }&.fetch(:key)&.to_s
+  end
+
   private
 
   def seed_defaults

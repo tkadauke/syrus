@@ -39,7 +39,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
   const allPath = dashboardLink(`${prefix}${subjectPath(payload.subject)}`, { view: payload.view })
   const allJobsLink = (
     <Link className={folderClass(payload.active_smart_folder_id == null)} onClick={() => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: null })} to={allPath}>
-      All {subjectLabel(payload.subject, 2)}
+      {allSubjectLabel(payload.subject, t)}
     </Link>
   )
   const appliedTree = filterTreeFromPayload(payload.filter)
@@ -356,6 +356,10 @@ function SmartFolderLink({
     })
   }
 
+  const displayName = (folder.kind !== "user_defined" && folder.key)
+    ? t(`smart_folder.names.${folder.key}`, { defaultValue: folder.name })
+    : folder.name
+
   if (folder.kind === "user_defined") {
     const error = update.isError ? errorMessage(update.error, t("smart_folder.unable_to_rename")) : destroy.isError ? errorMessage(destroy.error, t("smart_folder.unable_to_delete")) : null
     const showActions = actionsVisible || menuOpen
@@ -458,7 +462,7 @@ function SmartFolderLink({
   }
   return (
     <Link
-      aria-label={`${folder.name} ${folder.count}`}
+      aria-label={`${displayName} ${folder.count}`}
       className={folderClass(folder.active, showDragHandle)}
       draggable={draggable}
       onDragEnd={onDragEnd}
@@ -469,7 +473,7 @@ function SmartFolderLink({
       to={withRoutePrefix(folder.path, prefix)}
     >
       {showDragHandle ? <GripIcon /> : null}
-      <span className="truncate">{folder.name}</span>
+      <span className="truncate">{displayName}</span>
       <FolderCount folder={folder} />
     </Link>
   )
@@ -506,9 +510,10 @@ function subjectPath(subject: DashboardSubject) {
   return "/dashboard/epics"
 }
 
-function subjectLabel(subject: DashboardSubject, count: number) {
-  const label = subject === "job" ? "job" : subject
-  return count === 1 ? label : `${label}s`
+function allSubjectLabel(subject: DashboardSubject, t: (key: string, options?: Record<string, unknown>) => string) {
+  if (subject === "job") return t("smart_folder.all_items_job", { defaultValue: "All jobs" })
+  if (subject === "epic") return t("smart_folder.all_items_epic", { defaultValue: "All epics" })
+  return t("smart_folder.all_items_workflow", { defaultValue: "All workflows" })
 }
 
 function dashboardLink(path: string, params: Record<string, string | number | null | undefined>) {

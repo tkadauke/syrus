@@ -315,9 +315,12 @@ function SmartFolderLink({
   }
 
   if (!isUserDefined) {
+    const displayName = folder.key
+      ? t(`smart_folder.names.${folder.key}`, { defaultValue: folder.name })
+      : folder.name
     return (
-      <Link aria-label={`${folder.name} ${folder.count}`} className={folderClass(folder.active)} to={withRoutePrefix(folder.path, prefix)}>
-        <span className="truncate">{folder.name}</span>
+      <Link aria-label={`${displayName} ${folder.count}`} className={folderClass(folder.active)} to={withRoutePrefix(folder.path, prefix)}>
+        <span className="truncate">{displayName}</span>
         <FolderCount active={folder.active} count={folder.count} />
       </Link>
     )
