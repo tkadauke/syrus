@@ -30,9 +30,14 @@ export default defineConfig({
     // Desktop component tests would otherwise resolve react from
     // desktop/node_modules while @testing-library/react uses the root copy —
     // two React instances crash every hook. Pin all test imports to one React.
+    // @tanstack/react-query and @tanstack/query-core get the same treatment:
+    // desktop/node_modules carries a slightly different version that imports
+    // its own local react, triggering the same duplicate-React crash.
     alias: {
       react: `${rootDir}node_modules/react`,
-      "react-dom": `${rootDir}node_modules/react-dom`
+      "react-dom": `${rootDir}node_modules/react-dom`,
+      "@tanstack/react-query": `${rootDir}node_modules/@tanstack/react-query`,
+      "@tanstack/query-core": `${rootDir}node_modules/@tanstack/query-core`
     },
     coverage: {
       provider: "v8",
