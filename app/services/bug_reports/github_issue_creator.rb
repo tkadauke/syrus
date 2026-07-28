@@ -1,5 +1,6 @@
 module BugReports
   class GithubIssueCreator
+    include BugReports::ContextFormatter
     Result = Struct.new(:issue_url, :error_code, :error_message, keyword_init: true) do
       def success? = issue_url.present? && error_code.nil?
     end
@@ -8,7 +9,7 @@ module BugReports
       @user = user
     end
 
-    def call(title:, description:)
+    def call(title:, description:, context: nil)
       if user.github_token.blank?
         return Result.new(
           error_code: "github_token_required",
@@ -17,7 +18,7 @@ module BugReports
       end
 
       title = title.to_s.strip.presence || "In-app bug report"
-      body = description.to_s.strip
+      body = description.to_s.strip + format_context_markdown(context)
 
       issue = GithubClient.for_user(user).create_issue(
         AppSetting.report_issue_repo_slug,

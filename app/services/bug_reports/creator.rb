@@ -2,6 +2,7 @@ require "stringio"
 
 module BugReports
   class Creator
+    include BugReports::ContextFormatter
     Result = Struct.new(:job, :error, keyword_init: true) do
       def success?
         job.present? && error.blank?
@@ -13,10 +14,10 @@ module BugReports
       @repository = repository
     end
 
-    def call(title:, description:, screenshot:)
+    def call(title:, description:, screenshot:, context: nil)
       title = title.to_s.strip.presence || "In-app bug report"
       description = description.to_s.strip
-      prompt_text = [ title, description ].reject(&:blank?).join("\n\n")
+      prompt_text = [ title, description ].reject(&:blank?).join("\n\n") + format_context_markdown(context)
 
       if screenshot.present? && screenshot.content_type != "image/png"
         return failure("Screenshot must be a PNG.")

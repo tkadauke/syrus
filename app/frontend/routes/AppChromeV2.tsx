@@ -1,6 +1,6 @@
 import { PUBLILIUS_SYRUS_QUOTES } from "./appChromeV2/quotes"
 import { ChevronDownIcon, DashboardIcon, MoonIcon, PlusIcon, RepositoryIcon, ScheduleIcon, SearchIcon, SetupIcon, SpendingIcon, SunIcon, TeamIcon, TerminalIcon, UserIcon } from "./appChromeV2/icons"
-import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, adminNavItemActive, adminSubnavLinkClass, bugReportContext, clampSidebarWidth, isAdminPath, isAuthPath, normalizedAppPath, popupButtonClass, popupLinkClass, redirectsToSetup, sidebarLinkClass, storeSidebarWidth, storedSidebarWidth, updateBootstrapTheme, withRoutePrefix } from "./appChromeV2/helpers"
+import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, activeChatIdFromPath, adminNavItemActive, adminSubnavLinkClass, bugReportContext, clampSidebarWidth, isAdminPath, isAuthPath, normalizedAppPath, popupButtonClass, popupLinkClass, redirectsToSetup, sidebarLinkClass, storeSidebarWidth, storedSidebarWidth, updateBootstrapTheme, withRoutePrefix } from "./appChromeV2/helpers"
 import { RecentChatsSidebar } from "./appChromeV2/RecentChatsSidebar"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { BRAND_ICON_SRC } from "../lib/brandIcon"
@@ -265,7 +265,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         )}
         {showQuote ? <PubliliusSyrusFooter quote={quote} /> : null}
       </main>
-      {user ? <BugReportButton bugReportMode={data?.app?.bug_report_mode ?? null} context={bugReportContext(location.pathname)} position="bottom-right" reportIssueRepoSlug={data?.app?.report_issue_repo_slug ?? null} /> : null}
+      {user ? <BugReportButton bugReportMode={data?.app?.bug_report_mode ?? null} chatId={activeChatIdFromPath(location.pathname)} context={bugReportContext(location.pathname)} position="bottom-right" reportIssueRepoSlug={data?.app?.report_issue_repo_slug ?? null} /> : null}
       <BuildBadge builtAt={data?.app?.built_at} revision={data?.app?.revision} version={data?.app?.version} />
     </div>
   )

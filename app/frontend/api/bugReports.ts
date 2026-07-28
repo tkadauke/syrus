@@ -4,6 +4,7 @@ export type BugReportInput = {
   title: string
   description: string
   screenshot?: File | null
+  context?: string
 }
 
 export type BugReportPayload = {
@@ -17,6 +18,7 @@ export function createBugReport(input: BugReportInput) {
   form.set("title", input.title)
   form.set("description", input.description)
   if (input.screenshot) form.set("screenshot", input.screenshot)
+  if (input.context) form.set("context", input.context)
 
   return postForm<BugReportPayload>("/api/v1/app/bug_reports", form)
 }

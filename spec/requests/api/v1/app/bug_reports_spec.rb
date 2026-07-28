@@ -56,6 +56,36 @@ RSpec.describe "API: /api/v1/app/bug_reports", type: :request do
       expect(job.job_attachments.last.filename).to eq("capture.png")
     end
 
+    it "appends a formatted Environment section when context JSON is provided" do
+      Factories.repository(user: user, owner: "operator", name: "syrus")
+      sign_in_as(user)
+
+      context_json = {
+        url: "https://example.com/jobs",
+        user_agent: "Mozilla/5.0",
+        viewport: { width: 1440, height: 900 },
+        device_pixel_ratio: 2,
+        recent_errors: [
+          { message: "TypeError: x is null", source: "app.js", at: "2025-01-01T00:00:00.000Z" }
+        ]
+      }.to_json
+
+      post "/api/v1/app/bug_reports", params: {
+        title: "Context bug",
+        description: "Something broke.",
+        context: context_json
+      }
+
+      expect(response).to have_http_status(:created)
+      body = Job.last.issue_body
+      expect(body).to include("**Environment**")
+      expect(body).to include("URL: https://example.com/jobs")
+      expect(body).to include("Browser: Mozilla/5.0")
+      expect(body).to include("Viewport: 1440×900 @ 2x")
+      expect(body).to include("**Recent JS errors**")
+      expect(body).to include("`TypeError: x is null` (app.js)")
+    end
+
     it "allows a user who does not own the bug-report repository to file a report" do
       owner_user = Factories.user
       Factories.repository(user: owner_user, owner: "operator", name: "syrus")
@@ -141,6 +171,42 @@ RSpec.describe "API: /api/v1/app/bug_reports", type: :request do
       expect(response).to have_http_status(:created)
       expect(parse_body).to eq("message" => "Bug report filed.", "issue_url" => "https://github.com/upstream-org/syrus/issues/42")
       expect(stub).to have_been_requested
+    end
+
+    it "appends context to the GitHub issue body when context JSON is provided" do
+      AppSetting.current.update!(report_issue_repo_slug: "upstream-org/syrus")
+      user_with_token = Factories.user(github_token: "ghp_bugtest2")
+      sign_in_as(user_with_token)
+
+      context_json = {
+        url: "https://example.com/chats/7",
+        user_agent: "Mozilla/5.0",
+        viewport: { width: 1280, height: 800 },
+        device_pixel_ratio: 1,
+        chat_session_id: 7,
+        recent_errors: []
+      }.to_json
+
+      stub_request(:post, "https://api.github.com/repos/upstream-org/syrus/issues")
+        .with(headers: { "Authorization" => "token ghp_bugtest2" }) { |req|
+          body = JSON.parse(req.body)
+          body["body"].include?("**Environment**") &&
+            body["body"].include?("URL: https://example.com/chats/7") &&
+            body["body"].include?("Chat session: 7")
+        }
+        .to_return(
+          status: 201,
+          headers: { "Content-Type" => "application/json" },
+          body: { number: 99, html_url: "https://github.com/upstream-org/syrus/issues/99" }.to_json
+        )
+
+      post "/api/v1/app/bug_reports", params: {
+        title: "Context test",
+        description: "Checking context.",
+        context: context_json
+      }
+
+      expect(response).to have_http_status(:created)
     end
   end
 end

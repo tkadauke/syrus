@@ -66,7 +66,14 @@
     "filed": "Fehlerbericht eingereicht.",
     "view_issue": "Auf GitHub ansehen",
     "mode_direct_job": "Dieser Bericht wird als Syrus-Aufgabe eingereicht.",
-    "mode_github_issue": "Dieser Bericht wird als GitHub-Issue bei {{slug}} eingereicht."
+    "mode_github_issue": "Dieser Bericht wird als GitHub-Issue bei {{slug}} eingereicht.",
+    "whats_included": "Was enthalten ist",
+    "context_url": "URL",
+    "context_browser": "Browser",
+    "context_viewport": "Anzeigebereich",
+    "context_chat": "Chat-Sitzung",
+    "context_recent_errors": "Aktuelle JS-Fehler",
+    "context_no_recent_errors": "Keine"
   },
   "image_annotation": {
     "annotate": "{{name}} annotieren",

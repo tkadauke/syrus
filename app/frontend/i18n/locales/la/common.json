@@ -66,7 +66,14 @@
     "filed": "Nuntium errorum depositum.",
     "view_issue": "Vide apud GitHub",
     "mode_direct_job": "Haec relatio ut munus Syri deponetur.",
-    "mode_github_issue": "Haec relatio ut quaestio GitHub apud {{slug}} deponetur."
+    "mode_github_issue": "Haec relatio ut quaestio GitHub apud {{slug}} deponetur.",
+    "whats_included": "Quid continetur",
+    "context_url": "URL",
+    "context_browser": "Navigatrum",
+    "context_viewport": "Porta",
+    "context_chat": "Sessio colloquii",
+    "context_recent_errors": "Errores recentes",
+    "context_no_recent_errors": "Nulli"
   },
   "image_annotation": {
     "annotate": "Annota {{name}}",

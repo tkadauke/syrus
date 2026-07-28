@@ -6,6 +6,7 @@ import { useT } from "../hooks/useT"
 import { CloseIcon } from "./CloseIcon"
 import { NoticeToast } from "./NoticeToast"
 import { errorMessage } from "../lib/errorMessage"
+import { getRecentErrors, type RecentError } from "../lib/errorRingBuffer"
 
 type Html2Canvas = typeof import("html2canvas-pro").default
 type ScreenshotChoice = "viewport" | "fullPage" | "none"
@@ -15,15 +16,37 @@ type ScreenshotCapture = {
 }
 type ScreenshotCaptures = Partial<Record<Exclude<ScreenshotChoice, "none">, ScreenshotCapture>>
 
+type BugReportContext = {
+  url: string
+  user_agent: string
+  viewport: { width: number; height: number }
+  device_pixel_ratio: number
+  recent_errors: RecentError[]
+  chat_session_id?: number
+}
+
 const MAX_FULL_PAGE_SCREENSHOT_PIXELS = 8_000_000
+
+function collectContext(chatId?: number | null): BugReportContext {
+  return {
+    url: window.location.href,
+    user_agent: navigator.userAgent,
+    viewport: { width: window.innerWidth, height: window.innerHeight },
+    device_pixel_ratio: window.devicePixelRatio,
+    recent_errors: getRecentErrors(),
+    ...(chatId != null ? { chat_session_id: chatId } : {})
+  }
+}
 
 export function BugReportButton({
   bugReportMode,
+  chatId,
   context,
   position = "bottom-left",
   reportIssueRepoSlug
 }: {
   bugReportMode?: "direct_job" | "github_issue" | null
+  chatId?: number | null
   context: string
   position?: "bottom-left" | "bottom-right"
   reportIssueRepoSlug?: string | null
@@ -38,8 +61,16 @@ export function BugReportButton({
   const [screenshotChoice, setScreenshotChoice] = useState<ScreenshotChoice>("viewport")
   const [captureError, setCaptureError] = useState<string | null>(null)
   const [notice, setNotice] = useState<ReactNode>(null)
+  const [bugContext, setBugContext] = useState<BugReportContext | null>(null)
+
   const bugReport = useMutation({
-    mutationFn: () => createBugReport({ title, description, screenshot: selectedScreenshot(captures, screenshotChoice) }),
+    mutationFn: () =>
+      createBugReport({
+        title,
+        description,
+        screenshot: selectedScreenshot(captures, screenshotChoice),
+        context: bugContext ? JSON.stringify(bugContext) : undefined
+      }),
     onSuccess: (payload) => {
       setOpen(false)
       setTitle("")
@@ -47,6 +78,7 @@ export function BugReportButton({
       setCaptures({})
       setScreenshotChoice("viewport")
       setCaptureError(null)
+      setBugContext(null)
 
       if (payload.issue_url) {
         const issueUrl = payload.issue_url
@@ -74,6 +106,7 @@ export function BugReportButton({
     setScreenshotChoice("viewport")
     setCaptureError(null)
     setNotice(null)
+    setBugContext(collectContext(chatId))
     setCapturing(true)
 
     try {
@@ -224,6 +257,8 @@ export function BugReportButton({
                 </div>
               </fieldset>
 
+              <WhatsIncluded bugContext={bugContext} captures={captures} screenshotChoice={screenshotChoice} />
+
               {bugReport.isError ? (
                 <p className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 px-3 py-2 text-sm text-red-700 dark:text-red-300" role="alert">
                   {errorMessage(bugReport.error, t("bug_report.error"))}
@@ -243,6 +278,95 @@ export function BugReportButton({
         </div>
       ) : null}
     </>
+  )
+}
+
+function WhatsIncluded({
+  bugContext,
+  captures,
+  screenshotChoice
+}: {
+  bugContext: BugReportContext | null
+  captures: ScreenshotCaptures
+  screenshotChoice: ScreenshotChoice
+}) {
+  const { t } = useT("common")
+  const capture = screenshotChoice !== "none" ? captures[screenshotChoice as "viewport" | "fullPage"] : undefined
+
+  return (
+    <details className="group rounded border border-gray-200 dark:border-gray-700">
+      <summary className="flex cursor-pointer list-none items-center justify-between rounded px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
+        <span>{t("bug_report.whats_included")}</span>
+        <ChevronDownIcon />
+      </summary>
+      <div className="space-y-3 border-t border-gray-200 dark:border-gray-700 px-3 pb-3 pt-2">
+        {capture?.previewUrl ? (
+          <div>
+            <p className="mb-1 text-xs font-medium text-gray-600 dark:text-gray-400">
+              {screenshotChoice === "viewport" ? t("bug_report.viewport") : t("bug_report.full_page")}
+            </p>
+            <img alt="" className="max-h-24 rounded border border-gray-100 dark:border-gray-800 object-contain" src={capture.previewUrl} />
+            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+              {capture.file.name} ({formatBytes(capture.file.size)})
+            </p>
+          </div>
+        ) : null}
+
+        {bugContext ? (
+          <dl className="space-y-1 text-xs text-gray-600 dark:text-gray-400">
+            <ContextRow label={t("bug_report.context_url")} value={bugContext.url} />
+            <ContextRow label={t("bug_report.context_browser")} value={bugContext.user_agent} />
+            <ContextRow
+              label={t("bug_report.context_viewport")}
+              value={`${bugContext.viewport.width}×${bugContext.viewport.height} @ ${bugContext.device_pixel_ratio}x`}
+            />
+            {bugContext.chat_session_id != null ? (
+              <ContextRow label={t("bug_report.context_chat")} value={String(bugContext.chat_session_id)} />
+            ) : null}
+            <div>
+              <dt className="font-medium text-gray-700 dark:text-gray-300">{t("bug_report.context_recent_errors")}</dt>
+              {bugContext.recent_errors.length > 0 ? (
+                <dd className="mt-1">
+                  <ul className="space-y-0.5">
+                    {bugContext.recent_errors.map((e, i) => (
+                      <li key={i} className="font-mono text-xs">
+                        <code className="text-gray-800 dark:text-gray-200">{e.message}</code>
+                        <span className="text-gray-400 dark:text-gray-500"> ({e.source})</span>
+                      </li>
+                    ))}
+                  </ul>
+                </dd>
+              ) : (
+                <dd className="text-gray-400 dark:text-gray-500">{t("bug_report.context_no_recent_errors")}</dd>
+              )}
+            </div>
+          </dl>
+        ) : null}
+      </div>
+    </details>
+  )
+}
+
+function ContextRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex min-w-0 gap-1.5">
+      <dt className="shrink-0 font-medium text-gray-700 dark:text-gray-300">{label}:</dt>
+      <dd className="truncate">{value}</dd>
+    </div>
+  )
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function ChevronDownIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4 text-gray-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="m6 9 6 6 6-6" />
+    </svg>
   )
 }
 

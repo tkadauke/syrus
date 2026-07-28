@@ -6,6 +6,9 @@ import { I18nextProvider } from "react-i18next"
 import { App } from "./routes/App"
 import { AppErrorBoundary } from "./components/AppErrorBoundary"
 import i18n from "./i18n"
+import { initErrorRingBuffer } from "./lib/errorRingBuffer"
+
+initErrorRingBuffer()
 
 const root = document.getElementById("syrus-spa-root")
 const queryClient = new QueryClient()
