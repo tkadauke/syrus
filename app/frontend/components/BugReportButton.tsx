@@ -313,11 +313,6 @@ export function BugReportButton({
     void openDialog()
   }
 
-  const isGitHubIssueMode = bugReportMode === "github_issue"
-  const submitLabel = bugReport.isPending
-    ? (isGitHubIssueMode ? t("bug_report.submitting_issue") : t("bug_report.submitting"))
-    : (isGitHubIssueMode ? t("bug_report.submit_issue") : t("bug_report.submit"))
-
   return (
     <>
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
