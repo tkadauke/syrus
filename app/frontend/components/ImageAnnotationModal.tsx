@@ -315,17 +315,26 @@ export function ImageAnnotationModal({
   const interactionRef   = useRef<Interaction | null>(null)
   const shapesRef        = useRef<Shape[]>([])
 
-  const [tool,            setTool]            = useState<Tool>("rectangle")
-  const [color,           setColor]           = useState(COLORS[0].value)
-  const [imageSize,       setImageSize]       = useState<{ width: number; height: number } | null>(null)
-  const [undoCount,       setUndoCount]       = useState(0)
-  const [redoCount,       setRedoCount]       = useState(0)
-  const [textPlacement,   setTextPlacement]   = useState<TextPlacement | null>(null)
-  const [shapes,          setShapes]          = useState<Shape[]>([])
-  const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null)
+  const [tool,              setTool]              = useState<Tool>("rectangle")
+  const [color,             setColor]             = useState(COLORS[0].value)
+  const [imageSize,         setImageSize]         = useState<{ width: number; height: number } | null>(null)
+  const [undoCount,         setUndoCount]         = useState(0)
+  const [redoCount,         setRedoCount]         = useState(0)
+  const [textPlacement,     setTextPlacement]     = useState<TextPlacement | null>(null)
+  const [shapes,            setShapes]            = useState<Shape[]>([])
+  const [selectedShapeId,   setSelectedShapeId]   = useState<string | null>(null)
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
 
   // Keep shapesRef in sync for use in event handlers without closure staleness
   useEffect(() => { shapesRef.current = shapes }, [shapes])
+
+  const requestClose = useCallback(() => {
+    if (shapesRef.current.length > 0) {
+      setShowDiscardConfirm(true)
+    } else {
+      onClose()
+    }
+  }, [onClose])
 
   const syncHistoryCounts = useCallback(() => {
     setUndoCount(pastRef.current.length)
@@ -402,7 +411,16 @@ export function ImageAnnotationModal({
   // Keyboard shortcuts
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") { onClose(); return }
+      if (event.key === "Escape") {
+        // Text input handles its own Escape via handleTextKeyDown; guard here prevents double-close.
+        if (textPlacement) return
+        if (showDiscardConfirm) { setShowDiscardConfirm(false); return }
+        const hasShapes = shapesRef.current.length > 0
+        if (hasShapes && tool !== "select") { setTool("select"); return }
+        if (hasShapes) { setShowDiscardConfirm(true); return }
+        onClose()
+        return
+      }
 
       if (event.key.toLowerCase() === "z" && (event.metaKey || event.ctrlKey)) {
         event.preventDefault()
@@ -427,7 +445,7 @@ export function ImageAnnotationModal({
     }
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [onClose, textPlacement, undo, redo, selectedShapeId, pushUndo])
+  }, [onClose, textPlacement, undo, redo, selectedShapeId, pushUndo, tool, showDiscardConfirm])
 
   function canvasPoint(event: ReactPointerEvent<HTMLCanvasElement>): Point {
     const canvas = event.currentTarget
@@ -629,6 +647,36 @@ export function ImageAnnotationModal({
 
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-gray-950/80 p-3 text-gray-900 dark:text-gray-100" role="presentation">
+      {showDiscardConfirm && (
+        <div
+          aria-labelledby="discard-confirm-label"
+          aria-modal="true"
+          className="absolute inset-0 z-50 flex items-center justify-center bg-black/40"
+          role="dialog"
+        >
+          <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-xl dark:border-gray-700 dark:bg-gray-900">
+            <p className="mb-5 text-sm font-medium text-gray-800 dark:text-gray-100" id="discard-confirm-label">
+              {t("image_annotation.discard_confirm")}
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                className={secondaryButton()}
+                onClick={() => setShowDiscardConfirm(false)}
+                type="button"
+              >
+                {t("image_annotation.keep_editing")}
+              </button>
+              <button
+                className="rounded bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700"
+                onClick={() => { setShowDiscardConfirm(false); onClose() }}
+                type="button"
+              >
+                {t("image_annotation.discard")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <section aria-label={t("image_annotation.annotate", { name })} aria-modal="true" className="flex min-h-0 flex-1 flex-col gap-3" role="dialog">
         <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-gray-200 bg-white px-3 py-2 shadow dark:border-gray-700 dark:bg-gray-900">
           <div className="flex flex-wrap items-center gap-1" role="toolbar" aria-label={t("image_annotation.toolbar")}>
@@ -661,9 +709,9 @@ export function ImageAnnotationModal({
           <div className="flex items-center gap-2">
             <button className={secondaryButton()} disabled={undoCount === 0} onClick={undo} type="button">{t("image_annotation.undo")}</button>
             <button className={secondaryButton()} disabled={redoCount === 0} onClick={redo} type="button">{t("image_annotation.redo")}</button>
-            <button className={secondaryButton()} onClick={onClose} type="button">{t("image_annotation.cancel")}</button>
+            <button className={secondaryButton()} onClick={requestClose} type="button">{t("image_annotation.cancel")}</button>
             <button className="rounded bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:bg-blue-300" disabled={!imageSize} onClick={finishAnnotation} type="button">{t("image_annotation.done")}</button>
-            <button aria-label={t("image_annotation.close")} className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100" onClick={onClose} type="button">
+            <button aria-label={t("image_annotation.close")} className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100" onClick={requestClose} type="button">
               <CloseIcon className="h-4 w-4" />
             </button>
           </div>

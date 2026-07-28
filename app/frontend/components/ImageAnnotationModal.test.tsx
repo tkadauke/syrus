@@ -502,6 +502,170 @@ describe("ImageAnnotationModal", () => {
     expect(screen.getByRole("button", { name: "Undo" })).not.toBeDisabled()
   })
 
+  // --- Escape key layered behavior ---
+
+  it("Escape with no shapes closes the modal immediately", async () => {
+    const onClose = vi.fn()
+    renderModal({ onClose })
+    await waitForLoaded()
+
+    fireEvent.keyDown(window, { key: "Escape" })
+
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it("Escape while a drawing tool is active with shapes switches to select tool", async () => {
+    const onClose = vi.fn()
+    renderModal({ onClose })
+    await waitForLoaded()
+
+    const canvas = screen.getByLabelText("Annotation canvas")
+    fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
+    fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+
+    // Default tool is rectangle
+    expect(screen.getByRole("button", { name: "Rectangle" })).toHaveAttribute("aria-pressed", "true")
+
+    fireEvent.keyDown(window, { key: "Escape" })
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Select" })).toHaveAttribute("aria-pressed", "true")
+    })
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it("Escape while select tool is active with shapes shows discard confirmation", async () => {
+    const onClose = vi.fn()
+    renderModal({ onClose })
+    await waitForLoaded()
+
+    const canvas = screen.getByLabelText("Annotation canvas")
+    fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
+    fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+
+    fireEvent.click(screen.getByRole("button", { name: "Select" }))
+    fireEvent.keyDown(window, { key: "Escape" })
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: "Discard all annotations?" })).toBeVisible()
+    })
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it("Escape while text input is active dismisses text input without closing modal", async () => {
+    const onClose = vi.fn()
+    renderModal({ onClose })
+    await waitForLoaded()
+
+    fireEvent.click(screen.getByRole("button", { name: "Text" }))
+    fireEvent.pointerDown(screen.getByLabelText("Annotation canvas"), { clientX: 30, clientY: 32, pointerId: 1 })
+
+    const input = screen.getByPlaceholderText("Type, then press Enter")
+    expect(input).toBeVisible()
+
+    fireEvent.keyDown(input, { key: "Escape" })
+
+    expect(screen.queryByPlaceholderText("Type, then press Enter")).not.toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it("Escape on the discard confirmation dialog dismisses it without calling onClose", async () => {
+    const onClose = vi.fn()
+    renderModal({ onClose })
+    await waitForLoaded()
+
+    const canvas = screen.getByLabelText("Annotation canvas")
+    fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
+    fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+
+    fireEvent.click(screen.getByRole("button", { name: "Select" }))
+    fireEvent.keyDown(window, { key: "Escape" })
+    await waitFor(() => { expect(screen.getByRole("dialog", { name: "Discard all annotations?" })).toBeVisible() })
+
+    fireEvent.keyDown(window, { key: "Escape" })
+
+    expect(screen.queryByRole("dialog", { name: "Discard all annotations?" })).not.toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  // --- Discard confirmation ---
+
+  it("Cancel button with shapes shows discard confirmation instead of closing", async () => {
+    const onClose = vi.fn()
+    renderModal({ onClose })
+    await waitForLoaded()
+
+    const canvas = screen.getByLabelText("Annotation canvas")
+    fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
+    fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: "Discard all annotations?" })).toBeVisible()
+    })
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it("X close button with shapes shows discard confirmation instead of closing", async () => {
+    const onClose = vi.fn()
+    renderModal({ onClose })
+    await waitForLoaded()
+
+    const canvas = screen.getByLabelText("Annotation canvas")
+    fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
+    fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+
+    fireEvent.click(screen.getByRole("button", { name: "Close annotation editor" }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: "Discard all annotations?" })).toBeVisible()
+    })
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it("discard confirmation Discard button calls onClose", async () => {
+    const onClose = vi.fn()
+    renderModal({ onClose })
+    await waitForLoaded()
+
+    const canvas = screen.getByLabelText("Annotation canvas")
+    fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
+    fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+    await waitFor(() => { expect(screen.getByRole("dialog", { name: "Discard all annotations?" })).toBeVisible() })
+
+    fireEvent.click(screen.getByRole("button", { name: "Discard" }))
+
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it("discard confirmation Keep Editing dismisses dialog and does not close modal", async () => {
+    const onClose = vi.fn()
+    renderModal({ onClose })
+    await waitForLoaded()
+
+    const canvas = screen.getByLabelText("Annotation canvas")
+    fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
+    fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+    await waitFor(() => { expect(screen.getByRole("dialog", { name: "Discard all annotations?" })).toBeVisible() })
+
+    fireEvent.click(screen.getByRole("button", { name: "Keep Editing" }))
+
+    expect(screen.queryByRole("dialog", { name: "Discard all annotations?" })).not.toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it("finishAnnotation re-renders canvas without selection before compositing", async () => {
     const onDone = vi.fn()
     renderModal({ onDone })
