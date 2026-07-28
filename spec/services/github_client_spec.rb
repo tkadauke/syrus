@@ -684,29 +684,40 @@ RSpec.describe GithubClient do
 
   describe "#upload_issue_asset" do
     let(:client) { GithubClient.for_user(user) }
-    let(:policy_url) { "https://github.com/acme/widgets/upload/policies/assets" }
-    let(:s3_url) { "https://objects.githubusercontent.com/github-production-repository/uploads/some-path" }
-    let(:asset_href) { "https://github.com/user-attachments/assets/abc123-uuid-here" }
+    let(:octokit) { client.instance_variable_get(:@client) }
+    let(:fake_ref) { double("ref", object: double("object", sha: "abc123sha")) }
+    let(:fake_repo) { double("repo", default_branch: "main") }
 
-    def stub_policy(status: 201, body: nil)
-      stub_request(:post, policy_url).to_return(
-        status: status,
-        headers: { "Content-Type" => "application/json" },
-        body: (body || {
-          upload_url: s3_url,
-          form: { "key" => "uploads/some-path", "Content-Type" => "image/png" },
-          asset: { href: asset_href }
-        }).to_json
-      )
+    def stub_branch_exists
+      allow(octokit).to receive(:ref)
+        .with("acme/widgets", "refs/heads/bug-report-media")
+        .and_return(fake_ref)
     end
 
-    def stub_s3(status: 204)
-      stub_request(:post, s3_url).to_return(status: status, body: "")
+    def stub_branch_missing
+      allow(octokit).to receive(:ref)
+        .with("acme/widgets", "refs/heads/bug-report-media")
+        .and_raise(Octokit::NotFound)
+      allow(octokit).to receive(:repository)
+        .with("acme/widgets")
+        .and_return(fake_repo)
+      allow(octokit).to receive(:ref)
+        .with("acme/widgets", "refs/heads/main")
+        .and_return(fake_ref)
+      allow(octokit).to receive(:create_ref)
+        .with("acme/widgets", "refs/heads/bug-report-media", "abc123sha")
+        .and_return(double("created_ref"))
     end
 
-    it "uploads a file and returns the GitHub asset URL" do
-      stub_policy
-      stub_s3
+    def stub_create_contents
+      allow(octokit).to receive(:create_contents)
+        .with("acme/widgets", anything, anything, anything, branch: "bug-report-media")
+        .and_return(double("contents_response"))
+    end
+
+    it "returns a raw.githubusercontent.com URL when the branch already exists" do
+      stub_branch_exists
+      stub_create_contents
 
       result = client.upload_issue_asset(
         "acme/widgets",
@@ -715,60 +726,30 @@ RSpec.describe GithubClient do
         filename: "screenshot.png"
       )
 
-      expect(result).to eq(asset_href)
+      expect(result).to match(%r{\Ahttps://raw\.githubusercontent\.com/acme/widgets/bug-report-media/bug-report-attachments/[0-9a-f-]+/screenshot\.png\z})
     end
 
-    it "sends a Bearer token in the policy request" do
-      policy_stub = stub_request(:post, policy_url)
-        .with(headers: { "Authorization" => "Bearer ghp_test_token" })
-        .to_return(
-          status: 201,
-          headers: { "Content-Type" => "application/json" },
-          body: {
-            upload_url: s3_url,
-            form: { "key" => "uploads/some-path", "Content-Type" => "image/png" },
-            asset: { href: asset_href }
-          }.to_json
-        )
-      stub_s3
+    it "creates the branch when it does not exist, then writes the file" do
+      stub_branch_missing
+      stub_create_contents
 
-      client.upload_issue_asset(
+      result = client.upload_issue_asset(
         "acme/widgets",
-        io: StringIO.new("x"),
-        content_type: "image/png",
-        filename: "shot.png"
+        io: StringIO.new("data"),
+        content_type: "image/pdf",
+        filename: "report.pdf"
       )
 
-      expect(policy_stub).to have_been_requested
+      expect(octokit).to have_received(:create_ref)
+        .with("acme/widgets", "refs/heads/bug-report-media", "abc123sha")
+      expect(result).to match(%r{\Ahttps://raw\.githubusercontent\.com/acme/widgets/bug-report-media/bug-report-attachments/[0-9a-f-]+/report\.pdf\z})
     end
 
-    it "sends the filename, size, and content_type in the policy request body" do
-      content = "PNG data here"
-      policy_stub = stub_request(:post, policy_url)
-        .with(body: { name: "capture.png", size: content.bytesize, content_type: "image/png" }.to_json)
-        .to_return(
-          status: 201,
-          headers: { "Content-Type" => "application/json" },
-          body: {
-            upload_url: s3_url,
-            form: { "key" => "uploads/some-path", "Content-Type" => "image/png" },
-            asset: { href: asset_href }
-          }.to_json
-        )
-      stub_s3
+    it "returns nil and logs a warning when create_contents raises" do
+      stub_branch_exists
+      allow(octokit).to receive(:create_contents).and_raise(Octokit::Error)
 
-      client.upload_issue_asset(
-        "acme/widgets",
-        io: StringIO.new(content),
-        content_type: "image/png",
-        filename: "capture.png"
-      )
-
-      expect(policy_stub).to have_been_requested
-    end
-
-    it "returns nil when the policy request fails" do
-      stub_policy(status: 422)
+      expect(Rails.logger).to receive(:warn).with(/\[GithubClient\] upload_issue_asset acme\/widgets\/shot\.png failed/)
 
       result = client.upload_issue_asset(
         "acme/widgets",
@@ -778,68 +759,13 @@ RSpec.describe GithubClient do
       )
 
       expect(result).to be_nil
-    end
-
-    it "logs a warning with the HTTP status code when the policy request returns a non-2xx response" do
-      stub_policy(status: 403, body: { error: "Forbidden" })
-
-      expect(Rails.logger).to receive(:warn).with(/\[GithubClient\] fetch_upload_policy acme\/widgets: HTTP 403/)
-
-      client.upload_issue_asset(
-        "acme/widgets",
-        io: StringIO.new("data"),
-        content_type: "image/png",
-        filename: "shot.png"
-      )
-    end
-
-    it "returns nil when the S3 upload fails" do
-      stub_policy
-      stub_s3(status: 500)
-
-      result = client.upload_issue_asset(
-        "acme/widgets",
-        io: StringIO.new("\x89PNG\r\n\x1A\nfakedata"),
-        content_type: "image/png",
-        filename: "shot.png"
-      )
-
-      expect(result).to be_nil
-    end
-
-    it "logs a warning with the HTTP status code when the S3 upload returns a non-success response" do
-      stub_policy
-      stub_s3(status: 500)
-
-      expect(Rails.logger).to receive(:warn).with(/\[GithubClient\] upload_asset_to_s3 #{Regexp.escape(s3_url)}: HTTP 500/)
-
-      client.upload_issue_asset(
-        "acme/widgets",
-        io: StringIO.new("data"),
-        content_type: "image/png",
-        filename: "shot.png"
-      )
-    end
-
-    it "accepts a 302 redirect from S3 as a successful upload" do
-      stub_policy
-      stub_request(:post, s3_url).to_return(status: 302, headers: { "Location" => "https://github.com/some-redirect" }, body: "")
-
-      result = client.upload_issue_asset(
-        "acme/widgets",
-        io: StringIO.new("x"),
-        content_type: "image/png",
-        filename: "shot.png"
-      )
-
-      expect(result).to eq(asset_href)
     end
 
     it "rewinds the io before reading to handle already-read streams" do
       io = StringIO.new("already read content")
-      io.read  # advance to EOF
-      stub_policy
-      stub_s3
+      io.read
+      stub_branch_exists
+      stub_create_contents
 
       result = client.upload_issue_asset(
         "acme/widgets",
@@ -848,7 +774,7 @@ RSpec.describe GithubClient do
         filename: "shot.png"
       )
 
-      expect(result).to eq(asset_href)
+      expect(result).to match(%r{\Ahttps://raw\.githubusercontent\.com/acme/widgets/bug-report-media/})
     end
   end
 

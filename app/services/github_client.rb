@@ -1,5 +1,3 @@
-require "net/http"
-
 class GithubClient
   USER_AGENT = "Syrus/0.1 (+https://github.com/tkadauke/syrus)".freeze
   DELETE_BRANCH_TRANSIENT_RETRY_DELAYS = [ 0.5, 1.5 ].freeze
@@ -167,24 +165,27 @@ class GithubClient
     raise
   end
 
-  # Uploads a file to GitHub's issue asset CDN using the undocumented two-step
-  # flow that GitHub's web UI uses when you paste an image into an issue textarea:
-  # 1. POST to /{owner}/{repo}/upload/policies/assets to get S3 presigned fields
-  # 2. Multipart POST directly to S3 with those fields plus the file
-  # Returns the https://github.com/user-attachments/assets/{uuid} URL on success,
-  # nil on any failure (so callers can add a fallback note and still file the issue).
+  # Uploads a file to the target repo's bug-report-media branch via the
+  # GitHub Contents API (Octokit#create_contents). Returns a raw.githubusercontent.com
+  # URL that renders inline in GitHub Markdown, or nil on any failure so the
+  # caller can fall back gracefully and still file the issue.
   def upload_issue_asset(repo_slug, io:, content_type:, filename:)
-    owner, repo = repo_slug.split("/", 2)
     io.rewind if io.respond_to?(:rewind)
     file_body = io.read.b
 
-    policy = fetch_upload_policy(owner, repo, filename: filename, size: file_body.bytesize, content_type: content_type)
-    return nil unless policy
+    branch = "bug-report-media"
+    owner, repo_name = repo_slug.split("/", 2)
+    ensure_bug_report_branch!(repo_slug, branch)
 
-    uploaded = upload_asset_to_s3(policy["upload_url"], form: policy["form"], body: file_body, filename: filename, content_type: content_type)
-    return nil unless uploaded
-
-    policy.dig("asset", "href")
+    path = "bug-report-attachments/#{SecureRandom.uuid}/#{filename}"
+    @client.create_contents(
+      repo_slug,
+      path,
+      "Add bug report attachment",
+      Base64.strict_encode64(file_body),
+      branch: branch
+    )
+    "https://raw.githubusercontent.com/#{owner}/#{repo_name}/#{branch}/#{path}"
   rescue => e
     Rails.logger.warn("[GithubClient] upload_issue_asset #{repo_slug}/#{filename} failed: #{e.class}: #{e.message}")
     nil
@@ -849,61 +850,11 @@ class GithubClient
     Rails.logger.warn("[GithubClient] rate_limit log write failed: #{e.message}")
   end
 
-  def fetch_upload_policy(owner, repo, filename:, size:, content_type:)
-    uri = URI("https://github.com/#{owner}/#{repo}/upload/policies/assets")
-    response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 10, read_timeout: 30) do |http|
-      req = Net::HTTP::Post.new(uri)
-      req["Authorization"] = "Bearer #{@access_token}"
-      req["Content-Type"] = "application/json"
-      req["Accept"] = "application/json"
-      req["User-Agent"] = USER_AGENT
-      req.body = { name: filename, size: size, content_type: content_type }.to_json
-      http.request(req)
-    end
-    unless response.is_a?(Net::HTTPSuccess)
-      Rails.logger.warn("[GithubClient] fetch_upload_policy #{owner}/#{repo}: HTTP #{response.code} #{response.body.to_s.truncate(300)}")
-      return nil
-    end
-    JSON.parse(response.body)
-  rescue => e
-    Rails.logger.warn("[GithubClient] fetch_upload_policy #{owner}/#{repo}: #{e.class}: #{e.message}")
-    nil
-  end
-
-  def upload_asset_to_s3(upload_url, form:, body:, filename:, content_type:)
-    uri = URI(upload_url)
-    boundary = "----SyrusAssetBoundary#{SecureRandom.hex(8)}"
-    multipart = build_s3_multipart(boundary, form: form || {}, body: body, filename: filename, content_type: content_type)
-    response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", open_timeout: 10, read_timeout: 60) do |http|
-      req = Net::HTTP::Post.new(uri)
-      req["Content-Type"] = "multipart/form-data; boundary=#{boundary}"
-      req.body = multipart
-      http.request(req)
-    end
-    if response.is_a?(Net::HTTPSuccess) || response.is_a?(Net::HTTPRedirection)
-      true
-    else
-      Rails.logger.warn("[GithubClient] upload_asset_to_s3 #{upload_url}: HTTP #{response.code}")
-      false
-    end
-  rescue => e
-    Rails.logger.warn("[GithubClient] upload_asset_to_s3 #{upload_url}: #{e.class}: #{e.message}")
-    false
-  end
-
-  def build_s3_multipart(boundary, form:, body:, filename:, content_type:)
-    crlf = "\r\n"
-    result = "".b
-    form.each do |key, value|
-      result << "--#{boundary}#{crlf}".b
-      result << "Content-Disposition: form-data; name=\"#{key}\"#{crlf}#{crlf}".b
-      result << "#{value}#{crlf}".b
-    end
-    result << "--#{boundary}#{crlf}".b
-    result << "Content-Disposition: form-data; name=\"file\"; filename=\"#{filename}\"#{crlf}".b
-    result << "Content-Type: #{content_type}#{crlf}#{crlf}".b
-    result << body
-    result << "#{crlf}--#{boundary}--#{crlf}".b
-    result
+  def ensure_bug_report_branch!(repo_slug, branch)
+    @client.ref(repo_slug, "refs/heads/#{branch}")
+  rescue Octokit::NotFound
+    repo_info = @client.repository(repo_slug)
+    tip_sha = @client.ref(repo_slug, "refs/heads/#{repo_info.default_branch}").object.sha
+    @client.create_ref(repo_slug, "refs/heads/#{branch}", tip_sha)
   end
 end
