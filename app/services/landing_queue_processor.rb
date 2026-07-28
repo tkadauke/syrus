@@ -451,6 +451,10 @@ class LandingQueueProcessor
       return blocked("landing paused: main branch broken")
     end
     return blocked("repository archived") if job.repository.archived?
+    if job.priority != "urgent" &&
+       job.repository.jobs.where(priority: "urgent").where.not(state: %w[closed]).exists?
+      return blocked("urgent job active")
+    end
     # With merge-trains on, Epic children never land via the per-Job
     # path — they land atomically as part of their Epic's train. Keep
     # them in :approved with a clear reason; MergeTrainDispatcher picks

@@ -597,4 +597,32 @@ RSpec.describe LandingQueueProcessor do
       expect(target.reload).to be_landing
     end
   end
+
+  describe "urgent job gate" do
+    it "does not block a non-urgent job when no urgent jobs are open" do
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+
+      entry = described_class.entries(Job.where(id: job.id)).first
+
+      expect(entry.blocked_reason).to be_blank
+    end
+
+    it "blocks a non-urgent job when an urgent job is open in the same repository" do
+      queue_job(issue_number: 1, approved_at: 5.minutes.ago).tap { |j| j.update!(priority: "urgent") }
+      non_urgent = queue_job(issue_number: 2, approved_at: 4.minutes.ago)
+
+      entry = described_class.entries(Job.where(id: non_urgent.id)).first
+
+      expect(entry.blocked_reason).to eq("urgent job active")
+    end
+
+    it "does not block an urgent job even when another urgent job is open" do
+      urgent = queue_job(issue_number: 1, approved_at: 1.minute.ago).tap { |j| j.update!(priority: "urgent") }
+      queue_job(issue_number: 2, approved_at: 2.minutes.ago).tap { |j| j.update!(priority: "urgent") }
+
+      entry = described_class.entries(Job.where(id: urgent.id)).first
+
+      expect(entry.blocked_reason).to be_blank
+    end
+  end
 end
