@@ -6,7 +6,7 @@ import { dashboardEmptyState, dashboardLinkFromSearch, dashboardVisibleColumns, 
 import type { DashboardSortState } from "./dashboard/helpers"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useState } from "react"
-import { Link, useLocation, useNavigate } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useBackendOutage } from "../hooks/useBackendUpdate"
@@ -230,14 +230,7 @@ function RepositoryHealthBanners({ prefix, repositories }: { prefix: string; rep
 }
 
 function DesktopDashboardControls({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
-  return (
-    <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center">
-      <div className="min-w-0 flex-1">
-        <DashboardFilterBar pathname={pathname} search={search} payload={payload} />
-      </div>
-      <OwnershipControls pathname={pathname} search={search} payload={payload} />
-    </div>
-  )
+  return <DashboardFilterBar pathname={pathname} search={search} payload={payload} />
 }
 
 function MobileDashboardControls({ payload, pathname, prefix, search }: { payload: DashboardPayload; pathname: string; prefix: string; search: string }) {
@@ -257,55 +250,10 @@ function MobileDashboardControls({ payload, pathname, prefix, search }: { payloa
           <span className="hidden text-gray-400 group-open:inline dark:text-gray-500">{t("hide")}</span>
         </summary>
         <div className="space-y-4 border-t border-gray-200 p-4 dark:border-gray-700">
-          <OwnershipControls pathname={pathname} search={search} payload={payload} />
           <DashboardFilterBar pathname={pathname} search={search} payload={payload} />
           <DashboardSmartFolderNav payload={payload} prefix={prefix} search={search} />
         </div>
       </details>
-    </div>
-  )
-}
-
-function OwnershipControls({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
-  const { t } = useT("dashboard")
-  const navigate = useNavigate()
-  if (payload.subject === "epic" || payload.subject === "job") return null
-  if (payload.ownership.team_user_count <= 1) return null
-
-  function scopeLink(scope: string) {
-    return dashboardLinkFromSearch(pathname, search, {
-      ownership_scope: scope === "mine" ? null : scope,
-      owner_id: scope === "user" ? payload.ownership.owner_id : null,
-      page: null
-    })
-  }
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <nav aria-label={t("ownership_scope_label")} className="inline-flex overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900">
-        {payload.controls.ownership_scopes.map((scope) => (
-          <Link
-            className={`px-3 py-1.5 font-medium ${payload.ownership.scope === scope.value ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-950" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
-            key={scope.value}
-            to={scopeLink(scope.value)}
-          >
-            {scope.label}
-          </Link>
-        ))}
-      </nav>
-      {payload.ownership.scope === "user" ? (
-        <label className="sr-only" htmlFor="dashboard-owner-filter">{t("owner_filter_label")}</label>
-      ) : null}
-      {payload.ownership.scope === "user" ? (
-        <select
-          className="h-9 rounded border border-gray-300 bg-white px-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-          id="dashboard-owner-filter"
-          onChange={(event) => navigate(dashboardLinkFromSearch(pathname, search, { ownership_scope: "user", owner_id: event.target.value, page: null }))}
-          value={payload.ownership.owner_id ?? ""}
-        >
-          {payload.controls.owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.label}</option>)}
-        </select>
-      ) : null}
     </div>
   )
 }
