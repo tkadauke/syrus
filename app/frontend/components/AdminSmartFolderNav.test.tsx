@@ -101,6 +101,27 @@ describe("AdminSmartFolderNav", () => {
     expect(screen.queryByRole("link", { name: "Manage" })).not.toBeInTheDocument()
   })
 
+  it("renders built-in folder name from key translation when key is present", () => {
+    renderNav({
+      folders: [
+        {
+          id: 1,
+          name: "Failed today",
+          key: "failed_today",
+          kind: "builtin",
+          subject_type: "admin_queue",
+          visibility: "primary",
+          position: 0,
+          count: 5,
+          active: false,
+          path: "/admin/queue/active?smart_folder_id=1"
+        }
+      ]
+    })
+
+    expect(screen.getByRole("link", { name: "Failed today 5" })).toBeInTheDocument()
+  })
+
   it("hides save controls when the active folder filter has not changed", () => {
     renderNav({
       activeFolderId: 10,
@@ -178,6 +199,7 @@ function smartFolders(): AdminSmartFolder[] {
     {
       id: 1,
       name: "Stuck",
+      key: null,
       kind: "builtin",
       subject_type: "admin_queue",
       visibility: "primary",
@@ -189,6 +211,7 @@ function smartFolders(): AdminSmartFolder[] {
     {
       id: 10,
       name: "Saved queue",
+      key: null,
       kind: "user_defined",
       subject_type: "admin_queue",
       visibility: "primary",
@@ -201,6 +224,7 @@ function smartFolders(): AdminSmartFolder[] {
     {
       id: 11,
       name: "Escalations",
+      key: null,
       kind: "user_defined",
       subject_type: "admin_queue",
       visibility: "primary",

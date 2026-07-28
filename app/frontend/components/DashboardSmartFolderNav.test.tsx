@@ -80,6 +80,7 @@ function folder(values: Partial<DashboardSmartFolder>): DashboardSmartFolder {
   return {
     id: 101,
     name: "Saved work",
+    key: null,
     kind: "user_defined",
     subject_type: "job",
     visibility: "always",
@@ -226,15 +227,21 @@ describe("DashboardSmartFolderNav", () => {
   })
 
   it("does not render menu controls for builtin folders", () => {
-    renderNav([folder({ id: 7, name: "Inbox", kind: "builtin", position: 0, path: "/dashboard/jobs?smart_folder_id=7" })])
+    renderNav([folder({ id: 7, name: "Inbox", key: "inbox", kind: "builtin", position: 0, path: "/dashboard/jobs?smart_folder_id=7" })])
 
     expect(screen.getByRole("link", { name: "Inbox 3" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Actions for Inbox" })).not.toBeInTheDocument()
   })
 
+  it("uses the folder name as fallback when no translation key is set on a builtin folder", () => {
+    renderNav([folder({ id: 7, name: "Custom Builtin", key: null, kind: "builtin", position: 0, path: "/dashboard/jobs?smart_folder_id=7" })])
+
+    expect(screen.getByRole("link", { name: "Custom Builtin 3" })).toBeInTheDocument()
+  })
+
   it("does not make builtin folders draggable", () => {
     renderNav([
-      folder({ id: 1, name: "Inbox", kind: "builtin", visibility: "always", count: 0 }),
+      folder({ id: 1, name: "Inbox", key: "inbox", kind: "builtin", visibility: "always", count: 0 }),
       folder({ id: 2, name: "Saved review", kind: "user_defined", visibility: "user_defined", position: 0, count: 0 })
     ])
 
@@ -269,7 +276,7 @@ describe("DashboardSmartFolderNav", () => {
 
   it("shows only save controls when a selected builtin folder filter changes", () => {
     renderNav([
-      folder({ id: 7, name: "Inbox", kind: "builtin", active: true, filter: savedFilter, path: "/dashboard/jobs?smart_folder_id=7" })
+      folder({ id: 7, name: "Inbox", key: "inbox", kind: "builtin", active: true, filter: savedFilter, path: "/dashboard/jobs?smart_folder_id=7" })
     ], {
       payload: { active_smart_folder_id: 7, filter: changedFilter },
       search: "?smart_folder_id=7&q=changed"

@@ -4,6 +4,7 @@ import { postJson } from "./client"
 export type AdminSmartFolder = {
   id: number
   name: string
+  key: string | null
   position: number
   kind: string
   subject_type: string

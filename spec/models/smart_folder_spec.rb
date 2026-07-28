@@ -265,6 +265,27 @@ RSpec.describe SmartFolder do
     expect(all_jobs.filter).to eq("and" => [])
   end
 
+  describe "#builtin_key" do
+    before { described_class.ensure_builtins! }
+
+    it "returns the key string for a job built-in folder" do
+      inbox = described_class.builtins(:job).find_by!(name: "Inbox")
+      expect(inbox.builtin_key).to eq("inbox")
+    end
+
+    it "returns the key string for an epic built-in folder" do
+      epics_mine = described_class.builtins(:epic).find_by!(name: "My epics")
+      expect(epics_mine.builtin_key).to eq("epics_mine")
+    end
+
+    it "returns nil for user-defined folders" do
+      user = Factories.user
+      folder = described_class.create!(user: user, name: "My filter", kind: "user_defined",
+                                       subject_type: "job", filter: { "and" => [] })
+      expect(folder.builtin_key).to be_nil
+    end
+  end
+
   it "requires user-defined folders to belong to a user" do
     folder = described_class.new(name: "Mine", kind: "user_defined", filter: { "state" => "open" })
 

@@ -21,6 +21,7 @@ module App
           {
             id: folder.id,
             name: folder.name,
+            key: folder.builtin_key,
             kind: folder.kind,
             position: folder.position,
             subject_type: folder.subject_type,
