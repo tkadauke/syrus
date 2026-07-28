@@ -423,6 +423,85 @@ describe("ImageAnnotationModal", () => {
     expect(vi.mocked(contexts[1].clearRect).mock.calls.length).toBe(clearsBefore)
   })
 
+  // --- Undo/redo ---
+
+  it("undo/redo round-trips shapes correctly", async () => {
+    renderModal()
+    await waitForLoaded()
+
+    const canvas = screen.getByLabelText("Annotation canvas")
+
+    // Draw a rectangle
+    fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
+    fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+
+    await waitFor(() => { expect(screen.getByRole("button", { name: "Undo" })).not.toBeDisabled() })
+    expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled()
+
+    // Undo removes the shape — undo becomes disabled, redo becomes enabled
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }))
+
+    await waitFor(() => { expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled() })
+    expect(screen.getByRole("button", { name: "Redo" })).not.toBeDisabled()
+
+    // Redo restores the shape — undo enabled again, redo disabled again
+    fireEvent.click(screen.getByRole("button", { name: "Redo" }))
+
+    await waitFor(() => { expect(screen.getByRole("button", { name: "Undo" })).not.toBeDisabled() })
+    expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled()
+
+    // Canvas was re-rendered with the restored shape
+    await waitFor(() => {
+      expect(contexts[1].rect).toHaveBeenCalledWith(10, 10, 40, 30)
+    })
+  })
+
+  it("redo stack clears when a new drawing action is made after undo", async () => {
+    renderModal()
+    await waitForLoaded()
+
+    const canvas = screen.getByLabelText("Annotation canvas")
+
+    // Draw a rectangle, then undo it
+    fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
+    fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+
+    await waitFor(() => { expect(screen.getByRole("button", { name: "Undo" })).not.toBeDisabled() })
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }))
+    await waitFor(() => { expect(screen.getByRole("button", { name: "Redo" })).not.toBeDisabled() })
+
+    // Draw a new shape — redo stack should be cleared
+    fireEvent.pointerDown(canvas, { clientX: 5, clientY: 5, pointerId: 2 })
+    fireEvent.pointerMove(canvas, { clientX: 30, clientY: 30, pointerId: 2 })
+    fireEvent.pointerUp(canvas,   { clientX: 30, clientY: 30, pointerId: 2 })
+
+    await waitFor(() => { expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled() })
+    expect(screen.getByRole("button", { name: "Undo" })).not.toBeDisabled()
+  })
+
+  it("Ctrl+Shift+Z triggers redo", async () => {
+    renderModal()
+    await waitForLoaded()
+
+    const canvas = screen.getByLabelText("Annotation canvas")
+
+    // Draw a shape, undo via keyboard, then redo via keyboard
+    fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10, pointerId: 1 })
+    fireEvent.pointerMove(canvas, { clientX: 50, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas,   { clientX: 50, clientY: 40, pointerId: 1 })
+
+    await waitFor(() => { expect(screen.getByRole("button", { name: "Undo" })).not.toBeDisabled() })
+
+    fireEvent.keyDown(window, { key: "z", ctrlKey: true })
+    await waitFor(() => { expect(screen.getByRole("button", { name: "Redo" })).not.toBeDisabled() })
+
+    fireEvent.keyDown(window, { key: "z", ctrlKey: true, shiftKey: true })
+    await waitFor(() => { expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled() })
+    expect(screen.getByRole("button", { name: "Undo" })).not.toBeDisabled()
+  })
+
   it("finishAnnotation re-renders canvas without selection before compositing", async () => {
     const onDone = vi.fn()
     renderModal({ onDone })

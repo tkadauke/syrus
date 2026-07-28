@@ -310,7 +310,8 @@ export function ImageAnnotationModal({
   const { t } = useT("common")
   const imageCanvasRef   = useRef<HTMLCanvasElement | null>(null)
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const undoStackRef     = useRef<Shape[][]>([])
+  const pastRef          = useRef<Shape[][]>([])
+  const futureRef        = useRef<Shape[][]>([])
   const interactionRef   = useRef<Interaction | null>(null)
   const shapesRef        = useRef<Shape[]>([])
 
@@ -318,6 +319,7 @@ export function ImageAnnotationModal({
   const [color,           setColor]           = useState(COLORS[0].value)
   const [imageSize,       setImageSize]       = useState<{ width: number; height: number } | null>(null)
   const [undoCount,       setUndoCount]       = useState(0)
+  const [redoCount,       setRedoCount]       = useState(0)
   const [textPlacement,   setTextPlacement]   = useState<TextPlacement | null>(null)
   const [shapes,          setShapes]          = useState<Shape[]>([])
   const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null)
@@ -325,23 +327,37 @@ export function ImageAnnotationModal({
   // Keep shapesRef in sync for use in event handlers without closure staleness
   useEffect(() => { shapesRef.current = shapes }, [shapes])
 
-  const syncUndoCount = useCallback(() => setUndoCount(undoStackRef.current.length), [])
+  const syncHistoryCounts = useCallback(() => {
+    setUndoCount(pastRef.current.length)
+    setRedoCount(futureRef.current.length)
+  }, [])
 
-  // Push current shapes onto undo stack before a change
+  // Push current shapes onto past stack before a change; clears redo future
   const pushUndo = useCallback((current: Shape[]) => {
-    const stack = undoStackRef.current
-    undoStackRef.current = [...stack.slice(-(MAX_UNDO_STEPS - 1)), [...current]]
-    syncUndoCount()
-  }, [syncUndoCount])
+    pastRef.current = [...pastRef.current.slice(-(MAX_UNDO_STEPS - 1)), [...current]]
+    futureRef.current = []
+    syncHistoryCounts()
+  }, [syncHistoryCounts])
 
   const undo = useCallback(() => {
-    if (undoStackRef.current.length === 0) return
-    const previous = undoStackRef.current[undoStackRef.current.length - 1]
-    undoStackRef.current = undoStackRef.current.slice(0, -1)
+    if (pastRef.current.length === 0) return
+    const previous = pastRef.current[pastRef.current.length - 1]
+    pastRef.current = pastRef.current.slice(0, -1)
+    futureRef.current = [...futureRef.current, [...shapesRef.current]]
     setShapes(previous)
     setSelectedShapeId(null)
-    syncUndoCount()
-  }, [syncUndoCount])
+    syncHistoryCounts()
+  }, [syncHistoryCounts])
+
+  const redo = useCallback(() => {
+    if (futureRef.current.length === 0) return
+    const next = futureRef.current[futureRef.current.length - 1]
+    futureRef.current = futureRef.current.slice(0, -1)
+    pastRef.current = [...pastRef.current.slice(-(MAX_UNDO_STEPS - 1)), [...shapesRef.current]]
+    setShapes(next)
+    setSelectedShapeId(null)
+    syncHistoryCounts()
+  }, [syncHistoryCounts])
 
   // Re-render overlay canvas whenever shapes or selection changes
   useEffect(() => {
@@ -373,14 +389,15 @@ export function ImageAnnotationModal({
       imageContext.clearRect(0, 0, width, height)
       imageContext.drawImage(image, 0, 0, width, height)
       overlayContext.clearRect(0, 0, width, height)
-      undoStackRef.current = []
+      pastRef.current = []
+      futureRef.current = []
       setShapes([])
       setImageSize({ width, height })
-      syncUndoCount()
+      syncHistoryCounts()
     }
     image.src = dataUrl
     return () => { cancelled = true }
-  }, [dataUrl, syncUndoCount])
+  }, [dataUrl, syncHistoryCounts])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -389,7 +406,7 @@ export function ImageAnnotationModal({
 
       if (event.key.toLowerCase() === "z" && (event.metaKey || event.ctrlKey)) {
         event.preventDefault()
-        undo()
+        if (event.shiftKey) { redo() } else { undo() }
         return
       }
 
@@ -410,7 +427,7 @@ export function ImageAnnotationModal({
     }
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [onClose, textPlacement, undo, selectedShapeId, pushUndo])
+  }, [onClose, textPlacement, undo, redo, selectedShapeId, pushUndo])
 
   function canvasPoint(event: ReactPointerEvent<HTMLCanvasElement>): Point {
     const canvas = event.currentTarget
@@ -643,6 +660,7 @@ export function ImageAnnotationModal({
           </div>
           <div className="flex items-center gap-2">
             <button className={secondaryButton()} disabled={undoCount === 0} onClick={undo} type="button">{t("image_annotation.undo")}</button>
+            <button className={secondaryButton()} disabled={redoCount === 0} onClick={redo} type="button">{t("image_annotation.redo")}</button>
             <button className={secondaryButton()} onClick={onClose} type="button">{t("image_annotation.cancel")}</button>
             <button className="rounded bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:bg-blue-300" disabled={!imageSize} onClick={finishAnnotation} type="button">{t("image_annotation.done")}</button>
             <button aria-label={t("image_annotation.close")} className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100" onClick={onClose} type="button">
