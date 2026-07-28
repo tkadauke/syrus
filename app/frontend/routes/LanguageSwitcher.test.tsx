@@ -118,6 +118,7 @@ describe("Language switcher", () => {
       ...makePayload("la"),
       message: "Credentials updated."
     })
+    vi.spyOn(i18n, "changeLanguage").mockResolvedValue(undefined as unknown as ReturnType<typeof i18n.changeLanguage> extends Promise<infer T> ? T : never)
     renderPreferences(makePayload("en"))
 
     const select = await screen.findByRole("combobox", { name: /language/i })

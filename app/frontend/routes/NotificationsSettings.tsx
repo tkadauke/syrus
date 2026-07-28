@@ -14,25 +14,25 @@ import { errorMessage } from "../lib/errorMessage"
 
 const queryKey = ["notification_preferences"] as const
 
-const notificationPreferenceLabels: Array<{ kind: NotificationPreferenceKind; label: string }> = [
-  { kind: "job_failed", label: "Notify me when a job fails" },
-  { kind: "job_implemented", label: "Notify me when a PR is ready for review" },
-  { kind: "pr_comment_addressed", label: "Notify me when Syrus addresses my PR comments" },
-  { kind: "pr_merged", label: "Notify me when a job is merged" },
-  { kind: "epic_completed", label: "Notify me when an epic completes" },
-  { kind: "main_inconclusive", label: "Notify me when main branch health needs review" }
+const notificationPreferenceKinds: Array<{ kind: NotificationPreferenceKind; labelKey: string }> = [
+  { kind: "job_failed", labelKey: "notifications.pref_job_failed" },
+  { kind: "job_implemented", labelKey: "notifications.pref_job_implemented" },
+  { kind: "pr_comment_addressed", labelKey: "notifications.pref_pr_comment_addressed" },
+  { kind: "pr_merged", labelKey: "notifications.pref_pr_merged" },
+  { kind: "epic_completed", labelKey: "notifications.pref_epic_completed" },
+  { kind: "main_inconclusive", labelKey: "notifications.pref_main_inconclusive" }
 ]
 
-const desktopNotificationPreferenceLabels: Array<{ kind: NotificationPreferenceKind; label: string; description: string }> = [
+const desktopNotificationPreferenceKinds: Array<{ kind: NotificationPreferenceKind; labelKey: string; descKey: string }> = [
   {
     kind: "desktop_job_implemented",
-    label: "Job ready for review",
-    description: "Fires when a job transitions to implemented."
+    labelKey: "notifications.desktop_job_implemented_label",
+    descKey: "notifications.desktop_job_implemented_desc"
   },
   {
     kind: "desktop_job_failed",
-    label: "Job failed",
-    description: "Fires when a job transitions to failed."
+    labelKey: "notifications.desktop_job_failed_label",
+    descKey: "notifications.desktop_job_failed_desc"
   }
 ]
 
@@ -65,7 +65,7 @@ function NotificationPreferencesPanel({ onNotice }: { onNotice: (message: string
     mutationFn: ({ kind, enabled }: { kind: NotificationPreferenceKind; enabled: boolean }) => updateNotificationPreferences({ [kind]: enabled }),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
-      onNotice(updated.message || "Notification preferences updated.")
+      onNotice(updated.message || t('notifications.updated'))
     }
   })
 
@@ -109,11 +109,11 @@ function NotificationPreferenceToggles({
     <div className="space-y-6">
       <fieldset className="space-y-3">
         <legend className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('notifications.section_label')}</legend>
-        {notificationPreferenceLabels.map(({ kind, label }) => (
+        {notificationPreferenceKinds.map(({ kind, labelKey }) => (
           <label className="flex items-center justify-between gap-4 rounded border border-gray-200 px-3 py-2 text-sm dark:border-gray-700" key={kind}>
-            <span className="font-medium text-gray-700 dark:text-gray-300">{label}</span>
+            <span className="font-medium text-gray-700 dark:text-gray-300">{t(labelKey)}</span>
             <input
-              aria-label={label}
+              aria-label={t(labelKey)}
               checked={payload.notification_preferences[kind]}
               className="h-4 w-4 rounded border-gray-400"
               disabled={disabled}
@@ -126,14 +126,14 @@ function NotificationPreferenceToggles({
 
       <fieldset className="space-y-3">
         <legend className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('notifications.desktop_heading')}</legend>
-        {desktopNotificationPreferenceLabels.map(({ kind, label, description }) => (
+        {desktopNotificationPreferenceKinds.map(({ kind, labelKey, descKey }) => (
           <label className="flex items-start justify-between gap-4 rounded border border-gray-200 px-3 py-2 text-sm dark:border-gray-700" key={kind}>
             <span>
-              <span className="block font-medium text-gray-700 dark:text-gray-300">{label}</span>
-              <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{description}</span>
+              <span className="block font-medium text-gray-700 dark:text-gray-300">{t(labelKey)}</span>
+              <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t(descKey)}</span>
             </span>
             <input
-              aria-label={label}
+              aria-label={t(labelKey)}
               checked={payload.notification_preferences[kind]}
               className="mt-1 h-4 w-4 rounded border-gray-400"
               disabled={disabled}

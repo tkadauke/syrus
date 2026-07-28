@@ -86,6 +86,7 @@
     "hidden_at": "Hidden {{date}}",
     "restoring": "Restoring...",
     "unhide": "Unhide",
+    "restored": "Chat restored.",
     "showing": "Showing {{first}}-{{last}} of {{total}}",
     "previous": "Previous",
     "next": "Next"

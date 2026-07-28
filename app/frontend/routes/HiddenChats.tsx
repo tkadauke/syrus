@@ -37,7 +37,7 @@ function HiddenChatsPanel({ onNotice }: { onNotice: (message: string | null) => 
   const unhide = useMutation({
     mutationFn: (chat: HiddenChatRecord) => unhideChat(chat.app_unhide_path),
     onSuccess: (payload) => {
-      onNotice(payload.message || "Chat restored.")
+      onNotice(payload.message || t('hidden.restored'))
       void queryClient.invalidateQueries({ queryKey: ["hidden-chats"] })
       void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
     }

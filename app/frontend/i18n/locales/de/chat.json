@@ -86,6 +86,7 @@
     "hidden_at": "Ausgeblendet {{date}}",
     "restoring": "Wird wiederhergestellt...",
     "unhide": "Einblenden",
+    "restored": "Chat wiederhergestellt.",
     "showing": "Zeige {{first}}–{{last}} von {{total}}",
     "previous": "Zurück",
     "next": "Weiter"

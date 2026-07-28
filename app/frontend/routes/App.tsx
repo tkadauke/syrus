@@ -468,7 +468,8 @@ function OnboardingShell({ initialBootstrap }: { initialBootstrap: BootstrapPayl
 }
 
 function SettingsSectionRoute({ children }: { children: ReactNode }) {
-  const { t } = useT("common")
+  const { t: tCommon } = useT("common")
+  const { t } = useT("settings")
   const location = useLocation()
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const normalizedPath = normalizedAppPath(location.pathname)
@@ -476,9 +477,9 @@ function SettingsSectionRoute({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-full flex-col bg-gray-50 dark:bg-gray-900 lg:flex-row">
       <aside className="shrink-0 border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950 lg:w-56 lg:border-b-0 lg:border-r">
-        <nav aria-label={t("shell.settings_nav_aria")} className="flex gap-2 overflow-x-auto px-4 py-3 text-sm lg:flex-col lg:gap-1 lg:overflow-visible lg:p-4">
-          {settingsNavigationItems().map((item) => (
-            <Link className={settingsSideNavLinkClass(item.active(normalizedPath))} key={item.label} to={withRoutePrefix(item.path, prefix)}>
+        <nav aria-label={tCommon("shell.settings_nav_aria")} className="flex gap-2 overflow-x-auto px-4 py-3 text-sm lg:flex-col lg:gap-1 lg:overflow-visible lg:p-4">
+          {settingsNavigationItems(t).map((item) => (
+            <Link className={settingsSideNavLinkClass(item.active(normalizedPath))} key={item.key} to={withRoutePrefix(item.path, prefix)}>
               {item.label}
             </Link>
           ))}
@@ -491,18 +492,18 @@ function SettingsSectionRoute({ children }: { children: ReactNode }) {
   )
 }
 
-function settingsNavigationItems(): Array<{ label: string; path: string; active: (path: string) => boolean }> {
+function settingsNavigationItems(t: (key: string) => string): Array<{ key: string; label: string; path: string; active: (path: string) => boolean }> {
   return [
-    { label: "Profile", path: "/profile", active: (path) => path === "/settings" || path === "/profile" },
-    { label: "Credentials", path: "/credentials", active: (path) => path === "/credentials" || path === "/credentials/edit" },
-    { label: "Agent Settings", path: "/settings/agent", active: (path) => path === "/settings/agent" },
-    { label: "Preferences", path: "/settings/preferences", active: (path) => path === "/settings/preferences" },
-    { label: "Notifications", path: "/notifications/settings", active: (path) => path === "/notifications/settings" },
-    { label: "Hidden chats", path: "/settings/hidden_chats", active: (path) => path === "/settings/hidden_chats" },
-    { label: "Documents", path: "/documents", active: (path) => path === "/documents" },
-    { label: "Memories", path: "/memories", active: (path) => path === "/memories" },
-    { label: "Templates", path: "/cron_templates", active: (path) => path.startsWith("/cron_templates") },
-    { label: "Tags", path: "/tags", active: (path) => path === "/tags" }
+    { key: "profile", label: t("nav.profile"), path: "/profile", active: (path) => path === "/settings" || path === "/profile" },
+    { key: "credentials", label: t("nav.credentials"), path: "/credentials", active: (path) => path === "/credentials" || path === "/credentials/edit" },
+    { key: "agent_settings", label: t("nav.agent_settings"), path: "/settings/agent", active: (path) => path === "/settings/agent" },
+    { key: "preferences", label: t("nav.preferences"), path: "/settings/preferences", active: (path) => path === "/settings/preferences" },
+    { key: "notifications", label: t("nav.notifications"), path: "/notifications/settings", active: (path) => path === "/notifications/settings" },
+    { key: "hidden_chats", label: t("nav.hidden_chats"), path: "/settings/hidden_chats", active: (path) => path === "/settings/hidden_chats" },
+    { key: "documents", label: t("nav.documents"), path: "/documents", active: (path) => path === "/documents" },
+    { key: "memories", label: t("nav.memories"), path: "/memories", active: (path) => path === "/memories" },
+    { key: "templates", label: t("nav.templates"), path: "/cron_templates", active: (path) => path.startsWith("/cron_templates") },
+    { key: "tags", label: t("nav.tags"), path: "/tags", active: (path) => path === "/tags" }
   ]
 }
 

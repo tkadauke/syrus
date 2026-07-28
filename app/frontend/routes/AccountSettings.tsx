@@ -33,22 +33,22 @@ type AccountSettingsSection = "profile" | "credentials" | "agent" | "preferences
 
 export function CredentialsRoute() {
   const { t } = useT("settings")
-  return <AccountSettingsPage description="Encrypted provider and GitHub credentials for Syrus runs." label="Credentials" section="credentials" />
+  return <AccountSettingsPage description={t('account_settings.credentials_description')} label={t('nav.credentials')} section="credentials" />
 }
 
 export function AccountProfileRoute() {
   const { t } = useT("settings")
-  return <AccountSettingsPage description="Your public team profile details." label="Profile" section="profile" />
+  return <AccountSettingsPage description={t('account_settings.profile_description')} label={t('nav.profile')} section="profile" />
 }
 
 export function AgentSettingsRoute() {
   const { t } = useT("settings")
-  return <AccountSettingsPage description="Default agent behavior for new Syrus work." label="Agent Settings" section="agent" />
+  return <AccountSettingsPage description={t('account_settings.agent_settings_description')} label={t('nav.agent_settings')} section="agent" />
 }
 
 export function PreferencesRoute() {
   const { t } = useT("settings")
-  return <AccountSettingsPage description="Account-level behavior preferences." label="Preferences" section="preferences" />
+  return <AccountSettingsPage description={t('account_settings.preferences_description')} label={t('nav.preferences')} section="preferences" />
 }
 
 function AccountSettingsPage({ description, label, section }: { description: string; label: string; section: AccountSettingsSection }) {
@@ -200,55 +200,55 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
 
         {section === "profile" ? (
           <>
-            <Field label="Display name">
+            <Field label={t('account_settings.display_name')}>
               <input className={inputClass()} onChange={(event) => setValues({ ...values, name: event.target.value })} type="text" value={values.name} />
             </Field>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="First name">
+              <Field label={t('account_settings.first_name')}>
                 <input className={inputClass()} maxLength={80} onChange={(event) => setValues({ ...values, first_name: event.target.value })} type="text" value={values.first_name} />
               </Field>
 
-              <Field label="Last name">
+              <Field label={t('account_settings.last_name')}>
                 <input className={inputClass()} maxLength={80} onChange={(event) => setValues({ ...values, last_name: event.target.value })} type="text" value={values.last_name} />
               </Field>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Company">
+              <Field label={t('account_settings.company')}>
                 <input className={inputClass()} onChange={(event) => setValues({ ...values, profile_company: event.target.value })} type="text" value={values.profile_company} />
               </Field>
 
-              <Field label="Location">
+              <Field label={t('account_settings.location')}>
                 <input className={inputClass()} onChange={(event) => setValues({ ...values, profile_location: event.target.value })} type="text" value={values.profile_location} />
               </Field>
             </div>
 
-            <Field label="Website">
+            <Field label={t('account_settings.website')}>
               <input className={inputClass()} onChange={(event) => setValues({ ...values, profile_website: event.target.value })} type="url" value={values.profile_website} />
             </Field>
 
-            <Field label="GitHub handle">
+            <Field label={t('account_settings.github_handle')}>
               <input className={inputClass()} maxLength={100} onChange={(event) => setValues({ ...values, github_handle: event.target.value })} type="text" value={values.github_handle} />
             </Field>
 
-            <Field label="Role">
+            <Field label={t('account_settings.role')}>
               <select className={inputClass()} onChange={(event) => setValues({ ...values, role: event.target.value })} value={values.role}>
                 {roleOptions.map((role) => <option key={role} value={role}>{titleize(role)}</option>)}
               </select>
             </Field>
 
-            <Field label="Avatar URL">
+            <Field label={t('account_settings.avatar_url')}>
               <input className={inputClass()} maxLength={500} onChange={(event) => setValues({ ...values, avatar_url: event.target.value })} type="url" value={values.avatar_url} />
             </Field>
 
-            <Field label="Profile bio">
+            <Field label={t('account_settings.profile_bio')}>
               <textarea className={inputClass()} maxLength={1000} onChange={(event) => setValues({ ...values, profile_bio: event.target.value })} rows={4} value={values.profile_bio} />
             </Field>
           </>
         ) : null}
 
         {section === "agent" ? (
-          <Field label="Agent provider">
+          <Field label={t('account_settings.agent_provider')}>
             <select className={inputClass()} onChange={(event) => setValues({ ...values, agent_provider: event.target.value })} value={values.agent_provider}>
               {payload.options.agent_providers.map((provider) => <option key={provider} value={provider}>{titleize(provider)}</option>)}
             </select>
@@ -256,7 +256,7 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
         ) : null}
 
         {section === "agent" ? (
-          <Field label="Max turns">
+          <Field label={t('account_settings.max_turns')}>
             <input
               className={inputClass()}
               max={payload.options.agent_max_turns.max}
@@ -269,7 +269,7 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
         ) : null}
 
         {section === "preferences" ? (
-          <Field label="Language">
+          <Field label={t('account_settings.language')}>
             <select
               className={inputClass()}
               onChange={(event) => {
@@ -303,7 +303,7 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
         ) : null}
 
         {section === "agent" ? (
-          <Field label="Auto-approval fallback">
+          <Field label={t('account_settings.auto_approval_fallback')}>
             <select className={inputClass()} onChange={(event) => setValues({ ...values, auto_approve_mode: event.target.value })} value={values.auto_approve_mode}>
               {payload.options.auto_approve_modes.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
@@ -312,7 +312,7 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
         ) : null}
 
         <button className="rounded bg-blue-600 px-3.5 py-2.5 font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900" disabled={save.isPending} type="submit">
-          {save.isPending ? "Saving..." : "Save"}
+          {save.isPending ? t('account_settings.saving') : t('account_settings.save')}
         </button>
       </form>
     </section>
@@ -328,7 +328,7 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       setNewToken(updated.new_api_token || "")
-      onNotice(updated.message || "API token rotated.")
+      onNotice(updated.message || t('account_settings.api_token_rotated'))
     }
   })
   const revoke = useMutation({
@@ -336,7 +336,7 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       setNewToken("")
-      onNotice(updated.message || "API token revoked.")
+      onNotice(updated.message || t('account_settings.api_token_revoked'))
     }
   })
 
@@ -364,20 +364,20 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
           className="rounded bg-gray-200 dark:bg-gray-700 px-3 py-1.5 text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-gray-300 disabled:bg-gray-100 dark:disabled:bg-gray-800"
           disabled={rotate.isPending}
           onClick={() => {
-            if (!payload.credential_status.api_token || window.confirm("Rotate the API token? Existing scripts using the old token will stop working immediately.")) {
+            if (!payload.credential_status.api_token || window.confirm(t('account_settings.rotate_confirm'))) {
               rotate.mutate()
             }
           }}
           type="button"
         >
-          {payload.credential_status.api_token ? "Rotate token" : "Generate token"}
+          {payload.credential_status.api_token ? t('account_settings.rotate_token') : t('account_settings.generate_token')}
         </button>
         {payload.credential_status.api_token ? (
           <button
             className="rounded bg-red-50 dark:bg-red-950/40 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/60 disabled:text-red-300 dark:disabled:text-red-500"
             disabled={revoke.isPending}
             onClick={() => {
-              if (window.confirm("Revoke the API token? All API calls using it will start returning 401.")) revoke.mutate()
+              if (window.confirm(t('account_settings.revoke_confirm'))) revoke.mutate()
             }}
             type="button"
           >
