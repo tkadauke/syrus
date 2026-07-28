@@ -3912,8 +3912,8 @@ describe("App", () => {
             position: 1,
             job_ids: [1],
             blocker_jobs: [
-              { id: 2, title: "Prepare data layer", job_path: "/jobs/2", state: "open", pr_number: 22, pr_path: "https://github.com/acme/widgets/pull/22", epic_id: 20, epic_title: "Data Layer" },
-              { id: 3, title: "Document rollout", job_path: "/jobs/3", state: "open", pr_number: null, pr_path: null, epic_id: null, epic_title: null }
+              { id: 2, title: "Prepare data layer", job_path: "/jobs/2", state: "open", pr_number: 22, pr_path: "https://github.com/acme/widgets/pull/22", epic_id: 20, epic_title: "Data Layer", repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" }, latest_workflow_state: "running", latest_workflow_trigger_kind: "initial", latest_workflow_id: 101, started_at: "2026-06-01T09:00:00Z", created_at: "2026-06-01T08:00:00Z" },
+              { id: 3, title: "Document rollout", job_path: "/jobs/3", state: "open", pr_number: null, pr_path: null, epic_id: null, epic_title: null, repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" }, latest_workflow_state: null, latest_workflow_trigger_kind: null, latest_workflow_id: null, started_at: null, created_at: "2026-06-01T07:00:00Z" }
             ],
             dependency_edges: [
               { from_job_id: 2, to_job_id: 1 },
@@ -3983,7 +3983,7 @@ describe("App", () => {
             key: "job:1",
             position: 1,
             job_ids: [1],
-            blocker_jobs: [{ id: 2, title: "Hidden blocker", job_path: "/jobs/2", state: "open", pr_number: null, pr_path: null }],
+            blocker_jobs: [{ id: 2, title: "Hidden blocker", job_path: "/jobs/2", state: "open", pr_number: null, pr_path: null, repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" }, latest_workflow_state: null, latest_workflow_trigger_kind: null, latest_workflow_id: null, started_at: null, created_at: "2026-06-01T07:00:00Z" }],
             dependency_edges: [{ from_job_id: 2, to_job_id: 1 }]
           }
         ]

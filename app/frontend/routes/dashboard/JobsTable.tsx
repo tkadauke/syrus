@@ -328,6 +328,19 @@ function LandingQueueBlockerCell({ job, column, attribution, prefix }: { job: La
       </td>
     )
   }
+  if (column === "repository") {
+    return <td className="px-4 py-3"><RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-blue-700 hover:underline dark:text-gray-300 dark:hover:text-blue-300" prefix={prefix} repository={job.repository} /></td>
+  }
+  if (column === "latest") {
+    if (job.latest_workflow_id == null) return <td className="px-4 py-3" />
+    return (
+      <td aria-label={`Latest workflow: ${job.latest_workflow_trigger_kind ?? ""} ${job.latest_workflow_state ?? ""}`} className="px-4 py-3">
+        <WorkflowBadges state={job.latest_workflow_state ?? ""} triggerAriaPrefix="Latest workflow trigger" triggerKind={job.latest_workflow_trigger_kind} />
+      </td>
+    )
+  }
+  if (column === "started" || column === "started_at") return <TimestampCell value={job.started_at} />
+  if (column === "created_at") return <TimestampCell value={job.created_at} />
 
   return <td className="px-4 py-3 text-gray-400 dark:text-gray-500">-</td>
 }

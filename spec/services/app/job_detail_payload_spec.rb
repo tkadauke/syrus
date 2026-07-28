@@ -644,4 +644,48 @@ RSpec.describe App::JobDetailPayload do
       expect(payload_for(job).dig(:actions, :can_reopen)).to be(false)
     end
   end
+
+  describe "#landing_queue_entry blocker jobs" do
+    let(:blocker_repo) { Factories.repository(user: user) }
+
+    it "includes repository, latest workflow fields, and timestamps for each blocker job" do
+      blocker_job = Factories.job_record(user: user, repository: blocker_repo, state: "implemented", issue_number: 10, issue_title: "Unfinished prerequisite")
+      workflow = Workflow.create!(job: blocker_job, trigger_kind: "initial", state: "running", started_at: 1.hour.ago)
+
+      approved_job = Factories.job_record(user: user, repository: repo, state: "implemented")
+      approved_job.approve!(via: "github_review")
+
+      JobDependency.create!(job: approved_job, depends_on_job: blocker_job, source: "manual", created_by_user: user)
+      LandingQueueProcessor.refresh_snapshot!(user.jobs)
+      approved_job.reload
+
+      entry = payload_for(approved_job)[:landing_queue_entry]
+      blocker = entry[:blocker_jobs].find { |b| b[:id] == blocker_job.id }
+
+      expect(blocker).to include(
+        id: blocker_job.id,
+        repository: hash_including(id: blocker_repo.id, slug: blocker_repo.slug),
+        latest_workflow_id: workflow.id,
+        latest_workflow_state: "running",
+        latest_workflow_trigger_kind: "initial",
+        created_at: blocker_job.created_at.iso8601
+      )
+    end
+
+    it "exposes nil latest_workflow_id for a blocker job with no workflows" do
+      blocker_job = Factories.job_record(user: user, repository: blocker_repo, state: "queued", issue_number: 11)
+
+      approved_job = Factories.job_record(user: user, repository: repo, state: "implemented")
+      approved_job.approve!(via: "github_review")
+
+      JobDependency.create!(job: approved_job, depends_on_job: blocker_job, source: "manual", created_by_user: user)
+      LandingQueueProcessor.refresh_snapshot!(user.jobs)
+      approved_job.reload
+
+      entry = payload_for(approved_job)[:landing_queue_entry]
+      blocker = entry[:blocker_jobs].find { |b| b[:id] == blocker_job.id }
+
+      expect(blocker[:latest_workflow_id]).to be_nil
+    end
+  end
 end

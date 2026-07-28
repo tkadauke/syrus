@@ -229,6 +229,12 @@ export type LandingQueueBlockerJob = {
   pr_path: string | null
   epic_id?: number | null
   epic_title?: string | null
+  repository: { id: number; slug: string; repository_path: string }
+  latest_workflow_state: string | null
+  latest_workflow_trigger_kind: string | null
+  latest_workflow_id: number | null
+  started_at: string | null
+  created_at: string | null
 }
 
 export type LandingQueueDependencyEdge = {

@@ -98,4 +98,35 @@ RSpec.describe App::DashboardPayload do
       expect(optional_keys).to include("priority")
     end
   end
+
+  describe "landing queue blocker job entries" do
+    before { SmartFolder.ensure_builtins_for_subject!("job") }
+
+    let(:landing_queue_folder) { SmartFolder.find_builtin_by_attention("landing_queue") }
+    let(:blocker_repo) { Factories.repository(user: user) }
+
+    it "includes repository, latest workflow fields, and timestamps for blocker jobs in landing queue entries" do
+      blocker_job = Factories.job_record(user: user, repository: blocker_repo, state: "implemented", issue_number: 20, issue_title: "Blocker")
+      workflow = Workflow.create!(job: blocker_job, trigger_kind: "initial", state: "failed")
+
+      approved_job = Factories.job_record(user: user, repository: repo, state: "implemented")
+      approved_job.approve!(via: "github_review")
+
+      JobDependency.create!(job: approved_job, depends_on_job: blocker_job, source: "manual", created_by_user: user)
+      LandingQueueProcessor.refresh_snapshot!(user.jobs)
+
+      result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
+      entries = result.dig(:landing_queue, :entries)
+      blocker_entry = entries&.flat_map { |e| e[:blocker_jobs] }&.find { |b| b[:id] == blocker_job.id }
+
+      expect(blocker_entry).to include(
+        id: blocker_job.id,
+        repository: hash_including(id: blocker_repo.id, slug: blocker_repo.slug),
+        latest_workflow_id: workflow.id,
+        latest_workflow_state: "failed",
+        latest_workflow_trigger_kind: "initial",
+        created_at: blocker_job.created_at.iso8601
+      )
+    end
+  end
 end

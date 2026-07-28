@@ -84,7 +84,7 @@ module App
         ids = current_landing_queue_jobs.flat_map { |job| Array(job.landing_queue_blocker_job_ids) }.uniq
         return {} if ids.empty?
 
-        Job.where(id: ids).includes(:epic).index_by(&:id)
+        Job.where(id: ids).with_latest_workflow_snapshot.includes(:epic, :repository).index_by(&:id)
       end
 
       def landing_queue_blocker_job_json(job, entry_key)
@@ -94,7 +94,13 @@ module App
           job_path: "/jobs/#{job.id}",
           state: job.state,
           pr_number: job.pr_number || job.external_pr_number,
-          pr_path: App::Presentation.job_pr_url(job) || App::Presentation.external_pr_url(job)
+          pr_path: App::Presentation.job_pr_url(job) || App::Presentation.external_pr_url(job),
+          repository: repository_json(job.repository),
+          latest_workflow_state: App::Presentation.workflow_dashboard_state(job.latest_workflow_state, job.latest_workflow_trigger_kind),
+          latest_workflow_trigger_kind: job.latest_workflow_trigger_kind,
+          latest_workflow_id: job.latest_workflow_id,
+          started_at: job.started_at&.iso8601,
+          created_at: job.created_at&.iso8601
         }
         if job.epic_id != landing_queue_entry_epic_id(entry_key)
           json[:epic_id] = job.epic_id
