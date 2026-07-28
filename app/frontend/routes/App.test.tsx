@@ -9203,7 +9203,7 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "acme/widgets JOB-41" })).toHaveAttribute("href", "/app-shell/jobs/41")
     expect(screen.getByText("Water should climb the hill.")).toBeInTheDocument()
     expect(screen.getByText("Moved the uphill water simulation.")).toBeInTheDocument()
-    expect(screen.getByText(/In landing queue: position #1/)).toHaveTextContent("waiting for epic siblings to be approved")
+    expect(screen.getByText(/In landing queue: position #1/)).toHaveTextContent("Waiting for Epic siblings to be approved")
     expect(screen.getByRole("link", { name: "#43 Approve sibling aqueduct" })).toHaveAttribute("href", "/app-shell/jobs/43")
     expect(screen.getByRole("link", { name: "acme/widgets JOB-44 (closed)" })).toHaveAttribute("href", "/app-shell/jobs/44")
     expect(screen.queryByRole("button", { name: /^Timeline/ })).not.toBeInTheDocument()

@@ -10,6 +10,7 @@ import { CopyableSlug } from "../components/CopyableSlug"
 import { NoticeToast } from "../components/NoticeToast"
 import { StatusPill } from "../components/StatusPill"
 import { Markdown } from "../lib/Markdown"
+import { translateBlockedReason } from "../lib/translateBlockedReason"
 import { workflowSlug } from "../lib/slugs"
 import { buttonClass } from "../lib/buttonClasses"
 import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobDetail, fetchJobWorkflows, ignorePendingFeedback, replacePendingFeedback, submitJobFeedback, type JobApprovalRecord, type JobApprovalStatus, type JobDetailPayload, type JobTestPlan, type JobWorkflow, type PendingFeedbackComment } from "../api/jobs"
@@ -217,7 +218,7 @@ function SummaryTab({ payload, command, prefix, queryKey }: { payload: JobDetail
       {payload.landing_queue_entry ? (
         <PanelMessage>
           {t("landing_queue_position", { position: payload.landing_queue_entry.position })}
-          {payload.landing_queue_entry.blocked_reason ? ` (${payload.landing_queue_entry.blocked_reason})` : ""}
+          {payload.landing_queue_entry.blocked_reason ? ` (${translateBlockedReason(payload.landing_queue_entry.blocked_reason, t)})` : ""}
           {payload.landing_queue_entry.waiting_for_jobs.length > 0 ? (
             <>
               {" "}
