@@ -128,6 +128,14 @@ class SmartFolder < ApplicationRecord
     definitions.to_h { |d| [ d.fetch(:name), d.fetch(:visibility) ] }
   end.freeze
 
+  KEY_BY_SUBJECT_AND_NAME = BUILTINS_BY_SUBJECT.transform_values do |definitions|
+    definitions.to_h { |d| [ d.fetch(:name), d.fetch(:key) ] }
+  end.freeze
+
+  def self.builtin_key_for(subject_type, name)
+    KEY_BY_SUBJECT_AND_NAME.dig(subject_type.to_s, name)
+  end
+
   EPIC_BUILTIN_DEFINITIONS = EPIC_BUILTINS
   WORKFLOW_BUILTIN_DEFINITIONS = WORKFLOW_BUILTINS
   ADMIN_USER_BUILTIN_DEFINITIONS = ADMIN_USER_BUILTINS

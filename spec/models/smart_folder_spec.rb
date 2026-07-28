@@ -286,6 +286,22 @@ RSpec.describe SmartFolder do
     end
   end
 
+  describe ".builtin_key_for" do
+    it "returns the key for a known spawned_process builtin" do
+      expect(described_class.builtin_key_for("spawned_process", "Running")).to eq("running")
+      expect(described_class.builtin_key_for("spawned_process", "Stale")).to eq("stale")
+      expect(described_class.builtin_key_for("spawned_process", "Recently failed")).to eq("recently_failed")
+    end
+
+    it "returns nil for an unknown name" do
+      expect(described_class.builtin_key_for("spawned_process", "Unknown")).to be_nil
+    end
+
+    it "returns nil for an unknown subject type" do
+      expect(described_class.builtin_key_for("nonexistent", "Running")).to be_nil
+    end
+  end
+
   it "requires user-defined folders to belong to a user" do
     folder = described_class.new(name: "Mine", kind: "user_defined", filter: { "state" => "open" })
 

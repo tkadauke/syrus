@@ -389,7 +389,18 @@
     "host_metrics": "Host-Metriken",
     "aria_index": "Admin-Prozesse",
     "aria_detail": "Admin-Prozessdetail",
-    "detail_heading": "Prozess"
+    "detail_heading": "Prozess",
+    "outcome_running": "laufend",
+    "outcome_kill_requested": "Beendigung angefordert",
+    "outcome_finished": "beendet",
+    "outcome_succeeded": "erfolgreich",
+    "outcome_failed": "fehlgeschlagen",
+    "outcome_timed_out": "Zeitüberschreitung",
+    "outcome_silent_timed_out": "stille Zeitüberschreitung",
+    "outcome_aliveness_failed": "Lebendprüfung fehlgeschlagen",
+    "outcome_operator_killed": "vom Operator beendet",
+    "outcome_stopped": "gestoppt",
+    "outcome_orphaned": "verwaist"
   },
   "transcript": {
     "loading": "Transkript wird geladen...",

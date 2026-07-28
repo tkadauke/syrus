@@ -389,7 +389,18 @@
     "host_metrics": "Host metrics",
     "aria_index": "Admin processes",
     "aria_detail": "Admin process detail",
-    "detail_heading": "Process"
+    "detail_heading": "Process",
+    "outcome_running": "running",
+    "outcome_kill_requested": "kill requested",
+    "outcome_finished": "finished",
+    "outcome_succeeded": "succeeded",
+    "outcome_failed": "failed",
+    "outcome_timed_out": "timed out",
+    "outcome_silent_timed_out": "silent timed out",
+    "outcome_aliveness_failed": "aliveness failed",
+    "outcome_operator_killed": "operator killed",
+    "outcome_stopped": "stopped",
+    "outcome_orphaned": "orphaned"
   },
   "transcript": {
     "loading": "Loading transcript...",

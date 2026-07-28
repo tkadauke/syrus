@@ -389,7 +389,18 @@
     "host_metrics": "Metrices Hospitis",
     "aria_index": "Processus administratoris",
     "aria_detail": "Processus detalium",
-    "detail_heading": "Processus"
+    "detail_heading": "Processus",
+    "outcome_running": "currens",
+    "outcome_kill_requested": "nex rogata",
+    "outcome_finished": "finitum",
+    "outcome_succeeded": "successit",
+    "outcome_failed": "defecit",
+    "outcome_timed_out": "tempus excessit",
+    "outcome_silent_timed_out": "silentium tempus excessit",
+    "outcome_aliveness_failed": "vita defecit",
+    "outcome_operator_killed": "ab operatore necatus",
+    "outcome_stopped": "interruptus",
+    "outcome_orphaned": "orbatus"
   },
   "transcript": {
     "loading": "Transcriptum onerans...",
