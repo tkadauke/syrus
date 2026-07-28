@@ -166,6 +166,19 @@
     "unmergeable": "Bellum",
     "mergeable": "Concordia"
   },
+  "trigger_kind": {
+    "initial": "Initiale",
+    "pr_comment": "Nota rogationis",
+    "ci_failure": "Defectus CI",
+    "retry": "Iteratio",
+    "manual": "Manuale",
+    "auto_merge": "Fusio automatica",
+    "merge_train": "Agmen fusionis",
+    "rebase": "Rebase",
+    "stack_rebase": "Rebase acervi",
+    "coding_handoff": "Traditio codicis",
+    "chat_feedback": "Relatio colloquii"
+  },
   "terminal": {
     "sessions": "Sessiones terminalis",
     "close_session": "Claude {{name}}",

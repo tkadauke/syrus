@@ -3204,7 +3204,7 @@ describe("App", () => {
       )
 
       const latestWorkflowCell = await screen.findByRole("cell", { name: "Latest workflow: chat_feedback running" })
-      const latestWorkflowTrigger = within(latestWorkflowCell).getByLabelText("Latest workflow trigger: chat_feedback")
+      const latestWorkflowTrigger = within(latestWorkflowCell).getByLabelText("Latest workflow trigger: chat feedback")
       expect(latestWorkflowTrigger).toHaveClass("bg-indigo-100", "text-indigo-700", "ring-indigo-200")
     } finally {
       restoreMedia()

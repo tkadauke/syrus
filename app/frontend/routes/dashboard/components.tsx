@@ -36,11 +36,13 @@ export function PendingJobTitle({ pending, title }: { pending: boolean; title: s
 }
 
 export function WorkflowTriggerPill({ ariaPrefix, triggerKind }: { ariaPrefix: string; triggerKind: string }) {
+  const { t } = useT()
   const className = workflowTriggerClassName(triggerKind)
+  const label = t(`trigger_kind.${triggerKind}`, { defaultValue: triggerKind.replaceAll("_", " ") })
 
   return (
-    <span aria-label={`${ariaPrefix}: ${triggerKind}`} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium capitalize ring-1 ${className}`} data-status-pill="true">
-      <span>{triggerKind.replaceAll("_", " ")}</span>
+    <span aria-label={`${ariaPrefix}: ${label}`} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium capitalize ring-1 ${className}`} data-status-pill="true">
+      <span>{label}</span>
     </span>
   )
 }
@@ -97,7 +99,9 @@ export function workflowLabel(workflow: Pick<DashboardWorkflowItem, "id" | "slug
 }
 
 export function NeutralStatePill({ state }: { state: string }) {
-  return <span className="inline-flex whitespace-nowrap rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium capitalize text-gray-700 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700">{state.replace(/_/g, " ")}</span>
+  const { t } = useT()
+  const label = t(`status.${state.toLowerCase()}`, { defaultValue: state.replace(/_/g, " ") })
+  return <span className="inline-flex whitespace-nowrap rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium capitalize text-gray-700 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700">{label}</span>
 }
 
 export function OwnerBadge({ badge, fallback = null }: { badge: { label: string; kind: string } | null; fallback?: string | null }) {

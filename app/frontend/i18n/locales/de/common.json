@@ -166,6 +166,19 @@
     "unmergeable": "nicht mergebar",
     "mergeable": "mergebar"
   },
+  "trigger_kind": {
+    "initial": "Initial",
+    "pr_comment": "PR-Kommentar",
+    "ci_failure": "CI-Fehler",
+    "retry": "Wiederholung",
+    "manual": "Manuell",
+    "auto_merge": "Auto Merge",
+    "merge_train": "Merge-Train",
+    "rebase": "Rebase",
+    "stack_rebase": "Stack-Rebase",
+    "coding_handoff": "Coding-Übergabe",
+    "chat_feedback": "Chat-Feedback"
+  },
   "terminal": {
     "sessions": "Terminal-Sitzungen",
     "close_session": "{{name}} schließen",
