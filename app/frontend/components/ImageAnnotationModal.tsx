@@ -331,7 +331,7 @@ export function ImageAnnotationModal({
   const activePointersRef = useRef<Map<number, Point>>(new Map())
   const pinchRef          = useRef<{
     startZoom: number; startDist: number
-    startMidClient: Point; startPan: Point; containerOrigin: Point
+    startMidClient: Point; startPan: Point; containerCenter: Point
   } | null>(null)
   const isPanDragRef      = useRef<{ startClient: Point; startPan: Point; pointerId: number } | null>(null)
 
@@ -510,6 +510,18 @@ export function ImageAnnotationModal({
     }
   }, [onClose, textPlacement, undo, redo, selectedShapeId, pushUndo, tool, showDiscardConfirm])
 
+  // Scroll/trackpad wheel pans the canvas. Non-passive so we can preventDefault.
+  useEffect(() => {
+    const canvas = overlayCanvasRef.current
+    if (!canvas) return
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault()
+      setPan(p => ({ x: p.x - event.deltaX, y: p.y - event.deltaY }))
+    }
+    canvas.addEventListener("wheel", onWheel, { passive: false })
+    return () => canvas.removeEventListener("wheel", onWheel)
+  }, [])
+
   // canvasPoint: converts pointer client coords to canvas pixel coords.
   // In real browsers, getBoundingClientRect accounts for the CSS transform on the parent wrapper,
   // so (clientX - rect.left) * (canvas.width / rect.width) gives correct canvas coords at any zoom/pan.
@@ -533,15 +545,16 @@ export function ImageAnnotationModal({
       const [p1, p2] = Array.from(activePointersRef.current.values())
       const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y)
       const midClient = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 }
-      // containerOrigin = canvas screen pos minus pan (the "zero pan" anchor)
       const rect = overlayCanvasRef.current?.getBoundingClientRect()
-      const containerOrigin = {
-        x: rect ? rect.left - panRef.current.x : 0,
-        y: rect ? rect.top  - panRef.current.y : 0
+      // containerCenter is the natural (untransformed) center of the canvas element.
+      // With transformOrigin:"center", rect.center = naturalCenter + pan.
+      const containerCenter = {
+        x: rect ? rect.left + rect.width  / 2 - panRef.current.x : 0,
+        y: rect ? rect.top  + rect.height / 2 - panRef.current.y : 0
       }
       pinchRef.current = {
         startZoom: zoomRef.current, startDist: dist,
-        startMidClient: midClient, startPan: { ...panRef.current }, containerOrigin
+        startMidClient: midClient, startPan: { ...panRef.current }, containerCenter
       }
       // Cancel any in-progress drawing/pan-drag so only pinch runs
       interactionRef.current = null
@@ -641,10 +654,12 @@ export function ImageAnnotationModal({
       const newZoom = clampZoom(pinch.startZoom * (dist / pinch.startDist))
       const scale   = newZoom / pinch.startZoom
       // Adjust pan so the midpoint of the pinch stays fixed on screen.
-      // M = midpoint offset from the canvas container origin.
+      // M = midpoint offset from the canvas's natural (untransformed) center.
+      // With transformOrigin:"center", the natural center stays at containerCenter,
+      // so the pan needed to hold M_screen fixed is: M - (M - startPan) * scale.
       const M = {
-        x: pinch.startMidClient.x - pinch.containerOrigin.x,
-        y: pinch.startMidClient.y - pinch.containerOrigin.y
+        x: pinch.startMidClient.x - pinch.containerCenter.x,
+        y: pinch.startMidClient.y - pinch.containerCenter.y
       }
       const newPan = {
         x: M.x - (M.x - pinch.startPan.x) * scale,
@@ -886,7 +901,7 @@ export function ImageAnnotationModal({
             <div className="relative max-h-[calc(100dvh-6rem)] max-w-full" style={canvasStyle}>
               <div
                 className="relative"
-                style={{ transform: wrapperTransform, transformOrigin: "0 0" }}
+                style={{ transform: wrapperTransform, transformOrigin: "center" }}
               >
                 <canvas aria-hidden="true" className="block max-h-[calc(100dvh-6rem)] max-w-full rounded bg-white object-contain shadow-lg" ref={imageCanvasRef} />
                 <canvas

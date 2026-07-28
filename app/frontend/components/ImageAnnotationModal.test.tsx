@@ -855,6 +855,45 @@ describe("ImageAnnotationModal", () => {
     expect(vi.mocked(contexts[1].rect).mock.calls.length).toBe(rectCallsBefore)
   })
 
+  // --- Scroll wheel panning ---
+
+  it("scroll wheel pans the canvas without changing zoom", async () => {
+    renderModal()
+    await waitForLoaded()
+
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }))
+    await waitFor(() => { expect(screen.getByText("125%")).toBeInTheDocument() })
+
+    const canvas = screen.getByLabelText("Annotation canvas")
+    canvas.dispatchEvent(new WheelEvent("wheel", { deltaX: 20, deltaY: 50, bubbles: true }))
+
+    // Zoom is unchanged — only pan shifted
+    await waitFor(() => { expect(screen.getByText("125%")).toBeInTheDocument() })
+  })
+
+  it("scroll wheel pan resets when dataUrl changes", async () => {
+    const { rerender } = renderModal()
+    await waitForLoaded()
+
+    // Simulate panning via wheel
+    const canvas = screen.getByLabelText("Annotation canvas")
+    canvas.dispatchEvent(new WheelEvent("wheel", { deltaX: 0, deltaY: 100, bubbles: true }))
+
+    // Reload with a different image — zoom and pan both reset
+    rerender(
+      <ImageAnnotationModal
+        dataUrl="data:image/jpeg;base64,bmV3"
+        name="new.jpg"
+        onClose={vi.fn()}
+        onDone={vi.fn()}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText("100%")).toBeInTheDocument()
+    })
+  })
+
   // --- Coordinate correction under zoom ---
 
   it("drawing coordinates are correct under zoom (getBoundingClientRect accounts for scale)", async () => {
