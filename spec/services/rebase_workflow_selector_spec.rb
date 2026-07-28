@@ -29,7 +29,32 @@ RSpec.describe RebaseWorkflowSelector do
       child = open_child_job(parent: job, issue_number: 2)
 
       expect(described_class.stack_rebase?(job)).to be true
-      expect(described_class.stack_rebase?(child)).to be false
+    end
+
+    it "returns true for a leaf child whose parent is also open" do
+      child = open_child_job(parent: job, issue_number: 2)
+
+      expect(described_class.stack_rebase?(child)).to be true
+    end
+
+    it "returns true for a leaf job whose parent is open with a branch" do
+      leaf = open_child_job(parent: job, issue_number: 4)
+
+      expect(described_class.stack_rebase?(leaf)).to be true
+    end
+
+    it "returns false for a leaf job whose parent is closed" do
+      leaf = open_child_job(parent: job, issue_number: 5)
+      job.update_columns(state: "closed", closure_reason: "pr_merged")
+
+      expect(described_class.stack_rebase?(leaf)).to be false
+    end
+
+    it "returns false for a leaf job whose parent has no branch" do
+      job.update_columns(branch_name: nil)
+      leaf = open_child_job(parent: job, issue_number: 6)
+
+      expect(described_class.stack_rebase?(leaf)).to be false
     end
   end
 
@@ -45,6 +70,15 @@ RSpec.describe RebaseWorkflowSelector do
       open_child_job(parent: job, issue_number: 3)
 
       workflow = described_class.instantiate(job: job)
+
+      expect(workflow).to be_a(Workflow)
+      expect(workflow.trigger_kind).to eq("stack_rebase")
+    end
+
+    it "instantiates a StackRebase workflow for a leaf job with an open parent branch" do
+      leaf = open_child_job(parent: job, issue_number: 7)
+
+      workflow = described_class.instantiate(job: leaf)
 
       expect(workflow).to be_a(Workflow)
       expect(workflow.trigger_kind).to eq("stack_rebase")

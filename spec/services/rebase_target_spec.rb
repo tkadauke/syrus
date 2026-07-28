@@ -34,6 +34,43 @@ RSpec.describe RebaseTarget do
 
       expect(described_class.branch_for(job: job, workflow: nil)).to eq("main")
     end
+
+    it "returns the open parent's branch when no artifact is set" do
+      parent = Factories.job_record(user: user, repository: repository, state: "queued", branch_name: "syrus/parent-feat")
+      child = Factories.job_record(user: user, repository: repository, state: "queued")
+      child.update_columns(parent_job_id: parent.id)
+
+      expect(described_class.branch_for(job: child)).to eq("syrus/parent-feat")
+    end
+
+    it "prefers the workflow artifact over the open parent branch" do
+      parent = Factories.job_record(user: user, repository: repository, state: "queued", branch_name: "syrus/parent-feat")
+      child = Factories.job_record(user: user, repository: repository, state: "queued")
+      child.update_columns(parent_job_id: parent.id)
+      workflow = Workflow.create!(
+        job: child,
+        trigger_kind: "rebase",
+        artifacts: { RebaseTarget::BASE_BRANCH_ARTIFACT => "release/v3" }
+      )
+
+      expect(described_class.branch_for(job: child, workflow: workflow)).to eq("release/v3")
+    end
+
+    it "falls back to effective_base_branch when the parent is closed" do
+      parent = Factories.job_record(user: user, repository: repository, state: "closed", branch_name: "syrus/parent-feat")
+      child = Factories.job_record(user: user, repository: repository, state: "queued")
+      child.update_columns(parent_job_id: parent.id)
+
+      expect(described_class.branch_for(job: child)).to eq("main")
+    end
+
+    it "falls back to effective_base_branch when the parent has no branch" do
+      parent = Factories.job_record(user: user, repository: repository, state: "queued", branch_name: nil)
+      child = Factories.job_record(user: user, repository: repository, state: "queued")
+      child.update_columns(parent_job_id: parent.id)
+
+      expect(described_class.branch_for(job: child)).to eq("main")
+    end
   end
 
   describe ".artifacts" do

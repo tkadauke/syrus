@@ -22,8 +22,13 @@ class RebaseWorkflowSelector
   end
 
   def self.stack_rebase?(job)
-    StackRebasePlan.descendants_for(job).any?
+    StackRebasePlan.descendants_for(job).any? || stack_member_with_parent?(job)
   end
+
+  def self.stack_member_with_parent?(job)
+    job.parent_job.present? && job.parent_job.open? && job.parent_job.branch_name.present?
+  end
+  private_class_method :stack_member_with_parent?
 
   def self.active_for_stack?(job)
     runnable_active_scope(
