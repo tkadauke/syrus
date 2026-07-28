@@ -482,7 +482,7 @@ export function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { pay
               <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("chat_settings_effective_provider", { label: payload.chat.effective_chat_provider_label || t("chat_settings_effective_default") })}</span>
             </label>
           ) : null}
-          {provider.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(provider.error, "Provider could not be updated.")}</div> : null}
+          {provider.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(provider.error, t("provider_update_error"))}</div> : null}
           <label className="block">
             <span className="mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("mode_label")}</span>
             <div className="flex rounded border border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-950" role="group" aria-label={t("mode_label")}>

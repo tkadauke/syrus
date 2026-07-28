@@ -287,5 +287,6 @@
   "chat_settings_repo": "Optiones receptaculi",
   "chat_settings_credentials": "Testimonia colloquii",
   "chat_settings_effective_provider": "Efficax: {{label}}",
-  "chat_settings_effective_default": "Praefinitum"
+  "chat_settings_effective_default": "Praefinitum",
+  "provider_update_error": "Praebitor mutari non potuit."
 }

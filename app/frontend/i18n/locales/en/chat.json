@@ -287,5 +287,6 @@
   "chat_settings_repo": "Repository settings",
   "chat_settings_credentials": "Chat credentials",
   "chat_settings_effective_provider": "Effective: {{label}}",
-  "chat_settings_effective_default": "Default"
+  "chat_settings_effective_default": "Default",
+  "provider_update_error": "Provider could not be updated."
 }
