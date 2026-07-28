@@ -926,6 +926,93 @@ RSpec.describe StepDispatcher do
   end
 end
 
+RSpec.describe StepDispatcher, "urgent_blocking gate" do
+  include ActiveJob::TestHelper
+
+  let(:job_model) { Factories.job }
+  let!(:workflow) { Workflow.create!(job: job_model, trigger_kind: "initial") }
+  let!(:s1) { Step.create!(workflow: workflow, kind: "implement", position: 0) }
+  let!(:s2) { Step.create!(workflow: workflow, kind: "pr_open", position: 1) }
+
+  before { s1.update!(next_step_id: s2.id) }
+
+  def create_urgent_job!(state: "queued")
+    Factories.job_record(
+      user: job_model.user,
+      repository: job_model.repository,
+      priority: "urgent",
+      state: state
+    )
+  end
+
+  it "does not block when no urgent jobs exist in the repository" do
+    expect {
+      described_class.start_workflow(workflow)
+    }.to change { s1.runs.count }.by(1)
+  end
+
+  it "blocks non-urgent workflows when an open urgent job exists" do
+    create_urgent_job!
+    expect {
+      described_class.start_workflow(workflow)
+    }.not_to change { Run.count }
+    expect(workflow.reload).to be_queued
+  end
+
+  it "records urgent_job_active as the block reason" do
+    create_urgent_job!
+    described_class.start_workflow(workflow)
+    expect(workflow.reload.artifact("start_blocked_reason")).to eq("urgent_job_active")
+  end
+
+  it "logs a warning when blocked by urgent job" do
+    create_urgent_job!
+    expect(Rails.logger).to receive(:warn).with(include("urgent_job_active"))
+    described_class.start_workflow(workflow)
+  end
+
+  it "backs off repeated urgent-blocked starts" do
+    create_urgent_job!
+    travel_to(Time.zone.parse("2026-07-15 12:00:00 UTC")) do
+      expect(Rails.logger).to receive(:warn).once.with(include("urgent_job_active"))
+
+      described_class.start_workflow(workflow)
+      next_check_at = workflow.reload.artifact("start_blocked_next_check_at")
+
+      described_class.start_workflow(workflow)
+
+      expect(workflow.reload.artifact("start_blocked_reason")).to eq("urgent_job_active")
+      expect(workflow.artifact("start_blocked_next_check_at")).to eq(next_check_at)
+    end
+  end
+
+  it "does not block urgent workflows even when other urgent jobs exist" do
+    create_urgent_job!
+    job_model.update_columns(priority: "urgent")
+
+    expect {
+      described_class.start_workflow(workflow)
+    }.to change { s1.runs.count }.by(1)
+  end
+
+  it "starts the workflow when the formerly urgent job is now closed" do
+    create_urgent_job!(state: "closed")
+
+    expect {
+      described_class.start_workflow(workflow)
+    }.to change { s1.runs.count }.by(1)
+  end
+
+  it "clears the urgent_job_active block reason when no longer blocked" do
+    create_urgent_job!(state: "closed")
+    workflow.update!(artifacts: { "start_blocked_reason" => "urgent_job_active" })
+
+    described_class.start_workflow(workflow)
+
+    expect(workflow.reload.artifact("start_blocked_reason")).to be_nil
+  end
+end
+
 RSpec.describe StepDispatcher, "main_health queue gate" do
   include ActiveJob::TestHelper
 
