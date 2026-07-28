@@ -1,0 +1,150 @@
+import { describe, it, expect, vi, afterEach } from "vitest"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { MemoryRouter } from "react-router-dom"
+import { jsonResponse } from "../testSupport"
+import { DirectJobNewRoute } from "./DirectJobNew"
+import type { DirectJobFormPayload } from "../api/directJobs"
+
+const template1 = {
+  id: "add-github-actions-ci",
+  name: "Add GitHub Actions CI",
+  description: "Add a CI workflow that runs tests.",
+  prompt: "Add a GitHub Actions CI workflow."
+}
+
+const template2 = {
+  id: "update-dependencies",
+  name: "Update dependencies",
+  description: "Update all packages to latest.",
+  prompt: "Update all packages to their latest compatible versions."
+}
+
+function formPayload(overrides: Partial<DirectJobFormPayload> = {}): DirectJobFormPayload {
+  return {
+    repositories: [
+      {
+        id: 1,
+        slug: "acme/widgets",
+        repository_path: "/repositories/1",
+        default_agent_provider: "claude",
+        default_agent_provider_label: "Claude"
+      }
+    ],
+    selected_repository_id: "1",
+    selected_agent_provider: null,
+    configured_agent_providers: [],
+    priorities: [{ value: "medium", label: "Medium", description: "Default" }],
+    prompt_templates: [template1, template2],
+    accepted_file_content_types: ["image/*", "application/pdf"],
+    new_repository_path: "/repositories/new",
+    dashboard_jobs_path: "/",
+    create_more: false,
+    ...overrides
+  }
+}
+
+function renderRoute(payload = formPayload()) {
+  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <DirectJobNewRoute />
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+describe("DirectJobNew template selection", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("clicking a template sets both title and prompt", async () => {
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: /Add GitHub Actions CI/i }))
+
+    expect((screen.getByRole("textbox", { name: "Title" }) as HTMLInputElement).value).toBe(template1.name)
+    expect((screen.getByRole("textbox", { name: "Prompt" }) as HTMLTextAreaElement).value).toBe(template1.prompt)
+  })
+
+  it("clicking a second template updates both title and prompt when no manual edits were made", async () => {
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: /Add GitHub Actions CI/i }))
+    fireEvent.click(screen.getByRole("button", { name: /Update dependencies/i }))
+
+    expect((screen.getByRole("textbox", { name: "Title" }) as HTMLInputElement).value).toBe(template2.name)
+    expect((screen.getByRole("textbox", { name: "Prompt" }) as HTMLTextAreaElement).value).toBe(template2.prompt)
+  })
+
+  it("does not prompt for confirmation when switching templates without manual edits", async () => {
+    renderRoute()
+    const confirmSpy = vi.spyOn(window, "confirm")
+
+    fireEvent.click(await screen.findByRole("button", { name: /Add GitHub Actions CI/i }))
+    fireEvent.click(screen.getByRole("button", { name: /Update dependencies/i }))
+
+    expect(confirmSpy).not.toHaveBeenCalled()
+  })
+
+  it("prompts for confirmation when manually edited title exists before applying a template", async () => {
+    renderRoute()
+    vi.spyOn(window, "confirm").mockReturnValue(true)
+
+    await screen.findByRole("button", { name: /Add GitHub Actions CI/i })
+    fireEvent.change(screen.getByRole("textbox", { name: "Title" }), { target: { value: "My custom title" } })
+    fireEvent.click(screen.getByRole("button", { name: /Add GitHub Actions CI/i }))
+
+    expect(window.confirm).toHaveBeenCalledWith(
+      "Are you sure you want to apply this template? All of your changes will be lost."
+    )
+  })
+
+  it("prompts for confirmation when manually edited prompt exists before applying a template", async () => {
+    renderRoute()
+    vi.spyOn(window, "confirm").mockReturnValue(true)
+
+    await screen.findByRole("button", { name: /Add GitHub Actions CI/i })
+    fireEvent.change(screen.getByRole("textbox", { name: "Prompt" }), { target: { value: "My custom prompt" } })
+    fireEvent.click(screen.getByRole("button", { name: /Add GitHub Actions CI/i }))
+
+    expect(window.confirm).toHaveBeenCalled()
+  })
+
+  it("does not apply template when user cancels confirmation", async () => {
+    renderRoute()
+    vi.spyOn(window, "confirm").mockReturnValue(false)
+
+    await screen.findByRole("button", { name: /Add GitHub Actions CI/i })
+    fireEvent.change(screen.getByRole("textbox", { name: "Title" }), { target: { value: "My custom title" } })
+    fireEvent.click(screen.getByRole("button", { name: /Add GitHub Actions CI/i }))
+
+    expect((screen.getByRole("textbox", { name: "Title" }) as HTMLInputElement).value).toBe("My custom title")
+  })
+
+  it("prompts for confirmation when switching from one template to another after manual edits", async () => {
+    renderRoute()
+    vi.spyOn(window, "confirm").mockReturnValue(true)
+
+    fireEvent.click(await screen.findByRole("button", { name: /Add GitHub Actions CI/i }))
+
+    const titleInput = screen.getByRole("textbox", { name: "Title" }) as HTMLInputElement
+    fireEvent.change(titleInput, { target: { value: "Modified title" } })
+
+    fireEvent.click(screen.getByRole("button", { name: /Update dependencies/i }))
+
+    expect(window.confirm).toHaveBeenCalled()
+    expect(titleInput.value).toBe(template2.name)
+  })
+
+  it("does not prompt when form is empty and template is applied for the first time", async () => {
+    renderRoute()
+    const confirmSpy = vi.spyOn(window, "confirm")
+
+    fireEvent.click(await screen.findByRole("button", { name: /Add GitHub Actions CI/i }))
+
+    expect(confirmSpy).not.toHaveBeenCalled()
+    expect((screen.getByRole("textbox", { name: "Title" }) as HTMLInputElement).value).toBe(template1.name)
+  })
+})

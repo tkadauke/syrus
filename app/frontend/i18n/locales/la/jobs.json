@@ -371,6 +371,7 @@
   "form_agent_label": "Agens",
   "form_agent_repository_default": "Defectus repositorii",
   "form_section_templates": "Exemplaria",
+  "form_template_confirm": "Visne hoc exemplar applicare? Omnes mutationes tuae peribunt.",
   "form_section_prompt": "Promptus",
   "form_title_label": "Titulus",
   "form_title_placeholder": "e.g. Versionem Ruby ad 3.3 promove",

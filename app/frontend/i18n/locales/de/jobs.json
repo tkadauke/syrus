@@ -371,6 +371,7 @@
   "form_agent_label": "Agent",
   "form_agent_repository_default": "Standard des Repositories",
   "form_section_templates": "Vorlagen",
+  "form_template_confirm": "Möchten Sie diese Vorlage wirklich anwenden? Alle Ihre Änderungen gehen verloren.",
   "form_section_prompt": "Eingabeaufforderung",
   "form_title_label": "Titel",
   "form_title_placeholder": "z.B. Ruby-Version auf 3.3 aktualisieren",

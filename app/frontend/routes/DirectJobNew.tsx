@@ -57,6 +57,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
   const [notice, setNotice] = useState<string | null>(null)
   const [files, setFiles] = useState<File[]>([])
   const [values, setValues] = useState<DirectJobFormState>(() => initialValues(payload))
+  const [appliedTemplate, setAppliedTemplate] = useState<DirectJobPromptTemplate | null>(null)
   const selectedRepository = useMemo(
     () => payload.repositories.find((repository) => String(repository.id) === values.repositoryId) || null,
     [payload.repositories, values.repositoryId]
@@ -97,9 +98,17 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
   }
 
   function applyTemplate(template: DirectJobPromptTemplate) {
+    const hasManualTitle = values.title.trim() !== "" && values.title !== (appliedTemplate?.name ?? "")
+    const hasManualPrompt = values.prompt.trim() !== "" && values.prompt !== (appliedTemplate?.prompt ?? "")
+
+    if ((hasManualTitle || hasManualPrompt) && !window.confirm(t("form_template_confirm"))) {
+      return
+    }
+
+    setAppliedTemplate(template)
     setValues((current) => ({
       ...current,
-      title: current.title.trim() === "" ? template.name : current.title,
+      title: template.name,
       prompt: template.prompt
     }))
     window.requestAnimationFrame(() => promptRef.current?.focus())
