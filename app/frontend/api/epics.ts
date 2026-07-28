@@ -133,8 +133,14 @@ export type EpicVersionRecord = {
   description_after: string | null
 }
 
+export type EpicOriginChat = {
+  chat_session_id: number
+  message_id: number
+}
+
 export type EpicDetailPayload = {
   message?: string | null
+  origin_chat?: EpicOriginChat | null
   epic: EpicDetailRecord
   summary: EpicDetailSummary
   state_transitions: EpicStateTransition[]

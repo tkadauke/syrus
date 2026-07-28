@@ -70,6 +70,24 @@ function renderDetail(payload: EpicDetailPayload) {
   )
 }
 
+describe("EpicDetail origin_chat link", () => {
+  it("renders a View in Chat link when origin_chat is present", () => {
+    const payload = detailPayload()
+    payload.origin_chat = { chat_session_id: 7, message_id: 42 }
+    renderDetail(payload)
+
+    const link = screen.getByRole("link", { name: /view in chat/i })
+    expect(link).toBeInTheDocument()
+    expect(link).toHaveAttribute("href", "/chats/7#message-42")
+  })
+
+  it("omits the View in Chat link when origin_chat is absent", () => {
+    renderDetail(detailPayload())
+
+    expect(screen.queryByRole("link", { name: /view in chat/i })).not.toBeInTheDocument()
+  })
+})
+
 describe("EpicDetail start implementing", () => {
   afterEach(() => vi.restoreAllMocks())
 

@@ -88,5 +88,7 @@
   "waiting_on_dependencies": "Exspectat {{names}}",
   "starting": "Incipitur...",
 
-  "preview_see_more": "Vide amplius"
+  "preview_see_more": "Vide amplius",
+
+  "view_in_chat": "In colloquio vide"
 }

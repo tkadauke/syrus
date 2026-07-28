@@ -76,5 +76,7 @@
   "start_implementing": "Umsetzung starten",
   "waiting_on_dependencies": "Wartet auf {{names}}",
   "starting": "Wird gestartet...",
-  "preview_see_more": "Mehr anzeigen"
+  "preview_see_more": "Mehr anzeigen",
+
+  "view_in_chat": "Im Chat anzeigen"
 }
