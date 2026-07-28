@@ -298,18 +298,21 @@ export function FilterBar({
                   ))}
                 </div>
               ) : null}
-              {filteredSchema.map((field) => (
-                <button
-                  aria-label={`${field.label} ${translateBucket(field.bucket, t)}`}
-                  className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
-                  key={field.field}
-                  onClick={() => addFilter(field)}
-                  type="button"
-                >
-                  <span>{field.label}</span>
-                  <span className="text-xs text-gray-400 dark:text-gray-500">{translateBucket(field.bucket, t)}</span>
-                </button>
-              ))}
+              {filteredSchema.map((field) => {
+                const fieldLabel = t(`filter_fields.${field.field}`, { defaultValue: field.label })
+                return (
+                  <button
+                    aria-label={`${fieldLabel} ${translateBucket(field.bucket, t)}`}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                    key={field.field}
+                    onClick={() => addFilter(field)}
+                    type="button"
+                  >
+                    <span>{fieldLabel}</span>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">{translateBucket(field.bucket, t)}</span>
+                  </button>
+                )
+              })}
               {filteredSchema.length === 0 && filteredSuggestions.length === 0 ? <div className="px-3 py-2 text-sm text-gray-400 dark:text-gray-500">{t("filter_bar.no_matching_filters")}</div> : null}
             </div>
           </div>
@@ -391,11 +394,12 @@ function FilterChipButton({ chip, controls, negated = false, onClick }: { chip: 
   const { t } = useT("nav")
   const meta = filterMetaFor(controls, chip.field)
   const formattedValue = useFormattedFilterValue(chip, meta)
+  const fieldLabel = meta ? t(`filter_fields.${meta.field}`, { defaultValue: meta.label || chip.field }) : chip.field
   const opLabel = translateOp(chip.op, t)
-  const label = `${negated ? t("filter_bar.not_prefix") + " " : ""}${meta?.label || chip.field} ${opLabel}${isPredicateOp(chip.op) ? "" : ` ${formattedValue}`}`
+  const label = `${negated ? t("filter_bar.not_prefix") + " " : ""}${fieldLabel} ${opLabel}${isPredicateOp(chip.op) ? "" : ` ${formattedValue}`}`
   return (
     <button aria-label={label} className="inline-flex items-baseline gap-1 text-left" onClick={onClick} type="button">
-      <span className="font-medium text-gray-700 dark:text-gray-200">{meta?.label || chip.field}</span>
+      <span className="font-medium text-gray-700 dark:text-gray-200">{fieldLabel}</span>
       <span className="text-xs text-gray-500 dark:text-gray-400">{opLabel}</span>
       {isPredicateOp(chip.op) ? null : <span className="font-mono text-gray-900 dark:text-white">{formattedValue}</span>}
     </button>
@@ -410,8 +414,8 @@ function FilterChipEditor({ chip, editorRef, meta, onAddAlternative, onChange }:
   }
 
   return (
-    <div aria-label={`${meta.label} filter settings`} className="absolute left-0 top-full z-30 mt-2 w-[min(36rem,calc(100vw-3rem))] space-y-3 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" ref={editorRef} role="dialog">
-      <div className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{meta.label}</div>
+    <div aria-label={`${t(`filter_fields.${meta.field}`, { defaultValue: meta.label })} filter settings`} className="absolute left-0 top-full z-30 mt-2 w-[min(36rem,calc(100vw-3rem))] space-y-3 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" ref={editorRef} role="dialog">
+      <div className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t(`filter_fields.${meta.field}`, { defaultValue: meta.label })}</div>
       <div className="space-y-3">
         <label className={filterLabelClass()} htmlFor={`filter-op-${meta.field}`}>
           {t("filter_bar.operator")}

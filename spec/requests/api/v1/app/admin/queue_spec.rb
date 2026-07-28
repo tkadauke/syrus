@@ -52,6 +52,7 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     expect(body.dig("controls", "filter_schema").map { |field| field["field"] }).to include("queue_name", "job_class")
     expect(body["smart_folders"].find { |folder| folder["name"] == "Runs" }).to include(
       "count" => 1,
+      "i18n_key" => "admin_queue_runs",
       "position" => SmartFolder.for_subject(:admin_queue).find_by!(name: "Runs").position,
       "path" => a_string_matching(%r{\A/admin/queue/active\?smart_folder_id=})
     )
@@ -155,6 +156,26 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     body = parse_body
     expect(body["total"]).to eq(2)
     expect(body["jobs"].map { |job| job["queue_name"] }).to eq([ "chat", "runs" ])
+  end
+
+  it "includes i18n_key for builtin folders and nil for user-defined folders" do
+    sign_in_as(admin)
+    admin.smart_folders.create!(
+      name: "My queue",
+      kind: "user_defined",
+      subject_type: "admin_queue",
+      filter: { "and" => [] },
+      position: 0
+    )
+
+    get "/api/v1/app/admin/queue/active"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    builtin = body["smart_folders"].find { |folder| folder["name"] == "Failed today" }
+    expect(builtin).to include("i18n_key" => "failed_today", "kind" => "builtin")
+    user_defined = body["smart_folders"].find { |folder| folder["name"] == "My queue" }
+    expect(user_defined).to include("i18n_key" => nil, "kind" => "user_defined")
   end
 
   it "handles queue filters with unknown fields" do

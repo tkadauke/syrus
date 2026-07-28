@@ -128,6 +128,7 @@
     "no_matching_filters": "Nulla colandra congruentia",
     "operator": "Operator",
     "or_alternative": "+ Alternativa AUT",
+    "or": "aut",
     "value": "Valor",
     "nothing_selected": "Nihil adhuc selectum",
     "search_by_name": "Quaere nomine...",
@@ -139,7 +140,6 @@
     "to": "Ad",
     "min": "Minimum",
     "max": "Maximum",
-    "or": "aut",
     "complex_filter": "colandrum complexum",
     "wrap_in_not": "In NON claude",
     "remove_not": "NON tolle",
@@ -180,6 +180,45 @@
       "number": "numerus",
       "fk": "relatio"
     }
+  },
+  "filter_fields": {
+    "queue_name": "Nomen agminis",
+    "job_class": "Classis operis",
+    "failed_since": "Defecta ab"
+  },
+  "filter_operators": {
+    "is": "est",
+    "is_not": "non est",
+    "is_one_of": "est unum ex",
+    "is_none_of": "est nullum ex",
+    "contains": "continet",
+    "not_contains": "non continet",
+    "contains_any": "continet aliquod",
+    "contains_all": "continet omnia",
+    "contains_none": "continet nihil",
+    "starts_with": "incipit a",
+    "ends_with": "desinit in",
+    "gt": "maius quam",
+    "lt": "minus quam",
+    "gte": "maius vel aequale",
+    "lte": "minus vel aequale",
+    "between": "inter",
+    "within_last": "intra ultimum",
+    "more_than_ago": "ante plus quam",
+    "before": "ante",
+    "after": "post",
+    "is_set": "positum est",
+    "is_unset": "non positum est",
+    "is_true": "verum est",
+    "is_false": "falsum est"
+  },
+  "smart_folder_names": {
+    "failed_today": "Hodie defecta",
+    "failed_this_hour": "Hac hora defecta",
+    "admin_queue_runs": "Cursus",
+    "admin_queue_chat": "Colloquia",
+    "admin_queue_default": "Defalta",
+    "admin_queue_merges": "Fusiones"
   },
   "notifications": {
     "title": "Nuntii",

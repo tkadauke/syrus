@@ -314,6 +314,10 @@ function SmartFolderLink({
     })
   }
 
+  const displayName = folder.i18n_key
+    ? t(`smart_folder_names.${folder.i18n_key}`, { defaultValue: folder.name })
+    : folder.name
+
   if (!isUserDefined) {
     const displayName = folder.key
       ? t(`smart_folder.names.${folder.key}`, { defaultValue: folder.name })
