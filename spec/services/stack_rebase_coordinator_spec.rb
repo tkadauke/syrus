@@ -24,10 +24,10 @@ RSpec.describe StackRebaseCoordinator do
     clear_enqueued_jobs
   end
 
-  it "enqueues a rebase workflow for immediate children when the parent is amended" do
+  it "enqueues a stack_rebase workflow for leaf children when the parent is amended" do
     expect {
       described_class.parent_amended(parent)
-    }.to change { child.reload.workflows.where(trigger_kind: "rebase").count }.by(1)
+    }.to change { child.reload.workflows.where(trigger_kind: "stack_rebase").count }.by(1)
       .and change { enqueued_jobs.count { |job| job[:job] == RunJob } }.by(1)
   end
 

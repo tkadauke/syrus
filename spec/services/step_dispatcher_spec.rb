@@ -300,9 +300,9 @@ RSpec.describe StepDispatcher do
 
       expect {
         described_class.advance_from(force_push)
-      }.to change { child.reload.workflows.where(trigger_kind: "rebase").count }.by(1)
+      }.to change { child.reload.workflows.where(trigger_kind: "stack_rebase").count }.by(1)
 
-      child_rebase = child.workflows.where(trigger_kind: "rebase").last
+      child_rebase = child.workflows.where(trigger_kind: "stack_rebase").last
       expect(child_rebase.artifact("rebase_base_branch")).to eq(job.branch_name)
       expect(enqueued_jobs.any? { |entry| entry[:job] == RunJob }).to be(true)
     end
@@ -328,9 +328,9 @@ RSpec.describe StepDispatcher do
 
       expect {
         described_class.advance_from(push_after_rebase)
-      }.to change { child.reload.workflows.where(trigger_kind: "rebase").count }.by(1)
+      }.to change { child.reload.workflows.where(trigger_kind: "stack_rebase").count }.by(1)
 
-      child_rebase = child.workflows.where(trigger_kind: "rebase").last
+      child_rebase = child.workflows.where(trigger_kind: "stack_rebase").last
       expect(child_rebase.artifact("rebase_base_branch")).to eq(job.branch_name)
       expect(enqueued_jobs.any? { |entry| entry[:job] == RunJob }).to be(true)
     end
