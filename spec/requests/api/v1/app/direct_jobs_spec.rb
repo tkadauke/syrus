@@ -87,7 +87,7 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     expect(body["selected_repository_id"]).to eq(repository.id.to_s)
     expect(body["create_more"]).to eq(true)
     expect(body["prompt_templates"]).to include(include("id" => "configure-syrus-prep", "prompt" => include("syrus")))
-    expect(body["priorities"].map { |priority| priority["value"] }).to eq(%w[high medium low])
+    expect(body["priorities"].map { |priority| priority["value"] }).to eq(%w[urgent high medium low])
     expect(body["accepted_file_content_types"]).to include("application/pdf")
   end
 
