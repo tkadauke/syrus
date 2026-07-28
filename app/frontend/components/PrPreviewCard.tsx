@@ -35,7 +35,7 @@ export function PrPreviewCard({ jobId, prNumber, prUrl }: { jobId: number; prNum
 
   return (
     <div className="w-80 rounded-lg border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900">
-      <div className="mb-1 flex items-center gap-2">
+      <div className="mb-3 flex items-center gap-2">
         <CopyableSlug className="text-xs" slug={`PR #${prNumber}`} />
         <a
           aria-label={`Open PR #${prNumber} on GitHub`}
@@ -46,22 +46,19 @@ export function PrPreviewCard({ jobId, prNumber, prUrl }: { jobId: number; prNum
         >
           <ExternalLinkIcon className="h-3.5 w-3.5" />
         </a>
-      </div>
-      <div className="mb-3">
         <StatusPill state={job.state} />
       </div>
       {truncatedTitle && (
-        <p className="mb-3 text-sm text-gray-900 dark:text-gray-100">{truncatedTitle}</p>
+        <Link className="mb-3 block text-sm text-gray-900 hover:underline dark:text-gray-100" to={`/jobs/${jobId}`}>
+          {truncatedTitle}
+        </Link>
       )}
-      <div className="mb-3 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
         <MergeablePill value={job.pr_mergeable} />
         {job.pr_mergeable_checked_at && (
           <RelativeTimestamp value={job.pr_mergeable_checked_at} />
         )}
       </div>
-      <Link className="text-xs text-blue-600 hover:underline dark:text-blue-400" to={`/jobs/${jobId}`}>
-        {t("preview_see_job")}
-      </Link>
     </div>
   )
 }
@@ -69,20 +66,19 @@ export function PrPreviewCard({ jobId, prNumber, prUrl }: { jobId: number; prNum
 export function PrPreviewSkeleton() {
   return (
     <div className="w-80 animate-pulse rounded-lg border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900">
-      <div className="mb-1 flex items-center gap-2">
+      <div className="mb-3 flex items-center gap-2">
         <div className="h-3 w-16 rounded bg-gray-200 dark:bg-gray-700" />
         <div className="h-3.5 w-3.5 rounded bg-gray-200 dark:bg-gray-700" />
+        <div className="h-4 w-16 rounded-full bg-gray-200 dark:bg-gray-700" />
       </div>
-      <div className="mb-3 h-4 w-16 rounded-full bg-gray-200 dark:bg-gray-700" />
       <div className="mb-3 space-y-1.5">
         <div className="h-4 w-full rounded bg-gray-200 dark:bg-gray-700" />
         <div className="h-4 w-3/4 rounded bg-gray-200 dark:bg-gray-700" />
       </div>
-      <div className="mb-3 flex items-center gap-2">
+      <div className="flex items-center gap-2">
         <div className="h-4 w-20 rounded-full bg-gray-200 dark:bg-gray-700" />
         <div className="h-3 w-24 rounded bg-gray-200 dark:bg-gray-700" />
       </div>
-      <div className="h-3 w-16 rounded bg-gray-200 dark:bg-gray-700" />
     </div>
   )
 }

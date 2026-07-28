@@ -58,11 +58,11 @@ describe("PrPreviewCard", () => {
     expect(screen.getByRole("link", { name: "Open PR #99 on GitHub" })).toHaveAttribute("href", "https://github.com/owner/repo/pull/99")
   })
 
-  it("renders a See job link pointing to the job detail page", async () => {
+  it("renders the job title as a link to the job detail page", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(jobPayload()))
     renderCard()
-    await waitFor(() => expect(screen.getByRole("link", { name: "See job" })).toBeInTheDocument())
-    expect(screen.getByRole("link", { name: "See job" })).toHaveAttribute("href", "/jobs/42")
+    await waitFor(() => expect(screen.getByRole("link", { name: "Add dark mode" })).toBeInTheDocument())
+    expect(screen.getByRole("link", { name: "Add dark mode" })).toHaveAttribute("href", "/jobs/42")
   })
 
   it("renders unmergeable pill when pr_mergeable is false", async () => {
