@@ -152,6 +152,19 @@
     "unmergeable": "unmergeable",
     "mergeable": "mergeable"
   },
+  "trigger_kind": {
+    "initial": "initial",
+    "pr_comment": "PR comment",
+    "ci_failure": "CI failure",
+    "retry": "retry",
+    "manual": "manual",
+    "auto_merge": "auto merge",
+    "merge_train": "merge train",
+    "rebase": "rebase",
+    "stack_rebase": "stack rebase",
+    "coding_handoff": "coding handoff",
+    "chat_feedback": "chat feedback"
+  },
   "terminal": {
     "sessions": "Terminal sessions",
     "close_session": "Close {{name}}",
