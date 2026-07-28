@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { formatRelativeDate } from "../lib/relativeTime"
+import { formatRelativeDate, intlLocale } from "../lib/relativeTime"
 
 // The canonical way to show a timestamp in the SPA: a localized relative time
 // ("2 minutes ago"), with the exact date+time in the viewer's locale on hover.
@@ -19,7 +19,7 @@ export function RelativeTimestamp({
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return <>{fallback}</>
 
-  const exact = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date)
+  const exact = new Intl.DateTimeFormat(intlLocale(), { dateStyle: "medium", timeStyle: "short" }).format(date)
 
   return (
     <time className={className} dateTime={value} title={exact}>
