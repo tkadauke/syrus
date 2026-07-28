@@ -44,6 +44,36 @@ RSpec.describe Features::SyncFromYaml do
     path&.delete if path&.exist?
   end
 
+  it "parses name_i18n_key and description_i18n_key from YAML into declarations" do
+    path = write_features_yaml(<<~YAML)
+      features:
+        - slug: example_feature
+          category: Example
+          name: Example Feature
+          name_i18n_key: features.slugs.example_feature.name
+          description: An example feature.
+          description_i18n_key: features.slugs.example_feature.description
+          default: false
+        - slug: no_keys_feature
+          category: Example
+          name: No Keys
+          default: false
+    YAML
+
+    declarations = described_class.declarations(config_path: path)
+
+    expect(declarations.find { |d| d[:slug] == "example_feature" }).to include(
+      name_i18n_key: "features.slugs.example_feature.name",
+      description_i18n_key: "features.slugs.example_feature.description"
+    )
+    expect(declarations.find { |d| d[:slug] == "no_keys_feature" }).to include(
+      name_i18n_key: nil,
+      description_i18n_key: nil
+    )
+  ensure
+    path&.delete if path&.exist?
+  end
+
   it "updates metadata and preserves operator enabled overrides" do
     path = write_features_yaml(<<~YAML)
       features:

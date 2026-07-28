@@ -43,7 +43,9 @@ module Features
           category: raw.fetch("category").to_s,
           name: raw.fetch("name").to_s,
           description: raw["description"],
-          default_enabled: ActiveModel::Type::Boolean.new.cast(raw.fetch("default", false))
+          default_enabled: ActiveModel::Type::Boolean.new.cast(raw.fetch("default", false)),
+          name_i18n_key: raw["name_i18n_key"],
+          description_i18n_key: raw["description_i18n_key"]
         }
       end
     end

@@ -6,6 +6,8 @@ export type AdminFeature = {
   name: string
   description: string | null
   enabled: boolean
+  name_i18n_key?: string | null
+  description_i18n_key?: string | null
 }
 
 export type AdminFeatureCategory = {

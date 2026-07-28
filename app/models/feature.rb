@@ -9,6 +9,8 @@ class Feature < ApplicationRecord
   validates :category, presence: true
   validates :name, presence: true
 
+  attr_accessor :name_i18n_key, :description_i18n_key
+
   def self.enabled?(slug)
     key = slug.to_s
     cache = Current.feature_enabled_cache ||= {}
