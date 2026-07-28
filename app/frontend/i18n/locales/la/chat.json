@@ -86,6 +86,7 @@
     "hidden_at": "Occultatum {{date}}",
     "restoring": "Restituitur...",
     "unhide": "Patefacere",
+    "restored": "Colloquium restitutum.",
     "showing": "Ostenduntur {{first}}–{{last}} ex {{total}}",
     "previous": "Prior",
     "next": "Sequens"

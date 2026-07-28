@@ -51,7 +51,7 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
     mutationFn: (document: RepositoryDocument) => deleteRepositoryDocument(document.id),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
-      setNotice(updated.message || "Document removed.")
+      setNotice(updated.message || t('repository_documents.removed'))
     }
   })
 
@@ -93,7 +93,7 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
                     className="shrink-0 rounded bg-gray-100 dark:bg-gray-800 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:text-gray-300 dark:disabled:text-gray-600"
                     disabled={destroy.isPending}
                     onClick={() => {
-                      if (window.confirm("Delete this document?")) destroy.mutate(document)
+                      if (window.confirm(t('repository_documents.confirm_delete'))) destroy.mutate(document)
                     }}
                     type="button"
                   >

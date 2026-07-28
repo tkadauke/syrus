@@ -23,12 +23,12 @@ import { FilterBar } from "../components/FilterBar"
 import { NoticeToast } from "../components/NoticeToast"
 import { Markdown } from "../lib/Markdown"
 
-const kindLabels: Record<string, string> = {
-  user_pref: "User pref",
-  project_fact: "Project fact",
-  feedback: "Feedback",
-  reference: "Reference",
-  decision: "Decision"
+const kindKeys: Record<string, string> = {
+  user_pref: "memories.kind_user_pref",
+  project_fact: "memories.kind_project_fact",
+  feedback: "memories.kind_feedback",
+  reference: "memories.kind_reference",
+  decision: "memories.kind_decision"
 }
 
 const kindClasses: Record<string, string> = {
@@ -132,21 +132,21 @@ function MemoryRowView({ memory, payload, showOwner, onNotice }: { memory: Memor
     mutationFn: () => memory.published ? unpublishMemory(memory.paths.app_publish_path) : publishMemory(memory.paths.app_publish_path),
     onSuccess: (payload) => {
       queryClient.invalidateQueries({ queryKey: ["memories"] })
-      onNotice(payload.message || (memory.published ? "Memory unpublished." : "Memory published."))
+      onNotice(payload.message || (memory.published ? t('memories.unpublished_notice') : t('memories.published_notice')))
     }
   })
   const destroy = useMutation({
     mutationFn: () => deleteMemory(memory.paths.app_memory_path),
     onSuccess: (payload) => {
       queryClient.invalidateQueries({ queryKey: ["memories"] })
-      onNotice(payload.message || "Memory deleted.")
+      onNotice(payload.message || t('memories.deleted'))
     }
   })
 
   return (
     <tr className="align-top">
       <td className="px-4 py-3"><KindBadge kind={memory.kind} /></td>
-      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{memory.scope === "global" ? "Global" : memory.repository_name || `Repository #${memory.scope_id}`}</td>
+      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{memory.scope === "global" ? t('memories.scope_global') : memory.repository_name || `${t('memories.scope_repository')} #${memory.scope_id}`}</td>
       {showOwner ? <td className="px-4 py-3 text-gray-700 dark:text-gray-300">{memory.owner.name}</td> : null}
       <td className="max-w-2xl px-4 py-3 text-gray-800 dark:text-gray-200">
         <Markdown className="chat-prose line-clamp-2 text-sm text-gray-800 break-words dark:text-gray-200" text={memory.content} />
@@ -155,7 +155,7 @@ function MemoryRowView({ memory, payload, showOwner, onNotice }: { memory: Memor
         </button>
       </td>
       <td className="px-4 py-3">
-        <span className={memory.published ? "text-green-700 dark:text-green-300" : "text-gray-500 dark:text-gray-400"}>{memory.published ? "Published" : "Unpublished"}</span>
+        <span className={memory.published ? "text-green-700 dark:text-green-300" : "text-gray-500 dark:text-gray-400"}>{memory.published ? t('memories.published_label') : t('memories.unpublished_label')}</span>
       </td>
       <td className="px-4 py-3 text-gray-600 dark:text-gray-400"><RelativeTimestamp value={memory.created_at} /></td>
       <td className="px-4 py-3">
@@ -167,7 +167,7 @@ function MemoryRowView({ memory, payload, showOwner, onNotice }: { memory: Memor
           ) : null}
           {memory.permissions.can_publish ? (
             <button className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800" disabled={publish.isPending} onClick={() => publish.mutate()} type="button">
-              {memory.published ? "Unpublish" : "Publish"}
+              {memory.published ? t('memories.unpublish') : t('memories.publish')}
             </button>
           ) : null}
           {memory.permissions.can_manage ? (
@@ -175,14 +175,14 @@ function MemoryRowView({ memory, payload, showOwner, onNotice }: { memory: Memor
               className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950"
               disabled={destroy.isPending}
               onClick={() => {
-                if (window.confirm("Delete this memory?")) {
+                if (window.confirm(t('memories.confirm_delete'))) {
                   onNotice(null)
                   destroy.mutate()
                 }
               }}
               type="button"
             >
-              {destroy.isPending ? "Deleting..." : "Delete"}
+              {destroy.isPending ? t('memories.deleting') : t('memories.delete')}
             </button>
           ) : null}
         </div>
@@ -240,7 +240,7 @@ function MemoryModal({ memory, mode, payload, onClose, onNotice }: { memory?: Me
   const [scope, setScope] = useState<MemoryScope>(memory?.scope || "global")
   const [scopeId, setScopeId] = useState(memory?.scope_id ? String(memory.scope_id) : "")
   const [content, setContent] = useState(memory?.content || "")
-  const title = mode === "create" ? "Create memory" : "Edit memory"
+  const title = mode === "create" ? t('memories.title_create') : t('memories.title_edit')
   const create = useMutation({
     mutationFn: () => createMemory({
       kind,
@@ -250,7 +250,7 @@ function MemoryModal({ memory, mode, payload, onClose, onNotice }: { memory?: Me
     }),
     onSuccess: (nextPayload) => {
       queryClient.invalidateQueries({ queryKey: ["memories"] })
-      onNotice(nextPayload.message || "Memory created.")
+      onNotice(nextPayload.message || t('memories.created'))
       onClose()
     }
   })
@@ -263,7 +263,7 @@ function MemoryModal({ memory, mode, payload, onClose, onNotice }: { memory?: Me
     }),
     onSuccess: (nextPayload) => {
       queryClient.invalidateQueries({ queryKey: ["memories"] })
-      onNotice(nextPayload.message || "Memory updated.")
+      onNotice(nextPayload.message || t('memories.updated'))
       onClose()
     }
   })
@@ -317,13 +317,13 @@ function MemoryModal({ memory, mode, payload, onClose, onNotice }: { memory?: Me
             <label className={labelClass()} htmlFor="memory-kind">
               {t('memories.modal_kind')}
               <select id="memory-kind" className={fieldClass()} onChange={(event) => setKind(event.target.value as MemoryKind)} value={kind}>
-                {payload.kinds.map((option) => <option key={option} value={option}>{kindLabel(option)}</option>)}
+                {payload.kinds.map((option) => <option key={option} value={option}>{kindLabel(option, t)}</option>)}
               </select>
             </label>
             <label className={labelClass()} htmlFor="memory-scope">
               {t('memories.modal_scope')}
               <select id="memory-scope" className={fieldClass()} onChange={(event) => setScope(event.target.value as MemoryScope)} value={scope}>
-                {payload.scopes.map((option) => <option key={option} value={option}>{option === "global" ? "Global" : "Repository"}</option>)}
+                {payload.scopes.map((option) => <option key={option} value={option}>{option === "global" ? t('memories.scope_global') : t('memories.scope_repository')}</option>)}
               </select>
             </label>
           </div>
@@ -364,7 +364,7 @@ function MemoryModal({ memory, mode, payload, onClose, onNotice }: { memory?: Me
               {t('memories.cancel')}
             </button>
             <button className="rounded bg-blue-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300" disabled={pending} type="submit">
-              {pending ? "Saving..." : "Save"}
+              {pending ? t('memories.saving') : t('memories.save')}
             </button>
           </div>
         </form>
@@ -405,11 +405,12 @@ function MemoryPagination({ pagination }: { pagination: MemoriesPayload["paginat
 
 function KindBadge({ kind }: { kind: string }) {
   const { t } = useT("settings")
-  return <span className={`inline-flex whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium ring-1 ${kindClasses[kind] || kindClasses.reference}`}>{kindLabel(kind)}</span>
+  return <span className={`inline-flex whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium ring-1 ${kindClasses[kind] || kindClasses.reference}`}>{kindLabel(kind, t)}</span>
 }
 
-function kindLabel(kind: string) {
-  return kindLabels[kind] || kind
+function kindLabel(kind: string, t: (key: string) => string) {
+  const key = kindKeys[kind]
+  return key ? t(key) : kind
 }
 
 function labelClass() {

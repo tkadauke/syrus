@@ -69,14 +69,14 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
       queryClient.setQueryData(queryKey, updated)
       setFiles([])
       setGoogleDocUrl("")
-      onNotice(updated.message || "Document added.")
+      onNotice(updated.message || t('personal_documents.added'))
     }
   })
   const destroy = useMutation({
     mutationFn: (document: PersonalDocument) => deleteCredentialDocument(document.id),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
-      onNotice(updated.message || "Document removed.")
+      onNotice(updated.message || t('personal_documents.removed'))
     }
   })
 
@@ -112,7 +112,7 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
               className="text-xs font-medium text-red-600 dark:text-red-300 hover:text-red-700 dark:hover:text-red-300 disabled:text-red-300 dark:disabled:text-red-500"
               disabled={destroy.isPending}
               onClick={() => {
-                if (window.confirm("Delete this document?")) destroy.mutate(document)
+                if (window.confirm(t('personal_documents.confirm_delete'))) destroy.mutate(document)
               }}
               type="button"
             >
@@ -125,7 +125,7 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
       <form className="mt-4 space-y-3" onSubmit={submit}>
         {upload.isError ? <PanelMessage tone="error">{errorMessage(upload.error, "Unable to add document.")}</PanelMessage> : null}
         {destroy.isError ? <PanelMessage tone="error">{errorMessage(destroy.error, "Unable to delete document.")}</PanelMessage> : null}
-        <Field label="Upload files">
+        <Field label={t('personal_documents.upload_files')}>
           <input
             className="block w-full text-sm text-gray-700 dark:text-gray-300"
             multiple
@@ -133,7 +133,7 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
             type="file"
           />
         </Field>
-        <Field label="Google Doc URL">
+        <Field label={t('personal_documents.google_doc_url')}>
           <input className={inputClass()} onChange={(event) => setGoogleDocUrl(event.target.value)} placeholder="https://docs.google.com/document/d/..." type="url" value={googleDocUrl} />
         </Field>
         <button className="rounded bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:bg-gray-400" disabled={upload.isPending} type="submit">

@@ -63,7 +63,7 @@ function CreateTagForm({ palette, onNotice }: { palette: TagPaletteColor[]; onNo
       queryClient.setQueryData(queryKey, payload)
       setName("")
       setColor("gray")
-      onNotice(payload.message || "Tag created.")
+      onNotice(payload.message || t('tags.created'))
     }
   })
 
@@ -106,7 +106,7 @@ function CreateTagForm({ palette, onNotice }: { palette: TagPaletteColor[]; onNo
           disabled={create.isPending}
           type="submit"
         >
-          {create.isPending ? "Creating..." : "Create"}
+          {create.isPending ? t('tags.creating') : t('tags.create_btn')}
         </button>
       </form>
       {create.isError ? <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(create.error, "Unable to create tag.")}</p> : null}
@@ -148,14 +148,14 @@ function TagTableRow({ tag, palette, onNotice }: { tag: TagRow; palette: TagPale
     mutationFn: () => updateTag(tag.id, { name, color }),
     onSuccess: (payload) => {
       queryClient.setQueryData(queryKey, payload)
-      onNotice(payload.message || "Tag updated.")
+      onNotice(payload.message || t('tags.tag_updated'))
     }
   })
   const destroy = useMutation({
     mutationFn: () => deleteTag(tag.id),
     onSuccess: (payload) => {
       queryClient.setQueryData(queryKey, payload)
-      onNotice(payload.message || "Tag deleted.")
+      onNotice(payload.message || t('tags.deleted'))
     }
   })
 
@@ -172,7 +172,7 @@ function TagTableRow({ tag, palette, onNotice }: { tag: TagRow; palette: TagPale
       <td className="px-4 py-3">
         <form className="flex flex-wrap items-center gap-2" onSubmit={submit}>
           <input
-            aria-label={`Name for ${tag.name}`}
+            aria-label={t('tags.name_for', { name: tag.name })}
             className="w-48 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300"
             onChange={(event) => setName(event.target.value)}
             required
@@ -180,7 +180,7 @@ function TagTableRow({ tag, palette, onNotice }: { tag: TagRow; palette: TagPale
             value={name}
           />
           <select
-            aria-label={`Color for ${tag.name}`}
+            aria-label={t('tags.color_for', { name: tag.name })}
             className="rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm text-gray-700 dark:text-gray-300"
             onChange={(event) => setColor(event.target.value)}
             value={color}
@@ -194,7 +194,7 @@ function TagTableRow({ tag, palette, onNotice }: { tag: TagRow; palette: TagPale
             disabled={update.isPending}
             type="submit"
           >
-            {update.isPending ? "Saving..." : "Save"}
+            {update.isPending ? t('tags.saving') : t('tags.save')}
           </button>
         </form>
         {update.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(update.error, "Unable to update tag.")}</p> : null}
@@ -204,14 +204,14 @@ function TagTableRow({ tag, palette, onNotice }: { tag: TagRow; palette: TagPale
           className="text-sm text-red-600 dark:text-red-300 underline hover:no-underline disabled:cursor-not-allowed disabled:text-red-300 dark:disabled:text-red-500"
           disabled={destroy.isPending}
           onClick={() => {
-            if (window.confirm(`Delete ${tag.name} from all jobs?`)) {
+            if (window.confirm(t('tags.confirm_delete', { name: tag.name }))) {
               onNotice(null)
               destroy.mutate()
             }
           }}
           type="button"
         >
-          {destroy.isPending ? "Deleting..." : "Delete"}
+          {destroy.isPending ? t('tags.deleting') : t('tags.delete')}
         </button>
         {destroy.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(destroy.error, "Unable to delete tag.")}</p> : null}
       </td>
