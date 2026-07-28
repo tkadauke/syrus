@@ -59,6 +59,25 @@ RSpec.describe "API: /api/v1/app/bug_reports", type: :request do
     expect(job.job_attachments.last.filename).to eq("capture.png")
   end
 
+  it "allows a user who does not own the bug-report repository to file a report" do
+    owner_user = Factories.user
+    Factories.repository(user: owner_user, owner: "operator", name: "syrus")
+    non_owner = Factories.user
+    sign_in_as(non_owner)
+
+    expect {
+      post "/api/v1/app/bug_reports", params: {
+        title: "Bug from non-owner",
+        description: "Filed by someone else."
+      }
+    }.to change(Job, :count).by(1)
+      .and change(Workflow, :count).by(1)
+      .and change(Run, :count).by(1)
+
+    expect(response).to have_http_status(:created)
+    expect(Job.last).to have_attributes(user: non_owner, kind: "direct", issue_title: "Bug from non-owner")
+  end
+
   it "returns structured validation errors" do
     Factories.repository(user: user, owner: "acme", name: "widgets")
     sign_in_as(user)
