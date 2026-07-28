@@ -1,4 +1,5 @@
 import { EpicProgressBar, EpicStuckBadge, ExternalMetadataLink, NeutralStatePill, OwnerBadge, PendingJobTitle, RepositorySlugLink, WorkflowBadges, workflowLabel } from "./components"
+import { PrHoverCard } from "../../components/PrHoverCard"
 import { dashboardEmptyState, subjectLabel, withRoutePrefix } from "./helpers"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import type { DragEvent } from "react"
@@ -200,7 +201,11 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
           <WorkflowBadges state={item.summary_state} triggerAriaPrefix="Active workflow trigger" triggerKind={item.active_workflow_trigger_kind} />
           <RepositorySlugLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-blue-700 hover:underline dark:bg-gray-800 dark:text-gray-300 dark:hover:text-blue-300" prefix={prefix} repository={item.repository} />
           <OwnerBadge badge={item.owner_badge} />
-          {item.pr_number ? <ExternalMetadataLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-blue-700 hover:underline dark:bg-gray-800 dark:text-gray-300 dark:hover:text-blue-300" href={item.pr_url}>PR #{item.pr_number}</ExternalMetadataLink> : null}
+          {item.pr_number ? (
+            <PrHoverCard jobId={item.id} prNumber={item.pr_number} prUrl={item.pr_url ?? ""}>
+              <ExternalMetadataLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-blue-700 hover:underline dark:bg-gray-800 dark:text-gray-300 dark:hover:text-blue-300" href={item.pr_url}>PR #{item.pr_number}</ExternalMetadataLink>
+            </PrHoverCard>
+          ) : null}
         </div>
       </article>
     )

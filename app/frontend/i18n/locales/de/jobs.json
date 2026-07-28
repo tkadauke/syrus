@@ -34,6 +34,7 @@
   "retry_failed_step": "Fehlgeschlagenen Schritt erneut versuchen",
   "push_commits": "Commits pushen",
   "preview_see_more": "Mehr anzeigen",
+  "preview_see_job": "Aufgabe anzeigen",
   "preview_generating_title": "Titel wird generiert…",
   "confirm_start_over": "Mit einer neuen Aufgabe neu beginnen und diesen Branch aufgeben?",
   "confirm_unapprove": "Diese Aufgabe zurück auf implementiert setzen?",

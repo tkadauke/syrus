@@ -10,6 +10,7 @@ import { Link } from "react-router-dom"
 import { useT } from "../../hooks/useT"
 import { CopyableSlug } from "../../components/CopyableSlug"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
+import { PrHoverCard } from "../../components/PrHoverCard"
 import { NoticeToast } from "../../components/NoticeToast"
 import { StatusPill, TonePill } from "../../components/StatusPill"
 import { bulkDashboardJobs, type DashboardBulkJobAction, type DashboardJobItem, type DashboardLandingQueueEntry } from "../../api/dashboard"
@@ -315,7 +316,11 @@ function LandingQueueBlockerCell({ job, column, attribution, prefix }: { job: La
         <Link className="font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(job.job_path, prefix)}>{job.title}</Link>
         <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
           <span>JOB-{job.id}</span>
-          {job.pr_number && job.pr_path ? <ExternalMetadataLink href={job.pr_path}>PR #{job.pr_number}</ExternalMetadataLink> : null}
+          {job.pr_number && job.pr_path ? (
+              <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_path}>
+                <ExternalMetadataLink href={job.pr_path}>PR #{job.pr_number}</ExternalMetadataLink>
+              </PrHoverCard>
+            ) : null}
           {attribution ? <span className="rounded border border-gray-200 px-1.5 py-0.5 text-[11px] text-gray-500 dark:border-gray-700 dark:text-gray-400">{attribution}</span> : null}
         </div>
       </td>
@@ -449,7 +454,11 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
         </div>
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <JobSlugMetadata job={job} prefix={prefix} />
-          {job.pr_number ? <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink> : null}
+          {job.pr_number ? (
+              <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_url ?? ""}>
+                <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink>
+              </PrHoverCard>
+            ) : null}
           {job.source_chat ? <JobSourceChatLink job={job} prefix={prefix} /> : null}
           {job.claimed_by_user && !job.claimed_by_current_user ? <DashboardOwnerLabel job={job} prefix={prefix} quiet /> : null}
           <span>{approvalLabel}</span>
@@ -481,7 +490,11 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
         </div>
         <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <JobSlugMetadata job={job} prefix={prefix} />
-          {job.pr_number ? <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink> : null}
+          {job.pr_number ? (
+              <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_url ?? ""}>
+                <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink>
+              </PrHoverCard>
+            ) : null}
           {job.source_chat ? <JobSourceChatLink job={job} prefix={prefix} /> : null}
           {job.owner_badge ? <OwnerBadge badge={job.owner_badge} /> : null}
           {job.tags.map((tag) => <span className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800 dark:text-gray-300" key={tag.id}>{tag.name}</span>)}
