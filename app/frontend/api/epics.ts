@@ -96,6 +96,21 @@ export type EpicStateTransition = {
   confirm: string | null
 }
 
+export type EpicGraphNode = {
+  id: string
+  kind: "epic" | "job"
+  label: string
+  state: string
+  epic_id: number | null
+  url: string
+  is_focal: boolean
+}
+
+export type EpicGraphEdge = {
+  from_id: string
+  to_id: string
+}
+
 export type EpicGraph = {
   empty: boolean
   definition: string
@@ -103,6 +118,8 @@ export type EpicGraph = {
   epic_dependency_count: number
   job_blocker_count: number
   initially_open: boolean
+  nodes: EpicGraphNode[]
+  edges: EpicGraphEdge[]
 }
 
 export type EpicDependencyRecord = {

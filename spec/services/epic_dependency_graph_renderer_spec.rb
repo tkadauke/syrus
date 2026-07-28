@@ -26,6 +26,11 @@ RSpec.describe EpicDependencyGraphRenderer do
     expect(result.epic_dependency_count).to eq(0)
     expect(result.job_blocker_count).to eq(0)
     expect(result.definition).to include("epic_#{epic.id}[\"#{epic.slug} Forum restoration\"]")
+    expect(result.nodes).to contain_exactly(
+      hash_including(id: "epic_#{epic.id}", kind: "epic", label: "#{epic.slug} Forum restoration",
+                     state: epic.state, epic_id: epic.id, url: "/epics/#{epic.slug}", is_focal: true)
+    )
+    expect(result.edges).to be_empty
   end
 
   it "renders an Epic dependency touching the current Epic" do
@@ -41,6 +46,13 @@ RSpec.describe EpicDependencyGraphRenderer do
     expect(result.definition).to include("epic_#{epic.id} --> epic_#{blocker.id}")
     expect(result.definition).to include("class epic_#{epic.id} currentEpic")
     expect(result.definition).to include("class epic_#{blocker.id} otherEpic")
+    expect(result.nodes).to include(
+      hash_including(id: "epic_#{epic.id}", kind: "epic", is_focal: true, epic_id: epic.id),
+      hash_including(id: "epic_#{blocker.id}", kind: "epic", is_focal: false, epic_id: blocker.id)
+    )
+    expect(result.edges).to contain_exactly(
+      { from_id: "epic_#{epic.id}", to_id: "epic_#{blocker.id}" }
+    )
   end
 
   it "renders an external blocker Job in another Epic" do
@@ -59,6 +71,13 @@ RSpec.describe EpicDependencyGraphRenderer do
     expect(result.definition).to include("epic_#{epic.id} --> job_#{blocker.id}")
     expect(result.definition).to include("job_#{blocker.id}[\"#{other_epic.slug} / #3 Deliver marble\"]")
     expect(result.definition).to include("class job_#{blocker.id} epicJobBlocker")
+    expect(result.nodes).to include(
+      hash_including(id: "job_#{blocker.id}", kind: "job", label: "#{other_epic.slug} / #3 Deliver marble",
+                     state: blocker.state, epic_id: other_epic.id, url: "/jobs/#{blocker.slug}", is_focal: false)
+    )
+    expect(result.edges).to contain_exactly(
+      { from_id: "epic_#{epic.id}", to_id: "job_#{blocker.id}" }
+    )
   end
 
   it "renders an Epic-less blocker Job with dashed styling" do
@@ -82,6 +101,12 @@ RSpec.describe EpicDependencyGraphRenderer do
     expect(result.definition).to include("class job_#{blocker.id} epiclessJobBlocker")
     expect(result.definition).to include("classDef epiclessJobBlocker")
     expect(result.definition).to include("stroke-dasharray:5 4")
+    expect(result.nodes).to include(
+      hash_including(id: "job_#{blocker.id}", kind: "job", epic_id: nil, is_focal: false)
+    )
+    expect(result.edges).to contain_exactly(
+      { from_id: "epic_#{epic.id}", to_id: "job_#{blocker.id}" }
+    )
   end
 
   it "combines Epic dependencies and external blocker Jobs without duplicates" do
@@ -114,6 +139,19 @@ RSpec.describe EpicDependencyGraphRenderer do
     expect(result.definition).to include("epic_#{epic.id} --> epic_#{other_epic.id}")
     expect(result.definition).to include("epic_#{dependent_epic.id} --> epic_#{epic.id}")
     expect(result.definition).to include("epic_#{epic.id} --> job_#{epicless.id}")
+    expect(result.nodes.size).to eq(5)
+    expect(result.nodes.map { |n| n[:id] }).to contain_exactly(
+      "epic_#{epic.id}", "epic_#{other_epic.id}", "epic_#{dependent_epic.id}",
+      "job_#{blocker.id}", "job_#{epicless.id}"
+    )
+    expect(result.nodes.select { |n| n[:is_focal] }.map { |n| n[:id] }).to eq([ "epic_#{epic.id}" ])
+    expect(result.edges.size).to eq(4)
+    expect(result.edges).to include(
+      { from_id: "epic_#{epic.id}", to_id: "epic_#{other_epic.id}" },
+      { from_id: "epic_#{dependent_epic.id}", to_id: "epic_#{epic.id}" },
+      { from_id: "epic_#{epic.id}", to_id: "job_#{blocker.id}" },
+      { from_id: "epic_#{epic.id}", to_id: "job_#{epicless.id}" }
+    )
   end
 
   it "does not render child Jobs or internal Job dependencies for the current Epic" do

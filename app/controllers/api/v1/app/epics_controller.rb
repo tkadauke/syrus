@@ -342,7 +342,9 @@ module Api
             node_count: graph.node_count,
             epic_dependency_count: graph.epic_dependency_count,
             job_blocker_count: graph.job_blocker_count,
-            initially_open: graph.node_count <= 10
+            initially_open: graph.node_count <= 10,
+            nodes: graph.nodes,
+            edges: graph.edges
           }
         end
 

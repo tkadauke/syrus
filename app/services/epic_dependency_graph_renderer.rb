@@ -4,6 +4,8 @@ class EpicDependencyGraphRenderer
     :node_count,
     :epic_dependency_count,
     :job_blocker_count,
+    :nodes,
+    :edges,
     keyword_init: true
   ) do
     def external_dependencies?
@@ -45,7 +47,9 @@ class EpicDependencyGraphRenderer
       definition: lines.join("\n"),
       node_count: nodes.size,
       epic_dependency_count: epic_dependencies.size,
-      job_blocker_count: external_blocker_jobs.size
+      job_blocker_count: external_blocker_jobs.size,
+      nodes: nodes.values.map { |n| n.slice(:id, :kind, :label, :state, :epic_id, :url, :is_focal) },
+      edges: edges.map { |e| { from_id: e.from, to_id: e.to } }
     )
   end
 
@@ -157,7 +161,12 @@ class EpicDependencyGraphRenderer
     nodes[epic_node_id(epic_record)] = {
       id: epic_node_id(epic_record),
       label: "#{epic_record.slug} #{epic_record.title}",
-      class_name: class_name
+      class_name: class_name,
+      kind: "epic",
+      state: epic_record.state,
+      epic_id: epic_record.id,
+      url: "/epics/#{epic_record.slug}",
+      is_focal: epic_record.id == epic.id
     }
   end
 
@@ -165,7 +174,12 @@ class EpicDependencyGraphRenderer
     nodes[job_node_id(job)] = {
       id: job_node_id(job),
       label: job_label(job),
-      class_name: class_name
+      class_name: class_name,
+      kind: "job",
+      state: job.state,
+      epic_id: job.epic_id,
+      url: "/jobs/#{job.slug}",
+      is_focal: false
     }
   end
 
