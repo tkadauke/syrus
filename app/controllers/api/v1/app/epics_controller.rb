@@ -223,6 +223,7 @@ module Api
           {
             message: message,
             merge_train_branch: active_train&.integration_branch,
+            origin_chat: epic_origin_chat_json(epic),
             epic: detail_epic_json(epic, jobs: jobs),
             summary: {
               done_jobs_count: done_jobs_count(jobs),
@@ -529,6 +530,19 @@ module Api
           return "preempted" if job.closure_reason&.start_with?("external_pr_")
 
           job.state
+        end
+
+        def epic_origin_chat_json(epic)
+          proposal = ChatProposal.where(epic_id: epic.id).order(:created_at, :id).first
+          return unless proposal
+
+          message = ChatMessage.where(proposal_id: proposal.id).order(:id).first
+          return unless message
+
+          {
+            chat_session_id: proposal.chat_session_id,
+            message_id: message.id
+          }
         end
 
         def epic_params

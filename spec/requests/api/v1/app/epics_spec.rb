@@ -1099,6 +1099,36 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     expect(parse_body["merge_train_branch"]).to be_nil
   end
 
+  it "includes origin_chat in the detail payload when the Epic has a chat proposal with a message" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, title: "Chat-originated Epic")
+    chat_session = ChatSession.create!(user: user)
+    proposal = ChatProposal.create!(
+      chat_session: chat_session, slug: "chat-originated-epic", kind: "epic",
+      title: "Chat-originated Epic", body: "From chat.", state: "confirmed",
+      epic: epic
+    )
+    message = ChatMessage.create!(chat_session: chat_session, proposal: proposal, role: "assistant", content: { "text" => "Proposal created." })
+
+    get "/api/v1/app/epics/#{epic.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["origin_chat"]).to include(
+      "chat_session_id" => chat_session.id,
+      "message_id" => message.id
+    )
+  end
+
+  it "returns null for origin_chat when the Epic has no chat proposal" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, title: "Direct Epic")
+
+    get "/api/v1/app/epics/#{epic.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["origin_chat"]).to be_nil
+  end
+
   it "resolves an epic by its human-readable slug" do
     sign_in_as(user)
     epic = Factories.epic(user: user, repository: repository, title: "Raise the aqueduct walls")

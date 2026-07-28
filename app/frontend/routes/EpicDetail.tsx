@@ -34,6 +34,7 @@ import {
 import { Markdown } from "../lib/Markdown"
 import { CopyableSlug } from "../components/CopyableSlug"
 import { errorMessage } from "../lib/errorMessage"
+import { ChatBubbleIcon } from "./jobDetail/JobHeader"
 
 let mermaidInitialized = false
 let mermaidInitializedTheme: "base" | "dark" | null = null
@@ -125,6 +126,12 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
           <span> · {t("jobs_count", { count: payload.epic.jobs_count })}</span>
           <span> · {epicOwnerLabel(payload.epic, t)}</span>
           <span> · {t("updated_relative", { time: formatRelativeDate(new Date(payload.epic.updated_at)) })}</span>
+          {payload.origin_chat ? (
+            <span> · <Link className="inline-flex items-center gap-1 font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(`/chats/${payload.origin_chat.chat_session_id}#message-${payload.origin_chat.message_id}`, prefix)}>
+              <ChatBubbleIcon />
+              <span>{t("view_in_chat")}</span>
+            </Link></span>
+          ) : null}
         </p>
 
         {(payload.state_transitions.length > 0 || payload.epic.claimable || !payload.epic.archived) ? (
