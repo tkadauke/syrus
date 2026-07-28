@@ -60,6 +60,19 @@ module Api
           }, status: :created
         end
 
+        def update_priority
+          job = find_job_by_param(:job_id)
+          priority = params[:priority].to_s
+
+          unless Job::PRIORITIES.include?(priority)
+            render_error("invalid_priority", "Invalid priority value.", status: :unprocessable_content)
+            return
+          end
+
+          job.update!(priority: priority)
+          render json: ::App::JobDetailPayload.build(job: job.reload, user: Current.user, params: params)
+        end
+
         def source
           render json: ::App::JobSourcePayload.build(job: find_job, user: Current.user, params: params)
         end
