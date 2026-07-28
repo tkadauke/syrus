@@ -702,6 +702,203 @@ describe("ImageAnnotationModal", () => {
     })
   })
 
+  // --- Zoom bar ---
+
+  it("zoom + button increments zoom and updates the percentage label", async () => {
+    renderModal()
+    await waitForLoaded()
+
+    expect(screen.getByText("100%")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }))
+
+    await waitFor(() => {
+      expect(screen.getByText("125%")).toBeInTheDocument()
+    })
+  })
+
+  it("zoom - button decrements zoom", async () => {
+    renderModal()
+    await waitForLoaded()
+
+    // Zoom in first so we have room to zoom out
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }))
+    await waitFor(() => { expect(screen.getByText("125%")).toBeInTheDocument() })
+
+    fireEvent.click(screen.getByRole("button", { name: "Zoom out" }))
+
+    await waitFor(() => {
+      expect(screen.getByText("100%")).toBeInTheDocument()
+    })
+  })
+
+  it("zoom - button is disabled at minimum zoom", async () => {
+    renderModal()
+    await waitForLoaded()
+
+    // Zoom all the way out
+    const rangeInput = screen.getByRole("slider", { name: "Zoom level" })
+    fireEvent.change(rangeInput, { target: { value: "0.1" } })
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Zoom out" })).toBeDisabled()
+    })
+  })
+
+  it("zoom + button is disabled at maximum zoom", async () => {
+    renderModal()
+    await waitForLoaded()
+
+    const rangeInput = screen.getByRole("slider", { name: "Zoom level" })
+    fireEvent.change(rangeInput, { target: { value: "8" } })
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Zoom in" })).toBeDisabled()
+    })
+  })
+
+  it("zoom slider updates the zoom percentage label", async () => {
+    renderModal()
+    await waitForLoaded()
+
+    const rangeInput = screen.getByRole("slider", { name: "Zoom level" })
+    fireEvent.change(rangeInput, { target: { value: "2" } })
+
+    await waitFor(() => {
+      expect(screen.getByText("200%")).toBeInTheDocument()
+    })
+  })
+
+  it("zoom resets to 100% when dataUrl changes", async () => {
+    const { rerender } = renderModal()
+    await waitForLoaded()
+
+    // Zoom in
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }))
+    await waitFor(() => { expect(screen.getByText("125%")).toBeInTheDocument() })
+
+    // Re-render with a different dataUrl (simulates re-opening a new image)
+    rerender(
+      <ImageAnnotationModal
+        dataUrl="data:image/jpeg;base64,bmV3"
+        name="new.jpg"
+        onClose={vi.fn()}
+        onDone={vi.fn()}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText("100%")).toBeInTheDocument()
+    })
+  })
+
+  // --- Pinch gesture ---
+
+  it("pinch-out (spreading two pointers) increases zoom", async () => {
+    renderModal()
+    await waitForLoaded()
+
+    const canvas = screen.getByLabelText("Annotation canvas")
+
+    // First pointer down at x=30
+    fireEvent.pointerDown(canvas, { clientX: 30, clientY: 40, pointerId: 1 })
+    // Second pointer down at x=70 → initial dist=40, mid=(50,40)
+    fireEvent.pointerDown(canvas, { clientX: 70, clientY: 40, pointerId: 2 })
+
+    // Move fingers apart: x=20 and x=80 → dist=60 → zoom = 1 * 60/40 = 1.5
+    fireEvent.pointerMove(canvas, { clientX: 20, clientY: 40, pointerId: 1 })
+    fireEvent.pointerMove(canvas, { clientX: 80, clientY: 40, pointerId: 2 })
+
+    await waitFor(() => {
+      expect(screen.getByText("150%")).toBeInTheDocument()
+    })
+  })
+
+  it("pinch-in (pinching two pointers) decreases zoom", async () => {
+    renderModal()
+    await waitForLoaded()
+
+    // First zoom in via button so pinch-in has room
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }))
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }))
+    await waitFor(() => { expect(screen.getByText("150%")).toBeInTheDocument() })
+
+    const canvas = screen.getByLabelText("Annotation canvas")
+
+    // Wide pinch start: dist=80
+    fireEvent.pointerDown(canvas, { clientX: 10, clientY: 40, pointerId: 1 })
+    fireEvent.pointerDown(canvas, { clientX: 90, clientY: 40, pointerId: 2 })
+
+    // Pinch to dist=40 → zoom = 1.5 * 40/80 = 0.75
+    fireEvent.pointerMove(canvas, { clientX: 30, clientY: 40, pointerId: 1 })
+    fireEvent.pointerMove(canvas, { clientX: 70, clientY: 40, pointerId: 2 })
+
+    await waitFor(() => {
+      expect(screen.getByText("75%")).toBeInTheDocument()
+    })
+  })
+
+  it("two-pointer pinch does not trigger drawing", async () => {
+    renderModal()
+    await waitForLoaded()
+
+    const canvas = screen.getByLabelText("Annotation canvas")
+    const rectCallsBefore = vi.mocked(contexts[1].rect).mock.calls.length
+
+    fireEvent.pointerDown(canvas, { clientX: 30, clientY: 40, pointerId: 1 })
+    fireEvent.pointerDown(canvas, { clientX: 70, clientY: 40, pointerId: 2 })
+    fireEvent.pointerMove(canvas, { clientX: 20, clientY: 40, pointerId: 1 })
+    fireEvent.pointerMove(canvas, { clientX: 80, clientY: 40, pointerId: 2 })
+    fireEvent.pointerUp(canvas,   { clientX: 20, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas,   { clientX: 80, clientY: 40, pointerId: 2 })
+
+    expect(vi.mocked(contexts[1].rect).mock.calls.length).toBe(rectCallsBefore)
+  })
+
+  // --- Coordinate correction under zoom ---
+
+  it("drawing coordinates are correct under zoom (getBoundingClientRect accounts for scale)", async () => {
+    renderModal()
+    await waitForLoaded()
+
+    // Simulate a zoomed state by overriding the mock: rect.width=200 (zoom=2 of the 100px canvas)
+    vi.spyOn(HTMLCanvasElement.prototype, "getBoundingClientRect").mockReturnValue({
+      bottom: 160, height: 160, left: 0, right: 200, top: 0, width: 200,
+      x: 0, y: 0, toJSON: () => ({})
+    })
+
+    // canvas.width=100, rect.width=200 → scaleX=0.5 → clicking at clientX=60 maps to canvasX=30
+    const canvas = screen.getByLabelText("Annotation canvas")
+    fireEvent.pointerDown(canvas, { clientX: 0,  clientY: 0,  pointerId: 1 })
+    fireEvent.pointerMove(canvas, { clientX: 60, clientY: 40, pointerId: 1 })
+    fireEvent.pointerUp(canvas,   { clientX: 60, clientY: 40, pointerId: 1 })
+
+    await waitFor(() => {
+      expect(contexts[1].rect).toHaveBeenCalledWith(0, 0, 30, 20)
+    })
+  })
+
+  it("drawing coordinates are correct under pan (getBoundingClientRect offset accounts for pan)", async () => {
+    renderModal()
+    await waitForLoaded()
+
+    // Simulate pan={x:10,y:5}: rect.left=10, rect.top=5 (canvas shifted by pan)
+    vi.spyOn(HTMLCanvasElement.prototype, "getBoundingClientRect").mockReturnValue({
+      bottom: 85, height: 80, left: 10, right: 110, top: 5, width: 100,
+      x: 10, y: 5, toJSON: () => ({})
+    })
+
+    const canvas = screen.getByLabelText("Annotation canvas")
+    // Drawing from (10,5) to (60,45): rect offset subtracts: (0,0) to (50,40)
+    fireEvent.pointerDown(canvas, { clientX: 10, clientY: 5,  pointerId: 1 })
+    fireEvent.pointerMove(canvas, { clientX: 60, clientY: 45, pointerId: 1 })
+    fireEvent.pointerUp(canvas,   { clientX: 60, clientY: 45, pointerId: 1 })
+
+    await waitFor(() => {
+      expect(contexts[1].rect).toHaveBeenCalledWith(0, 0, 50, 40)
+    })
+  })
+
   it("Done passes the current shape list back alongside the annotated data URL", async () => {
     const initialShapes: Shape[] = [
       { id: "s1", kind: "rectangle", x: 10, y: 10, w: 40, h: 30, color: "#ef4444" }

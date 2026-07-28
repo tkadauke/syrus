@@ -68,8 +68,14 @@ const SELECTION_PAD   = 4
 const HIT_PAD         = 6
 const SELECTION_COLOR = "#3b82f6"
 
+const ZOOM_MIN  = 0.1
+const ZOOM_MAX  = 8
+const ZOOM_STEP = 0.25
+
 let nextShapeId = 0
 function makeId() { return `s${++nextShapeId}` }
+
+function clampZoom(z: number) { return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z)) }
 
 // --- Geometry helpers ---
 
@@ -318,6 +324,17 @@ export function ImageAnnotationModal({
   // Captured at mount; stable ref avoids adding initialShapes to the image-load effect deps
   const initialShapesRef = useRef<Shape[]>(initialShapes ?? [])
 
+  // Zoom / pan refs (kept in sync with state for use in non-React callbacks)
+  const zoomRef           = useRef(1)
+  const panRef            = useRef<Point>({ x: 0, y: 0 })
+  const isSpaceRef        = useRef(false)
+  const activePointersRef = useRef<Map<number, Point>>(new Map())
+  const pinchRef          = useRef<{
+    startZoom: number; startDist: number
+    startMidClient: Point; startPan: Point; containerOrigin: Point
+  } | null>(null)
+  const isPanDragRef      = useRef<{ startClient: Point; startPan: Point; pointerId: number } | null>(null)
+
   const [tool,              setTool]              = useState<Tool>("rectangle")
   const [color,             setColor]             = useState(COLORS[0].value)
   const [imageSize,         setImageSize]         = useState<{ width: number; height: number } | null>(null)
@@ -327,9 +344,17 @@ export function ImageAnnotationModal({
   const [shapes,            setShapes]            = useState<Shape[]>([])
   const [selectedShapeId,   setSelectedShapeId]   = useState<string | null>(null)
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
+  const [zoom,              setZoom]              = useState(1)
+  const [pan,               setPan]               = useState<Point>({ x: 0, y: 0 })
+  const [isPanning,         setIsPanning]         = useState(false)
+  const [isPanDragging,     setIsPanDragging]     = useState(false)
 
   // Keep shapesRef in sync for use in event handlers without closure staleness
   useEffect(() => { shapesRef.current = shapes }, [shapes])
+
+  // Keep zoom/pan refs in sync with state
+  useEffect(() => { zoomRef.current = zoom }, [zoom])
+  useEffect(() => { panRef.current = pan },   [pan])
 
   const requestClose = useCallback(() => {
     if (shapesRef.current.length > 0) {
@@ -406,6 +431,8 @@ export function ImageAnnotationModal({
       futureRef.current = []
       setShapes(initialShapesRef.current)
       setImageSize({ width, height })
+      setZoom(1)
+      setPan({ x: 0, y: 0 })
       syncHistoryCounts()
     }
     image.src = baseImageUrl
@@ -415,6 +442,14 @@ export function ImageAnnotationModal({
   // Keyboard shortcuts
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      // Space bar: enter pan mode
+      if (event.code === "Space" && !textPlacement) {
+        event.preventDefault()
+        isSpaceRef.current = true
+        setIsPanning(true)
+        return
+      }
+
       if (event.key === "Escape") {
         // Text input handles its own Escape via handleTextKeyDown; guard here prevents double-close.
         if (textPlacement) return
@@ -457,10 +492,27 @@ export function ImageAnnotationModal({
         if (mapped) setTool(mapped)
       }
     }
+
+    const onKeyUp = (event: globalThis.KeyboardEvent) => {
+      if (event.code === "Space") {
+        isSpaceRef.current = false
+        setIsPanning(false)
+        setIsPanDragging(false)
+        isPanDragRef.current = null
+      }
+    }
+
     window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
+    window.addEventListener("keyup", onKeyUp)
+    return () => {
+      window.removeEventListener("keydown", onKeyDown)
+      window.removeEventListener("keyup", onKeyUp)
+    }
   }, [onClose, textPlacement, undo, redo, selectedShapeId, pushUndo, tool, showDiscardConfirm])
 
+  // canvasPoint: converts pointer client coords to canvas pixel coords.
+  // In real browsers, getBoundingClientRect accounts for the CSS transform on the parent wrapper,
+  // so (clientX - rect.left) * (canvas.width / rect.width) gives correct canvas coords at any zoom/pan.
   function canvasPoint(event: ReactPointerEvent<HTMLCanvasElement>): Point {
     const canvas = event.currentTarget
     const rect   = canvas.getBoundingClientRect()
@@ -473,10 +525,48 @@ export function ImageAnnotationModal({
   }
 
   function handlePointerDown(event: ReactPointerEvent<HTMLCanvasElement>) {
+    // Track every pointer that touches the canvas
+    activePointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
+
+    // Second pointer: start pinch gesture
+    if (activePointersRef.current.size === 2) {
+      const [p1, p2] = Array.from(activePointersRef.current.values())
+      const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y)
+      const midClient = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 }
+      // containerOrigin = canvas screen pos minus pan (the "zero pan" anchor)
+      const rect = overlayCanvasRef.current?.getBoundingClientRect()
+      const containerOrigin = {
+        x: rect ? rect.left - panRef.current.x : 0,
+        y: rect ? rect.top  - panRef.current.y : 0
+      }
+      pinchRef.current = {
+        startZoom: zoomRef.current, startDist: dist,
+        startMidClient: midClient, startPan: { ...panRef.current }, containerOrigin
+      }
+      // Cancel any in-progress drawing/pan-drag so only pinch runs
+      interactionRef.current = null
+      isPanDragRef.current   = null
+      setIsPanDragging(false)
+      event.currentTarget.setPointerCapture?.(event.pointerId)
+      return
+    }
+
     if (!imageSize) return
     const canvas  = overlayCanvasRef.current
     const context = canvas?.getContext("2d")
     if (!canvas || !context) return
+
+    // Space+drag: pan the canvas
+    if (isSpaceRef.current) {
+      isPanDragRef.current = {
+        startClient: { x: event.clientX, y: event.clientY },
+        startPan: { ...panRef.current },
+        pointerId: event.pointerId
+      }
+      setIsPanDragging(true)
+      event.currentTarget.setPointerCapture?.(event.pointerId)
+      return
+    }
 
     const point = canvasPoint(event)
 
@@ -538,6 +628,43 @@ export function ImageAnnotationModal({
   }
 
   function handlePointerMove(event: ReactPointerEvent<HTMLCanvasElement>) {
+    // Update tracked pointer position
+    if (activePointersRef.current.has(event.pointerId)) {
+      activePointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
+    }
+
+    // Pinch: two-finger zoom + pan
+    if (pinchRef.current && activePointersRef.current.size >= 2) {
+      const pinch = pinchRef.current
+      const [p1, p2] = Array.from(activePointersRef.current.values())
+      const dist    = Math.hypot(p2.x - p1.x, p2.y - p1.y)
+      const newZoom = clampZoom(pinch.startZoom * (dist / pinch.startDist))
+      const scale   = newZoom / pinch.startZoom
+      // Adjust pan so the midpoint of the pinch stays fixed on screen.
+      // M = midpoint offset from the canvas container origin.
+      const M = {
+        x: pinch.startMidClient.x - pinch.containerOrigin.x,
+        y: pinch.startMidClient.y - pinch.containerOrigin.y
+      }
+      const newPan = {
+        x: M.x - (M.x - pinch.startPan.x) * scale,
+        y: M.y - (M.y - pinch.startPan.y) * scale
+      }
+      setZoom(newZoom)
+      setPan(newPan)
+      return
+    }
+
+    // Space+drag pan
+    if (isPanDragRef.current?.pointerId === event.pointerId) {
+      const { startClient, startPan } = isPanDragRef.current
+      setPan({
+        x: startPan.x + event.clientX - startClient.x,
+        y: startPan.y + event.clientY - startClient.y
+      })
+      return
+    }
+
     const interaction = interactionRef.current
     const canvas  = overlayCanvasRef.current
     const context = canvas?.getContext("2d")
@@ -573,12 +700,29 @@ export function ImageAnnotationModal({
   }
 
   function handlePointerUp(event: ReactPointerEvent<HTMLCanvasElement>) {
+    activePointersRef.current.delete(event.pointerId)
+
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+
+    // Pinch ended (one finger lifted)
+    if (pinchRef.current) {
+      if (activePointersRef.current.size < 2) {
+        pinchRef.current = null
+      }
+      return
+    }
+
+    // Pan drag ended
+    if (isPanDragRef.current?.pointerId === event.pointerId) {
+      isPanDragRef.current = null
+      setIsPanDragging(false)
+      return
+    }
+
     const interaction = interactionRef.current
     if (!interaction) return
-
-    if (event.currentTarget.hasPointerCapture?.(interaction.pointerId)) {
-      event.currentTarget.releasePointerCapture(interaction.pointerId)
-    }
 
     interactionRef.current = null
 
@@ -652,8 +796,14 @@ export function ImageAnnotationModal({
     onDone(imageCanvas.toDataURL("image/png"), shapesRef.current)
   }
 
-  const canvasStyle = imageSize ? { aspectRatio: `${imageSize.width} / ${imageSize.height}` } : undefined
-  const inputStyle  = textPlacement && imageSize ? {
+  function changeZoom(delta: number) {
+    setZoom(z => clampZoom(z + delta))
+  }
+
+  const canvasStyle    = imageSize ? { aspectRatio: `${imageSize.width} / ${imageSize.height}` } : undefined
+  const wrapperTransform = `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`
+  const overlayCursor  = isPanDragging ? "grabbing" : isPanning ? "grab" : undefined
+  const inputStyle     = textPlacement && imageSize ? {
     left: `${(textPlacement.x / imageSize.width)  * 100}%`,
     top:  `${(textPlacement.y / imageSize.height) * 100}%`,
     color
@@ -730,30 +880,74 @@ export function ImageAnnotationModal({
             </button>
           </div>
         </div>
-        <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto">
-          <div className="relative max-h-[calc(100dvh-6rem)] max-w-[calc(100vw-1.5rem)]" style={canvasStyle}>
-            <canvas aria-hidden="true" className="block max-h-[calc(100dvh-6rem)] max-w-full rounded bg-white object-contain shadow-lg" ref={imageCanvasRef} />
-            <canvas
-              aria-label={t("image_annotation.canvas")}
-              className="absolute inset-0 h-full w-full touch-none rounded"
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerUp}
-              ref={overlayCanvasRef}
-            />
-            {textPlacement ? (
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
+          <div className="flex items-center gap-2">
+            <div className="relative max-h-[calc(100dvh-6rem)] max-w-[calc(100vw-4rem)]" style={canvasStyle}>
+              <div
+                className="relative"
+                style={{ transform: wrapperTransform, transformOrigin: "0 0" }}
+              >
+                <canvas aria-hidden="true" className="block max-h-[calc(100dvh-6rem)] max-w-full rounded bg-white object-contain shadow-lg" ref={imageCanvasRef} />
+                <canvas
+                  aria-label={t("image_annotation.canvas")}
+                  className="absolute inset-0 h-full w-full touch-none rounded"
+                  onPointerDown={handlePointerDown}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={handlePointerUp}
+                  onPointerCancel={handlePointerUp}
+                  ref={overlayCanvasRef}
+                  style={overlayCursor ? { cursor: overlayCursor } : undefined}
+                />
+                {textPlacement ? (
+                  <input
+                    aria-label={t("image_annotation.text_input")}
+                    autoFocus
+                    className="absolute min-w-32 -translate-y-1/2 rounded border border-blue-500 bg-white px-2 py-1 text-xl font-bold shadow focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-900"
+                    onChange={(event) => setTextPlacement((current) => current ? { ...current, value: event.target.value } : current)}
+                    onKeyDown={handleTextKeyDown}
+                    placeholder={t("image_annotation.text_placeholder")}
+                    style={inputStyle}
+                    value={textPlacement.value}
+                  />
+                ) : null}
+              </div>
+            </div>
+
+            {/* Zoom bar */}
+            <div className="flex flex-col items-center gap-1 self-stretch justify-center py-2">
+              <button
+                aria-label={t("image_annotation.zoom_in")}
+                className={secondaryButton() + " px-2 py-1 text-base font-bold"}
+                disabled={zoom >= ZOOM_MAX}
+                onClick={() => changeZoom(ZOOM_STEP)}
+                type="button"
+              >
+                +
+              </button>
               <input
-                aria-label={t("image_annotation.text_input")}
-                autoFocus
-                className="absolute min-w-32 -translate-y-1/2 rounded border border-blue-500 bg-white px-2 py-1 text-xl font-bold shadow focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-900"
-                onChange={(event) => setTextPlacement((current) => current ? { ...current, value: event.target.value } : current)}
-                onKeyDown={handleTextKeyDown}
-                placeholder={t("image_annotation.text_placeholder")}
-                style={inputStyle}
-                value={textPlacement.value}
+                aria-label={t("image_annotation.zoom_label")}
+                className="h-24"
+                max={ZOOM_MAX}
+                min={ZOOM_MIN}
+                onChange={(e) => setZoom(clampZoom(Number(e.target.value)))}
+                step={0.05}
+                style={{ writingMode: "vertical-lr", direction: "rtl", appearance: "slider-vertical" } as unknown as React.CSSProperties}
+                type="range"
+                value={zoom}
               />
-            ) : null}
+              <button
+                aria-label={t("image_annotation.zoom_out")}
+                className={secondaryButton() + " px-2 py-1 text-base font-bold"}
+                disabled={zoom <= ZOOM_MIN}
+                onClick={() => changeZoom(-ZOOM_STEP)}
+                type="button"
+              >
+                −
+              </button>
+              <span className="text-xs text-gray-500 dark:text-gray-400" aria-live="polite">
+                {Math.round(zoom * 100)}%
+              </span>
+            </div>
           </div>
         </div>
       </section>
