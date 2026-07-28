@@ -20,7 +20,7 @@ module BugReports
 
     def call(title:, description:, screenshot: nil, attachments: [])
       if (repo = system_repo || user_fork_repo)
-        route_to_creator(repo, title: title, description: description, screenshot: screenshot)
+        route_to_creator(repo, title: title, description: description, screenshot: screenshot, attachments: attachments)
       else
         route_to_github_issue(title: title, description: description, screenshot: screenshot, attachments: attachments)
       end
@@ -46,11 +46,9 @@ module BugReports
       user.repositories.active.find_by(upstream_owner: target_owner, upstream_name: target_name)
     end
 
-    def route_to_creator(repository, title:, description:, screenshot:)
-      # Extra attachments are not forwarded — Creator stores the screenshot as a
-      # job_attachment; inline embedding is only needed on the GitHub-issue path.
+    def route_to_creator(repository, title:, description:, screenshot:, attachments: [])
       result = BugReports::Creator.new(user: user, repository: repository).call(
-        title: title, description: description, screenshot: screenshot
+        title: title, description: description, screenshot: screenshot, attachments: attachments
       )
       if result.success?
         Result.new(job: result.job, mode: :direct_job)

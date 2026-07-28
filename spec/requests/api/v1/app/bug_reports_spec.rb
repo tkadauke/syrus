@@ -56,6 +56,49 @@ RSpec.describe "API: /api/v1/app/bug_reports", type: :request do
       expect(job.job_attachments.last.filename).to eq("capture.png")
     end
 
+    it "attaches additional files alongside the screenshot to the direct Job" do
+      Factories.repository(user: user, owner: "operator", name: "syrus")
+      sign_in_as(user)
+
+      log_file = Rack::Test::UploadedFile.new(StringIO.new("log content"), "text/plain", original_filename: "app.log")
+      pdf_file = Rack::Test::UploadedFile.new(StringIO.new("%PDF-1.4 dummy"), "application/pdf", original_filename: "report.pdf")
+
+      expect {
+        post "/api/v1/app/bug_reports", params: {
+          title: "Multi-file bug",
+          description: "With extra files.",
+          screenshot: upload_png,
+          attachments: [ log_file, pdf_file ]
+        }
+      }.to change(Job, :count).by(1)
+        .and change(Document, :count).by(3)
+
+      job = Job.last
+      expect(response).to have_http_status(:created)
+      expect(job.job_attachments.map(&:filename)).to include("capture.png", "app.log", "report.pdf")
+    end
+
+    it "returns a validation error when more than MAX_ATTACHMENTS_PER_JOB files are sent" do
+      Factories.repository(user: user, owner: "operator", name: "syrus")
+      sign_in_as(user)
+
+      extra_files = (1..Document::MAX_ATTACHMENTS_PER_JOB).map do |i|
+        Rack::Test::UploadedFile.new(StringIO.new("content#{i}"), "text/plain", original_filename: "file#{i}.txt")
+      end
+
+      expect {
+        post "/api/v1/app/bug_reports", params: {
+          title: "Too many files",
+          description: "Exceeds the limit.",
+          screenshot: upload_png,
+          attachments: extra_files
+        }
+      }.not_to change(Job, :count)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    end
+
     it "allows a user who does not own the bug-report repository to file a report" do
       owner_user = Factories.user
       Factories.repository(user: owner_user, owner: "operator", name: "syrus")

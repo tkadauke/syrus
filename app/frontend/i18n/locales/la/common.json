@@ -66,7 +66,13 @@
     "filed": "Nuntium errorum depositum.",
     "view_issue": "Vide apud GitHub",
     "mode_direct_job": "Haec relatio ut munus Syri deponetur.",
-    "mode_github_issue": "Haec relatio ut quaestio GitHub apud {{slug}} deponetur."
+    "mode_github_issue": "Haec relatio ut quaestio GitHub apud {{slug}} deponetur.",
+    "attachments": "Fasciculi additi",
+    "attachments_add": "Adde fasciculos",
+    "attachments_hint": "Ad novem fasciculos additos, 20 MB singuli. Accepti: imagines, PDF, textus, Markdown.",
+    "attachments_remove": "Remove {{filename}}",
+    "attachments_too_large": "{{filename}} limitem 20 MB excedit et non adhibitus est.",
+    "attachments_max_reached": "Ad summum novem fasciculos adicere potes."
   },
   "image_annotation": {
     "annotate": "Annota {{name}}",
