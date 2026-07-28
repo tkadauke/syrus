@@ -285,6 +285,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_29_000719) do
     t.string "chat_provider"
     t.string "coding_checkout_branch"
     t.boolean "coding_checkout_uncommitted", default: false, null: false
+    t.string "coding_relay_address"
+    t.string "coding_relay_token"
     t.datetime "created_at", null: false
     t.decimal "cumulative_cost_usd", precision: 12, scale: 6, default: "0.0", null: false
     t.integer "cumulative_input_tokens", default: 0, null: false
