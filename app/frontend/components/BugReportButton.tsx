@@ -1,7 +1,8 @@
 import { useMutation } from "@tanstack/react-query"
 import type { FormEvent, KeyboardEvent } from "react"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { createBugReport } from "../api/bugReports"
+import { useShakeToReport } from "../hooks/useShakeToReport"
 import { useT } from "../hooks/useT"
 import { CloseIcon } from "./CloseIcon"
 import { NoticeToast } from "./NoticeToast"
@@ -17,7 +18,61 @@ type ScreenshotCaptures = Partial<Record<Exclude<ScreenshotChoice, "none">, Scre
 
 const MAX_FULL_PAGE_SCREENSHOT_PIXELS = 8_000_000
 
-export function BugReportButton({ context, position = "bottom-left" }: { context: string; position?: "bottom-left" | "bottom-right" }) {
+const BUTTON_SIZE = 48 // h-12 = 3rem = 48px
+const BUTTON_MARGIN = 16 // 1rem
+const DRAG_THRESHOLD = 8 // px — below this displacement a pointer interaction is a tap, not a drag
+const STORAGE_KEY = "bug-report-button-position"
+
+type ButtonPos = { left: number; top: number }
+
+function loadPos(): ButtonPos | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as unknown
+    if (
+      typeof parsed === "object" && parsed !== null &&
+      typeof (parsed as ButtonPos).left === "number" &&
+      typeof (parsed as ButtonPos).top === "number"
+    ) {
+      return { left: (parsed as ButtonPos).left, top: (parsed as ButtonPos).top }
+    }
+  } catch { /* ignore */ }
+  return null
+}
+
+function savePos(pos: ButtonPos) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(pos))
+  } catch { /* ignore */ }
+}
+
+function safeAreaBottom(): number {
+  if (typeof document === "undefined") return 0
+  const el = document.createElement("div")
+  el.style.cssText = "padding-bottom:env(safe-area-inset-bottom);pointer-events:none;visibility:hidden;position:fixed"
+  document.body.appendChild(el)
+  const value = parseInt(getComputedStyle(el).paddingBottom) || 0
+  document.body.removeChild(el)
+  return value
+}
+
+function clampPos(pos: ButtonPos): ButtonPos {
+  return {
+    left: Math.max(0, Math.min(pos.left, window.innerWidth - BUTTON_SIZE)),
+    top: Math.max(0, Math.min(pos.top, window.innerHeight - BUTTON_SIZE))
+  }
+}
+
+function defaultPos(hint: "bottom-left" | "bottom-right"): ButtonPos {
+  const safeBottom = safeAreaBottom()
+  const bottomMargin = Math.max(BUTTON_MARGIN, safeBottom + BUTTON_MARGIN)
+  const left = hint === "bottom-left" ? BUTTON_MARGIN : window.innerWidth - BUTTON_SIZE - BUTTON_MARGIN
+  const top = window.innerHeight - BUTTON_SIZE - bottomMargin
+  return clampPos({ left, top })
+}
+
+export function BugReportButton({ context, position = "bottom-right" }: { context: string; position?: "bottom-left" | "bottom-right" }) {
   const { t } = useT("common")
   const [open, setOpen] = useState(false)
   const [capturing, setCapturing] = useState(false)
@@ -28,6 +83,19 @@ export function BugReportButton({ context, position = "bottom-left" }: { context
   const [screenshotChoice, setScreenshotChoice] = useState<ScreenshotChoice>("viewport")
   const [captureError, setCaptureError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [pos, setPos] = useState<ButtonPos>(() => loadPos() ?? defaultPos(position))
+
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const dragRef = useRef<{
+    startX: number
+    startY: number
+    startLeft: number
+    startTop: number
+    moved: boolean
+  } | null>(null)
+  // Set to true by pointer handlers so the subsequent synthetic click event is suppressed.
+  const pointerHandledRef = useRef(false)
+
   const bugReport = useMutation({
     mutationFn: () => createBugReport({ title, description, screenshot: selectedScreenshot(captures, screenshotChoice) }),
     onSuccess: (payload) => {
@@ -42,6 +110,8 @@ export function BugReportButton({ context, position = "bottom-left" }: { context
   })
 
   useEffect(() => () => revokeCaptures(captures), [captures])
+
+  useShakeToReport(() => { if (!capturing && !open) void openDialog() })
 
   async function openDialog() {
     bugReport.reset()
@@ -110,14 +180,80 @@ export function BugReportButton({ context, position = "bottom-left" }: { context
     event.currentTarget.requestSubmit()
   }
 
+  function handlePointerDown(event: React.PointerEvent<HTMLButtonElement>) {
+    if (event.pointerType === "mouse" && event.button !== 0) return
+    event.currentTarget.setPointerCapture(event.pointerId)
+    dragRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      startLeft: pos.left,
+      startTop: pos.top,
+      moved: false
+    }
+  }
+
+  function handlePointerMove(event: React.PointerEvent<HTMLButtonElement>) {
+    const drag = dragRef.current
+    if (!drag) return
+    const dx = event.clientX - drag.startX
+    const dy = event.clientY - drag.startY
+    if (!drag.moved && Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD) return
+    drag.moved = true
+    const newPos = clampPos({ left: drag.startLeft + dx, top: drag.startTop + dy })
+    const button = buttonRef.current
+    if (button) {
+      button.style.left = `${newPos.left}px`
+      button.style.top = `${newPos.top}px`
+    }
+  }
+
+  function handlePointerUp(event: React.PointerEvent<HTMLButtonElement>) {
+    const drag = dragRef.current
+    if (!drag) return
+    dragRef.current = null
+    pointerHandledRef.current = true
+
+    if (!drag.moved) {
+      void openDialog()
+      return
+    }
+
+    const newPos = clampPos({
+      left: drag.startLeft + (event.clientX - drag.startX),
+      top: drag.startTop + (event.clientY - drag.startY)
+    })
+    setPos(newPos)
+    savePos(newPos)
+  }
+
+  function handlePointerCancel() {
+    dragRef.current = null
+  }
+
+  function handleClick() {
+    // Pointer interactions (tap or drag) are handled by pointer event handlers above.
+    // This click handler only fires for keyboard users (Space / Enter on the button).
+    if (pointerHandledRef.current) {
+      pointerHandledRef.current = false
+      return
+    }
+    void openDialog()
+  }
+
   return (
     <>
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       <button
+        ref={buttonRef}
         aria-label={t("bug_report.title")}
-        className={`fixed bottom-4 ${position === "bottom-right" ? "right-4" : "left-4"} z-40 hidden sm:flex h-12 w-12 items-center justify-center rounded-full bg-rose-600 text-xl font-semibold text-white shadow-lg shadow-rose-900/20 hover:bg-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 dark:focus:ring-offset-gray-950 disabled:cursor-wait disabled:opacity-60`}
+        className="fixed z-40 flex h-12 w-12 items-center justify-center rounded-full bg-rose-600 text-xl font-semibold text-white shadow-lg shadow-rose-900/20 hover:bg-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 dark:focus:ring-offset-gray-950 disabled:cursor-wait disabled:opacity-60 touch-none select-none cursor-grab active:cursor-grabbing"
         disabled={capturing}
-        onClick={() => void openDialog()}
+        onClick={handleClick}
+        onPointerCancel={handlePointerCancel}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        style={{ left: pos.left, top: pos.top }}
         title={t("bug_report.title")}
         type="button"
       >

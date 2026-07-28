@@ -925,7 +925,7 @@ describe("App", () => {
       expect(within(primaryNav).getByRole("link", { name: "Repositories" })).toHaveAttribute("href", "/app-shell/repositories")
       expect(within(primaryNav).getByRole("link", { name: "Schedules" })).toHaveAttribute("href", "/app-shell/scheduled_tasks")
       expect(within(primaryNav).getByRole("link", { name: "Team" })).toHaveAttribute("href", "/app-shell/profiles")
-      expect(screen.getByRole("button", { name: "Report a bug" })).toHaveClass("bottom-4", "right-4")
+      expect(screen.getByRole("button", { name: "Report a bug" })).toHaveClass("fixed")
 
       fireEvent.click(screen.getByRole("button", { name: "operator@example.com" }))
       expect(screen.getByRole("button", { name: "Switch to dark mode" })).toBeInTheDocument()
