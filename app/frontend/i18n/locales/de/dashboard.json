@@ -106,7 +106,8 @@
     "trigger": "Auslöser",
     "finished": "Abgeschlossen",
     "agent": "Agent",
-    "cleaned_up_at": "Bereinigt am"
+    "cleaned_up_at": "Bereinigt am",
+    "priority": "Priorität"
   },
   "broken_main_banner": "Haupt-Branch ist defekt — Aufgaben in der Warteschlange werden gehalten.",
   "broken_main_banner_not_held": "Haupt-Branch ist defekt.",

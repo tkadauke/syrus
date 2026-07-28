@@ -278,8 +278,8 @@ RSpec.describe User do
       user = User.create!(attrs)
 
       expect {
-        user.update_dashboard_sort!(subject: :jobs, column: "priority", direction: "asc")
-      }.to raise_error(ArgumentError, "Unknown dashboard sort column: priority")
+        user.update_dashboard_sort!(subject: :jobs, column: "bogus_column", direction: "asc")
+      }.to raise_error(ArgumentError, "Unknown dashboard sort column: bogus_column")
     end
 
     it "persists required columns with selected dashboard columns" do
@@ -356,8 +356,8 @@ RSpec.describe User do
         user.update_dashboard_folder_preferences!(subject: :jobs, smart_folder_id: 42, view: "board")
       }.to raise_error(ArgumentError, "Unknown dashboard view: board")
       expect {
-        user.update_dashboard_folder_preferences!(subject: :jobs, smart_folder_id: 42, sort_column: "priority", sort_direction: "asc")
-      }.to raise_error(ArgumentError, "Unknown dashboard sort column: priority")
+        user.update_dashboard_folder_preferences!(subject: :jobs, smart_folder_id: 42, sort_column: "bogus_column", sort_direction: "asc")
+      }.to raise_error(ArgumentError, "Unknown dashboard sort column: bogus_column")
       expect {
         user.update_dashboard_folder_preferences!(subject: :jobs, smart_folder_id: 42, sort_column: "created_at", sort_direction: "sideways")
       }.to raise_error(ArgumentError, "Unknown dashboard sort direction: sideways")

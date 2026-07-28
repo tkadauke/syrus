@@ -62,4 +62,40 @@ RSpec.describe App::DashboardPayload do
       expect(result[:active_smart_folder_id]).to be_nil
     end
   end
+
+  describe "priority sort" do
+    let(:urgent_job) { Factories.job_record(user: user, repository: repo, priority: "urgent") }
+    let(:high_job) { Factories.job_record(user: user, repository: repo, priority: "high") }
+    let(:medium_job) { Factories.job_record(user: user, repository: repo, priority: "medium") }
+    let(:low_job) { Factories.job_record(user: user, repository: repo, priority: "low") }
+
+    before { [ urgent_job, high_job, medium_job, low_job ] }
+
+    it "sorts ascending: urgent first, then high, medium, low" do
+      result = call(subject: "job", sort_column: "priority", sort_direction: "asc")
+      ids = result[:items].map { |j| j[:id] }
+      expect(ids.index(urgent_job.id)).to be < ids.index(high_job.id)
+      expect(ids.index(high_job.id)).to be < ids.index(medium_job.id)
+      expect(ids.index(medium_job.id)).to be < ids.index(low_job.id)
+    end
+
+    it "sorts descending: low first, then medium, high, urgent" do
+      result = call(subject: "job", sort_column: "priority", sort_direction: "desc")
+      ids = result[:items].map { |j| j[:id] }
+      expect(ids.index(low_job.id)).to be < ids.index(medium_job.id)
+      expect(ids.index(medium_job.id)).to be < ids.index(high_job.id)
+      expect(ids.index(high_job.id)).to be < ids.index(urgent_job.id)
+    end
+
+    it "exposes priority as a sortable column in controls" do
+      result = call(subject: "job")
+      expect(result[:controls][:sort_columns]).to include("priority")
+    end
+
+    it "exposes priority as an optional column" do
+      result = call(subject: "job")
+      optional_keys = result[:controls][:columns][:optional].map { |c| c[:key] }
+      expect(optional_keys).to include("priority")
+    end
+  end
 end

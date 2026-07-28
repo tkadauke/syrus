@@ -86,7 +86,7 @@ class User < ApplicationRecord
   DASHBOARD_OPTIONAL_COLUMNS = {
     "epics" => %w[state owner repository updated created_at updated_at done_at archived_at],
     "jobs" => %w[
-      state repository owner latest workflows_count started
+      state repository owner latest workflows_count started priority
       created_at updated_at started_at finished_at approved_at
       dependencies_overridden_at last_feedback_addressed_at
       last_seen_comment_at pr_mergeable_checked_at
@@ -98,7 +98,7 @@ class User < ApplicationRecord
   }.freeze
   DASHBOARD_SORT_COLUMNS = {
     "epic" => %w[title state repository updated_at],
-    "job" => %w[title state repository landing_queue_position created_at started_at],
+    "job" => %w[title state repository landing_queue_position created_at started_at priority],
     "workflow" => %w[title state started_at finished_at]
   }.freeze
   DASHBOARD_SORT_DEFAULTS = {

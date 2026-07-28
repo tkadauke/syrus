@@ -509,8 +509,21 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
   if (column === "owner") return <td className="px-4 py-3"><DashboardOwnerLabel job={job} prefix={prefix} /></td>
   if (column === "latest") return <LatestWorkflowCell job={job} />
   if (column === "workflows_count") return <td className="px-4 py-3 text-gray-700 dark:text-gray-200">{job.workflows_count}</td>
+  if (column === "priority") return <PriorityPillCell priority={job.priority} />
 
   return <TimestampCell value={jobDateValue(job, column)} />
+}
+
+export const PRIORITY_TONE: Record<string, "red" | "amber" | "blue"> = {
+  urgent: "red",
+  high: "amber",
+  low: "blue"
+}
+
+function PriorityPillCell({ priority }: { priority: string }) {
+  const tone = PRIORITY_TONE[priority]
+  if (!tone) return <td className="px-4 py-3" />
+  return <td className="px-4 py-3"><TonePill tone={tone}>{priority}</TonePill></td>
 }
 
 function DashboardOwnerLabel({ job, prefix, quiet = false }: { job: DashboardJobItem; prefix: string; quiet?: boolean }) {

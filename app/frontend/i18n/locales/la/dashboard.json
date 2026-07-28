@@ -106,7 +106,8 @@
     "trigger": "Causa",
     "finished": "Perfectum",
     "agent": "Agens",
-    "cleaned_up_at": "Purgatum"
+    "cleaned_up_at": "Purgatum",
+    "priority": "Prioritas"
   },
   "broken_main_banner": "Ramus principalis fractus est — officia expectantia tenentur.",
   "broken_main_banner_not_held": "Ramus principalis fractus est.",

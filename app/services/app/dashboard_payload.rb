@@ -430,6 +430,11 @@ module App
         scope.reorder(Arel.sql("COALESCE(jobs.approved_at, jobs.updated_at) #{direction.to_s.upcase}"), Job.arel_table[:id].public_send(direction))
       when [ "job", "started_at" ]
         scope.reorder(Job.arel_table[:started_at].public_send(direction), Job.arel_table[:id].public_send(direction))
+      when [ "job", "priority" ]
+        scope.reorder(
+          Arel.sql("CASE jobs.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END #{direction.to_s.upcase}"),
+          Job.arel_table[:id].public_send(direction)
+        )
       when [ "epic", "title" ]
         scope.reorder(Epic.arel_table[:title].public_send(direction), Epic.arel_table[:id].public_send(direction))
       when [ "epic", "state" ]
