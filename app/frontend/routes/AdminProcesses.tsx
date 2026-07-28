@@ -272,13 +272,17 @@ function HostMetrics({ metrics }: { metrics: Record<string, unknown> }) {
 }
 
 function Outcome({ process }: { process: SpawnedProcessPayload }) {
+  const { t } = useT("admin")
   if (process.finished_at) {
-    return <span className="rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 font-medium text-gray-700 dark:text-gray-200">{process.outcome || "finished"}</span>
+    const label = process.outcome
+      ? t(`processes.outcome_${process.outcome}`, { defaultValue: process.outcome })
+      : t("processes.outcome_finished")
+    return <span className="rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 font-medium text-gray-700 dark:text-gray-200">{label}</span>
   }
   if (process.kill_requested_at) {
-    return <span className="rounded bg-amber-100 dark:bg-amber-950/60 px-2 py-0.5 font-medium text-amber-800 dark:text-amber-200">kill requested</span>
+    return <span className="rounded bg-amber-100 dark:bg-amber-950/60 px-2 py-0.5 font-medium text-amber-800 dark:text-amber-200">{t("processes.outcome_kill_requested")}</span>
   }
-  return <span className="rounded bg-blue-100 dark:bg-blue-950/60 px-2 py-0.5 font-medium text-blue-800">running</span>
+  return <span className="rounded bg-blue-100 dark:bg-blue-950/60 px-2 py-0.5 font-medium text-blue-800">{t("processes.outcome_running")}</span>
 }
 
 function ProcessError({ error }: { error: Error }) {
