@@ -81,6 +81,7 @@ module Steps
     def record_plan_source!(plan, grader_fingerprint)
       workflow.set_artifact!("grade_plan_source", plan.source)
       workflow.set_artifact!(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY, grader_fingerprint)
+      workflow.set_artifact!(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY, current_head_sha)
     end
 
     def reusable_success(grader_fingerprint)

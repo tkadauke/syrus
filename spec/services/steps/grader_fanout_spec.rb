@@ -219,6 +219,14 @@ RSpec.describe Steps::GraderFanout do
     expect(chunks).to include("all graders skipped")
   end
 
+  it "persists the HEAD SHA to the workflow artifact" do
+    write_grade_config("bin/rspec")
+
+    handler.call
+
+    expect(workflow.reload.artifact(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY)).to eq("abc123")
+  end
+
   # --- grader-conclusion cache -------------------------------------------
 
   it "skips materializing graders after a successful conclusion for the same commit and plan" do

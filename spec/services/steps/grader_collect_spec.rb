@@ -104,6 +104,61 @@ RSpec.describe Steps::GraderCollect do
     )
   end
 
+  describe "current_head_sha artifact-first lookup" do
+    it "reads HEAD SHA from the workflow artifact when ARTIFACT_HEAD_SHA_KEY is present" do
+      workflow.set_artifact!(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY, "artifact-sha")
+      workflow.set_artifact!(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY, "fp")
+
+      handler.call
+
+      expect(GraderConclusion.where(workflow: workflow, grader_name: "tests").sole.commit_sha).to eq("artifact-sha")
+    end
+
+    it "does not call git rev-parse HEAD when ARTIFACT_HEAD_SHA_KEY is present" do
+      workflow.set_artifact!(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY, "artifact-sha")
+
+      git = instance_double(GitRunner)
+      allow(GitRunner).to receive(:new).and_return(git)
+      expect(git).not_to receive(:run).with("rev-parse", "HEAD", chdir: anything)
+
+      handler.call
+    end
+
+    it "falls back to git rev-parse HEAD when ARTIFACT_HEAD_SHA_KEY is absent" do
+      workflow.set_artifact!(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY, "fp")
+      # ARTIFACT_HEAD_SHA_KEY is not set — before block's git double returns "abc123\n"
+
+      handler.call
+
+      expect(GraderConclusion.where(workflow: workflow, grader_name: "tests").sole.commit_sha).to eq("abc123")
+    end
+  end
+
+  describe "cache-write logging" do
+    it "logs that the grader conclusion was cached when SHA and grader steps are present" do
+      workflow.set_artifact!(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY, "abc123def")
+      workflow.set_artifact!(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY, "grade-fingerprint")
+
+      handler.call
+
+      chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+      expect(chunks).to include("grader conclusion cached for abc123d")
+      expect(chunks).to include("fingerprint: grade-fi")
+    end
+
+    it "logs that the grader conclusion was not cached when SHA is unavailable" do
+      git = instance_double(GitRunner)
+      allow(GitRunner).to receive(:new).and_return(git)
+      allow(git).to receive(:run).and_raise(StandardError, "git gone")
+
+      handler.call
+
+      chunks = run.reload.job_logs.pluck(:chunk).join("\n")
+      expect(chunks).to include("grader conclusion NOT cached")
+      expect(chunks).to include("sha=nil")
+    end
+  end
+
   it "copies timeout metadata into iteration artifacts" do
     workflow.steps.find_by!(kind: "grader").update!(
       state: "failed",
