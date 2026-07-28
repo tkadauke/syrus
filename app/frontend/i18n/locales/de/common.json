@@ -66,7 +66,13 @@
     "filed": "Fehlerbericht eingereicht.",
     "view_issue": "Auf GitHub ansehen",
     "mode_direct_job": "Dieser Bericht wird als Syrus-Aufgabe eingereicht.",
-    "mode_github_issue": "Dieser Bericht wird als GitHub-Issue bei {{slug}} eingereicht."
+    "mode_github_issue": "Dieser Bericht wird als GitHub-Issue bei {{slug}} eingereicht.",
+    "attachments": "Zusätzliche Dateien",
+    "attachments_add": "Dateien hinzufügen",
+    "attachments_hint": "Bis zu 9 zusätzliche Dateien, jeweils max. 20 MB. Akzeptiert: Bilder, PDF, Text, Markdown.",
+    "attachments_remove": "{{filename}} entfernen",
+    "attachments_too_large": "{{filename}} überschreitet das 20-MB-Limit und wurde nicht hinzugefügt.",
+    "attachments_max_reached": "Sie können maximal 9 zusätzliche Dateien anhängen."
   },
   "image_annotation": {
     "annotate": "{{name}} annotieren",

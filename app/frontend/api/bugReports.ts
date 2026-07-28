@@ -4,6 +4,7 @@ export type BugReportInput = {
   title: string
   description: string
   screenshot?: File | null
+  attachments?: File[]
 }
 
 export type BugReportPayload = {
@@ -17,6 +18,9 @@ export function createBugReport(input: BugReportInput) {
   form.set("title", input.title)
   form.set("description", input.description)
   if (input.screenshot) form.set("screenshot", input.screenshot)
+  for (const file of input.attachments ?? []) {
+    form.append("attachments[]", file)
+  }
 
   return postForm<BugReportPayload>("/api/v1/app/bug_reports", form)
 }

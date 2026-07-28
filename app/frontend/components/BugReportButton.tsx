@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query"
-import type { FormEvent, KeyboardEvent, ReactNode } from "react"
+import type { ChangeEvent, FormEvent, KeyboardEvent, ReactNode } from "react"
 import { useEffect, useState } from "react"
 import { createBugReport } from "../api/bugReports"
 import { useT } from "../hooks/useT"
@@ -16,6 +16,13 @@ type ScreenshotCapture = {
 type ScreenshotCaptures = Partial<Record<Exclude<ScreenshotChoice, "none">, ScreenshotCapture>>
 
 const MAX_FULL_PAGE_SCREENSHOT_PIXELS = 8_000_000
+const MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024
+const MAX_EXTRA_ATTACHMENTS = 9
+const ACCEPTED_ATTACHMENT_TYPES = [
+  "text/plain", "text/markdown", "text/x-markdown", "application/pdf",
+  "image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml",
+  ".txt", ".md", ".markdown", ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"
+].join(",")
 
 export function BugReportButton({
   bugReportMode,
@@ -37,9 +44,11 @@ export function BugReportButton({
   const [captures, setCaptures] = useState<ScreenshotCaptures>({})
   const [screenshotChoice, setScreenshotChoice] = useState<ScreenshotChoice>("viewport")
   const [captureError, setCaptureError] = useState<string | null>(null)
+  const [attachments, setAttachments] = useState<File[]>([])
+  const [attachmentError, setAttachmentError] = useState<string | null>(null)
   const [notice, setNotice] = useState<ReactNode>(null)
   const bugReport = useMutation({
-    mutationFn: () => createBugReport({ title, description, screenshot: selectedScreenshot(captures, screenshotChoice) }),
+    mutationFn: () => createBugReport({ title, description, screenshot: selectedScreenshot(captures, screenshotChoice), attachments }),
     onSuccess: (payload) => {
       setOpen(false)
       setTitle("")
@@ -47,6 +56,8 @@ export function BugReportButton({
       setCaptures({})
       setScreenshotChoice("viewport")
       setCaptureError(null)
+      setAttachments([])
+      setAttachmentError(null)
 
       if (payload.issue_url) {
         const issueUrl = payload.issue_url
@@ -73,6 +84,8 @@ export function BugReportButton({
     setCaptures({})
     setScreenshotChoice("viewport")
     setCaptureError(null)
+    setAttachments([])
+    setAttachmentError(null)
     setNotice(null)
     setCapturing(true)
 
@@ -118,7 +131,39 @@ export function BugReportButton({
     bugReport.reset()
     setCaptures({})
     setCaptureError(null)
+    setAttachments([])
+    setAttachmentError(null)
     setOpen(false)
+  }
+
+  function handleAttachmentChange(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? [])
+    event.target.value = ""
+
+    const oversized = files.find((f) => f.size > MAX_ATTACHMENT_SIZE)
+    if (oversized) {
+      setAttachmentError(t("bug_report.attachments_too_large", { filename: oversized.name }))
+      const valid = files.filter((f) => f.size <= MAX_ATTACHMENT_SIZE)
+      if (valid.length > 0) {
+        setAttachments((current) => [...current, ...valid].slice(0, MAX_EXTRA_ATTACHMENTS))
+      }
+      return
+    }
+
+    setAttachmentError(null)
+    setAttachments((current) => {
+      const combined = [...current, ...files]
+      if (combined.length > MAX_EXTRA_ATTACHMENTS) {
+        setAttachmentError(t("bug_report.attachments_max_reached"))
+        return combined.slice(0, MAX_EXTRA_ATTACHMENTS)
+      }
+      return combined
+    })
+  }
+
+  function removeAttachment(index: number) {
+    setAttachments((current) => current.filter((_, i) => i !== index))
+    setAttachmentError(null)
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -223,6 +268,44 @@ export function BugReportButton({
                   />
                 </div>
               </fieldset>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t("bug_report.attachments")}</span>
+                  <label className={`cursor-pointer rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 ${attachments.length >= MAX_EXTRA_ATTACHMENTS ? "opacity-50 cursor-not-allowed" : ""}`}>
+                    {t("bug_report.attachments_add")}
+                    <input
+                      accept={ACCEPTED_ATTACHMENT_TYPES}
+                      className="sr-only"
+                      disabled={attachments.length >= MAX_EXTRA_ATTACHMENTS}
+                      multiple
+                      onChange={handleAttachmentChange}
+                      type="file"
+                    />
+                  </label>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{t("bug_report.attachments_hint")}</p>
+                {attachmentError ? (
+                  <p className="rounded border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">{attachmentError}</p>
+                ) : null}
+                {attachments.length > 0 ? (
+                  <ul className="space-y-1">
+                    {attachments.map((file, index) => (
+                      <li className="flex items-center gap-2 rounded border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300" key={index}>
+                        <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                        <button
+                          aria-label={t("bug_report.attachments_remove", { filename: file.name })}
+                          className="flex-none text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded"
+                          onClick={() => removeAttachment(index)}
+                          type="button"
+                        >
+                          <CloseIcon className="h-4 w-4" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
 
               {bugReport.isError ? (
                 <p className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 px-3 py-2 text-sm text-red-700 dark:text-red-300" role="alert">
