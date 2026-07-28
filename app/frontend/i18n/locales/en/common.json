@@ -89,7 +89,10 @@
     "text_placeholder": "Type, then press Enter",
     "discard_confirm": "Discard all annotations?",
     "discard": "Discard",
-    "keep_editing": "Keep Editing"
+    "keep_editing": "Keep Editing",
+    "zoom_in": "Zoom in",
+    "zoom_out": "Zoom out",
+    "zoom_label": "Zoom level"
   },
   "epic_start": {
     "in_progress": "In progress",

@@ -89,7 +89,10 @@
     "text_placeholder": "Eingeben, dann Enter drücken",
     "discard_confirm": "Alle Anmerkungen verwerfen?",
     "discard": "Verwerfen",
-    "keep_editing": "Weiter bearbeiten"
+    "keep_editing": "Weiter bearbeiten",
+    "zoom_in": "Vergrößern",
+    "zoom_out": "Verkleinern",
+    "zoom_label": "Zoomstufe"
   },
   "epic_start": {
     "in_progress": "In Bearbeitung",
