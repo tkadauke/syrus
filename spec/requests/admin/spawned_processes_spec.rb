@@ -92,7 +92,7 @@ RSpec.describe "Admin spawned processes (API)", type: :request do
       expect(payload["processes"].map { |p| p["id"] }).to eq([ grader.id ])
     end
 
-    it "includes builtin_key on spawned_process smart folders" do
+    it "includes key on spawned_process smart folders" do
       fixture(started_at: 10.minutes.ago, last_chunk_at: 10.minutes.ago)
 
       get "/api/v1/admin/processes", headers: headers
@@ -100,11 +100,11 @@ RSpec.describe "Admin spawned processes (API)", type: :request do
 
       running_folder = payload["smart_folders"].find { |f| f["name"] == "Running" }
       expect(running_folder).to be_present
-      expect(running_folder["builtin_key"]).to eq("running")
+      expect(running_folder["key"]).to eq("running")
 
       stale_folder = payload["smart_folders"].find { |f| f["name"] == "Stale" }
       expect(stale_folder).to be_present
-      expect(stale_folder["builtin_key"]).to eq("stale")
+      expect(stale_folder["key"]).to eq("stale")
     end
   end
 
