@@ -94,8 +94,6 @@ class ChatWorkspaceRelay
     private
 
     def handle_connection(client)
-      client.read_timeout = 5
-
       request_line = client.gets
       return unless request_line
 
