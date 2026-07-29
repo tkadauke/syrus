@@ -189,6 +189,19 @@ class Run < ApplicationRecord
     enqueue_run_job
   end
 
+  # When this workflow already ran on a specific worker pod that is still
+  # alive, route back to that pod's per-worker resume queue so it resumes on
+  # the existing on-disk workspace. Returns nil when no worker was recorded or
+  # the pod is gone (its local workspace is lost, so any worker re-clones fresh).
+  # Public so callers like DiagnoseRunJob dispatch can use the same routing logic.
+  def resume_worker_queue
+    host = workflow&.worker_hostname
+    return nil if host.blank?
+    return nil unless InstanceVersion.worker_live?(host)
+
+    Workflow.resume_queue_name(host)
+  end
+
   private
 
   def default_user_from_job
@@ -240,19 +253,5 @@ class Run < ApplicationRecord
 
   def workflow_template_class
     Workflows.for(trigger_kind: workflow&.trigger_kind || trigger_kind)
-  end
-
-  # When this workflow already ran on a specific worker pod that is still
-  # alive, route the run back to that pod's per-worker resume queue so it
-  # resumes on the existing on-disk workspace ("Retry from failed step", and
-  # ReapStaleRunsJob re-enqueues). Returns nil — falling back to the normal
-  # queue — when no worker was recorded or the pod is gone (its local workspace
-  # is lost, so any worker just re-clones fresh).
-  def resume_worker_queue
-    host = workflow&.worker_hostname
-    return nil if host.blank?
-    return nil unless InstanceVersion.worker_live?(host)
-
-    Workflow.resume_queue_name(host)
   end
 end

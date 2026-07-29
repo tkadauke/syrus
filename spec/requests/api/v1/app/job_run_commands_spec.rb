@@ -268,6 +268,31 @@ RSpec.describe "App API job run commands", type: :request do
     expect(parse_body.dig("run", "id")).to eq(run.id)
   end
 
+  it "routes DiagnoseRunJob to the owning worker's resume queue when the worker is live" do
+    run = job.initial_run
+    run.workflow.update_column(:worker_hostname, "syrus-worker-compute")
+    InstanceVersion.create!(hostname: "syrus-worker-compute", role: "worker", version: "test-sha",
+                            started_at: Time.current, last_heartbeat_at: Time.current)
+
+    expect {
+      post app_job_path("/runs/#{run.id}/diagnose"), as: :json
+    }.to have_enqueued_job(DiagnoseRunJob).with(run.id).on_queue("resume-syrus-worker-compute")
+
+    expect(response).to have_http_status(:ok)
+  end
+
+  it "falls back to the :default queue for DiagnoseRunJob when the owning worker is not live" do
+    run = job.initial_run
+    run.workflow.update_column(:worker_hostname, "syrus-worker-dead")
+    # No InstanceVersion created → InstanceVersion.worker_live? returns false
+
+    expect {
+      post app_job_path("/runs/#{run.id}/diagnose"), as: :json
+    }.to have_enqueued_job(DiagnoseRunJob).with(run.id).on_queue("default")
+
+    expect(response).to have_http_status(:ok)
+  end
+
   it "does not expose another user's job" do
     other_user = Factories.user
     other_repo = Factories.repository(user: other_user, owner: "globex", name: "private")

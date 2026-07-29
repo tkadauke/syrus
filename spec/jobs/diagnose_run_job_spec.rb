@@ -117,6 +117,40 @@ RSpec.describe DiagnoseRunJob do
       end
     end
 
+    context "owning host not live (cross-pod fallback)" do
+      def running_run_with_workflow(worker_hostname:)
+        run = Factories.job.initial_run
+        run.update_columns(state: "running", last_heartbeat_at: Time.current, started_at: Time.current)
+        run.workflow.update_column(:worker_hostname, worker_hostname)
+        run
+      end
+
+      it "leaves worktree_exists and claude_process_running nil when the owning host is dead" do
+        run = running_run_with_workflow(worker_hostname: "syrus-worker-dead")
+        # No InstanceVersion row → InstanceVersion.worker_live? returns false
+
+        job = build_job
+        stub_sq_state(job, "claimed")
+        job.perform(run.id)
+
+        snapshot = run.run_health_snapshots.last
+        expect(snapshot.worktree_exists).to be_nil
+        expect(snapshot.claude_process_running).to be_nil
+      end
+
+      it "does not compute critical or emit Workspace hint when worktree_exists is nil" do
+        run = running_run_with_workflow(worker_hostname: "syrus-worker-dead")
+
+        job = build_job
+        stub_sq_state(job, "claimed")
+        job.perform(run.id)
+
+        snapshot = run.run_health_snapshots.last
+        expect(snapshot.health_status).not_to eq("critical")
+        expect(snapshot.hint).not_to include("Workspace")
+      end
+    end
+
     context "worktree absent" do
       it "marks worktree_exists false without crashing" do
         run = running_run
@@ -308,6 +342,35 @@ RSpec.describe DiagnoseRunJob do
       expect(status).to eq("healthy")
       expect(hint).to include("agent active")
       expect(hint).not_to match(/claude/i)
+    end
+
+    context "nil (unavailable) process signals — tri-state" do
+      it "does not compute critical when worktree_exists is nil" do
+        status, hint = snapshot_with(worktree_exists: nil, sq_job_state: "claimed",
+                                     heartbeat_age_seconds: 60)
+        expect(status).not_to eq("critical")
+        expect(hint).not_to include("Workspace")
+      end
+
+      it "does not compute critical from nil claude_process_running on a stale heartbeat" do
+        status, _hint = snapshot_with(
+          worktree_exists: nil,
+          claude_process_running: nil,
+          sq_job_state: "claimed",
+          heartbeat_age_seconds: 10.minutes.to_i
+        )
+        expect(status).not_to eq("critical")
+      end
+
+      it "is healthy when workspace is present and agent is found (regression — false-critical guard)" do
+        status, _hint = snapshot_with(
+          heartbeat_age_seconds: 30,
+          sq_job_state: "claimed",
+          worktree_exists: true,
+          claude_process_running: true
+        )
+        expect(status).to eq("healthy")
+      end
     end
   end
 end

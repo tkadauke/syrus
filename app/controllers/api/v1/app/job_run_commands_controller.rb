@@ -188,7 +188,7 @@ module Api
             return
           end
 
-          DiagnoseRunJob.perform_later(run.id)
+          DiagnoseRunJob.set(queue: run.resume_worker_queue || :default).perform_later(run.id)
           render_job(job.reload, message: "Diagnostic queued - snapshot will appear shortly.", changed: [ "diagnostics" ], run: run)
         end
 

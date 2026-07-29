@@ -98,6 +98,17 @@ class DiagnoseRunJob < ApplicationJob
       return
     end
 
+    # If the owning worker pod is known but no longer live, this job may be
+    # executing on a different pod — the workspace lives on the owning pod's
+    # volume, so File.directory? would return a false negative. Leave
+    # worktree_exists and claude_process_running as nil (unavailable) rather
+    # than asserting the workspace is gone and triggering a destructive hint.
+    owning_host = workflow.worker_hostname
+    if owning_host.present? && !InstanceVersion.worker_live?(owning_host)
+      Rails.logger.debug("[DiagnoseRunJob] Run ##{run.id}: owning host #{owning_host} not live — filesystem signals unavailable")
+      return
+    end
+
     workspace_path = WorkflowWorkspace.path_for(workflow).to_s
     snapshot.worktree_exists = File.directory?(workspace_path)
 
