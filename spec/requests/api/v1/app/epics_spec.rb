@@ -4,6 +4,12 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
 
+  before do
+    allow(RepoReconciliationPlan).to receive(:for_epic).and_return(
+      RepoReconciliationPlan::Result.new(mode: "none", source: "test", note: nil)
+    )
+  end
+
   def parse_body
     JSON.parse(response.body)
   end

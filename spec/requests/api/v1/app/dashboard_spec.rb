@@ -6,6 +6,12 @@ RSpec.describe "App API dashboard commands", type: :request do
 
   before { sign_in_as(user) }
 
+  before do
+    allow(RepoReconciliationPlan).to receive(:for_epic).and_return(
+      RepoReconciliationPlan::Result.new(mode: "none", source: "test", note: nil)
+    )
+  end
+
   def parse_body = JSON.parse(response.body)
 
   def lane_item_ids(body, key)
