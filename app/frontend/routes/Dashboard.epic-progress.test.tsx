@@ -25,6 +25,7 @@ function epicItem(overrides: Partial<DashboardEpicItem> = {}): DashboardEpicItem
     jobs_count: 4,
     landed_jobs_count: 1,
     job_state_counts: {},
+    max_commits_behind_base: null,
     created_at: null,
     updated_at: null,
     done_at: null,

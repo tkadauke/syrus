@@ -190,6 +190,9 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
               </span>
             ) : null}
             {payload.summary.blocked ? <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">{payload.summary.blocked_reason ? translateBlockedReason(payload.summary.blocked_reason, t) : t("blocked")}</span> : null}
+            {payload.epic.max_commits_behind_base && payload.epic.max_commits_behind_base > 0 ? (
+              <FurthestBehindBadge commits={payload.epic.max_commits_behind_base} jobPath={payload.epic.furthest_behind_job_path} prefix={prefix} t={t} />
+            ) : null}
           </div>
         </div>
       </header>
@@ -711,6 +714,22 @@ function StatePill({ state }: { state: string }) {
   }
 
   return <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${styles[state] || "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"}`}>{humanize(state)}</span>
+}
+
+function FurthestBehindBadge({ commits, jobPath, prefix, t }: { commits: number; jobPath: string | null; prefix: string; t: (key: string, opts?: Record<string, unknown>) => string }) {
+  const isHigh = commits >= 20
+  const className = `rounded px-2 py-0.5 text-xs font-medium ${isHigh ? "bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-200" : "bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200"}`
+  const label = t("furthest_behind", { count: commits })
+
+  if (jobPath) {
+    return (
+      <span className={className}>
+        <Link className="hover:underline" to={withRoutePrefix(jobPath, prefix)}>{label}</Link>
+      </span>
+    )
+  }
+
+  return <span className={className}>{label}</span>
 }
 
 function EpicStuckBadge({ stuck }: { stuck: boolean }) {

@@ -94,6 +94,21 @@ export function EpicStuckBadge({ stuck }: { stuck: boolean }) {
   )
 }
 
+export function EpicCommitsBehindBadge({ commits }: { commits: number | null }) {
+  const { t } = useT("dashboard")
+  if (!commits || commits <= 0) return null
+
+  const className = commits >= 20
+    ? "inline-flex items-center rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-700 ring-1 ring-red-200 dark:bg-red-950/50 dark:text-red-200 dark:ring-red-800"
+    : "inline-flex items-center rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-amber-200 dark:bg-amber-950/50 dark:text-amber-200 dark:ring-amber-800"
+
+  return (
+    <span className={className}>
+      {t("epic_commits_behind", { count: commits })}
+    </span>
+  )
+}
+
 export function workflowLabel(workflow: Pick<DashboardWorkflowItem, "id" | "slug">) {
   return workflow.slug || workflowSlug(workflow.id)
 }

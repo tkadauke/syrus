@@ -36,6 +36,9 @@ function detailPayload(overrides: Partial<EpicDetailPayload["epic"]> = {}): Epic
       owner_status: "unclaimed",
       owner_user: null,
       repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1" },
+      max_commits_behind_base: null,
+      furthest_behind_job_id: null,
+      furthest_behind_job_path: null,
       ...overrides
     },
     summary: { done_jobs_count: 0, total_jobs_count: 0, dependency_edge_count: 0, blocked: false, blocked_reason: null },

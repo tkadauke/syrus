@@ -1146,4 +1146,81 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
 
     expect(response).to have_http_status(:not_found)
   end
+
+  describe "max_commits_behind_base" do
+    it "includes max_commits_behind_base in the epic list from root jobs only" do
+      sign_in_as(user)
+      epic = Factories.epic(user: user, repository: repository)
+      root_job = Factories.job_record(user: user, repository: repository, epic: epic)
+      child_job = Factories.job_record(user: user, repository: repository, epic: epic)
+      child_job.update_columns(parent_job_id: root_job.id, commits_behind_base: 99)
+      root_job.update_columns(commits_behind_base: 7)
+
+      get "/api/v1/app/epics"
+
+      expect(response).to have_http_status(:ok)
+      item = parse_body["epics"].find { |e| e["id"] == epic.id }
+      # Only the root job (7) is counted; the child job (99) is excluded
+      expect(item["max_commits_behind_base"]).to eq(7)
+    end
+
+    it "returns nil max_commits_behind_base when no root jobs have a distance" do
+      sign_in_as(user)
+      epic = Factories.epic(user: user, repository: repository)
+      Factories.job_record(user: user, repository: repository, epic: epic)
+
+      get "/api/v1/app/epics"
+
+      expect(response).to have_http_status(:ok)
+      item = parse_body["epics"].find { |e| e["id"] == epic.id }
+      expect(item["max_commits_behind_base"]).to be_nil
+    end
+
+    it "includes max_commits_behind_base and furthest_behind_job fields in the epic detail" do
+      sign_in_as(user)
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      root_a = Factories.job_record(user: user, repository: repository, epic: epic)
+      root_b = Factories.job_record(user: user, repository: repository, epic: epic)
+      root_a.update_columns(commits_behind_base: 5)
+      root_b.update_columns(commits_behind_base: 23)
+
+      get "/api/v1/app/epics/#{epic.id}"
+
+      expect(response).to have_http_status(:ok)
+      epic_data = parse_body["epic"]
+      expect(epic_data["max_commits_behind_base"]).to eq(23)
+      expect(epic_data["furthest_behind_job_id"]).to eq(root_b.id)
+      expect(epic_data["furthest_behind_job_path"]).to eq(job_path(root_b))
+    end
+
+    it "excludes child jobs from the furthest_behind computation in the epic detail" do
+      sign_in_as(user)
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      root_job = Factories.job_record(user: user, repository: repository, epic: epic)
+      child_job = Factories.job_record(user: user, repository: repository, epic: epic)
+      child_job.update_columns(parent_job_id: root_job.id, commits_behind_base: 50)
+      root_job.update_columns(commits_behind_base: 3)
+
+      get "/api/v1/app/epics/#{epic.id}"
+
+      expect(response).to have_http_status(:ok)
+      epic_data = parse_body["epic"]
+      expect(epic_data["max_commits_behind_base"]).to eq(3)
+      expect(epic_data["furthest_behind_job_id"]).to eq(root_job.id)
+    end
+
+    it "returns nil furthest_behind fields when no root jobs have a distance" do
+      sign_in_as(user)
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      Factories.job_record(user: user, repository: repository, epic: epic)
+
+      get "/api/v1/app/epics/#{epic.id}"
+
+      expect(response).to have_http_status(:ok)
+      epic_data = parse_body["epic"]
+      expect(epic_data["max_commits_behind_base"]).to be_nil
+      expect(epic_data["furthest_behind_job_id"]).to be_nil
+      expect(epic_data["furthest_behind_job_path"]).to be_nil
+    end
+  end
 end

@@ -1,4 +1,4 @@
-import { SortableColumnHeader, TimestampCell, useMediaQuery, EpicProgressBar, EpicStuckBadge, NeutralStatePill, OwnerBadge, RepositorySlugLink, workflowLabel } from "./components"
+import { SortableColumnHeader, TimestampCell, useMediaQuery, EpicCommitsBehindBadge, EpicProgressBar, EpicStuckBadge, NeutralStatePill, OwnerBadge, RepositorySlugLink, workflowLabel } from "./components"
 import { formatRelativeDate } from "../../lib/relativeTime"
 import { bulkButtonClass, columnAriaSort, compactText, epicDateValue, withRoutePrefix, workflowDateValue } from "./helpers"
 import type { DashboardSortState } from "./helpers"
@@ -133,10 +133,11 @@ function MobileEpicRow({ epic, selected, onToggleOne, prefix }: { epic: Dashboar
     <article aria-label={`${epic.display_number} ${epic.title}`} className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 px-4 py-3 text-gray-700 dark:text-gray-200">
       <input aria-label={t("select_item", { title: epic.title })} checked={selected} className="mt-1" onChange={() => onToggleOne(epic.id)} type="checkbox" />
       <div className="min-w-0">
-        <div className="mb-1">
+        <div className="mb-1 flex flex-wrap gap-1">
           <NeutralStatePill state={epic.state} />
           <EpicStuckBadge stuck={epic.stuck} />
           <EpicProgressBar epic={epic} />
+          <EpicCommitsBehindBadge commits={epic.max_commits_behind_base} />
         </div>
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <SlugHoverCard id={epic.id} kind="epic">
@@ -176,6 +177,7 @@ function EpicCell({ epic, column, selected, onToggleOne, prefix }: { epic: Dashb
           <NeutralStatePill state={epic.state} />
           <EpicStuckBadge stuck={epic.stuck} />
           <EpicProgressBar epic={epic} />
+          <EpicCommitsBehindBadge commits={epic.max_commits_behind_base} />
         </div>
       </td>
     )

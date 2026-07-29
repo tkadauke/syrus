@@ -197,7 +197,8 @@ module Api
             repository_slug: epic.repository.slug,
             done_jobs_count: done_jobs_count(jobs),
             total_jobs_count: jobs.size,
-            updated_at: epic.updated_at&.iso8601
+            updated_at: epic.updated_at&.iso8601,
+            max_commits_behind_base: jobs.select { |j| j.parent_job_id.nil? }.filter_map(&:commits_behind_base).max
           }
         end
 
@@ -296,6 +297,8 @@ module Api
         end
 
         def detail_epic_json(epic, jobs:)
+          furthest_behind = jobs.select { |j| j.parent_job_id.nil? && j.commits_behind_base.present? }
+                               .max_by(&:commits_behind_base)
           {
             id: epic.id,
             number: epic.number,
@@ -322,7 +325,10 @@ module Api
             owner_status: owner_status(epic),
             owner_user: owner_user_json(epic.owner_user),
             repository_slug: epic.repository.slug,
-            repository: repository_json(epic.repository).merge(repository_path: repository_path(epic.repository))
+            repository: repository_json(epic.repository).merge(repository_path: repository_path(epic.repository)),
+            max_commits_behind_base: furthest_behind&.commits_behind_base,
+            furthest_behind_job_id: furthest_behind&.id,
+            furthest_behind_job_path: furthest_behind ? job_path(furthest_behind) : nil
           }
         end
 

@@ -80,6 +80,9 @@ export type EpicDetailRecord = {
   owner_status: "mine" | "other_owned" | "unclaimed"
   owner_user: EpicOwnerUser | null
   repository: EpicDetailRepository
+  max_commits_behind_base: number | null
+  furthest_behind_job_id: number | null
+  furthest_behind_job_path: string | null
 }
 
 export type EpicDetailSummary = {

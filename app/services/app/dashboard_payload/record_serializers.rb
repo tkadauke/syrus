@@ -111,6 +111,7 @@ module App
           jobs_count: epic.jobs.size,
           landed_jobs_count: epic_landed_jobs_count(epic),
           job_state_counts: epic_job_state_counts(epic),
+          max_commits_behind_base: epic.jobs.select { |j| j.parent_job_id.nil? }.filter_map(&:commits_behind_base).max,
           created_at: epic.created_at&.iso8601,
           updated_at: epic.updated_at&.iso8601,
           done_at: epic.done_at&.iso8601,

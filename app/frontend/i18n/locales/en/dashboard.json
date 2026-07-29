@@ -122,5 +122,7 @@
   "broken_main_repair_starting": "Starting...",
   "broken_main_repair_start_failed": "Repair could not be started.",
   "broken_main_dismiss": "Dismiss",
-  "needs_attention_aria": "Needs attention"
+  "needs_attention_aria": "Needs attention",
+  "epic_commits_behind_one": "{{count}} commit behind",
+  "epic_commits_behind_other": "{{count}} commits behind"
 }
