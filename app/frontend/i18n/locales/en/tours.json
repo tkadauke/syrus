@@ -11,7 +11,7 @@
     "view_switcher_title": "List or Kanban",
     "view_switcher_content": "Switch between a table view and a Kanban board. Kanban gives you an at-a-glance overview of where your epics stand — and lets you drag epics between Backlog, Ready, and In Progress.",
     "create_actions_title": "Start new work",
-    "create_actions_content": "'New Job' opens Chat and lets you describe a task — Syrus turns your prompt into a pull request. 'New Epic' groups related jobs together.",
+    "create_actions_content": "'New Job' opens a quick-start form; 'New Epic' groups related jobs together. The recommended way to create jobs and epics is through Chat — describe your task there and Syrus turns it into a pull request.",
     "job_row_title": "Click any job to dive in",
     "job_row_content": "Opening a job shows the full implementation timeline, the pull request diff, and lets you give feedback or approve the work."
   }
