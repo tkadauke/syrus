@@ -472,7 +472,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_29_183701) do
     t.integer "owner_id"
     t.integer "owner_user_id"
     t.json "pending_epic_dependency_refs", null: false
-    t.integer "reconciliation_job_id"
+    t.bigint "reconciliation_job_id"
     t.integer "repository_id", null: false
     t.string "slug"
     t.string "state", default: "backlog", null: false
