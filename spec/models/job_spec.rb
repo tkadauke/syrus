@@ -2165,4 +2165,91 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       }.not_to have_enqueued_job(UrgentJobClosedJob)
     end
   end
+
+  describe "insight max-threshold callback" do
+    let(:repository) { Factories.repository }
+    let(:user) { repository.user }
+
+    def enable_agent_insights!
+      feature = Feature.find_or_create_by!(slug: "agent_insights") do |f|
+        f.category = "Labs"
+        f.name = "Agent Insights"
+      end
+      feature.update!(enabled: true)
+    end
+
+    def enable_insight_config(max:)
+      InsightScheduleConfig.create!(
+        repository: repository,
+        enabled: true,
+        min_jobs_since_last_run: 1,
+        max_jobs_since_last_run: max
+      )
+    end
+
+    before do
+      allow(InsightScheduler).to receive(:enqueue_if_idle!)
+    end
+
+    it "does not trigger when the agent_insights feature is off" do
+      enable_insight_config(max: 2)
+      Factories.job_record(user: user, repository: repository, state: "closed")
+      job = Factories.job_record(user: user, repository: repository, state: "queued")
+      job.close!
+      expect(InsightScheduler).not_to have_received(:enqueue_if_idle!)
+    end
+
+    it "does not trigger when InsightScheduleConfig is absent" do
+      enable_agent_insights!
+      job = Factories.job_record(user: user, repository: repository, state: "queued")
+      job.close!
+      expect(InsightScheduler).not_to have_received(:enqueue_if_idle!)
+    end
+
+    it "does not trigger when InsightScheduleConfig is disabled" do
+      enable_agent_insights!
+      InsightScheduleConfig.create!(repository: repository, enabled: false, min_jobs_since_last_run: 1, max_jobs_since_last_run: 2)
+      Factories.job_record(user: user, repository: repository, state: "closed")
+      job = Factories.job_record(user: user, repository: repository, state: "queued")
+      job.close!
+      expect(InsightScheduler).not_to have_received(:enqueue_if_idle!)
+    end
+
+    it "does not trigger when count is below max" do
+      enable_agent_insights!
+      enable_insight_config(max: 5)
+      3.times { Factories.job_record(user: user, repository: repository, state: "closed") }
+      job = Factories.job_record(user: user, repository: repository, state: "queued")
+      job.close!  # 4 total closed, max=5
+      expect(InsightScheduler).not_to have_received(:enqueue_if_idle!)
+    end
+
+    it "triggers when count reaches max" do
+      enable_agent_insights!
+      enable_insight_config(max: 3)
+      2.times { Factories.job_record(user: user, repository: repository, state: "closed") }
+      job = Factories.job_record(user: user, repository: repository, state: "queued")
+      job.close!  # 3 total closed, max=3
+      expect(InsightScheduler).to have_received(:enqueue_if_idle!).with(repository)
+    end
+
+    it "triggers when count exceeds max" do
+      enable_agent_insights!
+      enable_insight_config(max: 3)
+      4.times { Factories.job_record(user: user, repository: repository, state: "closed") }
+      job = Factories.job_record(user: user, repository: repository, state: "queued")
+      job.close!  # 5 total closed, max=3
+      expect(InsightScheduler).to have_received(:enqueue_if_idle!).with(repository)
+    end
+
+    it "does not trigger when an agent_insight job closes" do
+      enable_agent_insights!
+      enable_insight_config(max: 2)
+      insight_job = Factories.job_record(user: user, repository: repository,
+                                         kind: "agent_insight", issue_number: nil,
+                                         issue_title: "Insight analysis", state: "queued")
+      insight_job.close!
+      expect(InsightScheduler).not_to have_received(:enqueue_if_idle!)
+    end
+  end
 end

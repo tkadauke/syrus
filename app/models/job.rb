@@ -450,6 +450,7 @@ class Job < ApplicationRecord
   after_update_commit :auto_approve_main_branch_repair_after_implementation, if: :saved_change_to_implemented_main_branch_repair?
   after_update_commit :cancel_queued_chat_pending_actions, if: :saved_change_to_closed?
   after_update_commit :purge_coverage_hit_maps_on_close, if: :saved_change_to_closed?
+  after_update_commit :trigger_insight_if_max_threshold_reached, if: :saved_change_to_closed_coding_job?
   after_update_commit :ensure_main_branch_repair_after_close, if: :saved_change_to_closed_main_branch_repair?
   after_update_commit :enqueue_urgent_job_closed, if: :saved_change_to_closed_urgent_job?
   after_update_commit :start_dependent_jobs_after_approval, if: :saved_change_to_approved?
@@ -657,6 +658,10 @@ class Job < ApplicationRecord
     saved_change_to_closed? && priority == "urgent"
   end
 
+  def saved_change_to_closed_coding_job?
+    saved_change_to_closed? && !agent_insight?
+  end
+
   def saved_change_to_implemented_main_branch_repair?
     saved_change_to_implemented? && main_branch_repair?
   end
@@ -675,6 +680,19 @@ class Job < ApplicationRecord
 
   def enqueue_urgent_job_closed
     UrgentJobClosedJob.perform_later(repository_id)
+  end
+
+  def trigger_insight_if_max_threshold_reached
+    return unless Feature.agent_insights_enabled?
+
+    config = repository.insight_schedule_config
+    return unless config&.enabled?
+
+    last_insight_at = InsightScheduler.last_insight_created_at(repository)
+    count = InsightScheduler.coding_jobs_since(repository, last_insight_at)
+    return if count < config.max_jobs_since_last_run
+
+    InsightScheduler.enqueue_if_idle!(repository)
   end
 
   def cancel_queued_retry_workflows_after_approval

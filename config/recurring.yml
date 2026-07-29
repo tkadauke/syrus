@@ -70,6 +70,9 @@ default: &default
   prune_coverage_hit_map_ttl:
     class: CoverageHitMapTtlPruneJob
     schedule: every day at 3:50am
+  insight_sweep:
+    class: InsightSweepJob
+    schedule: every 6 hours
   sync_agent_skills:
     class: SyncAgentSkillsJob
     schedule: every hour

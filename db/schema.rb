@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_29_200913) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_29_220530) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -557,6 +557,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_29_200913) do
     t.index ["repository_id", "type"], name: "index_input_sources_on_repository_and_type", unique: true
     t.index ["repository_id"], name: "index_input_sources_on_repository_id"
     t.index ["user_id"], name: "index_input_sources_on_user_id"
+  end
+
+  create_table "insight_schedule_configs", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.boolean "enabled", default: false, null: false
+    t.integer "max_jobs_since_last_run", default: 10, null: false
+    t.integer "min_jobs_since_last_run", default: 5, null: false
+    t.integer "repository_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["repository_id"], name: "index_insight_schedule_configs_on_repository_id", unique: true
   end
 
   create_table "insight_suggestions", force: :cascade do |t|
@@ -1431,6 +1441,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_29_200913) do
   add_foreign_key "grader_conclusions", "workflows"
   add_foreign_key "input_sources", "repositories"
   add_foreign_key "input_sources", "users"
+  add_foreign_key "insight_schedule_configs", "repositories"
   add_foreign_key "insight_suggestions", "jobs"
   add_foreign_key "insight_suggestions", "jobs", column: "created_job_id"
   add_foreign_key "insight_suggestions", "repositories"
