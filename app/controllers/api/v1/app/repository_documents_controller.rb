@@ -2,6 +2,7 @@ module Api
   module V1
     module App
       class RepositoryDocumentsController < BaseController
+        include RepositoryTabsSerialization
         def index
           repository = find_repository
           render json: documents_payload(repository)
@@ -42,15 +43,6 @@ module Api
               .map { |document| document_json(document) },
             accepted_file_content_types: Document::ACCEPTED_FILE_CONTENT_TYPES
           }
-        end
-
-        def repository_tabs_json(repository)
-          [
-            { key: "overview", label: "Overview", path: repository_path(repository) },
-            { key: "github_issues", label: "GitHub Issues", path: repository_path(repository, tab: "github_issues") },
-            { key: "documents", label: "Documents", path: repository_documents_path(repository) },
-            { key: "scheduled_tasks", label: "Scheduled Tasks", path: repository_scheduled_tasks_path(repository) }
-          ]
         end
 
         def repository_json(repository)

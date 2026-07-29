@@ -111,12 +111,7 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body.dig("repository", "slug")).to eq("acme/widgets")
-    expect(body["tabs"]).to contain_exactly(
-      include("key" => "overview"),
-      include("key" => "github_issues"),
-      include("key" => "documents"),
-      include("key" => "scheduled_tasks")
-    )
+    expect(body["tabs"].map { |t| t["key"] }).to include("overview", "github_issues", "documents", "scheduled_tasks")
     expect(body["tabs"].map { |t| t["key"] }).not_to include("context")
     expect(body["tasks"]).to contain_exactly(
       include("id" => active.id, "name" => "Active", "active" => true, "prompt" => "Write missing tests."),
@@ -124,6 +119,30 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     )
     expect(response.body).not_to include("Archived")
     expect(response.body).not_to include("Other repo")
+  end
+
+  it "includes the insights tab when agent insights is enabled" do
+    Feature.find_or_create_by!(slug: "agent_insights") { |f|
+      f.category = "Labs"; f.name = "Agent Insights"
+    }.update!(enabled: true)
+    sign_in_as(user)
+
+    get "/api/v1/app/repositories/#{repository.id}/scheduled_tasks"
+
+    tab_keys = JSON.parse(response.body)["tabs"].map { |t| t["key"] }
+    expect(tab_keys).to include("insights")
+  end
+
+  it "excludes the insights tab when agent insights is disabled" do
+    Feature.find_or_create_by!(slug: "agent_insights") { |f|
+      f.category = "Labs"; f.name = "Agent Insights"
+    }.update!(enabled: false)
+    sign_in_as(user)
+
+    get "/api/v1/app/repositories/#{repository.id}/scheduled_tasks"
+
+    tab_keys = JSON.parse(response.body)["tabs"].map { |t| t["key"] }
+    expect(tab_keys).not_to include("insights")
   end
 
   it "enables and disables repository-scoped tasks" do

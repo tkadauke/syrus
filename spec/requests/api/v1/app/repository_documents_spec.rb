@@ -37,12 +37,7 @@ RSpec.describe "API: /api/v1/app/repository_documents", type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body.dig("repository", "slug")).to eq("acme/widgets")
-    expect(body["tabs"]).to contain_exactly(
-      include("key" => "overview"),
-      include("key" => "github_issues"),
-      include("key" => "documents"),
-      include("key" => "scheduled_tasks")
-    )
+    expect(body["tabs"].map { |t| t["key"] }).to include("overview", "github_issues", "documents", "scheduled_tasks")
     expect(body["tabs"].map { |t| t["key"] }).not_to include("context")
     expect(body["documents"]).to contain_exactly(
       include(
@@ -53,6 +48,30 @@ RSpec.describe "API: /api/v1/app/repository_documents", type: :request do
       )
     )
     expect(body["accepted_file_content_types"]).to include("application/pdf")
+  end
+
+  it "includes the insights tab when agent insights is enabled" do
+    Feature.find_or_create_by!(slug: "agent_insights") { |f|
+      f.category = "Labs"; f.name = "Agent Insights"
+    }.update!(enabled: true)
+    sign_in_as(user)
+
+    get "/api/v1/app/repositories/#{repository.id}/documents"
+
+    tab_keys = JSON.parse(response.body)["tabs"].map { |t| t["key"] }
+    expect(tab_keys).to include("insights")
+  end
+
+  it "excludes the insights tab when agent insights is disabled" do
+    Feature.find_or_create_by!(slug: "agent_insights") { |f|
+      f.category = "Labs"; f.name = "Agent Insights"
+    }.update!(enabled: false)
+    sign_in_as(user)
+
+    get "/api/v1/app/repositories/#{repository.id}/documents"
+
+    tab_keys = JSON.parse(response.body)["tabs"].map { |t| t["key"] }
+    expect(tab_keys).not_to include("insights")
   end
 
   it "creates a file document" do

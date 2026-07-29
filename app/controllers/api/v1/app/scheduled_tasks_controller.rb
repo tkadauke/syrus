@@ -2,6 +2,7 @@ module Api
   module V1
     module App
       class ScheduledTasksController < BaseController
+        include RepositoryTabsSerialization
         def index
           render json: scheduled_tasks_index_payload
         end
@@ -163,15 +164,6 @@ module Api
             new_scheduled_task_path: new_repository_scheduled_task_path(repository),
             options: scheduled_task_options
           }
-        end
-
-        def repository_tabs_json(repository)
-          [
-            { key: "overview", label: "Overview", path: repository_path(repository) },
-            { key: "github_issues", label: "GitHub Issues", path: repository_path(repository, tab: "github_issues") },
-            { key: "documents", label: "Documents", path: repository_documents_path(repository) },
-            { key: "scheduled_tasks", label: "Scheduled Tasks", path: repository_scheduled_tasks_path(repository) }
-          ]
         end
 
         def task_summary_json(task)

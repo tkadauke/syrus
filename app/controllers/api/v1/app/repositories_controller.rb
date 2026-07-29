@@ -2,6 +2,8 @@ module Api
   module V1
     module App
       class RepositoriesController < BaseController
+        include RepositoryTabsSerialization
+
         PER_PAGE = 20
 
         def index
@@ -658,25 +660,6 @@ module Api
             github_repository_id: repository.github_repository_id,
             repository_path: repository.persisted? ? repository_path(repository) : nil
           }
-        end
-
-        def repository_tabs_json(repository)
-          tabs = [
-            { key: "overview", label: "Overview", path: repository_path(repository) },
-            { key: "github_issues", label: "GitHub Issues", path: repository_path(repository, tab: "github_issues") },
-            { key: "documents", label: "Documents", path: repository_documents_path(repository) },
-            { key: "scheduled_tasks", label: "Scheduled Tasks", path: repository_scheduled_tasks_path(repository) }
-          ]
-          if Feature.agent_insights_enabled?
-            pending_count = InsightSuggestion.pending.for_repository(repository).count
-            tabs << {
-              key: "insights",
-              label: "Insights",
-              path: "/repositories/#{repository.id}/insights",
-              badge: pending_count.positive? ? pending_count : nil
-            }
-          end
-          tabs
         end
 
         def active_insight_job_json(repository)

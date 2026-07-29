@@ -2,6 +2,7 @@ module Api
   module V1
     module App
       class InsightSuggestionsController < BaseController
+        include RepositoryTabsSerialization
         prepend_before_action :require_agent_insights_feature
 
         def index
@@ -189,16 +190,6 @@ module Api
             repository_path: repository_path(repository),
             insights_path: "/repositories/#{repository.id}/insights"
           }
-        end
-
-        def repository_tabs_json(repository)
-          [
-            { key: "overview", label: "Overview", path: repository_path(repository) },
-            { key: "github_issues", label: "GitHub Issues", path: repository_path(repository, tab: "github_issues") },
-            { key: "documents", label: "Documents", path: repository_documents_path(repository) },
-            { key: "scheduled_tasks", label: "Scheduled Tasks", path: repository_scheduled_tasks_path(repository) },
-            { key: "insights", label: "Insights", path: "/repositories/#{repository.id}/insights" }
-          ]
         end
 
         def created_job_summary_json(job)
