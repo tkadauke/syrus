@@ -1354,22 +1354,22 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
         <div className="absolute bottom-2 right-2 flex items-center gap-1">
           <button
             aria-label={agentActive ? t("enqueue_message") : t("send_message")}
-            className="flex h-8 w-8 items-center justify-center rounded bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-60 dark:bg-blue-500 dark:hover:bg-blue-400"
+            className="flex h-8 w-8 items-center justify-center rounded text-blue-600 hover:bg-gray-100 disabled:opacity-40 dark:text-blue-400 dark:hover:bg-gray-800"
             disabled={send.isPending || systemAction.isPending || systemCommandAction.isPending || (text.trim().length === 0 && walkthrough?.status !== "ready" && attachments.length === 0) || pendingConfirmation != null || attachmentError != null}
             type="submit"
           >
-            {agentActive ? <EnqueueIcon className="h-4 w-4" /> : <SendIcon className="h-4 w-4" />}
+            {agentActive ? <EnqueueIcon className="h-5 w-5" /> : <SendIcon className="h-5 w-5" />}
           </button>
           {text.trim().length > 0 ? (
             <button
               aria-label={t("scratchpad_stash")}
-              className="flex h-8 w-8 items-center justify-center rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
+              className="flex h-8 w-8 items-center justify-center rounded text-gray-500 hover:bg-gray-100 disabled:text-gray-300 dark:text-gray-400 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
               disabled={stash.isPending}
               onClick={() => stash.mutate(undefined)}
               title={agentActive ? t("scratchpad_stash") : t("scratchpad_stash_tab")}
               type="button"
             >
-              <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <svg aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
                 <rect height="4" rx="1" width="6" x="9" y="3" />
                 <path d="M9 12h6M9 16h4" />
@@ -1378,7 +1378,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
           ) : null}
           {agentActive && !payload.switching_provider ? (
             <StopButton
-              className="flex h-8 w-8 items-center justify-center rounded border border-red-200 bg-white text-red-700 hover:bg-red-50 disabled:text-gray-400 dark:border-red-800 dark:bg-gray-900 dark:text-red-300 dark:hover:bg-red-950 dark:disabled:text-gray-600"
+              className="flex h-8 w-8 items-center justify-center rounded text-red-600 hover:bg-red-50 disabled:text-gray-300 dark:text-red-400 dark:hover:bg-red-950 dark:disabled:text-gray-600"
               payload={payload}
               queryKey={queryKey}
             />
@@ -1803,7 +1803,7 @@ function StopButton({ className, payload, queryKey }: { className?: string; payl
   })
   return (
     <button aria-label={t("aria_stop_agent")} className={className ?? "inline-flex h-11 items-center justify-center rounded border border-red-200 bg-white px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:text-gray-400 dark:border-red-800 dark:bg-gray-900 dark:text-red-300 dark:hover:bg-red-950 dark:disabled:text-gray-600"} disabled={Boolean(payload.chat.stop_requested_at) || stop.isPending} onClick={() => stop.mutate()} type="button">
-      <StopIcon className={`h-4 w-4 ${payload.chat.stop_requested_at || stop.isPending ? "opacity-50" : ""}`} />
+      <StopIcon className={`h-5 w-5 ${payload.chat.stop_requested_at || stop.isPending ? "opacity-50" : ""}`} />
     </button>
   )
 }
