@@ -34,6 +34,7 @@ per-user/private:
   - app/controllers/api/v1/app/direct_jobs_controller.rb
   - app/controllers/api/v1/app/epics_controller.rb
   - app/controllers/api/v1/app/filters_controller.rb
+  - app/controllers/api/v1/app/insight_schedule_configs_controller.rb
   - app/controllers/api/v1/app/insight_suggestions_controller.rb
   - app/controllers/api/v1/app/insights/spending_controller.rb
   - app/controllers/api/v1/app/profiles_controller.rb
