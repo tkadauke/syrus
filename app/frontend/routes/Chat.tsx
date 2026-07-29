@@ -1395,14 +1395,14 @@ function ProposalMediaPicker({ media, selectedRefs, onSelect, onClose }: { media
   const hasItems = snapshots.length > 0 || chatImages.length > 0
 
   return (
-    <div className="absolute left-0 top-7 z-10 w-64 rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+    <div className="absolute bottom-full left-0 z-10 mb-1 w-64 rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
       <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2 dark:border-gray-800">
         <span className="text-xs font-medium text-gray-700 dark:text-gray-200">Attach media</span>
         <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" onClick={onClose} type="button" aria-label="Close media picker">
           <CloseIcon className="h-3.5 w-3.5" />
         </button>
       </div>
-      <div className="max-h-56 overflow-y-auto py-1">
+      <div className="max-h-48 overflow-y-auto py-1">
         {!media ? (
           <p className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">Loading…</p>
         ) : !hasItems ? (
