@@ -108,7 +108,7 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(body["items"].map { |item| item.fetch("id") }).not_to include(archived_job.id, other_job.id)
       expect(body.dig("preferences", "sort")).to include("column" => "title", "direction" => "asc")
       expect(body["controls"]).to include(
-        "views" => %w[list kanban],
+        "views" => %w[list kanban dependencies],
         "sort_columns" => %w[title state repository landing_queue_position created_at started_at priority],
         "sort_directions" => %w[asc desc],
         "columns" => {
@@ -161,7 +161,7 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(chrome).to include(
         "subject" => "job",
         "counts" => include("jobs" => 1),
-        "controls" => include("views" => %w[list kanban]),
+        "controls" => include("views" => %w[list kanban dependencies]),
         "smart_folders" => be_an(Array)
       )
       expect(chrome).not_to have_key("items")
