@@ -663,7 +663,11 @@
     "aria_pause_scheduling": "Ordinationem intermittere",
     "preferences_saved_notice": "Praeferentiae servatae.",
     "profile_saved_notice": "Profilum renovatum.",
-    "agent_settings_saved_notice": "Commissa agentis renovata."
+    "agent_settings_saved_notice": "Commissa agentis renovata.",
+    "reset_tours": "Itinera inductionis",
+    "reset_tours_button": "Itinera restituere",
+    "reset_tours_desc": "Omnia itinera inductionis restituere ut iterum appareant.",
+    "reset_tours_notice": "Itinera restituta. In proximo accessu rursus apparebunt."
   },
   "credential_cards": {
     "connected": "Conexum",

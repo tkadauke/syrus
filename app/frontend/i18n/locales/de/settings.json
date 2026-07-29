@@ -663,7 +663,11 @@
     "aria_pause_scheduling": "Planung pausieren",
     "preferences_saved_notice": "Einstellungen gespeichert.",
     "profile_saved_notice": "Profil aktualisiert.",
-    "agent_settings_saved_notice": "Agenteneinstellungen aktualisiert."
+    "agent_settings_saved_notice": "Agenteneinstellungen aktualisiert.",
+    "reset_tours": "Einführungstouren",
+    "reset_tours_button": "Touren zurücksetzen",
+    "reset_tours_desc": "Alle Einführungstouren zurücksetzen, damit sie erneut angezeigt werden.",
+    "reset_tours_notice": "Touren zurückgesetzt. Sie werden beim nächsten Besuch wieder angezeigt."
   },
   "credential_cards": {
     "connected": "Verbunden",

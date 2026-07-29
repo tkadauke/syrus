@@ -663,7 +663,11 @@
     "aria_pause_scheduling": "Pause scheduling",
     "preferences_saved_notice": "Preferences saved.",
     "profile_saved_notice": "Profile updated.",
-    "agent_settings_saved_notice": "Agent settings updated."
+    "agent_settings_saved_notice": "Agent settings updated.",
+    "reset_tours": "Onboarding tours",
+    "reset_tours_button": "Reset tours",
+    "reset_tours_desc": "Reset all onboarding tours so they will appear again.",
+    "reset_tours_notice": "Tours reset. They will show again on next visit."
   },
   "credential_cards": {
     "connected": "Connected",

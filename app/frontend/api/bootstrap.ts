@@ -20,6 +20,7 @@ export type BootstrapPayload = {
     theme: "light" | "dark"
     locale: "en" | "de" | "la"
     notification_unread_count?: number
+    seen_tours?: string[]
   } | null
   team_user_count: number
   app: {

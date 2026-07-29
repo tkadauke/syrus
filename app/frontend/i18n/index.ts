@@ -12,6 +12,7 @@ import enAdmin from "./locales/en/admin.json"
 import enAuth from "./locales/en/auth.json"
 import enLanding from "./locales/en/landing.json"
 import enInsights from "./locales/en/insights.json"
+import enTours from "./locales/en/tours.json"
 
 import deCommon from "./locales/de/common.json"
 import deNav from "./locales/de/nav.json"
@@ -24,6 +25,7 @@ import deAdmin from "./locales/de/admin.json"
 import deAuth from "./locales/de/auth.json"
 import deLanding from "./locales/de/landing.json"
 import deInsights from "./locales/de/insights.json"
+import deTours from "./locales/de/tours.json"
 
 import laCommon from "./locales/la/common.json"
 import laNav from "./locales/la/nav.json"
@@ -36,6 +38,7 @@ import laAdmin from "./locales/la/admin.json"
 import laAuth from "./locales/la/auth.json"
 import laLanding from "./locales/la/landing.json"
 import laInsights from "./locales/la/insights.json"
+import laTours from "./locales/la/tours.json"
 
 import { readInitialBootstrap } from "../api/bootstrap"
 
@@ -49,7 +52,7 @@ i18n.use(initReactI18next).init({
   lng: detectedLocale,
   fallbackLng: "en",
   defaultNS: "common",
-  ns: ["common", "nav", "jobs", "epics", "dashboard", "chat", "settings", "admin", "auth", "landing", "insights"],
+  ns: ["common", "nav", "jobs", "epics", "dashboard", "chat", "settings", "admin", "auth", "landing", "insights", "tours"],
   resources: {
     en: {
       common: enCommon,
@@ -62,7 +65,8 @@ i18n.use(initReactI18next).init({
       admin: enAdmin,
       auth: enAuth,
       landing: enLanding,
-      insights: enInsights
+      insights: enInsights,
+      tours: enTours
     },
     de: {
       common: deCommon,
@@ -75,7 +79,8 @@ i18n.use(initReactI18next).init({
       admin: deAdmin,
       auth: deAuth,
       landing: deLanding,
-      insights: deInsights
+      insights: deInsights,
+      tours: deTours
     },
     la: {
       common: laCommon,
@@ -88,7 +93,8 @@ i18n.use(initReactI18next).init({
       admin: laAdmin,
       auth: laAuth,
       landing: laLanding,
-      insights: laInsights
+      insights: laInsights,
+      tours: laTours
     }
   },
   interpolation: {

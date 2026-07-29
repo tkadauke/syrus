@@ -25,6 +25,7 @@ import {
   type CredentialsInput,
   type CredentialsPayload
 } from "../api/credentials"
+import { deleteJson } from "../api/client"
 import { errorMessage } from "../lib/errorMessage"
 import { PanelMessage } from "../components/PanelMessage"
 
@@ -162,6 +163,14 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
   const { t } = useT("settings")
   const queryClient = useQueryClient()
   const [values, setValues] = useState<CredentialsInput>(inputFromPayload(payload))
+
+  const resetTours = useMutation({
+    mutationFn: () => deleteJson("/api/v1/app/tours"),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
+      onNotice(t('account_settings.reset_tours_notice'))
+    }
+  })
   const roleOptions = payload.options.roles || ["developer", "product_owner"]
   const sectionNoticeKey: Partial<Record<AccountSettingsSection, string>> = {
     preferences: "account_settings.preferences_saved_notice",
@@ -300,6 +309,20 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
               <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t('account_settings.pause_scheduling_desc')}</span>
             </span>
           </label>
+        ) : null}
+
+        {section === "preferences" ? (
+          <Field label={t('account_settings.reset_tours')}>
+            <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">{t('account_settings.reset_tours_desc')}</p>
+            <button
+              className="rounded bg-gray-100 dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={resetTours.isPending}
+              onClick={() => resetTours.mutate()}
+              type="button"
+            >
+              {t('account_settings.reset_tours_button')}
+            </button>
+          </Field>
         ) : null}
 
         {section === "agent" ? (
