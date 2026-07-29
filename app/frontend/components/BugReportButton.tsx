@@ -196,6 +196,21 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
 
   useEffect(() => () => revokeCaptures(captures), [captures])
 
+  useEffect(() => {
+    function handleResize() {
+      setPos(prev => {
+        const clamped = clampPos(prev)
+        if (clamped.left !== prev.left || clamped.top !== prev.top) {
+          savePos(clamped)
+          return clamped
+        }
+        return prev
+      })
+    }
+    window.addEventListener("resize", handleResize)
+    return () => window.removeEventListener("resize", handleResize)
+  }, [])
+
   useShakeToReport(() => { if (!capturing && !open) void openDialog() })
 
   // Keep the ref up to date so the imperative handle always calls the latest openDialog.

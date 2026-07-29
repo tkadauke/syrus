@@ -1,5 +1,5 @@
 import { createRef } from "react"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { BugReportButton, type BugReportButtonHandle } from "./BugReportButton"
@@ -521,6 +521,57 @@ describe("BugReportButton", () => {
 
       await screen.findByRole("dialog")
       expect(screen.queryByRole("checkbox", { name: /include chat transcript/i })).not.toBeInTheDocument()
+    })
+  })
+
+  describe("resize clamping", () => {
+    it("clamps the nub position when the window is resized to a smaller viewport", () => {
+      // Start with a position valid for 1024×768 but outside a 400×300 viewport
+      localStorage.setItem("bug-report-button-position", JSON.stringify({ left: 800, top: 400 }))
+      renderButton()
+      const button = getBugButton()
+
+      expect(parseFloat(button.style.left)).toBe(800)
+      expect(parseFloat(button.style.top)).toBe(400)
+
+      // Shrink the window and fire resize
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: 400 })
+      Object.defineProperty(window, "innerHeight", { configurable: true, value: 300 })
+      act(() => {
+        fireEvent(window, new Event("resize"))
+      })
+
+      // Button should be clamped: max left = 400 - 48 = 352, max top = 300 - 48 = 252
+      expect(parseFloat(button.style.left)).toBeLessThanOrEqual(400 - 48)
+      expect(parseFloat(button.style.top)).toBeLessThanOrEqual(300 - 48)
+
+      // Clamped position should also be persisted to localStorage
+      const saved = JSON.parse(localStorage.getItem("bug-report-button-position") ?? "null") as { left: number; top: number } | null
+      expect(saved).not.toBeNull()
+      expect(saved!.left).toBeLessThanOrEqual(400 - 48)
+      expect(saved!.top).toBeLessThanOrEqual(300 - 48)
+    })
+
+    it("does not update state or localStorage when the position is already within the resized viewport", () => {
+      // Position well within any reasonable viewport
+      localStorage.setItem("bug-report-button-position", JSON.stringify({ left: 50, top: 50 }))
+      renderButton()
+      const button = getBugButton()
+
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: 400 })
+      Object.defineProperty(window, "innerHeight", { configurable: true, value: 300 })
+      act(() => {
+        fireEvent(window, new Event("resize"))
+      })
+
+      // Position unchanged — still within viewport
+      expect(parseFloat(button.style.left)).toBe(50)
+      expect(parseFloat(button.style.top)).toBe(50)
+
+      // localStorage should remain at the original saved value (savePos not called again)
+      const saved = JSON.parse(localStorage.getItem("bug-report-button-position") ?? "null") as { left: number; top: number } | null
+      expect(saved!.left).toBe(50)
+      expect(saved!.top).toBe(50)
     })
   })
 })
