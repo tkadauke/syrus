@@ -2232,6 +2232,158 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
+  it "updates media_ids on a proposed proposal" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    proposal = ChatProposal.create!(chat_session: chat, slug: "build-ui", title: "Build UI", body: "Body.")
+    snapshot = WhiteboardSnapshot.create!(
+      chat_session: chat,
+      name: "My snapshot",
+      scene_json: { "elements" => [], "appState" => {} },
+      snapshot_kind: "manual",
+      element_count: 0
+    )
+    chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal proposed." })
+
+    patch "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}", params: {
+      proposal: {
+        title: "Build UI",
+        body: "Body.",
+        dependency_slugs: [],
+        media_ids: [ "snapshot:#{snapshot.id}" ]
+      }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(proposal.reload.media_ids).to eq([ "snapshot:#{snapshot.id}" ])
+    expect(parse_body.dig("proposal", "media_ids")).to eq([ "snapshot:#{snapshot.id}" ])
+  end
+
+  it "clears media_ids on a proposed proposal when passed an empty array" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    snapshot = WhiteboardSnapshot.create!(
+      chat_session: chat,
+      name: "My snapshot",
+      scene_json: { "elements" => [], "appState" => {} },
+      snapshot_kind: "manual",
+      element_count: 0
+    )
+    proposal = ChatProposal.create!(
+      chat_session: chat,
+      slug: "build-ui",
+      title: "Build UI",
+      body: "Body.",
+      media_ids: [ "snapshot:#{snapshot.id}" ]
+    )
+    chat.messages.create!(role: "assistant", proposal: proposal, content: { "text" => "Proposal proposed." })
+
+    patch "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}", params: {
+      proposal: { title: "Build UI", body: "Body.", dependency_slugs: [], media_ids: [] }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(proposal.reload.media_ids).to eq([])
+  end
+
+  describe "GET /api/v1/app/chats/:id/media" do
+    it "returns snapshots and chat images for the chat session" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+      snapshot = WhiteboardSnapshot.create!(
+        chat_session: chat,
+        name: "Arch diagram",
+        scene_json: { "elements" => [ { "id" => "e1", "type" => "rectangle" } ], "appState" => {} },
+        snapshot_kind: "manual",
+        element_count: 1
+      )
+      doc = Document.new(kind: "file", attachable: user, user: user)
+      doc.file.attach(io: StringIO.new("pixels"), filename: "diagram.png", content_type: "image/png")
+      doc.save!
+      ChatAttachment.create!(chat_session: chat, attachable: doc, suppress_header_broadcast: true)
+
+      get "/api/v1/app/chats/#{chat.id}/media"
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["snapshots"]).to contain_exactly(
+        include("id" => snapshot.id, "name" => "Arch diagram", "snapshot_kind" => "manual", "element_count" => 1)
+      )
+      expect(body["chat_images"]).to contain_exactly(
+        include("id" => doc.id, "filename" => "diagram.png", "content_type" => "image/png")
+      )
+    end
+
+    it "excludes non-image documents from chat_images" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+      pdf_doc = Document.new(kind: "file", attachable: user, user: user)
+      pdf_doc.file.attach(io: StringIO.new("%PDF"), filename: "brief.pdf", content_type: "application/pdf")
+      pdf_doc.save!
+      ChatAttachment.create!(chat_session: chat, attachable: pdf_doc, suppress_header_broadcast: true)
+
+      get "/api/v1/app/chats/#{chat.id}/media"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["chat_images"]).to eq([])
+    end
+
+    it "sets whiteboard_has_unsaved_content true when whiteboard has elements and no manual snapshot since last edit" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+      whiteboard = chat.create_whiteboard!(
+        scene_json: { "elements" => [ { "id" => "e1", "type" => "ellipse" } ] }
+      )
+      whiteboard.update_columns(last_edited_at: Time.current)
+
+      get "/api/v1/app/chats/#{chat.id}/media"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["whiteboard_has_unsaved_content"]).to be(true)
+    end
+
+    it "sets whiteboard_has_unsaved_content false when whiteboard is empty" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+      chat.create_whiteboard!(scene_json: { "elements" => [] })
+
+      get "/api/v1/app/chats/#{chat.id}/media"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["whiteboard_has_unsaved_content"]).to be(false)
+    end
+
+    it "sets whiteboard_has_unsaved_content false when a manual snapshot was taken after the last edit" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+      whiteboard = chat.create_whiteboard!(
+        scene_json: { "elements" => [ { "id" => "e1", "type" => "rectangle" } ] }
+      )
+      whiteboard.update_columns(last_edited_at: 1.hour.ago)
+      WhiteboardSnapshot.create!(
+        chat_session: chat,
+        name: "Saved",
+        scene_json: { "elements" => [] },
+        snapshot_kind: "manual",
+        element_count: 0
+      )
+
+      get "/api/v1/app/chats/#{chat.id}/media"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["whiteboard_has_unsaved_content"]).to be(false)
+    end
+
+    it "returns 404 for another user's chat" do
+      sign_in_as(Factories.user)
+      chat = ChatSession.create!(user: user, repository: repository)
+
+      get "/api/v1/app/chats/#{chat.id}/media"
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   it "searches proposals in the current chat and excludes the edited proposal" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)

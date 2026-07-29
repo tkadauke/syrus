@@ -1,4 +1,4 @@
-import { ApiError, deleteJson, getJson, patchJson, postJson } from "./client"
+import { ApiError, deleteJson, getJson, patchJson, postForm, postJson } from "./client"
 
 export type ChatRepository = {
   id: number
@@ -101,6 +101,7 @@ export type ChatProposal = {
   app_reject_path: string
   depends_on_job_ids?: number[]
   depends_on_epic_ids?: number[]
+  media_ids?: string[]
   materialized_label: string | null
   materialized_path: string | null
   materialized?: ChatProposalMaterialized | null
@@ -149,6 +150,28 @@ export type ChatProposalUpdateInput = {
   dependency_slugs: string[]
   depends_on_job_ids: number[]
   depends_on_epic_ids: number[]
+  media_ids?: string[]
+}
+
+export type ChatMediaSnapshot = {
+  id: number
+  name: string | null
+  snapshot_kind: "manual" | "auto_clear" | "auto_before_load"
+  element_count: number
+  created_at: string
+}
+
+export type ChatMediaImage = {
+  id: number
+  title: string
+  filename: string | null
+  content_type: string
+}
+
+export type ChatMediaPayload = {
+  snapshots: ChatMediaSnapshot[]
+  chat_images: ChatMediaImage[]
+  whiteboard_has_unsaved_content: boolean
 }
 
 export type ChatProposalSearchResult = {
@@ -574,6 +597,16 @@ export function fetchWhiteboardSnapshots(chatSessionId: string | number) {
 
 export function fetchWhiteboardSnapshot(chatSessionId: string | number, snapshotId: string | number) {
   return getJson<WhiteboardSnapshot>(`/api/v1/app/chats/${encodeURIComponent(String(chatSessionId))}/whiteboard_snapshots/${encodeURIComponent(String(snapshotId))}`)
+}
+
+export function fetchChatMedia(chatId: string | number) {
+  return getJson<ChatMediaPayload>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/media`)
+}
+
+export function postSnapshotPng(jobAttachmentsPath: string, blob: Blob, filename: string) {
+  const formData = new FormData()
+  formData.append("job_attachment[files][]", blob, filename)
+  return postForm<unknown>(jobAttachmentsPath, formData)
 }
 
 export function createWhiteboardSnapshot(chatSessionId: string | number, input: { scene_json: ChatWhiteboardScene; snapshot_kind: WhiteboardSnapshot["snapshot_kind"]; name?: string | null }) {

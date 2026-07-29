@@ -5,6 +5,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import "@excalidraw/excalidraw/index.css"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types"
+import { exportToBlob } from "@excalidraw/excalidraw"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
 import { GeminiSetupSheet } from "../components/GeminiSetupSheet"
@@ -40,6 +41,7 @@ import {
   reorderScratchpadItems,
   updateScratchpadItem,
   fetchChat,
+  fetchChatMedia,
   fetchChatMessages,
   fetchSharedChat,
   fetchChatWhiteboard,
@@ -47,6 +49,7 @@ import {
   fetchWhiteboardSnapshots,
   markChatRead,
   patchChatWhiteboard,
+  postSnapshotPng,
   rejectChatProposal,
   rejectPendingAction,
   renameChat,
@@ -77,6 +80,9 @@ import {
   type ChatNavRecord,
   type ChatEpicDependencySearchResult,
   type ChatJobDependencySearchResult,
+  type ChatMediaImage,
+  type ChatMediaPayload,
+  type ChatMediaSnapshot,
   type ChatMessageItem,
   type ChatPendingAction,
   type ChatPendingActionInline,
@@ -1201,6 +1207,7 @@ type EditableProposal = Pick<ChatProposal, "id" | "title" | "slug" | "body" | "p
   dependencies?: ChatProposalDependency[]
   depends_on_job_ids?: number[]
   depends_on_epic_ids?: number[]
+  media_ids?: string[]
 }
 
 type DependencyPill = {
@@ -1217,6 +1224,8 @@ function ProposalEditModal({ chatId, proposal, search, queryKey, onClose, onNoti
   const [proposalDeps, setProposalDeps] = useState<DependencyPill[]>(initialProposalDependencyPills(proposal))
   const [jobDeps, setJobDeps] = useState<DependencyPill[]>((proposal.depends_on_job_ids || []).map((id) => ({ key: String(id), label: `JOB-${id}` })))
   const [epicDeps, setEpicDeps] = useState<DependencyPill[]>((proposal.depends_on_epic_ids || []).map((id) => ({ key: String(id), label: `EPIC-${id}` })))
+  const [mediaIds, setMediaIds] = useState<string[]>(proposal.media_ids || [])
+  const [showMediaPicker, setShowMediaPicker] = useState(false)
   const [proposalQuery, setProposalQuery] = useState("")
   const [jobQuery, setJobQuery] = useState("")
   const [epicQuery, setEpicQuery] = useState("")
@@ -1226,6 +1235,10 @@ function ProposalEditModal({ chatId, proposal, search, queryKey, onClose, onNoti
   const searchProposals = useCallback((query: string, signal: AbortSignal) => searchChatProposals(chatId, query, proposal.id, { signal }), [chatId, proposal.id])
   const searchJobs = useCallback((query: string, signal: AbortSignal) => searchChatJobs(query, { signal }), [])
   const searchEpics = useCallback((query: string, signal: AbortSignal) => searchChatEpics(query, { signal }), [])
+  const availableMedia = useQuery({
+    queryKey: ["chat_media", String(chatId)],
+    queryFn: () => fetchChatMedia(chatId)
+  })
 
   const save = useMutation({
     mutationFn: () => updateChatProposal(appendSearch(proposal.app_update_path, search), {
@@ -1233,7 +1246,8 @@ function ProposalEditModal({ chatId, proposal, search, queryKey, onClose, onNoti
       body,
       dependency_slugs: proposalDeps.map((dep) => dep.key),
       depends_on_job_ids: jobDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id)),
-      depends_on_epic_ids: epicDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id))
+      depends_on_epic_ids: epicDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id)),
+      media_ids: mediaIds
     }),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
@@ -1331,12 +1345,106 @@ function ProposalEditModal({ chatId, proposal, search, queryKey, onClose, onNoti
                 setSelected={setEpicDeps}
               />
             </div>
+            <div>
+              <div className="text-sm font-medium text-gray-700 dark:text-gray-200">Media</div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {mediaIds.map((ref) => (
+                  <ProposalMediaChip
+                    key={ref}
+                    mediaRef={ref}
+                    media={availableMedia.data}
+                    onRemove={() => setMediaIds(mediaIds.filter((r) => r !== ref))}
+                  />
+                ))}
+                <div className="relative">
+                  <button
+                    className="inline-flex items-center gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                    onClick={() => setShowMediaPicker(!showMediaPicker)}
+                    type="button"
+                  >
+                    + Attach media
+                  </button>
+                  {showMediaPicker ? (
+                    <ProposalMediaPicker
+                      media={availableMedia.data}
+                      selectedRefs={mediaIds}
+                      onSelect={(ref) => {
+                        if (!mediaIds.includes(ref)) setMediaIds([...mediaIds, ref])
+                        setShowMediaPicker(false)
+                      }}
+                      onClose={() => setShowMediaPicker(false)}
+                    />
+                  ) : null}
+                </div>
+              </div>
+            </div>
           </div>
           <div className="flex justify-end gap-2 border-t border-gray-200 px-5 py-4 dark:border-gray-800">
             <button className={secondaryButton()} onClick={onClose} type="button">Cancel</button>
             <button className={primaryButton()} disabled={save.isPending || title.trim().length === 0} type="submit">Save</button>
           </div>
         </form>
+      </div>
+    </div>
+  )
+}
+
+function ProposalMediaPicker({ media, selectedRefs, onSelect, onClose }: { media: ChatMediaPayload | undefined; selectedRefs: string[]; onSelect: (ref: string) => void; onClose: () => void }) {
+  const selectedSet = new Set(selectedRefs)
+  const snapshots = (media?.snapshots || []).filter((s) => !selectedSet.has(`snapshot:${s.id}`))
+  const chatImages = (media?.chat_images || []).filter((i) => !selectedSet.has(`chat_image:${i.id}`))
+  const hasItems = snapshots.length > 0 || chatImages.length > 0
+
+  return (
+    <div className="absolute left-0 top-7 z-10 w-64 rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+      <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2 dark:border-gray-800">
+        <span className="text-xs font-medium text-gray-700 dark:text-gray-200">Attach media</span>
+        <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" onClick={onClose} type="button" aria-label="Close media picker">
+          <CloseIcon className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      <div className="max-h-56 overflow-y-auto py-1">
+        {!media ? (
+          <p className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">Loading…</p>
+        ) : !hasItems ? (
+          <p className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">No media available.</p>
+        ) : null}
+        {snapshots.length > 0 ? (
+          <>
+            <div className="px-3 py-1 text-xs font-semibold uppercase text-gray-400 dark:text-gray-500">Snapshots</div>
+            {snapshots.map((snapshot) => (
+              <button
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-blue-50 dark:hover:bg-blue-950"
+                key={snapshot.id}
+                onClick={() => onSelect(`snapshot:${snapshot.id}`)}
+                type="button"
+              >
+                <CanvasMediaIcon className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                <span className="min-w-0 flex-1 truncate text-gray-900 dark:text-gray-100">{snapshot.name || `Snapshot ${snapshot.id}`}</span>
+                <span className="shrink-0 rounded bg-gray-100 px-1 text-gray-500 dark:bg-gray-700 dark:text-gray-400">{snapshot.element_count}</span>
+              </button>
+            ))}
+          </>
+        ) : null}
+        {media?.whiteboard_has_unsaved_content && snapshots.length === 0 && (media?.snapshots || []).length === 0 ? (
+          <p className="px-3 py-2 text-xs text-amber-700 dark:text-amber-400">Save the canvas first to attach it.</p>
+        ) : null}
+        {chatImages.length > 0 ? (
+          <>
+            <div className="px-3 py-1 text-xs font-semibold uppercase text-gray-400 dark:text-gray-500">Images</div>
+            {chatImages.map((image) => (
+              <button
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-blue-50 dark:hover:bg-blue-950"
+                key={image.id}
+                onClick={() => onSelect(`chat_image:${image.id}`)}
+                type="button"
+              >
+                <ImageMediaIcon className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                <span className="min-w-0 flex-1 truncate text-gray-900 dark:text-gray-100">{image.filename || image.title}</span>
+              </button>
+            ))}
+          </>
+        ) : null}
       </div>
     </div>
   )
@@ -1421,6 +1529,40 @@ function initialProposalDependencyPills(proposal: EditableProposal) {
 
 type ProposalActionInput = { action: "confirm" | "reject"; path: string; start?: boolean }
 
+async function uploadSnapshotPngs(snapshotRefs: string[], chatId: string | number, jobId: number, onNotice: (message: string | null) => void) {
+  const jobAttachmentsPath = `/api/v1/app/jobs/${jobId}/attachments`
+  let uploaded = 0
+  let failed = 0
+
+  for (const ref of snapshotRefs) {
+    const snapshotId = Number(ref.split(":", 2)[1])
+    if (!Number.isFinite(snapshotId)) continue
+
+    try {
+      const snapshot = await fetchWhiteboardSnapshot(chatId, snapshotId)
+      const scene = snapshot.scene_json
+      if (!scene) continue
+
+      const elements = (scene.elements || []) as Parameters<typeof exportToBlob>[0]["elements"]
+      const files = scene.files as Parameters<typeof exportToBlob>[0]["files"] ?? null
+      const blob = await exportToBlob({ elements, appState: scene.appState, files, mimeType: "image/png" })
+      const filename = `${snapshot.name || `snapshot-${snapshotId}`}.png`
+      await postSnapshotPng(jobAttachmentsPath, blob, filename)
+      uploaded++
+    } catch (_error) {
+      failed++
+    }
+  }
+
+  if (uploaded > 0 && failed === 0) {
+    onNotice(uploaded === 1 ? "Whiteboard snapshot attached." : `${uploaded} whiteboard snapshots attached.`)
+  } else if (uploaded > 0 && failed > 0) {
+    onNotice(`${uploaded} snapshot${uploaded !== 1 ? "s" : ""} attached; ${failed} failed.`)
+  } else if (failed > 0) {
+    onNotice("Whiteboard snapshot attachment failed.")
+  }
+}
+
 function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: ChatProposal; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
@@ -1438,6 +1580,14 @@ function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: Chat
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       onNotice(updated.message || null)
+      const snapshotRefs = (proposal.media_ids || []).filter((ref) => ref.startsWith("snapshot:"))
+      if (snapshotRefs.length > 0) {
+        const confirmedProposal = updated.messages.flatMap((m) => m.proposal ? [m.proposal] : []).find((p) => p.id === proposal.id)
+        const jobId = confirmedProposal?.materialized?.kind === "job" ? confirmedProposal.materialized.job_id : null
+        if (jobId != null) {
+          void uploadSnapshotPngs(snapshotRefs, queryKey[1], jobId, onNotice)
+        }
+      }
     }
   })
 
@@ -1464,6 +1614,7 @@ function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: Chat
       body={
         <>
           <Markdown className="chat-prose text-sm text-gray-800 dark:text-gray-100" text={proposal.body} />
+          {(proposal.media_ids || []).length > 0 ? <ProposalMediaStrip mediaIds={proposal.media_ids!} chatId={queryKey[1]} /> : null}
           {proposal.epic_bundle ? <ProposalChildren children={proposal.children || []} parentProposed={proposal.proposed} mutation={proposalAction} prefix={prefix} onEdit={(child) => setEditingProposal(editableChildProposal(child))} /> : <ProposalMeta proposal={proposal} />}
         </>
       }
@@ -1789,6 +1940,86 @@ function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
       </div>
       {proposal.target_epic_label ? <div><dt className="font-medium text-gray-500 dark:text-gray-400">Target Epic</dt><dd>{proposal.target_epic_label}</dd></div> : null}
     </dl>
+  )
+}
+
+function ProposalMediaChip({ mediaRef, media, onRemove }: { mediaRef: string; media: ChatMediaPayload | undefined; onRemove?: () => void }) {
+  const colonIdx = mediaRef.indexOf(":")
+  const kind = colonIdx >= 0 ? mediaRef.slice(0, colonIdx) : ""
+  const id = colonIdx >= 0 ? Number(mediaRef.slice(colonIdx + 1)) : NaN
+
+  if (kind === "snapshot") {
+    const snapshot = media?.snapshots.find((s) => s.id === id)
+    const name = snapshot?.name || `Snapshot ${id}`
+    const count = snapshot?.element_count
+    return (
+      <span className="inline-flex max-w-48 items-center gap-1.5 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+        <CanvasMediaIcon className="h-3 w-3 shrink-0" />
+        <span className="min-w-0 truncate">{name}</span>
+        {count != null ? <span className="shrink-0 rounded bg-gray-100 px-1 font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">{count}</span> : null}
+        {onRemove ? (
+          <button className="ml-0.5 shrink-0 text-gray-400 hover:text-red-600 dark:hover:text-red-400" onClick={onRemove} type="button" aria-label={`Remove ${name}`}>
+            <CloseIcon className="h-3 w-3" />
+          </button>
+        ) : null}
+      </span>
+    )
+  }
+
+  if (kind === "chat_image") {
+    const image = media?.chat_images.find((i) => i.id === id)
+    const label = image?.filename || image?.title || `Image ${id}`
+    return (
+      <span className="inline-flex max-w-48 items-center gap-1.5 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+        <ImageMediaIcon className="h-3 w-3 shrink-0" />
+        <span className="min-w-0 truncate">{label}</span>
+        {onRemove ? (
+          <button className="ml-0.5 shrink-0 text-gray-400 hover:text-red-600 dark:hover:text-red-400" onClick={onRemove} type="button" aria-label={`Remove ${label}`}>
+            <CloseIcon className="h-3 w-3" />
+          </button>
+        ) : null}
+      </span>
+    )
+  }
+
+  return null
+}
+
+function ProposalMediaStrip({ mediaIds, chatId }: { mediaIds: string[]; chatId: string | number }) {
+  const media = useQuery({
+    queryKey: ["chat_media", String(chatId)],
+    queryFn: () => fetchChatMedia(chatId),
+    enabled: mediaIds.length > 0
+  })
+
+  if (mediaIds.length === 0) return null
+
+  return (
+    <div className="mt-3 flex flex-wrap gap-1.5">
+      {mediaIds.map((ref) => (
+        <ProposalMediaChip key={ref} mediaRef={ref} media={media.data} />
+      ))}
+    </div>
+  )
+}
+
+function CanvasMediaIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+      <path d="M3 9h18" />
+      <path d="M9 21V9" />
+    </svg>
+  )
+}
+
+function ImageMediaIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+      <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+      <circle cx="9" cy="9" r="2" />
+      <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+    </svg>
   )
 }
 

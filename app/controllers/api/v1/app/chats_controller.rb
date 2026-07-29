@@ -729,12 +729,14 @@ module Api
           ApplicationRecord.transaction do
             depends_on_job_ids = dependency_ids!(Current.user.jobs, Array(attrs[:depends_on_job_ids]), "depends_on_job_ids")
             depends_on_epic_ids = dependency_ids!(Current.user.epics, Array(attrs[:depends_on_epic_ids]), "depends_on_epic_ids")
-            proposal.update!(
+            update_attrs = {
               title: attrs[:title],
               body: attrs[:body],
               depends_on_job_ids: depends_on_job_ids,
               depends_on_epic_ids: depends_on_epic_ids
-            )
+            }
+            update_attrs[:media_ids] = Array(attrs[:media_ids]).reject(&:blank?) if attrs.key?(:media_ids)
+            proposal.update!(update_attrs)
             rebuild_proposal_dependencies!(chat_session, proposal, Array(attrs[:dependency_slugs]))
             proposal.reset_to_proposed_after_edit!
           end
@@ -747,6 +749,51 @@ module Api
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         rescue ArgumentError => e
           render_error("validation_failed", e.message, status: :unprocessable_content)
+        end
+
+        def media
+          chat_session = find_chat_session
+          whiteboard = chat_session.whiteboard
+          whiteboard_elements = whiteboard ? Array(whiteboard.scene_json&.dig("elements")).reject { |el| el["isDeleted"] } : []
+          latest_manual_snapshot = chat_session.whiteboard_snapshots
+                                               .where(snapshot_kind: "manual")
+                                               .order(created_at: :desc)
+                                               .first
+
+          snapshots = chat_session.whiteboard_snapshots.order(created_at: :desc).map do |snap|
+            {
+              id: snap.id,
+              name: snap.name,
+              snapshot_kind: snap.snapshot_kind,
+              element_count: snap.element_count,
+              created_at: snap.created_at.iso8601
+            }
+          end
+
+          chat_images = chat_session.attached_repository_documents
+                                    .with_attached_file
+                                    .where(kind: "file")
+                                    .order(:created_at, :id)
+                                    .select { |doc| doc.content_type.to_s.start_with?("image/") }
+                                    .map do |doc|
+            {
+              id: doc.id,
+              title: doc.title,
+              filename: doc.filename,
+              content_type: doc.content_type
+            }
+          end
+
+          whiteboard_last_edited = whiteboard&.last_edited_at || whiteboard&.created_at
+          whiteboard_has_unsaved_content = whiteboard_elements.any? &&
+            (latest_manual_snapshot.nil? ||
+              (whiteboard_last_edited && whiteboard_last_edited > latest_manual_snapshot.created_at))
+
+          render json: {
+            snapshots: snapshots,
+            chat_images: chat_images,
+            whiteboard_has_unsaved_content: whiteboard_has_unsaved_content
+          }
         end
 
         def cancel_coding_checkout
@@ -963,7 +1010,7 @@ module Api
         end
 
         def proposal_update_params
-          params.require(:proposal).permit(:title, :body, dependency_slugs: [], depends_on_job_ids: [], depends_on_epic_ids: [])
+          params.require(:proposal).permit(:title, :body, dependency_slugs: [], depends_on_job_ids: [], depends_on_epic_ids: [], media_ids: [])
         end
 
         def rebuild_proposal_dependencies!(chat_session, proposal, dependency_slugs)

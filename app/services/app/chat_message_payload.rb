@@ -118,7 +118,8 @@ module App
         # When the proposal became an Epic, expose its state + state-change path
         # so the chat can offer a "Start" (move to In Progress) action.
         materialized_epic_state: materialized_epic&.state,
-        materialized_epic_state_path: materialized_epic ? "/api/v1/app/epics/#{materialized_epic.id}/state" : nil
+        materialized_epic_state_path: materialized_epic ? "/api/v1/app/epics/#{materialized_epic.id}/state" : nil,
+        media_ids: proposal.media_ids || []
       }
 
       if proposal.epic_bundle?
