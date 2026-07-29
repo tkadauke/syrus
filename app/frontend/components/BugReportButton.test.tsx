@@ -635,8 +635,43 @@ describe("BugReportButton", () => {
 
       const [, options] = mockHtml2canvas.mock.calls[0]
       // windowWidth/windowHeight must match the viewport, not the document scroll dimensions.
-      // onclone must be wired for both capture modes.
-      expect(options).toMatchObject({ windowWidth: 402, windowHeight: 714, onclone: expect.any(Function) })
+      // onclone and ignoreElements must be wired for both capture modes.
+      expect(options).toMatchObject({ windowWidth: 402, windowHeight: 714, onclone: expect.any(Function), ignoreElements: expect.any(Function) })
+    })
+
+    it("passes ignoreElements to the viewport capture", async () => {
+      renderButton()
+      await openDialog()
+
+      await waitFor(() => expect(mockHtml2canvas).toHaveBeenCalled())
+
+      const [, options] = mockHtml2canvas.mock.calls[0]
+      expect(typeof options?.ignoreElements).toBe("function")
+    })
+
+    it("ignoreElements excludes display:none elements (e.g. the desktop sidebar hidden on mobile) from screenshots", async () => {
+      renderButton()
+      await openDialog()
+
+      await waitFor(() => expect(mockHtml2canvas).toHaveBeenCalled())
+
+      const [, options] = mockHtml2canvas.mock.calls[0]
+      const ignoreElements = options!.ignoreElements as (el: Element) => boolean
+
+      const hiddenEl = document.createElement("aside")
+      hiddenEl.style.display = "none"
+      document.body.appendChild(hiddenEl)
+
+      const visibleEl = document.createElement("aside")
+      document.body.appendChild(visibleEl)
+
+      try {
+        expect(ignoreElements(hiddenEl)).toBe(true)
+        expect(ignoreElements(visibleEl)).toBe(false)
+      } finally {
+        document.body.removeChild(hiddenEl)
+        document.body.removeChild(visibleEl)
+      }
     })
   })
 })
