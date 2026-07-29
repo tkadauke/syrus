@@ -4,7 +4,7 @@ import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { DashboardPayload } from "../api/dashboard"
 import * as dashboardApi from "../api/dashboard"
-import { DashboardDependencyView } from "./Dashboard"
+import { DashboardDependencyView, graphSearchWithSmartFolder } from "./Dashboard"
 
 vi.mock("../api/dashboard", async (importOriginal) => {
   const mod = await importOriginal<typeof import("../api/dashboard")>()
@@ -189,5 +189,31 @@ describe("DashboardDependencyView", () => {
     })
     expect(mockFetchJobsGraph).not.toHaveBeenCalled()
     expect(mockFetchEpicsGraph).not.toHaveBeenCalled()
+  })
+})
+
+describe("graphSearchWithSmartFolder", () => {
+  it("adds smart_folder_id when absent and no q filter", () => {
+    expect(graphSearchWithSmartFolder("?subject=job", 5)).toBe("?subject=job&smart_folder_id=5")
+  })
+
+  it("does not add smart_folder_id when already present in search", () => {
+    expect(graphSearchWithSmartFolder("?smart_folder_id=3&subject=job", 5)).toBe("?smart_folder_id=3&subject=job")
+  })
+
+  it("does not add smart_folder_id when q filter is active", () => {
+    expect(graphSearchWithSmartFolder("?q=abc123&subject=job", 5)).toBe("?q=abc123&subject=job")
+  })
+
+  it("does not add smart_folder_id when activeSfId is null", () => {
+    expect(graphSearchWithSmartFolder("?subject=job", null)).toBe("?subject=job")
+  })
+
+  it("handles empty raw search and adds smart_folder_id", () => {
+    expect(graphSearchWithSmartFolder("", 7)).toBe("?smart_folder_id=7")
+  })
+
+  it("returns empty string when search is empty and activeSfId is null", () => {
+    expect(graphSearchWithSmartFolder("", null)).toBe("")
   })
 })

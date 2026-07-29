@@ -1181,12 +1181,12 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       expect(body["edges"]).to be_empty
     end
 
-    it "filters by repo param" do
+    it "filters by repository_id param" do
       epic_a
       other_repo = Factories.repository(user: user, owner: "acme", name: "other")
       Factories.epic(user: user, repository: other_repo, title: "Other repo epic")
 
-      get "/api/v1/app/epics/graph", params: { repo: "acme/widgets" }
+      get "/api/v1/app/epics/graph", params: { repository_id: repository.id }
 
       expect(response).to have_http_status(:ok)
       node_ids = parse_body["nodes"].map { |n| n["id"] }
@@ -1200,10 +1200,9 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       other_repo = Factories.repository(user: user, owner: "acme", name: "other")
       Factories.epic(user: user, repository: other_repo, title: "Other")
 
-      get "/api/v1/app/epics/graph", params: { repo: "acme/widgets" }
+      get "/api/v1/app/epics/graph", params: { repository_id: repository.id }
 
       body = parse_body
-      # Both epic_a and epic_b are in acme/widgets — edge should appear
       expect(body["edges"]).to contain_exactly(
         { "from_id" => "epic_#{epic_b.id}", "to_id" => "epic_#{epic_a.id}" }
       )
@@ -1271,6 +1270,37 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       get "/api/v1/app/epics/graph", params: { smart_folder_id: folder.id }
 
       expect(response).to have_http_status(:ok)
+      node_ids = parse_body["nodes"].map { |n| n["id"] }
+      expect(node_ids).to contain_exactly("epic_#{epic_a.id}")
+    end
+
+    it "applies a q param as a base64-encoded AST filter tree" do
+      epic_a
+      epic_b
+      epic_b.update!(state: "ready")
+      q = Filters::QueryParam.encode({ "and" => [ { "field" => "state", "op" => "is", "value" => "backlog" } ] })
+
+      get "/api/v1/app/epics/graph", params: { q: q }
+
+      node_ids = parse_body["nodes"].map { |n| n["id"] }
+      expect(node_ids).to contain_exactly("epic_#{epic_a.id}")
+    end
+
+    it "suppresses smart folder filter when q filter is active" do
+      epic_a
+      epic_b
+      epic_b.update!(state: "ready")
+      folder = SmartFolder.create!(
+        user: user,
+        subject_type: "epic",
+        name: "Ready only",
+        kind: "user_defined",
+        filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "ready" } ] }
+      )
+      q = Filters::QueryParam.encode({ "and" => [ { "field" => "state", "op" => "is", "value" => "backlog" } ] })
+
+      get "/api/v1/app/epics/graph", params: { smart_folder_id: folder.id, q: q }
+
       node_ids = parse_body["nodes"].map { |n| n["id"] }
       expect(node_ids).to contain_exactly("epic_#{epic_a.id}")
     end

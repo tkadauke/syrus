@@ -857,7 +857,7 @@ RSpec.describe "App API job detail", type: :request do
       expect(body["edges"]).to be_empty
     end
 
-    it "filters nodes by repo param" do
+    it "filters nodes by repository_id param" do
       job_a
       Factories.job_record(
         repository: Factories.repository(user: user, owner: "other", name: "repo2"),
@@ -865,7 +865,7 @@ RSpec.describe "App API job detail", type: :request do
         state: "open"
       )
 
-      get "/api/v1/app/jobs/graph", params: { repo: "acme/widgets" }
+      get "/api/v1/app/jobs/graph", params: { repository_id: repo.id }
 
       expect(response).to have_http_status(:ok)
       body = parse_body
@@ -877,13 +877,14 @@ RSpec.describe "App API job detail", type: :request do
       job_a
       job_b
       JobDependency.create!(job: job_b, depends_on_job: job_a, source: "manual")
+      q = Filters::QueryParam.encode({ "and" => [ { "field" => "state", "op" => "is", "value" => "implemented" } ] })
 
-      get "/api/v1/app/jobs/graph", params: { state: "open" }
+      get "/api/v1/app/jobs/graph", params: { q: q }
 
       expect(response).to have_http_status(:ok)
       body = parse_body
       node_ids = body["nodes"].map { |n| n["id"] }
-      expect(node_ids).to contain_exactly("job_#{job_a.id}")
+      expect(node_ids).to contain_exactly("job_#{job_b.id}")
       expect(body["edges"]).to be_empty
     end
 
@@ -952,6 +953,35 @@ RSpec.describe "App API job detail", type: :request do
       expect(response).to have_http_status(:ok)
       node_ids = parse_body["nodes"].map { |n| n["id"] }
       expect(node_ids).to contain_exactly("job_#{job_a.id}", "job_#{job_b.id}")
+    end
+
+    it "applies a q param as a base64-encoded AST filter tree" do
+      job_a
+      job_b
+      q = Filters::QueryParam.encode({ "and" => [ { "field" => "state", "op" => "is_not", "value" => "implemented" } ] })
+
+      get "/api/v1/app/jobs/graph", params: { q: q }
+
+      node_ids = parse_body["nodes"].map { |n| n["id"] }
+      expect(node_ids).to contain_exactly("job_#{job_a.id}")
+    end
+
+    it "suppresses smart folder filter when q filter is active" do
+      job_a
+      job_b
+      folder = SmartFolder.create!(
+        user: user,
+        subject_type: "job",
+        name: "Implemented only",
+        kind: "user_defined",
+        filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "implemented" } ] }
+      )
+      q = Filters::QueryParam.encode({ "and" => [ { "field" => "state", "op" => "is_not", "value" => "implemented" } ] })
+
+      get "/api/v1/app/jobs/graph", params: { smart_folder_id: folder.id, q: q }
+
+      node_ids = parse_body["nodes"].map { |n| n["id"] }
+      expect(node_ids).to contain_exactly("job_#{job_a.id}")
     end
   end
 end

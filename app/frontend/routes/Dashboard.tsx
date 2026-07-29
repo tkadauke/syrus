@@ -259,11 +259,23 @@ function MobileDashboardControls({ payload, pathname, prefix, search }: { payloa
   )
 }
 
+export function graphSearchWithSmartFolder(rawSearch: string, activeSfId: number | null): string {
+  const params = new URLSearchParams(rawSearch.startsWith("?") ? rawSearch.slice(1) : rawSearch)
+  if (!params.has("smart_folder_id") && !params.has("q") && activeSfId != null) {
+    params.set("smart_folder_id", String(activeSfId))
+  }
+  const str = params.toString()
+  return str ? `?${str}` : ""
+}
+
 function DashboardContent({ payload, pathname, prefix, search }: { payload: DashboardPayload; pathname: string; prefix: string; search: string }) {
   const setupStatus = useSetupStatus()
 
   if (payload.view === "dependencies") {
-    const graphSearch = dashboardApiSearch(pathname, search)
+    const graphSearch = graphSearchWithSmartFolder(
+      dashboardApiSearch(pathname, search),
+      payload.active_smart_folder_id
+    )
     return (
       <section className="min-w-0 space-y-4">
         <DashboardDependencyView payload={payload} graphSearch={graphSearch} />

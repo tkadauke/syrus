@@ -19,11 +19,13 @@ module Api
         end
 
         def graph
-          scope = filter_jobs(Current.user.jobs)
           smart_folder = graph_smart_folder("job")
-          if smart_folder&.filter.present?
-            scope = Jobs::Filter.new(smart_folder.filter, user: Current.user).apply(scope)
-          end
+          url_filter = Jobs::Filter.from_params(params, user: Current.user)
+          scope = Jobs::Filter.from_params(
+            params,
+            smart_folder: url_filter.active? ? nil : smart_folder,
+            user: Current.user
+          ).apply(Current.user.jobs)
           job_attrs = scope.pluck(:id, :issue_title, :state, :epic_id)
           job_ids = job_attrs.map(&:first)
 

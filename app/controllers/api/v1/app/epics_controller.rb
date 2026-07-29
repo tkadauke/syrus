@@ -16,11 +16,13 @@ module Api
         end
 
         def graph
-          scope = filter_epics(Epic.accessible_to(Current.user))
           smart_folder = graph_smart_folder("epic")
-          if smart_folder&.filter.present?
-            scope = Epics::Filter.new(smart_folder.filter, user: Current.user).apply(scope)
-          end
+          url_filter = Epics::Filter.from_params(params, user: Current.user)
+          scope = Epics::Filter.from_params(
+            params,
+            smart_folder: url_filter.active? ? nil : smart_folder,
+            user: Current.user
+          ).apply(Epic.accessible_to(Current.user))
           epic_attrs = scope.pluck(:id, :title, :state, :number)
           epic_ids = epic_attrs.map(&:first)
 
