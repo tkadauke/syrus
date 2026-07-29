@@ -107,7 +107,7 @@ export function TopoDepGraph({
       const h = Math.ceil(cRect.height)
       return prev.w === w && prev.h === h ? prev : { w, h }
     })
-  })
+  }, [edges, nodes])
 
   if (nodes.length === 0) return null
 

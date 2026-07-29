@@ -89,7 +89,27 @@ describe("DashboardDependencyView", () => {
     mockFetchEpicsGraph.mockReset()
   })
 
-  it("shows 'no dependency edges' message when edges array is empty for jobs", async () => {
+  it("shows no match message when nodes array is empty", async () => {
+    mockFetchJobsGraph.mockResolvedValue({ nodes: [], edges: [] })
+
+    renderDependencyView(buildJobPayload())
+
+    await waitFor(() => {
+      expect(screen.getByText("No jobs match this view.")).toBeInTheDocument()
+    })
+  })
+
+  it("shows no match message for epics subject when nodes are empty", async () => {
+    mockFetchEpicsGraph.mockResolvedValue({ nodes: [], edges: [] })
+
+    renderDependencyView(buildEpicPayload())
+
+    await waitFor(() => {
+      expect(screen.getByText("No epics match this view.")).toBeInTheDocument()
+    })
+  })
+
+  it("shows 'no dependency edges' message when nodes exist but edges array is empty", async () => {
     mockFetchJobsGraph.mockResolvedValue({ nodes: [graphNode("job_1"), graphNode("job_2")], edges: [] })
 
     renderDependencyView(buildJobPayload())

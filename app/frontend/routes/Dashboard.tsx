@@ -303,6 +303,10 @@ export function DashboardDependencyView({ payload, graphSearch }: { payload: Das
 
   const { nodes, edges } = graphQuery.data ?? { nodes: [], edges: [] }
 
+  if (nodes.length === 0) {
+    return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">{t("no_match", { subject: subjectLabel(subject, 2) })}</div>
+  }
+
   if (edges.length === 0) {
     return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">{t("no_dependency_edges")}</div>
   }
