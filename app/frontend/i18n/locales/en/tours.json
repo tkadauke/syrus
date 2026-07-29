@@ -4,5 +4,15 @@
   "last": "Done",
   "next": "Next",
   "open": "Open the dialog",
-  "skip": "Skip tour"
+  "skip": "Skip tour",
+  "job_detail": {
+    "timeline_title": "Implementation timeline",
+    "timeline_content": "Each step shows what Syrus did: planning, writing code, opening a pull request. Click a step to see the agent's full transcript.",
+    "approve_title": "Approve the work",
+    "approve_content": "Once you've reviewed the pull request, click Approve to queue it for merging. Syrus handles the rest.",
+    "feedback_title": "Request changes",
+    "feedback_content": "Not quite right? Submit feedback in plain language — Syrus will open a new implementation attempt based on your comments.",
+    "pr_title": "Review the diff",
+    "pr_content": "The pull request link takes you straight to GitHub to review the exact code changes before you approve."
+  }
 }

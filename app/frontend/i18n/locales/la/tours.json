@@ -4,5 +4,15 @@
   "last": "Factum",
   "next": "Progredi",
   "open": "Dialogum aperire",
-  "skip": "Iter praeterire"
+  "skip": "Iter praeterire",
+  "job_detail": {
+    "timeline_title": "Progressio implementationis",
+    "timeline_content": "Quodque gradus ostendit quid Syrus fecerit: consilium, codicem scribere, petitionem tractus aperire. Clicca gradum ut transcriptum plenum agentis videas.",
+    "approve_title": "Opus probare",
+    "approve_content": "Postquam petitionem tractus inspexisti, clicca Probare ut in ordinem mergendi addatur. Syrus reliqua curat.",
+    "feedback_title": "Mutationes postulare",
+    "feedback_content": "Non satis rectum? Narra quid mutandum sit verbis simplicibus — Syrus novum conatum implementationis ex commentis tuis aperiet.",
+    "pr_title": "Differentiam recensere",
+    "pr_content": "Nexus petitionis tractus te recta ad GitHub ducit ut mutationes codicis exactas ante probationem recenseas."
+  }
 }

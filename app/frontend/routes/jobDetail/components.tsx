@@ -323,7 +323,7 @@ export function TimelinePanel({ canView, jobId, prefix, runsCount }: { canView: 
   if (!canView) return null
 
   return (
-    <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+    <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900" data-tour="job-timeline">
       <button
         aria-expanded={expanded}
         className="flex w-full items-center gap-2 p-4 text-left text-sm font-semibold text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-800"

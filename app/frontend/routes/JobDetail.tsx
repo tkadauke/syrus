@@ -15,6 +15,8 @@ import { workflowSlug } from "../lib/slugs"
 import { buttonClass } from "../lib/buttonClasses"
 import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobDetail, fetchJobWorkflows, ignorePendingFeedback, replacePendingFeedback, submitJobFeedback, updateJobPriority, type JobApprovalRecord, type JobApprovalStatus, type JobDetailPayload, type JobTestPlan, type JobWorkflow, type PendingFeedbackComment } from "../api/jobs"
 import { CoverageCard } from "../components/CoverageCard"
+import { SyrusTour } from "../components/SyrusTour"
+import { useTour } from "../hooks/useTour"
 import { errorMessage } from "../lib/errorMessage"
 import type { JobDetailQueryKey, JobTab, JobWorkflowsQueryKey } from "./jobDetail/queryKeys"
 import { CommandButton, useJobCommand } from "./jobDetail/command"
@@ -75,6 +77,7 @@ export function JobDetailRoute() {
 
 export function JobDetailView({ payload, queryKey, workflowsQueryKey, activeTab, onSelectTab, prefix }: { payload: JobDetailPayload; queryKey: JobDetailQueryKey; workflowsQueryKey?: JobWorkflowsQueryKey; activeTab: JobTab; onSelectTab: (tab: JobTab) => void; prefix: string }) {
   const { t } = useT("jobs")
+  const { t: tTours } = useT("tours")
   const location = useLocation()
   const queryClient = useQueryClient()
   const [notice, setNotice] = useState<string | null>(payload.message || null)
@@ -93,6 +96,34 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, activeTab,
     }
   })
 
+  const { run: tourRun, handleJoyrideCallback } = useTour("job_detail")
+  const tourSteps = [
+    {
+      target: "[data-tour='job-timeline']",
+      title: tTours("job_detail.timeline_title"),
+      content: tTours("job_detail.timeline_content"),
+      placement: "right" as const,
+    },
+    {
+      target: "[data-tour='job-approve']",
+      title: tTours("job_detail.approve_title"),
+      content: tTours("job_detail.approve_content"),
+      placement: "bottom" as const,
+    },
+    {
+      target: "[data-tour='job-feedback']",
+      title: tTours("job_detail.feedback_title"),
+      content: tTours("job_detail.feedback_content"),
+      placement: "bottom" as const,
+    },
+    {
+      target: "[data-tour='job-pr-link']",
+      title: tTours("job_detail.pr_title"),
+      content: tTours("job_detail.pr_content"),
+      placement: "bottom" as const,
+    },
+  ]
+
   useEffect(() => {
     setNotice(payload.message || null)
   }, [payload.job.id, payload.message])
@@ -109,6 +140,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, activeTab,
 
   return (
     <>
+      <SyrusTour onEvent={(data) => handleJoyrideCallback(data)} run={tourRun} steps={tourSteps} />
       <header className="space-y-3">
         <div className="min-w-0">
           <h1 className="break-words text-3xl font-semibold text-gray-900 dark:text-gray-100">
@@ -262,7 +294,7 @@ function SummaryTab({ payload, command, prefix, queryKey }: { payload: JobDetail
         </div>
 
         <div className="space-y-4">
-          <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900">
+          <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900" data-tour="job-pr-link">
             <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("section_details")}</h2>
             <div className="mt-3 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
               <KeyValue label={t("detail_state")}><StatusPill state={payload.job.summary_state} /></KeyValue>

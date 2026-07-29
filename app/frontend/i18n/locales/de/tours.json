@@ -4,5 +4,15 @@
   "last": "Fertig",
   "next": "Weiter",
   "open": "Dialog öffnen",
-  "skip": "Tour überspringen"
+  "skip": "Tour überspringen",
+  "job_detail": {
+    "timeline_title": "Implementierungs-Zeitleiste",
+    "timeline_content": "Jeder Schritt zeigt, was Syrus getan hat: Planung, Code schreiben, Pull Request öffnen. Klicke auf einen Schritt, um das vollständige Transcript des Agenten zu sehen.",
+    "approve_title": "Arbeit genehmigen",
+    "approve_content": "Sobald du den Pull Request geprüft hast, klicke auf Genehmigen, um ihn für die Zusammenführung einzureihen. Syrus erledigt den Rest.",
+    "feedback_title": "Änderungen anfordern",
+    "feedback_content": "Nicht ganz richtig? Gib Feedback in einfacher Sprache ein — Syrus öffnet einen neuen Implementierungsversuch basierend auf deinen Kommentaren.",
+    "pr_title": "Diff überprüfen",
+    "pr_content": "Der Pull-Request-Link führt dich direkt zu GitHub, um die genauen Codeänderungen vor der Genehmigung zu überprüfen."
+  }
 }
