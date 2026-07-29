@@ -192,7 +192,7 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
   const { t } = useT("dashboard")
   if (item.type === "job") {
     return (
-      <article className={`rounded border p-3 shadow-sm ${item.needs_attention ? "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30" : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"}`}>
+      <article className={`rounded border p-3 shadow-sm ${item.priority === "urgent" ? "border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/40" : item.needs_attention ? "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30" : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"}`}>
         <div className="flex items-start justify-between gap-1">
           <Link className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(item.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(item.title_pending)} title={item.title} /></Link>
           {item.needs_attention ? <span aria-label={t("needs_attention_aria")} className="mt-0.5 shrink-0 rounded bg-amber-200 px-1 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-800 dark:text-amber-200">!</span> : null}

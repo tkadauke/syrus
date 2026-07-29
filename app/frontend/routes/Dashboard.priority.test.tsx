@@ -12,6 +12,27 @@ function jobItem(id: number, priority: string): DashboardJobItem {
   return { id, priority, type: "job", epic: null, landing_queue_entry_key: null } as unknown as DashboardJobItem
 }
 
+// Richer fixture for Kanban cards, which access title, repository, paths, etc.
+function kanbanJobItem(id: number, priority: string): DashboardJobItem {
+  return {
+    id,
+    priority,
+    type: "job",
+    epic: null,
+    landing_queue_entry_key: null,
+    title: `Job ${id}`,
+    title_pending: false,
+    needs_attention: false,
+    owner_badge: null,
+    pr_number: null,
+    pr_url: null,
+    summary_state: "running",
+    active_workflow_trigger_kind: null,
+    repository: { id: 1, slug: "owner/repo", repository_path: "/repos/1" },
+    paths: { job_path: `/jobs/${id}`, source_path: `/jobs/${id}` },
+  } as unknown as DashboardJobItem
+}
+
 function buildPayload(items: DashboardJobItem[]): DashboardPayload {
   return {
     subject: "job",
@@ -76,6 +97,17 @@ function renderTable(items: DashboardJobItem[]) {
   )
 }
 
+function renderPayload(payload: DashboardPayload) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <DashboardTable payload={payload} prefix="" setupStatus={null} />
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
 describe("PRIORITY_TONE", () => {
   it("maps urgent to red", () => {
     expect(PRIORITY_TONE["urgent"]).toBe("red")
@@ -114,6 +146,24 @@ describe("urgent row highlight", () => {
     const tbody = container.querySelector("tbody")
     const row = tbody?.querySelector("tr")
     expect(row?.className ?? "").not.toContain("bg-red-50")
+  })
+})
+
+describe("urgent kanban card highlight", () => {
+  function kanbanPayload(item: DashboardJobItem): DashboardPayload {
+    return { ...buildPayload([item]), view: "kanban", lanes: [{ key: "running", title: "Running", count: 1, items: [item] }] }
+  }
+
+  it("applies a red background to the kanban card for urgent jobs", () => {
+    const { container } = renderPayload(kanbanPayload(kanbanJobItem(1, "urgent")))
+    const article = container.querySelector("article")
+    expect(article?.className).toContain("bg-red-50")
+  })
+
+  it("does not apply a red background to the kanban card for high-priority jobs", () => {
+    const { container } = renderPayload(kanbanPayload(kanbanJobItem(2, "high")))
+    const article = container.querySelector("article")
+    expect(article?.className ?? "").not.toContain("bg-red-50")
   })
 })
 
