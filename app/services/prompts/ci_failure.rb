@@ -10,7 +10,7 @@ module Prompts
     MAX_SUMMARY_BYTES = 2_000
     MAX_ERROR_BLOCK_BYTES = 6_000
 
-    def initialize(issue:, pr_number:, repo_slug:, branch_name:, head_sha:, failed_checks:, epic: nil)
+    def initialize(issue:, pr_number:, repo_slug:, branch_name:, head_sha:, failed_checks:, epic: nil, job: nil)
       @issue        = issue
       @pr_number    = pr_number
       @repo_slug    = repo_slug
@@ -18,6 +18,7 @@ module Prompts
       @head_sha     = head_sha
       @failed_checks = failed_checks
       @epic = epic
+      @job = job
     end
 
     def to_s
@@ -59,7 +60,7 @@ module Prompts
     private
 
     def epic_context
-      Prompts::EpicContext.new(epic: @epic).to_s
+      Prompts::EpicContext.new(epic: @epic, job: @job).to_s
     end
 
     def render_checks

@@ -9,11 +9,12 @@ module Prompts
   class Implement
     SKILL_FILE = Rails.root.join(".claude/skills/implement/SKILL.md").freeze
 
-    def initialize(issue:, issue_comments: [], replay_context: nil, epic: nil, user: nil, repository_ids: [])
+    def initialize(issue:, issue_comments: [], replay_context: nil, epic: nil, job: nil, user: nil, repository_ids: [])
       @issue = issue
       @issue_comments = issue_comments
       @replay_context = replay_context
       @epic = epic
+      @job = job
       @user = user
       @repository_ids = repository_ids
     end
@@ -37,7 +38,7 @@ module Prompts
     end
 
     def epic_context
-      @epic_context ||= Prompts::EpicContext.new(epic: @epic).to_s
+      @epic_context ||= Prompts::EpicContext.new(epic: @epic, job: @job).to_s
     end
 
     def memory_context

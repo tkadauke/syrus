@@ -5,9 +5,10 @@ module Prompts
   # here once we have data from real runs about where the agent gets
   # stuck.
   class Initial
-    def initialize(issue:, epic: nil, user: nil, repository_ids: [])
+    def initialize(issue:, epic: nil, job: nil, user: nil, repository_ids: [])
       @issue = issue
       @epic = epic
+      @job = job
       @user = user
       @repository_ids = repository_ids
     end
@@ -23,7 +24,7 @@ module Prompts
     private
 
     def epic_context
-      Prompts::EpicContext.new(epic: @epic).to_s
+      Prompts::EpicContext.new(epic: @epic, job: @job).to_s
     end
 
     def memory_context

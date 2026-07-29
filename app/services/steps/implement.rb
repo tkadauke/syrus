@@ -81,6 +81,7 @@ module Steps
         issue_comments: issue_comments,
         replay_context: replay_context,
         epic: job.epic,
+        job: job,
         user: job.user,
         repository_ids: [ job.repository_id ]
       ).to_s

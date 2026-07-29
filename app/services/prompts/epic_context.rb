@@ -5,8 +5,9 @@ module Prompts
   class EpicContext
     MAX_DESCRIPTION_BYTES = 16.kilobytes
 
-    def initialize(epic:)
+    def initialize(epic:, job: nil)
       @epic = epic
+      @job = job
     end
 
     def to_s
@@ -19,6 +20,8 @@ module Prompts
         scope_guard
       ]
       parts << "Epic description:\n\n#{truncated_description(description)}" if description.present?
+      siblings_section = approved_siblings_section
+      parts << siblings_section if siblings_section
       parts.join("\n\n")
     end
 
@@ -35,6 +38,24 @@ module Prompts
 
       "#{description.safe_byteslice(0, MAX_DESCRIPTION_BYTES)}\n\n" \
         "[Epic description truncated after #{MAX_DESCRIPTION_BYTES} bytes.]"
+    end
+
+    def approved_siblings_section
+      return nil unless @job
+
+      exclude_ids = [ @job.id, @epic.reconciliation_job_id ].compact
+      siblings = @epic.jobs.where(state: %w[approved landing]).where.not(id: exclude_ids)
+      return nil if siblings.empty?
+
+      lines = siblings.map { |j| "#{j.slug}: #{j.title}" }
+
+      <<~SECTION.strip
+        ## Approved sibling Jobs
+
+        #{lines.join("\n")}
+
+        These sibling Jobs have been approved and their changes are already in your working directory. Inspect the code they introduced before implementing to maintain consistent patterns.
+      SECTION
     end
   end
 end

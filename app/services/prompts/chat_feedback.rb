@@ -1,12 +1,13 @@
 module Prompts
   # Prompt for follow-up Runs triggered from Syrus Chat operator feedback.
   class ChatFeedback
-    def initialize(issue:, feedback:, prior_summaries: [], recent_commits: [], epic: nil)
+    def initialize(issue:, feedback:, prior_summaries: [], recent_commits: [], epic: nil, job: nil)
       @issue = issue
       @feedback = feedback
       @prior_summaries = prior_summaries || []
       @recent_commits = recent_commits || []
       @epic = epic
+      @job = job
     end
 
     def to_s
@@ -33,7 +34,7 @@ module Prompts
     end
 
     def epic_context
-      Prompts::EpicContext.new(epic: @epic).to_s.presence
+      Prompts::EpicContext.new(epic: @epic, job: @job).to_s.presence
     end
 
     def prior_context_section

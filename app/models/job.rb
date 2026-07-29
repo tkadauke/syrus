@@ -801,6 +801,7 @@ class Job < ApplicationRecord
       Prompts::DirectJob.new(
         prompt: issue_body.to_s,
         epic: epic,
+        job: self,
         user: user,
         repository_ids: [ repository_id ]
       ).to_s

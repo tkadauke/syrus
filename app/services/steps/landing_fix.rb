@@ -23,7 +23,8 @@ module Steps
         repo_slug: repository.slug,
         branch_name: job.branch_name,
         recent_commits: recent_branch_commits,
-        epic: job.epic
+        epic: job.epic,
+        job: job
       ).to_s
 
       append_grade_failure_feedback(prompt)

@@ -3,13 +3,14 @@ module Prompts
   # operating on the exact branch state Syrus is about to grade and
   # merge. Later loop iterations append Prompts::GradeFailureFeedback.
   class LandingFix
-    def initialize(issue:, pr_number:, repo_slug:, branch_name:, recent_commits: [], epic: nil)
+    def initialize(issue:, pr_number:, repo_slug:, branch_name:, recent_commits: [], epic: nil, job: nil)
       @issue = issue
       @pr_number = pr_number
       @repo_slug = repo_slug
       @branch_name = branch_name
       @recent_commits = recent_commits || []
       @epic = epic
+      @job = job
     end
 
     def to_s
@@ -43,7 +44,7 @@ module Prompts
     end
 
     def epic_context
-      Prompts::EpicContext.new(epic: @epic).to_s.presence
+      Prompts::EpicContext.new(epic: @epic, job: @job).to_s.presence
     end
 
     def commits_section

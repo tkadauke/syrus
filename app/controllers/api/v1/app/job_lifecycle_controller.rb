@@ -26,6 +26,7 @@ module Api
           rendered_prompt = Prompts::DirectJob.new(
             prompt: job.issue_body.to_s,
             epic: job.epic,
+            job: job,
             user: job.user,
             repository_ids: [ job.repository_id ]
           ).to_s

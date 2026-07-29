@@ -36,6 +36,7 @@ module Steps
         prior_summaries: prior_feedback_summaries(%w[pr_comment]),
         recent_commits: recent_branch_commits,
         epic: job.epic,
+        job: job,
         user: job.user,
         repository_ids: [ job.repository_id ]
       ).to_s
@@ -47,7 +48,8 @@ module Steps
         feedback: workflow.artifact("chat_feedback").to_s,
         prior_summaries: prior_feedback_summaries(Workflow::TriggerKind.feedback_values),
         recent_commits: recent_branch_commits,
-        epic: job.epic
+        epic: job.epic,
+        job: job
       ).to_s
     end
 

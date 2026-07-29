@@ -27,7 +27,8 @@ module Steps
         branch_name: job.branch_name,
         head_sha: head_sha,
         failed_checks: failed,
-        epic: job.epic
+        epic: job.epic,
+        job: job
       ).to_s
     end
   end
