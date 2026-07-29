@@ -330,6 +330,20 @@ RSpec.describe ChatWorkspace do
       expect(chat_session.reload.coding_checkout_branch).to be_nil
       expect(chat_session.coding_checkout_uncommitted).to eq(false)
     end
+
+    it "clears coding_relay_address and coding_relay_token on cancel" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      chat_session.update_columns(
+        coding_relay_address: "127.0.0.1:9283",
+        coding_relay_token: "tok"
+      )
+
+      described_class.cancel_coding_checkout!(chat_session, repository)
+
+      chat_session.reload
+      expect(chat_session.coding_relay_address).to be_nil
+      expect(chat_session.coding_relay_token).to be_nil
+    end
   end
 
   describe ".file_tree" do

@@ -423,6 +423,7 @@ class ChatWorkspace
       coding_checkout_branch: nil,
       coding_checkout_uncommitted: false
     )
+    clear_relay_credentials!
   end
 
   def file_tree(repository)
