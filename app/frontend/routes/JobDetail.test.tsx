@@ -456,6 +456,27 @@ describe("JobDetailView", () => {
     const items = screen.getAllByRole("listitem")
     expect(items.map((i) => i.textContent)).toEqual(["Run bin/rspec", "Run bin/test-react"])
   })
+
+  it("renders test plan notes as markdown in the step panel", () => {
+    renderJobDetail(jobPayload({
+      workflows: [
+        workflow({
+          id: 8,
+          artifacts: { test_plan: { steps: [], notes: "Run `bin/rspec` and verify **all** pass." } },
+          steps: [
+            step({ id: 13, kind: "test_plan", display_name: "Test plan", runs: [ run({ id: 33, job_log_count: 0 }) ] })
+          ]
+        })
+      ],
+      workflows_pagination: workflowPagination(1)
+    }), { activeTab: "workflows" })
+
+    fireEvent.click(screen.getByRole("button", { name: /Test plan/ }))
+    fireEvent.click(within(screen.getByText(/Run #33/).closest("div.rounded")! as HTMLElement).getByRole("button", { name: "Test Plan" }))
+
+    expect(screen.getByText("bin/rspec").tagName).toBe("CODE")
+    expect(screen.getByText("all").tagName).toBe("STRONG")
+  })
 })
 
 describe("TestPlanPanel", () => {
@@ -478,6 +499,21 @@ describe("TestPlanPanel", () => {
       "Run bin/test-react"
     ])
     expect(screen.getByText("Check the Summary tab.")).toBeInTheDocument()
+  })
+
+  it("renders notes as markdown", () => {
+    render(
+      <TestPlanPanel
+        testPlan={{
+          workflow_id: 5,
+          steps: [],
+          notes: "Run `bin/rspec` and verify **all** pass."
+        }}
+      />
+    )
+
+    expect(screen.getByText("bin/rspec").tagName).toBe("CODE")
+    expect(screen.getByText("all").tagName).toBe("STRONG")
   })
 
   it("renders nothing when no test plan is available", () => {

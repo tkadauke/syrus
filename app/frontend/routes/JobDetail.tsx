@@ -414,7 +414,7 @@ export function TestPlanPanel({ testPlan }: { testPlan: JobTestPlan | null }) {
       <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-gray-700 dark:text-gray-300">
         {testPlan.steps.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}
       </ol>
-      {testPlan.notes ? <p className="mt-3 whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">{testPlan.notes}</p> : null}
+      {testPlan.notes ? <Markdown className="chat-prose mt-3 text-sm text-gray-700 dark:text-gray-300" text={testPlan.notes} /> : null}
     </section>
   )
 }
