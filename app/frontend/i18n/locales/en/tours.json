@@ -9,7 +9,7 @@
     "filter_chips_title": "Filter your jobs",
     "filter_chips_content": "Active filters appear as chips here. Click × to remove one, or use '+ Add filter' to narrow by status, job type, repository, and more.",
     "view_switcher_title": "List or Kanban",
-    "view_switcher_content": "Switch between a table view and a Kanban board. Kanban lets you drag jobs between workflow states.",
+    "view_switcher_content": "Switch between a table view and a Kanban board. Kanban gives you an at-a-glance overview of where your epics stand — and lets you drag epics between Backlog, Ready, and In Progress.",
     "create_actions_title": "Start new work",
     "create_actions_content": "'New Job' opens Chat and lets you describe a task — Syrus turns your prompt into a pull request. 'New Epic' groups related jobs together.",
     "job_row_title": "Click any job to dive in",

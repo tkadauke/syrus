@@ -9,7 +9,7 @@
     "filter_chips_title": "Jobs filtern",
     "filter_chips_content": "Aktive Filter erscheinen hier als Chips. Klicken Sie auf ×, um einen zu entfernen, oder verwenden Sie '+ Filter hinzufügen', um nach Status, Job-Typ, Repository und mehr zu filtern.",
     "view_switcher_title": "Liste oder Kanban",
-    "view_switcher_content": "Wechseln Sie zwischen einer Tabellenansicht und einem Kanban-Board. Kanban ermöglicht es Ihnen, Jobs zwischen Workflow-Zuständen zu verschieben.",
+    "view_switcher_content": "Wechseln Sie zwischen einer Tabellenansicht und einem Kanban-Board. Kanban gibt Ihnen einen schnellen Überblick über den Stand Ihrer Epics — und ermöglicht es Ihnen, Epics zwischen Rückstand, Bereit und In Bearbeitung zu verschieben.",
     "create_actions_title": "Neue Arbeit beginnen",
     "create_actions_content": "'Neuer Job' öffnet den Chat und ermöglicht es Ihnen, eine Aufgabe zu beschreiben — Syrus verwandelt Ihre Eingabe in einen Pull Request. 'Neues Epic' gruppiert verwandte Jobs.",
     "job_row_title": "Job anklicken, um einzutauchen",
