@@ -109,14 +109,21 @@ describe("DashboardDependencyView", () => {
     })
   })
 
-  it("shows 'no dependency edges' message when nodes exist but edges array is empty", async () => {
-    mockFetchJobsGraph.mockResolvedValue({ nodes: [graphNode("job_1"), graphNode("job_2")], edges: [] })
+  it("renders graph nodes with caption hint when nodes exist but edges array is empty", async () => {
+    const nodes = [
+      graphNode("job_1", "job", "JOB-1 First job"),
+      graphNode("job_2", "job", "JOB-2 Second job")
+    ]
+    mockFetchJobsGraph.mockResolvedValue({ nodes, edges: [] })
 
     renderDependencyView(buildJobPayload())
 
     await waitFor(() => {
       expect(screen.getByText("No dependency relationships in the current view.")).toBeInTheDocument()
+      expect(screen.getByText("JOB-1")).toBeInTheDocument()
+      expect(screen.getByText("JOB-2")).toBeInTheDocument()
     })
+    expect(screen.queryByText("No jobs match this view.")).not.toBeInTheDocument()
   })
 
   it("renders the graph when edges are present for jobs", async () => {

@@ -319,12 +319,11 @@ export function DashboardDependencyView({ payload, graphSearch }: { payload: Das
     return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">{t("no_match", { subject: subjectLabel(subject, 2) })}</div>
   }
 
-  if (edges.length === 0) {
-    return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">{t("no_dependency_edges")}</div>
-  }
-
   return (
     <div className="overflow-x-auto rounded border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
+      {edges.length === 0 && (
+        <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">{t("no_dependency_edges")}</p>
+      )}
       <TopoDepGraph nodes={nodes} edges={edges} />
     </div>
   )
