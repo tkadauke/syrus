@@ -776,7 +776,7 @@ describe("Job detail tour", () => {
   afterEach(() => vi.restoreAllMocks())
 
   function renderWithBootstrap(seenTours: string[] = []) {
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
     queryClient.setQueryData(["bootstrap"], buildBootstrap(seenTours))
     return render(
       <QueryClientProvider client={queryClient}>
@@ -858,7 +858,8 @@ function renderFeedbackHistory(workflows: JobWorkflow[]) {
 }
 
 function renderJobDetail(payload: JobDetailPayload, options: { activeTab?: "summary" | "workflows" | "attachments" | "source"; showLocation?: boolean } = {}) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+  queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
 
   return render(
     <QueryClientProvider client={queryClient}>
@@ -882,7 +883,8 @@ function LocationProbe() {
 }
 
 function renderJobSource() {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+  queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
 
   return render(
     <QueryClientProvider client={queryClient}>
