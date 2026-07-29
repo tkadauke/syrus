@@ -46,9 +46,10 @@ export function RepositoryInsightsRoute() {
 
   const { repository, suggestions } = query.data
 
+  const pendingCount = suggestions.filter((s) => s.state === "pending").length
   const tabs = [
     { key: "overview", label: "Overview", path: withRoutePrefix(`/repositories/${repositoryId}`, prefix) },
-    { key: "insights", label: "Insights", path: withRoutePrefix(`/repositories/${repositoryId}/insights`, prefix) }
+    { key: "insights", label: "Insights", path: withRoutePrefix(`/repositories/${repositoryId}/insights`, prefix), badge: pendingCount > 0 ? pendingCount : undefined }
   ]
 
   return (

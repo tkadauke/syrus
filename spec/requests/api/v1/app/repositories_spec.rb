@@ -332,6 +332,60 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
+  context "with agent_insights feature enabled" do
+    let(:repository) { Factories.repository(user: user) }
+
+    def enable_insights_feature
+      Feature.find_or_create_by!(slug: "agent_insights") { |f|
+        f.category = "Labs"; f.name = "Agent Insights"
+      }.update!(enabled: true)
+    end
+
+    def create_insight_suggestion(repo, state: "pending")
+      insight_job = Factories.job(user: user, repository: repo, kind: "agent_insight", issue_number: nil)
+      InsightSuggestion.create!(
+        job: insight_job,
+        repository: repo,
+        title: "Use caching",
+        category: "performance",
+        severity: "medium",
+        confidence: 0.9,
+        state: state
+      )
+    end
+
+    it "includes the insights tab with a badge showing pending suggestion count" do
+      enable_insights_feature
+      sign_in_as(user)
+      create_insight_suggestion(repository, state: "pending")
+      create_insight_suggestion(repository, state: "pending")
+      create_insight_suggestion(repository, state: "dismissed")
+
+      get "/api/v1/app/repositories/#{repository.id}"
+
+      expect(response).to have_http_status(:ok)
+      insights_tab = parse_body["tabs"].find { |t| t["key"] == "insights" }
+      expect(insights_tab).to include(
+        "key" => "insights",
+        "label" => "Insights",
+        "path" => "/repositories/#{repository.id}/insights",
+        "badge" => 2
+      )
+    end
+
+    it "includes the insights tab without a badge when no pending suggestions exist" do
+      enable_insights_feature
+      sign_in_as(user)
+      create_insight_suggestion(repository, state: "accepted")
+
+      get "/api/v1/app/repositories/#{repository.id}"
+
+      expect(response).to have_http_status(:ok)
+      insights_tab = parse_body["tabs"].find { |t| t["key"] == "insights" }
+      expect(insights_tab).to include("key" => "insights", "badge" => nil)
+    end
+  end
+
   it "includes workflow_path in health history records linked to a grader workflow" do
     sign_in_as(user)
     repository = Factories.repository(user: user)

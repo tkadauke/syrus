@@ -659,7 +659,15 @@ module Api
             { key: "documents", label: "Documents", path: repository_documents_path(repository) },
             { key: "scheduled_tasks", label: "Scheduled Tasks", path: repository_scheduled_tasks_path(repository) }
           ]
-          tabs << { key: "insights", label: "Insights", path: "/repositories/#{repository.id}/insights" } if Feature.agent_insights_enabled?
+          if Feature.agent_insights_enabled?
+            pending_count = InsightSuggestion.pending.for_repository(repository).count
+            tabs << {
+              key: "insights",
+              label: "Insights",
+              path: "/repositories/#{repository.id}/insights",
+              badge: pending_count.positive? ? pending_count : nil
+            }
+          end
           tabs
         end
 
