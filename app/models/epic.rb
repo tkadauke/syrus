@@ -252,8 +252,11 @@ class Epic < ApplicationRecord
     return if resolved_reconciliation_mode == "none"
 
     @creating_reconciliation_job = true
-    with_lock do
-      return if reconciliation_job_id.present?
+    # Use a fresh locked query instead of with_lock so this method is safe
+    # to call even when self has unsaved changes (e.g. from an AASM after: callback).
+    transaction do
+      fresh = self.class.lock.find(id)
+      return if fresh.reconciliation_job_id.present?
 
       create_reconciliation_job!(work_jobs.order(:id).to_a)
     end

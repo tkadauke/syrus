@@ -19,6 +19,12 @@ RSpec.describe "App API job detail", type: :request do
 
   before { sign_in_as(user) unless RSpec.current_example.metadata[:skip_sign_in] }
 
+  before do
+    allow(RepoReconciliationPlan).to receive(:for_epic).and_return(
+      RepoReconciliationPlan::Result.new(mode: "none", source: "test", note: nil)
+    )
+  end
+
   around do |example|
     old_data_root = ENV["SYRUS_DATA_ROOT"]
     Dir.mktmpdir("syrus-app-api-jobs") do |data_root|
