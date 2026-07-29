@@ -165,22 +165,19 @@ describe("useTour", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
       if (String(url).includes("/api/v1/app/bootstrap")) {
         bootstrapCallCount++
-        // Second and later fetches return the tour as seen
-        const seenTours = bootstrapCallCount > 1 ? ["dashboard"] : []
-        return Promise.resolve(jsonResponse(buildBootstrap(seenTours)))
+        return Promise.resolve(jsonResponse(buildBootstrap(["dashboard"])))
       }
       return Promise.resolve(jsonResponse({}))
     })
 
+    // Cache is pre-populated; staleTime: Infinity means no automatic refetch on mount.
+    // After dismiss, invalidateQueries explicitly marks it stale and triggers a fetch.
     renderProbe("dashboard", [])
 
-    // Wait for the initial bootstrap fetch (stale data triggers refetch on mount)
-    await waitFor(() => expect(bootstrapCallCount).toBeGreaterThanOrEqual(1))
     const countBeforeDismiss = bootstrapCallCount
 
     act(() => screen.getByTestId("finish").click())
 
-    // onSuccess from dismiss mutation calls invalidateQueries → triggers another fetch
     await waitFor(() => {
       expect(bootstrapCallCount).toBeGreaterThan(countBeforeDismiss)
     })

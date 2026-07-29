@@ -9,7 +9,9 @@ export function useTour(tourId: string): {
   handleJoyrideCallback: (data: Pick<EventData, "status">) => void
 } {
   const queryClient = useQueryClient()
-  const { data: bootstrap } = useQuery({ queryKey: ["bootstrap"], queryFn: fetchBootstrap })
+  // staleTime: Infinity prevents background refetches that race with in-flight mutations;
+  // invalidateQueries in the dismiss callback ignores staleTime and still forces a refresh.
+  const { data: bootstrap } = useQuery({ queryKey: ["bootstrap"], queryFn: fetchBootstrap, staleTime: Infinity })
 
   const seenTours = bootstrap?.current_user?.seen_tours ?? []
   const run = !seenTours.includes(tourId)
