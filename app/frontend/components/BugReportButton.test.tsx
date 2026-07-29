@@ -583,6 +583,37 @@ describe("BugReportButton", () => {
       expect(screen.getByRole("button", { name: "Report a bug" })).toHaveAttribute("data-html2canvas-ignore")
     })
 
+    it("passes an onclone callback to the viewport capture", async () => {
+      renderButton()
+      await openDialog()
+
+      await waitFor(() => expect(mockHtml2canvas).toHaveBeenCalled())
+
+      const [, options] = mockHtml2canvas.mock.calls[0]
+      expect(options).toMatchObject({ onclone: expect.any(Function) })
+    })
+
+    it("onclone callback converts sticky-positioned elements to relative", async () => {
+      renderButton()
+      await openDialog()
+
+      await waitFor(() => expect(mockHtml2canvas).toHaveBeenCalled())
+
+      const [, options] = mockHtml2canvas.mock.calls[0]
+      const onclone = options.onclone as (_clonedDoc: Document, element: HTMLElement) => void
+
+      const stickyEl = document.createElement("div")
+      stickyEl.style.position = "sticky"
+      document.body.appendChild(stickyEl)
+
+      // Simulate the html2canvas-pro onclone call: second arg is the cloned element;
+      // normalizeCloneForCapture reaches the document via element.ownerDocument.
+      onclone(document, document.body)
+
+      expect(stickyEl.style.position).toBe("relative")
+      document.body.removeChild(stickyEl)
+    })
+
     it("uses viewport windowWidth/windowHeight for full-page capture even when the document overflows the viewport", async () => {
       Object.defineProperty(window, "innerWidth", { configurable: true, value: 402 })
       Object.defineProperty(window, "innerHeight", { configurable: true, value: 714 })
@@ -604,7 +635,8 @@ describe("BugReportButton", () => {
 
       const [, options] = mockHtml2canvas.mock.calls[0]
       // windowWidth/windowHeight must match the viewport, not the document scroll dimensions.
-      expect(options).toMatchObject({ windowWidth: 402, windowHeight: 714 })
+      // onclone must be wired for both capture modes.
+      expect(options).toMatchObject({ windowWidth: 402, windowHeight: 714, onclone: expect.any(Function) })
     })
   })
 })
