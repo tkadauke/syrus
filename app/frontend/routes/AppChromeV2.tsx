@@ -173,7 +173,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   return (
     <BugReportContext.Provider value={{ openBugReport }}>
     <div className="flex h-[100dvh] overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white">
-      <aside className="relative hidden shrink-0 lg:flex" style={{ width: `${sidebarWidth}px` }}>
+      <aside className="relative hidden shrink-0 lg:flex" data-html2canvas-ignore style={{ width: `${sidebarWidth}px` }}>
         <SidebarContent
           csrfToken={data?.csrf_token}
           dashboardSubnavEnabled={true}

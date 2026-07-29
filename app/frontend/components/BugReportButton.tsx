@@ -741,15 +741,6 @@ function normalizeCloneForCapture(clonedDoc: Document) {
   })
 }
 
-// html2canvas clones the document before rendering, and the cloned document may
-// not correctly honour CSS media queries. On mobile viewports the desktop sidebar
-// has display:none via a Tailwind responsive class, but that rule can become
-// visible in the clone. Checking the original element's computed style here
-// (before cloning) ensures elements that are truly invisible are excluded.
-function ignoreHiddenElement(el: Element): boolean {
-  return window.getComputedStyle(el).display === "none"
-}
-
 function captureViewport(html2canvas: Html2Canvas) {
   return html2canvas(document.body, {
     x: window.scrollX,
@@ -759,7 +750,6 @@ function captureViewport(html2canvas: Html2Canvas) {
     windowWidth: window.innerWidth,
     windowHeight: window.innerHeight,
     useCORS: true,
-    ignoreElements: ignoreHiddenElement,
     onclone: (_clonedDoc, element) => normalizeCloneForCapture(element.ownerDocument)
   })
 }
@@ -788,7 +778,6 @@ function captureFullPage(html2canvas: Html2Canvas) {
     windowWidth: window.innerWidth,
     windowHeight: window.innerHeight,
     useCORS: true,
-    ignoreElements: ignoreHiddenElement,
     onclone: (_clonedDoc, element) => normalizeCloneForCapture(element.ownerDocument)
   })
 }

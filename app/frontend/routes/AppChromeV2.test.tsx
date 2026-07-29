@@ -17,6 +17,14 @@ describe("AppChromeV2", () => {
     vi.restoreAllMocks()
   })
 
+  it("renders the desktop sidebar with data-html2canvas-ignore to exclude it from mobile bug report screenshots", () => {
+    renderAppChrome()
+
+    const desktopSidebar = document.querySelector("aside.lg\\:flex")
+    expect(desktopSidebar).not.toBeNull()
+    expect(desktopSidebar).toHaveAttribute("data-html2canvas-ignore")
+  })
+
   it("renders desktop shell notices in the sidebar above the account row", async () => {
     window.syrusShell = {
       getState: vi.fn().mockResolvedValue({
