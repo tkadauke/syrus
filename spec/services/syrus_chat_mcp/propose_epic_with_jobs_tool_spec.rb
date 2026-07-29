@@ -450,6 +450,29 @@ RSpec.describe SyrusChatMcp::ProposeEpicWithJobsTool do
     expect(no_media_job.media_ids).to eq([])
   end
 
+  describe "tool schema descriptions" do
+    let(:schema) { described_class.input_schema.instance_variable_get(:@schema) }
+    let(:tool_description) { described_class.description }
+
+    it "explains that epic.depends_on blocks ALL child jobs" do
+      epic_depends_on_desc = schema.fetch(:properties).fetch(:epic).fetch(:properties).fetch(:depends_on).fetch(:description)
+      expect(epic_depends_on_desc).to include("Blocks ALL child jobs")
+      expect(epic_depends_on_desc).to include("jobs[].depends_on_epic_ids")
+    end
+
+    it "explains that jobs[].depends_on_epic_ids is job-scoped not epic-scoped" do
+      job_depends_on_epic_desc = schema.fetch(:properties).fetch(:jobs).fetch(:items).fetch(:properties).fetch(:depends_on_epic_ids).fetch(:description)
+      expect(job_depends_on_epic_desc).to include("not the whole epic")
+      expect(job_depends_on_epic_desc).to include("epic.depends_on")
+    end
+
+    it "includes behavioral guidance in the tool-level description" do
+      expect(tool_description).to include("epic.depends_on")
+      expect(tool_description).to include("jobs[].depends_on_epic_ids")
+      expect(tool_description).to include("ALL child jobs")
+    end
+  end
+
   it "broadcasts an update_proposal event after creating the proposal" do
     allow(AppEvents).to receive(:broadcast)
 

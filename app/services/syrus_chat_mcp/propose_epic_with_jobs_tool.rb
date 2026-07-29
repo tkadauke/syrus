@@ -24,6 +24,12 @@ module SyrusChatMcp
       dependent epic card — the system resolves slugs to Epic IDs at
       confirmation time, making post-confirmation add_epic_dependency calls
       unnecessary.
+      To sequence this epic after another, set epic.depends_on — this blocks
+      ALL child jobs from starting until the referenced epics complete. To block
+      only a specific child job while siblings proceed in parallel, use
+      jobs[].depends_on_epic_ids instead. When an operator says "set the
+      dependency" or "remember to wire the dependency," prefer epic.depends_on
+      unless you have a specific reason why some sibling jobs should start sooner.
     DESC
 
     input_schema(
@@ -38,7 +44,7 @@ module SyrusChatMcp
             target_repo: { type: "string", description: "Repository slug owner/name. Defaults to the chat repository." },
             depends_on_job_ids: { type: "array", items: { type: "integer" }, description: "Existing Job IDs this Epic depends on." },
             depends_on_proposal_slugs: { type: "array", items: { type: "string" }, description: "Epic proposal slugs in this chat session that this Epic depends on. Declaring this here wires the epic-to-epic dependency automatically at confirmation time — preferred over calling add_epic_dependency afterward." },
-            depends_on: { type: "array", items: { type: "string" }, description: "Proposal slugs or string-encoded Epic ids, for example epic:42, this Epic depends on." }
+            depends_on: { type: "array", items: { type: "string" }, description: "Proposal slugs or string-encoded Epic ids (e.g. `epic:42`) this Epic depends on. Blocks ALL child jobs from starting until these epics complete. Use this when the whole epic must wait for upstream work; use `jobs[].depends_on_epic_ids` only when individual jobs need to wait while siblings can proceed independently." }
           },
           required: %w[slug]
         },
@@ -51,7 +57,7 @@ module SyrusChatMcp
               target_repo: { type: "string", description: "Repository slug owner/name." },
               title: { type: "string", description: "Child Job title." },
               description: { type: "string", description: "Child Job prompt/body." },
-              depends_on_epic_ids: { type: "array", items: { type: "integer" }, description: "Existing Epic IDs this child Job depends on." },
+              depends_on_epic_ids: { type: "array", items: { type: "integer" }, description: "Existing Epic IDs this child Job (not the whole epic) depends on. Use when only this specific job must wait for an upstream epic while sibling jobs in the same epic can start sooner. For whole-epic sequencing, prefer `epic.depends_on`." },
               depends_on: { type: "array", items: { type: "string" }, description: "Sibling job slugs or job proposal slugs from other cards in this chat session. Default to linear chains — if jobs share a test path (e.g. backend → frontend → agent handoff that consumes both), chain them even when code changes don't overlap directly. Only omit a dependency when the jobs are genuinely independently deployable and testable end-to-end. The operator can instruct otherwise." },
               media: {
                 type: "array",
