@@ -80,4 +80,23 @@ RSpec.describe SyrusChatMcp::ListJobsTool do
     expect(response[:result][:isError]).to be_falsey
     expect(jobs.map { |result| result[:id] }).to eq([ job.id ])
   end
+
+  it "allows an admin to list another user's jobs" do
+    admin = Factories.user(admin: true)
+    other_user = Factories.user
+    other_job = Factories.job(repository: Factories.repository(user: other_user), issue_number: 501)
+    admin_session = ChatSession.create!(user: admin)
+    admin_server = MCP::Server.new(
+      name: "syrus-chat-sidecar",
+      tools: [ described_class ],
+      server_context: { chat_session: admin_session }
+    )
+
+    raw = admin_server.handle_json({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "list_jobs", arguments: {} } }.to_json)
+    response = JSON.parse(raw, symbolize_names: true)
+    jobs = response_payload(response).fetch(:jobs)
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(jobs.map { |j| j[:id] }).to include(other_job.id)
+  end
 end

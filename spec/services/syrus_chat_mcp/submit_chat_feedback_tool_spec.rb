@@ -171,4 +171,22 @@ RSpec.describe SyrusChatMcp::SubmitChatFeedbackTool do
     expect(job.reload).to be_implemented
     expect(job.approved_at).to be_nil
   end
+
+  it "allows an admin to submit feedback on another user's job" do
+    admin = Factories.user(admin: true)
+    other_job = Factories.job_record(repository: Factories.repository(user: Factories.user), state: "implemented")
+    admin_session = ChatSession.create!(user: admin)
+    admin_server = MCP::Server.new(
+      name: "syrus-chat-sidecar",
+      tools: [ described_class ],
+      server_context: { chat_session: admin_session }
+    )
+
+    raw = admin_server.handle_json({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "submit_chat_feedback", arguments: { job_id: other_job.id, feedback: "Fix this." } } }.to_json)
+    response = JSON.parse(raw, symbolize_names: true)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    pending_action = admin_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+    expect(pending_action).to have_attributes(action: "submit_chat_feedback", payload: { "job_id" => other_job.id, "feedback" => "Fix this." })
+  end
 end

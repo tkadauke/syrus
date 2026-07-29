@@ -89,4 +89,26 @@ RSpec.describe SyrusChatMcp::ReadEpicTool do
     expect(response.dig(:result, :isError)).to eq(true)
     expect(tool_payload(response)).to eq(error: "not_authorized")
   end
+
+  it "allows an admin to read another user's Epic" do
+    admin = Factories.user(admin: true)
+    other_user = Factories.user
+    other_epic = Factories.epic(
+      user: other_user,
+      repository: Factories.repository(user: other_user),
+      title: "Admin readable"
+    )
+    admin_session = ChatSession.create!(user: admin)
+    admin_server = MCP::Server.new(
+      name: "syrus-chat-sidecar",
+      tools: [ described_class ],
+      server_context: { chat_session: admin_session }
+    )
+
+    raw = admin_server.handle_json({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "read_epic", arguments: { id: other_epic.id } } }.to_json)
+    response = JSON.parse(raw, symbolize_names: true)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(tool_payload(response)[:epic]).to include(id: other_epic.id, title: "Admin readable")
+  end
 end

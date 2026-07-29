@@ -40,6 +40,23 @@ RSpec.describe "SyrusChatMcp epic kanban tools" do
   end
 
   describe "list_epics" do
+    it "allows an admin to list Epics owned by any user" do
+      admin = Factories.user(admin: true)
+      other_user = Factories.user
+      other_epic = Factories.epic(user: other_user, repository: Factories.repository(user: other_user), title: "Other")
+      admin_session = ChatSession.create!(user: admin)
+      admin_server = MCP::Server.new(
+        name: "syrus-chat-sidecar",
+        tools: [ SyrusChatMcp::ListEpicsTool ],
+        server_context: { chat_session: admin_session }
+      )
+
+      raw = admin_server.handle_json({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "list_epics", arguments: {} } }.to_json)
+      result = payload(JSON.parse(raw, symbolize_names: true))
+
+      expect(result[:epics].pluck(:id)).to include(other_epic.id)
+    end
+
     it "lists non-archived Epics across the user's repositories by default with child Job counts" do
       backlog = Factories.epic(user: user, repository: repository, title: "Backlog", description: "a" * 250)
       ready = Factories.epic(user: user, repository: repository, title: "Ready", state: "ready")
@@ -205,13 +222,41 @@ RSpec.describe "SyrusChatMcp epic kanban tools" do
       expect(epic.reload).to have_attributes(title: "New", description: "New description")
     end
 
-    it "rejects Epics outside the chat repository" do
-      epic = Factories.epic(user: user, repository: Factories.repository(user: user))
+    it "updates Epics outside the chat repository when they belong to the chat user" do
+      epic = Factories.epic(user: user, repository: Factories.repository(user: user), title: "Old")
 
       response = call_tool("update_epic", epic_id: epic.id, title: "New")
 
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(epic.reload.title).to eq("New")
+    end
+
+    it "rejects Epics owned by another user" do
+      other_user = Factories.user
+      other_epic = Factories.epic(user: other_user, repository: Factories.repository(user: other_user))
+
+      response = call_tool("update_epic", epic_id: other_epic.id, title: "New")
+
       expect(response.dig(:result, :isError)).to be true
-      expect(error_text(response)).to include("epic not found in this repository")
+      expect(payload(response)).to eq(error: "not_authorized")
+    end
+
+    it "allows an admin to update another user's Epic" do
+      admin = Factories.user(admin: true)
+      other_user = Factories.user
+      other_epic = Factories.epic(user: other_user, repository: Factories.repository(user: other_user), title: "Old")
+      admin_session = ChatSession.create!(user: admin)
+      admin_server = MCP::Server.new(
+        name: "syrus-chat-sidecar",
+        tools: [ SyrusChatMcp::UpdateEpicTool ],
+        server_context: { chat_session: admin_session }
+      )
+
+      raw = admin_server.handle_json({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "update_epic", arguments: { epic_id: other_epic.id, title: "Admin update" } } }.to_json)
+      response = JSON.parse(raw, symbolize_names: true)
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(other_epic.reload.title).to eq("Admin update")
     end
 
     it "rejects updates without a title or description" do

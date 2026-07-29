@@ -66,6 +66,23 @@ RSpec.describe SyrusChatMcp::ReadJobTool do
     expect(payload[:job]).to include(id: other.id)
   end
 
+  it "allows an admin to read another user's job" do
+    admin = Factories.user(admin: true)
+    other_job = Factories.job(repository: Factories.repository(user: Factories.user))
+    admin_session = ChatSession.create!(user: admin)
+    admin_server = MCP::Server.new(
+      name: "syrus-chat-sidecar",
+      tools: [ described_class ],
+      server_context: { chat_session: admin_session }
+    )
+
+    raw = admin_server.handle_json({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "read_job", arguments: { job_id: other_job.id } } }.to_json)
+    response = JSON.parse(raw, symbolize_names: true)
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(response_payload(response)[:job]).to include(id: other_job.id)
+  end
+
   it "includes scheduled_task_id for cron jobs" do
     task = repository.scheduled_tasks.create!(
       user: user,

@@ -317,4 +317,89 @@ RSpec.describe "SyrusChatMcp job control tools" do
     expect(response.dig(:result, :content, 0, :text)).to include("epic not found")
     expect(job.reload.epic_id).to be_nil
   end
+
+  context "admin bypass" do
+    let(:admin) { Factories.user(admin: true) }
+    let(:other_user) { Factories.user }
+    let(:other_repository) { Factories.repository(user: other_user) }
+    let(:admin_chat_session) { ChatSession.create!(user: admin) }
+
+    def admin_server
+      MCP::Server.new(
+        name: "syrus-chat-sidecar",
+        tools: [
+          SyrusChatMcp::ApproveJobTool,
+          SyrusChatMcp::UnapproveJobTool,
+          SyrusChatMcp::SetJobPriorityTool,
+          SyrusChatMcp::CancelJobTool,
+          SyrusChatMcp::RetryJobTool,
+          SyrusChatMcp::RebaseJobTool
+        ],
+        server_context: { chat_session: admin_chat_session }
+      )
+    end
+
+    def admin_call(name, arguments = {})
+      raw = admin_server.handle_json({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: name, arguments: arguments } }.to_json)
+      JSON.parse(raw, symbolize_names: true)
+    end
+
+    it "allows an admin to approve another user's job" do
+      job = Factories.job_record(repository: other_repository, state: "implemented")
+
+      response = admin_call("approve_job", job_id: job.id)
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(job.reload).to be_approved
+    end
+
+    it "allows an admin to unapprove another user's job" do
+      job = Factories.job_record(repository: other_repository, state: "implemented")
+      job.approve!(via: "operator", by_user: other_user)
+
+      response = admin_call("unapprove_job", job_id: job.id)
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(job.reload).to be_implemented
+    end
+
+    it "allows an admin to set priority on another user's job" do
+      job = Factories.job_record(repository: other_repository, state: "queued", priority: "medium")
+
+      response = admin_call("set_job_priority", job_id: job.id, priority: "high")
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(job.reload.priority).to eq("high")
+    end
+
+    it "allows an admin to cancel another user's job" do
+      job = Factories.job_record(repository: other_repository, state: "queued")
+
+      response = admin_call("cancel_job", job_id: job.id)
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      pending_action = admin_chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+      expect(pending_action).to have_attributes(action: "cancel_job", payload: { "job_id" => job.id })
+    end
+
+    it "allows an admin to retry another user's job" do
+      job = Factories.job_record(repository: other_repository, state: "queued")
+
+      response = admin_call("retry_job", job_id: job.id)
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      pending_action = admin_chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+      expect(pending_action).to have_attributes(action: "retry_job", payload: { "job_id" => job.id })
+    end
+
+    it "allows an admin to rebase another user's job" do
+      job = Factories.job_record(repository: other_repository, state: "queued", pr_number: 5)
+
+      response = admin_call("rebase_job", job_id: job.id)
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      pending_action = admin_chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+      expect(pending_action).to have_attributes(action: "rebase_job", payload: { "job_id" => job.id })
+    end
+  end
 end

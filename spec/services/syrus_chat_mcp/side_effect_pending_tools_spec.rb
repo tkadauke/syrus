@@ -193,6 +193,24 @@ RSpec.describe "SyrusChatMcp side-effect pending tools" do
     end
   end
 
+  it "allows an admin to check mergeability for another user's job" do
+    admin = Factories.user(admin: true)
+    other_job = Factories.job_record(repository: Factories.repository(user: Factories.user), pr_number: 99)
+    admin_session = ChatSession.create!(user: admin)
+    admin_server = MCP::Server.new(
+      name: "syrus-chat-sidecar",
+      tools: [ SyrusChatMcp::CheckJobMergeabilityTool ],
+      server_context: { chat_session: admin_session }
+    )
+
+    raw = admin_server.handle_json({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "check_job_mergeability", arguments: { job_id: other_job.id } } }.to_json)
+    response = JSON.parse(raw, symbolize_names: true)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    action = admin_session.pending_actions.find(JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true).fetch(:pending_confirmation_id))
+    expect(action).to have_attributes(action: "check_job_mergeability", payload: { "job_id" => other_job.id })
+  end
+
   it "rejects cross-user scheduled tasks at tool call time" do
     other_user = Factories.user
     other_repo = Factories.repository(user: other_user)

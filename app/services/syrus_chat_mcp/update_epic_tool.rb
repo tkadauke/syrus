@@ -3,10 +3,12 @@ require "mcp"
 module SyrusChatMcp
   class UpdateEpicTool < MCP::Tool
     extend EpicToolSupport
+    extend AuthorizationSupport
+    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
 
     tool_name "update_epic"
 
-    description "Update the title and/or description for an Epic in this repository."
+    description "Update the title and/or description for an Epic."
 
     input_schema(
       properties: {
@@ -19,7 +21,6 @@ module SyrusChatMcp
 
     class << self
       def call(epic_id:, server_context:, title: nil, description: nil)
-        chat_session = server_context.fetch(:chat_session)
         epic_id = normalize_epic_id(epic_id)
         return SyrusChatMcp.invalid("epic_id is required") unless epic_id
 
@@ -28,8 +29,7 @@ module SyrusChatMcp
         attrs[:description] = description if description
         return SyrusChatMcp.invalid("title or description is required") if attrs.empty?
 
-        epic = find_repository_epic(chat_session, epic_id)
-        return epic_not_found(epic_id) unless epic
+        epic = find_epic!(epic_id)
         return SyrusChatMcp.invalid("archived epics cannot be updated") if epic.archived?
 
         epic.update!(attrs)

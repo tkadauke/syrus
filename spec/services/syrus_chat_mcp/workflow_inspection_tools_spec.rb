@@ -77,6 +77,24 @@ RSpec.describe "SyrusChatMcp workflow inspection tools" do
       expect(response[:result][:isError]).to be_falsey
       expect(payload[:workflows].map { |workflow| workflow[:id] }).to include(other_job.latest_workflow.id)
     end
+
+    it "allows an admin to list workflows for another user's job" do
+      admin = Factories.user(admin: true)
+      other_job = Factories.job(repository: Factories.repository(user: Factories.user))
+      admin_session = ChatSession.create!(user: admin)
+      admin_server = MCP::Server.new(
+        name: "syrus-chat-sidecar",
+        tools: [ SyrusChatMcp::ListJobWorkflowsTool ],
+        server_context: { chat_session: admin_session }
+      )
+
+      raw = admin_server.handle_json({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "list_job_workflows", arguments: { job_id: other_job.id } } }.to_json)
+      response = JSON.parse(raw, symbolize_names: true)
+      payload = response_payload(response)
+
+      expect(response[:result][:isError]).to be_falsey
+      expect(payload[:workflows].map { |wf| wf[:id] }).to include(other_job.latest_workflow.id)
+    end
   end
 
   describe "read_workflow" do

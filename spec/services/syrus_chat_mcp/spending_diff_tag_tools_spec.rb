@@ -154,6 +154,23 @@ RSpec.describe "SyrusChatMcp spending, diff, and tag tools" do
     expect(body).to include(job_id: other.id, diff: nil)
   end
 
+  it "allows an admin to read another user's job diff" do
+    admin = Factories.user(admin: true)
+    other_job = Factories.job(repository: Factories.repository(user: Factories.user))
+    admin_session = ChatSession.create!(user: admin)
+    admin_server = MCP::Server.new(
+      name: "syrus-chat-sidecar",
+      tools: [ SyrusChatMcp::GetJobDiffTool ],
+      server_context: { chat_session: admin_session }
+    )
+
+    raw = admin_server.handle_json({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "get_job_diff", arguments: { job_id: other_job.id } } }.to_json)
+    response = JSON.parse(raw, symbolize_names: true)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(payload(response)).to include(job_id: other_job.id)
+  end
+
   it "lists only current user's tags" do
     mine = Factories.tag(user: user, name: "urgent", color: "red")
     Factories.tag(user: Factories.user, name: "other", color: "blue")
