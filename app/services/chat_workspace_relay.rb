@@ -22,6 +22,7 @@ class ChatWorkspaceRelay
     400 => "Bad Request",
     401 => "Unauthorized",
     404 => "Not Found",
+    405 => "Method Not Allowed",
     422 => "Unprocessable Entity",
     500 => "Internal Server Error"
   }.freeze
@@ -93,16 +94,20 @@ class ChatWorkspaceRelay
     private
 
     def handle_connection(client)
+      client.read_timeout = 5
+
       request_line = client.gets
       return unless request_line
 
-      _method, raw_path, _version = request_line.chomp.split(" ", 3)
+      method, raw_path, _version = request_line.chomp.split(" ", 3)
 
       headers = {}
       while (line = client.gets) && line.chomp != ""
         name, value = line.chomp.split(": ", 2)
         headers[name.downcase] = value if name && value
       end
+
+      return send_response(client, 405) unless method == "GET"
 
       uri = URI.parse(raw_path)
       params = URI.decode_www_form(uri.query || "").to_h

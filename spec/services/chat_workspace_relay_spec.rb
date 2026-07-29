@@ -94,7 +94,25 @@ RSpec.describe ChatWorkspaceRelay do
       allow(ChatWorkspace).to receive(:coding_diff).and_return("--- a/README.md\n+++ b/README.md")
     end
 
+    describe "non-GET request" do
+      it "returns 405 for a POST request" do
+        uri = URI("http://127.0.0.1:#{relay_port}/workspace/files?session_id=#{chat_session.id}")
+        req = Net::HTTP::Post.new(uri)
+        req["Authorization"] = "Bearer #{token}"
+        res = VCR.turned_off { Net::HTTP.start(uri.host, uri.port) { |http| http.request(req) } }
+        expect(res.code).to eq("405")
+      end
+    end
+
     describe "GET /workspace/files" do
+      it "returns 422 when the session has no attached repository" do
+        session_no_repo = ChatSession.create!(user: user)
+        session_no_repo.update_columns(coding_relay_token: token)
+
+        res = get_relay("/workspace/files?session_id=#{session_no_repo.id}")
+        expect(res.code).to eq("422")
+      end
+
       it "returns file list and checkout_branch for an authenticated session" do
         res = get_relay("/workspace/files?session_id=#{chat_session.id}")
 
