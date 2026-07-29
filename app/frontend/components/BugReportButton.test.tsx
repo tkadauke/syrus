@@ -600,7 +600,7 @@ describe("BugReportButton", () => {
       await waitFor(() => expect(mockHtml2canvas).toHaveBeenCalled())
 
       const [, options] = mockHtml2canvas.mock.calls[0]
-      const onclone = options.onclone as (_clonedDoc: Document, element: HTMLElement) => void
+      const onclone = options!.onclone as (document: Document, element: HTMLElement) => void
 
       const stickyEl = document.createElement("div")
       stickyEl.style.position = "sticky"
