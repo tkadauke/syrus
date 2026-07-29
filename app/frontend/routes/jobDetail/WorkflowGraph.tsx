@@ -230,7 +230,7 @@ function GradeGroup({ item, payload, command, numberLabel, workflowArtifacts }: 
       >
         <span className="flex min-w-0 items-center gap-2">
           <span className="w-6 shrink-0 text-right font-mono text-xs text-gray-400 dark:text-gray-500">{numberLabel}.</span>
-          <span className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{t("grade_label")}</span>
+          <span className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{item.preflight ? t("preflight_grade_label") : t("grade_label")}</span>
           {item.graders.length > 0 ? <SmallPill>{t("grade_check_count", { count: item.graders.length })}</SmallPill> : null}
           {summaries.length > 0 ? <GradeSummaryPills summaries={summaries} /> : null}
         </span>
@@ -363,7 +363,7 @@ function StepCard({ step, payload, command, numberLabel, displayName, metadataLa
           {activeRun ? <ActiveRunBanner run={activeRun} /> : null}
           {prepareFailure ? <PrepareFailurePanel failure={prepareFailure} /> : null}
           {step.details && !prepareFailure ? (
-            step.kind === "grader"
+            (step.kind === "grader" || step.kind === "preflight_grader")
               ? <GraderDetails details={objectDetails(step.details)} />
               : <pre className="mt-2 overflow-x-auto rounded bg-white p-2 text-xs text-gray-600 dark:bg-gray-900 dark:text-gray-300">{stringify(step.details)}</pre>
           ) : null}

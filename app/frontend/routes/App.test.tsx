@@ -10273,6 +10273,86 @@ describe("App", () => {
     expect(screen.queryByText(/"log_bytes"/)).not.toBeInTheDocument()
   })
 
+  it("groups preflight graders under one collapsed Preflight graders step with grader names", async () => {
+    const base = jobDetailPayload()
+    const workflow = base.workflows[0]
+    const template = workflow.steps[0] as JobStep
+    const step = (attrs: Partial<JobStep>): JobStep => ({
+      ...template,
+      loop_id: null,
+      runs: [],
+      details: null,
+      latest: false,
+      ...attrs
+    })
+
+    vi.spyOn(window, "fetch").mockImplementation(() => {
+      return Promise.resolve(new Response(JSON.stringify(jobDetailPayload({
+        workflows: [
+          {
+            ...workflow,
+            steps: [
+              step({ id: 71, kind: "preflight_grader_fanout", display_name: "Plan preflight graders", display_status: "succeeded", position: 0, state: "succeeded" }),
+              step({
+                id: 72,
+                kind: "preflight_grader",
+                display_name: "Preflight grader",
+                display_status: "succeeded",
+                position: 1,
+                state: "succeeded",
+                details: { name: "migration-collisions", required: true, exit_code: 0, duration_s: 1.1, log_bytes: 512, description: "Check for migration timestamp collisions.", command: "bin/check-migration-collisions" }
+              }),
+              step({
+                id: 73,
+                kind: "preflight_grader",
+                display_name: "Preflight grader",
+                display_status: "failed",
+                position: 2,
+                state: "failed",
+                details: { name: "rspec", required: true, exit_code: 1, duration_s: 5.2, log_bytes: 4096, description: "Full RSpec suite.", command: "bin/rspec" }
+              }),
+              step({ id: 74, kind: "preflight_grader_collect", display_name: "Preflight grader check", display_status: "failed", position: 3, state: "failed" }),
+              step({ id: 75, kind: "prepare", display_name: "Prepare workspace", display_status: null, position: 4, state: "queued" })
+            ]
+          }
+        ]
+      })), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/42?tab=workflows"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const preflightGroup = await screen.findByRole("button", { name: /Preflight graders/i })
+    expect(preflightGroup).toBeInTheDocument()
+    expect(within(preflightGroup).getAllByText(/failed/i).length).toBeGreaterThan(0)
+    expect(screen.getByRole("button", { name: /Prepare workspace/i })).toBeInTheDocument()
+
+    // Internal step names are hidden while collapsed
+    expect(screen.queryByText("Plan preflight graders")).not.toBeInTheDocument()
+    expect(screen.queryByText("Preflight grader check")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /migration-collisions/i })).not.toBeInTheDocument()
+
+    fireEvent.click(preflightGroup)
+
+    // Setup and Result phases are shown; individual graders use their names
+    expect(screen.getByRole("button", { name: /Setup/i })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Result/i })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /migration-collisions/i })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /rspec/i })).toBeInTheDocument()
+
+    // Expanding a preflight grader shows the compact GraderDetails, not raw JSON
+    fireEvent.click(screen.getByRole("button", { name: /rspec/i }))
+    expect(screen.getByText("required")).toBeInTheDocument()
+    expect(screen.getByText("Full RSpec suite.")).toBeInTheDocument()
+    expect(screen.getByText("bin/rspec")).toBeInTheDocument()
+    expect(screen.queryByText(/"log_bytes"/)).not.toBeInTheDocument()
+  })
+
   it("groups repeated loop iterations on the workflows tab", async () => {
     const base = jobDetailPayload()
     const workflow = base.workflows[0]

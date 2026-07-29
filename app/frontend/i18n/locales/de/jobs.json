@@ -153,6 +153,7 @@
   "loop_iteration_count_one": "{{count}} Iteration",
   "loop_iteration_count_other": "{{count}} Iterationen",
   "grade_label": "Bewertung",
+  "preflight_grade_label": "Preflight-Prüfer",
   "grade_check_count_one": "{{count}} Prüfung",
   "grade_check_count_other": "{{count}} Prüfungen",
   "grade_setup": "Einrichtung",

@@ -45,6 +45,7 @@ export type GradeStepItem = {
   key: string
   steps: JobStep[]
   graders: JobStep[]
+  preflight: boolean
 }
 
 export type LoopStepItem = {
@@ -107,7 +108,8 @@ export function displayStepItems(steps: JobStep[]): DisplayStepItem[] {
       type: "grade",
       key: `grade-${gradeSteps.map((gradeStep) => gradeStep.id).join("-")}`,
       steps: gradeSteps,
-      graders: gradeSteps.filter((gradeStep) => gradeStep.kind === "grader" || gradeStep.kind === "grade")
+      graders: gradeSteps.filter((gradeStep) => gradeStep.kind === "grader" || gradeStep.kind === "grade" || gradeStep.kind === "preflight_grader"),
+      preflight: gradeSteps.some((gradeStep) => gradeStep.kind === "preflight_grader_fanout" || gradeStep.kind === "preflight_grader" || gradeStep.kind === "preflight_grader_collect")
     })
   }
 
@@ -132,6 +134,7 @@ export function loopIterations(steps: JobStep[]) {
 
 export function isGradeDisplayStep(step: JobStep) {
   return step.kind === "grader_fanout" || step.kind === "grader" || step.kind === "grader_collect" || step.kind === "grade"
+    || step.kind === "preflight_grader_fanout" || step.kind === "preflight_grader" || step.kind === "preflight_grader_collect"
 }
 
 export function displayStepItemKey(item: DisplayStepItem) {
@@ -140,9 +143,10 @@ export function displayStepItemKey(item: DisplayStepItem) {
 
 export function gradePhases(item: GradeStepItem, t: ReturnType<typeof useT>["t"]) {
   return item.steps.map((step) => {
-    if (step.kind === "grader_fanout") return { step, displayName: t("grade_setup"), metadataLabel: "grade setup" }
-    if (step.kind === "grader_collect") return { step, displayName: t("grade_result"), metadataLabel: "grade result" }
+    if (step.kind === "grader_fanout" || step.kind === "preflight_grader_fanout") return { step, displayName: t("grade_setup"), metadataLabel: "grade setup" }
+    if (step.kind === "grader_collect" || step.kind === "preflight_grader_collect") return { step, displayName: t("grade_result"), metadataLabel: "grade result" }
     if (step.kind === "grade") return { step, displayName: step.display_name || t("grade_label"), metadataLabel: "grade" }
+    if (step.kind === "preflight_grader") return { step, displayName: stringValue(objectDetails(step.details).name) || step.display_name, metadataLabel: "grader" }
     return { step, displayName: step.display_name, metadataLabel: "grader" }
   })
 }
