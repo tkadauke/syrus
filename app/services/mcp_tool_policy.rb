@@ -11,16 +11,22 @@ class McpToolPolicy
       AgentRole::WORKFLOW_IMPLEMENT,
       AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
       AgentRole::WORKFLOW_REBASE_CONFLICT,
-      AgentRole::WORKFLOW_MANUAL
+      AgentRole::WORKFLOW_MANUAL,
+      AgentRole::WORKFLOW_RECONCILIATION_FEEDBACK
     ].freeze,
     submit_test_plan:          [
       AgentRole::WORKFLOW_IMPLEMENT,
       AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
       AgentRole::WORKFLOW_REBASE_CONFLICT,
-      AgentRole::WORKFLOW_MANUAL
+      AgentRole::WORKFLOW_MANUAL,
+      AgentRole::WORKFLOW_RECONCILIATION_FEEDBACK
     ].freeze,
     submit_adversarial_review: [
       AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER,
+      AgentRole::WORKFLOW_MANUAL
+    ].freeze,
+    submit_chat_feedback: [
+      AgentRole::WORKFLOW_RECONCILIATION_FEEDBACK,
       AgentRole::WORKFLOW_MANUAL
     ].freeze
   }.freeze
@@ -74,6 +80,8 @@ class McpToolPolicy
 
     if @context.role == AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER
       base + [ SyrusMcp::SubmitAdversarialReviewTool ]
+    elsif @context.role == AgentRole::WORKFLOW_RECONCILIATION_FEEDBACK
+      base + [ SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool, SyrusMcp::SubmitReconciliationFeedbackTool ]
     else
       base + [ SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool ]
     end

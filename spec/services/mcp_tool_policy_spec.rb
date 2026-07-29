@@ -45,6 +45,25 @@ RSpec.describe McpToolPolicy do
       expect(tools.size).to eq(9)
     end
 
+    it "returns submit_summary, submit_test_plan, and submit_reconciliation_feedback for the reconciliation_feedback role" do
+      context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_RECONCILIATION_FEEDBACK, user: user)
+      tools   = described_class.for(context)
+
+      expect(tools).to include(
+        SyrusMcp::SubmitSummaryTool,
+        SyrusMcp::SubmitTestPlanTool,
+        SyrusMcp::SubmitReconciliationFeedbackTool
+      )
+      expect(tools).not_to include(SyrusMcp::SubmitAdversarialReviewTool)
+    end
+
+    it "does not include submit_reconciliation_feedback for the standard implement role" do
+      context = McpToolContext.from_run(run)
+      tools   = described_class.for(context)
+
+      expect(tools).not_to include(SyrusMcp::SubmitReconciliationFeedbackTool)
+    end
+
     describe ".capability_permitted?" do
       it "permits submit_summary for the implement role" do
         context = McpToolContext.from_run(run)
@@ -64,6 +83,16 @@ RSpec.describe McpToolPolicy do
       it "denies submit_summary for the adversarial_reviewer role" do
         context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER, user: user)
         expect(described_class.capability_permitted?(context, :submit_summary)).to be(false)
+      end
+
+      it "permits submit_chat_feedback for the reconciliation_feedback role" do
+        context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_RECONCILIATION_FEEDBACK, user: user)
+        expect(described_class.capability_permitted?(context, :submit_chat_feedback)).to be(true)
+      end
+
+      it "denies submit_chat_feedback for the standard implement role" do
+        context = McpToolContext.from_run(run)
+        expect(described_class.capability_permitted?(context, :submit_chat_feedback)).to be(false)
       end
     end
   end

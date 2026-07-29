@@ -441,7 +441,11 @@ class Epic < ApplicationRecord
   private
 
   def create_reconciliation_job!(sibling_jobs)
-    prompt = Prompts::EpicReconciliation.new(epic: self).to_s
+    prompt = Prompts::EpicReconciliation.new(
+      epic: self,
+      jobs: sibling_jobs,
+      reconciliation_mode: resolved_reconciliation_mode
+    ).to_s
 
     recon_job = user.jobs.create!(
       repository: repository,

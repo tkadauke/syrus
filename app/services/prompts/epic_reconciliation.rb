@@ -1,42 +1,56 @@
 module Prompts
   # Prompt for the auto-created reconciliation Job inside an Epic.
   # The reconciliation Job runs after all sibling Jobs have been approved
-  # and reviews/synthesizes the combined changes for consistency — catching
-  # inter-Job conflicts, shared-surface regressions, and cross-cutting
-  # concerns that individual reviewers may not have flagged.
+  # and reviews the combined changes for cross-Job inconsistencies.
+  # Branches on reconciliation_mode: "pr" (fix inline) or "feedback"
+  # (submit targeted feedback to each Job that needs changes).
   class EpicReconciliation
-    def initialize(epic:)
+    def initialize(epic:, jobs: [], reconciliation_mode: "pr")
       @epic = epic
+      @jobs = jobs
+      @reconciliation_mode = reconciliation_mode
     end
 
     def to_s
-      <<~PROMPT.strip
-        ## Epic reconciliation review
+      [
+        preamble,
+        mode_instructions,
+        GitSafety::TEXT,
+        SubmitSummaryInstructions::TEXT
+      ].compact_blank.join("\n\n")
+    end
 
-        You are performing a reconciliation review for the Epic **#{@epic.slug}: #{@epic.title}**.
+    private
 
-        All sibling Jobs in this Epic have been implemented and approved individually.
-        Your task is to review the combined changes across sibling Jobs for:
+    def preamble
+      job_list = @jobs.map do |job|
+        pr_ref = job.pr_number ? "PR ##{job.pr_number}" : "(not yet open)"
+        "- #{job.slug}: #{job.title} — #{pr_ref}"
+      end.join("\n")
 
-        - **Inter-Job consistency**: naming, API contracts, data shapes, and conventions that
-          must be consistent across Jobs are actually consistent.
-        - **Shared-surface regressions**: tests, migrations, routes, or configuration files
-          touched by multiple Jobs that could conflict or regress each other.
-        - **Cross-cutting concerns**: authentication, authorization, logging, error handling, or
-          observability patterns that span multiple Jobs and must be applied uniformly.
-        - **Integration gaps**: interactions between sibling Jobs that each Job's individual
-          review could not catch (e.g., Job A adds an API endpoint, Job B calls it — verify
-          the contract matches).
+      <<~TEXT.strip
+        You are a reconciliation agent for the Epic "#{@epic.title}".
 
-        If everything is consistent and no issues are found, call `submit_summary` with a
-        brief note confirming the review passed. If issues are found, open a PR that
-        addresses them. Do not re-implement or redo the work in the sibling Jobs —
-        only add what is necessary to reconcile or repair cross-cutting issues.
+        The following Jobs have been implemented as part of this Epic:
+        #{job_list}
 
-        #{GitSafety::TEXT}
+        Your task: review the code changes introduced by these Jobs together and identify cross-Job inconsistencies — mismatched UI component styles, divergent naming conventions, duplicate abstractions, or conflicting API shapes.
+      TEXT
+    end
 
-        #{SubmitSummaryInstructions::TEXT}
-      PROMPT
+    def mode_instructions
+      case @reconciliation_mode
+      when "feedback"
+        <<~TEXT.strip
+          For each Job that needs changes, call submit_chat_feedback with the target JOB-{id} and a focused, actionable description of what to change.
+          Once all feedback is submitted (or you determine none is needed), make no further code changes. This Job closes automatically.
+        TEXT
+      else
+        <<~TEXT.strip
+          If you find inconsistencies, fix them in a single focused commit. Touch only what is needed to make the Jobs consistent — do not refactor beyond that scope.
+          If everything is already consistent, make no changes. Producing no changes closes this Job automatically.
+        TEXT
+      end
     end
   end
 end
