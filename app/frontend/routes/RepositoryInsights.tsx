@@ -44,13 +44,7 @@ export function RepositoryInsightsRoute() {
     )
   }
 
-  const { repository, suggestions } = query.data
-
-  const pendingCount = suggestions.filter((s) => s.state === "pending").length
-  const tabs = [
-    { key: "overview", label: "Overview", path: withRoutePrefix(`/repositories/${repositoryId}`, prefix) },
-    { key: "insights", label: "Insights", path: withRoutePrefix(`/repositories/${repositoryId}/insights`, prefix), badge: pendingCount > 0 ? pendingCount : undefined }
-  ]
+  const { repository, tabs, suggestions } = query.data
 
   return (
     <main aria-label={t("aria_insights")} className="mx-auto max-w-[96rem] space-y-6 p-6">

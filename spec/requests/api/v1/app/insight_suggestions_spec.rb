@@ -98,6 +98,14 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect(body.dig("repository", "id")).to eq(repository.id)
     end
 
+    it "returns tabs including the insights tab" do
+      get "/api/v1/app/repositories/#{repository.id}/insight_suggestions"
+
+      expect(response).to have_http_status(:ok)
+      tab_keys = parse_body["tabs"].map { |t| t["key"] }
+      expect(tab_keys).to include("overview", "github_issues", "documents", "scheduled_tasks", "insights")
+    end
+
     it "returns suggestions ordered by severity then confidence" do
       s_low    = create_suggestion(severity: "low",    confidence: 0.9, title: "Low")
       s_medium = create_suggestion(severity: "medium", confidence: 0.5, title: "Medium")

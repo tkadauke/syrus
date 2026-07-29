@@ -1,4 +1,5 @@
 import { getJson, patchJson, postJson } from "./client"
+import type { RepositoryTab } from "./repositories"
 
 export type InsightEvidenceItem = {
   job_id: number | null
@@ -42,6 +43,7 @@ export type InsightSuggestionsPayload = {
     repository_path: string
     insights_path: string
   }
+  tabs: RepositoryTab[]
   suggestions: InsightSuggestion[]
 }
 
