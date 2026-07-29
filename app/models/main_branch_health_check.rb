@@ -1,7 +1,7 @@
 class MainBranchHealthCheck < ApplicationRecord
   SOURCES = %w[ ci_poll grader_workflow concern_quorum ].freeze
   CONCLUSIVE_GRADER_HEALTH = %w[ healthy broken ].freeze
-  SETTLED_CI_HEALTH = %w[ healthy broken not_configured ].freeze
+  SETTLED_CI_HEALTH = %w[ healthy broken not_configured inconclusive ].freeze
   SETTLED_GRADER_HEALTH = %w[ healthy broken inconclusive ].freeze
   RETAIN_AFTER = 7.days
 

@@ -50,6 +50,26 @@ RSpec.describe Repository, "#main_health" do
     expect(repo).not_to be_main_health_broken
   end
 
+  it "is inconclusive when CI checks were cancelled and graders are healthy" do
+    repo.update!(ci_health: "inconclusive", grader_health: "healthy")
+
+    expect(repo.main_health).to eq("inconclusive")
+    expect(repo).to be_main_health_inconclusive
+    expect(repo).not_to be_main_health_broken
+  end
+
+  it "is inconclusive when CI checks were cancelled and graders are unknown" do
+    repo.update!(ci_health: "inconclusive", grader_health: "unknown")
+
+    expect(repo.main_health).to eq("inconclusive")
+  end
+
+  it "is broken when graders are broken even if CI is inconclusive" do
+    repo.update!(ci_health: "inconclusive", grader_health: "broken")
+
+    expect(repo.main_health).to eq("broken")
+  end
+
   it "is unknown when main branch health checking is disabled" do
     repo.update!(main_branch_health_enabled: false, ci_health: "broken", grader_health: "broken")
 
@@ -76,6 +96,11 @@ RSpec.describe Repository, "#main_health" do
   describe "#main_health_inconclusive?" do
     it "returns true when grader health is inconclusive" do
       repo.update!(ci_health: "not_configured", grader_health: "inconclusive")
+      expect(repo).to be_main_health_inconclusive
+    end
+
+    it "returns true when CI checks were cancelled" do
+      repo.update!(ci_health: "inconclusive", grader_health: "healthy")
       expect(repo).to be_main_health_inconclusive
     end
 

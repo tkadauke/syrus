@@ -447,12 +447,16 @@ class GithubClient
   end
 
   # All check runs for a commit SHA whose conclusion is a "failed-ish"
-  # state (failure, timed_out, action_required, cancelled). Returns an
+  # state (failure, timed_out, action_required, stale). Returns an
   # array of { name:, conclusion:, summary:, log:, html_url: } hashes —
   # just what Prompts::CiFailure needs. In-progress / queued / pending
   # checks are intentionally excluded; we only act on completed
   # failures so the agent isn't reacting to a half-finished run.
-  FAILED_CONCLUSIONS = %w[failure timed_out action_required cancelled stale].freeze
+  # "cancelled" is intentionally excluded: a cancelled job provides no
+  # signal about code correctness and is treated as inconclusive, not
+  # broken.
+  FAILED_CONCLUSIONS = %w[failure timed_out action_required stale].freeze
+  INCONCLUSIVE_CONCLUSIONS = %w[cancelled].freeze
 
   def failed_check_runs_for(repo_slug, sha)
     runs = track_rate_limits { @client.check_runs_for_ref(repo_slug, sha) }
@@ -496,20 +500,23 @@ class GithubClient
   end
 
   # Summarizes check run state for a commit SHA. Returns a hash:
-  #   { any?: bool, pending?: bool, any_failed?: bool, all_passed?: bool }
+  #   { any?: bool, pending?: bool, any_failed?: bool, any_cancelled?: bool, all_passed?: bool }
   # Used by PollMainBranchHealthJob to classify default-branch CI health.
   # "pending" means at least one check is still queued or in_progress.
   # "any_failed?" is true when any completed check has a FAILED_CONCLUSIONS value.
+  # "any_cancelled?" is true when any completed check has conclusion "cancelled".
   # "all_passed?" is true when every check is completed with a passing conclusion.
   PASSING_CONCLUSIONS = %w[success neutral skipped].freeze
 
   def check_runs_summary_for(repo_slug, sha)
     runs = Array(track_rate_limits { @client.check_runs_for_ref(repo_slug, sha) }.check_runs)
-    return { any?: false, pending?: false, any_failed?: false, all_passed?: false, failed_checks: [] } if runs.empty?
+    return { any?: false, pending?: false, any_failed?: false, any_cancelled?: false, all_passed?: false, failed_checks: [] } if runs.empty?
 
     pending = runs.any? { |cr| cr.status != "completed" }
     failed_runs = runs.select { |cr| cr.status == "completed" && FAILED_CONCLUSIONS.include?(cr.conclusion) }
+    cancelled_runs = runs.select { |cr| cr.status == "completed" && INCONCLUSIVE_CONCLUSIONS.include?(cr.conclusion) }
     any_failed = failed_runs.any?
+    any_cancelled = cancelled_runs.any?
     all_passed = !pending && runs.all? { |cr| PASSING_CONCLUSIONS.include?(cr.conclusion) }
     failed_checks = failed_runs.map do |cr|
       {
@@ -522,7 +529,7 @@ class GithubClient
       }.compact
     end
 
-    { any?: true, pending?: pending, any_failed?: any_failed, all_passed?: all_passed, failed_checks: failed_checks }
+    { any?: true, pending?: pending, any_failed?: any_failed, any_cancelled?: any_cancelled, all_passed?: all_passed, failed_checks: failed_checks }
   rescue Octokit::TooManyRequests => e
     Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug}@#{sha} check_runs_summary: #{e.message}")
     raise

@@ -4,7 +4,7 @@ class Repository < ApplicationRecord
   GITHUB_NAME = /\A[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?\z/
   REVIEW_POLICIES = %w[ self two_person final_say ].freeze
   FEEDBACK_POLICIES = %w[ auto confirm ].freeze
-  CI_HEALTH_STATES = %w[ unknown healthy broken not_configured ].freeze
+  CI_HEALTH_STATES = %w[ unknown healthy broken not_configured inconclusive ].freeze
   GRADER_HEALTH_STATES = %w[ unknown healthy broken inconclusive ].freeze
 
   attribute :polling_enabled, :boolean, default: true
@@ -90,7 +90,7 @@ class Repository < ApplicationRecord
     return "unknown" unless main_branch_health_enabled?
     return "broken" if ci_health_broken? || grader_health_broken?
     return "healthy" if grader_health_healthy? && (ci_health_healthy? || ci_health_not_configured?)
-    return "inconclusive" if grader_health_inconclusive?
+    return "inconclusive" if grader_health_inconclusive? || ci_health_inconclusive?
 
     "unknown"
   end

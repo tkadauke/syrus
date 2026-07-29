@@ -443,6 +443,12 @@ RSpec.describe MainBranchHealthCheck do
       expect(described_class.settled_ci_result_exists?(repository: repository, sha: "abc")).to be(true)
     end
 
+    it "returns true for an inconclusive ci result (cancelled checks)" do
+      described_class.record_ci_poll(repository: repository, sha: "abc", ci_health: "inconclusive")
+
+      expect(described_class.settled_ci_result_exists?(repository: repository, sha: "abc")).to be(true)
+    end
+
     it "returns false when ci_health is unknown" do
       described_class.record_ci_poll(repository: repository, sha: "abc", ci_health: "unknown")
 

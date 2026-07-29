@@ -94,6 +94,8 @@ class PollMainBranchHealthJob < ApplicationJob
       "broken"
     elsif summary[:all_passed?]
       "healthy"
+    elsif summary[:any_cancelled?]
+      "inconclusive"
     end
 
     if new_ci_health

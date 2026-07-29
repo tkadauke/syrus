@@ -27,12 +27,41 @@ RSpec.describe PollMainBranchHealthJob do
 
   it "sets ci_health to broken when any check fails" do
     stub_sha(sha)
-    stub_check_runs({ any?: true, pending?: false, any_failed?: true, all_passed?: false })
+    stub_check_runs({ any?: true, pending?: false, any_failed?: true, all_passed?: false, any_cancelled?: false })
 
     described_class.perform_now(repository.id)
 
     expect(repository.reload.ci_health).to eq("broken")
     expect(repository.last_health_checked_sha).to eq(sha)
+  end
+
+  it "sets ci_health to inconclusive when all failures are cancellations" do
+    stub_sha(sha)
+    stub_check_runs({ any?: true, pending?: false, any_failed?: false, any_cancelled?: true, all_passed?: false })
+
+    described_class.perform_now(repository.id)
+
+    expect(repository.reload.ci_health).to eq("inconclusive")
+    expect(repository.last_health_checked_sha).to eq(sha)
+    expect(repository.last_ci_evaluated_sha).to eq(sha)
+  end
+
+  it "sets ci_health to inconclusive when some checks pass and some are cancelled" do
+    stub_sha(sha)
+    stub_check_runs({ any?: true, pending?: false, any_failed?: false, any_cancelled?: true, all_passed?: false })
+
+    described_class.perform_now(repository.id)
+
+    expect(repository.reload.ci_health).to eq("inconclusive")
+  end
+
+  it "does not mark CI broken when only cancelled checks exist" do
+    stub_sha(sha)
+    stub_check_runs({ any?: true, pending?: false, any_failed?: false, any_cancelled?: true, all_passed?: false })
+
+    described_class.perform_now(repository.id)
+
+    expect(repository.reload.main_health).not_to eq("broken")
   end
 
   it "marks ci_health unknown when checks are still pending on a new SHA" do
