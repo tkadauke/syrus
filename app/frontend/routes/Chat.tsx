@@ -5,7 +5,6 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import "@excalidraw/excalidraw/index.css"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types"
-import { exportToBlob } from "@excalidraw/excalidraw"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
 import { GeminiSetupSheet } from "../components/GeminiSetupSheet"
@@ -1543,6 +1542,7 @@ async function uploadSnapshotPngs(snapshotRefs: string[], chatId: string | numbe
       const scene = snapshot.scene_json
       if (!scene) continue
 
+      const { exportToBlob } = await import("@excalidraw/excalidraw")
       const elements = (scene.elements || []) as Parameters<typeof exportToBlob>[0]["elements"]
       const files = scene.files as Parameters<typeof exportToBlob>[0]["files"] ?? null
       const blob = await exportToBlob({ elements, appState: scene.appState, files, mimeType: "image/png" })
