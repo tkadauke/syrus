@@ -342,6 +342,7 @@ module Api
             owner_user: owner_user_json(epic.owner_user),
             repository_id: epic.repository_id,
             github_issue_url: epic.github_issue_url.to_s,
+            reconciliation_mode: epic.reconciliation_mode,
             epic_path: epic.persisted? ? epic_path(epic) : nil
           }
         end
@@ -604,7 +605,7 @@ module Api
         end
 
         def epic_params
-          params.require(:epic).permit(:title, :description, :repository_id, :github_issue_url)
+          params.require(:epic).permit(:title, :description, :repository_id, :github_issue_url, :reconciliation_mode)
         end
       end
     end
