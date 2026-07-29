@@ -32,7 +32,7 @@ RSpec.describe AutoRetryAttempt, type: :model do
   end
 
   it "accepts all known agent providers" do
-    User::AGENT_PROVIDERS.each do |provider|
+    User.agent_providers.each do |provider|
       expect(described_class.new(valid_attrs(agent_provider: provider))).to be_valid
     end
   end
