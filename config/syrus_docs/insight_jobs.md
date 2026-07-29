@@ -101,6 +101,40 @@ Admins can expand rows to see the full suggested prompt and memory suggestion, a
 
 Syrus enforces at-most-one active insight job per repository. If an insight job is already running when "Run insight analysis" is clicked, a notice is shown and no new job is created. Once the active job closes (success or failure), a new run can be triggered.
 
+## Adaptive Scheduling
+
+In addition to on-demand runs, Syrus can automatically schedule insight jobs based on coding job activity. This eliminates the need for fixed time intervals: insight jobs fire when there is genuinely new work to analyze, not on a calendar.
+
+Adaptive scheduling is controlled by an `InsightScheduleConfig` record (auto-created disabled for each repository). Configure it in the admin console or via Rails:
+
+```ruby
+repo = Repository.find_by!(owner: "acme", name: "widgets")
+config = repo.insight_schedule_config || repo.build_insight_schedule_config
+config.update!(
+  enabled: true,
+  min_jobs_since_last_run: 5,   # sweep threshold
+  max_jobs_since_last_run: 10   # immediate trigger threshold
+)
+```
+
+### Thresholds
+
+Two thresholds control when insight jobs fire automatically:
+
+- **`min_jobs_since_last_run`** (default: 5) — the periodic sweep threshold. `InsightSweepJob` runs every 6 hours and fires an insight job for any enabled repository whose count of closed coding jobs since the last insight run is ≥ `min`.
+- **`max_jobs_since_last_run`** (default: 10) — the immediate trigger threshold. Whenever any coding job closes, if the count of closed coding jobs since the last insight run reaches ≥ `max`, an insight job is enqueued immediately without waiting for the next sweep.
+
+Both thresholds count closed jobs of any kind except `agent_insight`, measured from the `finished_at` of the most recently created `agent_insight` job (or from the beginning of time if none exists). Weekends and idle periods are skipped naturally: the count only crosses `min` if real work has occurred.
+
+### Deduplication
+
+Both the sweep and the immediate trigger call `InsightScheduler.enqueue_if_idle!`, which first checks whether a non-closed `agent_insight` job already exists for the repository. If one is queued or running, no new job is created.
+
+### Validation
+
+- Both `min_jobs_since_last_run` and `max_jobs_since_last_run` must be ≥ 1.
+- `min_jobs_since_last_run` must be strictly less than `max_jobs_since_last_run`.
+
 ## Job Lifecycle
 
 - **Branch:** Insight jobs do not create a branch — they operate on a shallow clone of the default branch read-only.
