@@ -212,11 +212,15 @@ function JobsTable({
               />
             ))
           ) : (
-            items.map((job, index) => (
-              <tr className={startsNewEpicGroup(items, index, groupByEpic) ? "border-t-4 border-gray-300 dark:border-gray-600" : undefined} key={job.id}>
-                {columns.map((column) => <JobCell column={column} job={job} key={column} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(job.id)} />)}
-              </tr>
-            ))
+            items.map((job, index) => {
+              const separatorClass = startsNewEpicGroup(items, index, groupByEpic) ? "border-t-4 border-gray-300 dark:border-gray-600" : ""
+              const urgentClass = job.priority === "urgent" ? "bg-red-50 dark:bg-red-950/40" : ""
+              return (
+                <tr className={[separatorClass, urgentClass].filter(Boolean).join(" ") || undefined} key={job.id}>
+                  {columns.map((column) => <JobCell column={column} job={job} key={column} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(job.id)} />)}
+                </tr>
+              )
+            })
           )}
         </tbody>
       </table>
@@ -296,8 +300,9 @@ function LandingQueueJobGroup({
           )
         }
 
+        const urgentClass = row.job.priority === "urgent" ? "bg-red-50 dark:bg-red-950/40" : ""
         return (
-          <tr className={separatorClass} key={row.job.id}>
+          <tr className={[separatorClass, urgentClass].filter(Boolean).join(" ") || undefined} key={row.job.id}>
             {columns.map((column) => <JobCell column={column} job={row.job} key={column} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(row.job.id)} />)}
           </tr>
         )
@@ -452,7 +457,11 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
   const approvalLabel = job.approved_at ? t("approved") : t("not_approved")
 
   return (
-    <article aria-label={job.title} className={`grid grid-cols-[auto_minmax(0,1fr)] gap-3 px-4 py-3${topSeparator ? " border-t-4 border-gray-300 dark:border-gray-600" : ""}`}>
+    <article aria-label={job.title} className={[
+      "grid grid-cols-[auto_minmax(0,1fr)] gap-3 px-4 py-3",
+      topSeparator && "border-t-4 border-gray-300 dark:border-gray-600",
+      job.priority === "urgent" && "bg-red-50 dark:bg-red-950/40"
+    ].filter(Boolean).join(" ")}>
       <input aria-label={t("select_item", { title: job.title })} checked={selected} className="mt-1" onChange={() => onToggleOne(job.id)} type="checkbox" />
       <div className="min-w-0 text-gray-700 dark:text-gray-200">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">

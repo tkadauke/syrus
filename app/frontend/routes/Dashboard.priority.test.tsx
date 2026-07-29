@@ -94,6 +94,29 @@ describe("PRIORITY_TONE", () => {
   })
 })
 
+describe("urgent row highlight", () => {
+  it("applies a red background to the desktop table row for urgent jobs", () => {
+    renderTable([ jobItem(1, "urgent") ])
+    const pill = screen.getByText("urgent")
+    const row = pill.closest("tr")
+    expect(row?.className).toContain("bg-red-50")
+  })
+
+  it("does not apply a red background to high-priority rows", () => {
+    renderTable([ jobItem(2, "high") ])
+    const pill = screen.getByText("high")
+    const row = pill.closest("tr")
+    expect(row?.className ?? "").not.toContain("bg-red-50")
+  })
+
+  it("does not apply a red background to medium-priority rows", () => {
+    const { container } = renderTable([ jobItem(3, "medium") ])
+    const tbody = container.querySelector("tbody")
+    const row = tbody?.querySelector("tr")
+    expect(row?.className ?? "").not.toContain("bg-red-50")
+  })
+})
+
 describe("priority column rendering", () => {
   it("renders a red pill for urgent jobs", () => {
     renderTable([ jobItem(1, "urgent") ])
