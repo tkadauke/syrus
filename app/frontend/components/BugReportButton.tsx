@@ -733,6 +733,14 @@ function loadHtml2Canvas() {
   return html2canvasPromise
 }
 
+function normalizeCloneForCapture(clonedDoc: Document) {
+  clonedDoc.querySelectorAll<HTMLElement>("*").forEach((el) => {
+    if (getComputedStyle(el).position === "sticky") {
+      el.style.position = "relative"
+    }
+  })
+}
+
 function captureViewport(html2canvas: Html2Canvas) {
   return html2canvas(document.body, {
     x: window.scrollX,
@@ -741,7 +749,8 @@ function captureViewport(html2canvas: Html2Canvas) {
     height: window.innerHeight,
     windowWidth: window.innerWidth,
     windowHeight: window.innerHeight,
-    useCORS: true
+    useCORS: true,
+    onclone: (_clonedDoc, element) => normalizeCloneForCapture(element.ownerDocument)
   })
 }
 
@@ -768,7 +777,8 @@ function captureFullPage(html2canvas: Html2Canvas) {
     scale,
     windowWidth: window.innerWidth,
     windowHeight: window.innerHeight,
-    useCORS: true
+    useCORS: true,
+    onclone: (_clonedDoc, element) => normalizeCloneForCapture(element.ownerDocument)
   })
 }
 
