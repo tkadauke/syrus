@@ -1157,6 +1157,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
       ) : null}
       <form
         className={`relative transition-shadow ${isDragOver ? "ring-2 ring-blue-400 dark:ring-blue-500" : ""}`}
+        data-tour="chat-compose"
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}

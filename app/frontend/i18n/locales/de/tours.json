@@ -4,5 +4,13 @@
   "last": "Fertig",
   "next": "Weiter",
   "open": "Dialog öffnen",
-  "skip": "Tour überspringen"
+  "skip": "Tour überspringen",
+  "chat": {
+    "step_compose_title": "Aufgabe beschreiben",
+    "step_compose_content": "Beschreibe in einfacher Sprache, was gebaut werden soll. Sei so präzise oder knapp wie du möchtest — Syrus fragt nach, wenn es mehr Details braucht.",
+    "step_messages_title": "Bestätigung vor dem Start",
+    "step_messages_content": "Wenn Syrus einen Job oder ein Epic vorschlägt, erscheint hier eine Bestätigungskarte. Überprüfe den Vorschlag und klicke auf Bestätigen, um die Umsetzung zu starten — oder passe deine Anfrage an und versuche es erneut.",
+    "step_slash_title": "Slash-Befehle",
+    "step_slash_content": "Tippe / um verfügbare Befehle zu sehen — z. B. /review für PR-Prüfungen, /loop für wiederholte Aufgaben oder /schedule für Zeitplanung."
+  }
 }

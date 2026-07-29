@@ -4,5 +4,13 @@
   "last": "Factum",
   "next": "Progredi",
   "open": "Dialogum aperire",
-  "skip": "Iter praeterire"
+  "skip": "Iter praeterire",
+  "chat": {
+    "step_compose_title": "Munus describe",
+    "step_compose_content": "Scribe lingua communi quid aedificari velis. Tam specifica quam brevis sis — Syrus amplius rogabit si opus fuerit.",
+    "step_messages_title": "Ante omnia confirma",
+    "step_messages_content": "Cum Syrus Officium vel Epicum proponit, charta confirmationis hic apparet. Inspice, deinde confirma ut inceptum incipias — vel tentamen tuum muta et iterum tempta.",
+    "step_slash_title": "Mandata obliqua",
+    "step_slash_content": "Scribe / ut mandata disponibilia videas — ut /review ad statum PR examinandum, /loop ad opus iterandum, vel /schedule ad opera recurrentia."
+  }
 }

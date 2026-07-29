@@ -14,6 +14,8 @@ const PRIMARY_COLOR = "#16a34a"
 export function SyrusTour({ steps, run, onEvent }: SyrusTourProps) {
   const { t } = useT("tours")
 
+  if (!run) return null
+
   return (
     <Joyride
       continuous

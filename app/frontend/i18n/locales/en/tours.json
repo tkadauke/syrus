@@ -4,5 +4,13 @@
   "last": "Done",
   "next": "Next",
   "open": "Open the dialog",
-  "skip": "Skip tour"
+  "skip": "Skip tour",
+  "chat": {
+    "step_compose_title": "Describe a task",
+    "step_compose_content": "Type what you want built in plain language. Be as specific or as brief as you like — Syrus will ask for clarification if it needs more detail.",
+    "step_messages_title": "Confirm before anything runs",
+    "step_messages_content": "When Syrus proposes a Job or Epic, a confirmation card appears here. Review it, then click Confirm to start implementation — or edit your prompt and try again.",
+    "step_slash_title": "Slash commands",
+    "step_slash_content": "Type / to see available commands — like /review to audit a PR, /loop to run a task repeatedly, or /schedule to set up recurring work."
+  }
 }

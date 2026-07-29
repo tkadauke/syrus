@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Markdown } from "../lib/Markdown"
+import type { Step } from "react-joyride"
 import type { CSSProperties, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, UIEvent } from "react"
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
@@ -27,6 +28,8 @@ import { buildMessageStreamItems, injectTemporalMarkers, pendingActionCardData, 
 import type { MobileChatTab, WorkspaceTab } from "./chat/workspaceTabs"
 import { countIncomingVisibleMessages, isAgentActive, isLowPrioritySystemMessage } from "./chat/messageDisplay"
 import { clampWorkspaceWidth, defaultWorkspaceTab, mobileChatTabLabel, storeWorkspacePreference, storedWorkspaceCollapsed, storedWorkspaceTab, storedWorkspaceWidth, workspaceTabClass } from "./chat/workspaceTabs"
+import { SyrusTour } from "../components/SyrusTour"
+import { useTour } from "../hooks/useTour"
 
 
 
@@ -828,6 +831,34 @@ function CodingCheckoutBanner({ payload, queryKey, onNotice }: { payload: ChatPa
   )
 }
 
+export function ChatTour() {
+  const { run, handleJoyrideCallback } = useTour("chat")
+  const { t } = useT("tours")
+
+  const steps: Step[] = [
+    {
+      target: '[data-tour="chat-compose"]',
+      title: t("chat.step_compose_title"),
+      content: t("chat.step_compose_content"),
+      placement: "top",
+    },
+    {
+      target: '[data-tour="chat-message-list"]',
+      title: t("chat.step_messages_title"),
+      content: t("chat.step_messages_content"),
+      placement: "top",
+    },
+    {
+      target: '[data-tour="chat-compose"]',
+      title: t("chat.step_slash_title"),
+      content: t("chat.step_slash_content"),
+      placement: "top",
+    },
+  ]
+
+  return <SyrusTour steps={steps} run={run} onEvent={(data) => handleJoyrideCallback(data)} />
+}
+
 function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, queryKey, onNotice }: { bookmarkTarget: BookmarkTarget | null; chatId: string; commandHandlers: ChatSystemCommandHandlers; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const [hasSentFirstMessage, setHasSentFirstMessage] = useState(false)
   const { t } = useT("chat")
@@ -839,13 +870,14 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
 
   return (
     <section className={`flex min-h-0 min-w-0 flex-1 flex-col transition-all duration-500 ${landing ? "items-center justify-center gap-6 px-4" : "gap-3"}`}>
+      <ChatTour />
       {landing ? (
         <h1 className="text-center text-3xl font-semibold tracking-normal text-gray-950 sm:text-4xl dark:text-gray-100">{t("landing_prompt")}</h1>
       ) : null}
       {payload.local_mode_enabled && payload.chat.mode === "local" ? (
         <LocalDaemonBanner payload={payload} />
       ) : null}
-      <div className={`relative min-h-0 overflow-hidden rounded border border-gray-200 bg-white transition-all duration-500 ease-out dark:border-gray-700 dark:bg-gray-950 ${landing ? "h-0 w-full max-w-2xl opacity-0" : "flex-1 opacity-100"}`}>
+      <div className={`relative min-h-0 overflow-hidden rounded border border-gray-200 bg-white transition-all duration-500 ease-out dark:border-gray-700 dark:bg-gray-950 ${landing ? "h-0 w-full max-w-2xl opacity-0" : "flex-1 opacity-100"}`} data-tour="chat-message-list">
         <MessageStream bookmarkTarget={bookmarkTarget} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
         <UsageOverlay payload={payload} />
       </div>
