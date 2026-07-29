@@ -61,6 +61,7 @@ module Api
             owner_user: owner_user
           )
           epic.auto_approve_mode = attrs[:auto_approve_mode] if attrs[:auto_approve_mode].present?
+          epic.reconciliation_mode = attrs[:reconciliation_mode] if attrs.key?(:reconciliation_mode)
 
           if epic.save
             render json: {
@@ -76,7 +77,7 @@ module Api
 
         def epic_params
           source = params[:epic].present? ? params.require(:epic) : params
-          source.permit(:repository_id, :repository, :repo, :title, :description, :github_issue_url, :owner_user_id, :auto_approve_mode)
+          source.permit(:repository_id, :repository, :repo, :title, :description, :github_issue_url, :owner_user_id, :auto_approve_mode, :reconciliation_mode)
         end
 
         def find_active_repository(attrs)
@@ -136,11 +137,12 @@ module Api
             title:              epic.title,
             owner_email:        epic.owner&.email_address,
             claimed_at:         epic.claimed_at,
-            auto_approve_mode:  epic.auto_approve_mode,
-            owner_user_id:      epic.owner_user_id,
-            owner_status:       owner_status(epic),
-            owner_user:         owner_user_json(epic.owner_user),
-            repository:         epic.repository.slug,
+            auto_approve_mode:      epic.auto_approve_mode,
+            reconciliation_mode:    epic.reconciliation_mode,
+            owner_user_id:          epic.owner_user_id,
+            owner_status:           owner_status(epic),
+            owner_user:             owner_user_json(epic.owner_user),
+            repository:             epic.repository.slug,
             github_issue_url:   epic.github_issue_url,
             done_at:            epic.done_at,
             created_at:         epic.created_at,
@@ -158,11 +160,12 @@ module Api
             description:        epic.description,
             owner:              serialize_owner(epic.owner),
             claimed_at:         epic.claimed_at,
-            auto_approve_mode:  epic.auto_approve_mode,
-            owner_user_id:      epic.owner_user_id,
-            owner_status:       owner_status(epic),
-            owner_user:         owner_user_json(epic.owner_user),
-            github_issue_url:   epic.github_issue_url,
+            auto_approve_mode:   epic.auto_approve_mode,
+            reconciliation_mode: epic.reconciliation_mode,
+            owner_user_id:       epic.owner_user_id,
+            owner_status:        owner_status(epic),
+            owner_user:          owner_user_json(epic.owner_user),
+            github_issue_url:    epic.github_issue_url,
             done_at:            epic.done_at,
             created_at:         epic.created_at,
             updated_at:         epic.updated_at,

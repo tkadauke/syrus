@@ -17,6 +17,7 @@ function formPayload(overrides: Partial<EpicFormPayload["epic"]> = {}): EpicForm
       owner_user: null,
       repository_id: 1,
       github_issue_url: "",
+      reconciliation_mode: null,
       epic_path: null,
       ...overrides
     },
