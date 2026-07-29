@@ -11,7 +11,7 @@ function client() {
 }
 
 function job(state: string, title = "A job"): EpicDetailJob {
-  return { id: Math.random(), label: "JOB-1", title, path: "/jobs/1", state, owner_user_id: null, owner_user: null, repository_slug: "owner/repo" }
+  return { id: Math.random(), slug: "JOB-1", label: "JOB-1", title, path: "/jobs/1", state, pr_number: null, pr_url: null, owner_user_id: null, owner_user: null, repository_slug: "owner/repo" }
 }
 
 function epicPayload(overrides: Record<string, unknown> = {}) {
@@ -133,8 +133,8 @@ describe("EpicPreviewCard", () => {
 
   it("renders each child job row as a link to the job detail page", async () => {
     const fixedJobs: EpicDetailJob[] = [
-      { id: 10, label: "JOB-10", title: "First job", path: "/jobs/10", state: "open", owner_user_id: null, owner_user: null, repository_slug: "owner/repo" },
-      { id: 20, label: "JOB-20", title: "Second job", path: "/jobs/20", state: "merged", owner_user_id: null, owner_user: null, repository_slug: "owner/repo" },
+      { id: 10, slug: "JOB-10", label: "JOB-10", title: "First job", path: "/jobs/10", state: "open", pr_number: null, pr_url: null, owner_user_id: null, owner_user: null, repository_slug: "owner/repo" },
+      { id: 20, slug: "JOB-20", label: "JOB-20", title: "Second job", path: "/jobs/20", state: "merged", pr_number: null, pr_url: null, owner_user_id: null, owner_user: null, repository_slug: "owner/repo" },
     ]
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ ...epicPayload({ jobs_count: 2 }), jobs: fixedJobs }))
     renderCard(7)
