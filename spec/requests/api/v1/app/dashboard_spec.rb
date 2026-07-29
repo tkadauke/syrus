@@ -913,7 +913,6 @@ RSpec.describe "App API dashboard commands", type: :request do
         "name" => "Ready work",
         "position" => folder.position,
         "visibility" => "user_defined",
-        "position" => 2,
         "count" => 1,
         "active" => true,
         "filter" => {
