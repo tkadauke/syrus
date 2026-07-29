@@ -171,6 +171,7 @@ class User < ApplicationRecord
   validates :profile_location, :profile_company, length: { maximum: 100 }
   validates :profile_website, length: { maximum: 255 }
   after_initialize :seed_notification_preferences
+  after_initialize :seed_ui_preferences
   after_initialize :seed_locale
   before_create :promote_first_user_to_admin
 
@@ -250,6 +251,23 @@ class User < ApplicationRecord
     selected_lanes = lanes.select { |lane| known_lanes.include?(lane) }
 
     selected_lanes.presence || dashboard_default_kanban_lanes_for(subject_key)
+  end
+
+  def ui_preferences
+    read_attribute(:ui_preferences) || {}
+  end
+
+  def seen_tours
+    ui_preferences.fetch("seen_tours", [])
+  end
+
+  def mark_tour_seen(tour_id)
+    updated = (seen_tours + [ tour_id.to_s ]).uniq
+    update!(ui_preferences: ui_preferences.merge("seen_tours" => updated))
+  end
+
+  def reset_tours!
+    update!(ui_preferences: ui_preferences.merge("seen_tours" => []))
   end
 
   def notification_preferences
@@ -550,6 +568,10 @@ class User < ApplicationRecord
 
   def seed_notification_preferences
     self.notification_preferences = {} if has_attribute?(:notification_preferences) && read_attribute(:notification_preferences).nil?
+  end
+
+  def seed_ui_preferences
+    write_attribute(:ui_preferences, {}) if has_attribute?(:ui_preferences) && read_attribute(:ui_preferences).nil?
   end
 
   def seed_locale

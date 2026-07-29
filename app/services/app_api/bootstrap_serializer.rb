@@ -50,7 +50,8 @@ module AppApi
         # Gates the walkthrough-video UI: without a key the composer offers
         # the Gemini setup sheet instead of the recorder/upload.
         gemini_configured: user.gemini_configured?,
-        notification_unread_count: user.notifications.unread.count
+        notification_unread_count: user.notifications.unread.count,
+        seen_tours: user.seen_tours
       }
     end
 

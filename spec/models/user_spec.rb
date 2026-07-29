@@ -831,4 +831,52 @@ RSpec.describe User do
       expect(User.column_names).to include("locale")
     end
   end
+
+  describe "tours (ui_preferences)" do
+    let(:user) { User.create!(attrs) }
+
+    describe "#seen_tours" do
+      it "returns an empty array for a new user" do
+        expect(user.seen_tours).to eq([])
+      end
+
+      it "returns the stored tour IDs" do
+        user.update!(ui_preferences: { "seen_tours" => [ "dashboard", "job_detail" ] })
+        expect(user.seen_tours).to eq([ "dashboard", "job_detail" ])
+      end
+    end
+
+    describe "#mark_tour_seen" do
+      it "appends the tour ID to seen_tours and persists" do
+        user.mark_tour_seen("dashboard")
+        expect(user.reload.seen_tours).to eq([ "dashboard" ])
+      end
+
+      it "does not duplicate an already-seen tour ID" do
+        user.mark_tour_seen("dashboard")
+        user.mark_tour_seen("dashboard")
+        expect(user.reload.seen_tours).to eq([ "dashboard" ])
+      end
+
+      it "accumulates multiple distinct tour IDs" do
+        user.mark_tour_seen("dashboard")
+        user.mark_tour_seen("job_detail")
+        expect(user.reload.seen_tours).to eq([ "dashboard", "job_detail" ])
+      end
+    end
+
+    describe "#reset_tours!" do
+      it "clears all seen tours and persists" do
+        user.mark_tour_seen("dashboard")
+        user.mark_tour_seen("chat")
+        user.reset_tours!
+        expect(user.reload.seen_tours).to eq([])
+      end
+
+      it "is idempotent when already empty" do
+        user.reset_tours!
+        expect(user.reload.seen_tours).to eq([])
+      end
+    end
+  end
 end
