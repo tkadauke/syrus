@@ -7,7 +7,8 @@ class AutoRetryFailureClassifier
     "worker_died" => "worker process died",
     "error_during_execution" => "provider reported a transient execution error",
     "turn_failed" => "provider turn failed",
-    "error" => "provider reported a generic transient error"
+    "error" => "provider reported a generic transient error",
+    "mcp_sidecar_failed" => "MCP sidecar failed to start or connect"
   }.freeze
 
   NON_RETRYABLE_AGENT_OUTCOMES = {

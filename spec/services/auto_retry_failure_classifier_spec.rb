@@ -56,4 +56,14 @@ RSpec.describe AutoRetryFailureClassifier do
     expect(result).to be_retryable
     expect(result.classification).to eq("Timeout::Error")
   end
+
+  it "classifies mcp_sidecar_failed as retryable" do
+    fail_run!(agent_outcome: "mcp_sidecar_failed")
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).to be_retryable
+    expect(result.classification).to eq("mcp_sidecar_failed")
+    expect(result.reason).to eq("MCP sidecar failed to start or connect")
+  end
 end
