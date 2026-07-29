@@ -12,6 +12,7 @@ class Epic < ApplicationRecord
   STATES = (BOARD_STATES + [ ARCHIVED_STATE ]).freeze
   MERGED_JOB_CLOSURE_REASONS = %w[ pr_merged external_pr_merged ].freeze
   SUCCESSFUL_JOB_CLOSURE_REASONS = (MERGED_JOB_CLOSURE_REASONS + %w[ no_changes ]).freeze
+  RECONCILIATION_MODES = %w[ pr feedback none ].freeze
 
   attr_readonly :number
 
@@ -19,6 +20,7 @@ class Epic < ApplicationRecord
   belongs_to :owner, class_name: "User", optional: true, inverse_of: :owned_epics
   belongs_to :repository
   belongs_to :owner_user, class_name: "User", optional: true, inverse_of: :dashboard_owned_epics
+  belongs_to :reconciliation_job, class_name: "Job", optional: true
   has_many :jobs, dependent: :nullify
   has_many :chat_proposals, dependent: :nullify
   has_many :versions, class_name: "EpicVersion", dependent: :destroy, inverse_of: :epic
@@ -85,6 +87,7 @@ class Epic < ApplicationRecord
         self.state = "in_progress"
         claim!(actor || user || self.user, force: true) unless claimed?
         unblock_child_jobs!
+        maybe_create_reconciliation_job!
       }
     end
 
@@ -201,8 +204,15 @@ class Epic < ApplicationRecord
     !epic_advancement_actor(actor || user)&.product_owner?
   end
 
+  # Returns an AR relation for work jobs — all child jobs except the
+  # reconciliation job itself. Used by complete?, stuck?, and all_jobs_closed?
+  # so those predicates evaluate only the actual feature jobs.
+  def work_jobs
+    reconciliation_job_id.present? ? jobs.where.not(id: reconciliation_job_id) : jobs
+  end
+
   def complete?
-    child_jobs = jobs.reload
+    child_jobs = work_jobs.reload
     child_jobs.any? && child_jobs.all? { |job| job.closed? && SUCCESSFUL_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
   end
 
@@ -211,7 +221,7 @@ class Epic < ApplicationRecord
   # A jobless in-progress Epic (the form-created "start now, add children
   # later" path) is awaiting children, not stuck.
   def stuck?
-    child_jobs = jobs.reload
+    child_jobs = work_jobs.reload
     in_progress? &&
       child_jobs.any? &&
       child_jobs.none?(&:open?) &&
@@ -219,7 +229,7 @@ class Epic < ApplicationRecord
   end
 
   def all_jobs_closed?
-    child_jobs = jobs.reload
+    child_jobs = work_jobs.reload
     child_jobs.any? && child_jobs.all?(&:closed?)
   end
 
@@ -227,11 +237,48 @@ class Epic < ApplicationRecord
     jobs.where.not(state: "closed").where.not(state: "approved").none?
   end
 
+  # The effective reconciliation mode: Epic column → .syrus.yml → "pr".
+  def resolved_reconciliation_mode
+    RepoReconciliationPlan.for_epic(self).mode
+  end
+
+  # Creates a reconciliation Job if the Epic is in_progress, has 2+ work
+  # jobs, and reconciliation mode is not "none". Idempotent — returns early
+  # if a reconciliation job already exists.
+  def maybe_create_reconciliation_job!
+    return if @creating_reconciliation_job
+    return if reconciliation_job_id.present?
+    return if work_jobs.count < 2
+    return if resolved_reconciliation_mode == "none"
+
+    @creating_reconciliation_job = true
+    with_lock do
+      return if reconciliation_job_id.present?
+
+      create_reconciliation_job!(work_jobs.order(:id).to_a)
+    end
+  ensure
+    @creating_reconciliation_job = nil
+  end
+
+  # Clears reconciliation_job_id if the linked reconciliation Job has closed.
+  # Returns true when the field was cleared so refresh_auto_state! can skip
+  # re-creation for the same refresh cycle.
+  def clear_reconciliation_job_if_closed!
+    return false unless reconciliation_job_id.present?
+    return false unless reconciliation_job&.closed?
+
+    update!(reconciliation_job_id: nil)
+    true
+  end
+
   def refresh_auto_state!
     if backlog? && may_auto_ready?
       auto_ready!
     elsif in_progress?
       released = release_child_jobs_if_ready!
+      cleared = clear_reconciliation_job_if_closed!
+      maybe_create_reconciliation_job! unless cleared
       return auto_complete! if may_auto_complete?
 
       released
@@ -260,6 +307,7 @@ class Epic < ApplicationRecord
       if target_state == "in_progress"
         claim!(user, force: true) unless claimed?
         unblock_child_jobs!
+        maybe_create_reconciliation_job!
       elsif was_in_progress && %w[backlog ready].include?(target_state)
         restore_child_epic_blocks!
       elsif target_state == "archived"
@@ -388,6 +436,38 @@ class Epic < ApplicationRecord
   end
 
   private
+
+  def create_reconciliation_job!(sibling_jobs)
+    prompt = Prompts::EpicReconciliation.new(epic: self).to_s
+
+    recon_job = user.jobs.create!(
+      repository: repository,
+      kind: "direct",
+      epic: self,
+      issue_title: "Reconciliation: #{title}",
+      issue_body: prompt,
+      agent_provider: repository.effective_agent_provider,
+      priority: "medium",
+      state: "triaging"
+    )
+
+    sibling_jobs.each do |sibling|
+      recon_job.dependencies.create!(
+        depends_on_job: sibling,
+        source: "manual",
+        created_by_user: user
+      )
+    end
+
+    # Set reconciliation_job_id BEFORE advancing triage so any callback
+    # re-entering maybe_create_reconciliation_job! sees the field set and
+    # returns early, preventing duplicate reconciliation jobs.
+    update!(reconciliation_job_id: recon_job.id)
+
+    recon_job.advance_after_triage! if recon_job.may_advance_after_triage?
+
+    recon_job
+  end
 
   def start_implementing_block_reason(actor)
     actor_user = epic_advancement_actor(actor)

@@ -106,7 +106,8 @@ RSpec.describe Steps::AdversarialReview do
           ),
           coverage: nil,
           formatters: [],
-          generated: []
+          generated: [],
+          reconciliation_mode: nil
         )
       )
     end

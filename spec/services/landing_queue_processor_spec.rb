@@ -6,6 +6,12 @@ RSpec.describe LandingQueueProcessor do
   let(:user) { Factories.user(github_token: "ghp_test") }
   let(:repository) { Factories.repository(user: user, auto_merge_enabled: true) }
 
+  before do
+    allow(RepoReconciliationPlan).to receive(:for_epic).and_return(
+      RepoReconciliationPlan::Result.new(mode: "none", source: "none", note: "stubbed")
+    )
+  end
+
   def queue_job(issue_number:, approved_at:, parent_job: nil, pr_number: issue_number, repository: self.repository, epic: nil)
     # Start in :implemented so approve! works directly; mirrors the
     # production flow where mark_implemented! happens before approval
@@ -623,6 +629,55 @@ RSpec.describe LandingQueueProcessor do
       entry = described_class.entries(Job.where(id: urgent.id)).first
 
       expect(entry.blocked_reason).to be_blank
+    end
+  end
+
+  describe "epic reconciliation gate" do
+    let(:epic) { Factories.epic(user: user, repository: repository, state: "in_progress") }
+
+    def make_recon_job
+      Factories.job_record(
+        user: user,
+        repository: repository,
+        epic: epic,
+        issue_number: nil,
+        kind: "direct",
+        issue_title: "Reconciliation: Test Epic",
+        state: "implemented"
+      ).tap do |job|
+        job.approve!(via: "operator")
+        job.update!(approved_at: 1.minute.ago)
+      end
+    end
+
+    it "blocks an Epic sibling from landing while the reconciliation Job is open" do
+      recon_job = make_recon_job
+      epic.update!(reconciliation_job_id: recon_job.id)
+
+      sibling = queue_job(issue_number: 1, approved_at: 2.minutes.ago, epic: epic)
+
+      entry = described_class.entries(Job.where(id: sibling.id)).first
+      expect(entry.blocked_reason).to eq("epic reconciliation pending")
+    end
+
+    it "does not block the reconciliation Job itself" do
+      recon_job = make_recon_job
+      epic.update!(reconciliation_job_id: recon_job.id)
+
+      entry = described_class.entries(Job.where(id: recon_job.id)).first
+      expect(entry.blocked_reason).not_to eq("epic reconciliation pending")
+    end
+
+    it "does not block Epic siblings once the reconciliation Job is closed" do
+      recon_job = make_recon_job
+      epic.update!(reconciliation_job_id: recon_job.id)
+      recon_job.update_columns(state: "closed", closure_reason: "pr_merged")
+      epic.update!(reconciliation_job_id: nil)
+
+      sibling = queue_job(issue_number: 1, approved_at: 2.minutes.ago, epic: epic)
+
+      entry = described_class.entries(Job.where(id: sibling.id)).first
+      expect(entry.blocked_reason).not_to eq("epic reconciliation pending")
     end
   end
 end

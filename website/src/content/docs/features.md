@@ -101,6 +101,23 @@ rejects changes that would create a cycle. The page also includes a
 collapsible history section that records title and description changes with
 the actor, timestamp, and before/after text.
 
+### Epic reconciliation
+
+When an Epic goes `in_progress` with two or more child Jobs, Syrus can
+automatically create a **reconciliation Job** — a synthesizing review that
+checks all sibling changes together for consistency, naming conflicts, shared
+migration issues, and cross-cutting concerns that per-Job review may miss.
+
+The reconciliation Job depends on every sibling Job in the Epic and holds
+siblings from landing until it finishes. Once it closes, sibling Jobs proceed
+to the landing queue normally.
+
+Reconciliation is configured via `reconciliation_mode` in `.syrus.yml` or
+per-Epic:
+
+- `pr` (default) — create a reconciliation Job before landing.
+- `none` — skip reconciliation; siblings land independently.
+
 Chats can propose Epics or propose an Epic with child Jobs, including
 Epic-level dependencies on existing Epics or other chat Epic proposals. Chat
 Epic proposals can reference each other by proposal slug, so operators can

@@ -138,3 +138,19 @@ coverage:
 | `hitmap_ttl_days` | no | 7 | Days to retain the hit-map blob |
 
 `on_miss` behaviors: `block` fails the workflow, `warn` logs a warning and continues, `schedule` triggers a follow-up coverage-fix Job.
+
+
+## reconciliation_mode
+
+Controls whether Syrus creates a reconciliation Job when an Epic goes `in_progress` with two or more child Jobs.
+
+```yaml
+reconciliation_mode: pr      # create reconciliation Job before landing (default)
+reconciliation_mode: none    # skip reconciliation; siblings land independently
+```
+
+Valid values: `pr`, `none`. Omitting the key defaults to `pr`.
+
+The reconciliation Job is a `kind=direct` Job that depends on all sibling Jobs in the Epic and runs a cross-cutting review before siblings are allowed to land. See the `reconciliation.md` operator doc for full details.
+
+An Epic-level `reconciliation_mode` column takes precedence over this `.syrus.yml` setting.

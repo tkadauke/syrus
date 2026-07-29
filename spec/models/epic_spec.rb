@@ -5,6 +5,9 @@ RSpec.describe Epic do
 
   before do
     clear_enqueued_jobs
+    allow(RepoReconciliationPlan).to receive(:for_epic).and_return(
+      RepoReconciliationPlan::Result.new(mode: "none", source: "none", note: "stubbed")
+    )
   end
 
   describe "search indexing" do
@@ -1009,6 +1012,167 @@ RSpec.describe Epic do
       shared_epic = Factories.epic(user: owner, repository: shared_repo)
 
       expect(described_class.accessible_to(user)).to include(shared_epic)
+    end
+  end
+
+  describe "reconciliation Job creation" do
+    let(:user) { Factories.user }
+    let(:repository) { Factories.repository(user: user) }
+
+    def make_epic(mode: nil, state: "ready", **attrs)
+      described_class.create!(user: user, repository: repository, title: "Recon Epic",
+                               reconciliation_mode: mode, state: "backlog", **attrs).tap do |e|
+        e.update_columns(state: state) if state != "backlog"
+      end
+    end
+
+    def add_child(epic, number:, state: "queued")
+      Factories.job_record(user: user, repository: repository, epic: epic,
+                           issue_number: number, state: state)
+    end
+
+    before do
+      allow(RepoReconciliationPlan).to receive(:for_epic).and_call_original
+    end
+
+    it "creates a reconciliation Job when the Epic goes in_progress with 2+ sibling Jobs" do
+      allow(RepoReconciliationPlan).to receive(:for_epic).and_return(
+        RepoReconciliationPlan::Result.new(mode: "pr", source: "default", note: nil)
+      )
+      epic = make_epic(state: "ready")
+      add_child(epic, number: 1)
+      add_child(epic, number: 2)
+
+      expect { epic.start!(actor: user) }.to change { epic.reload.reconciliation_job_id }.from(nil)
+
+      recon_job = epic.reload.reconciliation_job
+      expect(recon_job.issue_title).to eq("Reconciliation: Recon Epic")
+      expect(recon_job.kind).to eq("direct")
+      expect(recon_job.epic).to eq(epic)
+    end
+
+    it "sets reconciliation Job to depend on all sibling Job IDs" do
+      allow(RepoReconciliationPlan).to receive(:for_epic).and_return(
+        RepoReconciliationPlan::Result.new(mode: "pr", source: "default", note: nil)
+      )
+      epic = make_epic(state: "ready")
+      sibling1 = add_child(epic, number: 1)
+      sibling2 = add_child(epic, number: 2)
+
+      epic.start!(actor: user)
+
+      recon_job = epic.reload.reconciliation_job
+      dep_ids = recon_job.dependencies.pluck(:depends_on_job_id).sort
+      expect(dep_ids).to contain_exactly(sibling1.id, sibling2.id)
+    end
+
+    it "skips reconciliation Job creation when mode is 'none' via the Epic column" do
+      allow(RepoReconciliationPlan).to receive(:for_epic).and_return(
+        RepoReconciliationPlan::Result.new(mode: "none", source: "epic", note: nil)
+      )
+      epic = make_epic(mode: "none", state: "in_progress")
+      add_child(epic, number: 1)
+      add_child(epic, number: 2)
+
+      expect { epic.maybe_create_reconciliation_job! }.not_to change { epic.reload.reconciliation_job_id }
+    end
+
+    it "skips reconciliation Job creation when only 1 sibling exists" do
+      allow(RepoReconciliationPlan).to receive(:for_epic).and_return(
+        RepoReconciliationPlan::Result.new(mode: "pr", source: "default", note: nil)
+      )
+      epic = make_epic(state: "in_progress")
+      add_child(epic, number: 1)
+
+      expect { epic.maybe_create_reconciliation_job! }.not_to change { epic.reload.reconciliation_job_id }
+    end
+
+    it "skips reconciliation Job creation when reconciliation_job_id is already set" do
+      allow(RepoReconciliationPlan).to receive(:for_epic).and_return(
+        RepoReconciliationPlan::Result.new(mode: "pr", source: "default", note: nil)
+      )
+      epic = make_epic(state: "in_progress")
+      sibling1 = add_child(epic, number: 1)
+      sibling2 = add_child(epic, number: 2)
+      epic.maybe_create_reconciliation_job!
+      first_recon_id = epic.reload.reconciliation_job_id
+
+      expect { epic.maybe_create_reconciliation_job! }.not_to change { epic.reload.reconciliation_job_id }
+      expect(epic.reload.reconciliation_job_id).to eq(first_recon_id)
+    end
+
+    it "clears reconciliation_job_id when the reconciliation Job closes" do
+      allow(RepoReconciliationPlan).to receive(:for_epic).and_return(
+        RepoReconciliationPlan::Result.new(mode: "pr", source: "default", note: nil)
+      )
+      epic = make_epic(state: "in_progress")
+      add_child(epic, number: 1)
+      add_child(epic, number: 2)
+      epic.maybe_create_reconciliation_job!
+      recon_job = epic.reload.reconciliation_job
+
+      recon_job.update_columns(state: "closed", closure_reason: "pr_merged")
+      epic.refresh_auto_state!
+
+      expect(epic.reload.reconciliation_job_id).to be_nil
+    end
+
+    it "defaults resolved_reconciliation_mode to 'pr' when neither Epic nor .syrus.yml specifies mode" do
+      allow(RepoReconciliationPlan).to receive(:for_epic).and_return(
+        RepoReconciliationPlan::Result.new(mode: "pr", source: "default", note: nil)
+      )
+      epic = make_epic(state: "in_progress")
+      expect(epic.resolved_reconciliation_mode).to eq("pr")
+    end
+
+    it "Epic column overrides resolved mode" do
+      allow(RepoReconciliationPlan).to receive(:for_epic).and_return(
+        RepoReconciliationPlan::Result.new(mode: "none", source: "epic", note: nil)
+      )
+      epic = make_epic(mode: "none", state: "in_progress")
+      expect(epic.resolved_reconciliation_mode).to eq("none")
+    end
+
+    it "work_jobs excludes the reconciliation job" do
+      allow(RepoReconciliationPlan).to receive(:for_epic).and_return(
+        RepoReconciliationPlan::Result.new(mode: "pr", source: "default", note: nil)
+      )
+      epic = make_epic(state: "in_progress")
+      sibling1 = add_child(epic, number: 1)
+      sibling2 = add_child(epic, number: 2)
+      epic.maybe_create_reconciliation_job!
+      epic.reload
+
+      work_ids = epic.work_jobs.pluck(:id).sort
+      expect(work_ids).to contain_exactly(sibling1.id, sibling2.id)
+    end
+
+    it "complete? ignores the reconciliation job" do
+      allow(RepoReconciliationPlan).to receive(:for_epic).and_return(
+        RepoReconciliationPlan::Result.new(mode: "pr", source: "default", note: nil)
+      )
+      epic = make_epic(state: "in_progress")
+      sibling1 = add_child(epic, number: 1)
+      sibling2 = add_child(epic, number: 2)
+      epic.maybe_create_reconciliation_job!
+      [sibling1, sibling2].each { |j| j.update_columns(state: "closed", closure_reason: "pr_merged") }
+      epic.reload
+
+      expect(epic.complete?).to be true
+    end
+
+    it "all_jobs_closed? ignores the reconciliation job" do
+      allow(RepoReconciliationPlan).to receive(:for_epic).and_return(
+        RepoReconciliationPlan::Result.new(mode: "pr", source: "default", note: nil)
+      )
+      epic = make_epic(state: "in_progress")
+      sibling1 = add_child(epic, number: 1)
+      sibling2 = add_child(epic, number: 2)
+      epic.maybe_create_reconciliation_job!
+      [sibling1, sibling2].each { |j| j.update_columns(state: "closed", closure_reason: "pr_merged") }
+      epic.reload
+
+      expect(epic.all_jobs_closed?).to be true
     end
   end
 end
