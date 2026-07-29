@@ -6,20 +6,42 @@ module Api
 
         def index
           epics = Epic.accessible_to(Current.user).includes(:repository, :jobs).order(updated_at: :desc, id: :desc)
-          if params[:repo].present?
-            owner, name = params[:repo].to_s.split("/", 2)
-            epics = epics.joins(:repository).where(repositories: { owner: owner, name: name })
-          end
-          if params[:q].present?
-            pattern = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].to_s.downcase)}%"
-            epics = epics.where("LOWER(title) LIKE :pattern OR CAST(epics.id AS CHAR) LIKE :pattern", pattern: pattern)
-          end
+          epics = filter_epics(epics)
           limit = params.fetch(:limit, 20).to_i.clamp(1, 100)
 
           render json: {
             count: epics.count,
             epics: epics.limit(limit).map { |epic| compact_epic_json(epic) }
           }
+        end
+
+        def graph
+          epic_attrs = filter_epics(Epic.accessible_to(Current.user)).pluck(:id, :title, :state, :number)
+          epic_ids = epic_attrs.map(&:first)
+
+          dependency_rows = EpicDependency
+            .where(epic_id: epic_ids, depends_on_epic_id: epic_ids)
+            .where.not(depends_on_epic_id: nil)
+            .pluck(:epic_id, :depends_on_epic_id)
+
+          nodes = epic_attrs.map do |id, title, state, number|
+            slug = ::App::Presentation.epic_slug(number)
+            {
+              id: "epic_#{id}",
+              kind: "epic",
+              label: "#{slug} #{title}",
+              state: state.to_s,
+              epic_id: id,
+              url: "/epics/#{slug}",
+              is_focal: false
+            }
+          end
+
+          edges = dependency_rows.map do |epic_id, depends_on_epic_id|
+            { from_id: "epic_#{epic_id}", to_id: "epic_#{depends_on_epic_id}" }
+          end
+
+          render json: { nodes: nodes, edges: edges }
         end
 
         def show
@@ -186,6 +208,18 @@ module Api
         end
 
         private
+
+        def filter_epics(scope)
+          if params[:repo].present?
+            owner, name = params[:repo].to_s.split("/", 2)
+            scope = scope.joins(:repository).where(repositories: { owner: owner, name: name })
+          end
+          if params[:q].present?
+            pattern = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].to_s.downcase)}%"
+            scope = scope.where("LOWER(title) LIKE :pattern OR CAST(epics.id AS CHAR) LIKE :pattern", pattern: pattern)
+          end
+          scope
+        end
 
         def compact_epic_json(epic)
           jobs = epic.jobs.to_a

@@ -24,6 +24,7 @@
   "open_settings": "Einstellungen öffnen",
   "optional": "optional",
   "no_match": "Keine {{subject}} entsprechen dieser Ansicht.",
+  "no_dependency_edges": "Keine Abhängigkeitsbeziehungen in der aktuellen Ansicht.",
   "no_lanes": "Keine Kanban-Spalten konfiguriert.",
   "no_items_in_lane": "Keine {{subject}}",
   "empty_title": "Noch keine {{subject}}",

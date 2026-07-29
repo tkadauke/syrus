@@ -24,6 +24,7 @@
   "open_settings": "Optiones aperi",
   "optional": "optionale",
   "no_match": "Nulli {{subject}} huic aspectui concordant.",
+  "no_dependency_edges": "Nullae necessitudines dependentiae in aspectu praesenti.",
   "no_lanes": "Nullae viae Kanbani configuratae sunt.",
   "no_items_in_lane": "Nulli {{subject}}",
   "empty_title": "Nulli {{subject}} adhuc",

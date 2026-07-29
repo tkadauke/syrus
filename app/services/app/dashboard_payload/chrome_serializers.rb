@@ -72,7 +72,7 @@ module App
 
       def controls_json
         {
-          views: VIEWS,
+          views: available_views,
           ownership_scopes: ownership_scope_options_json,
           owners: owner_options.map { |owner| owner_option_json(owner) },
           sort_columns: User::DASHBOARD_SORT_COLUMNS.fetch(subject),

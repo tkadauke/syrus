@@ -61,6 +61,7 @@ Rails.application.routes.draw do
           resources :documents, only: %i[ index create destroy ], controller: "credentials/documents"
         end
         get "jobs/new", to: "direct_jobs#new"
+        get "jobs/graph", to: "jobs#graph"
         get "jobs", to: "jobs#index"
         post "jobs", to: "direct_jobs#create"
         get "jobs/:id/source", to: "jobs#source", constraints: { id: /[a-zA-Z0-9_-]+/ }
@@ -117,6 +118,7 @@ Rails.application.routes.draw do
           end
         end
         get "epics", to: "epics#index"
+        get "epics/graph", to: "epics#graph"
         get "epics/new", to: "epics#new"
         get "epics/:id", to: "epics#show", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "epics/:id/edit", to: "epics#edit", constraints: { id: /[a-zA-Z0-9_-]+/ }

@@ -9,21 +9,41 @@ module Api
                              .without_active_workflows
                              .includes(:epic, :repository, :runs, workflows: { steps: :runs })
                              .order(updated_at: :desc, id: :desc)
-          if params[:repo].present?
-            owner, name = params[:repo].to_s.split("/", 2)
-            jobs = jobs.joins(:repository).where(repositories: { owner: owner, name: name })
-          end
-          jobs = jobs.where(state: params[:state]) if params[:state].present? && params[:state] != "all"
-          if params[:q].present?
-            pattern = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].to_s.downcase)}%"
-            jobs = jobs.where("LOWER(issue_title) LIKE :pattern OR CAST(jobs.id AS CHAR) LIKE :pattern", pattern: pattern)
-          end
+          jobs = filter_jobs(jobs)
           limit = params.fetch(:limit, 20).to_i.clamp(1, 100)
 
           render json: {
             count: jobs.count,
             jobs: jobs.limit(limit).map { |job| compact_job_json(job) }
           }
+        end
+
+        def graph
+          job_attrs = filter_jobs(Current.user.jobs).pluck(:id, :issue_title, :state, :epic_id)
+          job_ids = job_attrs.map(&:first)
+
+          dependency_rows = JobDependency.resolved
+            .where(job_id: job_ids, depends_on_job_id: job_ids)
+            .pluck(:job_id, :depends_on_job_id)
+
+          nodes = job_attrs.map do |id, title, state, epic_id|
+            slug = ::App::Presentation.job_slug(id)
+            {
+              id: "job_#{id}",
+              kind: "job",
+              label: "#{slug} #{title}",
+              state: state.to_s,
+              epic_id: epic_id,
+              url: "/jobs/#{slug}",
+              is_focal: false
+            }
+          end
+
+          edges = dependency_rows.map do |job_id, depends_on_job_id|
+            { from_id: "job_#{job_id}", to_id: "job_#{depends_on_job_id}" }
+          end
+
+          render json: { nodes: nodes, edges: edges }
         end
 
         def show
@@ -189,6 +209,19 @@ module Api
         end
 
         private
+
+        def filter_jobs(scope)
+          if params[:repo].present?
+            owner, name = params[:repo].to_s.split("/", 2)
+            scope = scope.joins(:repository).where(repositories: { owner: owner, name: name })
+          end
+          scope = scope.where(state: params[:state]) if params[:state].present? && params[:state] != "all"
+          if params[:q].present?
+            pattern = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].to_s.downcase)}%"
+            scope = scope.where("LOWER(issue_title) LIKE :pattern OR CAST(jobs.id AS CHAR) LIKE :pattern", pattern: pattern)
+          end
+          scope
+        end
 
         def compact_job_json(job)
           workflow = job.workflows.max_by { |candidate| [ candidate.finished_at.nil? ? 1 : 0, candidate.finished_at || Time.zone.at(0), candidate.id || 0 ] }

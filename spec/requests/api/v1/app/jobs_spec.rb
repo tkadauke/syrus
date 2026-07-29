@@ -821,4 +821,99 @@ RSpec.describe "App API job detail", type: :request do
 
     expect(response).to have_http_status(:not_found)
   end
+
+  describe "GET /api/v1/app/jobs/graph" do
+    let(:job_a) { Factories.job_record(repository: repo, issue_number: 10, issue_title: "Alpha", state: "open") }
+    let(:job_b) { Factories.job_record(repository: repo, issue_number: 11, issue_title: "Beta", state: "implemented") }
+    let(:other_repo) { Factories.repository(user: Factories.user, owner: "other", name: "repo") }
+
+    before { sign_in_as(user) }
+
+    it "returns nodes and edges for all user jobs" do
+      job_a
+      job_b
+      JobDependency.create!(job: job_b, depends_on_job: job_a, source: "manual")
+
+      get "/api/v1/app/jobs/graph"
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      node_ids = body["nodes"].map { |n| n["id"] }
+      expect(node_ids).to include("job_#{job_a.id}", "job_#{job_b.id}")
+      expect(body["edges"]).to contain_exactly(
+        { "from_id" => "job_#{job_b.id}", "to_id" => "job_#{job_a.id}" }
+      )
+    end
+
+    it "returns only nodes and no edges when jobs have no dependencies between them" do
+      job_a
+      job_b
+
+      get "/api/v1/app/jobs/graph"
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["nodes"].size).to eq(2)
+      expect(body["edges"]).to be_empty
+    end
+
+    it "filters nodes by repo param" do
+      job_a
+      Factories.job_record(
+        repository: Factories.repository(user: user, owner: "other", name: "repo2"),
+        issue_title: "Other repo job",
+        state: "open"
+      )
+
+      get "/api/v1/app/jobs/graph", params: { repo: "acme/widgets" }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      node_ids = body["nodes"].map { |n| n["id"] }
+      expect(node_ids).to contain_exactly("job_#{job_a.id}")
+    end
+
+    it "excludes edges that cross out of the filtered set" do
+      job_a
+      job_b
+      JobDependency.create!(job: job_b, depends_on_job: job_a, source: "manual")
+
+      get "/api/v1/app/jobs/graph", params: { state: "open" }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      node_ids = body["nodes"].map { |n| n["id"] }
+      expect(node_ids).to contain_exactly("job_#{job_a.id}")
+      expect(body["edges"]).to be_empty
+    end
+
+    it "excludes jobs belonging to other users" do
+      job_a
+      other_user = Factories.user
+      Factories.job_record(repository: Factories.repository(user: other_user, owner: "acme", name: "private"), issue_title: "Private")
+
+      get "/api/v1/app/jobs/graph"
+
+      body = parse_body
+      node_ids = body["nodes"].map { |n| n["id"] }
+      expect(node_ids).to contain_exactly("job_#{job_a.id}")
+    end
+
+    it "includes kind, state, label, url, epic_id, and is_focal fields on each node" do
+      job_a
+
+      get "/api/v1/app/jobs/graph"
+
+      node = parse_body["nodes"].first
+      expect(node).to include(
+        "id" => "job_#{job_a.id}",
+        "kind" => "job",
+        "state" => "open",
+        "label" => "JOB-#{job_a.id} Alpha",
+        "url" => "/jobs/JOB-#{job_a.id}",
+        "epic_id" => nil,
+        "is_focal" => false
+      )
+    end
+  end
 end

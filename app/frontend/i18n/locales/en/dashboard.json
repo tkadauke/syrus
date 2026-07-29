@@ -24,6 +24,7 @@
   "open_settings": "Open settings",
   "optional": "optional",
   "no_match": "No {{subject}} match this view.",
+  "no_dependency_edges": "No dependency relationships in the current view.",
   "no_lanes": "No kanban lanes are configured.",
   "no_items_in_lane": "No {{subject}}",
   "empty_title": "No {{subject}} yet",

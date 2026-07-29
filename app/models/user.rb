@@ -120,7 +120,7 @@ class User < ApplicationRecord
     "main_inconclusive" => true,
     "main_recovered" => true
   }.freeze
-  DASHBOARD_VIEWS = %w[list kanban].freeze
+  DASHBOARD_VIEWS = %w[list kanban dependencies].freeze
 
   enum :role, { developer: "developer", product_owner: "product_owner" }
 

@@ -187,11 +187,15 @@ module App
     end
 
     def view
-      @view ||= params[:view].to_s.presence_in(VIEWS) ||
+      @view ||= params[:view].to_s.presence_in(available_views) ||
                 folder_pref_view ||
-                user.dashboard_preferences.dig(subject.pluralize, "last_view").to_s.presence_in(VIEWS) ||
-                user.dashboard_preferences["last_view"].to_s.presence_in(VIEWS) ||
+                user.dashboard_preferences.dig(subject.pluralize, "last_view").to_s.presence_in(available_views) ||
+                user.dashboard_preferences["last_view"].to_s.presence_in(available_views) ||
                 DEFAULT_VIEW
+    end
+
+    def available_views
+      subject == "workflow" ? VIEWS : VIEWS + %w[dependencies]
     end
 
     def folder_pref_view

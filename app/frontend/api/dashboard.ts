@@ -429,6 +429,34 @@ export type DashboardEpicStatePayload = {
   message?: string | null
 }
 
+export type DashboardGraphNode = {
+  id: string
+  kind: "epic" | "job"
+  label: string
+  state: string
+  epic_id: number | null
+  url: string
+  is_focal: boolean
+}
+
+export type DashboardGraphEdge = {
+  from_id: string
+  to_id: string
+}
+
+export type DashboardGraphPayload = {
+  nodes: DashboardGraphNode[]
+  edges: DashboardGraphEdge[]
+}
+
+export function fetchJobsGraph(search = "", options: { signal?: AbortSignal } = {}) {
+  return getJson<DashboardGraphPayload>(`/api/v1/app/jobs/graph${search}`, options)
+}
+
+export function fetchEpicsGraph(search = "", options: { signal?: AbortSignal } = {}) {
+  return getJson<DashboardGraphPayload>(`/api/v1/app/epics/graph${search}`, options)
+}
+
 export function fetchDashboard(search = "", options: { signal?: AbortSignal } = {}) {
   return getJson<DashboardPayload>(`/api/v1/app/dashboard${search}`, options)
 }
