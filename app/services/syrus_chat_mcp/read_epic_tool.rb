@@ -40,6 +40,8 @@ module SyrusChatMcp
       private
 
       def epic_payload(epic)
+        furthest_job = epic.jobs.select(&:commits_behind_base).max_by(&:commits_behind_base)
+
         {
           id: epic.id,
           number: epic.number,
@@ -52,6 +54,8 @@ module SyrusChatMcp
           auto_approve_mode: epic.auto_approve_mode,
           depends_on_epics: epic.depends_on_epics.order(:number).map { |dependency| epic_reference(dependency) },
           dependent_epics: epic.dependent_epics.order(:number).map { |dependent| epic_reference(dependent) },
+          max_commits_behind_base: furthest_job&.commits_behind_base,
+          furthest_behind_job: furthest_job ? { id: furthest_job.id, slug: furthest_job.slug } : nil,
           created_at: epic.created_at&.iso8601,
           updated_at: epic.updated_at&.iso8601
         }
@@ -84,6 +88,7 @@ module SyrusChatMcp
           issue_title: job.issue_title,
           issue_body: SyrusChatMcp.truncate_text(job.issue_body, 16.kilobytes),
           repository: job.repository.slug,
+          commits_behind_base: job.commits_behind_base,
           depends_on_jobs: job.dependencies.order(:id).filter_map { |dependency| dependency_reference(dependency) },
           created_at: job.created_at&.iso8601,
           updated_at: job.updated_at&.iso8601

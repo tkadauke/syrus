@@ -44,6 +44,7 @@ RSpec.describe SyrusChatMcp::ReadJobTool do
 
     expect(response[:result][:isError]).to be_falsey
     expect(payload[:job]).to include(id: job.id, issue_number: 123, pr_number: 9, branch_name: "syrus/issue-123", agent_provider: "claude")
+    expect(payload[:job]).to include(commits_behind_base: nil)
     expect(payload[:job][:dependencies]).to contain_exactly(
       include(id: upstream.id, issue_title: "Survey the aqueduct"),
       include(pending: true, unresolved_ref: "#{repository.owner}/#{repository.name}#456", source: "parsed")
@@ -54,6 +55,17 @@ RSpec.describe SyrusChatMcp::ReadJobTool do
     expect(payload[:transcript]).to include(truncated: true)
     expect(payload[:transcript][:head]).to start_with("head-")
     expect(payload[:transcript][:tail]).to include("tail")
+  end
+
+  it "includes commits_behind_base when the job has a known staleness distance" do
+    job = Factories.job(repository: repository)
+    job.update_column(:commits_behind_base, 7)
+
+    response = call_tool(job_id: job.id)
+    payload = response_payload(response)
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(payload[:job]).to include(commits_behind_base: 7)
   end
 
   it "reads jobs outside the chat repository when they belong to the chat user" do

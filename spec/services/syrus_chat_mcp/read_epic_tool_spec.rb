@@ -66,16 +66,39 @@ RSpec.describe SyrusChatMcp::ReadEpicTool do
       text: "The stones have opinions. The operator asked for fewer of them.",
       truncated: false
     )
+    expect(payload[:epic]).to include(max_commits_behind_base: nil, furthest_behind_job: nil)
     expect(payload[:child_jobs]).to contain_exactly(
       include(
         id: child.id,
         issue_title: "Set the new stones",
+        commits_behind_base: nil,
         issue_body: include(text: "Keep the cart wheels from litigating every mile."),
         depends_on_jobs: [
           include(id: upstream.id, issue_title: "Survey the old stones"),
           include(pending: true, unresolved_ref: "acme/roads#456", source: "parsed")
         ]
       )
+    )
+  end
+
+  it "surfaces max_commits_behind_base and identifies the furthest-behind child job" do
+    epic = Factories.epic(user: user, repository: repository, title: "Build the Via Appia")
+    closer = Factories.job_record(user: user, repository: repository, epic: epic, issue_title: "Survey route")
+    closer.update_column(:commits_behind_base, 3)
+    furthest = Factories.job_record(user: user, repository: repository, epic: epic, issue_title: "Lay stones")
+    furthest.update_column(:commits_behind_base, 15)
+    unknown = Factories.job_record(user: user, repository: repository, epic: epic, issue_title: "Inspect drainage")
+
+    payload = tool_payload(call_tool(id: epic.id))
+
+    expect(payload[:epic]).to include(
+      max_commits_behind_base: 15,
+      furthest_behind_job: { id: furthest.id, slug: "JOB-#{furthest.id}" }
+    )
+    expect(payload[:child_jobs]).to include(
+      include(id: closer.id, commits_behind_base: 3),
+      include(id: furthest.id, commits_behind_base: 15),
+      include(id: unknown.id, commits_behind_base: nil)
     )
   end
 
