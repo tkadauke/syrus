@@ -3,14 +3,14 @@ module Steps
   # MainBranchRepair workflow. Two outcomes:
   #
   # - All required preflight graders passed: sets the "preflight_passed"
-  #   workflow artifact, cancels all downstream steps (prepare, implement,
-  #   the grade loop, summarize, etc.), and returns. The dispatcher then
-  #   walks past the cancelled steps and marks the workflow succeeded.
+  #   workflow artifact, cancels all downstream steps (implement, the grade
+  #   loop, summarize, etc.), and returns. The dispatcher then walks past the
+  #   cancelled steps and marks the workflow succeeded.
   #   Workflows::MainBranchRepair#after_success detects the artifact and
   #   marks the repository healthy without the agent ever running.
   #
   # - Any required preflight grader failed: logs the failures and returns
-  #   normally so the chain continues to prepare → implement → grade loop.
+  #   normally so the chain continues to implement → grade loop.
   #
   # Unlike GraderCollect this step never raises StepFailed — it is not
   # inside a retry_until loop and a grader failure here means "proceed to

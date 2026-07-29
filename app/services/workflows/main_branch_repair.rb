@@ -3,22 +3,25 @@ module Workflows
   # MainHealthChangedService when main_health transitions to broken.
   #
   # Chain:
-  #   preflight_grader_fanout → <preflight_grader steps> → preflight_grader_collect
-  #     → prepare → retry_until(implement, grader_fanout, grader_collect)
+  #   prepare → preflight_grader_fanout → <preflight_grader steps> → preflight_grader_collect
+  #     → retry_until(implement, grader_fanout, grader_collect)
   #     → summarize → test_plan → pr_open
+  #
+  # Prepare runs first so that graders have installed dependencies available
+  # (bundle install, npm ci, etc.) — many graders require them.
   #
   # The preflight phase runs graders against the current workspace before
   # the agent is invoked. If all required graders pass, the broken signal was
-  # a false positive. PreflightGraderCollect cancels the downstream steps and
-  # after_success marks the repository healthy without the agent running.
+  # a false positive. PreflightGraderCollect cancels the downstream implement
+  # chain and after_success marks the repository healthy without the agent running.
   #
   # If graders fail in the preflight phase, the chain continues normally:
-  # prepare → implement → grade loop → summarize → test_plan → pr_open. The
-  # agent implements a fix, opens a PR, and PollPullRequestJob calls
+  # implement → grade loop → summarize → test_plan → pr_open. The agent
+  # implements a fix, opens a PR, and PollPullRequestJob calls
   # MainHealthChangedService.repair_landed! when the PR merges.
   class MainBranchRepair < Base
-    steps :preflight_grader_fanout, :preflight_grader_collect,
-          :prepare,
+    steps :prepare,
+          :preflight_grader_fanout, :preflight_grader_collect,
           Workflows::RetryUntil.new(repair: [ :implement ], check: [ :grader_fanout, :grader_collect ]),
           :summarize, :test_plan, :pr_open
 
@@ -26,9 +29,9 @@ module Workflows
 
     def self.steps_for(job)
       chain = [
+        "prepare",
         "preflight_grader_fanout",
         "preflight_grader_collect",
-        "prepare",
         Workflows::RetryUntil.new(
           max_iterations: AppSetting.grade_max_iterations,
           repair: [ :implement ],

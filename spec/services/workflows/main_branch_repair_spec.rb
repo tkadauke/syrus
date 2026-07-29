@@ -22,18 +22,27 @@ RSpec.describe Workflows::MainBranchRepair do
   end
 
   describe "chain" do
-    it "starts with preflight grader steps before prepare and implement" do
+    it "starts with prepare before preflight grader steps" do
       workflow = described_class.instantiate(job: job)
 
       kinds = workflow.steps.order(:position).pluck(:kind)
-      expect(kinds.first(2)).to eq(%w[ preflight_grader_fanout preflight_grader_collect ])
+      prepare_idx  = kinds.index("prepare")
+      preflight_idx = kinds.index("preflight_grader_fanout")
+      expect(prepare_idx).to be < preflight_idx
     end
 
-    it "includes prepare followed by the grade retry loop" do
+    it "runs preflight grader fanout and collect before implement" do
       workflow = described_class.instantiate(job: job)
 
       kinds = workflow.steps.order(:position).pluck(:kind)
-      expect(kinds).to include("prepare", "implement", "grader_fanout", "grader_collect")
+      expect(kinds.first(3)).to eq(%w[ prepare preflight_grader_fanout preflight_grader_collect ])
+    end
+
+    it "includes prepare followed by preflight graders and then the grade retry loop" do
+      workflow = described_class.instantiate(job: job)
+
+      kinds = workflow.steps.order(:position).pluck(:kind)
+      expect(kinds).to include("prepare", "preflight_grader_fanout", "implement", "grader_fanout", "grader_collect")
     end
 
     it "ends with summarize, test_plan, pr_open" do

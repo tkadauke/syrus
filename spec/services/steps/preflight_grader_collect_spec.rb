@@ -42,12 +42,11 @@ RSpec.describe Steps::PreflightGraderCollect do
 
   def create_downstream_steps
     [
-      Step.create!(workflow: workflow, kind: "prepare",        position: 103, iteration: 1, next_step_id: nil),
-      Step.create!(workflow: workflow, kind: "implement",      position: 104, iteration: 1, next_step_id: nil),
-      Step.create!(workflow: workflow, kind: "grader_fanout",  position: 105, iteration: 1, next_step_id: nil),
-      Step.create!(workflow: workflow, kind: "grader_collect", position: 106, iteration: 1, next_step_id: nil),
-      Step.create!(workflow: workflow, kind: "summarize",      position: 107, iteration: 1, next_step_id: nil),
-      Step.create!(workflow: workflow, kind: "pr_open",        position: 108, iteration: 1, next_step_id: nil)
+      Step.create!(workflow: workflow, kind: "implement",      position: 103, iteration: 1, next_step_id: nil),
+      Step.create!(workflow: workflow, kind: "grader_fanout",  position: 104, iteration: 1, next_step_id: nil),
+      Step.create!(workflow: workflow, kind: "grader_collect", position: 105, iteration: 1, next_step_id: nil),
+      Step.create!(workflow: workflow, kind: "summarize",      position: 106, iteration: 1, next_step_id: nil),
+      Step.create!(workflow: workflow, kind: "pr_open",        position: 107, iteration: 1, next_step_id: nil)
     ].tap do |steps|
       step.update!(next_step_id: steps.first.id)
       steps.each_cons(2) { |a, b| a.update!(next_step_id: b.id) }
