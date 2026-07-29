@@ -1385,7 +1385,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
           ) : null}
         </div>
       </div>
-      <div className="relative flex items-center justify-between mt-2">
+      <div className="relative flex items-center justify-between mt-1">
         <div className="flex items-center gap-2">
           <button
             aria-controls={attachmentPopoverOpen ? "chat-attachment-popover" : undefined}
@@ -1404,7 +1404,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
           {(payload.chat.available_chat_models?.length ?? 0) > 0 ? (
             <select
               aria-label={t("aria_chat_model")}
-              className="h-8 rounded border border-gray-300 bg-white px-2 py-0 text-xs text-gray-700 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
+              className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
               disabled={updateModel.isPending || agentActive}
               value={payload.chat.chat_model ?? ""}
               onChange={(event) => {
@@ -1536,7 +1536,7 @@ function ChatModeSelector({ chatId, payload, queryKey }: { chatId: string; paylo
         aria-expanded={dropdownOpen}
         aria-haspopup="listbox"
         aria-label={t("mode_selector_label")}
-        className="flex items-center gap-1 rounded border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+        className="flex items-center gap-1 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
         disabled={mode.isPending}
         onClick={() => setDropdownOpen((open) => !open)}
         ref={buttonRef}
