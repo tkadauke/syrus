@@ -237,6 +237,7 @@ module Api
                      .find_by(id: id)
         end
 
+
         def compact_epic_json(epic)
           jobs = epic.jobs.to_a
           {

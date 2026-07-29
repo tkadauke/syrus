@@ -1230,6 +1230,7 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     end
   end
 
+
   describe "GET /api/v1/app/epics/graph" do
     let(:epic_a) { Factories.epic(user: user, repository: repository, title: "Alpha") }
     let(:epic_b) { Factories.epic(user: user, repository: repository, title: "Beta") }

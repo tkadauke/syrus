@@ -239,6 +239,7 @@ module Api
                      .find_by(id: id)
         end
 
+
         def compact_job_json(job)
           workflow = job.workflows.max_by { |candidate| [ candidate.finished_at.nil? ? 1 : 0, candidate.finished_at || Time.zone.at(0), candidate.id || 0 ] }
           steps = workflow&.steps&.sort_by(&:position) || []
