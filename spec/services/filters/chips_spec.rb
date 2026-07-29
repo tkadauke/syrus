@@ -328,26 +328,35 @@ RSpec.describe "Filters::Chips" do
   end
 
   describe "job_type" do
-    it "is:user returns only user-facing jobs (issue, direct)" do
-      issue_job  = Factories.job_record(repository: repo, issue_number: 1, kind: "issue")
-      direct_job = Factories.job_record(repository: repo, issue_number: nil, kind: "direct")
+    before do
+      Feature.find_or_create_by!(slug: "agent_insights") { |f|
+        f.category = "Labs"; f.name = "Agent Insights"
+      }.update!(enabled: true)
+    end
+
+    it "is:user returns only user-facing jobs (issue, direct) and excludes agent_insight" do
+      issue_job   = Factories.job_record(repository: repo, issue_number: 1, kind: "issue")
+      direct_job  = Factories.job_record(repository: repo, issue_number: nil, kind: "direct")
       Factories.job_record(repository: repo, issue_number: nil, kind: "main_grader")
+      Factories.job_record(repository: repo, issue_number: nil, kind: "agent_insight")
 
       expect(run(field: "job_type", op: "is", value: "user")).to contain_exactly(issue_job, direct_job)
     end
 
-    it "is:system returns only main_grader jobs" do
+    it "is:system returns main_grader and agent_insight jobs" do
       Factories.job_record(repository: repo, issue_number: 1, kind: "issue")
-      system_job = Factories.job_record(repository: repo, issue_number: nil, kind: "main_grader")
+      grader_job  = Factories.job_record(repository: repo, issue_number: nil, kind: "main_grader")
+      insight_job = Factories.job_record(repository: repo, issue_number: nil, kind: "agent_insight")
 
-      expect(run(field: "job_type", op: "is", value: "system")).to contain_exactly(system_job)
+      expect(run(field: "job_type", op: "is", value: "system")).to contain_exactly(grader_job, insight_job)
     end
 
-    it "is_not:user returns only system jobs" do
+    it "is_not:user returns system jobs including agent_insight" do
       Factories.job_record(repository: repo, issue_number: 1, kind: "issue")
-      system_job = Factories.job_record(repository: repo, issue_number: nil, kind: "main_grader")
+      grader_job  = Factories.job_record(repository: repo, issue_number: nil, kind: "main_grader")
+      insight_job = Factories.job_record(repository: repo, issue_number: nil, kind: "agent_insight")
 
-      expect(run(field: "job_type", op: "is_not", value: "user")).to contain_exactly(system_job)
+      expect(run(field: "job_type", op: "is_not", value: "user")).to contain_exactly(grader_job, insight_job)
     end
   end
 end
