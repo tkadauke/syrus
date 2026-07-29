@@ -7,6 +7,7 @@ import * as bugReportsApi from "../api/bugReports"
 import type { BugReportPayload } from "../api/bugReports"
 import { getRecentErrors } from "../lib/errorRingBuffer"
 import type { ChatMessageItem } from "../api/chats"
+import html2canvasModule from "html2canvas-pro"
 
 vi.mock("../api/bugReports", () => ({
   createBugReport: vi.fn()
@@ -28,6 +29,7 @@ URL.revokeObjectURL = vi.fn()
 
 const mockCreateBugReport = vi.mocked(bugReportsApi.createBugReport)
 const mockGetRecentErrors = vi.mocked(getRecentErrors)
+const mockHtml2canvas = vi.mocked(html2canvasModule)
 
 const sampleMessages: ChatMessageItem[] = [
   { type: "message", id: 1, role: "user", text: "Hello, I found a bug.", bookmarkable: false },
@@ -572,6 +574,37 @@ describe("BugReportButton", () => {
       const saved = JSON.parse(localStorage.getItem("bug-report-button-position") ?? "null") as { left: number; top: number } | null
       expect(saved!.left).toBe(50)
       expect(saved!.top).toBe(50)
+    })
+  })
+
+  describe("screenshot capture", () => {
+    it("excludes the floating trigger button from html2canvas screenshots", () => {
+      renderButton()
+      expect(screen.getByRole("button", { name: "Report a bug" })).toHaveAttribute("data-html2canvas-ignore")
+    })
+
+    it("uses viewport windowWidth/windowHeight for full-page capture even when the document overflows the viewport", async () => {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: 402 })
+      Object.defineProperty(window, "innerHeight", { configurable: true, value: 714 })
+      // Simulate a document wider and taller than the viewport.
+      Object.defineProperty(document.body, "scrollWidth", { configurable: true, get: () => 1200 })
+      Object.defineProperty(document.body, "scrollHeight", { configurable: true, get: () => 2000 })
+      Object.defineProperty(document.documentElement, "scrollWidth", { configurable: true, get: () => 1200 })
+      Object.defineProperty(document.documentElement, "scrollHeight", { configurable: true, get: () => 2000 })
+
+      renderButton()
+      await openDialog()
+
+      // Reset call count so we can isolate the full-page capture call.
+      mockHtml2canvas.mockClear()
+
+      fireEvent.click(screen.getByRole("radio", { name: "Full page" }))
+
+      await waitFor(() => expect(mockHtml2canvas).toHaveBeenCalledOnce())
+
+      const [, options] = mockHtml2canvas.mock.calls[0]
+      // windowWidth/windowHeight must match the viewport, not the document scroll dimensions.
+      expect(options).toMatchObject({ windowWidth: 402, windowHeight: 714 })
     })
   })
 })
