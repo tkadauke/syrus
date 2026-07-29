@@ -134,6 +134,7 @@ export type DashboardJobItem = {
   last_feedback_addressed_at: string | null
   last_seen_comment_at: string | null
   pr_mergeable_checked_at: string | null
+  commits_behind_base: number | null
   workflows_count: number
   repository: DashboardRepository
   epic: DashboardJobEpic | null

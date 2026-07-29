@@ -129,4 +129,25 @@ RSpec.describe App::DashboardPayload do
       )
     end
   end
+
+  describe "commits_behind_base in job items" do
+    it "includes commits_behind_base in the job item payload" do
+      job = Factories.job_record(user: user, repository: repo)
+      job.update_columns(commits_behind_base: 25)
+
+      result = call(subject: "job")
+      item = result[:items].find { |i| i[:id] == job.id }
+
+      expect(item).to include(commits_behind_base: 25)
+    end
+
+    it "includes nil commits_behind_base when not yet computed" do
+      job = Factories.job_record(user: user, repository: repo)
+
+      result = call(subject: "job")
+      item = result[:items].find { |i| i[:id] == job.id }
+
+      expect(item).to include(commits_behind_base: nil)
+    end
+  end
 end

@@ -524,7 +524,14 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
     )
   }
   if (column === "landing_queue_position") {
-    return <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-600 dark:text-gray-300">{job.landing_queue_position ? `#${job.landing_queue_position}` : "-"}</td>
+    return (
+      <td className="px-4 py-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="font-mono text-xs font-semibold text-gray-600 dark:text-gray-300">{job.landing_queue_position ? `#${job.landing_queue_position}` : "-"}</span>
+          <CommitsBehindBadge count={job.commits_behind_base} />
+        </div>
+      </td>
+    )
   }
   if (column === "landing_queue_blocked_reason") {
     return <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{job.landing_queue_blocked_reason ? translateBlockedReason(job.landing_queue_blocked_reason, t) : "-"}</td>
@@ -538,6 +545,13 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
   if (column === "priority") return <PriorityPillCell priority={job.priority} />
 
   return <TimestampCell value={jobDateValue(job, column)} />
+}
+
+export function CommitsBehindBadge({ count }: { count: number | null | undefined }) {
+  if (count == null || count === 0) return null
+
+  const tone: "red" | "amber" | "gray" = count >= 20 ? "red" : count >= 10 ? "amber" : "gray"
+  return <TonePill ariaLabel={`${count} commits behind base`} tone={tone}>{count} behind</TonePill>
 }
 
 export const PRIORITY_TONE: Record<string, "red" | "amber" | "blue"> = {

@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { NeutralStatePill, WorkflowTriggerPill } from "./components"
+import { CommitsBehindBadge } from "./JobsTable"
 import i18n from "../../i18n"
 
 describe("NeutralStatePill", () => {
@@ -32,6 +33,44 @@ describe("NeutralStatePill", () => {
     } finally {
       await i18n.changeLanguage("en")
     }
+  })
+})
+
+describe("CommitsBehindBadge", () => {
+  it("renders nothing when count is null", () => {
+    const { container } = render(<CommitsBehindBadge count={null} />)
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  it("renders nothing when count is zero", () => {
+    const { container } = render(<CommitsBehindBadge count={0} />)
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  it("renders a gray badge for a small count (1-9)", () => {
+    render(<CommitsBehindBadge count={5} />)
+    const badge = screen.getByText("5 behind")
+    expect(badge).toBeInTheDocument()
+    expect(badge.closest("[data-status-pill]")).toHaveClass("bg-gray-100")
+  })
+
+  it("renders an amber badge for a mid-range count (10-19)", () => {
+    render(<CommitsBehindBadge count={15} />)
+    const badge = screen.getByText("15 behind")
+    expect(badge).toBeInTheDocument()
+    expect(badge.closest("[data-status-pill]")).toHaveClass("bg-amber-50")
+  })
+
+  it("renders a red badge for a high count (20+)", () => {
+    render(<CommitsBehindBadge count={25} />)
+    const badge = screen.getByText("25 behind")
+    expect(badge).toBeInTheDocument()
+    expect(badge.closest("[data-status-pill]")).toHaveClass("bg-red-50")
+  })
+
+  it("includes an aria-label describing the count", () => {
+    render(<CommitsBehindBadge count={30} />)
+    expect(screen.getByRole("generic", { name: "30 commits behind base" })).toBeInTheDocument()
   })
 })
 

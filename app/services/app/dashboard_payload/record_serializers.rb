@@ -50,6 +50,7 @@ module App
           last_feedback_addressed_at: job.last_feedback_addressed_at&.iso8601,
           last_seen_comment_at: job.last_seen_comment_at&.iso8601,
           pr_mergeable_checked_at: job.pr_mergeable_checked_at&.iso8601,
+          commits_behind_base: job.commits_behind_base,
           workflows_count: job.workflows.size,
           repository: repository_json(job.repository),
           epic: job_epic_json(job.epic),
