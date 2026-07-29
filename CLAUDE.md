@@ -710,6 +710,17 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   characters cannot be split into invalid UTF-8.
 - **Form validation UI** — React forms should use native validity
   attributes plus route-local error rendering.
+- **Toolbar dropdown controls** — interactive toolbar controls that offer a small
+  set of choices (like chat mode, model, or effort) use a custom button+listbox
+  pattern, not a native `<select>`. The pattern is: a `<button>` with
+  `aria-haspopup="listbox"` and `aria-expanded`, paired with an absolutely
+  positioned `<div role="listbox">` containing `<button role="option">` items.
+  Use `useRef` for the button and dropdown, and a `pointerdown` listener in a
+  `useEffect` to close on outside clicks. See `ChatModeSelector`,
+  `ChatModelSelector`, and `ChatEffortSelector` in `Compose.tsx` for the
+  canonical implementation. Native `<select>` is only for form fields (settings
+  pages, edit forms) where browser-native styling and keyboard navigation are
+  sufficient.
 - **Close icons** — React close/dismiss/remove controls should render the
   shared `CloseIcon` component (`app/frontend/components/CloseIcon.tsx`),
   not a literal `x` or `×` text node. Keep the accessible label explicit

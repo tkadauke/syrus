@@ -268,21 +268,6 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
       setText("")
     }
   })
-  const updateModel = useMutation({
-    mutationFn: (model: string | null) => updateChatModel(chatId, model),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
-    }
-  })
-  const updateEffort = useMutation({
-    mutationFn: (effort: string | null) => updateChatEffort(chatId, effort),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
-    },
-    onError: () => {
-      onNotice(t("effort_update_error"))
-    }
-  })
   const commandPaletteOpen = commandQuery != null
     && matchingCommands.length > 0
     && !send.isPending
@@ -1401,23 +1386,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
             +
           </button>
           <ChatModeSelector chatId={chatId} payload={payload} queryKey={queryKey} />
-          {(payload.chat.available_chat_models?.length ?? 0) > 0 ? (
-            <select
-              aria-label={t("aria_chat_model")}
-              className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
-              disabled={updateModel.isPending || agentActive}
-              value={payload.chat.chat_model ?? ""}
-              onChange={(event) => {
-                const value = event.target.value || null
-                updateModel.mutate(value)
-              }}
-            >
-              <option value="">{t("chat_model_default")}</option>
-              {payload.chat.available_chat_models!.map((model) => (
-                <option key={model.value} value={model.value}>{model.label}</option>
-              ))}
-            </select>
-          ) : null}
+          <ChatModelSelector chatId={chatId} payload={payload} queryKey={queryKey} />
         </div>
         {attachmentPopoverOpen ? (
           <div
@@ -1472,19 +1441,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
             <AddAttachment payload={payload} prefix={prefix} queryKey={queryKey} onAttached={() => setAttachmentPopoverOpen(false)} onNotice={onNotice} />
           </div>
         ) : null}
-        {payload.chat.effective_chat_provider === "claude" ? (
-          <select
-            aria-label={t("effort_label")}
-            className="rounded border border-gray-200 bg-white py-1 pl-2 pr-6 text-xs text-gray-600 hover:bg-gray-50 disabled:text-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
-            disabled={updateEffort.isPending}
-            value={payload.chat.chat_effort ?? "none"}
-            onChange={(e) => updateEffort.mutate(e.target.value === "none" ? null : e.target.value)}
-          >
-            <option value="none">{t("effort_none")}</option>
-            <option value="medium">{t("effort_medium")}</option>
-            <option value="high">{t("effort_high")}</option>
-          </select>
-        ) : <div />}
+        <ChatEffortSelector chatId={chatId} payload={payload} queryKey={queryKey} onNotice={onNotice} />
       </div>
       </form>
     </>
@@ -1576,6 +1533,172 @@ function ChatModeSelector({ chatId, payload, queryKey }: { chatId: string; paylo
       ) : mode.isError ? (
         <div className="absolute bottom-full left-0 z-20 mb-1 whitespace-nowrap rounded border border-red-200 bg-white px-2 py-1 text-xs text-red-700 dark:border-red-800 dark:bg-gray-950 dark:text-red-300">
           {t("mode_update_error")}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function ChatModelSelector({ chatId, payload, queryKey }: { chatId: string; payload: ChatPayload; queryKey: ChatQueryKey }) {
+  const { t } = useT("chat")
+  const queryClient = useQueryClient()
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const dropdownRef = useRef<HTMLDivElement | null>(null)
+  const agentActive = isAgentActive(payload)
+
+  const updateModel = useMutation({
+    mutationFn: (model: string | null) => updateChatModel(chatId, model),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+    }
+  })
+
+  useEffect(() => {
+    if (!dropdownOpen) return
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as Node | null
+      if (!target) return
+      if (dropdownRef.current?.contains(target)) return
+      if (buttonRef.current?.contains(target)) return
+      setDropdownOpen(false)
+    }
+    document.addEventListener("pointerdown", handlePointerDown)
+    return () => document.removeEventListener("pointerdown", handlePointerDown)
+  }, [dropdownOpen])
+
+  const models = payload.chat.available_chat_models
+  if (!models || models.length === 0) return null
+
+  const currentModel = payload.chat.chat_model ?? null
+  const currentLabel = models.find((m) => m.value === currentModel)?.label ?? t("chat_model_default")
+
+  return (
+    <div className="relative">
+      <button
+        aria-expanded={dropdownOpen}
+        aria-haspopup="listbox"
+        aria-label={t("aria_chat_model")}
+        className="flex items-center gap-1 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+        disabled={updateModel.isPending || agentActive}
+        onClick={() => setDropdownOpen((open) => !open)}
+        ref={buttonRef}
+        type="button"
+      >
+        <span>{currentLabel}</span>
+        <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {dropdownOpen ? (
+        <div
+          className="absolute bottom-full left-0 z-20 mb-1 min-w-[7rem] overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
+          ref={dropdownRef}
+          role="listbox"
+        >
+          <button
+            aria-selected={currentModel === null}
+            className={`flex w-full items-center px-3 py-2 text-left text-sm ${currentModel === null ? "bg-terracotta-50 font-medium text-terracotta-700 dark:bg-terracotta-950 dark:text-terracotta-200" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+            onClick={() => { updateModel.mutate(null); setDropdownOpen(false) }}
+            role="option"
+            type="button"
+          >
+            {t("chat_model_default")}
+          </button>
+          {models.map((model) => (
+            <button
+              aria-selected={currentModel === model.value}
+              className={`flex w-full items-center px-3 py-2 text-left text-sm ${currentModel === model.value ? "bg-terracotta-50 font-medium text-terracotta-700 dark:bg-terracotta-950 dark:text-terracotta-200" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+              key={model.value}
+              onClick={() => { updateModel.mutate(model.value); setDropdownOpen(false) }}
+              role="option"
+              type="button"
+            >
+              {model.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function ChatEffortSelector({ chatId, payload, queryKey, onNotice }: { chatId: string; payload: ChatPayload; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+  const { t } = useT("chat")
+  const queryClient = useQueryClient()
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const dropdownRef = useRef<HTMLDivElement | null>(null)
+
+  const effortOptions: Array<{ value: string | null; label: string }> = [
+    { value: null, label: t("effort_none") },
+    { value: "medium", label: t("effort_medium") },
+    { value: "high", label: t("effort_high") }
+  ]
+
+  const updateEffort = useMutation({
+    mutationFn: (effort: string | null) => updateChatEffort(chatId, effort),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+    },
+    onError: () => {
+      onNotice(t("effort_update_error"))
+    }
+  })
+
+  useEffect(() => {
+    if (!dropdownOpen) return
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as Node | null
+      if (!target) return
+      if (dropdownRef.current?.contains(target)) return
+      if (buttonRef.current?.contains(target)) return
+      setDropdownOpen(false)
+    }
+    document.addEventListener("pointerdown", handlePointerDown)
+    return () => document.removeEventListener("pointerdown", handlePointerDown)
+  }, [dropdownOpen])
+
+  if (payload.chat.effective_chat_provider !== "claude") return null
+
+  const currentEffort = payload.chat.chat_effort ?? null
+  const currentLabel = effortOptions.find((opt) => opt.value === currentEffort)?.label ?? t("effort_none")
+
+  return (
+    <div className="relative">
+      <button
+        aria-expanded={dropdownOpen}
+        aria-haspopup="listbox"
+        aria-label={t("effort_label")}
+        className="flex items-center gap-1 rounded border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+        disabled={updateEffort.isPending}
+        onClick={() => setDropdownOpen((open) => !open)}
+        ref={buttonRef}
+        type="button"
+      >
+        <span>{currentLabel}</span>
+        <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {dropdownOpen ? (
+        <div
+          className="absolute bottom-full right-0 z-20 mb-1 min-w-[7rem] overflow-hidden rounded border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-950"
+          ref={dropdownRef}
+          role="listbox"
+        >
+          {effortOptions.map(({ value, label }) => (
+            <button
+              aria-selected={currentEffort === value}
+              className={`flex w-full items-center px-3 py-2 text-left text-sm ${currentEffort === value ? "bg-terracotta-50 font-medium text-terracotta-700 dark:bg-terracotta-950 dark:text-terracotta-200" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+              key={value ?? "none"}
+              onClick={() => { updateEffort.mutate(value); setDropdownOpen(false) }}
+              role="option"
+              type="button"
+            >
+              {label}
+            </button>
+          ))}
         </div>
       ) : null}
     </div>
