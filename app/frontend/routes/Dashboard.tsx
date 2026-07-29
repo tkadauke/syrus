@@ -17,7 +17,9 @@ import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEm
 import { CloseIcon } from "../components/CloseIcon"
 import { TonePill } from "../components/StatusPill"
 import { FilterBar } from "../components/FilterBar"
+import { SyrusTour } from "../components/SyrusTour"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
+import { useTour } from "../hooks/useTour"
 import { dashboardApiSearch, fetchDashboardChrome, fetchDashboardRows, mergeDashboardPayload, recordDashboardFilterUsage, requestDashboardMainBranchRepair, updateDashboardPreferences, type DashboardHealthBlockedRepository, type DashboardEpicItem, type DashboardJobItem, type DashboardPayload, type DashboardSubject, type DashboardWorkflowItem } from "../api/dashboard"
 import { errorMessage } from "../lib/errorMessage"
 
@@ -85,8 +87,44 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
           <DashboardContent pathname={pathname} payload={payload} prefix={prefix} search={search} />
         </>
       )}
+      <DashboardTour />
     </main>
   )
+}
+
+export function DashboardTour() {
+  const { run, handleJoyrideCallback } = useTour("dashboard")
+  const { t } = useT("tours")
+
+  const steps = [
+    {
+      target: "[data-tour='dashboard-filter-bar']",
+      title: t("dashboard.filter_chips_title"),
+      content: t("dashboard.filter_chips_content"),
+      placement: "bottom" as const,
+      disableBeacon: true,
+    },
+    {
+      target: "[data-tour='dashboard-view-switcher']",
+      title: t("dashboard.view_switcher_title"),
+      content: t("dashboard.view_switcher_content"),
+      placement: "bottom-end" as const,
+    },
+    {
+      target: "[data-tour='dashboard-create-actions']",
+      title: t("dashboard.create_actions_title"),
+      content: t("dashboard.create_actions_content"),
+      placement: "bottom-end" as const,
+    },
+    {
+      target: "[data-tour='dashboard-table']",
+      title: t("dashboard.job_row_title"),
+      content: t("dashboard.job_row_content"),
+      placement: "top" as const,
+    },
+  ]
+
+  return <SyrusTour run={run} steps={steps} onEvent={(data) => handleJoyrideCallback(data)} />
 }
 
 export function ReadinessPanel({ prefix, readiness }: { prefix: string; readiness?: NonNullable<NonNullable<BootstrapPayload["setup_status"]>["readiness"]> }) {
@@ -230,7 +268,7 @@ function RepositoryHealthBanners({ prefix, repositories }: { prefix: string; rep
 }
 
 function DesktopDashboardControls({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
-  return <DashboardFilterBar pathname={pathname} search={search} payload={payload} />
+  return <div data-tour="dashboard-filter-bar"><DashboardFilterBar pathname={pathname} search={search} payload={payload} /></div>
 }
 
 function MobileDashboardControls({ payload, pathname, prefix, search }: { payload: DashboardPayload; pathname: string; prefix: string; search: string }) {
@@ -262,7 +300,7 @@ function DashboardContent({ payload, pathname, prefix, search }: { payload: Dash
   const setupStatus = useSetupStatus()
 
   return (
-    <section className="min-w-0 space-y-4">
+    <section className="min-w-0 space-y-4" data-tour="dashboard-table">
       <DashboardTable payload={payload} prefix={prefix} setupStatus={setupStatus} />
       {payload.view === "list" ? <Pagination pathname={pathname} search={search} payload={payload} /> : null}
     </section>
@@ -272,7 +310,7 @@ function DashboardContent({ payload, pathname, prefix, search }: { payload: Dash
 function DashboardCreateActions({ payload, prefix }: { payload: DashboardPayload; prefix: string }) {
   const { t } = useT("dashboard")
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-2" data-tour="dashboard-create-actions">
       <Link className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500" to={withRoutePrefix(payload.paths.new_epic_path, prefix)}>{t("new_epic")}</Link>
       <Link className="rounded bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-500" to={withRoutePrefix(payload.paths.new_job_path, prefix)}>{t("new_job")}</Link>
     </div>
@@ -340,7 +378,7 @@ function DashboardToolbar({ payload, pathname, search, showConfiguration = true 
   return (
     <div className="shrink-0">
       <div className="flex flex-wrap items-center justify-end gap-3">
-        <nav aria-label={t("view_label")} className="inline-flex overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900">
+        <nav aria-label={t("view_label")} className="inline-flex overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900" data-tour="dashboard-view-switcher">
           {payload.controls.views.map((view) => (
             <Link
               className={`px-3 py-1.5 capitalize ${payload.view === view ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-950" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}

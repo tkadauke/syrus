@@ -4,5 +4,15 @@
   "last": "Done",
   "next": "Next",
   "open": "Open the dialog",
-  "skip": "Skip tour"
+  "skip": "Skip tour",
+  "dashboard": {
+    "filter_chips_title": "Filter your jobs",
+    "filter_chips_content": "Active filters appear as chips here. Click × to remove one, or use '+ Add filter' to narrow by status, job type, repository, and more.",
+    "view_switcher_title": "List or Kanban",
+    "view_switcher_content": "Switch between a table view and a Kanban board. Kanban lets you drag jobs between workflow states.",
+    "create_actions_title": "Start new work",
+    "create_actions_content": "'New Job' opens Chat and lets you describe a task — Syrus turns your prompt into a pull request. 'New Epic' groups related jobs together.",
+    "job_row_title": "Click any job to dive in",
+    "job_row_content": "Opening a job shows the full implementation timeline, the pull request diff, and lets you give feedback or approve the work."
+  }
 }
