@@ -17,6 +17,7 @@ import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { PanelMessage } from "../components/PanelMessage"
 import { errorMessage } from "../lib/errorMessage"
+import { useConfirm } from "../hooks/useConfirm"
 
 export function RepositoryScheduledTasksRoute() {
   const { t } = useT("settings")
@@ -42,6 +43,7 @@ export function RepositoryScheduledTasksRoute() {
 
 function RepositoryScheduledTasksView({ payload, prefix }: { payload: RepositoryScheduledTasksPayload; prefix: string }) {
   const { t } = useT("settings")
+  const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const queryKey = ["repositories", String(payload.repository.id), "scheduled_tasks"] as const
@@ -124,8 +126,8 @@ function RepositoryScheduledTasksView({ payload, prefix }: { payload: Repository
                       <button
                         className="rounded border border-red-200 dark:border-red-800 px-3 py-1 text-sm text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/50 disabled:cursor-not-allowed disabled:text-red-300 dark:disabled:text-red-500"
                         disabled={destroy.isPending}
-                        onClick={() => {
-                          if (window.confirm(t("scheduled_tasks.confirm_delete"))) destroy.mutate(task)
+                        onClick={async () => {
+                          if (await confirm({ message: t("scheduled_tasks.confirm_delete"), destructive: true })) destroy.mutate(task)
                         }}
                         type="button"
                       >
@@ -139,6 +141,7 @@ function RepositoryScheduledTasksView({ payload, prefix }: { payload: Repository
           </table>
         </section>
       )}
+      {dialog}
     </>
   )
 }

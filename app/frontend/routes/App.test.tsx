@@ -7,6 +7,7 @@ import { App } from "./App"
 import type { BootstrapPayload } from "../api/bootstrap"
 import type { JobStep } from "../api/jobs"
 import * as videoWalkthroughs from "../api/videoWalkthroughs"
+import * as useConfirmModule from "../hooks/useConfirm"
 
 const actionCable = vi.hoisted(() => ({
   createSubscription: vi.fn(() => ({ unsubscribe: vi.fn() }))
@@ -7839,6 +7840,7 @@ describe("App", () => {
 
   it("rotates an admin API token from the credentials route", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true)
+    vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: vi.fn().mockResolvedValue(true), dialog: <></> })
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/notification_preferences") {
@@ -8525,6 +8527,7 @@ describe("App", () => {
 
   it("runs repository detail commands through the app API", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true)
+    vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: vi.fn().mockResolvedValue(true), dialog: <></> })
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/repositories/3/poll" && init?.method === "POST") {

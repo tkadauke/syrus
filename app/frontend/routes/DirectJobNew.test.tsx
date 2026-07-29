@@ -1,10 +1,11 @@
-import { describe, it, expect, vi, afterEach } from "vitest"
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { jsonResponse } from "../testSupport"
 import { DirectJobNewRoute } from "./DirectJobNew"
 import type { DirectJobFormPayload } from "../api/directJobs"
+import * as useConfirmModule from "../hooks/useConfirm"
 
 const template1 = {
   id: "add-github-actions-ci",
@@ -57,6 +58,13 @@ function renderRoute(payload = formPayload()) {
 }
 
 describe("DirectJobNew template selection", () => {
+  let mockConfirm: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    mockConfirm = vi.fn().mockResolvedValue(true)
+    vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: mockConfirm as any, dialog: <></> })
+  })
+
   afterEach(() => vi.restoreAllMocks())
 
   it("clicking a template sets both title and prompt", async () => {
@@ -80,52 +88,53 @@ describe("DirectJobNew template selection", () => {
 
   it("does not prompt for confirmation when switching templates without manual edits", async () => {
     renderRoute()
-    const confirmSpy = vi.spyOn(window, "confirm")
 
     fireEvent.click(await screen.findByRole("button", { name: /Add GitHub Actions CI/i }))
     fireEvent.click(screen.getByRole("button", { name: /Update dependencies/i }))
 
-    expect(confirmSpy).not.toHaveBeenCalled()
+    expect(mockConfirm).not.toHaveBeenCalled()
   })
 
   it("prompts for confirmation when manually edited title exists before applying a template", async () => {
     renderRoute()
-    vi.spyOn(window, "confirm").mockReturnValue(true)
 
     await screen.findByRole("button", { name: /Add GitHub Actions CI/i })
     fireEvent.change(screen.getByRole("textbox", { name: "Title" }), { target: { value: "My custom title" } })
     fireEvent.click(screen.getByRole("button", { name: /Add GitHub Actions CI/i }))
 
-    expect(window.confirm).toHaveBeenCalledWith(
-      "Are you sure you want to apply this template? All of your changes will be lost."
-    )
+    await waitFor(() => {
+      expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ message: "Are you sure you want to apply this template? All of your changes will be lost." }))
+    })
   })
 
   it("prompts for confirmation when manually edited prompt exists before applying a template", async () => {
     renderRoute()
-    vi.spyOn(window, "confirm").mockReturnValue(true)
 
     await screen.findByRole("button", { name: /Add GitHub Actions CI/i })
     fireEvent.change(screen.getByRole("textbox", { name: "Prompt" }), { target: { value: "My custom prompt" } })
     fireEvent.click(screen.getByRole("button", { name: /Add GitHub Actions CI/i }))
 
-    expect(window.confirm).toHaveBeenCalled()
+    await waitFor(() => {
+      expect(mockConfirm).toHaveBeenCalled()
+    })
   })
 
   it("does not apply template when user cancels confirmation", async () => {
+    mockConfirm.mockResolvedValue(false)
     renderRoute()
-    vi.spyOn(window, "confirm").mockReturnValue(false)
 
     await screen.findByRole("button", { name: /Add GitHub Actions CI/i })
     fireEvent.change(screen.getByRole("textbox", { name: "Title" }), { target: { value: "My custom title" } })
     fireEvent.click(screen.getByRole("button", { name: /Add GitHub Actions CI/i }))
 
+    await waitFor(() => {
+      expect(mockConfirm).toHaveBeenCalled()
+    })
     expect((screen.getByRole("textbox", { name: "Title" }) as HTMLInputElement).value).toBe("My custom title")
   })
 
   it("prompts for confirmation when switching from one template to another after manual edits", async () => {
     renderRoute()
-    vi.spyOn(window, "confirm").mockReturnValue(true)
 
     fireEvent.click(await screen.findByRole("button", { name: /Add GitHub Actions CI/i }))
 
@@ -134,17 +143,18 @@ describe("DirectJobNew template selection", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Update dependencies/i }))
 
-    expect(window.confirm).toHaveBeenCalled()
-    expect(titleInput.value).toBe(template2.name)
+    await waitFor(() => {
+      expect(mockConfirm).toHaveBeenCalled()
+      expect(titleInput.value).toBe(template2.name)
+    })
   })
 
   it("does not prompt when form is empty and template is applied for the first time", async () => {
     renderRoute()
-    const confirmSpy = vi.spyOn(window, "confirm")
 
     fireEvent.click(await screen.findByRole("button", { name: /Add GitHub Actions CI/i }))
 
-    expect(confirmSpy).not.toHaveBeenCalled()
+    expect(mockConfirm).not.toHaveBeenCalled()
     expect((screen.getByRole("textbox", { name: "Title" }) as HTMLInputElement).value).toBe(template1.name)
   })
 })

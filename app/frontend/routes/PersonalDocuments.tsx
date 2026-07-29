@@ -15,6 +15,7 @@ import { usePageTitle } from "../hooks/usePageTitle"
 import { PanelMessage } from "../components/PanelMessage"
 import { errorMessage } from "../lib/errorMessage"
 import { formatBytes } from "../lib/format"
+import { useConfirm } from "../hooks/useConfirm"
 
 const queryKey = ["personal-documents"] as const
 
@@ -60,6 +61,7 @@ function PersonalDocumentsView({ payload }: { payload: PersonalDocumentsPayload 
 
 function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPayload; onNotice: (message: string | null) => void }) {
   const { t } = useT("settings")
+  const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
   const [files, setFiles] = useState<File[]>([])
   const [googleDocUrl, setGoogleDocUrl] = useState("")
@@ -111,8 +113,8 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
             <button
               className="text-xs font-medium text-red-600 dark:text-red-300 hover:text-red-700 dark:hover:text-red-300 disabled:text-red-300 dark:disabled:text-red-500"
               disabled={destroy.isPending}
-              onClick={() => {
-                if (window.confirm(t('personal_documents.confirm_delete'))) destroy.mutate(document)
+              onClick={async () => {
+                if (await confirm({ message: t('personal_documents.confirm_delete'), destructive: true })) destroy.mutate(document)
               }}
               type="button"
             >
@@ -148,6 +150,7 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
           )}
         </button>
       </form>
+      {dialog}
     </section>
   )
 }

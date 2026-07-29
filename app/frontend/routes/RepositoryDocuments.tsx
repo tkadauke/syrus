@@ -19,6 +19,7 @@ import { useT } from "../hooks/useT"
 import { PanelMessage } from "../components/PanelMessage"
 import { errorMessage } from "../lib/errorMessage"
 import { formatBytes } from "../lib/format"
+import { useConfirm } from "../hooks/useConfirm"
 
 export function RepositoryDocumentsRoute() {
   const { t } = useT("settings")
@@ -44,6 +45,7 @@ export function RepositoryDocumentsRoute() {
 
 function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocumentsPayload; prefix: string }) {
   const { t } = useT("settings")
+  const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const queryKey = ["repositories", String(payload.repository.id), "documents"] as const
@@ -92,8 +94,8 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
                   <button
                     className="shrink-0 rounded bg-gray-100 dark:bg-gray-800 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:text-gray-300 dark:disabled:text-gray-600"
                     disabled={destroy.isPending}
-                    onClick={() => {
-                      if (window.confirm(t('repository_documents.confirm_delete'))) destroy.mutate(document)
+                    onClick={async () => {
+                      if (await confirm({ message: t('repository_documents.confirm_delete'), destructive: true })) destroy.mutate(document)
                     }}
                     type="button"
                   >
@@ -107,6 +109,7 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
       </section>
 
       <DocumentForms acceptedTypes={payload.accepted_file_content_types} onNotice={setNotice} payload={payload} />
+      {dialog}
     </>
   )
 }

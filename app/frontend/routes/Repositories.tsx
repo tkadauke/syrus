@@ -17,6 +17,7 @@ import {
 } from "../api/repositories"
 import { errorMessage } from "../lib/errorMessage"
 import { PanelMessage } from "../components/PanelMessage"
+import { useConfirm } from "../hooks/useConfirm"
 
 type RepositoryAction = {
   id: number
@@ -48,6 +49,7 @@ export function RepositoriesIndex() {
 
 function RepositoriesView({ payload, prefix }: { payload: RepositoriesPayload; prefix: string }) {
   const { t } = useT("settings")
+  const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
   const setupStatus = useSetupStatus()
   const [notice, setNotice] = useState<string | null>(payload.message || null)
@@ -63,9 +65,9 @@ function RepositoriesView({ payload, prefix }: { payload: RepositoriesPayload; p
     }
   })
 
-  function runAction(action: RepositoryAction, repository?: RepositoryRow) {
+  async function runAction(action: RepositoryAction, repository?: RepositoryRow) {
     setNotice(null)
-    if (action.kind === "archive" && repository && !window.confirm(`Archive ${repository.slug}? Polling stops; existing jobs are unaffected.`)) {
+    if (action.kind === "archive" && repository && !await confirm({ message: t("repositories.confirm_archive", { slug: repository.slug }), destructive: true })) {
       return
     }
     command.mutate(action)
@@ -117,6 +119,7 @@ function RepositoriesView({ payload, prefix }: { payload: RepositoriesPayload; p
           </div>
         </section>
       ) : null}
+      {dialog}
     </>
   )
 }

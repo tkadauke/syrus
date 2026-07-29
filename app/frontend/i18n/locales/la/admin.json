@@ -175,6 +175,7 @@
     "error_load": "Optiones applicamenti onerari non potuerunt.",
     "error_update": "Optiones renovari non potuerunt.",
     "error_clear": "Secretum deleri non potuit.",
+    "confirm_clear": "{{label}} delere?",
     "currently_set": "Nunc positum. Campi vacui id non delebunt.",
     "not_set": "Non positum.",
     "clear": "Delere",

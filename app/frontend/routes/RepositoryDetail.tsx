@@ -17,6 +17,7 @@ import { CoverageSparkline } from "../components/CoverageSparkline"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { archiveRepositoryFromPath, fetchRepositoryDetail, fetchRepositoryIssues, pollRepositoryDetail, releaseNeedsTriageRepositoryJob, retryFailedRepositoryJobs, runInsightAnalysis, type RepositoryDetailJob, type RepositoryDetailPayload } from "../api/repositories"
 import { errorMessage } from "../lib/errorMessage"
+import { useConfirm } from "../hooks/useConfirm"
 
 export function RepositoryDetailRoute() {
   const { t } = useT("settings")
@@ -210,6 +211,7 @@ function RepositoryDetailsCard({ payload, prefix }: { payload: RepositoryDetailP
 
 function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey; onNotice: (message: string | null) => void }) {
   const { t } = useT("settings")
+  const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const search = queryKey[3]
@@ -248,10 +250,10 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
   })
   const disabled = poll.isPending || retryFailed.isPending || archive.isPending
 
-  function archiveRepository() {
+  async function archiveRepository() {
     onNotice(null)
     setMoreOpen(false)
-    if (window.confirm(`Archive ${payload.repository.slug}? Polling stops; existing jobs are unaffected.`)) {
+    if (await confirm({ message: t("repositories.confirm_archive", { slug: payload.repository.slug }), destructive: true })) {
       archive.mutate()
     }
   }
@@ -313,6 +315,7 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
       {retryFailed.isError ? <PanelMessage tone="error">{errorMessage(retryFailed.error, "Retry failed jobs command failed.")}</PanelMessage> : null}
       {archive.isError ? <PanelMessage tone="error">{errorMessage(archive.error, "Archive failed.")}</PanelMessage> : null}
       {runInsight.isError ? <PanelMessage tone="error">{errorMessage(runInsight.error, "Failed to start insight analysis.")}</PanelMessage> : null}
+      {dialog}
     </>
   )
 }

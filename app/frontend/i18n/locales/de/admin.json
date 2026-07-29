@@ -175,6 +175,7 @@
     "error_load": "App-Einstellungen konnten nicht geladen werden.",
     "error_update": "Einstellungen konnten nicht aktualisiert werden.",
     "error_clear": "Geheimnis konnte nicht gelöscht werden.",
+    "confirm_clear": "{{label}} löschen?",
     "currently_set": "Aktuell gesetzt. Leere Felder löschen es nicht.",
     "not_set": "Nicht gesetzt.",
     "clear": "Löschen",

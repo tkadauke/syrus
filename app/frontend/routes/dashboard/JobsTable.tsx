@@ -16,6 +16,7 @@ import { StatusPill, TonePill } from "../../components/StatusPill"
 import { bulkDashboardJobs, type DashboardBulkJobAction, type DashboardJobItem, type DashboardLandingQueueEntry } from "../../api/dashboard"
 import type { LandingQueueBlockerJob } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
+import { useConfirm } from "../../hooks/useConfirm"
 
 
 // Dashboard jobs table extracted from Dashboard.tsx: JobsDashboardTable and its
@@ -74,6 +75,7 @@ export function JobsDashboardTable({ items, columns, landingQueueEntries, prefix
 
 function BulkJobActions({ selectedIds, onClear }: { selectedIds: number[]; onClear: () => void }) {
   const { t } = useT("dashboard")
+  const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
   const [notice, setNotice] = useState<string | null>(null)
   const action = useMutation({
@@ -86,14 +88,14 @@ function BulkJobActions({ selectedIds, onClear }: { selectedIds: number[]; onCle
   })
   const disabled = selectedIds.length === 0 || action.isPending
 
-  function run(bulkAction: DashboardBulkJobAction) {
+  async function run(bulkAction: DashboardBulkJobAction) {
     setNotice(null)
-    if (bulkAction === "close" && !window.confirm(t(selectedIds.length === 1 ? "close_confirm_one" : "close_confirm_other", { count: selectedIds.length }))) return
+    if (bulkAction === "close" && !await confirm({ message: t(selectedIds.length === 1 ? "close_confirm_one" : "close_confirm_other", { count: selectedIds.length }), destructive: true })) return
     action.mutate(bulkAction)
   }
 
   if (selectedIds.length === 0) {
-    return <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
+    return <>{dialog}<NoticeToast message={notice} onDismiss={() => setNotice(null)} /></>
   }
 
   return (
@@ -110,6 +112,7 @@ function BulkJobActions({ selectedIds, onClear }: { selectedIds: number[]; onCle
         <button className={bulkButtonClass(disabled)} disabled={disabled} onClick={() => run("approve")} type="button">{t("approve")}</button>
         <button className={bulkButtonClass(disabled, "danger")} disabled={disabled} onClick={() => run("close")} type="button">{t("close_action")}</button>
       </div>
+      {dialog}
     </div>
   )
 }

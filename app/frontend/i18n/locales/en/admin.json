@@ -175,6 +175,7 @@
     "error_load": "Unable to load app settings.",
     "error_update": "Unable to update settings.",
     "error_clear": "Unable to clear secret.",
+    "confirm_clear": "Clear {{label}}?",
     "currently_set": "Currently set. Blank update fields will not clear it.",
     "not_set": "Not set.",
     "clear": "Clear",

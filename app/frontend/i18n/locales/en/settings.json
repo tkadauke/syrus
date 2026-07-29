@@ -226,6 +226,7 @@
     "archive": "Archive",
     "archived": "archived",
     "unarchive": "Unarchive",
+    "confirm_archive": "Archive {{slug}}? Polling stops; existing jobs are unaffected.",
     "polling_enabled": "enabled",
     "polling_paused": "paused",
     "poll_failed": "failed",

@@ -22,6 +22,7 @@ import { CloseIcon } from "../components/CloseIcon"
 import { FilterBar } from "../components/FilterBar"
 import { NoticeToast } from "../components/NoticeToast"
 import { Markdown } from "../lib/Markdown"
+import { useConfirm } from "../hooks/useConfirm"
 
 const kindKeys: Record<string, string> = {
   user_pref: "memories.kind_user_pref",
@@ -125,6 +126,7 @@ function MemoriesTable({ payload, onNotice }: { payload: MemoriesPayload; onNoti
 
 function MemoryRowView({ memory, payload, showOwner, onNotice }: { memory: MemoryRow; payload: MemoriesPayload; showOwner: boolean; onNotice: (message: string | null) => void }) {
   const { t } = useT("settings")
+  const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
   const [viewing, setViewing] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -174,8 +176,8 @@ function MemoryRowView({ memory, payload, showOwner, onNotice }: { memory: Memor
             <button
               className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950"
               disabled={destroy.isPending}
-              onClick={() => {
-                if (window.confirm(t('memories.confirm_delete'))) {
+              onClick={async () => {
+                if (await confirm({ message: t('memories.confirm_delete'), destructive: true })) {
                   onNotice(null)
                   destroy.mutate()
                 }
@@ -190,6 +192,7 @@ function MemoryRowView({ memory, payload, showOwner, onNotice }: { memory: Memor
         {destroy.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(destroy.error, "Unable to delete memory.")}</p> : null}
         {viewing ? <MemoryContentModal memory={memory} onClose={() => setViewing(false)} /> : null}
         {editing ? <MemoryModal memory={memory} mode="edit" onClose={() => setEditing(false)} onNotice={onNotice} payload={payload} /> : null}
+        {dialog}
       </td>
     </tr>
   )

@@ -226,6 +226,7 @@
     "archive": "Archivieren",
     "archived": "archiviert",
     "unarchive": "Wiederherstellen",
+    "confirm_archive": "{{slug}} archivieren? Abfragen werden gestoppt; bestehende Aufgaben bleiben unberührt.",
     "polling_enabled": "aktiv",
     "polling_paused": "pausiert",
     "poll_failed": "fehlgeschlagen",

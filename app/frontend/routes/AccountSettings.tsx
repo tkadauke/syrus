@@ -28,6 +28,7 @@ import {
 import { deleteJson } from "../api/client"
 import { errorMessage } from "../lib/errorMessage"
 import { PanelMessage } from "../components/PanelMessage"
+import { useConfirm } from "../hooks/useConfirm"
 
 const queryKey = ["credentials"] as const
 type AccountSettingsSection = "profile" | "credentials" | "agent" | "preferences"
@@ -344,6 +345,7 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
 
 function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onNotice: (message: string | null) => void }) {
   const { t } = useT("settings")
+  const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
   const [newToken, setNewToken] = useState(payload.new_api_token || "")
   const rotate = useMutation({
@@ -386,8 +388,8 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
         <button
           className="rounded bg-gray-200 dark:bg-gray-700 px-3 py-1.5 text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-gray-300 disabled:bg-gray-100 dark:disabled:bg-gray-800"
           disabled={rotate.isPending}
-          onClick={() => {
-            if (!payload.credential_status.api_token || window.confirm(t('account_settings.rotate_confirm'))) {
+          onClick={async () => {
+            if (!payload.credential_status.api_token || await confirm({ message: t('account_settings.rotate_confirm') })) {
               rotate.mutate()
             }
           }}
@@ -399,8 +401,8 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
           <button
             className="rounded bg-red-50 dark:bg-red-950/40 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/60 disabled:text-red-300 dark:disabled:text-red-500"
             disabled={revoke.isPending}
-            onClick={() => {
-              if (window.confirm(t('account_settings.revoke_confirm'))) revoke.mutate()
+            onClick={async () => {
+              if (await confirm({ message: t('account_settings.revoke_confirm'), destructive: true })) revoke.mutate()
             }}
             type="button"
           >
@@ -408,6 +410,7 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
           </button>
         ) : null}
       </div>
+      {dialog}
     </section>
   )
 }

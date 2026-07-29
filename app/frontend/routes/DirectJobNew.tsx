@@ -14,6 +14,7 @@ import {
   type DirectJobPromptTemplate
 } from "../api/directJobs"
 import { errorMessage } from "../lib/errorMessage"
+import { useConfirm } from "../hooks/useConfirm"
 
 type DirectJobFormState = {
   repositoryId: string
@@ -51,6 +52,7 @@ export function DirectJobNewRoute() {
 function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; prefix: string }) {
   const navigate = useNavigate()
   const { t } = useT("jobs")
+  const { confirm, dialog } = useConfirm()
   const setupStatus = useSetupStatus()
   const promptRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -97,11 +99,11 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
     save.mutate()
   }
 
-  function applyTemplate(template: DirectJobPromptTemplate) {
+  async function applyTemplate(template: DirectJobPromptTemplate) {
     const hasManualTitle = values.title.trim() !== "" && values.title !== (appliedTemplate?.name ?? "")
     const hasManualPrompt = values.prompt.trim() !== "" && values.prompt !== (appliedTemplate?.prompt ?? "")
 
-    if ((hasManualTitle || hasManualPrompt) && !window.confirm(t("form_template_confirm"))) {
+    if ((hasManualTitle || hasManualPrompt) && !await confirm({ message: t("form_template_confirm") })) {
       return
     }
 
@@ -309,6 +311,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
         </button>
         <Link className="text-sm text-gray-600 underline hover:no-underline dark:text-gray-400 dark:hover:text-gray-200" to={withRoutePrefix(payload.dashboard_jobs_path, prefix)}>{t("cancel")}</Link>
       </div>
+      {dialog}
     </form>
   )
 }

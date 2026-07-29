@@ -226,6 +226,7 @@
     "archive": "Archivare",
     "archived": "archivatum",
     "unarchive": "E archivo educere",
+    "confirm_archive": "{{slug}} archivis condere? Interrogationes cessant; officia exstantia non afficiuntur.",
     "polling_enabled": "activum",
     "polling_paused": "intermissum",
     "poll_failed": "defecit",

@@ -6,6 +6,7 @@ import { Link } from "react-router-dom"
 import { useT } from "../../hooks/useT"
 import { resumeRepositoryLanding, runMainBranchGraders, repairMainBranch, checkCiNow, type RepositoryDetailPayload, type RepositoryHealthCheckRecord, type RepositoryHealthHistory } from "../../api/repositories"
 import { errorMessage } from "../../lib/errorMessage"
+import { useConfirm } from "../../hooks/useConfirm"
 
 
 // Repository main-branch health section extracted from RepositoryDetail.tsx:
@@ -24,6 +25,7 @@ type HealthTone = "green" | "red" | "gray" | "amber"
 
 export function MainBranchHealthSection({ history, payload, prefix, queryKey, onNotice }: { history: RepositoryHealthHistory; payload: RepositoryDetailPayload; prefix: string; queryKey: RepositoryDetailQueryKey; onNotice: (message: string | null) => void }) {
   const { t } = useT("settings")
+  const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
   const repository = payload.repository
   const shaUrl = history.last_health_checked_sha
@@ -60,8 +62,8 @@ export function MainBranchHealthSection({ history, payload, prefix, queryKey, on
   })
   const canResume = repository.main_branch_health_enabled && repository.landing_paused && repository.main_health !== "healthy"
 
-  function confirmResume() {
-    if (!window.confirm(t("repository.resume_landing_confirm"))) return
+  async function confirmResume() {
+    if (!await confirm({ message: t("repository.resume_landing_confirm") })) return
     onNotice(null)
     resumeWork.mutate()
   }
@@ -175,6 +177,7 @@ export function MainBranchHealthSection({ history, payload, prefix, queryKey, on
         {ciCheck.isError ? <PanelMessage tone="error">{errorMessage(ciCheck.error, "Check CI command failed.")}</PanelMessage> : null}
         {repair.isError ? <PanelMessage tone="error">{errorMessage(repair.error, "Repair command failed.")}</PanelMessage> : null}
       </div>
+      {dialog}
     </section>
   )
 }

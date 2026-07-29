@@ -18,6 +18,7 @@ import {
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { errorMessage } from "../lib/errorMessage"
+import { useConfirm } from "../hooks/useConfirm"
 
 const defaultPolicies = ["skip", "pile", "replace"]
 const emptyTemplate: CronTemplateInput = {
@@ -170,6 +171,7 @@ function TemplatesTable({ templates, basePath }: { templates: CronTemplateRow[];
 
 function TemplateDetail({ payload, basePath, prefix }: { payload: Awaited<ReturnType<typeof fetchCronTemplate>>; basePath: string; prefix: string }) {
   const { t } = useT("settings")
+  const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const destroy = useMutation({
@@ -195,8 +197,8 @@ function TemplateDetail({ payload, basePath, prefix }: { payload: Awaited<Return
           <button
             className="rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/50 disabled:cursor-not-allowed disabled:text-red-300 dark:disabled:text-red-500"
             disabled={destroy.isPending}
-            onClick={() => {
-              if (window.confirm(t("cron_templates.confirm_delete"))) {
+            onClick={async () => {
+              if (await confirm({ message: t("cron_templates.confirm_delete"), destructive: true })) {
                 destroy.mutate()
               }
             }}
@@ -228,6 +230,7 @@ function TemplateDetail({ payload, basePath, prefix }: { payload: Awaited<Return
 
       <AppliedTasks prefix={prefix} tasks={payload.applied_tasks} />
       <RepositoryApplyLinks prefix={prefix} repositories={payload.repositories} />
+      {dialog}
     </>
   )
 }

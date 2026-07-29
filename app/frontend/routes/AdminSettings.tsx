@@ -11,6 +11,7 @@ import {
 import { NoticeToast } from "../components/NoticeToast"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
+import { useConfirm } from "../hooks/useConfirm"
 
 const queryKey = ["admin", "settings"] as const
 
@@ -55,6 +56,7 @@ function SettingsView({ payload, onNotice }: { payload: AdminSettingsPayload; on
 
 function SecretRow({ secret, onNotice }: { secret: ClearableSecret; onNotice: (message: string | null) => void }) {
   const { t } = useT("admin")
+  const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
   const clearSecret = useMutation({
     mutationFn: () => clearAdminSettingSecret(secret.key),
@@ -76,8 +78,8 @@ function SecretRow({ secret, onNotice }: { secret: ClearableSecret; onNotice: (m
         <button
           className="self-start rounded bg-red-50 dark:bg-red-950/40 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/60 disabled:cursor-not-allowed disabled:text-red-300 sm:self-auto"
           disabled={clearSecret.isPending}
-          onClick={() => {
-            if (window.confirm(`Clear ${secret.label}?`)) {
+          onClick={async () => {
+            if (await confirm({ message: t("settings.confirm_clear", { label: secret.label }), destructive: true })) {
               onNotice(null)
               clearSecret.mutate()
             }
@@ -88,6 +90,7 @@ function SecretRow({ secret, onNotice }: { secret: ClearableSecret; onNotice: (m
         </button>
       ) : null}
       {clearSecret.isError ? <div className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(clearSecret.error, t("settings.error_clear"))}</div> : null}
+      {dialog}
     </div>
   )
 }

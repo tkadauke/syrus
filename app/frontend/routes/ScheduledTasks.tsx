@@ -11,6 +11,7 @@ import { NoticeToast } from "../components/NoticeToast"
 import { PanelMessage } from "../components/PanelMessage"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
+import { useConfirm } from "../hooks/useConfirm"
 import {
   archiveScheduledTask,
   createScheduledTask,
@@ -275,6 +276,7 @@ function TaskActions({
   archive: UseMutationResult<ScheduledTasksIndexPayload, Error, void>
 }) {
   const { t } = useT("settings")
+  const { confirm, dialog } = useConfirm()
   return (
     <div className="flex flex-wrap items-center gap-2">
       {task.editable ? <Link className={buttonClass("secondary")} to={`${basePath}/${task.id}/edit`}>{t("scheduled_tasks.action_edit")}</Link> : null}
@@ -291,14 +293,15 @@ function TaskActions({
         <button
           className={buttonClass("danger-outline")}
           disabled={archive.isPending}
-          onClick={() => {
-            if (window.confirm(t("scheduled_tasks.confirm_archive"))) archive.mutate()
+          onClick={async () => {
+            if (await confirm({ message: t("scheduled_tasks.confirm_archive"), destructive: true })) archive.mutate()
           }}
           type="button"
         >
           {t("scheduled_tasks.action_archive")}
         </button>
       ) : null}
+      {dialog}
     </div>
   )
 }

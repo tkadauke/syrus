@@ -5,6 +5,7 @@ import type { ReactNode } from "react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
 import { MemoriesRoute } from "./Memories"
+import * as useConfirmModule from "../hooks/useConfirm"
 
 describe("MemoriesRoute", () => {
   it("renders filters, admin owner column, rows, and pagination", async () => {
@@ -114,7 +115,8 @@ describe("MemoriesRoute", () => {
       if (url === "/api/v1/app/memories/10" && init?.method === "DELETE") return Promise.resolve(jsonResponse(memoriesPayload({ memories: [], message: "Memory deleted." })))
       return Promise.resolve(jsonResponse(memoriesPayload()))
     })
-    vi.spyOn(window, "confirm").mockReturnValue(true)
+    const mockConfirm = vi.fn().mockResolvedValue(true)
+    vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: mockConfirm as any, dialog: <></> })
 
     renderRoute(<MemoriesRoute />, "/app-shell/memories")
 
@@ -144,6 +146,7 @@ describe("MemoriesRoute", () => {
     })
 
     fireEvent.click(within(row).getByRole("button", { name: "Delete" }))
+    expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true }))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/memories/10", expect.objectContaining({ method: "DELETE" }))
     })
