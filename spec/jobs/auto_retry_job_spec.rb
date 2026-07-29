@@ -80,7 +80,8 @@ RSpec.describe AutoRetryJob do
       job: job,
       agent_provider: "claude",
       artifacts: { "auto_retry_attempt_id" => attempt.id },
-      provider_validation: :none
+      provider_validation: :none,
+      automatic: true
     )
     expect(attempt.reload.performed_at).to be_present
   end
@@ -115,7 +116,8 @@ RSpec.describe AutoRetryJob do
       job: job,
       agent_provider: "claude",
       artifacts: { "auto_retry_attempt_id" => attempt.id },
-      provider_validation: :none
+      provider_validation: :none,
+      automatic: true
     )
     expect(attempt.reload.performed_at).to be_present
   end
@@ -130,5 +132,25 @@ RSpec.describe AutoRetryJob do
 
     expect(attempt.reload.skipped_reason).to eq("A Run is already in progress")
     expect(attempt.performed_at).to be_nil
+  end
+
+  it "records a skipped reason and starts no workflow when the provider circuit is open" do
+    attempt = failed_attempt!(retry_kind: "retry_workflow")
+    open_circuit = ProviderCircuitBreaker::Decision.new(
+      provider: "claude",
+      open: true,
+      reason: "provider transient failures",
+      retry_after: 10.minutes.from_now,
+      failure_count: 5,
+      job_count: 3,
+      signature: nil
+    )
+    allow(ProviderCircuitBreaker).to receive(:call).and_return(open_circuit)
+
+    described_class.perform_now(attempt.id)
+
+    expect(attempt.reload.skipped_reason).to include("appears degraded")
+    expect(attempt.performed_at).to be_nil
+    expect(job.workflows.count).to eq(1)
   end
 end

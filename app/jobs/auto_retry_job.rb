@@ -43,7 +43,8 @@ class AutoRetryJob < ApplicationJob
       job: attempt.job,
       agent_provider: attempt.agent_provider,
       artifacts: { "auto_retry_attempt_id" => attempt.id },
-      provider_validation: :none
+      provider_validation: :none,
+      automatic: true
     )
   end
 
