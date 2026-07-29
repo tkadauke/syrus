@@ -2842,6 +2842,202 @@ describe("chat mode selector in toolbar", () => {
   })
 })
 
+describe("chat model selector in toolbar", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("does not render the model selector when available_chat_models is absent", async () => {
+    mockChatRouteFetch(chatPayload())
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    expect(screen.queryByRole("button", { name: "Chat model" })).not.toBeInTheDocument()
+  })
+
+  it("does not render the model selector when available_chat_models is empty", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { available_chat_models: [] } }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    expect(screen.queryByRole("button", { name: "Chat model" })).not.toBeInTheDocument()
+  })
+
+  it("renders the model selector when available_chat_models is non-empty", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { available_chat_models: [{ value: "claude-opus-4-7", label: "Opus 4.7" }] } }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    expect(screen.getByRole("button", { name: "Chat model" })).toBeInTheDocument()
+  })
+
+  it("shows Default model label when no model is selected", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { available_chat_models: [{ value: "claude-opus-4-7", label: "Opus 4.7" }], chat_model: null } }))
+    renderRoute()
+
+    const button = await screen.findByRole("button", { name: "Chat model" })
+    expect(button).toHaveTextContent("Default model")
+  })
+
+  it("shows the current model label when a model is selected", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { available_chat_models: [{ value: "claude-opus-4-7", label: "Opus 4.7" }], chat_model: "claude-opus-4-7" } }))
+    renderRoute()
+
+    const button = await screen.findByRole("button", { name: "Chat model" })
+    expect(button).toHaveTextContent("Opus 4.7")
+  })
+
+  it("opens a listbox with model options on click", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { available_chat_models: [{ value: "claude-opus-4-7", label: "Opus 4.7" }] } }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Chat model" }))
+
+    const listbox = screen.getByRole("listbox")
+    expect(within(listbox).getByRole("option", { name: "Default model" })).toBeInTheDocument()
+    expect(within(listbox).getByRole("option", { name: "Opus 4.7" })).toBeInTheDocument()
+  })
+
+  it("calls PATCH with the selected model and closes the dropdown", async () => {
+    const models = [{ value: "claude-opus-4-7", label: "Opus 4.7" }]
+    const updatedPayload = chatPayload({ chat: { available_chat_models: models, chat_model: "claude-opus-4-7" } })
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(jsonResponse(updatedPayload))
+      }
+      return Promise.resolve(jsonResponse(chatPayload({ chat: { available_chat_models: models } })))
+    })
+
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Chat model" }))
+    fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "Opus 4.7" }))
+
+    await waitFor(() => {
+      const patchCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
+        String(call[0]) === "/api/v1/app/chats/8" && (call[1] as RequestInit)?.method === "PATCH"
+      )
+      expect(patchCalls).toHaveLength(1)
+      expect(JSON.parse((patchCalls[0][1] as RequestInit).body as string)).toMatchObject({ chat: { chat_model: "claude-opus-4-7" } })
+    })
+
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument()
+  })
+
+  it("closes the dropdown on outside click", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { available_chat_models: [{ value: "claude-opus-4-7", label: "Opus 4.7" }] } }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Chat model" }))
+    expect(screen.getByRole("listbox")).toBeInTheDocument()
+
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument()
+  })
+})
+
+describe("chat effort selector in toolbar", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("does not render the effort selector when the provider is not claude", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { effective_chat_provider: "codex" } }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    expect(screen.queryByRole("button", { name: "Effort" })).not.toBeInTheDocument()
+  })
+
+  it("renders the effort selector when the provider is claude", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { effective_chat_provider: "claude" } }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    expect(screen.getByRole("button", { name: "Effort" })).toBeInTheDocument()
+  })
+
+  it("shows None label when no effort is set", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { effective_chat_provider: "claude", chat_effort: null } }))
+    renderRoute()
+
+    const button = await screen.findByRole("button", { name: "Effort" })
+    expect(button).toHaveTextContent("None")
+  })
+
+  it("shows the current effort label when an effort is selected", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { effective_chat_provider: "claude", chat_effort: "high" } }))
+    renderRoute()
+
+    const button = await screen.findByRole("button", { name: "Effort" })
+    expect(button).toHaveTextContent("High")
+  })
+
+  it("opens a listbox with effort options on click", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { effective_chat_provider: "claude" } }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Effort" }))
+
+    const listbox = screen.getByRole("listbox")
+    expect(within(listbox).getByRole("option", { name: "None" })).toBeInTheDocument()
+    expect(within(listbox).getByRole("option", { name: "Medium" })).toBeInTheDocument()
+    expect(within(listbox).getByRole("option", { name: "High" })).toBeInTheDocument()
+  })
+
+  it("calls PATCH with the selected effort and closes the dropdown", async () => {
+    const updatedPayload = chatPayload({ chat: { effective_chat_provider: "claude", chat_effort: "medium" } })
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(jsonResponse(updatedPayload))
+      }
+      return Promise.resolve(jsonResponse(chatPayload({ chat: { effective_chat_provider: "claude" } })))
+    })
+
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Effort" }))
+    fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: "Medium" }))
+
+    await waitFor(() => {
+      const patchCalls = fetchMock.mock.calls.filter((call: unknown[]) =>
+        String(call[0]) === "/api/v1/app/chats/8" && (call[1] as RequestInit)?.method === "PATCH"
+      )
+      expect(patchCalls).toHaveLength(1)
+      expect(JSON.parse((patchCalls[0][1] as RequestInit).body as string)).toMatchObject({ chat: { chat_effort: "medium" } })
+    })
+
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument()
+  })
+
+  it("closes the dropdown on outside click", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { effective_chat_provider: "claude" } }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Effort" }))
+    expect(screen.getByRole("listbox")).toBeInTheDocument()
+
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument()
+  })
+})
+
 describe("renderChatMessages tool_result content key", () => {
   it("renders result_body from the canonical 'content' key, not the legacy 'result' key", () => {
     const messages = [
