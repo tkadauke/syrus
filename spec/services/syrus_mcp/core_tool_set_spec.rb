@@ -16,15 +16,17 @@ RSpec.describe SyrusMcp::CoreToolSet do
   describe ".tool_definitions" do
     subject(:definitions) { described_class.tool_definitions }
 
-    it "returns one definition per built-in MCP tool" do
+    it "returns one definition per tool class in MCP_TOOL_CLASSES" do
       expect(definitions.size).to eq(described_class::MCP_TOOL_CLASSES.size)
     end
 
-    it "includes all five built-in tool names" do
+    it "includes all built-in workflow tool names" do
       names = definitions.map { |d| d[:name] }
       expect(names).to contain_exactly(
-        "read_live_state", "read_memory", "submit_summary",
-        "submit_test_plan", "submit_adversarial_review"
+        "read_live_state",
+        "read_memory", "write_memory", "delete_memory", "search_memories", "list_memories",
+        "get_coverage_report", "report_main_concern",
+        "submit_summary", "submit_test_plan", "submit_adversarial_review"
       )
     end
 

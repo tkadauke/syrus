@@ -6,13 +6,28 @@ module SyrusMcp
   class CoreToolSet
     include Syrus::Plugin::McpToolSet
 
+    # Every tool class the built-in workflow sidecar can offer.
+    # Role-based filtering (e.g. submit_adversarial_review only for grader
+    # steps) is applied by the Sidecar using McpToolPolicy, not here — this
+    # list is the full unfiltered menu.
     MCP_TOOL_CLASSES = [
       ReadLiveStateTool,
-      ReadMemoryTool,
+      ::Mcp::Tools::ReadMemoryTool,
+      ::Mcp::Tools::WriteMemoryTool,
+      ::Mcp::Tools::DeleteMemoryTool,
+      ::Mcp::Tools::SearchMemoriesTool,
+      ::Mcp::Tools::ListMemoriesTool,
+      GetCoverageReportTool,
+      ReportMainConcernTool,
       SubmitSummaryTool,
       SubmitTestPlanTool,
       SubmitAdversarialReviewTool
     ].freeze
+
+    # The set of tool names this class declares; used by the Sidecar to
+    # distinguish built-in policy-managed tools from external plugin tools
+    # that should bypass McpToolPolicy role filtering.
+    POLICY_MANAGED_NAMES = MCP_TOOL_CLASSES.map(&:tool_name).freeze
 
     def self.available_for?(_repository)
       true

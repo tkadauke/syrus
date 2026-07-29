@@ -12,13 +12,18 @@ module SyrusMcp
 
     # Builds the MCP::Server from all registered McpToolSet plugins. Each
     # tool set that is available for this run's repository contributes its
-    # tool definitions; the Sidecar creates MCP::Tool proxy classes that
-    # delegate calls back through the plugin's #handle method.
+    # tool definitions; built-in tools are further filtered by McpToolPolicy
+    # based on the run's role (e.g. submit_adversarial_review is only present
+    # for adversarial-reviewer steps). External plugin tools not declared in
+    # CoreToolSet::POLICY_MANAGED_NAMES bypass role filtering.
     #
     # Exposed as a public method so tests can exercise tool advertisement
     # and dispatch without starting the blocking stdio transport.
     def build_server
-      repository = SyrusMcp.with_database_connection { Run.find(@run_id).job.repository }
+      run = SyrusMcp.with_database_connection {
+        Run.includes(:step, job: :repository).find(@run_id)
+      }
+      context = McpToolContext.from_run(run)
 
       # Server name MUST match the --mcp-config key and the binary
       # basename ("syrus-mcp-sidecar"). claude-code derives MCP tool
@@ -28,7 +33,7 @@ module SyrusMcp
       # Steps::Base#with_mcp_config for the full story.
       MCP::Server.new(
         name: "syrus-mcp-sidecar",
-        tools: plugin_tools(repository),
+        tools: plugin_tools(run.job.repository, context),
         server_context: { run_id: @run_id }
       )
     end
@@ -46,10 +51,19 @@ module SyrusMcp
 
     private
 
-    def plugin_tools(repository)
+    def plugin_tools(repository, context)
+      policy_allowed = McpToolPolicy.for(context).map(&:tool_name).to_set
+      managed_names  = SyrusMcp::CoreToolSet::POLICY_MANAGED_NAMES
+
       Syrus::PluginRegistry.providers_for(:mcp_tool_set)
         .select { |ts| ts.available_for?(repository) }
         .flat_map { |ts| mcp_tools_for(ts) }
+        .select { |tool|
+          name = tool.tool_name
+          # External plugin tools (not declared in CoreToolSet) always pass
+          # through; built-in policy-managed tools are gated by McpToolPolicy.
+          !managed_names.include?(name) || policy_allowed.include?(name)
+        }
     end
 
     def mcp_tools_for(tool_set_class)
