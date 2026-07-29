@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 import { useNavigate } from "react-router-dom"
 import { deleteJobCommand, patchJobCommand, postJobCommand } from "../../api/jobs"
 import { buttonClass, type ButtonTone } from "../../lib/buttonClasses"
+import { useConfirm } from "../../hooks/useConfirm"
 import type { JobDetailQueryKey, JobWorkflowsQueryKey } from "./queryKeys"
 
 // Shared Job-command spine extracted from JobDetail.tsx: the mutation hook that
@@ -19,10 +20,11 @@ export type CommandInput =
 export function useJobCommand(jobId: number, queryKey: JobDetailQueryKey, workflowsQueryKey: JobWorkflowsQueryKey | undefined, onNotice: (message: string | null) => void) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const { confirm, dialog } = useConfirm()
 
-  return useMutation({
-    mutationFn: (input: CommandInput) => {
-      if (input.confirm && !window.confirm(input.confirm)) return Promise.resolve({ message: null })
+  const mutation = useMutation({
+    mutationFn: async (input: CommandInput) => {
+      if (input.confirm && !(await confirm({ message: input.confirm, destructive: true }))) return { message: null }
       if (input.method === "delete") return deleteJobCommand(input.path)
       if (input.method === "patch") return patchJobCommand(input.path, input.body)
       return postJobCommand(input.path, input.body)
@@ -35,6 +37,8 @@ export function useJobCommand(jobId: number, queryKey: JobDetailQueryKey, workfl
       void queryClient.invalidateQueries({ queryKey: ["jobs"], exact: true })
     }
   })
+
+  return { ...mutation, dialog }
 }
 
 export type JobCommand = ReturnType<typeof useJobCommand>

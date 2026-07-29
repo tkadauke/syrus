@@ -31,6 +31,7 @@ import {
   type EpicSearchOption,
   type EpicStateTransition
 } from "../api/epics"
+import { useConfirm } from "../hooks/useConfirm"
 import { Markdown } from "../lib/Markdown"
 import { CopyableSlug } from "../components/CopyableSlug"
 import { SlugHoverCard } from "../components/SlugHoverCard"
@@ -80,6 +81,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
   const queryClient = useQueryClient()
   const queryKey = ["epics", String(payload.epic.id)] as const
   const [notice, setNotice] = useState<string | null>(payload.message || null)
+  const { confirm, dialog } = useConfirm()
   const command = useMutation({
     mutationFn: (action: EpicCommand) => {
       if (action.kind === "start") return startEpicImplementing(payload.paths.app_start_path)
@@ -106,8 +108,8 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
     }
   })
 
-  function runTransition(transition: EpicStateTransition) {
-    if (transition.confirm && !window.confirm(transition.confirm)) return
+  async function runTransition(transition: EpicStateTransition) {
+    if (transition.confirm && !(await confirm({ message: transition.confirm, destructive: true }))) return
     command.mutate({ kind: "state", transition })
   }
 
@@ -198,6 +200,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("command_error"))}</PanelMessage> : null}
+      {dialog}
 
       <div className="grid gap-6 lg:grid-cols-[62%_38%]">
         <div className="space-y-6">

@@ -1,5 +1,5 @@
 import { jsonResponse } from "../testSupport"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
@@ -85,6 +85,68 @@ describe("EpicDetail origin_chat link", () => {
     renderDetail(detailPayload())
 
     expect(screen.queryByRole("link", { name: /view in chat/i })).not.toBeInTheDocument()
+  })
+})
+
+describe("EpicDetail state transition confirm", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  function payloadWithTransition(confirmMessage: string | null) {
+    const payload = detailPayload({ startable: false })
+    payload.state_transitions = [{ label: "Close", target_state: "done", confirm: confirmMessage }]
+    return payload
+  }
+
+  it("shows a ConfirmDialog before firing the state transition when confirm is set", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(detailPayload()))
+    renderDetail(payloadWithTransition("Close this epic?"))
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "Close" }))
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
+    expect(screen.getByText("Close this epic?")).toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it("fires the transition request when the operator confirms", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(detailPayload()))
+    renderDetail(payloadWithTransition("Close this epic?"))
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "Close" }))
+    await waitFor(() => screen.getByRole("button", { name: "Confirm" }))
+    await act(async () => screen.getByRole("button", { name: "Confirm" }).click())
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/epics/3/state",
+      expect.objectContaining({ method: "PATCH" })
+    ))
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+
+  it("does not fire the request when the operator cancels", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(detailPayload()))
+    renderDetail(payloadWithTransition("Close this epic?"))
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "Close" }))
+    await waitFor(() => screen.getByRole("button", { name: "Cancel" }))
+    await act(async () => screen.getByRole("button", { name: "Cancel" }).click())
+
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+
+  it("fires the transition immediately when confirm is null", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(detailPayload()))
+    renderDetail(payloadWithTransition(null))
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }))
+    await act(async () => fireEvent.click(screen.getByRole("menuitem", { name: "Close" })))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled())
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 })
 

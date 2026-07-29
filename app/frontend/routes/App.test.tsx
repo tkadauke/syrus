@@ -9624,7 +9624,6 @@ describe("App", () => {
   })
 
   it("dispatches Job header commands through the app API", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true)
     const commandPaths = new Map([
       ["/api/v1/app/jobs/42/start", "Initial workflow enqueued."],
       ["/api/v1/app/jobs/42/poll_feedback", "Feedback poll enqueued."],
@@ -9724,6 +9723,9 @@ describe("App", () => {
     for (const [label, method, path] of overflowCommands) {
       fireEvent.click(screen.getByRole("button", { name: "⋯" }))
       fireEvent.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: label }))
+      // Some commands guard with a ConfirmDialog; click through it when present
+      const confirmBtn = await screen.findByRole("button", { name: "Confirm" }, { timeout: 200 }).catch(() => null)
+      if (confirmBtn) await act(async () => fireEvent.click(confirmBtn))
       await waitFor(() => {
         expect(fetchSpy).toHaveBeenCalledWith(path, expect.objectContaining({ method }))
       })
@@ -9816,7 +9818,6 @@ describe("App", () => {
   })
 
   it("dispatches Job metadata controls through the app API", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true)
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/jobs/42/tags" && init?.method === "POST") {
@@ -9938,11 +9939,15 @@ describe("App", () => {
     })
 
     fireEvent.click(screen.getByRole("button", { name: "Remove" }))
+    await waitFor(() => screen.getByRole("button", { name: "Confirm" }))
+    await act(async () => screen.getByRole("button", { name: "Confirm" }).click())
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/42/dependencies/9", expect.objectContaining({ method: "DELETE" }))
     })
 
     fireEvent.click(screen.getByRole("button", { name: "Override and force-run" }))
+    await waitFor(() => screen.getByRole("button", { name: "Confirm" }))
+    await act(async () => screen.getByRole("button", { name: "Confirm" }).click())
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/42/dependencies/override", expect.objectContaining({ method: "POST" }))
     })
