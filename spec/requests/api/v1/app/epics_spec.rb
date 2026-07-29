@@ -1236,5 +1236,43 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
         "is_focal" => false
       )
     end
+
+    it "filters graph nodes by smart_folder_id" do
+      epic_a
+      epic_b
+      epic_b.update!(state: "ready")
+      folder = SmartFolder.create!(
+        user: user,
+        subject_type: "epic",
+        name: "Backlog epics",
+        kind: "user_defined",
+        filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "backlog" } ] }
+      )
+
+      get "/api/v1/app/epics/graph", params: { smart_folder_id: folder.id }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      node_ids = body["nodes"].map { |n| n["id"] }
+      expect(node_ids).to contain_exactly("epic_#{epic_a.id}")
+    end
+
+    it "ignores a smart_folder_id belonging to another user" do
+      epic_a
+      other_user = Factories.user
+      folder = SmartFolder.create!(
+        user: other_user,
+        subject_type: "epic",
+        name: "Private folder",
+        kind: "user_defined",
+        filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "ready" } ] }
+      )
+
+      get "/api/v1/app/epics/graph", params: { smart_folder_id: folder.id }
+
+      expect(response).to have_http_status(:ok)
+      node_ids = parse_body["nodes"].map { |n| n["id"] }
+      expect(node_ids).to contain_exactly("epic_#{epic_a.id}")
+    end
   end
 end

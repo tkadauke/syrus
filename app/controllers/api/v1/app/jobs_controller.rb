@@ -19,7 +19,12 @@ module Api
         end
 
         def graph
-          job_attrs = filter_jobs(Current.user.jobs).pluck(:id, :issue_title, :state, :epic_id)
+          scope = filter_jobs(Current.user.jobs)
+          smart_folder = graph_smart_folder("job")
+          if smart_folder&.filter.present?
+            scope = Jobs::Filter.new(smart_folder.filter, user: Current.user).apply(scope)
+          end
+          job_attrs = scope.pluck(:id, :issue_title, :state, :epic_id)
           job_ids = job_attrs.map(&:first)
 
           dependency_rows = JobDependency.resolved
@@ -221,6 +226,15 @@ module Api
             scope = scope.where("LOWER(issue_title) LIKE :pattern OR CAST(jobs.id AS CHAR) LIKE :pattern", pattern: pattern)
           end
           scope
+        end
+
+        def graph_smart_folder(subject_type)
+          id = Integer(params[:smart_folder_id], exception: false)
+          return unless id
+
+          SmartFolder.for_subject(subject_type)
+                     .where("user_id IS NULL OR user_id = ?", Current.user.id)
+                     .find_by(id: id)
         end
 
         def compact_job_json(job)

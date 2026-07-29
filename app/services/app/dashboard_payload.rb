@@ -200,9 +200,9 @@ module App
 
     def folder_pref_view
       slot = active_folder_preference_slot
-      return slot["view"].to_s.presence_in(VIEWS) if slot.key?("view")
+      return slot["view"].to_s.presence_in(available_views) if slot.key?("view")
 
-      folder_preference_default("view").to_s.presence_in(VIEWS)
+      folder_preference_default("view").to_s.presence_in(available_views)
     end
 
     def page

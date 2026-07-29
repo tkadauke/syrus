@@ -16,7 +16,12 @@ module Api
         end
 
         def graph
-          epic_attrs = filter_epics(Epic.accessible_to(Current.user)).pluck(:id, :title, :state, :number)
+          scope = filter_epics(Epic.accessible_to(Current.user))
+          smart_folder = graph_smart_folder("epic")
+          if smart_folder&.filter.present?
+            scope = Epics::Filter.new(smart_folder.filter, user: Current.user).apply(scope)
+          end
+          epic_attrs = scope.pluck(:id, :title, :state, :number)
           epic_ids = epic_attrs.map(&:first)
 
           dependency_rows = EpicDependency
@@ -219,6 +224,15 @@ module Api
             scope = scope.where("LOWER(title) LIKE :pattern OR CAST(epics.id AS CHAR) LIKE :pattern", pattern: pattern)
           end
           scope
+        end
+
+        def graph_smart_folder(subject_type)
+          id = Integer(params[:smart_folder_id], exception: false)
+          return unless id
+
+          SmartFolder.for_subject(subject_type)
+                     .where("user_id IS NULL OR user_id = ?", Current.user.id)
+                     .find_by(id: id)
         end
 
         def compact_epic_json(epic)

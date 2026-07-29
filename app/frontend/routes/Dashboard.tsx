@@ -287,7 +287,8 @@ export function DashboardDependencyView({ payload, graphSearch }: { payload: Das
     queryKey: ["dashboard", "graph", subject, graphSearch],
     queryFn: ({ signal }) =>
       subject === "job" ? fetchJobsGraph(graphSearch, { signal }) : fetchEpicsGraph(graphSearch, { signal }),
-    enabled: subject === "job" || subject === "epic"
+    enabled: subject === "job" || subject === "epic",
+    placeholderData: (previousData) => previousData
   })
 
   if (subject === "workflow") return null

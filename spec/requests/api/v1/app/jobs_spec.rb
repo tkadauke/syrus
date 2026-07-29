@@ -915,5 +915,43 @@ RSpec.describe "App API job detail", type: :request do
         "is_focal" => false
       )
     end
+
+    it "filters graph nodes by smart_folder_id" do
+      job_a
+      job_b
+      folder = SmartFolder.create!(
+        user: user,
+        subject_type: "job",
+        name: "Only implemented jobs",
+        kind: "user_defined",
+        filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "implemented" } ] }
+      )
+
+      get "/api/v1/app/jobs/graph", params: { smart_folder_id: folder.id }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      node_ids = body["nodes"].map { |n| n["id"] }
+      expect(node_ids).to contain_exactly("job_#{job_b.id}")
+    end
+
+    it "ignores a smart_folder_id belonging to another user" do
+      job_a
+      job_b
+      other_user = Factories.user
+      folder = SmartFolder.create!(
+        user: other_user,
+        subject_type: "job",
+        name: "Private folder",
+        kind: "user_defined",
+        filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "open" } ] }
+      )
+
+      get "/api/v1/app/jobs/graph", params: { smart_folder_id: folder.id }
+
+      expect(response).to have_http_status(:ok)
+      node_ids = parse_body["nodes"].map { |n| n["id"] }
+      expect(node_ids).to contain_exactly("job_#{job_a.id}", "job_#{job_b.id}")
+    end
   end
 end
