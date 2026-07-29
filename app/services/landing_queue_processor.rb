@@ -382,8 +382,12 @@ class LandingQueueProcessor
     epic_ids = jobs.map(&:epic_id).compact.uniq
     return [] unless epic_ids.one?
 
-    Job.where(epic_id: epic_ids.first)
+    epic_id = epic_ids.first
+    recon_job_id = Epic.where(id: epic_id).pick(:reconciliation_job_id)
+
+    Job.where(epic_id: epic_id)
        .where.not(id: unit_job_ids.to_a)
+       .where.not(id: [recon_job_id].compact)
        .where.not(state: %w[ approved closed ])
        .order(:id)
        .pluck(:id)
@@ -487,6 +491,13 @@ class LandingQueueProcessor
     return blocked(RebaseAttemptGuard::BLOCK_REASON) if RebaseAttemptGuard.blocking_landing?(job)
     return blocked("waiting for Epic to release") if job.blocked_by_epic_before_execution?
     if job.epic
+      epic = job.epic
+      if epic.reconciliation_job_id.present? &&
+         job.id != epic.reconciliation_job_id &&
+         !epic.reconciliation_job.closed?
+        return blocked("epic reconciliation pending")
+      end
+
       unapproved_siblings = unapproved_epic_siblings(job)
       return blocked("waiting for epic siblings to be approved", waiting_for_jobs: unapproved_siblings) if unapproved_siblings.any?
 
@@ -529,7 +540,7 @@ class LandingQueueProcessor
   end
 
   def unapproved_epic_siblings(job)
-    job.epic.jobs
+    job.epic.work_jobs
        .where.not(id: job.id)
        .where.not(state: %w[ approved closed ])
        .order(:id)
@@ -537,7 +548,7 @@ class LandingQueueProcessor
   end
 
   def ci_failure_workflow_epic_sibling(job)
-    Job.where(epic_id: job.epic_id)
+    job.epic.work_jobs
        .where.not(id: job.id)
        .joins(:workflows)
        .where(workflows: { state: %w[running queued], trigger_kind: "ci_failure" })
@@ -546,7 +557,7 @@ class LandingQueueProcessor
   end
 
   def pr_checks_unclean_epic_sibling(job)
-    base = Job.where(epic_id: job.epic_id).where.not(id: job.id).where.not(state: "closed")
+    base = job.epic.work_jobs.where.not(id: job.id).where.not(state: "closed")
 
     failing = base.where(pr_checks_state: "failing").order(:id).first
     return { sibling: failing, label: "failing" } if failing

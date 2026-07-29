@@ -21,7 +21,9 @@ class SyrusYml
   ConfigError = Class.new(ParseError)
 
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :coverage, :formatters, :generated)
+  RECONCILIATION_VALID_MODES = %w[pr feedback none].freeze
+
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :coverage, :formatters, :generated, :reconciliation_mode)
   GradeConfig = Data.define(:max_iterations, :steps)
   GradeStep = Data.define(:name, :run, :description, :required, :timeout_minutes, :when_files_changed)
   # Deterministic, in-place, semantics-preserving cosmetic passes (safe
@@ -66,13 +68,25 @@ class SyrusYml
       adversarial_review: parse_adversarial_review(raw["adversarial_review"]),
       coverage: parse_coverage(raw["coverage"]),
       formatters: parse_formatters(raw["formatters"]),
-      generated: parse_generated(raw["generated"])
+      generated: parse_generated(raw["generated"]),
+      reconciliation_mode: parse_reconciliation_mode(raw["reconciliation_mode"])
     )
   rescue Psych::SyntaxError => e
     raise ParseError, "YAML parse error: #{e.message}"
   end
 
   private
+
+  def parse_reconciliation_mode(raw)
+    return nil if raw.nil?
+
+    mode = raw.to_s.strip
+    unless RECONCILIATION_VALID_MODES.include?(mode)
+      raise ParseError, "reconciliation_mode: must be one of #{RECONCILIATION_VALID_MODES.join(', ')}"
+    end
+
+    mode
+  end
 
   def parse_formatters(raw)
     return [] if raw.nil?

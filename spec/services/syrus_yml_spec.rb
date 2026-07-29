@@ -607,4 +607,23 @@ RSpec.describe SyrusYml do
       expect(config.generated.first.codegen_ignore).to be(true)
     end
   end
+
+  describe "reconciliation_mode" do
+    it "parses valid modes" do
+      %w[pr feedback none].each do |mode|
+        config = parse("reconciliation_mode: #{mode}\n")
+        expect(config.reconciliation_mode).to eq(mode)
+      end
+    end
+
+    it "returns nil when reconciliation_mode is absent" do
+      config = parse("prepare: []\n")
+      expect(config.reconciliation_mode).to be_nil
+    end
+
+    it "raises ParseError for an invalid reconciliation_mode" do
+      expect { parse("reconciliation_mode: always\n") }
+        .to raise_error(described_class::ParseError, /reconciliation_mode: must be one of/)
+    end
+  end
 end
