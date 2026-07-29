@@ -40,7 +40,7 @@ function detailPayload(overrides: Partial<EpicDetailPayload["epic"]> = {}): Epic
     },
     summary: { done_jobs_count: 0, total_jobs_count: 0, dependency_edge_count: 0, blocked: false, blocked_reason: null },
     state_transitions: [],
-    graph: { empty: true, definition: "", node_count: 0, epic_dependency_count: 0, job_blocker_count: 0, initially_open: false, nodes: [], edges: [] },
+    graph: { empty: true, node_count: 0, epic_dependency_count: 0, job_blocker_count: 0, initially_open: false, nodes: [], edges: [] },
     dependencies: [],
     dependents: [],
     jobs: [],

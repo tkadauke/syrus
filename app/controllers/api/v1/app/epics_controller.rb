@@ -338,7 +338,6 @@ module Api
         def graph_json(graph)
           {
             empty: graph.empty?,
-            definition: graph.definition,
             node_count: graph.node_count,
             epic_dependency_count: graph.epic_dependency_count,
             job_blocker_count: graph.job_blocker_count,

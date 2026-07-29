@@ -25,13 +25,6 @@ const html2canvasMock = vi.hoisted(() => vi.fn(async () => ({
   }
 })))
 
-const mermaidMock = vi.hoisted(() => ({
-  initialize: vi.fn(),
-  render: vi.fn(async (_id: string, definition: string) => ({
-    svg: `<svg role="img" aria-label="Dependency graph"><text>${definition}</text></svg>`
-  }))
-}))
-
 vi.mock("@rails/actioncable", () => ({
   createConsumer: () => ({
     subscriptions: {
@@ -78,10 +71,6 @@ vi.mock("html2canvas-pro", () => ({
   default: html2canvasMock
 }))
 
-vi.mock("mermaid", () => ({
-  default: mermaidMock
-}))
-
 let restoreClipboardMock: (() => void) | null = null
 
 describe("App", () => {
@@ -95,8 +84,6 @@ describe("App", () => {
     excalidrawMock.lastInitialData = null
     excalidrawMock.updateScene.mockClear()
     html2canvasMock.mockClear()
-    mermaidMock.initialize.mockClear()
-    mermaidMock.render.mockClear()
     actionCable.createSubscription.mockClear()
     document.documentElement.classList.remove("dark")
   })
@@ -8833,8 +8820,8 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("main", { name: "Epic" })).toBeInTheDocument()
-    expect(await screen.findByText("EPIC-7")).toBeInTheDocument()
-    expect(screen.getByText("Raise the forum")).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: /EPIC-7/ })).toBeInTheDocument()
+    expect(screen.getByText("Raise the forum", { selector: "h1,h2,h3" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: /EPIC-7/ })).toHaveClass("dark:text-gray-100")
     expect(screen.queryByRole("link", { name: "Back to Epics" })).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Edit" })).toHaveAttribute("href", "/app-shell/epics/7/edit")
@@ -8844,9 +8831,7 @@ describe("App", () => {
     expect(screen.getByRole("menuitem", { name: "Move to backlog" })).toBeInTheDocument()
     expect(screen.getByText("columns")).toBeInTheDocument()
     expect(screen.getByText("(1 epic dep, 0 job blockers)")).toBeInTheDocument()
-    expect(await screen.findByRole("img", { name: "Dependency graph" })).toBeInTheDocument()
     expect(screen.getByText("Dependency graph").closest("details")).toHaveClass("dark:bg-gray-900", "dark:border-gray-700")
-    expect(document.querySelector("[data-controller='mermaid-graph']")).toBeNull()
     expect(screen.getByText("Survey forum")).toBeInTheDocument()
     expect(screen.getByRole("progressbar")).toBeInTheDocument()
     expect(screen.getByText("1 Closed")).toBeInTheDocument()
@@ -8981,24 +8966,6 @@ describe("App", () => {
     expect(await screen.findByText("Dependency added.")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Index chat transcripts" })).toHaveAttribute("href", "/app-shell/epics/9")
     expect(screen.getByLabelText("Add dependency")).toHaveDisplayValue("")
-  })
-
-  it("initializes the Epic dependency graph with Mermaid dark theme when dark mode is active", async () => {
-    document.documentElement.classList.add("dark")
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify(epicDetailPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
-    )
-
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={["/app-shell/epics/7"]}>
-          <App />
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
-
-    expect(await screen.findByRole("img", { name: "Dependency graph" })).toBeInTheDocument()
-    expect(mermaidMock.initialize).toHaveBeenLastCalledWith(expect.objectContaining({ theme: "dark" }))
   })
 
   it("claims and unclaims an Epic from the detail controls", async () => {
@@ -15401,11 +15368,17 @@ function epicDetailPayload(overrides: {
     ],
     graph: {
       empty: false,
-      definition: "flowchart LR\n  epic_7[\"EPIC-7 Raise the forum\"]\n  epic_6[\"EPIC-6 Deliver marble\"]\n  epic_7 --> epic_6",
       node_count: 2,
       epic_dependency_count: 1,
       job_blocker_count: 0,
-      initially_open: true
+      initially_open: true,
+      nodes: [
+        { id: "epic_7", kind: "epic", label: "EPIC-7 Raise the forum", state: "ready", epic_id: 7, url: "/epics/EPIC-7", is_focal: true },
+        { id: "epic_6", kind: "epic", label: "EPIC-6 Deliver marble", state: "done", epic_id: 6, url: "/epics/EPIC-6", is_focal: false }
+      ],
+      edges: [
+        { from_id: "epic_7", to_id: "epic_6" }
+      ]
     },
     dependencies: overrides.dependencies || [
       { epic_id: 6, title: "Deliver marble", state: "done", url: "/epics/6" }

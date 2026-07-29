@@ -35,10 +35,7 @@ import { Markdown } from "../lib/Markdown"
 import { CopyableSlug } from "../components/CopyableSlug"
 import { errorMessage } from "../lib/errorMessage"
 import { ChatBubbleIcon } from "./jobDetail/JobHeader"
-
-let mermaidInitialized = false
-let mermaidInitializedTheme: "base" | "dark" | null = null
-let mermaidRenderSequence = 0
+import { TopoDepGraph } from "../components/TopoDepGraph"
 
 type EpicCommand =
   | { kind: "state"; transition: EpicStateTransition }
@@ -417,52 +414,9 @@ function DependencyGraph({ graph }: { graph: EpicGraph }) {
         </span>
       </summary>
       <div className="border-t border-gray-100 p-3 dark:border-gray-800">
-        <MermaidGraph definition={graph.definition} />
+        <TopoDepGraph nodes={graph.nodes} edges={graph.edges} />
       </div>
     </details>
-  )
-}
-
-function MermaidGraph({ definition }: { definition: string }) {
-  const { t } = useT("epics")
-  const [svg, setSvg] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    setSvg(null)
-    setError(null)
-
-    void import("mermaid")
-      .then(async (module) => {
-        const mermaid = module.default
-        const theme = document.documentElement.classList.contains("dark") ? "dark" : "base"
-        if (!mermaidInitialized || mermaidInitializedTheme !== theme) {
-          mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme })
-          mermaidInitialized = true
-          mermaidInitializedTheme = theme
-        }
-
-        return mermaid.render(`epic-dependency-graph-${++mermaidRenderSequence}`, definition)
-      })
-      .then(({ svg: renderedSvg }) => {
-        if (!cancelled) setSvg(renderedSvg)
-      })
-      .catch((caught: unknown) => {
-        if (!cancelled) setError(t("graph_render_error", { message: caught instanceof Error ? caught.message : String(caught) }))
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [definition])
-
-  return (
-    <div className="overflow-x-auto rounded bg-gray-50 p-3 dark:bg-gray-950">
-      {error ? <p className="text-sm text-red-700 dark:text-red-300">{error}</p> : null}
-      {!error && !svg ? <p className="text-sm text-gray-500 dark:text-gray-400">{t("rendering_graph")}</p> : null}
-      {svg ? <div className="min-w-[28rem] text-center text-gray-700 dark:text-gray-200" dangerouslySetInnerHTML={{ __html: svg }} /> : null}
-    </div>
   )
 }
 

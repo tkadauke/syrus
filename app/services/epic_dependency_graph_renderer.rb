@@ -1,6 +1,5 @@
 class EpicDependencyGraphRenderer
   Result = Struct.new(
-    :definition,
     :node_count,
     :epic_dependency_count,
     :job_blocker_count,
@@ -23,28 +22,11 @@ class EpicDependencyGraphRenderer
     @epic = epic
   end
 
-  def self.render(epic)
-    new(epic).render.definition
-  end
-
   def render
     nodes = graph_nodes
     edges = graph_edges
 
-    lines = [ "flowchart LR" ]
-    nodes.each_value do |node|
-      lines << "  #{node[:id]}[\"#{escape_label(node[:label])}\"]"
-    end
-    nodes.each_value do |node|
-      lines << "  class #{node[:id]} #{node[:class_name]}"
-    end
-    lines.concat(class_definitions)
-    edges.each do |edge|
-      lines << "  #{edge.from} --> #{edge.to}"
-    end
-
     Result.new(
-      definition: lines.join("\n"),
       node_count: nodes.size,
       epic_dependency_count: epic_dependencies.size,
       job_blocker_count: external_blocker_jobs.size,
@@ -59,18 +41,14 @@ class EpicDependencyGraphRenderer
 
   def graph_nodes
     nodes = {}
-    add_epic_node(nodes, epic, class_name: "currentEpic")
+    add_epic_node(nodes, epic)
 
     related_epics.each do |epic_record|
-      add_epic_node(nodes, epic_record, class_name: "otherEpic")
+      add_epic_node(nodes, epic_record)
     end
 
     external_blocker_jobs.each do |job|
-      add_job_node(
-        nodes,
-        job,
-        class_name: job.epic_id.present? ? "epicJobBlocker" : "epiclessJobBlocker"
-      )
+      add_job_node(nodes, job)
     end
 
     nodes
@@ -157,11 +135,10 @@ class EpicDependencyGraphRenderer
     @current_job_ids ||= epic.jobs.order(:id).pluck(:id)
   end
 
-  def add_epic_node(nodes, epic_record, class_name:)
+  def add_epic_node(nodes, epic_record)
     nodes[epic_node_id(epic_record)] = {
       id: epic_node_id(epic_record),
       label: "#{epic_record.slug} #{epic_record.title}",
-      class_name: class_name,
       kind: "epic",
       state: epic_record.state,
       epic_id: epic_record.id,
@@ -170,11 +147,10 @@ class EpicDependencyGraphRenderer
     }
   end
 
-  def add_job_node(nodes, job, class_name:)
+  def add_job_node(nodes, job)
     nodes[job_node_id(job)] = {
       id: job_node_id(job),
       label: job_label(job),
-      class_name: class_name,
       kind: "job",
       state: job.state,
       epic_id: job.epic_id,
@@ -191,15 +167,6 @@ class EpicDependencyGraphRenderer
     "#{job.epic&.slug || 'No Epic'} / #{base}"
   end
 
-  def class_definitions
-    [
-      "  classDef currentEpic fill:#111827,color:#ffffff,stroke:#111827,stroke-width:3px",
-      "  classDef otherEpic fill:#eef2ff,color:#111827,stroke:#4f46e5,stroke-width:2px",
-      "  classDef epicJobBlocker fill:#ffffff,color:#111827,stroke:#374151,stroke-width:2px",
-      "  classDef epiclessJobBlocker fill:#ffffff,color:#111827,stroke:#374151,stroke-width:2px,stroke-dasharray:5 4"
-    ]
-  end
-
   def job_node_id(job)
     "job_#{job.id}"
   end
@@ -208,7 +175,4 @@ class EpicDependencyGraphRenderer
     "epic_#{epic_record.id}"
   end
 
-  def escape_label(label)
-    label.to_s.gsub("\\", "\\\\\\").gsub('"', '\"').gsub(/\s+/, " ").strip
-  end
 end

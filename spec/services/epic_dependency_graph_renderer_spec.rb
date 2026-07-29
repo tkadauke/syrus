@@ -25,7 +25,6 @@ RSpec.describe EpicDependencyGraphRenderer do
     expect(result.node_count).to eq(1)
     expect(result.epic_dependency_count).to eq(0)
     expect(result.job_blocker_count).to eq(0)
-    expect(result.definition).to include("epic_#{epic.id}[\"#{epic.slug} Forum restoration\"]")
     expect(result.nodes).to contain_exactly(
       hash_including(id: "epic_#{epic.id}", kind: "epic", label: "#{epic.slug} Forum restoration",
                      state: epic.state, epic_id: epic.id, url: "/epics/#{epic.slug}", is_focal: true)
@@ -43,9 +42,6 @@ RSpec.describe EpicDependencyGraphRenderer do
     expect(result.node_count).to eq(2)
     expect(result.epic_dependency_count).to eq(1)
     expect(result.job_blocker_count).to eq(0)
-    expect(result.definition).to include("epic_#{epic.id} --> epic_#{blocker.id}")
-    expect(result.definition).to include("class epic_#{epic.id} currentEpic")
-    expect(result.definition).to include("class epic_#{blocker.id} otherEpic")
     expect(result.nodes).to include(
       hash_including(id: "epic_#{epic.id}", kind: "epic", is_focal: true, epic_id: epic.id),
       hash_including(id: "epic_#{blocker.id}", kind: "epic", is_focal: false, epic_id: blocker.id)
@@ -68,9 +64,6 @@ RSpec.describe EpicDependencyGraphRenderer do
     expect(result.node_count).to eq(2)
     expect(result.epic_dependency_count).to eq(0)
     expect(result.job_blocker_count).to eq(1)
-    expect(result.definition).to include("epic_#{epic.id} --> job_#{blocker.id}")
-    expect(result.definition).to include("job_#{blocker.id}[\"#{other_epic.slug} / #3 Deliver marble\"]")
-    expect(result.definition).to include("class job_#{blocker.id} epicJobBlocker")
     expect(result.nodes).to include(
       hash_including(id: "job_#{blocker.id}", kind: "job", label: "#{other_epic.slug} / #3 Deliver marble",
                      state: blocker.state, epic_id: other_epic.id, url: "/jobs/#{blocker.slug}", is_focal: false)
@@ -97,10 +90,6 @@ RSpec.describe EpicDependencyGraphRenderer do
     expect(result.node_count).to eq(2)
     expect(result.epic_dependency_count).to eq(0)
     expect(result.job_blocker_count).to eq(1)
-    expect(result.definition).to include("job_#{blocker.id}[\"No Epic / #5 Find spare stones\"]")
-    expect(result.definition).to include("class job_#{blocker.id} epiclessJobBlocker")
-    expect(result.definition).to include("classDef epiclessJobBlocker")
-    expect(result.definition).to include("stroke-dasharray:5 4")
     expect(result.nodes).to include(
       hash_including(id: "job_#{blocker.id}", kind: "job", epic_id: nil, is_focal: false)
     )
@@ -134,11 +123,6 @@ RSpec.describe EpicDependencyGraphRenderer do
     expect(result.node_count).to eq(5)
     expect(result.epic_dependency_count).to eq(2)
     expect(result.job_blocker_count).to eq(2)
-    expect(result.definition.scan("job_#{blocker.id}[")).to contain_exactly("job_#{blocker.id}[")
-    expect(result.definition.scan("epic_#{epic.id} --> job_#{blocker.id}")).to contain_exactly("epic_#{epic.id} --> job_#{blocker.id}")
-    expect(result.definition).to include("epic_#{epic.id} --> epic_#{other_epic.id}")
-    expect(result.definition).to include("epic_#{dependent_epic.id} --> epic_#{epic.id}")
-    expect(result.definition).to include("epic_#{epic.id} --> job_#{epicless.id}")
     expect(result.nodes.size).to eq(5)
     expect(result.nodes.map { |n| n[:id] }).to contain_exactly(
       "epic_#{epic.id}", "epic_#{other_epic.id}", "epic_#{dependent_epic.id}",
@@ -163,9 +147,7 @@ RSpec.describe EpicDependencyGraphRenderer do
     result = described_class.new(epic).render
 
     expect(result).to be_empty
-    expect(result.definition).not_to include("job_#{first.id}")
-    expect(result.definition).not_to include("job_#{second.id}")
-    expect(result.definition).not_to include("#10 Survey ruins")
-    expect(result.definition).not_to include("#11 Rebuild columns")
+    expect(result.nodes.map { |n| n[:id] }).not_to include("job_#{first.id}", "job_#{second.id}")
+    expect(result.nodes.map { |n| n[:label] }).not_to include(/#10 Survey ruins/, /#11 Rebuild columns/)
   end
 end

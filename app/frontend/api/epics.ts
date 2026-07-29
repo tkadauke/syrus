@@ -113,7 +113,6 @@ export type EpicGraphEdge = {
 
 export type EpicGraph = {
   empty: boolean
-  definition: string
   node_count: number
   epic_dependency_count: number
   job_blocker_count: number

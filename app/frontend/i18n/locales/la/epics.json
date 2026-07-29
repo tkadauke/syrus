@@ -34,8 +34,6 @@
 
   "no_external_dependencies": "Nulli nexus externi",
   "dependency_graph": "Nexuum schema",
-  "rendering_graph": "Nexuum schema pingitur...",
-  "graph_render_error": "Nexuum schema pingi non potuit: {{message}}",
   "epic_dep_one": "{{count}} nexus epicae",
   "epic_dep_other": "{{count}} nexus epicarum",
   "job_blocker_one": "{{count}} impedimentum",

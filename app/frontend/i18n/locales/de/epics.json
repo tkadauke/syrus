@@ -29,8 +29,6 @@
   "none": "Keine",
   "no_external_dependencies": "Keine externen Abhängigkeiten",
   "dependency_graph": "Abhängigkeitsgraph",
-  "rendering_graph": "Abhängigkeitsgraph wird gerendert...",
-  "graph_render_error": "Abhängigkeitsgraph konnte nicht gerendert werden: {{message}}",
   "epic_dep_one": "{{count}} Epic-Abhängigkeit",
   "epic_dep_other": "{{count}} Epic-Abhängigkeiten",
   "job_blocker_one": "{{count}} Aufgaben-Blocker",
