@@ -397,6 +397,36 @@ describe("JobDetailView", () => {
     expect(document.querySelector("strong")).toHaveTextContent("all the bugs")
   })
 
+  it("renders run agent_summary as markdown in the run row", () => {
+    renderJobDetail(jobPayload({
+      workflows: [
+        workflow({
+          id: 7,
+          steps: [
+            step({ id: 12, kind: "implement", display_name: "Implement", runs: [
+              run({ id: 32, agent_summary: "## Result\n\nFixed **the bug**." })
+            ] })
+          ]
+        })
+      ],
+      workflows_pagination: workflowPagination(1)
+    }), { activeTab: "workflows" })
+
+    fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
+
+    expect(screen.getByRole("heading", { name: "Result" })).toBeInTheDocument()
+    expect(document.querySelector("strong")).toHaveTextContent("the bug")
+  })
+
+  it("renders agent summary as markdown in the Summary tab", () => {
+    renderJobDetail(jobPayload({
+      summary: { run_id: 1, text: "## Summary\n\nFixed **the bug**.", finished_at: null }
+    }))
+
+    expect(screen.getByRole("heading", { name: "Summary" })).toBeInTheDocument()
+    expect(document.querySelector("strong")).toHaveTextContent("the bug")
+  })
+
   it("shows a Test Plan button in the run row for test_plan steps", () => {
     renderJobDetail(jobPayload({
       workflows: [
