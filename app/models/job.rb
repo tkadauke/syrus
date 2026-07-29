@@ -380,6 +380,7 @@ class Job < ApplicationRecord
     event :close do
       transitions from: [ :needs_triage, :triaging, :blocked_by_epic, :queued, :running, :implemented, :failed, :no_change_needed, :approved, :landing, :coding ], to: :closed, after: -> {
         self.finished_at = Time.current
+        self.commits_behind_base = nil
         record_outcome_to_scheduled_task! if cron?
         notify_pr_merged
         refresh_epic_auto_state

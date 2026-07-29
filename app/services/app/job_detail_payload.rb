@@ -108,6 +108,7 @@ module App
         external_pr_url: pr_url(@job.external_pr_number),
         pr_mergeable: @job.pr_mergeable,
         pr_mergeable_checked_at: iso8601(@job.pr_mergeable_checked_at),
+        commits_behind_base: @job.commits_behind_base,
         last_seen_comment_at: iso8601(@job.last_seen_comment_at),
         last_feedback_addressed_at: iso8601(@job.last_feedback_addressed_at),
         last_ci_handled_sha: @job.last_ci_handled_sha,

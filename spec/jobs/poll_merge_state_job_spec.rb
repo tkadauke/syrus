@@ -372,4 +372,48 @@ RSpec.describe PollMergeStateJob do
       expect(preempted.reload.closure_reason).to eq("preempted")
     end
   end
+
+  describe "commits_behind_base computation" do
+    let(:fake_clone) { instance_double(RepositoryBareClone) }
+
+    before do
+      allow(RepositoryBareClone).to receive(:new).and_return(fake_clone)
+      allow(fake_clone).to receive(:sync!)
+      allow(fake_clone).to receive(:commits_behind).and_return(5)
+    end
+
+    it "stores the computed distance on the job" do
+      described_class.perform_now(job.id)
+
+      expect(job.reload.commits_behind_base).to eq(5)
+    end
+
+    it "passes head_sha and base_sha from the PR to the bare clone" do
+      expect(fake_clone).to receive(:commits_behind).with(head_sha: "abc", base_sha: "base")
+
+      described_class.perform_now(job.id)
+    end
+
+    it "leaves commits_behind_base nil when the bare clone raises" do
+      allow(fake_clone).to receive(:sync!).and_raise(GitRunner::GitError.new(["fetch"], 1, "error"))
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload.commits_behind_base).to be_nil
+    end
+
+    it "leaves commits_behind_base nil when commits_behind returns nil" do
+      allow(fake_clone).to receive(:commits_behind).and_return(nil)
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload.commits_behind_base).to be_nil
+    end
+
+    it "syncs the effective_pr_repository bare clone" do
+      expect(RepositoryBareClone).to receive(:new).with(repository).and_return(fake_clone)
+
+      described_class.perform_now(job.id)
+    end
+  end
 end

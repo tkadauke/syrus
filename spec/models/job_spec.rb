@@ -391,6 +391,13 @@ RSpec.describe Job do
       end
     end
 
+    it "resets commits_behind_base to nil on close" do
+      job = Factories.job
+      job.update_columns(commits_behind_base: 7)
+      job.close!
+      expect(job.reload.commits_behind_base).to be_nil
+    end
+
     it "stores closure_reason via close_with_reason!" do
       job = Factories.job
       job.close_with_reason!("manual")

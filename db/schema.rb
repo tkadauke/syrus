@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_29_000719) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_29_144229) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -700,6 +700,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_29_000719) do
     t.datetime "claimed_at"
     t.integer "claimed_by_user_id"
     t.string "closure_reason"
+    t.integer "commits_behind_base"
     t.datetime "created_at", null: false
     t.string "credential_mode", default: "pat", null: false
     t.datetime "dependencies_overridden_at"
