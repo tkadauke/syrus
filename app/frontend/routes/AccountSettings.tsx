@@ -165,7 +165,7 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
   const [values, setValues] = useState<CredentialsInput>(inputFromPayload(payload))
 
   const resetTours = useMutation({
-    mutationFn: () => deleteJson("/api/v1/app/tours"),
+    mutationFn: () => deleteJson("/api/v1/app/tours/reset"),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
       onNotice(t('account_settings.reset_tours_notice'))

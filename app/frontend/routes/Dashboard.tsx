@@ -288,7 +288,7 @@ function MobileDashboardControls({ payload, pathname, prefix, search }: { payloa
           <span className="hidden text-gray-400 group-open:inline dark:text-gray-500">{t("hide")}</span>
         </summary>
         <div className="space-y-4 border-t border-gray-200 p-4 dark:border-gray-700">
-          <DashboardFilterBar pathname={pathname} search={search} payload={payload} />
+          <div data-tour="dashboard-filter-bar"><DashboardFilterBar pathname={pathname} search={search} payload={payload} /></div>
           <DashboardSmartFolderNav payload={payload} prefix={prefix} search={search} />
         </div>
       </details>

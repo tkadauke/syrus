@@ -8,8 +8,8 @@ type SyrusTourProps = {
   onEvent?: (data: EventData, controls: Controls) => void
 }
 
-// green-600 (#16a34a) matches the "New Job" button used across the app
-const PRIMARY_COLOR = "#16a34a"
+// terracotta-600 is the brand primary accent per tailwind.config.js
+const PRIMARY_COLOR = "#b6492e"
 
 export function SyrusTour({ steps, run, onEvent }: SyrusTourProps) {
   const { t } = useT("tours")
