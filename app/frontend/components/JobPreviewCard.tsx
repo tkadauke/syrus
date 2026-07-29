@@ -1,3 +1,4 @@
+import { forwardRef } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
 import { fetchJobDetail } from "../api/jobs"
@@ -47,6 +48,46 @@ export function JobPreviewCard({ id }: { id: number }) {
     </div>
   )
 }
+
+// Compact variant for use in graph/dependency views. Fixed width, 1-line
+// title and state badge only — no data fetching required.
+// Job labels from the backend follow "EPIC-N / source title" format;
+// this variant extracts the source identifier (e.g. "#123" or "JOB-42")
+// and the title from that structure.
+// Epicless jobs (epicId === null) get a gray left accent.
+export const JobCompactCard = forwardRef<
+  HTMLButtonElement,
+  { label: string; state: string; epicId?: number | null; isFocal?: boolean; onClick?: () => void }
+>(({ label, state, epicId = null, isFocal = false, onClick }, ref) => {
+  const slashIdx = label.indexOf(" / ")
+  const jobPart = slashIdx === -1 ? label : label.slice(slashIdx + 3)
+  const spaceInJob = jobPart.indexOf(" ")
+  const slug = spaceInJob === -1 ? jobPart : jobPart.slice(0, spaceInJob)
+  const title = spaceInJob === -1 ? "" : jobPart.slice(spaceInJob + 1)
+
+  return (
+    <button
+      className={[
+        "w-48 rounded-lg border bg-white p-3 text-left shadow-sm transition-shadow hover:shadow-md dark:bg-gray-900",
+        isFocal
+          ? "border-gray-900 ring-2 ring-gray-900 dark:border-gray-100 dark:ring-gray-100"
+          : "border-gray-200 dark:border-gray-700",
+        epicId === null ? "border-l-4 border-l-gray-400 dark:border-l-gray-600" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      onClick={onClick}
+      ref={ref}
+    >
+      <div className="mb-1 flex items-center gap-1.5 overflow-hidden">
+        <span className="shrink-0 font-mono text-xs text-gray-500 dark:text-gray-400">{slug}</span>
+        <StatusPill state={state} />
+      </div>
+      {title && <p className="truncate text-xs text-gray-700 dark:text-gray-300">{title}</p>}
+    </button>
+  )
+})
+JobCompactCard.displayName = "JobCompactCard"
 
 export function JobPreviewSkeleton() {
   return (

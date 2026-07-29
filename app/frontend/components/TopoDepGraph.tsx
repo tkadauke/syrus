@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { StatusPill } from "./StatusPill"
+import { EpicCompactCard } from "./EpicPreviewCard"
+import { JobCompactCard } from "./JobPreviewCard"
 
 export type GraphNode = {
   id: string
@@ -115,42 +116,34 @@ export function TopoDepGraph({
       <div className="flex items-start gap-16">
         {columns.map((colNodes, colIdx) => (
           <div className="flex flex-col gap-3" key={colIdx}>
-            {colNodes.map((node) => {
-              const isEpiclessJob = node.kind === "job" && node.epic_id === null
-              const spaceIdx = node.label.indexOf(" ")
-              const slug = spaceIdx === -1 ? node.label : node.label.slice(0, spaceIdx)
-              const title = spaceIdx === -1 ? "" : node.label.slice(spaceIdx + 1)
-
-              return (
-                <button
-                  className={[
-                    "w-48 rounded-lg border bg-white p-3 text-left shadow-sm transition-shadow hover:shadow-md dark:bg-gray-900",
-                    node.is_focal
-                      ? "border-gray-900 ring-2 ring-gray-900 dark:border-gray-100 dark:ring-gray-100"
-                      : "border-gray-200 dark:border-gray-700",
-                    isEpiclessJob ? "border-l-4 border-l-gray-400 dark:border-l-gray-600" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
+            {colNodes.map((node) =>
+              node.kind === "epic" ? (
+                <EpicCompactCard
+                  isFocal={node.is_focal}
                   key={node.id}
+                  label={node.label}
                   onClick={() => navigate(node.url)}
                   ref={(el) => {
                     if (el) nodeRefs.current.set(node.id, el)
                     else nodeRefs.current.delete(node.id)
                   }}
-                >
-                  <div className="mb-1 flex items-center gap-1.5 overflow-hidden">
-                    <span className="shrink-0 font-mono text-xs text-gray-500 dark:text-gray-400">
-                      {slug}
-                    </span>
-                    <StatusPill state={node.state} />
-                  </div>
-                  {title && (
-                    <p className="truncate text-xs text-gray-700 dark:text-gray-300">{title}</p>
-                  )}
-                </button>
+                  state={node.state}
+                />
+              ) : (
+                <JobCompactCard
+                  epicId={node.epic_id}
+                  isFocal={node.is_focal}
+                  key={node.id}
+                  label={node.label}
+                  onClick={() => navigate(node.url)}
+                  ref={(el) => {
+                    if (el) nodeRefs.current.set(node.id, el)
+                    else nodeRefs.current.delete(node.id)
+                  }}
+                  state={node.state}
+                />
               )
-            })}
+            )}
           </div>
         ))}
       </div>

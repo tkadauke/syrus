@@ -1,9 +1,9 @@
 import { jsonResponse } from "../testSupport"
-import { render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { JobPreviewCard, JobPreviewSkeleton } from "./JobPreviewCard"
+import { JobCompactCard, JobPreviewCard, JobPreviewSkeleton } from "./JobPreviewCard"
 
 function client() {
   return new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -116,5 +116,64 @@ describe("JobPreviewSkeleton", () => {
   it("renders a pulsing placeholder", () => {
     render(<JobPreviewSkeleton />)
     expect(document.querySelector(".animate-pulse")).toBeInTheDocument()
+  })
+})
+
+describe("JobCompactCard", () => {
+  it("extracts the job identifier and title from the backend label format", () => {
+    // Backend emits "EPIC-N / source title"
+    render(<JobCompactCard label="EPIC-2 / #123 Fix login bug" state="open" />)
+    expect(screen.getByText("#123")).toBeInTheDocument()
+    expect(screen.getByText("Fix login bug")).toBeInTheDocument()
+  })
+
+  it("handles epicless job labels with No Epic prefix", () => {
+    render(<JobCompactCard epicId={null} label="No Epic / JOB-42 Dark mode" state="open" />)
+    expect(screen.getByText("JOB-42")).toBeInTheDocument()
+    expect(screen.getByText("Dark mode")).toBeInTheDocument()
+  })
+
+  it("handles labels with no slash separator", () => {
+    render(<JobCompactCard label="JOB-42 Some title" state="open" />)
+    expect(screen.getByText("JOB-42")).toBeInTheDocument()
+    expect(screen.getByText("Some title")).toBeInTheDocument()
+  })
+
+  it("renders the state pill", () => {
+    render(<JobCompactCard label="EPIC-1 / #1 T" state="merged" />)
+    expect(screen.getByText("merged")).toBeInTheDocument()
+  })
+
+  it("applies focal ring styling when isFocal is true", () => {
+    render(<JobCompactCard isFocal label="EPIC-1 / #1 T" state="open" />)
+    expect(screen.getByRole("button").className).toContain("ring-2")
+  })
+
+  it("does not apply ring styling when isFocal is false", () => {
+    render(<JobCompactCard label="EPIC-1 / #1 T" state="open" />)
+    expect(screen.getByRole("button").className).not.toContain("ring-2")
+  })
+
+  it("applies gray left accent when epicId is null", () => {
+    render(<JobCompactCard epicId={null} label="No Epic / JOB-1 T" state="open" />)
+    expect(screen.getByRole("button").className).toContain("border-l-4")
+  })
+
+  it("does not apply left accent when epicId is set", () => {
+    render(<JobCompactCard epicId={7} label="EPIC-7 / #1 T" state="open" />)
+    expect(screen.getByRole("button").className).not.toContain("border-l-4")
+  })
+
+  it("calls onClick when the button is clicked", () => {
+    const onClick = vi.fn()
+    render(<JobCompactCard label="EPIC-1 / #1 T" onClick={onClick} state="open" />)
+    fireEvent.click(screen.getByRole("button"))
+    expect(onClick).toHaveBeenCalledOnce()
+  })
+
+  it("omits title paragraph when the job source has no following text", () => {
+    render(<JobCompactCard label="No Epic / JOB-99" state="open" />)
+    expect(screen.getByText("JOB-99")).toBeInTheDocument()
+    expect(screen.queryByRole("paragraph")).not.toBeInTheDocument()
   })
 })

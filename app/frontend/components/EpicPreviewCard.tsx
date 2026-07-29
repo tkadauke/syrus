@@ -1,3 +1,4 @@
+import { forwardRef } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
 import type { EpicDetailJob } from "../api/epics"
@@ -102,6 +103,37 @@ export function EpicPreviewCard({ id }: { id: number }) {
     </div>
   )
 }
+
+// Compact variant for use in graph/dependency views. Fixed width, 1-line
+// title and state badge only — no data fetching required.
+export const EpicCompactCard = forwardRef<
+  HTMLButtonElement,
+  { label: string; state: string; isFocal?: boolean; onClick?: () => void }
+>(({ label, state, isFocal = false, onClick }, ref) => {
+  const spaceIdx = label.indexOf(" ")
+  const slug = spaceIdx === -1 ? label : label.slice(0, spaceIdx)
+  const title = spaceIdx === -1 ? "" : label.slice(spaceIdx + 1)
+
+  return (
+    <button
+      className={[
+        "w-48 rounded-lg border bg-white p-3 text-left shadow-sm transition-shadow hover:shadow-md dark:bg-gray-900",
+        isFocal
+          ? "border-gray-900 ring-2 ring-gray-900 dark:border-gray-100 dark:ring-gray-100"
+          : "border-gray-200 dark:border-gray-700",
+      ].join(" ")}
+      onClick={onClick}
+      ref={ref}
+    >
+      <div className="mb-1 flex items-center gap-1.5 overflow-hidden">
+        <span className="shrink-0 font-mono text-xs text-gray-500 dark:text-gray-400">{slug}</span>
+        <StatusPill state={state} />
+      </div>
+      {title && <p className="truncate text-xs text-gray-700 dark:text-gray-300">{title}</p>}
+    </button>
+  )
+})
+EpicCompactCard.displayName = "EpicCompactCard"
 
 export function EpicPreviewSkeleton() {
   return (
