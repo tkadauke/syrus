@@ -843,10 +843,10 @@ export function ChatTour() {
       placement: "top",
     },
     {
-      target: '[data-tour="chat-message-list"]',
+      target: '[data-tour="chat-message-list-top"]',
       title: t("chat.step_messages_title"),
       content: t("chat.step_messages_content"),
-      placement: "top",
+      placement: "bottom",
     },
     {
       target: '[data-tour="chat-compose"]',
@@ -878,6 +878,7 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
         <LocalDaemonBanner payload={payload} />
       ) : null}
       <div className={`relative min-h-0 overflow-hidden rounded border border-gray-200 bg-white transition-all duration-500 ease-out dark:border-gray-700 dark:bg-gray-950 ${landing ? "h-0 w-full max-w-2xl opacity-0" : "flex-1 opacity-100"}`} data-tour="chat-message-list">
+        <div data-tour="chat-message-list-top" className="absolute inset-x-0 top-0 h-0" />
         <MessageStream bookmarkTarget={bookmarkTarget} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
         <UsageOverlay payload={payload} />
       </div>
