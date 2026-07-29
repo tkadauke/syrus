@@ -483,7 +483,19 @@
     "repo_err_no_token": "Nullum signum GitHub configuratum. Nomen repositorii manu inscribe.",
     "repo_err_not_found": "Dominus repositorii non inventus aut inaccessibilis.",
     "repo_err_generic": "Repositoria onerari non possunt. Nomen manu inscribe.",
-    "repo_branch_not_found": "Repositorium non inventum aut inaccessibile."
+    "repo_branch_not_found": "Repositorium non inventum aut inaccessibile.",
+    "insight_scheduling_section": "Ordinatio Perspicientiae",
+    "insight_scheduling_description": "Analysin perspicientiae automatice initiare ex activitate officiorum codicis potius quam ex horario calendarii fixo.",
+    "insight_scheduling_enable": "Perspicientiam automaticam activare",
+    "insight_scheduling_min_jobs": "Officia minima",
+    "insight_scheduling_max_jobs": "Officia maxima",
+    "insight_scheduling_thresholds_hint": "Perspicientia statim incipit cum maximum attingitur; scrutatio singulis paucis horis verificat et incipit si minimum attingitur.",
+    "insight_scheduling_save": "Servare",
+    "insight_scheduling_saving": "Servatur…",
+    "insight_scheduling_discard": "Reicere",
+    "insight_scheduling_saved": "Optiones ordinationis perspicientiae servatae.",
+    "insight_scheduling_save_error": "Optiones ordinationis perspicientiae servari non potuerunt.",
+    "insight_scheduling_min_max_error": "Officia minima minora esse debent quam officia maxima."
   },
   "github_token": {
     "title": "Integratio GitHub",

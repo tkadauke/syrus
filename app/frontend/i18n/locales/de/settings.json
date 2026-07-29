@@ -483,7 +483,19 @@
     "repo_err_no_token": "Kein GitHub-Token konfiguriert. Geben Sie den Repository-Namen manuell ein.",
     "repo_err_not_found": "Repository-Eigentümer nicht gefunden oder nicht zugänglich.",
     "repo_err_generic": "Repositories konnten nicht geladen werden. Geben Sie den Namen manuell ein.",
-    "repo_branch_not_found": "Repository nicht gefunden oder nicht zugänglich."
+    "repo_branch_not_found": "Repository nicht gefunden oder nicht zugänglich.",
+    "insight_scheduling_section": "Insight-Planung",
+    "insight_scheduling_description": "Insight-Analysen automatisch auf Basis der Coding-Job-Aktivität auslösen, anstatt einem festen Kalenderplan zu folgen.",
+    "insight_scheduling_enable": "Automatische Insights aktivieren",
+    "insight_scheduling_min_jobs": "Mindestanzahl Jobs",
+    "insight_scheduling_max_jobs": "Höchstanzahl Jobs",
+    "insight_scheduling_thresholds_hint": "Insights werden sofort ausgelöst, wenn das Maximum erreicht ist; der Sweep prüft alle paar Stunden und löst aus, wenn das Minimum erreicht ist.",
+    "insight_scheduling_save": "Speichern",
+    "insight_scheduling_saving": "Wird gespeichert…",
+    "insight_scheduling_discard": "Verwerfen",
+    "insight_scheduling_saved": "Insight-Planungseinstellungen gespeichert.",
+    "insight_scheduling_save_error": "Insight-Planungseinstellungen konnten nicht gespeichert werden.",
+    "insight_scheduling_min_max_error": "Mindestanzahl Jobs muss kleiner als die Höchstanzahl sein."
   },
   "github_token": {
     "title": "GitHub-Integration",

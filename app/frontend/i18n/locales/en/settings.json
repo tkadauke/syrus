@@ -483,7 +483,19 @@
     "repo_err_no_token": "No GitHub token configured. Enter the repository name manually.",
     "repo_err_not_found": "Repository owner not found or not accessible.",
     "repo_err_generic": "Unable to load repositories. Enter the name manually.",
-    "repo_branch_not_found": "Repository not found or not accessible."
+    "repo_branch_not_found": "Repository not found or not accessible.",
+    "insight_scheduling_section": "Insight Scheduling",
+    "insight_scheduling_description": "Automatically trigger insight analysis based on coding job activity instead of a fixed calendar schedule.",
+    "insight_scheduling_enable": "Enable automatic insights",
+    "insight_scheduling_min_jobs": "Minimum jobs",
+    "insight_scheduling_max_jobs": "Maximum jobs",
+    "insight_scheduling_thresholds_hint": "Insights fire immediately when maximum is reached; the sweep checks every few hours and fires if minimum is reached.",
+    "insight_scheduling_save": "Save",
+    "insight_scheduling_saving": "Saving…",
+    "insight_scheduling_discard": "Discard",
+    "insight_scheduling_saved": "Insight scheduling settings saved.",
+    "insight_scheduling_save_error": "Failed to save insight scheduling settings.",
+    "insight_scheduling_min_max_error": "Minimum jobs must be less than maximum jobs."
   },
   "github_token": {
     "title": "GitHub integration",

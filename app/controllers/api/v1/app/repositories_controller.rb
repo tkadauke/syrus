@@ -395,13 +395,20 @@ module Api
         private
 
         def form_payload(repository)
-          {
+          payload = {
             repository: repository_form_json(repository),
             configured_agent_providers: User::AGENT_PROVIDERS.map { |provider| provider_json(provider) },
             user_agent_provider_label: agent_provider_label(Current.user.agent_provider),
             auto_approve_modes: auto_approve_modes_json,
             repositories_path: repositories_path
           }
+
+          if Feature.agent_insights_enabled? && repository.persisted?
+            payload[:agent_insights_enabled] = true
+            payload[:insight_schedule_config] = insight_schedule_config_json(repository)
+          end
+
+          payload
         end
 
         def saved_payload(repository, message:)
@@ -458,6 +465,7 @@ module Api
           if Feature.agent_insights_enabled?
             payload[:agent_insights_enabled] = true
             payload[:active_insight_job] = active_insight_job_json(repository)
+            payload[:insight_schedule_config] = insight_schedule_config_json(repository)
             payload[:paths][:app_run_insight_analysis_repository_path] = "/api/v1/app/repositories/#{repository.id}/run_insight_analysis"
             payload[:paths][:repository_insights_path] = "/repositories/#{repository.id}/insights"
           end
@@ -673,6 +681,19 @@ module Api
             state: job.state,
             job_path: job_path(job)
           }
+        end
+
+        def insight_schedule_config_json(repository)
+          config = repository.insight_schedule_config
+          if config
+            {
+              enabled: config.enabled,
+              min_jobs_since_last_run: config.min_jobs_since_last_run,
+              max_jobs_since_last_run: config.max_jobs_since_last_run
+            }
+          else
+            { enabled: false, min_jobs_since_last_run: 5, max_jobs_since_last_run: 10 }
+          end
         end
 
         def repository_counts_json(repository)

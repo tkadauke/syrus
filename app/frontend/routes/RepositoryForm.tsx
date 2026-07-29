@@ -13,9 +13,12 @@ import {
   fetchRepositoryOptions,
   fetchRepositoryOwners,
   type GitHubRepositoryOption,
+  type InsightScheduleConfigRecord,
+  type InsightScheduleConfigInput,
   type RepositoryFormPayload,
   type RepositoryInput,
   syncFork,
+  updateInsightScheduleConfig,
   updateRepository
 } from "../api/repositories"
 import { useT } from "../hooks/useT"
@@ -499,7 +502,128 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
           </Link>
         </div>
       </form>
+
+      {mode === "edit" && payload.agent_insights_enabled && payload.insight_schedule_config && payload.repository.id ? (
+        <InsightSchedulingSection
+          repositoryId={payload.repository.id}
+          initialConfig={payload.insight_schedule_config}
+        />
+      ) : null}
     </>
+  )
+}
+
+function InsightSchedulingSection({ repositoryId, initialConfig }: { repositoryId: number; initialConfig: InsightScheduleConfigRecord }) {
+  const { t } = useT("settings")
+  const [config, setConfig] = useState<InsightScheduleConfigInput>({
+    enabled: initialConfig.enabled,
+    min_jobs_since_last_run: initialConfig.min_jobs_since_last_run,
+    max_jobs_since_last_run: initialConfig.max_jobs_since_last_run
+  })
+  const [savedConfig, setSavedConfig] = useState<InsightScheduleConfigInput>(config)
+  const [validationError, setValidationError] = useState<string | null>(null)
+
+  const save = useMutation({
+    mutationFn: () => updateInsightScheduleConfig(repositoryId, config),
+    onSuccess: (data) => {
+      const saved = {
+        enabled: data.config.enabled,
+        min_jobs_since_last_run: data.config.min_jobs_since_last_run,
+        max_jobs_since_last_run: data.config.max_jobs_since_last_run
+      }
+      setConfig(saved)
+      setSavedConfig(saved)
+    }
+  })
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setValidationError(null)
+    if (config.enabled && config.min_jobs_since_last_run >= config.max_jobs_since_last_run) {
+      setValidationError(t('repository_form.insight_scheduling_min_max_error'))
+      return
+    }
+    save.mutate()
+  }
+
+  function handleDiscard() {
+    setConfig({ ...savedConfig })
+    setValidationError(null)
+    save.reset()
+  }
+
+  return (
+    <section className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+      <div>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+          {t('repository_form.insight_scheduling_section')}
+        </h2>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {t('repository_form.insight_scheduling_description')}
+        </p>
+      </div>
+
+      <form className="space-y-4" onSubmit={handleSubmit}>
+        {validationError ? <PanelMessage tone="error">{validationError}</PanelMessage> : null}
+        {save.isError ? <PanelMessage tone="error">{errorMessage(save.error, t('repository_form.insight_scheduling_save_error'))}</PanelMessage> : null}
+        {save.isSuccess ? <PanelMessage>{t('repository_form.insight_scheduling_saved')}</PanelMessage> : null}
+
+        <Checkbox
+          label={t('repository_form.insight_scheduling_enable')}
+          onChange={(checked) => { setConfig({ ...config, enabled: checked }); save.reset() }}
+          value={config.enabled}
+        />
+
+        {config.enabled ? (
+          <div className="space-y-4 pl-4 border-l-2 border-gray-200 dark:border-gray-700">
+            <Field label={t('repository_form.insight_scheduling_min_jobs')}>
+              <input
+                aria-label={t('repository_form.insight_scheduling_min_jobs')}
+                className={inputClass()}
+                min={1}
+                onChange={(e) => { setConfig({ ...config, min_jobs_since_last_run: parseInt(e.target.value, 10) || 1 }); save.reset() }}
+                required
+                type="number"
+                value={config.min_jobs_since_last_run}
+              />
+            </Field>
+
+            <Field label={t('repository_form.insight_scheduling_max_jobs')}>
+              <input
+                aria-label={t('repository_form.insight_scheduling_max_jobs')}
+                className={inputClass()}
+                min={2}
+                onChange={(e) => { setConfig({ ...config, max_jobs_since_last_run: parseInt(e.target.value, 10) || 2 }); save.reset() }}
+                required
+                type="number"
+                value={config.max_jobs_since_last_run}
+              />
+            </Field>
+
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {t('repository_form.insight_scheduling_thresholds_hint')}
+            </p>
+          </div>
+        ) : null}
+
+        <div className="flex items-center gap-3">
+          <button
+            className="rounded bg-blue-600 px-3.5 py-2.5 text-sm font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900"
+            disabled={save.isPending}
+            type="submit"
+          >
+            {save.isPending ? t('repository_form.insight_scheduling_saving') : t('repository_form.insight_scheduling_save')}
+          </button>
+          <button
+            className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+            onClick={handleDiscard}
+            type="button"
+          >
+            {t('repository_form.insight_scheduling_discard')}
+          </button>
+        </div>
+      </form>
+    </section>
   )
 }
 

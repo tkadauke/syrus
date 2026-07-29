@@ -74,12 +74,26 @@ export type RepositoryAutoApproveMode = {
   preview: string
 }
 
+export type InsightScheduleConfigRecord = {
+  enabled: boolean
+  min_jobs_since_last_run: number
+  max_jobs_since_last_run: number
+}
+
+export type InsightScheduleConfigInput = {
+  enabled: boolean
+  min_jobs_since_last_run: number
+  max_jobs_since_last_run: number
+}
+
 export type RepositoryFormPayload = {
   repository: RepositoryFormRecord
   configured_agent_providers: RepositoryProviderOption[]
   user_agent_provider_label: string
   auto_approve_modes: RepositoryAutoApproveMode[]
   repositories_path: string
+  agent_insights_enabled?: boolean
+  insight_schedule_config?: InsightScheduleConfigRecord
 }
 
 export type RepositoryInput = {
@@ -211,6 +225,7 @@ export type RepositoryDetailPayload = {
     state: string
     job_path: string
   } | null
+  insight_schedule_config?: InsightScheduleConfigRecord
 }
 
 export type RepositoryDetailRecord = {
@@ -527,4 +542,15 @@ export function unarchiveRepository(id: number) {
 
 export function runInsightAnalysis(path: string) {
   return postJson<RepositoryDetailPayload | RepositoriesPayload>(path)
+}
+
+export function fetchInsightScheduleConfig(id: number | string) {
+  return getJson<InsightScheduleConfigRecord>(`/api/v1/app/repositories/${id}/insight_schedule_config`)
+}
+
+export function updateInsightScheduleConfig(id: number | string, values: InsightScheduleConfigInput) {
+  return patchJson<{ message: string; config: InsightScheduleConfigRecord }>(
+    `/api/v1/app/repositories/${id}/insight_schedule_config`,
+    values
+  )
 }

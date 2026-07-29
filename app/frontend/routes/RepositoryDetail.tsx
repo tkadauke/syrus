@@ -15,7 +15,7 @@ import { RepositoryTabs } from "../components/RepositoryTabs"
 import { StatusPill as StateStatusPill, TonePill } from "../components/StatusPill"
 import { CoverageSparkline } from "../components/CoverageSparkline"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
-import { archiveRepositoryFromPath, fetchRepositoryDetail, fetchRepositoryIssues, pollRepositoryDetail, releaseNeedsTriageRepositoryJob, retryFailedRepositoryJobs, runInsightAnalysis, type RepositoryDetailJob, type RepositoryDetailPayload } from "../api/repositories"
+import { archiveRepositoryFromPath, fetchRepositoryDetail, fetchRepositoryIssues, pollRepositoryDetail, releaseNeedsTriageRepositoryJob, retryFailedRepositoryJobs, runInsightAnalysis, type InsightScheduleConfigRecord, type RepositoryDetailJob, type RepositoryDetailPayload } from "../api/repositories"
 import { errorMessage } from "../lib/errorMessage"
 
 export function RepositoryDetailRoute() {
@@ -280,6 +280,9 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
             </button>
           )
         ) : null}
+        {payload.agent_insights_enabled && payload.insight_schedule_config ? (
+          <InsightScheduleBadge config={payload.insight_schedule_config} />
+        ) : null}
         {payload.agent_insights_enabled && payload.paths.repository_insights_path ? (
           <Link className={buttonClass("gray")} to={withRoutePrefix(payload.paths.repository_insights_path, prefix)}>
             View insights
@@ -538,6 +541,21 @@ function SourceLink({ job, prefix }: { job: { source: RepositoryDetailJob["sourc
     <a className="text-blue-600 dark:text-blue-400 underline hover:no-underline" href={job.source.path} rel="noopener" target="_blank">
       {job.source.label}
     </a>
+  )
+}
+
+function InsightScheduleBadge({ config }: { config: InsightScheduleConfigRecord }) {
+  if (config.enabled) {
+    return (
+      <span className="inline-flex items-center rounded border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-1 text-xs text-emerald-700 dark:text-emerald-300">
+        Auto: on (min {config.min_jobs_since_last_run} / max {config.max_jobs_since_last_run})
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-2 py-1 text-xs text-gray-500 dark:text-gray-400">
+      Auto: off
+    </span>
   )
 }
 

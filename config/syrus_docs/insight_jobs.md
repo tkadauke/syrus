@@ -105,7 +105,33 @@ Syrus enforces at-most-one active insight job per repository. If an insight job 
 
 In addition to on-demand runs, Syrus can automatically schedule insight jobs based on coding job activity. This eliminates the need for fixed time intervals: insight jobs fire when there is genuinely new work to analyze, not on a calendar.
 
-Adaptive scheduling is controlled by an `InsightScheduleConfig` record (auto-created disabled for each repository). Configure it in the admin console or via Rails:
+### Settings UI
+
+When the `agent_insights` feature flag is on, an **Insight Scheduling** section appears at the bottom of each repository's edit page (`/repositories/:id/edit`). It has its own Save and Discard buttons separate from the main repository form:
+
+- **Enable automatic insights** — toggle to enable or disable adaptive scheduling for this repository.
+- **Minimum jobs** — integer ≥ 1 (default 5). The periodic sweep threshold: `InsightSweepJob` runs every 6 hours and fires an insight job if the count of closed coding jobs since the last insight run is ≥ this value.
+- **Maximum jobs** — integer ≥ 2, must be greater than Minimum (default 10). The immediate trigger threshold: fires an insight job right away when a coding job closes and the count reaches this value.
+
+Validation requires `min < max`; the form enforces this client-side before submitting and the server validates it as well.
+
+### API
+
+- `GET /api/v1/app/repositories/:id/insight_schedule_config` — returns the current config (`enabled`, `min_jobs_since_last_run`, `max_jobs_since_last_run`). Returns defaults if no record exists yet.
+- `PATCH /api/v1/app/repositories/:id/insight_schedule_config` — updates `enabled`, `min_jobs_since_last_run`, and/or `max_jobs_since_last_run`. Returns 422 on validation failure.
+
+Both endpoints return 403 if the `agent_insights` feature flag is off.
+
+### Status badge
+
+On the repository overview page, a small status badge appears next to the "Run insight analysis" button:
+
+- **Auto: off** — automatic scheduling is disabled.
+- **Auto: on (min 5 / max 10)** — automatic scheduling is enabled, showing the configured thresholds.
+
+### Console / Rails
+
+Adaptive scheduling is also configurable via Rails:
 
 ```ruby
 repo = Repository.find_by!(owner: "acme", name: "widgets")
