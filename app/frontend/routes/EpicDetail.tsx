@@ -33,6 +33,8 @@ import {
 } from "../api/epics"
 import { Markdown } from "../lib/Markdown"
 import { CopyableSlug } from "../components/CopyableSlug"
+import { SlugHoverCard } from "../components/SlugHoverCard"
+import { PrHoverCard } from "../components/PrHoverCard"
 import { errorMessage } from "../lib/errorMessage"
 import { ChatBubbleIcon } from "./jobDetail/JobHeader"
 
@@ -534,22 +536,34 @@ export function JobsSection({ epicRepositorySlug, jobs, newJobPath, prefix }: { 
           {jobs.map((job) => (
             <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" key={job.id}>
               <div className="min-w-0 space-y-0.5">
-                <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <SlugHoverCard kind="job" id={job.id}>
+                    <CopyableSlug slug={job.slug} className="text-xs" />
+                  </SlugHoverCard>
                   {job.title ? (
-                    <>
-                      <span className="font-medium text-gray-600 dark:text-gray-400">{job.label}</span>
-                      <Link className="ml-1 text-gray-700 hover:underline dark:text-gray-200" to={withRoutePrefix(job.path, prefix)}>{job.title}</Link>
-                    </>
+                    <Link className="text-gray-700 hover:underline dark:text-gray-200" to={withRoutePrefix(job.path, prefix)}>{job.title}</Link>
                   ) : (
-                    <Link className="font-medium text-blue-600 underline hover:no-underline" to={withRoutePrefix(job.path, prefix)}>{job.label}</Link>
+                    <Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(job.path, prefix)}>{job.slug}</Link>
                   )}
+                  {job.pr_number && job.pr_url ? (
+                    <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_url}>
+                      <a
+                        className="font-mono text-xs text-blue-600 hover:underline dark:text-blue-400"
+                        href={job.pr_url}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        PR #{job.pr_number}
+                      </a>
+                    </PrHoverCard>
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
                   {epicRepositorySlug && job.repository_slug !== epicRepositorySlug ? (
                     <span className="font-mono">{job.repository_slug}</span>
                   ) : null}
-                  {job.owner_user ? (
-                    <span>{job.owner_user.email_address}</span>
+                  {job.label !== "Direct" ? (
+                    <span className="font-mono">{job.label}</span>
                   ) : null}
                 </div>
               </div>

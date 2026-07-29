@@ -357,6 +357,7 @@ module Api
 
           {
             id: job.id,
+            slug: job.slug,
             label: label,
             title: job.issue_title.to_s,
             path: job_path(job),

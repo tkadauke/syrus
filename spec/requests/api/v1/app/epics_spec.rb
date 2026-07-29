@@ -152,6 +152,7 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     expect(body["dependents"]).to eq([])
     expect(body["jobs"]).to include(include(
       "id" => job.id,
+      "slug" => job.slug,
       "label" => "#12",
       "title" => "Survey forum",
       "path" => job_path(job),

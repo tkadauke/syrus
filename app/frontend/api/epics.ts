@@ -114,10 +114,13 @@ export type EpicDependencyRecord = {
 
 export type EpicDetailJob = {
   id: number
+  slug: string
   label: string
   title: string
   path: string
   state: string
+  pr_number: number | null
+  pr_url: string | null
   owner_user_id: number | null
   owner_user: EpicOwnerUser | null
   repository_slug: string

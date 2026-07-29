@@ -6,8 +6,8 @@ import { MemoryRouter } from "react-router-dom"
 import type { EpicDetailJob, EpicDetailPayload } from "../api/epics"
 import { EpicDetail, JobsSection, ProgressBar, StateChips } from "./EpicDetail"
 
-function job(state: string): EpicDetailJob {
-  return { id: Math.random(), label: "JOB-1", title: "A job", path: "/jobs/1", state, owner_user_id: null, owner_user: null, repository_slug: "owner/repo" }
+function job(state: string, overrides: Partial<EpicDetailJob> = {}): EpicDetailJob {
+  return { id: Math.random(), slug: "JOB-1", label: "JOB-1", title: "A job", path: "/jobs/1", state, pr_number: null, pr_url: null, owner_user_id: null, owner_user: null, repository_slug: "owner/repo", ...overrides }
 }
 
 function detailPayload(overrides: Partial<EpicDetailPayload["epic"]> = {}): EpicDetailPayload {
@@ -237,5 +237,68 @@ describe("JobsSection", () => {
       </MemoryRouter>
     )
     expect(screen.getByText("No Jobs in this Epic.")).toBeInTheDocument()
+  })
+
+  it("renders the job slug as a copyable button", () => {
+    const jobs = [job("open", { id: 42, slug: "JOB-42" })]
+    render(
+      <MemoryRouter>
+        <JobsSection jobs={jobs} newJobPath="/jobs/new" prefix="" />
+      </MemoryRouter>
+    )
+    expect(screen.getByRole("button", { name: /JOB-42/ })).toBeInTheDocument()
+  })
+
+  it("renders a PR link when pr_number and pr_url are present", () => {
+    const jobs = [job("open", { id: 7, slug: "JOB-7", pr_number: 99, pr_url: "https://github.com/acme/repo/pull/99" })]
+    render(
+      <MemoryRouter>
+        <JobsSection jobs={jobs} newJobPath="/jobs/new" prefix="" />
+      </MemoryRouter>
+    )
+    const prLink = screen.getByRole("link", { name: "PR #99" })
+    expect(prLink).toBeInTheDocument()
+    expect(prLink).toHaveAttribute("href", "https://github.com/acme/repo/pull/99")
+  })
+
+  it("omits the PR link when pr_number is absent", () => {
+    const jobs = [job("open", { pr_number: null, pr_url: null })]
+    render(
+      <MemoryRouter>
+        <JobsSection jobs={jobs} newJobPath="/jobs/new" prefix="" />
+      </MemoryRouter>
+    )
+    expect(screen.queryByText(/PR #/)).not.toBeInTheDocument()
+  })
+
+  it("shows the issue label in the second row for issue-sourced jobs", () => {
+    const jobs = [job("open", { slug: "JOB-5", label: "#12" })]
+    render(
+      <MemoryRouter>
+        <JobsSection jobs={jobs} newJobPath="/jobs/new" prefix="" />
+      </MemoryRouter>
+    )
+    expect(screen.getByText("#12")).toBeInTheDocument()
+  })
+
+  it("omits the second-row label for direct jobs", () => {
+    const jobs = [job("open", { slug: "JOB-5", label: "Direct" })]
+    render(
+      <MemoryRouter>
+        <JobsSection jobs={jobs} newJobPath="/jobs/new" prefix="" />
+      </MemoryRouter>
+    )
+    expect(screen.queryByText("Direct")).not.toBeInTheDocument()
+  })
+
+  it("does not render owner email addresses", () => {
+    const owner = { id: 1, email_address: "alice@example.com" }
+    const jobs = [job("open", { owner_user_id: 1, owner_user: owner })]
+    render(
+      <MemoryRouter>
+        <JobsSection jobs={jobs} newJobPath="/jobs/new" prefix="" />
+      </MemoryRouter>
+    )
+    expect(screen.queryByText("alice@example.com")).not.toBeInTheDocument()
   })
 })
