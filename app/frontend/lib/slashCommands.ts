@@ -100,6 +100,13 @@ export const slashCommands = [
     args: [],
     description: "Start a guided Job proposal wizard",
     toPrompt: proposeWizardPrompt
+  },
+  {
+    name: "/remind",
+    kind: "skill",
+    args: [{ name: "message", required: false }],
+    description: "Ask the agent to set a reminder.",
+    toPrompt: (args) => `The operator wants to set a reminder${args.trim() ? `: ${args.trim()}` : "."} Use the schedule_wakeup MCP tool to schedule a wakeup at the time they specify. If no time is specified, ask for one before calling the tool. Confirm the wakeup time back to the operator after scheduling.`
   }
 ] as const satisfies readonly SlashCommand[]
 

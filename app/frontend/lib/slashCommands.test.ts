@@ -115,4 +115,28 @@ describe("slashCommands", () => {
   it("leaves other skill commands unchanged", () => {
     expect(slashCommandPrompt("hello")).toBe("hello")
   })
+
+  it("registers /remind as a skill command with an optional message arg", () => {
+    const match = findSlashCommand("/remind")
+
+    expect(match?.command.kind).toBe("skill")
+    expect(match?.command.description).toBe("Ask the agent to set a reminder.")
+    expect(match?.command.args).toEqual([{ name: "message", required: false }])
+    expect(match ? slashCommandSignature(match.command) : "missing").toBe("[message]")
+  })
+
+  it("transforms /remind without args into a prompt ending with a period", () => {
+    const prompt = slashCommandPrompt("/remind")
+
+    expect(prompt).toContain("The operator wants to set a reminder.")
+    expect(prompt).toContain("schedule_wakeup MCP tool")
+    expect(prompt).toContain("Confirm the wakeup time")
+  })
+
+  it("includes the message in the /remind prompt when provided", () => {
+    const prompt = slashCommandPrompt("/remind tomorrow at 9am standup")
+
+    expect(prompt).toContain("The operator wants to set a reminder: tomorrow at 9am standup")
+    expect(prompt).toContain("schedule_wakeup MCP tool")
+  })
 })
