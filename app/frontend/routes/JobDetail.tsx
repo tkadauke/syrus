@@ -20,7 +20,7 @@ import { useTour } from "../hooks/useTour"
 import { errorMessage } from "../lib/errorMessage"
 import type { JobDetailQueryKey, JobTab, JobWorkflowsQueryKey } from "./jobDetail/queryKeys"
 import { CommandButton, useJobCommand } from "./jobDetail/command"
-import { TagsPanel, NeedsAttentionBanner, FeedbackSourceBadge, EpicSummaryLink, TimelinePanel, AttachmentPreview, AttachmentCard, MergeablePill, JobStateBadge, PendingJobTitle, JobSourceLink, DependencyLink, PanelMessage, SmallPill, jobSourceLabel } from "./jobDetail/components"
+import { TagsPanel, NeedsAttentionBanner, FeedbackSourceBadge, EpicSummaryLink, TimelinePanel, AttachmentPreview, AttachmentCard, MergeablePill, JobStateBadge, PendingJobTitle, JobSourceLink, DependencyLink, JobDependencyTargetReference, PanelMessage, SmallPill, jobSourceLabel } from "./jobDetail/components"
 import { ChatBubbleIcon, HeaderActions, JobFeedbackPanel } from "./jobDetail/JobHeader"
 import { jobDetailQueryKey, jobDetailSearch, jobWorkflowsQueryKey, mergeJobWorkflowsPayload, tabFromLocation } from "./jobDetail/queryKeys"
 import { formatCurrency, jobSlug, withRoutePrefix } from "./jobDetail/formatting"
@@ -273,7 +273,7 @@ function SummaryTab({ payload, command, prefix, queryKey }: { payload: JobDetail
       ) : null}
       {payload.job.landing_failure_reason ? <PanelMessage tone="error">{t("landing_failed", { reason: payload.job.landing_failure_reason })}</PanelMessage> : null}
       <RetryStatePanel payload={payload} />
-      {payload.unsatisfied_dependencies.length > 0 ? <UnsatisfiedDependencies command={command} payload={payload} prefix={prefix} /> : null}
+      {payload.unsatisfied_dependencies.length > 0 ? <UnsatisfiedDependencies command={command} payload={payload} /> : null}
 
       <div className="grid gap-4 lg:grid-cols-[62%_38%]">
         <div className="space-y-4">
@@ -318,7 +318,7 @@ function SummaryTab({ payload, command, prefix, queryKey }: { payload: JobDetail
           </section>
 
           <ApprovalStatusPanel payload={payload} />
-          <DependenciesPanel command={command} payload={payload} prefix={prefix} />
+          <DependenciesPanel command={command} payload={payload} />
         </div>
       </div>
     </div>
@@ -685,7 +685,7 @@ function JobOwnerLabel({ payload, command, prefix }: { payload: JobDetailPayload
   )
 }
 
-function UnsatisfiedDependencies({ payload, command, prefix }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
+function UnsatisfiedDependencies({ payload, command }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand> }) {
   const { t } = useT("jobs")
   const count = payload.unsatisfied_dependencies.length
   return (
@@ -697,7 +697,7 @@ function UnsatisfiedDependencies({ payload, command, prefix }: { payload: JobDet
             {payload.unsatisfied_dependencies.map((dependency, index) => (
               <span key={dependency.id}>
                 {index > 0 ? <span className="mr-2">,</span> : null}
-                <DependencyLink dependency={dependency} prefix={prefix} />
+                <DependencyLink dependency={dependency} />
               </span>
             ))}
           </span>
@@ -797,7 +797,7 @@ function ApprovalStatusPanel({ payload }: { payload: JobDetailPayload }) {
   )
 }
 
-function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
+function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand> }) {
   const { t } = useT("jobs")
   const [query, setQuery] = useState("")
   const [addingDependency, setAddingDependency] = useState(false)
@@ -849,7 +849,7 @@ function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPay
               return (
                 <li className="flex flex-wrap items-center justify-between gap-2 py-2" key={dependency.id}>
                   <span className="flex flex-wrap items-center gap-2">
-                    <span><DependencyLink dependency={dependency} prefix={prefix} /> <span className="text-xs text-gray-400 dark:text-gray-500">({dependency.source})</span></span>
+                    <span><DependencyLink dependency={dependency} /> <span className="text-xs text-gray-400 dark:text-gray-500">({dependency.source})</span></span>
                     {!dependency.succeeded ? (
                       <TonePill tone="amber">{t("dependency_not_yet_satisfied")}</TonePill>
                     ) : null}
@@ -948,8 +948,7 @@ function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPay
           <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800">
             {payload.dependents.map((dependent) => (
               <li className="flex flex-wrap items-center gap-2 py-2" key={dependent.id}>
-                <Link className="text-blue-600 hover:underline" to={withRoutePrefix(dependent.job.job_path, prefix)}>{dependent.job.repository_slug} {jobSlug(dependent.job.id)}</Link>
-                <StatusPill state={dependent.job.summary_state} />
+                <JobDependencyTargetReference target={dependent.job} />
               </li>
             ))}
           </ul>
@@ -1020,4 +1019,3 @@ function AttachmentsTab({ payload, queryKey, onNotice }: { payload: JobDetailPay
     </section>
   )
 }
-

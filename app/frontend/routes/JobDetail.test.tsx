@@ -238,7 +238,7 @@ describe("JobDetailView", () => {
     expect(menu).not.toHaveClass("right-0")
   })
 
-  it("renders dependency blockers as linked Job slugs", () => {
+  it("renders dependency blockers as copyable Job slugs with status pills", () => {
     const parsedDependency = {
       id: 12,
       source: "parsed",
@@ -284,10 +284,11 @@ describe("JobDetailView", () => {
     }))
 
     expect(screen.getByText("Blocked on 2 dependencies:")).toBeInTheDocument()
-    expect(screen.getAllByRole("link", { name: "tkadauke/syrus JOB-1101 (queued)" })).toHaveLength(2)
+    expect(screen.getAllByRole("button", { name: "Copy JOB-1101 to clipboard" })).toHaveLength(2)
+    expect(screen.getAllByRole("button", { name: "Copy JOB-1108 to clipboard" })).toHaveLength(2)
+    expect(screen.getAllByText("queued").length).toBeGreaterThanOrEqual(4)
+    expect(screen.queryByText(/tkadauke\/syrus JOB-1101/)).not.toBeInTheDocument()
     expect(screen.queryByText("tkadauke/syrus #1101 (queued)")).not.toBeInTheDocument()
-    expect(screen.getAllByRole("link", { name: "tkadauke/syrus JOB-1101 (queued)" })[0])
-      .toHaveAttribute("href", "/app-shell/jobs/1101")
   })
 
   it("renders epic dependency rows with a link to the epic and a remove button", () => {

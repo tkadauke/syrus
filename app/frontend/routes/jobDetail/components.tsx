@@ -3,12 +3,13 @@ import { formatRelativeDate } from "../../lib/relativeTime"
 import { useQuery } from "@tanstack/react-query"
 import type { FormEvent } from "react"
 import { CloseIcon } from "../../components/CloseIcon"
+import { CopyableSlug } from "../../components/CopyableSlug"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { StatusPill } from "../../components/StatusPill"
 import { buttonClass } from "../../lib/buttonClasses"
 import { errorMessage } from "../../lib/errorMessage"
 import { formatBytes } from "../../lib/format"
-import { fetchJobTimeline, type JobAttachment, type JobDependency, type JobDetailPayload } from "../../api/jobs"
+import { fetchJobTimeline, type JobAttachment, type JobDependency, type JobDependencyTarget, type JobDetailPayload } from "../../api/jobs"
 import { useJobCommand } from "./command"
 import { jobSlug } from "./formatting"
 import type { ReactNode, UIEvent } from "react"
@@ -472,8 +473,10 @@ export function jobSourceLabel(payload: JobDetailPayload, t: ReturnType<typeof u
   return jobSlug(payload.job.id)
 }
 
-export function DependencyLink({ dependency, prefix }: { dependency: JobDependency; prefix: string }) {
+export function DependencyLink({ dependency }: { dependency: JobDependency }) {
   const { t } = useT("jobs")
+  const location = useLocation()
+  const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const epicTarget = dependency.depends_on_epic
   const jobTarget = dependency.depends_on_job
   const label = dependencyLabel(dependency, t)
@@ -486,10 +489,17 @@ export function DependencyLink({ dependency, prefix }: { dependency: JobDependen
 
   if (dependency.pending || !jobTarget) return <span>{label}</span>
 
+  return <JobDependencyTargetReference target={jobTarget} />
+}
+
+export function JobDependencyTargetReference({ target }: { target: JobDependencyTarget }) {
   return (
-    <SlugHoverCard id={jobTarget.id} kind="job">
-      <Link className="text-blue-700 underline hover:no-underline" to={withRoutePrefix(jobTarget.job_path, prefix)}>{label}</Link>
-    </SlugHoverCard>
+    <span className="inline-flex items-center gap-2">
+      <SlugHoverCard id={target.id} kind="job">
+        <CopyableSlug className="text-xs" slug={jobSlug(target.id)} />
+      </SlugHoverCard>
+      <StatusPill state={target.summary_state} />
+    </span>
   )
 }
 
@@ -501,5 +511,5 @@ export function dependencyLabel(dependency: JobDependency, t: ReturnType<typeof 
   if (dependency.pending) return dependency.unresolved_slug || t("dependency_unresolved")
   const target = dependency.depends_on_job
   if (!target) return dependency.unresolved_slug || t("dependency_missing")
-  return `${target.repository_slug} ${jobSlug(target.id)} (${target.summary_state})`
+  return jobSlug(target.id)
 }

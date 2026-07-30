@@ -9193,12 +9193,14 @@ describe("App", () => {
     expect(copySlugButton).toHaveTextContent("JOB-42")
     fireEvent.click(copySlugButton)
     await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith("JOB-42"))
-    expect(screen.getByRole("link", { name: "acme/widgets JOB-41" })).toHaveAttribute("href", "/app-shell/jobs/41")
+    expect(screen.getByRole("button", { name: "Copy JOB-41 to clipboard" })).toBeInTheDocument()
+    expect(screen.queryByText(/acme\/widgets JOB-41/)).not.toBeInTheDocument()
     expect(screen.getByText("Water should climb the hill.")).toBeInTheDocument()
     expect(screen.getByText("Moved the uphill water simulation.")).toBeInTheDocument()
     expect(screen.getByText(/In landing queue: position #1/)).toHaveTextContent("Waiting for Epic siblings to be approved")
     expect(screen.getByRole("link", { name: "#43 Approve sibling aqueduct" })).toHaveAttribute("href", "/app-shell/jobs/43")
-    expect(screen.getByRole("link", { name: "acme/widgets JOB-44 (closed)" })).toHaveAttribute("href", "/app-shell/jobs/44")
+    expect(screen.getByRole("button", { name: "Copy JOB-44 to clipboard" })).toBeInTheDocument()
+    expect(screen.queryByText(/acme\/widgets JOB-44/)).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /^Timeline/ })).not.toBeInTheDocument()
     expect(screen.queryByPlaceholderText("Add tag")).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "+ Add tag" })).toBeInTheDocument()
@@ -9852,6 +9854,24 @@ describe("App", () => {
             }
           }
         ],
+        dependents: [
+          {
+            id: 10,
+            source: "manual",
+            job: {
+              id: 43,
+              kind: "issue",
+              state: "open",
+              summary_state: "approved",
+              repository_slug: "acme/widgets",
+              issue_number: 13,
+              issue_title: "Pour aqueduct",
+              branch_name: "syrus/issue-13",
+              pr_number: 78,
+              job_path: "/jobs/43"
+            }
+          }
+        ],
         unsatisfied_dependencies: [
           {
             id: 9,
@@ -9885,11 +9905,9 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    const dependencyLinks = await screen.findAllByRole("link", { name: "acme/widgets JOB-41 (open)" })
-    expect(dependencyLinks).toHaveLength(2)
-    dependencyLinks.forEach((link) => {
-      expect(link).toHaveAttribute("href", "/app-shell/jobs/41")
-    })
+    expect(await screen.findAllByRole("button", { name: "Copy JOB-41 to clipboard" })).toHaveLength(2)
+    expect(screen.getByRole("button", { name: "Copy JOB-43 to clipboard" })).toBeInTheDocument()
+    expect(screen.queryByText(/acme\/widgets JOB-4/)).not.toBeInTheDocument()
 
     fireEvent.click(await screen.findByRole("button", { name: "+ Add tag" }))
     fireEvent.change(screen.getByPlaceholderText("Add tag"), { target: { value: "urgent" } })
