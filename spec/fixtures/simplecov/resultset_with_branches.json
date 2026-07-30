@@ -1,0 +1,16 @@
+{
+  "RSpec": {
+    "coverage": {
+      "app/services/order_calculator.rb": {
+        "lines": [null, 1, 1, 0, null, 1],
+        "branches": {
+          "branch_if_line_3_then": 2,
+          "branch_if_line_3_else": 0,
+          "branch_if_line_5_then": 1,
+          "branch_if_line_5_else": 1
+        }
+      }
+    },
+    "timestamp": 1748000001
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "RSpec": {
+    "coverage": {
+      "app/models/user.rb": {
+        "lines": [null, 1, 0, 3, null, 2, 0]
+      },
+      "app/models/post.rb": {
+        "lines": [1, 1, 1, null, 0]
+      }
+    },
+    "timestamp": 1748000000
+  }
+}

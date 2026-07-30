@@ -1,0 +1,27 @@
+FF.
+
+Failures:
+
+  1) Widget#price returns the base price
+     Failure/Error: expect(widget.price).to eq(9.99)
+
+       expected: 9.99
+            got: 0.0
+
+     # ./spec/models/widget_spec.rb:8:in 'block (3 levels) in <top (required)>'
+
+  2) Widget#price applies the discount
+     Failure/Error: expect(widget.discounted_price).to eq(7.99)
+
+       expected: 7.99
+            got: nil
+
+     # ./spec/models/widget_spec.rb:15:in 'block (3 levels) in <top (required)>'
+
+Finished in 0.08 seconds (files took 0.9 seconds to load)
+3 examples, 2 failures
+
+Failed examples:
+
+rspec ./spec/models/widget_spec.rb:8 # Widget#price returns the base price
+rspec ./spec/models/widget_spec.rb:15 # Widget#price applies the discount

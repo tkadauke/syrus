@@ -23,6 +23,12 @@ PATH
       rails (>= 8.1)
 
 PATH
+  remote: plugins/rails
+  specs:
+    syrus_rails (0.1.0)
+      railties
+
+PATH
   remote: plugins/syrus_dev
   specs:
     syrus_dev (0.1.0)
@@ -566,6 +572,7 @@ DEPENDENCIES
   solid_queue
   sqlite3 (>= 2.1)
   syrus_dev!
+  syrus_rails!
   tailwindcss-rails
   thruster
   tzinfo-data
@@ -751,6 +758,7 @@ CHECKSUMS
   sshkit (1.25.0) sha256=c8c6543cdb60f91f1d277306d585dd11b6a064cb44eab0972827e4311ff96744
   stringio (3.2.0) sha256=c37cb2e58b4ffbd33fe5cd948c05934af997b36e0b6ca6fdf43afa234cf222e1
   syrus_dev (0.1.0)
+  syrus_rails (0.1.0)
   tailwindcss-rails (4.4.0) sha256=efa2961351a52acebe616e645a81a30bb4f27fde46cc06ce7688d1cd1131e916
   tailwindcss-ruby (4.2.4) sha256=f3025ba442aa1436168a6df07cf44f9f43f0124a69b5375db1d359ad39c12446
   tailwindcss-ruby (4.2.4-aarch64-linux-gnu) sha256=8f73d4faf9e36ef9a4f0691cbab7b63cd0ecaf955c7878ee6a96033a29f30e8c

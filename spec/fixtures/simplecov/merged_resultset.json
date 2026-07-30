@@ -1,0 +1,18 @@
+{
+  "RSpec": {
+    "coverage": {
+      "app/models/user.rb": {
+        "lines": [null, 1, 0, 3, null]
+      }
+    },
+    "timestamp": 1748000002
+  },
+  "Cucumber": {
+    "coverage": {
+      "app/models/user.rb": {
+        "lines": [null, 0, 1, 0, null]
+      }
+    },
+    "timestamp": 1748000003
+  }
+}

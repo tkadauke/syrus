@@ -1,0 +1,22 @@
+Run options: include {:focus=>true}
+
+All examples were filtered out; ignoring {:focus=>true}
+...F.*..
+
+Failures:
+
+  1) GreetingHelper#greet returns the user's name
+     Failure/Error: expect(greet("Ada")).to eq("Hello, Ada")
+
+       expected: "Hello, Ada"
+            got: "Hello, friend"
+
+       (compared using ==)
+     # ./spec/helpers/greeting_helper_spec.rb:14:in 'block (3 levels) in <top (required)>'
+
+Finished in 0.42 seconds (files took 1.2 seconds to load)
+8 examples, 1 failure, 1 pending
+
+Failed examples:
+
+rspec ./spec/helpers/greeting_helper_spec.rb:14 # GreetingHelper#greet returns the user's name
