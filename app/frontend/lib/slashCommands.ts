@@ -100,6 +100,18 @@ export const slashCommands = [
     args: [],
     description: "Start a guided Job proposal wizard",
     toPrompt: proposeWizardPrompt
+  },
+  {
+    name: "/diff",
+    kind: "skill",
+    args: [{ name: "id", required: false }],
+    description: "Show the diff for a Job's PR inline.",
+    toPrompt: (args) => {
+      const id = args.trim()
+      return id
+        ? `Call the get_job_diff MCP tool for job ${id} and display the diff in a readable summary. Highlight notable changes and call out any concerns.`
+        : `Ask the operator which job they want to diff, then call get_job_diff and display a readable summary.`
+    }
   }
 ] as const satisfies readonly SlashCommand[]
 
