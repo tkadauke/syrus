@@ -58,7 +58,7 @@ export function ChatMessage({ animateIn = false, item, payload, pendingActionIds
         <span className="absolute -top-4" id={`message-${item.id}`} />
         {readOnly ? null : <BookmarkControl item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} />}
         <div className="space-y-3">
-          <div className="max-w-3xl rounded border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900">
+          <div className="rounded border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900">
             <Markdown className="chat-prose text-gray-800 dark:text-gray-100" text={item.text} />
           </div>
           <MessageImageAttachments attachments={item.attachments} />
