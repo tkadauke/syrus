@@ -279,7 +279,12 @@ class CredentialProbe
 
         if result.success?
           codex_auth.persist_updated_auth_json
-          return success(credential, "Codex credentials are valid.")
+          details = {}
+          if user.codex_auth_mode == "chatgpt_login"
+            usage = CodexUsageProbe.refresh_for(user: user, force: true)
+            details[:codex_usage] = usage.snapshot if usage.snapshot.present?
+          end
+          return Result.new(credential: credential, ok: true, message: "Codex credentials are valid.", details: details)
         end
 
         failure("Codex probe failed: #{probe_failure_reason(result, output)}")

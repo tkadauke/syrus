@@ -61,6 +61,9 @@ module ChatProviders
         startup_timing.measure("auth_persist", mode: chat.user.codex_auth_mode) do
           codex_auth.persist_updated_auth_json
         end
+        startup_timing.measure("usage_probe", mode: chat.user.codex_auth_mode) do
+          CodexUsageProbe.refresh_for(user: chat.user) if chat.user.codex_auth_mode == "chatgpt_login"
+        end
       end
     end
 

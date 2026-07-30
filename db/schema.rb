@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_29_220530) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_30_172000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1305,6 +1305,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_29_220530) do
     t.text "codex_api_key"
     t.text "codex_auth_json"
     t.string "codex_auth_mode", default: "api_key", null: false
+    t.datetime "codex_usage_observed_at"
+    t.json "codex_usage_snapshot"
+    t.string "codex_usage_status"
     t.datetime "created_at", null: false
     t.json "dashboard_preferences"
     t.string "email_address", null: false
