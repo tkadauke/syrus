@@ -8,14 +8,23 @@ type PickerItem = {
   id: number
   label: string
   title: string
+  statePriority: number
+}
+
+function jobStatePriority(state: string): number {
+  if (state === "implemented") return 0
+  if (state === "closed") return 1
+  if (state === "approved" || state === "landing") return 2
+  if (state === "open" || state === "queued" || state === "triaging") return 3
+  return 4
 }
 
 function toJobItem(job: PickerJobRecord): PickerItem {
-  return { id: job.id, label: `JOB-${job.id}`, title: job.title || job.issue_title }
+  return { id: job.id, label: `JOB-${job.id}`, title: job.title || job.issue_title, statePriority: jobStatePriority(job.state) }
 }
 
 function toEpicItem(epic: PickerEpicRecord): PickerItem {
-  return { id: epic.id, label: `EPIC-${epic.number}`, title: epic.title }
+  return { id: epic.id, label: `EPIC-${epic.number}`, title: epic.title, statePriority: 0 }
 }
 
 export function JobEpicPickerPopup({
@@ -36,7 +45,7 @@ export function JobEpicPickerPopup({
 
   const jobsQuery = useQuery({
     queryKey: ["picker-jobs", repositorySlug],
-    queryFn: () => fetchPickerJobs({ state: "open", repo: repositorySlug ?? undefined, limit: 50 }),
+    queryFn: () => fetchPickerJobs({ repo: repositorySlug ?? undefined, limit: 50 }),
     enabled: kind === "job",
     staleTime: 30_000
   })
@@ -51,7 +60,11 @@ export function JobEpicPickerPopup({
   const isLoading = kind === "job" ? jobsQuery.isLoading : epicsQuery.isLoading
 
   const allItems = useMemo<PickerItem[]>(() => {
-    if (kind === "job") return (jobsQuery.data?.jobs ?? []).map(toJobItem)
+    if (kind === "job") {
+      return (jobsQuery.data?.jobs ?? [])
+        .map(toJobItem)
+        .sort((a, b) => a.statePriority - b.statePriority)
+    }
     return (epicsQuery.data?.epics ?? []).map(toEpicItem)
   }, [kind, jobsQuery.data, epicsQuery.data])
 
