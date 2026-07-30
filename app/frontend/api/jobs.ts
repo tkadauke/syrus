@@ -644,6 +644,7 @@ export type PickerJobRecord = {
   issue_title: string
   state: string
   repository_slug: string
+  pr_url: string | null
 }
 
 export type PickerJobsPayload = {

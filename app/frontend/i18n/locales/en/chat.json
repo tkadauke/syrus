@@ -292,6 +292,7 @@
   "picker_search_jobs": "Search jobs…",
   "picker_search_epics": "Search epics…",
   "picker_no_jobs": "No jobs found.",
+  "picker_no_jobs_with_pr": "No jobs with open pull requests.",
   "picker_no_epics": "No epics found.",
   "picker_loading": "Loading…",
   "aria_job_epic_picker": "Pick a job or epic"

@@ -9,7 +9,7 @@ import { AnalyzingHint, annotationHoldLabel, annotationIdleHintKind, annotationS
 import { isWalkthroughVideoFile, MAX_WALKTHROUGH_BYTES, MAX_WALKTHROUGH_DURATION_SECONDS, measureVideoDuration, retryVideoWalkthrough, uploadVideoWalkthrough } from "../../api/videoWalkthroughs"
 import { refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
 import { attachChatRepository, branchChat, clearChatHistory, createChat, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatWhiteboard, rejectChatProposal, renameChat, sendChatMessage, shareChat, stopChat, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateQueuedChatMessage, type ChatBranchPayload, type ChatCreatedPayload, type ChatMode, type ChatPayload, type ChatProposal, type ChatQueuedMessage, type ShareChatPayload } from "../../api/chats"
-import { postJobCommand } from "../../api/jobs"
+import { fetchJobDetail, postJobCommand } from "../../api/jobs"
 import { CloseIcon } from "../../components/CloseIcon"
 import { EnqueueIcon } from "../../components/EnqueueIcon"
 import { ImageAnnotationModal } from "../../components/ImageAnnotationModal"
@@ -80,7 +80,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
   const pendingVideoRef = useRef<File | null>(null)
   const walkthroughKeyRef = useRef(0)
   const [scratchpadOpen, setScratchpadOpen] = useState(false)
-  const [pickerMode, setPickerMode] = useState<{ kind: "job" | "epic"; onSelect: (id: string) => void } | null>(null)
+  const [pickerMode, setPickerMode] = useState<{ kind: "job" | "epic"; filterByPr?: boolean; onSelect: (id: string) => void } | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const attachmentPopoverRef = useRef<HTMLDivElement | null>(null)
@@ -313,6 +313,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
       const capturedMatch = commandMatch!
       setPickerMode({
         kind: pickerKind,
+        filterByPr: capturedMatch.command.name === "/review",
         onSelect: (id) => {
           setPickerMode(null)
           handleCommandWithId(capturedMatch.command, id)
@@ -342,8 +343,28 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
 
   function pickerKindForCommand(commandName: SlashCommand["name"]): "job" | "epic" | null {
     if (commandName === "/epic") return "epic"
-    if (commandName === "/job" || commandName === "/cancel" || commandName === "/retry" || commandName === "/feedback") return "job"
+    if (commandName === "/job" || commandName === "/cancel" || commandName === "/retry" || commandName === "/feedback" || commandName === "/review") return "job"
     return null
+  }
+
+  function jobIdArg(value: string): string | null {
+    const match = value.trim().match(/^(?:JOB-)?(\d+)$/i)
+    return match ? match[1] : null
+  }
+
+  function handleReviewWithId(jobId: string) {
+    fetchJobDetail(jobId).then((detail) => {
+      const prUrl = detail.job.pr_url
+      if (!prUrl) {
+        onNotice("This job doesn't have a pull request yet.")
+        return
+      }
+      window.open(prUrl, "_blank", "noopener,noreferrer")
+      setText("")
+      onNotice(null)
+    }).catch(() => {
+      onNotice("Could not load job.")
+    })
   }
 
   function handleCommandWithId(command: SlashCommand, id: string) {
@@ -367,6 +388,10 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
     if (command.name === "/feedback") {
       onNotice(null)
       setPendingConfirmation({ commandName: "/feedback", text: `/feedback ${id}` })
+      return
+    }
+    if (command.name === "/review") {
+      handleReviewWithId(id)
     }
   }
 
@@ -523,6 +548,17 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
       }
 
       systemCommandAction.mutate({ kind: "job", action: command.name === "/cancel" ? "cancel" : "retry", jobId: id })
+      return
+    }
+
+    if (command.name === "/review") {
+      const id = jobIdArg(argsText)
+      if (!id) {
+        onNotice("Usage: /review <id>")
+        return
+      }
+
+      handleReviewWithId(id)
       return
     }
 
@@ -1243,6 +1279,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
           <JobEpicPickerPopup
             kind={pickerMode.kind}
             repositorySlug={payload.chat.repository?.slug ?? null}
+            filterByPr={pickerMode.filterByPr}
             onCancel={() => {
               setPickerMode(null)
               textareaRef.current?.focus()

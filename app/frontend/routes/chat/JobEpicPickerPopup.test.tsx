@@ -21,8 +21,8 @@ function renderPicker(props: React.ComponentProps<typeof JobEpicPickerPopup>) {
 const sampleJobs = {
   count: 2,
   jobs: [
-    { id: 101, title: "Fix authentication bug", issue_title: "Fix authentication bug", state: "open", repository_slug: "acme/repo" },
-    { id: 202, title: "Add dark mode", issue_title: "Add dark mode", state: "open", repository_slug: "acme/repo" }
+    { id: 101, title: "Fix authentication bug", issue_title: "Fix authentication bug", state: "open", repository_slug: "acme/repo", pr_url: "https://github.com/acme/repo/pull/5" },
+    { id: 202, title: "Add dark mode", issue_title: "Add dark mode", state: "open", repository_slug: "acme/repo", pr_url: null }
   ]
 }
 
@@ -165,6 +165,46 @@ describe("JobEpicPickerPopup — jobs mode", () => {
     expect(options[1]).toHaveTextContent("Closed job")
     expect(options[2]).toHaveTextContent("Approved job")
     expect(options[3]).toHaveTextContent("Merged job")
+  })
+})
+
+describe("JobEpicPickerPopup — filterByPr", () => {
+  beforeEach(() => {
+    vi.spyOn(jobsApi, "fetchPickerJobs").mockResolvedValue(sampleJobs)
+  })
+
+  it("shows only jobs with a PR when filterByPr is true", async () => {
+    renderPicker({ kind: "job", repositorySlug: "acme/repo", filterByPr: true, onSelect: vi.fn(), onCancel: vi.fn() })
+
+    expect(await screen.findByText("Fix authentication bug")).toBeInTheDocument()
+    expect(screen.queryByText("Add dark mode")).not.toBeInTheDocument()
+  })
+
+  it("shows all jobs when filterByPr is false", async () => {
+    renderPicker({ kind: "job", repositorySlug: "acme/repo", filterByPr: false, onSelect: vi.fn(), onCancel: vi.fn() })
+
+    expect(await screen.findByText("Fix authentication bug")).toBeInTheDocument()
+    expect(screen.getByText("Add dark mode")).toBeInTheDocument()
+  })
+
+  it("shows no-PR-jobs empty state when filterByPr is true and no jobs have PRs", async () => {
+    vi.spyOn(jobsApi, "fetchPickerJobs").mockResolvedValue({
+      count: 1,
+      jobs: [{ id: 202, title: "Add dark mode", issue_title: "Add dark mode", state: "open", repository_slug: "acme/repo", pr_url: null }]
+    })
+    renderPicker({ kind: "job", repositorySlug: "acme/repo", filterByPr: true, onSelect: vi.fn(), onCancel: vi.fn() })
+
+    expect(await screen.findByText("No jobs with open pull requests.")).toBeInTheDocument()
+  })
+
+  it("calls onSelect with the PR-job id when clicked with filterByPr", async () => {
+    const onSelect = vi.fn()
+    renderPicker({ kind: "job", repositorySlug: "acme/repo", filterByPr: true, onSelect, onCancel: vi.fn() })
+
+    await screen.findByText("Fix authentication bug")
+    fireEvent.click(screen.getByRole("option", { name: /JOB-101/ }))
+
+    expect(onSelect).toHaveBeenCalledWith("101")
   })
 })
 

@@ -30,11 +30,13 @@ function toEpicItem(epic: PickerEpicRecord): PickerItem {
 export function JobEpicPickerPopup({
   kind,
   repositorySlug,
+  filterByPr,
   onSelect,
   onCancel
 }: {
   kind: "job" | "epic"
   repositorySlug: string | null
+  filterByPr?: boolean
   onSelect: (id: string) => void
   onCancel: () => void
 }) {
@@ -61,12 +63,12 @@ export function JobEpicPickerPopup({
 
   const allItems = useMemo<PickerItem[]>(() => {
     if (kind === "job") {
-      return (jobsQuery.data?.jobs ?? [])
-        .map(toJobItem)
-        .sort((a, b) => a.statePriority - b.statePriority)
+      const jobs = jobsQuery.data?.jobs ?? []
+      const visibleJobs = filterByPr ? jobs.filter((j) => j.pr_url != null) : jobs
+      return visibleJobs.map(toJobItem).sort((a, b) => a.statePriority - b.statePriority)
     }
     return (epicsQuery.data?.epics ?? []).map(toEpicItem)
-  }, [kind, jobsQuery.data, epicsQuery.data])
+  }, [kind, jobsQuery.data, epicsQuery.data, filterByPr])
 
   const filteredItems = useMemo<PickerItem[]>(() => {
     if (!query.trim()) return allItems
@@ -106,7 +108,9 @@ export function JobEpicPickerPopup({
   }
 
   const searchPlaceholder = kind === "job" ? t("picker_search_jobs") : t("picker_search_epics")
-  const emptyLabel = kind === "job" ? t("picker_no_jobs") : t("picker_no_epics")
+  const emptyLabel = kind === "job"
+    ? (filterByPr ? t("picker_no_jobs_with_pr") : t("picker_no_jobs"))
+    : t("picker_no_epics")
 
   return (
     <div
