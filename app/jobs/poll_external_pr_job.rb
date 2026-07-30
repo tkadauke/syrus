@@ -6,7 +6,8 @@ class PollExternalPrJob < ApplicationJob
 
   def perform(job_id)
     @job = Job.find_by(id: job_id)
-    return unless @job&.open? && @job.external_pr_number.present? && @job.pr_number.blank?
+    return unless @job&.open? && @job.external_pr_number.present?
+    return if !@job.external_pr? && @job.pr_number.present?
     return if @job.repository.archived?
 
     @client = GithubClient.for(repository: @job.repository, user: @job.user)

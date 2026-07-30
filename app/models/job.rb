@@ -10,7 +10,7 @@ class Job < ApplicationRecord
   include JobExecutionAccessors
   include JobLifecycle
 
-  KINDS = %w[ issue cron direct main_grader agent_insight ].freeze
+  KINDS = %w[ issue cron direct main_grader agent_insight external_pr ].freeze
   MAIN_GRADER_CLOSURE_REASON = "main_grader".freeze
   SCHEDULED_TASK_OUTCOMES = {
     "too_many_failures"          => :record_failure!,
@@ -98,6 +98,10 @@ class Job < ApplicationRecord
   validate  :issue_number_blank_for_main_grader, if: :main_grader?
   validate  :issue_number_blank_for_agent_insight, if: :agent_insight?
   validate  :agent_insights_feature_enabled, if: :agent_insight?
+  validate  :issue_number_blank_for_external_pr, if: :external_pr?
+  validate  :external_pr_starts_implemented, if: :external_pr?, on: :create
+  validates :external_pr_number, presence: true, if: :external_pr?
+  validates :external_pr_number, uniqueness: { scope: :repository_id }, if: :external_pr?
   validate  :epic_belongs_to_same_user_and_repository
   before_validation :default_owner_user, on: :create
   before_validation :default_agent_provider, on: :create
@@ -127,6 +131,7 @@ class Job < ApplicationRecord
   scope :issue_kind, -> { where(kind: "issue") }
   scope :cron_kind,  -> { where(kind: "cron") }
   scope :direct_kind, -> { where(kind: "direct") }
+  scope :external_pr_kind, -> { where(kind: "external_pr") }
   scope :with_pr, -> { where("pr_number IS NOT NULL OR external_pr_number IS NOT NULL") }
   scope :without_pr, -> { where(pr_number: nil, external_pr_number: nil) }
   scope :with_needs_attention, -> { where(needs_attention: true) }
@@ -191,6 +196,10 @@ class Job < ApplicationRecord
 
   def agent_insight?
     kind == "agent_insight"
+  end
+
+  def external_pr?
+    kind == "external_pr"
   end
 
   def main_branch_repair?
@@ -1119,6 +1128,14 @@ class Job < ApplicationRecord
 
   def issue_number_blank_for_agent_insight
     errors.add(:issue_number, "must be blank for agent_insight Jobs") if issue_number.present?
+  end
+
+  def issue_number_blank_for_external_pr
+    errors.add(:issue_number, "must be blank for external_pr Jobs") if issue_number.present?
+  end
+
+  def external_pr_starts_implemented
+    errors.add(:state, "must be implemented for external_pr Jobs") unless implemented?
   end
 
   def agent_insights_feature_enabled

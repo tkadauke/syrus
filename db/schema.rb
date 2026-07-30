@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_29_220530) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_30_133058) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -724,6 +724,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_29_220530) do
     t.integer "dependencies_overridden_by_user_id"
     t.integer "epic_id"
     t.string "epic_title"
+    t.string "external_pr_author"
     t.integer "external_pr_number"
     t.string "external_ref"
     t.integer "failure_count", default: 0, null: false
@@ -806,6 +807,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_29_220530) do
     t.index ["owner_user_id"], name: "index_jobs_on_owner_user_id"
     t.index ["parent_job_id"], name: "index_jobs_on_parent_job_id"
     t.index ["pr_repository_id"], name: "index_jobs_on_pr_repository_id"
+    t.index ["repository_id", "external_pr_number"], name: "index_jobs_on_repository_id_and_external_pr_number_unique", unique: true
     t.index ["repository_id", "issue_number", "state"], name: "index_jobs_on_repository_id_and_issue_number_and_state"
     t.index ["repository_id", "state"], name: "index_jobs_on_repository_id_and_state"
     t.index ["repository_id", "system_kind", "state"], name: "index_jobs_on_repository_id_system_kind_state"

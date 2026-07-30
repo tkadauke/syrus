@@ -68,4 +68,42 @@ RSpec.describe PollExternalPrJob do
       expect(WebMock).not_to have_requested(:get, external_pr_url)
     end
   end
+
+  describe "external_pr kind Jobs" do
+    let(:external_pr_job) do
+      Job.create!(
+        user: user,
+        repository: repository,
+        kind: "external_pr",
+        external_pr_number: 9,
+        state: "implemented"
+      )
+    end
+
+    it "closes the external_pr Job with external_pr_merged when the PR is merged" do
+      stub_external_pr(state: "closed", merged: true)
+      expect { described_class.perform_now(external_pr_job.id) }
+        .to change { external_pr_job.reload.state }.to("closed")
+      expect(external_pr_job.closure_reason).to eq("external_pr_merged")
+    end
+
+    it "closes the external_pr Job with external_pr_closed when the PR closes without merging" do
+      stub_external_pr(state: "closed", merged: false)
+      described_class.perform_now(external_pr_job.id)
+      expect(external_pr_job.reload.closure_reason).to eq("external_pr_closed")
+    end
+
+    it "leaves the external_pr Job open when the PR is still open" do
+      stub_external_pr(state: "open", merged: false)
+      expect { described_class.perform_now(external_pr_job.id) }
+        .not_to change { external_pr_job.reload.state }
+    end
+
+    it "polls even when pr_number is also set on an external_pr kind Job" do
+      external_pr_job.update_columns(pr_number: 55)
+      stub_external_pr(state: "closed", merged: true)
+      expect { described_class.perform_now(external_pr_job.id) }
+        .to change { external_pr_job.reload.state }.to("closed")
+    end
+  end
 end

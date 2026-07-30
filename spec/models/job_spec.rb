@@ -1151,6 +1151,78 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
     end
   end
 
+  describe "external_pr kind" do
+    let(:user) { Factories.user }
+    let(:repository) { Factories.repository(user: user) }
+
+    def build_external_pr_job(**attrs)
+      Job.new({
+        user: user,
+        repository: repository,
+        kind: "external_pr",
+        external_pr_number: 77,
+        state: "implemented"
+      }.merge(attrs))
+    end
+
+    it "external_pr? returns true only for external_pr jobs" do
+      job = Job.new(kind: "external_pr")
+      expect(job.external_pr?).to be true
+      expect(job.issue?).to be false
+      expect(job.direct?).to be false
+      expect(job.cron?).to be false
+    end
+
+    it "is valid with external_pr_number set and state implemented" do
+      job = build_external_pr_job
+      expect(job).to be_valid
+    end
+
+    it "is invalid when issue_number is present" do
+      job = build_external_pr_job(issue_number: 5)
+      expect(job).not_to be_valid
+      expect(job.errors[:issue_number]).to include("must be blank for external_pr Jobs")
+    end
+
+    it "is invalid when external_pr_number is blank" do
+      job = build_external_pr_job(external_pr_number: nil)
+      expect(job).not_to be_valid
+      expect(job.errors[:external_pr_number]).to be_present
+    end
+
+    it "is invalid when created with state other than implemented" do
+      job = build_external_pr_job(state: "triaging")
+      expect(job).not_to be_valid
+      expect(job.errors[:state]).to include("must be implemented for external_pr Jobs")
+    end
+
+    it "can be approved from implemented state" do
+      job = build_external_pr_job
+      job.save!
+      expect(job.may_approve?).to be true
+    end
+
+    it "enforces uniqueness of external_pr_number per repository" do
+      build_external_pr_job.save!
+      duplicate = build_external_pr_job
+      expect(duplicate).not_to be_valid
+      expect(duplicate.errors[:external_pr_number]).to be_present
+    end
+
+    it "allows the same external_pr_number in different repositories" do
+      other_repo = Factories.repository(user: user)
+      build_external_pr_job.save!
+      other = build_external_pr_job(repository: other_repo)
+      expect(other).to be_valid
+    end
+
+    it "does not enforce uniqueness on update after initial create" do
+      job = build_external_pr_job
+      job.save!
+      expect { job.update!(external_pr_author: "octocat") }.not_to raise_error
+    end
+  end
+
   describe "priority" do
     let(:user) { Factories.user }
     let(:repository) { Factories.repository(user: user) }
