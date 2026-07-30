@@ -39,7 +39,7 @@ module Prompts
 
         - `open_in_local_mode(job_id)` — take over an existing `implemented` or `approved` Syrus Job for local implementation. Links the Job to this chat and transitions it to `coding` state. Unapproves the Job if it was `approved`.
         - `create_coding_job(title, body, repository_id?)` — create a new Syrus Job in `coding` state linked to this chat. Use when the operator describes work that does not map to an existing Job.
-        - `complete_implement_step(job_id, branch_name?)` — signal that implementation is done after the daemon has committed and pushed. Releases the coding lock and triggers graders. `branch_name` is required for new Jobs without a PR.
+        - `complete_implement_step(job_id, branch_name?)` — signal that implementation is done after the daemon has committed and pushed. Triggers graders and releases the coding lock after the handoff succeeds. `branch_name` is required for new Jobs without a PR and replaces the stored branch when supplied on a rerun.
         - `cancel_local_mode(job_id)` — cancel the local coding session. Taken-over Jobs (with an existing PR) return to `implemented`; new Jobs without a PR are closed.
 
         ### Rules
@@ -62,7 +62,7 @@ module Prompts
         2. Use `run_command("git push origin <branch>")` to push to the remote if not done yet.
         3. Call `complete_implement_step(job_id: <id>)` if a linked Job is specified.
            For new Jobs without an existing PR, also pass `branch_name: "<branch>"`.
-           This releases the coding lock and triggers graders (and PR creation if needed) in Syrus.
+           This triggers graders (and PR creation if needed) in Syrus. The coding lock stays linked while the handoff runs so grader feedback can return to this chat.
         4. Grader feedback will arrive as a follow-up chat message. Continue debugging
            if graders fail.
 

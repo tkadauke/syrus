@@ -7,7 +7,7 @@ class GraderChatReporter
   end
 
   # Post a success notice to the chat. linked_chat_id is cleared by
-  # Workflows::CodingHandoff#after_success before this is called.
+  # Workflows::CodingHandoff#after_success after this is called.
   def self.report_success(workflow:, chat:)
     new(workflow, chat).report_success
   end

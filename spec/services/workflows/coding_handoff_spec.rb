@@ -55,6 +55,22 @@ RSpec.describe Workflows::CodingHandoff do
       expect(msg.content["text"]).to include("All graders passed")
     end
 
+    it "keeps linked_chat_id available while reporting success and clears it afterward" do
+      allow(GraderChatReporter).to receive(:report_success) do |workflow:, chat:|
+        expect(workflow.job.reload.linked_chat_id).to eq(chat.id)
+      end
+      allow(ChatCodingWorkspaceReclaimJob).to receive(:perform_later) do |chat_id|
+        expect(chat_id).to eq(chat.id)
+        expect(job.reload.linked_chat_id).to eq(chat.id)
+      end
+
+      described_class.after_success(workflow)
+
+      expect(GraderChatReporter).to have_received(:report_success).with(workflow: workflow, chat: chat)
+      expect(ChatCodingWorkspaceReclaimJob).to have_received(:perform_later).with(chat.id)
+      expect(job.reload.linked_chat_id).to be_nil
+    end
+
     it "is a no-op when coding_mode feature is disabled" do
       Feature.find_by(slug: "coding_mode")&.update!(enabled: false)
 

@@ -262,7 +262,7 @@ RSpec.describe "Local Mode MCP tools" do
 
     before { allow(StepDispatcher).to receive(:start_workflow) }
 
-    it "releases the lock and triggers a local_mode_handoff workflow for a job with a pr" do
+    it "triggers a local_mode_handoff workflow for a job with a pr and keeps the chat link during graders" do
       job = Factories.job_record(repository: repository, state: "implemented", branch_name: "syrus/job-2", pr_number: 10)
       job.update_columns(linked_chat_id: chat_session.id, state: "coding")
       server = server_with(described_class)
@@ -273,12 +273,12 @@ RSpec.describe "Local Mode MCP tools" do
       result = JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
 
       expect(result[:job_id]).to eq(job.id)
-      expect(job.reload.linked_chat_id).to be_nil
+      expect(job.reload.linked_chat_id).to eq(chat_session.id)
       expect(StepDispatcher).to have_received(:start_workflow)
     end
 
-    it "sets branch_name on new jobs without a pr" do
-      job = Factories.job_record(repository: repository, state: "running", kind: "direct", issue_number: nil, branch_name: nil)
+    it "replaces branch_name when one is supplied" do
+      job = Factories.job_record(repository: repository, state: "running", kind: "direct", issue_number: nil, branch_name: "syrus/stale")
       job.update_columns(linked_chat_id: chat_session.id, state: "coding", pr_number: nil)
       server = server_with(described_class)
 

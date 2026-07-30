@@ -88,6 +88,19 @@ RSpec.describe Workflows::LocalModeHandoff do
     end
   end
 
+  describe ".after_success" do
+    let(:job) do
+      Factories.job_record(user: user, repository: repository, state: "implemented",
+                           linked_chat_id: chat.id)
+    end
+    let(:workflow) { Workflow.create!(job: job, trigger_kind: "local_mode_handoff") }
+
+    it "clears linked_chat_id after the handoff succeeds" do
+      described_class.after_success(workflow)
+      expect(job.reload.linked_chat_id).to be_nil
+    end
+  end
+
   describe ".grader_failure?" do
     let(:job) { Factories.job_record(user: user, repository: repository, state: "running") }
     let(:workflow) { Workflow.create!(job: job, trigger_kind: "local_mode_handoff") }

@@ -4,7 +4,8 @@ module Workflows
   # MCP tool once the agent commits and pushes from the chat workspace.
   #
   # On grader pass: workflow succeeds, PR is opened by pr_open, after_success
-  # posts a confirmation to the linked chat and clears linked_chat_id.
+  # posts a confirmation to the linked chat, enqueues reclaim, then clears
+  # linked_chat_id.
   #
   # On grader fail: grader_collect raises StepFailed with no loop node to
   # catch it, so hard_fail_workflow! fires. after_fail posts the failure report
@@ -24,10 +25,11 @@ module Workflows
       chat_id = workflow.job.linked_chat_id
       return unless chat_id
 
-      workflow.job.update!(linked_chat_id: nil)
-
       chat = ChatSession.find_by(id: chat_id)
-      return unless chat
+      unless chat
+        workflow.job.update!(linked_chat_id: nil)
+        return
+      end
 
       GraderChatReporter.report_success(workflow: workflow, chat: chat)
 
@@ -36,6 +38,8 @@ module Workflows
       # after_success runs on a compute pod, so hop to the `chat` queue where
       # the workspace actually lives (ChatCodingWorkspaceReclaimJob).
       ChatCodingWorkspaceReclaimJob.perform_later(chat.id)
+
+      workflow.job.update!(linked_chat_id: nil)
     end
 
     def self.after_fail(workflow)

@@ -98,7 +98,7 @@ Rebases a chain of dependent PR branches in dependency order, then resumes landi
 
 **Step chain:** `prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open`
 
-Validates the agent's committed work with graders (no repair loop — graders must pass), then opens the PR. On grader failure, reverts the Job to `:coding` so the agent can fix and re-run. On grader pass, opens the PR and notifies the linked chat.
+Validates the agent's committed work with graders (no repair loop — graders must pass), then opens the PR. The Job stays linked to the originating chat while the handoff runs so the chat Jobs tab and grader routing keep working. On grader failure, reverts the Job to `:coding` and keeps the chat link so the agent can fix and re-run. On grader pass, opens the PR, notifies the linked chat, schedules coding workspace reclaim, then clears the chat link.
 
 ## local_mode_handoff
 
@@ -106,7 +106,7 @@ Validates the agent's committed work with graders (no repair loop — graders mu
 
 **Step chain:** Similar to `coding_handoff`. When no PR exists: `prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open`. When a PR already exists (taken-over implemented Job): `prepare → grader_fanout → grader_collect → summarize_amend → try(push)`.
 
-Like `coding_handoff`, requires operator confirmation before the workflow dispatches.
+Like `coding_handoff`, requires operator confirmation before the workflow dispatches. The linked chat stays attached while graders run and is cleared only after the local-mode handoff succeeds.
 
 **On grader failure:** The workflow does not propagate failure to the Job via the normal `propagate_fail_to_job!` path. Instead, `after_fail` reverts the Job to `:coding` so the operator can fix the issues and re-run `complete_implement_step`. If a linked chat session exists, the grader failure report is posted there to trigger an agent turn. This makes the "fix → `complete_implement_step` again" cycle documented in coding mode's system prompt work correctly.
 

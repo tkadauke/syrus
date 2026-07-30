@@ -5,7 +5,14 @@ RSpec.describe SyrusChatMcp::CompleteImplementStepTool do
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository, mode: "coding") }
 
-  before { allow(StepDispatcher).to receive(:start_workflow) }
+  before do
+    feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|
+      record.category = "Labs"
+      record.name = "Coding Mode"
+    end
+    feature.update!(enabled: true)
+    allow(StepDispatcher).to receive(:start_workflow)
+  end
 
   def server
     MCP::Server.new(
@@ -29,17 +36,45 @@ RSpec.describe SyrusChatMcp::CompleteImplementStepTool do
     JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
   end
 
-  it "exits local mode and enqueues a handoff workflow for a job with a PR" do
-    job = Factories.job_record(repository: repository, state: "implemented", branch_name: "syrus/job-1", pr_number: 10)
+  it "starts a coding_handoff workflow and keeps the job linked while graders run" do
+    job = Factories.job_record(repository: repository, state: "implemented", kind: "direct",
+                               issue_number: nil, branch_name: "syrus/job-1", pr_number: 10)
     job.update_columns(linked_chat_id: chat_session.id, state: "coding")
+    Workflow.create!(job: job, trigger_kind: "coding_handoff", state: "failed")
 
     response = call_tool(job_id: job.id)
     result = payload(response)
 
     expect(response.dig(:result, :isError)).to be_falsey
     expect(result[:job_id]).to eq(job.id)
-    expect(job.reload.linked_chat_id).to be_nil
+    workflow = Workflow.find(result[:workflow_id])
+    expect(workflow.trigger_kind).to eq("coding_handoff")
+    expect(job.reload.linked_chat_id).to eq(chat_session.id)
+    expect(ChatJobStatusQuery.call(chat_session).map { |item| item[:job_id] }).to include(job.id)
     expect(StepDispatcher).to have_received(:start_workflow)
+  end
+
+  it "uses a supplied replacement branch_name instead of the stale stored branch" do
+    job = Factories.job_record(repository: repository, state: "implemented", kind: "direct",
+                               issue_number: nil, branch_name: "syrus/stale", pr_number: nil)
+    job.update_columns(linked_chat_id: chat_session.id, state: "coding")
+
+    response = call_tool(job_id: job.id, branch_name: "syrus/fixed-rerun")
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(job.reload.branch_name).to eq("syrus/fixed-rerun")
+  end
+
+  it "rejects invalid replacement branch names" do
+    job = Factories.job_record(repository: repository, state: "implemented", kind: "direct",
+                               issue_number: nil, branch_name: "syrus/stale", pr_number: 10)
+    job.update_columns(linked_chat_id: chat_session.id, state: "coding")
+
+    response = call_tool(job_id: job.id, branch_name: "bad branch")
+
+    expect(response.dig(:result, :isError)).to be(true)
+    expect(response.dig(:result, :content, 0, :text)).to include("not a valid branch name")
+    expect(job.reload.branch_name).to eq("syrus/stale")
   end
 
   it "rejects an unknown job_id" do

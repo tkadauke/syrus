@@ -39,6 +39,10 @@ module Workflows
       job.skip_prepare?
     end
 
+    def self.after_success(workflow)
+      workflow.job.update!(linked_chat_id: nil) if workflow.job.linked_chat_id.present?
+    end
+
     def self.after_fail(workflow)
       chat = ChatSession.find_by(id: workflow.job.linked_chat_id)
 

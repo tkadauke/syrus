@@ -64,6 +64,11 @@ primary path when planning and implementation happen in the same chat session:
 talk in chat, commit changes to a branch, push, call the tool, and Syrus takes
 over from graders onward.
 
+During a handoff, the Job remains linked to the originating chat so it stays
+visible in the chat Jobs tab and grader failures can route back to the same
+conversation. If a retry is pushed to a replacement branch, pass that branch to
+`complete_implement_step`; Syrus updates the Job before rerunning graders.
+
 Both tools create a pending action that the operator must confirm before Syrus
 dispatches any automation.
 
