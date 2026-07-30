@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_30_163358) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_30_190000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -672,6 +672,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_30_163358) do
     t.index ["job_id"], name: "index_job_dependencies_on_job_id"
     t.index ["unresolved_chat_proposal_id"], name: "index_job_dependencies_on_unresolved_chat_proposal_id"
     t.index ["unresolved_owner", "unresolved_repo", "unresolved_number"], name: "index_job_deps_on_unresolved_reference", where: "unresolved_owner IS NOT NULL"
+  end
+
+  create_table "job_deployment_stage_statuses", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "job_id", null: false
+    t.datetime "reached_at", null: false
+    t.string "stage_name", null: false
+    t.string "tag_sha"
+    t.datetime "updated_at", null: false
+    t.index ["job_id", "stage_name"], name: "index_job_deployment_stage_statuses_on_job_id_and_stage_name", unique: true
+    t.index ["job_id"], name: "index_job_deployment_stage_statuses_on_job_id"
   end
 
   create_table "job_logs", force: :cascade do |t|
@@ -1455,6 +1466,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_30_163358) do
   add_foreign_key "job_dependencies", "jobs"
   add_foreign_key "job_dependencies", "jobs", column: "depends_on_job_id"
   add_foreign_key "job_dependencies", "users", column: "created_by_user_id"
+  add_foreign_key "job_deployment_stage_statuses", "jobs"
   add_foreign_key "job_logs", "runs"
   add_foreign_key "job_pins", "jobs"
   add_foreign_key "job_pins", "users"

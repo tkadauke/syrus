@@ -13,6 +13,7 @@ RSpec.describe "Pause behavior" do
       PollAllRepositoriesJob
       PollAllPullRequestsJob
       PollAllMergeStatesJob
+      PollAllDeploymentStagesJob
       PollScheduledTasksJob
     ].each do |klass|
       it "#{klass} short-circuits when polling_paused is true" do

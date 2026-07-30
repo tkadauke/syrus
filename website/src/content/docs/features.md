@@ -17,6 +17,8 @@ Jobs show the repository, source prompt, state, priority, credential mode,
 agent provider, active Workflow, past Workflows, transcripts, captured
 diffs, PR link, attachments, dependencies, and logs. Operators can retry,
 cancel, run again, change priority, approve, or inspect the related PR.
+For landed Jobs, Syrus can also record configured deployment stage progress
+from repository tags, such as staging, production, or public release.
 When a Job came from a chat proposal, or belongs to an Epic that came from a
 chat proposal, the Jobs UI links back to the originating chat message.
 

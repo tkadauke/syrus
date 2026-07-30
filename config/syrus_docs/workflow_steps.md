@@ -114,6 +114,8 @@ Non-agentic. Refreshes GitHub mergeability, runs a local rebase preflight when G
 
 Non-agentic. Calls the GitHub merge API. Transient failures defer the Job back to `approved`; a 405 "can't rebase" dispatches the rebase path instead of treating the attempt as terminal.
 
+When a merge succeeds and GitHub returns a merge commit SHA, Syrus stores it as `Job#landed_sha`. `PollAllDeploymentStagesJob` later uses that SHA to detect configured deployment stages from repository tags.
+
 ### merge_train_assemble
 
 Non-agentic. Validates that all open Epic child Jobs are approved and the member count is within `AppSetting.merge_train_max_size`.

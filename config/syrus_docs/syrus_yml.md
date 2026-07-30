@@ -191,3 +191,5 @@ Each stage must specify exactly one of `tag` or `tag_pattern` — not both.
 **`tag`** is for a single moving tag that your deployment pipeline advances (e.g. `staging` or `production`). Syrus checks whether the job's `landed_sha` is an ancestor of that tag's commit.
 
 **`tag_pattern`** is a glob pattern (e.g. `deploy-staging-*`) when your pipeline pushes a new dated tag on each deploy. Syrus finds the most recent tag that matches and checks ancestry.
+
+`PollAllDeploymentStagesJob` runs every 5 minutes and fans out to repositories with `deployment_stages` configured. For each landed Job (`landed_sha` present), Syrus compares the merge commit against each configured stage tag. When GitHub reports the tag as `identical` to or `ahead` of the merge commit, Syrus records a `JobDeploymentStageStatus` with the first detected time and the tag commit SHA for audit/debugging.

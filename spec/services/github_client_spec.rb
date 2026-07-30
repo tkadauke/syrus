@@ -291,6 +291,88 @@ RSpec.describe GithubClient do
     end
   end
 
+  describe "#list_tags" do
+    let(:client) { GithubClient.for(repository: repository, user: user) }
+
+    it "returns tag names and commit SHAs" do
+      stub = stub_request(:get, "https://api.github.com/repos/acme/widgets/tags")
+        .with(query: hash_including("per_page" => "100"))
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: [
+            { name: "staging", commit: { sha: "stage-sha" } },
+            { name: "deploy-prod-20260730", commit: { sha: "prod-sha" } }
+          ].to_json
+        )
+
+      expect(client.list_tags("acme/widgets")).to eq([
+        { name: "staging", sha: "stage-sha" },
+        { name: "deploy-prod-20260730", sha: "prod-sha" }
+      ])
+      expect(stub).to have_been_requested
+    end
+
+    it "filters by glob or plain prefix pattern" do
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/tags")
+        .with(query: hash_including("per_page" => "100"))
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: [
+            { name: "deploy-prod-20260730", commit: { sha: "prod-sha" } },
+            { name: "deploy-canary-20260730", commit: { sha: "canary-sha" } },
+            { name: "release", commit: { sha: "release-sha" } }
+          ].to_json
+        )
+
+      expect(client.list_tags("acme/widgets", pattern: "deploy-prod-*")).to eq([
+        { name: "deploy-prod-20260730", sha: "prod-sha" }
+      ])
+      expect(client.list_tags("acme/widgets", pattern: "deploy-")).to eq([
+        { name: "deploy-prod-20260730", sha: "prod-sha" },
+        { name: "deploy-canary-20260730", sha: "canary-sha" }
+      ])
+    end
+  end
+
+  describe "#compare_commits" do
+    let(:client) { GithubClient.for(repository: repository, user: user) }
+
+    it "includes GitHub's compare status while preserving commit metadata" do
+      stub = stub_request(:get, "https://api.github.com/repos/acme/widgets/compare/base-sha...staging")
+        .with(query: hash_including("per_page" => "100"))
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: {
+            status: "ahead",
+            merge_base_commit: { sha: "base-sha" },
+            commits: [
+              {
+                sha: "commitsha123",
+                commit: {
+                  message: "Deploy app\n\nBody",
+                  committer: { date: "2026-07-30T18:00:00Z" }
+                }
+              }
+            ]
+          }.to_json
+        )
+
+      result = client.compare_commits("acme/widgets", "base-sha", "staging")
+
+      expect(result[:status]).to eq("ahead")
+      expect(result[:merge_base_sha]).to eq("base-sha")
+      expect(result[:commits].first).to include(
+        sha: "commitsha123",
+        short_sha: "commits",
+        message: "Deploy app"
+      )
+      expect(stub).to have_been_requested
+    end
+  end
+
   describe "#merge_pull_request" do
     let(:client) { GithubClient.for(repository: repository, user: user) }
 

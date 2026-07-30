@@ -66,6 +66,10 @@ class Job < ApplicationRecord
   has_many :job_attachments, -> { order(:created_at, :id) }, as: :attachable, class_name: "Document", dependent: :destroy
   has_many :job_tags, dependent: :destroy
   has_many :tags, -> { order(Arel.sql("LOWER(tags.name) ASC")) }, through: :job_tags
+  has_many :deployment_stage_statuses,
+           class_name: "JobDeploymentStageStatus",
+           dependent: :destroy,
+           inverse_of: :job
   has_many :dependencies,
            class_name: "JobDependency",
            dependent: :destroy,

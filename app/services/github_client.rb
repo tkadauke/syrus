@@ -686,6 +686,22 @@ class GithubClient
     raise
   end
 
+  def list_tags(repo_slug, pattern: nil)
+    tags = track_rate_limits { @client.tags(repo_slug) }.map do |tag|
+      {
+        name: tag.name.to_s,
+        sha: tag.commit&.sha.to_s.presence
+      }
+    end
+
+    return tags unless pattern.present?
+
+    tags.select { |tag| tag_matches_pattern?(tag[:name], pattern) }
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited listing tags on #{repo_slug}: #{e.message}")
+    raise
+  end
+
   # Returns { commits: [...], merge_base_sha: "abc" } for commits that are
   # on `head` but not yet in `base`. Each commit entry has :sha, :short_sha,
   # :message (first line), and :date. Commits are returned newest-first.
@@ -701,9 +717,9 @@ class GithubClient
         date:      c.commit.committer.date
       }
     }.reverse
-    { commits: commits, merge_base_sha: result.merge_base_commit.sha }
+    { commits: commits, merge_base_sha: result.merge_base_commit.sha, status: result.status.to_s.presence }
   rescue Octokit::NotFound
-    { commits: [], merge_base_sha: nil }
+    { commits: [], merge_base_sha: nil, status: nil }
   rescue Octokit::TooManyRequests => e
     Rails.logger.warn("[GithubClient] rate-limited on #{repo_slug} compare #{base}...#{head}: #{e.message}")
     raise
@@ -863,5 +879,14 @@ class GithubClient
     repo_info = @client.repository(repo_slug)
     tip_sha = @client.ref(repo_slug, "heads/#{repo_info.default_branch}").object.sha
     @client.create_ref(repo_slug, "refs/heads/#{branch}", tip_sha)
+  end
+
+  def tag_matches_pattern?(tag_name, pattern)
+    pattern = pattern.to_s
+    if pattern.match?(/[*?\[]/)
+      File.fnmatch?(pattern, tag_name, File::FNM_PATHNAME)
+    else
+      tag_name.start_with?(pattern)
+    end
   end
 end
