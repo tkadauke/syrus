@@ -3,10 +3,12 @@ import { useState } from "react"
 import { Link, useParams, useLocation } from "react-router-dom"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useT } from "../hooks/useT"
+import { useConfirm } from "../hooks/useConfirm"
 import { RepositoryTabs } from "../components/RepositoryTabs"
 import {
   acceptInsightSuggestion,
   dismissInsightSuggestion,
+  undismissInsightSuggestion,
   fetchInsightSuggestions,
   saveInsightMemory,
   type InsightSuggestion
@@ -147,6 +149,7 @@ function SuggestionCard({
 }) {
   const { t } = useT("insights")
   const queryClient = useQueryClient()
+  const { confirm, dialog: confirmDialog } = useConfirm()
   const [expanded, setExpanded] = useState(false)
   const [showAcceptForm, setShowAcceptForm] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -164,6 +167,16 @@ function SuggestionCard({
     onError: (err) => setError(errorMessage(err, t("dismiss_error")))
   })
 
+  const undismissMutation = useMutation({
+    mutationFn: () => undismissInsightSuggestion(suggestion.id),
+    onSuccess: (data) => {
+      setNotice(data.message)
+      setError(null)
+      queryClient.invalidateQueries({ queryKey })
+    },
+    onError: (err) => setError(errorMessage(err, t("undismiss_error")))
+  })
+
   const saveMemoryMutation = useMutation({
     mutationFn: () => saveInsightMemory(suggestion.id),
     onSuccess: (data) => {
@@ -173,8 +186,18 @@ function SuggestionCard({
     onError: (err) => setError(errorMessage(err, t("save_memory_error")))
   })
 
+  async function handleDismiss() {
+    const confirmed = await confirm({
+      message: t("dismiss_confirm_message"),
+      confirmLabel: t("dismiss"),
+      destructive: true
+    })
+    if (confirmed) dismissMutation.mutate()
+  }
+
   return (
     <article className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+      {confirmDialog}
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
@@ -188,6 +211,14 @@ function SuggestionCard({
               </span>
               {suggestion.state !== "pending" && (
                 <StatePill state={suggestion.state} />
+              )}
+              {suggestion.state === "accepted" && suggestion.created_job && (
+                <Link
+                  className="text-xs text-terracotta-700 underline hover:no-underline dark:text-terracotta-400"
+                  to={suggestion.created_job.job_path}
+                >
+                  {suggestion.created_job.slug}
+                </Link>
               )}
             </div>
             <h3 className="mt-1.5 text-sm font-semibold text-gray-900 dark:text-gray-100">
@@ -277,7 +308,7 @@ function SuggestionCard({
             <button
               className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
               disabled={dismissMutation.isPending}
-              onClick={() => dismissMutation.mutate()}
+              onClick={handleDismiss}
               type="button"
             >
               {dismissMutation.isPending ? t("dismissing") : t("dismiss")}
@@ -292,6 +323,32 @@ function SuggestionCard({
                 {saveMemoryMutation.isPending ? t("saving_memory") : t("save_as_memory")}
               </button>
             )}
+          </div>
+        )}
+
+        {suggestion.state === "accepted" && suggestion.has_memory_suggestion && (
+          <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
+            <button
+              className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+              disabled={saveMemoryMutation.isPending}
+              onClick={() => saveMemoryMutation.mutate()}
+              type="button"
+            >
+              {saveMemoryMutation.isPending ? t("saving_memory") : t("save_as_memory")}
+            </button>
+          </div>
+        )}
+
+        {suggestion.state === "dismissed" && (
+          <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
+            <button
+              className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+              disabled={undismissMutation.isPending}
+              onClick={() => undismissMutation.mutate()}
+              type="button"
+            >
+              {undismissMutation.isPending ? t("undismissing") : t("undismiss")}
+            </button>
           </div>
         )}
       </div>
@@ -327,14 +384,14 @@ function AcceptForm({
   onError: (message: string) => void
 }) {
   const { t } = useT("insights")
-  const [createJob, setCreateJob] = useState(suggestion.suggested_prompt != null)
+  const [promptExpanded, setPromptExpanded] = useState(!suggestion.suggested_prompt)
   const [prompt, setPrompt] = useState(suggestion.suggested_prompt || "")
 
   const mutation = useMutation({
     mutationFn: () =>
       acceptInsightSuggestion(suggestion.id, {
-        createJob,
-        prompt: createJob ? prompt : undefined
+        createJob: true,
+        prompt
       }),
     onSuccess: (data) => {
       onSuccess(data.job ? t("accepted_with_job", { slug: data.job.slug }) : t("accepted"))
@@ -347,26 +404,29 @@ function AcceptForm({
       <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">{t("accept_heading")}</h4>
 
       <div className="mt-3">
-        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-          <input
-            checked={createJob}
-            className="rounded border-gray-300"
-            onChange={(e) => setCreateJob(e.target.checked)}
-            type="checkbox"
-          />
-          {t("create_job_label")}
-        </label>
+        <button
+          className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+          onClick={() => setPromptExpanded((v) => !v)}
+          type="button"
+        >
+          <svg
+            className={`h-3 w-3 transition-transform ${promptExpanded ? "rotate-90" : ""}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
+          </svg>
+          {t("edit_prompt")}
+        </button>
       </div>
 
-      {createJob && (
-        <div className="mt-3">
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-            {t("prompt_label")}
-          </label>
+      {promptExpanded && (
+        <div className="mt-2">
           <textarea
+            aria-label={t("prompt_label")}
             className="mt-1 w-full rounded border border-gray-300 p-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
             onChange={(e) => setPrompt(e.target.value)}
-            required={createJob}
             rows={6}
             value={prompt}
           />
@@ -376,7 +436,7 @@ function AcceptForm({
       <div className="mt-3 flex gap-2">
         <button
           className="rounded bg-terracotta-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-terracotta-700 disabled:opacity-50"
-          disabled={mutation.isPending || (createJob && !prompt.trim())}
+          disabled={mutation.isPending || !prompt.trim()}
           onClick={() => mutation.mutate()}
           type="button"
         >

@@ -91,6 +91,12 @@ export function dismissInsightSuggestion(id: number) {
   })
 }
 
+export function undismissInsightSuggestion(id: number) {
+  return patchJson<InsightSuggestionUpdatePayload>(`/api/v1/app/insight_suggestions/${id}`, {
+    action_type: "undismiss"
+  })
+}
+
 export function saveInsightMemory(id: number) {
   return patchJson<InsightSuggestionUpdatePayload>(`/api/v1/app/insight_suggestions/${id}`, {
     action_type: "save_memory"

@@ -268,6 +268,85 @@ RSpec.describe "App API insight suggestions", type: :request do
     end
   end
 
+  describe "PATCH /api/v1/app/insight_suggestions/:id — undismiss" do
+    before do
+      enable_feature
+      sign_in_as(user)
+    end
+
+    it "transitions a dismissed suggestion back to pending" do
+      suggestion = create_suggestion
+      suggestion.dismiss!
+
+      patch "/api/v1/app/insight_suggestions/#{suggestion.id}",
+            params: { action_type: "undismiss" }, as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["suggestion"]["state"]).to eq("pending")
+      expect(parse_body["message"]).to include("pending")
+      expect(suggestion.reload.pending?).to be true
+      expect(suggestion.reload.dismissed_at).to be_nil
+    end
+
+    it "returns 422 when the suggestion is not dismissed (pending)" do
+      suggestion = create_suggestion
+
+      patch "/api/v1/app/insight_suggestions/#{suggestion.id}",
+            params: { action_type: "undismiss" }, as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(suggestion.reload.pending?).to be true
+    end
+
+    it "returns 422 when the suggestion is accepted" do
+      suggestion = create_suggestion
+      suggestion.accept!
+
+      patch "/api/v1/app/insight_suggestions/#{suggestion.id}",
+            params: { action_type: "undismiss" }, as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(suggestion.reload.accepted?).to be true
+    end
+
+    it "returns 404 for a suggestion belonging to another user" do
+      other_user = Factories.user
+      other_repo = Factories.repository(user: other_user)
+      other_job  = Factories.job(user: other_user, repository: other_repo, kind: "agent_insight", issue_number: nil)
+      other_suggestion = InsightSuggestion.create!(
+        job: other_job, repository: other_repo,
+        title: "Other", category: "c", severity: "low", confidence: 0.5
+      )
+      other_suggestion.dismiss!
+
+      patch "/api/v1/app/insight_suggestions/#{other_suggestion.id}",
+            params: { action_type: "undismiss" }, as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  describe "PATCH /api/v1/app/insight_suggestions/:id — save_memory on accepted suggestion" do
+    before do
+      enable_feature
+      sign_in_as(user)
+    end
+
+    it "can save memory on an accepted suggestion (independent of job acceptance)" do
+      suggestion = create_suggestion(memory_suggestion: "Always warm the cache")
+      suggestion.accept!
+
+      expect {
+        patch "/api/v1/app/insight_suggestions/#{suggestion.id}",
+              params: { action_type: "save_memory" }, as: :json
+      }.to change(ChatMemory, :count).by(1)
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["message"]).to include("saved")
+      expect(suggestion.reload.accepted?).to be true
+    end
+  end
+
   describe "PATCH /api/v1/app/insight_suggestions/:id — unknown action" do
     before { enable_feature; sign_in_as(user) }
 

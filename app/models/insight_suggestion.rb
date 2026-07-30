@@ -37,6 +37,15 @@ class InsightSuggestion < ApplicationRecord
     end
   end
 
+  def undismiss!
+    with_lock do
+      return false unless dismissed?
+
+      update!(state: "pending", dismissed_at: nil)
+      true
+    end
+  end
+
   def pending?    = state == "pending"
   def accepted?   = state == "accepted"
   def dismissed?  = state == "dismissed"

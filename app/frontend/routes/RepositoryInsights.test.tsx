@@ -1,0 +1,242 @@
+import { jsonResponse } from "../testSupport"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { MemoryRouter, Route, Routes } from "react-router-dom"
+import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
+import { RepositoryInsightsRoute } from "./RepositoryInsights"
+import * as useConfirmModule from "../hooks/useConfirm"
+
+function makeSuggestion(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 1,
+    title: "Frequent prepare failures",
+    category: "repeated_failure",
+    severity: "high",
+    confidence: 0.85,
+    state: "pending",
+    suggested_prompt: "Fix the prepare step",
+    memory_suggestion: "Always check bundle install logs",
+    has_memory_suggestion: true,
+    evidence: [],
+    job_slug: "JOB-100",
+    job_path: "/jobs/100",
+    accepted_at: null,
+    dismissed_at: null,
+    created_at: "2026-07-01T00:00:00Z",
+    created_job: null,
+    ...overrides
+  }
+}
+
+function payload(suggestions: unknown[] = [makeSuggestion()]) {
+  return {
+    repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", insights_path: "/repositories/1/insights" },
+    suggestions
+  }
+}
+
+function renderRoute(suggestions?: unknown[]) {
+  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload(suggestions)))
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={["/app-shell/repositories/1/insights"]}>
+        <Routes>
+          <Route element={<RepositoryInsightsRoute />} path="/app-shell/repositories/:id/insights" />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+describe("RepositoryInsightsRoute", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  describe("dismiss confirmation", () => {
+    let mockConfirm: ReturnType<typeof vi.fn>
+
+    beforeEach(() => {
+      mockConfirm = vi.fn().mockResolvedValue(true)
+      vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: mockConfirm as any, dialog: <></> })
+    })
+
+    it("shows a confirm dialog before dismissing", async () => {
+      renderRoute()
+
+      const dismissBtn = await screen.findByRole("button", { name: "Dismiss" })
+      fireEvent.click(dismissBtn)
+
+      await waitFor(() => {
+        expect(mockConfirm).toHaveBeenCalledWith(
+          expect.objectContaining({ destructive: true })
+        )
+      })
+    })
+
+    it("fires the dismiss API when the user confirms", async () => {
+      const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+        const url = String(input)
+        if (url.includes("/insight_suggestions/1") && init?.method === "PATCH") {
+          return Promise.resolve(jsonResponse({ message: "Suggestion dismissed.", suggestion: makeSuggestion({ state: "dismissed" }) }))
+        }
+        return Promise.resolve(jsonResponse(payload()))
+      })
+
+      renderRoute()
+      const dismissBtn = await screen.findByRole("button", { name: "Dismiss" })
+      fireEvent.click(dismissBtn)
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/insight_suggestions/1",
+          expect.objectContaining({ method: "PATCH" })
+        )
+      })
+    })
+
+    it("does not fire the dismiss API when the user cancels", async () => {
+      mockConfirm.mockResolvedValue(false)
+      const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload()))
+
+      renderRoute()
+      const dismissBtn = await screen.findByRole("button", { name: "Dismiss" })
+      await act(async () => { fireEvent.click(dismissBtn) })
+
+      await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
+      expect(fetchSpy).not.toHaveBeenCalledWith(
+        "/api/v1/app/insight_suggestions/1",
+        expect.objectContaining({ method: "PATCH" })
+      )
+    })
+  })
+
+  describe("Accept form — collapsed prompt", () => {
+    beforeEach(() => {
+      vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: vi.fn() as any, dialog: <></> })
+    })
+
+    it("hides the prompt textarea by default when a suggested_prompt exists", async () => {
+      renderRoute([makeSuggestion({ suggested_prompt: "Fix the prepare step" })])
+
+      const acceptBtn = await screen.findByRole("button", { name: "Accept" })
+      fireEvent.click(acceptBtn)
+
+      expect(screen.queryByRole("textbox", { name: "Prompt" })).not.toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Edit prompt" })).toBeInTheDocument()
+    })
+
+    it("shows the prompt textarea after clicking Edit prompt", async () => {
+      renderRoute([makeSuggestion({ suggested_prompt: "Fix the prepare step" })])
+
+      const acceptBtn = await screen.findByRole("button", { name: "Accept" })
+      fireEvent.click(acceptBtn)
+
+      fireEvent.click(screen.getByRole("button", { name: "Edit prompt" }))
+
+      expect(screen.getByRole("textbox", { name: "Prompt" })).toBeInTheDocument()
+    })
+
+    it("shows the prompt textarea expanded by default when no suggested_prompt", async () => {
+      renderRoute([makeSuggestion({ suggested_prompt: null, has_memory_suggestion: false })])
+
+      const acceptBtn = await screen.findByRole("button", { name: "Accept" })
+      fireEvent.click(acceptBtn)
+
+      expect(screen.getByRole("textbox", { name: "Prompt" })).toBeInTheDocument()
+    })
+
+    it("does not show the create-job checkbox", async () => {
+      renderRoute()
+
+      const acceptBtn = await screen.findByRole("button", { name: "Accept" })
+      fireEvent.click(acceptBtn)
+
+      expect(screen.queryByRole("checkbox")).not.toBeInTheDocument()
+    })
+  })
+
+  describe("accepted card — job link", () => {
+    it("shows a link to the created job next to the Accepted badge", async () => {
+      const accepted = makeSuggestion({
+        state: "accepted",
+        created_job: { id: 42, slug: "JOB-42", title: "Fix thing", state: "open", job_path: "/jobs/42" }
+      })
+      renderRoute([accepted])
+
+      // switch to Accepted tab
+      const acceptedTab = await screen.findByRole("button", { name: /Accepted/ })
+      fireEvent.click(acceptedTab)
+
+      const link = await screen.findByRole("link", { name: "JOB-42" })
+      expect(link).toHaveAttribute("href", "/jobs/42")
+    })
+  })
+
+  describe("independent memory save", () => {
+    it("shows Save as memory button on accepted cards with a memory suggestion", async () => {
+      const accepted = makeSuggestion({
+        state: "accepted",
+        has_memory_suggestion: true
+      })
+      renderRoute([accepted])
+
+      const acceptedTab = await screen.findByRole("button", { name: /Accepted/ })
+      fireEvent.click(acceptedTab)
+
+      expect(await screen.findByRole("button", { name: "Save as memory" })).toBeInTheDocument()
+    })
+
+    it("does not show Save as memory button on accepted cards without a memory suggestion", async () => {
+      const accepted = makeSuggestion({
+        state: "accepted",
+        has_memory_suggestion: false,
+        memory_suggestion: null
+      })
+      renderRoute([accepted])
+
+      const acceptedTab = await screen.findByRole("button", { name: /Accepted/ })
+      fireEvent.click(acceptedTab)
+
+      await screen.findByText("Frequent prepare failures")
+      expect(screen.queryByRole("button", { name: "Save as memory" })).not.toBeInTheDocument()
+    })
+  })
+
+  describe("undismiss action", () => {
+    it("shows Undismiss button on dismissed cards", async () => {
+      const dismissed = makeSuggestion({ state: "dismissed" })
+      renderRoute([dismissed])
+
+      const dismissedTab = await screen.findByRole("button", { name: /Dismissed/ })
+      fireEvent.click(dismissedTab)
+
+      expect(await screen.findByRole("button", { name: "Undismiss" })).toBeInTheDocument()
+    })
+
+    it("fires the undismiss API when Undismiss is clicked", async () => {
+      const dismissed = makeSuggestion({ state: "dismissed" })
+      const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+        const url = String(input)
+        if (url.includes("/insight_suggestions/1") && init?.method === "PATCH") {
+          return Promise.resolve(jsonResponse({ message: "Suggestion restored to pending.", suggestion: makeSuggestion({ state: "pending" }) }))
+        }
+        return Promise.resolve(jsonResponse(payload([dismissed])))
+      })
+
+      renderRoute([dismissed])
+
+      const dismissedTab = await screen.findByRole("button", { name: /Dismissed/ })
+      fireEvent.click(dismissedTab)
+
+      const undismissBtn = await screen.findByRole("button", { name: "Undismiss" })
+      fireEvent.click(undismissBtn)
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/insight_suggestions/1",
+          expect.objectContaining({ method: "PATCH" })
+        )
+      })
+    })
+  })
+})

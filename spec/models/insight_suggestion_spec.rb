@@ -117,6 +117,33 @@ RSpec.describe InsightSuggestion do
         expect(suggestion.dismiss!).to be false
       end
     end
+
+    describe "#undismiss!" do
+      it "transitions from dismissed back to pending and clears dismissed_at" do
+        suggestion = create_suggestion
+        suggestion.dismiss!
+
+        result = suggestion.undismiss!
+
+        expect(result).to be true
+        expect(suggestion.reload.state).to eq("pending")
+        expect(suggestion.reload.dismissed_at).to be_nil
+      end
+
+      it "returns false when suggestion is pending" do
+        suggestion = create_suggestion
+
+        expect(suggestion.undismiss!).to be false
+        expect(suggestion.reload.state).to eq("pending")
+      end
+
+      it "returns false when suggestion is accepted" do
+        suggestion = create_suggestion
+        suggestion.update_columns(state: "accepted")
+
+        expect(suggestion.undismiss!).to be false
+      end
+    end
   end
 
   describe "predicates" do
