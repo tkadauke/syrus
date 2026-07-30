@@ -14787,7 +14787,8 @@ function repositoryDetailPayload() {
       app_retry_failed_jobs_repository_path: "/api/v1/app/repositories/3/retry_failed_jobs",
       repositories_path: "/repositories",
       repository_documents_path: "/repositories/3/documents",
-      repository_scheduled_tasks_path: "/repositories/3/scheduled_tasks"
+      repository_scheduled_tasks_path: "/repositories/3/scheduled_tasks",
+      app_flaky_tests_path: "/api/v1/app/repositories/3/flaky_tests"
     }
   }
 }

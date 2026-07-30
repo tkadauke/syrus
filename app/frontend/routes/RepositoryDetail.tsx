@@ -326,14 +326,16 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
 
 function FlakyTestsPanel({ payload }: { payload: RepositoryDetailPayload }) {
   const { t } = useT("settings")
+  const flakyPath = payload.paths.app_flaky_tests_path
   const { data, isPending, isError } = useQuery({
     queryKey: ["repositories", String(payload.repository.id), "flaky_tests"],
-    queryFn: () => fetchRepositoryFlakyTests(payload.paths.app_flaky_tests_path)
+    queryFn: () => fetchRepositoryFlakyTests(flakyPath),
+    enabled: !!flakyPath
   })
 
   if (isPending) return null
   if (isError) return null
-  if (!data || data.tests.length === 0) return null
+  if (!data || !data.tests || data.tests.length === 0) return null
 
   return (
     <section>

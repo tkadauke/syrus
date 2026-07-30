@@ -55,6 +55,7 @@ per-user/private:
   - app/controllers/api/v1/app/pending_feedback_controller.rb
   - app/controllers/api/v1/app/repositories_controller.rb
   - app/controllers/api/v1/app/repository_documents_controller.rb
+  - app/controllers/api/v1/app/repository_flaky_tests_controller.rb
   - app/controllers/api/v1/app/scheduled_tasks_controller.rb
   - app/controllers/api/v1/app/search_controller.rb
   - app/controllers/api/v1/app/setup_controller.rb
@@ -152,6 +153,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/profiles_controller.rb` | per-user/private | Reads and updates the signed-in user's profile fields and public profile settings, and compares requested profiles to `Current.user` before exposing current-user-specific details. |
 | `app/controllers/api/v1/app/repositories_controller.rb` | per-user/private and admin affordance | Repository CRUD and GitHub issue actions use `Current.user.repositories` and the current user's GitHub credential. The GitHub App register path is only exposed to admins. |
 | `app/controllers/api/v1/app/repository_documents_controller.rb` | per-user/private | Repository documents are attached to repositories owned by the current user and found through that user's repository ids. |
+| `app/controllers/api/v1/app/repository_flaky_tests_controller.rb` | per-user/private | Flaky test summaries are fetched through `Current.user.repositories` so only the repository owner can read them. |
 | `app/controllers/api/v1/app/scheduled_tasks_controller.rb` | per-user/private | Scheduled tasks are created from current-user repositories/templates and listed/found with `where(user: Current.user)`. |
 | `app/controllers/api/v1/app/search_controller.rb` | per-user/private | Unified search queries user-scoped FTS rows and hydrates Jobs, Epics, and chat messages back through current-user ownership checks before returning results. |
 | `app/controllers/api/v1/app/setup_controller.rb` | per-user/private | Setup readiness, completion state, credentials, credential checks, repositories, onboarding state, first-run progress, and provider configuration are computed for the signed-in user so onboarding reflects that user's state. |
