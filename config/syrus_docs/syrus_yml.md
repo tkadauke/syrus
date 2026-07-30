@@ -154,3 +154,40 @@ Valid values: `pr`, `none`. Omitting the key defaults to `pr`.
 The reconciliation Job is a `kind=direct` Job that depends on all sibling Jobs in the Epic and runs a cross-cutting review before siblings are allowed to land. See the `reconciliation.md` operator doc for full details.
 
 An Epic-level `reconciliation_mode` column takes precedence over this `.syrus.yml` setting.
+
+## deployment_stages
+
+Configures the named deployment pipeline stages Syrus will track for this repository. Each stage maps to a git tag (or tag pattern) that advances as the merge commit propagates through your deployment pipeline.
+
+```yaml
+deployment_stages:
+  - name: staging
+    label: "On Staging"
+    tag: staging
+  - name: production
+    label: "In Production"
+    tag: production
+  - name: public
+    label: "Released to Public"
+    tag: release
+  - name: canary
+    label: "Canary"
+    tag_pattern: "deploy-canary-*"
+```
+
+Omitting `deployment_stages` or supplying an empty array disables stage tracking for the repository.
+
+### deployment_stages fields
+
+| Field | Required | Default | Notes |
+|---|---|---|---|
+| `name` | yes | — | Alphanumeric characters and underscores only; must be unique within the list |
+| `label` | no | Titleized `name` | Display label shown in the UI |
+| `tag` | yes (or `tag_pattern`) | — | Exact git tag name (typically a moving tag) |
+| `tag_pattern` | yes (or `tag`) | — | Glob pattern; Syrus finds the latest matching tag |
+
+Each stage must specify exactly one of `tag` or `tag_pattern` — not both.
+
+**`tag`** is for a single moving tag that your deployment pipeline advances (e.g. `staging` or `production`). Syrus checks whether the job's `landed_sha` is an ancestor of that tag's commit.
+
+**`tag_pattern`** is a glob pattern (e.g. `deploy-staging-*`) when your pipeline pushes a new dated tag on each deploy. Syrus finds the most recent tag that matches and checks ancestry.

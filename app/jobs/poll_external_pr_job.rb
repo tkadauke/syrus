@@ -25,6 +25,10 @@ class PollExternalPrJob < ApplicationJob
       r.cancel! if r.may_cancel?
       r.save!
     end
+    if reason == "external_pr_merged"
+      sha = @pr.respond_to?(:merge_commit_sha) ? @pr.merge_commit_sha : @pr[:merge_commit_sha]
+      @job.update_column(:landed_sha, sha) if sha.present?
+    end
     @job.close_with_reason!(reason)
   end
 end

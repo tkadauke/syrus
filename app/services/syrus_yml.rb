@@ -23,7 +23,10 @@ class SyrusYml
 
   RECONCILIATION_VALID_MODES = %w[pr feedback none].freeze
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :coverage, :formatters, :generated, :reconciliation_mode)
+  DEPLOYMENT_STAGE_NAME_PATTERN = /\A[A-Za-z0-9_]+\z/
+
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :coverage, :formatters, :generated, :reconciliation_mode, :deployment_stages)
+  DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern)
   GradeConfig = Data.define(:max_iterations, :steps)
   GradeStep = Data.define(:name, :run, :description, :required, :timeout_minutes, :when_files_changed)
   # Deterministic, in-place, semantics-preserving cosmetic passes (safe
@@ -69,7 +72,8 @@ class SyrusYml
       coverage: parse_coverage(raw["coverage"]),
       formatters: parse_formatters(raw["formatters"]),
       generated: parse_generated(raw["generated"]),
-      reconciliation_mode: parse_reconciliation_mode(raw["reconciliation_mode"])
+      reconciliation_mode: parse_reconciliation_mode(raw["reconciliation_mode"]),
+      deployment_stages: parse_deployment_stages(raw["deployment_stages"])
     )
   rescue Psych::SyntaxError => e
     raise ParseError, "YAML parse error: #{e.message}"
@@ -331,5 +335,42 @@ class SyrusYml
     clamped
   rescue ArgumentError, TypeError
     raise ParseError, "adversarial_review.rounds: must be an integer"
+  end
+
+  def parse_deployment_stages(raw)
+    return [] if raw.nil?
+    raise ParseError, "deployment_stages: must be an array" unless raw.is_a?(Array)
+
+    seen = Set.new
+    raw.each_with_index.map do |item, index|
+      parse_deployment_stage(item, index, seen)
+    end
+  end
+
+  def parse_deployment_stage(raw, index, seen)
+    label = "deployment_stages[#{index}]"
+    raise ParseError, "#{label}: must be a mapping" unless raw.is_a?(Hash)
+
+    name = raw["name"].to_s.strip
+    raise ParseError, "#{label}.name: is required" if name.empty?
+    unless name.match?(DEPLOYMENT_STAGE_NAME_PATTERN)
+      raise ParseError, "#{label}.name: must contain only alphanumeric characters and underscores"
+    end
+    raise ParseError, "#{label}.name: #{name.inspect} is duplicated" if seen.include?(name)
+    seen << name
+
+    tag = raw["tag"].to_s.strip.presence
+    tag_pattern = raw["tag_pattern"].to_s.strip.presence
+
+    if tag.nil? && tag_pattern.nil?
+      raise ParseError, "#{label}: must specify either 'tag' or 'tag_pattern'"
+    end
+    if tag && tag_pattern
+      raise ParseError, "#{label}: cannot specify both 'tag' and 'tag_pattern'"
+    end
+
+    display_label = raw["label"].to_s.strip.presence || name.tr("_", " ").split.map(&:capitalize).join(" ")
+
+    DeploymentStage.new(name: name, label: display_label, tag: tag, tag_pattern: tag_pattern)
   end
 end

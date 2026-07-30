@@ -16,10 +16,12 @@ RSpec.describe PollExternalPrJob do
   let(:slug) { "acme/widgets" }
   let(:external_pr_url) { "https://api.github.com/repos/acme/widgets/pulls/9" }
 
-  def stub_external_pr(state: "open", merged: false)
+  def stub_external_pr(state: "open", merged: false, merge_commit_sha: nil)
+    body = { number: 9, state: state, merged: merged }
+    body[:merge_commit_sha] = merge_commit_sha if merge_commit_sha
     stub_request(:get, external_pr_url).with(query: hash_including({})).to_return(
       status: 200, headers: { "Content-Type" => "application/json" },
-      body: { number: 9, state: state, merged: merged }.to_json
+      body: body.to_json
     )
   end
 
@@ -28,6 +30,24 @@ RSpec.describe PollExternalPrJob do
       stub_external_pr(state: "closed", merged: true)
       expect { described_class.perform_now(job.id) }.to change { job.reload.state }.to("closed")
       expect(job.closure_reason).to eq("external_pr_merged")
+    end
+
+    it "stores merge_commit_sha as landed_sha when the external PR is merged" do
+      stub_external_pr(state: "closed", merged: true, merge_commit_sha: "deadbeef1234")
+      described_class.perform_now(job.id)
+      expect(job.reload.landed_sha).to eq("deadbeef1234")
+    end
+
+    it "leaves landed_sha nil when merge_commit_sha is absent" do
+      stub_external_pr(state: "closed", merged: true)
+      described_class.perform_now(job.id)
+      expect(job.reload.landed_sha).to be_nil
+    end
+
+    it "does not set landed_sha when the PR is only closed (not merged)" do
+      stub_external_pr(state: "closed", merged: false)
+      described_class.perform_now(job.id)
+      expect(job.reload.landed_sha).to be_nil
     end
 
     it "closes the Job with external_pr_closed when the external PR is closed without merging" do

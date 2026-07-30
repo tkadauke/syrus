@@ -626,4 +626,114 @@ RSpec.describe SyrusYml do
         .to raise_error(described_class::ParseError, /reconciliation_mode: must be one of/)
     end
   end
+
+  describe "deployment_stages: key" do
+    it "parses stages with a fixed tag" do
+      config = parse(<<~YAML)
+        deployment_stages:
+          - name: staging
+            tag: staging
+          - name: production
+            label: "In Production"
+            tag: production
+      YAML
+
+      stages = config.deployment_stages
+      expect(stages.size).to eq(2)
+      expect(stages[0]).to eq(described_class::DeploymentStage.new(name: "staging", label: "Staging", tag: "staging", tag_pattern: nil))
+      expect(stages[1]).to eq(described_class::DeploymentStage.new(name: "production", label: "In Production", tag: "production", tag_pattern: nil))
+    end
+
+    it "parses stages with a tag_pattern" do
+      config = parse(<<~YAML)
+        deployment_stages:
+          - name: canary
+            tag_pattern: "deploy-canary-*"
+      YAML
+
+      stage = config.deployment_stages.first
+      expect(stage.tag_pattern).to eq("deploy-canary-*")
+      expect(stage.tag).to be_nil
+    end
+
+    it "defaults label to titleized name when label is omitted" do
+      config = parse(<<~YAML)
+        deployment_stages:
+          - name: pre_release
+            tag: pre-release
+      YAML
+
+      expect(config.deployment_stages.first.label).to eq("Pre Release")
+    end
+
+    it "returns empty array when deployment_stages is absent" do
+      config = parse("prepare: []\n")
+      expect(config.deployment_stages).to eq([])
+    end
+
+    it "rejects a non-array deployment_stages value" do
+      expect { parse("deployment_stages: staging\n") }
+        .to raise_error(described_class::ParseError, /deployment_stages: must be an array/)
+    end
+
+    it "rejects a stage with missing name" do
+      expect {
+        parse(<<~YAML)
+          deployment_stages:
+            - tag: staging
+        YAML
+      }.to raise_error(described_class::ParseError, /deployment_stages\[0\]\.name: is required/)
+    end
+
+    it "rejects a name with invalid characters" do
+      expect {
+        parse(<<~YAML)
+          deployment_stages:
+            - name: my-stage
+              tag: my-tag
+        YAML
+      }.to raise_error(described_class::ParseError, /deployment_stages\[0\]\.name: must contain only alphanumeric characters and underscores/)
+    end
+
+    it "rejects duplicate stage names" do
+      expect {
+        parse(<<~YAML)
+          deployment_stages:
+            - name: staging
+              tag: staging
+            - name: staging
+              tag: staging-v2
+        YAML
+      }.to raise_error(described_class::ParseError, /"staging" is duplicated/)
+    end
+
+    it "rejects a stage with neither tag nor tag_pattern" do
+      expect {
+        parse(<<~YAML)
+          deployment_stages:
+            - name: staging
+        YAML
+      }.to raise_error(described_class::ParseError, /must specify either 'tag' or 'tag_pattern'/)
+    end
+
+    it "rejects a stage with both tag and tag_pattern" do
+      expect {
+        parse(<<~YAML)
+          deployment_stages:
+            - name: staging
+              tag: staging
+              tag_pattern: "deploy-staging-*"
+        YAML
+      }.to raise_error(described_class::ParseError, /cannot specify both 'tag' and 'tag_pattern'/)
+    end
+
+    it "rejects a non-mapping stage entry" do
+      expect {
+        parse(<<~YAML)
+          deployment_stages:
+            - staging
+        YAML
+      }.to raise_error(described_class::ParseError, /deployment_stages\[0\]: must be a mapping/)
+    end
+  end
 end

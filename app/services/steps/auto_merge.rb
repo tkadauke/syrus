@@ -71,6 +71,9 @@ module Steps
 
       raise StepFailed, "auto_merge: GitHub did not report the PR as merged" unless merge.respond_to?(:merged) ? merge.merged : merge[:merged]
 
+      sha = merge.respond_to?(:sha) ? merge.sha : merge[:sha]
+      job.update_column(:landed_sha, sha) if sha.present?
+
       comment = "Merged automatically by Syrus after approval and green checks. #{job.slug}: #{job_url}"
       add_merge_comment(client, comment)
       job.close_with_reason!("pr_merged") if job.open?

@@ -35,8 +35,9 @@ module Steps
       merged = merge.respond_to?(:merged) ? merge.merged : merge[:merged]
       raise StepFailed, "merge_train: GitHub did not report the integration PR as merged" unless merged
 
+      integration_sha = merge.respond_to?(:sha) ? merge.sha : merge[:sha]
       delete_branch_after_landing(client, train.integration_branch)
-      reconcile_members!(train, client, pr)
+      reconcile_members!(train, client, pr, integration_sha: integration_sha)
 
       train.update!(state: "succeeded", finished_at: Time.current)
       log("merge_train: landed Epic ##{epic.id} (#{train.members.size} PR(s)) via integration PR ##{pr.number}")
@@ -218,11 +219,14 @@ module Steps
       nil
     end
 
-    def reconcile_members!(train, client, integration_pr)
+    def reconcile_members!(train, client, integration_pr, integration_sha: nil)
       train.members.includes(:job).each do |member|
         member_job = member.job
         reconcile_member_pull_request_after_landing(client, member_job, integration_pr)
-        member_job.close_with_reason!("pr_merged") if member_job.open?
+        if member_job.open?
+          member_job.update_column(:landed_sha, integration_sha) if integration_sha.present?
+          member_job.close_with_reason!("pr_merged")
+        end
         if member_job.branch_name.present?
           member_job.update_column(:branch_deleted_at, Time.current) if delete_branch_after_landing(client, member_job.branch_name)
         end

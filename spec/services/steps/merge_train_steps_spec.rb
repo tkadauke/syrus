@@ -356,6 +356,22 @@ RSpec.describe "Steps::MergeTrain*" do
       expect(train.members.pluck(:state).uniq).to eq([ "merged" ])
     end
 
+    it "stores the integration merge SHA as landed_sha on all member Jobs" do
+      a = member_job(issue_number: 1)
+      b = member_job(issue_number: 2)
+      train = build_train([ a, b ])
+      handler = step_handler(described_class, "merge_train_land", train, b)
+      allow(handler).to receive(:repository).and_return(repository)
+      stub_git(handler)
+      allow(client).to receive(:merge_pull_request)
+        .and_return(OpenStruct.new(merged: true, sha: "trainsha789"))
+
+      handler.call
+
+      expect(a.reload.landed_sha).to eq("trainsha789")
+      expect(b.reload.landed_sha).to eq("trainsha789")
+    end
+
     it "deletes the integration branch and each member branch after landing" do
       a = member_job(issue_number: 1)
       b = member_job(issue_number: 2)

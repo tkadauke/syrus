@@ -61,6 +61,30 @@ RSpec.describe Steps::AutoMerge do
     expect(job.closure_reason).to eq("pr_merged")
   end
 
+  it "stores the merge commit SHA as landed_sha when GitHub returns one" do
+    job.approve!(via: "github_review")
+    job.start_landing!
+    job.save!
+    allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true, sha: "abc123def456"))
+    allow(client).to receive(:add_issue_comment)
+
+    described_class.new(run).call
+
+    expect(job.reload.landed_sha).to eq("abc123def456")
+  end
+
+  it "leaves landed_sha nil when the merge response omits a SHA" do
+    job.approve!(via: "github_review")
+    job.start_landing!
+    job.save!
+    allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true))
+    allow(client).to receive(:add_issue_comment)
+
+    described_class.new(run).call
+
+    expect(job.reload.landed_sha).to be_nil
+  end
+
   it "cancels the run and workflow when the PR was already closed" do
     allow(ClosedPullRequestResolution).to receive(:reason).and_return("pr_closed")
     allow(client).to receive(:pull_request).and_return(pr(state: "closed"))
