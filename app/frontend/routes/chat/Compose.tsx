@@ -27,6 +27,7 @@ import { lastAssistantRenderedMessage } from "./streamBuilders"
 import { PencilIcon, UploadIcon } from "./icons"
 import { isAgentActive } from "./messageDisplay"
 import { storeWorkspacePreference } from "./workspaceTabs"
+import { JobEpicPickerPopup } from "./JobEpicPickerPopup"
 
 
 
@@ -79,6 +80,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
   const pendingVideoRef = useRef<File | null>(null)
   const walkthroughKeyRef = useRef(0)
   const [scratchpadOpen, setScratchpadOpen] = useState(false)
+  const [pickerMode, setPickerMode] = useState<{ kind: "job" | "epic"; onSelect: (id: string) => void } | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const attachmentPopoverRef = useRef<HTMLDivElement | null>(null)
@@ -304,6 +306,22 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
       return
     }
     const commandMatch = findSlashCommand(text)
+
+    // If the command takes a job/epic ID but none was provided, open the picker.
+    const pickerKind = commandMatch ? pickerKindForCommand(commandMatch.command.name) : null
+    if (pickerKind && !commandMatch!.argsText.trim()) {
+      const capturedMatch = commandMatch!
+      setPickerMode({
+        kind: pickerKind,
+        onSelect: (id) => {
+          setPickerMode(null)
+          handleCommandWithId(capturedMatch.command, id)
+          textareaRef.current?.focus()
+        }
+      })
+      return
+    }
+
     if (commandMatch?.command.requiresConfirmation) {
       onNotice(null)
       setPendingConfirmation({ commandName: commandMatch.command.name, text: text.trim() })
@@ -320,6 +338,36 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
     onNotice(null)
     setPendingConfirmation(null)
     send.mutate(slashCommandPrompt(text))
+  }
+
+  function pickerKindForCommand(commandName: SlashCommand["name"]): "job" | "epic" | null {
+    if (commandName === "/epic") return "epic"
+    if (commandName === "/job" || commandName === "/cancel" || commandName === "/retry" || commandName === "/feedback") return "job"
+    return null
+  }
+
+  function handleCommandWithId(command: SlashCommand, id: string) {
+    if (command.name === "/job") {
+      navigate(withRoutePrefix(`/jobs/${id}`, prefix))
+      setText("")
+      return
+    }
+    if (command.name === "/epic") {
+      navigate(withRoutePrefix(`/epics/${id}`, prefix))
+      setText("")
+      return
+    }
+    // /cancel and /retry require confirmation — show the confirmation dialog.
+    if (command.name === "/cancel" || command.name === "/retry") {
+      onNotice(null)
+      setPendingConfirmation({ commandName: command.name, text: `${command.name} ${id}` })
+      return
+    }
+    // /feedback is a skill command that also requires confirmation.
+    if (command.name === "/feedback") {
+      onNotice(null)
+      setPendingConfirmation({ commandName: "/feedback", text: `/feedback ${id}` })
+    }
   }
 
   function jumpToPending() {
@@ -1189,6 +1237,17 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
             context={{ chat: { pinned: payload.chat.pinned } }}
             query={commandQuery}
             onSelect={(command) => completeSlashCommand(command)}
+          />
+        ) : null}
+        {pickerMode ? (
+          <JobEpicPickerPopup
+            kind={pickerMode.kind}
+            repositorySlug={payload.chat.repository?.slug ?? null}
+            onCancel={() => {
+              setPickerMode(null)
+              textareaRef.current?.focus()
+            }}
+            onSelect={pickerMode.onSelect}
           />
         ) : null}
         {attachments.length > 0 ? (

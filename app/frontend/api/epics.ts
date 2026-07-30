@@ -232,6 +232,26 @@ export function addEpicDependency(path: string, dependsOnEpicId: number) {
   return postJson<EpicDetailPayload>(path, { depends_on_epic_id: dependsOnEpicId })
 }
 
+export type PickerEpicRecord = {
+  id: number
+  number: number
+  title: string
+  state: string
+  repository_slug: string
+}
+
+export type PickerEpicsPayload = {
+  count: number
+  epics: PickerEpicRecord[]
+}
+
+export function fetchPickerEpics(params: { repo?: string; limit?: number } = {}) {
+  const searchParams = new URLSearchParams()
+  if (params.repo) searchParams.set("repo", params.repo)
+  searchParams.set("limit", String(params.limit ?? 50))
+  return getJson<PickerEpicsPayload>(`/api/v1/app/epics?${searchParams}`)
+}
+
 export function removeEpicDependency(path: string, dependsOnEpicId: number) {
   return deleteJson<EpicDetailPayload>(`${path}/${dependsOnEpicId}`)
 }

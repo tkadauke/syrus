@@ -115,4 +115,47 @@ describe("slashCommands", () => {
   it("leaves other skill commands unchanged", () => {
     expect(slashCommandPrompt("hello")).toBe("hello")
   })
+
+  it("registers /job with an optional id arg", () => {
+    const match = findSlashCommand("/job")
+
+    expect(match?.command.kind).toBe("system")
+    expect(match?.command.args).toEqual([{ name: "id", required: false }])
+    expect(match ? slashCommandSignature(match.command) : "missing").toBe("[id]")
+  })
+
+  it("registers /epic with an optional id arg", () => {
+    const match = findSlashCommand("/epic")
+
+    expect(match?.command.kind).toBe("system")
+    expect(match?.command.args).toEqual([{ name: "id", required: false }])
+    expect(match ? slashCommandSignature(match.command) : "missing").toBe("[id]")
+  })
+
+  it("registers /cancel with an optional id arg and requiresConfirmation", () => {
+    const match = findSlashCommand("/cancel")
+
+    expect(match?.command.kind).toBe("system")
+    expect(match?.command.args).toEqual([{ name: "id", required: false }])
+    expect(match?.command.requiresConfirmation).toBe(true)
+    expect(match ? slashCommandSignature(match.command) : "missing").toBe("[id]")
+  })
+
+  it("registers /retry with an optional id arg and requiresConfirmation", () => {
+    const match = findSlashCommand("/retry")
+
+    expect(match?.command.kind).toBe("system")
+    expect(match?.command.args).toEqual([{ name: "id", required: false }])
+    expect(match?.command.requiresConfirmation).toBe(true)
+    expect(match ? slashCommandSignature(match.command) : "missing").toBe("[id]")
+  })
+
+  it("registers /feedback with an optional id arg and requiresConfirmation", () => {
+    const match = findSlashCommand("/feedback")
+
+    expect(match?.command.kind).toBe("skill")
+    expect(match?.command.args).toEqual([{ name: "id", required: false }])
+    expect(match?.command.requiresConfirmation).toBe(true)
+    expect(match ? slashCommandSignature(match.command) : "missing").toBe("[id]")
+  })
 })

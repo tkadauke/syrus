@@ -288,5 +288,11 @@
   "chat_settings_credentials": "Testimonia colloquii",
   "chat_settings_effective_provider": "Efficax: {{label}}",
   "chat_settings_effective_default": "Praefinitum",
-  "provider_update_error": "Praebitor mutari non potuit."
+  "provider_update_error": "Praebitor mutari non potuit.",
+  "picker_search_jobs": "Quaere opera…",
+  "picker_search_epics": "Quaere epica…",
+  "picker_no_jobs": "Nulla opera inventa.",
+  "picker_no_epics": "Nulla epica inventa.",
+  "picker_loading": "Onerantur…",
+  "aria_job_epic_picker": "Elige opus vel epicum"
 }

@@ -49,13 +49,13 @@ export const slashCommands = [
   {
     name: "/job",
     kind: "system",
-    args: [{ name: "id", required: true }],
+    args: [{ name: "id", required: false }],
     description: "Open a Job."
   },
   {
     name: "/epic",
     kind: "system",
-    args: [{ name: "id", required: true }],
+    args: [{ name: "id", required: false }],
     description: "Open an Epic."
   },
   {
@@ -90,9 +90,9 @@ export const slashCommands = [
     description: "Bookmark this chat topic."
   },
   { name: "/discard", kind: "system", args: [{ name: "slug", required: true }], description: "Discard proposed work.", requiresConfirmation: true },
-  { name: "/cancel", kind: "system", args: [{ name: "id", required: true }], description: "Cancel work.", requiresConfirmation: true },
-  { name: "/retry", kind: "system", args: [{ name: "id", required: true }], description: "Retry failed work.", requiresConfirmation: true },
-  { name: "/feedback", kind: "skill", args: [{ name: "id", required: true }], description: "Send feedback for the agent to address.", requiresConfirmation: true },
+  { name: "/cancel", kind: "system", args: [{ name: "id", required: false }], description: "Cancel work.", requiresConfirmation: true },
+  { name: "/retry", kind: "system", args: [{ name: "id", required: false }], description: "Retry failed work.", requiresConfirmation: true },
+  { name: "/feedback", kind: "skill", args: [{ name: "id", required: false }], description: "Send feedback for the agent to address.", requiresConfirmation: true },
   { name: "/clear-canvas", kind: "system", args: [], description: "Clear the whiteboard.", requiresConfirmation: true },
   {
     name: "/propose",

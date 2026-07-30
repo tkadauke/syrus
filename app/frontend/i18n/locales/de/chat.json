@@ -288,5 +288,11 @@
   "chat_settings_credentials": "Chat-Anmeldedaten",
   "chat_settings_effective_provider": "Wirksam: {{label}}",
   "chat_settings_effective_default": "Standard",
-  "provider_update_error": "Anbieter konnte nicht aktualisiert werden."
+  "provider_update_error": "Anbieter konnte nicht aktualisiert werden.",
+  "picker_search_jobs": "Jobs durchsuchen…",
+  "picker_search_epics": "Epics durchsuchen…",
+  "picker_no_jobs": "Keine Jobs gefunden.",
+  "picker_no_epics": "Keine Epics gefunden.",
+  "picker_loading": "Wird geladen…",
+  "aria_job_epic_picker": "Job oder Epic auswählen"
 }

@@ -637,3 +637,24 @@ export function createJobAttachments(path: string, values: { files: File[]; goog
 
   return postForm<JobCommandPayload>(path, formData)
 }
+
+export type PickerJobRecord = {
+  id: number
+  title: string
+  issue_title: string
+  state: string
+  repository_slug: string
+}
+
+export type PickerJobsPayload = {
+  count: number
+  jobs: PickerJobRecord[]
+}
+
+export function fetchPickerJobs(params: { state?: string; repo?: string; limit?: number } = {}) {
+  const searchParams = new URLSearchParams()
+  if (params.state) searchParams.set("state", params.state)
+  if (params.repo) searchParams.set("repo", params.repo)
+  searchParams.set("limit", String(params.limit ?? 50))
+  return getJson<PickerJobsPayload>(`/api/v1/app/jobs?${searchParams}`)
+}
