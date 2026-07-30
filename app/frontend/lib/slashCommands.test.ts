@@ -15,6 +15,8 @@ describe("slashCommands", () => {
     "/epic",
     "/prs",
     "/issues",
+    "/queue",
+    "/spend",
     "/proposals",
     "/branch",
     "/pin",
@@ -76,6 +78,24 @@ describe("slashCommands", () => {
     expect(match?.command.kind).toBe("system")
     expect(match ? slashCommandDescription(match.command, { chat: { pinned: false } }) : "missing").toBe("Pin this chat to the top of the sidebar")
     expect(match ? slashCommandDescription(match.command, { chat: { pinned: true } }) : "missing").toBe("Unpin this chat")
+  })
+
+  it("registers /queue as a no-argument system command", () => {
+    const match = findSlashCommand("/queue")
+
+    expect(match?.command.kind).toBe("system")
+    expect(match?.command.description).toBe("Open the landing queue.")
+    expect(match?.command.args).toEqual([])
+    expect(match ? slashCommandSignature(match.command) : "missing").toBe("")
+  })
+
+  it("registers /spend as a no-argument system command", () => {
+    const match = findSlashCommand("/spend")
+
+    expect(match?.command.kind).toBe("system")
+    expect(match?.command.description).toBe("Open spending insights.")
+    expect(match?.command.args).toEqual([])
+    expect(match ? slashCommandSignature(match.command) : "missing").toBe("")
   })
 
   it("registers /share as a no-argument system command", () => {
