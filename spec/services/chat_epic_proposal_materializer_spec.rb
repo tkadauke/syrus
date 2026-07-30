@@ -66,6 +66,27 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(chat_session.attached_jobs).to contain_exactly(*result.jobs)
   end
 
+  it "enables auto-approval and per-Job auto-merge for simple-mode Epic children" do
+    setting = AppSetting.current
+    original_mode = setting.mode
+    setting.update!(mode: "simple", mode_configured_at: Time.current)
+    proposal = epic_proposal
+    proposal.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "child",
+      title: "Child",
+      body: "Build it.",
+      repository: repository
+    )
+
+    result = described_class.new(user: user).file!(proposal)
+
+    expect(result.epic.reload.auto_approve_mode).to eq("if_graders_pass")
+    expect(result.jobs.sole.reload.auto_merge_enabled).to be(true)
+  ensure
+    setting&.update!(mode: original_mode || "advanced")
+  end
+
   it "blocks child Jobs when an EpicDependency wired during file! is invisible to a stale association cache" do
     in_progress_epic = Factories.epic(user: user, repository: repository, state: "in_progress")
     blocking_job = Factories.job_record(user: user, repository: repository, issue_number: 77)

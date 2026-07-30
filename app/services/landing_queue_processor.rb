@@ -472,8 +472,9 @@ class LandingQueueProcessor
     # up for auto-merge — that wipes the operator's approval without
     # surfacing the real misconfiguration. Keep the Job in :approved
     # with a clear blocked_reason; once the repo flips
-    # auto_merge_enabled=true the queue picks it up immediately.
-    return blocked("auto-merge not enabled for repository") unless job.repository.auto_merge_enabled?
+    # auto_merge_enabled=true the queue picks it up immediately. Simple-mode
+    # Epic children can opt in per Job without exposing the repository setting.
+    return blocked("auto-merge not enabled for repository") unless job.auto_merge_enabled?
     return blocked("review requested changes") if job.needs_attention_reason == "upstream_pr_changes_requested"
     return blocked("missing pull request") if job.pr_number.blank?
     # Surface a specific reason when a ci_failure workflow is the active one, so

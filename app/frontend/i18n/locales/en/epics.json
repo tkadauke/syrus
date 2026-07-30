@@ -122,6 +122,14 @@
   "start_implementing": "Start implementing",
   "waiting_on_dependencies": "Waiting on {{names}}",
   "starting": "Starting...",
+  "start_preview": "Start Preview",
+  "looks_good": "Looks Good",
+  "something_wrong": "Something's Wrong",
+  "review_feedback_title": "What should change?",
+  "review_feedback_placeholder": "Describe what looks wrong.",
+  "submit_feedback": "Submit feedback",
+  "submitting": "Submitting...",
+  "review_command_error": "Unable to update review.",
 
   "preview_see_more": "See more",
 

@@ -125,7 +125,7 @@ module Api
 
         def approve
           job = find_job
-          unless job.repository.auto_merge_enabled?
+          unless job.auto_merge_enabled?
             render_error("validation_failed", "Auto-merge is disabled for #{job.repository.slug}; enable it in repository settings before approving.", status: :unprocessable_content)
             return
           end

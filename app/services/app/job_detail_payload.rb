@@ -404,7 +404,7 @@ module App
         retry_implementation_action: retry_actions[:implementation],
         can_restart: !@job.any_active_run? && !@job.cron? && !@job.no_change_needed?,
         can_cancel: @job.open?,
-        can_approve: @job.can_add_job_approval?(@user),
+        can_approve: @job.can_add_job_approval?(@user) && !simple_epic_child?,
         can_unapprove: @job.may_unapprove?,
         can_reopen: @job.closed? && !@job.infrastructure?,
         can_mark_valid: @job.validity_duplicate? || @job.validity_already_implemented?,
@@ -423,6 +423,10 @@ module App
         rebase_agent_options: @job.alternate_configured_agent_providers,
         retry_agent_options: @job.retry_with_agent_providers
       }
+    end
+
+    def simple_epic_child?
+      AppSetting.simple? && @job.epic_id.present?
     end
 
     def paths_json

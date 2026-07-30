@@ -138,7 +138,9 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     )
     expect(body["epic"]).to include(
       "epic_dependency_policy" => "linear",
-      "resolved_epic_dependency_policy" => "linear"
+      "resolved_epic_dependency_policy" => "linear",
+      "review_ready" => false,
+      "user_approved_at" => nil
     )
     expect(body["summary"]).to include(
       "done_jobs_count" => 1,
@@ -203,7 +205,10 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       "app_claim_path" => "/api/v1/app/epics/#{epic.id}/claim",
       "app_unclaim_path" => "/api/v1/app/epics/#{epic.id}/unclaim",
       "app_reassign_path" => "/api/v1/app/epics/#{epic.id}/reassign",
-      "app_dependencies_path" => "/api/v1/app/epics/#{epic.id}/dependencies"
+      "app_dependencies_path" => "/api/v1/app/epics/#{epic.id}/dependencies",
+      "app_review_approve_path" => "/api/v1/app/epics/#{epic.id}/review/approve",
+      "app_review_feedback_path" => "/api/v1/app/epics/#{epic.id}/review/feedback",
+      "app_start_preview_path" => nil
     )
   end
 
@@ -274,6 +279,57 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     expect(response).to have_http_status(:ok)
     rendered = parse_body.fetch("jobs").find { |candidate| candidate.fetch("id") == job.id }
     expect(rendered).not_to have_key("deployment_stages")
+  end
+
+  describe "simple-mode review actions" do
+    around do |example|
+      setting = AppSetting.current
+      original_mode = setting.mode
+      setting.update!(mode: "simple", mode_configured_at: Time.current)
+      example.run
+    ensure
+      setting&.update!(mode: original_mode || "advanced")
+    end
+
+    it "records user approval for a review-ready Epic" do
+      sign_in_as(user)
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      Factories.job_record(user: user, repository: repository, epic: epic, state: "closed", closure_reason: "pr_merged")
+      epic.reload.auto_complete!
+
+      expect {
+        post "/api/v1/app/epics/#{epic.id}/review/approve"
+      }.to change { epic.reload.user_approved_at }.from(nil)
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to include("message" => "Feature approved.")
+      expect(parse_body.dig("epic", "review_ready")).to eq(false)
+    end
+
+    it "creates a tail feedback Job and returns the Epic to in-progress" do
+      sign_in_as(user)
+      epic = Factories.epic(user: user, repository: repository, title: "Checkout", state: "in_progress")
+      tail = Factories.job_record(user: user, repository: repository, epic: epic, state: "closed", closure_reason: "pr_merged")
+      epic.reload.auto_complete!
+
+      expect {
+        post "/api/v1/app/epics/#{epic.id}/review/feedback", params: { feedback: "Button contrast is off." }, as: :json
+      }.to change(Job, :count).by(1)
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      job = Job.order(:id).last
+      expect(body).to include("message" => "Feedback received — work is queued.")
+      expect(body.dig("epic", "state")).to eq("in_progress")
+      expect(job).to have_attributes(
+        kind: "direct",
+        epic: epic,
+        issue_body: "Button contrast is off.",
+        auto_merge_enabled: true
+      )
+      expect(job.dependencies.sole.depends_on_job).to eq(tail)
+      expect(epic.reload.done_at).to be_nil
+    end
   end
 
   it "includes stuck status in the Epic detail payload" do

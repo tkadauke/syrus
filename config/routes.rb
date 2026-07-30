@@ -139,6 +139,8 @@ Rails.application.routes.draw do
         patch "epics/:id/reassign", to: "epics#reassign", constraints: { id: /[a-zA-Z0-9_-]+/ }
         patch "epics/:id/state", to: "epics#update_state", constraints: { id: /[a-zA-Z0-9_-]+/ }
         post "epics/:id/start", to: "epics#start", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        post "epics/:id/review/approve", to: "epics#approve_review", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        post "epics/:id/review/feedback", to: "epics#submit_review_feedback", constraints: { id: /[a-zA-Z0-9_-]+/ }
         post "epics/:id/dependencies", to: "epics#add_dependency", constraints: { id: /[a-zA-Z0-9_-]+/ }
         delete "epics/:id/dependencies/:depends_on_epic_id", to: "epics#remove_dependency", constraints: { id: /[a-zA-Z0-9_-]+/, depends_on_epic_id: /\d+/ }
         get "filters/fk_options", to: "filters#fk_options"

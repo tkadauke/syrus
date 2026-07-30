@@ -45,7 +45,7 @@ Maximum number of PRs that can participate in a single merge train. `merge_train
 Instance-wide experience mode. Set once during first-run onboarding (the "How do you work?" wizard step) or later in Admin → Settings → Instance mode.
 
 - **`advanced`** — full developer experience: manual per-Job approvals, Coding Mode, Local Mode, scheduled tasks, GitHub Issues tab, and all operator controls are available.
-- **`simple`** — non-technical solopreneur mode: developer-only surfaces are force-disabled regardless of their feature flag state. Specifically, `Feature.coding_mode_enabled?` and `Feature.local_mode_enabled?` always return `false`. Epic child Job dependency graphs must be strict linear chains (no forks, no merges).
+- **`simple`** — non-technical solopreneur mode: developer-only surfaces are force-disabled regardless of their feature flag state. Specifically, `Feature.coding_mode_enabled?` and `Feature.local_mode_enabled?` always return `false`. Epic child Job dependency graphs must be strict linear chains (no forks, no merges). Child Jobs created under an Epic get `auto_merge_enabled: true`, and the Epic gets `auto_approve_mode: "if_graders_pass"` so each child PR auto-approves and lands after repo-committed graders pass. Once all work Jobs close as merged, `Epic#review_ready?` surfaces the Epic as ready for feature-level review; the operator can approve the feature (`user_approved_at`) or submit feedback, which appends a new direct Job to the end of the Epic chain and returns the Epic to `in_progress`.
 
 Use `AppSetting.simple?` / `AppSetting.advanced?` in code to branch on mode. Changing mode takes effect immediately (no restart required) because `AppSetting.current` is called at request time.
 

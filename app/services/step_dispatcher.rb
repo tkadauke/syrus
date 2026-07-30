@@ -667,7 +667,7 @@ class StepDispatcher
   def schedule_auto_merge_recheck
     job = @workflow.job
     return unless pushed_workflow?
-    return unless job.repository.auto_merge_enabled?
+    return unless job.auto_merge_enabled?
     return unless job.pending_auto_merge?
 
     PollMergeStateJob.set(wait: MERGEABILITY_RECHECK_DELAY).perform_later(job.id)

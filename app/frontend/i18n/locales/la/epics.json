@@ -122,6 +122,14 @@
   "start_implementing": "Effectionem incipe",
   "waiting_on_dependencies": "Exspectat {{names}}",
   "starting": "Incipitur...",
+  "start_preview": "Praevisum incipe",
+  "looks_good": "Bene videtur",
+  "something_wrong": "Aliquid errat",
+  "review_feedback_title": "Quid mutandum est?",
+  "review_feedback_placeholder": "Describe quid male videatur.",
+  "submit_feedback": "Responsum mitte",
+  "submitting": "Mittitur...",
+  "review_command_error": "Recognitio renovari non potuit.",
 
   "preview_see_more": "Vide amplius",
 

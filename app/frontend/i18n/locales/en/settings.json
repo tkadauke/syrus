@@ -164,6 +164,7 @@
     "pref_pr_comment_addressed": "Notify me when Syrus addresses my PR comments",
     "pref_pr_merged": "Notify me when a job is merged",
     "pref_epic_completed": "Notify me when an epic completes",
+    "pref_epic_review_ready": "Notify me when a feature is ready for review",
     "pref_main_inconclusive": "Notify me when main branch health needs review",
     "desktop_job_implemented_label": "Job ready for review",
     "desktop_job_implemented_desc": "Fires when a job transitions to implemented.",

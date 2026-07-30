@@ -218,7 +218,7 @@ module Api
             jobs.each do |job|
               next unless job.may_approve?
 
-              unless job.repository.auto_merge_enabled?
+              unless job.auto_merge_enabled?
                 skipped_auto_merge_disabled << job
                 next
               end

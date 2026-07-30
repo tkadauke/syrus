@@ -37,6 +37,7 @@ export type NotificationPreferenceKind =
   | "pr_comment_addressed"
   | "pr_merged"
   | "epic_completed"
+  | "epic_review_ready"
   | "main_inconclusive"
 
 export type NotificationPreferences = Record<NotificationPreferenceKind, boolean>

@@ -483,6 +483,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_01_010500) do
     t.string "state", default: "backlog", null: false
     t.string "title", null: false
     t.datetime "updated_at", null: false
+    t.datetime "user_approved_at"
     t.integer "user_id", null: false
     t.index ["claimed_at"], name: "index_epics_on_claimed_at"
     t.index ["number"], name: "index_epics_on_number", unique: true
@@ -727,6 +728,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_01_010500) do
     t.datetime "approved_at"
     t.integer "approved_by_user_id"
     t.string "approved_via"
+    t.boolean "auto_merge_enabled", default: false, null: false
     t.datetime "branch_deleted_at"
     t.string "branch_name"
     t.datetime "claimed_at"

@@ -110,8 +110,10 @@ class Job < ApplicationRecord
   before_validation :default_credential_mode, on: :create
   before_validation :default_lifecycle_metadata, on: :create
   before_validation :set_target_repository_from_epic, on: :create
+  before_validation :apply_simple_epic_automation_defaults, on: :create
   before_validation :defer_stale_closed_epic_assignment
   before_validation :sync_epic_title
+  after_create :ensure_simple_epic_auto_approval
   before_create :generate_slug
 
   enum :validity, VALIDITIES.index_with(&:itself), prefix: true, validate: true
@@ -539,6 +541,10 @@ class Job < ApplicationRecord
     return true if approved? || landing? || closed?
 
     approve!(via: "github_review")
+  end
+
+  def auto_merge_enabled?
+    auto_merge_enabled || repository.auto_merge_enabled?
   end
 
   def mark_feedback_addressed!(addressed_at)
@@ -1075,6 +1081,21 @@ class Job < ApplicationRecord
     self.invalidation_evidence ||= []
     self.approval_evidence ||= {}
     self.pending_epic_reference ||= {}
+  end
+
+  def apply_simple_epic_automation_defaults
+    return unless AppSetting.simple?
+    return unless epic || epic_id.present?
+
+    self.auto_merge_enabled = true
+  end
+
+  def ensure_simple_epic_auto_approval
+    return unless AppSetting.simple?
+    return unless epic
+    return if epic.auto_approve_mode == "if_graders_pass"
+
+    epic.update!(auto_approve_mode: "if_graders_pass")
   end
 
   def assign_approval_metadata(*args)

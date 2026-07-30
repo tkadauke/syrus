@@ -109,4 +109,27 @@ RSpec.describe "notification event generation" do
       [ other.id, "Epic \"Ship notifications\" completed" ]
     )
   end
+
+  it "creates a review-ready notification when a simple-mode Epic's child Jobs all merge" do
+    setting = AppSetting.current
+    original_mode = setting.mode
+    setting.update!(mode: "simple", mode_configured_at: Time.current)
+    user = Factories.user(notification_preferences: { "epic_review_ready" => true })
+    repository = Factories.repository(user: user)
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress", title: "Reviewable feature")
+    Factories.job_record(user: user, repository: repository, epic: epic, state: "closed", closure_reason: "pr_merged")
+    Notification.delete_all
+    epic.update_columns(state: "in_progress", done_at: nil)
+
+    expect {
+      epic.reload.auto_complete!
+    }.to change { Notification.where(kind: "epic_review_ready").count }.by(1)
+
+    expect(Notification.where(kind: "epic_review_ready").sole).to have_attributes(
+      user_id: user.id,
+      body: "Feature \"Reviewable feature\" is ready for your review"
+    )
+  ensure
+    setting&.update!(mode: original_mode || "advanced")
+  end
 end

@@ -36,6 +36,8 @@ function detailPayload(overrides: Partial<EpicDetailPayload["epic"]> = {}): Epic
       owner_status: "unclaimed",
       owner_user: null,
       repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", epic_dependency_policy: "linear" },
+      review_ready: false,
+      user_approved_at: null,
       max_commits_behind_base: null,
       furthest_behind_job_id: null,
       furthest_behind_job_path: null,
@@ -59,7 +61,10 @@ function detailPayload(overrides: Partial<EpicDetailPayload["epic"]> = {}): Epic
       app_claim_path: "/api/v1/app/epics/3/claim",
       app_unclaim_path: "/api/v1/app/epics/3/unclaim",
       app_reassign_path: "/api/v1/app/epics/3/reassign",
-      app_dependencies_path: "/api/v1/app/epics/3/dependencies"
+      app_dependencies_path: "/api/v1/app/epics/3/dependencies",
+      app_review_approve_path: "/api/v1/app/epics/3/review/approve",
+      app_review_feedback_path: "/api/v1/app/epics/3/review/feedback",
+      app_start_preview_path: null
     }
   }
 }
@@ -248,6 +253,49 @@ describe("EpicDetail dependency graph", () => {
     renderDetail(payload)
 
     expect(screen.getByLabelText("Dependency graph scroll region")).toHaveClass("overflow-x-auto")
+  })
+})
+
+describe("EpicDetail simple-mode review controls", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("shows review controls for a review-ready Epic and posts Looks Good", async () => {
+    const reviewed = detailPayload({ review_ready: false, user_approved_at: new Date().toISOString() })
+    reviewed.message = "Feature approved."
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(reviewed))
+    renderDetail(detailPayload({ review_ready: true, startable: false }))
+
+    expect(screen.getByRole("button", { name: "Start Preview" })).toBeDisabled()
+    fireEvent.click(screen.getByRole("button", { name: "Looks Good" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled())
+    const [url, init] = fetchSpy.mock.calls[0]
+    expect(url).toBe("/api/v1/app/epics/3/review/approve")
+    expect(init?.method).toBe("POST")
+  })
+
+  it("submits Something's Wrong feedback", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(detailPayload({ review_ready: false, state: "in_progress" })))
+    renderDetail(detailPayload({ review_ready: true, startable: false }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Something's Wrong" }))
+    fireEvent.change(screen.getByPlaceholderText("Describe what looks wrong."), { target: { value: "The contrast is too low." } })
+    fireEvent.click(screen.getByRole("button", { name: "Submit feedback" }))
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled())
+    const [url, init] = fetchSpy.mock.calls[0]
+    expect(url).toBe("/api/v1/app/epics/3/review/feedback")
+    expect(init?.method).toBe("POST")
+    expect(JSON.parse(String(init?.body))).toEqual({ feedback: "The contrast is too low." })
+  })
+
+  it("hides the Jobs section while the simple-mode Epic waits for review", () => {
+    const payload = detailPayload({ review_ready: true, startable: false })
+    payload.jobs = [job("closed")]
+    payload.summary.total_jobs_count = 1
+    renderDetail(payload)
+
+    expect(screen.queryByRole("heading", { name: "Jobs" })).not.toBeInTheDocument()
   })
 })
 

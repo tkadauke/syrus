@@ -16,11 +16,14 @@ import { usePageTitle } from "../hooks/usePageTitle"
 import {
   addEpicDependency,
   archiveEpic,
+  approveEpicReview,
   claimEpic,
   fetchEpicDetail,
   removeEpicDependency,
   searchEpicOptions,
   startEpicImplementing,
+  startEpicPreview,
+  submitEpicReviewFeedback,
   unclaimEpic,
   updateEpicState,
   type EpicDependencyRecord,
@@ -80,6 +83,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
   const queryClient = useQueryClient()
   const queryKey = ["epics", String(payload.epic.id)] as const
   const [notice, setNotice] = useState<string | null>(payload.message || null)
+  const [reviewFeedbackOpen, setReviewFeedbackOpen] = useState(false)
   const { confirm, dialog } = useConfirm()
   const command = useMutation({
     mutationFn: (action: EpicCommand) => {
@@ -104,6 +108,20 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
       queryClient.setQueryData(queryKey, updated)
       queryClient.invalidateQueries({ queryKey })
       setNotice(updated.message || null)
+    }
+  })
+  const reviewCommand = useMutation({
+    mutationFn: (action: { kind: "approve" } | { kind: "feedback"; feedback: string } | { kind: "preview" }) => {
+      if (action.kind === "approve") return approveEpicReview(payload.paths.app_review_approve_path)
+      if (action.kind === "preview" && payload.paths.app_start_preview_path) return startEpicPreview(payload.paths.app_start_preview_path)
+      if (action.kind === "feedback") return submitEpicReviewFeedback(payload.paths.app_review_feedback_path, action.feedback)
+
+      return Promise.resolve(payload)
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+      setNotice(updated.message || null)
+      setReviewFeedbackOpen(false)
     }
   })
 
@@ -183,6 +201,45 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
           </div>
         ) : null}
 
+        {payload.epic.review_ready ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              className={buttonClass("secondary")}
+              disabled={reviewCommand.isPending || !payload.paths.app_start_preview_path}
+              onClick={() => reviewCommand.mutate({ kind: "preview" })}
+              type="button"
+            >
+              {t("start_preview")}
+            </button>
+            <button
+              className={buttonClass("success")}
+              disabled={reviewCommand.isPending}
+              onClick={() => reviewCommand.mutate({ kind: "approve" })}
+              type="button"
+            >
+              {t("looks_good")}
+            </button>
+            <button
+              aria-expanded={reviewFeedbackOpen}
+              className={buttonClass("secondary")}
+              disabled={reviewCommand.isPending}
+              onClick={() => setReviewFeedbackOpen((open) => !open)}
+              type="button"
+            >
+              {t("something_wrong")}
+            </button>
+          </div>
+        ) : null}
+
+        {reviewFeedbackOpen ? (
+          <EpicReviewFeedbackPanel
+            error={reviewCommand.error}
+            isPending={reviewCommand.isPending}
+            onCancel={() => setReviewFeedbackOpen(false)}
+            onSubmit={(feedback) => reviewCommand.mutate({ kind: "feedback", feedback })}
+          />
+        ) : null}
+
         <div className="space-y-2">
           <ProgressBar jobs={payload.jobs} totalCount={payload.summary.total_jobs_count} />
           {payload.merge_train_status ? <MergeTrainStatusBanner status={payload.merge_train_status} /> : null}
@@ -203,6 +260,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("command_error"))}</PanelMessage> : null}
+      {reviewCommand.isError ? <PanelMessage tone="error">{errorMessage(reviewCommand.error, t("review_command_error"))}</PanelMessage> : null}
       {dialog}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,31fr)_minmax(0,19fr)]">
@@ -213,7 +271,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
               <Markdown className="chat-prose mt-2 text-sm text-gray-700 dark:text-gray-300" text={payload.epic.description} />
             </section>
           ) : null}
-          <JobsSection epicRepositorySlug={payload.epic.repository.slug} jobs={payload.jobs} newJobPath={`/jobs/new?repository_id=${payload.epic.repository.id}`} prefix={prefix} />
+          {payload.epic.review_ready ? null : <JobsSection epicRepositorySlug={payload.epic.repository.slug} jobs={payload.jobs} newJobPath={`/jobs/new?repository_id=${payload.epic.repository.id}`} prefix={prefix} />}
           <DependencyGraph graph={payload.graph} />
           <HistorySection versions={payload.versions || []} />
         </div>
@@ -332,6 +390,42 @@ function DependenciesSection({
           <p className="mt-2 text-gray-400 dark:text-gray-500">{t("none")}</p>
         )}
       </div>
+    </section>
+  )
+}
+
+function EpicReviewFeedbackPanel({ error, isPending, onCancel, onSubmit }: { error: Error | null; isPending: boolean; onCancel: () => void; onSubmit: (feedback: string) => void }) {
+  const { t } = useT("epics")
+  const [feedback, setFeedback] = useState("")
+  const trimmedFeedback = feedback.trim()
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!trimmedFeedback) return
+
+    onSubmit(trimmedFeedback)
+  }
+
+  return (
+    <section className="rounded border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900/60 dark:bg-blue-950/20">
+      <form className="space-y-3" onSubmit={submit}>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("review_feedback_title")}</h2>
+        <textarea
+          className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:outline-blue-600 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+          disabled={isPending}
+          onChange={(event) => setFeedback(event.target.value)}
+          placeholder={t("review_feedback_placeholder")}
+          rows={4}
+          value={feedback}
+        />
+        {error ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(error, t("review_command_error"))}</p> : null}
+        <div className="flex flex-wrap justify-end gap-2">
+          <button className={buttonClass("secondary")} disabled={isPending} onClick={onCancel} type="button">{t("cancel")}</button>
+          <button className={buttonClass("primary")} disabled={isPending || !trimmedFeedback} type="submit">
+            {isPending ? t("submitting") : t("submit_feedback")}
+          </button>
+        </div>
+      </form>
     </section>
   )
 }

@@ -115,6 +115,7 @@ class User < ApplicationRecord
     "pr_comment_addressed" => true,
     "pr_merged" => true,
     "epic_completed" => false,
+    "epic_review_ready" => true,
     "upstream_pr_closed" => true,
     "main_broken" => true,
     "main_inconclusive" => true,
