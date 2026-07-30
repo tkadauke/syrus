@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Markdown } from "../lib/Markdown"
 import type { Step } from "react-joyride"
-import type { CSSProperties, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, UIEvent } from "react"
+import type { CSSProperties, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, MutableRefObject, UIEvent } from "react"
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import "@excalidraw/excalidraw/index.css"
@@ -401,7 +401,9 @@ function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; paylo
   )
 }
 
-function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: { bookmarkTarget: BookmarkTarget | null; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+type OlderMessageRequester = (options: { preserveScroll: boolean }) => boolean
+
+function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlderChange, payload, prefix, queryKey, onNotice }: { bookmarkTarget: BookmarkTarget | null; olderMessageRequesterRef?: MutableRefObject<OlderMessageRequester | null>; onCanLoadOlderChange?: (canLoad: boolean) => void; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const location = useLocation()
   const { t } = useT("chat")
   // Passive observer of the shared bootstrap cache (AppChrome owns the
@@ -466,6 +468,19 @@ function MessageStream({ bookmarkTarget, payload, prefix, queryKey, onNotice }: 
     loadOlder.mutate(oldestId)
     return true
   }, [hasMoreOlder, loadOlder, oldestId])
+
+  useEffect(() => {
+    if (!olderMessageRequesterRef) return
+
+    olderMessageRequesterRef.current = requestOlderMessages
+    return () => {
+      if (olderMessageRequesterRef.current === requestOlderMessages) olderMessageRequesterRef.current = null
+    }
+  }, [olderMessageRequesterRef, requestOlderMessages])
+
+  useEffect(() => {
+    onCanLoadOlderChange?.(hasMoreOlder && oldestId != null && !loadOlder.isPending)
+  }, [hasMoreOlder, loadOlder.isPending, oldestId, onCanLoadOlderChange])
 
   const handleScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
     const atBottom = isMessageStreamAtBottom(event.currentTarget)
@@ -962,12 +977,17 @@ export function ChatTour() {
 
 function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, queryKey, onNotice }: { bookmarkTarget: BookmarkTarget | null; chatId: string; commandHandlers: ChatSystemCommandHandlers; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const [hasSentFirstMessage, setHasSentFirstMessage] = useState(false)
+  const olderMessageRequesterRef = useRef<OlderMessageRequester | null>(null)
+  const [canLoadEarlierMessages, setCanLoadEarlierMessages] = useState(payload.has_more_older)
   const { t } = useT("chat")
   const landing = payload.messages.length === 0 && payload.pending_actions.length === 0 && !hasSentFirstMessage
 
   useEffect(() => {
     setHasSentFirstMessage(false)
-  }, [payload.chat.id])
+    setCanLoadEarlierMessages(payload.has_more_older)
+  }, [payload.chat.id, payload.has_more_older])
+
+  const loadEarlierMessagesFromCompose = useCallback(() => olderMessageRequesterRef.current?.({ preserveScroll: false }) ?? false, [])
 
   return (
     <section className={`flex min-h-0 min-w-0 flex-1 flex-col transition-all duration-500 ${landing ? "items-center justify-center gap-6 px-4" : "gap-3"}`}>
@@ -980,12 +1000,12 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
       ) : null}
       <div className={`relative min-h-0 overflow-hidden rounded border border-gray-200 bg-white transition-all duration-500 ease-out dark:border-gray-700 dark:bg-gray-950 ${landing ? "h-0 w-full max-w-2xl opacity-0" : "flex-1 opacity-100"}`} data-tour="chat-message-list">
         <div data-tour="chat-message-list-top" className="absolute inset-x-0 top-0 h-0" />
-        <MessageStream bookmarkTarget={bookmarkTarget} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
+        <MessageStream bookmarkTarget={bookmarkTarget} olderMessageRequesterRef={olderMessageRequesterRef} payload={payload} prefix={prefix} queryKey={queryKey} onCanLoadOlderChange={setCanLoadEarlierMessages} onNotice={onNotice} />
         <UsageOverlay payload={payload} />
       </div>
       <div className={landing ? "w-full max-w-sm sm:max-w-2xl" : "space-y-3"}>
         {!landing ? <CodingCheckoutBanner payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
-        <Compose key={chatId} autoFocus={landing} chatId={chatId} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} showAttachedRepositories={landing} onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} />
+        <Compose key={chatId} autoFocus={landing} canLoadEarlierMessages={canLoadEarlierMessages} chatId={chatId} commandHandlers={commandHandlers} onLoadEarlierMessages={loadEarlierMessagesFromCompose} payload={payload} prefix={prefix} queryKey={queryKey} showAttachedRepositories={landing} onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} />
       </div>
     </section>
   )
@@ -1103,4 +1123,3 @@ function AgentQuestionPrompt({ question, queryKey, onNotice }: { question: ChatA
     </div>
   )
 }
-

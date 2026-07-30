@@ -39,6 +39,7 @@ module ChatSerialization
       agent_busy: chat_session.agent_busy?,
       switching_provider: false,
       has_more_older: has_more_older,
+      pending_proposal_count: chat_session.proposals.where(state: "proposed").count,
       messages: messages_json(messages, repository: repository),
       bookmarks: chat_session.bookmarks.includes(:chat_message).map { |bookmark| bookmark_json(bookmark) },
       recent_chats: recent_chats_json(chat_session),

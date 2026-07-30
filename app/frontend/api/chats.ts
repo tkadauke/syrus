@@ -445,6 +445,7 @@ export type ChatPayload = {
   agent_busy: boolean
   switching_provider: boolean
   has_more_older: boolean
+  pending_proposal_count?: number
   messages: ChatMessageItem[]
   bookmarks: ChatBookmark[]
   recent_chats: ChatNavRecord[]

@@ -3237,6 +3237,18 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body.dig("chat", "pending_proposal_count")).to eq(2)
   end
 
+  it "returns a pure pending proposal count in the chat detail payload" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    chat.proposals.create!(slug: "map-auth", title: "Map auth", body: "Map it.")
+    chat.proposals.create!(slug: "confirmed-auth", title: "Confirmed auth", body: "Done.", state: "confirmed")
+    chat.pending_actions.create!(action: "cancel_job", payload: { "job_id" => Factories.job(repository: repository).id })
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(parse_body["pending_proposal_count"]).to eq(1)
+  end
+
   it "renders queued pending actions and lets the operator cancel them" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)

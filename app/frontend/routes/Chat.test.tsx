@@ -583,6 +583,48 @@ describe("chat pending proposal jump banner", () => {
     expect(screen.getByRole("button", { name: "Jump (1 of 2)" })).toBeInTheDocument()
   })
 
+  it("shows pending proposal count from the chat payload when proposal messages are not loaded", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      if (path === "/api/v1/app/chats/8/messages?before=9") {
+        return Promise.resolve(jsonResponse({
+          has_more_older: false,
+          messages: [
+            messageWithProposal(4, proposal({ id: 1, title: "Survey aqueduct route" }))
+          ]
+        }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [
+          {
+            type: "message",
+            id: 9,
+            role: "assistant",
+            tool_name: null,
+            content: { text: "Latest update." },
+            text: "Latest update.",
+            bookmarkable: true
+          }
+        ]
+      }, { has_more_older: true, pending_proposal_count: 1 })))
+    })
+
+    renderRoute()
+
+    expect(await screen.findByText("1 pending proposal")).toBeInTheDocument()
+    const loadEarlier = screen.getByRole("button", { name: "Load earlier messages" })
+    fireEvent.click(loadEarlier)
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/chats/8/messages?before=9", expect.anything())
+    })
+  })
+
   it("jumps through pending proposal messages in order", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
@@ -2656,7 +2698,7 @@ function proposal(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Array<Record<string, unknown>>; bookmarks?: Array<Record<string, unknown>>; attachment_groups?: Record<string, Array<Record<string, unknown>>>; attachment_results?: Array<Record<string, unknown>>; scratchpad_items?: Array<Record<string, unknown>>; queued_messages?: Array<Record<string, unknown>>; agent_questions?: Array<Record<string, unknown>> } = {}) {
+function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Array<Record<string, unknown>>; bookmarks?: Array<Record<string, unknown>>; attachment_groups?: Record<string, Array<Record<string, unknown>>>; attachment_results?: Array<Record<string, unknown>>; scratchpad_items?: Array<Record<string, unknown>>; queued_messages?: Array<Record<string, unknown>>; agent_questions?: Array<Record<string, unknown>> } = {}, rootOverrides: Record<string, unknown> = {}) {
   return {
     chat: {
       id: 8,
@@ -2678,6 +2720,7 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
     agent_busy: false,
     switching_provider: false,
     has_more_older: false,
+    pending_proposal_count: undefined,
     messages: overrides.messages || [
       {
         type: "message",
@@ -2724,7 +2767,8 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
       app_attachments_path: "/api/v1/app/chats/8/attachments",
       app_whiteboard_path: "/api/v1/app/chats/8/whiteboard",
       app_scratchpad_reorder_path: "/api/v1/app/chats/8/scratchpad_items/reorder"
-    }
+    },
+    ...rootOverrides
   }
 }
 

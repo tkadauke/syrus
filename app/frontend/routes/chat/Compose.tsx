@@ -37,7 +37,7 @@ import { storeWorkspacePreference } from "./workspaceTabs"
 // textarea/enter/proposal helpers. Compose is the entry point ChatColumn renders.
 // Depends only on leaf modules and shared UI imports; unused header imports pruned.
 
-export function Compose({ autoFocus = false, chatId, commandHandlers, payload, prefix, queryKey, showAttachedRepositories = false, onNotice, onMessageSent }: { autoFocus?: boolean; chatId: string; commandHandlers: ChatSystemCommandHandlers; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; showAttachedRepositories?: boolean; onNotice: (message: string | null) => void; onMessageSent?: () => void }) {
+export function Compose({ autoFocus = false, canLoadEarlierMessages = false, chatId, commandHandlers, onLoadEarlierMessages, payload, prefix, queryKey, showAttachedRepositories = false, onNotice, onMessageSent }: { autoFocus?: boolean; canLoadEarlierMessages?: boolean; chatId: string; commandHandlers: ChatSystemCommandHandlers; onLoadEarlierMessages?: () => boolean; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; showAttachedRepositories?: boolean; onNotice: (message: string | null) => void; onMessageSent?: () => void }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { t } = useT("chat")
@@ -108,6 +108,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
       }
     )
   }, [payload.messages])
+  const pendingProposalCount = payload.pending_proposal_count ?? pendingProposals.length
   const [jumpIndex, setJumpIndex] = useState(0)
   const attachedRepositories = payload.attachment_groups.repositories
 
@@ -328,6 +329,12 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
 
     document.getElementById(`chat_message_${target.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })
     setJumpIndex((index) => index + 1)
+  }
+
+  function loadEarlierPendingProposal() {
+    if (canLoadEarlierMessages && onLoadEarlierMessages?.()) return
+
+    document.querySelector<HTMLElement>('[data-testid="chat-message-stream"]')?.scrollTo({ behavior: "smooth", top: 0 })
   }
 
   function handleSystemSlashCommand(commandMatch: SlashCommandMatch) {
@@ -1053,19 +1060,21 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
 
   return (
     <>
-      {pendingProposals.length > 0 ? (
+      {pendingProposalCount > 0 ? (
         <div className="flex items-center justify-between rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
           <span>
-            {pendingProposals.length === 1
+            {pendingProposalCount === 1
               ? "1 pending proposal"
-              : `${pendingProposals.length} pending proposals`}
+              : `${pendingProposalCount} pending proposals`}
           </span>
           <button
             className="font-medium underline hover:no-underline"
-            onClick={jumpToPending}
+            onClick={pendingProposals.length > 0 ? jumpToPending : loadEarlierPendingProposal}
             type="button"
           >
-            {pendingProposals.length > 1 ? `Jump (${(jumpIndex % pendingProposals.length) + 1} of ${pendingProposals.length})` : "Jump ↑"}
+            {pendingProposals.length > 0
+              ? pendingProposals.length > 1 ? `Jump (${(jumpIndex % pendingProposals.length) + 1} of ${pendingProposals.length})` : "Jump ↑"
+              : canLoadEarlierMessages ? "Load earlier messages" : "Scroll to top"}
           </button>
         </div>
       ) : null}
