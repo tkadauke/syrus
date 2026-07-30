@@ -290,6 +290,22 @@ function SystemMessage({ item, prefix }: { item: ChatSystemMessage; prefix: stri
     error: "border-red-200 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100",
     neutral: "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
   }
+  if (item.prominent) {
+    return (
+      <div className="flex justify-center">
+        <div className={`w-full max-w-3xl rounded border px-4 py-3 text-sm shadow-sm ${colors[item.tone]}`} role={item.tone === "error" ? "alert" : "status"}>
+          <div className="mb-1 text-xs font-semibold uppercase">{item.label}</div>
+          <div className="break-words leading-relaxed">{item.body}</div>
+          {item.cta ? (
+            <Link className="mt-2 inline-block font-medium underline hover:no-underline" to={withRoutePrefix(item.cta.path, prefix)}>
+              {item.cta.label}
+            </Link>
+          ) : null}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex justify-center">
       <div className={`inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1 text-xs ${colors[item.tone]}`}>

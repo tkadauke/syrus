@@ -1,6 +1,8 @@
 class ProviderCircuitBreaker
   WINDOW = 15.minutes
   OPEN_FOR = 10.minutes
+  USAGE_LIMIT_WINDOW = 24.hours
+  USAGE_LIMIT_OPEN_FOR = 24.hours
   MIN_FAILURES = 5
   MIN_UNRELATED_JOBS = 3
   REPEAT_SIGNATURE_THRESHOLD = 3
@@ -26,8 +28,13 @@ class ProviderCircuitBreaker
     /timeout/i
   ].freeze
 
-  Decision = Data.define(:provider, :open, :reason, :retry_after, :failure_count, :job_count, :signature) do
+  Decision = Data.define(:provider, :open, :reason, :retry_after, :failure_count, :job_count, :signature, :model, :usage_limit) do
+    def initialize(provider:, open:, reason:, retry_after:, failure_count:, job_count:, signature:, model: nil, usage_limit: false)
+      super
+    end
+
     def open? = open
+    def usage_limit? = usage_limit
 
     def as_json(*)
       {
@@ -37,12 +44,15 @@ class ProviderCircuitBreaker
         retry_after: retry_after&.iso8601,
         failure_count: failure_count,
         job_count: job_count,
-        signature: signature
+        signature: signature,
+        model: model,
+        usage_limit: usage_limit?
       }
     end
   end
 
   FailureSignal = Data.define(:run, :signature, :retryable)
+  UsageLimitSignal = Data.define(:run, :signature, :model)
 
   def self.call(provider, now: Time.current) = new(provider, now: now).call
 
@@ -61,6 +71,11 @@ class ProviderCircuitBreaker
   end
 
   def call
+    usage_signal = usage_limit_signals.first
+    if usage_signal
+      return open_usage_limit(usage_signal)
+    end
+
     signals = failure_signals
     return closed(signals) if signals.size < MIN_FAILURES
 
@@ -87,7 +102,9 @@ class ProviderCircuitBreaker
       retry_after: nil,
       failure_count: signals.count,
       job_count: job_count || signals.map { |signal| signal.run.job_id }.uniq.size,
-      signature: nil
+      signature: nil,
+      model: nil,
+      usage_limit: false
     )
   end
 
@@ -100,7 +117,24 @@ class ProviderCircuitBreaker
       retry_after: latest_finished_at + OPEN_FOR,
       failure_count: signals.count,
       job_count: job_count,
-      signature: signature
+      signature: signature,
+      model: nil,
+      usage_limit: false
+    )
+  end
+
+  def open_usage_limit(signal)
+    latest_finished_at = signal.run.finished_at || signal.run.updated_at || now
+    Decision.new(
+      provider: provider,
+      open: true,
+      reason: signal.model.present? ? "provider usage limit exhausted for model #{signal.model}" : "provider usage limit exhausted; model unknown, failing closed for provider",
+      retry_after: latest_finished_at + USAGE_LIMIT_OPEN_FOR,
+      failure_count: 1,
+      job_count: 1,
+      signature: signal.signature,
+      model: signal.model,
+      usage_limit: true
     )
   end
 
@@ -118,6 +152,33 @@ class ProviderCircuitBreaker
        .where("runs.finished_at >= ?", now - WINDOW)
   end
 
+  def usage_limit_signals
+    usage_limit_failed_runs.filter_map do |run|
+      text = diagnostic_text(run)
+      next unless usage_limit?(run, text)
+
+      UsageLimitSignal.new(
+        run: run,
+        signature: signature_for(run),
+        model: ProviderUsageLimit.extract_model(text)
+      )
+    end
+  end
+
+  def usage_limit_failed_runs
+    Run.left_outer_joins(:run_diagnostic, :run_failure_classification)
+       .includes(:run_diagnostic, :run_failure_classification)
+       .where(state: "failed", agent_provider: provider)
+       .where("runs.finished_at >= ?", now - USAGE_LIMIT_WINDOW)
+       .order(finished_at: :desc, updated_at: :desc)
+  end
+
+  def usage_limit?(run, text)
+    run.agent_outcome.to_s == ProviderUsageLimit::OUTCOME ||
+      run.run_failure_classification&.classification == ProviderUsageLimit::CLASSIFICATION ||
+      ProviderUsageLimit.detect?(text)
+  end
+
   def retryable?(run)
     return true if RETRYABLE_OUTCOMES.include?(run.agent_outcome.to_s)
     return true if transient_text?(diagnostic_text(run))
@@ -133,16 +194,20 @@ class ProviderCircuitBreaker
   def diagnostic_text(run)
     [
       run.agent_outcome,
+      run.run_failure_classification&.classification,
       run.run_diagnostic&.error_class,
-      run.run_diagnostic&.error_message
+      run.run_diagnostic&.error_message,
+      recent_log_text(run)
     ].compact.join(" ")
   end
 
   def signature_for(run)
     raw = [
       run.agent_outcome,
+      run.run_failure_classification&.classification,
       run.run_diagnostic&.error_class,
-      run.run_diagnostic&.error_message
+      run.run_diagnostic&.error_message,
+      recent_log_text(run)
     ].compact.join(": ")
     normalized = raw.downcase
                     .gsub(%r{https?://\S+}, "<url>")
@@ -156,5 +221,9 @@ class ProviderCircuitBreaker
     signals.group_by(&:signature)
            .max_by { |_signature, grouped| grouped.size }
            &.then { |signature, grouped| [ signature, grouped.size ] }
+  end
+
+  def recent_log_text(run)
+    run.job_logs.order(sequence: :desc).limit(5).pluck(:chunk).join(" ")
   end
 end

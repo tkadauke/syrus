@@ -12,6 +12,7 @@ class AutoRetryFailureClassifier
   }.freeze
 
   NON_RETRYABLE_AGENT_OUTCOMES = {
+    ProviderUsageLimit::OUTCOME => "provider usage limit or model quota exhausted",
     "error_max_turns" => "agent exhausted max turns",
     "git_state_corrupt" => "agent corrupted git state",
     "operator_cancelled" => "operator cancelled the run",

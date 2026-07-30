@@ -105,6 +105,23 @@ RSpec.describe RunFailureClassifier do
     expect(classification.classification).to eq("rate_limited")
   end
 
+  it "classifies provider usage-limit exhaustion separately from retryable rate limits" do
+    run.update!(
+      state: "failed",
+      agent_provider: "claude",
+      agent_outcome: "provider_usage_limit"
+    )
+    JobLog.append!(
+      run: run,
+      chunk: "Claude API error: HTTP 429: monthly usage limit for model claude-sonnet-4 exhausted",
+      kind: "system"
+    )
+
+    result = classification
+    expect(result.classification).to eq("provider_usage_limit")
+    expect(result.retryable).to eq(false)
+  end
+
   it "classifies process timeouts from SpawnedProcess outcome" do
     run.update!(state: "failed")
     process("silent_timed_out")

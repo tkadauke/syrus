@@ -439,6 +439,45 @@ RSpec.describe CodexInvocation do
     end
   end
 
+  describe "process_event usage limits" do
+    it "captures Codex turn failures with exhausted model quota as a distinct outcome" do
+      events = []
+      invocation = described_class.new(
+        "/tmp/wkt",
+        prompt: "P",
+        api_key: "sk-test",
+        model: "gpt-5.5"
+      )
+      event = {
+        type: "turn.failed",
+        error: "Your weekly usage limit has been exhausted for this model. Check billing to continue."
+      }.to_json
+
+      update = invocation.send(:process_event, event, ->(line, **kwargs) { events << [ line, kwargs ] })
+
+      expect(update).to include(
+        is_error: true,
+        outcome: "provider_usage_limit",
+        final_text: a_string_including("model gpt-5.5", "weekly usage limit")
+      )
+      expect(events).to include([
+        a_string_including("[codex error]", "model gpt-5.5", "weekly usage limit"),
+        { kind: "system" }
+      ])
+    end
+
+    it "keeps ordinary Codex turn failures generic" do
+      events = []
+      invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test", model: "gpt-5.5")
+      event = { type: "turn.failed", error: "temporary upstream failure" }.to_json
+
+      update = invocation.send(:process_event, event, ->(line, **kwargs) { events << [ line, kwargs ] })
+
+      expect(update).to include(is_error: true, outcome: "turn_failed", final_text: "temporary upstream failure")
+      expect(events).to include([ "[codex error] temporary upstream failure", { kind: "system" } ])
+    end
+  end
+
   describe "process_item_event structured tool wiring" do
     def invocation_with_sink
       events = []

@@ -89,9 +89,13 @@ class ChatTurnJob < ApplicationJob
     update_coding_checkout_uncommitted_state!
     touch_chat!
     stop_requested?
-    create_terminal_completion_message! unless @cancelled
-  rescue StandardError
-    stop_requested? || create_terminal_failure_message!
+    if result&.is_error
+      create_terminal_failure_message!(result: result, provider: provider) unless @cancelled
+    else
+      create_terminal_completion_message! unless @cancelled
+    end
+  rescue StandardError => e
+    stop_requested? || create_terminal_failure_message!(exception: e)
     touch_chat! if @chat
     raise
   ensure
@@ -518,13 +522,13 @@ class ChatTurnJob < ApplicationJob
     true
   end
 
-  def create_terminal_failure_message!
+  def create_terminal_failure_message!(exception: nil, result: nil, provider: nil)
     return unless @chat && @user_message
 
     @chat.reload
     return unless @chat.turn_in_flight?
 
-    create_message!("system", text: "Agent turn failed.")
+    create_message!("system", terminal_failure_content(exception: exception, result: result, provider: provider))
   end
 
   def create_terminal_completion_message!
@@ -538,6 +542,46 @@ class ChatTurnJob < ApplicationJob
 
   def create_message!(role, content)
     @chat.messages.create!(role: role, content: content.stringify_keys)
+  end
+
+  def terminal_failure_content(exception:, result:, provider:)
+    detail = result&.final_text.to_s.presence ||
+      exception_detail(exception).presence ||
+      "Agent turn failed."
+
+    provider_name = provider&.provider.to_s.presence || @chat.effective_chat_provider.to_s.presence
+    model = ProviderUsageLimit.extract_model(detail, fallback: @chat.chat_model)
+
+    if result&.outcome.to_s == ProviderUsageLimit::OUTCOME || ProviderUsageLimit.detect?(detail)
+      message = ProviderUsageLimit.detail(provider: provider_name, model: model, message: detail)
+      return {
+        text: message,
+        provider_error: {
+          kind: ProviderUsageLimit::OUTCOME,
+          provider: provider_name,
+          model: model,
+          halted: true,
+          detail: detail
+        }.compact
+      }
+    end
+
+    {
+      text: detail == "Agent turn failed." ? detail : "Agent turn failed: #{detail}",
+      provider_error: {
+        kind: result&.outcome.to_s.presence || exception&.class&.name,
+        provider: provider_name,
+        model: model,
+        halted: false,
+        detail: detail
+      }.compact
+    }
+  end
+
+  def exception_detail(exception)
+    return nil unless exception
+
+    "#{exception.class}: #{exception.message}"
   end
 
   def capture_session!(provider, result)

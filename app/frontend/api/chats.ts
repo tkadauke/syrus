@@ -74,6 +74,7 @@ export type ChatSystemMessage = {
   tone: "success" | "warning" | "error" | "neutral"
   label: string
   body: string
+  prominent?: boolean
   cta?: {
     label: string
     path: string

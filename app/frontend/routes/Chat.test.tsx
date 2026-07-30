@@ -3114,3 +3114,40 @@ describe("renderChatMessages tool_result content key", () => {
     }
   })
 })
+
+describe("renderChatMessages provider usage-limit banner", () => {
+  it("projects structured provider usage-limit content into a prominent warning system message", () => {
+    const items = renderChatMessages([
+      {
+        type: "message" as const,
+        id: 9,
+        role: "system" as const,
+        content: {
+          text: "Syrus halted work for codex gpt-5.5: usage limit or quota exhausted.",
+          provider_error: {
+            kind: "provider_usage_limit",
+            provider: "codex",
+            model: "gpt-5.5",
+            halted: true,
+            detail: "Codex API error: weekly usage limit exhausted"
+          }
+        },
+        text: "Syrus halted work for codex gpt-5.5: usage limit or quota exhausted.",
+        bookmarkable: false
+      }
+    ])
+
+    expect(items).toHaveLength(1)
+    const item = items[0]
+    expect(item.type).toBe("message")
+    if (item.type === "message") {
+      expect(item.system).toMatchObject({
+        tone: "warning",
+        label: "Usage limit",
+        prominent: true,
+        body: expect.stringContaining("Syrus halted work for codex gpt-5.5")
+      })
+      expect(item.system?.body).toContain("weekly usage limit exhausted")
+    }
+  })
+})

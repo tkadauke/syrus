@@ -285,12 +285,34 @@ class CodexInvocation
         )
     when "turn.failed"
       message = event["error"] || event["message"] || "turn failed"
-      log_sink.call("[codex error] #{message}", kind: "system")
-      { is_error: true, outcome: "turn_failed", final_text: message.to_s }
+      detail = message.to_s
+      scoped_detail = codex_error_detail(detail)
+      detail = scoped_detail if ProviderUsageLimit.detect?(scoped_detail)
+      log_sink.call("[codex error] #{detail}", kind: "system")
+      if ProviderUsageLimit.detect?(detail)
+        return {
+          is_error: true,
+          outcome: ProviderUsageLimit::OUTCOME,
+          final_text: detail
+        }
+      end
+
+      { is_error: true, outcome: "turn_failed", final_text: detail }
     when "error"
       message = event["message"] || event["error"] || "error"
-      log_sink.call("[codex error] #{message}", kind: "system")
-      { is_error: true, outcome: "error", final_text: message.to_s }
+      detail = message.to_s
+      scoped_detail = codex_error_detail(detail)
+      detail = scoped_detail if ProviderUsageLimit.detect?(scoped_detail)
+      log_sink.call("[codex error] #{detail}", kind: "system")
+      if ProviderUsageLimit.detect?(detail)
+        return {
+          is_error: true,
+          outcome: ProviderUsageLimit::OUTCOME,
+          final_text: detail
+        }
+      end
+
+      { is_error: true, outcome: "error", final_text: detail }
     when "item.started", "item.completed"
       process_item_event(event, log_sink)
     else
@@ -299,6 +321,10 @@ class CodexInvocation
   rescue JSON::ParserError
     log_sink.call(line.chomp)
     nil
+  end
+
+  def codex_error_detail(message)
+    [ "model #{@model}", message.to_s ].compact.join(": ")
   end
 
   def process_item_event(event, log_sink)

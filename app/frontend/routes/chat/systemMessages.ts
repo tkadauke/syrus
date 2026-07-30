@@ -23,6 +23,9 @@ export function structuredTool(message: ChatMessageItem): ChatStructuredTool {
 
 export function systemMessage(message: ChatMessageItem): ChatSystemMessage | null {
   const text = message.text || stringValue(contentRecord(message.content)?.text) || ""
+  const providerError = providerErrorFromContent(message.content)
+  if (providerError) return providerError
+
   const mcpHealth = mcpHealthFromContent(message.content)
   if (mcpHealth.length > 0) return structuredMcpMessage(mcpHealth)
 
@@ -35,6 +38,10 @@ export function systemMessage(message: ChatMessageItem): ChatSystemMessage | nul
   const codexError = text.match(/^\[codex error\]\s+(.+)$/)
   if (codexError) return { tone: "error", label: "Error", body: codexError[1] }
 
+  if (text.startsWith("Claude API error:")) {
+    return { tone: "error", label: "Claude API", body: text }
+  }
+
   if (text.startsWith("Claude authentication failed.")) {
     return {
       tone: "error",
@@ -45,6 +52,35 @@ export function systemMessage(message: ChatMessageItem): ChatSystemMessage | nul
   }
 
   return { tone: "neutral", label: "System", body: text }
+}
+
+export function providerErrorFromContent(content: unknown): ChatSystemMessage | null {
+  const payload = contentRecord(content)?.provider_error
+  const record = contentRecord(payload)
+  if (!record) return null
+
+  const kind = stringValue(record.kind)
+  const provider = stringValue(record.provider)
+  const model = stringValue(record.model)
+  const detail = stringValue(record.detail)
+  const halted = record.halted === true
+  const scope = [provider, model].filter(Boolean).join(" ") || "provider/model"
+
+  if (kind === "provider_usage_limit") {
+    return {
+      tone: "warning",
+      label: "Usage limit",
+      body: `Syrus halted work for ${scope}: usage limit or quota exhausted. ${detail}`,
+      prominent: true
+    }
+  }
+
+  return {
+    tone: "error",
+    label: halted ? "Provider halted" : "Agent error",
+    body: detail || "Agent turn failed.",
+    prominent: true
+  }
 }
 
 export function structuredMcpMessage(servers: ChatMcpHealth[]): ChatSystemMessage | null {

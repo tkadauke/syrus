@@ -318,6 +318,10 @@ Chat transcripts also surface MCP sidecar health. Syrus distinguishes
 available, pending, and unavailable chat tools so operators can tell when
 proposal, schedule, bookmark, or whiteboard persistence is not ready and
 retry the turn or inspect worker logs instead of chasing blind retries.
+Provider usage-limit and quota-exhaustion failures are surfaced as prominent
+chat banners. When Syrus can identify the provider/model, it halts automation
+for that scope immediately; when the model is unclear, it fails closed at the
+provider level and preserves the underlying provider error in the banner.
 
 Agents can persist structured memories such as user preferences, project
 facts, feedback, references, and decisions. Memories are private to their

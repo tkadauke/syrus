@@ -221,6 +221,39 @@ RSpec.describe ClaudeInvocation do
       )
     end
 
+    it "captures Claude usage-limit API errors as a distinct outcome" do
+      events = []
+      invocation = described_class.new(
+        "/tmp",
+        prompt: "x",
+        oauth_token: "x",
+        model: "claude-sonnet-4",
+        log_sink: ->(_l, **_) {}
+      )
+      event = {
+        type: "assistant",
+        isApiErrorMessage: true,
+        apiErrorStatus: 429,
+        message: {
+          content: [
+            { type: "text", text: "Your monthly usage limit for model claude-sonnet-4 has been exhausted. Add credits to continue." }
+          ]
+        }
+      }.to_json
+
+      update = invocation.send(:process_event, event, ->(line, **kwargs) { events << [ line, kwargs ] })
+
+      expect(update).to include(
+        is_error: true,
+        outcome: "provider_usage_limit",
+        final_text: a_string_including("Claude API error", "monthly usage limit")
+      )
+      expect(events).to include([
+        a_string_including("Claude API error", "monthly usage limit"),
+        { kind: "system" }
+      ])
+    end
+
     it "captures num_turns + is_error + outcome from the result event" do
       event = { type: "result", num_turns: 5, duration_ms: 12345, is_error: false, subtype: "success" }.to_json
       update = invocation.send(:process_event, event, ->(l, **_) { lines << l })

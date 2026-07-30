@@ -226,7 +226,16 @@ class ClaudeInvocation
     when "assistant"
       if api_error_event?(event)
         message = assistant_text_for(event).presence || "Claude returned an API error."
-        log_sink.call(api_error_message(event, message), kind: "system")
+        detail = api_error_message(event, message)
+        log_sink.call(detail, kind: "system")
+        if ProviderUsageLimit.detect?(detail)
+          return {
+            is_error: true,
+            outcome: ProviderUsageLimit::OUTCOME,
+            final_text: detail
+          }
+        end
+
         return {
           is_error: true,
           outcome: event["error"].presence || "api_error",

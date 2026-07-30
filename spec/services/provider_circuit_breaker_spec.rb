@@ -61,6 +61,40 @@ RSpec.describe ProviderCircuitBreaker do
     expect(decision.reason).to eq("repeated upstream error")
   end
 
+  it "opens immediately for a single provider usage-limit failure" do
+    run = failed_agent_run(
+      outcome: "provider_usage_limit",
+      message: "agent reported provider_usage_limit"
+    )
+    run.run_diagnostic.update!(
+      error_message: "Codex API error: model gpt-5.5 weekly usage limit exhausted; check billing"
+    )
+    run.create_run_failure_classification!(
+      classification: "provider_usage_limit",
+      confidence: 0.95,
+      retryable: false,
+      reason: "usage exhausted",
+      classified_at: now
+    )
+
+    decision = described_class.call("codex", now: now)
+
+    expect(decision).to be_open
+    expect(decision).to be_usage_limit
+    expect(decision.reason).to include("usage limit exhausted")
+    expect(decision.model).to eq("gpt-5.5")
+    expect(decision.retry_after).to be_within(1.second).of(now + 23.hours + 59.minutes)
+  end
+
+  it "keeps ordinary 429 rate limits on the existing repeated-failure path" do
+    failed_agent_run(outcome: "rate_limited", message: "HTTP 429 too many requests, retry later")
+
+    decision = described_class.call("codex", now: now)
+
+    expect(decision).not_to be_open
+    expect(decision.failure_count).to eq(1)
+  end
+
   it "ignores old transient failures outside the rolling window" do
     5.times do |index|
       run = failed_agent_run(job: Factories.job(repository: Factories.repository(user: user), issue_number: index + 1))

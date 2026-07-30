@@ -29,6 +29,8 @@ class RunFailureClassifier
 
   def classify
     case
+    when provider_usage_limit?
+      result(ProviderUsageLimit::CLASSIFICATION, 0.95, false, "The provider or model usage limit is exhausted.")
     when rate_limited?
       result("rate_limited", 0.90, true, "The run hit an external rate limit.")
     when timeout?
@@ -80,6 +82,11 @@ class RunFailureClassifier
   def rate_limited?
     recent_logs.any? { |log| log.kind == "rate_limited" } ||
       text_match?(/rate[ -]?limit|too many requests|quota exceeded|429/i)
+  end
+
+  def provider_usage_limit?
+    ProviderUsageLimit.detect?(searchable_text) ||
+      run.agent_outcome.to_s == ProviderUsageLimit::OUTCOME
   end
 
   def timeout?

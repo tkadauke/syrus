@@ -753,7 +753,7 @@ RSpec.describe ChatTurnJob do
     expect(chat.reload.stop_requested_at).to be_nil
     expect(queued_message.reload.delivered_at).to be_present
     expect(chat.messages.order(:created_at, :id).pluck(:role, :content)).to include(
-      [ "system", { "text" => "Agent turn failed." } ],
+      [ "system", a_hash_including("text" => "Agent turn failed: RuntimeError: provider unavailable") ],
       [ "user", { "text" => "Recover from the failure" } ]
     )
   end
