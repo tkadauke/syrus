@@ -1,5 +1,9 @@
 module Syrus
   module Plugin
+    # Interface module for prompt injector plugins.
+    #
+    # Implementing classes (instance-level):
+    #   #call(repository:, job:) → String or nil
     module PromptInjector
       # Returns a String to append to the implementing agent's system prompt,
       # or nil to inject nothing for this provider.

@@ -154,4 +154,40 @@ RSpec.describe Prompts::Implement do
       expect(out).to include("Please fix the failing tests.")
     end
   end
+
+  describe "injected_context" do
+    it "is omitted when not provided" do
+      out = described_class.new(issue: issue).to_s
+      expect(out).not_to include("plugin-injected")
+    end
+
+    it "is omitted when the array is empty" do
+      out = described_class.new(issue: issue, injected_context: []).to_s
+      expect(out).not_to include("plugin-injected")
+    end
+
+    it "is omitted when all entries are nil" do
+      out = described_class.new(issue: issue, injected_context: [nil, nil]).to_s
+      expect(out).not_to include("plugin-injected")
+    end
+
+    it "includes injected text in the rendered output" do
+      out = described_class.new(issue: issue, injected_context: ["plugin-injected hint"]).to_s
+      expect(out).to include("plugin-injected hint")
+    end
+
+    it "joins multiple injected strings in order" do
+      out = described_class.new(issue: issue, injected_context: ["First injection", "Second injection"]).to_s
+      first_pos  = out.index("First injection")
+      second_pos = out.index("Second injection")
+      expect(first_pos).to be < second_pos
+    end
+
+    it "appears before the skill file content (git safety block)" do
+      out = described_class.new(issue: issue, injected_context: ["plugin-injected hint"]).to_s
+      injected_pos = out.index("plugin-injected hint")
+      skill_pos    = out.index(Prompts::GitSafety::TEXT)
+      expect(injected_pos).to be < skill_pos
+    end
+  end
 end

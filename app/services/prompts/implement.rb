@@ -17,7 +17,7 @@ module Prompts
       @job = job
       @user = user
       @repository_ids = repository_ids
-      @injected_context = Array(injected_context)
+      @injected_context = Array(injected_context).compact
     end
 
     def to_s
@@ -26,7 +26,7 @@ module Prompts
       input << memory_context if memory_context.present?
       input << comments_context if @issue_comments.present?
       input << "Additional context from the operator:\n\n#{@replay_context}" if @replay_context.present?
-      input.concat(@injected_context) unless @injected_context.empty?
+      input << injected_context_section if @injected_context.any?
       SkillLoader.render(SKILL_FILE, input.join("\n\n"))
     end
 
@@ -64,6 +64,10 @@ module Prompts
       body = comment["body"].presence || "(No comment body provided.)"
 
       "Comment #{index} by @#{author} at #{created_at}:\n\n#{body}"
+    end
+
+    def injected_context_section
+      @injected_context.join("\n\n")
     end
   end
 end
