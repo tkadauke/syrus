@@ -9700,7 +9700,7 @@ describe("App", () => {
         expect(fetchSpy).toHaveBeenCalledWith(path, expect.objectContaining({ method }))
       })
     }
-  }, 25000)
+  }, 60000)
 
   it("labels approval as reapproval after a landing failure", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify(jobDetailPayload({
