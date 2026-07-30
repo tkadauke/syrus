@@ -24,6 +24,7 @@ export type WalkthroughDraft = {
 export type PendingSlashCommandConfirmation = {
   commandName: SlashCommand["name"]
   text: string
+  prompt?: string
 }
 
 export type ChatSystemCommandHandlers = {

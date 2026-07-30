@@ -30,7 +30,7 @@ function toEpicItem(epic: PickerEpicRecord): PickerItem {
 export function JobEpicPickerPopup({
   kind,
   repositorySlug,
-  jobState = "open",
+  jobState,
   onSelect,
   onCancel
 }: {

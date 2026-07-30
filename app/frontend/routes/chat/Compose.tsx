@@ -327,7 +327,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
 
     if (commandMatch?.command.requiresConfirmation) {
       onNotice(null)
-      setPendingConfirmation({ commandName: commandMatch.command.name, text: text.trim() })
+      setPendingConfirmation(confirmationForSlashCommand(commandMatch.command.name, text.trim()))
       return
     }
 
@@ -363,7 +363,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
     // /cancel, /retry, and /approve require confirmation — show the confirmation dialog.
     if (command.name === "/cancel" || command.name === "/retry" || command.name === "/approve") {
       onNotice(null)
-      setPendingConfirmation({ commandName: command.name, text: `${command.name} ${id}` })
+      setPendingConfirmation(confirmationForSlashCommand(command.name, `${command.name} ${id}`))
       return
     }
     // /feedback is a skill command that also requires confirmation.
@@ -1232,6 +1232,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
           <SlashCommandConfirmation
             commandName={pendingConfirmation.commandName}
             disabled={send.isPending || systemCommandAction.isPending}
+            prompt={pendingConfirmation.prompt}
             text={pendingConfirmation.text}
             onCancel={cancelPendingSlashCommand}
             onConfirm={confirmPendingSlashCommand}
@@ -1789,14 +1790,28 @@ function readAttachmentFile(file: File): Promise<ChatComposeAttachment> {
   })
 }
 
-function SlashCommandConfirmation({ commandName, disabled, text, onCancel, onConfirm }: { commandName: SlashCommand["name"]; disabled: boolean; text: string; onCancel: () => void; onConfirm: () => void }) {
+function confirmationForSlashCommand(commandName: SlashCommand["name"], text: string): PendingSlashCommandConfirmation {
+  if (commandName === "/approve") {
+    const match = findSlashCommand(text)
+    const id = match ? numericArg(match.argsText) : null
+    if (id) return { commandName, text: `/approve ${id}`, prompt: `Approve JOB-${id} for landing?` }
+  }
+
+  return { commandName, text }
+}
+
+function SlashCommandConfirmation({ commandName, disabled, prompt, text, onCancel, onConfirm }: { commandName: SlashCommand["name"]; disabled: boolean; prompt?: string; text: string; onCancel: () => void; onConfirm: () => void }) {
   const { t } = useT("chat")
   return (
     <div className="mb-3 rounded border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/40">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <div className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">Confirm {commandName}</div>
-          <div className="mt-1 break-words font-mono text-sm text-gray-900 dark:text-gray-100">{text}</div>
+          {prompt ? (
+            <div className="mt-1 break-words text-sm text-gray-900 dark:text-gray-100">{prompt}</div>
+          ) : (
+            <div className="mt-1 break-words font-mono text-sm text-gray-900 dark:text-gray-100">{text}</div>
+          )}
         </div>
         <div className="flex shrink-0 gap-2">
           <button className={secondaryButton()} disabled={disabled} onClick={onCancel} type="button">{t("cancel")}</button>

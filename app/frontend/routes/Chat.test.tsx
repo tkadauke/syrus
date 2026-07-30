@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { ChatRoute } from "./Chat"
 import { getStartingPhrase } from "./chat/streamChrome"
 import { shouldAnimateMessageEntrance } from "./chat/MessageCards"
+import { numericArg } from "./chat/utils"
 import { storedWorkspaceCollapsed, workspaceTabLabel, mobileChatTabLabel } from "./chat/workspaceTabs"
 import { renderChatMessages } from "./chat/streamBuilders"
 import { asExcalidrawElements, VALID_EXCALIDRAW_TYPES } from "./chat/whiteboardScene"
@@ -51,6 +52,15 @@ describe("mobileChatTabLabel", () => {
   it("delegates to workspaceTabLabel for workspace tabs", () => {
     expect(mobileChatTabLabel("whiteboard", mockT)).toBe("T:tab_whiteboard")
     expect(mobileChatTabLabel("jobs", mockT)).toBe("T:tab_jobs")
+  })
+})
+
+describe("numericArg", () => {
+  it("accepts bare IDs and JOB-prefixed IDs", () => {
+    expect(numericArg("123")).toBe("123")
+    expect(numericArg("JOB-123")).toBe("123")
+    expect(numericArg("job-123")).toBe("123")
+    expect(numericArg("EPIC-123")).toBeNull()
   })
 })
 
@@ -332,6 +342,61 @@ describe("chat slash commands", () => {
       expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/reject") || String(input).includes("/cancel") || String(input).includes("/run_again") || String(input).includes("/whiteboard"))).toBe(false)
     })
   }
+
+  it("approves a JOB-prefixed /approve argument after confirmation", async () => {
+    const fetchMock = mockChatRouteFetch()
+    renderRoute()
+
+    await submitSlashCommand("/approve job-1095")
+
+    expect(await screen.findByText("Confirm /approve")).toBeInTheDocument()
+    expect(screen.getByText("Approve JOB-1095 for landing?")).toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalledWith("/api/v1/app/jobs/1095/approve", expect.objectContaining({ method: "POST" }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1095/approve",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+    expect(await screen.findByRole("status")).toHaveTextContent("Job approved")
+  })
+
+  it("opens the implemented-job picker for /approve without an ID", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/jobs?state=implemented&repo=acme%2Fwidgets&limit=50") {
+        return Promise.resolve(jsonResponse({
+          count: 1,
+          jobs: [
+            { id: 2203, title: "Approve slash command", issue_title: "Approve slash command", state: "implemented", repository_slug: "acme/widgets" }
+          ]
+        }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+    renderRoute()
+
+    await submitSlashCommand("/approve")
+    fireEvent.click(await screen.findByText("Approve slash command"))
+
+    expect(screen.getByText("Approve JOB-2203 for landing?")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/2203/approve",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+  })
 })
 
 describe("chat temporal markers", () => {

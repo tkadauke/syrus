@@ -33,8 +33,8 @@ export function humanize(value: string) {
 }
 
 export function numericArg(value: string) {
-  const match = value.trim().match(/^\d+$/)
-  return match ? match[0] : null
+  const match = value.trim().match(/^(?:job-)?(\d+)$/i)
+  return match ? match[1] : null
 }
 
 export function errorAsError(error: unknown) {
