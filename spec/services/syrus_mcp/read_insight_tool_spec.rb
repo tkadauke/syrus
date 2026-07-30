@@ -118,10 +118,12 @@ RSpec.describe SyrusMcp::ReadInsightTool do
     end
 
     it "is excluded from insight_tools when agent_insights flag is off" do
+      # Materialize the run while the flag is still on, then disable it.
+      eager_run = run
       Feature.find_by!(slug: "agent_insights").update!(enabled: false)
       Feature.clear_enabled_cache!("agent_insights")
 
-      context = McpToolContext.from_run(run)
+      context = McpToolContext.from_run(eager_run)
       expect(McpToolPolicy.for(context)).not_to include(described_class)
     end
   end
