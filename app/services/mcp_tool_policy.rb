@@ -103,7 +103,10 @@ class McpToolPolicy
       Mcp::Tools::SearchMemoriesTool,
       Mcp::Tools::ListMemoriesTool,
       SyrusMcp::GetCoverageReportTool,
-      SyrusMcp::ReadRunWorkerHealthTool
+      SyrusMcp::ReadRunWorkerHealthTool,
+      SyrusMcp::StartPreviewTool,
+      SyrusMcp::StopPreviewTool,
+      SyrusMcp::ReadPreviewLogTool
     ]
     if @context.role == AgentRole::WORKFLOW_IMPLEMENT && self.class.syrus_repository?(@context.repository)
       base << SyrusMcp::ReadPerformanceDiagnosticsTool

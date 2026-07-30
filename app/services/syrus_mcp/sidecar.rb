@@ -39,6 +39,10 @@ module SyrusMcp
     end
 
     def run
+      # Kill any agent-spawned preview processes when the sidecar exits
+      # (whether by SIGTERM from claude or by normal EOF on stdin).
+      at_exit { SyrusMcp::AgentPreviewRegistry.kill_all }
+
       server = build_server
       transport = MCP::Server::Transports::StdioTransport.new(server)
 
