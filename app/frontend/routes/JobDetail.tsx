@@ -192,10 +192,14 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, activeTab,
       {command.dialog}
       {payload.job.state === "queued" && payload.repository.landing_paused && payload.repository.main_health !== "healthy" ? (
         <div className="flex items-center gap-3 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-900 dark:bg-amber-950/40" role="alert">
-          <span className="text-amber-800 dark:text-amber-200">{t("main_branch_health_waiting")}</span>
-          <Link className="shrink-0 rounded border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-800 hover:bg-amber-50 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200 dark:hover:bg-amber-900" to={withRoutePrefix(payload.repository.repository_path, prefix)}>
-            {t("main_branch_health_view")}
-          </Link>
+          <span className="text-amber-800 dark:text-amber-200">
+            {payload.job.main_branch_repair ? t("main_branch_repair_active") : t("main_branch_health_waiting")}
+          </span>
+          {!payload.job.main_branch_repair ? (
+            <Link className="shrink-0 rounded border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-800 hover:bg-amber-50 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200 dark:hover:bg-amber-900" to={withRoutePrefix(payload.repository.repository_path, prefix)}>
+              {t("main_branch_health_view")}
+            </Link>
+          ) : null}
         </div>
       ) : null}
       {feedbackPanelOpen ? (

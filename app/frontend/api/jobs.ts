@@ -99,6 +99,7 @@ export type JobRecord = {
   needs_attention_reason: string | null
   needs_attention_since: string | null
   grace_period_expires_at: string | null
+  main_branch_repair: boolean
 }
 
 export type JobOwnerUser = {

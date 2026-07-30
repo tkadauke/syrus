@@ -407,6 +407,7 @@
   "transcript_kind_system": "System",
   "main_branch_health_waiting": "This job is waiting for repository health to recover.",
   "main_branch_health_view": "View repository health",
+  "main_branch_repair_active": "This job is fixing the broken main branch.",
   "action_needed": "Action needed",
   "pending_feedback_title": "Pending feedback",
   "pending_feedback_description": "These PR comments require your decision before Syrus acts on them.",

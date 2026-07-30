@@ -407,6 +407,7 @@
   "transcript_kind_system": "Systema",
   "main_branch_health_waiting": "Hoc opus manet dum sanitas receptaculi recuperatur.",
   "main_branch_health_view": "Vide sanitatem receptaculi",
+  "main_branch_repair_active": "Hoc opus ramus principalis fractus sanat.",
   "action_needed": "Actio necessaria",
   "pending_feedback_title": "Responsum pendens",
   "pending_feedback_description": "Haec commenta PR decisionem tuam requirunt priusquam Syrus agat.",

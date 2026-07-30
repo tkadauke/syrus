@@ -397,6 +397,40 @@ RSpec.describe App::JobDetailPayload do
     end
   end
 
+  describe "#job_json main_branch_repair" do
+    it "is false for a regular direct job" do
+      job = Factories.job_record(user: user, repository: repo, kind: "direct", issue_number: nil, issue_title: "Add a feature")
+
+      expect(payload_for(job).dig(:job, :main_branch_repair)).to be(false)
+    end
+
+    it "is true for a direct job with the main branch repair title" do
+      job = Factories.job_record(user: user, repository: repo, kind: "direct", issue_number: nil,
+                                 issue_title: Job::MAIN_BRANCH_REPAIR_TITLE)
+
+      expect(payload_for(job).dig(:job, :main_branch_repair)).to be(true)
+    end
+
+    it "is true for a job with system_kind main_branch_repair" do
+      job = Job.create!(
+        user: user,
+        owner_user: user,
+        repository: repo,
+        kind: "direct",
+        system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+        issue_title: "Fix broken main branch"
+      )
+
+      expect(payload_for(job).dig(:job, :main_branch_repair)).to be(true)
+    end
+
+    it "is false for a regular issue job" do
+      job = Factories.job_record(user: user, repository: repo, issue_number: 42)
+
+      expect(payload_for(job).dig(:job, :main_branch_repair)).to be(false)
+    end
+  end
+
   describe "#actions_json can_restart" do
     it "is true for an issue job with no active runs" do
       job = Factories.job_record(repository: repo, issue_number: 5)

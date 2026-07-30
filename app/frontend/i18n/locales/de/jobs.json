@@ -407,6 +407,7 @@
   "transcript_kind_system": "System",
   "main_branch_health_waiting": "Diese Aufgabe wartet darauf, dass die Repository-Gesundheit wiederhergestellt ist.",
   "main_branch_health_view": "Repository-Gesundheit ansehen",
+  "main_branch_repair_active": "Diese Aufgabe repariert den fehlerhaften Hauptzweig.",
   "action_needed": "Handlung erforderlich",
   "pending_feedback_title": "Ausstehendes Feedback",
   "pending_feedback_description": "Diese PR-Kommentare erfordern Ihre Entscheidung, bevor Syrus darauf reagiert.",

@@ -145,6 +145,34 @@ describe("JobDetailView", () => {
     expect(screen.queryByRole("button", { name: "Give feedback" })).not.toBeInTheDocument()
   })
 
+  it("shows the waiting banner when a queued job is blocked by unhealthy main branch", () => {
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "queued", main_branch_repair: false },
+      repository: {
+        id: 2, slug: "acme/widgets", owner: "acme", name: "widgets", default_branch: "main",
+        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2",
+        main_health: "broken", landing_paused: true
+      }
+    }))
+
+    expect(screen.getByText("This job is waiting for repository health to recover.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "View repository health" })).toBeInTheDocument()
+  })
+
+  it("shows the repair banner for a main branch repair job instead of the waiting banner", () => {
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "queued", main_branch_repair: true },
+      repository: {
+        id: 2, slug: "acme/widgets", owner: "acme", name: "widgets", default_branch: "main",
+        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2",
+        main_health: "broken", landing_paused: true
+      }
+    }))
+
+    expect(screen.getByText("This job is fixing the broken main branch.")).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "View repository health" })).not.toBeInTheDocument()
+  })
+
   it("opens the overflow menu aligned to the right-0 edge when the menu fits within the scroll container", () => {
     renderJobDetail(jobPayload())
     const menuButton = screen.getByRole("button", { name: "⋯" })
@@ -1143,6 +1171,7 @@ function baseJob(): JobDetailPayload["job"] {
     needs_attention_reason: null,
     needs_attention_since: null,
     grace_period_expires_at: null,
+    main_branch_repair: false,
     created_at: null,
     updated_at: null,
     started_at: null,
