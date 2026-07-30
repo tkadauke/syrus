@@ -58,22 +58,22 @@ class EpicDependencyGraphRenderer
     edges = []
 
     epic_dependencies.each do |dependency|
-      from = epic_node_id(dependency.epic)
-      to = epic_node_id(dependency.depends_on_epic)
+      from = epic_node_id(dependency.depends_on_epic)
+      to = epic_node_id(dependency.epic)
       edges << Edge.new(from: from, to: to)
     end
 
     external_job_dependencies.each do |dependency|
       edges << Edge.new(
-        from: epic_node_id(epic),
-        to: job_node_id(dependency.depends_on_job)
+        from: job_node_id(dependency.depends_on_job),
+        to: epic_node_id(epic)
       )
     end
 
     epic_job_dependencies.each do |dependency|
       edges << Edge.new(
-        from: epic_node_id(epic),
-        to: job_node_id(dependency.depends_on_job)
+        from: job_node_id(dependency.depends_on_job),
+        to: epic_node_id(epic)
       )
     end
 

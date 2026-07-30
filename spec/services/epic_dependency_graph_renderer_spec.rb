@@ -47,7 +47,7 @@ RSpec.describe EpicDependencyGraphRenderer do
       hash_including(id: "epic_#{blocker.id}", kind: "epic", is_focal: false, epic_id: blocker.id)
     )
     expect(result.edges).to contain_exactly(
-      { from_id: "epic_#{epic.id}", to_id: "epic_#{blocker.id}" }
+      { from_id: "epic_#{blocker.id}", to_id: "epic_#{epic.id}" }
     )
   end
 
@@ -69,7 +69,7 @@ RSpec.describe EpicDependencyGraphRenderer do
                      state: blocker.state, epic_id: other_epic.id, url: "/jobs/#{blocker.slug}", is_focal: false)
     )
     expect(result.edges).to contain_exactly(
-      { from_id: "epic_#{epic.id}", to_id: "job_#{blocker.id}" }
+      { from_id: "job_#{blocker.id}", to_id: "epic_#{epic.id}" }
     )
   end
 
@@ -94,7 +94,7 @@ RSpec.describe EpicDependencyGraphRenderer do
       hash_including(id: "job_#{blocker.id}", kind: "job", epic_id: nil, is_focal: false)
     )
     expect(result.edges).to contain_exactly(
-      { from_id: "epic_#{epic.id}", to_id: "job_#{blocker.id}" }
+      { from_id: "job_#{blocker.id}", to_id: "epic_#{epic.id}" }
     )
   end
 
@@ -131,10 +131,10 @@ RSpec.describe EpicDependencyGraphRenderer do
     expect(result.nodes.select { |n| n[:is_focal] }.map { |n| n[:id] }).to eq([ "epic_#{epic.id}" ])
     expect(result.edges.size).to eq(4)
     expect(result.edges).to include(
-      { from_id: "epic_#{epic.id}", to_id: "epic_#{other_epic.id}" },
-      { from_id: "epic_#{dependent_epic.id}", to_id: "epic_#{epic.id}" },
-      { from_id: "epic_#{epic.id}", to_id: "job_#{blocker.id}" },
-      { from_id: "epic_#{epic.id}", to_id: "job_#{epicless.id}" }
+      { from_id: "epic_#{other_epic.id}", to_id: "epic_#{epic.id}" },
+      { from_id: "epic_#{epic.id}", to_id: "epic_#{dependent_epic.id}" },
+      { from_id: "job_#{blocker.id}", to_id: "epic_#{epic.id}" },
+      { from_id: "job_#{epicless.id}", to_id: "epic_#{epic.id}" }
     )
   end
 
