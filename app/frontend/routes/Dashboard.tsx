@@ -306,10 +306,19 @@ export function graphSearchWithSmartFolder(rawSearch: string, activeSfId: number
   return str ? `?${str}` : ""
 }
 
-function DashboardContent({ payload, pathname, prefix, search }: { payload: DashboardPayload; pathname: string; prefix: string; search: string }) {
+export function DashboardContent({ payload, pathname, prefix, search }: { payload: DashboardPayload; pathname: string; prefix: string; search: string }) {
   const setupStatus = useSetupStatus()
+  const isDesktop = useMediaQuery("(min-width: 1024px)", true)
+  const { t } = useT("dashboard")
 
   if (payload.view === "dependencies") {
+    if (!isDesktop) {
+      return (
+        <section className="min-w-0 space-y-4">
+          <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">{t("dependencies_mobile_unavailable")}</div>
+        </section>
+      )
+    }
     const graphSearch = graphSearchWithSmartFolder(
       dashboardApiSearch(pathname, search),
       payload.active_smart_folder_id
@@ -400,7 +409,7 @@ function SubjectTabs({ payload, prefix, className = "inline-flex w-max overflow-
   )
 }
 
-function DashboardToolbar({ payload, pathname, search, showConfiguration = true }: { payload: DashboardPayload; pathname: string; search: string; showConfiguration?: boolean }) {
+export function DashboardToolbar({ payload, pathname, search, showConfiguration = true }: { payload: DashboardPayload; pathname: string; search: string; showConfiguration?: boolean }) {
   const { t } = useT("dashboard")
   const queryClient = useQueryClient()
   const [columnsOpen, setColumnsOpen] = useState(false)
@@ -438,24 +447,6 @@ function DashboardToolbar({ payload, pathname, search, showConfiguration = true 
   return (
     <div className="shrink-0">
       <div className="flex flex-wrap items-center justify-end gap-3">
-        <nav aria-label={t("view_label")} className="inline-flex overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900" data-tour="dashboard-view-switcher">
-          {payload.controls.views.map((view) => (
-            <Link
-              className={`px-3 py-1.5 capitalize ${payload.view === view ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-950" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
-              key={view}
-              onClick={() =>
-                updatePreferences.mutate({
-                  subject: payload.subject,
-                  active_smart_folder_id: payload.active_smart_folder_id,
-                  view
-                })
-              }
-              to={dashboardLinkFromSearch(pathname, search, { view, page: null })}
-            >
-              {view}
-            </Link>
-          ))}
-        </nav>
         {showConfiguration && payload.view === "list" ? (
           <div className="relative" ref={columnsMenuRef}>
             <button
@@ -522,6 +513,24 @@ function DashboardToolbar({ payload, pathname, search, showConfiguration = true 
             ) : null}
           </div>
         ) : null}
+        <nav aria-label={t("view_label")} className="inline-flex overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900">
+          {payload.controls.views.map((view) => (
+            <Link
+              className={`px-3 py-1.5 capitalize ${payload.view === view ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-950" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
+              key={view}
+              onClick={() =>
+                updatePreferences.mutate({
+                  subject: payload.subject,
+                  active_smart_folder_id: payload.active_smart_folder_id,
+                  view
+                })
+              }
+              to={dashboardLinkFromSearch(pathname, search, { view, page: null })}
+            >
+              {view}
+            </Link>
+          ))}
+        </nav>
       </div>
       {updatePreferences.isError ? <p className="mt-1 text-right text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(updatePreferences.error, t("preferences_error"))}</p> : null}
     </div>

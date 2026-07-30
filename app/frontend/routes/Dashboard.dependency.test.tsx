@@ -4,11 +4,12 @@ import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { DashboardPayload } from "../api/dashboard"
 import * as dashboardApi from "../api/dashboard"
-import { DashboardDependencyView, graphSearchWithSmartFolder } from "./Dashboard"
+import { DashboardContent, DashboardDependencyView, DashboardToolbar, graphSearchWithSmartFolder } from "./Dashboard"
+import * as dashboardComponents from "./dashboard/components"
 
 vi.mock("../api/dashboard", async (importOriginal) => {
   const mod = await importOriginal<typeof import("../api/dashboard")>()
-  return { ...mod, fetchJobsGraph: vi.fn(), fetchEpicsGraph: vi.fn() }
+  return { ...mod, fetchJobsGraph: vi.fn(), fetchEpicsGraph: vi.fn(), updateDashboardPreferences: vi.fn() }
 })
 
 const mockFetchJobsGraph = vi.mocked(dashboardApi.fetchJobsGraph)
@@ -222,5 +223,141 @@ describe("graphSearchWithSmartFolder", () => {
 
   it("returns empty string when search is empty and activeSfId is null", () => {
     expect(graphSearchWithSmartFolder("", null)).toBe("")
+  })
+})
+
+function buildToolbarPayload(view: DashboardPayload["view"] = "list"): DashboardPayload {
+  return {
+    subject: "job",
+    view,
+    page: 1,
+    per_page: 25,
+    total: 0,
+    total_pages: 1,
+    counts: { jobs: 0, epics: 0, workflows: 0 },
+    ownership_scope: { scope: "team", owner_user_id: null, owner_user: null },
+    preferences: {
+      sort: { column: "title", direction: "desc" },
+      visible_columns: [],
+      kanban_lanes: [],
+      ownership_scope: "team",
+      owner_user_id: null,
+      owner_id: null,
+      raw: {}
+    },
+    filter: null,
+    controls: {
+      views: ["list", "kanban", "dependencies"],
+      ownership_scopes: [],
+      owners: [],
+      sort_columns: ["title"],
+      sort_directions: ["asc", "desc"],
+      columns: { required: [], optional: [{ key: "owner", title: "Owner" }] },
+      kanban_lanes: [{ key: "open", title: "Open" }],
+      filter_schema: [],
+      filter_suggestions: []
+    },
+    landing_queue: { visible: false, paused: false, toggle_path: "", entries: [] },
+    ownership: { scope: "team", owner_id: null, team_user_count: 0, badges_visible: false },
+    smart_folders: [],
+    active_smart_folder_id: null,
+    items: [],
+    lanes: [],
+    kanban_limit: null,
+    paths: {
+      dashboard_path: "/dashboard",
+      dashboard_jobs_path: "/dashboard/jobs",
+      dashboard_epics_path: "/dashboard/epics",
+      dashboard_workflows_path: "/dashboard/workflows",
+      new_epic_path: "/epics/new",
+      new_job_path: "/jobs/new",
+      app_dashboard_path: "/api/v1/app/dashboard"
+    }
+  }
+}
+
+function renderToolbar(payload: DashboardPayload) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <DashboardToolbar payload={payload} pathname="/dashboard/jobs" search="" />
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+describe("DashboardToolbar", () => {
+  it("renders column selector before the view tabs nav when in list view", () => {
+    const { container } = renderToolbar(buildToolbarPayload("list"))
+
+    const nav = container.querySelector("nav[aria-label]")
+    const columnsButton = container.querySelector("button[aria-label='Columns']")
+
+    expect(nav).toBeTruthy()
+    expect(columnsButton).toBeTruthy()
+    // The columns button should appear before the nav in the DOM
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    expect(columnsButton!.compareDocumentPosition(nav!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+
+  it("renders kanban lanes selector before the view tabs nav when in kanban view", () => {
+    const { container } = renderToolbar(buildToolbarPayload("kanban"))
+
+    const nav = container.querySelector("nav[aria-label]")
+    const lanesButton = container.querySelector("button[aria-label='Kanban lanes']")
+
+    expect(nav).toBeTruthy()
+    expect(lanesButton).toBeTruthy()
+    // The kanban lanes button should appear before the nav in the DOM
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    expect(lanesButton!.compareDocumentPosition(nav!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+
+  it("renders only the view tabs nav (no selector) when in dependencies view", () => {
+    const { container } = renderToolbar(buildToolbarPayload("dependencies"))
+
+    expect(container.querySelector("nav[aria-label]")).toBeTruthy()
+    expect(container.querySelector("button[aria-label='Columns']")).toBeNull()
+    expect(container.querySelector("button[aria-label='Kanban lanes']")).toBeNull()
+  })
+})
+
+describe("DashboardContent — dependencies view on mobile", () => {
+  it("shows unavailable message instead of graph on mobile", () => {
+    vi.spyOn(dashboardComponents, "useMediaQuery").mockReturnValue(false)
+
+    const payload = buildToolbarPayload("dependencies")
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <DashboardContent payload={payload} pathname="/dashboard/jobs" prefix="" search="" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(screen.getByText("The dependencies view is not available on mobile.")).toBeInTheDocument()
+    expect(vi.mocked(dashboardApi.fetchJobsGraph)).not.toHaveBeenCalled()
+  })
+
+  it("renders the graph (not the mobile message) on desktop", async () => {
+    vi.spyOn(dashboardComponents, "useMediaQuery").mockReturnValue(true)
+    vi.mocked(dashboardApi.fetchJobsGraph).mockResolvedValue({ nodes: [], edges: [] })
+
+    const payload = buildToolbarPayload("dependencies")
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <DashboardContent payload={payload} pathname="/dashboard/jobs" prefix="" search="" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(screen.queryByText("The dependencies view is not available on mobile.")).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(vi.mocked(dashboardApi.fetchJobsGraph)).toHaveBeenCalled()
+    })
   })
 })

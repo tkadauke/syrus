@@ -25,6 +25,7 @@
   "optional": "optional",
   "no_match": "Keine {{subject}} entsprechen dieser Ansicht.",
   "no_dependency_edges": "Keine Abhängigkeitsbeziehungen in der aktuellen Ansicht.",
+  "dependencies_mobile_unavailable": "Die Abhängigkeitsansicht ist auf Mobilgeräten nicht verfügbar.",
   "no_lanes": "Keine Kanban-Spalten konfiguriert.",
   "no_items_in_lane": "Keine {{subject}}",
   "empty_title": "Noch keine {{subject}}",

@@ -25,6 +25,7 @@
   "optional": "optionale",
   "no_match": "Nulli {{subject}} huic aspectui concordant.",
   "no_dependency_edges": "Nullae necessitudines dependentiae in aspectu praesenti.",
+  "dependencies_mobile_unavailable": "Aspectus dependentiarum in machinis mobilibus non praebetur.",
   "no_lanes": "Nullae viae Kanbani configuratae sunt.",
   "no_items_in_lane": "Nulli {{subject}}",
   "empty_title": "Nulli {{subject}} adhuc",
