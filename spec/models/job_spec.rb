@@ -66,6 +66,19 @@ RSpec.describe Job do
     end
   end
 
+  describe ".open_threads" do
+    it "excludes closed and no-change-needed jobs" do
+      open_job = Factories.job_record(state: "running", issue_number: 1)
+      closed = Factories.job_record(state: "closed", issue_number: 2)
+      no_change_needed = Factories.job_record(state: "no_change_needed", issue_number: 3)
+
+      result = described_class.open_threads
+
+      expect(result).to include(open_job)
+      expect(result).not_to include(closed, no_change_needed)
+    end
+  end
+
   describe "fork base branch (fork -> upstream)" do
     let(:repo_owner) { Factories.user }
     let(:upstream) { Factories.repository(user: repo_owner, owner: "upstream-org", name: "project", default_branch: "main") }

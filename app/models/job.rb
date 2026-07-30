@@ -21,6 +21,7 @@ class Job < ApplicationRecord
   MAIN_BRANCH_REPAIR_TITLE = "Fix broken main branch".freeze
   CREDENTIAL_MODES = %w[ app pat ].freeze
   PREPARE_SKIP_LABEL = "syrus-skip-prepare".freeze
+  TERMINAL_STATES = %w[ closed no_change_needed ].freeze
 
   PRIORITIES = %w[ urgent high medium low ].freeze
   STACK_BASES = %w[ auto main ].freeze
@@ -113,7 +114,7 @@ class Job < ApplicationRecord
   enum :stack_base, STACK_BASES.index_with(&:itself), prefix: true, validate: true
   enum :approved_via, APPROVAL_VIAS.index_with(&:itself), prefix: true, validate: { allow_nil: true }
 
-  scope :open_threads, -> { where.not(state: "closed") }
+  scope :open_threads, -> { where.not(state: TERMINAL_STATES) }
   scope :closed_threads, -> { where(state: "closed") }
   # Effective ownership: owner_user_id when set, else the creating user.
   # Mirrors the `owner_user_id.presence || user_id` convention so a job
