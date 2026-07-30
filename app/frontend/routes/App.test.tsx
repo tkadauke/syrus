@@ -15555,6 +15555,7 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
     dependents: [],
     unsatisfied_dependencies: [],
     dependency_target_options: [{ label: "acme/widgets #11 - Build hill (JOB-41)", value: "issue:3:11" }],
+    epic_dependency_target_options: [],
     attachments: [
       {
         id: 8,
@@ -15710,6 +15711,7 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
       app_tags_path: "/api/v1/app/jobs/42/tags",
       app_claim_path: "/api/v1/app/jobs/42/claim",
       app_dependencies_path: "/api/v1/app/jobs/42/dependencies",
+      app_epic_dependencies_path: "/api/v1/app/jobs/42/epic_dependencies",
       app_dependency_override_path: "/api/v1/app/jobs/42/dependencies/override",
       app_stack_base_path: "/api/v1/app/jobs/42/stack_base",
       app_mark_valid_path: "/api/v1/app/jobs/42/mark_valid",
