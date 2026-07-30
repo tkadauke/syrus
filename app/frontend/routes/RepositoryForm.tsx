@@ -470,6 +470,8 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             </div>
           ) : null}
 
+          <Checkbox label={t('repository_form.check_external_pr_ingestion')} onChange={(checked) => setValues({ ...values, external_pr_ingestion_enabled: checked })} value={values.external_pr_ingestion_enabled} />
+
           <Field label={t('repository_form.label_feedback_policy')}>
             <select
               aria-label={t('repository_form.label_feedback_policy')}
@@ -646,6 +648,7 @@ function inputFromPayload(payload: RepositoryFormPayload): RepositoryInput {
     main_branch_repair_auto_approve: payload.repository.main_branch_repair_auto_approve,
     treat_grader_timeouts_as_failures: payload.repository.treat_grader_timeouts_as_failures,
     fork_auto_sync_enabled: payload.repository.fork_auto_sync_enabled,
+    external_pr_ingestion_enabled: payload.repository.external_pr_ingestion_enabled,
     agent_provider: payload.repository.agent_provider,
     auto_approve_mode: payload.repository.auto_approve_mode,
     feedback_policy: payload.repository.feedback_policy,

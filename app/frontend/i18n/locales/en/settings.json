@@ -473,6 +473,7 @@
     "check_repair_auto_approve": "Auto-approve successful main branch fix jobs",
     "check_timeout_failures": "Treat grader timeouts as failures",
     "timeout_hint": "When off, timeout-only grader results mark main branch health inconclusive instead of broken.",
+    "check_external_pr_ingestion": "Ingest externally-filed pull requests as Jobs",
     "feedback_confirm": "Confirm — require job owner approval before acting on external/member comments",
     "feedback_auto": "Auto — immediately queue a workflow for any actionable comment",
     "feedback_hint": "Job owner comments always trigger automatically regardless of this setting.",

@@ -67,6 +67,7 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
       main_branch_repair_auto_approve: r.main_branch_repair_auto_approve,
       treat_grader_timeouts_as_failures: r.treat_grader_timeouts_as_failures,
       fork_auto_sync_enabled: r.fork_auto_sync_enabled,
+      external_pr_ingestion_enabled: r.external_pr_ingestion_enabled,
       agent_provider: "",
       auto_approve_mode: r.auto_approve_mode,
       feedback_policy: r.feedback_policy,

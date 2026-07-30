@@ -473,6 +473,7 @@
     "check_repair_auto_approve": "Erfolgreiche Main-Branch-Fix-Jobs automatisch genehmigen",
     "check_timeout_failures": "Grader-Timeouts als Fehler behandeln",
     "timeout_hint": "Wenn deaktiviert, markieren reine Timeout-Ergebnisse die Main-Branch-Gesundheit als unbestimmt statt defekt.",
+    "check_external_pr_ingestion": "Extern erstellte Pull Requests als Jobs aufnehmen",
     "feedback_confirm": "Bestätigen — Genehmigung des Job-Eigentümers erforderlich, bevor auf externe/Mitglieder-Kommentare reagiert wird",
     "feedback_auto": "Auto — sofort einen Workflow für jeden umsetzbaren Kommentar einreihen",
     "feedback_hint": "Kommentare des Job-Eigentümers lösen unabhängig von dieser Einstellung immer automatisch aus.",
