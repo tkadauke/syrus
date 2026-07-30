@@ -879,6 +879,32 @@ module Api
           render json: result
         end
 
+        def coding_commits
+          chat_session = find_chat_session
+          unless Feature.coding_mode_enabled?
+            render_error("feature_disabled", "Coding Mode is not enabled on this instance.", status: :not_found)
+            return
+          end
+
+          unless chat_session.repository
+            render_error("not_found", "No repository attached to this chat.", status: :not_found)
+            return
+          end
+
+          if chat_session.coding_checkout_branch.blank?
+            render_error("not_found", "No active coding checkout for this chat.", status: :not_found)
+            return
+          end
+
+          result = proxy_to_coding_relay(chat_session, "commits")
+          unless result
+            render_error("not_found", "Coding checkout not available.", status: :not_found)
+            return
+          end
+
+          render json: result
+        end
+
         def coding_file
           chat_session = find_chat_session
           unless Feature.coding_mode_enabled?
@@ -902,7 +928,10 @@ module Api
             return
           end
 
-          result = proxy_to_coding_relay(chat_session, "file", params: { path: file_path })
+          relay_params = { path: file_path }
+          relay_params[:ref] = params[:ref].to_s.strip if params[:ref].present?
+
+          result = proxy_to_coding_relay(chat_session, "file", params: relay_params)
           if result.nil?
             render_error("not_found", "File not found in coding checkout.", status: :not_found)
             return
@@ -924,7 +953,9 @@ module Api
           end
 
           mode = params[:mode].to_s == "turn" ? :turn : :cumulative
-          result = proxy_to_coding_relay(chat_session, "diff", params: { mode: params[:mode] })
+          relay_params = { mode: mode.to_s }
+          relay_params[:ref] = params[:ref].to_s.strip if params[:ref].present?
+          result = proxy_to_coding_relay(chat_session, "diff", params: relay_params)
 
           if result
             render json: result

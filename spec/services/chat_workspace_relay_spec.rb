@@ -92,6 +92,11 @@ RSpec.describe ChatWorkspaceRelay do
         too_large: false
       })
       allow(ChatWorkspace).to receive(:coding_diff).and_return("--- a/README.md\n+++ b/README.md")
+      allow(ChatWorkspace).to receive(:coding_commits).and_return({
+        commits: [
+          { sha: "a" * 40, date: "2026-07-30 12:00:00 +0000", message: "Add widgets" }
+        ]
+      })
     end
 
     describe "non-GET request" do
@@ -170,6 +175,26 @@ RSpec.describe ChatWorkspaceRelay do
         res = get_relay("/workspace/file?session_id=#{chat_session.id}&path=README.md", bearer: "bad")
         expect(res.code).to eq("401")
       end
+
+      it "passes an optional ref to ChatWorkspace.file_content" do
+        sha = "b" * 40
+
+        res = get_relay("/workspace/file?session_id=#{chat_session.id}&path=README.md&ref=#{sha}")
+
+        expect(res.code).to eq("200")
+        expect(ChatWorkspace).to have_received(:file_content).with(anything, anything, "README.md", ref: sha)
+      end
+    end
+
+    describe "GET /workspace/commits" do
+      it "returns recent commits for an authenticated session" do
+        res = get_relay("/workspace/commits?session_id=#{chat_session.id}")
+
+        expect(res.code).to eq("200")
+        body = JSON.parse(res.body)
+        expect(body.dig("commits", 0, "sha")).to eq("a" * 40)
+        expect(body.dig("commits", 0, "message")).to eq("Add widgets")
+      end
     end
 
     describe "GET /workspace/diff" do
@@ -188,7 +213,7 @@ RSpec.describe ChatWorkspaceRelay do
 
         expect(res.code).to eq("200")
         expect(JSON.parse(res.body)["mode"]).to eq("turn")
-        expect(ChatWorkspace).to have_received(:coding_diff).with(anything, anything, mode: :turn)
+        expect(ChatWorkspace).to have_received(:coding_diff).with(anything, anything, mode: :turn, ref: nil)
       end
 
       it "defaults to cumulative for an unrecognized mode value" do
@@ -201,6 +226,15 @@ RSpec.describe ChatWorkspaceRelay do
       it "returns 401 for a wrong bearer token" do
         res = get_relay("/workspace/diff?session_id=#{chat_session.id}&mode=cumulative", bearer: "bad")
         expect(res.code).to eq("401")
+      end
+
+      it "passes an optional ref to ChatWorkspace.coding_diff" do
+        sha = "c" * 40
+
+        res = get_relay("/workspace/diff?session_id=#{chat_session.id}&ref=#{sha}")
+
+        expect(res.code).to eq("200")
+        expect(ChatWorkspace).to have_received(:coding_diff).with(anything, anything, mode: :cumulative, ref: sha)
       end
     end
   end

@@ -160,6 +160,8 @@
   "files_loading": "Fasciculi onerantur…",
   "files_error": "Arbor fasciculorum onerari non potuit.",
   "files_empty": "Nulli fasciculi in excubiis.",
+  "commit_selector_label": "Commit",
+  "commit_selector_head": "HEAD (arbor operis viva)",
   "file_content_loading": "Fasciculus oneratur…",
   "file_content_error": "Fasciculus onerari non potuit.",
   "file_content_binary": "Fasciculus binarius — demonstrari non potest.",

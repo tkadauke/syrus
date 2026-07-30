@@ -56,6 +56,10 @@ When the `coding_mode` feature flag is enabled and a chat session is in coding
 mode, the chat agent gains tools to implement changes directly in a repository
 checkout and hand them off to Syrus automation.
 
+The coding sidebar includes a file tree, a diff browser, and a compact commit
+selector. Operators can inspect the live working tree at HEAD or choose a recent
+commit on the checkout branch to view file contents and that commit's diff.
+
 The `complete_implement_step` chat tool signals that a coding session on an
 existing Job is complete and ready for graders, summarize, and PR open. The
 `submit_coding_changes` chat tool creates a new direct Job from committed branch

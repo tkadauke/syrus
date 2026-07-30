@@ -1625,6 +1625,23 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       expect(parse_body["path"]).to eq("README.md")
     end
 
+    it "forwards ref to the coding relay" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42",
+        coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
+      enable_coding_mode!
+      sha = "a" * 40
+      stub_request(:get, "http://127.0.0.1:9283/workspace/file")
+        .with(query: hash_including("session_id" => chat.id.to_s, "path" => "README.md", "ref" => sha),
+              headers: { "Authorization" => "Bearer test-relay-token" })
+        .to_return(status: 200, body: { content: "# Old Widgets\n", binary: false, too_large: false, path: "README.md" }.to_json)
+
+      get "/api/v1/app/chats/#{chat.id}/coding_file", params: { path: "README.md", ref: sha }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["content"]).to eq("# Old Widgets\n")
+    end
+
     it "returns 422 when path parameter is missing" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42")
@@ -1665,6 +1682,34 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       get "/api/v1/app/chats/#{chat.id}/coding_file", params: { path: "README.md" }
 
       expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  describe "GET /api/v1/app/chats/:id/coding_commits" do
+    def enable_coding_mode!(enabled: true)
+      feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|
+        record.category = "Labs"
+        record.name = "Coding Mode"
+      end
+      feature.update!(enabled: enabled)
+    end
+
+    it "returns commits proxied from the coding relay" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42",
+        coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
+      enable_coding_mode!
+      sha = "b" * 40
+      stub_request(:get, "http://127.0.0.1:9283/workspace/commits")
+        .with(query: hash_including("session_id" => chat.id.to_s),
+              headers: { "Authorization" => "Bearer test-relay-token" })
+        .to_return(status: 200, body: { commits: [ { sha: sha, date: "2026-07-30 12:00:00 +0000", message: "Add widgets" } ] }.to_json)
+
+      get "/api/v1/app/chats/#{chat.id}/coding_commits"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("commits", 0, "sha")).to eq(sha)
+      expect(parse_body.dig("commits", 0, "message")).to eq("Add widgets")
     end
   end
 
@@ -1709,6 +1754,23 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       expect(response).to have_http_status(:ok)
       expect(parse_body["diff"]).to include("new line")
       expect(parse_body["mode"]).to eq("turn")
+    end
+
+    it "forwards ref to the coding relay" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, coding_checkout_branch: "syrus-chat-42",
+        coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
+      enable_coding_mode!
+      sha = "c" * 40
+      stub_request(:get, "http://127.0.0.1:9283/workspace/diff")
+        .with(query: hash_including("session_id" => chat.id.to_s, "mode" => "cumulative", "ref" => sha),
+              headers: { "Authorization" => "Bearer test-relay-token" })
+        .to_return(status: 200, body: { diff: "diff --git a/README.md\n+old line\n", mode: "cumulative", checkout_branch: "syrus-chat-42" }.to_json)
+
+      get "/api/v1/app/chats/#{chat.id}/coding_diff", params: { ref: sha }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["diff"]).to include("old line")
     end
 
     it "returns empty diff payload when no repository is attached" do
@@ -1764,6 +1826,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       get "/api/v1/app/chats/#{chat.id}"
 
       expect(parse_body.dig("paths", "app_coding_files_path")).to eq("/api/v1/app/chats/#{chat.id}/coding_files")
+      expect(parse_body.dig("paths", "app_coding_commits_path")).to eq("/api/v1/app/chats/#{chat.id}/coding_commits")
       expect(parse_body.dig("paths", "app_coding_file_path")).to eq("/api/v1/app/chats/#{chat.id}/coding_file")
       expect(parse_body.dig("paths", "app_coding_diff_path")).to eq("/api/v1/app/chats/#{chat.id}/coding_diff")
     end

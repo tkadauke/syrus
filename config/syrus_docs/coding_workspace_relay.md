@@ -15,13 +15,14 @@ worker. Request auth is a per-session bearer token stored in
 `chat_sessions.coding_relay_token` (generated once per checkout, cleared on
 reclaim or cancel).
 
-Three routes are served by the relay:
+These routes are served by the relay:
 
 | Route | Returns |
 |---|---|
 | `GET /workspace/files?session_id=N` | File tree for the checkout |
-| `GET /workspace/file?session_id=N&path=<rel>` | File content |
-| `GET /workspace/diff?session_id=N&mode=<cumulative\|turn>` | Git diff |
+| `GET /workspace/commits?session_id=N` | Up to 50 recent commits on the checkout branch |
+| `GET /workspace/file?session_id=N&path=<rel>[&ref=<sha>]` | File content from the live checkout or a commit |
+| `GET /workspace/diff?session_id=N&mode=<cumulative\|turn>[&ref=<sha>]` | Live checkout diff or a single-commit diff |
 
 ## Configuration
 

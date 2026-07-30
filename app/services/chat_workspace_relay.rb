@@ -7,13 +7,14 @@ require "json"
 #
 # Mirrors the terminal relay pattern (TerminalRelay + TerminalSession): the
 # worker records its host:port in the DB (chat_sessions.coding_relay_address),
-# the web pod proxies the three coding API endpoints to it, and request auth
+# the web pod proxies the coding API endpoints to it, and request auth
 # is a per-session bearer token (chat_sessions.coding_relay_token).
 #
-# Three routes:
+# Routes:
 #   GET /workspace/files?session_id=N
-#   GET /workspace/file?session_id=N&path=<rel_path>
-#   GET /workspace/diff?session_id=N&mode=<cumulative|turn>
+#   GET /workspace/commits?session_id=N
+#   GET /workspace/file?session_id=N&path=<rel_path>[&ref=<sha>]
+#   GET /workspace/diff?session_id=N&mode=<cumulative|turn>[&ref=<sha>]
 class ChatWorkspaceRelay
   DEFAULT_PORT = 9283
 
@@ -112,6 +113,7 @@ class ChatWorkspaceRelay
 
       case uri.path
       when "/workspace/files" then handle_files(client, headers, params)
+      when "/workspace/commits" then handle_commits(client, headers, params)
       when "/workspace/file"  then handle_file(client, headers, params)
       when "/workspace/diff"  then handle_diff(client, headers, params)
       else send_response(client, 404)
@@ -138,6 +140,22 @@ class ChatWorkspaceRelay
       send_response(client, 500)
     end
 
+    def handle_commits(client, headers, params)
+      session, error_status = authenticate(headers, params)
+      return send_response(client, error_status) unless session
+
+      repo = session.repository
+      return send_response(client, 422) unless repo
+
+      result = ChatWorkspace.coding_commits(session, repo)
+      return send_response(client, 404) unless result
+
+      send_response(client, 200, result)
+    rescue StandardError => e
+      Rails.logger.error("ChatWorkspaceRelay /workspace/commits: #{e.class}: #{e.message}")
+      send_response(client, 500)
+    end
+
     def handle_file(client, headers, params)
       session, error_status = authenticate(headers, params)
       return send_response(client, error_status) unless session
@@ -148,7 +166,7 @@ class ChatWorkspaceRelay
       path_param = params["path"].to_s.strip
       return send_response(client, 422) if path_param.blank?
 
-      result = ChatWorkspace.file_content(session, repo, path_param)
+      result = ChatWorkspace.file_content(session, repo, path_param, ref: params["ref"].presence)
       return send_response(client, 404) unless result
 
       send_response(client, 200, result.merge(path: path_param))
@@ -165,7 +183,8 @@ class ChatWorkspaceRelay
       return send_response(client, 422) unless repo
 
       mode = params["mode"].to_s == "turn" ? :turn : :cumulative
-      diff = ChatWorkspace.coding_diff(session, repo, mode: mode)
+      ref = params["ref"].presence
+      diff = ChatWorkspace.coding_diff(session, repo, mode: mode, ref: ref)
 
       send_response(client, 200, {
         diff: diff,

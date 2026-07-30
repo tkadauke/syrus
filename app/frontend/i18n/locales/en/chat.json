@@ -160,6 +160,8 @@
   "files_loading": "Loading files…",
   "files_error": "Could not load file tree.",
   "files_empty": "No files in checkout.",
+  "commit_selector_label": "Commit",
+  "commit_selector_head": "HEAD (live working tree)",
   "file_content_loading": "Loading file…",
   "file_content_error": "Could not load file.",
   "file_content_binary": "Binary file — cannot display.",

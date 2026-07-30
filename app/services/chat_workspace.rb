@@ -19,6 +19,8 @@ class ChatWorkspace
   RECLAIM_IDLE_CODING_AFTER = 48.hours
   EXCLUDED_DIR_NAMES = %w[.git .syrus node_modules].to_set.freeze
   MAX_FILE_BYTES = 500.kilobytes
+  MAX_COMMIT_MESSAGE_BYTES = 300
+  COMMIT_SHA_PATTERN = /\A[0-9a-fA-F]{7,40}\z/
 
   def self.data_root
     Pathname.new(ENV["SYRUS_DATA_ROOT"] || File.expand_path("~/.syrus"))
@@ -103,16 +105,21 @@ class ChatWorkspace
   # { content: nil, binary: true } / { content: nil, too_large: true, size: N }.
   # relative_path is validated to stay within the checkout directory.
   # Returns nil if the file or checkout does not exist.
-  def self.file_content(chat_session, repository, relative_path)
-    new(chat_session).file_content(repository, relative_path)
+  def self.file_content(chat_session, repository, relative_path, ref: nil)
+    new(chat_session).file_content(repository, relative_path, ref: ref)
   end
 
   # Returns the unified diff for the coding checkout.
   # mode :cumulative => git diff origin/<default>  (all changes vs remote base)
   # mode :turn       => git diff HEAD              (uncommitted changes only)
   # Returns "" on any error or if the checkout does not exist.
-  def self.coding_diff(chat_session, repository, mode: :cumulative)
-    new(chat_session).coding_diff(repository, mode: mode)
+  def self.coding_diff(chat_session, repository, mode: :cumulative, ref: nil)
+    new(chat_session).coding_diff(repository, mode: mode, ref: ref)
+  end
+
+  # Returns up to 50 recent commits on the coding checkout branch.
+  def self.coding_commits(chat_session, repository)
+    new(chat_session).coding_commits(repository)
   end
 
   # Removes the workspace directory AND the per-chat agent homes.
@@ -447,11 +454,14 @@ class ChatWorkspace
     }
   end
 
-  def file_content(repository, relative_path)
+  def file_content(repository, relative_path, ref: nil)
     path = self.class.repo_path_for(@chat_session, repository)
     return nil unless path.join(".git").directory?
 
     safe = safe_checkout_path(path, relative_path)
+    return nil unless safe
+    normalized_relative_path = safe.relative_path_from(path).to_s
+    return file_content_at_ref(path, normalized_relative_path, ref) if ref.present?
     return nil unless safe&.file?
 
     size = safe.size
@@ -471,9 +481,16 @@ class ChatWorkspace
     }
   end
 
-  def coding_diff(repository, mode: :cumulative)
+  def coding_diff(repository, mode: :cumulative, ref: nil)
     path = self.class.repo_path_for(@chat_session, repository)
     return "" unless path.join(".git").directory?
+
+    if ref.present?
+      return "" unless valid_commit_ref?(ref)
+
+      out, status = Open3.capture2e({ "GIT_TERMINAL_PROMPT" => "0" }, "git", "diff", "#{ref}^..#{ref}", chdir: path.to_s)
+      return status.success? ? out : ""
+    end
 
     default_branch = repository.default_branch
 
@@ -488,6 +505,33 @@ class ChatWorkspace
     end
   rescue StandardError
     ""
+  end
+
+  def coding_commits(repository)
+    path = self.class.repo_path_for(@chat_session, repository)
+    return nil unless path.join(".git").directory?
+
+    out, status = Open3.capture2e(
+      { "GIT_TERMINAL_PROMPT" => "0" },
+      "git", "log", "--format=%H %ai %s", "-n", "50",
+      chdir: path.to_s
+    )
+    return { commits: [] } unless status.success?
+
+    commits = out.lines.filter_map do |raw_line|
+      line = raw_line.chomp
+      next unless line =~ /\A([0-9a-f]{40}) (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} [+-]\d{4}) (.*)\z/
+
+      {
+        sha: Regexp.last_match(1),
+        date: Regexp.last_match(2),
+        message: Regexp.last_match(3).to_s.safe_byteslice(0, self.class::MAX_COMMIT_MESSAGE_BYTES)
+      }
+    end
+
+    { commits: commits }
+  rescue StandardError
+    { commits: [] }
   end
 
   private
@@ -643,5 +687,50 @@ class ChatWorkspace
     return nil unless candidate.to_s.start_with?("#{root}#{File::SEPARATOR}")
 
     candidate
+  end
+
+  def file_content_at_ref(checkout_dir, relative_path, ref)
+    return nil unless valid_commit_ref?(ref)
+
+    spec = "#{ref}:#{relative_path}"
+    type_out, type_status = Open3.capture2e(
+      { "GIT_TERMINAL_PROMPT" => "0" },
+      "git", "cat-file", "-t", spec,
+      chdir: checkout_dir.to_s
+    )
+    return nil unless type_status.success? && type_out.strip == "blob"
+
+    size_out, size_status = Open3.capture2e(
+      { "GIT_TERMINAL_PROMPT" => "0" },
+      "git", "cat-file", "-s", spec,
+      chdir: checkout_dir.to_s
+    )
+    return nil unless size_status.success?
+
+    size = size_out.to_i
+    if size > self.class::MAX_FILE_BYTES
+      return { content: nil, binary: false, too_large: true, size: size }
+    end
+
+    raw, show_status = Open3.capture2e(
+      { "GIT_TERMINAL_PROMPT" => "0" },
+      "git", "show", spec,
+      chdir: checkout_dir.to_s
+    )
+    return nil unless show_status.success?
+
+    if raw.include?("\x00")
+      return { content: nil, binary: true, too_large: false }
+    end
+
+    {
+      content: raw.encode(Encoding::UTF_8, invalid: :replace, undef: :replace),
+      binary: false,
+      too_large: false
+    }
+  end
+
+  def valid_commit_ref?(ref)
+    ref.to_s.match?(self.class::COMMIT_SHA_PATTERN)
   end
 end

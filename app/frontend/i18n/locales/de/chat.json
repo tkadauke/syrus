@@ -160,6 +160,8 @@
   "files_loading": "Dateien werden geladen…",
   "files_error": "Dateibaum konnte nicht geladen werden.",
   "files_empty": "Keine Dateien im Checkout.",
+  "commit_selector_label": "Commit",
+  "commit_selector_head": "HEAD (Live-Arbeitsbaum)",
   "file_content_loading": "Datei wird geladen…",
   "file_content_error": "Datei konnte nicht geladen werden.",
   "file_content_binary": "Binärdatei — Anzeige nicht möglich.",

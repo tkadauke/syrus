@@ -1,15 +1,16 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
 import { ChatSettingsDialog, ChatWorkspacePanel } from "./WorkspacePanels"
 import type { ChatPayload } from "../../api/chats"
-import { fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree } from "../../api/chats"
+import { fetchCodingCommits, fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree } from "../../api/chats"
 
 vi.mock("../../api/chats", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/chats")>()
   return {
     ...actual,
+    fetchCodingCommits: vi.fn(),
     fetchCodingDiff: vi.fn(),
     fetchCodingFileContent: vi.fn(),
     fetchCodingFileTree: vi.fn()
@@ -101,6 +102,7 @@ function makeCodingPayload(overrides: Partial<ChatPayload> = {}): ChatPayload {
     paths: {
       ...payload.paths,
       app_coding_files_path: "/api/v1/app/chats/1/coding_files",
+      app_coding_commits_path: "/api/v1/app/chats/1/coding_commits",
       app_coding_file_path: "/api/v1/app/chats/1/coding_file",
       app_coding_diff_path: "/api/v1/app/chats/1/coding_diff",
       ...overrides.paths
@@ -168,6 +170,11 @@ describe("ChatSettingsDialog", () => {
 })
 
 describe("ChatWorkspacePanel coding files", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(fetchCodingCommits).mockResolvedValue({ commits: [] })
+  })
+
   it("renders file content with highlighted spans and line numbers", async () => {
     vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: ["app/example.ts"] })
     vi.mocked(fetchCodingFileContent).mockResolvedValue({
@@ -224,6 +231,41 @@ describe("ChatWorkspacePanel coding files", () => {
     expect(await screen.findByTestId("coding-diff-viewer")).toBeInTheDocument()
     expect(screen.getByText("export const b = 2")).toBeInTheDocument()
     expect(screen.queryByText("export const a = 2")).not.toBeInTheDocument()
+  })
+
+  it("renders a commit selector and passes ref to file and diff fetches", async () => {
+    const sha = "abc1234abc1234abc1234abc1234abc1234abc12"
+    vi.mocked(fetchCodingCommits).mockResolvedValue({
+      commits: [{ sha, date: "2026-07-30 12:00:00 +0000", message: "Add commit browser" }]
+    })
+    vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: ["README.md"] })
+    vi.mocked(fetchCodingFileContent).mockResolvedValue({
+      binary: false,
+      content: "# Old\n",
+      path: "README.md",
+      too_large: false
+    })
+    vi.mocked(fetchCodingDiff).mockResolvedValue({
+      checkout_branch: "syrus/chat-1",
+      mode: "cumulative",
+      diff: "diff --git a/README.md b/README.md\n@@ -1 +1 @@\n-# Old\n+# New\n"
+    })
+
+    renderWorkspacePanel(makeCodingPayload())
+
+    await screen.findByRole("option", { name: /Add commit browser/ })
+    fireEvent.change(screen.getByLabelText("Commit"), { target: { value: sha } })
+    fireEvent.click(await screen.findByRole("button", { name: "README.md" }))
+
+    await waitFor(() => {
+      expect(fetchCodingFileContent).toHaveBeenCalledWith("/api/v1/app/chats/1/coding_file", "README.md", sha)
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Diff" }))
+
+    await waitFor(() => {
+      expect(fetchCodingDiff).toHaveBeenCalledWith("/api/v1/app/chats/1/coding_diff", "cumulative", sha)
+    })
   })
 
   it("deselects the files panel when the coding checkout disappears", async () => {

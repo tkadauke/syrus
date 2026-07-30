@@ -8,7 +8,7 @@ import "@excalidraw/excalidraw/index.css"
 import { ApiError } from "../../api/client"
 import { formatClock } from "../../components/WalkthroughRecorder"
 import { updateRecentChatCache } from "../../lib/chatCache"
-import { createWhiteboardSnapshot, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, updateChatProvider, fetchCodingFileTree, fetchCodingFileContent, fetchCodingDiff, updateChatMode, type ChatMode, type ChatPayload, type ChatRenderItem, type ChatWhiteboardElement, type ChatWhiteboardScene, type WhiteboardSnapshot } from "../../api/chats"
+import { createWhiteboardSnapshot, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, updateChatProvider, fetchCodingFileTree, fetchCodingCommits, fetchCodingFileContent, fetchCodingDiff, updateChatMode, type ChatMode, type ChatPayload, type ChatRenderItem, type ChatWhiteboardElement, type ChatWhiteboardScene, type WhiteboardSnapshot } from "../../api/chats"
 import { CloseIcon } from "../../components/CloseIcon"
 import { createConsumer, type Subscription } from "@rails/actioncable"
 import { useT } from "../../hooks/useT"
@@ -835,9 +835,11 @@ function CodingFilesPanel({ payload }: { payload: ChatPayload }) {
   const [diffMode, setDiffMode] = useState<"cumulative" | "turn">("cumulative")
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [selectedDiffFile, setSelectedDiffFile] = useState<string | null>(null)
+  const [selectedRef, setSelectedRef] = useState<string>("")
   const [openDirs, setOpenDirs] = useState<Set<string>>(new Set())
 
   const filesPath = payload.paths.app_coding_files_path
+  const commitsPath = payload.paths.app_coding_commits_path
   const fileContentBasePath = payload.paths.app_coding_file_path
   const diffPath = payload.paths.app_coding_diff_path
   const agentBusy = payload.agent_busy
@@ -850,16 +852,23 @@ function CodingFilesPanel({ payload }: { payload: ChatPayload }) {
     refetchInterval
   })
 
+  const commits = useQuery({
+    queryKey: ["coding_commits", commitsPath],
+    queryFn: () => fetchCodingCommits(commitsPath!),
+    enabled: !!commitsPath,
+    refetchInterval
+  })
+
   const fileContent = useQuery({
-    queryKey: ["coding_file_content", fileContentBasePath, selectedFile],
-    queryFn: () => fetchCodingFileContent(fileContentBasePath!, selectedFile!),
+    queryKey: ["coding_file_content", fileContentBasePath, selectedFile, selectedRef],
+    queryFn: () => fetchCodingFileContent(fileContentBasePath!, selectedFile!, selectedRef || null),
     enabled: !!fileContentBasePath && !!selectedFile && view === "files",
     refetchInterval
   })
 
   const diffResult = useQuery({
-    queryKey: ["coding_diff", diffPath, diffMode],
-    queryFn: () => fetchCodingDiff(diffPath!, diffMode),
+    queryKey: ["coding_diff", diffPath, diffMode, selectedRef],
+    queryFn: () => fetchCodingDiff(diffPath!, diffMode, selectedRef || null),
     enabled: !!diffPath && view === "diff",
     refetchInterval
   })
@@ -874,6 +883,7 @@ function CodingFilesPanel({ payload }: { payload: ChatPayload }) {
   }
 
   const treeNodes = fileTree.data ? buildFileTree(fileTree.data.files) : []
+  const commitOptions = commits.data?.commits ?? []
   const diffFiles = diffResult.data?.diff ? parseCodingDiffFiles(diffResult.data.diff) : []
   const selectedDiff = selectedDiffFile ? diffFiles.find((file) => file.path === selectedDiffFile) || null : null
 
@@ -900,7 +910,7 @@ function CodingFilesPanel({ payload }: { payload: ChatPayload }) {
         >
           {t("view_diff")}
         </button>
-        {view === "diff" ? (
+        {view === "diff" && !selectedRef ? (
           <div className="ml-auto flex items-center gap-1">
             <button
               className={`rounded px-2 py-1 text-xs ${diffMode === "cumulative" ? "font-semibold text-gray-900 dark:text-gray-100" : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"}`}
@@ -919,6 +929,24 @@ function CodingFilesPanel({ payload }: { payload: ChatPayload }) {
             </button>
           </div>
         ) : null}
+      </div>
+      <div className="shrink-0 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
+        <select
+          aria-label={t("commit_selector_label")}
+          className="w-full rounded border border-gray-200 bg-white px-2 py-1 font-mono text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+          onChange={(event) => {
+            setSelectedRef(event.target.value)
+            setSelectedDiffFile(null)
+          }}
+          value={selectedRef}
+        >
+          <option value="">{t("commit_selector_head")}</option>
+          {commitOptions.map((commit) => (
+            <option key={commit.sha} value={commit.sha}>
+              {commit.sha.slice(0, 7)} · {commit.date.slice(0, 16)} · {truncateCommitMessage(commit.message)}
+            </option>
+          ))}
+        </select>
       </div>
 
       {view === "files" ? (
@@ -1012,6 +1040,10 @@ type CodingDiffFile = {
   status: "added" | "modified" | "removed" | "renamed"
   additions: number
   deletions: number
+}
+
+function truncateCommitMessage(message: string) {
+  return message.length > 72 ? `${message.slice(0, 69)}...` : message
 }
 
 function CodingSourceViewer({ content, path }: { content: string; path: string }) {

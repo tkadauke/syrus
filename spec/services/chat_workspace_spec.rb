@@ -1,5 +1,6 @@
 require "rails_helper"
 require "tmpdir"
+require "shellwords"
 
 RSpec.describe ChatWorkspace do
   let(:bare_remote_dir) { Pathname.new(Dir.mktmpdir("syrus-chatws-bare")) }
@@ -407,6 +408,20 @@ RSpec.describe ChatWorkspace do
 
       expect(result).to be_nil
     end
+
+    it "returns file content from a selected commit ref" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      initial_sha = sh("git -C #{checkout_path} rev-parse HEAD").strip
+      File.write(checkout_path.join("README.md").to_s, "# Changed\n")
+      sh("git -C #{checkout_path} add README.md")
+      sh("git -C #{checkout_path} commit -q -m 'change readme'")
+
+      result = described_class.file_content(chat_session, repository, "README.md", ref: initial_sha)
+
+      expect(result).not_to be_nil
+      expect(result[:content]).to eq("# Widgets\n")
+    end
   end
 
   describe ".coding_diff" do
@@ -442,6 +457,37 @@ RSpec.describe ChatWorkspace do
       result = described_class.coding_diff(chat_session, repository)
 
       expect(result).to be_a(String)
+    end
+
+    it "returns a single-commit diff for a selected ref" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      File.write(checkout_path.join("README.md").to_s, "# Changed\n")
+      sh("git -C #{checkout_path} add README.md")
+      sh("git -C #{checkout_path} commit -q -m 'change readme'")
+      sha = sh("git -C #{checkout_path} rev-parse HEAD").strip
+
+      result = described_class.coding_diff(chat_session, repository, ref: sha)
+
+      expect(result).to include("diff --git a/README.md b/README.md")
+      expect(result).to include("+# Changed")
+    end
+  end
+
+  describe ".coding_commits" do
+    it "returns recent checkout commits with safe truncated messages" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      message = "change " + ("x" * 400)
+      File.write(checkout_path.join("README.md").to_s, "# Changed\n")
+      sh("git -C #{checkout_path} add README.md")
+      sh("git -C #{checkout_path} commit -q -m #{Shellwords.escape(message)}")
+
+      result = described_class.coding_commits(chat_session, repository)
+
+      expect(result[:commits].first[:sha]).to match(/\A[0-9a-f]{40}\z/)
+      expect(result[:commits].first[:date]).to match(/\A\d{4}-\d{2}-\d{2} /)
+      expect(result[:commits].first[:message].bytesize).to be <= described_class::MAX_COMMIT_MESSAGE_BYTES
     end
   end
 

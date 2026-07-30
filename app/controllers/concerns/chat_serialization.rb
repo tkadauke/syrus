@@ -77,6 +77,7 @@ module ChatSerialization
         app_video_walkthroughs_path: "/api/v1/app/chats/#{chat_session.id}/video_walkthroughs",
         app_cancel_coding_checkout_path: "/api/v1/app/chats/#{chat_session.id}/coding_checkout",
         app_coding_files_path: "/api/v1/app/chats/#{chat_session.id}/coding_files",
+        app_coding_commits_path: "/api/v1/app/chats/#{chat_session.id}/coding_commits",
         app_coding_file_path: "/api/v1/app/chats/#{chat_session.id}/coding_file",
         app_coding_diff_path: "/api/v1/app/chats/#{chat_session.id}/coding_diff"
       },

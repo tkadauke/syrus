@@ -423,6 +423,16 @@ export type CodingFilesPayload = {
   checkout_branch: string | null
 }
 
+export type CodingCommit = {
+  sha: string
+  date: string
+  message: string
+}
+
+export type CodingCommitsPayload = {
+  commits: CodingCommit[]
+}
+
 export type CodingFileContentPayload = {
   path: string
   content: string | null
@@ -488,6 +498,7 @@ export type ChatPayload = {
     app_scratchpad_reorder_path: string
     app_cancel_coding_checkout_path?: string
     app_coding_files_path?: string
+    app_coding_commits_path?: string
     app_coding_file_path?: string
     app_coding_diff_path?: string
   }
@@ -839,13 +850,20 @@ export function fetchCodingFileTree(path: string) {
   return getJson<CodingFilesPayload>(path)
 }
 
-export function fetchCodingFileContent(basePath: string, filePath: string) {
+export function fetchCodingCommits(path: string) {
+  return getJson<CodingCommitsPayload>(path)
+}
+
+export function fetchCodingFileContent(basePath: string, filePath: string, ref?: string | null) {
   const params = new URLSearchParams({ path: filePath })
+  if (ref) params.set("ref", ref)
   return getJson<CodingFileContentPayload>(`${basePath}?${params}`)
 }
 
-export function fetchCodingDiff(path: string, mode: "cumulative" | "turn" = "cumulative") {
-  return getJson<CodingDiffPayload>(`${path}?mode=${mode}`)
+export function fetchCodingDiff(path: string, mode: "cumulative" | "turn" = "cumulative", ref?: string | null) {
+  const params = new URLSearchParams({ mode })
+  if (ref) params.set("ref", ref)
+  return getJson<CodingDiffPayload>(`${path}?${params}`)
 }
 
 export type ChatJobStatusBlocker = {
