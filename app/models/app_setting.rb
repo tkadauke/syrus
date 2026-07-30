@@ -3,6 +3,8 @@ class AppSetting < ApplicationRecord
 
   CLEARABLE_SECRETS = {}.freeze
 
+  MODES = %w[advanced simple].freeze
+
   validates :grade_max_iterations, numericality: {
     only_integer: true,
     greater_than_or_equal_to: 1,
@@ -52,6 +54,7 @@ class AppSetting < ApplicationRecord
     only_integer: true,
     greater_than_or_equal_to: 1
   }
+  validates :mode, inclusion: { in: MODES }
 
   encrypts :github_app_private_key_pem
 
@@ -74,6 +77,30 @@ class AppSetting < ApplicationRecord
 
   def self.boot_polling_paused_default
     BOOT_TRUTHY_VALUES.include?(ENV["SYRUS_BOOT_POLLING_PAUSED"].to_s.strip.downcase)
+  end
+
+  def self.mode
+    current.mode
+  end
+
+  def self.simple?
+    current.simple?
+  end
+
+  def self.advanced?
+    current.advanced?
+  end
+
+  def self.mode_configured?
+    current.mode_configured_at.present?
+  end
+
+  def simple?
+    mode == "simple"
+  end
+
+  def advanced?
+    mode == "advanced"
   end
 
   def self.signups_open?

@@ -9,8 +9,10 @@ module Api
 
           def update
             setting = AppSetting.current
+            update_params = settings_params
+            update_params["mode_configured_at"] = Time.current if update_params.key?("mode") && setting.mode_configured_at.nil?
 
-            if setting.update(settings_params)
+            if setting.update(update_params)
               render json: settings_payload.merge(message: I18n.t("api.admin_settings.updated"))
             else
               render_error("validation_failed", setting.errors.full_messages.to_sentence,
@@ -41,6 +43,7 @@ module Api
                 # 0 = unlimited (bounded only by per-pod JOB_CONCURRENCY).
                 max_concurrent_agent_runs: setting.max_concurrent_agent_runs,
                 proactive_rebase_commit_threshold: setting.proactive_rebase_commit_threshold,
+                mode: setting.mode,
                 clearable_secrets: AppSetting.clearable_secrets.map do |key, label|
                   {
                     key: key,
@@ -53,7 +56,7 @@ module Api
           end
 
           def settings_params
-            permitted_settings = [ :signups_open, :video_retention_days, :video_storage_budget_mb, :max_concurrent_agent_runs, :proactive_rebase_commit_threshold ] +
+            permitted_settings = [ :signups_open, :video_retention_days, :video_storage_budget_mb, :max_concurrent_agent_runs, :proactive_rebase_commit_threshold, :mode ] +
                                  AppSetting.clearable_secrets.keys.map(&:to_sym)
 
             params

@@ -38,7 +38,9 @@ function buildBootstrap(seenTours: string[] = []): BootstrapPayload {
       version: null,
       built_at: null,
       bug_report_mode: null,
-      report_issue_repo_slug: "owner/repo"
+      report_issue_repo_slug: "owner/repo",
+      mode: "advanced" as const,
+      mode_configured: false
     },
     setup_status: null,
     public: {

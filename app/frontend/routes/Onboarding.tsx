@@ -1,9 +1,10 @@
 import { withRoutePrefix } from "../lib/routing"
 import { useState } from "react"
-import { useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import type { BootstrapPayload } from "../api/bootstrap"
 import { startOnboardingChat } from "../api/chats"
+import { updateAdminSettings } from "../api/adminSettings"
 import { GithubTokenModal } from "../components/GithubTokenModal"
 import { ConfigureAgentModal } from "../components/ConfigureAgentModal"
 import { AddRepositoryModal } from "../components/AddRepositoryModal"
@@ -21,7 +22,7 @@ type ChecklistStep = {
   // When set, the CTA opens an in-page flow instead of navigating away.
   ctaModal?: "github_token" | "configure_agent" | "add_repository"
   // When set, the CTA runs an action (and may navigate away) instead of linking.
-  ctaAction?: "start_chat"
+  ctaAction?: "start_chat" | "choose_mode"
 }
 
 export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | null | undefined }) {
@@ -60,7 +61,13 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
     }
   }
 
-  const steps = checklistSteps(setup, user)
+  const chooseMode = useMutation({
+    mutationFn: (selectedMode: "advanced" | "simple") =>
+      updateAdminSettings({ mode: selectedMode }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
+  })
+
+  const steps = checklistSteps(setup, user, bootstrap?.app.mode_configured ?? false)
   const activeStep = steps.find((step) => !step.complete)
   const complete = !activeStep
 
@@ -86,6 +93,25 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
                 </div>
                 {step.complete ? (
                   <span className="self-start rounded bg-green-50 dark:bg-green-950/40 px-2.5 py-1 text-xs font-medium text-green-700 dark:text-green-300 sm:self-center">{t('onboarding.complete_badge')}</span>
+                ) : step.ctaAction === "choose_mode" ? (
+                  <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                    <button
+                      className={`${primaryCtaClass(current)} sm:min-w-44`}
+                      disabled={chooseMode.isPending}
+                      onClick={() => chooseMode.mutate("advanced")}
+                      type="button"
+                    >
+                      Yes, I write code
+                    </button>
+                    <button
+                      className={`${primaryCtaClass(false)} sm:min-w-44`}
+                      disabled={chooseMode.isPending}
+                      onClick={() => chooseMode.mutate("simple")}
+                      type="button"
+                    >
+                      No, build things for me
+                    </button>
+                  </div>
                 ) : step.ctaModal ? (
                   <button className={primaryCtaClass(current)} onClick={() => setOpenModal(step.ctaModal ?? null)} type="button">
                     {step.ctaLabel}
@@ -126,7 +152,7 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
   )
 }
 
-function checklistSteps(setup: SetupStatus, user: NonNullable<BootstrapPayload["current_user"]>): ChecklistStep[] {
+function checklistSteps(setup: SetupStatus, user: NonNullable<BootstrapPayload["current_user"]>, modeConfigured: boolean): ChecklistStep[] {
   return [
     {
       key: "account",
@@ -135,6 +161,17 @@ function checklistSteps(setup: SetupStatus, user: NonNullable<BootstrapPayload["
       complete: user.admin,
       ctaLabel: "Open account settings",
       ctaPath: "/profile"
+    },
+    {
+      key: "mode",
+      title: "How do you work?",
+      detail: modeConfigured
+        ? "Instance mode is configured."
+        : "Tell Syrus how to tailor the experience. Choose based on whether you'll be writing code yourself.",
+      complete: modeConfigured,
+      ctaLabel: "",
+      ctaPath: "",
+      ctaAction: "choose_mode"
     },
     {
       key: "github",

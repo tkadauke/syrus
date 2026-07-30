@@ -191,6 +191,100 @@ RSpec.describe JobDependency do
     end
   end
 
+  describe "simple mode linear chain enforcement" do
+    let(:epic) { Factories.epic(user: user, repository: repository) }
+
+    def epic_job(number)
+      Factories.job_record(user: user, repository: repository, epic: epic, issue_number: number, state: "queued")
+    end
+
+    before do
+      allow(AppSetting).to receive(:simple?).and_return(true)
+    end
+
+    it "accepts a linear chain (each job depends on the previous one)" do
+      a = epic_job(1)
+      b = epic_job(2)
+      c = epic_job(3)
+      described_class.create!(job: b, depends_on_job: a, source: "manual")
+      dep = described_class.new(job: c, depends_on_job: b, source: "manual")
+
+      expect(dep).to be_valid
+    end
+
+    it "rejects a fork (upstream job already has a downstream in the same epic)" do
+      a = epic_job(1)
+      b = epic_job(2)
+      c = epic_job(3)
+      described_class.create!(job: b, depends_on_job: a, source: "manual")
+
+      dep = described_class.new(job: c, depends_on_job: a, source: "manual")
+
+      expect(dep).not_to be_valid
+      expect(dep.errors[:base].first).to match(/Simple mode requires features to be implemented in sequence/)
+    end
+
+    it "rejects a merge (job already has an upstream in the same epic)" do
+      a = epic_job(1)
+      b = epic_job(2)
+      c = epic_job(3)
+      described_class.create!(job: c, depends_on_job: a, source: "manual")
+
+      dep = described_class.new(job: c, depends_on_job: b, source: "manual")
+
+      expect(dep).not_to be_valid
+      expect(dep.errors[:base].first).to match(/Simple mode requires features to be implemented in sequence/)
+    end
+
+    it "rejects a new job with no dependency on the chain tail when non-first" do
+      a = epic_job(1)
+      b = epic_job(2)
+      c = epic_job(3)
+      described_class.create!(job: b, depends_on_job: a, source: "manual")
+
+      # C tries to connect to A (not the chain tail B) — fork from A
+      dep = described_class.new(job: c, depends_on_job: a, source: "manual")
+
+      expect(dep).not_to be_valid
+      expect(dep.errors[:base].first).to match(/Simple mode requires features to be implemented in sequence/)
+    end
+
+    it "does not enforce linearity in advanced mode" do
+      allow(AppSetting).to receive(:simple?).and_return(false)
+      a = epic_job(1)
+      b = epic_job(2)
+      c = epic_job(3)
+      described_class.create!(job: b, depends_on_job: a, source: "manual")
+
+      dep = described_class.new(job: c, depends_on_job: a, source: "manual")
+
+      expect(dep).to be_valid
+    end
+
+    it "does not enforce linearity for cross-epic dependencies" do
+      other_epic = Factories.epic(user: user, repository: repository)
+      a = Factories.job_record(user: user, repository: repository, epic: other_epic, issue_number: 10, state: "queued")
+      b = epic_job(2)
+      c = epic_job(3)
+      described_class.create!(job: c, depends_on_job: b, source: "manual")
+
+      # dep from b to a is cross-epic — no fork/merge enforcement
+      dep = described_class.new(job: b, depends_on_job: a, source: "manual")
+
+      expect(dep).to be_valid
+    end
+
+    it "does not enforce linearity for pending (unresolved) dependencies" do
+      _a = epic_job(1)
+      b = epic_job(2)
+      described_class.create!(job: b, unresolved_owner: "acme", unresolved_repo: "x", unresolved_number: 99, source: "parsed")
+
+      dep = described_class.new(job: b, unresolved_owner: "acme", unresolved_repo: "x", unresolved_number: 100, source: "parsed")
+      # pending rows have no depends_on_job_id, so linearity check is skipped
+      expect(dep.valid?).to be true
+    end
+  end
+
   describe "Epic dependency derivation" do
     it "creates a derived EpicDependency for cross-Epic Job dependencies" do
       upstream_epic = Factories.epic(user: user, repository: repository)

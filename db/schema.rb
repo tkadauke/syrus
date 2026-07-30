@@ -64,6 +64,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_01_010500) do
     t.integer "max_job_failures", default: 3, null: false
     t.boolean "merge_train_enabled", default: false, null: false
     t.integer "merge_train_max_size", default: 20, null: false
+    t.string "mode", default: "advanced"
+    t.datetime "mode_configured_at"
     t.boolean "polling_paused", default: false, null: false
     t.integer "proactive_rebase_commit_threshold", default: 20, null: false
     t.string "report_issue_repo_slug", default: "tkadauke/syrus", null: false

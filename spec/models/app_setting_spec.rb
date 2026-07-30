@@ -209,4 +209,65 @@ RSpec.describe AppSetting do
       setting.clear_secret!("signups_open")
     }.to raise_error(ArgumentError, "Unknown secret: signups_open")
   end
+
+  describe "mode" do
+    it "defaults to 'advanced'" do
+      expect(AppSetting.current.mode).to eq("advanced")
+    end
+
+    it ".mode returns the current mode" do
+      AppSetting.current.update!(mode: "simple")
+      expect(AppSetting.mode).to eq("simple")
+    end
+
+    it "#simple? returns true when mode is simple" do
+      setting = AppSetting.current
+      setting.update!(mode: "simple")
+      expect(setting.simple?).to be true
+      expect(setting.advanced?).to be false
+    end
+
+    it "#advanced? returns true when mode is advanced" do
+      setting = AppSetting.current
+      expect(setting.advanced?).to be true
+      expect(setting.simple?).to be false
+    end
+
+    it ".simple? delegates to the singleton" do
+      AppSetting.current.update!(mode: "simple")
+      expect(AppSetting.simple?).to be true
+      expect(AppSetting.advanced?).to be false
+    end
+
+    it ".advanced? delegates to the singleton" do
+      expect(AppSetting.advanced?).to be true
+      expect(AppSetting.simple?).to be false
+    end
+
+    it "rejects invalid mode values" do
+      setting = AppSetting.current
+      setting.mode = "turbo"
+      expect(setting).not_to be_valid
+      expect(setting.errors[:mode]).to include("is not included in the list")
+    end
+
+    it "accepts 'advanced' and 'simple' as valid modes" do
+      setting = AppSetting.current
+      AppSetting::MODES.each do |valid_mode|
+        setting.mode = valid_mode
+        expect(setting).to be_valid
+      end
+    end
+  end
+
+  describe "mode_configured?" do
+    it "returns false when mode_configured_at is nil" do
+      expect(AppSetting.mode_configured?).to be false
+    end
+
+    it "returns true once mode_configured_at is stamped" do
+      AppSetting.current.update!(mode_configured_at: Time.current)
+      expect(AppSetting.mode_configured?).to be true
+    end
+  end
 end

@@ -13,6 +13,7 @@ class JobDependency < ApplicationRecord
   validate :no_self_reference
   validate :no_cycle
   validate :pending_fields_consistent
+  validate :linear_chain_in_simple_mode
 
   after_save_commit :materialize_derived_epic_dependency, if: :depends_on_job_id?
   after_save_commit :refresh_same_epic_reconciliation, if: :same_epic_job_dependency?
@@ -168,5 +169,36 @@ class JobDependency < ApplicationRecord
 
   def unresolved_reference_present?
     unresolved_owner.present? || unresolved_repo.present? || unresolved_number.present?
+  end
+
+  def linear_chain_in_simple_mode
+    return unless AppSetting.simple?
+    return if depends_on_job_id.blank?
+
+    # Only enforce within the same epic.
+    job_epic_id = job&.epic_id
+    return if job_epic_id.blank?
+    return unless Job.where(id: depends_on_job_id, epic_id: job_epic_id).exists?
+
+    # No merge: this job must not already have another dependency within the same epic.
+    existing_upstream = self.class
+                            .where(job_id: job_id)
+                            .where.not(id: id)
+                            .joins(:depends_on_job)
+                            .where(jobs: { epic_id: job_epic_id })
+    if existing_upstream.exists?
+      errors.add(:base, "Simple mode requires features to be implemented in sequence. This job would create a parallel branch.")
+      return
+    end
+
+    # No fork: the upstream job must not already have another downstream job in the same epic.
+    existing_downstream = self.class
+                              .where(depends_on_job_id: depends_on_job_id)
+                              .where.not(job_id: job_id)
+                              .joins(:job)
+                              .where(jobs: { epic_id: job_epic_id })
+    if existing_downstream.exists?
+      errors.add(:base, "Simple mode requires features to be implemented in sequence. This job would create a parallel branch.")
+    end
   end
 end

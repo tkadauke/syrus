@@ -103,13 +103,15 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
   const [videoBudgetMb, setVideoBudgetMb] = useState(String(payload.settings.video_storage_budget_mb))
   const [maxConcurrentAgentRuns, setMaxConcurrentAgentRuns] = useState(String(payload.settings.max_concurrent_agent_runs))
   const [proactiveRebaseThreshold, setProactiveRebaseThreshold] = useState(String(payload.settings.proactive_rebase_commit_threshold))
+  const [mode, setMode] = useState<"advanced" | "simple">(payload.settings.mode)
   const update = useMutation({
     mutationFn: () => updateAdminSettings({
       signups_open: signupsOpen,
       video_retention_days: Number(videoRetentionDays),
       video_storage_budget_mb: Number(videoBudgetMb),
       max_concurrent_agent_runs: Number(maxConcurrentAgentRuns),
-      proactive_rebase_commit_threshold: Number(proactiveRebaseThreshold)
+      proactive_rebase_commit_threshold: Number(proactiveRebaseThreshold),
+      mode
     }),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
@@ -123,7 +125,8 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
     setVideoBudgetMb(String(payload.settings.video_storage_budget_mb))
     setMaxConcurrentAgentRuns(String(payload.settings.max_concurrent_agent_runs))
     setProactiveRebaseThreshold(String(payload.settings.proactive_rebase_commit_threshold))
-  }, [payload.settings.signups_open, payload.settings.video_retention_days, payload.settings.video_storage_budget_mb, payload.settings.max_concurrent_agent_runs, payload.settings.proactive_rebase_commit_threshold])
+    setMode(payload.settings.mode)
+  }, [payload.settings.signups_open, payload.settings.video_retention_days, payload.settings.video_storage_budget_mb, payload.settings.max_concurrent_agent_runs, payload.settings.proactive_rebase_commit_threshold, payload.settings.mode])
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -199,6 +202,20 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
           type="number"
           value={proactiveRebaseThreshold}
         />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-mode">{t("settings.mode_label")}</label>
+        <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.mode_help")}</span>
+        <select
+          id="admin-settings-mode"
+          className="mt-1 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 px-2 py-1 text-sm"
+          onChange={(event) => setMode(event.target.value as "advanced" | "simple")}
+          value={mode}
+        >
+          <option value="advanced">{t("settings.mode_advanced")}</option>
+          <option value="simple">{t("settings.mode_simple")}</option>
+        </select>
       </div>
 
       <button
