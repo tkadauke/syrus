@@ -270,7 +270,10 @@
     "col_detail": "Einzelheit",
     "col_context": "Lauf / Schritt / Arbeitsablauf",
     "col_age": "Alter",
-    "col_links": "Verweise"
+    "col_links": "Verweise",
+    "force_fail": "Fehlschlagen erzwingen",
+    "force_failing": "Schlägt fehl...",
+    "force_fail_error": "Job konnte nicht zwangsweise als fehlgeschlagen markiert werden."
   },
   "console": {
     "heading": "Betreiberkonsole",

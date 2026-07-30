@@ -71,7 +71,8 @@ module SyrusChatMcp
       AdminUnpauseUserSchedulingTool,
       AdminRetryStepTool,
       AdminCleanupWorkspaceTool,
-      AdminRefreshInstallationsTool
+      AdminRefreshInstallationsTool,
+      ForceFailJobTool
     ].freeze
 
     # Gated by the `video_walkthroughs` labs Feature (see tools_for_session).

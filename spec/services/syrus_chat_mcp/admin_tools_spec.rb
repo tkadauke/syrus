@@ -32,7 +32,8 @@ RSpec.describe "SyrusChatMcp admin tools" do
     "admin_unpause_user_scheduling" => { user_id: 1 },
     "admin_retry_step" => { workflow_id: 1, step_slug: "implement" },
     "admin_cleanup_workspace" => { workflow_id: 1 },
-    "admin_refresh_installations" => {}
+    "admin_refresh_installations" => {},
+    "force_fail_job" => { job_id: 1 }
   }.freeze
 
   def server_for(chat_session)
@@ -90,7 +91,8 @@ RSpec.describe "SyrusChatMcp admin tools" do
       "admin_unpause_user_scheduling" => [ { user_id: target_user.id }, { "user_id" => target_user.id } ],
       "admin_retry_step" => [ { workflow_id: workflow.id, step_slug: "implement" }, { "workflow_id" => workflow.id, "step_slug" => "implement" } ],
       "admin_cleanup_workspace" => [ { workflow_id: workflow.id }, { "workflow_id" => workflow.id } ],
-      "admin_refresh_installations" => [ {}, {} ]
+      "admin_refresh_installations" => [ {}, {} ],
+      "force_fail_job" => [ { job_id: workflow.job.id }, { "job_id" => workflow.job.id, "previous_state" => workflow.job.state } ]
     }
 
     cases.each do |name, (arguments, expected_payload)|

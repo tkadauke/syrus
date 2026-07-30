@@ -614,6 +614,30 @@ RSpec.describe "App API job detail", type: :request do
     )
   end
 
+  it "lets admins force-fail an open job through the app API" do
+    user.update!(admin: true)
+    job.update!(state: "running")
+
+    post "/api/v1/app/jobs/#{job.id}/force_fail"
+
+    expect(response).to have_http_status(:ok)
+    expect(job.reload.state).to eq("failed")
+    expect(parse_body).to include(
+      "message" => "Job force-failed.",
+      "job" => include("id" => job.id, "state" => "failed")
+    )
+  end
+
+  it "rejects app force-fail for non-admin users" do
+    user.update!(admin: false)
+    job.update!(state: "running")
+
+    post "/api/v1/app/jobs/#{job.id}/force_fail"
+
+    expect(response).to have_http_status(:forbidden)
+    expect(job.reload.state).to eq("running")
+  end
+
   it "returns admin-only diagnostic detail to admins" do
     user.update!(admin: true)
     run = job.initial_run

@@ -26,7 +26,7 @@ module Admin
     end
 
     def all
-      stale_runs + queued_workflows_without_runs + nearly_pruned_workflows
+      stale_runs + queued_workflows_without_runs + orphaned_jobs + nearly_pruned_workflows
     end
 
     private
@@ -96,6 +96,24 @@ module Admin
           run:       nil,
           workflow:  wf,
           job:       wf.job
+        )
+      end
+    end
+
+    def orphaned_jobs
+      Job.where(state: %w[running landing])
+         .where.not(id: Workflow.active.select(:job_id))
+         .where("updated_at < ?", ADMIN_STUCK_THRESHOLD.ago)
+         .includes(:repository)
+         .map do |job|
+        Item.new(
+          kind:      :job_without_active_workflow,
+          severity:  :alarm,
+          detail:    "#{job.slug} is #{job.state}, but has no active workflow",
+          age_label: age_label_for(job.updated_at),
+          run:       nil,
+          workflow:  nil,
+          job:       job
         )
       end
     end

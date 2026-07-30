@@ -270,7 +270,10 @@
     "col_detail": "Detailum",
     "col_context": "Cursus / Gradus / Processus",
     "col_age": "Aetas",
-    "col_links": "Nexus"
+    "col_links": "Nexus",
+    "force_fail": "Deficere cogere",
+    "force_failing": "Deficiens...",
+    "force_fail_error": "Opus cogendo deficere non potuit."
   },
   "console": {
     "heading": "Consola Operatoris",

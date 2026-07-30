@@ -95,6 +95,7 @@ Rails.application.routes.draw do
         post "jobs/:job_id/run_again", to: "job_lifecycle#run_again", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/restart", to: "job_lifecycle#restart", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/cancel", to: "job_lifecycle#cancel", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/force_fail", to: "job_lifecycle#force_fail", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/approve", to: "job_lifecycle#approve", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/unapprove", to: "job_lifecycle#unapprove", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/reopen", to: "job_lifecycle#reopen", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
@@ -300,7 +301,11 @@ Rails.application.routes.draw do
         # `?repo=owner/name`, `?state=` to find a Job from external
         # references (a GH PR url, an issue link, etc.) so the agent
         # doesn't have to know the Syrus internal Job ID up front.
-        resources :jobs, only: %i[ show index create ]
+        resources :jobs, only: %i[ show index create ] do
+          member do
+            post :force_fail
+          end
+        end
 
         # Chat transcript diagnostics. `#index` is compact so an
         # admin API client can find recent sessions; `#show` returns

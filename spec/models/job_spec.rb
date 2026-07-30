@@ -684,6 +684,21 @@ describe "running / failed lifecycle (new in this commit)" do
         end
       end
 
+      it "force_fail! transitions open non-failed states to :failed" do
+        %w[needs_triage triaging blocked_by_epic queued running implemented coding no_change_needed approved landing].each do |state|
+          job = Factories.job_record(state: state)
+          expect { job.force_fail!; job.save! }
+            .to change { job.reload.state }.from(state).to("failed")
+        end
+      end
+
+      it "force_fail! is illegal from :failed and :closed" do
+        %w[failed closed].each do |state|
+          job = Factories.job_record(state: state)
+          expect(job.may_force_fail?).to be(false), "expected may_force_fail? to be false from :#{state}"
+        end
+      end
+
       it "transitions :running → :no_change_needed via mark_no_change_needed!" do
         job = Factories.job_record(state: "running")
         expect { job.mark_no_change_needed!; job.save! }

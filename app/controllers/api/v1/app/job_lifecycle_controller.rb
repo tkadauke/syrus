@@ -107,6 +107,22 @@ module Api
           render_job(job.reload, message: "Cancellation requested.", changed: [ "state", "runs" ])
         end
 
+        def force_fail
+          unless Current.user.admin?
+            render_error("forbidden", "Admin access required.", status: :forbidden)
+            return
+          end
+
+          job = find_job
+          unless job.may_force_fail?
+            render_error("validation_failed", "#{job.slug} is #{job.state} and cannot be force-failed.", status: :unprocessable_content)
+            return
+          end
+
+          job.force_fail!
+          render_job(job.reload, message: "Job force-failed.", changed: [ "state" ])
+        end
+
         def approve
           job = find_job
           unless job.repository.auto_merge_enabled?

@@ -9,6 +9,7 @@ Rails.application.config.to_prepare do
     "pending_actions/retry_job",
     "pending_actions/rebase_job",
     "pending_actions/reopen_job",
+    "pending_actions/force_fail_job",
     "pending_actions/fire_scheduled_task_now",
     "pending_actions/create_repo_document",
     "pending_actions/delete_repo_document",

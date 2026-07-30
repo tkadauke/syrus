@@ -55,6 +55,16 @@ module Api
           render json: payload
         end
 
+        def force_fail
+          job = find_job_by_ref(Job.includes(workflows: { steps: :runs }), params[:id])
+          unless job.may_force_fail?
+            return render_error("validation_failed", "#{job.slug} is #{job.state} and cannot be force-failed.", status: :unprocessable_content)
+          end
+
+          job.force_fail!
+          render json: serialize(job.reload)
+        end
+
         def create
           attrs = job_params
           repository = find_active_repository(attrs)

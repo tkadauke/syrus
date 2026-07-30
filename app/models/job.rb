@@ -307,6 +307,23 @@ class Job < ApplicationRecord
       transitions from: :running, to: :failed
     end
 
+    # Operator recovery path for Jobs whose workflow state no longer
+    # propagated back to the Job. Leaves the Job open and retryable.
+    event :force_fail do
+      transitions from: [
+        :needs_triage,
+        :triaging,
+        :blocked_by_epic,
+        :queued,
+        :running,
+        :implemented,
+        :coding,
+        :no_change_needed,
+        :approved,
+        :landing
+      ], to: :failed
+    end
+
     # Fired by Workflow#fail's after-callback when the failing step
     # raised NoChangesProduced — the agent ran correctly but found
     # nothing to do. Distinct from :failed so the UI can surface

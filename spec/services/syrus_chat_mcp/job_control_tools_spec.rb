@@ -19,6 +19,7 @@ RSpec.describe "SyrusChatMcp job control tools" do
         SyrusChatMcp::UpdateJobTool,
         SyrusChatMcp::CancelJobTool,
         SyrusChatMcp::RetryJobTool,
+        SyrusChatMcp::ForceFailJobTool,
         SyrusChatMcp::RebaseJobTool
       ],
       server_context: { chat_session: chat_session }
@@ -274,6 +275,29 @@ RSpec.describe "SyrusChatMcp job control tools" do
     expect(job.workflows.where(trigger_kind: "retry")).to be_empty
   end
 
+  it "requires admin access for force_fail_job" do
+    job = Factories.job_record(repository: repository, state: "running")
+
+    response = call_tool("force_fail_job", job_id: job.id)
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(response.dig(:result, :content, 0, :text)).to include("Admin access required")
+    expect(chat_session.pending_actions.where(action: "force_fail_job")).to be_empty
+    expect(job.reload).to be_running
+  end
+
+  it "does not let a non-admin confirm a crafted force_fail_job pending action" do
+    job = Factories.job_record(repository: repository, state: "running")
+    pending_action = chat_session.pending_actions.create!(
+      action: "force_fail_job",
+      payload: { "job_id" => job.id },
+      requested_by: "agent"
+    )
+
+    expect { pending_action.confirm!(user: user) }.to raise_error(ArgumentError, "Admin access required.")
+    expect(job.reload).to be_running
+  end
+
   it "creates a pending rebase_job confirmation without executing it" do
     job = Factories.job(repository: repository, pr_number: 12)
 
@@ -333,6 +357,7 @@ RSpec.describe "SyrusChatMcp job control tools" do
           SyrusChatMcp::SetJobPriorityTool,
           SyrusChatMcp::CancelJobTool,
           SyrusChatMcp::RetryJobTool,
+          SyrusChatMcp::ForceFailJobTool,
           SyrusChatMcp::RebaseJobTool
         ],
         server_context: { chat_session: admin_chat_session }
@@ -390,6 +415,26 @@ RSpec.describe "SyrusChatMcp job control tools" do
       expect(response.dig(:result, :isError)).to be_falsey
       pending_action = admin_chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
       expect(pending_action).to have_attributes(action: "retry_job", payload: { "job_id" => job.id })
+    end
+
+    it "creates and confirms a force_fail_job action for another user's job" do
+      job = Factories.job_record(repository: other_repository, state: "running")
+
+      response = admin_call("force_fail_job", job_id: job.id)
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      response_payload = payload(response)
+      expect(response_payload).to include(job_id: job.id, previous_state: "running", new_state: "failed")
+      pending_action = admin_chat_session.pending_actions.find(response_payload[:pending_confirmation_id])
+      expect(pending_action).to have_attributes(
+        action: "force_fail_job",
+        payload: { "job_id" => job.id, "previous_state" => "running" }
+      )
+      expect(job.reload).to be_running
+
+      expect(pending_action.confirm!(user: admin)).to be(true)
+      expect(job.reload).to be_failed
+      expect(pending_action.reload.result).to eq(job)
     end
 
     it "allows an admin to rebase another user's job" do

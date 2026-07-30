@@ -17,6 +17,8 @@ module ChatPendingActions
       "Cancel #{::App::Presentation.job_slug(payload['job_id'])}"
     when "retry_job"
       "Retry #{::App::Presentation.job_slug(payload['job_id'])}"
+    when "force_fail_job"
+      "Force fail #{::App::Presentation.job_slug(payload['job_id'])}"
     when "rebase_job"
       "Rebase #{::App::Presentation.job_slug(payload['job_id'])}"
     when "reopen_job"

@@ -1,11 +1,12 @@
 import { routePrefix, withRoutePrefix } from "../lib/routing"
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { Link, useLocation } from "react-router-dom"
-import { fetchAdminStuck, type StuckItem } from "../api/adminStuck"
+import { forceFailStuckJob, fetchAdminStuck, type StuckItem } from "../api/adminStuck"
 import { workflowSlug } from "../lib/slugs"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
+import { errorMessage } from "../lib/errorMessage"
 
 const POLL_INTERVAL_MS = 30_000
 
@@ -48,6 +49,15 @@ export function AdminStuck() {
 
 function StuckTable({ items, prefix }: { items: StuckItem[]; prefix: string }) {
   const { t } = useT("admin")
+  const queryClient = useQueryClient()
+  const forceFail = useMutation({
+    mutationFn: forceFailStuckJob,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "stuck"] })
+      void queryClient.invalidateQueries({ queryKey: ["admin", "overview"] })
+      void queryClient.invalidateQueries({ queryKey: ["jobs"], exact: true })
+    }
+  })
 
   if (items.length === 0) {
     return (
@@ -59,6 +69,7 @@ function StuckTable({ items, prefix }: { items: StuckItem[]; prefix: string }) {
 
   return (
     <div className="overflow-x-auto">
+      {forceFail.isError ? <PanelMessage tone="error">{errorMessage(forceFail.error, t("stuck.force_fail_error"))}</PanelMessage> : null}
       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
         <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
           <tr>
@@ -89,6 +100,16 @@ function StuckTable({ items, prefix }: { items: StuckItem[]; prefix: string }) {
                 {item.job_id ? <Link className="text-blue-600 dark:text-blue-300 underline hover:no-underline" to={withRoutePrefix(item.job_path || `/jobs/${item.job_id}`, prefix)}>Job</Link> : null}
                 {item.run_id && item.has_transcript ? (
                   <Link className="text-indigo-600 dark:text-indigo-300 underline hover:no-underline" to={withRoutePrefix(`/admin/runs/${item.run_id}/transcript`, prefix)}>Transcript</Link>
+                ) : null}
+                {item.force_fail_path ? (
+                  <button
+                    className="font-medium text-red-600 underline hover:no-underline disabled:cursor-not-allowed disabled:text-gray-400 dark:text-red-300 dark:disabled:text-gray-500"
+                    disabled={forceFail.isPending}
+                    onClick={() => forceFail.mutate(item.force_fail_path as string)}
+                    type="button"
+                  >
+                    {forceFail.isPending ? t("stuck.force_failing") : t("stuck.force_fail")}
+                  </button>
                 ) : null}
               </td>
             </tr>

@@ -4,6 +4,7 @@ class ChatPendingAction < ApplicationRecord
     retry_job
     rebase_job
     reopen_job
+    force_fail_job
     fire_scheduled_task_now
     create_repo_document
     delete_repo_document

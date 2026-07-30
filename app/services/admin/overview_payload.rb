@@ -138,9 +138,18 @@ module Admin
         workflow_trigger_kind: item.workflow&.trigger_kind,
         step_kind: item.workflow&.current_step&.kind,
         job_id: item.job&.id,
+        job_state: item.job&.state,
         job_path: item.job ? "/jobs/#{item.job.id}" : nil,
+        force_fail_path: force_fail_path_for(item.job),
         has_transcript: item.run&.claude_session.present?
       }
+    end
+
+    def force_fail_path_for(job)
+      return unless job&.state.in?(%w[running queued implemented approved landing])
+      return unless job.may_force_fail?
+
+      "/api/v1/app/jobs/#{job.id}/force_fail"
     end
   end
 end

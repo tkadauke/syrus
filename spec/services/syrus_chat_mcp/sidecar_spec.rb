@@ -294,7 +294,8 @@ RSpec.describe SyrusChatMcp::Sidecar do
         "admin_unpause_user_scheduling",
         "admin_retry_step",
         "admin_cleanup_workspace",
-        "admin_refresh_installations"
+        "admin_refresh_installations",
+        "force_fail_job"
       )
     end
 
@@ -341,9 +342,11 @@ RSpec.describe SyrusChatMcp::Sidecar do
         "admin_unpause_user_scheduling",
         "admin_retry_step",
         "admin_cleanup_workspace",
-        "admin_refresh_installations"
+        "admin_refresh_installations",
+        "force_fail_job"
       )
-      expect(described_class.tool_names(tier: :essential)).to include(*tool_names.grep(/\Aadmin_/))
+      admin_tool_names = tool_names.select { |name| name.start_with?("admin_") || name == "force_fail_job" }
+      expect(described_class.tool_names(tier: :essential)).to include(*admin_tool_names)
       expect(described_class.tool_names(tier: :deferred)).not_to include(*tool_names.grep(/\Aadmin_/))
     end
   end

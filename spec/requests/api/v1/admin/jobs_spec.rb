@@ -175,6 +175,48 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
     end
   end
 
+  describe "POST /api/v1/admin/jobs/:id/force_fail" do
+    before { admin_token }
+
+    it "force-fails a stuck running job and returns the updated job JSON" do
+      job.update!(state: "running")
+
+      post "/api/v1/admin/jobs/#{job.id}/force_fail", headers: auth(admin_token)
+
+      expect(response).to have_http_status(:ok)
+      expect(job.reload.state).to eq("failed")
+      expect(parse_body).to include(
+        "id" => job.id,
+        "state" => "failed"
+      )
+    end
+
+    it "allows force-failing other non-terminal states" do
+      job.update!(state: "approved")
+
+      post "/api/v1/admin/jobs/#{job.id}/force_fail", headers: auth(admin_token)
+
+      expect(response).to have_http_status(:ok)
+      expect(job.reload.state).to eq("failed")
+    end
+
+    it "returns a clear 422 for closed jobs" do
+      job.update!(state: "closed")
+
+      post "/api/v1/admin/jobs/#{job.id}/force_fail", headers: auth(admin_token)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "message")).to include("#{job.slug} is closed and cannot be force-failed")
+      expect(job.reload.state).to eq("closed")
+    end
+
+    it "requires an admin token" do
+      post "/api/v1/admin/jobs/#{job.id}/force_fail", headers: auth(non_admin_token)
+
+      expect(response).to have_http_status(:forbidden)
+    end
+  end
+
   describe "payload shape" do
     before { sign_in_as(admin); admin_token }
 

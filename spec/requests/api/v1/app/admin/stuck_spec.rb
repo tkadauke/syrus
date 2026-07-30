@@ -48,8 +48,26 @@ RSpec.describe "API: /api/v1/app/admin/stuck", type: :request do
       "workflow_trigger_kind" => "initial",
       "step_kind" => "prepare",
       "job_id" => job.id,
+      "job_state" => job.reload.state,
       "job_path" => "/jobs/#{job.id}",
+      "force_fail_path" => "/api/v1/app/jobs/#{job.id}/force_fail",
       "has_transcript" => false
     )
+  end
+
+  it "surfaces running jobs without an active workflow" do
+    sign_in_as(admin)
+    job = Factories.job_record(user: admin, state: "running", updated_at: 10.minutes.ago)
+
+    get "/api/v1/app/admin/stuck"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["items"]).to include(include(
+      "kind" => "job_without_active_workflow",
+      "severity" => "alarm",
+      "job_id" => job.id,
+      "job_state" => "running",
+      "force_fail_path" => "/api/v1/app/jobs/#{job.id}/force_fail"
+    ))
   end
 end

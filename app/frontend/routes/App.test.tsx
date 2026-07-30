@@ -5899,30 +5899,34 @@ describe("App", () => {
   })
 
   it("renders the admin stuck route from the app admin stuck API", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          items: [
-            {
-              kind: "stale_heartbeat",
-              severity: "warn",
-              detail: "Run #4 silent for 10m",
-              age_label: "10m",
-              run_id: 4,
-              workflow_id: 2,
-              workflow_slug: "WF-2",
-              workflow_path: "/jobs/1?tab=workflows#workflow-2",
-              workflow_trigger_kind: "initial",
-              step_kind: "implement",
-              job_id: 1,
-              job_path: "/jobs/1",
-              has_transcript: true
-            }
-          ]
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      )
-    )
+    const stuckPayload = {
+      items: [
+        {
+          kind: "stale_heartbeat",
+          severity: "warn",
+          detail: "Run #4 silent for 10m",
+          age_label: "10m",
+          run_id: 4,
+          workflow_id: 2,
+          workflow_slug: "WF-2",
+          workflow_path: "/jobs/1?tab=workflows#workflow-2",
+          workflow_trigger_kind: "initial",
+          step_kind: "implement",
+          job_id: 1,
+          job_state: "running",
+          job_path: "/jobs/1",
+          force_fail_path: "/api/v1/app/jobs/1/force_fail",
+          has_transcript: true
+        }
+      ]
+    }
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/jobs/1/force_fail" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({ message: "Job force-failed." }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      return Promise.resolve(new Response(JSON.stringify(stuckPayload), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -5940,6 +5944,17 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "WF-2" })).toHaveAttribute("href", "/app-shell/jobs/1?tab=workflows#workflow-2")
     expect(screen.getByRole("link", { name: "Job" })).toHaveAttribute("href", "/app-shell/jobs/1")
     expect(screen.getByRole("link", { name: "Transcript" })).toHaveAttribute("href", "/app-shell/admin/runs/4/transcript")
+    fireEvent.click(screen.getByRole("button", { name: "Force fail" }))
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/force_fail",
+        expect.objectContaining({
+          method: "POST",
+          credentials: "same-origin",
+          headers: { Accept: "application/json" }
+        })
+      )
+    })
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/admin/stuck",
       expect.objectContaining({
