@@ -31,6 +31,6 @@
     "step_messages_title": "Bestätigung vor dem Start",
     "step_messages_content": "Wenn Syrus einen Job oder ein Epic vorschlägt, erscheint hier eine Bestätigungskarte. Überprüfe den Vorschlag und klicke auf Bestätigen, um die Umsetzung zu starten — oder passe deine Anfrage an und versuche es erneut.",
     "step_slash_title": "Slash-Befehle",
-    "step_slash_content": "Tippe / um verfügbare Befehle zu sehen — z. B. /review für PR-Prüfungen, /loop für wiederholte Aufgaben oder /schedule für Zeitplanung."
+    "step_slash_content": "Tippe / um verfügbare Befehle zu sehen — z. B. /propose um einen geführten Job-Assistenten zu starten, /jobs um zum Dashboard zu springen oder /feedback <id> um Änderungen an bestehender Arbeit anzufordern."
   }
 }

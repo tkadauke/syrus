@@ -31,6 +31,6 @@
     "step_messages_title": "Confirm before anything runs",
     "step_messages_content": "When Syrus proposes a Job or Epic, a confirmation card appears here. Review it, then click Confirm to start implementation — or edit your prompt and try again.",
     "step_slash_title": "Slash commands",
-    "step_slash_content": "Type / to see available commands — like /review to audit a PR, /loop to run a task repeatedly, or /schedule to set up recurring work."
+    "step_slash_content": "Type / to see available commands — like /propose to start a guided job wizard, /jobs to jump to the dashboard, or /feedback <id> to request changes on existing work."
   }
 }
