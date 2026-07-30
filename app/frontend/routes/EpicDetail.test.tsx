@@ -256,6 +256,7 @@ describe("EpicDetail dependency graph", () => {
   })
 })
 
+
 describe("EpicDetail simple-mode review controls", () => {
   afterEach(() => vi.restoreAllMocks())
 
