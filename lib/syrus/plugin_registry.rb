@@ -5,30 +5,30 @@ module Syrus
       chat_provider
       mcp_tool_set
       input_source
+      prompt_injector
       test_result_parser
       coverage_analyzer
       preview_provider
       admin_page
       chat_mcp_tool_set
       source_control_provider
-      prompt_injector
       artifact_renderer
     ].freeze
 
     # Lambdas defer constant resolution until call time (autoload-friendly).
     INTERFACE_FOR = {
-      agent_provider:     -> { Syrus::Plugin::AgentProvider },
-      chat_provider:      -> { Syrus::Plugin::ChatProvider },
-      mcp_tool_set:       -> { Syrus::Plugin::McpToolSet },
-      input_source:       -> { Syrus::Plugin::InputSource },
-      test_result_parser: -> { Syrus::Plugin::TestResultParser },
-      coverage_analyzer:  -> { Syrus::Plugin::CoverageAnalyzer },
-      preview_provider:   -> { Syrus::Plugin::PreviewProvider },
-      admin_page:         -> { Syrus::Plugin::AdminPage },
-      chat_mcp_tool_set:  -> { Syrus::Plugin::ChatMcpToolSet },
+      agent_provider:          -> { Syrus::Plugin::AgentProvider },
+      chat_provider:           -> { Syrus::Plugin::ChatProvider },
+      mcp_tool_set:            -> { Syrus::Plugin::McpToolSet },
+      input_source:            -> { Syrus::Plugin::InputSource },
+      prompt_injector:         -> { Syrus::Plugin::PromptInjector },
+      test_result_parser:      -> { Syrus::Plugin::TestResultParser },
+      coverage_analyzer:       -> { Syrus::Plugin::CoverageAnalyzer },
+      preview_provider:        -> { Syrus::Plugin::PreviewProvider },
+      admin_page:              -> { Syrus::Plugin::AdminPage },
+      chat_mcp_tool_set:       -> { Syrus::Plugin::ChatMcpToolSet },
       source_control_provider: -> { Syrus::Plugin::SourceControlProvider },
-      prompt_injector:    -> { Syrus::Plugin::PromptInjector },
-      artifact_renderer:  -> { Syrus::Plugin::ArtifactRenderer }
+      artifact_renderer:       -> { Syrus::Plugin::ArtifactRenderer }
     }.freeze
 
     RegistrationError = Class.new(StandardError)
