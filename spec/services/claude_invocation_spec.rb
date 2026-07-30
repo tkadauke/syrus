@@ -85,7 +85,7 @@ RSpec.describe ClaudeInvocation do
         received_callback = kwargs[:on_session_id]
         result_fixture
       }
-      callback = ->(_) {}
+      callback = ->(_) { }
       described_class.new("/tmp/wkt", prompt: "x", oauth_token: "x",
                           runner: runner, on_session_id: callback).run
       expect(received_callback).to eq(callback)
@@ -100,6 +100,18 @@ RSpec.describe ClaudeInvocation do
       described_class.new("/tmp/wkt", prompt: "x", oauth_token: "x", runner: runner).run
       expect(received_callback).to respond_to(:call)
       expect { received_callback.call("sid") }.not_to raise_error
+    end
+
+    it "passes on_usage_snapshot callback through to the runner" do
+      received_callback = nil
+      runner = ->(**kwargs) {
+        received_callback = kwargs[:on_usage_snapshot]
+        result_fixture
+      }
+      callback = ->(_) { }
+      described_class.new("/tmp/wkt", prompt: "x", oauth_token: "x",
+                          runner: runner, on_usage_snapshot: callback).run
+      expect(received_callback).to eq(callback)
     end
   end
 
@@ -589,6 +601,60 @@ RSpec.describe ClaudeInvocation do
       expect(captured[:command]).not_to include("A HUGE PROMPT BODY")
     end
 
+    it "injects a Claude status-line capture command via --settings" do
+      Dir.mktmpdir do |workspace|
+        captured = {}
+        allow(ProcessRunner).to receive(:new) do |**kwargs|
+          captured[:command] = kwargs[:command]
+          fake = double("ProcessRunner")
+          allow(fake).to receive(:run).and_return(
+            ProcessRunner::Result.new(
+              exit_status: 0, timed_out: false, stopped: false, silent_timed_out: false,
+              operator_killed: false, aliveness_failed: false, duration_s: 1.0, spawned_process_id: nil
+            )
+          )
+          fake
+        end
+
+        described_class.new(workspace, prompt: "P", oauth_token: "x").run
+
+        settings_idx = captured[:command].index("--settings")
+        expect(settings_idx).not_to be_nil
+        settings = JSON.parse(captured[:command][settings_idx + 1])
+        expect(settings.dig("statusLine", "type")).to eq("command")
+        expect(settings.dig("statusLine", "command")).to include("claude-usage-status-line.rb")
+      end
+    end
+
+    it "calls on_usage_snapshot when the status-line script captured rate limits" do
+      Dir.mktmpdir do |workspace|
+        payloads = []
+        allow(ProcessRunner).to receive(:new) do |**_kwargs|
+          fake = double("ProcessRunner")
+          allow(fake).to receive(:run) do
+            path = File.join(workspace, ".syrus", "claude-usage", "claude-usage-status-line.json")
+            File.write(path, {
+              "captured_at" => "2026-07-30T20:00:00Z",
+              "rate_limits" => {
+                "five_hour" => { "used_percentage" => 50 }
+              }
+            }.to_json)
+            ProcessRunner::Result.new(
+              exit_status: 0, timed_out: false, stopped: false, silent_timed_out: false,
+              operator_killed: false, aliveness_failed: false, duration_s: 1.0, spawned_process_id: nil
+            )
+          end
+          fake
+        end
+
+        described_class.new(workspace, prompt: "P", oauth_token: "x",
+                            on_usage_snapshot: ->(payload) { payloads << payload }).run
+
+        expect(payloads.size).to eq(1)
+        expect(payloads.first.dig("rate_limits", "five_hour", "used_percentage")).to eq(50)
+      end
+    end
+
     it "passes --resume <id> when resume_session_id is set" do
       invocation = described_class.new("/tmp", prompt: "P", oauth_token: "x",
                                        resume_session_id: "abc-123")
@@ -947,7 +1013,7 @@ RSpec.describe ClaudeInvocation do
       end
 
       described_class.new(workspace_path, prompt: "x", oauth_token: "x",
-                          log_sink: ->(_msg, **) {},
+                          log_sink: ->(_msg, **) { },
                           resume_session_id: sid).run
 
       expect(file_existed_at_spawn).to be true

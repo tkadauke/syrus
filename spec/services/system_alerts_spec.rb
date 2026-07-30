@@ -70,6 +70,27 @@ RSpec.describe SystemAlerts do
       expect(alert.cta).to eq(text: "Open credentials", path: "/credentials")
     end
 
+    it "surfaces low Claude usage warnings" do
+      user = Factories.user(
+        claude_usage_status: "warning",
+        claude_usage_snapshot: {
+          "remaining_percent" => 9.6,
+          "five_hour" => { "label" => "5h", "remaining_percent" => 9.6, "reset_at" => "2026-07-30T20:00:00Z" },
+          "seven_day" => { "label" => "weekly", "remaining_percent" => 75.2, "reset_at" => "2026-08-06T20:00:00Z" }
+        }
+      )
+      allow(DataRootDiskUsage).to receive(:current).and_return(nil)
+
+      alert = described_class.active_for(user: user).first
+
+      expect(alert.id).to eq("claude_usage:#{user.id}")
+      expect(alert.severity).to eq(:warn)
+      expect(alert.title).to include("low")
+      expect(alert.message).to include("5h 10% remaining")
+      expect(alert.message).to include("weekly 75% remaining")
+      expect(alert.cta).to eq(text: "Open credentials", path: "/credentials")
+    end
+
     it "surfaces exhausted Codex usage as an alarm" do
       user = Factories.user(codex_usage_status: "exhausted", codex_usage_snapshot: {})
       allow(DataRootDiskUsage).to receive(:current).and_return(nil)

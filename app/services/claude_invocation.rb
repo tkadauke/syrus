@@ -17,7 +17,8 @@ class ClaudeInvocation
                  env: nil,
                  stop_requested: -> { false },
                  process_started: ->(_process) { },
-                 on_session_id: ->(_session_id) { })
+                 on_session_id: ->(_session_id) { },
+                 on_usage_snapshot: ->(_payload) { })
     @workspace_path = workspace_path.to_s
     @prompt = prompt
     @oauth_token = oauth_token
@@ -37,6 +38,7 @@ class ClaudeInvocation
     @stop_requested = stop_requested
     @process_started = process_started
     @on_session_id = on_session_id
+    @on_usage_snapshot = on_usage_snapshot
   end
 
   def run
@@ -57,7 +59,8 @@ class ClaudeInvocation
       env: @env,
       stop_requested: @stop_requested,
       process_started: @process_started,
-      on_session_id: @on_session_id
+      on_session_id: @on_session_id,
+      on_usage_snapshot: @on_usage_snapshot
     )
   end
 
@@ -79,9 +82,10 @@ class ClaudeInvocation
                      model: nil,
                      effort_level: nil,
                      stop_requested: -> { false }, process_started: ->(_process) { },
-                     on_session_id: ->(_session_id) { })
+                     on_session_id: ->(_session_id) { }, on_usage_snapshot: ->(_payload) { })
     env = agent_env(oauth_token: oauth_token, workspace_path: workspace_path).merge(env || {})
     ensure_session_on_disk(resume_session_id, workspace_path, log_sink) if resume_session_id.present?
+    usage_capture = ClaudeUsageStatusLineCapture.prepare!(workspace_path: workspace_path)
     cmd = [ "claude", "--print" ]
     # The prompt is fed to claude over stdin (`stdin_data:` below), NOT as a
     # positional arg. A large prompt on argv — e.g. an adversarial_review step
@@ -108,6 +112,7 @@ class ClaudeInvocation
     # loops, so we're not unbounded on wall time even uncapped.
     cmd += [ "--max-turns", max_turns.to_s ] if max_turns && max_turns.positive?
     cmd += [ "--effort", effort_level ] if effort_level.present? && effort_level != "none"
+    cmd += [ "--settings", usage_capture.settings.to_json ]
 
     metadata = {
       turns: nil, is_error: false, outcome: nil, final_text: nil, session_id: nil,
@@ -143,6 +148,7 @@ class ClaudeInvocation
         end
       end
     ).run
+    capture_claude_usage_snapshot(usage_capture, on_usage_snapshot)
     if mcp_server_failed
       metadata[:is_error] = true
       metadata[:outcome] = "mcp_sidecar_failed"
@@ -170,6 +176,15 @@ class ClaudeInvocation
       cache_creation_input_tokens: metadata[:cache_creation_input_tokens],
       cache_read_input_tokens: metadata[:cache_read_input_tokens]
     )
+  end
+
+  def capture_claude_usage_snapshot(capture, callback)
+    payload = capture.read_payload
+    return unless payload["rate_limits"].is_a?(Hash)
+
+    callback.call(payload)
+  rescue StandardError => e
+    Rails.logger.warn("Claude usage status-line capture failed: #{e.class}: #{e.message}")
   end
 
   def ensure_session_on_disk(session_id, workspace_path, log_sink)
