@@ -30,7 +30,7 @@ module App
             agent_provider: workflow.agent_provider,
             state: workflow.state,
             failure_count: workflow.failure_count,
-            artifacts: workflow_artifacts_json(workflow),
+            artifacts: enrich_artifacts(workflow.artifacts),
             cleaned_up_at: iso8601(workflow.cleaned_up_at),
             retry_available: workflow_retry_available?(workflow),
             started_at: iso8601(workflow.started_at),
@@ -401,6 +401,30 @@ module App
           transcript_bytes: session.transcript_jsonl&.bytesize,
           transcript_lines: session.transcript_jsonl&.count("\n")
         }
+      end
+
+      # Returns the artifacts hash with renderer_type injected into each
+      # typed_artifact entry based on the plugin registry. Entries whose
+      # artifact_type has no registered renderer pass through unmodified.
+      def enrich_artifacts(artifacts)
+        return artifacts unless artifacts.is_a?(Hash)
+
+        typed = artifacts["typed_artifacts"]
+        return artifacts unless typed.is_a?(Array)
+
+        enriched = typed.map do |entry|
+          renderer_type = artifact_renderer_map[entry["type"]]
+          renderer_type ? entry.merge("renderer_type" => renderer_type) : entry
+        end
+
+        artifacts.merge("typed_artifacts" => enriched)
+      end
+
+      def artifact_renderer_map
+        @artifact_renderer_map ||= Syrus::PluginRegistry.providers_for(:artifact_renderer)
+          .each_with_object({}) do |renderer, map|
+            map[renderer.artifact_type] = renderer.renderer_type.to_s
+          end
       end
 
       def app_grade_log_path(run, workflow:)

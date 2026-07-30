@@ -1,6 +1,6 @@
 # Typed Artifacts
 
-Agents can store structured, typed artifacts on a Workflow during a run using the `submit_artifact` MCP tool. Artifacts are persisted under the `'typed_artifacts'` key in `Workflow#artifacts` and survive for the lifetime of the workflow record.
+Agents can store structured, typed artifacts on a Workflow during a run using the `submit_artifact` MCP tool. Artifacts are persisted under the `'typed_artifacts'` key in `Workflow#artifacts` and survive for the lifetime of the workflow record. They appear in the job detail UI with a renderer selected by the plugin registry.
 
 ## Convention
 
@@ -43,6 +43,23 @@ To make a typed artifact renderable in the Syrus job detail UI, a plugin must:
 
 See `config/syrus_docs/plugins.md` for the full `:artifact_renderer` extension point API.
 
+Artifact renderers are registered by plugins in their `provides:` hash:
+
+```ruby
+Syrus::PluginRegistry.register(
+  name:    "syrus-rails",
+  version: "0.1.0",
+  provides: {
+    artifact_renderer: [
+      SyrusRails::SchemaErdRenderer,   # type: 'rails_schema_erd'  → renderer: 'erd_diagram'
+      SyrusRails::MigrationDiffRenderer # type: 'rails_migration_diff' → renderer: 'migration_diff'
+    ]
+  }
+)
+```
+
+Artifacts whose type is not registered by any plugin pass through without a `renderer_type` and fall back to a JSON code block in the UI.
+
 ## Artifacts panel in job detail
 
 The job detail page shows an **Artifacts** tab listing all typed artifacts for the job. Each artifact is rendered based on its `renderer_type`:
@@ -56,3 +73,39 @@ The job detail page shows an **Artifacts** tab listing all typed artifacts for t
 | `null` (no registered renderer) | Raw JSON display |
 
 Artifacts are deduplicated by `type` across all workflows on the job; the most recently produced entry for each type wins. The tab count reflects the number of unique artifact types present.
+
+## syrus_rails plugin artifact types
+
+### `rails_schema_erd`
+
+Rendered as an entity-relationship diagram (`:erd_diagram` renderer). Payload produced by the `read_schema` MCP tool:
+
+```json
+{
+  "tables": [
+    {
+      "name": "users",
+      "columns": [{ "name": "id", "type": "integer" }, ...],
+      "indexes": [{ "name": "index_users_on_email", "columns": ["email"], "unique": true }],
+      "foreign_keys": [{ "from_column": "account_id", "to_table": "accounts", "to_column": "id" }]
+    }
+  ]
+}
+```
+
+### `rails_migration_diff`
+
+Rendered as a two-column before/after diff (`:migration_diff` renderer). Payload produced by the `explain_migration` MCP tool:
+
+```json
+{
+  "migration_name": "AddEmailToUsers",
+  "before": { "table_name": "users", "columns": [...] },
+  "after":  { "table_name": "users", "columns": [...] },
+  "changes": [
+    { "type": "added",    "column": { "name": "email",  "type": "string" } },
+    { "type": "removed",  "column": { "name": "legacy_key", "type": "string" } },
+    { "type": "modified", "column": { "name": "status", "type": "integer" } }
+  ]
+}
+```

@@ -26,7 +26,8 @@ import { ChatBubbleIcon, HeaderActions, JobFeedbackPanel } from "./jobDetail/Job
 import { PreviewPanel, PreviewStopModal } from "./jobDetail/PreviewPanel"
 import { jobDetailQueryKey, jobDetailSearch, jobWorkflowsQueryKey, mergeJobWorkflowsPayload, tabFromLocation } from "./jobDetail/queryKeys"
 import { formatCurrency, jobSlug, withRoutePrefix } from "./jobDetail/formatting"
-import { latestWorkflowCoverage, workflowCreatedAtTime } from "./jobDetail/workflowArtifacts"
+import { latestWorkflowCoverage, latestTypedArtifacts, workflowCreatedAtTime } from "./jobDetail/workflowArtifacts"
+import { TypedArtifactPanel } from "../components/artifacts/TypedArtifactPanel"
 import { WorkflowsTab } from "./jobDetail/WorkflowGraph"
 import { SourceTab } from "./jobDetail/SourceBrowser"
 import { useBugReportTrigger } from "../lib/bugReportContext"
@@ -331,6 +332,7 @@ function TabNav({ active, workflowsCount, attachmentsCount, artifactsCount, hasT
 function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string; queryKey: JobDetailQueryKey; withPreviewStop: (proceed: () => void) => void }) {
   const { t } = useT("jobs")
   const coverageInfo = latestWorkflowCoverage(payload.workflows)
+  const typedArtifacts = latestTypedArtifacts(payload.workflows)
   return (
     <div className="space-y-4">
       <NeedsAttentionBanner job={payload.job} />
@@ -370,6 +372,8 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
           </section>
 
           <TestPlanPanel testPlan={payload.test_plan} />
+
+          {typedArtifacts ? <TypedArtifactPanel artifacts={typedArtifacts} /> : null}
 
           {coverageInfo ? <CoverageCard coverage={coverageInfo.coverage} /> : null}
 

@@ -817,6 +817,62 @@ export function fetchJobRunArtifacts(path: string) {
   return getJson<JobRunArtifactsPayload>(path)
 }
 
+// ── Typed artifacts ───────────────────────────────────────────────────────────
+
+export type ErdColumn = {
+  name: string
+  type: string
+  options?: Record<string, unknown>
+}
+
+export type ErdIndex = {
+  name: string
+  columns: string[]
+  unique?: boolean
+}
+
+export type ErdForeignKey = {
+  from_column: string
+  to_table: string
+  to_column: string
+}
+
+export type ErdTable = {
+  name: string
+  columns: ErdColumn[]
+  indexes?: ErdIndex[]
+  foreign_keys?: ErdForeignKey[]
+}
+
+export type SchemaErdPayload = {
+  tables: ErdTable[]
+}
+
+export type MigrationDiffColumn = {
+  name: string
+  type: string
+}
+
+export type MigrationDiffChange = {
+  type: "added" | "removed" | "modified"
+  column: MigrationDiffColumn
+}
+
+export type MigrationDiffPayload = {
+  migration_name: string
+  before: { table_name: string; columns: MigrationDiffColumn[] }
+  after: { table_name: string; columns: MigrationDiffColumn[] }
+  changes: MigrationDiffChange[]
+}
+
+export type TypedArtifact = {
+  type: string
+  title: string
+  payload: SchemaErdPayload | MigrationDiffPayload | Record<string, unknown>
+  renderer_type?: string
+  created_at: string
+}
+
 export type CoverageArtifact = {
   summary?: { lines_pct: number | null; branches_pct: number | null; functions_pct: number | null }
   files?: Record<string, { lines_pct: number | null; branches_pct: number | null }>

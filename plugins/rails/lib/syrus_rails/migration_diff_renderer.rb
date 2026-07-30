@@ -1,6 +1,8 @@
 module SyrusRails
-  # Placeholder — renders a visual diff of migration changes as an artifact.
-  # Will be implemented in a follow-up Epic job.
   class MigrationDiffRenderer
+    extend Syrus::Plugin::ArtifactRenderer
+
+    def self.artifact_type = "rails_migration_diff"
+    def self.renderer_type = :migration_diff
   end
 end

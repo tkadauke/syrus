@@ -38,6 +38,12 @@ class McpToolPolicy
     submit_chat_feedback: [
       AgentRole::WORKFLOW_RECONCILIATION_FEEDBACK,
       AgentRole::WORKFLOW_MANUAL
+    ].freeze,
+    submit_artifact: [
+      AgentRole::WORKFLOW_IMPLEMENT,
+      AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
+      AgentRole::WORKFLOW_REBASE_CONFLICT,
+      AgentRole::WORKFLOW_MANUAL
     ].freeze
   }.freeze
 
