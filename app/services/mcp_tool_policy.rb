@@ -25,6 +25,12 @@ class McpToolPolicy
       AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
       AgentRole::WORKFLOW_MANUAL
     ].freeze,
+    submit_artifact:           [
+      AgentRole::WORKFLOW_IMPLEMENT,
+      AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
+      AgentRole::WORKFLOW_REBASE_CONFLICT,
+      AgentRole::WORKFLOW_MANUAL
+    ].freeze,
     submit_adversarial_review: [
       AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER,
       AgentRole::WORKFLOW_MANUAL
@@ -118,7 +124,7 @@ class McpToolPolicy
     elsif @context.role == AgentRole::WORKFLOW_RECONCILIATION_FEEDBACK
       base + [ SyrusMcp::ReportMainConcernTool, SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool, SyrusMcp::SubmitReconciliationFeedbackTool ]
     else
-      tools = base + [ SyrusMcp::ReportMainConcernTool, SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool ]
+      tools = base + [ SyrusMcp::ReportMainConcernTool, SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool, SyrusMcp::SubmitArtifactTool ]
       tools << SyrusMcp::SubmitJobMetadataTool if @context.run&.step&.kind == "refresh_job_metadata"
       tools
     end

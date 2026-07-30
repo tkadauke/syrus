@@ -34,10 +34,11 @@ RSpec.describe McpToolPolicy do
         SyrusMcp::ReadPreviewLogTool,
         SyrusMcp::SubmitSummaryTool,
         SyrusMcp::SubmitTestPlanTool,
+        SyrusMcp::SubmitArtifactTool,
         SyrusMcp::ReportMainConcernTool
       )
       expect(tools).not_to include(SyrusMcp::SubmitAdversarialReviewTool, SyrusMcp::SubmitJobMetadataTool)
-      expect(tools.size).to eq(14)
+      expect(tools.size).to eq(15)
     end
 
     it "returns submit_adversarial_review but not submit_summary for the adversarial_reviewer role" do
