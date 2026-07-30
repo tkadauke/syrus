@@ -436,5 +436,7 @@
   "replacement_feedback_placeholder": "Textum responsi substituti inscribe…",
   "aria_job": "Opus",
   "aria_workflow_pagination": "Paginatio fluxus operis",
-  "aria_new_direct_job": "Novum opus directum"
+  "aria_new_direct_job": "Novum opus directum",
+  "tests_flaky_label": "Instabilis",
+  "tests_flaky_tooltip": "{{failed}} ex {{total}} cursibus recentibus defecerunt"
 }

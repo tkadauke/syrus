@@ -436,5 +436,7 @@
   "replacement_feedback_placeholder": "Geben Sie Ihren Ersatz-Feedback-Text ein…",
   "aria_job": "Job",
   "aria_workflow_pagination": "Workflow-Paginierung",
-  "aria_new_direct_job": "Neuer direkter Job"
+  "aria_new_direct_job": "Neuer direkter Job",
+  "tests_flaky_label": "Flatterhaft",
+  "tests_flaky_tooltip": "{{failed}} von {{total}} aktuellen Läufen fehlgeschlagen"
 }

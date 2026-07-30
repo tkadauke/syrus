@@ -112,6 +112,39 @@ RSpec.describe "App API job test results", type: :request do
       expect(grader_names).to eq([ "jest", "rspec" ])
     end
 
+    it "includes flakiness fields for test cases" do
+      job = Factories.job(user: user, repository: repo)
+      run = job.initial_run
+      test_run = build_test_run(run: run, total_count: 1, passed_count: 1, failed_count: 0)
+
+      # Build history: 2 passes and 1 failure for this test
+      build_test_case(test_run: test_run, name: "flaky spec", suite_name: "S", status: "passed")
+      build_test_case(test_run: test_run, name: "flaky spec", suite_name: "S", status: "failed")
+      build_test_case(test_run: test_run, name: "flaky spec", suite_name: "S", status: "passed")
+
+      get "/api/v1/app/jobs/#{job.id}/test_results"
+
+      tc = parse_body.dig("test_runs", 0, "suites", 0, "test_cases", 0)
+      expect(tc["flakiness_score"]).to be_a(Float).and(be > 0).and(be < 1)
+      expect(tc["flakiness_failed_count"]).to eq(1)
+      expect(tc["flakiness_total_count"]).to eq(3)
+      expect(tc["flakiness_run_statuses"]).to be_an(Array).and(have_attributes(size: 3))
+    end
+
+    it "returns nil flakiness fields when test has no history beyond itself" do
+      job = Factories.job(user: user, repository: repo)
+      run = job.initial_run
+      test_run = build_test_run(run: run, total_count: 1, passed_count: 1, failed_count: 0)
+      build_test_case(test_run: test_run, name: "new test", suite_name: "S", status: "passed")
+
+      # Only one record exists — score will be 0.0 (not flaky), but fields should still be present
+      get "/api/v1/app/jobs/#{job.id}/test_results"
+
+      tc = parse_body.dig("test_runs", 0, "suites", 0, "test_cases", 0)
+      expect(tc).to have_key("flakiness_score")
+      expect(tc).to have_key("flakiness_run_statuses")
+    end
+
     it "returns 404 for a job belonging to another user" do
       other_user = Factories.user
       job = Factories.job(user: other_user, repository: Factories.repository(user: other_user))

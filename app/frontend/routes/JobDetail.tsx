@@ -907,6 +907,46 @@ function TestStatusIcon({ status }: { status: JobTestCase["status"] }) {
   return <span aria-hidden="true" className="text-gray-400 dark:text-gray-500">−</span>
 }
 
+function FlakinessSparkline({ statuses }: { statuses: Array<"passed" | "failed" | "skipped" | "error"> }) {
+  return (
+    <span aria-hidden="true" className="inline-flex items-center gap-0.5">
+      {statuses.map((s, i) => (
+        <span
+          key={i}
+          className={`inline-block h-2 w-2 rounded-sm ${
+            s === "passed"
+              ? "bg-emerald-400 dark:bg-emerald-500"
+              : s === "failed" || s === "error"
+                ? "bg-red-400 dark:bg-red-500"
+                : "bg-gray-300 dark:bg-gray-600"
+          }`}
+        />
+      ))}
+    </span>
+  )
+}
+
+function FlakinessBadge({ testCase }: { testCase: JobTestCase }) {
+  const { t } = useT("jobs")
+  const score = testCase.flakiness_score
+  const failed = testCase.flakiness_failed_count
+  const total = testCase.flakiness_total_count
+  const statuses = testCase.flakiness_run_statuses
+
+  if (score == null || score <= 0 || score >= 1.0 || failed == null || total == null) return null
+
+  return (
+    <span
+      className="inline-flex shrink-0 items-center gap-1 rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300"
+      title={t("tests_flaky_tooltip", { failed, total })}
+    >
+      {t("tests_flaky_label")}
+      <span className="font-normal opacity-75">{failed}/{total}</span>
+      {statuses && statuses.length > 1 ? <FlakinessSparkline statuses={statuses} /> : null}
+    </span>
+  )
+}
+
 function TestCaseRow({ testCase }: { testCase: JobTestCase }) {
   const { t } = useT("jobs")
   const [expanded, setExpanded] = useState(false)
@@ -919,6 +959,7 @@ function TestCaseRow({ testCase }: { testCase: JobTestCase }) {
       >
         <span className="mt-0.5 shrink-0 font-mono text-xs"><TestStatusIcon status={testCase.status} /></span>
         <span className="min-w-0 flex-1 break-words">{testCase.name}</span>
+        <FlakinessBadge testCase={testCase} />
         {testCase.duration_ms != null ? (
           <span className="shrink-0 text-xs text-gray-400 dark:text-gray-500">{formatTestDuration(testCase.duration_ms)}</span>
         ) : null}

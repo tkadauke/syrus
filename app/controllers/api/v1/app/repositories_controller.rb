@@ -460,7 +460,8 @@ module Api
               app_check_ci_now_repository_path: "/api/v1/app/repositories/#{repository.id}/check_ci_now",
               repositories_path: repositories_path,
               repository_documents_path: repository_documents_path(repository),
-              repository_scheduled_tasks_path: repository_scheduled_tasks_path(repository)
+              repository_scheduled_tasks_path: repository_scheduled_tasks_path(repository),
+              app_flaky_tests_path: "/api/v1/app/repositories/#{repository.id}/flaky_tests"
             }
           }
 

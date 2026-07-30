@@ -329,7 +329,14 @@
     "aria_repository": "Repository",
     "delegate": "Delegate",
     "delegated": "Delegated",
-    "archive": "Archive"
+    "archive": "Archive",
+    "flaky_tests_title": "Flaky Tests",
+    "flaky_col_test": "Test",
+    "flaky_col_suite": "Suite",
+    "flaky_col_rate": "Failure rate",
+    "flaky_col_avg_duration": "Avg duration",
+    "flaky_col_last_seen": "Last seen",
+    "flaky_tests_lookback": "Based on last {{count}} runs per test"
   },
   "memories": {
     "heading": "Memories",

@@ -421,6 +421,10 @@ export type JobTestCase = {
   failure_message: string | null
   failure_backtrace: string | null
   output: string | null
+  flakiness_score: number | null
+  flakiness_failed_count: number | null
+  flakiness_total_count: number | null
+  flakiness_run_statuses: Array<"passed" | "failed" | "skipped" | "error"> | null
 }
 
 export type JobTestSuite = {

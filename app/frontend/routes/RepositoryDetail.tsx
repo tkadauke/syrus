@@ -15,7 +15,7 @@ import { RepositoryTabs } from "../components/RepositoryTabs"
 import { StatusPill as StateStatusPill, TonePill } from "../components/StatusPill"
 import { CoverageSparkline } from "../components/CoverageSparkline"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
-import { archiveRepositoryFromPath, fetchRepositoryDetail, fetchRepositoryIssues, pollRepositoryDetail, releaseNeedsTriageRepositoryJob, retryFailedRepositoryJobs, runInsightAnalysis, type InsightScheduleConfigRecord, type RepositoryDetailJob, type RepositoryDetailPayload } from "../api/repositories"
+import { archiveRepositoryFromPath, fetchRepositoryDetail, fetchRepositoryFlakyTests, fetchRepositoryIssues, pollRepositoryDetail, releaseNeedsTriageRepositoryJob, retryFailedRepositoryJobs, runInsightAnalysis, type InsightScheduleConfigRecord, type RepositoryDetailJob, type RepositoryDetailPayload, type RepositoryFlakyTest } from "../api/repositories"
 import { errorMessage } from "../lib/errorMessage"
 import { useConfirm } from "../hooks/useConfirm"
 
@@ -96,6 +96,7 @@ function RepositoryDetail({ activeTab, payload, prefix, queryKey }: { activeTab:
           <NeedsTriageJobs payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
           {payload.health_history ? <MainBranchHealthSection history={payload.health_history} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} /> : null}
           <RecentJobs payload={payload} prefix={prefix} setupStatus={setupStatus} />
+          <FlakyTestsPanel payload={payload} />
         </div>
         <div className="space-y-6">
           <RepositoryDetailsCard payload={payload} prefix={prefix} />
@@ -320,6 +321,68 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
       {runInsight.isError ? <PanelMessage tone="error">{errorMessage(runInsight.error, "Failed to start insight analysis.")}</PanelMessage> : null}
       {dialog}
     </>
+  )
+}
+
+function FlakyTestsPanel({ payload }: { payload: RepositoryDetailPayload }) {
+  const { t } = useT("settings")
+  const { data, isPending, isError } = useQuery({
+    queryKey: ["repositories", String(payload.repository.id), "flaky_tests"],
+    queryFn: () => fetchRepositoryFlakyTests(payload.paths.app_flaky_tests_path)
+  })
+
+  if (isPending) return null
+  if (isError) return null
+  if (!data || data.tests.length === 0) return null
+
+  return (
+    <section>
+      <h2 className="mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100">
+        {t("repository.flaky_tests_title")}
+      </h2>
+      <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+            <tr>
+              <th className="px-4 py-2">{t("repository.flaky_col_test")}</th>
+              <th className="hidden px-4 py-2 sm:table-cell">{t("repository.flaky_col_suite")}</th>
+              <th className="px-4 py-2">{t("repository.flaky_col_rate")}</th>
+              <th className="hidden px-4 py-2 sm:table-cell">{t("repository.flaky_col_avg_duration")}</th>
+              <th className="hidden px-4 py-2 sm:table-cell">{t("repository.flaky_col_last_seen")}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 text-sm dark:divide-gray-800">
+            {data.tests.map((test) => <FlakyTestRow key={`${test.suite_name}::${test.name}`} test={test} />)}
+          </tbody>
+        </table>
+        <p className="border-t border-gray-100 px-4 py-2 text-xs text-gray-400 dark:border-gray-800 dark:text-gray-500">
+          {t("repository.flaky_tests_lookback", { count: data.lookback })}
+        </p>
+      </div>
+    </section>
+  )
+}
+
+function FlakyTestRow({ test }: { test: RepositoryFlakyTest }) {
+  const pct = `${(test.flakiness_score * 100).toFixed(0)}%`
+
+  return (
+    <tr className="text-gray-700 dark:text-gray-300">
+      <td className="max-w-xs truncate px-4 py-2" title={test.name}>{test.name}</td>
+      <td className="hidden max-w-[12rem] truncate px-4 py-2 text-gray-500 dark:text-gray-400 sm:table-cell" title={test.suite_name}>{test.suite_name}</td>
+      <td className="whitespace-nowrap px-4 py-2">
+        <span className="inline-flex items-center gap-1 rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300">
+          {pct}
+          <span className="font-normal opacity-75">{test.failed_count}/{test.total_count}</span>
+        </span>
+      </td>
+      <td className="hidden whitespace-nowrap px-4 py-2 text-gray-500 dark:text-gray-400 sm:table-cell">
+        {test.avg_duration_ms != null ? formatTestDuration(test.avg_duration_ms) : "—"}
+      </td>
+      <td className="hidden whitespace-nowrap px-4 py-2 text-gray-500 dark:text-gray-400 sm:table-cell">
+        {test.last_seen_at ? <RelativeTimestamp value={test.last_seen_at} /> : "—"}
+      </td>
+    </tr>
   )
 }
 
@@ -608,5 +671,13 @@ function pageSearch(search: string) {
   const params = new URLSearchParams(search)
   const page = params.get("page")
   return page ? `?${new URLSearchParams({ page }).toString()}` : ""
+}
+
+function formatTestDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`
+  if (ms < 60000) return `${(ms / 1000).toFixed(2)}s`
+  const minutes = Math.floor(ms / 60000)
+  const seconds = Math.round((ms % 60000) / 1000)
+  return `${minutes}m ${seconds}s`
 }
 

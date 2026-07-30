@@ -329,7 +329,14 @@
     "aria_repository": "Repositorium",
     "delegate": "Delegare",
     "delegated": "Delegatum",
-    "archive": "Condere"
+    "archive": "Condere",
+    "flaky_tests_title": "Probationes Instabiles",
+    "flaky_col_test": "Probatio",
+    "flaky_col_suite": "Series",
+    "flaky_col_rate": "Frequentia errorum",
+    "flaky_col_avg_duration": "Duratio media",
+    "flaky_col_last_seen": "Novissime visa",
+    "flaky_tests_lookback": "Ex novissimis {{count}} cursibus per probationem"
   },
   "memories": {
     "heading": "Memoriae",

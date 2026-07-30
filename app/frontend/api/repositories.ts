@@ -217,6 +217,7 @@ export type RepositoryDetailPayload = {
     repository_scheduled_tasks_path: string
     app_run_insight_analysis_repository_path?: string
     repository_insights_path?: string
+    app_flaky_tests_path: string
   }
   agent_insights_enabled?: boolean
   active_insight_job?: {
@@ -519,6 +520,26 @@ export function fetchRepositoryBranches(owner: string, name: string) {
 
 export function createRepository(values: RepositoryInput) {
   return postJson<RepositorySavedPayload>("/api/v1/app/repositories", { repository: values })
+}
+
+export type RepositoryFlakyTest = {
+  suite_name: string
+  name: string
+  flakiness_score: number
+  failed_count: number
+  total_count: number
+  avg_duration_ms: number | null
+  last_seen_at: string | null
+}
+
+export type RepositoryFlakyTestsPayload = {
+  repository_id: number
+  lookback: number
+  tests: RepositoryFlakyTest[]
+}
+
+export function fetchRepositoryFlakyTests(path: string) {
+  return getJson<RepositoryFlakyTestsPayload>(path)
 }
 
 export function updateRepository(id: number, values: RepositoryInput) {

@@ -329,7 +329,14 @@
     "aria_repository": "Repository",
     "delegate": "Delegieren",
     "delegated": "Delegiert",
-    "archive": "Archivieren"
+    "archive": "Archivieren",
+    "flaky_tests_title": "Instabile Tests",
+    "flaky_col_test": "Test",
+    "flaky_col_suite": "Suite",
+    "flaky_col_rate": "Fehlerrate",
+    "flaky_col_avg_duration": "Ø Dauer",
+    "flaky_col_last_seen": "Zuletzt gesehen",
+    "flaky_tests_lookback": "Basiert auf den letzten {{count}} Läufen pro Test"
   },
   "memories": {
     "heading": "Erinnerungen",
