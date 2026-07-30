@@ -320,7 +320,13 @@ class WorkflowWorkspace
   # Uses the authenticated URL transiently — same pattern as the upstream fetch.
   def checkout_external_pr_head!
     pr_number = @job.external_pr_number
-    pr_ref = "refs/pull/#{pr_number}/head"
+    head_repo = @workflow.artifact("external_pr_head_repo")
+    head_ref = @workflow.artifact("external_pr_head_ref")
+    pr_ref = if head_repo == @repository.slug && head_ref.present?
+      "refs/heads/#{head_ref}"
+    else
+      "refs/pull/#{pr_number}/head"
+    end
     @git.run(
       "fetch", "--no-tags", authenticated_url,
       "+#{pr_ref}:refs/heads/#{@branch_name}",

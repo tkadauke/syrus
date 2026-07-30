@@ -114,6 +114,10 @@ Non-agentic. Refreshes GitHub mergeability, runs a local rebase preflight when G
 
 Non-agentic. Calls the GitHub merge API. Transient failures defer the Job back to `approved`; a 405 "can't rebase" dispatches the rebase path instead of treating the attempt as terminal.
 
+### external_pr_merge
+
+Non-agentic. Calls the GitHub merge API for an `external_pr` Job's `external_pr_number`. If same-repository landing repair produced commits in the workflow workspace, pushes those commits to the PR's actual head branch before merging. Fork PRs are never pushed by this step.
+
 ### merge_train_assemble
 
 Non-agentic. Validates that all open Epic child Jobs are approved and the member count is within `AppSetting.merge_train_max_size`.

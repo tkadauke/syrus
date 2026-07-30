@@ -20,6 +20,7 @@ module Steps
         return
       end
 
+      push_same_repository_repairs!
       merge_result = merge_pull_request(client)
       return unless merge_result
 
@@ -31,6 +32,24 @@ module Steps
     end
 
     private
+
+    def push_same_repository_repairs!
+      head_repo = workflow.artifact("external_pr_head_repo")
+      head_ref = workflow.artifact("external_pr_head_ref")
+      original_head_sha = workflow.artifact("external_pr_head_sha")
+      return unless head_repo == repository.slug && head_ref.present? && original_head_sha.present?
+
+      workspace.setup
+      local_head = GitRunner.new.run("rev-parse", "HEAD", chdir: workspace.path.to_s).strip
+      return if local_head == original_head_sha
+
+      log("external_pr_merge: pushing repair commit(s) to #{repository.slug}:#{head_ref}", kind: "system")
+      git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
+      push_url = repository.authenticated_push_url(GithubClient.for(repository: repository, user: job.user).access_token)
+      git.run("push", push_url, "HEAD:refs/heads/#{head_ref}", chdir: workspace.path.to_s)
+    rescue GitRunner::GitError => e
+      raise StepFailed, "external_pr_merge: failed to push repair commits to #{head_ref}: #{e.message}"
+    end
 
     def merge_pull_request(client)
       client.merge_pull_request(

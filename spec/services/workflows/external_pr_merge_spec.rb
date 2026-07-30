@@ -20,8 +20,16 @@ RSpec.describe Workflows::ExternalPrMerge do
   end
   let(:client) { instance_double(GithubClient) }
 
+  def pr(is_fork: false)
+    head_repo = is_fork ? "contributor/widgets" : "acme/widgets"
+    OpenStruct.new(
+      head: OpenStruct.new(repo: OpenStruct.new(full_name: head_repo), ref: "feature", sha: "abc123")
+    )
+  end
+
   before do
     allow(GithubClient).to receive(:for).and_return(client)
+    allow(client).to receive(:pull_request).and_return(pr(is_fork: true))
     allow(client).to receive(:create_pr_review)
   end
 
@@ -31,6 +39,38 @@ RSpec.describe Workflows::ExternalPrMerge do
     expect(workflow.steps.order(:position).pluck(:kind)).to eq(
       %w[mergeability_preflight grader_fanout grader_collect external_pr_merge]
     )
+  end
+
+  it "materializes a landing_fix retry loop for same-repository external PRs" do
+    allow(client).to receive(:pull_request).and_return(pr(is_fork: false))
+
+    workflow = described_class.instantiate(job: job)
+
+    expect(workflow.steps.order(:position).pluck(:kind)).to eq(
+      %w[mergeability_preflight grader_fanout grader_collect external_pr_merge]
+    )
+    expect(workflow.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[grader_fanout grader_collect])
+    expect(workflow.chain_template).to include(
+      hash_including(
+        "type" => "retry_until",
+        "repair" => %w[landing_fix],
+        "check" => %w[grader_fanout grader_collect]
+      )
+    )
+  end
+
+  it "uses a check-only chain for fork external PRs" do
+    allow(client).to receive(:pull_request).and_return(pr(is_fork: true))
+
+    workflow = described_class.instantiate(job: job)
+
+    expect(workflow.steps.where.not(loop_id: nil)).to be_empty
+    expect(workflow.chain_template).to eq([
+      { "type" => "step", "kind" => "mergeability_preflight" },
+      { "type" => "step", "kind" => "grader_fanout" },
+      { "type" => "step", "kind" => "grader_collect" },
+      { "type" => "step", "kind" => "external_pr_merge" }
+    ])
   end
 
   it "uses the external_pr_merge trigger kind" do
@@ -70,13 +110,6 @@ RSpec.describe Workflows::ExternalPrMerge do
     end
 
     context "when graders failed" do
-      def pr(is_fork: false)
-        head_repo = is_fork ? "contributor/widgets" : "acme/widgets"
-        OpenStruct.new(
-          head: OpenStruct.new(repo: OpenStruct.new(full_name: head_repo))
-        )
-      end
-
       before do
         grader_step = workflow.steps.create!(
           kind: "grader",

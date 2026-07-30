@@ -39,6 +39,7 @@ module Steps
       client = GithubClient.for(repository: repository, user: job.user)
       pr = client.pull_request(repository.slug, job.external_pr_number, bypass_cache: true)
       persist_github_mergeability(pr)
+      record_external_pr_head!(pr)
 
       if pr.state == "closed"
         log("external_pr_merge: PR ##{job.external_pr_number} is already closed; cancelling workflow", kind: "system")
@@ -72,6 +73,12 @@ module Steps
 
       reason = pr.merged ? "external_pr_merged" : "external_pr_closed"
       job.close_with_reason!(reason)
+    end
+
+    def record_external_pr_head!(pr)
+      workflow.set_artifact!("external_pr_head_repo", pr.head&.repo&.full_name)
+      workflow.set_artifact!("external_pr_head_ref", pr.head&.ref)
+      workflow.set_artifact!("external_pr_head_sha", pr.head&.sha)
     end
 
     def handle_transient!(gate)

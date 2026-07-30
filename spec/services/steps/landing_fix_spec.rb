@@ -58,6 +58,54 @@ RSpec.describe Steps::LandingFix do
     expect(run.prompt).to include("Do not implement the entire Epic")
   end
 
+  it "uses external PR metadata in the prompt when repairing a same-repository external PR" do
+    external_job = Job.create!(
+      user: user,
+      owner_user: user,
+      repository: repository,
+      kind: "external_pr",
+      issue_number: nil,
+      external_pr_number: 99,
+      state: "implemented"
+    )
+    external_workflow = Workflow.create!(
+      job: external_job,
+      trigger_kind: "external_pr_merge",
+      agent_provider: external_job.agent_provider,
+      chain_template: []
+    )
+    external_workflow.set_artifact!("external_pr_head_ref", "contributor-branch")
+    external_step = Step.create!(
+      workflow: external_workflow,
+      kind: "landing_fix",
+      position: 3,
+      iteration: 2,
+      loop_id: SecureRandom.uuid
+    )
+    external_run = external_step.runs.create!(
+      job: external_job,
+      trigger_kind: external_workflow.trigger_kind,
+      agent_provider: external_workflow.agent_provider,
+      iteration: external_step.iteration
+    )
+    external_handler = described_class.new(external_run)
+    fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
+    allow(external_handler).to receive(:workspace).and_return(fake_ws)
+    allow(external_handler).to receive(:run_agent)
+    allow(external_handler).to receive(:commit_agent_changes)
+    allow(external_handler).to receive(:assert_branch_history_intact!)
+    allow(external_handler).to receive(:diff_against_default).and_return("diff --git a/app.rb b/app.rb\n+ok")
+    allow(external_handler).to receive(:diff_against_sha).and_return("diff --git a/app.rb b/app.rb\n+ok")
+    allow(external_handler).to receive(:head_sha).and_return("def456")
+    allow(external_handler).to receive(:recent_branch_commits).and_return([])
+
+    external_handler.call
+
+    expect(external_run.reload.prompt).to include("acme/widgets#99")
+    expect(external_run.prompt).to include("contributor-branch")
+  end
+
+
   it "appends recorded grade failure feedback to the prompt" do
     workflow.set_artifact!("iterations", [
       [

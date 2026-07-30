@@ -1202,6 +1202,21 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect(job.may_approve?).to be true
     end
 
+    it "provides synthetic issue context for prompts" do
+      job = build_external_pr_job(issue_title: "Review contributor fix", issue_body: "Validate the external PR.")
+
+      issue = job.synthetic_issue
+
+      expect(issue.title).to eq("Review contributor fix")
+      expect(issue.body).to eq("Validate the external PR.")
+    end
+
+    it "falls back to the external PR number in synthetic issue titles" do
+      job = build_external_pr_job(issue_title: nil)
+
+      expect(job.synthetic_issue.title).to eq("External PR #77")
+    end
+
     it "enforces uniqueness of external_pr_number per repository" do
       build_external_pr_job.save!
       duplicate = build_external_pr_job

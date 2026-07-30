@@ -3,12 +3,15 @@ module Workflows
   #
   #   mergeability_preflight → grader_fanout → grader_collect → external_pr_merge
   #
+  # Same-repository external PRs can be repaired before landing:
+  #
+  #   mergeability_preflight → retry_until(grader_fanout → grader_collect, repair: landing_fix) → external_pr_merge
+  #
   # Graders run on the external PR's HEAD to validate before merging.
-  # No prepare or push steps — Syrus does not own this branch.
-  # On grader failure Syrus posts a REQUEST_CHANGES review on the PR
-  # (fork-aware: message differs for forks vs same-repo contributors)
-  # then calls fail_landing! to revert the job to :implemented so the
-  # operator can address the issues before re-approving.
+  # No prepare or normal push step — same-repository repair commits
+  # are pushed by the final external_pr_merge step, while fork PRs
+  # receive a REQUEST_CHANGES review on grader failure and fail_landing!
+  # reverts the job to :implemented for contributor follow-up.
   class ExternalPrMerge < Base
     steps :mergeability_preflight,
           :grader_fanout,
@@ -18,6 +21,25 @@ module Workflows
     def self.trigger_kind = "external_pr_merge"
 
     def self.queue_name = :merges
+
+    def self.steps_for(job)
+      grade_gate = if same_repository_external_pr?(job)
+        Workflows::RetryUntil.new(
+          max_iterations: AppSetting.grade_max_iterations,
+          repair_first: false,
+          repair: [ :landing_fix ],
+          check: [ :grader_fanout, :grader_collect ]
+        )
+      else
+        [ "grader_fanout", "grader_collect" ]
+      end
+
+      [
+        "mergeability_preflight",
+        grade_gate,
+        "external_pr_merge"
+      ].flatten
+    end
 
     def self.after_success(_workflow)
       LandingQueueProcessor.try_land!
@@ -49,6 +71,15 @@ module Workflows
 
     def self.grader_failure?(workflow)
       workflow.steps.where(kind: "grader_collect", state: "failed").exists?
+    end
+
+    def self.same_repository_external_pr?(job)
+      client = GithubClient.for(repository: job.repository, user: job.user)
+      pr = client.pull_request(job.repository.slug, job.external_pr_number, bypass_cache: true)
+      pr.head&.repo&.full_name == job.repository.slug
+    rescue StandardError => e
+      Rails.logger.warn("[ExternalPrMerge] could not classify external PR ##{job.external_pr_number} for Job ##{job.id}: #{e.class}: #{e.message}")
+      false
     end
 
     # Posts a REQUEST_CHANGES review on the external PR when required graders

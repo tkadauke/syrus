@@ -1,6 +1,6 @@
 # Landing Queue
 
-The landing queue manages the flow from "approved" to "merged." Once a Job is approved, Syrus queues it for landing via the `auto_merge` workflow (or `merge_train` for Epics with merge trains enabled).
+The landing queue manages the flow from "approved" to "merged." Once a Job is approved, Syrus queues it for landing via the `auto_merge` workflow, `external_pr_merge` for externally filed PRs, or `merge_train` for Epics with merge trains enabled.
 
 ## Approval and landing
 
@@ -8,7 +8,7 @@ When an operator approves a Job:
 
 1. The Job transitions to `approved`.
 2. `LandingQueueProcessor.try_land!` evaluates whether the Job can proceed immediately or must wait.
-3. If ready, Syrus dispatches an `auto_merge` workflow and moves the Job to `landing`.
+3. If ready, Syrus dispatches the landing workflow and moves the Job to `landing`.
 
 Jobs wait in `approved` when:
 - A same-repo Job is already landing (serialized per repo by default).
@@ -38,6 +38,14 @@ If GitHub's merge API returns a transient error, the Job is deferred back to `ap
 ### After a successful merge
 
 The Job transitions to `pr_merged`. If the merged PR was depended on by other Jobs, those dependencies are satisfied and their workflows unblocked.
+
+## external_pr_merge workflow
+
+**Step chain:** `mergeability_preflight → grader_fanout → grader_collect → external_pr_merge`
+
+External PR Jobs use the GitHub PR as the source of truth instead of a Syrus-owned branch. The workflow skips `prepare` and the normal `push` step, refreshes GitHub mergeability, runs required graders against the external PR head, then calls GitHub's merge API for the external PR number.
+
+For same-repository external PRs, grader failures enter the `landing_fix` retry loop before merge. If the agent commits a repair, `external_pr_merge` pushes the local repair commit to the PR's actual head branch immediately before merging. For fork PRs, Syrus cannot push repairs; required grader failures post a `REQUEST_CHANGES` review and `fail_landing!` returns the Job to `implemented`.
 
 ## trust_clean_rebase_grade
 
