@@ -119,12 +119,15 @@ describe("JobEpicPickerPopup — jobs mode", () => {
     expect(screen.getByText("No jobs found.")).toBeInTheDocument()
   })
 
-  it("passes the repositorySlug to the API", async () => {
+  it("passes the repositorySlug to the API without a state filter", async () => {
     renderPicker({ kind: "job", repositorySlug: "acme/repo", onSelect: vi.fn(), onCancel: vi.fn() })
 
     await waitFor(() => {
       expect(jobsApi.fetchPickerJobs).toHaveBeenCalledWith(
-        expect.objectContaining({ repo: "acme/repo", state: "open" })
+        expect.objectContaining({ repo: "acme/repo" })
+      )
+      expect(jobsApi.fetchPickerJobs).not.toHaveBeenCalledWith(
+        expect.objectContaining({ state: expect.anything() })
       )
     })
   })
@@ -134,9 +137,34 @@ describe("JobEpicPickerPopup — jobs mode", () => {
 
     await waitFor(() => {
       expect(jobsApi.fetchPickerJobs).toHaveBeenCalledWith(
-        expect.objectContaining({ repo: undefined, state: "open" })
+        expect.objectContaining({ repo: undefined })
+      )
+      expect(jobsApi.fetchPickerJobs).not.toHaveBeenCalledWith(
+        expect.objectContaining({ state: expect.anything() })
       )
     })
+  })
+
+  it("sorts jobs by state priority — implemented and closed before active before terminal", async () => {
+    vi.spyOn(jobsApi, "fetchPickerJobs").mockResolvedValue({
+      count: 4,
+      jobs: [
+        { id: 1, title: "Merged job", issue_title: "Merged job", state: "merged", repository_slug: "acme/repo" },
+        { id: 2, title: "Approved job", issue_title: "Approved job", state: "approved", repository_slug: "acme/repo" },
+        { id: 3, title: "Closed job", issue_title: "Closed job", state: "closed", repository_slug: "acme/repo" },
+        { id: 4, title: "Implemented job", issue_title: "Implemented job", state: "implemented", repository_slug: "acme/repo" }
+      ]
+    })
+
+    renderPicker({ kind: "job", repositorySlug: "acme/repo", onSelect: vi.fn(), onCancel: vi.fn() })
+
+    await screen.findByText("Implemented job")
+
+    const options = screen.getAllByRole("option")
+    expect(options[0]).toHaveTextContent("Implemented job")
+    expect(options[1]).toHaveTextContent("Closed job")
+    expect(options[2]).toHaveTextContent("Approved job")
+    expect(options[3]).toHaveTextContent("Merged job")
   })
 })
 
