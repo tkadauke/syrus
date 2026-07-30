@@ -66,6 +66,27 @@ module Prompts
         - A `suggested_prompt` for a Job or ScheduledTask that would address it (optional)
         - A `memory_suggestion` with the exact text to store if this is a durable fact (optional)
 
+        ## When to use each suggestion type
+
+        **File a job suggestion (`suggested_prompt`)** when the finding is a code defect,
+        missing behavior, misconfiguration, or architectural gap that requires a code change
+        to resolve. Set `suggested_prompt` to a prompt that a future Job could act on.
+
+        **File a memory suggestion (`memory_suggestion`)** when the finding is a behavioral
+        pattern, constraint, or workaround that future coding agents running against this
+        repository should be aware of — but where no code change is needed or possible right
+        now. The text should be durable advice agents can act on.
+
+        **File both** when there is a code fix that should be filed as a Job AND there is
+        interim context agents need to carry while that fix has not yet landed (e.g.,
+        "this bug exists until the fix lands; work around it by..."). Use `suggested_prompt`
+        for the fix and `memory_suggestion` for the interim workaround.
+
+        **Do NOT file a memory suggestion** for a finding that is purely a code bug with a
+        clear fix. A memory that documents a bug which is about to be corrected misleads
+        future agents after the fix lands. If the right action is to open a Job, set
+        `suggested_prompt` and leave `memory_suggestion` blank.
+
         For durable facts you discover (e.g. recurring configuration issues, stable
         patterns), call `write_memory` to store them so future agents benefit.
 

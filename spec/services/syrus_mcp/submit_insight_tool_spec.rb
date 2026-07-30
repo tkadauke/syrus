@@ -203,6 +203,53 @@ RSpec.describe SyrusMcp::SubmitInsightTool do
     end
   end
 
+  describe "suggestion type contract" do
+    it "stores only suggested_prompt (no memory_suggestion) for a pure code-bug finding" do
+      call(
+        title:            "Missing constant in failure classifier",
+        category:         "configuration",
+        severity:         "high",
+        confidence:       0.95,
+        suggested_prompt: "Add the missing TRANSIENT_ERRORS constant to RunFailureClassifier",
+        memory_suggestion: nil
+      )
+
+      suggestion = InsightSuggestion.last
+      expect(suggestion.suggested_prompt).to be_present
+      expect(suggestion.memory_suggestion).to be_nil
+    end
+
+    it "stores both suggested_prompt and memory_suggestion when a fix is in flight with interim context" do
+      call(
+        title:             "Prepare step fails when vendor/bundle is stale",
+        category:          "repeated_failure",
+        severity:          "medium",
+        confidence:        0.8,
+        suggested_prompt:  "Fix the Gemfile lock to unblock prepare",
+        memory_suggestion: "Prepare may fail on stale vendor/bundle until lock fix lands; run `bundle install` manually as a workaround"
+      )
+
+      suggestion = InsightSuggestion.last
+      expect(suggestion.suggested_prompt).to be_present
+      expect(suggestion.memory_suggestion).to be_present
+    end
+
+    it "stores only memory_suggestion (no suggested_prompt) for a durable behavioral pattern" do
+      call(
+        title:             "Agent always over-fetches GitHub API for issue metadata",
+        category:          "inefficiency",
+        severity:          "low",
+        confidence:        0.75,
+        suggested_prompt:  nil,
+        memory_suggestion: "GitHub issue metadata is already included in the Syrus job context; do not re-fetch it via the API"
+      )
+
+      suggestion = InsightSuggestion.last
+      expect(suggestion.suggested_prompt).to be_nil
+      expect(suggestion.memory_suggestion).to be_present
+    end
+  end
+
   describe "tool schema" do
     it "exposes the expected tool name" do
       expect(described_class.tool_name).to eq("submit_insight")
