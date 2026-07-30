@@ -114,7 +114,7 @@ module Steps
         end
       end
 
-      ingest_junit_xml!(name, definition["junit_output"]) if definition["junit_output"].present?
+      ingest_test_output!(name, definition["junit_output"]) if definition["junit_output"].present?
 
       raise StepFailed, "grader #{name} failed (exit #{exit_code})" unless passed
     end
@@ -132,20 +132,27 @@ module Steps
       output.encode(Encoding::UTF_8, invalid: :replace, undef: :replace, replace: "?")
     end
 
-    def ingest_junit_xml!(grader_name, junit_output_path)
-      absolute_path = workspace.path.join(junit_output_path)
+    def ingest_test_output!(grader_name, output_path_str)
+      absolute_path = workspace.path.join(output_path_str)
       unless absolute_path.exist?
-        log("[grader:#{grader_name}] junit_output #{junit_output_path.inspect} not found — skipping ingestion")
+        log("[grader:#{grader_name}] junit_output #{output_path_str.inspect} not found — skipping ingestion")
         return
       end
 
-      parsed = JunitXmlParser.parse(absolute_path.read)
+      parsed = try_plugin_parsers(absolute_path) || JunitXmlParser.parse(absolute_path.read)
       TestRunIngester.new(run: run, grader_name: grader_name, parsed_run: parsed).ingest!
-      log("[grader:#{grader_name}] ingested #{parsed.total_count} test case(s) from #{junit_output_path}")
+      log("[grader:#{grader_name}] ingested #{parsed.total_count} test case(s) from #{output_path_str}")
     rescue JunitXmlParser::ParseError => e
       log("[grader:#{grader_name}] warning: JUnit XML parse error: #{e.message}")
     rescue StandardError => e
-      log("[grader:#{grader_name}] warning: JUnit XML ingestion failed: #{e.class}: #{e.message}")
+      log("[grader:#{grader_name}] warning: test output ingestion failed: #{e.class}: #{e.message}")
+    end
+
+    def try_plugin_parsers(absolute_path)
+      Syrus::PluginRegistry.providers_for(:test_result_parser).each do |provider|
+        return provider.call(output_path: absolute_path) if provider.can_parse?(output_path: absolute_path)
+      end
+      nil
     end
 
     def env
