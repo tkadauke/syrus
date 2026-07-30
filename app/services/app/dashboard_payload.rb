@@ -384,6 +384,7 @@ module App
         jobs = PerformanceLogging.phase("dashboard_jobs.query", page: page, view: view) { sorted_jobs(scope).to_a }
         @current_jobs = jobs
         PerformanceLogging.phase("dashboard_jobs.preload_runtime_state", count: jobs.size, view: view) { preload_job_runtime_state(jobs) }
+        preload_epic_job_counts(jobs)
         items = PerformanceLogging.phase("dashboard_jobs.serialize", count: jobs.size, view: view) { jobs.map { |job| job_json(job) } }
 
         { total: total, items: items }
@@ -678,6 +679,21 @@ module App
 
     def sort_value(sort, key)
       sort[key] || sort[key.to_sym]
+    end
+
+    # Precomputes true epic-level job counts for a batch of jobs, storing them
+    # in @epic_job_counts and @epic_landed_job_counts for use by job_epic_json.
+    # Runs two aggregate queries (one per count) keyed on epic_id so that
+    # serializing N jobs with epics never causes N+1 queries, and the counts
+    # reflect the full epic (not the filtered dashboard payload).
+    def preload_epic_job_counts(jobs)
+      epic_ids = jobs.filter_map(&:epic_id).uniq
+      return if epic_ids.empty?
+
+      @epic_job_counts = Job.where(epic_id: epic_ids).group(:epic_id).count
+      @epic_landed_job_counts = Job.where(epic_id: epic_ids, state: "closed")
+                                   .where(closure_reason: Epic::MERGED_JOB_CLOSURE_REASONS)
+                                   .group(:epic_id).count
     end
   end
 end

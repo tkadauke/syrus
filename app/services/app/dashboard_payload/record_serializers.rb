@@ -118,7 +118,9 @@ module App
           id: epic.id,
           number: epic.number,
           display_number: epic.slug,
-          path: epic_path(epic)
+          path: epic_path(epic),
+          jobs_count: @epic_job_counts&.fetch(epic.id, 0) || 0,
+          landed_jobs_count: @epic_landed_job_counts&.fetch(epic.id, 0) || 0
         }
       end
 

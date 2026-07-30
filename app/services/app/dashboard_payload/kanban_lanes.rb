@@ -48,6 +48,8 @@ module App
         end
         PerformanceLogging.phase("dashboard_kanban_jobs.preload_runtime_state", count: records.size) { preload_job_runtime_state(records) }
 
+        preload_epic_job_counts(records)
+
         records.each do |job|
           lane = job_kanban_lane_for(job, visible_lanes)
           records_by_lane[lane] << job if lane && records_by_lane.key?(lane)

@@ -471,4 +471,42 @@ RSpec.describe App::DashboardPayload do
       expect(result[:items].map { |item| item[:id] }).to contain_exactly(blocked_job.id)
     end
   end
+
+  describe "job_epic_json counts" do
+    let(:other_user) { Factories.user }
+    let(:epic) { Factories.epic(user: user, repository: repo) }
+
+    it "reports jobs_count as the true epic total even when some jobs are excluded by the ownership filter" do
+      job1 = Factories.job_record(user: user, repository: repo, epic: epic, owner_user: user, issue_number: 101)
+      job2 = Factories.job_record(user: user, repository: repo, epic: epic, owner_user: user, issue_number: 102)
+      job3 = Factories.job_record(user: user, repository: repo, epic: epic, owner_user: other_user, issue_number: 103)
+
+      result = call(subject: "job", scope: "mine")
+
+      visible_ids = result[:items].map { |j| j[:id] }
+      expect(visible_ids).to include(job1.id, job2.id)
+      expect(visible_ids).not_to include(job3.id)
+
+      item = result[:items].find { |j| j[:id] == job1.id }
+      # jobs_count must reflect all 3 epic jobs, not just the 2 visible in the "mine" scope
+      expect(item.dig(:epic, :jobs_count)).to eq(3)
+    end
+
+    it "reports landed_jobs_count counting only pr_merged and external_pr_merged closure reasons" do
+      open_job = Factories.job_record(user: user, repository: repo, epic: epic, owner_user: user, issue_number: 101)
+      Factories.job_record(user: user, repository: repo, epic: epic, owner_user: user,
+                           issue_number: 102, state: "closed", closure_reason: "pr_merged")
+      Factories.job_record(user: user, repository: repo, epic: epic, owner_user: user,
+                           issue_number: 103, state: "closed", closure_reason: "external_pr_merged")
+      Factories.job_record(user: user, repository: repo, epic: epic, owner_user: user,
+                           issue_number: 104, state: "closed", closure_reason: "no_changes")
+
+      result = call(subject: "job", scope: "mine")
+      item = result[:items].find { |j| j[:id] == open_job.id }
+
+      expect(item.dig(:epic, :jobs_count)).to eq(4)
+      # no_changes does not count as landed; only pr_merged and external_pr_merged do
+      expect(item.dig(:epic, :landed_jobs_count)).to eq(2)
+    end
+  end
 end

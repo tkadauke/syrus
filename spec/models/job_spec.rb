@@ -2458,4 +2458,33 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect(InsightScheduler).not_to have_received(:enqueue_if_idle!)
     end
   end
+
+  describe "default_owner_user" do
+    let(:owner) { Factories.user }
+    let(:repo)  { Factories.repository(user: owner) }
+
+    context "when the job belongs to an already-claimed epic" do
+      it "inherits owner_user_id from the epic" do
+        epic = Factories.epic(user: owner, repository: repo, owner_user: owner)
+        job = owner.jobs.create!(repository: repo, epic: epic, kind: "direct", issue_title: "Task")
+        expect(job.owner_user_id).to eq(owner.id)
+      end
+    end
+
+    context "when the job belongs to an unclaimed epic" do
+      it "leaves owner_user_id nil so the epic claim cascade can set it later" do
+        epic = Factories.epic(user: owner, repository: repo)
+        expect(epic.owner_user_id).to be_nil
+        job = owner.jobs.create!(repository: repo, epic: epic, kind: "direct", issue_title: "Task")
+        expect(job.owner_user_id).to be_nil
+      end
+    end
+
+    context "when the job has no epic" do
+      it "defaults owner_user_id to the creating user" do
+        job = owner.jobs.create!(repository: repo, kind: "direct", issue_title: "Fix")
+        expect(job.owner_user_id).to eq(owner.id)
+      end
+    end
+  end
 end

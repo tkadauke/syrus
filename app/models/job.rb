@@ -1076,12 +1076,16 @@ class Job < ApplicationRecord
     # had no code populating it, so they were created with a NULL owner and
     # silently dropped out of those views. Default it from the creating user.
     #
-    # Epic children are deliberately left alone: their ownership follows the
-    # Epic (cascaded on claim via Epic#assign_owner), and an unowned Epic's
-    # children are legitimately unowned until it is claimed. The effective-
-    # owner query convention (owner_user_id.presence || user_id) still counts
-    # a NULL-owner Epic child as its creator's for read scopes.
-    return if epic_id.present?
+    # Epic children inherit owner from the parent epic when the epic is
+    # already claimed, so jobs added later (standalone proposals, reconciliation
+    # jobs) appear under the right owner scope without waiting for a claim
+    # cascade. When the epic is unclaimed (owner_user_id nil), the job stays
+    # unowned — it will be cascaded when the epic is eventually claimed via
+    # Epic#assign_owner!.
+    if epic_id.present?
+      self.owner_user_id ||= epic&.owner_user_id
+      return
+    end
 
     self.owner_user_id ||= user_id
   end

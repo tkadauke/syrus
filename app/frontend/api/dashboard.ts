@@ -72,6 +72,8 @@ export type DashboardJobEpic = {
   number: number
   display_number: string
   path: string
+  jobs_count: number
+  landed_jobs_count: number
 }
 
 export type JobSourceChat = {
