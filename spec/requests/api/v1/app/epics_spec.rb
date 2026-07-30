@@ -549,7 +549,8 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     sign_in_as(user)
     current_owner = Factories.user(email_address: "owner@example.com")
     epic = Factories.epic(user: user, repository: repository, owner_user: current_owner)
-    unowned_child = Factories.job_record(user: user, repository: repository, epic: epic, owner_user: nil)
+    unowned_child = Factories.job_record(user: user, repository: repository, epic: epic)
+    unowned_child.update_columns(owner_user_id: nil) # simulate a legacy child that predates owner propagation
 
     patch "/api/v1/app/epics/#{epic.id}/claim"
 
@@ -885,7 +886,8 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     sign_in_as(user)
     owner = Factories.user(email_address: "owner@example.com")
     epic = Factories.epic(user: user, repository: repository, state: "ready", owner_user: owner)
-    unowned_child = Factories.job_record(user: user, repository: repository, epic: epic, owner_user: nil)
+    unowned_child = Factories.job_record(user: user, repository: repository, epic: epic)
+    unowned_child.update_columns(owner_user_id: nil) # simulate a legacy child that predates owner propagation
 
     patch "/api/v1/app/epics/#{epic.id}/state", params: { target_state: "in_progress" }
 

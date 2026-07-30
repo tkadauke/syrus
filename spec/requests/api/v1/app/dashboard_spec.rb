@@ -96,7 +96,9 @@ RSpec.describe "App API dashboard commands", type: :request do
           "id" => epic.id,
           "number" => epic.number,
           "display_number" => epic.slug,
-          "path" => epic_path(epic)
+          "path" => epic_path(epic),
+          "jobs_count" => 1,
+          "landed_jobs_count" => 0
         },
         "tags" => [ include("name" => "aqueduct", "color" => "blue") ],
         "paths" => include("job_path" => job_path(first), "source_path" => source_job_path(first))
