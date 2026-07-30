@@ -1,4 +1,5 @@
 web: bin/rails server
 worker: SYRUS_ROLE=worker bin/jobs
+preview: SYRUS_ROLE=preview bin/preview
 css: bin/rails tailwindcss:watch
 js: npm run build -- --watch

@@ -1247,6 +1247,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_06_193000) do
     t.index ["user_id"], name: "index_provider_availability_evidences_on_user_id"
   end
 
+  create_table "preview_environments", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "error_message"
+    t.datetime "expires_at"
+    t.string "internal_host"
+    t.integer "job_id", null: false
+    t.datetime "last_activity_at"
+    t.integer "port"
+    t.string "state", default: "starting", null: false
+    t.datetime "updated_at", null: false
+    t.string "workspace_path"
+    t.index ["expires_at"], name: "index_preview_environments_on_expires_at"
+    t.index ["job_id"], name: "index_preview_environments_on_job_id"
+    t.index ["job_id"], name: "index_preview_environments_on_job_id_active", where: "state IN ('starting','seeding','running','stopping')"
+    t.index ["state"], name: "index_preview_environments_on_state"
+  end
+
   create_table "repositories", force: :cascade do |t|
     t.string "agent_provider"
     t.boolean "approval_propagates_to_github", default: true
@@ -2047,6 +2064,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_06_193000) do
   add_foreign_key "provider_availability_evidences", "runs"
   add_foreign_key "provider_availability_evidences", "users"
   add_foreign_key "provider_availability_evidences", "users", column: "repaired_by_user_id"
+  add_foreign_key "preview_environments", "jobs"
   add_foreign_key "repositories", "installations"
   add_foreign_key "repositories", "repositories", column: "upstream_repository_id"
   add_foreign_key "repositories", "users"

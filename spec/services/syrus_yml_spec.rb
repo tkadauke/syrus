@@ -824,4 +824,57 @@ RSpec.describe SyrusYml do
       expect(stages[2]).to eq(described_class::DeploymentStage.new(name: "public", label: "Released to Public", tag: "release", tag_pattern: nil))
     end
   end
+
+  describe "preview: key" do
+    it "parses a full preview block" do
+      config = parse(<<~YAML)
+        preview:
+          start: "bin/rails server -p $PORT"
+          seed: "bin/rails db:seed"
+          health_check: "/health"
+          logs:
+            - log/development.log
+      YAML
+
+      expect(config.preview.start).to eq("bin/rails server -p $PORT")
+      expect(config.preview.seed).to eq("bin/rails db:seed")
+      expect(config.preview.health_check).to eq("/health")
+      expect(config.preview.logs).to eq([ "log/development.log" ])
+    end
+
+    it "returns nil when preview key is absent" do
+      expect(parse("grade: []").preview).to be_nil
+    end
+
+    it "defaults health_check to / when omitted" do
+      config = parse(<<~YAML)
+        preview:
+          start: "node server.js"
+      YAML
+
+      expect(config.preview.health_check).to eq("/")
+    end
+
+    it "defaults seed and logs to nil/[] when omitted" do
+      config = parse(<<~YAML)
+        preview:
+          start: "node server.js"
+      YAML
+
+      expect(config.preview.seed).to be_nil
+      expect(config.preview.logs).to eq([])
+    end
+
+    it "rejects a preview block with no start command" do
+      expect {
+        parse("preview:\n  seed: bin/seed\n")
+      }.to raise_error(SyrusYml::ParseError, /preview\.start/)
+    end
+
+    it "rejects a non-mapping preview value" do
+      expect {
+        parse("preview: true\n")
+      }.to raise_error(SyrusYml::ParseError, /preview.*mapping/)
+    end
+  end
 end

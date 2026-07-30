@@ -63,6 +63,19 @@ services:
       - syrus-search:/home/rails/.syrus-search
     command: ["./bin/jobs"]
 
+  preview:
+    <<: *app
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    environment:
+      SYRUS_ROLE: preview
+      SYRUS_PREVIEW_INTERNAL_HOST: preview-service
+    volumes:
+      - syrus-data:/home/rails/.syrus
+      - syrus-search:/home/rails/.syrus-search
+    command: ["./bin/preview"]
+
 volumes:
   syrus-data:
   syrus-search:

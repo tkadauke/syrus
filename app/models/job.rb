@@ -92,6 +92,7 @@ class Job < ApplicationRecord
            inverse_of: :depends_on_job
   has_many :dependents, through: :dependent_links, source: :job
   has_many :stack_children, class_name: "Job", foreign_key: :parent_job_id, dependent: :nullify, inverse_of: :parent_job
+  has_many :preview_environments, dependent: :destroy
 
   validates :kind, presence: true, inclusion: { in: KINDS }
   validates :credential_mode, presence: true, inclusion: { in: CREDENTIAL_MODES }

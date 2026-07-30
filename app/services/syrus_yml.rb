@@ -25,7 +25,7 @@ class SyrusYml
 
   DEPLOYMENT_STAGE_NAME_PATTERN = /\A[A-Za-z0-9_]+\z/
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :reconciliation_mode, :deployment_stages)
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :reconciliation_mode, :deployment_stages, :preview)
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern)
   GradeConfig = Data.define(:max_iterations, :steps)
   GradeStep = Data.define(:name, :run, :fast, :ci, :description, :required, :timeout_minutes, :when_files_changed, :junit_output)
@@ -39,6 +39,7 @@ class SyrusYml
   # e.g. schema.rb across SQLite/MySQL) — grader-validated, not diff-validated.
   GeneratedStep = Data.define(:command, :sources, :generates, :codegen_ignore)
   HooksConfig = Data.define(:post_checkout)
+  PreviewConfig = Data.define(:start, :seed, :health_check, :logs)
   AdversarialReviewConfig = Data.define(:rounds, :criteria)
   AgentInsightConfig = Data.define(:prepare)
   # Backward-compat aliases — point to the canonical RepoCoveragePlan types so
@@ -75,7 +76,8 @@ class SyrusYml
       formatters: parse_formatters(raw["formatters"]),
       generated: parse_generated(raw["generated"]),
       reconciliation_mode: parse_reconciliation_mode(raw["reconciliation_mode"]),
-      deployment_stages: parse_deployment_stages(raw["deployment_stages"])
+      deployment_stages: parse_deployment_stages(raw["deployment_stages"]),
+      preview: parse_preview(raw["preview"])
     )
   rescue Psych::SyntaxError => e
     raise ParseError, "YAML parse error: #{e.message}"
@@ -339,6 +341,21 @@ class SyrusYml
     raise ParseError, "adversarial_review.criteria: must be an array of strings" unless raw.is_a?(Array)
 
     raw.map { |item| item.to_s.strip }.reject(&:empty?)
+  end
+
+  def parse_preview(raw)
+    return nil if raw.nil?
+    raise ParseError, "preview: must be a mapping" unless raw.is_a?(Hash)
+
+    start = raw["start"].to_s.strip
+    raise ParseError, "preview.start: is required" if start.empty?
+
+    PreviewConfig.new(
+      start:        start,
+      seed:         raw["seed"].to_s.strip.presence,
+      health_check: raw["health_check"].to_s.strip.presence || "/",
+      logs:         Array(raw["logs"]).map { |p| p.to_s.strip }.reject(&:empty?)
+    )
   end
 
   def parse_adversarial_review_rounds(raw)
