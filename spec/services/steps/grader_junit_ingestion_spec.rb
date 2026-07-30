@@ -117,6 +117,26 @@ RSpec.describe "Steps::Grader JUnit XML ingestion" do
       expect(trs.sole.id).not_to eq(first_tr_id)
       expect(trs.sole.failed_count).to eq(1)
     end
+
+    it "creates independent TestRun records for different runs" do
+      step = make_step(junit_output: "results.xml")
+      @ws_path.join("results.xml").write(passing_xml)
+
+      handler, run = handler_for(step)
+      handler.call
+
+      step2 = make_step(junit_output: "results.xml")
+      @ws_path.join("results.xml").write(failing_xml)
+      run2 = step2.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running")
+      h2 = Steps::Grader.new(run2)
+      fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
+      allow(h2).to receive(:workspace).and_return(fake_ws)
+
+      expect { h2.call rescue nil }
+        .to change { TestRun.where(run: run2, grader_name: "tests").count }.from(0).to(1)
+
+      expect(TestRun.where(run: run, grader_name: "tests").count).to eq(1)
+    end
   end
 
   context "when junit_output is not configured" do
