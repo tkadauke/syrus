@@ -152,7 +152,7 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       hash_including("kind" => "epic", "label" => include("Deliver marble"), "is_focal" => false)
     )
     expect(body.dig("graph", "edges")).to contain_exactly(
-      hash_including("from_id" => "epic_#{epic.id}", "to_id" => "epic_#{blocker.id}")
+      hash_including("from_id" => "epic_#{blocker.id}", "to_id" => "epic_#{epic.id}")
     )
     expect(body["dependencies"]).to contain_exactly(include(
       "epic_id" => blocker.id,
