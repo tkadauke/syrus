@@ -172,3 +172,11 @@ Same as above, but used in `coding_handoff` workflows without a repair loop — 
 ### apply_suggestions
 
 Non-agentic. Applies structured code-suggestion patches (e.g., from review comments) before the agent responds.
+
+## Step resilience: in-place worker_died retry
+
+When a worker process is killed mid-step (deploy rolling restart, OOM, node eviction), the run is classified as `worker_died`. For **non-agentic** steps (e.g., `prepare`, `push`, `grade`, `auto_merge`), Syrus creates a new Run on the same Step instead of immediately failing it. This repeats up to `Run::WORKER_DIED_STEP_MAX_RETRIES` (3) times before the step fails normally and the operator sees the Retry button.
+
+**Agentic steps** (e.g., `implement`, `respond`) do not use in-place retry. They use `AutoRetryScheduler`'s session-resume path so the agent can pick up where it left off with prior conversation context intact.
+
+The in-place retry count is per-step per-workflow, not per-job. Each step failure classification is persisted as a `RunFailureClassification` row so the reaper and `RunJob` can accurately count prior retries.

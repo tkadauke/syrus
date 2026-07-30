@@ -318,18 +318,21 @@ class ReapStaleRunsJob < ApplicationJob
     run.fail!
     run.save!
 
-    # Workflow's terminal-state callback handles workspace teardown
-    # on its own when Run.fail above triggers Step.fail (via Step's
-    # after_update_commit) which triggers Workflow.fail. The reaper
-    # only needs to make sure the Run+Step both transition.
-    step = run.step
-    if step&.may_fail?
-      step.fail!
-      step.save!
-    end
-    if step
-      step.reload
-      StepDispatcher.fail_from(step) if step.failed?
+    # cascade_failure_to_step! (triggered by run.save!) may have created an
+    # in-place retry run when the worker_died budget isn't exhausted. Reload
+    # the step to see its post-callback state before deciding whether to fail
+    # it explicitly here.
+    step = run.step&.reload
+    step_retried = step && step.runs.where.not(id: run.id).active.exists?
+    unless step_retried
+      if step&.may_fail?
+        step.fail!
+        step.save!
+      end
+      if step
+        step.reload
+        StepDispatcher.fail_from(step) if step.failed?
+      end
     end
   rescue StandardError => e
     Rails.logger.warn("[ReapStaleRunsJob] reap failed for Run ##{run.id}: #{e.class}: #{e.message}")

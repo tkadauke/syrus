@@ -341,7 +341,7 @@ RSpec.describe ReapStaleRunsJob do
         expect(run.agent_outcome).to eq("worker_died")
       end
 
-      it "schedules failed-step retry for a reaped deterministic inline Run" do
+      it "queues an in-place retry Run and keeps the step alive for a reaped deterministic inline Run" do
         workflow = Workflow.create!(job: job, trigger_kind: "initial")
         step = Step.create!(workflow: workflow, kind: "prepare", position: 0)
         age = ReapStaleRunsJob::ORPHAN_RUN_GRACE_PERIOD + 30.seconds
@@ -353,11 +353,11 @@ RSpec.describe ReapStaleRunsJob do
         )
         stub_active_run_ids
 
-        expect {
-          described_class.perform_now
-        }.to change { AutoRetryAttempt.where(retry_kind: "failed_step").count }.by(1)
+        described_class.perform_now
 
-        expect(AutoRetryAttempt.last.run_id).to eq(run.id)
+        expect(run.reload).to be_failed
+        expect(step.reload).not_to be_failed
+        expect(step.runs.where(state: "queued").count).to eq(1)
       end
 
       it "leaves a Run alone when its SQ::Job is still active" do
@@ -725,6 +725,66 @@ RSpec.describe ReapStaleRunsJob do
         described_class.perform_now
 
         expect(workflow.reload).to be_running
+      end
+    end
+
+    describe "worker_died in-place step retry" do
+      def workflow_with_running_grader_run
+        workflow = Workflow.create!(job: job, trigger_kind: "initial")
+        step = Step.create!(workflow: workflow, kind: "grader", position: 0)
+        step.update_columns(state: "running")
+        run = step.runs.create!(job: job, trigger_kind: "initial")
+        run.update_columns(
+          state: "running",
+          started_at: (Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes).ago,
+          last_heartbeat_at: (Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes).ago
+        )
+        [ workflow, step, run ]
+      end
+
+      def record_worker_died_classification!(run)
+        run.create_run_failure_classification!(
+          classification: "worker_died",
+          retryable: true,
+          classified_at: Time.current
+        )
+      end
+
+      it "keeps the step running and enqueues a new Run on the first worker_died reap" do
+        _workflow, step, _run = workflow_with_running_grader_run
+
+        described_class.perform_now
+
+        expect(step.reload).not_to be_failed
+        expect(step.runs.where(state: "queued").count).to eq(1)
+      end
+
+      it "still retries when one prior worker_died run exists on the step" do
+        _workflow, step, run = workflow_with_running_grader_run
+        prior = step.runs.create!(job: job, trigger_kind: "initial",
+                                   state: "failed", finished_at: 10.minutes.ago)
+        record_worker_died_classification!(prior)
+
+        described_class.perform_now
+
+        expect(run.reload).to be_failed
+        expect(step.reload).not_to be_failed
+        expect(step.runs.where(state: "queued").count).to eq(1)
+      end
+
+      it "fails the step normally once WORKER_DIED_STEP_MAX_RETRIES prior runs exist" do
+        _workflow, step, run = workflow_with_running_grader_run
+
+        Run::WORKER_DIED_STEP_MAX_RETRIES.times do
+          prior = step.runs.create!(job: job, trigger_kind: "initial",
+                                     state: "failed", finished_at: 5.minutes.ago)
+          record_worker_died_classification!(prior)
+        end
+
+        described_class.perform_now
+
+        expect(step.reload).to be_failed
+        expect(step.runs.where(state: "queued").count).to eq(0)
       end
     end
   end

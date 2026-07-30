@@ -45,6 +45,7 @@ class Run < ApplicationRecord
   # 30 min comfortably covers normal long-tool-call gaps (large file
   # reads, broad greps, multi-file edits).
   STALE_HEARTBEAT_THRESHOLD = 30.minutes
+  WORKER_DIED_STEP_MAX_RETRIES = 3
 
   scope :active, -> { where(state: %w[ queued running ]) }
   scope :terminal, -> { where(state: %w[ succeeded failed cancelled ]) }
@@ -133,6 +134,8 @@ class Run < ApplicationRecord
 
   def cascade_failure_to_step!
     return unless step
+    return if retried_in_place_after_worker_died?
+
     if step.may_fail?
       step.fail!
       step.save!
@@ -203,6 +206,32 @@ class Run < ApplicationRecord
   end
 
   private
+
+  def retried_in_place_after_worker_died?
+    return false if step.agentic?
+
+    classification = RunFailureClassifier.classify(self)
+    return false unless classification.classification == AutoRetryScheduler::WORKER_DIED_CLASSIFICATION
+
+    prior_worker_died_count = step.runs
+      .where.not(id: id)
+      .where(state: "failed")
+      .joins(:run_failure_classification)
+      .where(run_failure_classifications: { classification: AutoRetryScheduler::WORKER_DIED_CLASSIFICATION })
+      .count
+
+    return false unless prior_worker_died_count < WORKER_DIED_STEP_MAX_RETRIES
+
+    StepDispatcher.create_run_and_enqueue(step, step.workflow)
+    Rails.logger.info(
+      "[Run##{id}] worker_died in-place retry #{prior_worker_died_count + 1}/#{WORKER_DIED_STEP_MAX_RETRIES}: " \
+      "new run queued on step #{step.id} (#{step.kind})"
+    )
+    true
+  rescue StandardError => e
+    Rails.logger.warn("[Run##{id}] worker_died in-place retry failed: #{e.class}: #{e.message}")
+    false
+  end
 
   def default_user_from_job
     self.user ||= job&.user

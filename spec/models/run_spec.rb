@@ -353,6 +353,78 @@ RSpec.describe Run do
     end
   end
 
+  describe "in-place worker_died step retry" do
+    let(:workflow) { Workflow.create!(job: job, trigger_kind: "initial") }
+    let(:step) { Step.create!(workflow: workflow, kind: "grader", position: 0, state: "running") }
+
+    def make_worker_died_run!(step)
+      r = step.runs.create!(job: job, trigger_kind: "initial", state: "failed",
+                             agent_outcome: "worker_died", finished_at: Time.current)
+      r.create_run_failure_classification!(
+        classification: "worker_died",
+        retryable: true,
+        classified_at: Time.current
+      )
+      r
+    end
+
+    it "creates a new Run on the same step and keeps the step running on the first worker_died" do
+      run = step.runs.create!(job: job, trigger_kind: "initial", state: "running")
+
+      run.agent_outcome = "worker_died"
+      run.fail!
+      run.save!
+
+      expect(step.reload).not_to be_failed
+      expect(step.runs.where(state: "queued").count).to eq(1)
+    end
+
+    it "keeps creating retry runs until the budget is exhausted" do
+      make_worker_died_run!(step)
+      make_worker_died_run!(step)
+
+      run = step.runs.create!(job: job, trigger_kind: "initial", state: "running")
+      run.agent_outcome = "worker_died"
+      run.fail!
+      run.save!
+
+      expect(step.reload).not_to be_failed
+      expect(step.runs.where(state: "queued").count).to eq(1)
+    end
+
+    it "fails the step normally once WORKER_DIED_STEP_MAX_RETRIES prior worker_died runs exist" do
+      Run::WORKER_DIED_STEP_MAX_RETRIES.times { make_worker_died_run!(step) }
+
+      run = step.runs.create!(job: job, trigger_kind: "initial", state: "running")
+      run.agent_outcome = "worker_died"
+      run.fail!
+      run.save!
+
+      expect(step.reload).to be_failed
+      expect(step.runs.where(state: "queued").count).to eq(0)
+    end
+
+    it "skips the in-place retry for non-worker_died failures and fails the step immediately" do
+      run = step.runs.create!(job: job, trigger_kind: "initial", state: "running")
+      run.agent_outcome = "agent_max_turns"
+      run.fail!
+      run.save!
+
+      expect(step.reload).to be_failed
+      expect(step.runs.where(state: "queued").count).to eq(0)
+    end
+
+    it "does not call StepDispatcher.fail_from when a retry run is created" do
+      run = step.runs.create!(job: job, trigger_kind: "initial", state: "running")
+      run.agent_outcome = "worker_died"
+
+      expect(StepDispatcher).not_to receive(:fail_from)
+
+      run.fail!
+      run.save!
+    end
+  end
+
   describe "#terminal?" do
     it "is false for queued and running" do
       run = job.initial_run
