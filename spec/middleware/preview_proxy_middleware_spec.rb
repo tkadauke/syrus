@@ -118,7 +118,6 @@ RSpec.describe PreviewProxyMiddleware do
     end
 
     it "respects a custom base domain configured via SYRUS_PREVIEW_BASE_DOMAIN" do
-      custom_middleware = described_class.new(inner_app)
       stub_const("ENV", ENV.to_h.merge("SYRUS_PREVIEW_BASE_DOMAIN" => "preview.example.com"))
       custom_middleware = described_class.new(inner_app)
 
