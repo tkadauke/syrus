@@ -197,6 +197,7 @@ class ChatPendingAction < ApplicationRecord
       content: { "text" => text, "source" => ChatPendingActionOutcomeNotification::SOURCE, "outcome" => state }
     )
     chat_session.update!(last_message_at: Time.current)
+    chat_session.pin_chat_provider!
     ChatTurnJob.perform_later(chat_session_id, message.id)
   end
 

@@ -133,6 +133,7 @@ class ChatTurnJob < ApplicationJob
   end
 
   def chat_provider
+    @chat.pin_chat_provider!(broadcast: false) if @chat.chat_provider.blank? && @chat.messages.exists?
     ChatProviders.for(@chat.effective_chat_provider).new(chat: @chat, runner: self.class.agent_runner)
   end
 

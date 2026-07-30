@@ -35,6 +35,7 @@ class ChatAgentQuestion < ApplicationRecord
       user_message = chat_session.messages.create!(role: "user", content: { "text" => value.to_s })
       user_message_id = user_message.id
       chat_session.update!(last_message_at: now, title: chat_session.title.presence)
+      chat_session.pin_chat_provider!
       update!(answer: value.to_s, answered_at: now)
     end
 

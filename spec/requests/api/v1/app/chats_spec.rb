@@ -154,7 +154,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       .to eq([ "Plan the launch.", "Draft milestones." ])
   end
 
-  it "preserves a default provider setting when branching a chat" do
+  it "preserves a default provider setting when branching an empty chat" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, title: "Release planning", chat_provider: nil)
 
@@ -162,6 +162,18 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
     expect(response).to have_http_status(:created)
     expect(ChatSession.find(parse_body["id"]).chat_provider).to be_nil
+  end
+
+  it "pins a default provider setting when branching a chat with messages" do
+    sign_in_as(user)
+    user.update!(chat_provider: "claude")
+    chat = ChatSession.create!(user: user, repository: repository, title: "Release planning", chat_provider: nil)
+    chat.messages.create!(role: "user", content: { "text" => "Plan the launch." })
+
+    post "/api/v1/app/chats/#{chat.id}/branch"
+
+    expect(response).to have_http_status(:created)
+    expect(ChatSession.find(parse_body["id"]).chat_provider).to eq("claude")
   end
 
   it "clamps a branched chat's derived title at the title length limit" do
@@ -847,6 +859,20 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body.dig("chat", "chat_provider")).to be_nil
   end
 
+  it "pins Default to the current effective provider for non-empty chats" do
+    sign_in_as(user)
+    user.update!(codex_api_key: "sk-test", chat_provider: "claude")
+    chat = ChatSession.create!(user: user, repository: repository)
+    chat.messages.create!(role: "user", content: { "text" => "Keep this provider" })
+
+    patch "/api/v1/app/chats/#{chat.id}", params: { chat: { chat_provider: "" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(chat.reload.chat_provider).to eq("claude")
+    expect(parse_body.dig("chat", "chat_provider")).to eq("claude")
+    expect(parse_body.dig("chat", "effective_chat_provider")).to eq("claude")
+  end
+
   it "rejects unknown or unconfigured explicit chat providers" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository)
@@ -972,6 +998,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(response).to have_http_status(:ok)
     expect(chat.reload.title).to be_nil
     expect(chat).to be_title_pending
+    expect(chat.chat_provider).to eq("claude")
     expect(parse_body.dig("chat", "title")).to eq("widgets")
     expect(parse_body.dig("chat", "title_pending")).to eq(true)
   end
@@ -990,7 +1017,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(response).to have_http_status(:created)
     chat = ChatSession.last
     expect(chat.onboarding?).to be true
-    expect(chat.chat_provider).to be_nil
+    expect(chat.chat_provider).to eq("claude")
     expect(chat.effective_chat_provider).to eq("claude")
     expect(chat.repository).to eq(repository)
     expect(chat.messages.last.role).to eq("user")

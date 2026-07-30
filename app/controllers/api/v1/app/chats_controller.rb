@@ -75,6 +75,7 @@ module Api
               return
             end
 
+            provider ||= chat_session.effective_chat_provider if chat_session.messages.exists?
             chat_session.update!(chat_provider: provider)
             render json: chat_payload(chat_session.reload, message: "Chat provider updated.")
             return
@@ -245,6 +246,7 @@ module Api
               role: "user",
               content: { "text" => "I just finished setting up Syrus. Show me how it works and help me get started." }
             )
+            chat_session.pin_chat_provider!
           end
 
           enqueue_chat_title(chat_session, user_message)
@@ -293,6 +295,7 @@ module Api
               title: chat_session.title.presence
             )
             user_message = chat_session.messages.create!(role: "user", content: content)
+            chat_session.pin_chat_provider!
           end
           if chat_session.title.blank? && (title_message = first_user_message(chat_session))
             enqueue_chat_title(chat_session, title_message)
@@ -405,6 +408,7 @@ module Api
               last_message_at: Time.current
             )
             branch_chat_messages!(source_chat, branched_chat)
+            branched_chat.pin_chat_provider! if branched_chat.messages.exists?
           end
 
           render json: { id: branched_chat.id, app_path: chat_path(branched_chat) }, status: :created
@@ -995,6 +999,7 @@ module Api
               last_message_at: Time.current,
               title: locked_chat.title.presence
             )
+            locked_chat.pin_chat_provider!
           end
           user_message
         end

@@ -27,6 +27,7 @@ module ChatSessionLifecycle
       )
       if text.present?
         user_message = chat_session.messages.create!(role: "user", content: content)
+        chat_session.pin_chat_provider!
       end
     end
 

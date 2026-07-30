@@ -1130,7 +1130,7 @@ RSpec.describe ChatTurnJob do
     expect(mixed_chat.reload.claude_session.provider).to eq("codex")
   end
 
-  it "uses the user default chat provider when the chat provider is blank" do
+  it "pins the user default chat provider when the chat provider is blank" do
     codex_user = Factories.user(
       agent_provider: "codex",
       chat_provider: nil,
@@ -1156,7 +1156,75 @@ RSpec.describe ChatTurnJob do
       api_key: "sk-test",
       codex_home: ChatWorkspace.agent_home_for(codex_chat, "codex").to_s
     )
+    expect(codex_chat.reload.chat_provider).to eq("codex")
     expect(codex_chat.reload.claude_session.provider).to eq("codex")
+  end
+
+  it "continues a blank-provider Claude chat with Claude after the user default changes to Codex" do
+    stable_user = Factories.user(
+      agent_provider: "claude",
+      chat_provider: "claude",
+      claude_oauth_token: "oat-test",
+      codex_api_key: "sk-test",
+      github_token: "ghp-test"
+    )
+    stable_repository = Factories.repository(user: stable_user, owner: "acme", name: "claude-stable", default_branch: "main")
+    stable_chat = ChatSession.create!(repository: stable_repository, user: stable_user, chat_provider: nil)
+    stable_chat.messages.create!(role: "user", content: { text: "Start on Claude" })
+    stable_chat.pin_chat_provider!
+    stable_user.update!(chat_provider: "codex")
+    followup = stable_chat.messages.create!(role: "user", content: { text: "Continue after default changed" })
+    stable_workspace_path = workspace_root.join("claude-stable-chat")
+    allow(ChatWorkspace).to receive(:path_for).with(stable_chat).and_return(stable_workspace_path)
+    allow(ChatWorkspace).to receive(:ensure_root!).with(stable_chat).and_return(stable_workspace_path)
+
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
+      result_fixture(session_id: "claude-stable-session", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(stable_chat.id, followup.id)
+
+    expect(received).to include(oauth_token: "oat-test")
+    expect(received).not_to include(:api_key)
+    expect(stable_chat.reload.chat_provider).to eq("claude")
+    expect(stable_chat.claude_session.provider).to eq("claude")
+  end
+
+  it "continues a blank-provider Codex chat with Codex after the user default changes to Claude" do
+    stable_user = Factories.user(
+      agent_provider: "codex",
+      chat_provider: "codex",
+      claude_oauth_token: "oat-test",
+      codex_api_key: "sk-test",
+      github_token: "ghp-test"
+    )
+    stable_repository = Factories.repository(user: stable_user, owner: "acme", name: "codex-stable", default_branch: "main")
+    stable_chat = ChatSession.create!(repository: stable_repository, user: stable_user, chat_provider: nil)
+    stable_chat.messages.create!(role: "user", content: { text: "Start on Codex" })
+    stable_chat.pin_chat_provider!
+    stable_user.update!(chat_provider: "claude")
+    followup = stable_chat.messages.create!(role: "user", content: { text: "Continue after default changed" })
+    stable_workspace_path = workspace_root.join("codex-stable-chat")
+    allow(ChatWorkspace).to receive(:path_for).with(stable_chat).and_return(stable_workspace_path)
+    allow(ChatWorkspace).to receive(:ensure_root!).with(stable_chat).and_return(stable_workspace_path)
+
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
+      result_fixture(session_id: "codex-stable-session", transcript_jsonl: "{\"type\":\"session_meta\"}\n")
+    }
+
+    described_class.perform_now(stable_chat.id, followup.id)
+
+    expect(received).to include(
+      api_key: "sk-test",
+      codex_home: ChatWorkspace.agent_home_for(stable_chat, "codex").to_s
+    )
+    expect(received).not_to include(:oauth_token)
+    expect(stable_chat.reload.chat_provider).to eq("codex")
+    expect(stable_chat.claude_session.provider).to eq("codex")
   end
 
   it "includes compact persisted chat history when resuming a Codex session" do

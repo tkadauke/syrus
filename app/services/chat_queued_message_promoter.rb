@@ -25,6 +25,7 @@ class ChatQueuedMessagePromoter
         last_message_at: Time.current,
         title: chat.title.presence
       )
+      chat.pin_chat_provider!
     end
 
     ChatTurnJob.perform_later(@chat_session.id, user_message.id)

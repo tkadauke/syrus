@@ -121,6 +121,25 @@ class ChatSession < ApplicationRecord
     chat_provider.presence || user&.effective_chat_provider || "claude"
   end
 
+  def pin_chat_provider!(provider = effective_chat_provider, broadcast: true)
+    resolved_provider = provider.to_s.strip.presence || "claude"
+    return chat_provider if chat_provider.present?
+
+    unless User::CHAT_PROVIDERS.include?(resolved_provider)
+      errors.add(:chat_provider, "is not included in the list")
+      raise ActiveRecord::RecordInvalid, self
+    end
+
+    if broadcast
+      update!(chat_provider: resolved_provider)
+    else
+      update_columns(chat_provider: resolved_provider)
+      self.chat_provider = resolved_provider
+    end
+
+    chat_provider
+  end
+
   def workspace_root
     ChatWorkspace.path_for(self)
   end

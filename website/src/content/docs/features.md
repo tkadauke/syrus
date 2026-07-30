@@ -257,11 +257,14 @@ for implemented or failed Jobs, bypassing the chat pending-action confirmation
 while creating the same `chat_feedback` Workflow.
 
 Attached repository checkouts are read-only for the chat agent. Chat can run
-through Claude or Codex. Each chat can stay on **Default**, which follows the
-operator's current chat provider setting and then the default agent provider,
-or it can explicitly choose Claude or Codex from chat settings when both are
-configured. Branched chats preserve that explicit provider choice, and stored
-agent sessions only resume when the next turn uses the same provider. Chat may
+through Claude or Codex. Empty chats can stay on **Default**, which follows the
+operator's current chat provider setting and then the default agent provider
+until the first turn. Once a chat has messages, Syrus pins the resolved provider
+on the chat so later user-default changes do not silently move the conversation
+between Claude and Codex. Operators can still explicitly choose Claude or Codex
+from chat settings when both are configured; explicit provider switching uses
+the normal rehydration flow. Branched chats preserve that provider choice, and
+stored agent sessions only resume when the next turn uses the same provider. Chat may
 read, search, list, and refresh checkouts for context, but code changes must
 be drafted as proposals for operator confirmation. Claude chat turns also
 deny Claude's file-editing tools (`Write`, `Edit`, `MultiEdit`, and

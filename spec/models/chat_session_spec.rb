@@ -97,6 +97,18 @@ RSpec.describe ChatSession do
     expect(session_override.effective_chat_provider).to eq("codex")
   end
 
+  it "pins a blank chat provider to the current effective provider" do
+    user = Factories.user(agent_provider: "codex", chat_provider: "claude")
+    session = described_class.create!(user: user)
+
+    expect {
+      session.pin_chat_provider!
+    }.to change { session.reload.chat_provider }.from(nil).to("claude")
+
+    user.update!(chat_provider: "codex")
+    expect(session.reload.effective_chat_provider).to eq("claude")
+  end
+
   it "requires a user" do
     session = described_class.new
 
