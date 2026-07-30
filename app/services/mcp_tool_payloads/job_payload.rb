@@ -72,7 +72,7 @@ module McpToolPayloads
       }
     end
 
-    # Serialises one JobDependency. Returns nil for unresolvable epic dependencies.
+    # Serialises one JobDependency.
     def dependency_payload(dependency)
       if dependency.pending?
         {
@@ -82,7 +82,19 @@ module McpToolPayloads
         }
       elsif dependency.depends_on_job
         job_reference_payload(dependency.depends_on_job)
+      elsif dependency.depends_on_epic
+        epic_reference_payload(dependency.depends_on_epic)
       end
+    end
+
+    # Cross-epic reference included in dependency lists.
+    def epic_reference_payload(epic)
+      {
+        epic_id: epic.id,
+        display_number: epic.display_number,
+        title: epic.title,
+        state: epic.state
+      }
     end
   end
 end

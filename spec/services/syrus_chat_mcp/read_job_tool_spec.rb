@@ -95,6 +95,21 @@ RSpec.describe SyrusChatMcp::ReadJobTool do
     expect(response_payload(response)[:job]).to include(id: other_job.id)
   end
 
+  it "includes epic dependencies in the dependency list" do
+    job = Factories.job(repository: repository)
+    upstream_epic = Factories.epic(repository: repository, user: user, title: "Aqueduct surveying")
+    JobDependency.create!(job: job, depends_on_epic: upstream_epic, source: "manual")
+
+    response = call_tool(job_id: job.id)
+    payload = response_payload(response)
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(payload[:job][:dependencies]).to contain_exactly(
+      include(epic_id: upstream_epic.id, title: "Aqueduct surveying", state: "backlog")
+    )
+    expect(payload[:job][:dependencies].first).to include(:display_number)
+  end
+
   it "includes scheduled_task_id for cron jobs" do
     task = repository.scheduled_tasks.create!(
       user: user,
