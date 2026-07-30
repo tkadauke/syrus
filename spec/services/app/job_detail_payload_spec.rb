@@ -214,6 +214,37 @@ RSpec.describe App::JobDetailPayload do
     end
   end
 
+  describe "#has_test_results?" do
+    it "returns false when the job has no runs" do
+      job = Factories.job_record(user: user, repository: repo)
+
+      expect(payload_for(job)[:has_test_results]).to be(false)
+    end
+
+    it "returns false when runs exist but none have test results" do
+      job = Factories.job(user: user, repository: repo)
+
+      expect(payload_for(job)[:has_test_results]).to be(false)
+    end
+
+    it "returns true when at least one run has a TestRun" do
+      job = Factories.job(user: user, repository: repo)
+      run = job.initial_run
+      TestRun.create!(
+        run: run,
+        repository: repo,
+        grader_name: "rspec",
+        total_count: 1,
+        passed_count: 1,
+        failed_count: 0,
+        skipped_count: 0,
+        error_count: 0
+      )
+
+      expect(payload_for(job)[:has_test_results]).to be(true)
+    end
+  end
+
   describe "#workflows_json" do
     it "includes the active spawned process for running runs" do
       job = Factories.job_record(repository: repo)

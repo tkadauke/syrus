@@ -41,6 +41,7 @@ module App
         attachments: @job.job_attachments.includes(file_attachment: :blob).map { |attachment| attachment_json(attachment) },
         summary: summary_json,
         test_plan: test_plan_json,
+        has_test_results: has_test_results?,
         feedback_history: feedback_history_json,
         pending_feedback: pending_feedback_json,
         landing_queue_entry: landing_queue_entry_json,
@@ -285,6 +286,13 @@ module App
       }
     end
 
+    def has_test_results?
+      run_ids = @job.runs.map(&:id)
+      return false if run_ids.empty?
+
+      TestRun.where(run_id: run_ids).exists?
+    end
+
     def origin_chat_json
       proposal = ChatProposal.where(job_id: @job.id).first
       proposal ||= ChatProposal.where(epic_id: @job.epic_id).first if @job.epic_id
@@ -390,6 +398,7 @@ module App
         source_path: source_job_path(@job),
         app_detail_path: "/api/v1/app/jobs/#{@job.id}",
         app_source_path: "/api/v1/app/jobs/#{@job.id}/source",
+        app_test_results_path: "/api/v1/app/jobs/#{@job.id}/test_results",
         app_timeline_path: "/api/v1/app/jobs/#{@job.id}/timeline",
         app_start_path: "/api/v1/app/jobs/#{@job.id}/start",
         app_run_again_path: "/api/v1/app/jobs/#{@job.id}/run_again",

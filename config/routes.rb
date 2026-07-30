@@ -74,6 +74,7 @@ Rails.application.routes.draw do
         get "jobs/:id/workflows", to: "jobs#workflows", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id/transcript", to: "jobs#transcript", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id/diff", to: "jobs#diff", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        get "jobs/:job_id/test_results", to: "job_test_results#index", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:job_id/runs/:run_id/artifacts", to: "jobs#run_artifacts", constraints: { job_id: /[a-zA-Z0-9_-]+/, run_id: /\d+/ }
         get "jobs/:job_id/runs/:run_id/grade_log", to: "jobs#grade_log", constraints: { job_id: /[a-zA-Z0-9_-]+/, run_id: /\d+/ }
         patch "jobs/:job_id/priority", to: "jobs#update_priority", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
