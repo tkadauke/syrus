@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_29_220530) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_30_013849) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1293,6 +1293,42 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_29_220530) do
     t.index ["workflow_id"], name: "index_terminal_sessions_on_workflow_id"
   end
 
+  create_table "test_cases", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "duration_ms"
+    t.text "failure_backtrace"
+    t.text "failure_message"
+    t.string "file_path"
+    t.string "name", null: false
+    t.text "output"
+    t.bigint "repository_id", null: false
+    t.string "status", limit: 32, null: false
+    t.string "suite_name", null: false
+    t.bigint "test_run_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["repository_id", "suite_name", "name"], name: "idx_test_cases_repo_suite_name"
+    t.index ["repository_id"], name: "index_test_cases_on_repository_id"
+    t.index ["test_run_id", "status"], name: "idx_test_cases_run_status"
+    t.index ["test_run_id"], name: "index_test_cases_on_test_run_id"
+  end
+
+  create_table "test_runs", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "duration_ms"
+    t.integer "error_count", default: 0, null: false
+    t.integer "failed_count", default: 0, null: false
+    t.string "grader_name", limit: 128, null: false
+    t.integer "passed_count", default: 0, null: false
+    t.bigint "repository_id", null: false
+    t.bigint "run_id", null: false
+    t.integer "skipped_count", default: 0, null: false
+    t.integer "total_count", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["repository_id"], name: "index_test_runs_on_repository_id"
+    t.index ["run_id", "grader_name"], name: "idx_test_runs_run_grader_unique", unique: true
+    t.index ["run_id"], name: "index_test_runs_on_run_id"
+  end
+
   create_table "users", force: :cascade do |t|
     t.boolean "admin", default: false, null: false
     t.integer "agent_max_turns", default: 200, null: false
@@ -1514,6 +1550,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_29_220530) do
   add_foreign_key "steps", "workflows"
   add_foreign_key "terminal_sessions", "users"
   add_foreign_key "terminal_sessions", "workflows"
+  add_foreign_key "test_cases", "repositories"
+  add_foreign_key "test_cases", "test_runs"
+  add_foreign_key "test_runs", "repositories"
+  add_foreign_key "test_runs", "runs"
   add_foreign_key "whiteboard_snapshots", "chat_sessions"
   add_foreign_key "whiteboards", "chat_sessions"
   add_foreign_key "workflows", "jobs"

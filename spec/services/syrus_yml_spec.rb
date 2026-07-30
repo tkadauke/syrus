@@ -29,8 +29,8 @@ RSpec.describe SyrusYml do
 
     expect(config.grade.max_iterations).to eq(5)
     expect(config.grade.steps).to eq([
-      described_class::GradeStep.new(name: "tests", run: "bin/rspec", description: nil, required: true, timeout_minutes: 15, when_files_changed: nil),
-      described_class::GradeStep.new(name: "lint", run: "bin/rubocop", description: nil, required: true, timeout_minutes: 5, when_files_changed: nil)
+      described_class::GradeStep.new(name: "tests", run: "bin/rspec", description: nil, required: true, timeout_minutes: 15, when_files_changed: nil, junit_output: nil),
+      described_class::GradeStep.new(name: "lint", run: "bin/rubocop", description: nil, required: true, timeout_minutes: 5, when_files_changed: nil, junit_output: nil)
     ])
   end
 
@@ -45,7 +45,7 @@ RSpec.describe SyrusYml do
 
     expect(config.grade.max_iterations).to eq(7)
     expect(config.grade.steps).to eq([
-      described_class::GradeStep.new(name: "tests", run: "bin/rspec", description: nil, required: true, timeout_minutes: 15, when_files_changed: nil)
+      described_class::GradeStep.new(name: "tests", run: "bin/rspec", description: nil, required: true, timeout_minutes: 15, when_files_changed: nil, junit_output: nil)
     ])
   end
 
@@ -293,6 +293,27 @@ RSpec.describe SyrusYml do
     YAML
 
     expect(config.grade.steps.first.description).to eq("Rejects regressions in the Rails suite.")
+  end
+
+  it "parses junit_output path when present" do
+    config = parse(<<~YAML)
+      grade:
+        - name: tests
+          run: bin/rspec
+          junit_output: tmp/rspec-results.xml
+    YAML
+
+    expect(config.grade.steps.first.junit_output).to eq("tmp/rspec-results.xml")
+  end
+
+  it "defaults junit_output to nil when absent" do
+    config = parse(<<~YAML)
+      grade:
+        - name: tests
+          run: bin/rspec
+    YAML
+
+    expect(config.grade.steps.first.junit_output).to be_nil
   end
 
   it "clamps timeout_minutes above the hard ceiling with a warning" do

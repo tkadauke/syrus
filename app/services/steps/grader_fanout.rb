@@ -149,7 +149,8 @@ module Steps
               "description" => grader.description,
               "required" => grader.required,
               "timeout_minutes" => grader.timeout_minutes,
-              "when_files_changed" => grader.when_files_changed
+              "when_files_changed" => grader.when_files_changed,
+              "junit_output" => grader.junit_output
             }
           )
         end

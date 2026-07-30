@@ -25,7 +25,7 @@ class SyrusYml
 
   Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :coverage, :formatters, :generated, :reconciliation_mode)
   GradeConfig = Data.define(:max_iterations, :steps)
-  GradeStep = Data.define(:name, :run, :description, :required, :timeout_minutes, :when_files_changed)
+  GradeStep = Data.define(:name, :run, :description, :required, :timeout_minutes, :when_files_changed, :junit_output)
   # Deterministic, in-place, semantics-preserving cosmetic passes (safe
   # autocorrect only). `files` are the globs this formatter owns — both its
   # target set and its self-gate (empty slice of the diff → no-op).
@@ -224,7 +224,8 @@ class SyrusYml
       description: raw["description"].to_s.strip.presence,
       required: raw.key?("required") ? ActiveModel::Type::Boolean.new.cast(raw["required"]) : true,
       timeout_minutes: parse_timeout_minutes(raw.fetch("timeout_minutes", DEFAULT_GRADE_TIMEOUT_MINUTES), name),
-      when_files_changed: when_files_changed
+      when_files_changed: when_files_changed,
+      junit_output: raw["junit_output"]&.to_s&.strip&.presence
     )
   end
 

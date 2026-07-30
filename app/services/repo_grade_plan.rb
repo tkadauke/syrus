@@ -15,7 +15,7 @@ class RepoGradePlan
   CONFIG_FILE = ".syrus.yml".freeze
   NAME_PATTERN = SyrusYml::GRADE_NAME_PATTERN
 
-  Grader = Data.define(:name, :command, :description, :required, :timeout_minutes, :when_files_changed)
+  Grader = Data.define(:name, :command, :description, :required, :timeout_minutes, :when_files_changed, :junit_output)
   Result = Data.define(:graders, :source, :note, :max_iterations)
 
   def self.for(workspace_path)
@@ -54,7 +54,8 @@ class RepoGradePlan
       description: step.description,
       required: step.required,
       timeout_minutes: step.timeout_minutes,
-      when_files_changed: step.when_files_changed
+      when_files_changed: step.when_files_changed,
+      junit_output: step.junit_output
     )
   end
 
