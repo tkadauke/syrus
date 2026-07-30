@@ -167,4 +167,107 @@ RSpec.describe Steps::MergeabilityPreflight do
     expect(workflow.reload).to be_running
     expect(run.reload).to be_running
   end
+
+  context "with an external_pr job" do
+    # external_pr Jobs must be created in :implemented state (validated on create).
+    # Factories.job_record always overrides state to "closed" then update_columns,
+    # so we use Job.create! directly for external_pr kind.
+    let(:external_pr_job) do
+      Job.create!(
+        user: user,
+        owner_user: user,
+        repository: repository,
+        kind: "external_pr",
+        issue_number: nil,
+        external_pr_number: 99,
+        state: "implemented"
+      )
+    end
+    let(:external_workflow) { Workflows::ExternalPrMerge.instantiate(job: external_pr_job) }
+    let(:external_step) { external_workflow.steps.first }
+    let(:external_run) { Run.create!(job: external_pr_job, step: external_step, trigger_kind: "external_pr_merge") }
+
+    before do
+      external_pr_job.approve!(via: "operator")
+      external_pr_job.start_landing!
+      external_pr_job.save!
+      external_workflow.start!
+      external_workflow.save!
+      external_step.start!
+      external_step.save!
+      external_run.start!
+      external_run.save!
+    end
+
+    it "proceeds when the external PR is open and mergeable" do
+      allow(client).to receive(:pull_request).with("acme/widgets", 99, anything).and_return(
+        pr(state: "open", mergeable_state: "clean")
+      )
+
+      described_class.new(external_run).call
+
+      expect(external_run.reload).to be_running
+      expect(external_workflow.reload).to be_running
+    end
+
+    it "proceeds when GitHub reports unstable (non-required check failing)" do
+      allow(client).to receive(:pull_request).with("acme/widgets", 99, anything).and_return(
+        pr(state: "open", mergeable_state: "unstable")
+      )
+
+      described_class.new(external_run).call
+
+      expect(external_run.reload).to be_running
+    end
+
+    it "cancels the workflow and closes the job as merged when the external PR is already merged" do
+      allow(client).to receive(:pull_request).with("acme/widgets", 99, anything).and_return(
+        OpenStruct.new(state: "closed", merged: true, mergeable_state: nil,
+                       head: OpenStruct.new(sha: "abc"), base: OpenStruct.new(ref: "main", sha: "base"))
+      )
+
+      described_class.new(external_run).call
+
+      expect(external_workflow.reload).to be_cancelled
+      expect(external_pr_job.reload).to be_closed
+      expect(external_pr_job.closure_reason).to eq("external_pr_merged")
+    end
+
+    it "cancels the workflow and closes the job when the external PR was closed without merging" do
+      allow(client).to receive(:pull_request).with("acme/widgets", 99, anything).and_return(
+        OpenStruct.new(state: "closed", merged: false, mergeable_state: nil,
+                       head: OpenStruct.new(sha: "abc"), base: OpenStruct.new(ref: "main", sha: "base"))
+      )
+
+      described_class.new(external_run).call
+
+      expect(external_workflow.reload).to be_cancelled
+      expect(external_pr_job.reload).to be_closed
+      expect(external_pr_job.closure_reason).to eq("external_pr_closed")
+    end
+
+    it "defers and enqueues a mergeability recheck when GitHub is still computing" do
+      allow(client).to receive(:pull_request).with("acme/widgets", 99, anything).and_return(
+        pr(state: "open", mergeable_state: "unknown")
+      )
+
+      expect {
+        described_class.new(external_run).call
+      }.to have_enqueued_job(LandingQueueProcessorJob)
+        .at(be_within(3.seconds).of(LandingQueueProcessor::MERGEABILITY_RECHECK_DELAY.from_now))
+
+      expect(external_pr_job.reload).to be_approved
+      expect(external_workflow.reload).to be_cancelled
+    end
+
+    it "raises StepFailed when the external PR is not mergeable (e.g. blocked)" do
+      allow(client).to receive(:pull_request).with("acme/widgets", 99, anything).and_return(
+        pr(state: "open", mergeable_state: "blocked")
+      )
+
+      expect {
+        described_class.new(external_run).call
+      }.to raise_error(Steps::Base::StepFailed, /not mergeable.*blocked/)
+    end
+  end
 end

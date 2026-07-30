@@ -430,8 +430,9 @@ class LandingQueueProcessor
       job.landing_failure_reason = nil
       job.start_landing!
       job.save!
-      workflow = Workflows::AutoMerge.instantiate(job: job)
-      audit(job, "landing_queue: dispatching auto-merge #{workflow.slug}")
+      workflow_class = job.external_pr? ? Workflows::ExternalPrMerge : Workflows::AutoMerge
+      workflow = workflow_class.instantiate(job: job)
+      audit(job, "landing_queue: dispatching #{workflow.trigger_kind} #{workflow.slug}")
       landed = true
     end
     return unless landed
@@ -471,7 +472,7 @@ class LandingQueueProcessor
     # auto_merge_enabled=true the queue picks it up immediately.
     return blocked("auto-merge not enabled for repository") unless job.repository.auto_merge_enabled?
     return blocked("review requested changes") if job.needs_attention_reason == "upstream_pr_changes_requested"
-    return blocked("missing pull request") if job.pr_number.blank?
+    return blocked("missing pull request") if job.pr_number.blank? && job.external_pr_number.blank?
     # Surface a specific reason when a ci_failure workflow is the active one, so
     # operators can distinguish "agent is fixing CI" from other in-progress workflow types.
     if job.workflows.active.where(trigger_kind: "ci_failure").exists?

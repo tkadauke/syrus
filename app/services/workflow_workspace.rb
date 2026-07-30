@@ -225,6 +225,8 @@ class WorkflowWorkspace
       "syrus/direct-#{@job.id}"
     elsif @job.main_grader?
       @repository.default_branch
+    elsif @job.external_pr?
+      "syrus/external-pr-#{@job.external_pr_number}-#{@job.id}"
     else
       "syrus/issue-#{@job.issue_number}-#{@job.id}"
     end
@@ -261,6 +263,11 @@ class WorkflowWorkspace
 
     if @job.main_grader?
       checkout_main_sha!
+      return
+    end
+
+    if @job.external_pr?
+      checkout_external_pr_head!
       return
     end
 
@@ -306,6 +313,20 @@ class WorkflowWorkspace
     return if sha.blank?
 
     @git.run("checkout", sha, chdir: path.to_s)
+  end
+
+  # Fetch the external PR's head ref (refs/pull/N/head) and create a local
+  # branch from it so graders can run on the contributor's code.
+  # Uses the authenticated URL transiently — same pattern as the upstream fetch.
+  def checkout_external_pr_head!
+    pr_number = @job.external_pr_number
+    pr_ref = "refs/pull/#{pr_number}/head"
+    @git.run(
+      "fetch", "--no-tags", authenticated_url,
+      "+#{pr_ref}:refs/heads/#{@branch_name}",
+      chdir: path.to_s, env: @env
+    )
+    @git.run("checkout", @branch_name, chdir: path.to_s)
   end
 
   def base_branch

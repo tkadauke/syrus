@@ -632,6 +632,68 @@ RSpec.describe LandingQueueProcessor do
     end
   end
 
+  describe "external_pr jobs" do
+    def queue_external_pr_job(external_pr_number:, approved_at:, repo: repository)
+      # external_pr Jobs must be created in :implemented state (validated on create).
+      # Factories.job_record always overrides state to "closed" then update_columns,
+      # so we use Job.create! directly for external_pr kind.
+      Job.create!(
+        user: user,
+        owner_user: user,
+        repository: repo,
+        kind: "external_pr",
+        issue_number: nil,
+        external_pr_number: external_pr_number,
+        state: "implemented"
+      ).tap do |job|
+        job.approve!(via: "operator")
+        job.update!(approved_at: approved_at)
+      end
+    end
+
+    it "does not block an approved external_pr Job that has an external_pr_number" do
+      job = queue_external_pr_job(external_pr_number: 7, approved_at: 1.minute.ago)
+
+      entry = described_class.entries(Job.where(id: job.id)).first
+
+      expect(entry.blocked_reason).to be_blank
+    end
+
+    it "dispatches ExternalPrMerge (not AutoMerge) for an approved external_pr Job" do
+      job = queue_external_pr_job(external_pr_number: 7, approved_at: 1.minute.ago)
+
+      workflow = described_class.call
+
+      expect(workflow).to be_present
+      expect(workflow.trigger_kind).to eq("external_pr_merge")
+      expect(workflow.job).to eq(job)
+      expect(job.reload).to be_landing
+    end
+
+    it "dispatches ExternalPrMerge via try_land! for a specific external_pr Job" do
+      job = queue_external_pr_job(external_pr_number: 7, approved_at: 1.minute.ago)
+
+      workflow = described_class.try_land!(job)
+
+      expect(workflow).to be_present
+      expect(workflow.trigger_kind).to eq("external_pr_merge")
+      expect(job.reload).to be_landing
+    end
+
+    it "lands both an external_pr Job and a regular Job in different repositories in the same tick" do
+      other_repository = Factories.repository(user: user, auto_merge_enabled: true, name: "other")
+      regular = queue_job(issue_number: 1, approved_at: 2.minutes.ago)
+      external = queue_external_pr_job(external_pr_number: 7, approved_at: 1.minute.ago, repo: other_repository)
+
+      described_class.call
+
+      expect(regular.reload).to be_landing
+      expect(external.reload).to be_landing
+      expect(Workflow.where(trigger_kind: "auto_merge").pluck(:job_id)).to eq([ regular.id ])
+      expect(Workflow.where(trigger_kind: "external_pr_merge").pluck(:job_id)).to eq([ external.id ])
+    end
+  end
+
   describe "epic reconciliation gate" do
     let(:epic) { Factories.epic(user: user, repository: repository, state: "in_progress") }
 
