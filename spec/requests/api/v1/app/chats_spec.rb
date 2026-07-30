@@ -2522,6 +2522,23 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     ))
   end
 
+  it "excludes main_grader and agent_insight jobs from the job attachment search results" do
+    sign_in_as(user)
+    Feature.find_or_create_by!(slug: "agent_insights") { |f| f.category = "Labs"; f.name = "Agent Insights" }.update!(enabled: true)
+    chat = ChatSession.create!(user: user, last_message_at: Time.current)
+
+    visible_job = Factories.job_record(repository: repository, issue_number: 1, kind: "issue")
+    Factories.job_record(repository: repository, issue_number: nil, kind: "main_grader")
+    Factories.job_record(repository: repository, issue_number: nil, kind: "agent_insight")
+
+    get "/api/v1/app/chats/#{chat.id}", params: { attachment_type: "Job" }
+
+    expect(response).to have_http_status(:ok)
+    result_ids = parse_body["attachment_results"].map { |r| r["id"] }
+    expect(result_ids).to include(visible_job.id)
+    expect(result_ids).not_to include(*Job.where(kind: %w[main_grader agent_insight]).pluck(:id))
+  end
+
   it "attaches a repository by slug through the app API" do
     sign_in_as(user)
     repository
