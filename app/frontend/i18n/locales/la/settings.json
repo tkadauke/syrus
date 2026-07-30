@@ -605,6 +605,22 @@
     "gemini_tab_configured": "Gemini paratum est — videones perambulationum automatice analysabuntur.",
     "gemini_tab_add_key": "Clavem API Gemini addere"
   },
+  "input_sources": {
+    "section_description": "Configure this repository input source.",
+    "secret_placeholder_set": "(secret is set - enter a new value to replace)",
+    "team_loading": "Loading teams...",
+    "team_error": "Could not fetch teams - check your API key",
+    "team_placeholder": "Select a team",
+    "polling_enabled_label": "Polling enabled",
+    "save": "Save {{source}} settings",
+    "saving": "Saving...",
+    "saved": "Input source saved.",
+    "save_error": "Unable to save input source.",
+    "last_polled_at": "Last polled: {{time}}",
+    "issues_ingested_one": "{{count}} issue ingested",
+    "issues_ingested_other": "{{count}} issues ingested",
+    "issues_ingested": "{{count}} issues ingested"
+  },
   "linear_source": {
     "section_heading": "Linear",
     "section_description": "Sonat gregem Linearem pro quaestionibus apertis et officia Syri ex eis creat.",

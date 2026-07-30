@@ -6,6 +6,10 @@ gem "rails", "~> 8.1.3"
 # Bundled agent provider plugins
 gem "syrus_claude_agent", path: "plugins/claude_agent"
 gem "syrus_codex_agent",  path: "plugins/codex_agent"
+
+# Bundled input source plugins
+gem "syrus_github_source", path: "plugins/github_source"
+gem "syrus_linear_source", path: "plugins/linear_source"
 # The modern asset pipeline for Rails [https://github.com/rails/propshaft]
 gem "propshaft"
 # Use sqlite3 for development/test

@@ -137,7 +137,7 @@ en:
       ci_not_configured: "No CI checks found for %{slug}."
 
     input_sources:
-      linear_saved: "Linear source saved."
+      saved: "%{source} source saved."
 
     job_pins:
       pinned: "Job pinned."

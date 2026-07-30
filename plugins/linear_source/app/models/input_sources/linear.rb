@@ -1,5 +1,7 @@
 module InputSources
   class Linear < InputSource
+    include Syrus::Plugin::InputSource
+
     def poll!
       return unless polling_enabled?
 
@@ -57,8 +59,9 @@ module InputSources
 
     def config_schema
       [
-        { key: "team_id", type: "string", required: true, label: "Team ID" },
-        { key: "label_filter", type: "string", required: false, label: "Label filter" }
+        { key: "api_key", type: "password", required: true, label: "API key", scope: "credentials" },
+        { key: "team_id", type: "linear_team", required: true, label: "Team", scope: "config", depends_on: "api_key" },
+        { key: "label_filter", type: "string", required: false, label: "Label filter", scope: "config" }
       ]
     end
 

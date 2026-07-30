@@ -102,7 +102,7 @@ de:
       no_sha_to_grade: "Noch kein Branch-SHA erfasst — bitte zuerst das Repository abfragen."
 
     input_sources:
-      linear_saved: "Linear-Quelle gespeichert."
+      saved: "%{source}-Quelle gespeichert."
 
     job_pins:
       pinned: "Aufgabe angeheftet."

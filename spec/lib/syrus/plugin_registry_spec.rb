@@ -186,6 +186,14 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       }.not_to raise_error
       expect(described_class.all_plugins.map(&:name)).to include("resilient_plugin")
     end
+
+    it "is resilient when the database is unavailable during boot" do
+      allow(PluginRecord).to receive(:find_or_create_by!).and_raise(ActiveRecord::ConnectionNotEstablished)
+      expect {
+        described_class.register(name: "boot_plugin", version: "1.0.0")
+      }.not_to raise_error
+      expect(described_class.all_plugins.map(&:name)).to include("boot_plugin")
+    end
   end
 
   describe ".providers_for" do
@@ -230,6 +238,13 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     it "returns all plugins when the plugin_records table does not exist" do
       described_class.register(name: "plugin_a", version: "1.0.0", provides: { agent_provider: agent_provider_class })
       allow(PluginRecord).to receive(:where).and_raise(ActiveRecord::StatementInvalid)
+
+      expect(described_class.providers_for(:agent_provider)).to eq([agent_provider_class])
+    end
+
+    it "returns all plugins when the database is unavailable" do
+      described_class.register(name: "plugin_a", version: "1.0.0", provides: { agent_provider: agent_provider_class })
+      allow(PluginRecord).to receive(:where).and_raise(ActiveRecord::ConnectionNotEstablished)
 
       expect(described_class.providers_for(:agent_provider)).to eq([agent_provider_class])
     end

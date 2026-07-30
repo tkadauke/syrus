@@ -78,6 +78,7 @@ export type RepositoryFormPayload = {
   repository: RepositoryFormRecord
   configured_agent_providers: RepositoryProviderOption[]
   user_agent_provider_label: string
+  input_source_types: InputSourceType[]
   auto_approve_modes: RepositoryAutoApproveMode[]
   repositories_path: string
 }
@@ -509,25 +510,43 @@ export function updateRepository(id: number, values: RepositoryInput) {
   return patchJson<RepositorySavedPayload>(`/api/v1/app/repositories/${id}`, { repository: values })
 }
 
-export type LinearSourceRecord = {
+export type InputSourceSchemaField = {
+  key: string
+  type: "string" | "password" | "linear_team"
+  required: boolean
+  label: string
+  scope: "config" | "credentials"
+  depends_on?: string
+}
+
+export type InputSourceRecord = {
   id: number
+  type: string
+  type_key: string
+  label: string
   polling_enabled: boolean
-  team_id: string
-  label_filter: string
+  values: Record<string, string | null>
   last_poll_started_at: string | null
   issues_ingested_count: number
 }
 
-export type LinearSourcePayload = {
-  linear_source: LinearSourceRecord | null
+export type InputSourceType = {
+  type: string
+  type_key: string
+  label: string
+  schema: InputSourceSchemaField[]
+  source: InputSourceRecord | null
+  path: string | null
+}
+
+export type InputSourcePayload = {
+  input_source: InputSourceRecord | null
   message?: string | null
 }
 
-export type LinearSourceInput = {
-  api_key: string
-  team_id: string
-  label_filter: string
+export type InputSourceInput = {
   polling_enabled: boolean
+  values: Record<string, string>
 }
 
 export type LinearTeam = {
@@ -539,12 +558,12 @@ export type LinearTeamsPayload = {
   teams: LinearTeam[]
 }
 
-export function fetchLinearSource(repositoryId: number) {
-  return getJson<LinearSourcePayload>(`/api/v1/app/repositories/${repositoryId}/input_sources/linear`)
+export function fetchInputSource(path: string) {
+  return getJson<InputSourcePayload>(path)
 }
 
-export function saveLinearSource(repositoryId: number, values: LinearSourceInput) {
-  return patchJson<LinearSourcePayload>(`/api/v1/app/repositories/${repositoryId}/input_sources/linear`, { linear_source: values })
+export function saveInputSource(path: string, values: InputSourceInput) {
+  return patchJson<InputSourcePayload>(path, { input_source: values })
 }
 
 export function fetchLinearTeams(apiKey: string) {

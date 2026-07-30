@@ -36,10 +36,10 @@ module Syrus
 
         begin
           PluginRecord.find_or_create_by!(name: name)
-        rescue ActiveRecord::StatementInvalid
-          # Table not yet created (e.g. db:schema:load in progress). Ignore —
-          # the registry operates in memory; the DB record will be created on
-          # first boot after migrations have run.
+        rescue ActiveRecord::ActiveRecordError
+          # Table/database not available (e.g. asset precompile or
+          # db:schema:load in progress). Ignore — the registry operates in
+          # memory; the DB record will be created on first boot with DB access.
         end
       end
 
@@ -54,7 +54,7 @@ module Syrus
           plugins
             .select { |m| enabled_names.include?(m.name) }
             .flat_map { |m| Array(m.provides[extension_point]) }
-        rescue ActiveRecord::StatementInvalid
+        rescue ActiveRecord::ActiveRecordError
           plugins.flat_map { |m| Array(m.provides[extension_point]) }
         end
       end
@@ -71,7 +71,7 @@ module Syrus
             record = records[m.name]
             record ? m.with(enabled: record.enabled) : m
           end
-        rescue ActiveRecord::StatementInvalid
+        rescue ActiveRecord::ActiveRecordError
           plugins
         end
       end

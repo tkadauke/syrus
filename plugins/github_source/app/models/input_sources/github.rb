@@ -1,5 +1,7 @@
 module InputSources
   class Github < InputSource
+    include Syrus::Plugin::InputSource
+
     def poll!
       return if repository.archived?
       return unless polling_enabled?
@@ -35,7 +37,7 @@ module InputSources
 
     def config_schema
       [
-        { key: "trigger_label", type: "string", required: true, label: "Trigger label" }
+        { key: "trigger_label", type: "string", required: true, label: "Trigger label", scope: "config" }
       ]
     end
 

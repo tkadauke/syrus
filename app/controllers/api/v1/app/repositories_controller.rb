@@ -403,6 +403,7 @@ module Api
             repository: repository_form_json(repository),
             configured_agent_providers: User.agent_providers.map { |provider| provider_json(provider) },
             user_agent_provider_label: agent_provider_label(Current.user.agent_provider),
+            input_source_types: input_source_types_json(repository),
             auto_approve_modes: auto_approve_modes_json,
             repositories_path: repositories_path
           }
@@ -850,6 +851,54 @@ module Api
             value: provider,
             label: agent_provider_label(provider)
           }
+        end
+
+        def input_source_types_json(repository)
+          Syrus::PluginRegistry.providers_for(:input_source).map do |provider|
+            source = repository.persisted? ? repository.input_sources.find { |candidate| candidate.type == provider.name } : nil
+            {
+              type: provider.name,
+              type_key: source_type_key(provider),
+              label: source_label(provider),
+              schema: provider.new.config_schema,
+              source: input_source_json(source, provider),
+              path: repository.persisted? ? "/api/v1/app/repositories/#{repository.id}/input_sources/#{source_type_key(provider)}" : nil
+            }
+          end
+        end
+
+        def input_source_json(source, provider)
+          return nil unless source
+
+          {
+            id: source.id,
+            type: provider.name,
+            type_key: source_type_key(provider),
+            label: source_label(provider),
+            polling_enabled: source.polling_enabled?,
+            values: input_source_values(source, provider),
+            last_poll_started_at: source.repository.last_poll_started_at&.iso8601,
+            issues_ingested_count: source.respond_to?(:issues_ingested_count) ? source.issues_ingested_count : Job.where(input_source_id: source.id).count
+          }
+        end
+
+        def input_source_values(source, provider)
+          source.config.to_h.merge(
+            provider.new.config_schema.each_with_object({}) do |field, credential_values|
+              next unless field[:scope].to_s == "credentials"
+
+              key = field.fetch(:key).to_s
+              credential_values[key] = source.credentials.to_h[key].present? ? "" : nil
+            end
+          )
+        end
+
+        def source_type_key(provider)
+          provider.name.demodulize.underscore
+        end
+
+        def source_label(provider)
+          provider.name.demodulize
         end
 
         def auto_approve_modes_json

@@ -11,6 +11,18 @@ PATH
       rails (>= 8.1)
 
 PATH
+  remote: plugins/github_source
+  specs:
+    syrus_github_source (0.1.0)
+      rails (>= 8.1)
+
+PATH
+  remote: plugins/linear_source
+  specs:
+    syrus_linear_source (0.1.0)
+      rails (>= 8.1)
+
+PATH
   remote: plugins/syrus_core_tools
   specs:
     syrus_core_tools (0.1.0)
@@ -549,6 +561,8 @@ DEPENDENCIES
   syrus_claude_agent!
   syrus_codex_agent!
   syrus_core_tools!
+  syrus_github_source!
+  syrus_linear_source!
   tailwindcss-rails
   thruster
   tzinfo-data
@@ -731,6 +745,8 @@ CHECKSUMS
   syrus_claude_agent (0.1.0)
   syrus_codex_agent (0.1.0)
   syrus_core_tools (0.1.0)
+  syrus_github_source (0.1.0)
+  syrus_linear_source (0.1.0)
   tailwindcss-rails (4.4.0) sha256=efa2961351a52acebe616e645a81a30bb4f27fde46cc06ce7688d1cd1131e916
   tailwindcss-ruby (4.2.4) sha256=f3025ba442aa1436168a6df07cf44f9f43f0124a69b5375db1d359ad39c12446
   tailwindcss-ruby (4.2.4-aarch64-linux-gnu) sha256=8f73d4faf9e36ef9a4f0691cbab7b63cd0ecaf955c7878ee6a96033a29f30e8c

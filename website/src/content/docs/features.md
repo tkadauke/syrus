@@ -24,7 +24,7 @@ Job kinds:
 
 | Kind | Source |
 | --- | --- |
-| `issue` | A GitHub issue selected by trigger label or delegated from the repository issues panel. |
+| `issue` | An input-source issue selected by a configured source such as GitHub or Linear. |
 | `cron` | A scheduled task fire. |
 | `direct` | An operator-created prompt with no GitHub issue. |
 
@@ -356,6 +356,14 @@ Credentials are stored with Active Record Encryption in the Syrus database,
 so every web, worker, console, and migration context that reads users needs
 the same stable `ACTIVE_RECORD_ENCRYPTION_*` keys, or `RAILS_MASTER_KEY`
 when those keys live in Rails credentials.
+
+## Input Sources
+
+Repository settings list installed input source plugins from the Syrus plugin
+registry. Bundled installs include GitHub and Linear sources; each source
+provides its own settings schema so the repository form can render fields
+without hardcoded per-source templates. GitHub keeps the standard trigger-label
+flow, while Linear can poll a team and optional label filter.
 
 ## GitHub App And PAT Behavior
 

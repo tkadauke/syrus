@@ -41,6 +41,14 @@ RSpec.describe InputSource do
     end
   end
 
+  describe "STI loading" do
+    it "resolves a persisted GitHub row using the class name after the model moved into a plugin" do
+      source_id = repository.github_input_source.id
+
+      expect(InputSource.find(source_id)).to be_a(InputSources::Github)
+    end
+  end
+
   describe "data migration backfill" do
     it "creates an InputSources::Github record automatically when a repository is created" do
       repo = Repository.create!(user: user, owner: "acme", name: "test-#{SecureRandom.hex(4)}")
