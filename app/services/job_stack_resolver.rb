@@ -14,7 +14,23 @@ class JobStackResolver
     return force_main! if dependencies.empty?
 
     unresolved = dependencies.reject(&:dependency_succeeded?)
-    return force_main! if unresolved.empty?
+
+    if unresolved.empty?
+      # All deps are satisfied for execution. Some may be satisfied via "approved in same
+      # epic" rather than via merge — their changes are on the dep's branch, not in main
+      # yet. Stack on that branch instead of defaulting to main.
+      open_unmerged = dependencies.select { |dep|
+        dep.depends_on_job.present? &&
+          !dep.depends_on_job.dependency_succeeded? &&
+          parent_ready?(dep.depends_on_job)
+      }
+      return force_main! if open_unmerged.empty?
+      return false unless open_unmerged.size == 1
+
+      update_parent!(open_unmerged.first.depends_on_job)
+      return true
+    end
+
     return false if unresolved.any?(&:pending?)
     return false if unresolved.any? { |dependency| dependency.depends_on_job_id.blank? }
     return false unless unresolved.size == 1

@@ -1530,6 +1530,49 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect(job.parent_job).to be_nil
     end
 
+    it "treats an approved same-epic dependency as satisfied for execution" do
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      prerequisite = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 42, state: "approved")
+      job = Job.create!(user: user, repository: repository, epic: epic, issue_number: 43, issue_body: "Depends-on: #42")
+
+      expect(job.reload).to be_dependencies_satisfied
+    end
+
+    it "can start on an approved same-epic dependency and stacks on its branch" do
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      prerequisite = Factories.job_record(
+        user: user, repository: repository, epic: epic, issue_number: 42, state: "approved",
+        branch_name: "syrus/issue-42", pr_number: 7
+      )
+      prerequisite.runs.create!(trigger_kind: "initial", agent_provider: prerequisite.agent_provider, head_sha: "a" * 40)
+      job = Job.create!(user: user, repository: repository, epic: epic, issue_number: 43, issue_body: "Depends-on: #42")
+
+      expect(job.reload).to be_dependencies_satisfied
+      expect(job).to be_stack_ready_for_execution
+      expect(job.reload.parent_job).to eq(prerequisite)
+    end
+
+    it "blocks when multiple same-epic dependencies are approved but not yet merged" do
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      dep_a = Factories.job_record(
+        user: user, repository: repository, epic: epic, issue_number: 41, state: "approved",
+        branch_name: "syrus/issue-41", pr_number: 6
+      )
+      dep_a.runs.create!(trigger_kind: "initial", agent_provider: dep_a.agent_provider, head_sha: "a" * 40)
+      dep_b = Factories.job_record(
+        user: user, repository: repository, epic: epic, issue_number: 42, state: "approved",
+        branch_name: "syrus/issue-42", pr_number: 7
+      )
+      dep_b.runs.create!(trigger_kind: "initial", agent_provider: dep_b.agent_provider, head_sha: "b" * 40)
+      job = Job.create!(
+        user: user, repository: repository, epic: epic, issue_number: 43,
+        issue_body: "Depends-on: #41\nDepends-on: #42"
+      )
+
+      expect(job.reload).to be_dependencies_satisfied
+      expect(job).not_to be_stack_ready_for_execution
+    end
+
     it "can start on a single open dependency by making it the stack parent" do
       prerequisite = Job.create!(user: user, repository: repository, issue_number: 42)
       prerequisite.update!(branch_name: "syrus/issue-42-#{prerequisite.id}", pr_number: 7)
@@ -1561,7 +1604,7 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect(job.reload.parent_job).to eq(prerequisite)
     end
 
-    it "starts a dependent queued workflow when a same-Epic dependency is approved" do
+    it "starts a dependent queued workflow when a same-Epic dependency is approved, stacking on its branch" do
       epic = Factories.epic(user: user, repository: repository, state: "in_progress")
       prerequisite = Job.create!(user: user, repository: repository, epic: epic, issue_number: 42)
       prerequisite.advance_after_triage!
@@ -1573,13 +1616,14 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect(first_step.runs.count).to eq(0)
 
       prerequisite.update!(branch_name: "syrus/issue-42-#{prerequisite.id}", pr_number: 7)
+      prerequisite.runs.update_all(head_sha: "a" * 40)
       prerequisite.update_columns(state: "implemented")
 
       expect {
         prerequisite.approve!(via: "github_review")
         prerequisite.save!
       }.to change { first_step.runs.reload.count }.by(1)
-      expect(job.reload.parent_job).to be_nil
+      expect(job.reload.parent_job).to eq(prerequisite)
     end
 
     it "waits on multiple unmerged dependencies until only one remains as parent" do
