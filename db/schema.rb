@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_29_220530) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_30_163358) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -739,6 +739,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_29_220530) do
     t.integer "issue_number"
     t.string "issue_title"
     t.string "kind", default: "issue", null: false
+    t.string "landed_sha"
     t.text "landing_failure_reason"
     t.string "landing_queue_blocked_reason"
     t.json "landing_queue_blocker_job_ids"
