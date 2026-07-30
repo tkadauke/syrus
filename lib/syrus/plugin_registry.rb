@@ -20,6 +20,7 @@ module Syrus
         validate_provides!(provides)
 
         @mutex.synchronize do
+          validate_mcp_tool_name_uniqueness!(provides)
           @plugins << Syrus::Plugin::Manifest.new(
             name: name,
             version: version,
@@ -57,6 +58,29 @@ module Syrus
             unless k.include?(interface)
               raise RegistrationError,
                 "#{k} must include #{interface} to register as #{key}"
+            end
+          end
+        end
+      end
+
+      # Called inside the mutex so it sees the current @plugins snapshot.
+      # Only checks tool sets that already implement .tool_definitions — stubs
+      # that include the interface module without implementing the full API
+      # (common in unit tests) are skipped.
+      def validate_mcp_tool_name_uniqueness!(provides)
+        new_tool_sets = Array(provides[:mcp_tool_set]).select { |ts| ts.respond_to?(:tool_definitions) }
+        return if new_tool_sets.empty?
+
+        existing_names = @plugins
+          .flat_map { |m| Array(m.provides[:mcp_tool_set]) }
+          .select { |ts| ts.respond_to?(:tool_definitions) }
+          .flat_map { |ts| ts.tool_definitions.map { |d| d[:name] } }
+
+        new_tool_sets.each do |ts|
+          ts.tool_definitions.each do |defn|
+            if existing_names.include?(defn[:name])
+              raise RegistrationError,
+                "MCP tool name collision: #{defn[:name].inspect} is already registered by another tool set"
             end
           end
         end

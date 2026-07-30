@@ -102,6 +102,56 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
       expect(described_class.providers_for(:agent_provider)).to contain_exactly(agent_provider_class, second_provider)
     end
+
+    context "MCP tool name collision detection" do
+      def make_tool_set(*tool_names)
+        names = tool_names
+        Class.new do
+          include Syrus::Plugin::McpToolSet
+          define_method(:tool_definitions) { names.map { |n| { name: n } } }
+          define_singleton_method(:tool_definitions) { names.map { |n| { name: n } } }
+          def self.available_for?(_repo) = true
+          def handle(tool_name, params, context) = nil
+        end
+      end
+
+      it "raises RegistrationError when a second tool set registers a name already claimed by a first" do
+        set_a = make_tool_set("tool_one", "tool_two")
+        set_b = make_tool_set("tool_three", "tool_one")  # "tool_one" collides
+
+        described_class.register(name: "plugin_a", version: "1.0.0", provides: { mcp_tool_set: set_a })
+
+        expect {
+          described_class.register(name: "plugin_b", version: "1.0.0", provides: { mcp_tool_set: set_b })
+        }.to raise_error(described_class::RegistrationError, /MCP tool name collision.*tool_one/)
+      end
+
+      it "does not raise when two tool sets share no tool names" do
+        set_a = make_tool_set("tool_alpha")
+        set_b = make_tool_set("tool_beta")
+
+        described_class.register(name: "plugin_a", version: "1.0.0", provides: { mcp_tool_set: set_a })
+
+        expect {
+          described_class.register(name: "plugin_b", version: "1.0.0", provides: { mcp_tool_set: set_b })
+        }.not_to raise_error
+      end
+
+      it "does not add the second plugin when its registration raises a collision" do
+        set_a = make_tool_set("colliding_tool")
+        set_b = make_tool_set("colliding_tool")
+
+        described_class.register(name: "plugin_a", version: "1.0.0", provides: { mcp_tool_set: set_a })
+
+        begin
+          described_class.register(name: "plugin_b", version: "1.0.0", provides: { mcp_tool_set: set_b })
+        rescue described_class::RegistrationError
+          nil
+        end
+
+        expect(described_class.all_plugins.map(&:name)).to eq(["plugin_a"])
+      end
+    end
   end
 
   describe ".providers_for" do

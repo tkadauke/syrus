@@ -1,20 +1,27 @@
 require "rails_helper"
 
-# These specs build the same MCP::Server the sidecar does, but feed
-# JSON-RPC frames directly through Server#handle_json instead of going
-# through the StdioTransport. Avoids subprocess + Rails-boot overhead
-# while still exercising the full handshake + tool registration that
-# claude will see when it spawns the binary.
+# These specs build the MCP::Server via Sidecar#build_server, which reads
+# the plugin registry. The `around` block registers CoreToolSet so the
+# sidecar has its full default tool list, matching what production boots with.
+#
+# For composition tests (multi-tool-set, available_for? gating, collision),
+# the inner examples manage the registry state themselves.
 RSpec.describe SyrusMcp::Sidecar do
   let(:run) { Factories.job.initial_run }
 
-  def server_for(run)
-    context = McpToolContext.from_run(Run.includes(:step, job: :repository).find(run.id))
-    MCP::Server.new(
-      name: "syrus-mcp-sidecar",
-      tools: McpToolPolicy.for(context),
-      server_context: { run_id: run.id }
+  around do |ex|
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(
+      name: "syrus_core_tools",
+      version: "0.1.0",
+      provides: { mcp_tool_set: SyrusMcp::CoreToolSet }
     )
+    ex.run
+    Syrus::PluginRegistry.reset!
+  end
+
+  def server_for(run)
+    SyrusMcp::Sidecar.new(run_id: run.id).build_server
   end
 
   def jsonrpc(server, method, id: 1, params: {})
@@ -180,6 +187,110 @@ RSpec.describe SyrusMcp::Sidecar do
       sidecar = described_class.new(run_id: 0)
 
       expect(sidecar.instance_variable_get(:@run_id)).to eq(0)
+    end
+  end
+
+  describe "registry-based tool composition" do
+    around do |ex|
+      Syrus::PluginRegistry.reset!
+      ex.run
+      Syrus::PluginRegistry.reset!
+    end
+
+    it "advertises tools from all registered tool sets" do
+      stub_tool_set = Class.new do
+        include Syrus::Plugin::McpToolSet
+        def self.available_for?(_repo) = true
+        def self.tool_definitions
+          [ { name: "stub_ping", description: "A stub ping tool.", input_schema: {} } ]
+        end
+        def handle(tool_name, params, context)
+          MCP::Tool::Response.new([ { type: "text", text: "pong" } ])
+        end
+      end
+
+      Syrus::PluginRegistry.register(
+        name: "syrus_core_tools",
+        version: "0.1.0",
+        provides: { mcp_tool_set: SyrusMcp::CoreToolSet }
+      )
+      Syrus::PluginRegistry.register(
+        name: "stub_plugin",
+        version: "0.1.0",
+        provides: { mcp_tool_set: stub_tool_set }
+      )
+
+      response = jsonrpc(server_for(run), "tools/list", id: 1)
+      tool_names = response[:result][:tools].map { |t| t[:name] }
+
+      expect(tool_names).to include("submit_summary", "read_live_state", "stub_ping")
+    end
+
+    it "dispatches tools/call to the correct tool set" do
+      handled_by = nil
+      stub_tool_set = Class.new do
+        include Syrus::Plugin::McpToolSet
+        def self.available_for?(_repo) = true
+        def self.tool_definitions
+          [ { name: "stub_ping", description: "A stub tool.", input_schema: {} } ]
+        end
+        define_method(:handle) do |tool_name, params, context|
+          handled_by = :stub
+          MCP::Tool::Response.new([ { type: "text", text: "pong" } ])
+        end
+      end
+
+      Syrus::PluginRegistry.register(
+        name: "syrus_core_tools",
+        version: "0.1.0",
+        provides: { mcp_tool_set: SyrusMcp::CoreToolSet }
+      )
+      Syrus::PluginRegistry.register(
+        name: "stub_plugin",
+        version: "0.1.0",
+        provides: { mcp_tool_set: stub_tool_set }
+      )
+
+      response = jsonrpc(server_for(run), "tools/call", params: {
+        name: "stub_ping",
+        arguments: {}
+      })
+
+      expect(response[:result][:isError]).to be_falsey
+      expect(handled_by).to eq(:stub)
+    end
+
+    it "excludes tools from a tool set whose available_for? returns false" do
+      unavailable_tool_set = Class.new do
+        include Syrus::Plugin::McpToolSet
+        def self.available_for?(_repo) = false
+        def self.tool_definitions
+          [ { name: "secret_tool", description: "Hidden.", input_schema: {} } ]
+        end
+        def handle(tool_name, params, context) = nil
+      end
+
+      Syrus::PluginRegistry.register(
+        name: "syrus_core_tools",
+        version: "0.1.0",
+        provides: { mcp_tool_set: SyrusMcp::CoreToolSet }
+      )
+      Syrus::PluginRegistry.register(
+        name: "unavailable_plugin",
+        version: "0.1.0",
+        provides: { mcp_tool_set: unavailable_tool_set }
+      )
+
+      response = jsonrpc(server_for(run), "tools/list", id: 1)
+      tool_names = response[:result][:tools].map { |t| t[:name] }
+
+      expect(tool_names).not_to include("secret_tool")
+      expect(tool_names).to include("submit_summary")
+    end
+
+    it "advertises no tools when the registry is empty" do
+      response = jsonrpc(server_for(run), "tools/list", id: 1)
+      expect(response[:result][:tools]).to be_empty
     end
   end
 end

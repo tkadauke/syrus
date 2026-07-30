@@ -32,6 +32,9 @@ gem "faraday-http-cache"
 # the agent submit PR copy back to Syrus during its run.
 gem "mcp"
 
+# Bundled plugin: built-in MCP tool set for workflow sidecar agents.
+gem "syrus_core_tools", path: "plugins/syrus_core_tools"
+
 # Best-effort text extraction for repository documents exposed to chat agents.
 gem "docx"
 gem "pdf-reader"
