@@ -12,4 +12,12 @@ class TestCase < ApplicationRecord
   scope :failed,  -> { where(status: "failed") }
   scope :skipped, -> { where(status: "skipped") }
   scope :errored, -> { where(status: "error") }
+
+  after_commit :index_for_search, on: %i[create update]
+
+  private
+
+  def index_for_search
+    IndexTestCaseSearchJob.perform_later(id)
+  end
 end

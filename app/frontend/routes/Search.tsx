@@ -3,7 +3,7 @@ import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { useQuery } from "@tanstack/react-query"
 import { Link, useLocation } from "react-router-dom"
 import { useState } from "react"
-import { fetchSearch, type SearchResult, type SearchResultType } from "../api/search"
+import { fetchSearch, type SearchResult, type SearchResultType, type TestCaseSearchResult } from "../api/search"
 import { ChevronIcon } from "../components/ChevronIcon"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
@@ -14,7 +14,8 @@ const filters: Array<{ key: SearchFilter; label: string }> = [
   { key: "all", label: "All" },
   { key: "job", label: "Jobs" },
   { key: "epic", label: "Epics" },
-  { key: "chat", label: "Chats" }
+  { key: "chat", label: "Chats" },
+  { key: "test_case", label: "Tests" }
 ]
 
 const typeStyles: Record<SearchResultType, { border: string; badge: string; label: string }> = {
@@ -32,6 +33,11 @@ const typeStyles: Record<SearchResultType, { border: string; badge: string; labe
     border: "border-l-green-500",
     badge: "bg-green-50 text-green-700 ring-green-200 dark:bg-green-950 dark:text-green-200 dark:ring-green-800",
     label: "Chat"
+  },
+  test_case: {
+    border: "border-l-amber-500",
+    badge: "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:ring-amber-800",
+    label: "Test"
   }
 }
 
@@ -54,7 +60,7 @@ export function SearchRoute() {
       <header className="space-y-4">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t('search.heading')}</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{query ? `Results for "${query}"` : "Search jobs, epics, and chats."}</p>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{query ? `Results for "${query}"` : "Search jobs, epics, chats, and tests."}</p>
         </div>
         <nav aria-label={t("search_type_filters_aria")} className="flex flex-wrap gap-2">
           {filters.map((filter) => (
@@ -85,7 +91,6 @@ export function SearchRoute() {
 }
 
 function SearchResultRow({ result }: { result: SearchResult }) {
-  const { t } = useT("common")
   const location = useLocation()
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const styles = typeStyles[result.type]
@@ -107,11 +112,23 @@ function SearchResultRow({ result }: { result: SearchResult }) {
             </Link>
           </h2>
           <Snippet html={result.snippet || ""} />
+          {result.type === "test_case" ? <TestCaseDetails result={result} /> : null}
           {hasGroupedMatches ? <GroupedChatMatches result={result} routePrefix={prefix} /> : null}
         </div>
         {result.created_at ? <RelativeTimestamp className="shrink-0 text-xs text-gray-500 dark:text-gray-400" value={result.created_at} /> : null}
       </div>
     </article>
+  )
+}
+
+function TestCaseDetails({ result }: { result: TestCaseSearchResult }) {
+  const parts = [result.suite_name, result.file_path].filter(Boolean)
+  if (parts.length === 0) return null
+
+  return (
+    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+      {parts.join(" · ")}
+    </p>
   )
 }
 
@@ -183,7 +200,7 @@ function PanelMessage({ children, tone = "neutral" }: { children: string; tone?:
 
 function activeFilterFromParams(params: URLSearchParams): SearchFilter {
   const type = params.getAll("types[]")[0] || params.getAll("types")[0]
-  return type === "job" || type === "epic" || type === "chat" ? type : "all"
+  return type === "job" || type === "epic" || type === "chat" || type === "test_case" ? type : "all"
 }
 
 function filterPath(pathname: string, search: string, filter: SearchFilter) {

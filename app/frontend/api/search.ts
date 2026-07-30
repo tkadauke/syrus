@@ -1,6 +1,6 @@
 import { getJson } from "./client"
 
-export type SearchResultType = "job" | "epic" | "chat"
+export type SearchResultType = "job" | "epic" | "chat" | "test_case"
 
 export type BaseSearchResult = {
   type: SearchResultType
@@ -35,7 +35,15 @@ export type ChatSearchResult = BaseSearchResult & {
   has_more_matches?: boolean
 }
 
-export type SearchResult = JobSearchResult | EpicSearchResult | ChatSearchResult
+export type TestCaseSearchResult = BaseSearchResult & {
+  type: "test_case"
+  state: string
+  repository_slug: string
+  suite_name: string
+  file_path: string | null
+}
+
+export type SearchResult = JobSearchResult | EpicSearchResult | ChatSearchResult | TestCaseSearchResult
 
 export type ChatGroupedMatch = {
   id: number

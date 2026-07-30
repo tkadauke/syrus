@@ -2,7 +2,7 @@ module Api
   module V1
     module App
       class SearchController < BaseController
-        TYPES = %w[job epic chat].freeze
+        TYPES = %w[job epic chat test_case].freeze
         DEFAULT_LIMIT = 30
         MAX_LIMIT = 100
         CHAT_GROUPED_MATCH_LIMIT = 3
@@ -16,7 +16,7 @@ module Api
 
           selected_types = search_types
           unless selected_types
-            render_error("bad_request", "types must include only job, epic, or chat.", status: :bad_request)
+            render_error("bad_request", "types must include only job, epic, chat, or test_case.", status: :bad_request)
             return
           end
 
@@ -58,15 +58,17 @@ module Api
         end
 
         SEARCH_ROWS_DISPATCH = {
-          "job"  => :job_search_rows,
-          "epic" => :epic_search_rows,
-          "chat" => :chat_search_rows
+          "job"       => :job_search_rows,
+          "epic"      => :epic_search_rows,
+          "chat"      => :chat_search_rows,
+          "test_case" => :test_case_search_rows
         }.freeze
 
         RESULT_JSON_DISPATCH = {
-          "job"  => :job_result_json,
-          "epic" => :epic_result_json,
-          "chat" => :chat_result_json
+          "job"       => :job_result_json,
+          "epic"      => :epic_result_json,
+          "chat"      => :chat_result_json,
+          "test_case" => :test_case_result_json
         }.freeze
 
         def search_rows(type, query, limit)
@@ -89,6 +91,10 @@ module Api
 
         def chat_search_rows(query, limit)
           ChatMessageSearchIndex.search(query, user_id: Current.user.id, limit: limit)
+        end
+
+        def test_case_search_rows(query, limit)
+          TestCaseSearchIndex.search(query, user_id: Current.user.id, limit: limit)
         end
 
         def merge_slug_rows(search_rows, slug_rows)
@@ -193,6 +199,27 @@ module Api
           payload
         end
 
+        def test_case_result_json(row)
+          test_case = test_cases_by_id[row.fetch(:test_case_id).to_i]
+          return unless test_case
+
+          job = test_case.test_run.run.job
+
+          {
+            type: "test_case",
+            id: test_case.id,
+            title: test_case.name,
+            suite_name: test_case.suite_name,
+            file_path: test_case.file_path,
+            snippet: row.fetch(:snippet),
+            rank: row.fetch(:rank),
+            path: job_path(job),
+            state: test_case.status,
+            repository_slug: test_case.repository.slug,
+            created_at: test_case.created_at&.iso8601
+          }
+        end
+
         def chat_grouped_match_json(row)
           message = chat_messages_by_id[row.fetch(:chat_message_id).to_i]
           return unless message
@@ -218,6 +245,14 @@ module Api
             .joins(:chat_session)
             .where(chat_sessions: { user_id: Current.user.id }, id: result_ids(:chat_message_id))
             .includes(chat_session: :attached_repositories)
+            .index_by(&:id)
+        end
+
+        def test_cases_by_id
+          @test_cases_by_id ||= TestCase
+            .joins(:repository)
+            .where(repositories: { user_id: Current.user.id }, id: result_ids(:test_case_id))
+            .includes(:repository, test_run: { run: :job })
             .index_by(&:id)
         end
 

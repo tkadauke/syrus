@@ -25,7 +25,7 @@ RSpec.describe "App API unified search", type: :request do
     get "/api/v1/app/search", params: { q: "deploy", types: [ "job", "note" ] }
 
     expect(response).to have_http_status(:bad_request)
-    expect(parse_body.dig("error", "message")).to include("job, epic, or chat")
+    expect(parse_body.dig("error", "message")).to include("job, epic, chat, or test_case")
   end
 
   it "merges jobs, epics, and chat messages into normalized ranked results" do
@@ -160,6 +160,47 @@ RSpec.describe "App API unified search", type: :request do
     expect(results.find { |result| result["title"] == "Other chat" }).to include("total_match_count" => 1, "has_more_matches" => false)
   end
 
+  it "returns test_case results with path to the associated job" do
+    job = Factories.job_record(user: user, repository: repository)
+    run = Run.create!(job: job, user: user, trigger_kind: "initial")
+    test_run = TestRun.create!(
+      run: run,
+      repository: repository,
+      grader_name: "rspec",
+      total_count: 1,
+      passed_count: 0,
+      failed_count: 1,
+      skipped_count: 0,
+      error_count: 0
+    )
+    test_case = TestCase.create!(
+      test_run: test_run,
+      repository: repository,
+      name: "LoginService validates credentials uniquely",
+      suite_name: "AuthSpec",
+      file_path: "spec/services/login_service_spec.rb",
+      status: "failed"
+    )
+    TestCaseSearchIndex.upsert(test_case)
+
+    get "/api/v1/app/search", params: { q: "LoginService", types: [ "test_case" ] }
+
+    expect(response).to have_http_status(:ok)
+    results = parse_body
+    expect(results.length).to eq(1)
+    expect(results.first).to include(
+      "type" => "test_case",
+      "id" => test_case.id,
+      "title" => "LoginService validates credentials uniquely",
+      "suite_name" => "AuthSpec",
+      "file_path" => "spec/services/login_service_spec.rb",
+      "state" => "failed",
+      "path" => job_path(job),
+      "repository_slug" => "acme/widgets"
+    )
+    expect(results.first.fetch("snippet")).to include("<mark>")
+  end
+
   it "does not leak indexed records that no longer belong to the current user" do
     other_user = Factories.user
     other_repo = Factories.repository(user: other_user, owner: "other", name: "private")
@@ -177,6 +218,7 @@ RSpec.describe "App API unified search", type: :request do
     SearchRecord.connection.execute("DROP TABLE IF EXISTS epic_fts")
     SearchRecord.connection.execute("DROP TABLE IF EXISTS chat_message_fts")
     SearchRecord.connection.execute("DROP TABLE IF EXISTS chat_search_metadata")
+    SearchRecord.connection.execute("DROP TABLE IF EXISTS test_case_fts")
     SearchRecord.connection.execute(<<~SQL)
       CREATE VIRTUAL TABLE job_fts
       USING fts5(
@@ -219,6 +261,20 @@ RSpec.describe "App API unified search", type: :request do
       CREATE TABLE chat_search_metadata (
         key TEXT PRIMARY KEY,
         value TEXT
+      )
+    SQL
+    SearchRecord.connection.execute(<<~SQL)
+      CREATE VIRTUAL TABLE test_case_fts
+      USING fts5(
+        name,
+        suite_name,
+        file_path,
+        test_case_id UNINDEXED,
+        user_id UNINDEXED,
+        repository_id UNINDEXED,
+        status UNINDEXED,
+        created_at UNINDEXED,
+        tokenize = 'porter unicode61'
       )
     SQL
   end

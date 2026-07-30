@@ -32,4 +32,10 @@ RSpec.describe Api::V1::App::SearchController do
       expect(described_class::RESULT_JSON_DISPATCH.keys).to match_array(described_class::TYPES)
     end
   end
+
+  describe "TYPES" do
+    it "includes test_case" do
+      expect(described_class::TYPES).to include("test_case")
+    end
+  end
 end
