@@ -138,7 +138,11 @@ class McpToolPolicy
       Mcp::Tools::SearchMemoriesTool,
       Mcp::Tools::ListMemoriesTool
     ]
-    tools << SyrusMcp::SubmitInsightTool if Feature.agent_insights_enabled?
+    if Feature.agent_insights_enabled?
+      tools << SyrusMcp::SubmitInsightTool
+      tools << SyrusMcp::ListInsightsTool
+      tools << SyrusMcp::ReadInsightTool
+    end
     tools
   end
 end
