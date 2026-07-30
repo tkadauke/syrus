@@ -22,6 +22,7 @@ describe("slashCommands", () => {
     "/discard",
     "/cancel",
     "/retry",
+    "/approve",
     "/clear-canvas"
   ]
 
@@ -156,6 +157,16 @@ describe("slashCommands", () => {
     expect(match?.command.kind).toBe("skill")
     expect(match?.command.args).toEqual([{ name: "id", required: false }])
     expect(match?.command.requiresConfirmation).toBe(true)
+    expect(match ? slashCommandSignature(match.command) : "missing").toBe("[id]")
+  })
+
+  it("registers /approve with an optional id arg and requiresConfirmation", () => {
+    const match = findSlashCommand("/approve")
+
+    expect(match?.command.kind).toBe("system")
+    expect(match?.command.args).toEqual([{ name: "id", required: false }])
+    expect(match?.command.requiresConfirmation).toBe(true)
+    expect(match?.command.description).toBe("Approve a Job for landing.")
     expect(match ? slashCommandSignature(match.command) : "missing").toBe("[id]")
   })
 })

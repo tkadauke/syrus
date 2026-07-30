@@ -44,7 +44,7 @@ export type ChatSystemAction =
 export type ChatSystemCommandAction =
   | { kind: "bookmark"; label: string }
   | { kind: "discard"; path: string }
-  | { kind: "job"; action: "cancel" | "retry"; jobId: string }
+  | { kind: "job"; action: "cancel" | "retry" | "approve"; jobId: string }
   | { kind: "clear-canvas" }
 
 export type ChatComposeAttachment = ChatMessageAttachmentInput & {

@@ -166,6 +166,16 @@ describe("JobEpicPickerPopup — jobs mode", () => {
     expect(options[2]).toHaveTextContent("Approved job")
     expect(options[3]).toHaveTextContent("Merged job")
   })
+
+  it("passes a custom jobState to the API", async () => {
+    renderPicker({ kind: "job", repositorySlug: "acme/repo", jobState: "implemented", onSelect: vi.fn(), onCancel: vi.fn() })
+
+    await waitFor(() => {
+      expect(jobsApi.fetchPickerJobs).toHaveBeenCalledWith(
+        expect.objectContaining({ state: "implemented", repo: "acme/repo" })
+      )
+    })
+  })
 })
 
 describe("JobEpicPickerPopup — epics mode", () => {

@@ -80,7 +80,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
   const pendingVideoRef = useRef<File | null>(null)
   const walkthroughKeyRef = useRef(0)
   const [scratchpadOpen, setScratchpadOpen] = useState(false)
-  const [pickerMode, setPickerMode] = useState<{ kind: "job" | "epic"; onSelect: (id: string) => void } | null>(null)
+  const [pickerMode, setPickerMode] = useState<{ kind: "job" | "epic"; jobState?: string; onSelect: (id: string) => void } | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const attachmentPopoverRef = useRef<HTMLDivElement | null>(null)
@@ -202,12 +202,14 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
       }
 
       if (action.kind === "job") {
-        const path = `/api/v1/app/jobs/${encodeURIComponent(action.jobId)}/${action.action === "cancel" ? "cancel" : "run_again"}`
+        let endpoint: string
+        let notice: string
+        if (action.action === "cancel") { endpoint = "cancel"; notice = "Job cancelled" }
+        else if (action.action === "retry") { endpoint = "run_again"; notice = "Job queued for retry" }
+        else { endpoint = "approve"; notice = "Job approved" }
+        const path = `/api/v1/app/jobs/${encodeURIComponent(action.jobId)}/${endpoint}`
         await postJobCommand(path)
-        return {
-          jobId: action.jobId,
-          notice: action.action === "cancel" ? "Job cancelled" : "Job queued for retry"
-        }
+        return { jobId: action.jobId, notice }
       }
 
       const current = await fetchChatWhiteboard(appendSearch(payload.paths.app_whiteboard_path, search))
@@ -313,6 +315,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
       const capturedMatch = commandMatch!
       setPickerMode({
         kind: pickerKind,
+        jobState: capturedMatch.command.name === "/approve" ? "implemented" : undefined,
         onSelect: (id) => {
           setPickerMode(null)
           handleCommandWithId(capturedMatch.command, id)
@@ -342,7 +345,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
 
   function pickerKindForCommand(commandName: SlashCommand["name"]): "job" | "epic" | null {
     if (commandName === "/epic") return "epic"
-    if (commandName === "/job" || commandName === "/cancel" || commandName === "/retry" || commandName === "/feedback") return "job"
+    if (commandName === "/job" || commandName === "/cancel" || commandName === "/retry" || commandName === "/feedback" || commandName === "/approve") return "job"
     return null
   }
 
@@ -357,8 +360,8 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
       setText("")
       return
     }
-    // /cancel and /retry require confirmation — show the confirmation dialog.
-    if (command.name === "/cancel" || command.name === "/retry") {
+    // /cancel, /retry, and /approve require confirmation — show the confirmation dialog.
+    if (command.name === "/cancel" || command.name === "/retry" || command.name === "/approve") {
       onNotice(null)
       setPendingConfirmation({ commandName: command.name, text: `${command.name} ${id}` })
       return
@@ -515,14 +518,18 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
       return
     }
 
-    if (command.name === "/cancel" || command.name === "/retry") {
+    if (command.name === "/cancel" || command.name === "/retry" || command.name === "/approve") {
       const id = numericArg(argsText)
       if (!id) {
         onNotice(`Usage: ${command.name} <id>`)
         return
       }
 
-      systemCommandAction.mutate({ kind: "job", action: command.name === "/cancel" ? "cancel" : "retry", jobId: id })
+      let action: "cancel" | "retry" | "approve"
+      if (command.name === "/cancel") action = "cancel"
+      else if (command.name === "/retry") action = "retry"
+      else action = "approve"
+      systemCommandAction.mutate({ kind: "job", action, jobId: id })
       return
     }
 
@@ -1242,6 +1249,7 @@ export function Compose({ autoFocus = false, chatId, commandHandlers, payload, p
         {pickerMode ? (
           <JobEpicPickerPopup
             kind={pickerMode.kind}
+            jobState={pickerMode.jobState}
             repositorySlug={payload.chat.repository?.slug ?? null}
             onCancel={() => {
               setPickerMode(null)
