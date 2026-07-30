@@ -690,6 +690,12 @@ describe "running / failed lifecycle (new in this commit)" do
           .to change { job.reload.state }.from("failed").to("queued")
       end
 
+      it "transitions :running → :queued via retry_after_failure! for stale retry recovery" do
+        job = Factories.job_record(state: "running")
+        expect { job.retry_after_failure!; job.save! }
+          .to change { job.reload.state }.from("running").to("queued")
+      end
+
       it "mark_failed! is illegal from anything except :running" do
         %w[triaging queued implemented approved landing closed].each do |state|
           job = Factories.job_record(state: state)

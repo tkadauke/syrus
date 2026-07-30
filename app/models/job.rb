@@ -347,6 +347,7 @@ class Job < ApplicationRecord
     # Goes back to :queued so a new workflow can be instantiated.
     event :retry_after_failure do
       transitions from: :failed, to: :queued
+      transitions from: :running, to: :queued
     end
 
     # Retry pathway after an operator reopens a cancelled Job. Reopen

@@ -177,6 +177,38 @@ RSpec.describe RetryWorkflowEnqueuer do
     }.to change { job.reload.state }.from("failed").to("queued")
   end
 
+  it "transitions a stale :running Job back to :queued before instantiating the new workflow" do
+    finish_current_run!(state: "failed")
+    job.latest_workflow.update!(state: "cancelled", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+    job.update!(state: "running")
+
+    expect {
+      result = described_class.call(job: job)
+      expect(result).to be_success
+      expect(result.workflow.trigger_kind).to eq("retry")
+      expect(result.workflow.state).to eq("queued")
+    }.to change { job.reload.state }.from("running").to("queued")
+      .and change { job.workflows.where(trigger_kind: "retry").count }.by(1)
+  end
+
+  it "keeps Job and latest workflow state aligned after cancel then retry" do
+    workflow = job.latest_workflow
+    workflow.start!
+    workflow.save!
+
+    expect {
+      workflow.cancel!
+      workflow.save!
+    }.to change { job.reload.state }.from("running").to("failed")
+
+    result = described_class.call(job: job)
+
+    expect(result).to be_success
+    expect(job.reload.state).to eq("queued")
+    expect(job.latest_workflow_state).to eq("queued")
+    expect(result.workflow.reload.state).to eq("queued")
+  end
+
   it "transitions a reopened cancelled Job back to :queued before instantiating the new workflow" do
     finish_current_run!(state: "failed")
     initial_workflow = job.latest_workflow

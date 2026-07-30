@@ -77,14 +77,10 @@ class RetryWorkflowEnqueuer
   end
 
   def prepare_job_state_for_retry
-    # If the Job is :failed, transition back to :queued so the new
-    # workflow's Workflow#start can drive Job state :queued → :running
-    # via propagate_start_to_job!. Without this, the start callback's
-    # may_start_running? guard returns false (start_running only
-    # transitions from :queued / :implemented), the Job sits at :failed
-    # forever, and successive Retry clicks bounce off `any_active_run?`
-    # once the new Run starts piling up.
-    if job.failed?
+    # If the Job is :failed, or still stale-:running after a cancelled
+    # workflow, transition back to :queued so the new workflow starts from
+    # a coherent parent state before Workflow#start drives it active again.
+    if job.failed? || job.running?
       return "Job is not ready to retry yet." unless job.may_retry_after_failure?
 
       job.retry_after_failure!

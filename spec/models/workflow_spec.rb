@@ -231,6 +231,14 @@ RSpec.describe Workflow do
         .to change { job.reload.state }.from("running").to("failed")
     end
 
+    it "drives :running → :failed on workflow.cancel! for non-auto_merge workflows" do
+      job.update!(state: "running")
+      wf = described_class.create!(job: job, trigger_kind: "initial", state: "running", started_at: 1.minute.ago)
+
+      expect { wf.cancel!; wf.save! }
+        .to change { job.reload.state }.from("running").to("failed")
+    end
+
     it "drives :running → :no_change_needed on workflow.fail! when the failing run has a NoChangesProduced diagnostic" do
       job.update!(state: "running")
       wf = described_class.create!(job: job, trigger_kind: "initial", state: "running", started_at: 1.minute.ago)
