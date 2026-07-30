@@ -52,6 +52,16 @@ function ensureLocalStorage() {
 
 ensureLocalStorage()
 
+// jsdom does not implement scrollIntoView; provide a noop so tests that
+// indirectly open scrollable lists (e.g. the slash command palette) don't
+// throw. Individual tests that need to assert scroll behavior can override
+// this with their own vi.fn() via Object.defineProperty(..., configurable: true).
+Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+  configurable: true,
+  writable: true,
+  value: () => {}
+})
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()

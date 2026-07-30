@@ -1,7 +1,7 @@
 import type { ChatComposeAttachment, ChatSystemAction, ChatSystemCommandAction, ChatSystemCommandHandlers, PendingSlashCommandConfirmation, WalkthroughDraft } from "./composeTypes"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import type { ClipboardEvent as ReactClipboardEvent, DragEvent, FormEvent, KeyboardEvent } from "react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import "@excalidraw/excalidraw/index.css"
 import { GeminiSetupSheet } from "../../components/GeminiSetupSheet"
@@ -1742,6 +1742,9 @@ function SlashCommandConfirmation({ commandName, disabled, text, onCancel, onCon
 
 function SlashCommandPalette({ activeIndex, commands, context, query, onSelect }: { activeIndex: number; commands: SlashCommand[]; context: { chat: { pinned?: boolean } }; query: string; onSelect: (command: SlashCommand) => void }) {
   const { t } = useT("chat")
+  const activeRef = useCallback((el: HTMLButtonElement | null) => {
+    el?.scrollIntoView({ block: "nearest" })
+  }, [])
   return (
     <div
       aria-label={t("aria_slash_commands")}
@@ -1760,6 +1763,7 @@ function SlashCommandPalette({ activeIndex, commands, context, query, onSelect }
             key={command.name}
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => onSelect(command)}
+            ref={active ? activeRef : undefined}
             role="option"
             type="button"
           >

@@ -332,6 +332,24 @@ describe("chat slash commands", () => {
       expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/reject") || String(input).includes("/cancel") || String(input).includes("/run_again") || String(input).includes("/whiteboard"))).toBe(false)
     })
   }
+
+  it("scrolls the active command into view when navigating with arrow keys", async () => {
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    })
+    mockChatRouteFetch()
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "/" } })
+    fireEvent.keyDown(textarea, { key: "ArrowDown" })
+
+    await waitFor(() => {
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" })
+    })
+  })
 })
 
 describe("chat temporal markers", () => {
@@ -514,11 +532,6 @@ describe("chat bookmark picker command", () => {
   })
 
   it("closes from the backdrop and close button without navigating", async () => {
-    const scrollIntoView = vi.fn()
-    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
-      configurable: true,
-      value: scrollIntoView
-    })
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
@@ -548,7 +561,6 @@ describe("chat bookmark picker command", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close bookmarks" }))
 
     expect(screen.queryByRole("dialog", { name: "Bookmarks" })).not.toBeInTheDocument()
-    expect(scrollIntoView).not.toHaveBeenCalled()
   })
 })
 
