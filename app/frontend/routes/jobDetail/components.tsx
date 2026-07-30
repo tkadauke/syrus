@@ -474,18 +474,30 @@ export function jobSourceLabel(payload: JobDetailPayload, t: ReturnType<typeof u
 
 export function DependencyLink({ dependency, prefix }: { dependency: JobDependency; prefix: string }) {
   const { t } = useT("jobs")
-  const target = dependency.depends_on_job
+  const epicTarget = dependency.depends_on_epic
+  const jobTarget = dependency.depends_on_job
   const label = dependencyLabel(dependency, t)
-  if (dependency.pending || !target) return <span>{label}</span>
+
+  if (epicTarget) {
+    return (
+      <Link className="text-blue-700 underline hover:no-underline" to={withRoutePrefix(epicTarget.epic_path, prefix)}>{label}</Link>
+    )
+  }
+
+  if (dependency.pending || !jobTarget) return <span>{label}</span>
 
   return (
-    <SlugHoverCard id={target.id} kind="job">
-      <Link className="text-blue-700 underline hover:no-underline" to={withRoutePrefix(target.job_path, prefix)}>{label}</Link>
+    <SlugHoverCard id={jobTarget.id} kind="job">
+      <Link className="text-blue-700 underline hover:no-underline" to={withRoutePrefix(jobTarget.job_path, prefix)}>{label}</Link>
     </SlugHoverCard>
   )
 }
 
 export function dependencyLabel(dependency: JobDependency, t: ReturnType<typeof useT>["t"]) {
+  if (dependency.depends_on_epic) {
+    const epic = dependency.depends_on_epic
+    return `${epic.slug} — ${epic.title} (${epic.state.replace(/_/g, " ")})`
+  }
   if (dependency.pending) return dependency.unresolved_slug || t("dependency_unresolved")
   const target = dependency.depends_on_job
   if (!target) return dependency.unresolved_slug || t("dependency_missing")

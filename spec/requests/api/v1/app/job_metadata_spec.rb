@@ -79,6 +79,53 @@ RSpec.describe "App API job metadata commands", type: :request do
     expect(job.reload.dependencies).to contain_exactly(dependency)
   end
 
+  it "adds and removes manual epic dependencies" do
+    epic = Factories.epic(user: user, repository: repo, title: "Platform migration")
+    expect(AppEvents).to receive(:broadcast).twice.with(
+      user: user,
+      type: "updated",
+      resource: "job",
+      id: job.id,
+      changed: [ "dependencies" ]
+    )
+
+    expect {
+      post app_job_path("/epic_dependencies"), params: { depends_on_epic_id: epic.id }, as: :json
+    }.to change { job.dependencies.count }.by(1)
+
+    dependency = job.reload.dependencies.sole
+    expect(response).to have_http_status(:ok)
+    expect(dependency).to be_manual
+    expect(dependency.depends_on_epic).to eq(epic)
+    expect(dependency.created_by_user).to eq(user)
+    expect(parse_body).to include(
+      "message" => "Epic dependency added.",
+      "dependencies" => [ include("depends_on_epic_id" => epic.id, "manual" => true) ]
+    )
+
+    delete app_job_path("/epic_dependencies/#{epic.id}"), as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(job.reload.dependencies).to be_empty
+    expect(parse_body).to include("message" => "Epic dependency removed.", "dependencies" => [])
+  end
+
+  it "returns 404 when the epic is not found for the current user" do
+    post app_job_path("/epic_dependencies"), params: { depends_on_epic_id: 99_999 }, as: :json
+
+    expect(response).to have_http_status(:not_found)
+    expect(parse_body.dig("error", "message")).to eq("Epic not found.")
+  end
+
+  it "returns 404 when the epic dependency to remove is not found" do
+    epic = Factories.epic(user: user, repository: repo, title: "Nonexistent dep")
+
+    delete app_job_path("/epic_dependencies/#{epic.id}"), as: :json
+
+    expect(response).to have_http_status(:not_found)
+    expect(parse_body.dig("error", "message")).to eq("Epic dependency not found.")
+  end
+
   it "lets admins override dependency gates and start pending work" do
     prerequisite = Job.create!(user: user, repository: repo, issue_number: 41)
     target = Job.create!(user: user, repository: repo, issue_number: 42, issue_body: "Depends-on: #41")

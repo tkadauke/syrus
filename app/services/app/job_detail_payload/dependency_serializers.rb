@@ -8,7 +8,8 @@ module App
       # dependency-picker option list. Mixed back in via ActiveSupport::Concern.
 
       def dependency_json(dependency)
-        target = dependency.depends_on_job
+        target_job = dependency.depends_on_job
+        target_epic = dependency.depends_on_epic
         {
           id: dependency.id,
           source: dependency.source,
@@ -17,7 +18,8 @@ module App
           succeeded: dependency.dependency_succeeded?,
           unresolved_slug: dependency.unresolved_slug,
           created_by_user_id: dependency.created_by_user_id,
-          depends_on_job: target && dependency_job_json(target)
+          depends_on_job: target_job && dependency_job_json(target_job),
+          depends_on_epic: target_epic && dependency_epic_json(target_epic)
         }
       end
 
@@ -41,6 +43,17 @@ module App
           branch_name: job.branch_name,
           pr_number: job.pr_number,
           job_path: job_path(job)
+        }
+      end
+
+      def dependency_epic_json(epic)
+        {
+          id: epic.id,
+          number: epic.number,
+          slug: epic.slug,
+          title: epic.title,
+          state: epic.state,
+          epic_path: epic_path(epic)
         }
       end
 
@@ -75,6 +88,13 @@ module App
           title = job.issue_title.to_s.strip.presence || job.kind.titleize
           "#{job.repository.slug} #{job.slug} - #{title}"
         end
+      end
+
+      def epic_dependency_target_options
+        @user.epics
+             .where(repository: @job.repository)
+             .order(created_at: :desc, id: :desc)
+             .map { |epic| { label: "#{epic.slug} — #{epic.title}", value: epic.id } }
       end
     end
   end

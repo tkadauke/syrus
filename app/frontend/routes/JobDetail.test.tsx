@@ -218,6 +218,7 @@ describe("JobDetailView", () => {
       pending: false,
       succeeded: false,
       unresolved_slug: null,
+      depends_on_epic: null,
       depends_on_job: {
         id: 1101,
         kind: "issue",
@@ -238,6 +239,7 @@ describe("JobDetailView", () => {
       pending: false,
       succeeded: false,
       unresolved_slug: null,
+      depends_on_epic: null,
       depends_on_job: {
         ...parsedDependency.depends_on_job,
         id: 1108,
@@ -258,6 +260,52 @@ describe("JobDetailView", () => {
     expect(screen.queryByText("tkadauke/syrus #1101 (queued)")).not.toBeInTheDocument()
     expect(screen.getAllByRole("link", { name: "tkadauke/syrus JOB-1101 (queued)" })[0])
       .toHaveAttribute("href", "/app-shell/jobs/1101")
+  })
+
+  it("renders epic dependency rows with a link to the epic and a remove button", () => {
+    const epicDependency = {
+      id: 20,
+      source: "manual",
+      manual: true,
+      pending: false,
+      succeeded: false,
+      unresolved_slug: null,
+      depends_on_job: null,
+      depends_on_epic: {
+        id: 5,
+        number: 155,
+        slug: "EPIC-155",
+        title: "Platform migration",
+        state: "in_progress",
+        epic_path: "/epics/EPIC-155"
+      }
+    }
+
+    renderJobDetail(jobPayload({
+      dependencies: [ epicDependency ],
+      unsatisfied_dependencies: [ epicDependency ],
+      epic_dependency_target_options: []
+    }))
+
+    expect(screen.getByText("Blocked on:")).toBeInTheDocument()
+    const epicLink = screen.getAllByRole("link", { name: /EPIC-155 — Platform migration/ })[0]
+    expect(epicLink).toHaveAttribute("href", "/app-shell/epics/EPIC-155")
+    expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument()
+  })
+
+  it("shows the add epic dependency picker when epics are available", () => {
+    renderJobDetail(jobPayload({
+      epic_dependency_target_options: [
+        { label: "EPIC-10 — Widget redesign", value: 10 },
+        { label: "EPIC-11 — API overhaul", value: 11 }
+      ]
+    }))
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Add epic dependency" }))
+
+    expect(screen.getByPlaceholderText("Type to search...")).toBeInTheDocument()
+    expect(screen.getByText("EPIC-10 — Widget redesign")).toBeInTheDocument()
+    expect(screen.getByText("EPIC-11 — API overhaul")).toBeInTheDocument()
   })
 
   it("expands the feedback panel and disables Submit when the body is empty", () => {
@@ -1006,6 +1054,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
     dependents: [],
     unsatisfied_dependencies: [],
     dependency_target_options: [],
+    epic_dependency_target_options: [],
     attachments: [],
     summary: null,
     test_plan: null,
@@ -1070,6 +1119,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       app_claim_path: "/api/v1/app/jobs/1/claim",
       app_dependencies_path: "/api/v1/app/jobs/1/dependencies",
       app_dependency_override_path: "/api/v1/app/jobs/1/dependencies/override",
+      app_epic_dependencies_path: "/api/v1/app/jobs/1/epic_dependencies",
       app_stack_base_path: "/api/v1/app/jobs/1/stack_base",
       app_mark_valid_path: "/api/v1/app/jobs/1/mark_valid",
       app_attachments_path: "/api/v1/app/jobs/1/attachments",

@@ -89,6 +89,8 @@ Rails.application.routes.draw do
         post "jobs/:job_id/dependencies", to: "job_metadata#add_dependency", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         delete "jobs/:job_id/dependencies/:dependency_id", to: "job_metadata#remove_dependency", constraints: { job_id: /[a-zA-Z0-9_-]+/, dependency_id: /\d+/ }
         post "jobs/:job_id/dependencies/override", to: "job_metadata#override_dependencies", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/epic_dependencies", to: "job_metadata#add_epic_dependency", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        delete "jobs/:job_id/epic_dependencies/:depends_on_epic_id", to: "job_metadata#remove_epic_dependency", constraints: { job_id: /[a-zA-Z0-9_-]+/, depends_on_epic_id: /\d+/ }
         patch "jobs/:job_id/stack_base", to: "job_metadata#stack_base", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/mark_valid", to: "job_metadata#mark_valid", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/start", to: "job_lifecycle#start", constraints: { job_id: /[a-zA-Z0-9_-]+/ }

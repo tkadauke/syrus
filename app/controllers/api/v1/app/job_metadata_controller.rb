@@ -62,6 +62,44 @@ module Api
           render_metadata(job.reload, message: "Dependency removed.", changed: [ "dependencies" ])
         end
 
+        def add_epic_dependency
+          job = find_job
+          epic_id = params[:depends_on_epic_id].to_i
+          epic = Current.user.epics.find_by(id: epic_id)
+          unless epic
+            render_error("not_found", "Epic not found.", status: :not_found)
+            return
+          end
+
+          dependency = job.dependencies.find_or_initialize_by(depends_on_epic: epic)
+          dependency.source ||= "manual"
+          dependency.created_by_user ||= Current.user
+
+          if dependency.save
+            render_metadata(job.reload, message: "Epic dependency added.", changed: [ "dependencies" ])
+          else
+            render_error("validation_failed", dependency.errors.full_messages.to_sentence, status: :unprocessable_content)
+          end
+        end
+
+        def remove_epic_dependency
+          job = find_job
+          dependency = job.dependencies.find_by(depends_on_epic_id: params[:depends_on_epic_id])
+          unless dependency
+            render_error("not_found", "Epic dependency not found.", status: :not_found)
+            return
+          end
+
+          unless dependency.manual?
+            render_error("validation_failed", "Parsed dependencies are kept for audit.", status: :unprocessable_content)
+            return
+          end
+
+          dependency.destroy!
+          job.start_pending_workflows_if_dependencies_satisfied!
+          render_metadata(job.reload, message: "Epic dependency removed.", changed: [ "dependencies" ])
+        end
+
         def override_dependencies
           job = find_job
           unless Current.user.admin?
@@ -100,7 +138,7 @@ module Api
         private
 
         def find_job
-          find_job_by_ref(Current.user.jobs.includes(:repository, :tags, dependencies: [ :created_by_user, depends_on_job: :repository ]), params[:job_id])
+          find_job_by_ref(Current.user.jobs.includes(:repository, :tags, dependencies: [ :created_by_user, :depends_on_epic, depends_on_job: :repository ]), params[:job_id])
         end
 
         def find_or_create_tag_from_params
@@ -170,7 +208,14 @@ module Api
             source: dependency.source,
             manual: dependency.manual?,
             depends_on_job_id: dependency.depends_on_job_id,
-            label: dependency.depends_on_job ? dependency_label(dependency.depends_on_job) : dependency.unresolved_slug,
+            depends_on_epic_id: dependency.depends_on_epic_id,
+            label: if dependency.depends_on_job
+                     dependency_label(dependency.depends_on_job)
+                   elsif dependency.depends_on_epic
+                     dependency_epic_label(dependency.depends_on_epic)
+                   else
+                     dependency.unresolved_slug
+                   end,
             created_by_user_id: dependency.created_by_user_id
           }
         end
@@ -184,6 +229,10 @@ module Api
             title = job.issue_title.to_s.strip.presence || job.kind.titleize
             "#{job.repository.slug} #{job.slug} — #{title}"
           end
+        end
+
+        def dependency_epic_label(epic)
+          "#{epic.slug} — #{epic.title}"
         end
       end
     end

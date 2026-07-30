@@ -797,11 +797,18 @@ function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPay
   const { t } = useT("jobs")
   const [query, setQuery] = useState("")
   const [addingDependency, setAddingDependency] = useState(false)
+  const [epicQuery, setEpicQuery] = useState("")
+  const [addingEpicDependency, setAddingEpicDependency] = useState(false)
 
   const trimmedQuery = query.trim()
   const filteredOptions = trimmedQuery.length > 0
     ? payload.dependency_target_options.filter((option) => option.label.toLowerCase().includes(trimmedQuery.toLowerCase()))
     : payload.dependency_target_options
+
+  const trimmedEpicQuery = epicQuery.trim()
+  const filteredEpicOptions = trimmedEpicQuery.length > 0
+    ? payload.epic_dependency_target_options.filter((option) => option.label.toLowerCase().includes(trimmedEpicQuery.toLowerCase()))
+    : payload.epic_dependency_target_options
 
   function choose(value: string) {
     command.mutate({ method: "post", path: payload.paths.app_dependencies_path, body: { dependency_target: value } }, { onSuccess: () => {
@@ -810,9 +817,21 @@ function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPay
     }})
   }
 
+  function chooseEpic(epicId: number) {
+    command.mutate({ method: "post", path: payload.paths.app_epic_dependencies_path, body: { depends_on_epic_id: epicId } }, { onSuccess: () => {
+      setEpicQuery("")
+      setAddingEpicDependency(false)
+    }})
+  }
+
   function cancelAdding() {
     setQuery("")
     setAddingDependency(false)
+  }
+
+  function cancelAddingEpic() {
+    setEpicQuery("")
+    setAddingEpicDependency(false)
   }
 
   return (
@@ -821,12 +840,16 @@ function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPay
         <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("section_dependencies")}</h2>
         {payload.dependencies.length > 0 ? (
           <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-800">
-            {payload.dependencies.map((dependency) => (
-              <li className="flex flex-wrap items-center justify-between gap-2 py-2" key={dependency.id}>
-                <span><DependencyLink dependency={dependency} prefix={prefix} /> <span className="text-xs text-gray-400 dark:text-gray-500">({dependency.source})</span></span>
-                {dependency.manual ? <button className="text-xs text-red-600 hover:underline" disabled={command.isPending} onClick={() => command.mutate({ method: "delete", path: `${payload.paths.app_dependencies_path}/${dependency.id}`, confirm: t("confirm_remove_dependency") })} type="button">{t("remove_dependency")}</button> : null}
-              </li>
-            ))}
+            {payload.dependencies.map((dependency) => {
+              const epicTarget = dependency.depends_on_epic
+              return (
+                <li className="flex flex-wrap items-center justify-between gap-2 py-2" key={dependency.id}>
+                  <span><DependencyLink dependency={dependency} prefix={prefix} /> <span className="text-xs text-gray-400 dark:text-gray-500">({dependency.source})</span></span>
+                  {dependency.manual && !epicTarget ? <button className="text-xs text-red-600 hover:underline" disabled={command.isPending} onClick={() => command.mutate({ method: "delete", path: `${payload.paths.app_dependencies_path}/${dependency.id}`, confirm: t("confirm_remove_dependency") })} type="button">{t("remove_dependency")}</button> : null}
+                  {dependency.manual && epicTarget ? <button className="text-xs text-red-600 hover:underline" disabled={command.isPending} onClick={() => command.mutate({ method: "delete", path: `${payload.paths.app_epic_dependencies_path}/${epicTarget.id}`, confirm: t("confirm_remove_epic_dependency", { slug: epicTarget.slug }) })} type="button">{t("remove_dependency")}</button> : null}
+                </li>
+              )
+            })}
           </ul>
         ) : <p className="mt-2 text-gray-400 dark:text-gray-500">{t("section_no_dependencies")}</p>}
         {addingDependency ? (
@@ -865,9 +888,48 @@ function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPay
             </label>
             <button className="mt-2 text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50" disabled={command.isPending} onClick={cancelAdding} type="button">{t("cancel")}</button>
           </div>
-        ) : (
+        ) : addingEpicDependency ? (
           <div className="mt-3 border-t border-gray-100 pt-3 dark:border-gray-800">
+            <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+              {t("epic_dependency_search_label")}
+              <div className="relative mt-1">
+                <input
+                  aria-autocomplete="list"
+                  autoFocus
+                  className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm normal-case text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                  disabled={command.isPending}
+                  onChange={(event) => setEpicQuery(event.target.value)}
+                  placeholder={t("dependency_search_placeholder")}
+                  type="search"
+                  value={epicQuery}
+                />
+                {filteredEpicOptions.length > 0 ? (
+                  <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                    {filteredEpicOptions.map((option) => (
+                      <button
+                        className="block w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                        disabled={command.isPending}
+                        key={option.value}
+                        onClick={() => chooseEpic(option.value)}
+                        type="button"
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : trimmedEpicQuery.length > 0 ? (
+                  <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-400 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500">{t("epic_dependency_no_matches")}</div>
+                ) : null}
+              </div>
+            </label>
+            <button className="mt-2 text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50" disabled={command.isPending} onClick={cancelAddingEpic} type="button">{t("cancel")}</button>
+          </div>
+        ) : (
+          <div className="mt-3 flex flex-wrap gap-3 border-t border-gray-100 pt-3 dark:border-gray-800">
             <button className="text-xs font-medium text-blue-600 hover:underline" onClick={() => setAddingDependency(true)} type="button">{t("add_dependency")}</button>
+            {payload.epic_dependency_target_options.length > 0 ? (
+              <button className="text-xs font-medium text-blue-600 hover:underline" onClick={() => setAddingEpicDependency(true)} type="button">{t("add_epic_dependency")}</button>
+            ) : null}
           </div>
         )}
       </div>
