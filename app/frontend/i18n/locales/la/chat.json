@@ -170,6 +170,7 @@
   "diff_loading": "Differentia oneratur…",
   "diff_error": "Differentia onerari non potuit.",
   "diff_empty": "Mutationes adhuc nullae.",
+  "source_select_diff_file": "Fasciculum elige ut differentiam videas.",
   "walkthrough_no_other_attachments": "Perambulationem solam mitte — imagines vel adiuncta remove et in separato nuntio mitte.",
   "walkthrough_one_at_a_time": "Perambulatio iam tractatur — exspecta dum perficiatur, deinde aliam adde.",
   "walkthrough_ready": "Paratum — Mitte ut analysis fiat",

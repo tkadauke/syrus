@@ -14,9 +14,10 @@ import { createConsumer, type Subscription } from "@rails/actioncable"
 import { useT } from "../../hooks/useT"
 import { ChatJobStatusPanel } from "../ChatJobStatusPanel"
 import { errorMessage } from "../../lib/errorMessage"
+import { highlightCode, inferToolResultLanguage } from "../../lib/syntaxHighlight"
 import { asExcalidrawElements, asExcalidrawFiles, cleanWhiteboardAppState, cleanWhiteboardFiles, cloneWhiteboardScene, signatureForScene, whiteboardScene, withFreshElementIds } from "./whiteboardScene"
 import { type ChatQueryKey, WHITEBOARD_MAX_ELEMENTS, WHITEBOARD_SAVE_DEBOUNCE_MS } from "./constants"
-import { chatDisplayTitle, codingFilesTabVisible, jobsTabVisible, snapshotKindLabel, diffLineClass, secondaryButton, errorAsError, formatCurrency, formatTokenCount, truncateSnapshotName, withRoutePrefix } from "./utils"
+import { chatDisplayTitle, codingFilesTabVisible, jobsTabVisible, snapshotKindLabel, secondaryButton, errorAsError, formatCurrency, formatTokenCount, truncateSnapshotName, withRoutePrefix } from "./utils"
 import { ImageLightbox } from "./MessageCards"
 import { Attachments } from "./Attachments"
 import type { WorkspaceTab } from "./workspaceTabs"
@@ -24,7 +25,8 @@ import type { ChatMessageImageAttachment } from "./messageDisplay"
 import type { FileTreeNode } from "./fileTree"
 import { buildFileTree } from "./fileTree"
 import { attachmentDataUrl, imageAttachments } from "./messageDisplay"
-import { workspaceTabClass, workspaceTabLabel } from "./workspaceTabs"
+import { defaultWorkspaceTab, workspaceTabClass, workspaceTabLabel } from "./workspaceTabs"
+import { diffGutterClass, diffLineClass, diffMarkerClass, parseUnifiedDiff } from "../jobDetail/diffRendering"
 
 
 
@@ -63,6 +65,12 @@ export function ChatWorkspacePanel({
   onBookmarkSelect: (messageId: number) => void
 }) {
   const { t } = useT("chat")
+  useEffect(() => {
+    if (activeTab === "files" && !codingFilesTabVisible(payload)) {
+      onSelectTab(defaultWorkspaceTab(payload))
+    }
+  }, [activeTab, onSelectTab, payload])
+
   return (
     <aside aria-label={t("aria_chat_workspace")} className={`flex min-h-0 min-w-0 flex-1 flex-col rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900 ${fullscreen ? "" : "h-full w-full"}`}>
       {fullscreen || !showTabs ? null : (
@@ -826,6 +834,7 @@ function CodingFilesPanel({ payload }: { payload: ChatPayload }) {
   const [view, setView] = useState<"files" | "diff">("files")
   const [diffMode, setDiffMode] = useState<"cumulative" | "turn">("cumulative")
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [selectedDiffFile, setSelectedDiffFile] = useState<string | null>(null)
   const [openDirs, setOpenDirs] = useState<Set<string>>(new Set())
 
   const filesPath = payload.paths.app_coding_files_path
@@ -865,6 +874,14 @@ function CodingFilesPanel({ payload }: { payload: ChatPayload }) {
   }
 
   const treeNodes = fileTree.data ? buildFileTree(fileTree.data.files) : []
+  const diffFiles = diffResult.data?.diff ? parseCodingDiffFiles(diffResult.data.diff) : []
+  const selectedDiff = selectedDiffFile ? diffFiles.find((file) => file.path === selectedDiffFile) || null : null
+
+  useEffect(() => {
+    if (selectedDiffFile && !diffFiles.some((file) => file.path === selectedDiffFile)) {
+      setSelectedDiffFile(null)
+    }
+  }, [diffFiles, selectedDiffFile])
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -939,14 +956,12 @@ function CodingFilesPanel({ payload }: { payload: ChatPayload }) {
             ) : fileContent.data?.too_large ? (
               <p className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{t("file_content_too_large")}</p>
             ) : (
-              <pre className="min-w-0 overflow-x-auto p-3 font-mono text-xs leading-relaxed text-gray-800 dark:text-gray-200">
-                <code>{fileContent.data?.content ?? ""}</code>
-              </pre>
+              <CodingSourceViewer content={fileContent.data?.content ?? ""} path={selectedFile} />
             )}
           </div>
         </div>
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div className="min-h-0 flex-1">
           {diffResult.isPending ? (
             <p className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{t("diff_loading")}</p>
           ) : diffResult.isError ? (
@@ -954,16 +969,161 @@ function CodingFilesPanel({ payload }: { payload: ChatPayload }) {
           ) : !diffResult.data?.diff ? (
             <p className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{t("diff_empty")}</p>
           ) : (
-            <pre className="min-w-max font-mono text-xs leading-relaxed">
-              {diffResult.data.diff.split("\n").map((line, i) => (
-                <div className={`px-3 py-px ${diffLineClass(line)}`} key={i}>{line || " "}</div>
-              ))}
-            </pre>
+            <div className="grid h-full min-h-0 overflow-hidden lg:grid-cols-[16rem_minmax(0,1fr)]">
+              <div className="overflow-y-auto border-b border-gray-200 bg-gray-50 py-1 lg:border-b-0 lg:border-r dark:border-gray-700 dark:bg-gray-950">
+                {diffFiles.map((file) => (
+                  <button
+                    className={`flex w-full items-center gap-2 px-3 py-1.5 text-left font-mono text-xs hover:bg-blue-50 dark:hover:bg-blue-950/40 ${selectedDiff?.path === file.path ? "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-200" : "text-gray-700 dark:text-gray-300"}`}
+                    key={file.path}
+                    onClick={() => setSelectedDiffFile(file.path)}
+                    title={`${file.path} (+${file.additions} -${file.deletions})`}
+                    type="button"
+                  >
+                    <CodingDiffStatusBadge status={file.status} />
+                    <span className="min-w-0 flex-1 truncate">{file.path}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="min-w-0 overflow-auto">
+                {selectedDiff ? (
+                  <>
+                    <div className="sticky top-0 flex items-center gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 font-mono text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400">
+                      <span className="min-w-0 flex-1 truncate">{selectedDiff.path}</span>
+                      <span>+{selectedDiff.additions}</span>
+                      <span>-{selectedDiff.deletions}</span>
+                    </div>
+                    <CodingDiffViewer diff={selectedDiff.patch} />
+                  </>
+                ) : (
+                  <div className="flex h-full min-h-[16rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_select_diff_file")}</div>
+                )}
+              </div>
+            </div>
           )}
         </div>
       )}
     </div>
   )
+}
+
+type CodingDiffFile = {
+  path: string
+  patch: string
+  status: "added" | "modified" | "removed" | "renamed"
+  additions: number
+  deletions: number
+}
+
+function CodingSourceViewer({ content, path }: { content: string; path: string }) {
+  const language = inferToolResultLanguage(path, "Read")
+  const lines = content.split("\n")
+
+  return (
+    <table className="min-w-full border-separate border-spacing-0 font-mono text-xs" data-testid="coding-source-viewer">
+      <tbody>
+        {lines.map((line, index) => {
+          const lineNum = index + 1
+          return (
+            <tr className="bg-white dark:bg-gray-950" data-line={lineNum} key={lineNum}>
+              <td className="w-10 select-none px-2 py-0.5 text-right text-xs text-gray-400 dark:text-gray-600">{lineNum}</td>
+              <td className="min-w-[40rem] whitespace-pre px-3 py-0.5 leading-relaxed text-gray-900 dark:text-gray-100">
+                {language ? highlightCode(line, language) : line}
+              </td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
+  )
+}
+
+function CodingDiffViewer({ diff }: { diff: string }) {
+  const lines = parseUnifiedDiff(diff)
+
+  return (
+    <table className="min-w-full border-separate border-spacing-0 font-mono text-xs" data-testid="coding-diff-viewer">
+      <tbody>
+        {lines.map((line, index) => (
+          <tr className={diffLineClass(line.kind)} data-diff-kind={line.kind} key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}>
+            <td className={diffGutterClass(line.kind)}>{line.oldLine ?? ""}</td>
+            <td className={diffGutterClass(line.kind)}>{line.newLine ?? ""}</td>
+            <td className={diffMarkerClass(line.kind)}>{line.marker}</td>
+            <td className="min-w-[40rem] whitespace-pre px-3 py-0.5 text-gray-900 dark:text-gray-200">{line.code || " "}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+function CodingDiffStatusBadge({ status }: { status: CodingDiffFile["status"] }) {
+  const styles: Record<CodingDiffFile["status"], string> = {
+    added: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-200",
+    modified: "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-200",
+    removed: "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-200",
+    renamed: "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-200"
+  }
+  const labels: Record<CodingDiffFile["status"], string> = { added: "A", modified: "M", removed: "D", renamed: "R" }
+
+  return <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-[11px] font-semibold ${styles[status]}`}>{labels[status]}</span>
+}
+
+function parseCodingDiffFiles(diff: string): CodingDiffFile[] {
+  const rawLines = diff.replace(/\r\n/g, "\n").split("\n")
+  const sections: string[][] = []
+  let current: string[] = []
+
+  for (const line of rawLines) {
+    if (line.startsWith("diff --git ") && current.length > 0) {
+      sections.push(current)
+      current = []
+    }
+    if (line || current.length > 0) current.push(line)
+  }
+  if (current.length > 0) sections.push(current)
+
+  return sections.map((lines) => {
+    const patch = lines.join("\n").replace(/\n$/, "")
+    const parsedLines = parseUnifiedDiff(patch)
+    const additions = parsedLines.filter((line) => line.kind === "add").length
+    const deletions = parsedLines.filter((line) => line.kind === "delete").length
+    return {
+      additions,
+      deletions,
+      patch,
+      path: codingDiffPath(lines),
+      status: codingDiffStatus(lines)
+    }
+  })
+}
+
+function codingDiffPath(lines: string[]) {
+  const renameTo = lines.find((line) => line.startsWith("rename to "))?.replace(/^rename to /, "")
+  if (renameTo) return renameTo
+
+  const newPath = diffHeaderPath(lines.find((line) => line.startsWith("+++ ")))
+  if (newPath) return newPath
+
+  return diffHeaderPath(lines.find((line) => line.startsWith("--- "))) || diffGitPath(lines[0]) || "unknown"
+}
+
+function diffHeaderPath(line: string | undefined) {
+  if (!line) return null
+  const path = line.replace(/^(---|\+\+\+) /, "").trim()
+  if (path === "/dev/null") return null
+  return path.replace(/^[ab]\//, "")
+}
+
+function diffGitPath(line: string | undefined) {
+  const match = line?.match(/^diff --git a\/(.+) b\/(.+)$/)
+  return match?.[2] || match?.[1] || null
+}
+
+function codingDiffStatus(lines: string[]): CodingDiffFile["status"] {
+  if (lines.some((line) => line.startsWith("new file mode "))) return "added"
+  if (lines.some((line) => line.startsWith("deleted file mode "))) return "removed"
+  if (lines.some((line) => line.startsWith("rename from ") || line.startsWith("rename to "))) return "renamed"
+  return "modified"
 }
 
 export function routePrefix(pathname: string) {

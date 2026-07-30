@@ -170,6 +170,7 @@
   "diff_loading": "Diff wird geladen…",
   "diff_error": "Diff konnte nicht geladen werden.",
   "diff_empty": "Noch keine Änderungen.",
+  "source_select_diff_file": "Wähle eine Datei aus, um den Diff anzuzeigen.",
   "walkthrough_no_other_attachments": "Sende den Walkthrough allein — entferne Bild- oder Dateianhänge und sende sie in einer separaten Nachricht.",
   "walkthrough_one_at_a_time": "Ein Walkthrough wird bereits verarbeitet — warte, bis er fertig ist, und füge dann einen weiteren hinzu.",
   "walkthrough_ready": "Bereit — Senden startet die Analyse",

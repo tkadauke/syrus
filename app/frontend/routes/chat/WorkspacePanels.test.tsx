@@ -1,9 +1,20 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
-import { ChatSettingsDialog } from "./WorkspacePanels"
+import { ChatSettingsDialog, ChatWorkspacePanel } from "./WorkspacePanels"
 import type { ChatPayload } from "../../api/chats"
+import { fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree } from "../../api/chats"
+
+vi.mock("../../api/chats", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../api/chats")>()
+  return {
+    ...actual,
+    fetchCodingDiff: vi.fn(),
+    fetchCodingFileContent: vi.fn(),
+    fetchCodingFileTree: vi.fn()
+  }
+})
 
 function makePayload(overrides: Partial<ChatPayload["chat"]> = {}): ChatPayload {
   return {
@@ -15,6 +26,7 @@ function makePayload(overrides: Partial<ChatPayload["chat"]> = {}): ChatPayload 
       pinned_context: null,
       chat_path: "/chats/1",
       repository: { id: 2, slug: "acme/repo", repository_path: "/repositories/2" },
+      mode: "planning",
       stop_requested_at: null,
       cumulative_input_tokens: 0,
       cumulative_output_tokens: 0,
@@ -77,6 +89,49 @@ function renderDialog(payload: ChatPayload, onClose = () => {}) {
   )
 }
 
+function makeCodingPayload(overrides: Partial<ChatPayload> = {}): ChatPayload {
+  const payload = makePayload({
+    mode: "coding",
+    coding_checkout_branch: "syrus/chat-1"
+  })
+  return {
+    ...payload,
+    ...overrides,
+    coding_mode_enabled: true,
+    paths: {
+      ...payload.paths,
+      app_coding_files_path: "/api/v1/app/chats/1/coding_files",
+      app_coding_file_path: "/api/v1/app/chats/1/coding_file",
+      app_coding_diff_path: "/api/v1/app/chats/1/coding_diff",
+      ...overrides.paths
+    }
+  }
+}
+
+function renderWorkspacePanel(payload: ChatPayload, options: {
+  activeTab?: "whiteboard" | "context" | "media" | "files" | "diff" | "jobs"
+  onSelectTab?: (tab: "whiteboard" | "context" | "media" | "files" | "diff" | "jobs") => void
+} = {}) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <ChatWorkspacePanel
+          activeTab={options.activeTab ?? "files"}
+          fullscreen={false}
+          onSelectTab={options.onSelectTab ?? (() => {})}
+          onToggleWhiteboardFullscreen={() => {}}
+          payload={payload}
+          prefix=""
+          queryKey={["chats", "1", ""] as const}
+          onBookmarkSelect={() => {}}
+          onNotice={() => {}}
+        />
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
 describe("ChatSettingsDialog", () => {
   it("renders the Repository settings link", () => {
     renderDialog(makePayload())
@@ -109,5 +164,92 @@ describe("ChatSettingsDialog", () => {
     })
     renderDialog(payload)
     expect(screen.getByText("Effective: Provider A")).toBeInTheDocument()
+  })
+})
+
+describe("ChatWorkspacePanel coding files", () => {
+  it("renders file content with highlighted spans and line numbers", async () => {
+    vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: ["app/example.ts"] })
+    vi.mocked(fetchCodingFileContent).mockResolvedValue({
+      binary: false,
+      content: "const answer = 42\n",
+      path: "app/example.ts",
+      too_large: false
+    })
+
+    const { container } = renderWorkspacePanel(makeCodingPayload())
+    fireEvent.click(await screen.findByRole("button", { name: /app/ }))
+    fireEvent.click(await screen.findByRole("button", { name: "example.ts" }))
+
+    expect(await screen.findByTestId("coding-source-viewer")).toBeInTheDocument()
+    expect(screen.getByText("1")).toBeInTheDocument()
+    const keyword = screen.getByText("const")
+    expect(keyword.tagName).toBe("SPAN")
+    expect(keyword).toHaveClass("font-semibold")
+    expect(container.querySelector("pre code")).not.toBeInTheDocument()
+  })
+
+  it("shows a file list and renders only the selected file diff", async () => {
+    vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: [] })
+    vi.mocked(fetchCodingDiff).mockResolvedValue({
+      checkout_branch: "syrus/chat-1",
+      mode: "cumulative",
+      diff: [
+        "diff --git a/app/a.ts b/app/a.ts",
+        "index 1111111..2222222 100644",
+        "--- a/app/a.ts",
+        "+++ b/app/a.ts",
+        "@@ -1 +1 @@",
+        "-export const a = 1",
+        "+export const a = 2",
+        "diff --git a/app/b.ts b/app/b.ts",
+        "new file mode 100644",
+        "index 0000000..3333333",
+        "--- /dev/null",
+        "+++ b/app/b.ts",
+        "@@ -0,0 +1 @@",
+        "+export const b = 2"
+      ].join("\n")
+    })
+
+    renderWorkspacePanel(makeCodingPayload())
+    fireEvent.click(screen.getByRole("button", { name: "Diff" }))
+
+    expect(await screen.findByRole("button", { name: /app\/a\.ts/ })).toBeInTheDocument()
+    const secondFile = screen.getByRole("button", { name: /app\/b\.ts/ })
+    expect(secondFile).toHaveTextContent("A")
+
+    fireEvent.click(secondFile)
+
+    expect(await screen.findByTestId("coding-diff-viewer")).toBeInTheDocument()
+    expect(screen.getByText("export const b = 2")).toBeInTheDocument()
+    expect(screen.queryByText("export const a = 2")).not.toBeInTheDocument()
+  })
+
+  it("deselects the files panel when the coding checkout disappears", async () => {
+    vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: [] })
+    const onSelectTab = vi.fn()
+    const { rerender } = renderWorkspacePanel(makeCodingPayload(), { onSelectTab })
+
+    const withoutCheckout = makePayload({ mode: "planning", coding_checkout_branch: null })
+    rerender(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <ChatWorkspacePanel
+            activeTab="files"
+            fullscreen={false}
+            onSelectTab={onSelectTab}
+            onToggleWhiteboardFullscreen={() => {}}
+            payload={withoutCheckout}
+            prefix=""
+            queryKey={["chats", "1", ""] as const}
+            onBookmarkSelect={() => {}}
+            onNotice={() => {}}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await waitFor(() => expect(onSelectTab).toHaveBeenCalledWith("context"))
   })
 })
