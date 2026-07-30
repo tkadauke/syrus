@@ -228,6 +228,27 @@ RSpec.describe PollForkReviewPrJob do
       }.not_to change { job.workflows.where(trigger_kind: "pr_comment").count }
     end
 
+    it "ignores comments authored by the configured Syrus GitHub App bot" do
+      AppSetting.current.update!(github_app_slug: "syrus-local")
+      stub_issue_comments([
+        { id: 1, body: "Automated coverage update",
+          user: { login: "syrus-local[bot]", type: "Bot" }, created_at: t1.iso8601 }
+      ])
+      stub_review_comments([
+        { id: 2, body: "Automated review note", path: "lib/greet.rb", line: 5,
+          diff_hunk: "@@\n+ puts 'hi'",
+          user: { login: "syrus-local[bot]", type: "Bot" },
+          created_at: t2.iso8601, pull_request_review_id: nil }
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { job.workflows.where(trigger_kind: "pr_comment").count }
+
+      expect(PrReviewComment.count).to eq(0)
+      expect(job.reload.last_seen_fork_review_comment_at).to be_nil
+    end
+
     it "stamps pr_feedback_iteration on the first fork review pr_comment workflow" do
       stub_issue_comments([
         { id: 1, body: "Fix this before approving", user: { login: "reviewer" }, created_at: t1.iso8601 }

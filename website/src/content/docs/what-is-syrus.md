@@ -35,8 +35,9 @@ checks out the repo in a worker-managed workspace, runs preparation
 commands, invokes the configured agent, captures the resulting diff, asks
 for PR copy, pushes a branch, and opens a pull request.
 
-After the PR exists, Syrus keeps watching it. New review feedback creates
-a follow-up Workflow on the same branch. Failing checks can create a CI
+After the PR exists, Syrus keeps watching it. New human review feedback
+creates a follow-up Workflow on the same branch; automated comments from
+the Syrus GitHub App bot are ignored. Failing checks can create a CI
 repair Workflow. If the branch becomes unmergeable, Syrus can run its
 rebase workflow. Operators can also retry, cancel, run direct Jobs, or
 schedule recurring prompts.
@@ -48,7 +49,7 @@ Syrus has one execution model with several entry points:
 | Entry point | What creates the Job | Typical use |
 | --- | --- | --- |
 | GitHub issue | A repository issue with the trigger label, or an issue delegated from Syrus. | Normal issue-to-PR work that should stay visible in GitHub planning. |
-| PR feedback | A comment or review on a Syrus-owned PR. | Follow-up commits on the same branch after review. |
+| PR feedback | A human comment or review on a Syrus-owned PR. | Follow-up commits on the same branch after review. |
 | CI failure | A failing check on a Syrus-owned PR. | Bounded repair attempts without asking a human to re-prompt the agent. |
 | Direct Job | An operator prompt in Syrus, not backed by a GitHub issue. | Private context, internal chores, experiments, or urgent work where a GitHub issue would be ceremony. |
 | Scheduled task | A recurring cron task or one-shot fire time. | Repeated repository hygiene, dependency chores, docs sweeps, or other periodic maintenance. |

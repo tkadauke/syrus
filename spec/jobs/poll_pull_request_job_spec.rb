@@ -423,6 +423,60 @@ RSpec.describe PollPullRequestJob do
       }.to change { job.workflows.where(trigger_kind: "pr_comment").count }.by(1)
     end
 
+    it "ignores issue comments authored by the configured Syrus GitHub App bot" do
+      AppSetting.current.update!(github_app_slug: "syrus-local")
+      stub_issue_comments([
+        { id: 1, body: "## Coverage report\n\nLines: 91%",
+          user: { login: "syrus-local[bot]", type: "Bot" }, created_at: t1.iso8601 }
+      ])
+      stub_review_comments([])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { job.workflows.where(trigger_kind: "pr_comment").count }
+
+      expect(PrReviewComment.count).to eq(0)
+      expect(job.reload.last_seen_comment_at).to be_nil
+    end
+
+    it "ignores review comments authored by the configured Syrus GitHub App bot" do
+      AppSetting.current.update!(github_app_slug: "syrus-local")
+      stub_issue_comments([])
+      stub_review_comments([
+        { id: 2, body: "Automated note", path: "lib/greet.rb", line: 5,
+          diff_hunk: "@@\n+ puts 'hi'",
+          user: { login: "syrus-local[bot]", type: "Bot" },
+          created_at: t1.iso8601, pull_request_review_id: nil }
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { job.workflows.where(trigger_kind: "pr_comment").count }
+
+      expect(PrReviewComment.count).to eq(0)
+      expect(job.reload.last_seen_comment_at).to be_nil
+    end
+
+    it "treats Bot users with the configured app slug as Syrus bot comments" do
+      AppSetting.current.update!(github_app_slug: "syrus-local")
+      stub_issue_comments([
+        { id: 1, body: "Bot-authored coverage update",
+          user: { login: "syrus-local", type: "Bot" }, created_at: t1.iso8601 },
+        { id: 2, body: "Human feedback",
+          user: { login: "reviewer" }, created_at: t2.iso8601 }
+      ])
+      stub_review_comments([])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.workflows.where(trigger_kind: "pr_comment").count }.by(1)
+
+      wf = job.workflows.where(trigger_kind: "pr_comment").last
+      expect(wf.artifact("pr_comments").map { |c| c["body"] }).to eq([ "Human feedback" ])
+      expect(PrReviewComment.pluck(:body)).to eq([ "Human feedback" ])
+      expect(job.reload.last_seen_comment_at.utc).to be_within(1.second).of(t2)
+    end
+
     it "has no lifetime cap on pr_comment workflows — watermark is the safety" do
       # Many succeeded pr_comment workflows already; the watermark is
       # the only thing keeping the same comment from triggering more.

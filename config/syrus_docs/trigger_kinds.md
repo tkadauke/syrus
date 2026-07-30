@@ -12,11 +12,11 @@ The primary workflow: explores the repo, writes code, runs graders, and opens a 
 
 ## pr_comment
 
-**When it fires:** New review comments appear on the Job's PR since the last addressed comment.
+**When it fires:** New non-Syrus-bot review comments appear on the Job's PR since the last addressed comment.
 
 **Step chain:** `prepare → retry_until(respond, graders) → coverage_analyze? → coverage_pr_comment? → summarize_amend → try(push)`
 
-Addresses review feedback, updates the PR description, and pushes. If the push encounters a non-fast-forward conflict, dynamically inserts an agent-rebase recovery chain.
+Addresses review feedback, updates the PR description, and pushes. Comments authored by the configured Syrus GitHub App bot are ignored so automated comments such as coverage reports do not self-trigger feedback workflows. If the push encounters a non-fast-forward conflict, dynamically inserts an agent-rebase recovery chain.
 
 ## chat_feedback
 

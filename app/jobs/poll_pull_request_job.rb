@@ -262,12 +262,10 @@ class PollPullRequestJob < ApplicationJob
   # ----- pr_comment branch ------------------------------------------------
 
   # No cap here: `last_seen_comment_at` is a strict watermark that
-  # advances past every comment a workflow has reacted to, so repeated
-  # polls of a quiet PR enqueue zero workflows. Syrus has no bot
-  # identity yet — it pushes commits, doesn't comment — so there's no
-  # self-loop the way ci_failure has. The operator can fold 50 rounds
-  # of feedback into 50 follow-up workflows; the watermark guarantees
-  # each comment is processed exactly once.
+  # advances past every non-Syrus-bot comment a workflow has reacted to,
+  # so repeated polls of a quiet PR enqueue zero workflows. The operator
+  # can fold 50 rounds of feedback into 50 follow-up workflows; the
+  # watermark guarantees each human comment is processed exactly once.
   def react_to_pr_comments
     return if pending_followup?
     return if provider_circuit_open?("pr_comment")
@@ -297,13 +295,6 @@ class PollPullRequestJob < ApplicationJob
     @job.workflows.active.where(trigger_kind: "pr_comment").exists?
   end
 
-  # We don't filter by author. Syrus runs under the operator's PAT today
-  # and doesn't post comments via the API — only pushes commits — so
-  # there's no self-loop to prevent. The operator IS the reviewer; their
-  # comments are exactly what we want to act on. When/if Syrus gets its
-  # own bot identity (separate GitHub account or App), add a configurable
-  # skip-by-login filter back here.
-  #
   # Fetches the FULL comment thread (no `since:` cutoff), not just new
   # comments since the watermark. The agent needs the prior comments
   # too — otherwise it loses the arc of the conversation and
@@ -314,7 +305,7 @@ class PollPullRequestJob < ApplicationJob
   def fetch_all_comments
     issue_comments = @client.pr_issue_comments(@slug, @job.pr_number)
     review_comments = @client.pr_review_comments(@slug, @job.pr_number)
-    (issue_comments + review_comments).sort_by(&:created_at)
+    reject_syrus_bot_comments(issue_comments + review_comments).sort_by(&:created_at)
   end
 
   def enqueue_followup_run(all_comments:, new_comments:, cutoff:, qualifying_records: [])

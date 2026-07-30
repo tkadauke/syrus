@@ -145,7 +145,7 @@ class PollForkReviewPrJob < ApplicationJob
     pr_number = @job.fork_review_pr_number
     issue_comments = @client.pr_issue_comments(slug, pr_number)
     review_comments = @client.pr_review_comments(slug, pr_number)
-    (issue_comments + review_comments).sort_by(&:created_at)
+    reject_syrus_bot_comments(issue_comments + review_comments).sort_by(&:created_at)
   end
 
   def ingest_fork_review_comments(new_comments)
