@@ -28,9 +28,23 @@ module Steps
                                .where("created_at >= ?", 14.days.ago)
                                .order(created_at: :desc)
                                .limit(50)
+
+      prior_job = repository.jobs
+                             .where(kind: "agent_insight")
+                             .where.not(id: job.id)
+                             .order(created_at: :desc)
+                             .first
+
+      known_insights = [
+        *repository.insight_suggestions.accepted.order(updated_at: :desc).limit(25),
+        *repository.insight_suggestions.dismissed.order(updated_at: :desc).limit(25)
+      ]
+
       Prompts::AgentInsight.new(
         repository: repository,
         recent_jobs: recent_jobs,
+        analysis_window_start: prior_job&.finished_at,
+        known_insights: known_insights,
         user: job.user
       ).to_s
     end

@@ -3,16 +3,20 @@ module Prompts
   # workflow runs for the repository and surface improvement suggestions via
   # the `submit_insight` MCP tool.
   class AgentInsight
-    def initialize(repository:, recent_jobs: [], user: nil)
-      @repository  = repository
-      @recent_jobs = recent_jobs
-      @user        = user
+    def initialize(repository:, recent_jobs: [], analysis_window_start: nil, known_insights: [], user: nil)
+      @repository            = repository
+      @recent_jobs           = recent_jobs
+      @analysis_window_start = analysis_window_start
+      @known_insights        = known_insights
+      @user                  = user
     end
 
     def to_s
       [
         header,
+        analysis_window_section,
         recent_jobs_section,
+        known_insights_section,
         instructions,
         memory_context
       ].compact_blank.join("\n\n")
@@ -31,6 +35,17 @@ module Prompts
       TEXT
     end
 
+    def analysis_window_section
+      return unless @analysis_window_start
+
+      <<~TEXT
+        ## Analysis Window
+
+        Only analyze jobs and run transcripts that completed after #{@analysis_window_start.iso8601}.
+        Do not re-examine transcripts from earlier runs.
+      TEXT
+    end
+
     def recent_jobs_section
       return if @recent_jobs.empty?
 
@@ -42,6 +57,21 @@ module Prompts
       end
 
       "## Recent Jobs (last 14 days)\n\n#{lines.join("\n")}"
+    end
+
+    def known_insights_section
+      return if @known_insights.empty?
+
+      lines = @known_insights.map { |i| "- #{i.title} (#{i.state})" }
+
+      <<~TEXT
+        ## Known Insights
+
+        The following insights have already been filed for this repository. Do not refile
+        these unless you have evidence the underlying issue was reintroduced after a fix:
+
+        #{lines.join("\n")}
+      TEXT
     end
 
     def instructions
@@ -68,6 +98,9 @@ module Prompts
 
         For durable facts you discover (e.g. recurring configuration issues, stable
         patterns), call `write_memory` to store them so future agents benefit.
+        Before suggesting a new memory, call `list_memories` to check whether a similar
+        memory already exists for this repository. Only suggest a new memory if no
+        sufficiently similar one is present.
 
         Call `submit_insight` once per distinct finding. Do not call it for speculative
         or single-instance observations below your confidence threshold. Aim for signal
