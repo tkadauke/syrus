@@ -15,7 +15,7 @@ class EpicDependency < ApplicationRecord
   def dependency_succeeded?
     return depends_on_job.dependency_succeeded? if depends_on_job_id.present?
 
-    depends_on_epic.done?
+    depends_on_epic.done? || depends_on_epic.fully_approved?
   end
 
   private

@@ -318,6 +318,39 @@ RSpec.describe Epic do
     end
   end
 
+  describe "#fully_approved?" do
+    it "is true when all work jobs are approved" do
+      epic = described_class.create!(user: user, repository: repository, title: "Approvals pending")
+      Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 1, state: "approved")
+      Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 2, state: "approved")
+
+      expect(epic.fully_approved?).to be true
+    end
+
+    it "is true when work jobs are a mix of approved, landing, and closed" do
+      epic = described_class.create!(user: user, repository: repository, title: "Mixed approved states")
+      Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 1, state: "approved")
+      Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 2, state: "landing")
+      Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 3, state: "closed", closure_reason: "pr_merged")
+
+      expect(epic.fully_approved?).to be true
+    end
+
+    it "is false when any work job is still pre-approval" do
+      epic = described_class.create!(user: user, repository: repository, title: "Not fully approved")
+      Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 1, state: "approved")
+      Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 2, state: "implemented")
+
+      expect(epic.fully_approved?).to be false
+    end
+
+    it "is false when there are no work jobs" do
+      epic = described_class.create!(user: user, repository: repository, title: "Empty")
+
+      expect(epic.fully_approved?).to be false
+    end
+  end
+
   it "does not auto-promote to ready while an Epic dependency is unfinished" do
     prerequisite = described_class.create!(user: user, repository: repository, title: "Prerequisite")
     epic = described_class.create!(user: user, repository: repository, title: "Dependent")
@@ -366,6 +399,49 @@ RSpec.describe Epic do
 
     expect(epic.reload).to be_in_progress
     expect(job.workflows.first.trigger_kind).to eq("initial")
+  end
+
+  it "releases blocked child Jobs when the dependency Epic becomes fully approved (all jobs approved)" do
+    prerequisite = described_class.create!(user: user, repository: repository, title: "Upstream", state: "in_progress")
+    epic = described_class.create!(user: user, repository: repository, title: "Downstream", state: "in_progress")
+    EpicDependency.create!(epic: epic, depends_on_epic: prerequisite, derived: false)
+    upstream_job = Factories.job_record(
+      user: user, repository: repository, epic: prerequisite, issue_number: 1, state: "implemented"
+    )
+    downstream_job = Factories.job_record(
+      user: user, repository: repository, epic: epic, kind: "direct",
+      issue_number: nil, issue_title: "Downstream work", issue_body: "Do it",
+      state: "blocked_by_epic"
+    )
+
+    expect(downstream_job.workflows).to be_empty
+    expect(epic.reload).not_to be_releases_jobs_for_execution
+
+    expect {
+      upstream_job.approve!(via: "operator")
+      upstream_job.save!
+    }.to change { downstream_job.reload.state }.from("blocked_by_epic").to("queued")
+      .and change { downstream_job.workflows.count }.by(1)
+
+    expect(epic.reload).to be_in_progress
+  end
+
+  it "does not release child Jobs when starting an Epic with unsatisfied EpicDependency records" do
+    blocker = described_class.create!(user: user, repository: repository, title: "Blocker", state: "in_progress")
+    epic = described_class.create!(user: user, repository: repository, title: "Gated", state: "in_progress")
+    EpicDependency.create!(epic: epic, depends_on_epic: blocker, derived: false)
+    job = Factories.job_record(
+      user: user, repository: repository, epic: epic, kind: "direct",
+      issue_number: nil, issue_title: "Gated work", issue_body: "Do the gated work",
+      state: "blocked_by_epic"
+    )
+
+    expect(job.workflows).to be_empty
+
+    epic.send(:unblock_child_jobs!)
+
+    expect(job.reload).to be_blocked_by_epic
+    expect(job.workflows).to be_empty
   end
 
   context "with Depends-on refs in description" do

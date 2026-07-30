@@ -1064,6 +1064,16 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
         .to change { job.reload.state }.from("blocked_by_epic").to("queued")
         .and change { job.runs.count }.from(0).to(1)
     end
+
+    it "keeps jobs blocked when the parent in_progress epic has unsatisfied EpicDependency records" do
+      blocker = Factories.epic(user: user, repository: repository, state: "in_progress")
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      EpicDependency.create!(epic: epic, depends_on_epic: blocker)
+      job = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 10, state: "blocked_by_epic")
+
+      expect(job.blocked_by_epic_before_execution?).to be true
+      expect(job.may_advance_after_triage?).to be false
+    end
   end
 
   describe "scopes" do

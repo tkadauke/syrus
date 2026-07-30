@@ -237,6 +237,11 @@ class Epic < ApplicationRecord
     jobs.where.not(state: "closed").where.not(state: "approved").none?
   end
 
+  def fully_approved?
+    child_jobs = work_jobs.reload
+    child_jobs.any? && child_jobs.all? { |j| j.approved? || j.landing? || j.closed? }
+  end
+
   # The effective reconciliation mode: Epic column → .syrus.yml → "pr".
   def resolved_reconciliation_mode
     RepoReconciliationPlan.for_epic(self).mode
@@ -283,6 +288,8 @@ class Epic < ApplicationRecord
       cleared = clear_reconciliation_job_if_closed!
       maybe_create_reconciliation_job! unless cleared
       return auto_complete! if may_auto_complete?
+
+      dependent_epics.find_each(&:refresh_auto_state!) if fully_approved?
 
       released
     else
@@ -388,6 +395,8 @@ class Epic < ApplicationRecord
   end
 
   def unblock_child_jobs!
+    return unless dependencies_done?
+
     @releasing_jobs_for_execution = true
     begin
       jobs.find_each do |job|
