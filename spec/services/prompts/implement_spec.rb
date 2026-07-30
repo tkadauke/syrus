@@ -55,6 +55,28 @@ RSpec.describe Prompts::Implement do
     expect(out).not_to match(/CALL THE `submit_summary` MCP TOOL/)
   end
 
+  describe "simple mode context" do
+    it "prepends the simple-mode agent guidance when simple mode is enabled" do
+      allow(AppSetting).to receive(:simple?).and_return(true)
+
+      out = described_class.new(issue: issue).to_s
+
+      expect(out).to start_with(Prompts::SimpleModeAgentContext::TEXT)
+      expect(out).to include("ask one focused clarifying question")
+      expect(out).to include("Use the Syrus memory tools liberally")
+      expect(out).to include("Always write unit tests")
+    end
+
+    it "omits the simple-mode agent guidance when advanced mode is enabled" do
+      allow(AppSetting).to receive(:simple?).and_return(false)
+
+      out = described_class.new(issue: issue).to_s
+
+      expect(out).to start_with("Issue title:")
+      expect(out).not_to include(Prompts::SimpleModeAgentContext::TEXT)
+    end
+  end
+
   describe "issue comments" do
     it "omits the comments section when there are no comments" do
       out = described_class.new(issue: issue, issue_comments: []).to_s

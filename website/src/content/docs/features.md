@@ -39,6 +39,15 @@ Job kinds:
 | `cron` | A scheduled task fire. |
 | `direct` | An operator-created prompt with no GitHub issue. |
 
+## Simple Mode
+
+When the instance is set to simple mode, Syrus assumes the operator reviews
+results visually rather than by reading code. Implementation, PR-feedback,
+and CI-repair agent prompts tell the agent to ask one focused question only
+when the request has multiple substantially different valid interpretations,
+use project memory heavily, make technical choices itself, write tests, and
+finish the stated sub-task without leaving TODOs for the operator.
+
 ## Notifications
 
 Signed-in operators see a bell in the app chrome with the current unread

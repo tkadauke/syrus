@@ -31,6 +31,7 @@ module Prompts
 
     def to_s
       sections = [
+        simple_mode_context,
         issue_section,
         epic_context,
         prior_context_section,
@@ -45,6 +46,10 @@ module Prompts
     end
 
     private
+
+    def simple_mode_context
+      Prompts::SimpleModeAgentContext.to_s.presence
+    end
 
     def issue_section
       <<~SECTION.strip

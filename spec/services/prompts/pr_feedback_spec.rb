@@ -121,4 +121,24 @@ RSpec.describe Prompts::PrFeedback do
     expect(earliest_first.index("Could you also")).to be < earliest_first.index("This breaks when")
     expect(inline_first.index("This breaks when")).to be < inline_first.index("Could you also")
   end
+
+  describe "simple mode context" do
+    it "prepends the simple-mode agent guidance when simple mode is enabled" do
+      allow(AppSetting).to receive(:simple?).and_return(true)
+
+      out = described_class.new(issue: issue, comments: [ conversation ]).to_s
+
+      expect(out).to start_with(Prompts::SimpleModeAgentContext::TEXT)
+      expect(out.index(Prompts::SimpleModeAgentContext::TEXT)).to be < out.index("Original issue:")
+    end
+
+    it "omits the simple-mode agent guidance when advanced mode is enabled" do
+      allow(AppSetting).to receive(:simple?).and_return(false)
+
+      out = described_class.new(issue: issue, comments: [ conversation ]).to_s
+
+      expect(out).to start_with("Original issue:")
+      expect(out).not_to include(Prompts::SimpleModeAgentContext::TEXT)
+    end
+  end
 end

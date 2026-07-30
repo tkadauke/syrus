@@ -87,6 +87,26 @@ RSpec.describe Prompts::CiFailure do
     expect(out).not_to include("check_#{described_class::MAX_CHECKS + 1}")
   end
 
+  describe "simple mode context" do
+    it "prepends the simple-mode agent guidance when simple mode is enabled" do
+      allow(AppSetting).to receive(:simple?).and_return(true)
+
+      out = build.to_s
+
+      expect(out).to start_with(Prompts::SimpleModeAgentContext::TEXT)
+      expect(out.index(Prompts::SimpleModeAgentContext::TEXT)).to be < out.index("CI is failing")
+    end
+
+    it "omits the simple-mode agent guidance when advanced mode is enabled" do
+      allow(AppSetting).to receive(:simple?).and_return(false)
+
+      out = build.to_s
+
+      expect(out).to start_with("CI is failing")
+      expect(out).not_to include(Prompts::SimpleModeAgentContext::TEXT)
+    end
+  end
+
   it "renders parsed CI log context as structured JSON" do
     out = build(failed_checks: [
       {

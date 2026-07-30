@@ -20,7 +20,7 @@ module Prompts
     end
 
     def to_s
-      input = [ issue_context ]
+      input = [ simple_mode_context, issue_context ].compact_blank
       input << epic_context if epic_context.present?
       input << memory_context if memory_context.present?
       input << comments_context if @issue_comments.present?
@@ -29,6 +29,10 @@ module Prompts
     end
 
     private
+
+    def simple_mode_context
+      Prompts::SimpleModeAgentContext.to_s.presence
+    end
 
     def issue_context
       [

@@ -22,7 +22,9 @@ module Prompts
     end
 
     def to_s
-      <<~PROMPT.strip
+      [
+        simple_mode_context,
+        <<~PROMPT.strip
         CI is failing on PR `#{@repo_slug}##{@pr_number}` (branch `#{@branch_name}` at `#{@head_sha[0..6]}`). Fix the failing checks.
 
         # Original issue
@@ -54,10 +56,15 @@ module Prompts
           or an environment issue outside the diff's scope), say so
           in `submit_summary` instead of pushing a noop.
 
-      PROMPT
+        PROMPT
+      ].compact_blank.join("\n\n")
     end
 
     private
+
+    def simple_mode_context
+      Prompts::SimpleModeAgentContext.to_s.presence
+    end
 
     def epic_context
       Prompts::EpicContext.new(epic: @epic, job: @job).to_s
