@@ -85,9 +85,15 @@ module Steps
         epic: job.epic,
         job: job,
         user: job.user,
-        repository_ids: [ job.repository_id ]
+        repository_ids: [ job.repository_id ],
+        injected_context: collect_injected_context
       ).to_s
       append_grade_failure_feedback(prompt)
+    end
+
+    def collect_injected_context
+      Syrus::PluginRegistry.providers_for(:prompt_injector)
+        .filter_map { |provider| provider.call(repository: repository, job: job) }
     end
 
     def prior_implement_session_id

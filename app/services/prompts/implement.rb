@@ -9,7 +9,7 @@ module Prompts
   class Implement
     SKILL_FILE = Rails.root.join(".claude/skills/implement/SKILL.md").freeze
 
-    def initialize(issue:, issue_comments: [], replay_context: nil, epic: nil, job: nil, user: nil, repository_ids: [])
+    def initialize(issue:, issue_comments: [], replay_context: nil, epic: nil, job: nil, user: nil, repository_ids: [], injected_context: [])
       @issue = issue
       @issue_comments = issue_comments
       @replay_context = replay_context
@@ -17,6 +17,7 @@ module Prompts
       @job = job
       @user = user
       @repository_ids = repository_ids
+      @injected_context = Array(injected_context)
     end
 
     def to_s
@@ -25,6 +26,7 @@ module Prompts
       input << memory_context if memory_context.present?
       input << comments_context if @issue_comments.present?
       input << "Additional context from the operator:\n\n#{@replay_context}" if @replay_context.present?
+      input.concat(@injected_context) unless @injected_context.empty?
       SkillLoader.render(SKILL_FILE, input.join("\n\n"))
     end
 

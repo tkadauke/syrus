@@ -64,6 +64,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class::EXTENSION_POINTS).to include(:source_control_provider)
     end
 
+    it "includes :prompt_injector" do
+      expect(described_class::EXTENSION_POINTS).to include(:prompt_injector)
+    end
+
     it "is frozen" do
       expect(described_class::EXTENSION_POINTS).to be_frozen
     end
@@ -91,6 +95,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class::INTERFACE_FOR[:source_control_provider].call).to eq(Syrus::Plugin::SourceControlProvider)
     end
 
+    it "maps :prompt_injector to Syrus::Plugin::PromptInjector" do
+      expect(described_class::INTERFACE_FOR[:prompt_injector].call).to eq(Syrus::Plugin::PromptInjector)
+    end
+
     it "gives coverage analyzer providers the class call contract used by the registry" do
       provider = Class.new { include Syrus::Plugin::CoverageAnalyzer }
 
@@ -98,6 +106,119 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect {
         provider.call(artifact_path: Pathname.new("coverage/lcov.info"), format_hint: "lcov")
       }.to raise_error(NotImplementedError, /must implement \.call/)
+    end
+  end
+
+  describe ".providers_for" do
+    it "returns an empty array when no providers are registered" do
+      expect(described_class.providers_for(:prompt_injector)).to eq([])
+    end
+
+    it "returns a copy so callers cannot mutate the internal list" do
+      described_class.providers_for(:prompt_injector) << double("interloper")
+      expect(described_class.providers_for(:prompt_injector)).to eq([])
+    end
+
+    it "returns only classes registered for the requested extension point" do
+      described_class.register(
+        name: "multi_plugin", version: "1.0.0",
+        provides: { agent_provider: agent_provider_class, chat_provider: chat_provider_class, mcp_tool_set: mcp_tool_set_class }
+      )
+
+      expect(described_class.providers_for(:agent_provider)).to eq([ agent_provider_class ])
+      expect(described_class.providers_for(:chat_provider)).to eq([ chat_provider_class ])
+      expect(described_class.providers_for(:mcp_tool_set)).to eq([ mcp_tool_set_class ])
+    end
+
+    it "returns test result parser providers" do
+      described_class.register(
+        name: "test_parser_plugin", version: "1.0.0",
+        provides: { test_result_parser: test_result_parser_class }
+      )
+
+      expect(described_class.providers_for(:test_result_parser)).to eq([ test_result_parser_class ])
+    end
+
+    it "returns coverage analyzer providers" do
+      described_class.register(
+        name: "coverage_plugin", version: "1.0.0",
+        provides: { coverage_analyzer: coverage_analyzer_class }
+      )
+
+      expect(described_class.providers_for(:coverage_analyzer)).to eq([ coverage_analyzer_class ])
+    end
+
+    it "returns preview providers" do
+      described_class.register(
+        name: "preview_plugin", version: "1.0.0",
+        provides: { preview_provider: preview_provider_class }
+      )
+
+      expect(described_class.providers_for(:preview_provider)).to eq([ preview_provider_class ])
+    end
+
+    it "returns admin page and chat MCP providers" do
+      described_class.register(
+        name: "ui_plugin", version: "1.0.0",
+        provides: { admin_page: admin_page_class, chat_mcp_tool_set: chat_mcp_tool_set_class }
+      )
+
+      expect(described_class.providers_for(:admin_page)).to eq([ admin_page_class ])
+      expect(described_class.providers_for(:chat_mcp_tool_set)).to eq([ chat_mcp_tool_set_class ])
+    end
+
+    it "returns an empty array when no plugin provides the requested extension point" do
+      described_class.register(name: "plugin", version: "1.0.0", provides: { mcp_tool_set: mcp_tool_set_class })
+
+      expect(described_class.providers_for(:agent_provider)).to eq([])
+    end
+
+    it "returns an empty array when no plugins are registered" do
+      expect(described_class.providers_for(:agent_provider)).to eq([])
+    end
+
+    it "excludes providers from plugins where PluginRecord.enabled is false" do
+      described_class.register(name: "disabled_plugin", version: "1.0.0", provides: { agent_provider: agent_provider_class })
+      PluginRecord.find_by!(name: "disabled_plugin").update!(enabled: false)
+
+      expect(described_class.providers_for(:agent_provider)).to eq([])
+    end
+
+    it "includes non-disableable providers even if a stale row says disabled" do
+      described_class.register(
+        name: "required_plugin",
+        version: "1.0.0",
+        disableable: false,
+        provides: { agent_provider: agent_provider_class }
+      )
+      PluginRecord.where(name: "required_plugin").update_all(enabled: false)
+
+      expect(described_class.providers_for(:agent_provider)).to eq([ agent_provider_class ])
+    end
+
+    it "includes providers from enabled plugins and excludes disabled ones" do
+      enabled_provider  = Class.new { include Syrus::Plugin::AgentProvider }
+      disabled_provider = Class.new { include Syrus::Plugin::AgentProvider }
+
+      described_class.register(name: "enabled_plugin",  version: "1.0.0", provides: { agent_provider: enabled_provider })
+      described_class.register(name: "disabled_plugin", version: "1.0.0", provides: { agent_provider: disabled_provider })
+      PluginRecord.find_by!(name: "disabled_plugin").update!(enabled: false)
+
+      expect(described_class.providers_for(:agent_provider)).to eq([ enabled_provider ])
+    end
+
+    it "returns all plugins when the plugin_records table does not exist" do
+      described_class.register(name: "plugin_a", version: "1.0.0", provides: { agent_provider: agent_provider_class })
+      allow(PluginRecord).to receive(:where).and_raise(ActiveRecord::StatementInvalid)
+
+      expect(described_class.providers_for(:agent_provider)).to eq([ agent_provider_class ])
+    end
+
+    it "returns all plugins when the database is unavailable" do
+      described_class.register(name: "plugin_a", version: "1.0.0", provides: { agent_provider: agent_provider_class })
+      allow(PluginRecord).to receive(:where).and_raise(ActiveRecord::ConnectionNotEstablished)
+
+      expect(described_class.providers_for(:agent_provider)).to eq([ agent_provider_class ])
     end
   end
 
@@ -342,146 +463,26 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       }.not_to raise_error
       expect(described_class.all_plugins.map(&:name)).to include("boot_plugin")
     end
-  end
 
-  describe ".providers_for" do
-    it "returns only classes registered for the requested extension point" do
-      described_class.register(
-        name: "multi_plugin", version: "1.0.0",
-        provides: { agent_provider: agent_provider_class, chat_provider: chat_provider_class, mcp_tool_set: mcp_tool_set_class }
-      )
+    context "direct registration (register(:extension_point, provider))" do
+      it "registers a provider for a known extension point" do
+        provider = double("provider")
+        described_class.register(:prompt_injector, provider)
+        expect(described_class.providers_for(:prompt_injector)).to eq([ provider ])
+      end
 
-      expect(described_class.providers_for(:agent_provider)).to eq([ agent_provider_class ])
-      expect(described_class.providers_for(:chat_provider)).to eq([ chat_provider_class ])
-      expect(described_class.providers_for(:mcp_tool_set)).to eq([ mcp_tool_set_class ])
-    end
+      it "accumulates multiple providers in registration order" do
+        first  = double("first")
+        second = double("second")
+        described_class.register(:prompt_injector, first)
+        described_class.register(:prompt_injector, second)
+        expect(described_class.providers_for(:prompt_injector)).to eq([ first, second ])
+      end
 
-    it "returns test result parser providers" do
-      described_class.register(
-        name: "test_parser_plugin", version: "1.0.0",
-        provides: { test_result_parser: test_result_parser_class }
-      )
-
-      expect(described_class.providers_for(:test_result_parser)).to eq([ test_result_parser_class ])
-    end
-
-    it "returns coverage analyzer providers" do
-      described_class.register(
-        name: "coverage_plugin", version: "1.0.0",
-        provides: { coverage_analyzer: coverage_analyzer_class }
-      )
-
-      expect(described_class.providers_for(:coverage_analyzer)).to eq([ coverage_analyzer_class ])
-    end
-
-    it "returns preview providers" do
-      described_class.register(
-        name: "preview_plugin", version: "1.0.0",
-        provides: { preview_provider: preview_provider_class }
-      )
-
-      expect(described_class.providers_for(:preview_provider)).to eq([ preview_provider_class ])
-    end
-
-    it "returns admin page and chat MCP providers" do
-      described_class.register(
-        name: "ui_plugin", version: "1.0.0",
-        provides: { admin_page: admin_page_class, chat_mcp_tool_set: chat_mcp_tool_set_class }
-      )
-
-      expect(described_class.providers_for(:admin_page)).to eq([ admin_page_class ])
-      expect(described_class.providers_for(:chat_mcp_tool_set)).to eq([ chat_mcp_tool_set_class ])
-    end
-
-    it "returns an empty array when no plugin provides the requested extension point" do
-      described_class.register(name: "plugin", version: "1.0.0", provides: { mcp_tool_set: mcp_tool_set_class })
-
-      expect(described_class.providers_for(:agent_provider)).to eq([])
-    end
-
-    it "returns an empty array when no plugins are registered" do
-      expect(described_class.providers_for(:agent_provider)).to eq([])
-    end
-
-    it "excludes providers from plugins where PluginRecord.enabled is false" do
-      described_class.register(name: "disabled_plugin", version: "1.0.0", provides: { agent_provider: agent_provider_class })
-      PluginRecord.find_by!(name: "disabled_plugin").update!(enabled: false)
-
-      expect(described_class.providers_for(:agent_provider)).to eq([])
-    end
-
-    it "includes non-disableable providers even if a stale row says disabled" do
-      described_class.register(
-        name: "required_plugin",
-        version: "1.0.0",
-        disableable: false,
-        provides: { agent_provider: agent_provider_class }
-      )
-      PluginRecord.where(name: "required_plugin").update_all(enabled: false)
-
-      expect(described_class.providers_for(:agent_provider)).to eq([ agent_provider_class ])
-    end
-
-    it "includes providers from enabled plugins and excludes disabled ones" do
-      enabled_provider  = Class.new { include Syrus::Plugin::AgentProvider }
-      disabled_provider = Class.new { include Syrus::Plugin::AgentProvider }
-
-      described_class.register(name: "enabled_plugin",  version: "1.0.0", provides: { agent_provider: enabled_provider })
-      described_class.register(name: "disabled_plugin", version: "1.0.0", provides: { agent_provider: disabled_provider })
-      PluginRecord.find_by!(name: "disabled_plugin").update!(enabled: false)
-
-      expect(described_class.providers_for(:agent_provider)).to eq([ enabled_provider ])
-    end
-
-    it "returns all plugins when the plugin_records table does not exist" do
-      described_class.register(name: "plugin_a", version: "1.0.0", provides: { agent_provider: agent_provider_class })
-      allow(PluginRecord).to receive(:where).and_raise(ActiveRecord::StatementInvalid)
-
-      expect(described_class.providers_for(:agent_provider)).to eq([ agent_provider_class ])
-    end
-
-    it "returns all plugins when the database is unavailable" do
-      described_class.register(name: "plugin_a", version: "1.0.0", provides: { agent_provider: agent_provider_class })
-      allow(PluginRecord).to receive(:where).and_raise(ActiveRecord::ConnectionNotEstablished)
-
-      expect(described_class.providers_for(:agent_provider)).to eq([ agent_provider_class ])
-    end
-  end
-
-  describe ".all_plugins" do
-    it "returns a snapshot that is not affected by subsequent registrations" do
-      described_class.register(name: "plugin_a", version: "1.0.0")
-      snapshot = described_class.all_plugins
-      described_class.register(name: "plugin_b", version: "2.0.0")
-
-      expect(snapshot.size).to eq(1)
-      expect(described_class.all_plugins.size).to eq(2)
-    end
-
-    it "reflects current enabled state from DB" do
-      described_class.register(name: "toggled_plugin", version: "1.0.0")
-      PluginRecord.find_by!(name: "toggled_plugin").update!(enabled: false)
-
-      manifest = described_class.all_plugins.find { |m| m.name == "toggled_plugin" }
-      expect(manifest.enabled).to be(false)
-      expect(manifest.enabled?).to be(false)
-    end
-
-    it "reports enabled: true for plugins without a PluginRecord (table missing guard)" do
-      described_class.register(name: "unrecorded", version: "1.0.0")
-      allow(PluginRecord).to receive(:all).and_raise(ActiveRecord::StatementInvalid)
-
-      manifest = described_class.all_plugins.find { |m| m.name == "unrecorded" }
-      expect(manifest.enabled?).to be(true)
-    end
-  end
-
-  describe ".registered_names" do
-    it "returns registered plugin names without consulting PluginRecord state" do
-      described_class.register(name: "plugin_a", version: "1.0.0")
-      allow(PluginRecord).to receive(:all).and_raise(ActiveRecord::ConnectionNotEstablished)
-
-      expect(described_class.registered_names).to eq([ "plugin_a" ])
+      it "raises ArgumentError for unknown extension points" do
+        expect { described_class.register(:unknown_point, double) }
+          .to raise_error(ArgumentError, /Unknown extension point/)
+      end
     end
   end
 
@@ -507,6 +508,12 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       described_class.reset!
 
       expect(described_class.providers_for(:coverage_analyzer)).to eq([])
+    end
+
+    it "clears all registered providers" do
+      described_class.register(:prompt_injector, double("provider"))
+      described_class.reset!
+      expect(described_class.providers_for(:prompt_injector)).to eq([])
     end
   end
 
@@ -543,6 +550,43 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     it "exposes enabled? as a boolean predicate" do
       described_class.register(name: "pred_plugin", version: "1.0.0")
       manifest = described_class.all_plugins.first
+      expect(manifest.enabled?).to be(true)
+    end
+  end
+
+  describe ".registered_names" do
+    it "returns registered plugin names without consulting PluginRecord state" do
+      described_class.register(name: "plugin_a", version: "1.0.0")
+      allow(PluginRecord).to receive(:all).and_raise(ActiveRecord::ConnectionNotEstablished)
+
+      expect(described_class.registered_names).to eq([ "plugin_a" ])
+    end
+  end
+
+  describe ".all_plugins" do
+    it "returns a snapshot that is not affected by subsequent registrations" do
+      described_class.register(name: "plugin_a", version: "1.0.0")
+      snapshot = described_class.all_plugins
+      described_class.register(name: "plugin_b", version: "2.0.0")
+
+      expect(snapshot.size).to eq(1)
+      expect(described_class.all_plugins.size).to eq(2)
+    end
+
+    it "reflects current enabled state from DB" do
+      described_class.register(name: "toggled_plugin", version: "1.0.0")
+      PluginRecord.find_by!(name: "toggled_plugin").update!(enabled: false)
+
+      manifest = described_class.all_plugins.find { |m| m.name == "toggled_plugin" }
+      expect(manifest.enabled).to be(false)
+      expect(manifest.enabled?).to be(false)
+    end
+
+    it "reports enabled: true for plugins without a PluginRecord (table missing guard)" do
+      described_class.register(name: "unrecorded", version: "1.0.0")
+      allow(PluginRecord).to receive(:all).and_raise(ActiveRecord::StatementInvalid)
+
+      manifest = described_class.all_plugins.find { |m| m.name == "unrecorded" }
       expect(manifest.enabled?).to be(true)
     end
   end

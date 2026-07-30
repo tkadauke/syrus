@@ -106,6 +106,31 @@ RSpec.describe Prompts::Implement do
     end
   end
 
+  describe "injected_context" do
+    it "appends injected strings to the prompt arguments" do
+      out = described_class.new(
+        issue: issue,
+        injected_context: [ "Plugin says: check the schema.", "Also verify this edge case." ]
+      ).to_s
+      expect(out).to include("Plugin says: check the schema.")
+      expect(out).to include("Also verify this edge case.")
+    end
+
+    it "omits nothing extra when injected_context is empty" do
+      out_with    = described_class.new(issue: issue, injected_context: [ "extra" ]).to_s
+      out_without = described_class.new(issue: issue).to_s
+      expect(out_with).to include("extra")
+      expect(out_without).not_to include("extra")
+    end
+
+    it "appears before the git safety block" do
+      out = described_class.new(issue: issue, injected_context: [ "Plugin hint." ]).to_s
+      hint_pos   = out.index("Plugin hint.")
+      safety_pos = out.index(Prompts::GitSafety::TEXT)
+      expect(hint_pos).to be < safety_pos
+    end
+  end
+
   describe "replay_context" do
     it "is omitted when not provided" do
       out = described_class.new(issue: issue).to_s

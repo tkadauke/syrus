@@ -11,6 +11,7 @@ module Syrus
       admin_page
       chat_mcp_tool_set
       source_control_provider
+      prompt_injector
     ].freeze
 
     # Lambdas defer constant resolution until call time (autoload-friendly).
@@ -24,31 +25,32 @@ module Syrus
       preview_provider:   -> { Syrus::Plugin::PreviewProvider },
       admin_page:         -> { Syrus::Plugin::AdminPage },
       chat_mcp_tool_set:  -> { Syrus::Plugin::ChatMcpToolSet },
-      source_control_provider: -> { Syrus::Plugin::SourceControlProvider }
+      source_control_provider: -> { Syrus::Plugin::SourceControlProvider },
+      prompt_injector:    -> { Syrus::Plugin::PromptInjector }
     }.freeze
 
     RegistrationError = Class.new(StandardError)
 
-    @mutex   = Mutex.new
-    @plugins = []
+    @mutex            = Mutex.new
+    @plugins          = []
+    @direct_providers = Hash.new { |h, k| h[k] = [] }
 
     class << self
-      # Called by each plugin's engine initializer before the app handles requests.
-      # Auto-upserts a PluginRecord so the operator can enable/disable the plugin
-      # without touching the Gemfile. Does not overwrite an existing enabled state.
-      def register(
-        name:,
-        version:,
-        provides: {},
-        display_name: nil,
-        description: nil,
-        homepage: nil,
-        icon_url: nil,
-        default_enabled: true,
-        disableable: true,
-        category: nil,
-        **metadata
-      )
+      # Two call forms:
+      #
+      # Manifest form — called by plugin gem engine initializers:
+      #   register(name:, version:, provides: {}, ...)
+      #
+      # Direct form — registers a provider instance for a lightweight extension
+      # point (e.g. :prompt_injector) without a full gem manifest:
+      #   register(:prompt_injector, provider_instance)
+      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, description: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, category: nil, **metadata)
+        if args.length == 2 && args[0].is_a?(Symbol)
+          register_direct(args[0], args[1])
+          return
+        end
+
+
         validate_provides!(provides)
 
         @mutex.synchronize do
@@ -89,11 +91,12 @@ module Syrus
         end
       end
 
-      # Returns only the provider classes for the given extension point that
-      # belong to currently-enabled plugins. Falls back to all registered
-      # plugins when the plugin_records table doesn't exist yet.
+      # Returns provider classes (manifest) and provider instances (direct) for
+      # the given extension point that belong to currently-enabled plugins.
+      # Falls back to all registered plugins when the plugin_records table
+      # doesn't exist yet.
       def providers_for(extension_point)
-        performance_phase("plugin_registry.providers_for", extension_point: extension_point) do
+        manifest_providers = performance_phase("plugin_registry.providers_for", extension_point: extension_point) do
           plugins = performance_phase("plugin_registry.providers_for.snapshot", extension_point: extension_point) do
             @mutex.synchronize { @plugins.dup }
           end
@@ -111,6 +114,9 @@ module Syrus
             plugins.flat_map { |m| Array(m.provides[extension_point]) }
           end
         end
+
+        direct = @mutex.synchronize { @direct_providers[extension_point].dup }
+        manifest_providers + direct
       end
 
       # Returns a snapshot of all registered manifests, each annotated with the
@@ -143,7 +149,10 @@ module Syrus
       end
 
       def reset!
-        @mutex.synchronize { @plugins = [] }
+        @mutex.synchronize do
+          @plugins = []
+          @direct_providers = Hash.new { |h, k| h[k] = [] }
+        end
       end
 
       private
@@ -201,6 +210,13 @@ module Syrus
         else
           yield
         end
+      end
+
+      def register_direct(extension_point, provider)
+        unless EXTENSION_POINTS.include?(extension_point)
+          raise ArgumentError, "Unknown extension point: #{extension_point.inspect}. Valid: #{EXTENSION_POINTS.inspect}"
+        end
+        @mutex.synchronize { @direct_providers[extension_point] << provider }
       end
 
       def validate_provides!(provides)
