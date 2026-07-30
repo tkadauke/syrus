@@ -61,7 +61,7 @@ RSpec.describe CodingHandoffConfirmJob do
     expect { described_class.perform_now(0) }.not_to raise_error
   end
 
-  it "creates a direct Job linked to the chat session" do
+  it "creates a direct Job and moves the chat link into workflow artifacts" do
     action = pending_action
 
     expect { described_class.perform_now(action.id) }.to change(Job, :count).by(1)
@@ -71,9 +71,12 @@ RSpec.describe CodingHandoffConfirmJob do
       kind: "direct",
       issue_title: "User Profile Page",
       issue_body: "Add user profile page",
-      linked_chat_id: chat_session.id,
+      linked_chat_id: nil,
       repository: repository
     )
+
+    workflow = job.workflows.find_by!(trigger_kind: "coding_handoff")
+    expect(workflow.artifact("coding_handoff_chat_id")).to eq(chat_session.id)
   end
 
   it "derives the immutable handoff branch name from the chat session and pending action ids" do

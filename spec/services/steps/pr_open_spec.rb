@@ -471,7 +471,7 @@ RSpec.describe Steps::PrOpen, :ci_only do
       )
     end
 
-    it "refuses to open a PR when the checkout is not the captured handoff commit" do
+    it "refuses to open a PR when the checkout does not include the captured handoff commit" do
       pr_open_run = Run.create!(
         job: job,
         step: pr_open_step,
@@ -491,11 +491,51 @@ RSpec.describe Steps::PrOpen, :ci_only do
       allow(handler).to receive(:workspace).and_return(workspace)
       allow(handler).to receive(:streaming_git).and_return(git)
       allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/syrus-coding-handoff").and_return("actual-sha\n")
+      allow(git).to receive(:run)
+        .with("merge-base", "--is-ancestor", "expected-sha", "HEAD", chdir: "/tmp/syrus-coding-handoff")
+        .and_raise(GitRunner::GitError.new([ "merge-base" ], 1, "not ancestor"))
 
       expect(handler).not_to receive(:push_branch)
       expect {
         handler.call
       }.to raise_error(Steps::Base::StepFailed, /checkout is stale/)
+    end
+
+    it "opens a PR when background repair commits descend from the captured handoff commit" do
+      pr_open_run = Run.create!(
+        job: job,
+        step: pr_open_step,
+        trigger_kind: workflow.trigger_kind,
+        agent_provider: workflow.agent_provider
+      )
+      handler = described_class.new(pr_open_run)
+      workspace = instance_double(
+        WorkflowWorkspace,
+        setup: true,
+        branch_name: "syrus/chat-1-handoff-99",
+        path: Pathname.new("/tmp/syrus-coding-handoff"),
+        base_ref: "origin/main"
+      )
+      git = instance_double(GitRunner)
+
+      allow(handler).to receive(:workspace).and_return(workspace)
+      allow(handler).to receive(:streaming_git).and_return(git)
+      allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/syrus-coding-handoff").and_return("repair-sha\n")
+      allow(git).to receive(:run)
+        .with("merge-base", "--is-ancestor", "expected-sha", "HEAD", chdir: "/tmp/syrus-coding-handoff")
+        .and_return("")
+      allow(git).to receive(:run)
+        .with("diff", "--name-only", "origin/main...HEAD", chdir: "/tmp/syrus-coding-handoff")
+        .and_return("app/models/job.rb\n")
+      allow(handler).to receive(:push_branch)
+      allow(handler).to receive(:pr_title_and_body).and_return([ "Captured title", "Captured body" ])
+      allow(GithubClient).to receive(:for).and_return(instance_double(GithubClient, access_token: "tok"))
+      allow(PullRequestOpener).to receive(:new)
+        .and_return(instance_double(PullRequestOpener, open: 123))
+
+      handler.call
+
+      expect(job.reload.pr_number).to eq(123)
     end
 
     it "refuses to open a PR when the captured handoff commit has no diff against base" do

@@ -1,9 +1,8 @@
 class GraderChatReporter
-  # Post grader failure results to the chat and trigger an agent turn so the
-  # agent can address the failures in context. Keeps linked_chat_id intact
-  # so a follow-up complete_implement_step re-runs graders on the fixed code.
-  def self.report_failure(workflow:, chat:)
-    new(workflow, chat).report_failure
+  # Post grader failure results to the chat. Coding handoff passes
+  # enqueue_agent_turn: false because workflow agents now own repair.
+  def self.report_failure(workflow:, chat:, enqueue_agent_turn: true)
+    new(workflow, chat).report_failure(enqueue_agent_turn: enqueue_agent_turn)
   end
 
   # Post a success notice to the chat. linked_chat_id is cleared by
@@ -17,8 +16,8 @@ class GraderChatReporter
     @chat = chat
   end
 
-  def report_failure
-    text = failure_report_text
+  def report_failure(enqueue_agent_turn: true)
+    text = failure_report_text(enqueue_agent_turn: enqueue_agent_turn)
 
     # System message: displayed in the chat UI as an informational record
     # of the grader run. Included in agent history via important_system_message?.
@@ -27,8 +26,11 @@ class GraderChatReporter
       content: { "text" => text, "source" => "grader_report", "workflow_id" => @workflow.id }
     )
 
-    # Queued user message: triggers the agent turn. Agent reads the system
-    # message in history and the grader details below to fix the failures.
+    return unless enqueue_agent_turn
+
+    # Queued user message: triggers the chat-agent turn when the caller still
+    # wants chat-owned repair. Coding handoff disables this because the
+    # workflow retry loop owns repair.
     trigger_text = "Graders have run and some required checks failed. " \
                    "Please review the results above and fix the issues, " \
                    "then call `complete_implement_step` when you're ready to re-run."
@@ -48,7 +50,7 @@ class GraderChatReporter
 
   private
 
-  def failure_report_text
+  def failure_report_text(enqueue_agent_turn:)
     iterations = Array(@workflow.artifact("iterations"))
     graders = iterations.last || []
 
@@ -74,7 +76,14 @@ class GraderChatReporter
       end
     end
 
-    lines << "Fix the issues above and call `complete_implement_step` to re-run graders."
+    lines << if enqueue_agent_turn
+      "Fix the issues above and call `complete_implement_step` to re-run graders."
+    elsif @workflow.trigger_kind == "coding_handoff"
+      "Syrus will repair this handoff in the workflow for Job " \
+        "#{App::Presentation.job_slug(@workflow.job)}; no chat-agent action is required."
+    else
+      "No chat-agent action is required."
+    end
     lines.join("\n")
   end
 

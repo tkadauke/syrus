@@ -18,16 +18,22 @@ RSpec.describe Workflows::CodingHandoff do
   describe ".steps_for" do
     let(:job) { Factories.job_record(user: user, repository: repository, state: "implemented") }
 
-    it "includes prepare, grader_fanout, grader_collect, summarize, test_plan, pr_open" do
+    it "includes prepare, grader retry loop, summarize, test_plan, pr_open" do
       kinds = described_class.steps_for(job)
-      expect(kinds).to eq(%w[ prepare grader_fanout grader_collect summarize test_plan pr_open ])
+      expect(kinds.first).to eq("prepare")
+      expect(kinds[1]).to be_a(Workflows::RetryUntil)
+      expect(kinds[1].repair_steps).to eq(%w[ coding_handoff_fix ])
+      expect(kinds[1].check_steps).to eq(%w[ grader_fanout grader_collect ])
+      expect(kinds[1].repair_first).to be(false)
+      expect(kinds.last(3)).to eq(%w[ summarize test_plan pr_open ])
     end
 
     it "omits prepare when job has skip_prepare_reason" do
       allow(job).to receive(:skip_prepare?).and_return(true)
       kinds = described_class.steps_for(job)
       expect(kinds).not_to include("prepare")
-      expect(kinds).to include("grader_fanout", "grader_collect", "pr_open")
+      expect(kinds.first).to be_a(Workflows::RetryUntil)
+      expect(kinds.last).to eq("pr_open")
     end
   end
 
@@ -38,9 +44,16 @@ RSpec.describe Workflows::CodingHandoff do
       Factories.job_record(user: user, repository: repository, state: "implemented",
                            linked_chat_id: chat.id)
     end
-    let(:workflow) { Workflow.create!(job: job, trigger_kind: "coding_handoff") }
+    let(:workflow) do
+      Workflow.create!(
+        job: job,
+        trigger_kind: "coding_handoff",
+        artifacts: { "coding_handoff_chat_id" => chat.id }
+      )
+    end
 
-    it "clears linked_chat_id on the job" do
+    it "leaves linked_chat_id cleared on the job" do
+      job.update!(linked_chat_id: nil)
       described_class.after_success(workflow)
       expect(job.reload.linked_chat_id).to be_nil
     end
@@ -73,15 +86,17 @@ RSpec.describe Workflows::CodingHandoff do
 
     it "is a no-op when coding_mode feature is disabled" do
       Feature.find_by(slug: "coding_mode")&.update!(enabled: false)
+      job.update!(linked_chat_id: nil)
 
       expect {
         described_class.after_success(workflow)
       }.not_to change { chat.messages.count }
 
-      expect(job.reload.linked_chat_id).to eq(chat.id)
+      expect(job.reload.linked_chat_id).to be_nil
     end
 
-    it "is a no-op when linked_chat_id is nil" do
+    it "is a no-op when no originating chat id is recorded" do
+      workflow.update!(artifacts: {})
       job.update!(linked_chat_id: nil)
       expect {
         described_class.after_success(workflow)
@@ -102,31 +117,42 @@ RSpec.describe Workflows::CodingHandoff do
       Factories.job_record(user: user, repository: repository, state: "running",
                            linked_chat_id: chat.id)
     end
-    let(:workflow) { Workflow.create!(job: job, trigger_kind: "coding_handoff") }
+    let(:workflow) do
+      Workflow.create!(
+        job: job,
+        trigger_kind: "coding_handoff",
+        artifacts: { "coding_handoff_chat_id" => chat.id }
+      )
+    end
 
     context "when failure was a grader failure" do
       before do
-        step = Step.create!(workflow: workflow, kind: "grader_collect", position: 0,
-                            iteration: 1, state: "failed")
+        Step.create!(workflow: workflow, kind: "grader_collect", position: 0,
+                     iteration: AppSetting.grade_max_iterations, state: "failed")
       end
 
-      it "reverts the job to coding state" do
+      it "marks the job failed after retry exhaustion" do
         described_class.after_fail(workflow)
-        expect(job.reload).to be_coding
+        expect(job.reload).to be_failed
       end
 
-      it "keeps linked_chat_id set" do
+      it "does not restore linked_chat_id" do
+        job.update!(linked_chat_id: nil)
         described_class.after_fail(workflow)
-        expect(job.reload.linked_chat_id).to eq(chat.id)
+        expect(job.reload.linked_chat_id).to be_nil
       end
 
-      it "posts a failure report to the linked chat" do
+      it "posts a passive failure report to the originating chat" do
+        expect(ChatQueuedMessagePromoter).not_to receive(:deliver_one_if_idle!)
+
         expect {
           described_class.after_fail(workflow)
         }.to change { chat.messages.where(role: "system").count }.by(1)
+          .and change { chat.chat_queued_messages.count }.by(0)
 
         msg = chat.messages.where(role: "system").last
         expect(msg.content["source"]).to eq("grader_report")
+        expect(msg.content["text"]).to include("no chat-agent action is required")
       end
     end
 
@@ -176,6 +202,44 @@ RSpec.describe Workflows::CodingHandoff do
 
     it "returns false when no grader_collect step exists" do
       expect(described_class.grader_failure?(workflow)).to be(false)
+    end
+  end
+
+  describe "retry-loop dispatch" do
+    before { enable_coding_mode! }
+
+    let(:job) do
+      Factories.job_record(user: user, repository: repository, state: "running",
+                           linked_chat_id: nil)
+    end
+    let(:workflow) { described_class.instantiate(job: job) }
+
+    it "runs a fresh coding_handoff_fix step after a failed grader iteration" do
+      allow(AppSetting).to receive(:grade_max_iterations).and_return(3)
+      workflow = described_class.instantiate(job: job)
+      grader_collect = workflow.steps.find_by!(kind: "grader_collect")
+
+      expect {
+        StepDispatcher.fail_from(grader_collect)
+      }.to change { workflow.steps.where(kind: "coding_handoff_fix", iteration: 2).count }.by(1)
+
+      fix = workflow.steps.find_by!(kind: "coding_handoff_fix", iteration: 2)
+      expect(fix.runs.count).to eq(1)
+      expect(fix.loop_id).to eq(grader_collect.loop_id)
+    end
+
+    it "fails terminally after the configured max iterations" do
+      allow(AppSetting).to receive(:grade_max_iterations).and_return(1)
+      workflow = described_class.instantiate(job: job)
+      grader_collect = workflow.steps.find_by!(kind: "grader_collect")
+      grader_collect.update_column(:state, "failed")
+
+      expect {
+        StepDispatcher.fail_from(grader_collect)
+      }.not_to change { workflow.steps.where(kind: "coding_handoff_fix").count }
+
+      expect(workflow.reload).to be_failed
+      expect(job.reload).to be_failed
     end
   end
 end

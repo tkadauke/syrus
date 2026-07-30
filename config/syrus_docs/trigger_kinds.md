@@ -104,17 +104,26 @@ Rebases a chain of dependent PR branches in dependency order, then resumes landi
 
 **When it fires:** An operator confirms the handoff after a Coding Mode chat session commits changes.
 
-**Step chain:** `prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open`
+**Step chain:** `prepare → retry_until(grader_fanout → grader_collect, repair: coding_handoff_fix) → summarize → test_plan → pr_open`
 
-Validates the agent's committed work with graders (no repair loop — graders must pass), then opens the PR. The Job stays linked to the originating chat while the handoff runs so the chat Jobs tab and grader routing keep working. On grader failure, reverts the Job to `:coding` and keeps the chat link so the agent can fix and re-run. On grader pass, opens the PR, notifies the linked chat, schedules coding workspace reclaim, then clears the chat link.
+Validates the chat agent's committed work with graders before opening a PR.
+If required graders fail, a fresh workflow agent runs `coding_handoff_fix` on
+the committed handoff branch, using the original Job context, captured handoff
+branch metadata, recent commits, and `Prompts::GradeFailureFeedback`; graders
+then retry up to `grade_max_iterations`. The original chat is not queued for
+repair. Syrus may post a passive chat notification identifying the Job. On
+success it notifies the originating chat after the PR opens, schedules coding
+workspace reclaim, then clears the chat link.
 
 ## local_mode_handoff
 
 **When it fires:** An operator confirms a handoff from a Local Mode chat session (labs feature `local_mode`).
 
-**Step chain:** Similar to `coding_handoff`. When no PR exists: `prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open`. When a PR already exists (taken-over implemented Job): `prepare → grader_fanout → grader_collect → summarize_amend → try(push)`.
+**Step chain:** When no PR exists: `prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open`. When a PR already exists (taken-over implemented Job): `prepare → grader_fanout → grader_collect → summarize_amend → try(push)`.
 
-Like `coding_handoff`, requires operator confirmation before the workflow dispatches. The linked chat stays attached while graders run and is cleared only after the local-mode handoff succeeds.
+Requires operator confirmation before the workflow dispatches. The linked chat
+stays attached while graders run and is cleared only after the local-mode
+handoff succeeds.
 
 **On grader failure:** The workflow does not propagate failure to the Job via the normal `propagate_fail_to_job!` path. Instead, `after_fail` reverts the Job to `:coding` so the operator can fix the issues and re-run `complete_implement_step`. If a linked chat session exists, the grader failure report is posted there to trigger an agent turn. This makes the "fix → `complete_implement_step` again" cycle documented in coding mode's system prompt work correctly.
 

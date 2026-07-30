@@ -150,14 +150,14 @@ RSpec.describe StepDispatcher do
         expect(s1.runs.reload.count).to eq(1)
       end
 
-      it "starts a new workflow after handoff even when linked_chat_id is preserved" do
+      it "starts a new workflow after handoff when linked_chat_id has been cleared" do
         enable_coding_mode!
         chat = ChatSession.create!(user: job.user)
         job.update!(state: "coding", linked_chat_id: chat.id)
 
-        # Simulate complete_coding_handoff!: job is now :implemented but
-        # linked_chat_id is still set for grader routing.
-        job.update!(state: "implemented")
+        # Simulate complete_coding_handoff!: job is now :implemented and the
+        # originating chat id has moved into coding_handoff workflow artifacts.
+        job.update!(state: "implemented", linked_chat_id: nil)
         handoff_workflow = Workflow.create!(job: job, trigger_kind: "coding_handoff")
         step = Step.create!(workflow: handoff_workflow, kind: "grader_fanout", position: 0)
 

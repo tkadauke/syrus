@@ -165,6 +165,11 @@ The handoff tools create a pending action that the operator must confirm before
 Syrus dispatches any automation. `reset_workspace` runs immediately, but only
 performs destructive cleanup when the call explicitly confirms discard.
 
+If handoff graders fail, Syrus keeps repair inside the CodingHandoff workflow:
+a fresh workflow agent fixes the committed handoff branch and graders retry
+before the PR opens. The originating chat may receive status notifications, but
+it is not queued to repair the grader failure.
+
 ## Epics
 
 Epics group related Jobs inside one repository. They are useful when a

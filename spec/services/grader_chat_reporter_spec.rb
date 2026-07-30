@@ -72,6 +72,18 @@ RSpec.describe GraderChatReporter do
       described_class.report_failure(workflow: workflow, chat: chat)
     end
 
+    it "can post a passive handoff failure report without queueing a chat agent turn" do
+      expect(ChatQueuedMessagePromoter).not_to receive(:deliver_one_if_idle!)
+
+      expect {
+        described_class.report_failure(workflow: workflow, chat: chat, enqueue_agent_turn: false)
+      }.to change { chat.messages.where(role: "system").count }.by(1)
+        .and change { chat.chat_queued_messages.count }.by(0)
+
+      text = chat.messages.where(role: "system").last.content["text"]
+      expect(text).to include("no chat-agent action is required")
+    end
+
     context "with no grader iteration data" do
       before { workflow.set_artifact!("iterations", []) }
 

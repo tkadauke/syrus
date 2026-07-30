@@ -2339,7 +2339,8 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
         expect(workflow).to be_a(Workflow)
         expect(workflow.trigger_kind).to eq("coding_handoff")
         expect(job.reload).not_to be_coding
-        expect(job.linked_chat_id).to eq(chat_session.id)
+        expect(job.linked_chat_id).to be_nil
+        expect(workflow.artifact("coding_handoff_chat_id")).to eq(chat_session.id)
       end
 
       it "returns false when job is not in coding state" do
@@ -2357,14 +2358,15 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
         expect(job.reload).to be_coding
       end
 
-      it "keeps linked_chat_id set so after_fail/after_success hooks can route to chat" do
+      it "copies linked_chat_id into workflow artifacts and clears it" do
         enable_coding_mode!
         job = Factories.job_record(user: user, repository: repository, state: "coding",
                                    linked_chat_id: chat_session.id)
 
-        job.start_coding_handoff!
+        workflow = job.start_coding_handoff!
 
-        expect(job.reload.linked_chat_id).to eq(chat_session.id)
+        expect(job.reload.linked_chat_id).to be_nil
+        expect(workflow.artifact("coding_handoff_chat_id")).to eq(chat_session.id)
       end
     end
 

@@ -6,11 +6,7 @@ module PendingActions
 
     return REGISTRY[key] if REGISTRY.key?(key)
 
-    begin
-      const_get(key.camelize, false)
-    rescue NameError
-      # fall through to the explicit unknown-action error below
-    end
+    load_action_class(key)
 
     REGISTRY.fetch(key) { raise UnknownAction, "unknown pending action: #{action_key}" }
   end
@@ -20,4 +16,8 @@ module PendingActions
   end
 
   UnknownAction = Class.new(StandardError)
+
+  def self.load_action_class(action_key)
+    "PendingActions::#{action_key.to_s.camelize}".safe_constantize
+  end
 end

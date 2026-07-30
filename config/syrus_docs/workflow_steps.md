@@ -40,6 +40,10 @@ Agentic. Addresses PR review feedback or chat feedback. Reads the new comments a
 
 Agentic. Inspects failing CI checks and fixes the root cause. Used in `ci_failure` workflows.
 
+### coding_handoff_fix
+
+Agentic. Used inside the `coding_handoff` grader retry loop before any PR exists. Repairs required grader failures on the captured handoff branch with a fresh workflow-agent turn. The prompt includes original Job context, committed handoff branch metadata, recent branch commits, and `Prompts::GradeFailureFeedback`.
+
 ### landing_fix
 
 Agentic. A focused repair step inside `auto_merge` and `merge_train` workflows. Runs only after final graders fail on the exact PR branch being landed; successful repairs are pushed before the merge API call.
@@ -224,7 +228,7 @@ Unlike `grader_collect`, this step never raises `StepFailed` — a grader failur
 
 ### grader_fanout / grader_collect
 
-Same as above, but used in `coding_handoff` workflows without a repair loop — graders must pass on the first attempt.
+Same as above. In `coding_handoff`, they run inside a retry loop repaired by `coding_handoff_fix`.
 
 ## Grader command spans
 

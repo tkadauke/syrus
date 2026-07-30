@@ -1,28 +1,37 @@
 module Workflows
   # Post-coding-mode handoff: runs graders on the code the chat agent wrote,
-  # then opens (or updates) the PR. Instantiated by the complete_implement_step
-  # MCP tool once the agent commits and pushes from the chat workspace.
+  # repairs grader failures with fresh workflow-agent turns, then opens the PR.
+  # Instantiated by the complete_implement_step MCP tool once the agent commits
+  # and pushes from the chat workspace.
   #
-  # On grader pass: workflow succeeds, PR is opened by pr_open, after_success
-  # posts a confirmation to the linked chat, enqueues reclaim, then clears
-  # linked_chat_id.
-  #
-  # On grader fail: grader_collect raises StepFailed with no loop node to
-  # catch it, so hard_fail_workflow! fires. after_fail posts the failure report
-  # to the linked chat and reverts the job to :coding so the operator can fix
-  # and re-run complete_implement_step.
+  # On grader pass: workflow succeeds, PR is opened by pr_open, and
+  # after_success posts a confirmation to the originating chat, enqueues
+  # reclaim, then clears linked_chat_id when available.
+  # On terminal grader failure after the retry budget is exhausted, after_fail
+  # posts a passive report to that chat and marks the Job failed.
   class CodingHandoff < Base
     def self.trigger_kind = "coding_handoff"
 
     def self.steps_for(job)
-      chain = [ "prepare", "grader_fanout", "grader_collect", "summarize", "test_plan", "pr_open" ]
+      chain = [
+        "prepare",
+        Workflows::RetryUntil.new(
+          max_iterations: AppSetting.grade_max_iterations,
+          repair_first: false,
+          repair: [ :coding_handoff_fix ],
+          check: [ :grader_fanout, :grader_collect ]
+        ),
+        "summarize",
+        "test_plan",
+        "pr_open"
+      ]
       prepare_skipped_for?(job) ? chain.reject { |s| s == "prepare" } : chain
     end
 
     def self.after_success(workflow)
       return unless Feature.coding_mode_enabled?
 
-      chat_id = workflow.job.linked_chat_id
+      chat_id = chat_id_for(workflow)
       return unless chat_id
 
       chat = ChatSession.find_by(id: chat_id)
@@ -45,12 +54,12 @@ module Workflows
     def self.after_fail(workflow)
       return unless Feature.coding_mode_enabled?
 
-      chat = ChatSession.find_by(id: workflow.job.linked_chat_id)
+      chat = ChatSession.find_by(id: chat_id_for(workflow))
 
       if grader_failure?(workflow)
-        GraderChatReporter.report_failure(workflow: workflow, chat: chat) if chat
-        if workflow.job.may_revert_to_coding_mode?
-          workflow.job.revert_to_coding_mode!
+        GraderChatReporter.report_failure(workflow: workflow, chat: chat, enqueue_agent_turn: false) if chat
+        if workflow.job.may_mark_failed?
+          workflow.job.mark_failed!
           workflow.job.save!
         end
       else
@@ -68,6 +77,12 @@ module Workflows
 
     def self.grader_failure?(workflow)
       workflow.steps.where(kind: "grader_collect", state: "failed").exists?
+    end
+
+    def self.chat_id_for(workflow)
+      workflow.artifact("coding_handoff_chat_id").presence ||
+        workflow.artifact("coding_handoff").to_h["chat_session_id"].presence ||
+        workflow.job.linked_chat_id
     end
   end
 end

@@ -203,9 +203,8 @@ class Workflow < ApplicationRecord
   # can decide between Retry (failed → queued) and Close. Skips for
   # auto_merge — that has its own fail_landing flow that returns
   # :landing → :implemented (RunJob#record_landing_failure!).
-  # Skips for coding_handoff — grader failures route back to the linked
-  # chat session; after_fail handles job state (revert_to_coding_mode or
-  # mark_failed for non-grader failures like prepare).
+  # Skips for coding_handoff/local_mode_handoff because their hooks own
+  # state transitions and optional chat notifications.
   #
   # When the failing step raised NoChangesProduced (agent ran correctly
   # but found nothing to do), the Job lands in :no_change_needed rather

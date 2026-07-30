@@ -600,6 +600,22 @@ RSpec.describe Workflows do
       )
     end
 
+    it "instantiates CodingHandoff with pre-PR grader repair before PR open" do
+      wf = Workflows::CodingHandoff.instantiate(job: job)
+
+      expect(wf.steps.pluck(:kind)).to eq(%w[ prepare grader_fanout grader_collect summarize test_plan pr_open ])
+      expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ grader_fanout grader_collect ])
+      expect(wf.chain_template).to include(
+        {
+          "type" => "retry_until",
+          "max_iterations" => AppSetting.grade_max_iterations,
+          "repair" => %w[ coding_handoff_fix ],
+          "check" => %w[ grader_fanout grader_collect ],
+          "repair_first" => false
+        }
+      )
+    end
+
     it "instantiates Manual with a single 'manual' step" do
       wf = Workflows::Manual.instantiate(job: job)
       expect(wf.steps.pluck(:kind)).to eq(%w[ manual ])

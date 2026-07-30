@@ -35,17 +35,24 @@ module JobCodingMode
 
   # Signal that the coding session is complete and hand off to automation.
   # Transitions coding → implemented, fires a coding_handoff workflow that
-  # runs graders and (on pass) opens the PR. linked_chat_id is kept so the
-  # workflow's after_success/after_fail hooks can route results back to chat.
+  # runs graders, repairs grader failures in the workflow, and (on pass)
+  # opens the PR. linked_chat_id is copied into workflow artifacts for
+  # passive chat notifications, then cleared so the Job is no longer owned by
+  # the originating chat while background workflow agents repair it.
   # Returns the new Workflow on success, false otherwise.
   def start_coding_handoff!(artifacts: nil)
     return false unless Feature.coding_mode_enabled?
     return false unless coding?
 
+    chat_id = linked_chat_id
+    handoff_artifacts = (artifacts || {}).dup
+    handoff_artifacts["coding_handoff_chat_id"] ||= chat_id if chat_id.present?
+
+    self.linked_chat_id = nil
     release_from_coding!
     save!
 
-    workflow = Workflows::CodingHandoff.instantiate(job: self, artifacts: artifacts, agent_provider: agent_provider)
+    workflow = Workflows::CodingHandoff.instantiate(job: self, artifacts: handoff_artifacts, agent_provider: agent_provider)
     StepDispatcher.start_workflow(workflow)
     workflow
   end

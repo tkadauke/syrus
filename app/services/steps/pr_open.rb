@@ -138,7 +138,9 @@ module Steps
 
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
       actual_sha = current_head_sha(git)
-      raise StepFailed, "coding handoff checkout is stale: HEAD is #{actual_sha}, expected #{expected_sha}" unless actual_sha == expected_sha
+      unless actual_sha == expected_sha || ancestor?(git, expected_sha, "HEAD")
+        raise StepFailed, "coding handoff checkout is stale: HEAD is #{actual_sha}, expected descendant of #{expected_sha}"
+      end
 
       diff = git.run("diff", "--name-only", "#{workspace.base_ref}...HEAD", chdir: workspace.path.to_s).strip
       raise StepFailed, "coding handoff branch has no changes against #{workspace.base_ref}" if diff.blank?

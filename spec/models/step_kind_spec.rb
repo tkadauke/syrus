@@ -21,6 +21,8 @@ RSpec.describe Step::Kind do
     expect(described_class.style_for("apply_suggestions")).to eq("bg-lime-100 text-lime-700")
     expect(described_class.label_for("landing_fix")).to eq("Final fix")
     expect(described_class.style_for("landing_fix")).to eq("bg-blue-100 text-blue-700")
+    expect(described_class.label_for("coding_handoff_fix")).to eq("Repair handoff")
+    expect(described_class.style_for("coding_handoff_fix")).to eq("bg-blue-100 text-blue-700")
     expect(described_class.label_for("grader_fanout")).to eq("Plan graders")
     expect(described_class.style_for("grader_fanout")).to eq("bg-violet-100 text-violet-700")
     expect(described_class.label_for("mergeability_preflight")).to eq("Mergeability preflight")
@@ -66,7 +68,7 @@ RSpec.describe Step::Kind do
     end
 
     it "returns :default for all other step kinds" do
-      %w[prepare implement respond summarize pr_open push auto_merge landing_fix].each do |kind|
+      %w[prepare implement respond summarize pr_open push auto_merge landing_fix coding_handoff_fix].each do |kind|
         expect(described_class.fetch(kind).fail_policy).to eq(:default),
           "expected #{kind} to have :default fail_policy"
       end
