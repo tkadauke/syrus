@@ -23,6 +23,7 @@ module SystemAlerts
   def self.active_for(user:)
     out = []
     out << github_token_blocked(user) if user&.gh_api_blocked?
+    out << codex_usage(user) if user
     out << data_root_disk_usage if user&.admin?
     out
       .compact
@@ -57,6 +58,42 @@ module SystemAlerts
     )
   end
   private_class_method :github_token_blocked
+
+  def self.codex_usage(user)
+    status = user.codex_usage_status.to_s
+    return unless %w[exhausted warning].include?(status)
+
+    snapshot = user.codex_usage_snapshot || {}
+    remaining = snapshot["remaining_percent"]
+    limit_label = codex_usage_breakdown(snapshot).presence || (remaining.present? ? "#{remaining.round}% remaining" : status)
+    reset_at = [ snapshot.dig("primary", "reset_at"), snapshot.dig("secondary", "reset_at") ].compact.min
+    title = status == "exhausted" ? "Codex usage limit has been reached." : "Codex usage is low."
+    message = "Codex reports #{ERB::Util.html_escape(limit_label)} for this account."
+    message += " The next reset is around <code>#{ERB::Util.html_escape(reset_at)}</code>." if reset_at.present?
+
+    Alert.new(
+      id: "codex_usage:#{user.id}",
+      severity: status == "exhausted" ? :alarm : :warn,
+      title: title,
+      message: message,
+      action_steps: [
+        "Pause or move Codex-backed automation to another provider before starting more work.",
+        "Refresh Credentials after changing the Codex account or plan so Syrus can fetch a new usage snapshot."
+      ],
+      cta: { text: "Open credentials", path: "/credentials" }
+    )
+  end
+  private_class_method :codex_usage
+
+  def self.codex_usage_breakdown(snapshot)
+    [ snapshot["primary"], snapshot["secondary"] ].compact.filter_map do |window|
+      remaining = window["remaining_percent"]
+      next if remaining.blank?
+
+      "#{window.fetch("label", "usage")} #{remaining.round}% remaining"
+    end.join(", ")
+  end
+  private_class_method :codex_usage_breakdown
 
   # Per-pod under multi-worker: prefer the most-full worker's own reported
   # usage (stamped on its InstanceVersion heartbeat). Falls back to the single

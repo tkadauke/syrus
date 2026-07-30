@@ -19,6 +19,7 @@ module AgentProviders
           ).run
         ensure
           codex_auth.persist_updated_auth_json
+          CodexUsageProbe.refresh_for(user: user) if user.codex_auth_mode == "chatgpt_login"
         end
       end
     end
@@ -58,6 +59,7 @@ module AgentProviders
         ).run
       ensure
         codex_auth.persist_updated_auth_json
+        CodexUsageProbe.refresh_for(user: job.user) if job.user.codex_auth_mode == "chatgpt_login"
       end
     end
 

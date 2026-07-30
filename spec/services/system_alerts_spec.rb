@@ -49,6 +49,37 @@ RSpec.describe SystemAlerts do
       expect(first.id).to eq(second.id)
     end
 
+    it "surfaces low Codex usage warnings" do
+      user = Factories.user(
+        codex_usage_status: "warning",
+        codex_usage_snapshot: {
+          "remaining_percent" => 12.4,
+          "primary" => { "label" => "5h", "remaining_percent" => 12.4, "reset_at" => "2026-07-30T18:00:00Z" },
+          "secondary" => { "label" => "weekly", "remaining_percent" => 88.2, "reset_at" => "2026-08-05T18:00:00Z" }
+        }
+      )
+      allow(DataRootDiskUsage).to receive(:current).and_return(nil)
+
+      alert = described_class.active_for(user: user).first
+
+      expect(alert.id).to eq("codex_usage:#{user.id}")
+      expect(alert.severity).to eq(:warn)
+      expect(alert.title).to include("low")
+      expect(alert.message).to include("5h 12% remaining")
+      expect(alert.message).to include("weekly 88% remaining")
+      expect(alert.cta).to eq(text: "Open credentials", path: "/credentials")
+    end
+
+    it "surfaces exhausted Codex usage as an alarm" do
+      user = Factories.user(codex_usage_status: "exhausted", codex_usage_snapshot: {})
+      allow(DataRootDiskUsage).to receive(:current).and_return(nil)
+
+      alert = described_class.active_for(user: user).first
+
+      expect(alert.severity).to eq(:alarm)
+      expect(alert.title).to include("reached")
+    end
+
     it "surfaces warning disk usage to admins with actionable details" do
       user = Factories.user(admin: true)
       allow(DataRootDiskUsage).to receive(:current).and_return(disk_snapshot(used_percent: 86, available_bytes: 9.gigabytes, level: :warning))
