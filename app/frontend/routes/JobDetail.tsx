@@ -8,7 +8,7 @@ import { usePageTitle } from "../hooks/usePageTitle"
 import { KeyValue } from "../components/KeyValue"
 import { CopyableSlug } from "../components/CopyableSlug"
 import { NoticeToast } from "../components/NoticeToast"
-import { StatusPill } from "../components/StatusPill"
+import { StatusPill, TonePill } from "../components/StatusPill"
 import { Markdown } from "../lib/Markdown"
 import { translateBlockedReason } from "../lib/translateBlockedReason"
 import { workflowSlug } from "../lib/slugs"
@@ -848,7 +848,12 @@ function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPay
               const epicTarget = dependency.depends_on_epic
               return (
                 <li className="flex flex-wrap items-center justify-between gap-2 py-2" key={dependency.id}>
-                  <span><DependencyLink dependency={dependency} prefix={prefix} /> <span className="text-xs text-gray-400 dark:text-gray-500">({dependency.source})</span></span>
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span><DependencyLink dependency={dependency} prefix={prefix} /> <span className="text-xs text-gray-400 dark:text-gray-500">({dependency.source})</span></span>
+                    {!dependency.succeeded && !dependency.pending ? (
+                      <TonePill tone="amber">{t("dependency_not_yet_satisfied")}</TonePill>
+                    ) : null}
+                  </span>
                   {dependency.manual && !epicTarget ? <button className="text-xs text-red-600 hover:underline" disabled={command.isPending} onClick={() => command.mutate({ method: "delete", path: `${payload.paths.app_dependencies_path}/${dependency.id}`, confirm: t("confirm_remove_dependency") })} type="button">{t("remove_dependency")}</button> : null}
                   {dependency.manual && epicTarget ? <button className="text-xs text-red-600 hover:underline" disabled={command.isPending} onClick={() => command.mutate({ method: "delete", path: `${payload.paths.app_epic_dependencies_path}/${epicTarget.id}`, confirm: t("confirm_remove_epic_dependency", { slug: epicTarget.slug }) })} type="button">{t("remove_dependency")}</button> : null}
                 </li>
@@ -1015,6 +1020,5 @@ function AttachmentsTab({ payload, queryKey, onNotice }: { payload: JobDetailPay
     </section>
   )
 }
-
 
 

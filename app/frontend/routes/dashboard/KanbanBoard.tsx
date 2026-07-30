@@ -1,4 +1,5 @@
 import { EpicProgressBar, EpicStuckBadge, ExternalMetadataLink, NeutralStatePill, OwnerBadge, PendingJobTitle, RepositorySlugLink, WorkflowBadges, workflowLabel } from "./components"
+import { TonePill } from "../../components/StatusPill"
 import { PrHoverCard } from "../../components/PrHoverCard"
 import { dashboardEmptyState, subjectLabel, withRoutePrefix } from "./helpers"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
@@ -199,6 +200,9 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
         </div>
         <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
           <WorkflowBadges state={item.summary_state} triggerAriaPrefix="Active workflow trigger" triggerKind={item.active_workflow_trigger_kind} />
+          {item.state === "queued" && item.start_blocked_reason ? (
+            <TonePill tone="amber">{t(`common:start_blocked_reasons.${item.start_blocked_reason}`, { defaultValue: item.start_blocked_reason })}</TonePill>
+          ) : null}
           <RepositorySlugLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-blue-700 hover:underline dark:bg-gray-800 dark:text-gray-300 dark:hover:text-blue-300" prefix={prefix} repository={item.repository} />
           <OwnerBadge badge={item.owner_badge} />
           {item.pr_number ? (

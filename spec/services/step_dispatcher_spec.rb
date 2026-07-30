@@ -1131,3 +1131,81 @@ RSpec.describe StepDispatcher, "main_health queue gate" do
     }.to change { fix_step.runs.count }.by(1)
   end
 end
+
+RSpec.describe StepDispatcher, "stack_dependencies_not_ready block reason" do
+  include ActiveJob::TestHelper
+
+  let(:job_model) { Factories.job }
+  let!(:workflow) { Workflow.create!(job: job_model, trigger_kind: "initial") }
+  let!(:s1) { Step.create!(workflow: workflow, kind: "implement", position: 0) }
+  let!(:s2) { Step.create!(workflow: workflow, kind: "pr_open", position: 1) }
+
+  before { s1.update!(next_step_id: s2.id) }
+
+  it "records stack_dependencies_not_ready as the block reason on a non-rebase workflow" do
+    prerequisite = Factories.job(repository: job_model.repository, issue_number: 99)
+    JobDependency.create!(job: job_model, depends_on_job: prerequisite, source: "manual")
+
+    described_class.start_workflow(workflow)
+
+    expect(workflow.reload.artifact("start_blocked_reason")).to eq("stack_dependencies_not_ready")
+  end
+
+  it "clears stack_dependencies_not_ready when the dependency becomes satisfied" do
+    prerequisite = Factories.job(repository: job_model.repository, issue_number: 99)
+    JobDependency.create!(job: job_model, depends_on_job: prerequisite, source: "manual")
+    workflow.update!(artifacts: { "start_blocked_reason" => "stack_dependencies_not_ready" })
+
+    prerequisite.close_with_reason!("pr_merged")
+    described_class.start_workflow(workflow)
+
+    expect(workflow.reload.artifact("start_blocked_reason")).to be_nil
+  end
+
+  it "does not record the block reason on a rebase workflow (rebase is cancelled instead)" do
+    prerequisite = Factories.job_record(repository: job_model.repository, issue_number: 99, state: "closed", closure_reason: "pr_closed")
+    blocked_job = Factories.job_record(
+      user: job_model.user,
+      repository: job_model.repository,
+      issue_number: 100,
+      state: "approved",
+      pr_number: 100,
+      branch_name: "syrus/issue-100-#{job_model.id}"
+    )
+    JobDependency.create!(job: blocked_job, depends_on_job: prerequisite, source: "manual")
+    rebase = Workflows::Rebase.instantiate(job: blocked_job)
+
+    described_class.start_workflow(rebase)
+
+    expect(rebase.reload).to be_cancelled
+  end
+end
+
+RSpec.describe StepDispatcher, "job_not_ready_for_execution block reason" do
+  include ActiveJob::TestHelper
+
+  let(:job_model) { Factories.job }
+  let!(:workflow) { Workflow.create!(job: job_model, trigger_kind: "initial") }
+  let!(:s1) { Step.create!(workflow: workflow, kind: "implement", position: 0) }
+  let!(:s2) { Step.create!(workflow: workflow, kind: "pr_open", position: 1) }
+
+  before { s1.update!(next_step_id: s2.id) }
+
+  it "records job_not_ready_for_execution when the job is invalid" do
+    job_model.update!(validity: "duplicate")
+
+    described_class.start_workflow(workflow)
+
+    expect(workflow.reload.artifact("start_blocked_reason")).to eq("job_not_ready_for_execution")
+  end
+
+  it "clears job_not_ready_for_execution when the job becomes valid" do
+    job_model.update!(validity: "duplicate")
+    workflow.update!(artifacts: { "start_blocked_reason" => "job_not_ready_for_execution" })
+
+    job_model.update!(validity: "valid")
+    described_class.start_workflow(workflow)
+
+    expect(workflow.reload.artifact("start_blocked_reason")).to be_nil
+  end
+end

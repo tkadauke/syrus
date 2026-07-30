@@ -33,10 +33,14 @@ class StepDispatcher
     unless workflow.job.stack_ready_for_execution?
       return fail_unstartable_landing_workflow!(workflow, "landing start blocked: stack dependencies not ready") if workflow.landing_workflow?
 
-      cancel_unstartable_rebase_workflow!(workflow, "stack_dependencies_not_ready")
-      warn_if_stuck_queued(workflow, "stack_dependencies_not_ready")
+      cancel_unstartable_rebase_workflow!(workflow, STACK_BLOCK_REASON)
+      unless RebaseWorkflowSelector::TRIGGER_KINDS.include?(workflow.trigger_kind)
+        record_start_blocked!(workflow, STACK_BLOCK_REASON, backoff: START_BLOCKED_BACKOFF) unless start_blocked_backoff_active?(workflow, STACK_BLOCK_REASON)
+      end
+      warn_if_stuck_queued(workflow, STACK_BLOCK_REASON)
       return
     end
+    clear_start_blocked!(workflow, STACK_BLOCK_REASON)
 
     unless workflow.job.ready_for_execution?
       reason = if workflow.job.blocked_by_epic_before_execution?
@@ -46,10 +50,14 @@ class StepDispatcher
       end
       return fail_unstartable_landing_workflow!(workflow, reason) if workflow.landing_workflow?
 
-      cancel_unstartable_rebase_workflow!(workflow, "job_not_ready_for_execution")
-      warn_if_stuck_queued(workflow, "job_not_ready_for_execution")
+      cancel_unstartable_rebase_workflow!(workflow, JOB_BLOCK_REASON)
+      unless RebaseWorkflowSelector::TRIGGER_KINDS.include?(workflow.trigger_kind)
+        record_start_blocked!(workflow, JOB_BLOCK_REASON, backoff: START_BLOCKED_BACKOFF) unless start_blocked_backoff_active?(workflow, JOB_BLOCK_REASON)
+      end
+      warn_if_stuck_queued(workflow, JOB_BLOCK_REASON)
       return
     end
+    clear_start_blocked!(workflow, JOB_BLOCK_REASON)
 
     if main_health_blocking?(workflow)
       reason = MAIN_HEALTH_BLOCK_REASON
@@ -86,6 +94,8 @@ class StepDispatcher
   MAIN_HEALTH_EXEMPT_TRIGGERS = %w[ rebase stack_rebase main_grader ].freeze
   MAIN_HEALTH_BLOCK_REASON = "main_branch_broken"
   URGENT_BLOCK_REASON = "urgent_job_active"
+  STACK_BLOCK_REASON = "stack_dependencies_not_ready"
+  JOB_BLOCK_REASON = "job_not_ready_for_execution"
   START_BLOCKED_BACKOFF = 5.minutes
 
   def self.main_health_blocking?(workflow)

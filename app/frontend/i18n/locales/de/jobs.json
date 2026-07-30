@@ -131,6 +131,7 @@
   "epic_dependency_search_label": "Epics suchen",
   "epic_dependency_no_matches": "Keine Epics gefunden",
   "confirm_remove_epic_dependency": "{{slug}} als Abhängigkeit entfernen?",
+  "dependency_not_yet_satisfied": "Noch nicht erfüllt",
   "remove_dependency": "Entfernen",
   "timeline_loading": "Zeitachse wird geladen...",
   "timeline_error": "Zeitachse konnte nicht geladen werden.",

@@ -722,4 +722,27 @@ RSpec.describe App::JobDetailPayload do
       expect(blocker[:latest_workflow_id]).to be_nil
     end
   end
+
+  describe "start_blocked_reason" do
+    it "returns nil when the job has no queued workflow with a block reason" do
+      job = Factories.job_record(user: user, repository: repo, state: "queued")
+
+      expect(payload_for(job).dig(:job, :start_blocked_reason)).to be_nil
+      expect(payload_for(job).dig(:job, :start_blocked_at)).to be_nil
+    end
+
+    it "returns the block reason from the queued workflow's artifacts" do
+      job = Factories.job_record(user: user, repository: repo, state: "queued")
+      Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "queued",
+        artifacts: { "start_blocked_reason" => "stack_dependencies_not_ready", "start_blocked_at" => "2026-07-01T12:00:00Z" }
+      )
+
+      result = payload_for(job)
+      expect(result.dig(:job, :start_blocked_reason)).to eq("stack_dependencies_not_ready")
+      expect(result.dig(:job, :start_blocked_at)).to eq("2026-07-01T12:00:00Z")
+    end
+  end
 end

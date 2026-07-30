@@ -272,6 +272,12 @@
     "view_commit": "Commissum videre",
     "load_error_instance": "Haec instantia Syrus onerari non potest."
   },
+  "start_blocked_reasons": {
+    "stack_dependencies_not_ready": "Dependentiam exspectat",
+    "job_not_ready_for_execution": "Nondum paratum",
+    "main_branch_broken": "Ramus principalis fractus",
+    "urgent_job_active": "Opus urgens agitur"
+  },
   "blocked_reasons": {
     "landing_paused": "Landing suspensa",
     "landing_paused_main_broken": "Landing suspensa: ramus principalis fractus",

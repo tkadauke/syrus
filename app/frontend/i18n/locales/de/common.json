@@ -272,6 +272,12 @@
     "view_commit": "Commit anzeigen",
     "load_error_instance": "Diese Syrus-Instanz konnte nicht geladen werden."
   },
+  "start_blocked_reasons": {
+    "stack_dependencies_not_ready": "Wartet auf Abhängigkeit",
+    "job_not_ready_for_execution": "Noch nicht bereit",
+    "main_branch_broken": "Hauptbranch defekt",
+    "urgent_job_active": "Dringende Aufgabe läuft"
+  },
   "blocked_reasons": {
     "landing_paused": "Landing pausiert",
     "landing_paused_main_broken": "Landing pausiert: Hauptbranch defekt",

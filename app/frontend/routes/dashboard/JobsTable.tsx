@@ -491,6 +491,9 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
           {job.owner_badge ? <OwnerBadge badge={job.owner_badge} /> : null}
           <span>{job.workflows_count} {pluralize(job.workflows_count, "workflow")}</span>
           <span><RelativeTimestamp value={job.started_at || job.created_at} /></span>
+          {job.state === "queued" && job.start_blocked_reason ? (
+            <TonePill tone="amber">{t(`common:start_blocked_reasons.${job.start_blocked_reason}`, { defaultValue: job.start_blocked_reason })}</TonePill>
+          ) : null}
         </MetadataLine>
         {job.tags.length > 0 ? (
           <div className="mt-1 flex flex-wrap gap-1">
@@ -525,6 +528,9 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
           {job.owner_badge ? <OwnerBadge badge={job.owner_badge} /> : null}
           {job.tags.map((tag) => <span className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800 dark:text-gray-300" key={tag.id}>{tag.name}</span>)}
           {job.retry_state && job.retry_state.state_label !== "No failure" ? <RetryStateInline job={job} /> : null}
+          {job.state === "queued" && job.start_blocked_reason ? (
+            <TonePill tone="amber">{t(`common:start_blocked_reasons.${job.start_blocked_reason}`, { defaultValue: job.start_blocked_reason })}</TonePill>
+          ) : null}
         </MetadataLine>
       </td>
     )

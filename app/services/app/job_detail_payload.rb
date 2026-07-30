@@ -149,7 +149,9 @@ module App
         needs_attention_reason: @job.needs_attention_reason,
         needs_attention_since: iso8601(@job.needs_attention_since),
         grace_period_expires_at: iso8601(@job.grace_period_expires_at),
-        main_branch_repair: @job.main_branch_repair?
+        main_branch_repair: @job.main_branch_repair?,
+        start_blocked_reason: job_start_blocked_reason,
+        start_blocked_at: job_start_blocked_at
       }
     end
 
@@ -463,6 +465,18 @@ module App
         display_name: user.display_name,
         profile_path: profile_path(user)
       }
+    end
+
+    def job_start_blocked_reason
+      queued_workflow_for_start_blocked&.artifact("start_blocked_reason")
+    end
+
+    def job_start_blocked_at
+      queued_workflow_for_start_blocked&.artifact("start_blocked_at")
+    end
+
+    def queued_workflow_for_start_blocked
+      @queued_workflow_for_start_blocked ||= @job.workflows.find { |wf| wf.state == "queued" }
     end
 
     def summary_state(job)

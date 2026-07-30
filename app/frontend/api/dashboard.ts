@@ -144,6 +144,8 @@ export type DashboardJobItem = {
   source_chat: JobSourceChat | null
   needs_attention: boolean
   needs_attention_reason: string | null
+  start_blocked_reason: string | null
+  start_blocked_at: string | null
   paths: {
     job_path: string
     source_path: string
@@ -240,6 +242,7 @@ export type DashboardSmartFolder = {
   subject_type: string
   visibility: string
   count: number
+  blocked_count?: number | null
   active: boolean
   filter?: Record<string, unknown>
   attention_preset: string | null

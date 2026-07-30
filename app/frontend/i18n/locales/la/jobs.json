@@ -129,6 +129,7 @@
   "epic_dependency_search_label": "Epica quaere",
   "epic_dependency_no_matches": "Nulla epica inventa",
   "confirm_remove_epic_dependency": "{{slug}} ut dependentiam removere?",
+  "dependency_not_yet_satisfied": "Nondum impleta",
   "remove_dependency": "Amove",
   "timeline_loading": "Linea temporis oneratur...",
   "timeline_error": "Linea temporis onerari non potuit.",

@@ -36,6 +36,8 @@ module App
           landing_queue_blocked_reason: landing_queue_blocked_reason_for(job),
           landing_queue_entry_key: landing_queue_entry_key_for(job),
           blocked_reason: blocked_reason_for(job),
+          start_blocked_reason: job_start_blocked_reason(job),
+          start_blocked_at: job_start_blocked_at(job),
           retry_state: ::App::RetryState.for(job),
           created_at: job.created_at&.iso8601,
           updated_at: job.updated_at&.iso8601,
@@ -192,6 +194,27 @@ module App
         return "mine" if owner_user.id == user.id
 
         "other_owned"
+      end
+
+      def job_start_blocked_reason(job)
+        start_blocked_data_by_job_id.dig(job.id, :reason)
+      end
+
+      def job_start_blocked_at(job)
+        start_blocked_data_by_job_id.dig(job.id, :at)
+      end
+
+      def start_blocked_data_by_job_id
+        @start_blocked_data_by_job_id ||= begin
+          queued_scope = jobs_base_scope.where(state: "queued").select(:id)
+          Workflow.where(job_id: queued_scope, state: "queued")
+                  .where("artifacts LIKE ?", '%"start_blocked_reason"%')
+                  .select(:job_id, :artifacts)
+                  .each_with_object({}) do |wf, map|
+            reason = wf.artifacts&.dig("start_blocked_reason")
+            map[wf.job_id] = { reason: reason, at: wf.artifacts&.dig("start_blocked_at") } if reason.present?
+          end
+        end
       end
 
       def job_owner_user(job)

@@ -272,6 +272,12 @@
     "view_commit": "View commit",
     "load_error_instance": "Unable to load this Syrus instance."
   },
+  "start_blocked_reasons": {
+    "stack_dependencies_not_ready": "Waiting on dependency",
+    "job_not_ready_for_execution": "Not ready",
+    "main_branch_broken": "Main branch broken",
+    "urgent_job_active": "Urgent job in progress"
+  },
   "blocked_reasons": {
     "landing_paused": "Landing paused",
     "landing_paused_main_broken": "Landing paused: main branch broken",

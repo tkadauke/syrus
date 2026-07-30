@@ -480,7 +480,18 @@ function SmartFolderLink({
 }
 
 function FolderCount({ folder }: { folder: DashboardSmartFolder }) {
-  return <span className={`ml-auto inline-flex min-w-6 justify-center rounded-full px-1.5 py-0.5 text-xs ${folder.active ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{folder.count}</span>
+  const { t } = useT("nav")
+  const blockedCount = folder.blocked_count ?? 0
+  return (
+    <div className="ml-auto flex shrink-0 items-center gap-1">
+      {blockedCount > 0 ? (
+        <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700 dark:bg-amber-900 dark:text-amber-200">
+          {t("smart_folder.queued_blocked_count", { count: blockedCount })}
+        </span>
+      ) : null}
+      <span className={`inline-flex min-w-6 justify-center rounded-full px-1.5 py-0.5 text-xs ${folder.active ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{folder.count}</span>
+    </div>
+  )
 }
 
 function reorderFolders(folders: DashboardSmartFolder[], sourceIndex: number, targetIndex: number) {

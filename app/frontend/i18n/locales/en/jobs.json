@@ -72,6 +72,7 @@
   "section_no_attachments": "No attachments.",
   "section_no_runs": "No runs for this step.",
   "section_no_dependencies": "No dependencies.",
+  "dependency_not_yet_satisfied": "Not yet satisfied",
   "no_approvals": "No approvals yet.",
   "detail_state": "State",
   "detail_owner": "Owner",

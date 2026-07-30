@@ -267,4 +267,68 @@ RSpec.describe App::DashboardPayload do
       expect(item[:blocked_reason]).to eq("pr_not_mergeable")
     end
   end
+
+  describe "start_blocked_reason on job items" do
+    before { SmartFolder.ensure_builtins_for_subject!("job") }
+
+    it "includes start_blocked_reason from the queued workflow's artifacts" do
+      job = Factories.job_record(user: user, repository: repo, state: "queued")
+      Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "queued",
+        artifacts: { "start_blocked_reason" => "stack_dependencies_not_ready" }
+      )
+
+      result = call(subject: "job")
+      item = result[:items].find { |i| i[:id] == job.id }
+
+      expect(item).to include(start_blocked_reason: "stack_dependencies_not_ready")
+    end
+
+    it "includes nil start_blocked_reason when no blocked workflow exists" do
+      job = Factories.job_record(user: user, repository: repo, state: "queued")
+      Workflow.create!(job: job, trigger_kind: "initial", state: "queued")
+
+      result = call(subject: "job")
+      item = result[:items].find { |i| i[:id] == job.id }
+
+      expect(item).to include(start_blocked_reason: nil)
+    end
+  end
+
+  describe "blocked_count on queued smart folder" do
+    before { SmartFolder.ensure_builtins_for_subject!("job") }
+
+    it "includes blocked_count on the queued folder when blocked jobs exist" do
+      queued_job = Factories.job_record(user: user, repository: repo, state: "queued")
+      Workflow.create!(
+        job: queued_job,
+        trigger_kind: "initial",
+        state: "queued",
+        artifacts: { "start_blocked_reason" => "urgent_job_active" }
+      )
+
+      result = call(subject: "job")
+      queued_folder = result[:smart_folders].find { |f| f[:key] == "queued" }
+
+      expect(queued_folder[:blocked_count]).to eq(1)
+    end
+
+    it "includes blocked_count of zero when no blocked queued jobs exist" do
+      Factories.job_record(user: user, repository: repo, state: "queued")
+
+      result = call(subject: "job")
+      queued_folder = result[:smart_folders].find { |f| f[:key] == "queued" }
+
+      expect(queued_folder[:blocked_count]).to eq(0)
+    end
+
+    it "does not include blocked_count on non-queued folders" do
+      result = call(subject: "job")
+      inbox_folder = result[:smart_folders].find { |f| f[:key] == "inbox" }
+
+      expect(inbox_folder).not_to have_key(:blocked_count)
+    end
+  end
 end

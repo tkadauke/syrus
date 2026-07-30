@@ -69,6 +69,7 @@
     "pause_landing": "Landing pausieren",
     "unable_to_rename": "Smart-Ordner konnte nicht umbenannt werden.",
     "unable_to_delete": "Smart-Ordner konnte nicht gelöscht werden.",
+    "queued_blocked_count": "{{count}} blockiert",
     "landing_paused_broken_main": "Arbeit pausiert — Haupt-Branch ist kaputt.",
     "landing_paused_main_health": "Arbeit pausiert — Repository-Gesundheit muss geprüft werden.",
     "all_items_job": "Alle Aufgaben",

@@ -18,7 +18,7 @@ module App
           count = smart_folder_count(folder)
           next unless smart_folder_visible?(folder, count)
 
-          {
+          json = {
             id: folder.id,
             name: folder.name,
             key: folder.builtin_key,
@@ -32,6 +32,8 @@ module App
             attention_preset: folder.attention_preset,
             path: dashboard_path_for(subject, smart_folder_id: folder.id)
           }
+          json[:blocked_count] = queued_blocked_job_count if folder.builtin_key == "queued" && subject == "job"
+          json
         end
       end
 
@@ -41,6 +43,17 @@ module App
         return count.positive? if folder.visibility == :when_present
 
         true
+      end
+
+      def queued_blocked_job_count
+        @queued_blocked_job_count ||= begin
+          queued_scope = jobs_base_scope.where(state: "queued").select(:id)
+          Workflow.where(job_id: queued_scope, state: "queued")
+                  .where("artifacts LIKE ?", '%"start_blocked_reason"%')
+                  .select(:job_id)
+                  .distinct
+                  .count
+        end
       end
 
       def smart_folder_count(folder)
