@@ -734,9 +734,21 @@ function loadHtml2Canvas() {
 }
 
 function normalizeCloneForCapture(clonedDoc: Document) {
-  clonedDoc.querySelectorAll<HTMLElement>("*").forEach((el) => {
-    if (getComputedStyle(el).position === "sticky") {
-      el.style.position = "relative"
+  // html2canvas resets scrollTop/scrollLeft to 0 in the cloned document. To capture
+  // the current visible state of inner scroll containers (e.g. the chat message stream,
+  // which uses overflow-y-auto and doesn't scroll the window), we mirror the original
+  // scroll positions onto the cloned elements so html2canvas renders from the right offset.
+  const originalEls = Array.from(document.querySelectorAll<HTMLElement>("*"))
+
+  clonedDoc.querySelectorAll<HTMLElement>("*").forEach((clonedEl, i) => {
+    if (getComputedStyle(clonedEl).position === "sticky") {
+      clonedEl.style.position = "relative"
+    }
+
+    const originalEl = originalEls[i]
+    if (originalEl) {
+      if (originalEl.scrollTop !== 0) clonedEl.scrollTop = originalEl.scrollTop
+      if (originalEl.scrollLeft !== 0) clonedEl.scrollLeft = originalEl.scrollLeft
     }
   })
 }

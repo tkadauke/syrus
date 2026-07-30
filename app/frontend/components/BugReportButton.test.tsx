@@ -639,5 +639,71 @@ describe("BugReportButton", () => {
       expect(options).toMatchObject({ windowWidth: 402, windowHeight: 714, onclone: expect.any(Function) })
     })
 
+    it("onclone callback syncs scrollTop from inner scroll containers to their clones", async () => {
+      // Regression: html2canvas resets scrollTop to 0 in the cloned document.
+      // The chat message stream uses overflow-y-auto (not window scroll), so without
+      // this sync the screenshot shows the top of the container, not the current view.
+      renderButton()
+      await openDialog()
+
+      await waitFor(() => expect(mockHtml2canvas).toHaveBeenCalled())
+
+      const [, options] = mockHtml2canvas.mock.calls[0]
+      const onclone = options!.onclone as (document: Document, element: HTMLElement) => void
+
+      const scrolledEl = document.createElement("div")
+      document.body.appendChild(scrolledEl)
+      const setScrollTop = vi.fn()
+      Object.defineProperty(scrolledEl, "scrollTop", { configurable: true, get: () => 500, set: setScrollTop })
+
+      onclone(document, document.body)
+
+      expect(setScrollTop).toHaveBeenCalledWith(500)
+
+      document.body.removeChild(scrolledEl)
+    })
+
+    it("onclone callback syncs scrollLeft from horizontally scrolled containers to their clones", async () => {
+      renderButton()
+      await openDialog()
+
+      await waitFor(() => expect(mockHtml2canvas).toHaveBeenCalled())
+
+      const [, options] = mockHtml2canvas.mock.calls[0]
+      const onclone = options!.onclone as (document: Document, element: HTMLElement) => void
+
+      const scrolledEl = document.createElement("div")
+      document.body.appendChild(scrolledEl)
+      const setScrollLeft = vi.fn()
+      Object.defineProperty(scrolledEl, "scrollLeft", { configurable: true, get: () => 200, set: setScrollLeft })
+
+      onclone(document, document.body)
+
+      expect(setScrollLeft).toHaveBeenCalledWith(200)
+
+      document.body.removeChild(scrolledEl)
+    })
+
+    it("onclone callback does not set scrollTop when it is 0", async () => {
+      renderButton()
+      await openDialog()
+
+      await waitFor(() => expect(mockHtml2canvas).toHaveBeenCalled())
+
+      const [, options] = mockHtml2canvas.mock.calls[0]
+      const onclone = options!.onclone as (document: Document, element: HTMLElement) => void
+
+      const normalEl = document.createElement("div")
+      document.body.appendChild(normalEl)
+      const setScrollTop = vi.fn()
+      Object.defineProperty(normalEl, "scrollTop", { configurable: true, get: () => 0, set: setScrollTop })
+
+      onclone(document, document.body)
+
+      expect(setScrollTop).not.toHaveBeenCalled()
+
+      document.body.removeChild(normalEl)
+    })
+
   })
 })
