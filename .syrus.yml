@@ -62,6 +62,14 @@ adversarial_review:
       If config/features.yml is changed, verify that new or updated feature
       flag descriptions do not reference PR numbers, issue numbers, or phrases
       like "introduced in" or "added in" — descriptions must be timeless.
+    - |-
+      If the diff adds or changes any user-visible string in the SPA (a new
+      i18next key, a modified translation value, or a new namespace entry),
+      verify that the key is present in all three locale files:
+      app/frontend/i18n/locales/en/, de/, and la/. Missing keys in de/ or la/
+      silently fall back to English, so translation completeness is only
+      enforceable by inspection. Flag any key present in en/ but absent from
+      de/ or la/.
 
 # Each grader's `description:` is surfaced in the UI (tooltip on the
 # grader name + above the output panel on failure) and prepended to

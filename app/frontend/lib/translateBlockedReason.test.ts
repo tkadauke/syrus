@@ -32,6 +32,7 @@ describe("translateBlockedReason", () => {
     expect(translateBlockedReason("waiting for GitHub mergeability", mockT)).toBe("common:blocked_reasons.waiting_github_mergeability")
     expect(translateBlockedReason("waiting for GitHub mergeability after no-op rebase", mockT)).toBe("common:blocked_reasons.waiting_github_mergeability_noop")
     expect(translateBlockedReason("rebase cap reached; manual rebase or PR update required", mockT)).toBe("common:blocked_reasons.rebase_cap_reached")
+    expect(translateBlockedReason("pr_not_mergeable", mockT)).toBe("common:blocked_reasons.pr_not_mergeable")
   })
 
   it("translates dynamic reasons with slug interpolation", () => {
