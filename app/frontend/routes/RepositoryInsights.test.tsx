@@ -28,15 +28,20 @@ function makeSuggestion(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function payload(suggestions: unknown[] = [makeSuggestion()]) {
+function makeMeta(overrides: Record<string, unknown> = {}) {
+  return { total: 1, page: 1, per_page: 20, total_pages: 1, ...overrides }
+}
+
+function payload(suggestions: unknown[] = [makeSuggestion()], meta = makeMeta({ total: suggestions.length })) {
   return {
     repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", insights_path: "/repositories/1/insights" },
-    suggestions
+    suggestions,
+    meta
   }
 }
 
-function renderRoute(suggestions?: unknown[]) {
-  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload(suggestions)))
+function renderRoute(suggestions?: unknown[], meta?: Record<string, unknown>) {
+  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload(suggestions, meta ? makeMeta(meta) : undefined)))
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
@@ -235,6 +240,77 @@ describe("RepositoryInsightsRoute", () => {
         expect(fetchSpy).toHaveBeenCalledWith(
           "/api/v1/app/insight_suggestions/1",
           expect.objectContaining({ method: "PATCH" })
+        )
+      })
+    })
+  })
+
+  describe("pagination controls", () => {
+    it("does not render pagination when total_pages is 1", async () => {
+      renderRoute([makeSuggestion()], makeMeta({ total: 1, total_pages: 1 }))
+
+      await screen.findByText("Frequent prepare failures")
+
+      expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: "Previous" })).not.toBeInTheDocument()
+    })
+
+    it("renders pagination controls when total_pages > 1", async () => {
+      const suggestions = Array.from({ length: 20 }, (_, i) =>
+        makeSuggestion({ id: i + 1, title: `Suggestion ${i + 1}` })
+      )
+      renderRoute(suggestions, makeMeta({ total: 25, page: 1, per_page: 20, total_pages: 2 }))
+
+      await screen.findByText("Showing 1–20 of 25")
+
+      expect(screen.getByRole("button", { name: "Next" })).toBeInTheDocument()
+    })
+
+    it("Previous is disabled (not a button) on page 1", async () => {
+      const suggestions = Array.from({ length: 20 }, (_, i) =>
+        makeSuggestion({ id: i + 1, title: `Suggestion ${i + 1}` })
+      )
+      renderRoute(suggestions, makeMeta({ total: 25, page: 1, per_page: 20, total_pages: 2 }))
+
+      await screen.findByText("Showing 1–20 of 25")
+
+      expect(screen.queryByRole("button", { name: "Previous" })).not.toBeInTheDocument()
+      expect(screen.getByText("Previous")).toBeInTheDocument()
+    })
+
+    it("clicking Next re-fetches with page=2", async () => {
+      const page1Suggestions = Array.from({ length: 20 }, (_, i) =>
+        makeSuggestion({ id: i + 1, title: `Suggestion ${i + 1}` })
+      )
+      const page2Suggestions = [makeSuggestion({ id: 21, title: "Suggestion 21" })]
+
+      const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+        const url = String(input)
+        if (url.includes("page=2")) {
+          return Promise.resolve(jsonResponse(payload(page2Suggestions, makeMeta({ total: 21, page: 2, per_page: 20, total_pages: 2 }))))
+        }
+        return Promise.resolve(jsonResponse(payload(page1Suggestions, makeMeta({ total: 21, page: 1, per_page: 20, total_pages: 2 }))))
+      })
+
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      render(
+        <QueryClientProvider client={client}>
+          <MemoryRouter initialEntries={["/app-shell/repositories/1/insights"]}>
+            <Routes>
+              <Route element={<RepositoryInsightsRoute />} path="/app-shell/repositories/:id/insights" />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      await screen.findByText("Showing 1–20 of 21")
+
+      fireEvent.click(screen.getByRole("button", { name: "Next" }))
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          expect.stringContaining("page=2"),
+          expect.anything()
         )
       })
     })

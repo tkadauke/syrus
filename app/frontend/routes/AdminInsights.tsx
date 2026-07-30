@@ -3,17 +3,18 @@ import { useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { withRoutePrefix } from "../lib/routing"
 import { useT } from "../hooks/useT"
-import { fetchAdminInsights, promoteInsightMemory, type AdminInsightSuggestion } from "../api/insights"
+import { fetchAdminInsights, promoteInsightMemory, type AdminInsightSuggestion, type PaginationMeta } from "../api/insights"
 import { errorMessage } from "../lib/errorMessage"
 
 type StateFilter = "pending" | "accepted" | "dismissed" | "all"
 
 export function AdminInsightsRoute() {
   const { t } = useT("insights")
+  const [page, setPage] = useState(1)
 
   const query = useQuery({
-    queryKey: ["admin", "insights"],
-    queryFn: fetchAdminInsights
+    queryKey: ["admin", "insights", page],
+    queryFn: () => fetchAdminInsights(page)
   })
 
   if (query.isPending) {
@@ -32,14 +33,29 @@ export function AdminInsightsRoute() {
     )
   }
 
-  return <AdminInsightsList suggestions={query.data.suggestions} />
+  return <AdminInsightsList suggestions={query.data.suggestions} meta={query.data.meta} page={page} onPageChange={setPage} />
 }
 
-function AdminInsightsList({ suggestions }: { suggestions: AdminInsightSuggestion[] }) {
+function AdminInsightsList({
+  suggestions,
+  meta,
+  page,
+  onPageChange
+}: {
+  suggestions: AdminInsightSuggestion[]
+  meta: PaginationMeta
+  page: number
+  onPageChange: (page: number) => void
+}) {
   const { t } = useT("insights")
   const location = useLocation()
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const [stateFilter, setStateFilter] = useState<StateFilter>("pending")
+
+  function handleFilterChange(filter: StateFilter) {
+    setStateFilter(filter)
+    onPageChange(1)
+  }
 
   const filtered = suggestions.filter((s) => stateFilter === "all" || s.state === stateFilter)
   const counts = {
@@ -54,6 +70,9 @@ function AdminInsightsList({ suggestions }: { suggestions: AdminInsightSuggestio
     { key: "dismissed", label: t("filter_dismissed"), count: counts.dismissed },
     { key: "all", label: t("filter_all"), count: suggestions.length }
   ]
+
+  const firstItem = meta.total === 0 ? 0 : (page - 1) * meta.per_page + 1
+  const lastItem = Math.min(page * meta.per_page, meta.total)
 
   return (
     <main aria-label={t("aria_admin_insights")} className="mx-auto max-w-[96rem] space-y-6 p-6">
@@ -72,7 +91,7 @@ function AdminInsightsList({ suggestions }: { suggestions: AdminInsightSuggestio
             <button
               className={`rounded px-3 py-1 text-sm font-medium transition-colors ${stateFilter === tab.key ? "bg-terracotta-600 text-white" : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"}`}
               key={tab.key}
-              onClick={() => setStateFilter(tab.key)}
+              onClick={() => handleFilterChange(tab.key)}
               type="button"
             >
               {tab.label}
@@ -108,6 +127,40 @@ function AdminInsightsList({ suggestions }: { suggestions: AdminInsightSuggestio
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {meta.total_pages > 1 && (
+        <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+          <span>{t("pagination_showing", { first: firstItem, last: lastItem, total: meta.total })}</span>
+          <div className="flex gap-2">
+            {page > 1 ? (
+              <button
+                className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800"
+                onClick={() => onPageChange(page - 1)}
+                type="button"
+              >
+                {t("pagination_previous")}
+              </button>
+            ) : (
+              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">
+                {t("pagination_previous")}
+              </span>
+            )}
+            {page < meta.total_pages ? (
+              <button
+                className="rounded border border-gray-300 px-3 py-1 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-800"
+                onClick={() => onPageChange(page + 1)}
+                type="button"
+              >
+                {t("pagination_next")}
+              </button>
+            ) : (
+              <span className="rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-700 dark:text-gray-600">
+                {t("pagination_next")}
+              </span>
+            )}
+          </div>
         </div>
       )}
     </main>

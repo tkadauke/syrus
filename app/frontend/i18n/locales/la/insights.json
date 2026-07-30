@@ -57,5 +57,8 @@
   "view_job": "Vide officium",
   "promote_to_instance": "Promove ad memoriam instantiae",
   "promoting": "Promovens…",
-  "promote_error": "Memoriam promovere non potuit."
+  "promote_error": "Memoriam promovere non potuit.",
+  "pagination_showing": "Monstrans {{first}}–{{last}} ex {{total}}",
+  "pagination_previous": "Prior",
+  "pagination_next": "Sequens"
 }

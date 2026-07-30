@@ -57,5 +57,8 @@
   "view_job": "View job",
   "promote_to_instance": "Promote to instance memory",
   "promoting": "Promoting…",
-  "promote_error": "Failed to promote memory."
+  "promote_error": "Failed to promote memory.",
+  "pagination_showing": "Showing {{first}}–{{last}} of {{total}}",
+  "pagination_previous": "Previous",
+  "pagination_next": "Next"
 }

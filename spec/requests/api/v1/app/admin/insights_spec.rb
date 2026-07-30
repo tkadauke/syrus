@@ -93,7 +93,39 @@ RSpec.describe "Admin API insight suggestions", type: :request do
       get "/api/v1/app/admin/insights"
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body["suggestions"]).to eq([])
+      body = parse_body
+      expect(body["suggestions"]).to eq([])
+      expect(body["meta"]).to include("total" => 0, "page" => 1, "per_page" => 20, "total_pages" => 1)
+    end
+
+    it "returns meta with total, page, per_page, and total_pages" do
+      3.times { create_suggestion }
+
+      get "/api/v1/app/admin/insights"
+
+      body = parse_body
+      expect(body["meta"]).to include(
+        "total"       => 3,
+        "page"        => 1,
+        "per_page"    => 20,
+        "total_pages" => 1
+      )
+    end
+
+    it "paginates suggestions and returns the correct subset on page 2" do
+      25.times { |i| create_suggestion(title: "Suggestion #{i}", confidence: (25 - i).to_f / 25) }
+
+      get "/api/v1/app/admin/insights", params: { page: 2, per_page: 20 }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["suggestions"].length).to eq(5)
+      expect(body["meta"]).to include(
+        "total"       => 25,
+        "page"        => 2,
+        "per_page"    => 20,
+        "total_pages" => 2
+      )
     end
 
     it "returns suggestions across all repositories ordered by severity then confidence" do

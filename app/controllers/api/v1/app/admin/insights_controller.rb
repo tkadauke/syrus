@@ -6,13 +6,28 @@ module Api
           prepend_before_action :require_agent_insights_feature
           before_action :require_admin
 
+          PER_PAGE = 20
+
           def index
-            suggestions = InsightSuggestion
+            page     = page_param
+            per_page = per_page_param
+
+            relation = InsightSuggestion
               .includes(:job, :repository, :created_job)
               .order(Arel.sql("CASE severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, confidence DESC, insight_suggestions.created_at DESC"))
 
+            total       = relation.count
+            total_pages = [ (total.to_f / per_page).ceil, 1 ].max
+            suggestions = relation.offset((page - 1) * per_page).limit(per_page)
+
             render json: {
-              suggestions: suggestions.map { |s| admin_suggestion_json(s) }
+              suggestions: suggestions.map { |s| admin_suggestion_json(s) },
+              meta: {
+                total:       total,
+                page:        page,
+                per_page:    per_page,
+                total_pages: total_pages
+              }
             }
           end
 
@@ -46,6 +61,17 @@ module Api
           end
 
           private
+
+          def page_param
+            page = params[:page].to_i
+            page.positive? ? page : 1
+          end
+
+          def per_page_param
+            per_page = params[:per_page].to_i
+            return PER_PAGE unless per_page.positive?
+            [ per_page, 100 ].min
+          end
 
           def require_agent_insights_feature
             render_error("agent_insights_disabled", "Agent Insights is not enabled.", status: :not_found) unless Feature.agent_insights_enabled?

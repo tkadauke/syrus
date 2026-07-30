@@ -57,5 +57,8 @@
   "view_job": "Job ansehen",
   "promote_to_instance": "Zu Instanz-Erinnerung befördern",
   "promoting": "Befördern…",
-  "promote_error": "Erinnerung konnte nicht befördert werden."
+  "promote_error": "Erinnerung konnte nicht befördert werden.",
+  "pagination_showing": "Zeige {{first}}–{{last}} von {{total}}",
+  "pagination_previous": "Vorherige",
+  "pagination_next": "Nächste"
 }
