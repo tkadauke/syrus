@@ -23,6 +23,7 @@ module SystemAlerts
   def self.active_for(user:)
     out = []
     out << github_token_blocked(user) if user&.gh_api_blocked?
+    out << claude_usage(user) if user
     out << data_root_disk_usage if user&.admin?
     out
       .compact
@@ -57,6 +58,42 @@ module SystemAlerts
     )
   end
   private_class_method :github_token_blocked
+
+  def self.claude_usage(user)
+    status = user.claude_usage_status.to_s
+    return unless %w[exhausted warning].include?(status)
+
+    snapshot = user.claude_usage_snapshot || {}
+    remaining = snapshot["remaining_percent"]
+    limit_label = claude_usage_breakdown(snapshot).presence || (remaining.present? ? "#{remaining.round}% remaining" : status)
+    reset_at = [ snapshot.dig("five_hour", "reset_at"), snapshot.dig("seven_day", "reset_at") ].compact.min
+    title = status == "exhausted" ? "Claude usage limit has been reached." : "Claude usage is low."
+    message = "Claude reports #{ERB::Util.html_escape(limit_label)} for this account."
+    message += " The next reset is around <code>#{ERB::Util.html_escape(reset_at)}</code>." if reset_at.present?
+
+    Alert.new(
+      id: "claude_usage:#{user.id}",
+      severity: status == "exhausted" ? :alarm : :warn,
+      title: title,
+      message: message,
+      action_steps: [
+        "Pause or move Claude-backed automation to another provider before starting more work.",
+        "Refresh Credentials after changing the Claude account or plan so Syrus can capture a new usage snapshot."
+      ],
+      cta: { text: "Open credentials", path: "/credentials" }
+    )
+  end
+  private_class_method :claude_usage
+
+  def self.claude_usage_breakdown(snapshot)
+    [ snapshot["five_hour"], snapshot["seven_day"] ].compact.filter_map do |window|
+      remaining = window["remaining_percent"]
+      next if remaining.blank?
+
+      "#{window.fetch("label", "usage")} #{remaining.round}% remaining"
+    end.join(", ")
+  end
+  private_class_method :claude_usage_breakdown
 
   # Per-pod under multi-worker: prefer the most-full worker's own reported
   # usage (stamped on its InstanceVersion heartbeat). Falls back to the single

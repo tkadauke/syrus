@@ -49,6 +49,37 @@ RSpec.describe SystemAlerts do
       expect(first.id).to eq(second.id)
     end
 
+    it "surfaces low Claude usage warnings" do
+      user = Factories.user(
+        claude_usage_status: "warning",
+        claude_usage_snapshot: {
+          "remaining_percent" => 9.6,
+          "five_hour" => { "label" => "5h", "remaining_percent" => 9.6, "reset_at" => "2026-07-30T20:00:00Z" },
+          "seven_day" => { "label" => "weekly", "remaining_percent" => 75.2, "reset_at" => "2026-08-06T20:00:00Z" }
+        }
+      )
+      allow(DataRootDiskUsage).to receive(:current).and_return(nil)
+
+      alert = described_class.active_for(user: user).first
+
+      expect(alert.id).to eq("claude_usage:#{user.id}")
+      expect(alert.severity).to eq(:warn)
+      expect(alert.title).to include("low")
+      expect(alert.message).to include("5h 10% remaining")
+      expect(alert.message).to include("weekly 75% remaining")
+      expect(alert.cta).to eq(text: "Open credentials", path: "/credentials")
+    end
+
+    it "surfaces exhausted Claude usage as an alarm" do
+      user = Factories.user(claude_usage_status: "exhausted", claude_usage_snapshot: {})
+      allow(DataRootDiskUsage).to receive(:current).and_return(nil)
+
+      alert = described_class.active_for(user: user).first
+
+      expect(alert.severity).to eq(:alarm)
+      expect(alert.title).to include("reached")
+    end
+
     it "surfaces warning disk usage to admins with actionable details" do
       user = Factories.user(admin: true)
       allow(DataRootDiskUsage).to receive(:current).and_return(disk_snapshot(used_percent: 86, available_bytes: 9.gigabytes, level: :warning))

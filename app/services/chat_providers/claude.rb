@@ -131,7 +131,8 @@ module ChatProviders
         effort_level: chat.chat_effort,
         env: env,
         stop_requested: stop_requested,
-        process_started: process_started
+        process_started: process_started,
+        on_usage_snapshot: ->(payload) { ClaudeUsageProbe.record_status_line_payload(user: chat.user, payload: payload) }
       ).run
     end
 

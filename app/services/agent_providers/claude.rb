@@ -89,11 +89,12 @@ module AgentProviders
         log_sink: log_sink,
         runner: runner,
         timeout: timeout,
-        max_turns: max_turns
+        max_turns: max_turns,
+        on_usage_snapshot: ->(payload) { ClaudeUsageProbe.record_status_line_payload(user: user, payload: payload) }
       ).run
     end
 
-    def invoke_claude(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp_config:, resume_session_id:, required_mcp_tools: nil, on_session_id: ->(_) {})
+    def invoke_claude(workspace_path:, prompt:, log_sink:, timeout:, max_turns:, mcp_config:, resume_session_id:, required_mcp_tools: nil, on_session_id: ->(_) { })
       ClaudeInvocation.new(
         workspace_path,
         prompt: prompt,
@@ -105,7 +106,8 @@ module AgentProviders
         mcp_config: mcp_config,
         resume_session_id: resume_session_id,
         required_mcp_tools: required_mcp_tools,
-        on_session_id: on_session_id
+        on_session_id: on_session_id,
+        on_usage_snapshot: ->(payload) { ClaudeUsageProbe.record_status_line_payload(user: job.user, payload: payload) }
       ).run
     end
 
