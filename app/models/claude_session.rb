@@ -5,7 +5,7 @@ class ClaudeSession < ApplicationRecord
   belongs_to :run, optional: true
 
   validates :session_id, presence: true
-  validates :provider, presence: true, inclusion: { in: User::AGENT_PROVIDERS }
+  validates :provider, presence: true, inclusion: { in: -> { User.agent_providers } }
   validates :resumable, presence: true
 
   before_validation :default_resumable_from_run

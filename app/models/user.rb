@@ -25,7 +25,6 @@ class User < ApplicationRecord
   has_many :cron_templates, dependent: :destroy
   has_many :invitations, foreign_key: :invited_by_id, dependent: :nullify
 
-  AGENT_PROVIDERS = %w[ claude codex ].freeze
   CHAT_PROVIDERS = %w[ claude codex ].freeze
   CODEX_AUTH_MODES = %w[ api_key chatgpt_login ].freeze
   THEMES = %w[ light dark ].freeze
@@ -156,7 +155,7 @@ class User < ApplicationRecord
   validates :agent_max_turns,
             presence: true,
             numericality: { only_integer: true, in: AGENT_MAX_TURNS_RANGE }
-  validates :agent_provider, presence: true, inclusion: { in: AGENT_PROVIDERS }
+  validates :agent_provider, presence: true, inclusion: { in: -> { User.agent_providers } }
   validates :chat_provider, inclusion: { in: CHAT_PROVIDERS }, allow_nil: true
   validates :theme, presence: true, inclusion: { in: THEMES }
   validates :locale, presence: true, inclusion: { in: LOCALES }
@@ -409,8 +408,12 @@ class User < ApplicationRecord
     update!(dashboard_preferences: updated) if updated != dashboard_preferences
   end
 
+  def self.agent_providers
+    Syrus::PluginRegistry.providers_for(:agent_provider).map(&:provider_key)
+  end
+
   def configured_agent_providers
-    AGENT_PROVIDERS.select { |provider| agent_provider_configured?(provider) }
+    User.agent_providers.select { |provider| agent_provider_configured?(provider) }
   end
 
   def alternate_configured_agent_providers

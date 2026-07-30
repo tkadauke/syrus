@@ -2,7 +2,13 @@ require "tempfile"
 
 module AgentProviders
   class Claude < Base
+    include Syrus::Plugin::AgentProvider
+
     SESSION_ID_PATTERN = /\A[A-Za-z0-9_-]+\z/
+
+    def self.provider_key = "claude"
+    def self.display_name = "Claude Code"
+    def self.available?   = true
 
     def self.provider = "claude"
 

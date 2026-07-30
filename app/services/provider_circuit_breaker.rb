@@ -49,7 +49,7 @@ class ProviderCircuitBreaker
   def self.open?(provider, now: Time.current) = call(provider, now: now).open?
 
   def self.open_circuits(now: Time.current)
-    User::AGENT_PROVIDERS.filter_map do |provider|
+    User.agent_providers.filter_map do |provider|
       decision = call(provider, now: now)
       decision if decision.open?
     end

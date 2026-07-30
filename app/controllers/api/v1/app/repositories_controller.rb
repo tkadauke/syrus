@@ -401,7 +401,7 @@ module Api
         def form_payload(repository)
           {
             repository: repository_form_json(repository),
-            configured_agent_providers: User::AGENT_PROVIDERS.map { |provider| provider_json(provider) },
+            configured_agent_providers: User.agent_providers.map { |provider| provider_json(provider) },
             user_agent_provider_label: agent_provider_label(Current.user.agent_provider),
             auto_approve_modes: auto_approve_modes_json,
             repositories_path: repositories_path

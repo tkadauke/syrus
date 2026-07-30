@@ -32,7 +32,7 @@ class Run < ApplicationRecord
   end
 
   validates :trigger_kind, presence: true, inclusion: { in: TRIGGER_KINDS }
-  validates :agent_provider, presence: true, inclusion: { in: User::AGENT_PROVIDERS }
+  validates :agent_provider, presence: true, inclusion: { in: -> { User.agent_providers } }
   validate :user_matches_execution_graph
   before_validation :default_user_from_job, on: :create
 

@@ -1,5 +1,11 @@
 module AgentProviders
   class Codex < Base
+    include Syrus::Plugin::AgentProvider
+
+    def self.provider_key = "codex"
+    def self.display_name = "Codex"
+    def self.available?   = true
+
     def self.provider = "codex"
 
     def self.invoke_one_shot(workspace_path:, user:, runner:, scope:, prompt:, log_sink:, timeout:, max_turns:)

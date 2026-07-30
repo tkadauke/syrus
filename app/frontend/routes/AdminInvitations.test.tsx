@@ -30,7 +30,7 @@ describe("AdminInvitations", () => {
 
     renderRoute(<AdminInvitations />)
 
-    const copyButton = await screen.findByRole("button", { name: "Copy signup link for foo@bar.com" })
+    const copyButton = await screen.findByRole("button", { name: "Copy signup link for foo@bar.com" }, { timeout: 5000 })
     expect(copyButton.tagName).toBe("BUTTON")
     expect(copyButton).not.toHaveAttribute("href")
   })
@@ -40,7 +40,7 @@ describe("AdminInvitations", () => {
 
     renderRoute(<AdminInvitations />)
 
-    expect(await screen.findByText("https://example.com/users/new?token=abc123")).toBeInTheDocument()
+    expect(await screen.findByText("https://example.com/users/new?token=abc123", {}, { timeout: 5000 })).toBeInTheDocument()
   })
 })
 

@@ -2,12 +2,12 @@ require "rails_helper"
 
 RSpec.describe App::Presentation do
   describe ".agent_provider_label" do
-    it "uses product labels for known providers" do
+    it "uses display_name from the registered plugin for known providers" do
       expect(described_class.agent_provider_label("claude")).to eq("Claude Code")
       expect(described_class.agent_provider_label("codex")).to eq("Codex")
     end
 
-    it "humanizes unknown providers" do
+    it "titleizes the key as a fallback for unregistered providers" do
       expect(described_class.agent_provider_label("custom_provider")).to eq("Custom Provider")
     end
   end
