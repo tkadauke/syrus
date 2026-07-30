@@ -35,9 +35,11 @@ A plugin can register any combination of extension points in a single call:
 
 ```ruby
 Syrus::PluginRegistry.register(
-  name:     "my_plugin",
-  version:  MyPlugin::VERSION,
-  provides: {
+  name:        "my_plugin",
+  version:     MyPlugin::VERSION,
+  description: "One-or-two sentence summary shown in the settings UI.",
+  homepage:    "https://github.com/example/my_plugin",
+  provides:    {
     agent_provider: MyPlugin::AgentProvider,
     mcp_tool_set:   MyPlugin::McpToolSet,
   }
@@ -46,7 +48,8 @@ Syrus::PluginRegistry.register(
 
 `PluginRegistry.register` validates that each provided class includes the
 corresponding interface module and raises `Syrus::PluginRegistry::RegistrationError`
-if not.
+if not. It also upserts a `PluginRecord` row so the operator can enable/disable
+the plugin without touching the Gemfile (see below).
 
 ## Install / uninstall flow
 
@@ -56,11 +59,36 @@ if not.
 registry is populated at boot time only, so removing the gem removes the extension
 point implementations automatically.
 
+## Enable / disable a plugin
+
+`PluginRecord` is an ActiveRecord model backed by the `plugin_records` table.
+Each registered plugin gets a row automatically on first boot (via
+`PluginRecord.find_or_create_by!(name:)` inside `register`).
+
+- **Disabling** (`PluginRecord#enabled = false`) takes effect immediately for new
+  requests — `providers_for` re-queries the DB. The gem itself remains in memory
+  until restart.
+- **Re-enabling** a previously disabled plugin requires a **restart**. The gem's
+  engine won't have registered itself if it was never loaded into the current
+  process; toggling `enabled` back to `true` without restarting will not restore
+  its extension point implementations.
+
+```ruby
+PluginRecord.find_by!(name: "syrus-claude-agent").update!(enabled: false)
+```
+
 ## Querying the registry
 
 ```ruby
 Syrus::PluginRegistry.all_plugins          # → [Syrus::Plugin::Manifest, ...]
 Syrus::PluginRegistry.providers_for(:agent_provider)  # → [Class, ...]
+
+# Manifest now carries enabled state:
+manifest = Syrus::PluginRegistry.all_plugins.first
+manifest.enabled?   # → true / false
+manifest.description
+manifest.homepage
+manifest.icon_url   # nil when not provided
 ```
 
 ## Testing plugins

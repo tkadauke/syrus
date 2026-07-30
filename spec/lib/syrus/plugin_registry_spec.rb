@@ -33,6 +33,20 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class.all_plugins.first.metadata[:author]).to eq("Alice")
     end
 
+    it "stores description, homepage, and icon_url on the manifest" do
+      described_class.register(
+        name:        "rich_plugin",
+        version:     "2.0.0",
+        description: "A richly annotated plugin.",
+        homepage:    "https://example.com/rich_plugin",
+        icon_url:    "https://example.com/icon.png"
+      )
+      manifest = described_class.all_plugins.first
+      expect(manifest.description).to eq("A richly annotated plugin.")
+      expect(manifest.homepage).to eq("https://example.com/rich_plugin")
+      expect(manifest.icon_url).to eq("https://example.com/icon.png")
+    end
+
     it "accepts an empty provides hash" do
       expect {
         described_class.register(name: "empty_plugin", version: "0.1.0", provides: {})
@@ -152,6 +166,26 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
         expect(described_class.all_plugins.map(&:name)).to eq(["plugin_a"])
       end
     end
+
+    it "creates a PluginRecord with enabled: true when none exists" do
+      expect {
+        described_class.register(name: "new_plugin", version: "1.0.0")
+      }.to change { PluginRecord.where(name: "new_plugin", enabled: true).count }.by(1)
+    end
+
+    it "does not flip enabled on an existing PluginRecord" do
+      PluginRecord.create!(name: "existing_plugin", enabled: false)
+      described_class.register(name: "existing_plugin", version: "1.0.0")
+      expect(PluginRecord.find_by!(name: "existing_plugin").enabled).to be(false)
+    end
+
+    it "is resilient when the plugin_records table does not exist" do
+      allow(PluginRecord).to receive(:find_or_create_by!).and_raise(ActiveRecord::StatementInvalid)
+      expect {
+        described_class.register(name: "resilient_plugin", version: "1.0.0")
+      }.not_to raise_error
+      expect(described_class.all_plugins.map(&:name)).to include("resilient_plugin")
+    end
   end
 
   describe ".providers_for" do
@@ -174,6 +208,31 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     it "returns an empty array when no plugins are registered" do
       expect(described_class.providers_for(:agent_provider)).to eq([])
     end
+
+    it "excludes providers from plugins where PluginRecord.enabled is false" do
+      described_class.register(name: "disabled_plugin", version: "1.0.0", provides: { agent_provider: agent_provider_class })
+      PluginRecord.find_by!(name: "disabled_plugin").update!(enabled: false)
+
+      expect(described_class.providers_for(:agent_provider)).to eq([])
+    end
+
+    it "includes providers from enabled plugins and excludes disabled ones" do
+      enabled_provider  = Class.new { include Syrus::Plugin::AgentProvider }
+      disabled_provider = Class.new { include Syrus::Plugin::AgentProvider }
+
+      described_class.register(name: "enabled_plugin",  version: "1.0.0", provides: { agent_provider: enabled_provider })
+      described_class.register(name: "disabled_plugin", version: "1.0.0", provides: { agent_provider: disabled_provider })
+      PluginRecord.find_by!(name: "disabled_plugin").update!(enabled: false)
+
+      expect(described_class.providers_for(:agent_provider)).to eq([enabled_provider])
+    end
+
+    it "returns all plugins when the plugin_records table does not exist" do
+      described_class.register(name: "plugin_a", version: "1.0.0", provides: { agent_provider: agent_provider_class })
+      allow(PluginRecord).to receive(:where).and_raise(ActiveRecord::StatementInvalid)
+
+      expect(described_class.providers_for(:agent_provider)).to eq([agent_provider_class])
+    end
   end
 
   describe ".all_plugins" do
@@ -184,6 +243,23 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
       expect(snapshot.size).to eq(1)
       expect(described_class.all_plugins.size).to eq(2)
+    end
+
+    it "reflects current enabled state from DB" do
+      described_class.register(name: "toggled_plugin", version: "1.0.0")
+      PluginRecord.find_by!(name: "toggled_plugin").update!(enabled: false)
+
+      manifest = described_class.all_plugins.find { |m| m.name == "toggled_plugin" }
+      expect(manifest.enabled).to be(false)
+      expect(manifest.enabled?).to be(false)
+    end
+
+    it "reports enabled: true for plugins without a PluginRecord (table missing guard)" do
+      described_class.register(name: "unrecorded", version: "1.0.0")
+      allow(PluginRecord).to receive(:all).and_raise(ActiveRecord::StatementInvalid)
+
+      manifest = described_class.all_plugins.find { |m| m.name == "unrecorded" }
+      expect(manifest.enabled?).to be(true)
     end
   end
 
@@ -206,8 +282,14 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
   end
 
   describe "Manifest" do
-    it "is a Data object with name, version, provides, and metadata" do
-      described_class.register(name: "manifest_plugin", version: "3.0.0", custom_key: "value")
+    it "is a Data object with name, version, provides, metadata, description, homepage, icon_url, and enabled" do
+      described_class.register(
+        name:        "manifest_plugin",
+        version:     "3.0.0",
+        custom_key:  "value",
+        description: "Desc",
+        homepage:    "https://example.com"
+      )
       manifest = described_class.all_plugins.first
 
       expect(manifest).to be_a(Syrus::Plugin::Manifest)
@@ -215,6 +297,16 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(manifest.version).to eq("3.0.0")
       expect(manifest.provides).to eq({})
       expect(manifest.metadata).to eq({ custom_key: "value" })
+      expect(manifest.description).to eq("Desc")
+      expect(manifest.homepage).to eq("https://example.com")
+      expect(manifest.icon_url).to be_nil
+      expect(manifest.enabled).to be(true)
+    end
+
+    it "exposes enabled? as a boolean predicate" do
+      described_class.register(name: "pred_plugin", version: "1.0.0")
+      manifest = described_class.all_plugins.first
+      expect(manifest.enabled?).to be(true)
     end
   end
 end

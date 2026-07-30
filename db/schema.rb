@@ -927,6 +927,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_27_231200) do
     t.index ["user_id"], name: "index_notifications_on_user_id"
   end
 
+  create_table "plugin_records", force: :cascade do |t|
+    t.json "config", null: false
+    t.datetime "created_at", null: false
+    t.boolean "enabled", default: true, null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_plugin_records_on_name", unique: true
+  end
+
   create_table "pr_review_comments", force: :cascade do |t|
     t.boolean "actionable"
     t.datetime "actioned_at"

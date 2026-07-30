@@ -16,28 +16,64 @@ module Syrus
 
     class << self
       # Called by each plugin's engine initializer before the app handles requests.
-      def register(name:, version:, provides: {}, **metadata)
+      # Auto-upserts a PluginRecord so the operator can enable/disable the plugin
+      # without touching the Gemfile. Does not overwrite an existing enabled state.
+      def register(name:, version:, provides: {}, description: nil, homepage: nil, icon_url: nil, **metadata)
         validate_provides!(provides)
 
         @mutex.synchronize do
           validate_mcp_tool_name_uniqueness!(provides)
           @plugins << Syrus::Plugin::Manifest.new(
-            name: name,
-            version: version,
-            provides: provides,
-            metadata: metadata
+            name:        name,
+            version:     version,
+            provides:    provides,
+            metadata:    metadata,
+            description: description,
+            homepage:    homepage,
+            icon_url:    icon_url
           )
         end
-      end
 
-      def providers_for(extension_point)
-        @mutex.synchronize do
-          @plugins.flat_map { |m| Array(m.provides[extension_point]) }
+        begin
+          PluginRecord.find_or_create_by!(name: name)
+        rescue ActiveRecord::StatementInvalid
+          # Table not yet created (e.g. db:schema:load in progress). Ignore —
+          # the registry operates in memory; the DB record will be created on
+          # first boot after migrations have run.
         end
       end
 
+      # Returns only the provider classes for the given extension point that
+      # belong to currently-enabled plugins. Falls back to all registered
+      # plugins when the plugin_records table doesn't exist yet.
+      def providers_for(extension_point)
+        plugins = @mutex.synchronize { @plugins.dup }
+
+        begin
+          enabled_names = PluginRecord.where(enabled: true).pluck(:name).to_set
+          plugins
+            .select { |m| enabled_names.include?(m.name) }
+            .flat_map { |m| Array(m.provides[extension_point]) }
+        rescue ActiveRecord::StatementInvalid
+          plugins.flat_map { |m| Array(m.provides[extension_point]) }
+        end
+      end
+
+      # Returns a snapshot of all registered manifests, each annotated with the
+      # current enabled state from PluginRecord. Falls back to enabled: true
+      # for every plugin when the table doesn't exist yet.
       def all_plugins
-        @mutex.synchronize { @plugins.dup }
+        plugins = @mutex.synchronize { @plugins.dup }
+
+        begin
+          records = PluginRecord.all.index_by(&:name)
+          plugins.map do |m|
+            record = records[m.name]
+            record ? m.with(enabled: record.enabled) : m
+          end
+        rescue ActiveRecord::StatementInvalid
+          plugins
+        end
       end
 
       def reset!
