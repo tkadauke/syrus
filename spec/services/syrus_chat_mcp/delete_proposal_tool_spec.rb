@@ -72,6 +72,32 @@ RSpec.describe SyrusChatMcp::DeleteProposalTool do
     expect(rejected_child.reload).to be_rejected
   end
 
+  it "broadcasts an update_proposal event for the withdrawn proposal and each cascade dependent" do
+    root = ChatProposal.create!(chat_session: chat_session, slug: "root", title: "Root", body: "Root.")
+    dependent = ChatProposal.create!(chat_session: chat_session, slug: "dep", title: "Dep", body: "Dep.")
+    ChatProposalDependency.create!(proposal: dependent, depends_on: root)
+
+    allow(AppEvents).to receive(:broadcast)
+    call_tool("root")
+
+    expect(AppEvents).to have_received(:broadcast).with(
+      user: user,
+      type: "updated",
+      resource: "chat",
+      id: chat_session.id,
+      changed: [ "proposal" ],
+      payload: { action: "update_proposal", proposal_id: root.id }
+    )
+    expect(AppEvents).to have_received(:broadcast).with(
+      user: user,
+      type: "updated",
+      resource: "chat",
+      id: chat_session.id,
+      changed: [ "proposal" ],
+      payload: { action: "update_proposal", proposal_id: dependent.id }
+    )
+  end
+
   it "returns a tool error for an unknown slug" do
     response = call_tool("missing")
 

@@ -44,6 +44,8 @@ module SyrusChatMcp
           end
         end
 
+        cascade.each { |p| SyrusChatMcp.broadcast_proposal_created(chat_session, p.reload) }
+
         SyrusChatMcp.success(
           slug: proposal.slug,
           state: proposal.reload.state,
