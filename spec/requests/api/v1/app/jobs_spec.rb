@@ -650,7 +650,7 @@ RSpec.describe "App API job detail", type: :request do
     entry = parse_body.fetch("landing_queue_entry")
     expect(entry).to include(
       "position" => 1,
-      "blocked_reason" => "waiting for epic siblings to be approved"
+      "blocked_reason" => { "key" => "waiting_epic_siblings" }
     )
     expect(entry.fetch("waiting_for_jobs")).to contain_exactly(
       include(

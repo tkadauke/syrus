@@ -298,6 +298,8 @@
     "waiting_epic_siblings": "Waiting for Epic siblings to be approved",
     "waiting_github_mergeability": "Waiting for GitHub mergeability",
     "waiting_github_mergeability_noop": "Waiting for GitHub mergeability after no-op rebase",
+    "urgent_job_active": "Urgent job active",
+    "epic_reconciliation_pending": "Epic reconciliation pending",
     "rebase_cap_reached": "Rebase cap reached; manual rebase or PR update required",
     "ci_failure_in_progress": "CI failure workflow in progress on {{slug}}",
     "pr_checks_failing": "PR checks failing on {{slug}}",

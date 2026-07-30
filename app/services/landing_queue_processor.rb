@@ -1,6 +1,6 @@
 class LandingQueueProcessor
   MERGEABILITY_RECHECK_DELAY = 1.minute
-  MERGEABILITY_WAIT_REASON = "waiting for GitHub mergeability".freeze
+  MERGEABILITY_WAIT_REASON = { key: "waiting_github_mergeability" }.freeze
 
   # How many Jobs at the front of a repository's landing queue are
   # worth keeping rebased ahead of time. Proactive rebasing of the
@@ -450,82 +450,83 @@ class LandingQueueProcessor
 
   def blockage_for(job)
     return { blocked_reason: nil, waiting_for: nil, waiting_for_jobs: [] } if job.landing?
-    return blocked("landing paused") if job.user.landing_paused?
+    return blocked({ key: "landing_paused" }) if job.user.landing_paused?
     if job.repository.main_branch_health_enabled? &&
        job.repository.landing_paused? &&
        job.repository.main_health_broken? &&
        !MainHealthChangedService.fix_main_job?(job)
-      return blocked("landing paused: main branch broken")
+      return blocked({ key: "landing_paused_main_broken" })
     end
-    return blocked("repository archived") if job.repository.archived?
+    return blocked({ key: "repository_archived" }) if job.repository.archived?
     if job.priority != "urgent" &&
        job.repository.jobs.where(priority: "urgent").where.not(state: Job::TERMINAL_STATES).exists?
-      return blocked("urgent job active")
+      return blocked({ key: "urgent_job_active" })
     end
-    return blocked("waiting for Epic to release") if job.blocked_by_epic_before_execution?
+    return blocked({ key: "waiting_epic_release" }) if job.blocked_by_epic_before_execution?
     # With merge-trains on, Epic children never land via the per-Job
     # path — they land atomically as part of their Epic's train. Keep
     # them in :approved with a clear reason; MergeTrainDispatcher picks
     # the Epic up once every child is approved.
-    return blocked("waiting for Epic merge-train") if merge_train_for_epic_child?(job)
+    return blocked({ key: "waiting_epic_merge_train" }) if merge_train_for_epic_child?(job)
     # Don't burn a fail_landing cycle on a Job whose repo isn't set
     # up for auto-merge — that wipes the operator's approval without
     # surfacing the real misconfiguration. Keep the Job in :approved
     # with a clear blocked_reason; once the repo flips
     # auto_merge_enabled=true the queue picks it up immediately. Simple-mode
     # Epic children can opt in per Job without exposing the repository setting.
-    return blocked("auto-merge not enabled for repository") unless job.auto_merge_enabled?
-    return blocked("review requested changes") if job.needs_attention_reason == "upstream_pr_changes_requested"
-    return blocked("missing pull request") if job.pr_number.blank?
+    return blocked({ key: "auto_merge_not_enabled" }) unless job.auto_merge_enabled?
+    return blocked({ key: "review_requested_changes" }) if job.needs_attention_reason == "upstream_pr_changes_requested"
+    return blocked({ key: "missing_pull_request" }) if job.pr_number.blank?
     # Surface a specific reason when a ci_failure workflow is the active one, so
     # operators can distinguish "agent is fixing CI" from other in-progress workflow types.
     if job.workflows.active.where(trigger_kind: "ci_failure").exists?
-      return blocked("ci_failure workflow in progress on #{job.slug}")
+      return blocked({ key: "ci_failure_in_progress", params: { slug: job.slug } })
     end
-    return blocked("active workflow") if job.workflows.active.exists?
+    return blocked({ key: "active_workflow" }) if job.workflows.active.exists?
     # Block on failing or pending PR check-run state cached by PollPullRequestJob.
     # nil / "unknown" / "passing" allow landing; only "failing" and "pending" hold.
     case job.pr_checks_state
     when "failing"
-      return blocked("PR checks failing on #{job.slug}")
+      return blocked({ key: "pr_checks_failing", params: { slug: job.slug } })
     when "pending"
-      return blocked("PR checks pending on #{job.slug}")
+      return blocked({ key: "pr_checks_pending", params: { slug: job.slug } })
     end
     return blocked(MERGEABILITY_WAIT_REASON) if waiting_for_github_mergeability?(job)
-    return blocked(RebaseLoopGuard::BLOCK_REASON) if RebaseLoopGuard.waiting_after_noop?(job)
-    return blocked(RebaseAttemptGuard::BLOCK_REASON) if RebaseAttemptGuard.blocking_landing?(job)
+    return blocked({ key: "waiting_github_mergeability_noop" }) if RebaseLoopGuard.waiting_after_noop?(job)
+    return blocked({ key: "rebase_cap_reached" }) if RebaseAttemptGuard.blocking_landing?(job)
     if job.epic
       epic = job.epic
       if epic.reconciliation_job_id.present? &&
          job.id != epic.reconciliation_job_id &&
          !epic.reconciliation_job.closed?
-        return blocked("epic reconciliation pending")
+        return blocked({ key: "epic_reconciliation_pending" })
       end
 
       unapproved_siblings = unapproved_epic_siblings(job)
-      return blocked("waiting for epic siblings to be approved", waiting_for_jobs: unapproved_siblings) if unapproved_siblings.any?
+      return blocked({ key: "waiting_epic_siblings" }, waiting_for_jobs: unapproved_siblings) if unapproved_siblings.any?
 
       if (blocker = ci_failure_workflow_epic_sibling(job))
-        return blocked("ci_failure workflow in progress on #{blocker.slug}", waiting_for_jobs: [blocker])
+        return blocked({ key: "ci_failure_in_progress", params: { slug: blocker.slug } }, waiting_for_jobs: [blocker])
       end
       if (check_issue = pr_checks_unclean_epic_sibling(job))
-        return blocked("PR checks #{check_issue[:label]} on #{check_issue[:sibling].slug}", waiting_for_jobs: [check_issue[:sibling]])
+        check_key = check_issue[:label] == "failing" ? "pr_checks_failing" : "pr_checks_pending"
+        return blocked({ key: check_key, params: { slug: check_issue[:sibling].slug } }, waiting_for_jobs: [check_issue[:sibling]])
       end
     end
 
     parent = job.parent_job
     if parent && !merged?(parent)
-      return blocked("waiting for #{parent.slug} to merge", parent)
+      return blocked({ key: "waiting_to_merge", params: { slug: parent.slug } }, parent)
     end
 
     dependency = job.dependencies_overridden_at.present? ? nil : unmerged_dependency(job)
     if dependency
       if dependency.depends_on_epic_id.present?
-        return blocked("waiting for Epic ##{dependency.depends_on_epic.number} to complete", dependency.depends_on_epic)
+        return blocked({ key: "waiting_epic_to_complete", params: { number: dependency.depends_on_epic.number } }, dependency.depends_on_epic)
       end
 
       waiting = dependency.pending? ? dependency.unresolved_slug : dependency.depends_on_job
-      return blocked("waiting for #{dependency_label(waiting)} to merge", waiting)
+      return blocked({ key: "waiting_to_merge", params: { slug: dependency_label(waiting) } }, waiting)
     end
 
     { blocked_reason: nil, waiting_for: nil, waiting_for_jobs: [] }

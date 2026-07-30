@@ -144,7 +144,7 @@ RSpec.describe LandingQueueProcessor do
     expect(workflow.job).to eq(ready)
     expect(blocked.reload).to be_approved
     entry = described_class.entries(Job.where(id: blocked.id)).first
-    expect(entry.blocked_reason).to include("waiting for #{prerequisite.slug} to merge")
+    expect(entry.blocked_reason).to eq({ key: "waiting_to_merge", params: { slug: prerequisite.slug } })
   end
 
   it "explains when an approved Job is waiting for an Epic dependency" do
@@ -154,7 +154,7 @@ RSpec.describe LandingQueueProcessor do
 
     entry = described_class.entries(Job.where(id: blocked.id)).first
 
-    expect(entry.blocked_reason).to eq("waiting for Epic ##{epic.number} to complete")
+    expect(entry.blocked_reason).to eq({ key: "waiting_epic_to_complete", params: { number: epic.number } })
   end
 
   it "does not process paused users but resumes when unpaused" do
@@ -176,7 +176,7 @@ RSpec.describe LandingQueueProcessor do
     expect(job.reload).to be_approved
 
     entry = described_class.entries(Job.where(id: job.id)).first
-    expect(entry.blocked_reason).to eq("landing paused: main branch broken")
+    expect(entry.blocked_reason).to eq({ key: "landing_paused_main_broken" })
   end
 
   it "does not block approved Jobs solely because main health is inconclusive" do
@@ -260,7 +260,7 @@ RSpec.describe LandingQueueProcessor do
     expect(described_class.call).to be_nil
     expect(job.reload).to be_approved
     entry = described_class.entries(Job.where(id: job.id)).first
-    expect(entry.blocked_reason).to eq(RebaseLoopGuard::BLOCK_REASON)
+    expect(entry.blocked_reason).to eq({ key: "waiting_github_mergeability_noop" })
   end
 
   it "briefly blocks approved Jobs after an unknown GitHub mergeability preflight passed locally" do
@@ -275,7 +275,7 @@ RSpec.describe LandingQueueProcessor do
     expect(described_class.call).to be_nil
     expect(job.reload).to be_approved
     entry = described_class.entries(Job.where(id: job.id)).first
-    expect(entry.blocked_reason).to eq(described_class::MERGEABILITY_WAIT_REASON)
+    expect(entry.blocked_reason).to eq({ key: "waiting_github_mergeability" })
   end
 
   it "retries approved Jobs after the GitHub mergeability cooldown expires" do
@@ -306,7 +306,7 @@ RSpec.describe LandingQueueProcessor do
 
     expect(job.reload).to be_approved
     entry = described_class.entries(Job.where(id: job.id)).first
-    expect(entry.blocked_reason).to eq(RebaseAttemptGuard::BLOCK_REASON)
+    expect(entry.blocked_reason).to eq({ key: "rebase_cap_reached" })
   end
 
   it "clears a stale landing failure reason when a Job starts landing again" do
@@ -335,7 +335,7 @@ RSpec.describe LandingQueueProcessor do
     expect(described_class.call).to be_nil
     expect(approved.reload).to be_approved
     entry = described_class.entries(Job.where(id: approved.id)).first
-    expect(entry.blocked_reason).to eq("waiting for epic siblings to be approved")
+    expect(entry.blocked_reason).to eq({ key: "waiting_epic_siblings" })
     expect(entry.waiting_for_jobs.map(&:issue_number)).to eq([ 2 ])
   end
 
@@ -445,7 +445,7 @@ RSpec.describe LandingQueueProcessor do
     expect(described_class.call).to be_nil
     expect(job.reload).to be_approved
     entry = described_class.entries(Job.where(id: job.id)).first
-    expect(entry.blocked_reason).to include("auto-merge not enabled")
+    expect(entry.blocked_reason).to eq({ key: "auto_merge_not_enabled" })
   end
 
   describe "CI cleanliness gate" do
@@ -456,7 +456,7 @@ RSpec.describe LandingQueueProcessor do
       expect(described_class.call).to be_nil
       expect(job.reload).to be_approved
       entry = described_class.entries(Job.where(id: job.id)).first
-      expect(entry.blocked_reason).to eq("ci_failure workflow in progress on #{job.slug}")
+      expect(entry.blocked_reason).to eq({ key: "ci_failure_in_progress", params: { slug: job.slug } })
     end
 
     it "blocks a job whose PR checks are cached as failing" do
@@ -466,7 +466,7 @@ RSpec.describe LandingQueueProcessor do
       expect(described_class.call).to be_nil
       expect(job.reload).to be_approved
       entry = described_class.entries(Job.where(id: job.id)).first
-      expect(entry.blocked_reason).to eq("PR checks failing on #{job.slug}")
+      expect(entry.blocked_reason).to eq({ key: "pr_checks_failing", params: { slug: job.slug } })
     end
 
     it "blocks a job whose PR checks are cached as pending" do
@@ -476,7 +476,7 @@ RSpec.describe LandingQueueProcessor do
       expect(described_class.call).to be_nil
       expect(job.reload).to be_approved
       entry = described_class.entries(Job.where(id: job.id)).first
-      expect(entry.blocked_reason).to eq("PR checks pending on #{job.slug}")
+      expect(entry.blocked_reason).to eq({ key: "pr_checks_pending", params: { slug: job.slug } })
     end
 
     it "allows landing when PR checks are cached as passing" do
@@ -507,7 +507,7 @@ RSpec.describe LandingQueueProcessor do
       expect(described_class.call).to be_nil
       expect(ready.reload).to be_approved
       entry = described_class.entries(Job.where(id: ready.id)).first
-      expect(entry.blocked_reason).to eq("ci_failure workflow in progress on #{sibling.slug}")
+      expect(entry.blocked_reason).to eq({ key: "ci_failure_in_progress", params: { slug: sibling.slug } })
       expect(entry.waiting_for_jobs.map(&:id)).to eq([sibling.id])
     end
 
@@ -520,7 +520,7 @@ RSpec.describe LandingQueueProcessor do
       expect(described_class.call).to be_nil
       expect(ready.reload).to be_approved
       entry = described_class.entries(Job.where(id: ready.id)).first
-      expect(entry.blocked_reason).to eq("PR checks failing on #{sibling.slug}")
+      expect(entry.blocked_reason).to eq({ key: "pr_checks_failing", params: { slug: sibling.slug } })
       expect(entry.waiting_for_jobs.map(&:id)).to eq([sibling.id])
     end
 
@@ -533,7 +533,7 @@ RSpec.describe LandingQueueProcessor do
       expect(described_class.call).to be_nil
       expect(ready.reload).to be_approved
       entry = described_class.entries(Job.where(id: ready.id)).first
-      expect(entry.blocked_reason).to eq("PR checks pending on #{sibling.slug}")
+      expect(entry.blocked_reason).to eq({ key: "pr_checks_pending", params: { slug: sibling.slug } })
     end
 
     it "prefers failing over pending when an Epic has both kinds of sibling issues" do
@@ -545,7 +545,7 @@ RSpec.describe LandingQueueProcessor do
       pending_sib.update_columns(pr_checks_sha: "def", pr_checks_state: "pending", pr_checks_checked_at: Time.current)
 
       entry = described_class.entries(Job.where(id: ready.id)).first
-      expect(entry.blocked_reason).to eq("PR checks failing on #{failing_sib.slug}")
+      expect(entry.blocked_reason).to eq({ key: "pr_checks_failing", params: { slug: failing_sib.slug } })
     end
 
     it "does not block an Epic member for a sibling that is closed" do
@@ -639,7 +639,7 @@ RSpec.describe LandingQueueProcessor do
 
       entry = described_class.entries(Job.where(id: non_urgent.id)).first
 
-      expect(entry.blocked_reason).to eq("urgent job active")
+      expect(entry.blocked_reason).to eq({ key: "urgent_job_active" })
     end
 
     it "does not block a non-urgent job when urgent jobs are terminal" do
@@ -699,7 +699,7 @@ RSpec.describe LandingQueueProcessor do
       sibling = queue_job(issue_number: 1, approved_at: 2.minutes.ago, epic: epic)
 
       entry = described_class.entries(Job.where(id: sibling.id)).first
-      expect(entry.blocked_reason).to eq("epic reconciliation pending")
+      expect(entry.blocked_reason).to eq({ key: "epic_reconciliation_pending" })
     end
 
     it "does not block the reconciliation Job itself" do
@@ -707,7 +707,7 @@ RSpec.describe LandingQueueProcessor do
       epic.update!(reconciliation_job_id: recon_job.id)
 
       entry = described_class.entries(Job.where(id: recon_job.id)).first
-      expect(entry.blocked_reason).not_to eq("epic reconciliation pending")
+      expect(entry.blocked_reason).not_to eq({ key: "epic_reconciliation_pending" })
     end
 
     it "does not block Epic siblings once the reconciliation Job is closed" do
@@ -719,7 +719,7 @@ RSpec.describe LandingQueueProcessor do
       sibling = queue_job(issue_number: 1, approved_at: 2.minutes.ago, epic: epic)
 
       entry = described_class.entries(Job.where(id: sibling.id)).first
-      expect(entry.blocked_reason).not_to eq("epic reconciliation pending")
+      expect(entry.blocked_reason).not_to eq({ key: "epic_reconciliation_pending" })
     end
   end
 end

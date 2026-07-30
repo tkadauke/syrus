@@ -499,7 +499,7 @@ RSpec.describe "App API dashboard commands", type: :request do
       positions = body.fetch("items").index_by { |item| item.fetch("id") }.transform_values { |item| item.fetch("landing_queue_position") }
       expect(positions).to include(eligible.id => 1, blocked.id => nil)
       blocked_reasons = body.fetch("items").index_by { |item| item.fetch("id") }.transform_values { |item| item.fetch("landing_queue_blocked_reason") }
-      expect(blocked_reasons).to include(eligible.id => nil, blocked.id => "missing pull request")
+      expect(blocked_reasons).to include(eligible.id => nil, blocked.id => { "key" => "missing_pull_request" })
     end
 
     it "includes landing_queue_blocked_reason in landing queue required columns" do

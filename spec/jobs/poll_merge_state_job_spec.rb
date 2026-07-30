@@ -94,7 +94,7 @@ RSpec.describe PollMergeStateJob, :ci_only do
 
     expect(job.reload).to be_approved
     entry = LandingQueueProcessor.entries(Job.where(id: job.id)).first
-    expect(entry.blocked_reason).to include("waiting for #{parent.slug} to merge")
+    expect(entry.blocked_reason).to eq({ key: "waiting_to_merge", params: { slug: parent.slug } })
   end
 
   it "dispatches Rebase when approved but behind" do

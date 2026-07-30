@@ -1476,7 +1476,7 @@ RSpec.describe PollPullRequestJob, :ci_only do
 
       entry = LandingQueueProcessor.entries(Job.where(id: job.id)).first
       expect(entry).to be_present
-      expect(entry.blocked_reason).to eq("review requested changes")
+      expect(entry.blocked_reason).to eq({ key: "review_requested_changes" })
     end
   end
 end

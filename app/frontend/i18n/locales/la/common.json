@@ -298,6 +298,8 @@
     "waiting_epic_siblings": "Exspectantur fratres Epici probari",
     "waiting_github_mergeability": "Exspectatur coniungibilitas GitHub",
     "waiting_github_mergeability_noop": "Exspectatur coniungibilitas GitHub post rebase vacuum",
+    "urgent_job_active": "Opus urgens activum",
+    "epic_reconciliation_pending": "Reconciliatio Epici exspectatur",
     "rebase_cap_reached": "Limes rebasandi attactus; rebase manuale aut renovatio PR necessaria est",
     "ci_failure_in_progress": "Cursus defectus CI in {{slug}} procedit",
     "pr_checks_failing": "Examina PR in {{slug}} deficiunt",

@@ -1,5 +1,6 @@
 import { getJson, patchJson, postJson } from "./client"
 import type { JobRetryState, LandingQueueBlockerJob, LandingQueueDependencyEdge } from "./jobs"
+import type { BlockedReason } from "../lib/translateBlockedReason"
 import type { ProviderAvailability } from "./providerAvailability"
 
 import type { SetupStatusPayload } from "./setup"
@@ -127,7 +128,7 @@ export type DashboardJobItem = {
   latest_workflow_state: string
   latest_deployment_stage?: DashboardDeploymentStage | null
   landing_queue_position: number | null
-  landing_queue_blocked_reason: string | null
+  landing_queue_blocked_reason: BlockedReason | null
   landing_queue_entry_key: string | null
   blocked_reason: string | null
   retry_state?: JobRetryState

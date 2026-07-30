@@ -298,6 +298,8 @@
     "waiting_epic_siblings": "Warte auf Genehmigung der Epic-Geschwister",
     "waiting_github_mergeability": "Warte auf GitHub-Mergebarkeit",
     "waiting_github_mergeability_noop": "Warte auf GitHub-Mergebarkeit nach No-Op-Rebase",
+    "urgent_job_active": "Dringender Job aktiv",
+    "epic_reconciliation_pending": "Epic-Abstimmung ausstehend",
     "rebase_cap_reached": "Rebase-Limit erreicht; manueller Rebase oder PR-Update erforderlich",
     "ci_failure_in_progress": "CI-Fehler-Workflow läuft auf {{slug}}",
     "pr_checks_failing": "PR-Prüfungen schlagen fehl auf {{slug}}",

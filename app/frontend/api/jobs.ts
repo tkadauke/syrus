@@ -1,4 +1,5 @@
 import { deleteJson, getJson, patchJson, postForm, postJson } from "./client"
+import type { BlockedReason } from "../lib/translateBlockedReason"
 import type { MergeTrainStatus } from "./epics"
 import type { ProviderAvailability } from "./providerAvailability"
 
@@ -351,7 +352,7 @@ export type LandingQueueDependencyEdge = {
 
 export type JobLandingQueueEntry = {
   position: number
-  blocked_reason: string | null
+  blocked_reason: BlockedReason | null
   waiting_for_jobs: Array<{
     id: number
     label: string
