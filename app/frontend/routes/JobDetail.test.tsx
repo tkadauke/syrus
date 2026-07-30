@@ -1321,9 +1321,9 @@ describe("TestsTab", () => {
               skipped_count: 0,
               error_count: 0,
               test_cases: [
-                { id: 1, name: "creates a user", suite_name: "UserSpec", file_path: null, status: "passed", duration_ms: 50, failure_message: null, failure_backtrace: null, output: null },
-                { id: 2, name: "fails validation", suite_name: "UserSpec", file_path: null, status: "failed", duration_ms: 30, failure_message: "expected true", failure_backtrace: "spec/user_spec.rb:10", output: null },
-                { id: 3, name: "skips pending", suite_name: "UserSpec", file_path: null, status: "skipped", duration_ms: null, failure_message: null, failure_backtrace: null, output: null }
+                { id: 1, name: "creates a user", suite_name: "UserSpec", file_path: null, status: "passed", duration_ms: 50, failure_message: null, failure_backtrace: null, output: null, flakiness_score: null, flakiness_failed_count: null, flakiness_total_count: null, flakiness_run_statuses: null },
+                { id: 2, name: "fails validation", suite_name: "UserSpec", file_path: null, status: "failed", duration_ms: 30, failure_message: "expected true", failure_backtrace: "spec/user_spec.rb:10", output: null, flakiness_score: null, flakiness_failed_count: null, flakiness_total_count: null, flakiness_run_statuses: null },
+                { id: 3, name: "skips pending", suite_name: "UserSpec", file_path: null, status: "skipped", duration_ms: null, failure_message: null, failure_backtrace: null, output: null, flakiness_score: null, flakiness_failed_count: null, flakiness_total_count: null, flakiness_run_statuses: null }
               ]
             }
           ]
@@ -1361,8 +1361,8 @@ describe("TestsTab", () => {
               skipped_count: 0,
               error_count: 0,
               test_cases: [
-                { id: 4, name: "renders", suite_name: "Button", file_path: null, status: "passed", duration_ms: null, failure_message: null, failure_backtrace: null, output: null },
-                { id: 5, name: "is accessible", suite_name: "Button", file_path: null, status: "passed", duration_ms: null, failure_message: null, failure_backtrace: null, output: null }
+                { id: 4, name: "renders", suite_name: "Button", file_path: null, status: "passed", duration_ms: null, failure_message: null, failure_backtrace: null, output: null, flakiness_score: null, flakiness_failed_count: null, flakiness_total_count: null, flakiness_run_statuses: null },
+                { id: 5, name: "is accessible", suite_name: "Button", file_path: null, status: "passed", duration_ms: null, failure_message: null, failure_backtrace: null, output: null, flakiness_score: null, flakiness_failed_count: null, flakiness_total_count: null, flakiness_run_statuses: null }
               ]
             }
           ]
@@ -1397,7 +1397,7 @@ describe("TestsTab", () => {
               skipped_count: 0,
               error_count: 0,
               test_cases: [
-                { id: 6, name: "breaks", suite_name: "FooSpec", file_path: null, status: "failed", duration_ms: null, failure_message: "expected 1 got 2", failure_backtrace: "spec/foo_spec.rb:5", output: null }
+                { id: 6, name: "breaks", suite_name: "FooSpec", file_path: null, status: "failed", duration_ms: null, failure_message: "expected 1 got 2", failure_backtrace: "spec/foo_spec.rb:5", output: null, flakiness_score: null, flakiness_failed_count: null, flakiness_total_count: null, flakiness_run_statuses: null }
               ]
             }
           ]
@@ -1438,9 +1438,9 @@ describe("TestsTab", () => {
               skipped_count: 1,
               error_count: 0,
               test_cases: [
-                { id: 7, name: "passes", suite_name: "BarSpec", file_path: null, status: "passed", duration_ms: null, failure_message: null, failure_backtrace: null, output: null },
-                { id: 8, name: "pending test", suite_name: "BarSpec", file_path: null, status: "skipped", duration_ms: null, failure_message: null, failure_backtrace: null, output: null },
-                { id: 9, name: "broken test", suite_name: "BarSpec", file_path: null, status: "failed", duration_ms: null, failure_message: "oops", failure_backtrace: null, output: null }
+                { id: 7, name: "passes", suite_name: "BarSpec", file_path: null, status: "passed", duration_ms: null, failure_message: null, failure_backtrace: null, output: null, flakiness_score: null, flakiness_failed_count: null, flakiness_total_count: null, flakiness_run_statuses: null },
+                { id: 8, name: "pending test", suite_name: "BarSpec", file_path: null, status: "skipped", duration_ms: null, failure_message: null, failure_backtrace: null, output: null, flakiness_score: null, flakiness_failed_count: null, flakiness_total_count: null, flakiness_run_statuses: null },
+                { id: 9, name: "broken test", suite_name: "BarSpec", file_path: null, status: "failed", duration_ms: null, failure_message: "oops", failure_backtrace: null, output: null, flakiness_score: null, flakiness_failed_count: null, flakiness_total_count: null, flakiness_run_statuses: null }
               ]
             }
           ]
