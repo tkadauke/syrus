@@ -85,7 +85,8 @@ function buildPayload(): RepositoryDetailPayload {
       app_check_ci_now_repository_path: "/api/v1/app/repositories/1/check_ci_now",
       repositories_path: "/repositories",
       repository_documents_path: "/repositories/1/documents",
-      repository_scheduled_tasks_path: "/repositories/1/scheduled_tasks"
+      repository_scheduled_tasks_path: "/repositories/1/scheduled_tasks",
+      app_flaky_tests_path: "/api/v1/app/repositories/1/flaky_tests"
     }
   }
 }
