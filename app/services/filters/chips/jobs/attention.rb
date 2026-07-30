@@ -197,7 +197,7 @@ module Filters
         end
 
         def apply_blocked
-          open = scope.open_threads
+          open = scope.open_threads.without_active_workflows
           open.where(id: blocked_dependency_ids).or(open.where(pr_mergeable: false))
         end
 

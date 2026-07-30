@@ -266,6 +266,24 @@ RSpec.describe "Filters::Chips" do
       )
     end
 
+    it "blocked: excludes jobs with active (running or queued) workflows" do
+      # Genuinely blocked: unmergeable PR, no active workflow
+      blocked_pr = Factories.job_record(repository: repo, issue_number: 61, state: "approved", pr_mergeable: false)
+
+      # Not blocked: unmergeable PR, but a running workflow is actively fixing it
+      running_workflow = Factories.job_record(repository: repo, issue_number: 62, state: "running", pr_mergeable: false)
+      Workflow.create!(job: running_workflow, trigger_kind: "auto_merge", state: "running")
+
+      # Not blocked: unmergeable PR, but a queued workflow is about to run
+      queued_workflow = Factories.job_record(repository: repo, issue_number: 63, state: "approved", pr_mergeable: false)
+      Workflow.create!(job: queued_workflow, trigger_kind: "rebase", state: "queued")
+
+      # Not blocked: PR is mergeable
+      Factories.job_record(repository: repo, issue_number: 64, state: "approved", pr_mergeable: true)
+
+      expect(run(field: "attention", op: "is", value: "blocked")).to contain_exactly(blocked_pr)
+    end
+
     it "just_failed: returns failed jobs and open jobs with landing failures" do
       failed = Factories.job(repository: repo, issue_number: 1)
       failed.update!(state: "failed")
