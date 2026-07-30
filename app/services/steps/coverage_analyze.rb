@@ -52,7 +52,8 @@ module Steps
         end
 
         begin
-          result = CoverageAnalysis::Parsers.for(source.format).parse(artifact_path.read)
+          result = try_plugin_parsers(artifact_path, source.format) ||
+                   CoverageAnalysis::Parsers.for(source.format).parse(artifact_path.read)
           normalized_raw = normalize_hit_map_paths(result.raw)
           CoverageAnalysis::ParsedSource.new(artifact: source.artifact, format: source.format,
                                      found: true, raw: normalized_raw, lines_pct: result.lines_pct)
@@ -62,6 +63,14 @@ module Steps
                                      found: false, raw: nil, lines_pct: nil)
         end
       end
+    end
+
+    def try_plugin_parsers(artifact_path, format)
+      Syrus::PluginRegistry.providers_for(:coverage_analyzer).each do |provider|
+        result = provider.call(artifact_path: artifact_path, format_hint: format)
+        return result if result
+      end
+      nil
     end
 
     def compute_diff_coverage(hit_map)

@@ -23,6 +23,22 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     Class.new { include Syrus::Plugin::TestResultParser }
   end
 
+  let(:coverage_analyzer_class) do
+    Class.new { include Syrus::Plugin::CoverageAnalyzer }
+  end
+
+  describe "EXTENSION_POINTS" do
+    it "includes :coverage_analyzer" do
+      expect(described_class::EXTENSION_POINTS).to include(:coverage_analyzer)
+    end
+  end
+
+  describe "INTERFACE_FOR" do
+    it "maps :coverage_analyzer to Syrus::Plugin::CoverageAnalyzer" do
+      expect(described_class::INTERFACE_FOR[:coverage_analyzer].call).to eq(Syrus::Plugin::CoverageAnalyzer)
+    end
+  end
+
   describe ".register" do
     it "stores the plugin manifest" do
       described_class.register(name: "test_plugin", version: "1.0.0")
@@ -65,7 +81,8 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
             agent_provider:     agent_provider_class,
             mcp_tool_set:       mcp_tool_set_class,
             input_source:       input_source_class,
-            test_result_parser: test_result_parser_class
+            test_result_parser: test_result_parser_class,
+            coverage_analyzer:  coverage_analyzer_class
           }
         )
       }.not_to raise_error
@@ -122,6 +139,17 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
           provides: { test_result_parser: plain_class }
         )
       }.to raise_error(described_class::RegistrationError, /must include Syrus::Plugin::TestResultParser/)
+    end
+
+    it "raises RegistrationError when coverage_analyzer class lacks the interface module" do
+      plain_class = Class.new
+
+      expect {
+        described_class.register(
+          name: "bad_plugin", version: "1.0.0",
+          provides: { coverage_analyzer: plain_class }
+        )
+      }.to raise_error(described_class::RegistrationError, /must include Syrus::Plugin::CoverageAnalyzer/)
     end
 
     it "allows the same extension point to be provided by multiple plugins" do
@@ -232,6 +260,15 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class.providers_for(:test_result_parser)).to eq([ test_result_parser_class ])
     end
 
+    it "returns coverage analyzer providers" do
+      described_class.register(
+        name: "coverage_plugin", version: "1.0.0",
+        provides: { coverage_analyzer: coverage_analyzer_class }
+      )
+
+      expect(described_class.providers_for(:coverage_analyzer)).to eq([ coverage_analyzer_class ])
+    end
+
     it "returns an empty array when no plugin provides the requested extension point" do
       described_class.register(name: "plugin", version: "1.0.0", provides: { mcp_tool_set: mcp_tool_set_class })
 
@@ -327,6 +364,13 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       described_class.reset!
 
       expect(described_class.providers_for(:agent_provider)).to eq([])
+    end
+
+    it "clears coverage analyzer providers so providers_for returns an empty array" do
+      described_class.register(name: "plugin", version: "1.0.0", provides: { coverage_analyzer: coverage_analyzer_class })
+      described_class.reset!
+
+      expect(described_class.providers_for(:coverage_analyzer)).to eq([])
     end
   end
 

@@ -321,6 +321,124 @@ RSpec.describe Steps::CoverageAnalyze do
     end
   end
 
+  context "coverage_analyzer plugin extension point" do
+    def coverage_analyzer_provider(callable)
+      Class.new do
+        include Syrus::Plugin::CoverageAnalyzer
+        define_singleton_method(:call) do |artifact_path:, format_hint: nil|
+          callable.call(artifact_path: artifact_path, format_hint: format_hint)
+        end
+      end
+    end
+
+    let(:parse_result) do
+      CoverageAnalysis::Parsers::Base::ParseResult.new(
+        raw: {
+          hit_map:    { "app/models/user.rb" => { 1 => 5, 2 => 0, 3 => 3 } },
+          lf: 3, lh: 2,
+          brf: 0, brh: 0,
+          fnf: 1, fnh: 1,
+          file_stats: { "app/models/user.rb" => { lf: 3, lh: 2 } }
+        },
+        lines_pct: 66.67
+      )
+    end
+
+    before do
+      write_syrus_yml(<<~YAML)
+        coverage:
+          sources:
+            - artifact: coverage/lcov.info
+              format: lcov
+          hitmap_ttl_days: 1
+      YAML
+      write_lcov
+    end
+
+    after { Syrus::PluginRegistry.reset! }
+
+    context "when a registered plugin returns nil" do
+      let(:plugin) { double("coverage_analyzer_plugin") }
+
+      before do
+        allow(plugin).to receive(:call).and_return(nil)
+        Syrus::PluginRegistry.register(
+          name: "nil_coverage_plugin", version: "1.0.0",
+          provides: { coverage_analyzer: coverage_analyzer_provider(plugin) }
+        )
+      end
+
+      it "tries the registered plugin before built-in detection" do
+        handler.call
+        expect(plugin).to have_received(:call).with(
+          artifact_path: @ws_path.join("coverage/lcov.info"),
+          format_hint: "lcov"
+        )
+      end
+
+      it "falls back to the built-in parser and writes the artifact" do
+        handler.call
+        artifact = workflow.reload.artifact("coverage")
+        expect(artifact["summary"]["lines_pct"]).to eq(66.67)
+        expect(artifact["files"]).to have_key("app/models/user.rb")
+      end
+    end
+
+    context "when a registered plugin returns a result" do
+      let(:plugin) { double("coverage_analyzer_plugin") }
+
+      before do
+        allow(plugin).to receive(:call).and_return(parse_result)
+        Syrus::PluginRegistry.register(
+          name: "result_coverage_plugin", version: "1.0.0",
+          provides: { coverage_analyzer: coverage_analyzer_provider(plugin) }
+        )
+      end
+
+      it "uses the plugin result without calling the built-in parser" do
+        expect(CoverageAnalysis::Parsers).not_to receive(:for)
+        handler.call
+        artifact = workflow.reload.artifact("coverage")
+        expect(artifact["summary"]["lines_pct"]).to eq(66.67)
+      end
+    end
+
+    context "when multiple plugins are registered and the first returns nil" do
+      let(:first_plugin)  { double("first_plugin") }
+      let(:second_plugin) { double("second_plugin") }
+
+      before do
+        allow(first_plugin).to receive(:call).and_return(nil)
+        allow(second_plugin).to receive(:call).and_return(parse_result)
+        Syrus::PluginRegistry.register(
+          name: "first_coverage_plugin", version: "1.0.0",
+          provides: { coverage_analyzer: coverage_analyzer_provider(first_plugin) }
+        )
+        Syrus::PluginRegistry.register(
+          name: "second_coverage_plugin", version: "1.0.0",
+          provides: { coverage_analyzer: coverage_analyzer_provider(second_plugin) }
+        )
+      end
+
+      it "tries plugins in registration order and uses the first non-nil result" do
+        handler.call
+        expect(first_plugin).to have_received(:call)
+        expect(second_plugin).to have_received(:call)
+        expect(workflow.reload.artifact("coverage")["summary"]["lines_pct"]).to eq(66.67)
+      end
+    end
+
+    context "when no plugins are registered (unregistered format fallback)" do
+      it "works via built-in lcov fallback without any registered plugins" do
+        expect(Syrus::PluginRegistry.providers_for(:coverage_analyzer)).to be_empty
+        handler.call
+        artifact = workflow.reload.artifact("coverage")
+        expect(artifact["summary"]["lines_pct"]).to eq(66.67)
+        expect(artifact["coverage_unavailable"]).to be_nil
+      end
+    end
+  end
+
   context "pr_comment body generation" do
     context "when pr_comment: false (default)" do
       before do
