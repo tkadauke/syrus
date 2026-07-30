@@ -62,13 +62,15 @@ module Prompts
     def known_insights_section
       return if @known_insights.empty?
 
-      lines = @known_insights.map { |i| "- #{i.title} (#{i.state})" }
+      lines = @known_insights.map { |i| "- [#{i.id}] #{i.title} (#{i.state})" }
 
       <<~TEXT
         ## Known Insights
 
         The following insights have already been filed for this repository. Do not refile
-        these unless you have evidence the underlying issue was reintroduced after a fix:
+        these unless you have evidence the underlying issue was reintroduced after a fix.
+        Call `read_insight(id:)` to get the full details of any entry. Call `list_insights`
+        to page through more insights beyond those listed here:
 
         #{lines.join("\n")}
       TEXT
@@ -79,7 +81,8 @@ module Prompts
         ## Your Task
 
         Inspect the repository's recent workflow runs and agent transcripts using the
-        tools available to you (`read_live_state`, memory tools). Look for:
+        tools available to you (`read_live_state`, memory tools, `list_insights`,
+        `read_insight`). Look for:
 
         - Repeated failures or struggle patterns across multiple Jobs
         - Inefficient agent behaviors (excessive tool calls, wrong approaches)
