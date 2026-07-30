@@ -8,6 +8,8 @@ class CreateJobDeploymentStageStatuses < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :job_deployment_stage_statuses, [ :job_id, :stage_name ], unique: true
+    unless index_exists?(:job_deployment_stage_statuses, [ :job_id, :stage_name ])
+      add_index :job_deployment_stage_statuses, [ :job_id, :stage_name ], unique: true
+    end
   end
 end
