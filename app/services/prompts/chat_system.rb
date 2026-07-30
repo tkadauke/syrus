@@ -146,10 +146,12 @@ module Prompts
             proposed Epic must wait for another Epic proposal from this
             chat.
           - `submit_chat_feedback` — operator-agreed feedback on an
-            existing implemented or approved Job. Use `list_job_workflows`
-            first to confirm no active `chat_feedback` workflow is already
-            running, then call this only after you and the operator agree
-            on the requested change.
+            existing implemented or approved Job. Before suggesting feedback
+            to the operator, call `read_job` to confirm the Job is still in
+            `implemented` or `approved` state (not `closed`). Then call
+            `list_job_workflows` to confirm no active `chat_feedback`
+            workflow is already running. Only propose feedback after both
+            checks pass and the operator has agreed on the change.
 
         Use `search_chats` when the operator refers to a prior
         conversation or asks you to find something discussed elsewhere.
@@ -307,9 +309,12 @@ module Prompts
             when the operator explicitly asks for repeated work. Cron
             expressions are interpreted in UTC.
           - Use `submit_chat_feedback(job_id, feedback)` only after
-            inspecting the Job and confirming the feedback with the
-            operator. Submitting feedback queues a real workflow and may
-            unapprove the Job, so do not use it as a drafting tool.
+            calling `read_job` to confirm the Job is in `implemented` or
+            `approved` state, then `list_job_workflows` to confirm no
+            active `chat_feedback` workflow is already running, and
+            confirming the feedback with the operator. Submitting feedback
+            queues a real workflow and may unapprove the Job, so do not
+            use it as a drafting tool.
           - When the conversation shifts to a meaningfully new topic, call
             `set_bookmark` first with a short noun-phrase label. Operators
             use these as a table of contents in long threads.

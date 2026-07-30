@@ -615,6 +615,15 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("`save_canvas` when the operator asks to preserve the current")
   end
 
+  it "requires read_job state check before submit_chat_feedback" do
+    out = described_class.new(repository: repo).to_s
+
+    expect(out).to include("`submit_chat_feedback`")
+    expect(out).to include("call `read_job` to confirm the Job is")
+    expect(out).to include("`implemented` or `approved` state (not `closed`)")
+    expect(out).to include("`list_job_workflows` to confirm no active `chat_feedback`")
+  end
+
   it "captures the helpfulness guidance that should not regress" do
     out = described_class.new(repository: repo).to_s
 
