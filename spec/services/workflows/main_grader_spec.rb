@@ -150,6 +150,7 @@ RSpec.describe Workflows::MainGrader do
       check = MainBranchHealthCheck.last
       expect(check.grader_health).to eq("unknown")
       expect(check.grader_failed_names).to eq([ "rspec" ])
+      expect(check.workflow).to eq(workflow)
     end
 
     it "marks timed-out required graders inconclusive instead of broken" do

@@ -117,6 +117,7 @@ module Workflows
       interrupted_names = failed_required_grader_names(interrupted_steps)
       MainBranchHealthCheck.record_grader_workflow(
         repository: repository,
+        workflow: workflow,
         sha: workflow.artifact("main_sha").to_s.presence || "unknown",
         grader_health: "unknown",
         grader_failed_names: interrupted_names

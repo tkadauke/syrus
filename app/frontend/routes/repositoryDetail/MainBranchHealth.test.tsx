@@ -5,11 +5,11 @@ import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
 import { MainBranchHealthSection } from "./MainBranchHealth"
 import * as useConfirmModule from "../../hooks/useConfirm"
-import type { RepositoryDetailPayload, RepositoryHealthHistory } from "../../api/repositories"
+import type { RepositoryDetailPayload, RepositoryHealthCheckRecord, RepositoryHealthHistory } from "../../api/repositories"
 
 const RESUME_PATH = "/api/v1/app/repositories/1/resume_landing"
 
-function buildHistory(): RepositoryHealthHistory {
+function buildHistory(records: RepositoryHealthCheckRecord[] = []): RepositoryHealthHistory {
   return {
     ci_health: "broken",
     grader_health: "broken",
@@ -21,7 +21,7 @@ function buildHistory(): RepositoryHealthHistory {
     treat_grader_timeouts_as_failures: false,
     last_health_checked_sha: null,
     main_branch_repair: { enabled: false, failed_open_jobs_count: 0, max_open_failed_jobs: 3, blocked_reason: null, can_request: false, can_spawn: false, blocking_job: null, failed_jobs: [] },
-    records: []
+    records
   }
 }
 
@@ -90,14 +90,14 @@ function buildPayload(): RepositoryDetailPayload {
   }
 }
 
-function renderSection() {
+function renderSection(history = buildHistory()) {
   const queryKey = ["repositories", "1", "detail", ""] as const
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(
+  return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
         <MainBranchHealthSection
-          history={buildHistory()}
+          history={history}
           onNotice={vi.fn()}
           payload={buildPayload()}
           prefix="/app-shell"
@@ -106,6 +106,22 @@ function renderSection() {
       </MemoryRouter>
     </QueryClientProvider>
   )
+}
+
+function buildHealthRecord(overrides: Partial<RepositoryHealthCheckRecord> = {}): RepositoryHealthCheckRecord {
+  return {
+    id: 1,
+    sha: "abc123d",
+    sha_url: "https://github.com/acme/widgets/commit/abc123def456",
+    checked_at: "2026-01-02T00:00:00Z",
+    ci_health: "healthy",
+    grader_health: "broken",
+    source: "grader_workflow",
+    ci_failed_checks: [],
+    grader_failed_names: [ "rspec" ],
+    workflow_path: "/admin/workflows/12",
+    ...overrides
+  }
 }
 
 describe("MainBranchHealthSection resume landing", () => {
@@ -169,5 +185,28 @@ describe("MainBranchHealthSection resume landing", () => {
 
     await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
     expect(fetchSpy).not.toHaveBeenCalledWith(RESUME_PATH, expect.anything())
+  })
+})
+
+describe("MainBranchHealthSection health history", () => {
+  it("renders localized source badges for history rows", () => {
+    const { container } = renderSection(buildHistory([
+      buildHealthRecord({ id: 1, source: "grader_workflow" }),
+      buildHealthRecord({ id: 2, source: "ci_poll", sha: "def456a", grader_failed_names: [] })
+    ]))
+
+    expect(container.querySelector('[data-source="grader_workflow"]')).toHaveTextContent("Graders")
+    expect(container.querySelector('[data-source="ci_poll"]')).toHaveTextContent("CI")
+  })
+
+  it("renders concern quorum rows with the amber source variant", () => {
+    renderSection(buildHistory([
+      buildHealthRecord({ source: "concern_quorum", workflow_path: null })
+    ]))
+
+    const badge = screen.getByText("Quorum")
+    expect(badge).toBeInTheDocument()
+    expect(badge).toHaveAttribute("data-source", "concern_quorum")
+    expect(badge).toHaveClass("border-amber-200")
   })
 })

@@ -265,13 +265,40 @@ function HealthHistoryRow({ prefix, record, t }: { prefix: string; record: Repos
       </td>
       <td className="px-3 py-2"><StatusPill tone={healthTone(record.ci_health)}>{healthLabel(record.ci_health, t)}</StatusPill></td>
       <td className="px-3 py-2">
-        {record.workflow_path ? (
-          <Link to={withRoutePrefix(record.workflow_path, prefix)}>{graderPill}</Link>
-        ) : graderPill}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {record.workflow_path ? (
+            <Link to={withRoutePrefix(record.workflow_path, prefix)}>{graderPill}</Link>
+          ) : graderPill}
+          <HealthSourceBadge source={record.source} t={t} />
+        </div>
       </td>
       <td className="px-3 py-2 text-xs text-gray-600 dark:text-gray-400">
         {failureNames.length > 0 ? failureNames.join(", ") : null}
       </td>
     </tr>
   )
+}
+
+function HealthSourceBadge({ source, t }: { source: string; t: (key: string) => string }) {
+  const isQuorum = source === "concern_quorum"
+  const label = healthSourceLabel(source, t)
+  return (
+    <span
+      className={[
+        "inline-flex items-center rounded border px-1.5 py-0.5 text-[11px] font-medium uppercase leading-none",
+        isQuorum
+          ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+          : "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+      ].join(" ")}
+      data-source={source}
+    >
+      {label}
+    </span>
+  )
+}
+
+function healthSourceLabel(source: string, t: (key: string) => string) {
+  const key = `repository.health_source_${source}`
+  const label = t(key)
+  return label === key ? source : label
 }
