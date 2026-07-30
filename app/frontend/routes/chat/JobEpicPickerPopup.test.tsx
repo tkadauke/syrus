@@ -149,10 +149,10 @@ describe("JobEpicPickerPopup — jobs mode", () => {
     vi.spyOn(jobsApi, "fetchPickerJobs").mockResolvedValue({
       count: 4,
       jobs: [
-        { id: 1, title: "Merged job", issue_title: "Merged job", state: "merged", repository_slug: "acme/repo" },
-        { id: 2, title: "Approved job", issue_title: "Approved job", state: "approved", repository_slug: "acme/repo" },
-        { id: 3, title: "Closed job", issue_title: "Closed job", state: "closed", repository_slug: "acme/repo" },
-        { id: 4, title: "Implemented job", issue_title: "Implemented job", state: "implemented", repository_slug: "acme/repo" }
+        { id: 1, title: "Merged job", issue_title: "Merged job", state: "merged", repository_slug: "acme/repo", pr_url: null },
+        { id: 2, title: "Approved job", issue_title: "Approved job", state: "approved", repository_slug: "acme/repo", pr_url: null },
+        { id: 3, title: "Closed job", issue_title: "Closed job", state: "closed", repository_slug: "acme/repo", pr_url: null },
+        { id: 4, title: "Implemented job", issue_title: "Implemented job", state: "implemented", repository_slug: "acme/repo", pr_url: null }
       ]
     })
 
