@@ -35,6 +35,7 @@ module App
           landing_queue_position: landing_queue_position_for(job),
           landing_queue_blocked_reason: landing_queue_blocked_reason_for(job),
           landing_queue_entry_key: landing_queue_entry_key_for(job),
+          blocked_reason: blocked_reason_for(job),
           retry_state: ::App::RetryState.for(job),
           created_at: job.created_at&.iso8601,
           updated_at: job.updated_at&.iso8601,

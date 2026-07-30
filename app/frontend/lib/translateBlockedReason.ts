@@ -14,6 +14,7 @@ const STATIC_REASONS: Record<string, string> = {
   "waiting for GitHub mergeability": "common:blocked_reasons.waiting_github_mergeability",
   "waiting for GitHub mergeability after no-op rebase": "common:blocked_reasons.waiting_github_mergeability_noop",
   "rebase cap reached; manual rebase or PR update required": "common:blocked_reasons.rebase_cap_reached",
+  "pr_not_mergeable": "common:blocked_reasons.pr_not_mergeable",
 }
 
 const DYNAMIC_PATTERNS: Array<{

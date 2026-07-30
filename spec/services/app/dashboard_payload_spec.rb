@@ -198,4 +198,73 @@ RSpec.describe App::DashboardPayload do
       expect(item).to include(commits_behind_base: nil)
     end
   end
+
+  describe "blocked folder blocked_reason" do
+    before { SmartFolder.ensure_builtins_for_subject!("job") }
+
+    let(:blocked_folder) { SmartFolder.find_builtin_by_attention("blocked") }
+
+    it "returns nil blocked_reason outside the blocked folder" do
+      job = Factories.job_record(user: user, repository: repo)
+      job.update_columns(pr_mergeable: false)
+
+      result = call(subject: "job")
+      item = result[:items].find { |i| i[:id] == job.id }
+
+      expect(item[:blocked_reason]).to be_nil
+    end
+
+    it "shows required columns including blocked_reason when viewing blocked folder" do
+      result = call(subject: "job", smart_folder_id: blocked_folder.id)
+      required_keys = result[:controls][:columns][:required].map { |c| c[:key] }
+
+      expect(required_keys).to include("blocked_reason")
+      expect(required_keys).not_to include("landing_queue_position")
+    end
+
+    it "reports pr_not_mergeable for jobs with pr_mergeable false" do
+      job = Factories.job_record(user: user, repository: repo, state: "running")
+      job.update_columns(pr_mergeable: false)
+
+      result = call(subject: "job", smart_folder_id: blocked_folder.id)
+      item = result[:items].find { |i| i[:id] == job.id }
+
+      expect(item[:blocked_reason]).to eq("pr_not_mergeable")
+    end
+
+    it "prefers landing_queue_blocked_reason over pr_not_mergeable" do
+      job = Factories.job_record(user: user, repository: repo, state: "running")
+      job.update_columns(pr_mergeable: false, landing_queue_blocked_reason: "PR checks failing on JOB-99")
+
+      result = call(subject: "job", smart_folder_id: blocked_folder.id)
+      item = result[:items].find { |i| i[:id] == job.id }
+
+      expect(item[:blocked_reason]).to eq("PR checks failing on JOB-99")
+    end
+
+    it "shows waiting-for-job reason for dependency-blocked jobs" do
+      blocker = Factories.job_record(user: user, repository: repo, state: "running")
+      blocked_job = Factories.job_record(user: user, repository: repo, state: "implemented")
+      JobDependency.create!(job: blocked_job, depends_on_job: blocker, source: "manual", created_by_user: user)
+
+      result = call(subject: "job", smart_folder_id: blocked_folder.id)
+      item = result[:items].find { |i| i[:id] == blocked_job.id }
+
+      expect(item[:blocked_reason]).to eq("waiting for JOB-#{blocker.id} to merge")
+    end
+
+    it "does not show dep reason when the only dependency is already satisfied" do
+      blocker = Factories.job_record(user: user, repository: repo, state: "closed", closure_reason: "pr_merged")
+      # Job is in the blocked folder due to pr_mergeable:false, not the dep (which is satisfied)
+      blocked_job = Factories.job_record(user: user, repository: repo, state: "running")
+      blocked_job.update_columns(pr_mergeable: false)
+      JobDependency.create!(job: blocked_job, depends_on_job: blocker, source: "manual", created_by_user: user)
+
+      result = call(subject: "job", smart_folder_id: blocked_folder.id)
+      item = result[:items].find { |i| i[:id] == blocked_job.id }
+
+      # satisfied dep should not be shown; pr_not_mergeable takes effect instead
+      expect(item[:blocked_reason]).to eq("pr_not_mergeable")
+    end
+  end
 end

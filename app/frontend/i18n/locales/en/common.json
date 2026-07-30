@@ -290,7 +290,8 @@
     "pr_checks_failing": "PR checks failing on {{slug}}",
     "pr_checks_pending": "PR checks pending on {{slug}}",
     "waiting_to_merge": "Waiting for {{slug}} to merge",
-    "waiting_epic_to_complete": "Waiting for Epic #{{number}} to complete"
+    "waiting_epic_to_complete": "Waiting for Epic #{{number}} to complete",
+    "pr_not_mergeable": "PR not mergeable"
   },
   "close": "Close",
   "search_aria": "Search",

@@ -30,6 +30,10 @@ module App
         subject == "job" && active_smart_folder&.attention_preset == "landing_queue"
       end
 
+      def blocked_folder_visible?
+        subject == "job" && active_smart_folder&.attention_preset == "blocked"
+      end
+
       def ensure_landing_queue_snapshot!
         return if @landing_queue_snapshot_checked
 
@@ -46,6 +50,43 @@ module App
 
       def landing_queue_blocked_reason_for(job)
         job.landing_queue_blocked_reason if landing_queue_visible?
+      end
+
+      def blocked_reason_for(job)
+        return unless blocked_folder_visible?
+
+        return job.landing_queue_blocked_reason if job.landing_queue_blocked_reason.present?
+        return "pr_not_mergeable" if job.pr_mergeable == false
+
+        dep = preloaded_blocked_deps_by_job_id[job.id]
+        return unless dep
+
+        if dep.depends_on_epic_id.present?
+          "waiting for Epic ##{dep.depends_on_epic&.number} to complete"
+        elsif dep.depends_on_job_id.present?
+          "waiting for #{dep.depends_on_job.slug} to merge"
+        else
+          slug = dep.unresolved_slug
+          "waiting for #{slug} to merge" if slug.present?
+        end
+      end
+
+      def preloaded_blocked_deps_by_job_id
+        return {} unless blocked_folder_visible?
+
+        @preloaded_blocked_deps_by_job_id ||= load_blocked_deps_by_job_id
+      end
+
+      def load_blocked_deps_by_job_id
+        job_ids = (@current_jobs || []).map(&:id)
+        return {} if job_ids.empty?
+
+        JobDependency
+          .where(job_id: job_ids)
+          .includes(:depends_on_job, :depends_on_epic, :unresolved_chat_proposal)
+          .order(:id)
+          .reject { |dep| dep.depends_on_job&.dependency_succeeded? || dep.depends_on_epic&.done? }
+          .each_with_object({}) { |dep, hash| hash[dep.job_id] ||= dep }
       end
 
       def landing_queue_entry_key_for(job)
