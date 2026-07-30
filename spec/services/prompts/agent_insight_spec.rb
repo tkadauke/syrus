@@ -88,7 +88,7 @@ RSpec.describe Prompts::AgentInsight do
       it "instructs the agent to call list_memories before writing a new memory" do
         out = described_class.new(repository: repository).to_s
         expect(out).to include("list_memories")
-        expect(out).to include("check whether a similar memory already exists")
+        expect(out).to include("memory already exists for this repository")
       end
     end
 
