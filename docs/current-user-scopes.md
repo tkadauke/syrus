@@ -46,6 +46,7 @@ per-user/private:
   - app/controllers/api/v1/app/job_metadata_controller.rb
   - app/controllers/api/v1/app/job_pins_controller.rb
   - app/controllers/api/v1/app/job_run_commands_controller.rb
+  - app/controllers/api/v1/app/job_test_results_controller.rb
   - app/controllers/api/v1/app/jobs_controller.rb
   - app/controllers/api/v1/app/local_daemon_sessions_controller.rb
   - app/controllers/api/v1/app/memories_controller.rb
