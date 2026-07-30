@@ -101,6 +101,9 @@ de:
       not_fork_syncable: "%{slug} ist kein Fork mit einem Upstream in dieser Instanz."
       no_sha_to_grade: "Noch kein Branch-SHA erfasst — bitte zuerst das Repository abfragen."
 
+    input_sources:
+      linear_saved: "Linear-Quelle gespeichert."
+
     job_pins:
       pinned: "Aufgabe angeheftet."
       unpinned: "Aufgabe losgelöst."

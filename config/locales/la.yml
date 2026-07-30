@@ -101,6 +101,9 @@ la:
       not_fork_syncable: "%{slug} non est furca cum fonte superiore in hac instantia."
       no_sha_to_grade: "Nullum SHA rami adhuc indagatum — prius repositorium interroga."
 
+    input_sources:
+      linear_saved: "Fons Linearis servatus est."
+
     job_pins:
       pinned: "Opus adfixa est."
       unpinned: "Opus defixum est."

@@ -5,16 +5,22 @@ import type { TFunction } from "i18next"
 import type { FormEvent, ReactNode } from "react"
 import { useEffect, useMemo, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
+import { ApiError } from "../api/client"
 import {
   createRepository,
   fetchEditRepositoryForm,
+  fetchLinearSource,
+  fetchLinearTeams,
   fetchNewRepositoryForm,
   fetchRepositoryBranches,
   fetchRepositoryOptions,
   fetchRepositoryOwners,
   type GitHubRepositoryOption,
+  type LinearSourceInput,
+  type LinearTeam,
   type RepositoryFormPayload,
   type RepositoryInput,
+  saveLinearSource,
   syncFork,
   updateRepository
 } from "../api/repositories"
@@ -483,6 +489,10 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
           </Field>
         </section>
 
+        {mode === "edit" && payload.repository.id ? (
+          <LinearSourceSection repositoryId={payload.repository.id} />
+        ) : null}
+
         <section className="space-y-3">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
             {t('repository_form.credential_section')}
@@ -601,6 +611,157 @@ function CredentialModeComparison() {
   )
 }
 
+function LinearSourceSection({ repositoryId }: { repositoryId: number }) {
+  const { t } = useT("settings")
+  const [values, setValues] = useState<LinearSourceInput>({
+    api_key: "",
+    team_id: "",
+    label_filter: "",
+    polling_enabled: false
+  })
+  const [message, setMessage] = useState<string | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  const sourceQuery = useQuery({
+    queryKey: ["linear_source", repositoryId],
+    queryFn: () => fetchLinearSource(repositoryId)
+  })
+
+  useEffect(() => {
+    if (!sourceQuery.isSuccess || !sourceQuery.data.linear_source) return
+    const s = sourceQuery.data.linear_source
+    setValues({
+      api_key: "",
+      team_id: s.team_id,
+      label_filter: s.label_filter,
+      polling_enabled: s.polling_enabled
+    })
+  }, [sourceQuery.isSuccess, sourceQuery.data])
+
+  const save = useMutation({
+    mutationFn: () => saveLinearSource(repositoryId, values),
+    onSuccess: (data) => {
+      setMessage(data.message ?? t("linear_source.saved"))
+      setErrorMsg(null)
+      sourceQuery.refetch()
+    },
+    onError: (error) => {
+      setMessage(null)
+      setErrorMsg(error instanceof ApiError ? error.message : t("linear_source.save_error"))
+    }
+  })
+
+  const plausibleApiKey = values.api_key.startsWith("lin_api_") ? values.api_key : ""
+
+  const teamsQuery = useQuery({
+    queryKey: ["linear_teams", plausibleApiKey],
+    queryFn: () => fetchLinearTeams(plausibleApiKey),
+    enabled: plausibleApiKey.length > 0,
+    retry: false
+  })
+
+  const teams: LinearTeam[] = teamsQuery.data?.teams ?? []
+
+  const existing = sourceQuery.data?.linear_source
+
+  return (
+    <section className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+      <div>
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+          {t("linear_source.section_heading")}
+        </h2>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {t("linear_source.section_description")}
+        </p>
+      </div>
+
+      {existing ? (
+        <div className="text-xs text-gray-500 dark:text-gray-400 space-y-0.5">
+          {existing.last_poll_started_at ? (
+            <p>{t("linear_source.last_polled_at", { time: new Date(existing.last_poll_started_at).toLocaleString() })}</p>
+          ) : null}
+          <p>{t("linear_source.issues_ingested", { count: existing.issues_ingested_count })}</p>
+        </div>
+      ) : null}
+
+      {message ? <div className="rounded border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 p-3 text-sm text-green-700 dark:text-green-300">{message}</div> : null}
+      {errorMsg ? <div className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-3 text-sm text-red-700 dark:text-red-300">{errorMsg}</div> : null}
+
+      <div className="space-y-4">
+        <Field label={t("linear_source.api_key_label")}>
+          <input
+            aria-label={t("linear_source.api_key_label")}
+            autoComplete="off"
+            className={inputClass()}
+            onChange={(e) => setValues({ ...values, api_key: e.target.value })}
+            placeholder={existing ? t("linear_source.api_key_placeholder_set") : t("linear_source.api_key_placeholder")}
+            type="password"
+            value={values.api_key}
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {t("linear_source.api_key_hint")}
+          </p>
+        </Field>
+
+        {plausibleApiKey.length > 0 ? (
+          <Field label={t("linear_source.team_label")}>
+            {teamsQuery.isPending ? (
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("linear_source.team_loading")}</p>
+            ) : teamsQuery.isError ? (
+              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{t("linear_source.team_error")}</p>
+            ) : (
+              <select
+                aria-label={t("linear_source.team_label")}
+                className={`${inputClass()} cursor-pointer`}
+                onChange={(e) => setValues({ ...values, team_id: e.target.value })}
+                value={values.team_id}
+              >
+                <option value="">{t("linear_source.team_placeholder")}</option>
+                {teams.map((team) => (
+                  <option key={team.id} value={team.id}>{team.name}</option>
+                ))}
+              </select>
+            )}
+          </Field>
+        ) : null}
+
+        <Field label={t("linear_source.label_filter_label")}>
+          <input
+            aria-label={t("linear_source.label_filter_label")}
+            className={`${inputClass()} font-mono`}
+            onChange={(e) => setValues({ ...values, label_filter: e.target.value })}
+            placeholder={t("linear_source.label_filter_placeholder")}
+            type="text"
+            value={values.label_filter}
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {t("linear_source.label_filter_hint")}
+          </p>
+        </Field>
+
+        <Checkbox
+          label={t("linear_source.polling_enabled_label")}
+          onChange={(checked) => setValues({ ...values, polling_enabled: checked })}
+          value={values.polling_enabled}
+        />
+
+        <button
+          className="rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900"
+          disabled={save.isPending}
+          onClick={() => {
+            setMessage(null)
+            setErrorMsg(null)
+            save.mutate()
+          }}
+          type="button"
+        >
+          {save.isPending ? t("linear_source.saving") : t("linear_source.save")}
+        </button>
+      </div>
+    </section>
+  )
+}
+
 function Field({ label, children }: { label: string; children: ReactNode }) {
   const { t } = useT("settings")
   return (
@@ -625,4 +786,3 @@ function repoErrorMessage(t: TFunction, error: string): { text: string; tone: "e
   if (error === "not_found") return { text: t('repository_form.repo_err_not_found'), tone: "error" }
   return { text: t('repository_form.repo_err_generic'), tone: "muted" }
 }
-

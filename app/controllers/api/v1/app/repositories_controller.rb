@@ -169,7 +169,11 @@ module Api
             return
           end
 
-          PollRepositoryJob.perform_later(repository.id, force: true)
+          if (source = repository.github_input_source)
+            PollInputSourceJob.perform_later(source.id, force: true)
+          else
+            PollRepositoryJob.perform_later(repository.id, force: true)
+          end
           message = I18n.t("api.repositories.polling", slug: repository.slug)
           render json: repository_command_payload(repository, message: message)
         end

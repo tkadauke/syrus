@@ -136,6 +136,9 @@ en:
       check_ci_now_enqueued: "CI check enqueued for %{slug}."
       ci_not_configured: "No CI checks found for %{slug}."
 
+    input_sources:
+      linear_saved: "Linear source saved."
+
     job_pins:
       pinned: "Job pinned."
       unpinned: "Job unpinned."
