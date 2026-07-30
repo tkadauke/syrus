@@ -67,6 +67,16 @@ RSpec.describe EpicDependency do
     expect(dependency).not_to be_dependency_succeeded
   end
 
+  it "retroactively blocks queued child Jobs when a new dependency is added to an in-progress Epic" do
+    upstream = Factories.epic(user: user)
+    epic = Factories.epic(user: user, repository: upstream.repository, state: "in_progress")
+    job = Factories.job_record(user: user, repository: epic.repository, epic: epic, state: "queued")
+
+    described_class.create!(epic: epic, depends_on_epic: upstream)
+
+    expect(job.reload.state).to eq("blocked_by_epic")
+  end
+
   it "rejects self references" do
     epic = Factories.epic(user: user)
 

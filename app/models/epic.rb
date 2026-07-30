@@ -436,6 +436,13 @@ class Epic < ApplicationRecord
     end
   end
 
+  def block_queued_jobs_if_dependencies_unsatisfied!
+    return if dependencies_done?
+    return unless in_progress?
+
+    restore_child_epic_blocks!
+  end
+
   def close_child_jobs_on_archive!
     jobs.find_each do |job|
       next if job.closed?

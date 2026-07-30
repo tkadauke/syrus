@@ -52,6 +52,10 @@ class EpicDependency < ApplicationRecord
   end
 
   def refresh_dependent_epic
-    epic.refresh_auto_state! if epic&.persisted?
+    return unless epic&.persisted?
+
+    epic.dependencies.reload
+    epic.refresh_auto_state!
+    epic.block_queued_jobs_if_dependencies_unsatisfied!
   end
 end
