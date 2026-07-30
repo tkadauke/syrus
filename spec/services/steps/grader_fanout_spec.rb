@@ -168,6 +168,29 @@ RSpec.describe Steps::GraderFanout do
     expect(grader_step.details["when_files_changed"]).to eq(%w[website/** docs/**])
   end
 
+  it "stores junit_output in the materialized Step details when configured" do
+    write_config(<<~YAML)
+      grade:
+        - name: tests
+          run: bin/rspec
+          junit_output: tmp/rspec-results.xml
+    YAML
+
+    handler.call
+
+    grader_step = workflow.steps.find_by(kind: "grader")
+    expect(grader_step.details["junit_output"]).to eq("tmp/rspec-results.xml")
+  end
+
+  it "stores nil for junit_output in the materialized Step details when not configured" do
+    write_grade_config("bin/rspec")
+
+    handler.call
+
+    grader_step = workflow.steps.find_by(kind: "grader")
+    expect(grader_step.details["junit_output"]).to be_nil
+  end
+
   it "passes through when all graders have no when_files_changed and changed_files is empty" do
     write_config(<<~YAML)
       grade:

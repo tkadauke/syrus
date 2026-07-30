@@ -99,24 +99,23 @@ RSpec.describe "Steps::Grader JUnit XML ingestion" do
       )
     end
 
-    it "is idempotent: replaces an existing TestRun for the same run+grader_name" do
+    it "is idempotent: re-ingesting the same run+grader_name replaces the existing TestRun" do
       step = make_step(junit_output: "results.xml")
       @ws_path.join("results.xml").write(passing_xml)
-
       handler, run = handler_for(step)
       handler.call
 
-      step2 = make_step(junit_output: "results.xml")
-      @ws_path.join("results.xml").write(failing_xml)
-      run2 = step2.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running")
-      h2 = Steps::Grader.new(run2)
-      fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
-      allow(h2).to receive(:workspace).and_return(fake_ws)
+      first_tr_id = TestRun.find_by!(run: run, grader_name: "tests").id
 
-      expect { h2.call rescue nil }
-        .to change { TestRun.where(run: run2, grader_name: "tests").count }.from(0).to(1)
+      # Simulate re-ingestion (e.g. partial DB write on a previous attempt)
+      # by calling the ingester directly a second time for the same run.
+      second_parsed = JunitXmlParser.parse(failing_xml)
+      TestRunIngester.new(run: run, grader_name: "tests", parsed_run: second_parsed).ingest!
 
-      expect(TestRun.where(run: run, grader_name: "tests").count).to eq(1)
+      trs = TestRun.where(run: run, grader_name: "tests")
+      expect(trs.count).to eq(1)
+      expect(trs.sole.id).not_to eq(first_tr_id)
+      expect(trs.sole.failed_count).to eq(1)
     end
   end
 
