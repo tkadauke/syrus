@@ -449,7 +449,7 @@ function blockerAttribution(job: LandingQueueBlockerJob, groupKey: string, t: (k
 
 function MobileJobsList({ items, selectedIds, onToggleOne, prefix, groupByEpic }: { items: DashboardJobItem[]; selectedIds: Set<number>; onToggleOne: (id: number) => void; prefix: string; groupByEpic: boolean }) {
   return (
-    <div className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+    <div className="border-y border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900 sm:rounded sm:border">
       <div className="divide-y divide-gray-100 dark:divide-gray-800">
         {items.map((job, index) => <MobileJobRow job={job} key={job.id} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(job.id)} topSeparator={startsNewEpicGroup(items, index, groupByEpic)} />)}
       </div>

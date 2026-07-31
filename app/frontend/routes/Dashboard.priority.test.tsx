@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import type { DashboardJobItem, DashboardPayload } from "../api/dashboard"
 import { DashboardTable } from "./Dashboard"
 import { PRIORITY_TONE } from "./dashboard/JobsTable"
@@ -30,6 +30,22 @@ function kanbanJobItem(id: number, priority: string): DashboardJobItem {
     active_workflow_trigger_kind: null,
     repository: { id: 1, slug: "owner/repo", repository_path: "/repos/1" },
     paths: { job_path: `/jobs/${id}`, source_path: `/jobs/${id}` },
+  } as unknown as DashboardJobItem
+}
+
+function mobileJobItem(id: number, priority: string): DashboardJobItem {
+  return {
+    ...kanbanJobItem(id, priority),
+    approved_at: "2026-07-31T12:00:00Z",
+    created_at: "2026-07-31T12:00:00Z",
+    started_at: "2026-07-31T12:00:00Z",
+    kind: "direct",
+    source_chat: null,
+    state: "running",
+    summary_state: "succeeded",
+    tags: [],
+    total_cost_usd: null,
+    workflows_count: 1,
   } as unknown as DashboardJobItem
 }
 
@@ -108,6 +124,34 @@ function renderPayload(payload: DashboardPayload) {
   )
 }
 
+const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  if (originalMatchMedia) {
+    Object.defineProperty(window, "matchMedia", originalMatchMedia)
+  } else {
+    Reflect.deleteProperty(window, "matchMedia")
+  }
+})
+
+function mockMediaQuery(matches: boolean) {
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: vi.fn((query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn()
+    }))
+  })
+}
+
 describe("PRIORITY_TONE", () => {
   it("maps urgent to red", () => {
     expect(PRIORITY_TONE["urgent"]).toBe("red")
@@ -146,6 +190,19 @@ describe("urgent row highlight", () => {
     const tbody = container.querySelector("tbody")
     const row = tbody?.querySelector("tr")
     expect(row?.className ?? "").not.toContain("bg-red-50")
+  })
+
+  it("renders the mobile jobs list edge-to-edge without a boxed card margin", () => {
+    mockMediaQuery(false)
+    renderTable([ mobileJobItem(3, "medium") ])
+
+    const row = screen.getByRole("article", { name: "Job 3" })
+    const list = row.parentElement?.parentElement
+
+    expect(list?.className).toContain("border-y")
+    expect(list?.className).toContain("sm:rounded")
+    expect(list?.className).toContain("sm:border")
+    expect(list?.className).not.toContain("rounded border")
   })
 })
 

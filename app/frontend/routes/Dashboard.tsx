@@ -68,7 +68,7 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
   const { t } = useT("dashboard")
 
   return (
-    <main aria-label={t("title")} className="mx-auto max-w-[96rem] space-y-5 p-6">
+    <main aria-label={t("title")} className="mx-auto max-w-[96rem] space-y-5 px-0 py-4 sm:p-6">
       <header className="flex flex-wrap items-center gap-3">
         <h1 className="flex-1 text-3xl font-semibold text-gray-900 dark:text-white">{t("title")}</h1>
         {isDesktop ? <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={true} /> : null}
