@@ -80,7 +80,7 @@ module Admin
         {
           workers: workers.map { |worker| serialize_worker(worker) },
           all_processes: processes.map { |process| serialize_process(process) },
-          worker_health: ::Admin::WorkerHealthPayload.new(sample_limit_per_host: 12).as_json
+          worker_health: ::Admin::WorkerHealthPayload.new(since: 6.hours.ago, sample_limit_per_host: 8).as_json
         }
       end
 
