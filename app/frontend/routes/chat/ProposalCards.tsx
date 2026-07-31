@@ -17,7 +17,7 @@ import { appendSearch, primaryButton, secondaryButton, withRoutePrefix } from ".
 import { pendingActionBadgeLabel, pendingActionKey, pendingActionResourceTitle, pendingActionResourceUrl, pendingActionTerminalLabel } from "./pendingActionDisplay"
 import type { DependencyPill, EditableProposal } from "./proposalDisplay"
 import { PencilIcon } from "./icons"
-import { editableChildProposal, initialProposalDependencyPills, proposalConfirmLabel } from "./proposalDisplay"
+import { editableChildProposal, initialProposalDependencyPills, proposalConfirmAriaLabel, proposalConfirmLabel } from "./proposalDisplay"
 
 
 
@@ -258,6 +258,15 @@ function useDebouncedDependencySearch<T>(query: string, searcher: (query: string
 
 type ProposalActionInput = { action: "confirm" | "reject"; path: string; start?: boolean }
 
+function proposalActionButton(tone: "primary" | "secondary") {
+  const shared = "flex h-11 min-w-0 flex-1 items-center justify-center rounded px-2 text-xs font-medium whitespace-nowrap disabled:opacity-60 sm:flex-none sm:px-3 sm:text-sm"
+  if (tone === "primary") {
+    return `${shared} bg-blue-600 text-white hover:bg-blue-500 dark:bg-blue-500 dark:hover:bg-blue-400`
+  }
+
+  return `${shared} border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600`
+}
+
 export function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposal: ChatProposal; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
@@ -314,29 +323,35 @@ export function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposa
         <>
           <ProposalResultFooter proposal={proposal} prefix={prefix} onNotice={onNotice} />
           {proposal.proposed ? (
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-4 flex flex-nowrap gap-2 overflow-hidden" data-testid="proposal-action-footer">
               <button
-                className={showConfirmAndStart ? secondaryButton() : primaryButton()}
+                aria-label={proposalConfirmAriaLabel(proposal, childJobCount)}
+                className={proposalActionButton(showConfirmAndStart ? "secondary" : "primary")}
                 disabled={proposalAction.isPending}
                 onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path })}
+                title={proposalConfirmAriaLabel(proposal, childJobCount)}
                 type="button"
               >
                 {proposalConfirmLabel(proposal, childJobCount)}
               </button>
               {showConfirmAndStart ? (
                 <button
-                  className={primaryButton()}
+                  aria-label={t("create_epic_and_start")}
+                  className={proposalActionButton("primary")}
                   disabled={proposalAction.isPending}
                   onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path, start: true })}
+                  title={t("create_epic_and_start")}
                   type="button"
                 >
-                  {t("create_epic_and_start")}
+                  Implement
                 </button>
               ) : null}
               <button
-                className={secondaryButton()}
+                aria-label="Reject proposal"
+                className={proposalActionButton("secondary")}
                 disabled={proposalAction.isPending}
                 onClick={() => proposalAction.mutate({ action: "reject", path: proposal.app_reject_path })}
+                title="Reject proposal"
                 type="button"
               >
                 Reject

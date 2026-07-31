@@ -53,5 +53,11 @@ export function editableChildProposal(child: ChatProposalChild): EditableProposa
 export function proposalConfirmLabel(proposal: ChatProposal, childJobCount: number) {
   if (!proposal.epic_bundle) return "Confirm"
 
+  return "Backlog"
+}
+
+export function proposalConfirmAriaLabel(proposal: ChatProposal, childJobCount: number) {
+  if (!proposal.epic_bundle) return "Confirm"
+
   return childJobCount > 0 ? "Confirm Epic and Jobs" : "Confirm Epic"
 }

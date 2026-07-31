@@ -858,7 +858,7 @@ describe("chat proposal cards", () => {
     expect(screen.queryByRole("button", { name: "Reject child Job" })).not.toBeInTheDocument()
   })
 
-  it("labels Epic confirmation without Jobs when the proposal has no child Jobs", async () => {
+  it("shortens the visible Epic confirmation label while preserving the full accessible name", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
@@ -882,11 +882,13 @@ describe("chat proposal cards", () => {
 
     renderRoute()
 
-    expect(await screen.findByRole("button", { name: "Confirm Epic" })).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "Confirm Epic and Jobs" })).not.toBeInTheDocument()
+    const confirmButton = await screen.findByRole("button", { name: "Confirm Epic" })
+    expect(confirmButton).toHaveTextContent("Backlog")
+    expect(confirmButton).toHaveAttribute("title", "Confirm Epic")
+    expect(screen.queryByText("Confirm Epic")).not.toBeInTheDocument()
   })
 
-  it("labels Epic confirmation with Jobs when the proposal has child Jobs", async () => {
+  it("shortens the visible Epic and Jobs confirmation label while preserving the full accessible name", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
@@ -924,8 +926,10 @@ describe("chat proposal cards", () => {
 
     renderRoute()
 
-    expect(await screen.findByRole("button", { name: "Confirm Epic and Jobs" })).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "Confirm Epic" })).not.toBeInTheDocument()
+    const confirmButton = await screen.findByRole("button", { name: "Confirm Epic and Jobs" })
+    expect(confirmButton).toHaveTextContent("Backlog")
+    expect(confirmButton).toHaveAttribute("title", "Confirm Epic and Jobs")
+    expect(screen.queryByText("Confirm Epic and Jobs")).not.toBeInTheDocument()
   })
 
   it("offers Create Epic & Start Implementing on Epic proposals to developers and sends the start flag", async () => {
@@ -958,7 +962,11 @@ describe("chat proposal cards", () => {
 
     renderRoute()
 
-    fireEvent.click(await screen.findByRole("button", { name: "Create Epic & Start Implementing" }))
+    const startButton = await screen.findByRole("button", { name: "Create Epic & Start Implementing" })
+    expect(startButton).toHaveTextContent("Implement")
+    expect(startButton).toHaveAttribute("title", "Create Epic & Start Implementing")
+
+    fireEvent.click(startButton)
 
     await waitFor(() => {
       const confirmCall = fetchMock.mock.calls.find((call) => String(call[0]).startsWith("/api/v1/app/chats/8/proposals/1/confirm"))
@@ -996,6 +1004,60 @@ describe("chat proposal cards", () => {
 
     expect(await screen.findByRole("button", { name: "Confirm Epic" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Create Epic & Start Implementing" })).not.toBeInTheDocument()
+  })
+
+  it("keeps Epic proposal action labels on one row at mobile width", async () => {
+    mockMobileViewport()
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/bootstrap") {
+        return Promise.resolve(jsonResponse({ current_user: developerUser() }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [
+          messageWithProposal(9, proposal({
+            kind: "epic",
+            kind_label: "Epic",
+            title: "Plan onboarding",
+            slug: "EPIC-DRAFT-1",
+            epic_bundle: true,
+            active_children_count: 1,
+            children: [
+              {
+                id: 11,
+                title: "Build first step",
+                slug: "JOB-DRAFT-1",
+                body: "Create the first onboarding step.",
+                state: "proposed",
+                state_label: "Pending",
+                proposed: true,
+                repository_slug: "acme/widgets",
+                dependencies: [],
+                app_update_path: "/api/v1/app/chats/8/proposals/11",
+                app_reject_path: "/api/v1/app/chats/8/proposals/1/children/11/reject"
+              }
+            ]
+          }))
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    await screen.findByRole("button", { name: "Confirm Epic and Jobs" })
+    const footer = screen.getByTestId("proposal-action-footer")
+    expect(footer).toHaveClass("flex-nowrap", "overflow-hidden")
+    expect(footer).not.toHaveClass("flex-wrap")
+    expect(within(footer).getByText("Backlog")).toBeInTheDocument()
+    expect(within(footer).getByText("Implement")).toBeInTheDocument()
+    expect(within(footer).getByText("Reject")).toBeInTheDocument()
+    for (const button of within(footer).getAllByRole("button")) {
+      expect(button).toHaveClass("min-w-0", "flex-1", "whitespace-nowrap")
+    }
   })
 
   it("does not offer Create Epic & Start Implementing on non-Epic proposals", async () => {
