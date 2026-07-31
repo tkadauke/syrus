@@ -1,8 +1,6 @@
-require "yaml"
-
 module Features
   class SyncFromYaml
-    CONFIG_PATH = Rails.root.join("config/features.yml")
+    CONFIG_PATH = FeatureRegistry::CONFIG_PATH
 
     def self.call(config_path: CONFIG_PATH)
       new(config_path: config_path).call
@@ -37,29 +35,11 @@ module Features
     end
 
     def declarations
-      raw_features.map do |raw|
-        {
-          slug: raw.fetch("slug").to_s,
-          category: raw.fetch("category").to_s,
-          name: raw.fetch("name").to_s,
-          description: raw["description"],
-          default_enabled: ActiveModel::Type::Boolean.new.cast(raw.fetch("default", false)),
-          name_i18n_key: raw["name_i18n_key"],
-          description_i18n_key: raw["description_i18n_key"]
-        }
-      end
+      FeatureRegistry.declarations(config_path: config_path).map(&:to_h)
     end
 
     private
 
     attr_reader :config_path
-
-    def raw_features
-      raw = YAML.safe_load(config_path.read) || {}
-      features = raw.fetch("features", [])
-      return features if features.is_a?(Array)
-
-      raise ArgumentError, "config/features.yml features must be an array"
-    end
   end
 end

@@ -7,6 +7,12 @@ settings already exist (`AppSetting`, `Repository`, and `User` have
 some knobs), but the broad site-wide / per-repository / per-user /
 recurring-settings migration described here is still future work._
 
+_Status check 2026-07-31: `AppSettingRegistry` and `FeatureRegistry` now
+centralize typed metadata for the settings and feature flags that already
+exist. The inventory below is still the source for constants that should move
+to settings later; this registry pass intentionally does not migrate those
+remaining constants._
+
 The codebase has accumulated a layer of `CONSTANT = value` declarations
 that act as policy decisions in disguise. Some of them are operational
 tuning (fine to stay constant), but many are knobs that an operator

@@ -62,6 +62,7 @@ module Api
                   }
                 },
                 mode: setting.mode,
+                metadata: AppSettingRegistry.metadata_for(AppSettingRegistry.admin_editable_keys),
                 clearable_secrets: AppSetting.clearable_secrets.map do |key, label|
                   {
                     key: key,
@@ -74,7 +75,8 @@ module Api
           end
 
           def settings_params
-            permitted_settings = [ :signups_open, :video_retention_days, :video_storage_budget_mb, :max_concurrent_agent_runs, :proactive_rebase_commit_threshold, :rebase_failure_cooldown_minutes, :workflow_admission_control_enabled, :workflow_admission_policy, :mode ] +
+            permitted_settings = (AppSettingRegistry.admin_editable_keys +
+                                 [ :rebase_failure_cooldown_minutes, :workflow_admission_control_enabled, :workflow_admission_policy, :mode ]).uniq +
                                  AppSetting.clearable_secrets.keys.map(&:to_sym)
 
             params
@@ -86,7 +88,7 @@ module Api
           # signups_open is a boolean (false must survive the blank-reject);
           # everything else is only applied when a value is actually sent.
           def booleanish?(key)
-            key.in?(%w[signups_open workflow_admission_control_enabled])
+            AppSettingRegistry.boolean_key?(key) || key == "workflow_admission_control_enabled"
           end
 
           def audit_workflow_admission_control_change!(setting)

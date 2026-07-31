@@ -6,6 +6,19 @@ export type ClearableSecret = {
   set: boolean
 }
 
+export type AdminSettingMetadata = {
+  key: string
+  type: string
+  default?: boolean | number | string | null
+  category: string
+  operational_meaning: string
+  min?: number
+  max?: number
+  zero_means?: string
+  admin_editable: boolean
+  secret: boolean
+}
+
 export type AdminSettingsPayload = {
   settings: {
     signups_open: boolean
@@ -23,6 +36,7 @@ export type AdminSettingsPayload = {
       display_name?: string | null
     } | null
     mode: "advanced" | "simple"
+    metadata?: AdminSettingMetadata[]
     clearable_secrets: ClearableSecret[]
   }
   message?: string

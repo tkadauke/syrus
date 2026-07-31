@@ -120,15 +120,13 @@ RSpec.describe Feature, type: :model do
 
   describe "declarations" do
     it "declares the chat_polish UI-experiment flag default-off in config/features.yml" do
-      declaration = YAML.load_file(Rails.root.join("config/features.yml")).fetch("features")
-                        .find { |f| f["slug"] == "chat_polish" }
-      expect(declaration).to include("category" => "UI Experiments", "default" => false)
+      declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "chat_polish" }
+      expect(declaration).to have_attributes(category: "UI Experiments", default_enabled: false, type: :boolean)
     end
 
     it "declares the video_walkthroughs labs flag default-off in config/features.yml" do
-      declaration = YAML.load_file(Rails.root.join("config/features.yml")).fetch("features")
-                        .find { |f| f["slug"] == "video_walkthroughs" }
-      expect(declaration).to include("category" => "Labs", "default" => false)
+      declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "video_walkthroughs" }
+      expect(declaration).to have_attributes(category: "Labs", default_enabled: false, type: :boolean)
     end
 
     it "declares the chat_speech_to_text labs flag default-off in config/features.yml" do
@@ -138,9 +136,13 @@ RSpec.describe Feature, type: :model do
     end
 
     it "declares the performance logging operations flag default-off in config/features.yml" do
-      declaration = YAML.load_file(Rails.root.join("config/features.yml")).fetch("features")
-                        .find { |f| f["slug"] == "performance_logging" }
-      expect(declaration).to include("category" => "Operations", "default" => false)
+      declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "performance_logging" }
+      expect(declaration).to have_attributes(category: "Operations", default_enabled: false, type: :boolean)
+    end
+
+    it "declares the unified work-engine reconciler operations flag default-off in config/features.yml" do
+      declaration = FeatureRegistry.declarations.find { |feature| feature.slug == WorkEngine::Gate::FEATURE_SLUG }
+      expect(declaration).to have_attributes(category: "Operations", default_enabled: false, type: :boolean)
     end
 
     it "declares the admin supervisor chat operations flag default-off in config/features.yml" do

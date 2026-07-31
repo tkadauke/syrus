@@ -63,6 +63,9 @@ RSpec.describe Features::SyncFromYaml do
     declarations = described_class.declarations(config_path: path)
 
     expect(declarations.find { |d| d[:slug] == "example_feature" }).to include(
+      type: :boolean,
+      default_enabled: false,
+      operational_meaning: "An example feature.",
       name_i18n_key: "features.slugs.example_feature.name",
       description_i18n_key: "features.slugs.example_feature.description"
     )

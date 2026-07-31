@@ -2,6 +2,8 @@
 
 `AppSetting` is a singleton configuration row for the Syrus instance. Read it with `AppSetting.current`; update via the admin UI or Rails console: `AppSetting.current.update!(key: value)`.
 
+Typed metadata for these fields lives in `AppSettingRegistry`. Defaults, validation ranges, categories, operational meaning, and special `0` semantics should be changed there first so model validations, admin API metadata, and this reference stay aligned.
+
 ## Workflow behavior
 
 ### grade_max_iterations
@@ -18,9 +20,15 @@ Number of implement→adversarial-review iterations run before graders. `0` disa
 
 ### max_job_failures
 
-**Type:** integer · **Default:** 3 · **Min:** 0
+**Type:** integer · **Default:** 3
 
 Consecutive failure threshold. When a ScheduledTask accumulates this many consecutive failures it auto-pauses (state `auto_paused`). Also used as the retry budget ceiling for Job auto-close after repeated failures.
+
+### main_concern_report_threshold
+
+**Type:** integer · **Default:** 2 · **Min:** 1
+
+Minimum number of repeated broken-main reports before the aggregator surfaces a main-branch concern.
 
 ## Landing queue
 

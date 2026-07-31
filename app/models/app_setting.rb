@@ -6,55 +6,11 @@ class AppSetting < ApplicationRecord
   MODES = %w[advanced simple].freeze
   WORKFLOW_ADMISSION_POLICIES = %w[whole_workflow phase_aware].freeze
 
-  validates :grade_max_iterations, numericality: {
-    only_integer: true,
-    greater_than_or_equal_to: 1,
-    less_than_or_equal_to: 10
-  }
-  validates :adversarial_review_rounds, numericality: {
-    only_integer: true,
-    greater_than_or_equal_to: 0,
-    less_than_or_equal_to: 10
-  }
-  # Retention must be >= 1 day: 0 or negative makes the prune cutoff
-  # (`video_retention_days.days.ago`) land at/after now, which would purge
-  # EVERY stored walkthrough video instance-wide. There is no "keep forever"
-  # via 0 — the size budget is the way to relax the cap.
-  validates :video_retention_days, numericality: {
-    only_integer: true,
-    greater_than_or_equal_to: 1
-  }
-  # 0 = unlimited (size cap disabled); negatives are meaningless.
-  validates :video_storage_budget_mb, numericality: {
-    only_integer: true,
-    greater_than_or_equal_to: 0
-  }
-  # Instance-wide ceiling on total retained Coding-Mode chat checkout bytes.
-  # 0 = unlimited (LRU eviction disabled); the idle-reclaim window still applies.
-  validates :chat_coding_workspace_budget_mb, numericality: {
-    only_integer: true,
-    greater_than_or_equal_to: 0
-  }
-  validates :main_concern_report_threshold, numericality: {
-    only_integer: true,
-    greater_than_or_equal_to: 1
-  }
-  # Global cluster-wide cap on concurrently-executing agent Runs (the `:runs`
-  # queue). Enforced by RunJob (defer-and-re-enqueue). 0 = unlimited — the only
-  # bound is then each worker's per-pod `JOB_CONCURRENCY` thread pool. Set this
-  # when running multiple worker pods so total Claude/Codex concurrency (and
-  # cost / rate-limit exposure) doesn't scale with pod count.
-  validates :max_concurrent_agent_runs, numericality: {
-    only_integer: true,
-    greater_than_or_equal_to: 0
-  }
-  # Proactive rebase fires when commits_behind_base exceeds this threshold,
-  # even when GitHub's mergeable_state is clean. Must be >= 1 (0 would trigger
-  # a rebase on every PR with any commits behind, which is never the intent).
-  validates :proactive_rebase_commit_threshold, numericality: {
-    only_integer: true,
-    greater_than_or_equal_to: 1
-  }
+  AppSettingRegistry.definitions.each do |definition|
+    next unless definition.numericality_options
+
+    validates definition.key, numericality: definition.numericality_options
+  end
   validates :rebase_failure_cooldown_minutes, numericality: {
     only_integer: true,
     greater_than_or_equal_to: 0

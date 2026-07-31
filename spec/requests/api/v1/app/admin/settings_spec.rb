@@ -34,6 +34,16 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
     body = parse_body
     expect(body.dig("settings", "signups_open")).to be true
     expect(body.dig("settings", "clearable_secrets")).to eq([])
+    expect(body.dig("settings", "metadata")).to include(
+      include(
+        "key" => "max_concurrent_agent_runs",
+        "type" => "integer",
+        "default" => 0,
+        "category" => "Instance operations",
+        "min" => 0,
+        "zero_means" => a_string_including("No global cap")
+      )
+    )
   end
 
   it "updates signups_open" do

@@ -73,6 +73,8 @@ RSpec.describe AppSetting do
   end
 
   it "rejects grade_max_iterations above 10" do
+    expect(AppSettingRegistry.fetch(:grade_max_iterations).max).to eq(10)
+
     setting = AppSetting.current
     setting.grade_max_iterations = 11
 
@@ -81,6 +83,8 @@ RSpec.describe AppSetting do
   end
 
   it "rejects negative adversarial_review_rounds" do
+    expect(AppSettingRegistry.fetch(:adversarial_review_rounds).min).to eq(0)
+
     setting = AppSetting.current
     setting.adversarial_review_rounds = -1
 
