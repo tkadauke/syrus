@@ -31,7 +31,7 @@ export function AdminOverview() {
   const captureRate = data.agent_session_capture_rate.rate
   const overdueRecurring = data.recurring.overdue || []
   const dataRoot = data.data_root_disk_usage
-  const workerHealthTone = aggregateWorkerHealthTone(data.worker_health)
+  const workerHealthTone = aggregateWorkerHealthTone(data.workers, data.worker_health)
 
   return (
     <main aria-label={t("overview.aria_overview")} className="mx-auto max-w-6xl space-y-6 p-6">
@@ -137,7 +137,8 @@ function workersContext(workers: { stale?: number; unreachable?: boolean }, t: (
   return t("overview.all_healthy")
 }
 
-function aggregateWorkerHealthTone(workerHealth?: AdminOverviewPayload["worker_health"]): "idle" | "ok" | "warn" | "alarm" {
+function aggregateWorkerHealthTone(workers: { stale?: number; unreachable?: boolean }, workerHealth?: AdminOverviewPayload["worker_health"]): "idle" | "ok" | "warn" | "alarm" {
+  if (workers.stale && workers.stale > 0) return "alarm"
   if (!workerHealth) return "idle"
   if (workerHealth.current.some((worker) => worker.health.level === "critical")) return "alarm"
   if (workerHealth.current.some((worker) => worker.health.level === "warning" || worker.health.level === "unknown")) return "warn"

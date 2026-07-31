@@ -2427,7 +2427,15 @@ describe("App", () => {
           provider_circuits: [],
           agent_session_capture_rate: { total: 3, captured: 3, rate: 1.0 },
           data_root_disk_usage: { path: "/syrus-home/.syrus", filesystem: "/dev/pvc", total_bytes: 100, used_bytes: 90, available_bytes: 10, used_percent: 90, mounted_on: "/syrus-home", observed_at: "2026-06-05T12:00:00Z", level: "warning" },
-          workers: { total: 1, stale: 0 },
+          workers: { total: 1, stale: 1 },
+          worker_health: {
+            generated_at: "2026-06-05T12:00:00Z",
+            range: { since: "2026-06-04T12:00:00Z", until: "2026-06-05T12:00:00Z" },
+            current_sample_window_seconds: 900,
+            minute_bucket: { granularity_seconds: 60, window_minutes: 60, max_window_minutes: 1440 },
+            current: [],
+            hosts: []
+          },
           recurring: { overdue: [] },
           stuck: [
             {
@@ -2477,6 +2485,7 @@ describe("App", () => {
       expect(screen.getByRole("link", { name: "Run #4 silent for 10m" })).toHaveAttribute("href", "/app-shell/jobs/1?tab=workflows#workflow-2")
       expect(screen.getByText("Data root disk")).toBeInTheDocument()
       expect(screen.getByText("90%")).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: /Workers/ })).toHaveClass("border-red-200")
       expect(screen.getByText("2")).toBeInTheDocument()
     } finally {
       script.remove()
