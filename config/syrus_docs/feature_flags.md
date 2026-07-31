@@ -61,6 +61,10 @@ Supervisor agent turns receive the `chat:admin` role. Admin users keep the norma
 
 Initial event sources are existing notifications (`NotificationService`) for job failures, implemented Jobs, merged PRs, PR feedback completion, upstream PR closure, Epic completion, and main-branch health changes, plus `submit_insight` when an Agent Insight suggestion becomes available. Callers should pass stable `dedupe_key` values for poll-driven events; the service suppresses duplicate scoped events for the same target chat to prevent repeated poll loops from flooding admins.
 
+Major operational events are also recorded in the Supervisor chat while the flag is enabled. `SupervisorEvents.publish!(kind:, severity:, subject:, repository:, actor:, summary:, details:, dedupe_key:)` writes one durable `ChatMessage` system row per admin Supervisor chat with a plain `text` field for existing rendering/search plus structured `supervisor_event` metadata. It updates `last_message_at`, clears `last_read_at`, and broadcasts a chat update so the sidebar surfaces the event as unread. The publisher no-ops completely while `admin_supervisor_chat` is disabled.
+
+Initial event sources are existing notifications (`NotificationService`) for job failures, implemented Jobs, merged PRs, PR feedback completion, upstream PR closure, Epic completion, and main-branch health changes, plus `submit_insight` when an Agent Insight suggestion becomes available. Callers should pass stable `dedupe_key` values for poll-driven events; the service suppresses duplicate keys observed in the recent Supervisor chat history to prevent repeated poll loops from flooding admins.
+
 ## chat_polish
 
 **Category:** UI Experiments
