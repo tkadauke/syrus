@@ -21,6 +21,7 @@ RSpec.describe "SyrusChatMcp admin tools" do
     "admin_list_runs" => {},
     "admin_list_users" => {},
     "admin_version" => {},
+    "read_worker_health" => {},
     "admin_kill_process" => { process_id: 1 },
     "admin_reap_stale_runs" => {},
     "admin_pause_polling" => {},
@@ -271,6 +272,7 @@ RSpec.describe "SyrusChatMcp admin tools" do
     payload = payload_for(response)
 
     expect(payload).to include(:request_handler, :instances)
+    expect(payload).to include(:worker_health)
     expect(payload.fetch(:instances).first).to include(
       id: instance.id,
       hostname: "syrus-worker-a",
@@ -278,6 +280,35 @@ RSpec.describe "SyrusChatMcp admin tools" do
       version: "abc123",
       started_at: instance.started_at.iso8601
     )
+  end
+
+  it "returns worker health for admins with hostname filtering" do
+    InstanceVersion.create!(
+      hostname: "syrus-worker-a",
+      role: "worker",
+      version: "abc123",
+      started_at: 5.minutes.ago,
+      last_heartbeat_at: 10.seconds.ago
+    )
+    WorkerHostHealthSample.create!(
+      hostname: "syrus-worker-a",
+      role: "worker",
+      version: "abc123",
+      observed_at: 1.minute.ago,
+      cpu_used_percent: 99,
+      memory_used_percent: 70,
+      data_root_used_percent: 60
+    )
+
+    response = call_tool(admin_session, "read_worker_health", { hostname: "syrus-worker-a", sample_limit_per_host: 1 })
+    payload = payload_for(response)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(payload.fetch(:current).first).to include(
+      hostname: "syrus-worker-a",
+      health: include(level: "critical")
+    )
+    expect(payload.dig(:hosts, 0, :recent_samples).length).to eq(1)
   end
 
   def solid_queue_job(class_name:, queue_name:)

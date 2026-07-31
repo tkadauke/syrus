@@ -18,7 +18,8 @@ module SyrusChatMcp
             role: SyrusVersion.role,
             version: SyrusVersion.current
           },
-          instances: InstanceVersion.fresh.order(:role, :hostname).map { |instance| instance_payload(instance) }
+          instances: InstanceVersion.fresh.order(:role, :hostname).map { |instance| instance_payload(instance) },
+          worker_health: ::Admin::WorkerHealthPayload.new(sample_limit_per_host: 4).as_json
         )
       end
 
@@ -35,7 +36,8 @@ module SyrusChatMcp
           role: instance.role,
           version: instance.version,
           started_at: instance.started_at&.iso8601,
-          last_heartbeat_at: instance.last_heartbeat_at&.iso8601
+          last_heartbeat_at: instance.last_heartbeat_at&.iso8601,
+          data_root_usage: instance.data_root_usage_json
         }
       end
     end

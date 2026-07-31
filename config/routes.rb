@@ -263,6 +263,7 @@ Rails.application.routes.draw do
           get "insights", to: "insights#index"
           post "insights/:id/promote_memory", to: "insights#promote_memory"
           get "overview", to: "overview#show"
+          get "worker_health", to: "worker_health#show"
           get "queue/:tab", to: "queue#show", as: :queue, constraints: { tab: /active|pending|failed|recurring|workers/ }
           post "queue/reap_stale_runs", to: "queue#reap_stale_runs"
           get "stuck", to: "stuck#index"
@@ -351,6 +352,7 @@ Rails.application.routes.draw do
         # Overview + stuck list (mirror F).
         get "overview", to: "overview#show"
         get "stuck",    to: "overview#stuck"
+        get "worker_health", to: "worker_health#show"
         get "performance", to: "performance#show"
 
         # Operator console kill switches.

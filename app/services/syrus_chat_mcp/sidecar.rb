@@ -60,6 +60,7 @@ module SyrusChatMcp
       AdminListRunsTool,
       AdminListUsersTool,
       AdminVersionTool,
+      ReadWorkerHealthTool,
       AdminKillProcessTool,
       AdminReapStaleRunsTool,
       AdminPausePollingTool,

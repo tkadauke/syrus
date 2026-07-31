@@ -15,7 +15,8 @@ module Api
               role: SyrusVersion.role,
               version: SyrusVersion.current
             },
-            instances: fresh_instances.map { |iv| serialize(iv) }
+            instances: fresh_instances.map { |iv| serialize(iv) },
+            worker_health: ::Admin::WorkerHealthPayload.new(sample_limit_per_host: 4).as_json
           }
         end
 
@@ -30,7 +31,8 @@ module Api
             started_at: instance.started_at&.iso8601,
             last_heartbeat_at: instance.last_heartbeat_at&.iso8601,
             seconds_since_heartbeat: instance.seconds_since_heartbeat,
-            stale: instance.stale?
+            stale: instance.stale?,
+            data_root_usage: instance.data_root_usage_json
           }
         end
       end
