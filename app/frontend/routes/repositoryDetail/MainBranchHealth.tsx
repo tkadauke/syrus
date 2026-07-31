@@ -60,7 +60,7 @@ export function MainBranchHealthSection({ history, payload, prefix, queryKey, on
       onNotice(updated.message || null)
     }
   })
-  const canResume = repository.main_branch_health_enabled && repository.landing_paused && repository.main_health !== "healthy"
+  const canResume = repository.main_branch_health_enabled && repository.landing_paused && repository.main_health === "broken"
 
   async function confirmResume() {
     if (!await confirm({ message: t("repository.resume_landing_confirm") })) return

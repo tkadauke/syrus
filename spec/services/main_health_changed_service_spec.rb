@@ -606,12 +606,37 @@ RSpec.describe MainHealthChangedService do
     context "when main_health is inconclusive" do
       before { repository.update!(ci_health: "not_configured", grader_health: "inconclusive") }
 
-      it "pauses landing without spawning an auto-fix Job" do
+      it "does not pause landing or spawn an auto-fix Job" do
         expect {
           described_class.on_health_change!(repository)
-        }.to change { repository.reload.landing_paused }.from(false).to(true)
+        }.not_to change { repository.reload.landing_paused }
 
         expect(repository.jobs.where(kind: "direct")).to be_empty
+      end
+
+      it "clears a stale repository health hold from previous inconclusive behavior" do
+        repository.update!(landing_paused: true)
+
+        expect {
+          described_class.on_health_change!(repository)
+        }.to change { repository.reload.landing_paused }.from(true).to(false)
+      end
+
+      it "restarts queued workflows left held by previous inconclusive behavior" do
+        job = Factories.job_record(repository: repository, state: "queued")
+        blocked_workflow = Workflow.create!(
+          job: job,
+          user: user,
+          trigger_kind: "initial",
+          agent_provider: "claude"
+        )
+        blocked_workflow.steps.create!(kind: "prepare", position: 0, iteration: 1)
+        repository.update!(landing_paused: true)
+
+        allow(StepDispatcher).to receive(:start_workflow)
+        described_class.on_health_change!(repository)
+
+        expect(StepDispatcher).to have_received(:start_workflow).with(blocked_workflow)
       end
 
       it "emits a main_inconclusive notification" do

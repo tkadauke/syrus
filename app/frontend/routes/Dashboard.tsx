@@ -202,7 +202,7 @@ function RepositoryHealthBanners({ prefix, repositories }: { prefix: string; rep
               <span className="text-red-800 dark:text-red-200">
                 <span className="font-mono font-medium">{repo.slug}</span>
                 {" — "}{t(repo.main_health === "inconclusive"
-                  ? (repo.landing_paused ? "main_health_inconclusive_banner" : "main_health_inconclusive_banner_not_held")
+                  ? "main_health_inconclusive_banner_not_held"
                   : (repo.landing_paused ? "broken_main_banner" : "broken_main_banner_not_held")
                 )}
               </span>

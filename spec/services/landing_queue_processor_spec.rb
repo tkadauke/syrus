@@ -168,9 +168,9 @@ RSpec.describe LandingQueueProcessor do
     expect(described_class.call.job).to eq(job)
   end
 
-  it "blocks approved Jobs when the repository has landing_paused set" do
+  it "blocks approved Jobs when the repository has landing_paused set and main is broken" do
     job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
-    repository.update!(landing_paused: true)
+    repository.update!(ci_health: "broken", landing_paused: true)
 
     expect(described_class.call).to be_nil
     expect(job.reload).to be_approved
@@ -179,9 +179,29 @@ RSpec.describe LandingQueueProcessor do
     expect(entry.blocked_reason).to eq("landing paused: main branch broken")
   end
 
+  it "does not block approved Jobs solely because main health is inconclusive" do
+    job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+    repository.update!(ci_health: "not_configured", grader_health: "inconclusive", landing_paused: true)
+
+    workflow = described_class.call
+
+    expect(workflow.job).to eq(job)
+    expect(job.reload).to be_landing
+  end
+
+  it "does not block approved Jobs solely because main health is unknown" do
+    job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+    repository.update!(ci_health: "unknown", grader_health: "unknown", landing_paused: true)
+
+    workflow = described_class.call
+
+    expect(workflow.job).to eq(job)
+    expect(job.reload).to be_landing
+  end
+
   it "does not block approved Jobs when repository health enforcement is disabled" do
     job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
-    repository.update!(main_branch_health_enabled: false, landing_paused: true)
+    repository.update!(main_branch_health_enabled: false, ci_health: "broken", landing_paused: true)
 
     workflow = described_class.call
 
@@ -202,7 +222,7 @@ RSpec.describe LandingQueueProcessor do
     )
     fix_job.approve!(via: "operator")
     fix_job.update!(approved_at: 1.minute.ago)
-    repository.update!(landing_paused: true)
+    repository.update!(ci_health: "broken", landing_paused: true)
 
     workflow = described_class.call
 
@@ -214,7 +234,7 @@ RSpec.describe LandingQueueProcessor do
 
   it "resumes landing for a repository once repository.landing_paused is cleared" do
     job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
-    repository.update!(landing_paused: true)
+    repository.update!(ci_health: "broken", landing_paused: true)
 
     expect(described_class.call).to be_nil
 

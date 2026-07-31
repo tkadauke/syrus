@@ -92,7 +92,7 @@ function buildPayload(): RepositoryDetailPayload {
   }
 }
 
-function renderSection(history = buildHistory()) {
+function renderSection(history = buildHistory(), payload = buildPayload()) {
   const queryKey = ["repositories", "1", "detail", ""] as const
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
@@ -101,7 +101,7 @@ function renderSection(history = buildHistory()) {
         <MainBranchHealthSection
           history={history}
           onNotice={vi.fn()}
-          payload={buildPayload()}
+          payload={payload}
           prefix="/app-shell"
           queryKey={queryKey}
         />
@@ -187,6 +187,22 @@ describe("MainBranchHealthSection resume landing", () => {
 
     await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
     expect(fetchSpy).not.toHaveBeenCalledWith(RESUME_PATH, expect.anything())
+  })
+
+  it("does not offer resume for inconclusive main branch health", () => {
+    const history = buildHistory()
+    history.ci_health = "not_configured"
+    history.grader_health = "inconclusive"
+    history.main_health = "inconclusive"
+    history.landing_paused = true
+    const payload = buildPayload()
+    payload.repository.ci_health = "not_configured"
+    payload.repository.grader_health = "inconclusive"
+    payload.repository.main_health = "inconclusive"
+    payload.repository.landing_paused = true
+    renderSection(history, payload)
+
+    expect(screen.queryByRole("button", { name: "Resume work anyway" })).not.toBeInTheDocument()
   })
 })
 

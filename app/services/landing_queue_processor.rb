@@ -451,7 +451,10 @@ class LandingQueueProcessor
   def blockage_for(job)
     return { blocked_reason: nil, waiting_for: nil, waiting_for_jobs: [] } if job.landing?
     return blocked("landing paused") if job.user.landing_paused?
-    if job.repository.main_branch_health_enabled? && job.repository.landing_paused? && !MainHealthChangedService.fix_main_job?(job)
+    if job.repository.main_branch_health_enabled? &&
+       job.repository.landing_paused? &&
+       job.repository.main_health_broken? &&
+       !MainHealthChangedService.fix_main_job?(job)
       return blocked("landing paused: main branch broken")
     end
     return blocked("repository archived") if job.repository.archived?

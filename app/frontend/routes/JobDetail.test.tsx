@@ -217,6 +217,20 @@ describe("JobDetailView", () => {
     expect(screen.queryByRole("link", { name: "View repository health" })).not.toBeInTheDocument()
   })
 
+  it("does not show the waiting banner when main branch health is inconclusive", () => {
+    renderJobDetail(jobPayload({
+      job: { ...baseJob(), state: "queued", main_branch_repair: false },
+      repository: {
+        id: 2, slug: "acme/widgets", owner: "acme", name: "widgets", default_branch: "main",
+        review_policy: "self", feedback_policy: "confirm", repository_path: "/repositories/2",
+        main_health: "inconclusive", landing_paused: true
+      }
+    }))
+
+    expect(screen.queryByText("This job is waiting for repository health to recover.")).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "View repository health" })).not.toBeInTheDocument()
+  })
+
   it("opens the overflow menu aligned to the right-0 edge when the menu fits within the scroll container", () => {
     renderJobDetail(jobPayload())
     const menuButton = screen.getByRole("button", { name: "⋯" })

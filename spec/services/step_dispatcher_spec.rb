@@ -1095,12 +1095,20 @@ RSpec.describe StepDispatcher, "main_health queue gate" do
     }.to change { s1.runs.count }.by(1)
   end
 
-  it "does not create a Run when landing is paused and main_health is unknown" do
+  it "starts the workflow when landing is paused and main_health is inconclusive" do
+    job_model.repository.update!(ci_health: "not_configured", grader_health: "inconclusive", landing_paused: true)
+
+    expect {
+      described_class.start_workflow(workflow)
+    }.to change { s1.runs.count }.by(1)
+  end
+
+  it "starts the workflow when landing is paused and main_health is unknown" do
     job_model.repository.update!(ci_health: "unknown", grader_health: "unknown", landing_paused: true)
 
     expect {
       described_class.start_workflow(workflow)
-    }.not_to change { Run.count }
+    }.to change { s1.runs.count }.by(1)
   end
 
   it "starts the workflow when main branch health checking is disabled" do
@@ -1112,7 +1120,7 @@ RSpec.describe StepDispatcher, "main_health queue gate" do
   end
 
   it "starts the workflow normally when main_health is healthy" do
-    job_model.repository.update!(ci_health: "healthy", grader_health: "healthy")
+    job_model.repository.update!(ci_health: "healthy", grader_health: "healthy", landing_paused: true)
     expect {
       described_class.start_workflow(workflow)
     }.to change { s1.runs.count }.by(1)

@@ -276,6 +276,11 @@ urgent Job. Dashboard view and sort choices are remembered per
 smart folder, so returning to views like Landing queue or All Epics restores
 the layout and ordering that fit that folder.
 
+Main branch health warnings distinguish severity: `broken` health can pause
+repository work while Syrus opens or offers repair, while `inconclusive`
+health is warning-only and does not hold queued work or the landing queue by
+itself.
+
 If no Job appears, start with
 [the poller troubleshooting checklist](/docs/troubleshooting#the-poller-never-picks-up-my-issue).
 If a Job appears but no PR is created, start with

@@ -14,6 +14,9 @@ Jobs wait in `approved` when:
 - A same-repo Job is already landing (serialized per repo by default).
 - The Job is part of an Epic with `merge_train_enabled` and siblings aren't yet approved.
 - A dependency Job hasn't closed successfully.
+- The repository's main branch health is `broken` and Syrus has paused repository landing for repair.
+
+`inconclusive` main branch health is warning-only. Syrus shows the main-health warning surfaces and notifications, but it does not hold queued workflows or landing queue entries solely because the signal is inconclusive.
 
 ## auto_merge workflow
 

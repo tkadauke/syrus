@@ -52,7 +52,8 @@ class MainHealthChangedService
       ensure_repair_job!
       emit_notification!
     elsif @repository.main_health_inconclusive?
-      pause_landing!
+      resume_landing!
+      start_blocked_queued_workflows!
       emit_inconclusive_notification!
     elsif @repository.main_health == "healthy" && @repository.landing_paused?
       self.class.recovered!(@repository)

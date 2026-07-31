@@ -105,7 +105,7 @@ class StepDispatcher
     repository = workflow.job.repository
     return false unless repository.main_branch_health_enabled?
 
-    repository.landing_paused? && repository.main_health != "healthy"
+    repository.landing_paused? && repository.main_health_broken?
   end
 
   def self.urgent_blocking?(workflow)
