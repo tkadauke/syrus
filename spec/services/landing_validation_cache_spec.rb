@@ -186,10 +186,11 @@ RSpec.describe LandingValidationCache do
         "tree_sha" => "tree",
         "base_sha" => "base",
         "base_ref" => "main",
+        "grader_fingerprint" => "fp",
         "validation_source" => "clean_rebase"
       } })
 
-      decision = described_class.reusable_for?(job: job, head_sha: "rebased-head", tree_sha: "tree", base_sha: "base", base_ref: "main")
+      decision = described_class.reusable_for?(job: job, head_sha: "rebased-head", tree_sha: "tree", base_sha: "base", base_ref: "main", grader_fingerprint: "fp")
 
       expect(decision).to be_reusable
       expect(decision.match_type).to eq("clean_rebase_carry_forward")
@@ -264,6 +265,58 @@ RSpec.describe LandingValidationCache do
       make_workflow(job, artifacts: { "landing_validation" => { "required_graders_passed" => true, "head_sha" => "sha2" } })
 
       expect(described_class.green_validation_present?(job)).to be true
+    end
+  end
+
+  describe ".carry_forward_source_for" do
+    it "accepts a successful required-grader validation with the current grader fingerprint" do
+      job = make_job
+      make_workflow(job, artifacts: { "landing_validation" => {
+        "required_graders_passed" => true,
+        "head_sha" => "old-head",
+        "base_sha" => "old-base",
+        "base_ref" => "main",
+        "grader_fingerprint" => "fp",
+        "validation_source" => "graders"
+      } })
+
+      decision = described_class.carry_forward_source_for(job: job, grader_fingerprint: "fp")
+
+      expect(decision).to be_reusable
+      expect(decision.match_type).to eq("clean_rebase_carry_forward_source")
+    end
+
+    it "rejects carry-forward from another carried validation" do
+      job = make_job
+      make_workflow(job, artifacts: { "landing_validation" => {
+        "required_graders_passed" => true,
+        "head_sha" => "old-head",
+        "base_sha" => "old-base",
+        "base_ref" => "main",
+        "grader_fingerprint" => "fp",
+        "validation_source" => "clean_rebase"
+      } })
+
+      decision = described_class.carry_forward_source_for(job: job, grader_fingerprint: "fp")
+
+      expect(decision).not_to be_reusable
+      expect(decision.reason).to eq("no prior required-grader validation matched current grader configuration")
+    end
+
+    it "rejects carry-forward when .syrus.yml changes the landing grader fingerprint" do
+      job = make_job
+      make_workflow(job, artifacts: { "landing_validation" => {
+        "required_graders_passed" => true,
+        "head_sha" => "old-head",
+        "base_sha" => "old-base",
+        "base_ref" => "main",
+        "grader_fingerprint" => "old-fp"
+      } })
+
+      decision = described_class.carry_forward_source_for(job: job, grader_fingerprint: "new-fp")
+
+      expect(decision).not_to be_reusable
+      expect(decision.reason).to eq("required grader configuration changed")
     end
   end
 end

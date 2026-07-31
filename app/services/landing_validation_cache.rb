@@ -80,6 +80,26 @@ class LandingValidationCache
     end
   end
 
+  def self.carry_forward_source_for(job:, grader_fingerprint:)
+    return miss("current required grader configuration could not be fingerprinted") if grader_fingerprint.blank?
+
+    artifacts = validation_artifacts(job)
+    return miss("no cached landing validation found") if artifacts.empty?
+
+    stale = nil
+    artifacts.each do |entry|
+      artifact = entry.fetch(:artifact)
+      next unless artifact["validation_source"].blank? || artifact["validation_source"] == "graders"
+
+      stale = carry_forward_stale_reason(artifact, grader_fingerprint: grader_fingerprint)
+      next if stale
+
+      return hit(entry, "clean_rebase_carry_forward_source", "prior required-grader validation matches current grader configuration")
+    end
+
+    miss(stale || "no prior required-grader validation matched current grader configuration")
+  end
+
   # Any workflow with a successful grader_collect writes the validation;
   # rebase workflows write it when carrying a green grade across a clean
   # rebase (opt-in). Both are valid sources for skip-on-revalidation.
@@ -132,6 +152,15 @@ class LandingValidationCache
     nil
   end
   private_class_method :stale_reason
+
+  def self.carry_forward_stale_reason(artifact, grader_fingerprint:)
+    return "cached validation is older than #{MAX_AGE.inspect}" if stale_checked_at?(artifact)
+    return "cached validation is missing required grader configuration" if artifact["grader_fingerprint"].blank?
+    return "required grader configuration changed" if artifact["grader_fingerprint"] != grader_fingerprint
+
+    nil
+  end
+  private_class_method :carry_forward_stale_reason
 
   def self.stale_checked_at?(artifact)
     checked_at = Time.iso8601(artifact["checked_at"].to_s)

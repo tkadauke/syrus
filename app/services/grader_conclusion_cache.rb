@@ -16,7 +16,8 @@ class GraderConclusionCache
         "name" => details["name"].to_s,
         "command" => details["command"].to_s,
         "required" => !!details["required"],
-        "timeout_minutes" => details["timeout_minutes"].to_i
+        "timeout_minutes" => details["timeout_minutes"].to_i,
+        "when_files_changed" => Array(details["when_files_changed"]).map(&:to_s).sort
       }
     end
 
@@ -121,7 +122,8 @@ class GraderConclusionCache
         "name" => grader.name.to_s,
         "command" => grader.command.to_s,
         "required" => !!grader.required,
-        "timeout_minutes" => grader.timeout_minutes.to_i
+        "timeout_minutes" => grader.timeout_minutes.to_i,
+        "when_files_changed" => Array(grader.when_files_changed).map(&:to_s).sort
       }
     end
 

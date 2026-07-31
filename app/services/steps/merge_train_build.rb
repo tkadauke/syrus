@@ -172,18 +172,7 @@ module Steps
     end
 
     def fast_grader_plan(plan)
-      plan.with(
-        graders: plan.graders.map do |grader|
-          command = grader.command_for(fast: true)
-          metadata = {
-            "standard_command" => grader.command,
-            "fast_command" => grader.fast_command,
-            "fast_variant" => grader.fast_command.present?
-          }.compact
-
-          grader.with(command: command, metadata: metadata)
-        end
-      )
+      LandingGraderPlan.landing(plan)
     end
 
     def skip_revalidated_grade_steps!(sha, decision)
