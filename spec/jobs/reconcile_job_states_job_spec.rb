@@ -19,6 +19,30 @@ RSpec.describe ReconcileJobStatesJob do
     )
   end
 
+  def enable_unified_work_engine_reconciler!
+    Feature.find_or_create_by!(slug: WorkEngine::Gate::FEATURE_SLUG) do |feature|
+      feature.category = "Operations"
+      feature.name = "Unified work-engine reconciler"
+    end.update!(enabled: true)
+  end
+
+  it "delegates to the unified reconciler without mutating Jobs when that gate is enabled" do
+    enable_unified_work_engine_reconciler!
+    build_workflow(state: "succeeded")
+    job.update!(state: "failed")
+
+    expect {
+      described_class.perform_now
+    }.to have_enqueued_job(WorkEngine::ReconcileJob).with(
+      source: "ReconcileJobStatesJob",
+      job_id: nil,
+      workflow_id: nil,
+      run_id: nil
+    )
+
+    expect(job.reload.state).to eq("failed")
+  end
+
   describe "Job :failed with latest workflow :succeeded (Job 360 shape)" do
     it "lifts the Job through :queued to :implemented" do
       build_workflow(state: "succeeded")

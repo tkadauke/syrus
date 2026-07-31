@@ -48,3 +48,10 @@ features:
     description: "Enables agent insight analysis jobs that inspect recent workflow runs and surface improvement suggestions."
     description_i18n_key: "features.slugs.agent_insights.description"
     default: false
+  - slug: unified_work_engine_reconciler
+    category: "Operations"
+    name: "Unified work-engine reconciler"
+    name_i18n_key: "features.slugs.unified_work_engine_reconciler.name"
+    description: "Makes the unified work-engine reconciler authoritative for work-state recovery. When enabled, legacy reapers and auto-retry fixers defer instead of mutating state independently."
+    description_i18n_key: "features.slugs.unified_work_engine_reconciler.description"
+    default: false

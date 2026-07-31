@@ -43,7 +43,30 @@ RSpec.describe ReapStaleRunsJob do
     ActiveJob::Base.queue_adapter.enqueued_jobs.count { |entry| entry[:job] == RunJob && entry[:args] == [ run.id ] }
   end
 
+  def enable_unified_work_engine_reconciler!
+    Feature.find_or_create_by!(slug: WorkEngine::Gate::FEATURE_SLUG) do |feature|
+      feature.category = "Operations"
+      feature.name = "Unified work-engine reconciler"
+    end.update!(enabled: true)
+  end
+
   describe "#perform" do
+    it "delegates to the unified reconciler without reaping when that gate is enabled" do
+      enable_unified_work_engine_reconciler!
+      run = running_run(heartbeat_age: Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes)
+
+      expect {
+        described_class.perform_now
+      }.to have_enqueued_job(WorkEngine::ReconcileJob).with(
+        source: "ReapStaleRunsJob",
+        job_id: nil,
+        workflow_id: nil,
+        run_id: nil
+      )
+
+      expect(run.reload.state).to eq("running")
+    end
+
     it "marks a run with stale heartbeat as failed" do
       run = running_run(heartbeat_age: Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes)
       described_class.perform_now

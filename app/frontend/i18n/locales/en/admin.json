@@ -141,6 +141,10 @@
       "agent_insights": {
         "name": "Agent Insights",
         "description": "Enables agent insight analysis jobs that inspect recent workflow runs and surface improvement suggestions."
+      },
+      "unified_work_engine_reconciler": {
+        "name": "Unified work-engine reconciler",
+        "description": "Makes the unified work-engine reconciler authoritative for work-state recovery. When enabled, legacy reapers and auto-retry fixers defer instead of mutating state independently."
       }
     }
   },

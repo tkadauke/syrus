@@ -55,3 +55,14 @@ such as `confirm_rebase`, `close_successfully_no_changes`, `retry_job`, `wait`,
 `inspect_logs`, or `manual_intervention`. The tool never mutates Job, Workflow,
 Run, PR, dependency, or queue state; actions that would mutate state still
 require the separate pending-confirmation tools.
+
+## Stale Run Reap
+
+The admin-only stale-run reap action normally enqueues `ReapStaleRunsJob`,
+which runs the legacy recovery paths for stale Runs, orphaned queued Runs,
+queued Workflows with no first Run, terminal orphan Workflows, and missed
+worker-death auto-retries.
+
+When the `unified_work_engine_reconciler` feature flag is enabled, the same
+admin action defers to the unified work-engine reconciler instead of enqueueing
+the legacy mutation path.

@@ -189,4 +189,10 @@ When a worker process is killed mid-step (deploy rolling restart, OOM, node evic
 
 **Agentic steps** (e.g., `implement`, `respond`) do not use in-place retry. They use `AutoRetryScheduler`'s session-resume path so the agent can pick up where it left off with prior conversation context intact.
 
+When the `unified_work_engine_reconciler` feature flag is enabled,
+`AutoRetryScheduler` does not create `AutoRetryAttempt` rows itself. It defers
+to `WorkEngine::Reconciler` so retry classification and remediation stay under
+the unified work-engine authority. With the flag off, auto-retry behavior is
+unchanged.
+
 The in-place retry count is per-step per-workflow, not per-job. Each step failure classification is persisted as a `RunFailureClassification` row so the reaper and `RunJob` can accurately count prior retries.

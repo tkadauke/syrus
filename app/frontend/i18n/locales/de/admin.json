@@ -141,6 +141,10 @@
       "agent_insights": {
         "name": "Agenten-Einblicke",
         "description": "Aktiviert Agenten-Einblick-Analysejobs, die aktuelle Workflow-Ausführungen untersuchen und Verbesserungsvorschläge aufzeigen."
+      },
+      "unified_work_engine_reconciler": {
+        "name": "Einheitlicher Work-Engine-Reconciler",
+        "description": "Macht den einheitlichen Work-Engine-Reconciler zur Autorität für die Wiederherstellung von Arbeitszuständen. Wenn aktiviert, delegieren Legacy-Reaper und Auto-Retry-Fixer, statt Zustand unabhängig zu ändern."
       }
     }
   },

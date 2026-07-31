@@ -23,6 +23,32 @@ RSpec.describe AutoRetryScheduler do
     job.update_columns(state: "failed")
   end
 
+  def enable_unified_work_engine_reconciler!
+    Feature.find_or_create_by!(slug: WorkEngine::Gate::FEATURE_SLUG) do |feature|
+      feature.category = "Operations"
+      feature.name = "Unified work-engine reconciler"
+    end.update!(enabled: true)
+  end
+
+  it "delegates to the unified reconciler without scheduling auto-retries when that gate is enabled" do
+    enable_unified_work_engine_reconciler!
+    fail_workflow!
+
+    expect {
+      described_class.schedule_for_workflow(workflow: workflow)
+    }.to change { workflow.runs.order(:created_at).last.job_logs.where(kind: "system").count }.by(1)
+      .and have_enqueued_job(WorkEngine::ReconcileJob).with(
+        source: "AutoRetryScheduler",
+        job_id: job.id,
+        workflow_id: workflow.id,
+        run_id: nil
+      )
+
+    expect(AutoRetryAttempt.count).to eq(0)
+    expect(workflow.runs.order(:created_at).last.job_logs.where(kind: "system").last.chunk)
+      .to eq("auto-retry skipped: unified work-engine reconciler is enabled")
+  end
+
   it "schedules a delayed failed-step retry for retryable failures with workspace available" do
     freeze_time do
       fail_workflow!

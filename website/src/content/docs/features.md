@@ -50,6 +50,18 @@ Workflow workspaces or a scratch directory, and keeps the PTY alive while
 the browser navigates away. Returning to the page reconnects the xterm.js
 pane to the existing session; killing a tab ends that session.
 
+## Unified Work-Engine Reconciler
+
+The `unified_work_engine_reconciler` feature flag is an operations rollout
+switch for work-state recovery. It defaults off, so existing stale-run reaping,
+auto-retry scheduling, Job-state reconciliation, and stuck detection continue
+to behave as they do today.
+
+When enabled, disconnected legacy fixers stop mutating work state on their own
+and defer to the unified work-engine reconciler. This makes the unified
+reconciler the single authority for classifying and repairing split-brain state
+across Jobs, Workflows, Steps, Runs, queue records, and worker processes.
+
 ## Coding Mode
 
 When the `coding_mode` feature flag is enabled and a chat session is in coding

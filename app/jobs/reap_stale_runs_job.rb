@@ -43,6 +43,12 @@ class ReapStaleRunsJob < ApplicationJob
   MISSED_AUTO_RETRY_LOOKBACK = 24.hours
 
   def perform
+    if Feature.unified_work_engine_reconciler_enabled?
+      WorkEngine::Reconciler.request(source: self.class.name)
+      Rails.logger.info("[ReapStaleRunsJob] skipped legacy mutations; unified work-engine reconciler is enabled")
+      return
+    end
+
     reap_runs_with_pruned_workers     # fast path
     reap_orphaned_running_runs        # ~3-min path
     reap_runs_with_stale_heartbeat    # 30-min backstop
