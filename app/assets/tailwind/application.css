@@ -2,6 +2,32 @@
 @config "../../../config/tailwind.config.js";
 
 /*
+ * iOS Safari zooms the page when focused form controls render below 16px.
+ * Keep the mobile app shell stable while preserving desktop's denser controls.
+ */
+@media (max-width: 767px) {
+  input:is(
+    :not([type]),
+    [type="date"],
+    [type="datetime-local"],
+    [type="email"],
+    [type="month"],
+    [type="number"],
+    [type="password"],
+    [type="search"],
+    [type="tel"],
+    [type="text"],
+    [type="time"],
+    [type="url"],
+    [type="week"]
+  ),
+  select:not([data-allow-mobile-focus-zoom]),
+  textarea:not([data-allow-mobile-focus-zoom]) {
+    font-size: 16px;
+  }
+}
+
+/*
  * Lightweight typography for markdown-rendered chat messages.
  * We don't ship @tailwindcss/typography in this
  * standalone-binary setup, so a dedicated class with the handful of
