@@ -67,6 +67,13 @@ asynchronous repository prep after creation or restoration. The agent does not
 need to initialize the workspace manually; its first step should be normal
 inspection/editing inside the reported checkout path.
 
+After an operator accepts `submit_coding_changes`, `CodingHandoffConfirmJob`
+captures the current committed HEAD to the immutable handoff branch and starts
+the `coding_handoff` workflow. Only after both steps succeed, it resets the chat
+checkout to `origin/<default_branch>`, removes untracked and ignored files,
+clears the uncommitted-work flag, and enqueues prep again. Capture failures do
+not reset the checkout, so local work remains available for recovery.
+
 `chat_sessions` stores the latest prep snapshot in
 `coding_checkout_prepare_status`, `coding_checkout_prepare_started_at`,
 `coding_checkout_prepare_finished_at`, and `coding_checkout_prepare_failure`.

@@ -818,6 +818,41 @@ RSpec.describe ChatWorkspace, :ci_only do
       expect(coding_path.join(".git")).to exist
       expect(chat_session.reload.coding_checkout_branch).to be_present
     end
+
+    it "resets a captured handoff checkout to a clean prepared default-branch baseline" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      File.write(coding_path.join("feature.rb"), "puts 1\n")
+      sh("git -C #{coding_path} add feature.rb")
+      sh("git -C #{coding_path} commit -q -m 'handoff feature'")
+      FileUtils.mkdir_p(coding_path.join("node_modules"))
+      File.write(coding_path.join("node_modules", "stale.txt"), "old dependency\n")
+      File.write(coding_path.join("scratch.txt"), "old scratch\n")
+      chat_session.update_columns(
+        coding_checkout_uncommitted: true,
+        coding_checkout_prepare_status: "failed",
+        coding_checkout_prepare_failure: "old failure"
+      )
+      add_remote_commit("fresh baseline")
+      remote_main = remote_ref_sha("refs/heads/main")
+
+      ActiveJob::Base.queue_adapter.enqueued_jobs.clear
+      expect {
+        described_class.reset_after_coding_handoff!(chat_session, repository)
+      }.to have_enqueued_job(ChatWorkspacePrepareJob).with(chat_session.id, repository.id).on_queue("chat")
+
+      expect(`git -C #{coding_path} rev-parse --abbrev-ref HEAD`.strip).to eq("main")
+      expect(`git -C #{coding_path} rev-parse HEAD`.strip).to eq(remote_main)
+      expect(coding_path.join("README.md").read).to include("fresh baseline")
+      expect(coding_path.join("feature.rb")).not_to exist
+      expect(coding_path.join("scratch.txt")).not_to exist
+      expect(coding_path.join("node_modules", "stale.txt")).not_to exist
+
+      chat_session.reload
+      expect(chat_session.coding_checkout_branch).to eq("main")
+      expect(chat_session.coding_checkout_uncommitted).to eq(false)
+      expect(chat_session.coding_checkout_prepare_status).to eq("queued")
+      expect(chat_session.coding_checkout_prepare_failure).to be_nil
+    end
   end
 
   def seed_remote(bare_path)

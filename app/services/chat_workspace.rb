@@ -275,6 +275,14 @@ class ChatWorkspace
     new(chat_session).reclaim_coding_checkout!(repository)
   end
 
+  # After accepted submit_coding_changes captures HEAD to an immutable remote
+  # handoff branch, reset the chat checkout for the next unrelated Coding Mode
+  # task. This deliberately discards the local copy of the just-handoff commits:
+  # the handoff branch is now the reproducible artifact.
+  def self.reset_after_coding_handoff!(chat_session, repository)
+    new(chat_session).reset_after_coding_handoff!(repository)
+  end
+
   # On-disk size of a path in bytes. Uses `du -sk` (KB) for portability across
   # GNU (Linux worker) and BSD (macOS dev) — `du -sb` is GNU-only.
   def self.du_bytes(path)
@@ -401,6 +409,31 @@ class ChatWorkspace
     FileUtils.rm_rf(path.to_s)
     clear_relay_credentials!
     bytes
+  end
+
+  # Resets the on-disk coding checkout to a clean default-branch tip and
+  # re-queues prep so the next Coding Mode turn starts from a fresh baseline.
+  def reset_after_coding_handoff!(repository)
+    ensure_root!
+    path = self.class.repo_path_for(@chat_session, repository)
+    default_branch = repository.default_branch
+
+    if path.join(".git").directory?
+      reset_existing_checkout_to_default!(repository, path, default_branch)
+    else
+      FileUtils.rm_rf(path.to_s) if path.exist?
+      full_clone!(repository, path)
+    end
+
+    @chat_session.update_columns(
+      coding_checkout_branch: default_branch,
+      coding_checkout_uncommitted: false
+    )
+    @chat_session.chat_attachments.find_or_create_by!(attachable: repository)
+    delete_wip_tag!(repository, path)
+    enqueue_prepare!(repository)
+    write_relay_credentials!
+    path
   end
 
   # Sets up a writable coding checkout on an existing Job branch.
@@ -699,6 +732,36 @@ class ChatWorkspace
     return unless git_subject(path, "HEAD") == "syrus wip backup"
 
     @git.run("reset", "HEAD~1", chdir: path.to_s, env: @env)
+  end
+
+  def reset_existing_checkout_to_default!(repository, path, default_branch)
+    default_ref = "refs/remotes/origin/#{default_branch}"
+    @git.run(
+      "fetch",
+      authenticated_url(repository),
+      "+refs/heads/#{default_branch}:#{default_ref}",
+      "--prune",
+      chdir: path.to_s,
+      env: @env
+    )
+    @git.run("reset", "--hard", chdir: path.to_s, env: @env)
+    @git.run("clean", "-ffdx", chdir: path.to_s, env: @env)
+    @git.run("checkout", "-B", default_branch, default_ref, chdir: path.to_s, env: @env)
+    @git.run("reset", "--hard", default_ref, chdir: path.to_s, env: @env)
+    @git.run("clean", "-ffdx", chdir: path.to_s, env: @env)
+    GitInfoExclude.ensure_entry!(path, EXCLUDE_ENTRY)
+  end
+
+  def delete_wip_tag!(repository, path)
+    begin
+      @git.run(
+        "push", authenticated_url(repository), "--delete", "refs/tags/#{wip_tag}",
+        chdir: path.to_s, env: @env
+      )
+    rescue StandardError
+      # Tag may not exist; the reset should remain idempotent.
+    end
+    @git.run("tag", "-d", wip_tag, chdir: path.to_s, env: @env) rescue nil
   end
 
   def rev_parse_path(path, ref)

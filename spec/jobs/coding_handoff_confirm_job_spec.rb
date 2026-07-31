@@ -47,6 +47,9 @@ RSpec.describe CodingHandoffConfirmJob do
     allow(CodingHandoffCapture).to receive(:capture!) do |chat_session:, repository:, user:, source_branch:, handoff_branch:|
       snapshot.merge("handoff_branch" => handoff_branch)
     end
+    allow(ChatWorkspace).to receive(:reset_after_coding_handoff!)
+      .with(chat_session, repository)
+      .and_return(Pathname.new("/tmp/chat-workspace"))
     allow(StepDispatcher).to receive(:start_workflow)
   end
 
@@ -135,6 +138,15 @@ RSpec.describe CodingHandoffConfirmJob do
     expect(message).to be_present
     expect(message.content["source"]).to eq(CodingHandoffConfirmJob::SOURCE)
     expect(message.content["text"]).to include("dispatched")
+    expect(message.content["text"]).to include("workspace was reset")
+  end
+
+  it "resets the chat workspace after capture and workflow start" do
+    action = pending_action
+
+    described_class.perform_now(action.id)
+
+    expect(ChatWorkspace).to have_received(:reset_after_coding_handoff!).with(chat_session, repository)
   end
 
   it "posts a failure system message and enqueues ChatTurnJob on CaptureError" do
@@ -151,6 +163,7 @@ RSpec.describe CodingHandoffConfirmJob do
     expect(message.content["source"]).to eq(CodingHandoffConfirmJob::SOURCE)
     expect(message.content["text"]).to include("failed")
     expect(message.content["text"]).to include("coding checkout not found")
+    expect(ChatWorkspace).not_to have_received(:reset_after_coding_handoff!)
   end
 
   it "posts a failure message and enqueues ChatTurnJob when start_coding_handoff! is blocked" do
@@ -165,6 +178,20 @@ RSpec.describe CodingHandoffConfirmJob do
     expect(message.content["source"]).to eq(CodingHandoffConfirmJob::SOURCE)
     expect(message.content["text"]).to include("failed")
     expect(message.content["text"]).to include("could not start coding handoff")
+    expect(ChatWorkspace).not_to have_received(:reset_after_coding_handoff!)
+  end
+
+  it "keeps the handoff dispatched and reports when workspace reset fails" do
+    action = pending_action
+    allow(ChatWorkspace).to receive(:reset_after_coding_handoff!).and_raise(StandardError, "reset failed")
+
+    expect {
+      described_class.perform_now(action.id)
+    }.to change(Job, :count).by(1)
+
+    message = chat_session.messages.where(role: "system").order(:created_at).last
+    expect(message.content["text"]).to include("dispatched")
+    expect(message.content["text"]).to include("workspace reset failed")
   end
 
   it "does not raise when the pending action has been discarded" do

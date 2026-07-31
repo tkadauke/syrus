@@ -127,9 +127,12 @@ intentionally checks out another ref. The `submit_coding_changes` chat tool
 creates a new direct Job from the active committed HEAD; after operator
 confirmation Syrus captures that HEAD to an immutable
 `syrus/chat-<chat_id>-handoff-<pending_action_id>` branch and dispatches the
-CodingHandoff workflow. The `complete_implement_step` chat tool signals that a
-coding session on an existing Job branch is complete and ready for graders,
-summarize, and PR open.
+CodingHandoff workflow. After a successful capture and dispatch, Syrus resets
+the chat checkout back to the repository default branch tip and queues
+preparation again, so the next unrelated Coding Mode request starts from a
+fresh baseline instead of accidentally carrying over handoff commits. The
+`complete_implement_step` chat tool signals that a coding session on an
+existing Job branch is complete and ready for graders, summarize, and PR open.
 
 During a handoff, the Job remains linked to the originating chat so it stays
 visible in the chat Jobs tab and grader failures can route back to the same
