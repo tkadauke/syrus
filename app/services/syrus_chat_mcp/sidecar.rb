@@ -136,14 +136,16 @@ module SyrusChatMcp
     def self.tool_names(chat_session = nil, tier: nil)
       return DeferredSidecar.tool_names(chat_session) if tier.to_s == "deferred"
 
-      tools = chat_session ? tools_for(chat_session) : TOOLS
+      tools = chat_session ? tools_for(chat_session, tier: tier) : TOOLS
       tools.map { |tool| tool.name.demodulize.sub(/Tool\z/, "").underscore }
     end
 
     def self.tools_for(chat_session, tier: nil)
       return DeferredSidecar.tools_for(chat_session) if tier.to_s == "deferred"
 
-      tools_for_session(TOOLS, chat_session)
+      tools = tools_for_session(TOOLS, chat_session)
+      tools << authorize_tool(ExplainStuckJobTool) if tier.to_s == "all" && !tools.include?(ExplainStuckJobTool)
+      tools
     end
 
     def self.tools_for_session(tools, chat_session)
@@ -275,7 +277,7 @@ module SyrusChatMcp
     ].freeze
 
     def self.tool_names(chat_session = nil)
-      tools = chat_session ? tools_for(chat_session) : DEFERRED_TOOLS
+      tools = chat_session ? tools_for(chat_session) : DEFERRED_TOOLS - Sidecar::TOOLS
       tools.map { |tool| tool.name.demodulize.sub(/Tool\z/, "").underscore }
     end
 

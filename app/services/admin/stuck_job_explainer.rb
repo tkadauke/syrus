@@ -22,6 +22,8 @@ module Admin
         landing: landing_payload,
         empty_reconciliation: empty_reconciliation_payload
       }
+      payload[:stuck] = payload.dig(:stuck_list, :listed)
+      payload[:issues] = payload.dig(:stuck_list, :items)
       payload[:recommended_action] = recommended_action(payload)
       payload[:human_summary] = human_summary(payload)
       payload
@@ -37,6 +39,7 @@ module Admin
         slug: job.slug,
         kind: job.kind,
         state: job.state,
+        title: job.issue_title,
         issue_title: job.issue_title,
         branch_name: job.branch_name,
         pr_number: job.pr_number || job.external_pr_number,
@@ -57,9 +60,11 @@ module Admin
           {
             kind: item.kind.to_s,
             severity: item.severity.to_s,
+            attention_state: item.attention_state.to_s,
             detail: item.detail,
             workflow_id: item.workflow&.id,
-            run_id: item.run&.id
+            run_id: item.run&.id,
+            repair_plan: item.repair_plan&.as_json
           }
         end
       }
@@ -159,7 +164,7 @@ module Admin
         state: run.state,
         last_signal_at: last_signal&.iso8601,
         silent_for_seconds: last_signal ? (Time.current - last_signal).to_i : nil,
-        stale_for_admin: last_signal.present? && last_signal < Admin::StuckItems::ADMIN_STUCK_THRESHOLD.ago,
+        stale_for_admin: last_signal.present? && last_signal < WorkEngine::Reconciler::ORPHAN_RUN_GRACE_PERIOD.ago,
         past_reaper_threshold: last_signal.present? && last_signal < Run::STALE_HEARTBEAT_THRESHOLD.ago
       }
     end

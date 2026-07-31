@@ -24,19 +24,23 @@ module SyrusChatMcp
         job_id = Integer(job_id, exception: false)
         return SyrusChatMcp.invalid("job_id is required") unless job_id
 
-        job = find_job!(
-          job_id,
-          includes: [
-            :repository,
-            :user,
-            :parent_job,
-            :epic,
-            { dependencies: [ :depends_on_epic, { depends_on_job: [ :repository, :dependencies ] } ] },
-            { workflows: { steps: { runs: [ :run_diagnostic, :run_failure_classification, :job_logs ] } } }
-          ]
-        )
+        job = job_scope.includes(
+          :repository,
+          :user,
+          :parent_job,
+          :epic,
+          { dependencies: [ :depends_on_epic, { depends_on_job: [ :repository, :dependencies ] } ] },
+          { workflows: { steps: { runs: [ :run_diagnostic, :run_failure_classification, :job_logs ] } } }
+        ).find_by(id: job_id)
+        return SyrusChatMcp.unauthorized("Admin access required") unless job
 
         SyrusChatMcp.success(Admin::StuckJobExplainer.call(job))
+      end
+
+      private
+
+      def job_scope
+        admin? ? Job.all : current_user.jobs
       end
     end
   end
