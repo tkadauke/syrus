@@ -198,13 +198,15 @@ RSpec.describe LocalTunnelChannel, type: :channel do
       allow_any_instance_of(described_class).to receive(:start_heartbeat_thread).and_call_original
       stub_const("#{described_class}::HEARTBEAT_INTERVAL", 0.01.seconds)
 
+      disconnected_frame = { "type" => "disconnected", "reason" => "heartbeat_timeout" }
       subscribe_to(daemon_session)
       Timeout.timeout(2) do
-        sleep 0.01 until daemon_session.reload.disconnected_at.present?
+        sleep 0.01 until daemon_session.reload.disconnected_at.present? &&
+                         transmissions.include?(disconnected_frame)
       end
 
       expect(daemon_session.reload.disconnected_at).not_to be_nil
-      expect(transmissions).to include({ "type" => "disconnected", "reason" => "heartbeat_timeout" })
+      expect(transmissions).to include(disconnected_frame)
     end
   end
 end
