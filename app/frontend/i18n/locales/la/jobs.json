@@ -6,6 +6,8 @@
   "feedback_submitted": "Responsum missum est — novus cursus mox incipiet.",
   "view_in_chat": "Vide in colloquio",
   "prepare_skipped": "praeparatio omissa",
+  "deployment_stages_label": "Gradus deploymenti",
+  "deployment_stage_pending": "Pendens",
   "workflow_count_one": "{{count}} cursus",
   "workflow_count_other": "{{count}} cursus",
   "run_count_one": "{{count}} exsecutio",

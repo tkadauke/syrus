@@ -6,6 +6,8 @@
   "feedback_submitted": "Feedback submitted — a new workflow will start shortly.",
   "view_in_chat": "View in chat",
   "prepare_skipped": "prepare skipped",
+  "deployment_stages_label": "Deployment stages",
+  "deployment_stage_pending": "Pending",
   "workflow_count_one": "{{count}} workflow",
   "workflow_count_other": "{{count}} workflows",
   "run_count_one": "{{count}} run",

@@ -6,6 +6,8 @@
   "feedback_submitted": "Feedback gesendet — ein neuer Arbeitsablauf startet in Kürze.",
   "view_in_chat": "Im Chat anzeigen",
   "prepare_skipped": "Vorbereitung übersprungen",
+  "deployment_stages_label": "Bereitstellungsstufen",
+  "deployment_stage_pending": "Ausstehend",
   "workflow_count_one": "{{count}} Arbeitsablauf",
   "workflow_count_other": "{{count}} Arbeitsabläufe",
   "run_count_one": "{{count}} Lauf",
