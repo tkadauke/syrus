@@ -215,6 +215,24 @@ RSpec.describe ChatPendingAction do
     expect(action.reload.payload["github_result"]).to include("status" => "closed", "pr_number" => 17, "repo_slug" => repository.slug)
   end
 
+  it "closes the external PR when the Job has no Syrus-authored PR" do
+    repository.update!(installation: Factories.installation(user: user, account_login: repository.owner))
+    job = Factories.job_record(repository: repository, state: "approved", pr_number: nil, external_pr_number: 19)
+    client = instance_double(GithubClient, add_issue_comment: true, close_pull_request: true)
+    allow(GithubClient).to receive(:for).and_return(client)
+    action = chat_session.pending_actions.create!(
+      action: "close_job_successfully",
+      payload: { "job_id" => job.id, "closure_reason" => "no_changes", "comment" => "External PR has no remaining changes." }
+    )
+
+    expect(action.confirm!).to be true
+
+    expect(client).to have_received(:add_issue_comment).with(repository.slug, 19, "External PR has no remaining changes.", on_behalf_of: user)
+    expect(client).to have_received(:close_pull_request).with(repository.slug, 19)
+    expect(job.reload).to be_closed
+    expect(action.reload.payload["github_result"]).to include("status" => "closed", "pr_number" => 19, "repo_slug" => repository.slug)
+  end
+
   it "records partial PR cleanup failures without rolling back the successful Job close" do
     repository.update!(installation: Factories.installation(user: user, account_login: repository.owner))
     job = Factories.job_record(repository: repository, state: "approved", pr_number: 17)

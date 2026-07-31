@@ -1,4 +1,5 @@
 require "rails_helper"
+require Rails.root.join("app/services/syrus_chat_mcp/sidecar")
 
 RSpec.describe SyrusChatMcp::ExplainStuckJobTool do
   let(:user) { Factories.user }

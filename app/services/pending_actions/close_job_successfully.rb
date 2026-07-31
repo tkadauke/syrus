@@ -65,9 +65,10 @@ module PendingActions
     end
 
     def github_closure_result(job)
-      return { "status" => "not_applicable", "message" => "Job has no tracked PR." } unless job.pr_number.present?
+      pr_number = job.pr_number.presence || job.external_pr_number.presence
+      return { "status" => "not_applicable", "message" => "Job has no tracked PR." } unless pr_number
 
-      { "status" => "pending", "repo_slug" => job.effective_pr_repository.slug, "pr_number" => job.pr_number }
+      { "status" => "pending", "repo_slug" => job.effective_pr_repository.slug, "pr_number" => pr_number }
     end
 
     def close_pull_request_if_present(job, result)
@@ -80,8 +81,8 @@ module PendingActions
       end
 
       client = GithubClient.for(repository: job.effective_pr_repository, user: job.user)
-      result["comment"] = post_comment(client, result["repo_slug"], job.pr_number)
-      result["close"] = close_pull_request(client, result["repo_slug"], job.pr_number)
+      result["comment"] = post_comment(client, result["repo_slug"], result.fetch("pr_number"))
+      result["close"] = close_pull_request(client, result["repo_slug"], result.fetch("pr_number"))
       result["status"] = result.values_at("comment", "close").any? { |entry| entry["status"] == "failed" } ? "partial_failure" : "closed"
     rescue => e
       result["status"] = "partial_failure"
