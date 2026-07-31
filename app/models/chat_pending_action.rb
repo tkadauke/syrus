@@ -1,6 +1,7 @@
 class ChatPendingAction < ApplicationRecord
   ACTIONS = %w[
     cancel_job
+    close_job_successfully
     retry_job
     rebase_job
     reopen_job

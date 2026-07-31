@@ -89,6 +89,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
         read_epic
         approve_job
         cancel_job
+        close_job_successfully
         retry_job
         set_job_priority
         write_memory
@@ -99,7 +100,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
         suggest_next_step
         ask_user_question
       ])
-      expect(tool_names.size).to eq(23)
+      expect(tool_names.size).to eq(24)
       expect(tool_names).not_to include("complete_implement_step")
     end
 

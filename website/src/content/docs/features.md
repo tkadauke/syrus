@@ -239,11 +239,17 @@ Proposal cards can also declare dependency edges up front, including Jobs
 blocked on existing Epics, Epics blocked on existing Jobs, and proposed Jobs
 blocked on specific Job proposals in other cards from the same chat session.
 Actions that need explicit approval, such as
-canceling, retrying, reopening, polling feedback, checking mergeability,
+canceling, closing a Job successfully as `no_changes`, retrying, reopening,
+polling feedback, checking mergeability,
 delegating GitHub issues, firing scheduled tasks, changing repository
 documents, or pausing and resuming the landing queue, also render as inline
 confirmation cards in the message stream so operators can review the target
 before confirming or rejecting them.
+Successful Job close is separate from cancellation: `close_job_successfully`
+records a successful closure reason such as `no_changes`, which satisfies
+dependencies and Epic progress, while `cancel_job` remains non-successful. When
+the Job has a tracked PR, Syrus can post the supplied explanation and close the
+PR after confirmation; any GitHub cleanup failure is reported in chat.
 On the Job detail page, implementation retries can also be enqueued with any
 other agent provider the operator has configured, which updates the Job's
 provider for that retry and later attempts.

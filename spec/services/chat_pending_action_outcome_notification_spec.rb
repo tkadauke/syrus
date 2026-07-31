@@ -17,6 +17,26 @@ RSpec.describe ChatPendingActionOutcomeNotification do
     )
   end
 
+  it "builds a confirmed message with partial GitHub cleanup details" do
+    action = build_action(
+      action: "close_job_successfully",
+      payload: {
+        "job_id" => 42,
+        "closure_reason" => "no_changes",
+        "github_result" => {
+          "status" => "partial_failure",
+          "pr_number" => 7,
+          "comment" => { "status" => "failed", "error" => "Octokit::Forbidden: nope" },
+          "close" => { "status" => "closed" }
+        }
+      }
+    )
+
+    expect(described_class.new(action).acknowledgment(outcome: :confirmed)).to eq(
+      "Pending action confirmed: close_job_successfully (job_id: 42, closure_reason: no_changes). The action has been applied. Job state was closed successfully, but PR cleanup was partial: Octokit::Forbidden: nope."
+    )
+  end
+
   it "builds a rejected message for a job-scoped action" do
     action = build_action(action: "retry_job", payload: { "job_id" => 7 })
 

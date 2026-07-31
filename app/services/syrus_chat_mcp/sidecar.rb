@@ -117,6 +117,7 @@ module SyrusChatMcp
       ReadEpicTool,
       ApproveJobTool,
       CancelJobTool,
+      CloseJobSuccessfullyTool,
       RetryJobTool,
       SetJobPriorityTool,
       Mcp::Tools::WriteMemoryTool,

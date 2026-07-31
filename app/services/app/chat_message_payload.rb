@@ -56,7 +56,7 @@ module App
       }
 
       case action.action.presence || action.action_type
-      when "cancel_job", "retry_job", "force_fail_job", "rebase_job", "reopen_job", "poll_job_feedback", "check_job_mergeability", "submit_chat_feedback"
+      when "cancel_job", "close_job_successfully", "retry_job", "force_fail_job", "rebase_job", "reopen_job", "poll_job_feedback", "check_job_mergeability", "submit_chat_feedback"
         job_scope = action.user.admin? ? Job.all : action.user.jobs
         if (job = job_scope.find_by(id: payload["job_id"]))
           base.merge(resource_title: job.issue_title, resource_url: job_path(job))
@@ -288,6 +288,8 @@ module App
       case action.action
       when "cancel_job"
         "Cancel #{::App::Presentation.job_slug(payload['job_id'])}"
+      when "close_job_successfully"
+        "Close #{::App::Presentation.job_slug(payload['job_id'])} as #{payload['closure_reason']}"
       when "retry_job"
         "Retry #{::App::Presentation.job_slug(payload['job_id'])}"
       when "force_fail_job"
@@ -326,6 +328,8 @@ module App
     def pending_action_detail(action)
       payload = action.payload || {}
       case action.action.presence || action.action_type
+      when "close_job_successfully"
+        payload["comment"].presence
       when "submit_chat_feedback"
         payload["feedback"].presence
       when "schedule_recurring"

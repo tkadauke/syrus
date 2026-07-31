@@ -27,6 +27,7 @@ export function pendingActionBadgeLabel(pendingAction: ChatPendingActionInline |
   const actionKey = pendingActionKey(pendingAction)
   if (actionKey === "submit_chat_feedback") return "Submit feedback"
   if (actionKey === "cancel_job") return "Cancel"
+  if (actionKey === "close_job_successfully") return "Close successfully"
   if (actionKey === "retry_job") return "Retry"
   if (actionKey === "rebase_job") return "Rebase"
   if (actionKey === "reopen_job") return "Reopen"

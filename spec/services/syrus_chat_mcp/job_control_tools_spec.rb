@@ -18,6 +18,7 @@ RSpec.describe "SyrusChatMcp job control tools" do
         SyrusChatMcp::RemoveJobFromEpicTool,
         SyrusChatMcp::UpdateJobTool,
         SyrusChatMcp::CancelJobTool,
+        SyrusChatMcp::CloseJobSuccessfullyTool,
         SyrusChatMcp::RetryJobTool,
         SyrusChatMcp::ForceFailJobTool,
         SyrusChatMcp::RebaseJobTool
@@ -50,6 +51,36 @@ RSpec.describe "SyrusChatMcp job control tools" do
     expect(pending_action).to have_attributes(action: "cancel_job", requested_by: "agent")
     expect(pending_action.payload).to eq("job_id" => job.id)
     expect(job.reload).to be_open
+  end
+
+  it "creates a pending close_job_successfully confirmation without executing it" do
+    job = Factories.job_record(repository: repository, state: "approved", pr_number: 17)
+
+    response = call_tool(
+      "close_job_successfully",
+      job_id: job.id,
+      closure_reason: "no_changes",
+      comment: "No unique patches remain against the stack parent."
+    )
+    pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+
+    expect(pending_action).to be_pending
+    expect(pending_action).to have_attributes(action: "close_job_successfully", requested_by: "agent")
+    expect(pending_action.payload).to eq(
+      "job_id" => job.id,
+      "closure_reason" => "no_changes",
+      "comment" => "No unique patches remain against the stack parent."
+    )
+    expect(job.reload).to be_approved
+  end
+
+  it "rejects close_job_successfully with a non-success closure reason" do
+    job = Factories.job_record(repository: repository, state: "approved")
+
+    response = call_tool("close_job_successfully", job_id: job.id, closure_reason: "cancelled")
+
+    expect(response.dig(:result, :isError) || response.key?(:error)).to be_truthy
+    expect(chat_session.pending_actions).to be_empty
   end
 
   it "anchors a pending action to the current assistant message" do
@@ -356,6 +387,7 @@ RSpec.describe "SyrusChatMcp job control tools" do
           SyrusChatMcp::UnapproveJobTool,
           SyrusChatMcp::SetJobPriorityTool,
           SyrusChatMcp::CancelJobTool,
+          SyrusChatMcp::CloseJobSuccessfullyTool,
           SyrusChatMcp::RetryJobTool,
           SyrusChatMcp::ForceFailJobTool,
           SyrusChatMcp::RebaseJobTool
@@ -405,6 +437,19 @@ RSpec.describe "SyrusChatMcp job control tools" do
       expect(response.dig(:result, :isError)).to be_falsey
       pending_action = admin_chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
       expect(pending_action).to have_attributes(action: "cancel_job", payload: { "job_id" => job.id })
+    end
+
+    it "allows an admin to request a successful close for another user's job" do
+      job = Factories.job_record(repository: other_repository, state: "approved")
+
+      response = admin_call("close_job_successfully", job_id: job.id, closure_reason: "no_changes")
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      pending_action = admin_chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
+      expect(pending_action).to have_attributes(
+        action: "close_job_successfully",
+        payload: { "job_id" => job.id, "closure_reason" => "no_changes" }
+      )
     end
 
     it "allows an admin to retry another user's job" do

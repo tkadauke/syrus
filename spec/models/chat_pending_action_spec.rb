@@ -139,12 +139,22 @@ RSpec.describe ChatPendingAction do
   end
 
   it "validates job-control payloads include a job_id" do
-    %w[cancel_job retry_job rebase_job reopen_epic_and_attach_job].each do |action_name|
+    %w[cancel_job close_job_successfully retry_job rebase_job reopen_epic_and_attach_job].each do |action_name|
       action = chat_session.pending_actions.build(action: action_name, payload: {})
 
       expect(action).not_to be_valid
       expect(action.errors[:payload]).to include("job_id is required")
     end
+  end
+
+  it "validates close_job_successfully uses a successful closure reason" do
+    action = chat_session.pending_actions.build(
+      action: "close_job_successfully",
+      payload: { "job_id" => direct_job.id, "closure_reason" => "cancelled" }
+    )
+
+    expect(action).not_to be_valid
+    expect(action.errors[:payload]).to include("closure_reason must be one of pr_merged, external_pr_merged, pr_approved, no_changes")
   end
 
   it "confirms a cancel_job action by closing the Job and cancelling active Runs" do
@@ -160,6 +170,86 @@ RSpec.describe ChatPendingAction do
     expect(job.reload).to be_closed
     expect(job.closure_reason).to eq("cancelled")
     expect(run.reload).to be_cancelled
+  end
+
+  it "confirms a close_job_successfully action by closing with no_changes and satisfying dependents" do
+    prerequisite = Factories.job(repository: repository)
+    dependent = Job.create!(
+      user: user,
+      repository: repository,
+      issue_number: 43,
+      issue_body: "Depends-on: ##{prerequisite.issue_number}"
+    )
+    run = prerequisite.current_run
+    action = chat_session.pending_actions.create!(
+      action: "close_job_successfully",
+      payload: { "job_id" => prerequisite.id, "closure_reason" => "no_changes" }
+    )
+
+    expect {
+      expect(action.confirm!).to be true
+    }.to change { dependent.reload.dependencies_satisfied? }.from(false).to(true)
+
+    expect(prerequisite.reload).to be_closed
+    expect(prerequisite.closure_reason).to eq("no_changes")
+    expect(run.reload).to be_cancelled
+    expect(action.reload.result).to eq(prerequisite)
+    expect(action.payload["github_result"]).to include("status" => "not_applicable")
+  end
+
+  it "posts an optional PR comment and closes the tracked PR when confirmed" do
+    repository.update!(installation: Factories.installation(user: user, account_login: repository.owner))
+    job = Factories.job_record(repository: repository, state: "approved", pr_number: 17)
+    client = instance_double(GithubClient, add_issue_comment: true, close_pull_request: true)
+    allow(GithubClient).to receive(:for).and_return(client)
+    action = chat_session.pending_actions.create!(
+      action: "close_job_successfully",
+      payload: { "job_id" => job.id, "closure_reason" => "no_changes", "comment" => "Branch is empty against its stack parent." }
+    )
+
+    expect(action.confirm!).to be true
+
+    expect(client).to have_received(:add_issue_comment).with(repository.slug, 17, "Branch is empty against its stack parent.", on_behalf_of: user)
+    expect(client).to have_received(:close_pull_request).with(repository.slug, 17)
+    expect(job.reload).to be_closed
+    expect(action.reload.payload["github_result"]).to include("status" => "closed", "pr_number" => 17, "repo_slug" => repository.slug)
+  end
+
+  it "records partial PR cleanup failures without rolling back the successful Job close" do
+    repository.update!(installation: Factories.installation(user: user, account_login: repository.owner))
+    job = Factories.job_record(repository: repository, state: "approved", pr_number: 17)
+    client = instance_double(GithubClient)
+    allow(client).to receive(:add_issue_comment).and_raise(Octokit::Forbidden.new)
+    allow(client).to receive(:close_pull_request).and_return(true)
+    allow(GithubClient).to receive(:for).and_return(client)
+    action = chat_session.pending_actions.create!(
+      action: "close_job_successfully",
+      payload: { "job_id" => job.id, "closure_reason" => "no_changes", "comment" => "Closing as no changes." }
+    )
+
+    expect(action.confirm!).to be true
+
+    result = action.reload.payload["github_result"]
+    expect(job.reload).to be_closed
+    expect(result).to include("status" => "partial_failure")
+    expect(result.dig("comment", "status")).to eq("failed")
+    expect(result.dig("close", "status")).to eq("closed")
+  end
+
+  it "reports skipped PR cleanup when no GitHub credentials are available" do
+    job = Factories.job_record(repository: repository, state: "approved", pr_number: 17)
+    action = chat_session.pending_actions.create!(
+      action: "close_job_successfully",
+      payload: { "job_id" => job.id, "closure_reason" => "no_changes", "comment" => "No changes remain." }
+    )
+
+    expect(action.confirm!).to be true
+
+    expect(job.reload).to be_closed
+    expect(action.reload.payload["github_result"]).to include(
+      "status" => "skipped",
+      "message" => "No GitHub credentials were available to comment on or close PR #17."
+    )
   end
 
   it "confirms a retry_job action by starting a retry Workflow" do
@@ -430,7 +520,7 @@ RSpec.describe ChatPendingAction do
     end
 
     it "includes expected action keys in the registry" do
-      %w[cancel_job retry_job rebase_job schedule_recurring admin_kill_process pause_landing_queue].each do |key|
+      %w[cancel_job close_job_successfully retry_job rebase_job schedule_recurring admin_kill_process pause_landing_queue].each do |key|
         expect(PendingActions::REGISTRY).to have_key(key), "expected registry to include '#{key}'"
       end
     end

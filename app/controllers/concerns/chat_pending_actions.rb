@@ -15,6 +15,8 @@ module ChatPendingActions
     case action.action
     when "cancel_job"
       "Cancel #{::App::Presentation.job_slug(payload['job_id'])}"
+    when "close_job_successfully"
+      "Close #{::App::Presentation.job_slug(payload['job_id'])} as #{payload['closure_reason']}"
     when "retry_job"
       "Retry #{::App::Presentation.job_slug(payload['job_id'])}"
     when "force_fail_job"
@@ -75,6 +77,8 @@ module ChatPendingActions
   def pending_action_detail(action)
     payload = action.payload || {}
     case action.action.presence || action.action_type
+    when "close_job_successfully"
+      payload["comment"].presence
     when "submit_chat_feedback"
       payload["feedback"].presence
     when "schedule_recurring"

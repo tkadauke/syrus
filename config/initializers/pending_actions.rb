@@ -6,6 +6,7 @@ Rails.application.config.to_prepare do
   [
     "pending_actions/base",
     "pending_actions/cancel_job",
+    "pending_actions/close_job_successfully",
     "pending_actions/retry_job",
     "pending_actions/rebase_job",
     "pending_actions/reopen_job",

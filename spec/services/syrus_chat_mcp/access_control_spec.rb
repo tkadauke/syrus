@@ -124,6 +124,13 @@ RSpec.describe "SyrusChatMcp access control" do
     expect(chat_session.pending_actions).to be_empty
   end
 
+  it "cannot request successful close for another user's job" do
+    response = call_tool(SyrusChatMcp::CloseJobSuccessfullyTool, "close_job_successfully", job_id: other_user_job.id, closure_reason: "no_changes")
+
+    expect_not_authorized(response)
+    expect(chat_session.pending_actions).to be_empty
+  end
+
   it "cannot request retry for another user's job" do
     response = call_tool(SyrusChatMcp::RetryJobTool, "retry_job", job_id: other_user_job.id)
 
@@ -269,6 +276,14 @@ RSpec.describe "SyrusChatMcp access control" do
       job = other_user_job
 
       response = call_tool(SyrusChatMcp::CancelJobTool, "cancel_job", job_id: job.id)
+
+      expect(response.dig(:result, :isError)).to be_falsey
+    end
+
+    it "can request successful close for another user's job" do
+      job = other_user_job
+
+      response = call_tool(SyrusChatMcp::CloseJobSuccessfullyTool, "close_job_successfully", job_id: job.id, closure_reason: "no_changes")
 
       expect(response.dig(:result, :isError)).to be_falsey
     end
