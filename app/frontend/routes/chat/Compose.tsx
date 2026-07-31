@@ -1325,7 +1325,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}
           aria-expanded={commandPaletteOpen}
           aria-haspopup="listbox"
-          className={`min-h-9 w-full resize-none overflow-y-hidden rounded border border-gray-200 bg-white py-2 pl-3 ${textareaPr} text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:text-sm sm:leading-5 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800`}
+          className={`min-h-11 w-full resize-none overflow-y-hidden rounded border border-gray-200 bg-white py-2.5 pl-3 ${textareaPr} text-base leading-6 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-50 sm:min-h-9 sm:py-2 sm:text-sm sm:leading-5 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500 dark:disabled:bg-gray-800`}
           disabled={send.isPending || systemAction.isPending}
           onChange={(event) => {
             updateText(event.target.value)
@@ -1346,10 +1346,10 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           </div>
         ) : null}
         <span aria-live="polite" className="sr-only">{ghostSuggestion ? t("suggestion_available", { suggestion: ghostSuggestion }) : ""}</span>
-        <div className="absolute bottom-2 right-2 flex items-center gap-1">
+        <div className="absolute bottom-1 right-1 flex items-center gap-1 sm:bottom-2 sm:right-2">
           <button
             aria-label={agentActive ? t("enqueue_message") : t("send_message")}
-            className="flex h-8 w-8 items-center justify-center rounded text-blue-600 hover:bg-gray-100 disabled:opacity-40 dark:text-blue-400 dark:hover:bg-gray-800"
+            className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-blue-600 hover:bg-gray-100 disabled:opacity-40 sm:min-h-0 sm:min-w-0 dark:text-blue-400 dark:hover:bg-gray-800"
             disabled={send.isPending || systemAction.isPending || systemCommandAction.isPending || (text.trim().length === 0 && walkthrough?.status !== "ready" && attachments.length === 0) || pendingConfirmation != null || attachmentError != null}
             type="submit"
           >
@@ -1358,7 +1358,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           {text.trim().length > 0 ? (
             <button
               aria-label={t("scratchpad_stash")}
-              className="flex h-8 w-8 items-center justify-center rounded text-gray-500 hover:bg-gray-100 disabled:text-gray-300 dark:text-gray-400 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
+              className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-gray-500 hover:bg-gray-100 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 dark:text-gray-400 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
               disabled={stash.isPending}
               onClick={() => stash.mutate(undefined)}
               title={agentActive ? t("scratchpad_stash") : t("scratchpad_stash_tab")}
@@ -1373,21 +1373,21 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           ) : null}
           {agentActive && !payload.switching_provider ? (
             <StopButton
-              className="flex h-8 w-8 items-center justify-center rounded text-red-600 hover:bg-red-50 disabled:text-gray-300 dark:text-red-400 dark:hover:bg-red-950 dark:disabled:text-gray-600"
+              className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-red-600 hover:bg-red-50 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 dark:text-red-400 dark:hover:bg-red-950 dark:disabled:text-gray-600"
               payload={payload}
               queryKey={queryKey}
             />
           ) : null}
         </div>
       </div>
-      <div className="relative flex items-center justify-between mt-1">
-        <div className="flex items-center gap-2">
+      <div className="relative mt-1 flex items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <button
             aria-controls={attachmentPopoverOpen ? "chat-attachment-popover" : undefined}
             aria-expanded={attachmentPopoverOpen}
             aria-label={t("add_attachment")}
             aria-haspopup="dialog"
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded border border-gray-300 bg-white text-sm leading-none text-gray-700 hover:bg-gray-50 disabled:text-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
+            className="flex h-6 min-h-11 w-6 min-w-11 shrink-0 items-center justify-center rounded border border-gray-300 bg-white text-lg leading-none text-gray-700 hover:bg-gray-50 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 sm:text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
             disabled={send.isPending || systemAction.isPending}
             onClick={() => setAttachmentPopoverOpen((open) => !open)}
             ref={addAttachmentButtonRef}
@@ -1503,13 +1503,13 @@ function ChatModeSelector({ chatId, payload, queryKey }: { chatId: string; paylo
         aria-expanded={dropdownOpen}
         aria-haspopup="listbox"
         aria-label={t("mode_selector_label")}
-        className="flex items-center gap-1 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+        className="flex min-h-11 items-center gap-1 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:min-h-0 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
         disabled={mode.isPending}
         onClick={() => setDropdownOpen((open) => !open)}
         ref={buttonRef}
         type="button"
       >
-        <span>{currentLabel}</span>
+        <span className="min-w-0 truncate">{currentLabel}</span>
         <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M6 9l6 6 6-6" />
         </svg>
@@ -1589,13 +1589,13 @@ function ChatModelSelector({ chatId, payload, queryKey }: { chatId: string; payl
         aria-expanded={dropdownOpen}
         aria-haspopup="listbox"
         aria-label={t("aria_chat_model")}
-        className="flex items-center gap-1 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+        className="flex min-h-11 max-w-[9rem] items-center gap-1 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:min-h-0 sm:max-w-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
         disabled={updateModel.isPending || agentActive}
         onClick={() => setDropdownOpen((open) => !open)}
         ref={buttonRef}
         type="button"
       >
-        <span>{currentLabel}</span>
+        <span className="min-w-0 truncate">{currentLabel}</span>
         <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M6 9l6 6 6-6" />
         </svg>
@@ -1680,13 +1680,13 @@ function ChatEffortSelector({ chatId, payload, queryKey, onNotice }: { chatId: s
         aria-expanded={dropdownOpen}
         aria-haspopup="listbox"
         aria-label={t("effort_label")}
-        className="flex items-center gap-1 rounded border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+        className="flex min-h-11 max-w-[8rem] items-center gap-1 rounded border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50 sm:min-h-0 sm:max-w-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
         disabled={updateEffort.isPending}
         onClick={() => setDropdownOpen((open) => !open)}
         ref={buttonRef}
         type="button"
       >
-        <span>{currentLabel}</span>
+        <span className="min-w-0 truncate">{currentLabel}</span>
         <svg aria-hidden="true" className="h-3 w-3 shrink-0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M6 9l6 6 6-6" />
         </svg>

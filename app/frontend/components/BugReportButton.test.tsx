@@ -112,6 +112,16 @@ describe("BugReportButton", () => {
     expect(button.style.top).toBe("456px")
   })
 
+  it("clamps a saved mobile position below the top navigation area", () => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 })
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 844 })
+    localStorage.setItem("bug-report-button-position", JSON.stringify({ left: 300, top: 12 }))
+
+    renderButton()
+
+    expect(getBugButton().style.top).toBe("144px")
+  })
+
   it("ignores malformed localStorage data and falls back to default", () => {
     localStorage.setItem("bug-report-button-position", "not-json{{{")
     renderButton()
@@ -556,12 +566,14 @@ describe("BugReportButton", () => {
 
     it("does not update state or localStorage when the position is already within the resized viewport", () => {
       // Position well within any reasonable viewport
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: 1280 })
+      Object.defineProperty(window, "innerHeight", { configurable: true, value: 900 })
       localStorage.setItem("bug-report-button-position", JSON.stringify({ left: 50, top: 50 }))
       renderButton()
       const button = getBugButton()
 
-      Object.defineProperty(window, "innerWidth", { configurable: true, value: 400 })
-      Object.defineProperty(window, "innerHeight", { configurable: true, value: 300 })
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: 1100 })
+      Object.defineProperty(window, "innerHeight", { configurable: true, value: 700 })
       act(() => {
         fireEvent(window, new Event("resize"))
       })

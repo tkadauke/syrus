@@ -164,7 +164,7 @@ export function ChatRoute() {
   return (
     <main
       aria-label={t("aria_chat")}
-      className="mx-auto flex h-full max-w-[96rem] flex-col gap-2 overflow-hidden p-3 sm:gap-6 sm:p-6"
+      className="mx-auto flex h-full [height:calc(var(--chat-visual-viewport-height,100dvh)-4.5rem)] max-w-[96rem] flex-col gap-2 overflow-hidden p-2 sm:gap-6 sm:p-6 lg:[height:100%]"
       style={viewportStyle}
     >
       {chat.isPending ? <PanelMessage>{t("loading_chat")}</PanelMessage> : null}
@@ -353,7 +353,7 @@ function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; paylo
   }, [whiteboardFullscreen])
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-2 lg:gap-6">
       {whiteboardFullscreen || !isDesktop ? null : (
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -595,7 +595,7 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
 
   return (
     <div className="relative h-full min-h-0">
-      <div className="h-full min-h-0 space-y-4 overflow-y-auto p-3 pt-12 sm:p-4 sm:pt-12" data-testid="chat-message-stream" onScroll={handleScroll} ref={streamRef}>
+      <div className="h-full min-h-0 space-y-4 overflow-y-auto p-2 pt-12 sm:p-4 sm:pt-12" data-testid="chat-message-stream" onScroll={handleScroll} ref={streamRef}>
         {loadOlder.isPending ? <div className="text-center text-xs text-gray-400 dark:text-gray-500">{t("loading_older_messages")}</div> : null}
         {loadOlder.isError ? <div className="text-center text-xs text-red-700 dark:text-red-300">{errorMessage(loadOlder.error, t("error_load_older_messages"))}</div> : null}
         {hiddenSystemMessageCount > 0 ? (
@@ -774,7 +774,7 @@ function ChatWorkspace({
   if (!isDesktop && !expanded) {
     return (
       <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-gray-950">
-        <nav aria-label={t("aria_mobile_tabs")} className="flex shrink-0 overflow-x-auto border-b border-gray-200 px-2 pt-2 text-sm font-medium dark:border-gray-700">
+        <nav aria-label={t("aria_mobile_tabs")} className="flex min-h-[44px] shrink-0 overflow-x-auto border-b border-gray-200 px-[max(0.5rem,env(safe-area-inset-left))] pt-1 text-sm font-medium dark:border-gray-700">
           {(["chat", "whiteboard", "context", "media", ...(codingFilesTabVisible(payload) ? (["files"] as MobileChatTab[]) : []), ...(payload.local_tunnel_connected ? (["diff"] as MobileChatTab[]) : []), ...(jobsTabVisible(payload) ? (["jobs"] as MobileChatTab[]) : [])] as MobileChatTab[]).map((tab) => (
             <button
               className={workspaceTabClass(activeMobileTab === tab)}
@@ -990,7 +990,7 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
   const loadEarlierMessagesFromCompose = useCallback(() => olderMessageRequesterRef.current?.({ preserveScroll: false }) ?? false, [])
 
   return (
-    <section className={`flex min-h-0 min-w-0 flex-1 flex-col transition-all duration-500 ${landing ? "items-center justify-center gap-6 px-4" : "gap-3"}`}>
+    <section className={`flex min-h-0 min-w-0 flex-1 flex-col transition-all duration-500 ${landing ? "items-center justify-center gap-6 px-4" : "gap-2 sm:gap-3"}`}>
       <ChatTour />
       {landing ? (
         <h1 className="text-center text-3xl font-semibold tracking-normal text-gray-950 sm:text-4xl dark:text-gray-100">{t("landing_prompt")}</h1>
@@ -1003,7 +1003,7 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
         <MessageStream bookmarkTarget={bookmarkTarget} olderMessageRequesterRef={olderMessageRequesterRef} payload={payload} prefix={prefix} queryKey={queryKey} onCanLoadOlderChange={setCanLoadEarlierMessages} onNotice={onNotice} />
         <UsageOverlay payload={payload} />
       </div>
-      <div className={landing ? "w-full max-w-sm sm:max-w-2xl" : "space-y-3"}>
+      <div className={landing ? "w-full max-w-sm sm:max-w-2xl" : "shrink-0 space-y-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pl-[max(0rem,env(safe-area-inset-left))] pr-[max(0rem,env(safe-area-inset-right))] sm:pb-0 sm:pl-0 sm:pr-0"}>
         {!landing ? <CodingCheckoutBanner payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
         <Compose key={chatId} autoFocus={landing} canLoadEarlierMessages={canLoadEarlierMessages} chatId={chatId} commandHandlers={commandHandlers} onLoadEarlierMessages={loadEarlierMessagesFromCompose} payload={payload} prefix={prefix} queryKey={queryKey} showAttachedRepositories={landing} onNotice={onNotice} onMessageSent={() => setHasSentFirstMessage(true)} />
       </div>
