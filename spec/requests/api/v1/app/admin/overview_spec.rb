@@ -59,7 +59,8 @@ RSpec.describe "API: /api/v1/app/admin/overview", type: :request do
     )
     expect(body["active_runs"]["total"]).to eq(1)
     expect(body["stuck"].first).to include(
-      "kind" => "stale_heartbeat",
+      "kind" => "running_run_without_live_worker_evidence",
+      "attention_state" => "operator_action_required",
       "run_id" => run.id,
       "workflow_id" => run.step.workflow.id,
       "workflow_slug" => "WF-#{run.step.workflow.id}",
