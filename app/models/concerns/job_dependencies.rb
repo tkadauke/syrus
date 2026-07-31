@@ -10,6 +10,15 @@ module JobDependencies
     end
   end
 
+  def dependencies_satisfied_for_execution?
+    return false if epic.present? && !epic.releases_jobs_for_execution?
+    return true if dependencies_overridden_at.present?
+
+    dependencies.includes(:depends_on_job, :depends_on_epic).all? do |dependency|
+      dependency.execution_dependency_satisfied?
+    end
+  end
+
   def unsatisfied_dependencies
     dependencies.includes(:depends_on_epic, depends_on_job: :repository).reject do |dependency|
       dependency.dependency_succeeded?

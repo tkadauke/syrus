@@ -41,6 +41,10 @@ class JobDependency < ApplicationRecord
     referenced_epic&.done? == true
   end
 
+  def execution_dependency_satisfied?
+    dependency_succeeded? || same_epic_dependency_ready_for_execution?
+  end
+
   def referenced_epic
     return nil unless pending?
     return nil unless job&.user
@@ -78,6 +82,16 @@ class JobDependency < ApplicationRecord
     return false unless depends_on_job&.epic_id == job.epic_id
 
     depends_on_job.approved? || depends_on_job.landing?
+  end
+
+  def same_epic_dependency_ready_for_execution?
+    return false if job&.epic_id.blank?
+    return false unless depends_on_job&.epic_id == job.epic_id
+
+    depends_on_job.implemented? &&
+      depends_on_job.pr_number.present? &&
+      depends_on_job.branch_name.present? &&
+      depends_on_job.head_sha.present?
   end
 
   def unresolved_github_issue_url

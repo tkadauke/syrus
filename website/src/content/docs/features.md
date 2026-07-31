@@ -84,8 +84,10 @@ An Epic that has been created or approved does not run work by itself — a
 **Start implementing** action on the Epic detail page (and a
 **Create Epic & Start Implementing** button on the new-Epic form and chat
 Epic proposal cards) moves the Epic to `in_progress` in one click and
-dispatches its ready child Jobs; children with unmet dependencies follow
-as those dependencies close.
+dispatches its ready child Jobs. In linear Epics, children with same-Epic
+parents can keep implementing down the stack once the immediate parent has
+an implemented PR branch; approval and landing order still waits for the
+normal dependency gates.
 Syrus can mark an Epic ready when its dependencies are done and all child
 Jobs are confirmed, then mark it done automatically when all child Jobs
 close through merged PR or no-change outcomes. When every child Job is

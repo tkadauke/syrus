@@ -1664,6 +1664,81 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect(job.reload.parent_job).to eq(prerequisite)
     end
 
+    it "eagerly starts a linear same-Epic stack as each parent is implemented" do
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      first = Job.create!(user: user, repository: repository, epic: epic, issue_number: 41)
+      first.advance_after_triage!
+      second = Job.create!(user: user, repository: repository, epic: epic, issue_number: 42, issue_body: "Depends-on: #41")
+      second.advance_after_triage!
+      third = Job.create!(user: user, repository: repository, epic: epic, issue_number: 43, issue_body: "Depends-on: #42")
+      third.advance_after_triage!
+      second_first_step = second.reload.latest_workflow.first_step
+      third_first_step = third.reload.latest_workflow.first_step
+
+      expect(second).to be_queued
+      expect(third).to be_queued
+      expect(second_first_step.runs.count).to eq(0)
+      expect(third_first_step.runs.count).to eq(0)
+
+      first.update!(branch_name: "syrus/issue-41-#{first.id}", pr_number: 6)
+      first.runs.update_all(head_sha: "a" * 40)
+
+      expect {
+        first.mark_implemented!
+        first.save!
+      }.to change { second_first_step.runs.reload.count }.by(1)
+      expect(second.reload.parent_job).to eq(first)
+      expect(second).not_to be_dependencies_satisfied
+
+      second.update!(branch_name: "syrus/issue-42-#{second.id}", pr_number: 7)
+      second.runs.update_all(head_sha: "b" * 40)
+
+      expect {
+        second.mark_implemented!
+        second.save!
+      }.to change { third_first_step.runs.reload.count }.by(1)
+      expect(third.reload.parent_job).to eq(second)
+      expect(third).not_to be_dependencies_satisfied
+    end
+
+    it "keeps nonlinear same-Epic children blocked until stack readiness is unambiguous" do
+      epic = Factories.epic(
+        user: user,
+        repository: repository,
+        state: "in_progress",
+        epic_dependency_policy: "nonlinear"
+      )
+      first = Factories.job_record(
+        user: user, repository: repository, epic: epic, issue_number: 41,
+        state: "implemented", branch_name: "syrus/issue-41", pr_number: 6
+      )
+      first.runs.create!(trigger_kind: "initial", agent_provider: first.agent_provider, head_sha: "a" * 40)
+      second = Factories.job_record(
+        user: user, repository: repository, epic: epic, issue_number: 42,
+        state: "implemented", branch_name: "syrus/issue-42", pr_number: 7
+      )
+      second.runs.create!(trigger_kind: "initial", agent_provider: second.agent_provider, head_sha: "b" * 40)
+      child = Job.create!(
+        user: user,
+        repository: repository,
+        epic: epic,
+        issue_number: 43,
+        issue_body: "Depends-on: #41\nDepends-on: #42"
+      )
+      child.advance_after_triage!
+      first_step = child.reload.latest_workflow.first_step
+
+      expect(child).to be_dependencies_satisfied_for_execution
+      expect(child).not_to be_dependencies_satisfied
+      expect(child).not_to be_stack_ready_for_execution
+      expect(first_step.runs.count).to eq(0)
+
+      first.close_with_reason!("pr_merged")
+
+      expect(child.reload).to be_stack_ready_for_execution
+      expect(child.parent_job).to eq(second)
+    end
+
     it "waits on multiple unmerged dependencies until only one remains as parent" do
       first = Job.create!(user: user, repository: repository, issue_number: 41)
       second = Job.create!(user: user, repository: repository, issue_number: 42)
