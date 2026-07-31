@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
-import { MemoryRouter } from "react-router-dom"
+import { MemoryRouter, useLocation } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { DashboardPayload, DashboardSmartFolder } from "../api/dashboard"
 import * as smartFoldersApi from "../api/smartFolders"
@@ -14,14 +14,24 @@ vi.mock("../api/smartFolders", () => ({
 function renderNav(folders: DashboardSmartFolder[], options: { payload?: Partial<DashboardPayload>; search?: string } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   const renderedPayload = payload({ smart_folders: folders, ...options.payload })
+  let currentLocation = ""
 
-  return render(
+  function LocationProbe() {
+    const location = useLocation()
+    currentLocation = `${location.pathname}${location.search}`
+    return null
+  }
+
+  const result = render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/dashboard/jobs"]}>
+      <MemoryRouter initialEntries={[`/dashboard/jobs${options.search || ""}`]}>
+        <LocationProbe />
         <DashboardSmartFolderNav payload={renderedPayload} prefix="" search={options.search || ""} />
       </MemoryRouter>
     </QueryClientProvider>
   )
+
+  return { ...result, currentLocation: () => currentLocation }
 }
 
 function payload(overrides: Partial<DashboardPayload> = {}): DashboardPayload {
@@ -231,6 +241,16 @@ describe("DashboardSmartFolderNav", () => {
 
     expect(screen.getByRole("link", { name: "Inbox 3" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Actions for Inbox" })).not.toBeInTheDocument()
+  })
+
+  it("links the queued blocked count to the blocked queued subset", () => {
+    const { currentLocation } = renderNav([
+      folder({ id: 7, name: "Queued", key: "queued", kind: "builtin", position: 0, count: 4, blocked_count: 2, path: "/dashboard/jobs?smart_folder_id=7" })
+    ])
+
+    fireEvent.click(screen.getByRole("button", { name: "Show 2 blocked queued jobs" }))
+
+    expect(currentLocation()).toBe("/dashboard/jobs?smart_folder_id=7&start_blocked=1")
   })
 
   it("uses the folder name as fallback when no translation key is set on a builtin folder", () => {

@@ -10,6 +10,8 @@ Default tabular view. Supports column visibility, sorting, and pagination. Colum
 
 Board view grouped by configurable lanes (e.g. Queued, Running, Succeeded). Lanes are configurable per-user per-subject. Not available on the Workflows dashboard.
 
+Queued Job cards can carry a start-blocked badge when Syrus has deferred the first Run because dependencies are unfinished, the Job/Epic is not ready for execution, main is broken, or an urgent Job is active. The Queued smart folder also shows a blocked sub-count; selecting that count filters to only queued Jobs with a persisted start-blocked reason.
+
 ## dependencies
 
 Topological dependency graph showing jobs (or epics) as nodes and their `Depends-on` / `Blocked-by` relationships as directed edges. Nodes are placed in columns by dependency depth: Layer 0 has no blockers, Layer N is blocked by Layer N-1 work. Clicking a node navigates to the job or epic detail page.

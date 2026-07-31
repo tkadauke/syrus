@@ -278,6 +278,12 @@
     "main_branch_broken": "Main branch broken",
     "urgent_job_active": "Urgent job in progress"
   },
+  "start_blocked_reason_tooltips": {
+    "stack_dependencies_not_ready": "A required job or Epic dependency has not finished successfully yet.",
+    "job_not_ready_for_execution": "The job is not valid for execution yet or its Epic has not released it.",
+    "main_branch_broken": "Repository landing is paused because the main branch is unhealthy.",
+    "urgent_job_active": "A non-urgent job is waiting while an urgent job in this repository remains active."
+  },
   "blocked_reasons": {
     "landing_paused": "Landing paused",
     "landing_paused_main_broken": "Landing paused: main branch broken",

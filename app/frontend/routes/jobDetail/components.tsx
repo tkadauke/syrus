@@ -496,7 +496,7 @@ export function DependencyLink({ dependency, prefix }: { dependency: JobDependen
 export function dependencyLabel(dependency: JobDependency, t: ReturnType<typeof useT>["t"]) {
   if (dependency.depends_on_epic) {
     const epic = dependency.depends_on_epic
-    return `${epic.slug} — ${epic.title} (${epic.state.replace(/_/g, " ")})`
+    return `${epic.repository_slug} ${epic.display_number} — ${epic.title} (${epic.state.replace(/_/g, " ")})`
   }
   if (dependency.pending) return dependency.unresolved_slug || t("dependency_unresolved")
   const target = dependency.depends_on_job

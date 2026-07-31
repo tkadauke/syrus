@@ -278,6 +278,12 @@
     "main_branch_broken": "Hauptbranch defekt",
     "urgent_job_active": "Dringende Aufgabe läuft"
   },
+  "start_blocked_reason_tooltips": {
+    "stack_dependencies_not_ready": "Eine erforderliche Job- oder Epic-Abhängigkeit ist noch nicht erfolgreich abgeschlossen.",
+    "job_not_ready_for_execution": "Der Job ist noch nicht gültig für die Ausführung oder sein Epic hat ihn nicht freigegeben.",
+    "main_branch_broken": "Landing ist pausiert, weil der Hauptbranch des Repositorys nicht gesund ist.",
+    "urgent_job_active": "Ein nicht dringender Job wartet, solange in diesem Repository ein dringender Job aktiv ist."
+  },
   "blocked_reasons": {
     "landing_paused": "Landing pausiert",
     "landing_paused_main_broken": "Landing pausiert: Hauptbranch defekt",

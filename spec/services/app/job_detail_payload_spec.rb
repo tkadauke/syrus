@@ -745,4 +745,25 @@ RSpec.describe App::JobDetailPayload do
       expect(result.dig(:job, :start_blocked_at)).to eq("2026-07-01T12:00:00Z")
     end
   end
+
+  describe "dependencies" do
+    it "serializes epic dependency targets" do
+      job = Factories.job_record(user: user, repository: repo, state: "queued")
+      blocker = Factories.epic(user: user, repository: repo, title: "Pave the road", state: "ready")
+      JobDependency.create!(job: job, depends_on_epic: blocker, source: "manual", created_by_user: user)
+
+      dependency = payload_for(job).fetch(:dependencies).sole
+
+      expect(dependency[:succeeded]).to be(false)
+      expect(dependency[:depends_on_job]).to be_nil
+      expect(dependency[:depends_on_epic]).to include(
+        id: blocker.id,
+        display_number: blocker.slug,
+        title: "Pave the road",
+        state: "ready",
+        repository_slug: repo.slug,
+        epic_path: "/epics/#{blocker.id}"
+      )
+    end
+  end
 end

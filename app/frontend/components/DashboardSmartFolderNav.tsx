@@ -11,7 +11,7 @@ import { filterTreeFromPayload, filterTreesEqual, smartFolderFiltersFromTree, to
 import { NoticeToast } from "./NoticeToast"
 import { errorMessage } from "../lib/errorMessage"
 
-const dashboardFilterOverrideKeys = ["q", "state", "repository_id", "kind", "trigger_kind", "job_id", "attention", "tag_ids", "pr", "age"]
+const dashboardFilterOverrideKeys = ["q", "state", "repository_id", "kind", "trigger_kind", "job_id", "attention", "start_blocked", "tag_ids", "pr", "age"]
 
 type DashboardSmartFolderPayload = Pick<DashboardPayload, "active_smart_folder_id" | "broken_repositories" | "filter" | "health_blocked_repositories" | "landing_queue" | "smart_folders" | "subject" | "view">
 
@@ -424,7 +424,7 @@ function SmartFolderLink({
                 ...
               </button>
             ) : (
-              <FolderCount folder={folder} />
+              <FolderCount folder={folder} onSelect={onSelect} prefix={prefix} />
             )}
           </div>
           {menuOpen && menuAnchor ? createPortal(
@@ -461,33 +461,50 @@ function SmartFolderLink({
     )
   }
   return (
-    <Link
-      aria-label={`${displayName} ${folder.count}`}
+    <div
       className={folderClass(folder.active, showDragHandle)}
       draggable={draggable}
       onDragEnd={onDragEnd}
       onDragOver={onDragOver}
       onDragStart={onDragStart}
       onDrop={onDrop}
-      onClick={onSelect}
-      to={withRoutePrefix(folder.path, prefix)}
     >
       {showDragHandle ? <GripIcon /> : null}
-      <span className="truncate">{displayName}</span>
-      <FolderCount folder={folder} />
-    </Link>
+      <Link
+        aria-label={`${displayName} ${folder.count}`}
+        className="min-w-0 flex-1 truncate"
+        draggable={false}
+        onClick={onSelect}
+        to={withRoutePrefix(folder.path, prefix)}
+      >
+        {displayName}
+      </Link>
+      <FolderCount folder={folder} onSelect={onSelect} prefix={prefix} />
+    </div>
   )
 }
 
-function FolderCount({ folder }: { folder: DashboardSmartFolder }) {
+function FolderCount({ folder, onSelect, prefix }: { folder: DashboardSmartFolder; onSelect?: () => void; prefix: string }) {
   const { t } = useT("nav")
+  const navigate = useNavigate()
   const blockedCount = folder.blocked_count ?? 0
+  const blockedPath = dashboardLinkFromExisting(folder.path, { start_blocked: "1", page: null })
   return (
     <div className="ml-auto flex shrink-0 items-center gap-1">
       {blockedCount > 0 ? (
-        <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700 dark:bg-amber-900 dark:text-amber-200">
+        <button
+          aria-label={t("smart_folder.queued_blocked_filter_aria", { count: blockedCount })}
+          className="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700 hover:bg-amber-200 dark:bg-amber-900 dark:text-amber-200 dark:hover:bg-amber-800"
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            onSelect?.()
+            navigate(withRoutePrefix(blockedPath, prefix))
+          }}
+          type="button"
+        >
           {t("smart_folder.queued_blocked_count", { count: blockedCount })}
-        </span>
+        </button>
       ) : null}
       <span className={`inline-flex min-w-6 justify-center rounded-full px-1.5 py-0.5 text-xs ${folder.active ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{folder.count}</span>
     </div>
@@ -537,6 +554,21 @@ function dashboardLink(path: string, params: Record<string, string | number | nu
   return query ? `${path}?${query}` : path
 }
 
+function dashboardLinkFromExisting(path: string, updates: Record<string, string | number | null | undefined>) {
+  const [basePath, existingSearch = ""] = path.split("?")
+  const params = new URLSearchParams(existingSearch)
+  for (const [key, value] of Object.entries(updates)) {
+    if (value == null || String(value).length === 0) {
+      params.delete(key)
+    } else {
+      params.set(key, String(value))
+    }
+  }
+
+  const query = params.toString()
+  return query ? `${basePath}?${query}` : basePath
+}
+
 function clearDashboardFilterOverrides(path: string, search: string) {
   const params = new URLSearchParams(search)
   params.delete("page")
@@ -558,4 +590,3 @@ function mergeFilterTrees(baseTree: FilterTree, overrideTree: FilterTree): Filte
 function folderClass(active: boolean, withDragHandle = false) {
   return `flex min-w-0 items-center justify-between gap-2 rounded px-2 py-1.5 text-sm ${withDragHandle ? "group cursor-grab active:cursor-grabbing" : ""} ${active ? "bg-blue-50 font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"}`
 }
-

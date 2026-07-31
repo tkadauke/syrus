@@ -70,6 +70,7 @@
     "unable_to_rename": "Unable to rename smart folder.",
     "unable_to_delete": "Unable to delete smart folder.",
     "queued_blocked_count": "{{count}} blocked",
+    "queued_blocked_filter_aria": "Show {{count}} blocked queued jobs",
     "landing_paused_broken_main": "Work paused — main branch is broken.",
     "landing_paused_main_health": "Work paused — repository health needs review.",
     "all_items_job": "All jobs",

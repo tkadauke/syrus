@@ -10,7 +10,7 @@ module Jobs
 
     # Flat URL-param keys the legacy dropdown filter bar still emits.
     # Each is translated to one or more AST chips by `from_params`.
-    LEGACY_URL_KEYS = %w[ state repository_id kind pr age attention tag_ids ].freeze
+    LEGACY_URL_KEYS = %w[ state repository_id kind pr age attention start_blocked tag_ids ].freeze
 
     # Build a Filter from the controller's request params plus an
     # optional active SmartFolder. Source-of-truth precedence (when
@@ -69,6 +69,11 @@ module Jobs
 
       if (attention = params["attention"]).is_a?(String) && attention.present?
         chips << chip("attention", "is", attention)
+      end
+
+      case params["start_blocked"].to_s
+      when "1", "true" then chips << chip("has_start_blocked_reason", "is_true", nil)
+      when "0", "false" then chips << chip("has_start_blocked_reason", "is_false", nil)
       end
 
       # state=open/closed is a direct state filter; state=failed/succeeded

@@ -269,7 +269,10 @@ After that, the dashboard becomes the normal working surface for Jobs,
 PRs, retries, schedules, direct Jobs, and operational follow-up. The Jobs
 list opens to the Inbox smart folder by default so actionable work is
 first; in the dashboard sidebar, use More -> All jobs when you need the
-unfiltered Job list. Dashboard view and sort choices are remembered per
+unfiltered Job list. The Queued smart folder shows how many queued Jobs
+are blocked before their first Run, and Job cards explain whether they are
+waiting on dependencies, Epic readiness, main branch health, or an active
+urgent Job. Dashboard view and sort choices are remembered per
 smart folder, so returning to views like Landing queue or All Epics restores
 the layout and ordering that fit that folder.
 

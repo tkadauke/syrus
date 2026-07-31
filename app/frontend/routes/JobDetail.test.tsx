@@ -305,6 +305,8 @@ describe("JobDetailView", () => {
         slug: "EPIC-155",
         title: "Platform migration",
         state: "in_progress",
+        repository_slug: "tkadauke/syrus",
+        display_number: "EPIC-155",
         epic_path: "/epics/EPIC-155"
       }
     }
@@ -319,6 +321,7 @@ describe("JobDetailView", () => {
     const epicLink = screen.getAllByRole("link", { name: /EPIC-155 — Platform migration/ })[0]
     expect(epicLink).toHaveAttribute("href", "/app-shell/epics/EPIC-155")
     expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument()
+    expect(screen.getByText("Not yet satisfied")).toBeInTheDocument()
   })
 
   it("shows the add epic dependency picker when epics are available", () => {
@@ -1352,4 +1355,3 @@ function run(overrides: Partial<JobRun>): JobRun {
     ...overrides
   }
 }
-

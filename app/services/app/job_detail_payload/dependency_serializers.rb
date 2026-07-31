@@ -8,8 +8,8 @@ module App
       # dependency-picker option list. Mixed back in via ActiveSupport::Concern.
 
       def dependency_json(dependency)
-        target_job = dependency.depends_on_job
-        target_epic = dependency.depends_on_epic
+        job_target = dependency.depends_on_job
+        epic_target = dependency.depends_on_epic
         {
           id: dependency.id,
           source: dependency.source,
@@ -18,8 +18,8 @@ module App
           succeeded: dependency.dependency_succeeded?,
           unresolved_slug: dependency.unresolved_slug,
           created_by_user_id: dependency.created_by_user_id,
-          depends_on_job: target_job && dependency_job_json(target_job),
-          depends_on_epic: target_epic && dependency_epic_json(target_epic)
+          depends_on_job: job_target && dependency_job_json(job_target),
+          depends_on_epic: epic_target && dependency_epic_json(epic_target)
         }
       end
 
@@ -53,6 +53,8 @@ module App
           slug: epic.slug,
           title: epic.title,
           state: epic.state,
+          display_number: epic.slug,
+          repository_slug: epic.repository.slug,
           epic_path: epic_path(epic)
         }
       end

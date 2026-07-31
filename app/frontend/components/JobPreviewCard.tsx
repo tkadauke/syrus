@@ -5,7 +5,8 @@ import { fetchJobDetail } from "../api/jobs"
 import { useT } from "../hooks/useT"
 import { Markdown } from "../lib/Markdown"
 import { CopyableSlug } from "./CopyableSlug"
-import { StatusPill, TonePill } from "./StatusPill"
+import { StartBlockedReasonPill } from "./StartBlockedReasonPill"
+import { StatusPill } from "./StatusPill"
 
 export function JobPreviewCard({ id, compact = false }: { id: number; compact?: boolean }) {
   const { t } = useT("jobs")
@@ -29,7 +30,7 @@ export function JobPreviewCard({ id, compact = false }: { id: number; compact?: 
         <CopyableSlug className="text-xs" slug={`JOB-${id}`} />
         <StatusPill state={job.state} />
         {job.state === "queued" && job.start_blocked_reason ? (
-          <TonePill tone="amber">{t(`common:start_blocked_reasons.${job.start_blocked_reason}`, { defaultValue: job.start_blocked_reason })}</TonePill>
+          <StartBlockedReasonPill reason={job.start_blocked_reason} />
         ) : null}
       </div>
       {title && (

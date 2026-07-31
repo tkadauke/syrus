@@ -850,7 +850,7 @@ function DependenciesPanel({ payload, command, prefix }: { payload: JobDetailPay
                 <li className="flex flex-wrap items-center justify-between gap-2 py-2" key={dependency.id}>
                   <span className="flex flex-wrap items-center gap-2">
                     <span><DependencyLink dependency={dependency} prefix={prefix} /> <span className="text-xs text-gray-400 dark:text-gray-500">({dependency.source})</span></span>
-                    {!dependency.succeeded && !dependency.pending ? (
+                    {!dependency.succeeded ? (
                       <TonePill tone="amber">{t("dependency_not_yet_satisfied")}</TonePill>
                     ) : null}
                   </span>
@@ -1020,5 +1020,4 @@ function AttachmentsTab({ payload, queryKey, onNotice }: { payload: JobDetailPay
     </section>
   )
 }
-
 

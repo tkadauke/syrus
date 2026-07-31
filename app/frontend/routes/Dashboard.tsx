@@ -571,7 +571,7 @@ function DashboardFilterBar({ payload, pathname, search }: { payload: DashboardP
   )
 }
 
-const legacyFilterKeys = ["state", "repository_id", "kind", "trigger_kind", "job_id", "attention", "tag_ids", "pr", "age"]
+const legacyFilterKeys = ["state", "repository_id", "kind", "trigger_kind", "job_id", "attention", "start_blocked", "tag_ids", "pr", "age"]
 
 export function DashboardTable({ payload, prefix, setupStatus }: { payload: DashboardPayload; prefix: string; setupStatus: ReturnType<typeof useSetupStatus> }) {
   const { t } = useT("dashboard")
@@ -691,4 +691,3 @@ function DashboardError({ error }: { error: Error }) {
     </main>
   )
 }
-

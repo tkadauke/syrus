@@ -175,6 +175,8 @@ export type JobDependencyEpicTarget = {
   slug: string
   title: string
   state: string
+  display_number: string
+  repository_slug: string
   epic_path: string
 }
 

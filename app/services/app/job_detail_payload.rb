@@ -34,7 +34,7 @@ module App
         pinned: @user.job_pins.exists?(job: @job),
         tags: @job.tags.ordered.map { |tag| tag_json(tag) },
         tag_options: @user.tags.ordered.map { |tag| tag_json(tag) },
-        dependencies: @job.dependencies.includes(:created_by_user, :depends_on_epic, depends_on_job: :repository).map { |dependency| dependency_json(dependency) },
+        dependencies: @job.dependencies.includes(:created_by_user, depends_on_job: :repository, depends_on_epic: :repository).map { |dependency| dependency_json(dependency) },
         dependents: @job.dependent_links.includes(job: :repository).map { |dependency| dependent_json(dependency) },
         unsatisfied_dependencies: @job.unsatisfied_dependencies.map { |dependency| dependency_json(dependency) },
         dependency_target_options: dependency_target_options,

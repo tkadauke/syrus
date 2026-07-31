@@ -331,4 +331,22 @@ RSpec.describe App::DashboardPayload do
       expect(inbox_folder).not_to have_key(:blocked_count)
     end
   end
+
+  describe "start_blocked filter" do
+    it "filters job items to queued workflows with a start blocked reason" do
+      blocked_job = Factories.job_record(user: user, repository: repo, state: "queued")
+      unblocked_job = Factories.job_record(user: user, repository: repo, state: "queued")
+      Workflow.create!(
+        job: blocked_job,
+        trigger_kind: "initial",
+        state: "queued",
+        artifacts: { "start_blocked_reason" => "main_branch_broken" }
+      )
+      Workflow.create!(job: unblocked_job, trigger_kind: "initial", state: "queued")
+
+      result = call(subject: "job", start_blocked: "1")
+
+      expect(result[:items].map { |item| item[:id] }).to contain_exactly(blocked_job.id)
+    end
+  end
 end

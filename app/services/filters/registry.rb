@@ -40,6 +40,7 @@ module Filters
   # has_landing_failure           job
   # has_active_run                job
   # has_blocked_deps              job
+  # has_start_blocked_reason      job
   # has_parent_job                job
   # has_child_jobs                job
   # tags                          job
@@ -101,6 +102,7 @@ module Filters
       "has_landing_failure"           => "Filters::Chips::Jobs::HasLandingFailure",
       "has_active_run"                => "Filters::Chips::Jobs::HasActiveRun",
       "has_blocked_deps"              => "Filters::Chips::Jobs::HasBlockedDeps",
+      "has_start_blocked_reason"      => "Filters::Chips::Jobs::HasStartBlockedReason",
       "has_parent_job"                => "Filters::Chips::Jobs::HasParentJob",
       "has_child_jobs"                => "Filters::Chips::Jobs::HasChildJobs",
 
