@@ -1736,7 +1736,7 @@ describe("App", () => {
     const recentChats = [
       sidebarChat({ id: 1, title: "General latest", repository: null, last_message_at: "2026-06-20T12:00:00Z" }),
       sidebarChat({ id: 2, title: null, title_pending: true, repository: null, last_message_at: "2026-06-19T12:00:00Z", unread: true }),
-      sidebarChat({ id: 10, title: "Widgets active", repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" }, last_message_at: "2026-06-18T12:00:00Z", turn_in_flight: true }),
+      sidebarChat({ id: 10, title: "Widgets active", repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" }, last_message_at: "2026-06-18T12:00:00Z", turn_in_flight: true, current: true }),
       sidebarChat({ id: 11, title: "Widgets two", repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" }, last_message_at: "2026-06-17T12:00:00Z" }),
       sidebarChat({ id: 12, title: "Widgets three", repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" }, last_message_at: "2026-06-16T12:00:00Z" }),
       sidebarChat({ id: 13, title: "Widgets four", repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" }, last_message_at: "2026-06-15T12:00:00Z" }),
@@ -1767,13 +1767,13 @@ describe("App", () => {
     try {
       render(
         <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <MemoryRouter initialEntries={["/app-shell/chats/10"]}>
+          <MemoryRouter initialEntries={["/app-shell/sidebar-fixture"]}>
             <App />
           </MemoryRouter>
         </QueryClientProvider>
       )
 
-      expect(await screen.findByRole("main", { name: "Chat" })).toHaveClass("h-full")
+      expect(await screen.findByRole("main", { name: "Syrus SPA" })).toBeInTheDocument()
       const primaryNav = await screen.findByRole("navigation", { name: "Primary" })
       const recentNav = await screen.findByRole("navigation", { name: "Recent chats" })
       const sidebarScrollPane = recentNav.closest(".overflow-y-auto")
@@ -1793,7 +1793,7 @@ describe("App", () => {
       expect(within(recentNav).getByRole("link", { name: "Widgets active" })).toHaveClass("bg-blue-50", "text-blue-700")
       expect(within(within(recentNav).getByRole("link", { name: "Widgets active" })).getByTitle("Chat turn active")).toBeInTheDocument()
       fireEvent.click(within(recentNav).getByRole("button", { name: "Chat actions for Widgets active" }))
-      expect(within(recentNav).getByText("Bookmarks")).toHaveClass("font-semibold")
+      expect(await within(recentNav).findByText("Bookmarks")).toHaveClass("font-semibold")
       expect(within(recentNav).getByRole("link", { name: "Aqueducts" })).toHaveAttribute("href", "#message-9")
       fireEvent.click(within(recentNav).getByRole("link", { name: "Aqueducts" }))
       expect(within(recentNav).queryByRole("link", { name: "Aqueducts" })).not.toBeInTheDocument()
@@ -16097,6 +16097,7 @@ function sidebarChat(overrides: {
   unread?: boolean
   turn_in_flight?: boolean
   agent_busy?: boolean
+  current?: boolean
 }) {
   return {
     id: overrides.id,
@@ -16112,7 +16113,7 @@ function sidebarChat(overrides: {
     cumulative_input_tokens: 0,
     cumulative_output_tokens: 0,
     cumulative_cost_usd: 0,
-    current: false,
+    current: overrides.current ?? false,
     last_message_at: overrides.last_message_at,
     created_at: overrides.last_message_at || "2026-06-01T00:00:00Z",
     updated_at: overrides.last_message_at || "2026-06-01T00:00:00Z",
