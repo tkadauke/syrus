@@ -551,6 +551,62 @@ RSpec.describe CodexInvocation do
       )
     end
 
+    it "emits tool_result for mcp_tool_call completed with a string error" do
+      inv, events, sink = invocation_with_sink
+      event = {
+        "type" => "item.completed",
+        "id" => "call-string-err",
+        "item" => {
+          "type" => "mcp_tool_call",
+          "server" => "syrus",
+          "tool" => "read_live_state",
+          "error" => "sidecar unavailable"
+        }
+      }
+
+      inv.send(:process_item_event, event, sink)
+
+      expect(events.first).to eq([
+        "[codex mcp] syrus.read_live_state completed: sidecar unavailable",
+        {
+          kind: "tool_result",
+          tool_name: "syrus.read_live_state",
+          tool_result_content: "sidecar unavailable",
+          tool_result_error: true,
+          tool_use_id: "call-string-err"
+        }
+      ])
+    end
+
+    it "emits tool_result for apply_patch completed with boolean error and preserved failure output" do
+      inv, events, sink = invocation_with_sink
+      failure_text = "apply_patch verification failed: Failed to find expected lines in app/models/run.rb"
+      event = {
+        "type" => "item.completed",
+        "id" => "patch-err",
+        "item" => {
+          "type" => "mcp_tool_call",
+          "server" => "functions",
+          "tool" => "apply_patch",
+          "error" => true,
+          "output" => failure_text
+        }
+      }
+
+      expect { inv.send(:process_item_event, event, sink) }.not_to raise_error
+
+      expect(events.first).to eq([
+        "[codex mcp] functions.apply_patch completed: #{failure_text}",
+        {
+          kind: "tool_result",
+          tool_name: "functions.apply_patch",
+          tool_result_content: failure_text,
+          tool_result_error: true,
+          tool_use_id: "patch-err"
+        }
+      ])
+    end
+
     it "emits tool_call with name bash and input command for command_execution started" do
       inv, events, sink = invocation_with_sink
       event = {

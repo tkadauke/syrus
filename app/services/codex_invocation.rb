@@ -341,11 +341,13 @@ class CodexInvocation
       return nil if tool_name.blank?
 
       if item["error"]
+        error_content = codex_item_error_content(item)
+        error_message = codex_item_error_message(error_content)
         log_sink.call(
-          "[codex mcp] #{tool_name} #{status}: #{item['error']['message']}",
+          "[codex mcp] #{tool_name} #{status}: #{error_message}",
           kind: "tool_result",
           tool_name: tool_name,
-          tool_result_content: item["error"]["message"],
+          tool_result_content: error_content,
           tool_result_error: true,
           tool_use_id: item_id
         )
@@ -373,11 +375,17 @@ class CodexInvocation
       return nil if command.blank?
 
       if item["output"] || item["error"]
+        result_content =
+          if item["error"].present?
+            codex_item_error_content(item, prefer_output: true)
+          else
+            item["output"]
+          end
         log_sink.call(
           "[codex command] #{command} #{status}",
           kind: "tool_result",
           tool_name: "bash",
-          tool_result_content: item["output"] || item["error"],
+          tool_result_content: result_content,
           tool_result_error: item["error"].present?,
           tool_use_id: item_id
         )
@@ -397,6 +405,35 @@ class CodexInvocation
     else
       nil
     end
+  end
+
+  def codex_item_error_content(item, prefer_output: false)
+    error = item["error"]
+    if prefer_output
+      return item["output"] if item["output"].present?
+      return item["result"] if item["result"].present?
+    end
+
+    return error["message"] if error.is_a?(Hash) && error["message"].present?
+    return error if error.is_a?(String) && error.present?
+    return item["output"] if item["output"].present?
+    return item["result"] if item["result"].present?
+    return error if error.is_a?(Hash) && error.present?
+
+    "Codex reported tool failure without details."
+  end
+
+  def codex_item_error_message(content)
+    if content.is_a?(Array)
+      text = content.filter_map { |part| part["text"] if part.is_a?(Hash) }.join("\n")
+      return text if text.present?
+    end
+
+    return content if content.is_a?(String)
+
+    JSON.generate(content)
+  rescue JSON::GeneratorError
+    content.to_s
   end
 
   def codex_mcp_tool_name(item)
