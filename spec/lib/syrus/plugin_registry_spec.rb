@@ -278,6 +278,15 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
   end
 
+  describe ".registered_names" do
+    it "returns registered plugin names without consulting PluginRecord state" do
+      described_class.register(name: "plugin_a", version: "1.0.0")
+      allow(PluginRecord).to receive(:all).and_raise(ActiveRecord::ConnectionNotEstablished)
+
+      expect(described_class.registered_names).to eq([ "plugin_a" ])
+    end
+  end
+
   describe ".reset!" do
     it "clears all registered plugins" do
       described_class.register(name: "plugin", version: "1.0.0")

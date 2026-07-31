@@ -13,14 +13,17 @@ RSpec.configure do |config|
   config.before do |example|
     next if example.metadata[:reset_plugin_registry]
 
-    registered_names = Syrus::PluginRegistry.all_plugins.map(&:name)
+    registered_names = Syrus::PluginRegistry.registered_names
 
-    unless registered_names.include?("syrus-claude-agent") && registered_names.include?("syrus-codex-agent")
+    unless registered_names.include?("syrus-claude-agent")
       Syrus::PluginRegistry.register(
         name:    "syrus-claude-agent",
         version: SyrusClaudeAgent::VERSION,
         provides: { agent_provider: AgentProviders::Claude }
       )
+    end
+
+    unless registered_names.include?("syrus-codex-agent")
       Syrus::PluginRegistry.register(
         name:    "syrus-codex-agent",
         version: SyrusCodexAgent::VERSION,
@@ -36,12 +39,15 @@ RSpec.configure do |config|
       )
     end
 
-    unless registered_names.include?("syrus-github-source") && registered_names.include?("syrus-linear-source")
+    unless registered_names.include?("syrus-github-source")
       Syrus::PluginRegistry.register(
         name: "syrus-github-source",
         version: SyrusGithubSource::VERSION,
         provides: { input_source: InputSources::Github }
       )
+    end
+
+    unless registered_names.include?("syrus-linear-source")
       Syrus::PluginRegistry.register(
         name: "syrus-linear-source",
         version: SyrusLinearSource::VERSION,

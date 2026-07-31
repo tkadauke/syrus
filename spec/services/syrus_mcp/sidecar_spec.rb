@@ -190,9 +190,19 @@ RSpec.describe SyrusMcp::Sidecar do
     end
   end
 
-  describe "registry-based tool composition" do
+  describe "registry-based tool composition", :reset_plugin_registry do
     around do |ex|
       Syrus::PluginRegistry.reset!
+      Syrus::PluginRegistry.register(
+        name: "syrus-claude-agent",
+        version: SyrusClaudeAgent::VERSION,
+        provides: { agent_provider: AgentProviders::Claude }
+      )
+      Syrus::PluginRegistry.register(
+        name: "syrus-codex-agent",
+        version: SyrusCodexAgent::VERSION,
+        provides: { agent_provider: AgentProviders::Codex }
+      )
       ex.run
       Syrus::PluginRegistry.reset!
     end

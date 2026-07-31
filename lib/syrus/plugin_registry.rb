@@ -76,6 +76,10 @@ module Syrus
         end
       end
 
+      def registered_names
+        @mutex.synchronize { @plugins.map(&:name) }
+      end
+
       def reset!
         @mutex.synchronize { @plugins = [] }
       end
