@@ -133,6 +133,24 @@ RSpec.describe "Steps::MergeTrain*" do
 
       expect { step_handler(described_class, "merge_train_assemble", train, a).call }.not_to raise_error
     end
+
+    it "does not block on a historical standalone reconciliation Job" do
+      a = member_job(issue_number: 1)
+      train = MergeTrain.create!(epic: epic, repository: repository, base_branch: "master")
+      MergeTrainMember.create!(merge_train: train, job: a, position: 0)
+      reconciliation = Factories.job_record(
+        user: user,
+        repository: repository,
+        epic: epic,
+        issue_number: nil,
+        kind: "direct",
+        issue_title: "Reconciliation: #{epic.title}",
+        state: "implemented"
+      )
+      epic.update!(reconciliation_job_id: reconciliation.id)
+
+      expect { step_handler(described_class, "merge_train_assemble", train, a).call }.not_to raise_error
+    end
   end
 
   describe Steps::MergeTrainBuild do

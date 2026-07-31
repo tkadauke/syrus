@@ -1,7 +1,7 @@
 module Prompts
-  # Prompt for the auto-created reconciliation Job inside an Epic.
-  # The reconciliation Job runs after all sibling Jobs have been approved
-  # and reviews the combined changes for cross-Job inconsistencies.
+  # Prompt for historical standalone reconciliation Jobs inside an Epic.
+  # New Epics reconcile through merge_train_reconcile after the integration
+  # branch is built.
   # Branches on reconciliation_mode: "pr" (fix inline) or "feedback"
   # (submit targeted feedback to each Job that needs changes).
   class EpicReconciliation

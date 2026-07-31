@@ -1107,11 +1107,24 @@ RSpec.describe Epic do
                            issue_number: number, state: state)
     end
 
+    def add_historical_reconciliation_job(epic)
+      Factories.job_record(
+        user: user,
+        repository: repository,
+        epic: epic,
+        issue_number: nil,
+        kind: "direct",
+        issue_title: "Reconciliation: Recon Epic"
+      ).tap do |job|
+        epic.update!(reconciliation_job_id: job.id)
+      end
+    end
+
     before do
       allow(RepoReconciliationPlan).to receive(:for_epic).and_call_original
     end
 
-    it "creates a reconciliation Job when the Epic goes in_progress with 2+ sibling Jobs" do
+    it "does not create a standalone reconciliation Job when the Epic goes in_progress with 2+ sibling Jobs" do
       allow(RepoReconciliationPlan).to receive(:for_epic).and_return(
         RepoReconciliationPlan::Result.new(mode: "pr", source: "default", note: nil)
       )
@@ -1119,15 +1132,12 @@ RSpec.describe Epic do
       add_child(epic, number: 1)
       add_child(epic, number: 2)
 
-      expect { epic.start!(actor: user) }.to change { epic.reload.reconciliation_job_id }.from(nil)
-
-      recon_job = epic.reload.reconciliation_job
-      expect(recon_job.issue_title).to eq("Reconciliation: Recon Epic")
-      expect(recon_job.kind).to eq("direct")
-      expect(recon_job.epic).to eq(epic)
+      expect { epic.start!(actor: user) }
+        .not_to change { epic.reload.reconciliation_job_id }
+      expect(epic.jobs.where("issue_title LIKE ?", "Reconciliation:%")).to be_empty
     end
 
-    it "sets reconciliation Job to depend on all sibling Job IDs" do
+    it "does not add fan-in dependencies through a reconciliation Job" do
       allow(RepoReconciliationPlan).to receive(:for_epic).and_return(
         RepoReconciliationPlan::Result.new(mode: "pr", source: "default", note: nil)
       )
@@ -1137,9 +1147,8 @@ RSpec.describe Epic do
 
       epic.start!(actor: user)
 
-      recon_job = epic.reload.reconciliation_job
-      dep_ids = recon_job.dependencies.pluck(:depends_on_job_id).sort
-      expect(dep_ids).to contain_exactly(sibling1.id, sibling2.id)
+      expect(epic.reload.reconciliation_job_id).to be_nil
+      expect(JobDependency.where(depends_on_job_id: [ sibling1.id, sibling2.id ])).to be_empty
     end
 
     it "skips reconciliation Job creation when mode is 'none' via the Epic column" do
@@ -1168,13 +1177,12 @@ RSpec.describe Epic do
         RepoReconciliationPlan::Result.new(mode: "pr", source: "default", note: nil)
       )
       epic = make_epic(state: "in_progress")
-      sibling1 = add_child(epic, number: 1)
-      sibling2 = add_child(epic, number: 2)
-      epic.maybe_create_reconciliation_job!
-      first_recon_id = epic.reload.reconciliation_job_id
+      add_child(epic, number: 1)
+      add_child(epic, number: 2)
+      historical_recon = add_historical_reconciliation_job(epic)
 
       expect { epic.maybe_create_reconciliation_job! }.not_to change { epic.reload.reconciliation_job_id }
-      expect(epic.reload.reconciliation_job_id).to eq(first_recon_id)
+      expect(epic.reload.reconciliation_job_id).to eq(historical_recon.id)
     end
 
     it "clears reconciliation_job_id when the reconciliation Job closes" do
@@ -1184,8 +1192,7 @@ RSpec.describe Epic do
       epic = make_epic(state: "in_progress")
       add_child(epic, number: 1)
       add_child(epic, number: 2)
-      epic.maybe_create_reconciliation_job!
-      recon_job = epic.reload.reconciliation_job
+      recon_job = add_historical_reconciliation_job(epic)
 
       recon_job.update_columns(state: "closed", closure_reason: "pr_merged")
       epic.refresh_auto_state!
@@ -1216,7 +1223,7 @@ RSpec.describe Epic do
       epic = make_epic(state: "in_progress")
       sibling1 = add_child(epic, number: 1)
       sibling2 = add_child(epic, number: 2)
-      epic.maybe_create_reconciliation_job!
+      add_historical_reconciliation_job(epic)
       epic.reload
 
       work_ids = epic.work_jobs.pluck(:id).sort
@@ -1230,7 +1237,7 @@ RSpec.describe Epic do
       epic = make_epic(state: "in_progress")
       sibling1 = add_child(epic, number: 1)
       sibling2 = add_child(epic, number: 2)
-      epic.maybe_create_reconciliation_job!
+      add_historical_reconciliation_job(epic)
       [sibling1, sibling2].each { |j| j.update_columns(state: "closed", closure_reason: "pr_merged") }
       epic.reload
 
@@ -1244,7 +1251,7 @@ RSpec.describe Epic do
       epic = make_epic(state: "in_progress")
       sibling1 = add_child(epic, number: 1)
       sibling2 = add_child(epic, number: 2)
-      epic.maybe_create_reconciliation_job!
+      add_historical_reconciliation_job(epic)
       [sibling1, sibling2].each { |j| j.update_columns(state: "closed", closure_reason: "pr_merged") }
       epic.reload
 

@@ -20,7 +20,7 @@ class MergeTrainAssembler
   end
 
   def call
-    open_children = @epic.jobs.where.not(state: "closed").to_a
+    open_children = @epic.work_jobs.where.not(state: "closed").to_a
     return not_ready("epic has no open child Jobs") if open_children.empty?
 
     missing_pr = open_children.reject { |job| job.pr_number.present? }

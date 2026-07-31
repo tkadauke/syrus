@@ -1,60 +1,61 @@
-# Epic Reconciliation Mode
+# Epic Reconciliation
 
-Epic reconciliation automatically creates a synthesizing Job after all sibling Jobs in an Epic have been implemented. The reconciliation Job reviews the combined changes across siblings for inter-Job consistency, shared-surface regressions, and cross-cutting concerns that individual reviewers may not catch.
+Epic reconciliation reviews combined Epic changes for inter-Job consistency, shared-surface regressions, naming conflicts, migration issues, and cross-cutting concerns that individual child-Job review may not catch.
+
+New Epics no longer create standalone `Reconciliation: ...` child Jobs. Reconciliation now runs inside Epic merge-train landing, after Syrus has built the integration branch and before prepare, graders, coverage, and landing.
 
 ## How it works
 
-When an Epic goes `in_progress` and has 2 or more child Jobs, Syrus creates a **reconciliation Job**. This Job:
+When merge trains are enabled and every open Epic child Job is approved, Syrus dispatches a `merge_train` workflow. The train:
 
-1. **Depends on all sibling Jobs** — it cannot start until every sibling Job has cleared the landing queue (approved and unblocked).
-2. **Runs a review prompt** — the agent reads the combined diff across all sibling branches and checks for consistency, naming conflicts, API contract mismatches, shared migration conflicts, and cross-cutting concerns.
-3. **Blocks landing** — sibling Jobs cannot land while the reconciliation Job is open. The reconciliation Job itself is not blocked; only siblings are held.
-4. **Auto-clears** — when the reconciliation Job closes (merged or no-changes), the Epic's `reconciliation_job_id` is cleared and sibling Jobs can proceed to landing.
+1. **Builds one integration branch** — child PR branches are rebased into the train in dependency order.
+2. **Runs `merge_train_reconcile`** — the agent inspects the integrated tree for sibling inconsistencies and may make focused fixes on the integration branch.
+3. **Continues through normal gates** — no-diff reconciliation is successful; any reconciliation edits are committed and then validated by prepare, graders, coverage, mergeability, and landing.
 
-## Reconciliation Job creation
+This removes the old fan-in dependency shape where Syrus created a separate reconciliation Job with a single arbitrary PR base and made siblings wait on it.
 
-The reconciliation Job is a `kind=direct` Job attached to the Epic. It is created:
+## Historical standalone Jobs
 
-- When `Epic#start!` or `Epic#override_state!("in_progress")` runs and the Epic already has 2+ child Jobs.
-- When a new child Job is added to an already `in_progress` Epic and the total sibling count reaches 2.
+Existing standalone reconciliation Jobs remain historically readable. Syrus does not destructively remove them, and the legacy compatibility paths still apply:
 
-The Job is idempotent — Syrus will not create a second reconciliation Job while one is already open (`reconciliation_job_id` is set on the Epic).
+- `Epic#work_jobs` excludes the linked reconciliation Job from Epic completion checks.
+- The landing queue still reports `epic reconciliation pending` while an existing linked reconciliation Job is open.
+- Once the linked Job closes, `refresh_auto_state!` clears `reconciliation_job_id`.
+- Empty PR-mode reconciliation Jobs still use the existing no-PR / `no_changes` close path rather than cancellation semantics.
 
 ## Landing gate
 
-While `epic.reconciliation_job_id` is present and the reconciliation Job is open, sibling Jobs in the Epic receive a `blocked_reason` of `"epic reconciliation pending"` in the landing queue. The reconciliation Job itself is exempt from this gate.
+For current Epics with merge trains enabled, child Jobs do not land through the per-Job auto-merge path. They stay approved with `blocked_reason: "waiting for Epic merge-train"` until all open siblings are approved, then land atomically through the train.
 
-Once the reconciliation Job closes (regardless of closure reason), `refresh_auto_state!` clears `reconciliation_job_id` and sibling Jobs can proceed to landing normally.
-
-When a PR-mode reconciliation Job produces no additional diff against its effective stack parent, Syrus treats that as a successful empty reconciliation. The `pr_open` step records a no-PR reason on the Workflow, skips PR creation, and closes the Job with `closure_reason: no_changes` so dependent Jobs and Epic completion can proceed. If a duplicate empty reconciliation PR already exists, Syrus comments on it, closes it unmerged, and closes the Job as `no_changes`.
+For historical Epics whose `reconciliation_job_id` still points to an open standalone reconciliation Job, sibling Jobs continue to receive `blocked_reason: "epic reconciliation pending"` until that Job closes.
 
 ## Configuration
 
-Reconciliation mode is resolved with this precedence:
+`reconciliation_mode` is retained as a legacy compatibility setting for existing standalone reconciliation Jobs and older Epics:
 
 1. **Epic column** (`reconciliation_mode`) — set per Epic in the admin API or via the operator UI.
 2. **`.syrus.yml`** (`reconciliation_mode`) — repository-level default.
-3. **Built-in default** — `"pr"` (create a reconciliation Job).
+3. **Built-in default** — `"pr"` for legacy compatibility.
 
 ### `.syrus.yml`
 
 ```yaml
-reconciliation_mode: pr      # create reconciliation Job (default)
-reconciliation_mode: feedback # create reconciliation Job in feedback mode
-reconciliation_mode: none    # skip reconciliation entirely
+reconciliation_mode: pr       # legacy standalone PR mode
+reconciliation_mode: feedback # legacy standalone feedback mode
+reconciliation_mode: none     # skip legacy standalone mode
 ```
 
 Valid values: `pr`, `feedback`, `none`.
 
-When `reconciliation_mode: none` is set (via Epic column or `.syrus.yml`), no reconciliation Job is created and siblings can land independently.
+New Epics do not create standalone reconciliation Jobs for any of these values. Merge-train reconciliation runs during landing when merge trains are enabled.
 
 ### Per-Epic override
 
 The `reconciliation_mode` column on the `epics` table can be set directly:
 
 ```ruby
-epic.update!(reconciliation_mode: "none")   # disable for this Epic
-epic.update!(reconciliation_mode: "pr")     # re-enable for this Epic
+epic.update!(reconciliation_mode: "none")   # skip legacy standalone mode
+epic.update!(reconciliation_mode: "pr")     # preserve legacy PR-mode semantics
 epic.update!(reconciliation_mode: nil)      # fall back to .syrus.yml or default
 ```
 

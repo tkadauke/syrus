@@ -89,8 +89,8 @@ class McpToolContext
     end
   end
 
-  # Returns WORKFLOW_RECONCILIATION_FEEDBACK when the run belongs to the
-  # Epic's reconciliation Job and the Epic is configured for feedback mode.
+  # Returns WORKFLOW_RECONCILIATION_FEEDBACK when the run belongs to a
+  # historical standalone Epic reconciliation Job configured for feedback mode.
   # This grants submit_chat_feedback in addition to the standard implement tools.
   private_class_method def self.reconciliation_feedback_role_for(run)
     epic = run.job.epic

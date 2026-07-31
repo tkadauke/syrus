@@ -3,7 +3,9 @@ class RepoReconciliationPlan
 
   Result = Data.define(:mode, :source, :note)
 
-  # Returns a Result with the resolved reconciliation mode for the given Epic.
+  # Returns the legacy standalone reconciliation mode for the given Epic.
+  # New Epics reconcile during merge-train landing; this remains for
+  # historical reconciliation Jobs and compatibility with persisted settings.
   # Precedence: Epic column → .syrus.yml → default ("pr").
   def self.for_epic(epic)
     if epic.reconciliation_mode.present?

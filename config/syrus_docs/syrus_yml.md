@@ -157,15 +157,16 @@ coverage:
 
 ## reconciliation_mode
 
-Controls whether Syrus creates a reconciliation Job when an Epic goes `in_progress` with two or more child Jobs.
+Legacy compatibility setting for standalone Epic reconciliation Jobs. New Epics no longer create a separate `Reconciliation: ...` child Job; reconciliation now happens during merge-train landing after Syrus builds the integration branch.
 
 ```yaml
-reconciliation_mode: pr      # create reconciliation Job before landing (default)
-reconciliation_mode: none    # skip reconciliation; siblings land independently
+reconciliation_mode: pr       # legacy standalone PR mode
+reconciliation_mode: feedback # legacy standalone feedback mode
+reconciliation_mode: none     # skip legacy standalone mode
 ```
 
-Valid values: `pr`, `none`. Omitting the key defaults to `pr`.
+Valid values: `pr`, `feedback`, `none`. Omitting the key defaults to `pr` for legacy compatibility.
 
-The reconciliation Job is a `kind=direct` Job that depends on all sibling Jobs in the Epic and runs a cross-cutting review before siblings are allowed to land. See the `reconciliation.md` operator doc for full details.
+This setting does not create standalone reconciliation Jobs for new Epics. See the `reconciliation.md` and `merge_train.md` operator docs for the current landing-time reconciliation flow.
 
 An Epic-level `reconciliation_mode` column takes precedence over this `.syrus.yml` setting.

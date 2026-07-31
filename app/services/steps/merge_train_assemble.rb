@@ -17,7 +17,7 @@ module Steps
         raise StepFailed, "merge_train: members not in :landing (#{not_landing.map(&:id).join(', ')})"
       end
 
-      unapproved_open = epic.jobs.where.not(state: "closed").where.not(state: %w[approved landing])
+      unapproved_open = epic.work_jobs.where.not(state: "closed").where.not(state: %w[approved landing])
       if unapproved_open.any?
         ids = unapproved_open.order(:id).pluck(:id)
         raise StepFailed, "merge_train: cannot assemble — #{ids.size} sibling(s) not yet approved (IDs: #{ids.join(', ')})"
