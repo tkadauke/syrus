@@ -419,8 +419,6 @@ issue; or needs operator action. Worker health includes live
 per-worker warnings, recent CPU/memory/disk/IO samples, and compact trend
 windows by hostname. It also exposes bounded one-minute history buckets for
 recent per-pod inspection, so operators and agents can inspect pod pressure
-windows by hostname. It also exposes bounded one-minute history buckets for
-recent per-pod inspection, so operators and agents can inspect pod pressure
 without an external metrics system. Run and Job detail payloads also include
 compact worker-health correlations, and insight agents can compare retained
 host pressure across Runs when filing suggestions about repeated grader or
