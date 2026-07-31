@@ -129,8 +129,16 @@ export type WorkerHealthSummary = {
   memory_used_percent?: { avg: number; max: number } | null
   data_root_used_percent?: { avg: number; max: number } | null
   load_1m?: { avg: number; max: number } | null
+  load_5m?: { avg: number; max: number } | null
+  load_15m?: { avg: number; max: number } | null
   cpu_pressure_some?: { avg: number; max: number } | null
+  cpu_pressure_full?: { avg: number; max: number } | null
   io_pressure_some?: { avg: number; max: number } | null
+  io_pressure_full?: { avg: number; max: number } | null
+}
+
+export type WorkerHealthMinuteBucket = WorkerHealthSummary & {
+  minute: string
 }
 
 export type CurrentWorkerHealth = {
@@ -154,6 +162,7 @@ export type WorkerHealthHost = {
   hostname: string
   current: CurrentWorkerHealth | null
   windows: Record<string, WorkerHealthSummary>
+  minute_buckets: WorkerHealthMinuteBucket[]
   recent_samples: WorkerHealthSample[]
 }
 
@@ -164,6 +173,11 @@ export type WorkerHealthPayload = {
     until: string
   }
   current_sample_window_seconds: number
+  minute_bucket: {
+    granularity_seconds: number
+    window_minutes: number
+    max_window_minutes: number
+  }
   current: CurrentWorkerHealth[]
   hosts: WorkerHealthHost[]
 }
