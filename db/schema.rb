@@ -1449,6 +1449,32 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_170000) do
     t.index ["chat_session_id"], name: "index_whiteboards_on_chat_session_id", unique: true
   end
 
+  create_table "worker_host_health_samples", force: :cascade do |t|
+    t.float "cpu_pressure_full"
+    t.float "cpu_pressure_some"
+    t.float "cpu_used_percent"
+    t.datetime "created_at", null: false
+    t.bigint "data_root_available_bytes"
+    t.bigint "data_root_total_bytes"
+    t.float "data_root_used_percent"
+    t.string "hostname", null: false
+    t.float "io_pressure_full"
+    t.float "io_pressure_some"
+    t.float "load_15m"
+    t.float "load_1m"
+    t.float "load_5m"
+    t.bigint "memory_available_bytes"
+    t.bigint "memory_total_bytes"
+    t.float "memory_used_percent"
+    t.datetime "observed_at", null: false
+    t.json "raw_metrics", null: false
+    t.string "role", null: false
+    t.datetime "updated_at", null: false
+    t.string "version", null: false
+    t.index ["hostname", "role", "observed_at"], name: "idx_worker_host_health_samples_host_role_observed", unique: true
+    t.index ["observed_at"], name: "index_worker_host_health_samples_on_observed_at"
+  end
+
   create_table "workflows", force: :cascade do |t|
     t.string "agent_provider", default: "claude", null: false
     t.text "artifacts", limit: 16777215

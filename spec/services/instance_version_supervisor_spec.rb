@@ -19,6 +19,7 @@ RSpec.describe InstanceVersionSupervisor do
         mounted_on: "/syrus-home", observed_at: Time.current
       )
       allow(DataRootDiskUsage).to receive(:read).and_return(snapshot)
+      allow(WorkerHostHealthSampler).to receive(:record!)
       sp = InstanceVersion.create!(hostname: "syrus-worker-1", role: "worker", version: "abc",
                                     started_at: 1.minute.ago, last_heartbeat_at: 30.seconds.ago)
 
@@ -28,11 +29,13 @@ RSpec.describe InstanceVersionSupervisor do
       expect(sp.data_root_used_percent).to eq(94)
       expect(sp.data_root_available_bytes).to eq(6.gigabytes)
       expect(sp.data_root_alert_level).to eq(:warning)
+      expect(WorkerHostHealthSampler).to have_received(:record!).with(instance: sp, observed_at: kind_of(Time), data_root_snapshot: snapshot)
     end
 
     it "does not measure disk on a web pod" do
       allow(SyrusVersion).to receive(:role).and_return("web")
       expect(DataRootDiskUsage).not_to receive(:read)
+      expect(WorkerHostHealthSampler).not_to receive(:record!)
       sp = InstanceVersion.create!(hostname: "syrus-web-1", role: "web", version: "abc",
                                     started_at: 1.minute.ago, last_heartbeat_at: 30.seconds.ago)
 
@@ -47,9 +50,22 @@ RSpec.describe InstanceVersionSupervisor do
                                     finished_at: 5.seconds.ago, outcome: "shutdown")
       before_heartbeat = sp.last_heartbeat_at
 
+      expect(WorkerHostHealthSampler).not_to receive(:record!)
+
       described_class.heartbeat(sp)
 
       expect(sp.reload.last_heartbeat_at).to be_within(0.001).of(before_heartbeat)
+    end
+
+    it "keeps the heartbeat alive when historical sampling fails" do
+      allow(SyrusVersion).to receive(:role).and_return("worker")
+      allow(DataRootDiskUsage).to receive(:read).and_return(nil)
+      allow(WorkerHostHealthSampler).to receive(:record!).and_raise(StandardError, "sample failed")
+      sp = InstanceVersion.create!(hostname: "syrus-worker-2", role: "worker", version: "abc",
+                                    started_at: 1.minute.ago, last_heartbeat_at: 30.seconds.ago)
+
+      expect { described_class.heartbeat(sp) }.not_to raise_error
+      expect(sp.reload.last_heartbeat_at).to be_within(2.seconds).of(Time.current)
     end
   end
 

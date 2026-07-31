@@ -124,3 +124,19 @@ remediation copy branches on deployment: single-host Docker (Compose / the
 desktop apps, detected via `SYRUS_SQLITE`) gets `docker image prune` guidance
 because the volume shares the Docker host's disk; K8s gets per-pod workspace and
 volume-resize guidance instead.
+
+## Worker host health history
+
+Worker heartbeats also write a bounded historical row to
+`worker_host_health_samples` for each worker host observation. The table is wide
+by design: hostname, role, version, observation time, CPU usage, load averages,
+memory usage, `SYRUS_DATA_ROOT` usage, Linux CPU pressure, Linux IO pressure,
+and a small `raw_metrics` JSON escape hatch for source/path metadata or future
+platform-specific fields.
+
+Sampling is best-effort and cheap. The heartbeat reuses the same `df` snapshot
+that updates `InstanceVersion`, reads lightweight Linux files under `/proc`, and
+swallows sampler failures so worker liveness is never destabilized by metrics.
+Rows are retained for `WorkerHostHealthSample::RETAIN_AFTER` (7 days, matching
+`RunHealthSnapshot::RETAIN_AFTER`) and pruned daily by
+`WorkerHostHealthSamplePruneJob`.
