@@ -1,16 +1,6 @@
 class WorkerHealthRunCorrelation
   SAMPLE_LIMIT = 20
   JOB_RUN_LIMIT = 10
-  NUMERIC_FIELDS = %i[
-    cpu_used_percent
-    memory_used_percent
-    data_root_used_percent
-    load_1m
-    cpu_pressure_some
-    cpu_pressure_full
-    io_pressure_some
-    io_pressure_full
-  ].freeze
 
   def self.for_run(run, sample_limit: SAMPLE_LIMIT, now: Time.current)
     new(run: run, sample_limit: sample_limit, now: now).as_json
@@ -81,33 +71,7 @@ class WorkerHealthRunCorrelation
   end
 
   def summary_payload
-    return empty_summary if samples.empty?
-
-    NUMERIC_FIELDS.index_with { |field| numeric_summary(field) }.compact.merge(
-      first_observed_at: samples.first.observed_at.iso8601,
-      last_observed_at: samples.last.observed_at.iso8601,
-      warning_count: samples.count { |sample| sample_health(sample).fetch(:level) == "warning" },
-      critical_count: samples.count { |sample| sample_health(sample).fetch(:level) == "critical" }
-    )
-  end
-
-  def empty_summary
-    {
-      first_observed_at: nil,
-      last_observed_at: nil,
-      warning_count: 0,
-      critical_count: 0
-    }
-  end
-
-  def numeric_summary(field)
-    values = samples.filter_map { |sample| sample.public_send(field) }
-    return if values.empty?
-
-    {
-      avg: (values.sum.to_f / values.length).round(2),
-      max: values.max.round(2)
-    }
+    WorkerHealthSampleAnalysis.summarize(samples, include_sample_count: false)
   end
 
   def pressure_payload
@@ -130,8 +94,8 @@ class WorkerHealthRunCorrelation
     end
 
     samples.each do |sample|
-      health = sample_health(sample)
-      level = max_level(level, health.fetch(:level))
+      health = WorkerHealthSampleAnalysis.health_for(sample)
+      level = WorkerHealthSampleAnalysis.max_level(level, health.fetch(:level))
       reasons.concat(health.fetch(:reasons))
     end
 
@@ -139,41 +103,6 @@ class WorkerHealthRunCorrelation
       level: level,
       reasons: reasons.uniq.first(6)
     }
-  end
-
-  def sample_health(sample)
-    reasons = []
-    level = "ok"
-    level, reasons = apply_threshold(level, reasons, "cpu", sample.cpu_used_percent, warning: 90, critical: 98)
-    level, reasons = apply_threshold(level, reasons, "memory", sample.memory_used_percent, warning: 85, critical: 95)
-    level, reasons = apply_threshold(
-      level,
-      reasons,
-      "data root disk",
-      sample.data_root_used_percent,
-      warning: DataRootDiskUsage::WARNING_USED_PERCENT,
-      critical: DataRootDiskUsage::CRITICAL_USED_PERCENT
-    )
-    level, reasons = apply_threshold(level, reasons, "CPU pressure", sample.cpu_pressure_some, warning: 20, critical: 50)
-    level, reasons = apply_threshold(level, reasons, "IO pressure", sample.io_pressure_some, warning: 20, critical: 50)
-    { level: level, reasons: reasons }
-  end
-
-  def apply_threshold(level, reasons, label, value, warning:, critical:)
-    return [ level, reasons ] if value.nil?
-
-    if value >= critical
-      [ max_level(level, "critical"), reasons + [ "#{label} #{value.round(2)}% >= #{critical}%" ] ]
-    elsif value >= warning
-      [ max_level(level, "warning"), reasons + [ "#{label} #{value.round(2)}% >= #{warning}%" ] ]
-    else
-      [ level, reasons ]
-    end
-  end
-
-  def max_level(left, right)
-    order = { "unknown" => 0, "ok" => 1, "warning" => 2, "critical" => 3 }
-    order.fetch(left) >= order.fetch(right) ? left : right
   end
 
   def process_payloads
