@@ -75,7 +75,7 @@ RSpec.describe McpToolRegistry do
 
       expect(described_class.tools_for_context(context)).to eq(McpToolPolicy.for(context))
       expect(tool_names_for(context)).to contain_exactly(
-        *%w[read_live_state read_memory write_memory delete_memory search_memories list_memories get_coverage_report report_main_concern submit_summary submit_test_plan]
+        *%w[read_live_state read_memory write_memory delete_memory search_memories list_memories get_coverage_report read_run_worker_health report_main_concern submit_summary submit_test_plan]
       )
     end
 
@@ -85,7 +85,7 @@ RSpec.describe McpToolRegistry do
       context = McpToolContext.from_run(run.reload)
 
       expect(tool_names_for(context)).to contain_exactly(
-        *%w[read_live_state read_memory write_memory delete_memory search_memories list_memories get_coverage_report report_main_concern submit_adversarial_review]
+        *%w[read_live_state read_memory write_memory delete_memory search_memories list_memories get_coverage_report read_run_worker_health report_main_concern submit_adversarial_review]
       )
     end
 
