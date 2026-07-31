@@ -11,9 +11,11 @@ class ChatTitleJob < ApplicationJob
     return if chat_session.title.present?
 
     user_message = chat_session.messages.where(role: "user").find(user_message_id)
+    chat_provider = chat_session.pin_chat_provider!(broadcast: false)
     generated = ChatTitleGenerator.new(
       chat_session: chat_session,
       message_text: user_message.content["text"],
+      chat_provider: chat_provider,
       runner: self.class.agent_runner
     ).call
 

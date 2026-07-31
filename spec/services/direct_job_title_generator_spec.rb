@@ -41,6 +41,23 @@ RSpec.describe DirectJobTitleGenerator do
     expect(seen[:max_turns]).to eq(1)
   end
 
+  it "uses the Codex provider path when the direct job provider is Codex" do
+    user.update!(codex_api_key: "sk-test")
+    expect(AgentProviders).to receive(:run_one_shot).with(
+      hash_including(provider: "codex", user: user, scope: "direct-job-title", max_turns: 1)
+    ).and_return(result('{"title":"Codex Dashboard"}'))
+
+    title = described_class.call(
+      "Tighten the dashboard filters",
+      user: user,
+      repository: repository,
+      agent_provider: "codex",
+      runner: nil
+    )
+
+    expect(title).to eq("Codex Dashboard")
+  end
+
   it "cleans wrapping punctuation from the agent title" do
     title = call_with('{"title":"`Fix the login form`"}')
 
