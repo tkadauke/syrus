@@ -20,28 +20,16 @@ module Workflows
   # implements a fix, opens a PR, and PollPullRequestJob calls
   # MainHealthChangedService.repair_landed! when the PR merges.
   class MainBranchRepair < Base
-    steps :prepare,
-          :preflight_grader_fanout, :preflight_grader_collect,
-          Workflows::RetryUntil.new(repair: [ :implement ], check: [ :grader_fanout, :grader_collect ]),
-          :summarize, :test_plan, :pr_open
-
     def self.trigger_kind = "main_branch_repair"
 
     def self.steps_for(job)
-      chain = [
-        "prepare",
+      prepare_then(
+        job,
         "preflight_grader_fanout",
         "preflight_grader_collect",
-        Workflows::RetryUntil.new(
-          max_iterations: AppSetting.grade_max_iterations,
-          repair: [ :implement ],
-          check: [ :grader_fanout, :grader_collect ]
-        ),
-        "summarize",
-        "test_plan",
-        "pr_open"
-      ]
-      prepare_skipped_for?(job) ? chain.reject { |node| node == "prepare" } : chain
+        grader_retry_loop(:implement),
+        initial_pr_finish_steps
+      )
     end
 
     # Called when the workflow finishes successfully.

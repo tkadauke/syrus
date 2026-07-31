@@ -14,6 +14,22 @@ RSpec.describe Workflows::LocalModeHandoff do
         expect(kinds).to eq(%w[ prepare grader_fanout grader_collect summarize test_plan pr_open ])
       end
 
+      it "materializes the new-PR chain template" do
+        workflow = described_class.instantiate(job: job)
+
+        expect(workflow.steps.order(:position).pluck(:kind)).to eq(
+          %w[ prepare grader_fanout grader_collect summarize test_plan pr_open ]
+        )
+        expect(workflow.chain_template).to eq([
+          { "type" => "step", "kind" => "prepare" },
+          { "type" => "step", "kind" => "grader_fanout" },
+          { "type" => "step", "kind" => "grader_collect" },
+          { "type" => "step", "kind" => "summarize" },
+          { "type" => "step", "kind" => "test_plan" },
+          { "type" => "step", "kind" => "pr_open" }
+        ])
+      end
+
       it "omits prepare when job has skip_prepare_reason" do
         allow(job).to receive(:skip_prepare?).and_return(true)
         kinds = described_class.steps_for(job)
@@ -29,6 +45,27 @@ RSpec.describe Workflows::LocalModeHandoff do
         kinds = described_class.steps_for(job)
         expect(kinds).to include("prepare", "grader_fanout", "grader_collect", "summarize_amend")
         expect(kinds).not_to include("pr_open")
+      end
+
+      it "materializes the existing-PR chain template with push recovery" do
+        workflow = described_class.instantiate(job: job)
+
+        expect(workflow.steps.order(:position).pluck(:kind)).to eq(
+          %w[ prepare grader_fanout grader_collect summarize_amend push ]
+        )
+        expect(workflow.chain_template.first(4)).to eq([
+          { "type" => "step", "kind" => "prepare" },
+          { "type" => "step", "kind" => "grader_fanout" },
+          { "type" => "step", "kind" => "grader_collect" },
+          { "type" => "step", "kind" => "summarize_amend" }
+        ])
+
+        push_node = workflow.chain_template.last
+        expect(push_node).to include("type" => "try", "step" => "push")
+        expect(push_node.dig("on_failure", "remote_branch_advanced_rebase_conflict")).to include(
+          { "type" => "step", "kind" => "push_agent_rebase" },
+          { "type" => "step", "kind" => "push_after_rebase" }
+        )
       end
     end
   end

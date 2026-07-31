@@ -15,8 +15,7 @@ module Workflows
     def self.trigger_kind = "coding_handoff"
 
     def self.steps_for(job)
-      chain = [ "prepare", "grader_fanout", "grader_collect", "summarize", "test_plan", "pr_open" ]
-      prepare_skipped_for?(job) ? chain.reject { |s| s == "prepare" } : chain
+      prepare_then(job, grader_gate_steps, initial_pr_finish_steps)
     end
 
     def self.after_success(workflow)

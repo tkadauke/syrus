@@ -12,31 +12,19 @@ module Workflows
     def self.trigger_kind = "local_mode_handoff"
 
     def self.steps_for(job)
-      chain = if job.pr_number.present?
+      finish_steps = if job.pr_number.present?
         # PR already exists (taken-over implemented Job) — update it
         [
-          "prepare",
-          "grader_fanout",
-          "grader_collect",
+          grader_gate_steps,
           "summarize_amend",
           follow_up_push(max_iterations: AppSetting.grade_max_iterations)
         ]
       else
         # No PR yet (new coding Job) — open one after graders pass
-        [
-          "prepare",
-          "grader_fanout",
-          "grader_collect",
-          "summarize",
-          "test_plan",
-          "pr_open"
-        ]
+        [ grader_gate_steps, initial_pr_finish_steps ]
       end
-      prepare_skipped_for?(job) ? chain.reject { |node| node == "prepare" } : chain
-    end
 
-    def self.prepare_skipped_for?(job)
-      job.skip_prepare?
+      prepare_then(job, finish_steps)
     end
 
     def self.after_success(workflow)

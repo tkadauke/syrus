@@ -10,12 +10,15 @@ module Workflows
   # implement phase here is "look at the failing checks, find the
   # root cause, fix the code or the test".
   class CiFailure < Base
-    steps :prepare, :analyze_and_fix, :summarize_amend, follow_up_push
-
     def self.trigger_kind = "ci_failure"
 
-    def self.steps_for(_job)
-      [ "prepare", "analyze_and_fix", "summarize_amend", follow_up_push(max_iterations: AppSetting.grade_max_iterations) ]
+    def self.steps_for(job)
+      prepare_then(
+        job,
+        "analyze_and_fix",
+        "summarize_amend",
+        follow_up_push(max_iterations: AppSetting.grade_max_iterations)
+      )
     end
   end
 end
