@@ -159,7 +159,7 @@ module SyrusChatMcp
       return DeferredSidecar.tool_names(chat_session) if tier.to_s == "deferred"
       return EvaluatorSidecar.tool_names(chat_session) if tier.to_s == "evaluator"
 
-      tools = chat_session ? tools_for(chat_session, tier: tier) : TOOLS
+      tools = chat_session ? tools_for(chat_session, tier: tier) : McpToolRegistry.tools(surface: :chat, tier: :essential)
       tools.map { |tool| tool.name.demodulize.sub(/Tool\z/, "").underscore }
     end
 
@@ -328,7 +328,7 @@ module SyrusChatMcp
     ].freeze
 
     def self.tool_names(chat_session = nil)
-      tools = chat_session ? tools_for(chat_session) : DEFERRED_TOOLS - Sidecar::TOOLS
+      tools = chat_session ? tools_for(chat_session) : McpToolRegistry.tools(surface: :chat, tier: :deferred)
       tools.map { |tool| tool.name.demodulize.sub(/Tool\z/, "").underscore }
     end
 

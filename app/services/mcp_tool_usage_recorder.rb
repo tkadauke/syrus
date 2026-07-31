@@ -72,7 +72,10 @@ class McpToolUsageRecorder
   end
 
   def self.chat_tool_names
-    (SyrusChatMcp::Sidecar.tool_names + SyrusChatMcp::DeferredSidecar.tool_names).uniq.sort
+    McpToolRegistry.summaries(surface: :chat)
+      .map { |entry| entry[:tool_name].to_s }
+      .uniq
+      .sort
   end
 
   def initialize(surface:, run: nil, chat_session: nil, provider: nil)
@@ -180,13 +183,13 @@ class McpToolUsageRecorder
 
   def summarize_error(value)
     text = case value
-           when Hash
-             value["message"] || value[:message] || value["error"] || value[:error] || value.to_json
-           when Array
-             value.filter_map { |item| item["text"] if item.is_a?(Hash) }.join("\n").presence || value.to_json
-           else
-             value.to_s
-           end
+    when Hash
+      value["message"] || value[:message] || value["error"] || value[:error] || value.to_json
+    when Array
+      value.filter_map { |item| item["text"] if item.is_a?(Hash) }.join("\n").presence || value.to_json
+    else
+      value.to_s
+    end
     text.to_s.squish.truncate(McpToolUsage::ERROR_SUMMARY_MAX_LENGTH)
   rescue JSON::GeneratorError
     value.to_s.squish.truncate(McpToolUsage::ERROR_SUMMARY_MAX_LENGTH)

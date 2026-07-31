@@ -1,7 +1,7 @@
 # Centralizes tool-selection logic for both sidecars.
 # McpToolPolicy.for(context) returns the full set of tool classes the agent
-# may use for the given context. Sidecars intersect this set with their own
-# TOOLS/DEFERRED_TOOLS arrays so tier registration stays in the sidecar.
+# may use for the given context. Tool exposure rules live in McpToolRegistry;
+# this policy remains the stable authorization facade for callers and tools.
 class McpToolPolicy
   # Capabilities that workflow-surface submit tools require. Maps a symbolic
   # capability name to the set of workflow roles that hold it. Roles absent
@@ -49,6 +49,7 @@ class McpToolPolicy
     SyrusChatMcp::FireScheduledTaskNowTool
   ].freeze
 
+
   def self.for(context)
     new(context).allowed_tools
   end
@@ -56,8 +57,7 @@ class McpToolPolicy
   # Returns true when a context's role holds the named workflow capability.
   # Non-workflow roles always return false so the check is safe to call for any context.
   def self.capability_permitted?(context, capability)
-    permitted_roles = WORKFLOW_CAPABILITIES.fetch(capability.to_sym, [])
-    permitted_roles.include?(context.role)
+    McpToolRegistry.capability_permitted?(context, capability)
   end
 
   def self.syrus_repository?(repository)

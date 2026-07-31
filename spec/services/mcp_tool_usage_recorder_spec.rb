@@ -19,6 +19,20 @@ RSpec.describe McpToolUsageRecorder do
     end
   end
 
+  describe ".advertised_tools" do
+    it "derives chat and workflow advertised tools from the registry" do
+      expect(described_class.advertised_tools(surface: "chat")).to eq(
+        McpToolRegistry.summaries(surface: :chat).map { |entry| entry[:tool_name].to_s }.uniq.sort
+      )
+      expect(described_class.advertised_tools(surface: "workflow")).to eq(
+        (McpToolRegistry.summaries(surface: :workflow) + McpToolRegistry.summaries(surface: :agent_insight))
+          .map { |entry| entry[:tool_name].to_s }
+          .uniq
+          .sort
+      )
+    end
+  end
+
   it "records workflow calls and completes them from Claude-style result ids" do
     run = Factories.job.initial_run
 
