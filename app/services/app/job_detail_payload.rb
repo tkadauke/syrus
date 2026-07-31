@@ -138,6 +138,7 @@ module App
         epic_id: @job.epic_id,
         total_cost_usd: @job.display_total_cost_usd&.to_f,
         billed_runs_count: @job.billed_runs_count,
+        worker_health_correlation: worker_health_job_correlation_json,
         source_chat: App::JobSourceChat.for(@job),
         workflows_count: @job.workflows.size,
         runs_count: @job.runs.size,
@@ -156,6 +157,10 @@ module App
         start_blocked_reason: job_start_blocked_reason,
         start_blocked_at: job_start_blocked_at
       }
+    end
+
+    def worker_health_job_correlation_json
+      WorkerHealthRunCorrelation.for_job(@job)
     end
 
     def repository_json(repository)

@@ -2,12 +2,12 @@ require "rails_helper"
 
 RSpec.describe SyrusMcp::SubmitAdversarialReviewTool do
   # submit_adversarial_review is role-gated to WORKFLOW_ADVERSARIAL_REVIEWER,
-  # which is assigned when the step.kind is "grader". Using initial_run would
-  # produce WORKFLOW_IMPLEMENT and trigger the capability guard.
+  # which is assigned when the step.kind is "adversarial_review". Using
+  # initial_run would produce WORKFLOW_IMPLEMENT and trigger the capability guard.
   let(:run) do
     job = Factories.job
     workflow = job.latest_workflow
-    step = Step.create!(workflow: workflow, kind: "grader", position: 99)
+    step = Step.create!(workflow: workflow, kind: "adversarial_review", position: 99)
     step.runs.create!(job: job, trigger_kind: workflow.trigger_kind)
   end
 

@@ -158,3 +158,13 @@ pressure, and IO pressure. The payload can be filtered with `hostname`, `since`,
 Admin chat agents can call `read_worker_health` for the same payload. Use it
 when diagnosing pod-local pressure, recurring worker warnings, or failure
 patterns that may correlate with CPU, memory, disk, or IO pressure.
+
+Workflow and insight agents can call `read_run_worker_health` to correlate a
+specific Run with retained host samples. The tool uses
+`workflows.worker_hostname`, the Run's start/finish timestamps, related
+`SpawnedProcess` host metadata, and the Step kind to return a compact pressure
+summary plus optional raw samples. The Job detail payload also includes a
+recent-run aggregate, and each serialized Run includes its own compact
+correlation. Runs older than `WorkerHostHealthSample::RETAIN_AFTER` are marked
+`retention_limited`; missing hostnames or samples return `pressure.level:
+"unknown"` rather than treating the interval as healthy.

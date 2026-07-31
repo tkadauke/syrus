@@ -35,7 +35,7 @@ RSpec.describe SyrusMcp::Sidecar do
       response = jsonrpc(server_for(run), "tools/list", id: 1)
       tool_names = response[:result][:tools].map { |t| t[:name] }
       expect(tool_names).to contain_exactly(
-        *%w[read_live_state read_memory write_memory delete_memory search_memories list_memories get_coverage_report report_main_concern submit_summary submit_test_plan]
+        *%w[read_live_state read_run_worker_health read_memory write_memory delete_memory search_memories list_memories get_coverage_report report_main_concern submit_summary submit_test_plan]
       )
       expect(tool_names).not_to include("submit_adversarial_review")
     end
@@ -127,17 +127,17 @@ RSpec.describe SyrusMcp::Sidecar do
   end
 
   describe "tools/call submit_adversarial_review" do
-    # Adversarial review is role-gated: only runs whose step.kind == "grader"
-    # (WORKFLOW_ADVERSARIAL_REVIEWER) have this tool in their sidecar tool list.
-    let(:grader_run) do
+    # Adversarial review is role-gated: only runs whose step.kind ==
+    # "adversarial_review" have this tool in their sidecar tool list.
+    let(:review_run) do
       job = Factories.job
       workflow = job.latest_workflow
-      step = Step.create!(workflow: workflow, kind: "grader", position: 99)
+      step = Step.create!(workflow: workflow, kind: "adversarial_review", position: 99)
       step.runs.create!(job: job, trigger_kind: workflow.trigger_kind)
     end
 
     it "persists the review findings on the Workflow via the JSON-RPC path" do
-      response = jsonrpc(server_for(grader_run), "tools/call", params: {
+      response = jsonrpc(server_for(review_run), "tools/call", params: {
         name: "submit_adversarial_review",
         arguments: {
           critique: "No blocking issues found.",
@@ -146,16 +146,16 @@ RSpec.describe SyrusMcp::Sidecar do
       })
 
       expect(response[:result][:isError]).to be_falsey
-      expect(grader_run.workflow.reload.artifact("adversarial_review_iterations")).to eq([
+      expect(review_run.workflow.reload.artifact("adversarial_review_iterations")).to eq([
         {
-          "iteration" => grader_run.step.iteration,
+          "iteration" => review_run.step.iteration,
           "critique" => "No blocking issues found.",
           "verdict" => "approved"
         }
       ])
     end
 
-    it "returns not_authorized when called from a non-grader step (implement role)" do
+    it "returns not_authorized when called from a non-review step (implement role)" do
       response = jsonrpc(server_for(run), "tools/call", params: {
         name: "submit_adversarial_review",
         arguments: { critique: "x", verdict: "approved" }

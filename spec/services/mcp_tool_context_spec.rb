@@ -66,10 +66,10 @@ RSpec.describe McpToolContext do
       expect(context.role).to eq(AgentRole::WORKFLOW_SUMMARY_TEST_PLAN)
     end
 
-    it "assigns WORKFLOW_ADVERSARIAL_REVIEWER for grader step kind" do
+    it "assigns WORKFLOW_IMPLEMENT for grader step kind" do
       run.step.update_columns(kind: "grader")
       context = described_class.from_run(run.reload)
-      expect(context.role).to eq(AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER)
+      expect(context.role).to eq(AgentRole::WORKFLOW_IMPLEMENT)
     end
 
     it "assigns WORKFLOW_ADVERSARIAL_REVIEWER for adversarial_review step kind" do
@@ -119,6 +119,15 @@ RSpec.describe McpToolContext do
       tools = McpToolPolicy.for(context)
       expect(tools).to include(SyrusMcp::SubmitAdversarialReviewTool)
       expect(tools).not_to include(SyrusMcp::SubmitSummaryTool)
+    end
+
+    it "does not expose submit_adversarial_review to a grader step" do
+      run.step.update_columns(kind: "grader")
+      context = described_class.from_run(run.reload)
+
+      tools = McpToolPolicy.for(context)
+      expect(tools).not_to include(SyrusMcp::SubmitAdversarialReviewTool)
+      expect(tools).to include(SyrusMcp::SubmitSummaryTool)
     end
   end
 

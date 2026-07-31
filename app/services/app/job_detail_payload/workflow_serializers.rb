@@ -155,6 +155,7 @@ module App
           run_diagnostic: run_diagnostic_json(run.run_diagnostic),
           health_snapshots: run.run_health_snapshots.ordered.map { |snapshot| health_snapshot_json(snapshot) },
           active_process: active_process_json(run),
+          worker_health_correlation: WorkerHealthRunCorrelation.for_run(run, sample_limit: 0),
           agent_session: agent_session_json(session),
           can_stop: run.may_cancel?,
           can_diagnose: run.queued? || run.running?,

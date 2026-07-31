@@ -21,6 +21,10 @@ module SyrusMcp
         job: job_payload,
         workflow: workflow_payload(@workflow, compact: compact),
         run: run_payload(@run, compact: compact),
+        worker_health_correlation: WorkerHealthRunCorrelation.for_run(
+          @run,
+          sample_limit: compact ? 0 : WorkerHealthRunCorrelation::SAMPLE_LIMIT
+        ),
         queue: queue_payload,
         chat: chat_payload(compact: compact)
       }.tap do |payload|

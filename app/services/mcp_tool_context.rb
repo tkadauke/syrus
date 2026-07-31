@@ -80,7 +80,7 @@ class McpToolContext
       AgentRole::WORKFLOW_REBASE_CONFLICT
     when "summarize", "summarize_amend", "test_plan"
       AgentRole::WORKFLOW_SUMMARY_TEST_PLAN
-    when "grader", "adversarial_review"
+    when "adversarial_review"
       AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER
     when "agent_insight_run"
       AgentRole::AGENT_INSIGHT

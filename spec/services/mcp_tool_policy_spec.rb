@@ -28,21 +28,26 @@ RSpec.describe McpToolPolicy do
         Mcp::Tools::SearchMemoriesTool,
         Mcp::Tools::ListMemoriesTool,
         SyrusMcp::GetCoverageReportTool,
+        SyrusMcp::ReadRunWorkerHealthTool,
         SyrusMcp::SubmitSummaryTool,
         SyrusMcp::SubmitTestPlanTool,
         SyrusMcp::ReportMainConcernTool
       )
       expect(tools).not_to include(SyrusMcp::SubmitAdversarialReviewTool)
-      expect(tools.size).to eq(10)
+      expect(tools.size).to eq(11)
     end
 
     it "returns submit_adversarial_review but not submit_summary for the adversarial_reviewer role" do
       context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER, user: user)
       tools   = described_class.for(context)
 
-      expect(tools).to include(SyrusMcp::ReadLiveStateTool, SyrusMcp::SubmitAdversarialReviewTool)
+      expect(tools).to include(
+        SyrusMcp::ReadLiveStateTool,
+        SyrusMcp::ReadRunWorkerHealthTool,
+        SyrusMcp::SubmitAdversarialReviewTool
+      )
       expect(tools).not_to include(SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool)
-      expect(tools.size).to eq(9)
+      expect(tools.size).to eq(10)
     end
 
     it "returns submit_summary, submit_test_plan, and submit_reconciliation_feedback for the reconciliation_feedback role" do

@@ -75,6 +75,7 @@ class McpToolPolicy
       Mcp::Tools::SearchMemoriesTool,
       Mcp::Tools::ListMemoriesTool,
       SyrusMcp::GetCoverageReportTool,
+      SyrusMcp::ReadRunWorkerHealthTool,
       SyrusMcp::ReportMainConcernTool
     ]
 
@@ -133,6 +134,7 @@ class McpToolPolicy
   def insight_tools
     tools = [
       SyrusMcp::ReadLiveStateTool,
+      SyrusMcp::ReadRunWorkerHealthTool,
       Mcp::Tools::ReadMemoryTool,
       Mcp::Tools::WriteMemoryTool,
       Mcp::Tools::SearchMemoriesTool,
