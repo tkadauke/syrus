@@ -427,12 +427,13 @@ module WorkEngine
         next unless workflow.queued? && start_blocked?(workflow)
 
         reason = workflow.artifact("start_blocked_reason")
+        dependency_block = dependency_block_reason?(reason)
         issue(
-          kind: dependency_block_reason?(reason) ? :dependency_stack_start_block : :main_health_start_block,
+          kind: dependency_block ? :dependency_stack_start_block : :main_health_start_block,
           severity: :info,
           affected_ids: ids_for(workflow),
           safe_to_auto_repair: false,
-          recommended_repair_action: "wait_for_blocker_or_operator_override",
+          recommended_repair_action: dependency_block ? "wait_for_dependency_or_stack_readiness" : "wait_for_main_health",
           check_after: parse_time(workflow.artifact("start_blocked_next_check_at")),
           evidence: workflow_evidence(workflow).merge(
             start_blocked_reason: reason,

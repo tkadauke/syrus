@@ -23,10 +23,12 @@ module Admin
       diagnose_queue_starvation
       schedule_retry_after_rate_limit
       wait_for_agent_capacity
-      wait_for_blocker_or_operator_override
       wait_for_capacity
       wait_for_dependency_or_stack_readiness
       wait_for_main_health
+      wait_for_main_recovery
+      wait_for_queue_resume
+      wait_for_start_block_to_clear
       retry_or_archive_before_workspace_prune
     ].freeze
 

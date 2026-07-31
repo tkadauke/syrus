@@ -237,8 +237,28 @@ RSpec.describe WorkEngine::Reconciler do
 
     expect(issue.severity).to eq("info")
     expect(issue.safe_to_auto_repair).to eq(false)
+    expect(issue.recommended_repair_action).to eq("wait_for_dependency_or_stack_readiness")
     expect(issue.check_after).to be_present
     expect(plan(result, :wait_for_dependency_or_stack_readiness).auto_executable).to eq(false)
+  end
+
+  it "classifies main-health start blocks with the matching wait-only action" do
+    run.destroy!
+    workflow.update_columns(
+      state: "queued",
+      artifacts: {
+        "start_blocked_reason" => StepDispatcher::MAIN_HEALTH_BLOCK_REASON,
+        "start_blocked_next_check_at" => 3.minutes.from_now.iso8601
+      }
+    )
+
+    result = reconcile(workflow_id: workflow.id)
+    issue = kind(result, :main_health_start_block)
+
+    expect(issue.severity).to eq("info")
+    expect(issue.safe_to_auto_repair).to eq(false)
+    expect(issue.recommended_repair_action).to eq("wait_for_main_health")
+    expect(plan(result, :wait_for_main_health).auto_executable).to eq(false)
   end
 
   it "classifies Job/Workflow state drift" do

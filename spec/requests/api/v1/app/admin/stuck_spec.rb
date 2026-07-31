@@ -111,4 +111,55 @@ RSpec.describe "API: /api/v1/app/admin/stuck", type: :request do
       "force_fail_path" => "/api/v1/app/jobs/#{job.id}/force_fail"
     ))
   end
+
+  it "labels blocked queued workflows as waiting instead of operator-required" do
+    sign_in_as(admin)
+    job = Factories.job(user: admin)
+    workflow = job.latest_workflow
+    run = job.initial_run
+    run.destroy!
+    workflow.update_columns(
+      state: "queued",
+      created_at: 10.minutes.ago,
+      artifacts: {
+        "start_blocked_reason" => StepDispatcher::MAIN_HEALTH_BLOCK_REASON,
+        "start_blocked_next_check_at" => 3.minutes.from_now.iso8601
+      }
+    )
+    workflow.first_step.update_columns(state: "queued")
+
+    get "/api/v1/app/admin/stuck"
+
+    expect(response).to have_http_status(:ok)
+    item = parse_body.fetch("items").find { |row| row["kind"] == "queued_workflow_without_first_run" }
+    expect(item).to include(
+      "attention_state" => "waiting",
+      "workflow_id" => workflow.id,
+      "job_id" => job.id
+    )
+    expect(item.fetch("repair_plan")).to include("action" => "wait_for_start_block_to_clear")
+  end
+
+  it "labels paused run queues as waiting instead of operator-required" do
+    ensure_solid_queue_test_tables!
+    clear_solid_queue_test_tables!
+    sign_in_as(admin)
+    job = Factories.job(user: admin)
+    run = job.initial_run
+    run.update_columns(state: "queued", created_at: 10.minutes.ago, updated_at: 10.minutes.ago)
+    SolidQueue::Pause.create!(queue_name: "runs")
+
+    get "/api/v1/app/admin/stuck"
+
+    expect(response).to have_http_status(:ok)
+    item = parse_body.fetch("items").find { |row| row["kind"] == "runs_paused" }
+    expect(item).to include(
+      "attention_state" => "waiting",
+      "run_id" => run.id,
+      "job_id" => job.id
+    )
+    expect(item.fetch("repair_plan")).to include("action" => "wait_for_queue_resume")
+  ensure
+    clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
+  end
 end
