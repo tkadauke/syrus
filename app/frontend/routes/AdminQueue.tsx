@@ -336,19 +336,24 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthPayload["hosts"][nu
           </div>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{current?.health.reasons.length ? current.health.reasons.join("; ") : t("queue.worker_health_ok")}</p>
         </div>
-        <div className="grid grid-cols-4 gap-3 text-right text-xs">
+        <div className="grid grid-cols-2 gap-3 text-right text-xs sm:grid-cols-3 lg:grid-cols-6">
           <HealthStat label={t("queue.metric_cpu")} value={formatPercent(sample?.cpu_used_percent)} />
+          <HealthStat label={t("queue.metric_load")} value={formatNumber(sample?.load_1m)} />
           <HealthStat label={t("queue.metric_memory")} value={formatPercent(sample?.memory_used_percent)} />
           <HealthStat label={t("queue.metric_disk")} value={formatPercent(sample?.data_root_used_percent)} />
-          <HealthStat label={t("queue.metric_io")} value={formatPercent(sample?.io_pressure_some)} />
+          <HealthStat label={t("queue.metric_cpu_pressure")} value={formatPercent(sample?.cpu_pressure_some)} />
+          <HealthStat label={t("queue.metric_io_pressure")} value={formatPercent(sample?.io_pressure_some)} />
         </div>
       </summary>
       <div className="border-t border-gray-100 dark:border-gray-800 px-4 py-3">
         <div className="grid gap-3 text-xs sm:grid-cols-3">
           <HealthStat label={t("queue.col_version")} value={current?.version || sample?.version || "-"} />
           <HealthStat label={t("queue.last_sample")} value={sample ? formatRelativeDate(new Date(sample.observed_at)) : "-"} />
+          <HealthStat label={t("queue.memory_available")} value={formatBytes(sample?.memory_available_bytes)} />
+          <HealthStat label={t("queue.data_root_available")} value={formatBytes(sample?.data_root_available_bytes)} />
           <HealthStat label={t("queue.one_hour_max")} value={oneHour ? compactTrend(oneHour) : "-"} />
         </div>
+        <WorkerHealthTrendTable windows={host.windows} />
         {minuteBuckets.length > 0 ? (
           <div className="mt-3 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-xs">
@@ -361,7 +366,7 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthPayload["hosts"][nu
                   <th className="px-3 py-2">{t("queue.metric_disk")}</th>
                   <th className="px-3 py-2">{t("queue.metric_load")}</th>
                   <th className="px-3 py-2">{t("queue.metric_cpu_pressure")}</th>
-                  <th className="px-3 py-2">{t("queue.metric_io")}</th>
+                  <th className="px-3 py-2">{t("queue.metric_io_pressure")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -369,12 +374,12 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthPayload["hosts"][nu
                   <tr key={bucket.minute}>
                     <td className="px-3 py-2 text-gray-600 dark:text-gray-300">{formatRelativeDate(new Date(bucket.minute))}</td>
                     <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{bucket.sample_count}</td>
-                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(bucket.cpu_used_percent, "percent")}</td>
-                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(bucket.memory_used_percent, "percent")}</td>
-                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(bucket.data_root_used_percent, "percent")}</td>
+                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(bucket.cpu_used_percent)}</td>
+                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(bucket.memory_used_percent)}</td>
+                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(bucket.data_root_used_percent)}</td>
                     <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(bucket.load_1m, "number")}</td>
-                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(bucket.cpu_pressure_some, "percent")}</td>
-                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(bucket.io_pressure_some, "percent")}</td>
+                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(bucket.cpu_pressure_some)}</td>
+                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(bucket.io_pressure_some)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -383,6 +388,44 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthPayload["hosts"][nu
         ) : null}
       </div>
     </details>
+  )
+}
+
+function WorkerHealthTrendTable({ windows }: { windows: WorkerHealthPayload["hosts"][number]["windows"] }) {
+  const { t } = useT("admin")
+  const rows = ["15m", "1h", "6h"].map((window) => [ window, windows[window] ] as const).filter(([, summary]) => summary)
+
+  if (rows.length === 0) return null
+
+  return (
+    <div className="mt-3 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
+      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-xs">
+        <thead className="bg-gray-50 dark:bg-gray-800 text-left font-medium uppercase text-gray-500 dark:text-gray-400">
+          <tr>
+            <th className="px-3 py-2">{t("queue.col_window")}</th>
+            <th className="px-3 py-2">{t("queue.col_samples")}</th>
+            <th className="px-3 py-2">{t("queue.metric_cpu")}</th>
+            <th className="px-3 py-2">{t("queue.metric_memory")}</th>
+            <th className="px-3 py-2">{t("queue.metric_disk")}</th>
+            <th className="px-3 py-2">{t("queue.metric_load")}</th>
+            <th className="px-3 py-2">{t("queue.col_alerts")}</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+          {rows.map(([window, summary]) => (
+            <tr key={window}>
+              <td className="px-3 py-2 font-mono text-gray-700 dark:text-gray-200">{window}</td>
+              <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{summary.sample_count}</td>
+              <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(summary.cpu_used_percent)}</td>
+              <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(summary.memory_used_percent)}</td>
+              <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(summary.data_root_used_percent)}</td>
+              <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(summary.load_1m, "number")}</td>
+              <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{summary.warning_count + summary.critical_count}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
@@ -502,6 +545,13 @@ function compactTrend(summary: WorkerHealthPayload["hosts"][number]["windows"][s
   return parts.length > 0 ? parts.join(" / ") : `${summary.sample_count} samples`
 }
 
+function formatSummary(summary?: { avg: number; max: number } | null, kind: "percent" | "number" = "percent") {
+  if (!summary) return "-"
+  const formatter = kind === "percent" ? formatPercent : formatNumber
+
+  return `avg ${formatter(summary.avg)} / max ${formatter(summary.max)}`
+}
+
 function formatPercent(value?: number | null) {
   if (value == null) return "-"
   return `${Math.round(value * 10) / 10}%`
@@ -512,10 +562,18 @@ function formatNumber(value?: number | null) {
   return `${Math.round(value * 100) / 100}`
 }
 
-function formatSummary(summary?: { avg: number; max: number } | null, kind: "percent" | "number" = "number") {
-  if (!summary) return "-"
-  const format = kind === "percent" ? formatPercent : formatNumber
-  return `${format(summary.max)} / ${format(summary.avg)}`
+function formatBytes(value?: number | null) {
+  if (value == null) return "-"
+  const units = ["B", "KB", "MB", "GB", "TB"]
+  let size = value
+  let unitIndex = 0
+
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024
+    unitIndex += 1
+  }
+
+  return `${Math.round(size * 10) / 10} ${units[unitIndex]}`
 }
 
 function formatQueues(queues: QueueWorker["queues"]) {

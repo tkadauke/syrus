@@ -422,13 +422,15 @@ recent per-pod inspection, so operators and agents can inspect pod pressure
 without an external metrics system. Run and Job detail payloads also include
 compact worker-health correlations, and insight agents can compare retained
 host pressure across Runs when filing suggestions about repeated grader or
-step behavior. State-changing admin tools, such as pausing runs,
-killing a process, clearing the GitHub cache, or refreshing installations,
-create pending actions and wait for operator confirmation before applying.
-Non-admin chats do not advertise those tools, and each admin tool repeats
-the admin check when it runs. Admins can also force-fail an open stuck Job
-from the stuck Jobs page, admin API, or confirmed chat tool so the normal
-Retry path becomes available without closing the Job.
+step behavior. The same worker health data is visible
+from the Workers tab as a per-host dashboard with current status and compact
+recent trends. State-changing admin tools, such as pausing runs, killing a
+process, clearing the GitHub cache, or refreshing installations, create pending
+actions and wait for operator confirmation before applying. Non-admin chats do
+not advertise those tools, and each admin tool repeats the admin check when it
+runs. Admins can also force-fail an open stuck Job from the stuck Jobs page,
+admin API, or confirmed chat tool so the normal Retry path becomes available
+without closing the Job.
 Admin queue filters can be saved as smart folders from the queue sidebar,
 then renamed or deleted inline from the saved-folder list so repeated
 operational views stay available beside the built-in queue folders.

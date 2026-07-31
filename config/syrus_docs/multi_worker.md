@@ -142,7 +142,12 @@ Rows are retained for `WorkerHostHealthSample::RETAIN_AFTER` (7 days, matching
 `WorkerHostHealthSamplePruneJob`.
 The current admin overview, `/api/v1/admin/version`, and the admin queue
 workers payload include worker health snapshots alongside the existing
-data-root disk fields. Disk alerts still come from the most-full worker's
+data-root disk fields. The Workers tab (`/admin/queue/workers`) renders that
+payload inline as a per-host health dashboard using a shorter 6-hour default
+lookback for page load, with compact 15m/1h/6h trends and recent samples.
+Still-running stale worker instances stay in the dashboard even when they have
+no retained host-health sample, so operators can distinguish stale heartbeat
+from no-sample states. Disk alerts still come from the most-full worker's
 `InstanceVersion` reading so existing alert behavior is unchanged. For deeper
 inspection, `/api/v1/admin/worker_health` and `/api/v1/app/admin/worker_health`
 return live worker status plus compact 15m/1h/6h/24h summaries, recent

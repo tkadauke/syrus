@@ -96,4 +96,27 @@ RSpec.describe "API: /api/v1/admin/worker_health", type: :request do
       expect(buckets.first).to include("sample_count" => 0)
     end
   end
+
+  it "includes stale worker instances without host health samples" do
+    InstanceVersion.create!(hostname: "worker-stale", role: "worker", version: "abc123",
+                            started_at: 10.minutes.ago, last_heartbeat_at: 3.minutes.ago)
+
+    get "/api/v1/admin/worker_health", headers: auth
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body.dig("current", 0)).to include(
+      "hostname" => "worker-stale",
+      "stale" => true,
+      "sample" => nil,
+      "health" => include(
+        "level" => "critical",
+        "reasons" => include("worker heartbeat stale")
+      )
+    )
+    expect(body.dig("hosts", 0)).to include(
+      "hostname" => "worker-stale",
+      "recent_samples" => []
+    )
+  end
 end

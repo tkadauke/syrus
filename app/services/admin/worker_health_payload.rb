@@ -43,7 +43,7 @@ module Admin
     attr_reader :hostname, :since, :until_time, :sample_limit_per_host, :minute_bucket_window
 
     def current_workers
-      @current_workers ||= InstanceVersion.fresh.where(role: "worker").then { |scope|
+      @current_workers ||= InstanceVersion.running.where(role: "worker").then { |scope|
         hostname ? scope.where(hostname: hostname) : scope
       }.order(:hostname).map do |instance|
         latest = latest_sample_by_hostname[instance.hostname]
