@@ -69,3 +69,8 @@ state. The stale-run reaper, auto-retry scheduler, Job-state reconciler, and
 manual admin reap action defer to `WorkEngine::Reconciler` through
 `WorkEngine::ReconcileJob` instead, so unified reconciliation is the single
 authority for classifying and repairing split-brain work state.
+
+The current reconciler layer is read-only. It returns structured issue records
+with `kind`, `severity`, evidence, affected ids, repair safety, recommended
+action, retry/check timing, and an operator-facing explanation. See
+`work_engine_reconciler.md` for the issue families and result shape.
