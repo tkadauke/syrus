@@ -99,6 +99,15 @@ export type JobRecord = {
   needs_attention_reason: string | null
   needs_attention_since: string | null
   grace_period_expires_at: string | null
+  deployment_stages?: JobDeploymentStage[]
+}
+
+export type JobDeploymentStage = {
+  name: string
+  label: string
+  reached: boolean
+  reached_at: string | null
+  tag_sha: string | null
 }
 
 export type JobOwnerUser = {

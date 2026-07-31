@@ -7,7 +7,7 @@ import type { EpicDetailJob, EpicDetailPayload } from "../api/epics"
 import { EpicDetail, JobsSection, ProgressBar, StateChips } from "./EpicDetail"
 
 function job(state: string, overrides: Partial<EpicDetailJob> = {}): EpicDetailJob {
-  return { id: Math.random(), slug: "JOB-1", label: "JOB-1", title: "A job", path: "/jobs/1", state, pr_number: null, pr_url: null, owner_user_id: null, owner_user: null, repository_slug: "owner/repo", ...overrides }
+  return { id: Math.random(), slug: "JOB-1", label: "JOB-1", title: "A job", path: "/jobs/1", state, landed: false, pr_number: null, pr_url: null, owner_user_id: null, owner_user: null, repository_slug: "owner/repo", ...overrides }
 }
 
 function detailPayload(overrides: Partial<EpicDetailPayload["epic"]> = {}): EpicDetailPayload {
@@ -365,5 +365,56 @@ describe("JobsSection", () => {
       </MemoryRouter>
     )
     expect(screen.queryByText("alice@example.com")).not.toBeInTheDocument()
+  })
+
+  it("adds one table column per configured deployment stage", () => {
+    const jobs = [
+      job("closed", {
+        landed: true,
+        deployment_stages: [
+          { name: "staging", label: "Staging", reached: true, reached_at: "2026-07-30T12:00:00Z", tag_sha: "abc123" },
+          { name: "production", label: "Production", reached: false, reached_at: null, tag_sha: null }
+        ]
+      })
+    ]
+    render(
+      <MemoryRouter>
+        <JobsSection jobs={jobs} newJobPath="/jobs/new" prefix="" />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole("columnheader", { name: "Staging" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Production" })).toBeInTheDocument()
+    expect(screen.getByText("Pending")).toBeInTheDocument()
+  })
+
+  it("shows an empty stage cell for jobs that have not landed", () => {
+    const jobs = [
+      job("open", {
+        landed: false,
+        deployment_stages: [
+          { name: "staging", label: "Staging", reached: false, reached_at: null, tag_sha: null }
+        ]
+      })
+    ]
+    render(
+      <MemoryRouter>
+        <JobsSection jobs={jobs} newJobPath="/jobs/new" prefix="" />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByLabelText("Not landed")).toHaveTextContent("—")
+    expect(screen.queryByText("Pending")).not.toBeInTheDocument()
+  })
+
+  it("keeps the list layout when no job has deployment stage data", () => {
+    render(
+      <MemoryRouter>
+        <JobsSection jobs={[job("open")]} newJobPath="/jobs/new" prefix="" />
+      </MemoryRouter>
+    )
+
+    expect(screen.queryByRole("columnheader", { name: "Job" })).not.toBeInTheDocument()
+    expect(screen.getByText("Open")).toBeInTheDocument()
   })
 })

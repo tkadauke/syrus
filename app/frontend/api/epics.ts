@@ -1,5 +1,6 @@
 import { deleteJson, getJson, patchJson, postJson } from "./client"
 import type { DashboardGraphEdge, DashboardGraphNode } from "./dashboard"
+import type { JobDeploymentStage } from "./jobs"
 
 export type EpicRepositoryOption = {
   id: number
@@ -128,11 +129,13 @@ export type EpicDetailJob = {
   title: string
   path: string
   state: string
+  landed: boolean
   pr_number: number | null
   pr_url: string | null
   owner_user_id: number | null
   owner_user: EpicOwnerUser | null
   repository_slug: string
+  deployment_stages?: JobDeploymentStage[]
 }
 
 export type EpicVersionRecord = {

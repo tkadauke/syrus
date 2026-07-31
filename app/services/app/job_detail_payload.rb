@@ -148,7 +148,7 @@ module App
         needs_attention_reason: @job.needs_attention_reason,
         needs_attention_since: iso8601(@job.needs_attention_since),
         grace_period_expires_at: iso8601(@job.grace_period_expires_at)
-      }
+      }.merge(deployment_stages_json)
     end
 
     def repository_json(repository)
@@ -167,6 +167,13 @@ module App
         landing_paused: repository.landing_paused?,
         repository_path: repository_path(repository)
       }
+    end
+
+    def deployment_stages_json
+      stages = App::DeploymentStagesPayload.for_job(@job)
+      return {} unless stages
+
+      { deployment_stages: stages }
     end
 
     def epic_json(epic)

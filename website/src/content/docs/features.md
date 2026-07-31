@@ -19,6 +19,8 @@ diffs, PR link, attachments, dependencies, and logs. Operators can retry,
 cancel, run again, change priority, approve, or inspect the related PR.
 For landed Jobs, Syrus can also record configured deployment stage progress
 from repository tags, such as staging, production, or public release.
+Epic detail pages show those configured stages as columns in the child Jobs
+table, so operators can scan which landed Jobs have reached each stage.
 When a Job came from a chat proposal, or belongs to an Epic that came from a
 chat proposal, the Jobs UI links back to the originating chat message.
 

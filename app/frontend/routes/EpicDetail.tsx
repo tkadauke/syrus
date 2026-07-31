@@ -483,50 +483,55 @@ function DiffValue({ label, multiline = false, value }: { label: string; multili
   )
 }
 
+function deploymentStageColumns(jobs: EpicDetailJob[]) {
+  const firstConfigured = jobs.find((job) => (job.deployment_stages ?? []).length > 0)
+  return firstConfigured?.deployment_stages ?? []
+}
+
 export function JobsSection({ epicRepositorySlug, jobs, newJobPath, prefix }: { epicRepositorySlug?: string; jobs: EpicDetailJob[]; newJobPath: string; prefix: string }) {
   const { t } = useT("epics")
+  const stageColumns = deploymentStageColumns(jobs)
+  const showStageColumns = stageColumns.length > 0
   return (
     <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
         <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("jobs_section")}</h2>
         <Link className="text-xs text-blue-600 hover:underline dark:text-blue-400" to={withRoutePrefix(newJobPath, prefix)}>{t("add_job")}</Link>
       </div>
-      {jobs.length > 0 ? (
+      {jobs.length > 0 && showStageColumns ? (
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-100 text-left text-sm dark:divide-gray-700">
+            <thead className="bg-gray-50 text-xs font-medium uppercase text-gray-500 dark:bg-gray-950 dark:text-gray-400">
+              <tr>
+                <th className="px-4 py-2" scope="col">{t("job_column")}</th>
+                <th className="px-4 py-2" scope="col">{t("state_column")}</th>
+                {stageColumns.map((stage) => (
+                  <th className="whitespace-nowrap px-4 py-2" key={stage.name} scope="col">{stage.label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              {jobs.map((job) => (
+                <tr key={job.id}>
+                  <td className="min-w-72 px-4 py-3 align-top">
+                    <JobIdentity epicRepositorySlug={epicRepositorySlug} job={job} prefix={prefix} />
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 align-top"><StatePill state={job.state} /></td>
+                  {stageColumns.map((stage) => (
+                    <td className="whitespace-nowrap px-4 py-3 align-top text-xs text-gray-500 dark:text-gray-400" key={stage.name}>
+                      <DeploymentStageCell job={job} stageName={stage.name} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : jobs.length > 0 ? (
         <ul className="divide-y divide-gray-100 text-sm dark:divide-gray-700">
           {jobs.map((job) => (
             <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" key={job.id}>
-              <div className="min-w-0 space-y-0.5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <SlugHoverCard kind="job" id={job.id}>
-                    <CopyableSlug slug={job.slug} className="text-xs" />
-                  </SlugHoverCard>
-                  {job.title ? (
-                    <Link className="text-gray-700 hover:underline dark:text-gray-200" to={withRoutePrefix(job.path, prefix)}>{job.title}</Link>
-                  ) : (
-                    <Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(job.path, prefix)}>{job.slug}</Link>
-                  )}
-                  {job.pr_number && job.pr_url ? (
-                    <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_url}>
-                      <a
-                        className="font-mono text-xs text-blue-600 hover:underline dark:text-blue-400"
-                        href={job.pr_url}
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        PR #{job.pr_number}
-                      </a>
-                    </PrHoverCard>
-                  ) : null}
-                </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
-                  {epicRepositorySlug && job.repository_slug !== epicRepositorySlug ? (
-                    <span className="font-mono">{job.repository_slug}</span>
-                  ) : null}
-                  {job.label !== "Direct" ? (
-                    <span className="font-mono">{job.label}</span>
-                  ) : null}
-                </div>
-              </div>
+              <JobIdentity epicRepositorySlug={epicRepositorySlug} job={job} prefix={prefix} />
               <StatePill state={job.state} />
             </li>
           ))}
@@ -535,6 +540,65 @@ export function JobsSection({ epicRepositorySlug, jobs, newJobPath, prefix }: { 
         <p className="px-4 py-6 text-sm text-gray-400 dark:text-gray-500">{t("no_jobs")}</p>
       )}
     </section>
+  )
+}
+
+function JobIdentity({ epicRepositorySlug, job, prefix }: { epicRepositorySlug?: string; job: EpicDetailJob; prefix: string }) {
+  return (
+    <div className="min-w-0 space-y-0.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <SlugHoverCard kind="job" id={job.id}>
+          <CopyableSlug slug={job.slug} className="text-xs" />
+        </SlugHoverCard>
+        {job.title ? (
+          <Link className="break-words text-gray-700 hover:underline dark:text-gray-200" to={withRoutePrefix(job.path, prefix)}>{job.title}</Link>
+        ) : (
+          <Link className="text-blue-600 underline hover:no-underline" to={withRoutePrefix(job.path, prefix)}>{job.slug}</Link>
+        )}
+        {job.pr_number && job.pr_url ? (
+          <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_url}>
+            <a
+              className="font-mono text-xs text-blue-600 hover:underline dark:text-blue-400"
+              href={job.pr_url}
+              rel="noreferrer"
+              target="_blank"
+            >
+              PR #{job.pr_number}
+            </a>
+          </PrHoverCard>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
+        {epicRepositorySlug && job.repository_slug !== epicRepositorySlug ? (
+          <span className="font-mono">{job.repository_slug}</span>
+        ) : null}
+        {job.label !== "Direct" ? (
+          <span className="font-mono">{job.label}</span>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+function DeploymentStageCell({ job, stageName }: { job: EpicDetailJob; stageName: string }) {
+  const { t } = useT("epics")
+  if (!job.landed) return <span aria-label={t("stage_not_landed")} className="text-gray-300 dark:text-gray-600">—</span>
+
+  const stage = job.deployment_stages?.find((candidate) => candidate.name === stageName)
+  if (stage?.reached) {
+    return (
+      <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300">
+        <span aria-hidden="true" className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-600 text-[10px] font-bold leading-none text-white">✓</span>
+        <RelativeTimestamp value={stage.reached_at} />
+      </span>
+    )
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 text-gray-400 dark:text-gray-500">
+      <span aria-hidden="true">-</span>
+      <span>{t("stage_pending")}</span>
+    </span>
   )
 }
 
@@ -784,4 +848,3 @@ function epicOwnerLabel(epic: EpicDetailPayload["epic"], t: (key: string, opts?:
   const owner = epic.owner_user || epic.owner
   return owner ? t("owner_label", { email: owner.email_address }) : t("unclaimed")
 }
-

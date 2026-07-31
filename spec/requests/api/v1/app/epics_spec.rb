@@ -196,6 +196,75 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     )
   end
 
+  it "includes configured deployment stage statuses on Epic detail child Jobs" do
+    sign_in_as(user)
+    staging = SyrusYml::DeploymentStage.new(name: "staging", label: "Staging", tag: "staging", tag_pattern: nil)
+    production = SyrusYml::DeploymentStage.new(name: "production", label: "Production", tag: "production", tag_pattern: nil)
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repository).and_return(
+      RepoDeploymentStagesReader::Result.new(stages: [ staging, production ], source: ".syrus.yml", note: nil)
+    )
+    epic = Factories.epic(user: user, repository: repository, title: "Raise the forum")
+    landed = Factories.job_record(
+      user: user,
+      repository: repository,
+      epic: epic,
+      issue_number: 12,
+      issue_title: "Survey forum",
+      landed_sha: "merge-sha",
+      state: "closed",
+      closure_reason: "pr_merged"
+    )
+    unlanded = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 13, issue_title: "Open forum", state: "open")
+    reached_at = Time.zone.parse("2026-07-30 12:00:00 UTC")
+    JobDeploymentStageStatus.create!(job: landed, stage_name: "staging", reached_at: reached_at, tag_sha: "tag-sha")
+
+    get "/api/v1/app/epics/#{epic.id}"
+
+    expect(response).to have_http_status(:ok)
+    jobs = parse_body.fetch("jobs")
+    expect(jobs.find { |job| job.fetch("id") == landed.id }).to include(
+      "landed" => true,
+      "deployment_stages" => [
+        {
+          "name" => "staging",
+          "label" => "Staging",
+          "reached" => true,
+          "reached_at" => reached_at.iso8601,
+          "tag_sha" => "tag-sha"
+        },
+        {
+          "name" => "production",
+          "label" => "Production",
+          "reached" => false,
+          "reached_at" => nil,
+          "tag_sha" => nil
+        }
+      ]
+    )
+    expect(jobs.find { |job| job.fetch("id") == unlanded.id }).to include(
+      "landed" => false,
+      "deployment_stages" => [
+        include("name" => "staging", "label" => "Staging", "reached" => false),
+        include("name" => "production", "label" => "Production", "reached" => false)
+      ]
+    )
+  end
+
+  it "omits deployment stage data on Epic detail child Jobs when no stages are configured" do
+    sign_in_as(user)
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repository).and_return(
+      RepoDeploymentStagesReader::Result.new(stages: [], source: "none", note: "no deployment_stages configured")
+    )
+    epic = Factories.epic(user: user, repository: repository, title: "Raise the forum")
+    job = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 12)
+
+    get "/api/v1/app/epics/#{epic.id}"
+
+    expect(response).to have_http_status(:ok)
+    rendered = parse_body.fetch("jobs").find { |candidate| candidate.fetch("id") == job.id }
+    expect(rendered).not_to have_key("deployment_stages")
+  end
+
   it "includes stuck status in the Epic detail payload" do
     sign_in_as(user)
     epic = Factories.epic(user: user, repository: repository, title: "Stalled forum", state: "in_progress")

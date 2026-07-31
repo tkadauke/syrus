@@ -267,7 +267,8 @@ module Api
         end
 
         def detail_payload(epic, message: nil)
-          jobs = epic.jobs.includes(:repository, :dependencies, :dependent_links).order(:id).to_a
+          jobs = epic.jobs.includes(:repository, :deployment_stage_statuses, :dependencies, :dependent_links).order(:id).to_a
+          deployment_stages_plan = RepoDeploymentStagesReader.for_repository(epic.repository)
           blocked_dependency = epic.dependencies.includes(:depends_on_epic, :depends_on_job).find { |dependency| !dependency.dependency_succeeded? }
           graph = EpicDependencyGraphRenderer.new(epic).render
           active_train = MergeTrain.active.where(epic_id: epic.id).where.not(integration_branch: nil).order(:id).last
@@ -298,7 +299,7 @@ module Api
             dependents: epic.dependent_links.includes(epic: :repository).order(:epic_id).map do |dependency|
               dependency_epic_json(dependency.epic)
             end,
-            jobs: jobs.map { |job| job_json(job) },
+            jobs: jobs.map { |job| job_json(job, deployment_stages_plan: deployment_stages_plan) },
             versions: epic.versions.includes(:user).order(created_at: :desc, id: :desc).map { |version| version_json(version) },
             paths: {
               dashboard_epics_path: dashboard_epics_path,
@@ -405,7 +406,7 @@ module Api
           }
         end
 
-        def job_json(job)
+        def job_json(job, deployment_stages_plan:)
           label = if job.direct?
             "Direct"
           elsif job.issue_number.present?
@@ -414,13 +415,14 @@ module Api
             job.slug
           end
 
-          {
+          result = {
             id: job.id,
             slug: job.slug,
             label: label,
             title: job.issue_title.to_s,
             path: job_path(job),
             state: job_summary_state(job),
+            landed: job.landed_sha.present?,
             pr_number: job.pr_number,
             pr_url: ::App::Presentation.job_pr_url(job),
             owner_user_id: job.owner_user_id,
@@ -429,6 +431,8 @@ module Api
             branch_name: job.branch_name.to_s,
             depends_on_job_ids: job.dependencies.filter_map(&:depends_on_job_id)
           }
+          stages = ::App::DeploymentStagesPayload.for_job(job, plan: deployment_stages_plan)
+          stages ? result.merge(deployment_stages: stages) : result
         end
 
         def repository_json(repository)
