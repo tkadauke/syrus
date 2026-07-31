@@ -124,17 +124,43 @@ Source fields:
 ## Landing Throughput
 
 `landing.landing_units` counts successful landing Workflows. A single
-`auto_merge` Workflow is one landing unit; a successful `merge_train`
-Workflow is also one landing unit.
+`auto_merge` Workflow is one landing unit; a successful `MergeTrain` row is
+also one landing unit. Merge trains are counted from `merge_trains` so the
+unit and its member count survive even when the associated Workflow is not the
+best source of train shape.
 
-`landing.jobs_landed` counts Jobs closed in the window with `closure_reason` `pr_merged` or `external_pr_merged`.
+`landing.jobs_landed` counts Jobs landed by successful landing units. A clean
+auto-merge contributes one Job; a merge train contributes its member count.
 
-`landing.merge_train_size` reports member counts for successful `MergeTrain` records in the window.
+`landing.attempts` separates successful, failed, cancelled, and deferred
+landing attempts. Deferred attempts are cancelled landing attempts where the
+Job remains approved and will re-enter the landing queue.
+
+`landing.unit_types` splits successful units into `auto_merge` and
+`merge_train`, with both landing-unit and jobs-landed counts.
+
+`landing.merge_train_size` reports member counts for successful `MergeTrain`
+records in the window.
 
 Latency definitions:
 
 - `approved_to_landing_latency_seconds` - `successful landing workflow.started_at - jobs.approved_at`
 - `landing_start_to_closed_latency_seconds` - `jobs.finished_at - successful landing workflow.started_at`
+- `grader_phase_duration_seconds` - first landing grader step start through
+  last landing grader step finish.
+- `mergeability_rebase_wait_seconds` - mergeability preflight and landing
+  rebase step time where those steps exist.
+
+Other landing signals:
+
+- `base_moved_regrade_count` - landing units that needed a merge-train
+  base-moved regrade/rebase path.
+- `reused_landing_validation_count` - attempts where cached landing
+  validation skipped the redundant pre-merge grade path.
+- `current_optimistic_capacity` - a recent estimate from successful landing
+  unit wall time over the trailing 7 days. It includes sample count,
+  confidence, average successful unit wall time, estimated landing units/hour,
+  estimated jobs landed/hour, and average jobs per landing unit.
 
 Source fields:
 
@@ -145,7 +171,12 @@ Source fields:
 - `jobs.approved_at`
 - `jobs.finished_at`
 - `jobs.closure_reason`
+- `steps.kind`
+- `steps.started_at`
+- `steps.finished_at`
+- `steps.cancellation_reason`
 - `merge_trains.finished_at`
+- `merge_trains.failure_reason`
 - `merge_train_members`
 
 ## Landing Waste
@@ -155,10 +186,16 @@ Landing waste separates failed attempts from successful landing latency.
 Fields:
 
 - `failed_landing_attempts_per_successful_landing` - failed or cancelled
-  landing Workflows divided by succeeded landing Workflows.
+  landing units divided by succeeded landing units.
 - `failed_or_cancelled_landing_workflow_seconds` - duration spent in failed or
   cancelled `auto_merge` and `merge_train` Workflows.
-- `failed_or_cancelled_landing_workflow_count` - count of those failed or cancelled landing Workflows.
+- `failed_or_cancelled_landing_workflow_count` - count of failed or cancelled landing attempts.
+- `deferred_landing_attempt_count` - cancelled landing attempts that preserved
+  approval and returned to the queue.
+- `failed_train_cooldown_seconds` - configured cooldown time attached to
+  failed merge trains in the window, excluding stale-base rebuild failures.
+- `failed_train_cooldown_remaining_seconds` - current remaining cooldown for
+  those failed merge trains.
 - `rebase_churn_workflow_count` - count of `rebase` and `stack_rebase` Workflows in the window.
 - `rebase_churn_seconds` - duration of `rebase` and `stack_rebase` Workflows in the window.
 - `landing_blocking_rebase_count` - failed or cancelled rebase/stack-rebase Workflows, treated as landing blockers.

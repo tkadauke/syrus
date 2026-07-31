@@ -616,12 +616,20 @@ Repository throughput metrics use a versioned contract derived from
 existing Syrus records before adding rollup persistence. Each repository
 window reports counts, per-hour rates, sample counts, and confidence labels
 for PR creation, committed output, landing throughput, landing waste, and
-the review funnel.
+the review funnel. Landing throughput treats a single auto-merge as one
+landing unit with one Job and an Epic merge train as one landing unit with
+its full member count, so operators can compare landing units/hour with Jobs
+landed/hour.
 
 The canonical windows are 1h, 4h, 24h, and 7d, plus a one-hour
 last-active fallback when recent activity is sparse. Low-sample windows are
 labelled instead of treated as stable averages, so operators can distinguish
 "nothing happened recently" from "the repository is slow."
+
+Landing windows also separate successful, failed, cancelled, and deferred
+attempts; report grader-phase time, mergeability/rebase wait, base-moved
+regrades, cached validation reuse, failed train cooldown waste, and a current
+optimistic capacity estimate from recent successful landing-unit wall time.
 
 ## Repository Automation
 

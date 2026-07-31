@@ -11,7 +11,8 @@ RSpec.describe RepositoryThroughputMetricContract do
     state: "succeeded",
     started_at: now - 10.minutes,
     finished_at: now - 5.minutes,
-    created_at: nil
+    created_at: nil,
+    artifacts: nil
   )
     Workflow.create!(
       job: job,
@@ -21,7 +22,8 @@ RSpec.describe RepositoryThroughputMetricContract do
       state: state,
       started_at: started_at,
       finished_at: finished_at,
-      created_at: created_at || started_at
+      created_at: created_at || started_at,
+      artifacts: artifacts
     )
   end
 
@@ -167,7 +169,7 @@ RSpec.describe RepositoryThroughputMetricContract do
     )
   end
 
-  it "defines landing throughput, merge-train size, latency, and landing waste" do
+  it "defines landing throughput, merge-train size, latency, and landing waste for clean auto-merge and trains" do
     approved_at = now - 50.minutes
     landing_started_at = now - 20.minutes
     closed_at = now - 5.minutes
@@ -211,18 +213,119 @@ RSpec.describe RepositoryThroughputMetricContract do
 
     window = call.fetch(:windows).fetch("1h")
 
-    expect(window.dig(:landing, :landing_units)).to include(count: 1, per_hour: 1.0)
-    expect(window.dig(:landing, :jobs_landed)).to include(count: 1, per_hour: 1.0)
+    expect(window.dig(:landing, :landing_units)).to include(count: 2, per_hour: 2.0)
+    expect(window.dig(:landing, :jobs_landed)).to include(count: 4, per_hour: 4.0)
+    expect(window.dig(:landing, :attempts, :successful)).to include(count: 2)
+    expect(window.dig(:landing, :unit_types, :auto_merge)).to include(landing_units: 1, jobs_landed: 1)
+    expect(window.dig(:landing, :unit_types, :merge_train)).to include(landing_units: 1, jobs_landed: 3)
     expect(window.dig(:landing, :merge_train_size)).to include(sample_count: 1, average: 3, max: 3, values: [ 3 ])
     expect(window.dig(:landing, :approved_to_landing_latency_seconds))
       .to include(sample_count: 1, average: 30.minutes.to_i)
     expect(window.dig(:landing, :landing_start_to_closed_latency_seconds))
       .to include(sample_count: 1, average: 15.minutes.to_i)
     expect(window.dig(:landing_waste, :failed_landing_attempts_per_successful_landing))
-      .to include(numerator: 1, denominator: 1, value: 1.0)
+      .to include(numerator: 1, denominator: 2, value: 0.5)
     expect(window.dig(:landing_waste, :failed_or_cancelled_landing_workflow_seconds)).to eq(5.minutes.to_i)
     expect(window.dig(:landing_waste, :rebase_churn_workflow_count)).to eq(1)
     expect(window.dig(:landing_waste, :landing_blocking_rebase_count)).to eq(1)
+    expect(window.dig(:landing, :current_optimistic_capacity)).to include(
+      sample_count: 1,
+      average_successful_unit_wall_time_seconds: 15.minutes.to_i,
+      estimated_landing_units_per_hour: 4.0,
+      estimated_jobs_landed_per_hour: 4.0
+    )
+  end
+
+  it "measures landing grader phase duration from landing workflow step timings" do
+    job = Factories.job_record(user: user, repository: repository, state: "closed", pr_number: 124, finished_at: now - 5.minutes, closure_reason: "pr_merged")
+    workflow = workflow_for(job, trigger_kind: "auto_merge", started_at: now - 30.minutes, finished_at: now - 5.minutes)
+    step_for(workflow, kind: "mergeability_preflight", started_at: now - 30.minutes, finished_at: now - 28.minutes, position: 0)
+    step_for(workflow, kind: "grader_fanout", started_at: now - 22.minutes, finished_at: now - 21.minutes, position: 1)
+    step_for(workflow, kind: "grader", started_at: now - 21.minutes, finished_at: now - 11.minutes, position: 2)
+    step_for(workflow, kind: "grader_collect", started_at: now - 11.minutes, finished_at: now - 10.minutes, position: 3)
+
+    landing = call.fetch(:windows).fetch("1h").fetch(:landing)
+
+    expect(landing.fetch(:grader_phase_duration_seconds)).to include(sample_count: 1, average: 12.minutes.to_i)
+    expect(landing.fetch(:mergeability_rebase_wait_seconds)).to include(sample_count: 1, average: 2.minutes.to_i)
+  end
+
+  it "counts merge-train base-moved regrade attempts without marking them as failed cooldown waste" do
+    epic = Factories.epic(user: user, repository: repository)
+    train = MergeTrain.create!(
+      epic: epic,
+      repository: repository,
+      base_branch: "main",
+      state: "failed",
+      failure_reason: "merge_train: base moved from old to new; rebuild required",
+      finished_at: now - 10.minutes
+    )
+    member_job = Factories.job_record(user: user, repository: repository, state: "approved", issue_number: 301)
+    MergeTrainMember.create!(merge_train: train, job: member_job, position: 0)
+    workflow = workflow_for(
+      member_job,
+      trigger_kind: "merge_train",
+      state: "failed",
+      started_at: now - 25.minutes,
+      finished_at: now - 10.minutes,
+      artifacts: {
+        "merge_train_id" => train.id,
+        Steps::MergeTrainLand::STALE_BASE_ARTIFACT => {
+          "reason" => "base_moved",
+          "built_base_sha" => "old",
+          "current_base_sha" => "new"
+        }
+      }
+    )
+    step_for(workflow, kind: "merge_train_rebase", state: "failed", started_at: now - 12.minutes, finished_at: now - 10.minutes)
+
+    window = call.fetch(:windows).fetch("1h")
+
+    expect(window.dig(:landing, :attempts, :failed)).to include(count: 1)
+    expect(window.dig(:landing, :base_moved_regrade_count)).to eq(1)
+    expect(window.dig(:landing_waste, :failed_train_cooldown_seconds)).to eq(0)
+  end
+
+  it "reports failed train cooldown waste when a failed train is cooling down" do
+    epic = Factories.epic(user: user, repository: repository)
+    train = MergeTrain.create!(
+      epic: epic,
+      repository: repository,
+      base_branch: "main",
+      state: "failed",
+      failure_reason: "merge_train: integration conflict",
+      finished_at: now - 10.minutes
+    )
+    2.times do |index|
+      member_job = Factories.job_record(user: user, repository: repository, state: "implemented", issue_number: 310 + index)
+      MergeTrainMember.create!(merge_train: train, job: member_job, position: index)
+    end
+
+    waste = call.fetch(:windows).fetch("1h").fetch(:landing_waste)
+
+    expect(waste.fetch(:failed_or_cancelled_landing_workflow_count)).to eq(1)
+    expect(waste.fetch(:failed_train_cooldown_seconds)).to eq(30.minutes.to_i)
+    expect(waste.fetch(:failed_train_cooldown_remaining_seconds)).to eq(20.minutes.to_i)
+  end
+
+  it "counts skipped landing validation reuse as deferred attempt context" do
+    job = Factories.job_record(user: user, repository: repository, state: "approved", pr_number: 124)
+    workflow = workflow_for(
+      job,
+      trigger_kind: "auto_merge",
+      state: "cancelled",
+      started_at: now - 15.minutes,
+      finished_at: now - 10.minutes
+    )
+    step_for(workflow, kind: "prepare", state: "cancelled", started_at: nil, finished_at: now - 10.minutes).tap do |step|
+      step.update!(cancellation_reason: "landing_validation_cached")
+    end
+
+    window = call.fetch(:windows).fetch("1h")
+
+    expect(window.dig(:landing, :attempts, :cancelled)).to include(count: 1)
+    expect(window.dig(:landing, :attempts, :deferred)).to include(count: 1)
+    expect(window.dig(:landing, :reused_landing_validation_count)).to eq(1)
   end
 
   it "defines the review funnel from feedback comments, feedback workflows, and approvals" do

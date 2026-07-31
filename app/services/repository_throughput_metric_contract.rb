@@ -14,6 +14,12 @@ class RepositoryThroughputMetricContract
   ].freeze
   LANDING_TRIGGER_KINDS = %w[ auto_merge merge_train ].freeze
   REBASE_TRIGGER_KINDS = %w[ rebase stack_rebase ].freeze
+  LANDING_GRADER_STEP_KINDS = %w[ grader_fanout grader grader_collect ].freeze
+  MERGEABILITY_REBASE_WAIT_STEP_KINDS = %w[
+    mergeability_preflight merge_train_rebase auto_rebase agent_rebase
+    stack_auto_rebase stack_agent_rebase
+  ].freeze
+  LANDING_VALIDATION_CACHED_REASON = "landing_validation_cached".freeze
 
   def initialize(repository:, now: Time.current)
     @repository = repository
@@ -44,9 +50,11 @@ class RepositoryThroughputMetricContract
     jobs = jobs_in(range)
     pr_creation = pr_creation_for(range, hours)
     landed_jobs = landed_jobs_in(range)
-    landing_workflows = workflows_in(range, trigger_kinds: LANDING_TRIGGER_KINDS)
-    failed_landing_workflows = landing_workflows.select { |workflow| failed_or_cancelled?(workflow) }
-    successful_landing_workflows = landing_workflows.select(&:succeeded?)
+    landing_attempts = landing_attempts_in(range)
+    successful_landing_attempts = landing_attempts.select(&:successful?)
+    failed_landing_attempts = landing_attempts.select(&:failed?)
+    cancelled_landing_attempts = landing_attempts.select(&:cancelled?)
+    deferred_landing_attempts = landing_attempts.select(&:deferred?)
     rebase_workflows = workflows_in(range, trigger_kinds: REBASE_TRIGGER_KINDS)
     output = output_for(range)
     feedback = feedback_for(range)
@@ -68,22 +76,36 @@ class RepositoryThroughputMetricContract
       },
       landing: {
         landing_units: rate_payload(
-          successful_landing_workflows.size,
+          successful_landing_attempts.size,
           hours,
-          sample_count: successful_landing_workflows.size
+          sample_count: successful_landing_attempts.size
         ),
-        jobs_landed: rate_payload(landed_jobs.size, hours, sample_count: landed_jobs.size),
-        merge_train_size: merge_train_size_payload(range),
-        approved_to_landing_latency_seconds: duration_payload(approved_to_landing_latencies(landed_jobs)),
-        landing_start_to_closed_latency_seconds: duration_payload(landing_start_to_closed_latencies(landed_jobs))
+        jobs_landed: rate_payload(
+          successful_landing_attempts.sum(&:job_count),
+          hours,
+          sample_count: successful_landing_attempts.sum(&:job_count)
+        ),
+        attempts: landing_attempt_payload(landing_attempts, hours),
+        unit_types: landing_unit_type_payload(successful_landing_attempts),
+        merge_train_size: merge_train_size_payload(successful_landing_attempts),
+        approved_to_landing_latency_seconds: duration_payload(approved_to_landing_latencies_for_attempts(successful_landing_attempts)),
+        landing_start_to_closed_latency_seconds: duration_payload(landing_start_to_closed_latencies_for_attempts(successful_landing_attempts)),
+        grader_phase_duration_seconds: duration_payload(landing_attempts.filter_map(&:grader_phase_seconds)),
+        mergeability_rebase_wait_seconds: duration_payload(landing_attempts.filter_map(&:mergeability_rebase_wait_seconds)),
+        base_moved_regrade_count: landing_attempts.count(&:base_moved_regrade?),
+        reused_landing_validation_count: landing_attempts.count(&:reused_landing_validation?),
+        current_optimistic_capacity: optimistic_capacity_payload
       },
       landing_waste: {
         failed_landing_attempts_per_successful_landing: ratio_payload(
-          failed_landing_workflows.size,
-          successful_landing_workflows.size
+          failed_landing_attempts.size + cancelled_landing_attempts.size,
+          successful_landing_attempts.size
         ),
-        failed_or_cancelled_landing_workflow_seconds: duration_sum(failed_landing_workflows),
-        failed_or_cancelled_landing_workflow_count: failed_landing_workflows.size,
+        failed_or_cancelled_landing_workflow_seconds: duration_sum((failed_landing_attempts + cancelled_landing_attempts).filter_map(&:workflow)),
+        failed_or_cancelled_landing_workflow_count: failed_landing_attempts.size + cancelled_landing_attempts.size,
+        deferred_landing_attempt_count: deferred_landing_attempts.size,
+        failed_train_cooldown_seconds: failed_train_cooldown_seconds(landing_attempts),
+        failed_train_cooldown_remaining_seconds: failed_train_cooldown_remaining_seconds(landing_attempts),
         rebase_churn_workflow_count: rebase_workflows.size,
         rebase_churn_seconds: duration_sum(rebase_workflows),
         landing_blocking_rebase_count: rebase_workflows.count { |workflow| failed_or_cancelled?(workflow) }
@@ -102,8 +124,9 @@ class RepositoryThroughputMetricContract
         jobs_seen: jobs.size,
         prs_opened: pr_creation[:total_observed_count],
         output_runs_with_diffs: output[:diff_sample_count],
-        landed_jobs: landed_jobs.size,
-        landing_workflows: landing_workflows.size,
+        landed_jobs: successful_landing_attempts.sum(&:job_count),
+        landing_workflows: landing_attempts.count(&:workflow),
+        landing_units: successful_landing_attempts.size,
         approvals: approvals.size,
         approval_votes: approval_vote_count,
         feedback_comments: feedback[:comment_count]
@@ -164,12 +187,112 @@ class RepositoryThroughputMetricContract
       .to_a
   end
 
+  LandingAttempt = Struct.new(
+    :unit_type,
+    :state,
+    :workflow,
+    :train,
+    :jobs,
+    keyword_init: true
+  ) do
+    def successful? = state == "succeeded"
+    def failed? = state == "failed"
+    def cancelled? = state == "cancelled"
+    def deferred? = cancelled? && jobs.any? { |job| job.state == "approved" }
+    def job_count = merge_train? ? jobs.size : 1
+    def merge_train? = unit_type == "merge_train"
+
+    def started_at
+      candidate = workflow&.started_at || train&.created_at
+      return candidate unless candidate && finished_at
+
+      candidate <= finished_at ? candidate : nil
+    end
+
+    def finished_at
+      workflow&.finished_at || train&.finished_at
+    end
+
+    def wall_time_seconds
+      return unless started_at && finished_at
+
+      finished_at - started_at
+    end
+
+    def grader_phase_seconds
+      duration_for_step_kinds(LANDING_GRADER_STEP_KINDS)
+    end
+
+    def mergeability_rebase_wait_seconds
+      duration_for_step_kinds(MERGEABILITY_REBASE_WAIT_STEP_KINDS)
+    end
+
+    def base_moved_regrade?
+      return true if workflow&.artifact(Steps::MergeTrainLand::STALE_BASE_ARTIFACT).is_a?(Hash)
+
+      workflow&.steps&.any? { |step| step.kind == "merge_train_rebase" } || false
+    end
+
+    def reused_landing_validation?
+      workflow&.steps&.any? { |step| step.cancellation_reason == LANDING_VALIDATION_CACHED_REASON } || false
+    end
+
+    private
+
+    def duration_for_step_kinds(kinds)
+      matching_steps = workflow&.steps&.select { |step| kinds.include?(step.kind) } || []
+      started = matching_steps.filter_map(&:started_at).min
+      finished = matching_steps.filter_map(&:finished_at).max
+      return unless started && finished
+
+      finished - started
+    end
+  end
+  private_constant :LandingAttempt
+
   def workflows_in(range, trigger_kinds:)
     Workflow.joins(:job)
       .where(jobs: { repository_id: repository.id })
       .where(trigger_kind: trigger_kinds)
       .where(finished_at: range)
+      .includes(:steps, :job)
       .to_a
+  end
+
+  def landing_attempts_in(range)
+    auto_merge_attempts = workflows_in(range, trigger_kinds: [ "auto_merge" ]).map do |workflow|
+      LandingAttempt.new(
+        unit_type: "auto_merge",
+        state: workflow.state,
+        workflow: workflow,
+        jobs: [ workflow.job ]
+      )
+    end
+
+    train_workflows_by_train_id = Workflow.joins(:job)
+      .where(jobs: { repository_id: repository.id })
+      .where(trigger_kind: "merge_train")
+      .where(finished_at: range)
+      .includes(:steps, :job)
+      .to_a
+      .filter_map { |workflow| [ workflow.artifact("merge_train_id").to_i, workflow ] if workflow.artifact("merge_train_id").present? }
+      .to_h
+
+    train_attempts = MergeTrain
+      .where(repository_id: repository.id, finished_at: range)
+      .where(state: %w[ succeeded failed cancelled ])
+      .includes(members: :job)
+      .map do |train|
+        LandingAttempt.new(
+          unit_type: "merge_train",
+          state: train.state,
+          workflow: train_workflows_by_train_id[train.id],
+          train: train,
+          jobs: train.members.map(&:job)
+        )
+      end
+
+    auto_merge_attempts + train_attempts
   end
 
   def output_for(range)
@@ -286,6 +409,29 @@ class RepositoryThroughputMetricContract
     end
   end
 
+  def approved_to_landing_latencies_for_attempts(attempts)
+    attempts.flat_map do |attempt|
+      attempt.jobs.filter_map do |job|
+        next unless attempt.started_at && job.approved_at
+        next if attempt.started_at < job.approved_at
+
+        attempt.started_at - job.approved_at
+      end
+    end
+  end
+
+  def landing_start_to_closed_latencies_for_attempts(attempts)
+    attempts.flat_map do |attempt|
+      attempt.jobs.filter_map do |job|
+        closed_at = job.finished_at || attempt.finished_at
+        next unless attempt.started_at && closed_at
+        next if closed_at < attempt.started_at
+
+        closed_at - attempt.started_at
+      end
+    end
+  end
+
   def pr_opened_at(job)
     job.workflows
       .flat_map(&:steps)
@@ -301,12 +447,32 @@ class RepositoryThroughputMetricContract
       .min
   end
 
-  def merge_train_size_payload(range)
-    trains = MergeTrain
-      .where(repository_id: repository.id, finished_at: range, state: "succeeded")
-      .includes(:members)
-      .to_a
-    sizes = trains.map { |train| train.members.size }
+  def landing_attempt_payload(attempts, hours)
+    {
+      total_count: attempts.size,
+      successful: rate_payload(attempts.count(&:successful?), hours, sample_count: attempts.count(&:successful?)),
+      failed: rate_payload(attempts.count(&:failed?), hours, sample_count: attempts.count(&:failed?)),
+      cancelled: rate_payload(attempts.count(&:cancelled?), hours, sample_count: attempts.count(&:cancelled?)),
+      deferred: rate_payload(attempts.count(&:deferred?), hours, sample_count: attempts.count(&:deferred?))
+    }
+  end
+
+  def landing_unit_type_payload(successful_attempts)
+    grouped = successful_attempts.group_by(&:unit_type)
+    {
+      auto_merge: {
+        landing_units: grouped.fetch("auto_merge", []).size,
+        jobs_landed: grouped.fetch("auto_merge", []).sum(&:job_count)
+      },
+      merge_train: {
+        landing_units: grouped.fetch("merge_train", []).size,
+        jobs_landed: grouped.fetch("merge_train", []).sum(&:job_count)
+      }
+    }
+  end
+
+  def merge_train_size_payload(successful_attempts)
+    sizes = successful_attempts.select(&:merge_train?).map(&:job_count)
     {
       sample_count: sizes.size,
       confidence: confidence_for(sizes.size),
@@ -314,6 +480,46 @@ class RepositoryThroughputMetricContract
       max: sizes.max,
       values: sizes
     }
+  end
+
+  def optimistic_capacity_payload
+    attempts = landing_attempts_in((now - 7.days)..now).select(&:successful?)
+    timed_attempts = attempts.select { |attempt| attempt.wall_time_seconds&.positive? }
+    wall_times = timed_attempts.map(&:wall_time_seconds)
+    average_seconds = average(wall_times)
+    units_per_hour = average_seconds ? (1.hour.to_f / average_seconds).round(4) : 0.0
+    average_jobs_per_unit = timed_attempts.empty? ? nil : (timed_attempts.sum(&:job_count).to_f / timed_attempts.size).round(4)
+
+    {
+      sample_count: wall_times.size,
+      confidence: confidence_for(wall_times.size),
+      average_successful_unit_wall_time_seconds: average_seconds,
+      estimated_landing_units_per_hour: units_per_hour,
+      estimated_jobs_landed_per_hour: average_jobs_per_unit ? (units_per_hour * average_jobs_per_unit).round(4) : 0.0,
+      average_jobs_per_landing_unit: average_jobs_per_unit
+    }
+  end
+
+  def failed_train_cooldown_seconds(attempts)
+    attempts
+      .select { |attempt| failed_train_with_cooldown?(attempt) }
+      .sum { MergeTrainDispatcher::RETRY_COOLDOWN.to_i }
+  end
+
+  def failed_train_cooldown_remaining_seconds(attempts)
+    attempts
+      .select { |attempt| failed_train_with_cooldown?(attempt) }
+      .sum do |attempt|
+        next 0 unless attempt.finished_at
+
+        [ attempt.finished_at + MergeTrainDispatcher::RETRY_COOLDOWN - now, 0 ].max
+      end.round
+  end
+
+  def failed_train_with_cooldown?(attempt)
+    attempt.merge_train? &&
+      attempt.failed? &&
+      !LandingFailureHandler.stale_merge_train_base?(attempt.train&.failure_reason)
   end
 
   def rate_payload(count, hours, sample_count:)
