@@ -480,6 +480,38 @@ module WorkEngine
         end
       end
 
+      class UnambiguousJobStateDrift < Base
+        def plan
+          automatic_plan(
+            "reconcile_job_state",
+            primary_job,
+            "The latest Workflow makes the correct Job state unambiguous, so the reconciler can apply the same transition plan as the legacy Job-state reconciler.",
+            execution_steps: [ "ReconcileJobStatesJob::Plan.apply!" ],
+            preconditions: {
+              job_state: issue.evidence["job_state"],
+              target_state: issue.evidence["target_state"],
+              latest_workflow_state: issue.evidence["latest_workflow_state"]
+            }
+          )
+        end
+      end
+
+      class CompletedMainGraderJob < Base
+        def plan
+          automatic_plan(
+            "close_completed_main_grader_job",
+            primary_job,
+            "Completed main-grader Jobs are operational health checks and can be closed once their latest Workflow is terminal or the Job is implemented.",
+            execution_steps: [ "Job#close_with_reason!" ],
+            preconditions: {
+              job_kind: "main_grader",
+              closure_reason: issue.evidence["closure_reason"],
+              latest_workflow_state: issue.evidence["latest_workflow_state"]
+            }
+          )
+        end
+      end
+
       class DependencyStackStartBlock < Base
         def plan
           waiting_plan(

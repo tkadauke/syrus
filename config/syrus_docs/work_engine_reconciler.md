@@ -2,21 +2,24 @@
 
 `WorkEngine::Reconciler` is the unified work-state consistency classifier and
 repair planner used by the `unified_work_engine_reconciler` operations feature
-flag. The current foundation is read-only: it snapshots evidence and returns
-structured issue records plus repair plans. It does not mutate Jobs,
-Workflows, Steps, Runs, queue rows, process rows, workspaces, or retry state.
+flag. Diagnostic calls are read-only by default: they snapshot evidence and
+return structured issue records plus repair plans. The feature-gated recurring
+repair path invokes the same reconciler with repair execution enabled, and it
+executes only plans marked `auto_executable`.
 
 ## Result shape
 
-`WorkEngine::Reconciler.call(source:, job_id: nil, workflow_id: nil, run_id: nil)`
-returns a `WorkEngine::Reconciler::Result` with:
+`WorkEngine::Reconciler.call(source:, job_id: nil, workflow_id: nil, run_id: nil,
+execute_repairs: false)` returns a `WorkEngine::Reconciler::Result` with:
 
 - `source` and `captured_at`
 - `snapshot` containing scoped Job, Workflow, Step, Run, SolidQueue,
   SpawnedProcess, worker heartbeat, workspace, main-health, and rate-limit
   evidence
 - `issues`, an array of structured issue records
-- `repair_plans`, an array of side-effect-free plans for a later executor
+- `repair_plans`, an array of plans
+- `repair_executions`, an array of applied/skipped/failed executor results when
+  `execute_repairs: true`
 
 Each issue record includes:
 
@@ -44,9 +47,16 @@ Each repair plan includes:
 - `check_after`
 - `reason`
 
+Each repair execution includes:
+
+- `action`
+- `target_type` and `target_id`
+- `status` (`applied`, `skipped`, or `failed`)
+- `message`
+
 ## Classified issue families
 
-The read-only classifier currently emits these families:
+The classifier currently emits these families:
 
 - `queued_run_without_queue_claim`
 - `queued_run_stale_queue_claim`
@@ -54,6 +64,8 @@ The read-only classifier currently emits these families:
 - `queued_workflow_without_first_run`
 - `running_workflow_without_active_descendants`
 - `job_workflow_state_drift`
+- `unambiguous_job_state_drift`
+- `completed_main_grader_job`
 - `dependency_stack_start_block`
 - `main_health_start_block`
 - `resource_congestion`
@@ -65,7 +77,8 @@ The read-only classifier currently emits these families:
 - `nonretryable_semantic_git_failure`
 
 `safe_to_auto_repair` only describes whether the repair planner may choose an
-automatic action. The classifier and planner are intentionally side-effect free.
+automatic action. The classifier and planner are side-effect free; mutations are
+centralized in `WorkEngine::RepairExecutor`.
 
 ## Repair planning policy
 
@@ -93,3 +106,23 @@ Planner examples:
   unless an existing safe rebuild path is declared, such as merge-train rebuild.
 - Main-health, dependency, stack, and capacity blocks return waiting plans, not
   failed retries.
+
+## Repair execution
+
+`WorkEngine::ReconcileJob` calls the reconciler with `execute_repairs: true`
+when the feature flag is enabled and legacy fixers defer to it. The executor:
+
+- skips every plan that is not marked `auto_executable`
+- re-checks local preconditions immediately before mutating
+- appends system `JobLog` audit entries before and after each action when a Run
+  is available
+- records direct state transitions with `StateTransition.with_source("reconciler")`
+- schedules retry, resume, failed-step, and workflow recovery through
+  `AutoRetryAttempt` and `AutoRetryJob` instead of bypassing the retry ledger
+
+Current automatic repairs include re-enqueueing queued Runs with no queue claim,
+starting queued Workflows whose first Step has no Run when readiness gates pass,
+marking dead running Runs as `worker_died` and scheduling the planned retry path,
+retrying or resuming safe failed Runs, finishing running Workflows whose
+descendants are terminal, closing completed main-grader Jobs, and applying
+unambiguous Job state drift transitions through the legacy state plan.

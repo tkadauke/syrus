@@ -70,7 +70,8 @@ manual admin reap action defer to `WorkEngine::Reconciler` through
 `WorkEngine::ReconcileJob` instead, so unified reconciliation is the single
 authority for classifying and repairing split-brain work state.
 
-The current reconciler layer is read-only. It returns structured issue records
-with `kind`, `severity`, evidence, affected ids, repair safety, recommended
-action, retry/check timing, and an operator-facing explanation. See
-`work_engine_reconciler.md` for the issue families and result shape.
+Diagnostic reconciler calls remain read-only by default. The feature-gated
+recurring repair path executes only repair plans marked `auto_executable`, and
+audits each action to system logs plus `JobLog` when a Run is available. See
+`work_engine_reconciler.md` for the issue families, result shape, and execution
+contract.

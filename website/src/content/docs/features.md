@@ -62,12 +62,14 @@ and defer to the unified work-engine reconciler. This makes the unified
 reconciler the single authority for classifying and repairing split-brain state
 across Jobs, Workflows, Steps, Runs, queue records, and worker processes.
 
-The first reconciler layer is read-only. It snapshots the scoped Job, Workflow,
-Step, Run, SolidQueue, SpawnedProcess, worker heartbeat, workspace,
-dependency/stack, main-health, and provider rate-limit signals, then returns
-structured issue records and repair plans with severity, evidence, affected ids,
-repair safety, retry/check timing, and an operator-facing explanation. Repair
-execution remains a separate rollout step.
+Diagnostic reconciler calls remain read-only. The feature-gated recurring
+repair path executes only plans marked safe for automatic repair, re-checks
+preconditions before mutating, and audits each action to system logs and the Job
+timeline when a Run is available. Safe repairs include re-enqueueing orphaned
+queued Runs, starting queued Workflows whose first Run was never created,
+marking dead running Runs as `worker_died`, scheduling retry or resume recovery,
+finishing terminal orphan Workflows, and repairing unambiguous Job/Workflow
+state drift.
 
 ## Coding Mode
 

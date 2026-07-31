@@ -20,6 +20,10 @@ RSpec.describe WorkEngine::Reconciler do
     described_class.call(source: "spec", **attrs)
   end
 
+  def reconcile_and_execute(**attrs)
+    described_class.call(source: "spec", execute_repairs: true, **attrs)
+  end
+
   def kind(result, name)
     result.issues.find { |issue| issue.kind == name.to_s }
   end
@@ -97,6 +101,23 @@ RSpec.describe WorkEngine::Reconciler do
       target_type: "Run",
       target_id: run.id,
       execution_steps: [ "Run#reenqueue!" ]
+    )
+  end
+
+  it "executes safe queued Run re-enqueue repairs when requested" do
+    ensure_solid_queue_test_tables!
+    run.update_columns(state: "queued", created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
+    workflow.update_columns(state: "running", started_at: 5.minutes.ago)
+
+    result = nil
+    expect {
+      result = reconcile_and_execute(run_id: run.id)
+    }.to have_enqueued_job(RunJob).with(run.id)
+
+    expect(result.repair_executions.map(&:status)).to include("applied")
+    expect(JobLog.where(run: run).pluck(:chunk)).to include(
+      match(/\[work-engine reconciler\] applying reenqueue_run/),
+      match(/\[work-engine reconciler\] applied reenqueue_run/)
     )
   end
 
@@ -295,6 +316,46 @@ RSpec.describe WorkEngine::Reconciler do
 
     expect(repair_plan).to have_attributes(auto_executable: true, target_type: "Workflow", target_id: workflow.id)
     expect(repair_plan.preconditions["step_repair_semantics"]).to eq("deterministic_idempotent")
+  end
+
+  it "executes safe retry plans through AutoRetryAttempt and AutoRetryJob" do
+    step.update_columns(kind: "grader", state: "failed", finished_at: Time.current)
+    workflow.update_columns(state: "failed", finished_at: Time.current, cleaned_up_at: nil)
+    run.update_columns(state: "failed", finished_at: Time.current)
+    RunFailureClassification.create!(
+      run: run,
+      classification: "timeout",
+      retryable: true,
+      confidence: 0.85,
+      reason: "grader timed out",
+      classified_at: Time.current
+    )
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
+
+    result = nil
+    expect {
+      result = reconcile_and_execute(run_id: run.id)
+    }.to change { AutoRetryAttempt.where(retry_kind: "failed_step").count }.by(1)
+      .and have_enqueued_job(AutoRetryJob)
+
+    attempt = AutoRetryAttempt.last
+    expect(attempt).to have_attributes(workflow: workflow, run: run, failure_classification: "timeout")
+    expect(result.repair_executions.map(&:message)).to include(match(/scheduled failed_step auto-retry/))
+  end
+
+  it "executes unambiguous Job state drift repairs" do
+    run.update_columns(state: "succeeded", finished_at: Time.current)
+    step.update_columns(state: "succeeded", finished_at: Time.current)
+    workflow.update_columns(state: "succeeded", finished_at: Time.current)
+    job.update_columns(state: "running")
+
+    result = reconcile_and_execute(job_id: job.id)
+
+    expect(kind(result, :unambiguous_job_state_drift)).to be_present
+    expect(plan(result, :reconcile_job_state)).to have_attributes(auto_executable: true)
+    expect(job.reload.state).to eq("implemented")
+    expect(result.repair_executions.map(&:status)).to include("applied")
   end
 
   it "escalates retryable failures when the retry budget is exhausted" do

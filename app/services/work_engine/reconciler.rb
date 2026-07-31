@@ -90,7 +90,7 @@ module WorkEngine
       end
     end
 
-    Result = Data.define(:source, :captured_at, :snapshot, :issues, :repair_plans) do
+    Result = Data.define(:source, :captured_at, :snapshot, :issues, :repair_plans, :repair_executions) do
       def issue_kinds = issues.map(&:kind)
       def ok? = issues.empty?
 
@@ -100,7 +100,8 @@ module WorkEngine
           captured_at: captured_at.iso8601,
           snapshot: snapshot.as_json,
           issues: issues.map(&:as_json),
-          repair_plans: repair_plans.map(&:as_json)
+          repair_plans: repair_plans.map(&:as_json),
+          repair_executions: repair_executions.map(&:as_json)
         }
       end
     end
@@ -116,12 +117,13 @@ module WorkEngine
       )
     end
 
-    def initialize(source:, job_id: nil, workflow_id: nil, run_id: nil, now: Time.current)
+    def initialize(source:, job_id: nil, workflow_id: nil, run_id: nil, now: Time.current, execute_repairs: false)
       @source = source.to_s
       @job_id = job_id
       @workflow_id = workflow_id
       @run_id = run_id
       @now = now
+      @execute_repairs = execute_repairs
     end
 
     def call
@@ -136,6 +138,8 @@ module WorkEngine
       issues.concat(classify_running_runs)
       issues.concat(classify_workflows)
       issues.concat(classify_job_workflow_drift)
+      issues.concat(classify_unambiguous_job_state_drift)
+      issues.concat(classify_completed_main_grader_jobs)
       issues.concat(classify_start_blocks)
       issues.concat(classify_resource_congestion)
       issues.concat(classify_rate_limits)
@@ -144,18 +148,26 @@ module WorkEngine
       issues.concat(classify_retryable_failures)
       issues.concat(classify_nonretryable_failures)
 
-      result = Result.new(source: source, captured_at: now, snapshot: snapshot, issues: issues, repair_plans: [])
-      result.with(repair_plans: WorkEngine::RepairPlanner.call(result: result, now: now))
+      result = Result.new(source: source, captured_at: now, snapshot: snapshot, issues: issues, repair_plans: [], repair_executions: [])
+      repair_plans = WorkEngine::RepairPlanner.call(result: result, now: now)
+      result = result.with(repair_plans: repair_plans)
+      return result unless execute_repairs?
+
+      result.with(repair_executions: WorkEngine::RepairExecutor.call(result: result, now: now))
     ensure
       Rails.logger.info(
         "[WorkEngine::Reconciler] requested by #{source}" \
-        "#{context_description}; issues=#{issues&.size || 0}"
+        "#{context_description}; issues=#{issues&.size || 0}; execute_repairs=#{execute_repairs?}"
       )
     end
 
     private
 
     attr_reader :source, :job_id, :workflow_id, :run_id, :now, :jobs, :workflows, :runs, :steps, :solid_queue
+
+    def execute_repairs?
+      @execute_repairs
+    end
 
     def scoped_jobs
       if job_id.present?
@@ -287,6 +299,55 @@ module WorkEngine
           recommended_repair_action: "operator_review_state_transition",
           evidence: { job_state: job.state, active_workflow_states: active.map { |workflow| [ workflow.id, workflow.state ] } },
           explanation: "Job ##{job.id} is #{job.state} while it still has active Workflows."
+        )
+      end
+    end
+
+    def classify_unambiguous_job_state_drift
+      jobs.filter_map do |job|
+        next unless ReconcileJobStatesJob::RECONCILABLE_STATES.include?(job.state)
+        plan = ReconcileJobStatesJob::Plan.for(job)
+        next unless plan
+
+        issue(
+          kind: :unambiguous_job_state_drift,
+          severity: :warning,
+          affected_ids: ids_for(job).merge(workflow_ids: [ job.latest_workflow&.id ]),
+          safe_to_auto_repair: true,
+          recommended_repair_action: "reconcile_job_state",
+          evidence: {
+            job_state: plan.from_state,
+            target_state: plan.target_state,
+            latest_workflow_id: job.latest_workflow&.id,
+            latest_workflow_state: job.latest_workflow&.state,
+            reason: plan.reason
+          },
+          explanation: "Job ##{job.id} has unambiguous Workflow-derived state drift."
+        )
+      end
+    end
+
+    def classify_completed_main_grader_jobs
+      jobs.filter_map do |job|
+        next unless job.kind == "main_grader"
+        next if job.closed?
+
+        latest_workflow = job.latest_workflow
+        next unless job.implemented? || ReconcileJobStatesJob.new.terminal_workflow?(latest_workflow)
+
+        issue(
+          kind: :completed_main_grader_job,
+          severity: :info,
+          affected_ids: ids_for(job).merge(workflow_ids: [ latest_workflow&.id ]),
+          safe_to_auto_repair: true,
+          recommended_repair_action: "close_completed_main_grader_job",
+          evidence: {
+            job_state: job.state,
+            latest_workflow_id: latest_workflow&.id,
+            latest_workflow_state: latest_workflow&.state,
+            closure_reason: Job::MAIN_GRADER_CLOSURE_REASON
+          },
+          explanation: "Main grader Job ##{job.id} is complete and can be closed."
         )
       end
     end
