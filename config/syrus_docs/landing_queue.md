@@ -25,7 +25,9 @@ Refreshes GitHub's mergeability status for the PR. If GitHub is still computing 
 
 ### Grader re-validation
 
-Before merging, Syrus re-runs the full required grader suite on the exact PR branch being landed. If graders fail, `landing_fix` (an agentic repair step) attempts a fix, and graders re-run. This loop repeats up to `grade_max_iterations` times.
+Before merging, Syrus re-runs the full required grader suite on the exact PR branch being landed. In `auto_merge` and `merge_train` workflows, grader fanout is parallelized inside the single landing unit and capped by `AppSetting.max_concurrent_landing_grader_runs` (default `2`). Same-repo landing remains serialized; the cap only controls how many grader Runs from that one landing unit can occupy the `:merges` queue at once.
+
+If graders fail, `landing_fix` (an agentic repair step) attempts a fix, and graders re-run. This loop repeats up to `grade_max_iterations` times.
 
 ### push and auto_merge
 
