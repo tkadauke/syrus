@@ -92,6 +92,16 @@ module App
       }
     end
 
+    def job_provider_setting_options
+      Job::PROVIDER_SETTINGS.map do |setting|
+        {
+          value: setting,
+          label: setting == "default" ? "Default" : App::Presentation.agent_provider_label(setting),
+          configured: setting == "default" || @user.agent_provider_configured?(setting)
+        }
+      end
+    end
+
     def job_json
       {
         id: @job.id,
@@ -102,8 +112,10 @@ module App
         validity: @job.validity,
         triaging_reason: @job.triaging_reason,
         credential_mode: @job.credential_mode,
-        agent_provider: @job.agent_provider,
-        provider_availability: App::ProviderAvailability.for_user(@user, @job.agent_provider),
+        agent_provider: @job.workflow_agent_provider,
+        job_provider_setting: @job.job_provider_setting,
+        job_provider_setting_options: job_provider_setting_options,
+        provider_availability: App::ProviderAvailability.for_user(@user, @job.workflow_agent_provider),
         stack_base: @job.stack_base,
         parent_job_id: @job.parent_job_id,
         effective_base_branch: @job.effective_base_branch,
@@ -467,7 +479,8 @@ module App
         app_open_in_coding_mode_path: "/api/v1/app/jobs/#{@job.id}/open_in_coding_mode",
         app_open_in_local_mode_path: "/api/v1/app/jobs/#{@job.id}/open_in_local_mode",
         app_cancel_local_mode_path: "/api/v1/app/jobs/#{@job.id}/cancel_local_mode",
-        app_priority_path: "/api/v1/app/jobs/#{@job.id}/priority"
+        app_priority_path: "/api/v1/app/jobs/#{@job.id}/priority",
+        app_provider_setting_path: "/api/v1/app/jobs/#{@job.id}/provider_setting"
       }
     end
 

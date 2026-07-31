@@ -22,7 +22,6 @@ class RetryWorkflowEnqueuer
     return failure("That agent is not available for retry.") unless agent_provider_allowed?
     return circuit_failure if automatic? && provider_circuit.open?
 
-    job.switch_agent_provider!(agent_provider) if agent_provider.present?
     job.sync_skip_prepare_from_source!
     state_error = prepare_job_state_for_retry
     return failure(state_error) if state_error
@@ -60,7 +59,7 @@ class RetryWorkflowEnqueuer
   end
 
   def effective_agent_provider
-    agent_provider.presence || job.agent_provider
+    agent_provider.presence || job.workflow_agent_provider
   end
 
   def provider_circuit

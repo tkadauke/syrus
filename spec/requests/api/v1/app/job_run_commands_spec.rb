@@ -31,7 +31,8 @@ RSpec.describe "App API job run commands", type: :request do
     }.to have_enqueued_job(PollPullRequestJob).with(job.id, manual: true, agent_provider: "codex")
 
     expect(response).to have_http_status(:ok)
-    expect(job.reload.agent_provider).to eq("codex")
+    expect(job.reload.agent_provider).to eq("claude")
+    expect(job.job_provider_setting).to eq("default")
     expect(parse_body).to include("message" => "Checking PR feedback with Codex now...")
   end
 

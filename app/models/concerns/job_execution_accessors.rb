@@ -13,14 +13,7 @@ module JobExecutionAccessors
   end
 
   def alternate_configured_agent_providers
-    user.configured_agent_providers - [ agent_provider ]
-  end
-
-  def switch_agent_provider!(provider)
-    previous_provider = agent_provider
-    update!(agent_provider: provider)
-    App::ProviderAvailability.broadcast_changed(user: user, provider: previous_provider) if previous_provider.present? && previous_provider != provider
-    App::ProviderAvailability.broadcast_changed(user: user, provider: provider)
+    user.configured_agent_providers - [ workflow_agent_provider ]
   end
 
   # The very first Run — the one that created the branch and PR.

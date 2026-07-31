@@ -153,7 +153,7 @@ class PollForkReviewPrJob < ApplicationJob
     review_new = new_comments.select { |c| c.respond_to?(:path) && c.path.present? }
 
     user = @job.owner_user || @job.user
-    provider = @job.agent_provider
+    provider = @job.workflow_agent_provider
 
     issue_result = PrCommentIngester.call(
       job: @job, comments: issue_new, pr_type: "fork_review",

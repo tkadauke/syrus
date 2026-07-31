@@ -109,6 +109,32 @@ RSpec.describe "App API job detail", type: :request do
     )
   end
 
+  it "updates the job provider setting without rewriting existing workflow pins" do
+    user.update!(codex_auth_mode: "api_key", codex_api_key: "sk-test")
+    old_workflow = job.latest_workflow
+    old_workflow.update!(agent_provider: "claude")
+
+    patch "/api/v1/app/jobs/#{job.id}/provider_setting",
+      params: { job_provider_setting: "codex" },
+      as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(job.reload.job_provider_setting).to eq("codex")
+    expect(job.agent_provider).to eq("claude")
+    expect(old_workflow.reload.agent_provider).to eq("claude")
+    expect(parse_body.dig("job", "agent_provider")).to eq("codex")
+    expect(parse_body.dig("job", "job_provider_setting")).to eq("codex")
+  end
+
+  it "rejects unconfigured explicit job provider settings" do
+    patch "/api/v1/app/jobs/#{job.id}/provider_setting",
+      params: { job_provider_setting: "codex" },
+      as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(job.reload.job_provider_setting).to eq("default")
+  end
+
   it "hides jobs with active workflows from the app job list" do
     user.update!(api_token: "syrus_cli_token")
     idle = Factories.job_record(repository: repo, issue_number: 101, issue_title: "Ready", state: "implemented")

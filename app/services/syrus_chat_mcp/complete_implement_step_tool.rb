@@ -67,7 +67,7 @@ module SyrusChatMcp
         end
 
         workflow_class = chat_session.local? ? Workflows::LocalModeHandoff : Workflows::CodingHandoff
-        workflow = workflow_class.instantiate(job: job, agent_provider: job.agent_provider)
+        workflow = workflow_class.instantiate(job: job)
         StepDispatcher.start_workflow(workflow)
 
         SyrusChatMcp.success(

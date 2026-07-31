@@ -363,7 +363,7 @@ class PollPullRequestJob < ApplicationJob
     review_new = new_comments.select { |c| c.respond_to?(:path) && c.path.present? }
 
     user = @job.owner_user || @job.user
-    provider = @agent_provider.presence || @job.agent_provider
+    provider = @agent_provider.presence || @job.workflow_agent_provider
     pr_type = pr_type_for_job
 
     issue_result = PrCommentIngester.call(
@@ -461,7 +461,7 @@ class PollPullRequestJob < ApplicationJob
   def provider_circuit_open?(trigger_kind)
     return false if @manual
 
-    circuit = ProviderCircuitBreaker.call(@agent_provider.presence || @job.agent_provider)
+    circuit = ProviderCircuitBreaker.call(@agent_provider.presence || @job.workflow_agent_provider)
     return false unless circuit.open?
 
     Rails.logger.info(

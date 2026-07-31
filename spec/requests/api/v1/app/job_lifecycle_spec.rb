@@ -60,7 +60,8 @@ RSpec.describe "App API job lifecycle commands", type: :request do
     workflow = job.workflows.where(trigger_kind: "retry").last
     expect(response).to have_http_status(:ok)
     expect(parse_body).to include("message" => "Retry workflow enqueued with Codex.")
-    expect(job.reload.agent_provider).to eq("codex")
+    expect(job.reload.agent_provider).to eq("claude")
+    expect(job.job_provider_setting).to eq("default")
     expect(workflow.agent_provider).to eq("codex")
     expect(workflow.first_step.runs.last.agent_provider).to eq("codex")
   end

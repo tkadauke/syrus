@@ -63,6 +63,8 @@ export type JobRecord = {
   validity: string
   credential_mode: string | null
   agent_provider: string | null
+  job_provider_setting?: "default" | "claude" | "codex"
+  job_provider_setting_options?: Array<{ value: "default" | "claude" | "codex"; label: string; configured: boolean }>
   provider_availability?: ProviderAvailability
   stack_base: string
   issue_number: number | null
@@ -594,6 +596,7 @@ export type JobPaths = {
   app_open_in_local_mode_path: string
   app_cancel_local_mode_path: string
   app_priority_path: string
+  app_provider_setting_path?: string
 }
 
 export type JobDetailPayload = {
@@ -801,6 +804,10 @@ export function retryPendingFeedback(jobId: number, commentId: number) {
 
 export function updateJobPriority(path: string, priority: string) {
   return patchJson<JobDetailPayload>(path, { priority })
+}
+
+export function updateJobProviderSetting(path: string, jobProviderSetting: string) {
+  return patchJson<JobDetailPayload>(path, { job_provider_setting: jobProviderSetting })
 }
 
 export function createJobAttachments(path: string, values: { files: File[]; googleDocUrl: string }) {

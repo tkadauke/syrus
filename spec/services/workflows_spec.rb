@@ -260,8 +260,8 @@ RSpec.describe Workflows do
       )
     end
 
-    it "records the job's current agent provider on the workflow" do
-      job.update!(agent_provider: "codex")
+    it "records the job's future workflow provider on the workflow" do
+      job.update!(job_provider_setting: "codex")
       wf = Workflows::Initial.instantiate(job: job)
       expect(wf.agent_provider).to eq("codex")
     end

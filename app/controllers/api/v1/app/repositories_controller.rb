@@ -751,8 +751,9 @@ module Api
             id: job.id,
             issue_title: job.issue_title.to_s,
             issue_number: job.issue_number,
-            agent_provider: job.agent_provider,
-            provider_availability: ::App::ProviderAvailability.for_user(Current.user, job.agent_provider),
+            agent_provider: job.workflow_agent_provider,
+            job_provider_setting: job.job_provider_setting,
+            provider_availability: ::App::ProviderAvailability.for_user(Current.user, job.workflow_agent_provider),
             job_path: job_path(job),
             source: job_source_json(job),
             owner_user: job.owner_user ? owner_user_json(job.owner_user) : nil,
@@ -765,7 +766,7 @@ module Api
         end
 
         def continue_released_job_triage(job)
-          if job.issue? && job.triaging_reason_classifier_pending? && job.user.agent_provider_configured?(job.agent_provider)
+          if job.issue? && job.triaging_reason_classifier_pending? && job.user.agent_provider_configured?(job.workflow_agent_provider)
             ClassifyIssueJob.perform_later(job.id)
           elsif job.may_advance_after_triage?
             job.advance_after_triage!
@@ -831,8 +832,9 @@ module Api
             priority: job.priority,
             issue_number: job.issue_number,
             issue_title: job.issue_title.to_s,
-            agent_provider: job.agent_provider,
-            provider_availability: ::App::ProviderAvailability.for_user(Current.user, job.agent_provider),
+            agent_provider: job.workflow_agent_provider,
+            job_provider_setting: job.job_provider_setting,
+            provider_availability: ::App::ProviderAvailability.for_user(Current.user, job.workflow_agent_provider),
             job_path: job_path(job),
             source: job_source_json(job),
             pr_number: job.pr_number,

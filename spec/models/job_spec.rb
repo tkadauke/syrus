@@ -882,10 +882,10 @@ describe "running / failed lifecycle (new in this commit)" do
       expect(job.reload.retry_with_agent_providers).to be_empty
     end
 
-    it "uses the job's provider for alternate manual action choices" do
+    it "uses the job's future workflow provider for alternate manual action choices" do
       job.update!(agent_provider: "codex")
 
-      expect(job.alternate_configured_agent_providers).to eq([ "claude" ])
+      expect(job.alternate_configured_agent_providers).to eq([ "codex" ])
     end
   end
 

@@ -225,7 +225,7 @@ class PollRepositoryJob < ApplicationJob
   # restart. See ClassifyIssueJob + ReapClassifierPendingJob.
   def classify_if_available(job)
     return unless job.triaging? && job.triaging_reason_classifier_pending?
-    return unless job.user.agent_provider_configured?(job.agent_provider)
+    return unless job.user.agent_provider_configured?(job.workflow_agent_provider)
 
     ClassifyIssueJob.perform_later(job.id)
   end

@@ -173,7 +173,7 @@ module Api
             artifacts = original.artifacts.to_h.deep_dup
             artifacts["pr_feedback_iteration"] = job.workflows.where(trigger_kind: Workflow::TriggerKind.feedback_values).count + 1
             artifacts["pr_review_comment_ids"] = Array(artifacts["pr_review_comment_ids"]).map(&:to_i).presence || [ comment.id ]
-            workflow = Workflows::PrFeedback.instantiate(job: job, artifacts: artifacts, agent_provider: job.agent_provider)
+            workflow = Workflows::PrFeedback.instantiate(job: job, artifacts: artifacts)
             StepDispatcher.start_workflow(workflow)
             ChatFeedbackSubmission::Result.new(workflow: workflow, error: nil)
           else

@@ -75,6 +75,7 @@ module Api
             title_pending: title.blank?,
             issue_body: prompt_text,
             agent_provider: selected_agent_provider,
+            job_provider_setting: agent_provider || "default",
             priority: priority,
             state: Job.initial_state_for_creator(Current.user)
           )

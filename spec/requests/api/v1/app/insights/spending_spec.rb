@@ -104,6 +104,7 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
     repo = Factories.repository(user: user)
     claude_job = Factories.job(user: user, repository: repo, issue_number: 303, agent_provider: "claude")
     codex_job = Factories.job(user: user, repository: repo, issue_number: 404, agent_provider: "codex")
+    initial_run(codex_job).update!(agent_provider: "codex")
     set_run_cost(initial_run(claude_job), 0.40, created_at: Time.zone.parse("2026-06-02 12:00:00"))
     set_run_cost(initial_run(codex_job), 0.60, created_at: Time.zone.parse("2026-06-03 12:00:00"))
     ChatSession.create!(user: user, cumulative_cost_usd: 0.25)

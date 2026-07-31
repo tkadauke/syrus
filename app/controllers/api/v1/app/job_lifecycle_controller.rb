@@ -22,7 +22,7 @@ module Api
           end
 
           workflow = job.workflows.where(state: "queued", trigger_kind: "initial").order(:created_at).first ||
-                     Workflows::Initial.instantiate(job: job, agent_provider: job.agent_provider)
+                     Workflows::Initial.instantiate(job: job)
           rendered_prompt = Prompts::DirectJob.new(
             prompt: job.issue_body.to_s,
             epic: job.epic,
@@ -68,7 +68,8 @@ module Api
               issue_number: job.issue_number,
               skip_prepare: skip_prepare,
               kind: job.kind,
-              agent_provider: job.agent_provider
+              agent_provider: job.workflow_agent_provider,
+              job_provider_setting: job.job_provider_setting
             }
 
             if job.direct?
@@ -280,8 +281,9 @@ module Api
             id: job.id,
             state: job.state,
             closure_reason: job.closure_reason,
-            agent_provider: job.agent_provider,
-            provider_availability: ::App::ProviderAvailability.for_user(Current.user, job.agent_provider),
+              agent_provider: job.workflow_agent_provider,
+              job_provider_setting: job.job_provider_setting,
+              provider_availability: ::App::ProviderAvailability.for_user(Current.user, job.workflow_agent_provider),
             approved_at: job.approved_at&.iso8601,
             approved_via: job.approved_via,
             approved_by_user_id: job.approved_by_user_id,

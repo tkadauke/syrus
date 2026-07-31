@@ -24,6 +24,7 @@ class Job < ApplicationRecord
   TERMINAL_STATES = %w[ closed no_change_needed ].freeze
 
   PRIORITIES = %w[ urgent high medium low ].freeze
+  PROVIDER_SETTINGS = Job::ProviderSetting::Base.values.freeze
   STACK_BASES = %w[ auto main ].freeze
   VALIDITIES = %w[ valid duplicate already_implemented ].freeze
   TRIAGING_REASONS = %w[ classifier_pending pending_epic_ref classifier_uncertain ].freeze
@@ -88,6 +89,7 @@ class Job < ApplicationRecord
   validates :kind, presence: true, inclusion: { in: KINDS }
   validates :credential_mode, presence: true, inclusion: { in: CREDENTIAL_MODES }
   validates :priority, presence: true, inclusion: { in: PRIORITIES }
+  validates :job_provider_setting, presence: true, inclusion: { in: PROVIDER_SETTINGS }
   validates :stack_base, presence: true, inclusion: { in: STACK_BASES }
   validates :agent_provider, presence: true, inclusion: { in: User::AGENT_PROVIDERS }
   validates :validity, presence: true, inclusion: { in: VALIDITIES }
@@ -117,6 +119,7 @@ class Job < ApplicationRecord
   before_create :generate_slug
 
   enum :validity, VALIDITIES.index_with(&:itself), prefix: true, validate: true
+  enum :job_provider_setting, PROVIDER_SETTINGS.index_with(&:itself), prefix: true, validate: true
   enum :triaging_reason, TRIAGING_REASONS.index_with(&:itself), prefix: true, validate: true
   enum :stack_base, STACK_BASES.index_with(&:itself), prefix: true, validate: true
   enum :approved_via, APPROVAL_VIAS.index_with(&:itself), prefix: true, validate: { allow_nil: true }
@@ -504,6 +507,18 @@ class Job < ApplicationRecord
     target_repository || repository
   end
 
+  def workflow_agent_provider
+    Job::ProviderSetting::Base.for(job_provider_setting).resolve(self)
+  end
+
+  def switch_job_provider_setting!(setting)
+    previous_provider = workflow_agent_provider
+    update!(job_provider_setting: setting)
+    next_provider = workflow_agent_provider
+    App::ProviderAvailability.broadcast_changed(user: user, provider: previous_provider) if previous_provider.present? && previous_provider != next_provider
+    App::ProviderAvailability.broadcast_changed(user: user, provider: next_provider)
+  end
+
   def effective_pr_repository
     pr_repository || repository
   end
@@ -847,7 +862,7 @@ class Job < ApplicationRecord
   # phase is now its own attemptable step.
   def create_initial_run
     template = main_branch_repair? ? Workflows::MainBranchRepair : Workflows::Initial
-    workflow = template.instantiate(job: self, agent_provider: agent_provider)
+    workflow = template.instantiate(job: self)
     prompt = if direct?
       Prompts::DirectJob.new(
         prompt: issue_body.to_s,

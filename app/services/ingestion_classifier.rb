@@ -21,7 +21,7 @@ class IngestionClassifier
     @job = job
     @repository = job.repository
     @user = job.user
-    @agent = agent || OneShotAgent.new(user: @user, provider: job.agent_provider)
+    @agent = agent || OneShotAgent.new(user: @user, provider: job.workflow_agent_provider)
     @github_client = github_client
     @timeout = timeout
     @max_turns = max_turns

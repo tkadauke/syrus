@@ -13,7 +13,7 @@ import { Markdown } from "../lib/Markdown"
 import { translateBlockedReason } from "../lib/translateBlockedReason"
 import { workflowSlug } from "../lib/slugs"
 import { buttonClass } from "../lib/buttonClasses"
-import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobDetail, fetchJobTestResults, fetchJobWorkflows, ignorePendingFeedback, replacePendingFeedback, retryPendingFeedback, submitJobFeedback, updateJobPriority, type JobApprovalRecord, type JobApprovalStatus, type JobDeploymentStage, type JobDetailPayload, type JobTestCase, type JobTestPlan, type JobTestRun, type JobTestSuite, type JobWorkflow, type PendingFeedbackComment } from "../api/jobs"
+import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobDetail, fetchJobTestResults, fetchJobWorkflows, ignorePendingFeedback, replacePendingFeedback, retryPendingFeedback, submitJobFeedback, updateJobPriority, updateJobProviderSetting, type JobApprovalRecord, type JobApprovalStatus, type JobDeploymentStage, type JobDetailPayload, type JobTestCase, type JobTestPlan, type JobTestRun, type JobTestSuite, type JobWorkflow, type PendingFeedbackComment } from "../api/jobs"
 import { CoverageCard } from "../components/CoverageCard"
 import { ProviderAvailabilityWarning } from "../components/ProviderAvailabilityWarning"
 import { SyrusTour } from "../components/SyrusTour"
@@ -345,6 +345,7 @@ function SummaryTab({ payload, command, prefix, queryKey }: { payload: JobDetail
               <KeyValue label={t("detail_state")}><StatusPill state={payload.job.summary_state} /></KeyValue>
               <KeyValue label={t("detail_owner")}><JobOwnerLabel command={command} payload={payload} prefix={prefix} /></KeyValue>
               <KeyValue label={t("detail_priority")}><PrioritySelector currentPriority={payload.job.priority} priorityPath={payload.paths.app_priority_path} queryKey={queryKey} /></KeyValue>
+              <KeyValue label={t("detail_provider")}><JobProviderSelector payload={payload} providerPath={payload.paths.app_provider_setting_path || `/api/v1/app/jobs/${payload.job.id}/provider_setting`} queryKey={queryKey} /></KeyValue>
               <KeyValue label={t("detail_validity")}><span className="capitalize">{payload.job.validity}</span></KeyValue>
               {payload.epic ? <KeyValue label={t("detail_epic")}><EpicSummaryLink epic={payload.epic} prefix={prefix} /></KeyValue> : null}
               {payload.job.branch_name ? <KeyValue label={t("detail_branch")}><code className="break-all">{payload.job.branch_name}</code></KeyValue> : null}
@@ -429,6 +430,57 @@ function PrioritySelector({ currentPriority, priorityPath, queryKey }: { current
       {showConfirm ? <UrgentConfirmDialog onCancel={handleCancel} onConfirm={handleConfirm} /> : null}
     </span>
   )
+}
+
+function JobProviderSelector({ payload, providerPath, queryKey }: { payload: JobDetailPayload; providerPath: string; queryKey: JobDetailQueryKey }) {
+  const { t } = useT("jobs")
+  const queryClient = useQueryClient()
+  const [error, setError] = useState<string | null>(null)
+
+  const mutation = useMutation({
+    mutationFn: (setting: string) => updateJobProviderSetting(providerPath, setting),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey })
+      void queryClient.invalidateQueries({ queryKey: ["jobs"], exact: true })
+      setError(null)
+    },
+    onError: () => setError(t("provider_setting_update_error"))
+  })
+  const currentSetting = payload.job.job_provider_setting || "default"
+  const options = payload.job.job_provider_setting_options || [
+    { value: "default" as const, label: t("provider_setting_default"), configured: true },
+    { value: "claude" as const, label: "Claude Code", configured: true },
+    { value: "codex" as const, label: "Codex", configured: true }
+  ]
+
+  return (
+    <span className="inline-flex max-w-full flex-col gap-1">
+      <select
+        aria-describedby={`job-${payload.job.id}-provider-help`}
+        aria-label={t("detail_provider")}
+        className="max-w-full rounded border border-gray-300 bg-white py-0.5 pl-1.5 pr-6 text-xs text-gray-700 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-300"
+        disabled={mutation.isPending}
+        onChange={(event) => mutation.mutate(event.target.value)}
+        value={currentSetting}
+      >
+        {options.map((option) => (
+          <option disabled={!option.configured} key={option.value} value={option.value}>
+            {option.value === "default" ? t("provider_setting_default") : option.label}
+          </option>
+        ))}
+      </select>
+      <span className="text-xs text-gray-500 dark:text-gray-400" id={`job-${payload.job.id}-provider-help`}>
+        {t("provider_setting_help", { provider: agentProviderLabel(payload.job.agent_provider || "") })}
+      </span>
+      {error ? <span className="text-xs text-red-600 dark:text-red-400" role="alert">{error}</span> : null}
+    </span>
+  )
+}
+
+function agentProviderLabel(provider: string) {
+  if (provider === "codex") return "Codex"
+  if (provider === "claude") return "Claude Code"
+  return provider || "default"
 }
 
 function UrgentConfirmDialog({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {

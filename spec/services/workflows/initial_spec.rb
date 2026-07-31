@@ -26,4 +26,21 @@ RSpec.describe Workflows::Initial do
     expect(steps["coverage_analyze"].loop_id).to be_nil
     expect(steps["grader_collect"].loop_id).not_to be_nil
   end
+
+  it "pins the provider from the job provider setting when created" do
+    user.update!(agent_provider: "codex", codex_auth_mode: "api_key", codex_api_key: "sk-test")
+    job.update_columns(agent_provider: "claude", job_provider_setting: "default")
+
+    workflow = described_class.instantiate(job: job)
+
+    expect(workflow.agent_provider).to eq("codex")
+  end
+
+  it "does not rewrite an existing workflow pin when the job provider setting changes" do
+    workflow = described_class.instantiate(job: job, agent_provider: "claude")
+
+    job.update_columns(job_provider_setting: "codex")
+
+    expect(workflow.reload.agent_provider).to eq("claude")
+  end
 end

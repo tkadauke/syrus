@@ -760,6 +760,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_01_124855) do
     t.text "issue_body"
     t.integer "issue_number"
     t.string "issue_title"
+    t.string "job_provider_setting", default: "default", null: false
     t.string "kind", default: "issue", null: false
     t.string "landed_sha"
     t.text "landing_failure_reason"

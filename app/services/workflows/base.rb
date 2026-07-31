@@ -79,7 +79,7 @@ module Workflows
         wf = Workflow.create!(
           job: job,
           trigger_kind: trigger_kind,
-          agent_provider: agent_provider || job.agent_provider || job.user.agent_provider,
+          agent_provider: agent_provider.presence || job.workflow_agent_provider || job.agent_provider || job.user.agent_provider,
           chain_template: serialize_chain_template(effective_chain_template),
           artifacts: effective_artifacts
         )

@@ -30,6 +30,16 @@ RSpec.describe Workflow do
       expect(workflow.user).to eq(job.user)
     end
 
+    it "keeps retry runs on the workflow pinned provider" do
+      workflow = described_class.create!(job: job, trigger_kind: "initial", agent_provider: "claude")
+      step = Step.create!(workflow: workflow, kind: "implement", position: 0, state: "failed")
+      job.update!(job_provider_setting: "codex")
+
+      run = StepDispatcher.create_run_and_enqueue(step, workflow)
+
+      expect(run.agent_provider).to eq("claude")
+    end
+
     it "rejects an execution owner from another user's job" do
       other_user = Factories.user
       workflow = build_wf(user: other_user)

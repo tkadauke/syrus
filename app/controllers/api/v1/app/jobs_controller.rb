@@ -100,6 +100,23 @@ module Api
           render json: ::App::JobDetailPayload.build(job: job.reload, user: Current.user, params: params)
         end
 
+        def update_provider_setting
+          job = find_job_by_param(:job_id)
+          setting = params[:job_provider_setting].to_s
+
+          unless Job::PROVIDER_SETTINGS.include?(setting)
+            render_error("invalid_provider_setting", "Invalid provider setting.", status: :unprocessable_content)
+            return
+          end
+          if setting != "default" && !Current.user.agent_provider_configured?(setting)
+            render_error("provider_not_configured", "That agent is not configured.", status: :unprocessable_content)
+            return
+          end
+
+          job.switch_job_provider_setting!(setting)
+          render json: ::App::JobDetailPayload.build(job: job.reload, user: Current.user, params: params)
+        end
+
         def source
           render json: ::App::JobSourcePayload.build(job: find_job, user: Current.user, params: params)
         end
@@ -251,8 +268,9 @@ module Api
             summary_state: ::App::Presentation.job_summary_state(job),
             title: job.issue_title.to_s,
             issue_title: job.issue_title.to_s,
-            agent_provider: job.agent_provider,
-            provider_availability: ::App::ProviderAvailability.for_user(Current.user, job.agent_provider),
+            agent_provider: job.workflow_agent_provider,
+            job_provider_setting: job.job_provider_setting,
+            provider_availability: ::App::ProviderAvailability.for_user(Current.user, job.workflow_agent_provider),
             repository_id: job.repository_id,
             repository_slug: job.repository.slug,
             branch_name: job.branch_name,

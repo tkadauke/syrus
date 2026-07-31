@@ -27,8 +27,7 @@ class ChatFeedbackSubmission
     artifacts = base_artifacts.merge(extra_artifacts)
     workflow = Workflows::ChatFeedback.instantiate(
       job: job,
-      artifacts: artifacts,
-      agent_provider: job.agent_provider
+      artifacts: artifacts
     )
     if job.may_unapprove?
       review_id = job.approval_evidence&.dig("github_review_id")

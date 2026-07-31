@@ -12,7 +12,6 @@ module Api
           agent_provider = params[:agent_provider].to_s.presence
           return unless valid_configured_agent_provider?(agent_provider)
 
-          job.switch_agent_provider!(agent_provider) if agent_provider.present?
           if agent_provider.present?
             PollPullRequestJob.perform_later(job.id, manual: true, agent_provider: agent_provider)
           else
@@ -64,7 +63,6 @@ module Api
           agent_provider = params[:agent_provider].to_s.presence
           return unless valid_configured_agent_provider?(agent_provider)
 
-          job.switch_agent_provider!(agent_provider) if agent_provider.present?
           workflow = RebaseWorkflowSelector.instantiate(
             job: job,
             agent_provider: agent_provider,
@@ -251,8 +249,9 @@ module Api
               id: job.id,
               state: job.state,
               closure_reason: job.closure_reason,
-              agent_provider: job.agent_provider,
-              provider_availability: ::App::ProviderAvailability.for_user(Current.user, job.agent_provider),
+              agent_provider: job.workflow_agent_provider,
+              job_provider_setting: job.job_provider_setting,
+              provider_availability: ::App::ProviderAvailability.for_user(Current.user, job.workflow_agent_provider),
               pr_number: job.pr_number,
               external_pr_number: job.external_pr_number,
               pr_mergeable: job.pr_mergeable,

@@ -12,11 +12,17 @@ Present in: `initial`, `pr_comment`, `chat_feedback`, `ci_failure`, `retry`, `au
 
 ## Agentic implementation steps
 
-Operator-triggered implementation retries normally reuse the Job's current
-agent provider. When the user has another configured provider, the Job detail
-action menu can enqueue the retry with that provider instead. Syrus persists
-the selected provider on the Job and the new retry Workflow, so subsequent
-workflow steps and future attempts use the switched agent unless changed again.
+Each Workflow stores a concrete `agent_provider` when Syrus creates it, and
+retrying a failed Step inside that Workflow keeps using the pinned provider.
+Each Job also has a future-workflow provider setting: `default`, `claude`, or
+`codex`. `default` resolves the current repository/user default at workflow
+creation time; explicit values pin newly-created workflows for that Job to the
+selected provider.
+
+Operator-triggered retry-with-provider actions are one-shot overrides. They
+create that retry or follow-up Workflow with the requested provider, but they do
+not rewrite the Job's future-workflow provider setting or any existing Workflow
+pin.
 
 ### implement
 

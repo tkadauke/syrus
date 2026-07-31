@@ -366,8 +366,12 @@ dependencies and Epic progress, while `cancel_job` remains non-successful. When
 the Job has a tracked PR, Syrus can post the supplied explanation and close the
 PR after confirmation; any GitHub cleanup failure is reported in chat.
 On the Job detail page, implementation retries can also be enqueued with any
-other agent provider the operator has configured, which updates the Job's
-provider for that retry and later attempts.
+other agent provider the operator has configured. That retry-with-provider
+choice is one-shot for the retry workflow. The Job detail page also has a
+provider selector for future workflows: leave it on Default to resolve the
+current repository/user provider each time a new workflow is created, or choose
+a concrete provider such as Claude Code or Codex for later feedback, rebase, and
+retry workflows on that Job. Existing workflow pins are not rewritten.
 Proposal cards show dependency status before the title: either dependency
 proposal links with confirmed or pending badges, resolved Epic proposal links,
 or an explicit no-dependencies note.

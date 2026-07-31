@@ -46,9 +46,10 @@ class ClassifyIssueJob < ApplicationJob
     # run". The reaper enqueues without re-checking; the job
     # short-circuits cleanly if conditions changed since enqueue.
     return unless job.triaging? && job.triaging_reason_classifier_pending?
-    unless job.user.agent_provider_configured?(job.agent_provider)
+    provider = job.workflow_agent_provider
+    unless job.user.agent_provider_configured?(provider)
       Rails.logger.warn("[ClassifyIssueJob] #{job.slug}: agent provider " \
-                        "#{job.agent_provider.inspect} not configured for user " \
+                        "#{provider.inspect} not configured for user " \
                         "#{job.user.id}; deferring")
       return
     end

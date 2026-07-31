@@ -44,16 +44,42 @@ RSpec.describe RetryWorkflowEnqueuer do
     expect(workflow.first_step.runs.last.agent_provider).to eq("claude")
   end
 
-  it "persists an explicit provider on the job and retry workflow" do
+  it "uses an explicit provider only for the new retry workflow" do
     finish_current_run!
     user.update!(codex_auth_mode: "api_key", codex_api_key: "sk-test")
 
     result = described_class.call(job: job, agent_provider: "codex")
 
     expect(result).to be_success
-    expect(job.reload.agent_provider).to eq("codex")
+    expect(job.reload.agent_provider).to eq("claude")
+    expect(job.job_provider_setting).to eq("default")
     expect(result.workflow.agent_provider).to eq("codex")
     expect(result.workflow.first_step.runs.last.agent_provider).to eq("codex")
+  end
+
+  it "uses the job provider setting for future retry workflows" do
+    finish_current_run!
+    user.update!(codex_auth_mode: "api_key", codex_api_key: "sk-test")
+    job.update!(agent_provider: "claude", job_provider_setting: "codex")
+
+    result = described_class.call(job: job)
+
+    expect(result).to be_success
+    expect(job.reload.agent_provider).to eq("claude")
+    expect(result.workflow.agent_provider).to eq("codex")
+    expect(result.workflow.first_step.runs.last.agent_provider).to eq("codex")
+  end
+
+  it "resolves default jobs from the current repository default for new workflows" do
+    finish_current_run!
+    user.update!(agent_provider: "codex", codex_auth_mode: "api_key", codex_api_key: "sk-test")
+    job.update!(agent_provider: "claude", job_provider_setting: "default")
+
+    result = described_class.call(job: job)
+
+    expect(result).to be_success
+    expect(result.workflow.agent_provider).to eq("codex")
+    expect(job.reload.agent_provider).to eq("claude")
   end
 
   it "rejects closed jobs" do
