@@ -68,7 +68,9 @@ module Steps
         exit_code = timed_out ? TIMEOUT_EXIT_CODE : result.exit_status
 
         if timed_out
-          file.write("\n[timed out after #{timeout_minutes} minutes]\n")
+          timeout_message = "\n[timed out after #{timeout_minutes} minutes]\n"
+          file.write(timeout_message)
+          log(timeout_message, kind: "grade_log")
           log("[grader:#{name}] timed out after #{timeout_minutes} minutes")
         end
       end
@@ -78,10 +80,28 @@ module Steps
       duration_s = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
       passed = exit_code.to_i.zero?
 
-      # Snapshot the result onto Step#details so the UI + agent
-      # prompt can render it later without re-reading the log file
-      # (workspace gets pruned). Keep the per-grader log on disk
-      # too, for full output when the operator drills in.
+      # When RSpec exits with failures, supplement the transcript with
+      # structured details from the JSON formatter — available even if
+      # stdout was cut off before the summary printed.
+      if !passed && json_results_path && File.exist?(json_results_path)
+        begin
+          results = JSON.parse(File.read(json_results_path))
+          failures = results.dig("examples")&.select { |e| e["status"] == "failed" } || []
+          if failures.any?
+            append_grade_diagnostic(absolute_log_path, rspec_failure_summary(failures))
+          end
+        rescue JSON::ParserError
+          # partial write — ignore
+        ensure
+          File.delete(json_results_path) rescue nil
+        end
+      end
+
+      append_grade_diagnostic(absolute_log_path, "\n[grader:#{name}] failed (exit #{exit_code})\n") unless passed
+
+      # Snapshot the result onto Step#details after all failure
+      # augmentation so fallback readers see the same actionable tail as
+      # the workspace log file when the workspace has been pruned.
       output_excerpt = grader_output_excerpt(absolute_log_path)
       step.update!(details: definition.merge(
         "exit_code" => exit_code,
@@ -92,30 +112,7 @@ module Steps
         "output" => output_excerpt
       ))
 
-      # When RSpec exits with failures, supplement the transcript with
-      # structured details from the JSON formatter — available even if
-      # stdout was cut off before the summary printed.
-      if !passed && json_results_path && File.exist?(json_results_path)
-        begin
-          results = JSON.parse(File.read(json_results_path))
-          failures = results.dig("examples")&.select { |e| e["status"] == "failed" } || []
-          if failures.any?
-            log("[rspec failures from JSON output]\n", kind: "grade_log")
-            failures.each do |f|
-              log("#{f["full_description"]}\n", kind: "grade_log")
-              log("  #{f.dig("exception", "message")}\n", kind: "grade_log") if f.dig("exception", "message")
-              log("  #{f["location"]}\n", kind: "grade_log") if f["location"]
-            end
-          end
-        rescue JSON::ParserError
-          # partial write — ignore
-        ensure
-          File.delete(json_results_path) rescue nil
-        end
-      end
-
       ingest_junit_xml!(name, definition["junit_output"]) if definition["junit_output"].present?
-
       raise StepFailed, "grader #{name} failed (exit #{exit_code})" unless passed
     end
 
@@ -123,6 +120,21 @@ module Steps
 
     def grader_log_path(name)
       Pathname.new(".syrus/grade-output/iteration-#{run.iteration}/#{name}.log")
+    end
+
+    def append_grade_diagnostic(path, text)
+      File.open(path, "ab") { |file| file.write(text) }
+      log(text, kind: "grade_log")
+    end
+
+    def rspec_failure_summary(failures)
+      summary = +"[rspec failures from JSON output]\n"
+      failures.each do |failure|
+        summary << "#{failure["full_description"]}\n"
+        summary << "  #{failure.dig("exception", "message")}\n" if failure.dig("exception", "message")
+        summary << "  #{failure["location"]}\n" if failure["location"]
+      end
+      summary
     end
 
     def grader_output_excerpt(path)

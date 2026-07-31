@@ -21,10 +21,14 @@ RSpec.describe Steps::Grader do
   let(:handler) { described_class.new(run) }
 
   around do |example|
+    old_data_root = ENV["SYRUS_DATA_ROOT"]
     Dir.mktmpdir("syrus-grader") do |dir|
-      @ws_path = Pathname.new(dir)
+      ENV["SYRUS_DATA_ROOT"] = dir
+      @ws_path = WorkflowWorkspace.path_for(workflow)
       example.run
     end
+  ensure
+    ENV["SYRUS_DATA_ROOT"] = old_data_root
   end
 
   before do
@@ -214,6 +218,69 @@ RSpec.describe Steps::Grader do
       expect(log_chunks).to include("expected RuntimeError but nothing was raised")
       expect(log_chunks).to include("./spec/models/widget_spec.rb:17")
       expect(log_chunks).not_to include("Widget#process succeeds normally")
+    ensure
+      File.delete(captured_json_path) if captured_json_path && File.exist?(captured_json_path)
+    end
+
+    it "preserves RSpec JSON failure details across workspace, JobLog, and stored fallback output" do
+      captured_json_path = nil
+      long_stdout = ("setup and migration output\n" * 2_000)
+      allow(ProcessRunner).to receive(:new) do |**kwargs|
+        kwargs[:on_output_chunk]&.call(long_stdout)
+        captured_json_path = kwargs[:command].last.match(/--out (\S+)/)&.[](1)
+        File.write(captured_json_path, JSON.generate(
+          "examples" => [
+            {
+              "full_description" => "Current user scopes docs lists new Current.user file",
+              "status" => "failed",
+              "exception" => { "message" => "expected docs to mention app/models/current.rb" },
+              "location" => "./spec/docs/current_user_scopes_spec.rb:12"
+            },
+            {
+              "full_description" => "Bootstrap includes admin_supervisor_chat feature flag",
+              "status" => "failed",
+              "exception" => { "message" => "expected feature flag admin_supervisor_chat to be present" },
+              "location" => "./spec/requests/api/v1/app/bootstrap_spec.rb:87"
+            }
+          ]
+        ))
+        instance_double(ProcessRunner, run: failing_result)
+      end
+
+      expect { rspec_handler.call }.to raise_error(Steps::Base::StepFailed)
+
+      details = rspec_step.reload.details
+      workspace_log = @ws_path.join(details["log_path"]).read
+      job_log = rspec_run.reload.job_logs.where(kind: "grade_log").order(:sequence).pluck(:chunk).join
+      stored_output = details.fetch("output")
+
+      # Regression for JOB-2291: these were the two actionable failures,
+      # but repair inspected the workspace log path and saw only setup output.
+      expected_fragments = [
+        "[rspec failures from JSON output]",
+        "Current user scopes docs lists new Current.user file",
+        "expected docs to mention app/models/current.rb",
+        "./spec/docs/current_user_scopes_spec.rb:12",
+        "Bootstrap includes admin_supervisor_chat feature flag",
+        "expected feature flag admin_supervisor_chat to be present",
+        "./spec/requests/api/v1/app/bootstrap_spec.rb:87",
+        "[grader:rspec] failed (exit 1)"
+      ]
+
+      expected_fragments.each do |fragment|
+        expect(workspace_log).to include(fragment)
+        expect(job_log).to include(fragment)
+        expect(stored_output).to include(fragment)
+      end
+
+      expect(WorkflowWorkspace.grade_log_for(rspec_run, "rspec")).to include("[rspec failures from JSON output]")
+
+      FileUtils.rm_rf(@ws_path)
+      rspec_run.job_logs.where(kind: "grade_log").delete_all
+      rspec_run.update!(state: "failed")
+      fallback_log = WorkflowWorkspace.grade_log_for(rspec_run, "rspec")
+      expect(fallback_log).to eq(stored_output)
+      expected_fragments.each { |fragment| expect(fallback_log).to include(fragment) }
     ensure
       File.delete(captured_json_path) if captured_json_path && File.exist?(captured_json_path)
     end
