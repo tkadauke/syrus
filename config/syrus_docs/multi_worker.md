@@ -140,3 +140,16 @@ swallows sampler failures so worker liveness is never destabilized by metrics.
 Rows are retained for `WorkerHostHealthSample::RETAIN_AFTER` (7 days, matching
 `RunHealthSnapshot::RETAIN_AFTER`) and pruned daily by
 `WorkerHostHealthSamplePruneJob`.
+
+The current admin overview, `/api/v1/admin/version`, and the admin queue
+workers payload include worker health snapshots alongside the existing
+data-root disk fields. Disk alerts still come from the most-full worker's
+`InstanceVersion` reading so existing alert behavior is unchanged. For deeper
+inspection, `/api/v1/admin/worker_health` and `/api/v1/app/admin/worker_health`
+return live worker status plus compact 15m/1h/6h/24h summaries and recent
+samples, optionally filtered with `hostname`, `since`, `until`, and
+`sample_limit_per_host`.
+
+Admin chat agents can call `read_worker_health` for the same payload. Use it
+when diagnosing pod-local pressure, recurring worker warnings, or failure
+patterns that may correlate with CPU, memory, disk, or IO pressure.

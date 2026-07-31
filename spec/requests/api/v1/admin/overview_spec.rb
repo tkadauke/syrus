@@ -24,6 +24,7 @@ RSpec.describe "API: /api/v1/admin/overview", type: :request do
       expect(body).to have_key("provider_circuits")
       expect(body).to have_key("agent_session_capture_rate")
       expect(body).to have_key("data_root_disk_usage")
+      expect(body).to have_key("worker_health")
       expect(body).not_to have_key("claude_session_capture_rate")
       expect(body).to have_key("workers")
       expect(body).to have_key("recurring")
@@ -153,6 +154,28 @@ RSpec.describe "API: /api/v1/admin/overview", type: :request do
         "available_bytes" => 10.gigabytes,
         "used_percent" => 90,
         "level" => "warning"
+      )
+    end
+
+    it "includes current worker health and recent trend summaries" do
+      instance = InstanceVersion.create!(hostname: "syrus-worker-a", role: "worker", version: "abc123",
+                                         started_at: 5.minutes.ago, last_heartbeat_at: 10.seconds.ago)
+      WorkerHostHealthSample.create!(hostname: instance.hostname, role: "worker", version: "abc123",
+                                     observed_at: 2.minutes.ago,
+                                     cpu_used_percent: 92.5,
+                                     memory_used_percent: 70,
+                                     data_root_used_percent: 60)
+
+      get "/api/v1/admin/overview", headers: auth
+
+      health = parse_body["worker_health"]
+      expect(health.dig("current", 0)).to include(
+        "hostname" => "syrus-worker-a",
+        "health" => include("level" => "warning")
+      )
+      expect(health.dig("hosts", 0, "windows", "1h")).to include(
+        "sample_count" => 1,
+        "warning_count" => 1
       )
     end
   end

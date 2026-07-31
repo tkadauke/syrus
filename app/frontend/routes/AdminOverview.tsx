@@ -31,6 +31,7 @@ export function AdminOverview() {
   const captureRate = data.agent_session_capture_rate.rate
   const overdueRecurring = data.recurring.overdue || []
   const dataRoot = data.data_root_disk_usage
+  const workerHealthTone = aggregateWorkerHealthTone(data.worker_health)
 
   return (
     <main aria-label={t("overview.aria_overview")} className="mx-auto max-w-6xl space-y-6 p-6">
@@ -42,7 +43,7 @@ export function AdminOverview() {
       <section aria-label={t("overview.aria_metrics")} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Metric title={t("overview.active_runs")} value={data.active_runs.total} context={triggerContext(data.active_runs.by_trigger, t("overview.all_idle"))} href={withRoutePrefix("/admin/queue/active", prefix)} />
         <Metric title={t("overview.queued_runs")} value={data.queued_runs.total} context={data.queued_runs.total > 0 ? t("overview.waiting_for_worker") : t("overview.queue_empty")} href={withRoutePrefix("/admin/queue/pending", prefix)} />
-        <Metric title={t("overview.workers")} value={data.workers.unreachable ? "?" : data.workers.total ?? 0} context={workersContext(data.workers, t)} href={withRoutePrefix("/admin/queue/workers", prefix)} tone={data.workers.stale ? "alarm" : "ok"} />
+        <Metric title={t("overview.workers")} value={data.workers.unreachable ? "?" : data.workers.total ?? 0} context={workersContext(data.workers, t, data.worker_health)} href={withRoutePrefix("/admin/queue/workers", prefix)} tone={workerHealthTone} />
         <Metric title={t("overview.recurring_jobs")} value={overdueRecurring.length} context={overdueRecurring.length > 0 ? overdueRecurring.map((task) => task.key).join(", ") : t("overview.all_firing")} href={withRoutePrefix("/admin/queue/recurring", prefix)} tone={overdueRecurring.length > 0 ? "alarm" : "ok"} />
         <Metric title={t("overview.failed_runs")} value={data.recent_failures_24h.total} context={triggerContext(data.recent_failures_24h.by_trigger, t("overview.no_failures"))} href={withRoutePrefix("/admin/queue/failed", prefix)} tone={data.recent_failures_24h.total > 0 ? "warn" : "ok"} />
         <Metric title={t("overview.provider_circuits")} value={data.provider_circuits.length} context={data.provider_circuits.length > 0 ? data.provider_circuits.map((circuit) => circuit.provider).join(", ") : t("overview.all_closed")} tone={data.provider_circuits.length > 0 ? "alarm" : "ok"} />
@@ -126,10 +127,21 @@ function triggerContext(values: Record<string, number>, fallback: string) {
   return entries.map(([trigger, count]) => `${count} ${trigger}`).join(" · ")
 }
 
-function workersContext(workers: { stale?: number; unreachable?: boolean }, t: (key: string, opts?: Record<string, unknown>) => string) {
+function workersContext(workers: { stale?: number; unreachable?: boolean }, t: (key: string, opts?: Record<string, unknown>) => string, workerHealth?: AdminOverviewPayload["worker_health"]) {
   if (workers.unreachable) return t("overview.queue_unreachable")
+  const critical = workerHealth?.current.filter((worker) => worker.health.level === "critical").length ?? 0
+  if (critical > 0) return t("overview.critical_workers", { count: critical })
+  const warning = workerHealth?.current.filter((worker) => worker.health.level === "warning" || worker.health.level === "unknown").length ?? 0
+  if (warning > 0) return t("overview.warning_workers", { count: warning })
   if (workers.stale && workers.stale > 0) return t("overview.stale_workers", { count: workers.stale })
   return t("overview.all_healthy")
+}
+
+function aggregateWorkerHealthTone(workerHealth?: AdminOverviewPayload["worker_health"]): "idle" | "ok" | "warn" | "alarm" {
+  if (!workerHealth) return "idle"
+  if (workerHealth.current.some((worker) => worker.health.level === "critical")) return "alarm"
+  if (workerHealth.current.some((worker) => worker.health.level === "warning" || worker.health.level === "unknown")) return "warn"
+  return "ok"
 }
 
 function dataRootTone(level?: string) {

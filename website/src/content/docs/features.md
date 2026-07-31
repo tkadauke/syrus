@@ -411,11 +411,14 @@ memories, with admins able to manage memories across users.
 
 Admin users also get chat tools for operational diagnostics: overview,
 stuck Jobs, stuck explanations, queue tabs, spawned processes, Runs, users,
-and running instance versions. The stuck views and `explain_stuck_job` tool
-use the work-engine reconciler's classifications and repair plans, so they
-show whether Syrus is waiting on capacity, dependencies, main health, or rate
-limits; can safely auto-repair; already repaired the issue; or needs operator
-action. State-changing admin tools, such as pausing runs,
+running instance versions, and worker host health. The stuck views and
+`explain_stuck_job` tool use the work-engine reconciler's classifications and
+repair plans, so they show whether Syrus is waiting on capacity, dependencies,
+main health, or rate limits; can safely auto-repair; already repaired the
+issue; or needs operator action. Worker health includes live
+per-worker warnings, recent CPU/memory/disk/IO samples, and compact trend
+windows by hostname, so operators and agents can inspect pod pressure
+without an external metrics system. State-changing admin tools, such as pausing runs,
 killing a process, clearing the GitHub cache, or refreshing installations,
 create pending actions and wait for operator confirmation before applying.
 Non-admin chats do not advertise those tools, and each admin tool repeats

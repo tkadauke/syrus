@@ -31,6 +31,7 @@ RSpec.describe "API: /api/v1/admin/version", type: :request do
       web_row = body["instances"].find { |i| i["hostname"] == web_a.hostname }
       expect(web_row).to include("role" => "web", "version" => "abc1234", "stale" => false)
       expect(web_row["seconds_since_heartbeat"]).to be < 60
+      expect(body["worker_health"]).to include("current", "hosts")
     end
 
     it "omits instances whose heartbeat is older than the fresh threshold" do

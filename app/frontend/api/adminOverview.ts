@@ -58,6 +58,7 @@ export type AdminOverviewPayload = {
     level: string
     observed_at: string
   }[]
+  worker_health?: WorkerHealthPayload
   workers: {
     total?: number
     stale?: number
@@ -91,6 +92,80 @@ export type AdminOverviewPayload = {
     repair_plan?: Record<string, unknown> | null
     repair_execution?: Record<string, unknown> | null
   }>
+}
+
+export type WorkerHealthLevel = "ok" | "warning" | "critical" | "unknown" | string
+
+export type WorkerHealthSample = {
+  id: number
+  hostname: string
+  role: string
+  version: string
+  observed_at: string
+  cpu_used_percent: number | null
+  load_1m: number | null
+  load_5m: number | null
+  load_15m: number | null
+  memory_used_percent: number | null
+  memory_available_bytes: number | null
+  memory_total_bytes: number | null
+  data_root_used_percent: number | null
+  data_root_available_bytes: number | null
+  data_root_total_bytes: number | null
+  cpu_pressure_some: number | null
+  cpu_pressure_full: number | null
+  io_pressure_some: number | null
+  io_pressure_full: number | null
+  raw_metrics: Record<string, unknown>
+}
+
+export type WorkerHealthSummary = {
+  sample_count: number
+  first_observed_at: string | null
+  last_observed_at: string | null
+  warning_count: number
+  critical_count: number
+  cpu_used_percent?: { avg: number; max: number } | null
+  memory_used_percent?: { avg: number; max: number } | null
+  data_root_used_percent?: { avg: number; max: number } | null
+  load_1m?: { avg: number; max: number } | null
+  cpu_pressure_some?: { avg: number; max: number } | null
+  io_pressure_some?: { avg: number; max: number } | null
+}
+
+export type CurrentWorkerHealth = {
+  id: number
+  hostname: string
+  role: string
+  version: string
+  started_at: string | null
+  last_heartbeat_at: string | null
+  seconds_since_heartbeat: number | null
+  stale: boolean
+  health: {
+    level: WorkerHealthLevel
+    reasons: string[]
+  }
+  sample: WorkerHealthSample | null
+  trend: WorkerHealthSummary
+}
+
+export type WorkerHealthHost = {
+  hostname: string
+  current: CurrentWorkerHealth | null
+  windows: Record<string, WorkerHealthSummary>
+  recent_samples: WorkerHealthSample[]
+}
+
+export type WorkerHealthPayload = {
+  generated_at: string
+  range: {
+    since: string
+    until: string
+  }
+  current_sample_window_seconds: number
+  current: CurrentWorkerHealth[]
+  hosts: WorkerHealthHost[]
 }
 
 export function fetchAdminOverview() {
