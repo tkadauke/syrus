@@ -201,6 +201,7 @@ module SyrusChatMcp
       ListJobWorkflowsTool,
       ReadWorkflowTool,
       ReadRunTranscriptTool,
+      ExplainStuckJobTool,
       AssignJobToEpicTool,
       ListOpenIssuesTool,
       ListOpenPrsTool,

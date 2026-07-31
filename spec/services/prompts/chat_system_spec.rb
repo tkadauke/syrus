@@ -225,7 +225,7 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("Agent environment snapshot:")
     expect(out).to include("Chat: ##{chat.id} scoped to acme/widgets")
     expect(out).to include("no commit, push, or PR-opening tool is available in chat")
-    expect(out).to include("live Syrus state: list_chats, list_jobs, read_job, read_pr")
+    expect(out).to include("live Syrus state: list_chats, list_jobs, read_job, explain_stuck_job, read_pr")
     expect(out.index("Agent environment snapshot:")).to be < out.index("Attached context:")
   end
 

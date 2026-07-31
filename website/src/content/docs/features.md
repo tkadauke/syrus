@@ -168,6 +168,8 @@ agent can read selected repository context, propose Jobs, propose Epics,
 read user-visible Epics by id, list and
 update Epics, add or remove Epic dependencies, move Epics through
 their kanban states, schedule recurring work, inspect existing Jobs or PRs,
+explain stuck Jobs with structured dependency, Workflow, Run, landing, and PR
+evidence,
 approve or unapprove
 implemented Jobs, change Job priority, move Jobs into or out of Epics, drill
 through Job workflow and Run history progressively, search Jobs in the

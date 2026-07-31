@@ -291,6 +291,27 @@ RSpec.describe GithubClient do
     end
   end
 
+  describe "#commit_tree_sha" do
+    let(:client) { GithubClient.for(repository: repository, user: user) }
+
+    it "returns the tree SHA for a commit ref" do
+      stub = stub_request(:get, "https://api.github.com/repos/acme/widgets/commits/syrus/reconcile")
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: {
+            sha: "commit-sha",
+            commit: {
+              tree: { sha: "tree-sha" }
+            }
+          }.to_json
+        )
+
+      expect(client.commit_tree_sha("acme/widgets", "syrus/reconcile")).to eq("tree-sha")
+      expect(stub).to have_been_requested
+    end
+  end
+
   describe "#merge_pull_request" do
     let(:client) { GithubClient.for(repository: repository, user: user) }
 

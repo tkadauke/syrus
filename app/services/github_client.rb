@@ -312,6 +312,14 @@ class GithubClient
     raise
   end
 
+  def commit_tree_sha(repo_slug, ref)
+    commit = track_rate_limits { @client.commit(repo_slug, ref) }
+    commit.commit.tree.sha
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited fetching #{repo_slug}@#{ref} tree SHA: #{e.message}")
+    raise
+  end
+
   # Sync a fork's branch with its upstream via GitHub's merge-upstream API.
   # Returns the Sawyer::Resource ({ merge_type:, base_branch:, message: }).
   # Raises Octokit::Conflict (409) on merge conflict and
