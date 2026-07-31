@@ -14,6 +14,7 @@ import {
   CHAT_WORKSPACE_TAB_KEY,
   CHAT_WORKSPACE_WIDTH_KEY
 } from "./constants"
+import { codingFilesTabVisible, jobsTabVisible } from "./utils"
 import { whiteboardElements } from "./whiteboardScene"
 
 export type WorkspaceTab = "whiteboard" | "context" | "media" | "files" | "diff" | "jobs"
@@ -38,8 +39,21 @@ export function mobileChatTabLabel(tab: MobileChatTab, t: (key: string) => strin
   return tab === "chat" ? t("tab_chat") : workspaceTabLabel(tab, t)
 }
 
-export function defaultWorkspaceTab(payload: ChatPayload): WorkspaceTab {
-  return whiteboardElements(payload).length > 0 ? "whiteboard" : "context"
+export function availableWorkspaceTabs(payload: ChatPayload, simpleMode = false): WorkspaceTab[] {
+  return [
+    "whiteboard",
+    ...(simpleMode ? [] : (["context"] as WorkspaceTab[])),
+    "media",
+    ...(codingFilesTabVisible(payload) ? (["files"] as WorkspaceTab[]) : []),
+    ...(payload.local_tunnel_connected ? (["diff"] as WorkspaceTab[]) : []),
+    ...(jobsTabVisible(payload) ? (["jobs"] as WorkspaceTab[]) : [])
+  ] as WorkspaceTab[]
+}
+
+export function defaultWorkspaceTab(payload: ChatPayload, simpleMode = false): WorkspaceTab {
+  const tabs = availableWorkspaceTabs(payload, simpleMode)
+  const preferred = whiteboardElements(payload).length > 0 ? "whiteboard" : "context"
+  return tabs.includes(preferred) ? preferred : tabs[0]
 }
 
 export function storedWorkspaceTab(): WorkspaceTab | null {

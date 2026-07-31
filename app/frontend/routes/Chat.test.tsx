@@ -150,6 +150,119 @@ describe("ChatWorkspace panel collapse", () => {
   })
 })
 
+describe("simple mode chat transcript", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+    setBootstrapMode("simple")
+  })
+
+  afterEach(() => {
+    document.getElementById("syrus-bootstrap-data")?.remove()
+  })
+
+  it("renders a running tool call as a generic progress indicator", async () => {
+    mockChatRouteFetch(chatPayload({
+      messages: [
+        {
+          type: "message",
+          id: 9,
+          role: "tool_use",
+          tool_name: "Bash",
+          content: { type: "tool_use", id: "tu_1", name: "Bash", input: { command: "bin/rails db:migrate" } },
+          text: "",
+          bookmarkable: false
+        }
+      ]
+    }))
+
+    renderRoute()
+
+    expect(await screen.findByText("Making changes...")).toBeInTheDocument()
+    expect(screen.queryByText("Bash")).not.toBeInTheDocument()
+    expect(screen.queryByText(/bin\/rails/)).not.toBeInTheDocument()
+  })
+
+  it("removes completed successful tool calls from the transcript", async () => {
+    mockChatRouteFetch(chatPayload({
+      messages: [
+        {
+          type: "message",
+          id: 9,
+          role: "tool_use",
+          tool_name: "Read",
+          content: { type: "tool_use", id: "tu_1", name: "Read", input: { file_path: "/app/models/job.rb" } },
+          text: "",
+          bookmarkable: false
+        },
+        {
+          type: "message",
+          id: 10,
+          role: "tool_result",
+          tool_name: "Read",
+          content: { type: "tool_result", tool_use_id: "tu_1", content: [{ type: "text", text: "class Job < ApplicationRecord" }], is_error: false },
+          text: "",
+          bookmarkable: false
+        }
+      ]
+    }))
+
+    renderRoute()
+
+    await screen.findByTestId("chat-message-stream")
+    expect(screen.queryByText("Reading code...")).not.toBeInTheDocument()
+    expect(screen.queryByText("Read")).not.toBeInTheDocument()
+    expect(screen.queryByText(/app\/models\/job\.rb/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/class Job/)).not.toBeInTheDocument()
+  })
+
+  it("shows only a generic snag message for errored tool calls", async () => {
+    mockChatRouteFetch(chatPayload({
+      messages: [
+        {
+          type: "message",
+          id: 9,
+          role: "tool_use",
+          tool_name: "Grep",
+          content: { type: "tool_use", id: "tu_1", name: "Grep", input: { pattern: "secret", path: "/repo/app" } },
+          text: "",
+          bookmarkable: false
+        },
+        {
+          type: "message",
+          id: 10,
+          role: "tool_result",
+          tool_name: "Grep",
+          content: { type: "tool_result", tool_use_id: "tu_1", content: "rg failed in /repo/app", is_error: true },
+          text: "",
+          bookmarkable: false
+        }
+      ]
+    }))
+
+    renderRoute()
+
+    expect(await screen.findByText("Hit a snag")).toBeInTheDocument()
+    expect(screen.queryByText("Grep")).not.toBeInTheDocument()
+    expect(screen.queryByText(/secret/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/repo\/app/)).not.toBeInTheDocument()
+  })
+
+  it("omits the context tab from the workspace DOM", async () => {
+    window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
+    window.localStorage.setItem("syrus.chat.workspace.tab", "context")
+    mockChatRouteFetch()
+
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    const workspace = screen.getByRole("complementary", { name: "Chat workspace" })
+    expect(within(workspace).queryByRole("button", { name: "Context" })).not.toBeInTheDocument()
+    expect(within(workspace).getByRole("button", { name: "Whiteboard" })).toBeInTheDocument()
+    expect(within(workspace).getByRole("button", { name: "Media" })).toBeInTheDocument()
+  })
+})
+
 describe("chat compose drafts", () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -2581,6 +2694,15 @@ function renderRouteWithLocation() {
       </MemoryRouter>
     </QueryClientProvider>
   )
+}
+
+function setBootstrapMode(mode: "advanced" | "simple") {
+  document.getElementById("syrus-bootstrap-data")?.remove()
+  const script = document.createElement("script")
+  script.id = "syrus-bootstrap-data"
+  script.type = "application/json"
+  script.textContent = JSON.stringify({ app: { mode }, feature_flags: {} })
+  document.body.appendChild(script)
 }
 
 function LocationProbe() {

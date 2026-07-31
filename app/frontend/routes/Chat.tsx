@@ -117,7 +117,7 @@ import { usePageTitle } from "../hooks/usePageTitle"
 import { errorMessage } from "../lib/errorMessage"
 import { type ChatQueryKey, CHAT_WORKSPACE_COLLAPSED_KEY, CHAT_WORKSPACE_MIN_WIDTH, CHAT_WORKSPACE_TAB_KEY, CHAT_WORKSPACE_WIDTH_KEY } from "./chat/constants"
 import { findChatMessageAnchor, isMessageStreamAtBottom, isMessageStreamNearTop, messageIdFromHash, messageStreamNeedsOlderMessages, scrollChatMessageIntoView, scrollMessageStreamToBottom } from "./chat/messageStream"
-import { appendSearch, visualViewportHeight, chatDisplayTitle, codingFilesTabVisible, jobsTabVisible, primaryButton, secondaryButton, withRoutePrefix } from "./chat/utils"
+import { appendSearch, visualViewportHeight, chatDisplayTitle, primaryButton, secondaryButton, withRoutePrefix } from "./chat/utils"
 import { PendingActionCard } from "./chat/ProposalCards"
 import { ChatMessage, shouldAnimateMessageEntrance, ToolGroup } from "./chat/MessageCards"
 import { AgentActivityIndicator, DayDivider, MessageTimestamp, SwitchingProviderIndicator, SystemMessagesToggle } from "./chat/streamChrome"
@@ -128,7 +128,7 @@ import { chatStreamItemsSignature, maxMessageId, mergeChatMessages, oldestMessag
 import { buildMessageStreamItems, injectTemporalMarkers, pendingActionCardData, renderChatMessages } from "./chat/streamBuilders"
 import type { MobileChatTab, WorkspaceTab } from "./chat/workspaceTabs"
 import { countIncomingVisibleMessages, isAgentActive, isLowPrioritySystemMessage } from "./chat/messageDisplay"
-import { clampWorkspaceWidth, defaultWorkspaceTab, mobileChatTabLabel, storeWorkspacePreference, storedWorkspaceCollapsed, storedWorkspaceTab, storedWorkspaceWidth, workspaceTabClass } from "./chat/workspaceTabs"
+import { availableWorkspaceTabs, clampWorkspaceWidth, defaultWorkspaceTab, mobileChatTabLabel, storeWorkspacePreference, storedWorkspaceCollapsed, storedWorkspaceTab, storedWorkspaceWidth, workspaceTabClass } from "./chat/workspaceTabs"
 import { SyrusTour } from "../components/SyrusTour"
 import { useTour } from "../hooks/useTour"
 
@@ -215,7 +215,8 @@ function SharedChatView({ payload }: { payload: SharedChatPayload }) {
 }
 
 function ReadOnlyMessageStream({ payload }: { payload: SharedChatPayload }) {
-  const items = renderChatMessages(payload.messages)
+  const simpleMode = useSimpleMode()
+  const items = renderChatMessages(payload.messages, { simpleMode })
   const placeholderPayload = sharedChatRenderPayload(payload)
   const { t } = useT("chat")
 
@@ -230,7 +231,7 @@ function ReadOnlyMessageStream({ payload }: { payload: SharedChatPayload }) {
   return (
     <div className="h-full min-h-0 space-y-4 overflow-y-auto p-3 sm:p-4" data-testid="chat-message-stream">
       {items.map((item) => item.type === "tool_group" ? (
-        <ToolGroup item={item} key={renderItemKey(item)} />
+        <ToolGroup item={item} key={renderItemKey(item)} simpleMode={simpleMode} />
       ) : (
         <ChatMessage item={item} key={renderItemKey(item)} payload={placeholderPayload} pendingActionIds={new Set()} prefix="" queryKey={chatQueryKey(payload.chat.id, "")} readOnly onNotice={() => undefined} />
       ))}
@@ -423,6 +424,7 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
     staleTime: initialBootstrap ? Number.POSITIVE_INFINITY : 0
   })
   const chatPolish = Boolean(bootstrap.data?.feature_flags?.chat_polish)
+  const simpleMode = bootstrap.data?.app?.mode === "simple"
   const streamRef = useRef<HTMLDivElement | null>(null)
   const atBottomRef = useRef(true)
   const streamChatIdRef = useRef(payload.chat.id)
@@ -437,7 +439,7 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
   const [hasMoreOlder, setHasMoreOlder] = useState(payload.has_more_older)
   const [activeBookmarkTarget, setActiveBookmarkTarget] = useState<BookmarkTarget | null>(null)
   const displayedMessages = mergeChatMessages(olderMessages, payload.messages)
-  const displayedItems = renderChatMessages(displayedMessages)
+  const displayedItems = renderChatMessages(displayedMessages, { simpleMode })
   const agentQuestions = payload.agent_questions || []
   const hiddenSystemMessageCount = displayedItems.filter(isLowPrioritySystemMessage).length
   const visibleItems = showSystemMessages ? displayedItems : displayedItems.filter((item) => !isLowPrioritySystemMessage(item))
@@ -612,7 +614,7 @@ function MessageStream({ bookmarkTarget, olderMessageRequesterRef, onCanLoadOlde
         ) : item.type === "pending_action" ? (
           <PendingActionCard pendingAction={pendingActionCardData(item.pendingAction)} key={renderItemKey(item)} queryKey={queryKey} onNotice={onNotice} />
         ) : item.type === "tool_group" ? (
-          <ToolGroup item={item} key={renderItemKey(item)} />
+          <ToolGroup item={item} key={renderItemKey(item)} simpleMode={simpleMode} />
         ) : (
           <ChatMessage animateIn={shouldAnimateMessageEntrance(chatPolish, item.id, entranceBaselineMessageIdRef.current)} item={item} key={renderItemKey(item)} payload={payload} pendingActionIds={pendingActionIds} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
         ))}
@@ -660,6 +662,19 @@ function useMediaQuery(query: string, defaultMatches: boolean) {
   return matches
 }
 
+function useSimpleMode() {
+  const initialBootstrap = readInitialBootstrap()
+  const bootstrap = useQuery({
+    queryKey: ["bootstrap"],
+    queryFn: fetchBootstrap,
+    enabled: false,
+    initialData: initialBootstrap ?? undefined,
+    staleTime: initialBootstrap ? Number.POSITIVE_INFINITY : 0
+  })
+
+  return bootstrap.data?.app?.mode === "simple"
+}
+
 
 function ChatWorkspace({
   chatId,
@@ -693,7 +708,14 @@ function ChatWorkspace({
   const navigate = useNavigate()
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const { t } = useT("chat")
+  const simpleMode = useSimpleMode()
+  const availableTabs = availableWorkspaceTabs(payload, simpleMode)
   const expanded = activeTab === "whiteboard" && whiteboardFullscreen
+
+  useEffect(() => {
+    if (!availableTabs.includes(activeTab)) setActiveTab(defaultWorkspaceTab(payload, simpleMode))
+    if (activeMobileTab !== "chat" && !availableTabs.includes(activeMobileTab)) setActiveMobileTab("chat")
+  }, [activeMobileTab, activeTab, availableTabs, payload, simpleMode])
 
   useEffect(() => {
     storeWorkspacePreference(CHAT_WORKSPACE_TAB_KEY, activeTab)
@@ -768,6 +790,7 @@ function ChatWorkspace({
       setBookmarkPickerOpen(true)
     },
     openAttachments: () => {
+      if (simpleMode) return
       onWhiteboardFullscreenChange(false)
       setActiveTab("context")
       setActiveMobileTab("context")
@@ -778,8 +801,8 @@ function ChatWorkspace({
   if (!isDesktop && !expanded) {
     return (
       <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-gray-950">
-        <nav aria-label={t("aria_mobile_tabs")} className="flex min-h-[44px] shrink-0 overflow-x-auto border-b border-gray-200 px-[max(0.5rem,env(safe-area-inset-left))] pt-1 text-sm font-medium dark:border-gray-700">
-          {(["chat", "whiteboard", "context", "media", ...(codingFilesTabVisible(payload) ? (["files"] as MobileChatTab[]) : []), ...(payload.local_tunnel_connected ? (["diff"] as MobileChatTab[]) : []), ...(jobsTabVisible(payload) ? (["jobs"] as MobileChatTab[]) : [])] as MobileChatTab[]).map((tab) => (
+        <nav aria-label={t("aria_mobile_tabs")} className="flex shrink-0 overflow-x-auto border-b border-gray-200 px-2 pt-2 text-sm font-medium dark:border-gray-700">
+          {(["chat", ...availableTabs] as MobileChatTab[]).map((tab) => (
             <button
               className={workspaceTabClass(activeMobileTab === tab)}
               key={tab}
@@ -805,6 +828,7 @@ function ChatWorkspace({
               queryKey={queryKey}
               onNotice={onNotice}
               onBookmarkSelect={selectBookmark}
+              simpleMode={simpleMode}
             />
           )}
         </div>
@@ -866,6 +890,7 @@ function ChatWorkspace({
           queryKey={queryKey}
           onNotice={onNotice}
           onBookmarkSelect={selectBookmark}
+          simpleMode={simpleMode}
         />
       ) : null}
       {settingsOpen ? <ChatSettingsDialog payload={payload} prefix={prefix} queryKey={queryKey} onClose={() => onSettingsOpenChange(false)} /> : null}

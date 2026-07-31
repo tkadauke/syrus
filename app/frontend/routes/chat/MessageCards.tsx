@@ -237,7 +237,20 @@ function BookmarkControl({ item, payload, queryKey, onNotice }: { item: Extract<
   )
 }
 
-export function ToolGroup({ item }: { item: ChatToolGroupItem }) {
+export function ToolGroup({ item, simpleMode = false }: { item: ChatToolGroupItem; simpleMode?: boolean }) {
+  if (simpleMode) {
+    return (
+      <div className="space-y-1">
+        {item.calls.map((call) => (
+          <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300" key={call.message_id}>
+            <span aria-hidden="true" className={`h-2 w-2 rounded-full ${call.result_error ? "bg-amber-500" : "animate-pulse bg-blue-500"}`} />
+            <span>{call.result_error ? "Hit a snag" : call.progress_label}</span>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   const details = item.calls.map((call) => [call.detail, call.result_summary].filter(Boolean).join(" · ")).filter(Boolean).join(", ")
   return (
     <details className="group/tool">

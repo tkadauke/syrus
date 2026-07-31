@@ -14,6 +14,16 @@ export function toolLabel(name: string) {
   return name.startsWith("mcp__") ? name.split("__", 3).at(-1) || name : name
 }
 
+export function simpleToolProgressLabel(name: string) {
+  const normalized = name.replace(/[^a-z0-9]/gi, "").toLowerCase()
+
+  if (["read", "readfile", "grep", "glob", "ls"].includes(normalized)) return "Reading code..."
+  if (["bash", "edit", "multiedit", "write", "create"].includes(normalized)) return "Making changes..."
+  if (["websearch", "webfetch"].includes(normalized)) return "Looking something up..."
+
+  return "Thinking..."
+}
+
 export function toolDetail(name: string, input: Record<string, unknown>) {
   let detail = ""
 

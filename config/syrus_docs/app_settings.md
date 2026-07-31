@@ -45,7 +45,7 @@ Maximum number of PRs that can participate in a single merge train. `merge_train
 Instance-wide experience mode. Set once during first-run onboarding (the "How do you work?" wizard step) or later in Admin → Settings → Instance mode.
 
 - **`advanced`** — full developer experience: manual per-Job approvals, Coding Mode, Local Mode, scheduled tasks, GitHub Issues tab, and all operator controls are available.
-- **`simple`** — non-technical solopreneur mode: developer-only surfaces are force-disabled regardless of their feature flag state. Specifically, `Feature.coding_mode_enabled?` and `Feature.local_mode_enabled?` always return `false`. Epic child Job dependency graphs must be strict linear chains (no forks, no merges).
+- **`simple`** — non-technical solopreneur mode: developer-only surfaces are force-disabled regardless of their feature flag state. Specifically, `Feature.coding_mode_enabled?` and `Feature.local_mode_enabled?` always return `false`. Epic child Job dependency graphs must be strict linear chains (no forks, no merges). Chat hides tool-call internals: running calls show only generic progress text, successful calls disappear, failed calls show "Hit a snag", and the chat workspace omits the Context tab.
 
 Use `AppSetting.simple?` / `AppSetting.advanced?` in code to branch on mode. Changing mode takes effect immediately (no restart required) because `AppSetting.current` is called at request time.
 

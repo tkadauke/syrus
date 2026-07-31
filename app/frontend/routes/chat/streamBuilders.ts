@@ -10,9 +10,9 @@ import type { ChatMessageItem, ChatPendingAction, ChatPendingActionInline, ChatR
 import type { ChatStreamItem } from "./streamTypes"
 import { contentInput, contentRecord, dayDividerLabel, sameLocalDay } from "./utils"
 import { structuredTool, systemMessage } from "./systemMessages"
-import { fullResultBody, shortenWorkspacePaths, toolDetail, toolLabel, toolResultSummary } from "./toolRendering"
+import { fullResultBody, shortenWorkspacePaths, simpleToolProgressLabel, toolDetail, toolLabel, toolResultSummary } from "./toolRendering"
 
-export function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[] {
+export function renderChatMessages(messages: ChatMessageItem[], options: { simpleMode?: boolean } = {}): ChatRenderItem[] {
   const items: ChatRenderItem[] = []
   let currentGroup: ChatToolGroupItem | null = null
 
@@ -22,6 +22,7 @@ export function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[
       const call = {
         message_id: message.id,
         detail: toolDetail(toolName, contentInput(message.content)),
+        progress_label: simpleToolProgressLabel(toolName),
         result_body: "",
         result_error: false,
         result_summary: ""
@@ -40,14 +41,21 @@ export function renderChatMessages(messages: ChatMessageItem[]): ChatRenderItem[
         lastCall.result_body = shortenWorkspacePaths(content ? fullResultBody(content.content ?? content.result) : String(message.content ?? message.text))
         lastCall.result_error = content?.is_error === true
         lastCall.result_summary = toolResultSummary(currentGroup?.tool || "", lastCall.result_body)
+        if (options.simpleMode && !lastCall.result_error && currentGroup) {
+          currentGroup.calls.pop()
+          if (currentGroup.calls.length === 0) {
+            items.pop()
+            currentGroup = null
+          }
+        }
       } else {
         currentGroup = null
-        const item = renderMessage(message)
+        const item = renderMessage(message, options)
         if (item) items.push(item)
       }
     } else {
       currentGroup = null
-      const item = renderMessage(message)
+      const item = renderMessage(message, options)
       if (item) items.push(item)
     }
   }
@@ -165,7 +173,7 @@ export function pendingActionCardData(action: ChatPendingAction): ChatPendingAct
   }
 }
 
-export function renderMessage(message: ChatMessageItem): ChatRenderItem | null {
+export function renderMessage(message: ChatMessageItem, options: { simpleMode?: boolean } = {}): ChatRenderItem | null {
   if (message.role === "system") {
     const system = systemMessage(message)
     if (system === null) return null
@@ -174,6 +182,8 @@ export function renderMessage(message: ChatMessageItem): ChatRenderItem | null {
   }
 
   if (message.role === "tool_use" || message.role === "tool_result") {
+    if (options.simpleMode) return null
+
     return { ...message, tool: structuredTool(message) }
   }
 

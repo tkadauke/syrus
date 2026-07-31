@@ -262,6 +262,7 @@ export type ChatToolGroupItem = {
   calls: Array<{
     message_id: number
     detail: string
+    progress_label: string
     result_body: string
     result_error: boolean
     result_summary: string

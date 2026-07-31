@@ -39,6 +39,14 @@ Job kinds:
 | `cron` | A scheduled task fire. |
 | `direct` | An operator-created prompt with no GitHub issue. |
 
+## Simple Mode
+
+Instances can run in simple mode for non-technical operators. In that mode,
+chat reads like a conversation: tool call names, JSON inputs, file paths,
+commands, and raw outputs are hidden. Running calls show brief progress text,
+successful calls leave no transcript entry, failed calls show only "Hit a
+snag", and the chat workspace does not show the Context tab.
+
 ## Notifications
 
 Signed-in operators see a bell in the app chrome with the current unread
