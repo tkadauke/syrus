@@ -46,6 +46,9 @@ default: &default
   reap_stale_instance_versions:
     class: ReapStaleInstanceVersionsJob
     schedule: every minute
+  prune_worker_host_health_samples:
+    class: WorkerHostHealthSamplePruneJob
+    schedule: every day at 3:15am
   reap_stale_branches:
     class: ReapStaleBranchesJob
     schedule: every day at 3:40am

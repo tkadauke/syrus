@@ -92,7 +92,7 @@ export const features = [
   {
     id: "visibility",
     title: "See exactly what's being built",
-    body: "Goals become tracked epics and tickets, and every attempt keeps its full transcript, diff, and review — an append-only record of who asked for what and exactly what the agent did. One inbox surfaces what needs you: work to approve, feedback to read, failures to retry.",
+    body: "Goals become tracked epics and tickets, and every attempt keeps its full transcript, diff, and review — an append-only record of who asked for what and exactly what the agent did. Operational dashboards track queues, workers, and host pressure so failures have context.",
   },
   {
     id: "cost",

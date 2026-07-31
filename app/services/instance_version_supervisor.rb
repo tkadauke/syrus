@@ -43,9 +43,11 @@ class InstanceVersionSupervisor
         return
       end
 
-      attrs = { last_heartbeat_at: now }.merge(data_root_usage_attrs)
+      data_root_snapshot = data_root_usage_snapshot
+      attrs = { last_heartbeat_at: now }.merge(data_root_usage_attrs(data_root_snapshot))
       rows = InstanceVersion.where(id: instance.id, finished_at: nil)
                             .update_all(attrs)
+      record_worker_host_health_sample(instance, observed_at: now, data_root_snapshot: data_root_snapshot) if rows == 1
       return if rows == 1
 
       # Reaper finalized us between heartbeats — re-register a fresh
@@ -71,21 +73,23 @@ class InstanceVersionSupervisor
     # disk-health banner is per-pod under local-disk multi-worker. Web pods
     # don't mount the workspace volume, so they report nothing. `df` is cheap
     # (unlike `du`); failures are swallowed so a heartbeat never breaks.
-    def data_root_usage_attrs
-      return {} unless SyrusVersion.role == "worker"
-
-      snapshot = DataRootDiskUsage.read(WorkflowWorkspace.data_root.to_s)
+    def data_root_usage_attrs(snapshot)
       return {} unless snapshot
-
       {
         data_root_used_percent: snapshot.used_percent,
         data_root_available_bytes: snapshot.available_bytes,
         data_root_total_bytes: snapshot.total_bytes,
         data_root_path: snapshot.path
       }
+    end
+
+    def data_root_usage_snapshot
+      return nil unless SyrusVersion.role == "worker"
+
+      DataRootDiskUsage.read(WorkflowWorkspace.data_root.to_s)
     rescue StandardError => e
       Rails.logger.warn("[InstanceVersionSupervisor] data-root measure failed: #{e.class}: #{e.message}")
-      {}
+      nil
     end
 
     def register_instance_safely(now: Time.current)
@@ -144,6 +148,14 @@ class InstanceVersionSupervisor
       ActiveRecord::Base.connection_pool.with_connection { heartbeat }
     rescue StandardError => e
       Rails.logger.warn("[InstanceVersionSupervisor] heartbeat raised: #{e.class}: #{e.message}")
+    end
+
+    def record_worker_host_health_sample(instance, observed_at:, data_root_snapshot:)
+      return unless instance.role == "worker"
+
+      WorkerHostHealthSampler.record!(instance: instance, observed_at: observed_at, data_root_snapshot: data_root_snapshot)
+    rescue StandardError => e
+      Rails.logger.warn("[InstanceVersionSupervisor] worker host health sample failed: #{e.class}: #{e.message}")
     end
 
     # SIGTERM via at_exit lets us flag the row as gracefully finished.
