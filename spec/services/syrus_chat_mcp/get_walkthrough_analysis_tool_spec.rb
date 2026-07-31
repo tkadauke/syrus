@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusChatMcp::GetWalkthroughAnalysisTool do
+RSpec.describe Mcp::Tools::GetWalkthroughAnalysisTool do
   let(:user) { Factories.user(gemini_api_key: "gk-test") }
   let(:chat_session) { ChatSession.create!(user: user) }
 

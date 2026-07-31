@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusChatMcp::AuthorizationSupport do
+RSpec.describe Mcp::Tools::AuthorizationSupport do
   # Consume the first-user admin-promotion slot so the test user is not auto-promoted.
   let!(:_bootstrap_admin) { Factories.user(admin: true) }
 
@@ -10,7 +10,7 @@ RSpec.describe SyrusChatMcp::AuthorizationSupport do
 
   let(:tool) do
     Class.new do
-      extend SyrusChatMcp::AuthorizationSupport
+      extend Mcp::Tools::AuthorizationSupport
     end
   end
 
@@ -139,14 +139,14 @@ RSpec.describe SyrusChatMcp::AuthorizationSupport do
 
       class << self
         def call(server_context:)
-          raise SyrusChatMcp::AuthorizationSupport::AuthorizationError, "blocked"
+          raise Mcp::Tools::AuthorizationSupport::AuthorizationError, "blocked"
         end
       end
     end
 
     server = MCP::Server.new(
       name: "syrus-chat-sidecar",
-      tools: [ SyrusChatMcp::Sidecar.authorize_tool(raising_tool) ],
+      tools: [ Mcp::Sidecar.authorize_tool(raising_tool) ],
       server_context: { chat_session: chat_session }
     )
 

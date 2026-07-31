@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusMcp::SubmitAdversarialReviewTool do
+RSpec.describe Mcp::Tools::SubmitAdversarialReviewTool do
   # submit_adversarial_review is role-gated to WORKFLOW_ADVERSARIAL_REVIEWER,
   # which is assigned when the step.kind is "adversarial_review". Using
   # initial_run would produce WORKFLOW_IMPLEMENT and trigger the capability guard.

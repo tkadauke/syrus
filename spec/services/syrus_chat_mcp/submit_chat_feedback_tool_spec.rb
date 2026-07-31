@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusChatMcp::SubmitChatFeedbackTool do
+RSpec.describe Mcp::Tools::SubmitChatFeedbackTool do
   include ActiveJob::TestHelper
 
   let(:user) { Factories.user }

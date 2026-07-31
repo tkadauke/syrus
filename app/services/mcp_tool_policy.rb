@@ -96,14 +96,14 @@ class McpToolPolicy
   # transient infrastructure failure, so granting it would produce false quorum signals.
   def workflow_tools
     base = [
-      SyrusMcp::ReadLiveStateTool,
+      Mcp::Tools::ReadLiveStateTool,
       Mcp::Tools::ReadMemoryTool,
       Mcp::Tools::WriteMemoryTool,
       Mcp::Tools::DeleteMemoryTool,
       Mcp::Tools::SearchMemoriesTool,
       Mcp::Tools::ListMemoriesTool,
-      SyrusMcp::GetCoverageReportTool,
-      SyrusMcp::ReadRunWorkerHealthTool,
+      Mcp::Tools::GetCoverageReportTool,
+      Mcp::Tools::ReadRunWorkerHealthTool,
       SyrusMcp::StartPreviewTool,
       SyrusMcp::StopPreviewTool,
       SyrusMcp::ReadPreviewLogTool
@@ -114,11 +114,11 @@ class McpToolPolicy
     end
 
     if @context.role == AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER
-      base + [ SyrusMcp::SubmitAdversarialReviewTool ]
+      base + [ Mcp::Tools::SubmitAdversarialReviewTool ]
     elsif @context.role == AgentRole::WORKFLOW_RECONCILIATION_FEEDBACK
-      base + [ SyrusMcp::ReportMainConcernTool, SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool, SyrusMcp::SubmitReconciliationFeedbackTool ]
+      base + [ Mcp::Tools::ReportMainConcernTool, Mcp::Tools::SubmitSummaryTool, Mcp::Tools::SubmitTestPlanTool, Mcp::Tools::SubmitReconciliationFeedbackTool ]
     else
-      tools = base + [ SyrusMcp::ReportMainConcernTool, SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool ]
+      tools = base + [ Mcp::Tools::ReportMainConcernTool, Mcp::Tools::SubmitSummaryTool, Mcp::Tools::SubmitTestPlanTool ]
       tools << SyrusMcp::SubmitJobMetadataTool if @context.run&.step&.kind == "refresh_job_metadata"
       tools
     end
@@ -169,8 +169,8 @@ class McpToolPolicy
       SyrusChatMcp::ReadScheduledTaskTool,
       SyrusChatMcp::ReadQueueTool,
       SyrusChatMcp::SearchSyrusDocsTool,
-      SyrusMcp::ListInsightsTool,
-      SyrusMcp::ReadInsightTool,
+      Mcp::Tools::ListInsightsTool,
+      Mcp::Tools::ReadInsightTool,
       Mcp::Tools::ReadMemoryTool,
       Mcp::Tools::SearchMemoriesTool,
       Mcp::Tools::ListMemoriesTool
@@ -227,18 +227,18 @@ class McpToolPolicy
   # submit_adversarial_review — insight jobs never open PRs.
   def insight_tools
     tools = [
-      SyrusMcp::ReadLiveStateTool,
-      SyrusMcp::ReadRunWorkerHealthTool,
+      Mcp::Tools::ReadLiveStateTool,
+      Mcp::Tools::ReadRunWorkerHealthTool,
       Mcp::Tools::ReadMemoryTool,
       Mcp::Tools::WriteMemoryTool,
       Mcp::Tools::SearchMemoriesTool,
       Mcp::Tools::ListMemoriesTool
     ]
     if Feature.agent_insights_enabled?
-      tools << SyrusMcp::SubmitInsightTool
+      tools << Mcp::Tools::SubmitInsightTool
       tools << SyrusMcp::UpdateInsightTool
-      tools << SyrusMcp::ListInsightsTool
-      tools << SyrusMcp::ReadInsightTool
+      tools << Mcp::Tools::ListInsightsTool
+      tools << Mcp::Tools::ReadInsightTool
       tools << SyrusMcp::ListRecentWorkflowsTool
       tools << SyrusMcp::ReadInsightRunTranscriptTool
     end
@@ -252,8 +252,8 @@ class McpToolPolicy
 
   def insight_read_tools
     [
-      SyrusMcp::ListInsightsTool,
-      SyrusMcp::ReadInsightTool,
+      Mcp::Tools::ListInsightsTool,
+      Mcp::Tools::ReadInsightTool,
       SyrusMcp::UpdateInsightTool
     ]
   end

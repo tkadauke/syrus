@@ -37,14 +37,13 @@ SyrusSidecarBootstrap.open_chat_stderr!(
 
 begin
   require_relative "../config/environment"
-  require_relative "../app/services/syrus_chat_mcp/sidecar"
 
-  sidecar_class = case tier
-  when "deferred" then SyrusChatMcp::DeferredSidecar
-  when "evaluator" then SyrusChatMcp::EvaluatorSidecar
-  else SyrusChatMcp::Sidecar
-  end
-  sidecar_class.new.run
+  Mcp::Sidecar.chat(
+    session_id: ENV.fetch("SYRUS_CHAT_SESSION_ID"),
+    current_message_id: ENV["SYRUS_CHAT_CURRENT_MESSAGE_ID"],
+    tier: tier,
+    server_name: server_name
+  ).run
 rescue SystemExit => e
   raise unless e.success?
 

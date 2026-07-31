@@ -53,7 +53,7 @@ class FakeSegmentClient
   end
 end
 
-RSpec.describe SyrusChatMcp::AnalyzeWalkthroughSegmentTool do
+RSpec.describe Mcp::Tools::AnalyzeWalkthroughSegmentTool do
   let(:user) { Factories.user(gemini_api_key: "gk-test") }
   let(:chat_session) { ChatSession.create!(user: user) }
   let(:fake_client) { FakeSegmentClient.new }
@@ -332,8 +332,8 @@ RSpec.describe SyrusChatMcp::AnalyzeWalkthroughSegmentTool do
 
   describe "registration" do
     it "is advertised as a deferred chat tool" do
-      expect(SyrusChatMcp::Sidecar.tool_names(tier: :deferred)).to include("analyze_walkthrough_segment")
-      expect(SyrusChatMcp::Sidecar.tool_names(tier: :essential)).not_to include("analyze_walkthrough_segment")
+      expect(Mcp::Sidecar.chat_tool_names(tier: :deferred)).to include("analyze_walkthrough_segment")
+      expect(Mcp::Sidecar.chat_tool_names(tier: :essential)).not_to include("analyze_walkthrough_segment")
     end
   end
 end

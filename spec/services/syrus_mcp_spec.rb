@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusMcp do
+RSpec.describe Mcp::Tools do
   describe ".utf8" do
     it "returns clean UTF-8 for a normal string" do
       expect(described_class.utf8("hello")).to eq("hello")

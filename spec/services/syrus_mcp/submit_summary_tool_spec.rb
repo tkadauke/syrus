@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusMcp::SubmitSummaryTool do
+RSpec.describe Mcp::Tools::SubmitSummaryTool do
   let(:run) { Factories.job.initial_run }
 
   def call(pr_title: "Add greeting helper", pr_body: "Adds a tiny greet helper.", summary: "Implemented greet.")
@@ -78,7 +78,7 @@ RSpec.describe SyrusMcp::SubmitSummaryTool do
     end
 
     it "returns a tool error instead of raising when the sidecar hits an unexpected exception" do
-      allow(SyrusMcp).to receive(:write_log).and_raise(ActiveRecord::ConnectionNotEstablished, "server closed")
+      allow(Mcp::Tools).to receive(:write_log).and_raise(ActiveRecord::ConnectionNotEstablished, "server closed")
 
       response = nil
       expect { response = call(pr_title: "Add greet") }.not_to raise_error

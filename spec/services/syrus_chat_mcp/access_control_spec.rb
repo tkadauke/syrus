@@ -1,7 +1,7 @@
 require "rails_helper"
 require "ostruct"
 
-RSpec.describe "SyrusChatMcp access control" do
+RSpec.describe "Mcp::Tools access control" do
   # Consume the first-user admin-promotion slot so subsequent users are not auto-promoted.
   let!(:_bootstrap_admin) { Factories.user(admin: true) }
 
@@ -47,7 +47,7 @@ RSpec.describe "SyrusChatMcp access control" do
   it "cannot attach a repository owned by another user" do
     other_repository = Factories.repository(user: Factories.user, owner: "other", name: "private")
 
-    response = call_tool(SyrusChatMcp::AttachRepositoryTool, "attach_repository", slug: other_repository.slug)
+    response = call_tool(Mcp::Tools::AttachRepositoryTool, "attach_repository", slug: other_repository.slug)
 
     expect(response.dig(:result, :isError)).to be(true)
     expect(text(response)).to include("is not configured for this user")
@@ -64,7 +64,7 @@ RSpec.describe "SyrusChatMcp access control" do
   end
 
   it "cannot read a job belonging to another user" do
-    response = call_tool(SyrusChatMcp::ReadJobTool, "read_job", job_id: other_user_job.id)
+    response = call_tool(Mcp::Tools::ReadJobTool, "read_job", job_id: other_user_job.id)
 
     expect_not_authorized(response)
   end
@@ -72,31 +72,31 @@ RSpec.describe "SyrusChatMcp access control" do
   it "cannot read an Epic belonging to another user" do
     epic = Factories.epic(user: Factories.user)
 
-    response = call_tool(SyrusChatMcp::ReadEpicTool, "read_epic", id: epic.id)
+    response = call_tool(Mcp::Tools::ReadEpicTool, "read_epic", id: epic.id)
 
     expect_not_authorized(response)
   end
 
   it "cannot list workflows for another user's job" do
-    response = call_tool(SyrusChatMcp::ListJobWorkflowsTool, "list_job_workflows", job_id: other_user_job.id)
+    response = call_tool(Mcp::Tools::ListJobWorkflowsTool, "list_job_workflows", job_id: other_user_job.id)
 
     expect_not_authorized(response)
   end
 
   it "cannot read another user's workflow" do
-    response = call_tool(SyrusChatMcp::ReadWorkflowTool, "read_workflow", workflow_id: other_user_job.latest_workflow.id)
+    response = call_tool(Mcp::Tools::ReadWorkflowTool, "read_workflow", workflow_id: other_user_job.latest_workflow.id)
 
     expect_not_authorized(response)
   end
 
   it "cannot read another user's run transcript" do
-    response = call_tool(SyrusChatMcp::ReadRunTranscriptTool, "read_run_transcript", run_id: other_user_job.initial_run.id)
+    response = call_tool(Mcp::Tools::ReadRunTranscriptTool, "read_run_transcript", run_id: other_user_job.initial_run.id)
 
     expect_not_authorized(response)
   end
 
   it "cannot read another user's job diff" do
-    response = call_tool(SyrusChatMcp::GetJobDiffTool, "get_job_diff", job_id: other_user_job.id)
+    response = call_tool(Mcp::Tools::GetJobDiffTool, "get_job_diff", job_id: other_user_job.id)
 
     expect_not_authorized(response)
   end
@@ -104,7 +104,7 @@ RSpec.describe "SyrusChatMcp access control" do
   it "cannot add a tag to another user's job" do
     tag = Factories.tag(user: user)
 
-    response = call_tool(SyrusChatMcp::AddJobTagTool, "add_job_tag", job_id: other_user_job.id, tag_id: tag.id)
+    response = call_tool(Mcp::Tools::AddJobTagTool, "add_job_tag", job_id: other_user_job.id, tag_id: tag.id)
 
     expect_not_authorized(response)
   end
@@ -112,41 +112,41 @@ RSpec.describe "SyrusChatMcp access control" do
   it "cannot remove a tag from another user's job" do
     tag = Factories.tag(user: user)
 
-    response = call_tool(SyrusChatMcp::RemoveJobTagTool, "remove_job_tag", job_id: other_user_job.id, tag_id: tag.id)
+    response = call_tool(Mcp::Tools::RemoveJobTagTool, "remove_job_tag", job_id: other_user_job.id, tag_id: tag.id)
 
     expect_not_authorized(response)
   end
 
   it "cannot request cancellation for another user's job" do
-    response = call_tool(SyrusChatMcp::CancelJobTool, "cancel_job", job_id: other_user_job.id)
+    response = call_tool(Mcp::Tools::CancelJobTool, "cancel_job", job_id: other_user_job.id)
 
     expect_not_authorized(response)
     expect(chat_session.pending_actions).to be_empty
   end
 
   it "cannot request successful close for another user's job" do
-    response = call_tool(SyrusChatMcp::CloseJobSuccessfullyTool, "close_job_successfully", job_id: other_user_job.id, closure_reason: "no_changes")
+    response = call_tool(Mcp::Tools::CloseJobSuccessfullyTool, "close_job_successfully", job_id: other_user_job.id, closure_reason: "no_changes")
 
     expect_not_authorized(response)
     expect(chat_session.pending_actions).to be_empty
   end
 
   it "cannot request retry for another user's job" do
-    response = call_tool(SyrusChatMcp::RetryJobTool, "retry_job", job_id: other_user_job.id)
+    response = call_tool(Mcp::Tools::RetryJobTool, "retry_job", job_id: other_user_job.id)
 
     expect_not_authorized(response)
     expect(chat_session.pending_actions).to be_empty
   end
 
   it "cannot request rebase for another user's job" do
-    response = call_tool(SyrusChatMcp::RebaseJobTool, "rebase_job", job_id: other_user_job.id, reason: "Check access denial.")
+    response = call_tool(Mcp::Tools::RebaseJobTool, "rebase_job", job_id: other_user_job.id, reason: "Check access denial.")
 
     expect_not_authorized(response)
     expect(chat_session.pending_actions).to be_empty
   end
 
   it "cannot submit chat feedback for another user's job" do
-    response = call_tool(SyrusChatMcp::SubmitChatFeedbackTool, "submit_chat_feedback", job_id: other_user_job.id, feedback: "Change this.")
+    response = call_tool(Mcp::Tools::SubmitChatFeedbackTool, "submit_chat_feedback", job_id: other_user_job.id, feedback: "Change this.")
 
     expect_not_authorized(response)
     expect(chat_session.pending_actions).to be_empty
@@ -160,7 +160,7 @@ RSpec.describe "SyrusChatMcp access control" do
     )
     expect(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
 
-    response = call_tool(SyrusChatMcp::ReadPrTool, "read_pr", pr_number: 12)
+    response = call_tool(Mcp::Tools::ReadPrTool, "read_pr", pr_number: 12)
 
     expect(response.dig(:result, :isError)).to be_falsey
     expect(payload(response)[:pr]).to include(number: 12, title: "Fix it")
@@ -170,7 +170,7 @@ RSpec.describe "SyrusChatMcp access control" do
     other_repository = Factories.repository(user: Factories.user, owner: "other", name: "private")
 
     response = call_tool(
-      SyrusChatMcp::ProposeJobTool,
+      Mcp::Tools::ProposeJobTool,
       "propose_job",
       title: "Ship a change",
       description: "Do the work.",
@@ -191,7 +191,7 @@ RSpec.describe "SyrusChatMcp access control" do
     it "can read a job belonging to another user" do
       job = other_user_job
 
-      response = call_tool(SyrusChatMcp::ReadJobTool, "read_job", job_id: job.id)
+      response = call_tool(Mcp::Tools::ReadJobTool, "read_job", job_id: job.id)
 
       expect(response.dig(:result, :isError)).to be_falsey
       expect(payload(response)[:job]).to include(id: job.id)
@@ -200,7 +200,7 @@ RSpec.describe "SyrusChatMcp access control" do
     it "can read an Epic belonging to another user" do
       epic = Factories.epic(user: Factories.user)
 
-      response = call_tool(SyrusChatMcp::ReadEpicTool, "read_epic", id: epic.id)
+      response = call_tool(Mcp::Tools::ReadEpicTool, "read_epic", id: epic.id)
 
       expect(response.dig(:result, :isError)).to be_falsey
       expect(payload(response)[:epic]).to include(id: epic.id)
@@ -210,7 +210,7 @@ RSpec.describe "SyrusChatMcp access control" do
       own_job = Factories.job(repository: repository, issue_number: 10)
       other_job = other_user_job
 
-      response = call_tool(SyrusChatMcp::ListJobsTool, "list_jobs")
+      response = call_tool(Mcp::Tools::ListJobsTool, "list_jobs")
 
       expect(response.dig(:result, :isError)).to be_falsey
       listed_ids = payload(response)[:jobs].map { |j| j[:id] }
@@ -220,7 +220,7 @@ RSpec.describe "SyrusChatMcp access control" do
     it "searches jobs across all users" do
       other_job = Factories.job(repository: Factories.repository(user: Factories.user), issue_number: 11, issue_title: "Admin search target")
 
-      response = call_tool(SyrusChatMcp::SearchJobsTool, "search_jobs", query: "Admin search target")
+      response = call_tool(Mcp::Tools::SearchJobsTool, "search_jobs", query: "Admin search target")
 
       expect(response.dig(:result, :isError)).to be_falsey
       listed_ids = payload(response)[:results].map { |j| j[:id] }
@@ -231,7 +231,7 @@ RSpec.describe "SyrusChatMcp access control" do
       own_epic = Factories.epic(user: user, repository: repository)
       other_epic = Factories.epic(user: Factories.user)
 
-      response = call_tool(SyrusChatMcp::ListEpicsTool, "list_epics")
+      response = call_tool(Mcp::Tools::ListEpicsTool, "list_epics")
 
       expect(response.dig(:result, :isError)).to be_falsey
       listed_ids = payload(response)[:epics].map { |e| e[:id] }
@@ -241,7 +241,7 @@ RSpec.describe "SyrusChatMcp access control" do
     it "lists repositories across all users" do
       other_repository = Factories.repository(user: Factories.user)
 
-      response = call_tool(SyrusChatMcp::ListRepositoriesTool, "list_repositories")
+      response = call_tool(Mcp::Tools::ListRepositoriesTool, "list_repositories")
 
       expect(response.dig(:result, :isError)).to be_falsey
       listed_ids = payload(response)[:repositories].map { |r| r[:id] }
@@ -251,7 +251,7 @@ RSpec.describe "SyrusChatMcp access control" do
     it "can list workflows for another user's job" do
       job = other_user_job
 
-      response = call_tool(SyrusChatMcp::ListJobWorkflowsTool, "list_job_workflows", job_id: job.id)
+      response = call_tool(Mcp::Tools::ListJobWorkflowsTool, "list_job_workflows", job_id: job.id)
 
       expect(response.dig(:result, :isError)).to be_falsey
     end
@@ -259,7 +259,7 @@ RSpec.describe "SyrusChatMcp access control" do
     it "can read another user's workflow" do
       job = other_user_job
 
-      response = call_tool(SyrusChatMcp::ReadWorkflowTool, "read_workflow", workflow_id: job.latest_workflow.id)
+      response = call_tool(Mcp::Tools::ReadWorkflowTool, "read_workflow", workflow_id: job.latest_workflow.id)
 
       expect(response.dig(:result, :isError)).to be_falsey
     end
@@ -267,7 +267,7 @@ RSpec.describe "SyrusChatMcp access control" do
     it "can read another user's run transcript" do
       job = other_user_job
 
-      response = call_tool(SyrusChatMcp::ReadRunTranscriptTool, "read_run_transcript", run_id: job.initial_run.id)
+      response = call_tool(Mcp::Tools::ReadRunTranscriptTool, "read_run_transcript", run_id: job.initial_run.id)
 
       expect(response.dig(:result, :isError)).to be_falsey
     end
@@ -275,7 +275,7 @@ RSpec.describe "SyrusChatMcp access control" do
     it "can cancel another user's job" do
       job = other_user_job
 
-      response = call_tool(SyrusChatMcp::CancelJobTool, "cancel_job", job_id: job.id)
+      response = call_tool(Mcp::Tools::CancelJobTool, "cancel_job", job_id: job.id)
 
       expect(response.dig(:result, :isError)).to be_falsey
     end
@@ -283,7 +283,7 @@ RSpec.describe "SyrusChatMcp access control" do
     it "can request successful close for another user's job" do
       job = other_user_job
 
-      response = call_tool(SyrusChatMcp::CloseJobSuccessfullyTool, "close_job_successfully", job_id: job.id, closure_reason: "no_changes")
+      response = call_tool(Mcp::Tools::CloseJobSuccessfullyTool, "close_job_successfully", job_id: job.id, closure_reason: "no_changes")
 
       expect(response.dig(:result, :isError)).to be_falsey
     end
@@ -291,7 +291,7 @@ RSpec.describe "SyrusChatMcp access control" do
     it "can update another user's job" do
       job = other_user_job
 
-      response = call_tool(SyrusChatMcp::UpdateJobTool, "update_job", job_id: job.id, title: "Admin updated title")
+      response = call_tool(Mcp::Tools::UpdateJobTool, "update_job", job_id: job.id, title: "Admin updated title")
 
       expect(response.dig(:result, :isError)).to be_falsey
       expect(payload(response)[:title]).to eq("Admin updated title")
@@ -300,7 +300,7 @@ RSpec.describe "SyrusChatMcp access control" do
     it "can set priority on another user's job" do
       job = other_user_job
 
-      response = call_tool(SyrusChatMcp::SetJobPriorityTool, "set_job_priority", job_id: job.id, priority: "high")
+      response = call_tool(Mcp::Tools::SetJobPriorityTool, "set_job_priority", job_id: job.id, priority: "high")
 
       expect(response.dig(:result, :isError)).to be_falsey
       expect(payload(response)[:new_priority]).to eq("high")
@@ -313,7 +313,7 @@ RSpec.describe "SyrusChatMcp access control" do
 
       server = MCP::Server.new(
         name: "syrus-chat-sidecar",
-        tools: [ SyrusChatMcp::ReadJobTool ],
+        tools: [ Mcp::Tools::ReadJobTool ],
         server_context: { chat_session: non_admin_chat }
       )
       raw = server.handle_json({

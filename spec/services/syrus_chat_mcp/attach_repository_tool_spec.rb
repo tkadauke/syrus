@@ -1,7 +1,7 @@
 require "rails_helper"
 require "tmpdir"
 
-RSpec.describe SyrusChatMcp::AttachRepositoryTool, :ci_only do
+RSpec.describe Mcp::Tools::AttachRepositoryTool, :ci_only do
   let(:user) { Factories.user(github_token: "ghp_test_token") }
   let(:repository) { Factories.repository(user: user, owner: "tkadauke", name: "syrus", default_branch: "main") }
   let(:chat_session) { ChatSession.create!(user: user) }

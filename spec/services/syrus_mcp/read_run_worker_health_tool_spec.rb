@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusMcp::ReadRunWorkerHealthTool do
+RSpec.describe Mcp::Tools::ReadRunWorkerHealthTool do
   let(:run) { Factories.job.initial_run }
 
   def payload_from(response)

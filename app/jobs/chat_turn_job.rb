@@ -533,8 +533,8 @@ class ChatTurnJob < ApplicationJob
   end
 
   def mcp_tool_names_for(name)
-    return SyrusChatMcp::Sidecar.tool_names(@chat) if name == "syrus-chat-sidecar"
-    return SyrusChatMcp::DeferredSidecar.tool_names(@chat) if name == "syrus-chat-deferred-sidecar"
+    return Mcp::Sidecar.chat_tool_names(@chat, tier: :essential) if name == "syrus-chat-sidecar"
+    return Mcp::Sidecar.chat_tool_names(@chat, tier: :deferred) if name == "syrus-chat-deferred-sidecar"
 
     []
   end

@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusMcp::SubmitInsightTool do
+RSpec.describe Mcp::Tools::SubmitInsightTool do
   let(:user)       { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:run)        { insight_run(user: user, repository: repository) }

@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusChatMcp::ReadQueueTool do
+RSpec.describe Mcp::Tools::ReadQueueTool do
   before(:all) { ensure_solid_queue_test_tables! }
   after(:all) { drop_solid_queue_test_tables! }
   before { clear_solid_queue_test_tables! }

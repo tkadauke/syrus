@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusChatMcp::SearchJobsTool do
+RSpec.describe Mcp::Tools::SearchJobsTool do
   let!(:_bootstrap_admin) { Factories.user(admin: true) }
 
   let(:user) { Factories.user }

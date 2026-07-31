@@ -1,7 +1,7 @@
 require "rails_helper"
 require "ostruct"
 
-RSpec.describe "SyrusChatMcp job control tools" do
+RSpec.describe "Mcp::Tools job control tools" do
   let!(:_bootstrap_admin) { Factories.user(admin: true) }
 
   let(:user) { Factories.user }
@@ -12,17 +12,17 @@ RSpec.describe "SyrusChatMcp job control tools" do
     MCP::Server.new(
       name: "syrus-chat-sidecar",
       tools: [
-        SyrusChatMcp::ApproveJobTool,
-        SyrusChatMcp::UnapproveJobTool,
-        SyrusChatMcp::SetJobPriorityTool,
-        SyrusChatMcp::AssignJobToEpicTool,
-        SyrusChatMcp::RemoveJobFromEpicTool,
-        SyrusChatMcp::UpdateJobTool,
-        SyrusChatMcp::CancelJobTool,
-        SyrusChatMcp::CloseJobSuccessfullyTool,
-        SyrusChatMcp::RetryJobTool,
-        SyrusChatMcp::ForceFailJobTool,
-        SyrusChatMcp::RebaseJobTool
+        Mcp::Tools::ApproveJobTool,
+        Mcp::Tools::UnapproveJobTool,
+        Mcp::Tools::SetJobPriorityTool,
+        Mcp::Tools::AssignJobToEpicTool,
+        Mcp::Tools::RemoveJobFromEpicTool,
+        Mcp::Tools::UpdateJobTool,
+        Mcp::Tools::CancelJobTool,
+        Mcp::Tools::CloseJobSuccessfullyTool,
+        Mcp::Tools::RetryJobTool,
+        Mcp::Tools::ForceFailJobTool,
+        Mcp::Tools::RebaseJobTool
       ],
       server_context: { chat_session: chat_session }
     )
@@ -97,7 +97,7 @@ RSpec.describe "SyrusChatMcp job control tools" do
       )
     end
 
-    SyrusChatMcp::CancelJobTool.call(
+    Mcp::Tools::CancelJobTool.call(
       job_id: job.id,
       server_context: { chat_session: chat_session, current_message: message }
     )
@@ -452,14 +452,14 @@ RSpec.describe "SyrusChatMcp job control tools" do
       MCP::Server.new(
         name: "syrus-chat-sidecar",
         tools: [
-          SyrusChatMcp::ApproveJobTool,
-          SyrusChatMcp::UnapproveJobTool,
-          SyrusChatMcp::SetJobPriorityTool,
-          SyrusChatMcp::CancelJobTool,
-          SyrusChatMcp::CloseJobSuccessfullyTool,
-          SyrusChatMcp::RetryJobTool,
-          SyrusChatMcp::ForceFailJobTool,
-          SyrusChatMcp::RebaseJobTool
+          Mcp::Tools::ApproveJobTool,
+          Mcp::Tools::UnapproveJobTool,
+          Mcp::Tools::SetJobPriorityTool,
+          Mcp::Tools::CancelJobTool,
+          Mcp::Tools::CloseJobSuccessfullyTool,
+          Mcp::Tools::RetryJobTool,
+          Mcp::Tools::ForceFailJobTool,
+          Mcp::Tools::RebaseJobTool
         ],
         server_context: { chat_session: admin_chat_session }
       )

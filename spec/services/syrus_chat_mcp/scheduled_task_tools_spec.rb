@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "SyrusChatMcp scheduled task tools" do
+RSpec.describe "Mcp::Tools scheduled task tools" do
   let!(:_bootstrap_admin) { Factories.user(admin: true) }
 
   let(:user) { Factories.user }
@@ -11,12 +11,12 @@ RSpec.describe "SyrusChatMcp scheduled task tools" do
     MCP::Server.new(
       name: "syrus-chat-sidecar",
       tools: [
-        SyrusChatMcp::ListScheduledTasksTool,
-        SyrusChatMcp::ReadScheduledTaskTool,
-        SyrusChatMcp::UpdateScheduledTaskTool,
-        SyrusChatMcp::PauseScheduledTaskTool,
-        SyrusChatMcp::ResumeScheduledTaskTool,
-        SyrusChatMcp::DeleteScheduledTaskTool
+        Mcp::Tools::ListScheduledTasksTool,
+        Mcp::Tools::ReadScheduledTaskTool,
+        Mcp::Tools::UpdateScheduledTaskTool,
+        Mcp::Tools::PauseScheduledTaskTool,
+        Mcp::Tools::ResumeScheduledTaskTool,
+        Mcp::Tools::DeleteScheduledTaskTool
       ],
       server_context: { chat_session: chat_session }
     )
@@ -258,7 +258,7 @@ RSpec.describe "SyrusChatMcp scheduled task tools" do
 
     admin_server = MCP::Server.new(
       name: "syrus-chat-sidecar",
-      tools: [ SyrusChatMcp::ReadScheduledTaskTool ],
+      tools: [ Mcp::Tools::ReadScheduledTaskTool ],
       server_context: { chat_session: admin_session }
     )
     raw = admin_server.handle_json({
@@ -416,7 +416,7 @@ RSpec.describe "SyrusChatMcp scheduled task tools" do
 
     admin_server = MCP::Server.new(
       name: "syrus-chat-sidecar",
-      tools: [ SyrusChatMcp::UpdateScheduledTaskTool ],
+      tools: [ Mcp::Tools::UpdateScheduledTaskTool ],
       server_context: { chat_session: admin_session }
     )
     raw = admin_server.handle_json({

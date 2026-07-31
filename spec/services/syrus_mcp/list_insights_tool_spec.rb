@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusMcp::ListInsightsTool do
+RSpec.describe Mcp::Tools::ListInsightsTool do
   let!(:bootstrap_admin) { Factories.user(admin: true) }
   let(:user)       { Factories.user }
   let(:repository) { Factories.repository(user: user) }

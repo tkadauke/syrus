@@ -123,8 +123,8 @@ RSpec.describe McpToolContext do
       context = described_class.from_run(run.reload)
 
       tools = McpToolPolicy.for(context)
-      expect(tools).to include(SyrusMcp::SubmitAdversarialReviewTool)
-      expect(tools).not_to include(SyrusMcp::SubmitSummaryTool)
+      expect(tools).to include(Mcp::Tools::SubmitAdversarialReviewTool)
+      expect(tools).not_to include(Mcp::Tools::SubmitSummaryTool)
     end
 
     it "does not expose submit_adversarial_review to a grader step" do
@@ -132,8 +132,8 @@ RSpec.describe McpToolContext do
       context = described_class.from_run(run.reload)
 
       tools = McpToolPolicy.for(context)
-      expect(tools).not_to include(SyrusMcp::SubmitAdversarialReviewTool)
-      expect(tools).to include(SyrusMcp::SubmitSummaryTool)
+      expect(tools).not_to include(Mcp::Tools::SubmitAdversarialReviewTool)
+      expect(tools).to include(Mcp::Tools::SubmitSummaryTool)
     end
   end
 

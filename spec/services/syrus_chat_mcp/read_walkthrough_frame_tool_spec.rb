@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusChatMcp::ReadWalkthroughFrameTool do
+RSpec.describe Mcp::Tools::ReadWalkthroughFrameTool do
   let(:user) { Factories.user(gemini_api_key: "gk-test") }
   let(:chat_session) { ChatSession.create!(user: user) }
 
@@ -189,8 +189,8 @@ RSpec.describe SyrusChatMcp::ReadWalkthroughFrameTool do
 
   describe "registration" do
     it "is advertised as a deferred chat tool, not an essential one" do
-      expect(SyrusChatMcp::Sidecar.tool_names(tier: :deferred)).to include("read_walkthrough_frame")
-      expect(SyrusChatMcp::Sidecar.tool_names(tier: :essential)).not_to include("read_walkthrough_frame")
+      expect(Mcp::Sidecar.chat_tool_names(tier: :deferred)).to include("read_walkthrough_frame")
+      expect(Mcp::Sidecar.chat_tool_names(tier: :essential)).not_to include("read_walkthrough_frame")
     end
   end
 end

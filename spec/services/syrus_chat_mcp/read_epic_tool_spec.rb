@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusChatMcp::ReadEpicTool do
+RSpec.describe Mcp::Tools::ReadEpicTool do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "roads") }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }

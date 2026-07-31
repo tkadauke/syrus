@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "SyrusChatMcp chat search tools" do
+RSpec.describe "Mcp::Tools chat search tools" do
   let(:user) { Factories.user }
   let(:other_user) { Factories.user }
   let(:repository) { Factories.repository(user: user, name: "widgets") }
@@ -17,8 +17,8 @@ RSpec.describe "SyrusChatMcp chat search tools" do
     MCP::Server.new(
       name: "syrus-chat-sidecar",
       tools: [
-        SyrusChatMcp::SearchChatsTool,
-        SyrusChatMcp::ReadChatMessagesTool
+        Mcp::Tools::SearchChatsTool,
+        Mcp::Tools::ReadChatMessagesTool
       ],
       server_context: { chat_session: chat_session }
     )

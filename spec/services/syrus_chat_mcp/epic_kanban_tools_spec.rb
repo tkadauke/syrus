@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "SyrusChatMcp epic kanban tools" do
+RSpec.describe "Mcp::Tools epic kanban tools" do
   let!(:_bootstrap_admin) { Factories.user(admin: true) }
 
   let(:user) { Factories.user }
@@ -11,11 +11,11 @@ RSpec.describe "SyrusChatMcp epic kanban tools" do
     MCP::Server.new(
       name: "syrus-chat-sidecar",
       tools: [
-        SyrusChatMcp::ListEpicsTool,
-        SyrusChatMcp::StartEpicTool,
-        SyrusChatMcp::MoveEpicToBacklogTool,
-        SyrusChatMcp::ArchiveEpicTool,
-        SyrusChatMcp::UpdateEpicTool
+        Mcp::Tools::ListEpicsTool,
+        Mcp::Tools::StartEpicTool,
+        Mcp::Tools::MoveEpicToBacklogTool,
+        Mcp::Tools::ArchiveEpicTool,
+        Mcp::Tools::UpdateEpicTool
       ],
       server_context: { chat_session: chat_session }
     )
@@ -47,7 +47,7 @@ RSpec.describe "SyrusChatMcp epic kanban tools" do
       admin_session = ChatSession.create!(user: admin)
       admin_server = MCP::Server.new(
         name: "syrus-chat-sidecar",
-        tools: [ SyrusChatMcp::ListEpicsTool ],
+        tools: [ Mcp::Tools::ListEpicsTool ],
         server_context: { chat_session: admin_session }
       )
 
@@ -248,7 +248,7 @@ RSpec.describe "SyrusChatMcp epic kanban tools" do
       admin_session = ChatSession.create!(user: admin)
       admin_server = MCP::Server.new(
         name: "syrus-chat-sidecar",
-        tools: [ SyrusChatMcp::UpdateEpicTool ],
+        tools: [ Mcp::Tools::UpdateEpicTool ],
         server_context: { chat_session: admin_session }
       )
 

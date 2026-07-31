@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusChatMcp::SearchSyrusDocsTool do
+RSpec.describe Mcp::Tools::SearchSyrusDocsTool do
   let(:user) { Factories.user }
   let(:chat_session) { ChatSession.create!(user: user) }
 

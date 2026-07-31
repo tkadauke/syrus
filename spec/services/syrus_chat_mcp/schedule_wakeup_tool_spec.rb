@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusChatMcp::ScheduleWakeupTool do
+RSpec.describe Mcp::Tools::ScheduleWakeupTool do
   include ActiveJob::TestHelper
 
   let(:user) { Factories.user }

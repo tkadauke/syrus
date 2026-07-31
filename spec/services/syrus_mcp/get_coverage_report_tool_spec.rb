@@ -1,12 +1,12 @@
 require "rails_helper"
 
-RSpec.describe SyrusMcp::GetCoverageReportTool do
+RSpec.describe Mcp::Tools::GetCoverageReportTool do
   let(:run) { Factories.job.initial_run }
 
   def server_for(run)
     MCP::Server.new(
       name: "syrus-mcp-sidecar",
-      tools: [ SyrusMcp::GetCoverageReportTool ],
+      tools: [ Mcp::Tools::GetCoverageReportTool ],
       server_context: { run_id: run.id }
     )
   end

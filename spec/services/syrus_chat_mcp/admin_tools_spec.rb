@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "SyrusChatMcp admin tools" do
+RSpec.describe "Mcp::Tools admin tools" do
   before(:all) { ensure_solid_queue_test_tables! }
   after(:all) { drop_solid_queue_test_tables! }
   before { clear_solid_queue_test_tables! }
@@ -58,7 +58,7 @@ RSpec.describe "SyrusChatMcp admin tools" do
   def server_for(chat_session)
     MCP::Server.new(
       name: "syrus-chat-sidecar",
-      tools: SyrusChatMcp::Sidecar::ADMIN_TOOLS,
+      tools: Mcp::Sidecar::CHAT_ADMIN_TOOLS,
       server_context: { chat_session: chat_session }
     )
   end

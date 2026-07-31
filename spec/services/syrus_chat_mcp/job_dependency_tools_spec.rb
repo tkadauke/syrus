@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "SyrusChatMcp job dependency tools" do
+RSpec.describe "Mcp::Tools job dependency tools" do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
@@ -9,8 +9,8 @@ RSpec.describe "SyrusChatMcp job dependency tools" do
     MCP::Server.new(
       name: "syrus-chat-sidecar",
       tools: [
-        SyrusChatMcp::AddJobDependencyTool,
-        SyrusChatMcp::RemoveJobDependencyTool
+        Mcp::Tools::AddJobDependencyTool,
+        Mcp::Tools::RemoveJobDependencyTool
       ],
       server_context: { chat_session: chat_session }
     )

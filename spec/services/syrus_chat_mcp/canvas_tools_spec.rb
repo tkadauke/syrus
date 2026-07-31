@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "SyrusChatMcp canvas tools" do
+RSpec.describe "Mcp::Tools canvas tools" do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
@@ -9,21 +9,21 @@ RSpec.describe "SyrusChatMcp canvas tools" do
     MCP::Server.new(
       name: "syrus-chat-sidecar",
       tools: [
-        SyrusChatMcp::ReadSceneTool,
-        SyrusChatMcp::DrawShapeTool,
-        SyrusChatMcp::DrawTextTool,
-        SyrusChatMcp::DrawLineTool,
-        SyrusChatMcp::DrawArrowTool,
-        SyrusChatMcp::DrawFreedrawTool,
-        SyrusChatMcp::DrawFrameTool,
-        SyrusChatMcp::DrawEmbedTool,
-        SyrusChatMcp::DrawImageTool,
-        SyrusChatMcp::MoveElementTool,
-        SyrusChatMcp::DeleteElementTool,
-        SyrusChatMcp::SaveCanvasTool,
-        SyrusChatMcp::ClearCanvasTool,
-        SyrusChatMcp::LoadCanvasTool,
-        SyrusChatMcp::UpdateSceneTool
+        Mcp::Tools::ReadSceneTool,
+        Mcp::Tools::DrawShapeTool,
+        Mcp::Tools::DrawTextTool,
+        Mcp::Tools::DrawLineTool,
+        Mcp::Tools::DrawArrowTool,
+        Mcp::Tools::DrawFreedrawTool,
+        Mcp::Tools::DrawFrameTool,
+        Mcp::Tools::DrawEmbedTool,
+        Mcp::Tools::DrawImageTool,
+        Mcp::Tools::MoveElementTool,
+        Mcp::Tools::DeleteElementTool,
+        Mcp::Tools::SaveCanvasTool,
+        Mcp::Tools::ClearCanvasTool,
+        Mcp::Tools::LoadCanvasTool,
+        Mcp::Tools::UpdateSceneTool
       ],
       server_context: { chat_session: chat_session }
     )
@@ -393,7 +393,7 @@ RSpec.describe "SyrusChatMcp canvas tools" do
     )
 
     expect {
-      SyrusChatMcp::LoadCanvasTool.call(snapshot_id: snapshot.id, server_context: { chat_session: chat_session })
+      Mcp::Tools::LoadCanvasTool.call(snapshot_id: snapshot.id, server_context: { chat_session: chat_session })
     }.to raise_error(ActiveRecord::RecordNotFound)
   end
 
@@ -483,27 +483,27 @@ RSpec.describe "SyrusChatMcp canvas tools" do
     )
   end
 
-  describe "SyrusChatMcp::Canvas" do
+  describe "Mcp::Tools::Canvas" do
     describe ".text_element" do
       it "sets height for a single line based on font_size" do
-        element = SyrusChatMcp::Canvas.text_element(content: "Hello", x: 0, y: 0, font_size: 20)
+        element = Mcp::Tools::Canvas.text_element(content: "Hello", x: 0, y: 0, font_size: 20)
         expect(element["height"]).to eq((20 * 1.25).round(2))
         expect(element["width"]).to eq([ "Hello".length * 20 * 0.6, 20 ].max.round(2))
       end
 
       it "scales height by line count for multi-line content" do
-        element = SyrusChatMcp::Canvas.text_element(content: "Line one\nLine two\nLine three", x: 0, y: 0, font_size: 20)
+        element = Mcp::Tools::Canvas.text_element(content: "Line one\nLine two\nLine three", x: 0, y: 0, font_size: 20)
         expect(element["height"]).to eq((20 * 1.25 * 3).round(2))
       end
 
       it "sizes width by the longest line, not total character count" do
-        element = SyrusChatMcp::Canvas.text_element(content: "Short\nA much longer line here", x: 0, y: 0, font_size: 20)
+        element = Mcp::Tools::Canvas.text_element(content: "Short\nA much longer line here", x: 0, y: 0, font_size: 20)
         longest = "A much longer line here".length
         expect(element["width"]).to eq([ longest * 20 * 0.6, 20 ].max.round(2))
       end
 
       it "treats empty string as a single line with minimum width" do
-        element = SyrusChatMcp::Canvas.text_element(content: "", x: 0, y: 0, font_size: 20)
+        element = Mcp::Tools::Canvas.text_element(content: "", x: 0, y: 0, font_size: 20)
         expect(element["height"]).to eq((20 * 1.25).round(2))
         expect(element["width"]).to eq(20.0)
       end
@@ -513,28 +513,28 @@ RSpec.describe "SyrusChatMcp canvas tools" do
       let(:container) { { "id" => "box-1", "x" => 0.0, "y" => 0.0, "width" => 200.0, "height" => 100.0 } }
 
       it "sets height for a single-line label" do
-        label = SyrusChatMcp::Canvas.bound_label_element(container: container, text: "Step A", font_size: 20)
+        label = Mcp::Tools::Canvas.bound_label_element(container: container, text: "Step A", font_size: 20)
         expect(label["height"]).to eq((20 * 1.25).round(2))
       end
 
       it "scales height by line count for multi-line labels" do
-        label = SyrusChatMcp::Canvas.bound_label_element(container: container, text: "Line one\nLine two", font_size: 20)
+        label = Mcp::Tools::Canvas.bound_label_element(container: container, text: "Line one\nLine two", font_size: 20)
         expect(label["height"]).to eq((20 * 1.25 * 2).round(2))
       end
 
       it "sizes width by the longest line for multi-line labels" do
-        label = SyrusChatMcp::Canvas.bound_label_element(container: container, text: "Hi\nA longer line", font_size: 20)
+        label = Mcp::Tools::Canvas.bound_label_element(container: container, text: "Hi\nA longer line", font_size: 20)
         longest = "A longer line".length
         expect(label["width"]).to eq([ longest * 20 * 0.6, 20 * 2 ].max.round(2))
       end
 
       it "includes autoResize: true" do
-        label = SyrusChatMcp::Canvas.bound_label_element(container: container, text: "Label", font_size: 20)
+        label = Mcp::Tools::Canvas.bound_label_element(container: container, text: "Label", font_size: 20)
         expect(label["autoResize"]).to be(true)
       end
 
       it "centers multi-line label vertically using its full height" do
-        label = SyrusChatMcp::Canvas.bound_label_element(container: container, text: "Line one\nLine two", font_size: 20)
+        label = Mcp::Tools::Canvas.bound_label_element(container: container, text: "Line one\nLine two", font_size: 20)
         expected_height = (20 * 1.25 * 2).round(2)
         expected_y = container.fetch("y") + (container.fetch("height") - expected_height) / 2.0
         expect(label["y"]).to eq(expected_y)
@@ -542,13 +542,13 @@ RSpec.describe "SyrusChatMcp canvas tools" do
     end
 
     it "ELEMENT_TYPES does not include sticky" do
-      expect(SyrusChatMcp::Canvas::ELEMENT_TYPES).not_to include("sticky")
+      expect(Mcp::Tools::Canvas::ELEMENT_TYPES).not_to include("sticky")
     end
 
     it "validate_elements! raises on a sticky element" do
       elements = [ { "id" => "s1", "type" => "sticky" } ]
       expect {
-        SyrusChatMcp::Canvas.validate_elements!(elements)
+        Mcp::Tools::Canvas.validate_elements!(elements)
       }.to raise_error(ArgumentError, /unsupported element type: sticky/)
     end
 

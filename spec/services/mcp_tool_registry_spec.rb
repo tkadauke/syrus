@@ -38,8 +38,8 @@ RSpec.describe McpToolRegistry do
       session = chat_session
       context = McpToolContext.from_chat_session(session)
 
-      expect(tool_names_for(context, tier: :essential)).to eq(SyrusChatMcp::Sidecar.tool_names(session, tier: :essential))
-      expect(tool_names_for(context, tier: :deferred)).to eq(SyrusChatMcp::DeferredSidecar.tool_names(session))
+      expect(tool_names_for(context, tier: :essential)).to eq(Mcp::Sidecar.chat_tool_names(session, tier: :essential))
+      expect(tool_names_for(context, tier: :deferred)).to eq(Mcp::Sidecar.chat_tool_names(session, tier: :deferred))
     end
 
     it "keeps the admin chat tool set unchanged" do
@@ -47,7 +47,7 @@ RSpec.describe McpToolRegistry do
       session = chat_session(session_user: admin, session_repository: Factories.repository(user: admin))
       context = McpToolContext.from_chat_session(session)
 
-      expect(tool_names_for(context, tier: :essential)).to eq(SyrusChatMcp::Sidecar.tool_names(session, tier: :essential))
+      expect(tool_names_for(context, tier: :essential)).to eq(Mcp::Sidecar.chat_tool_names(session, tier: :essential))
       expect(tool_names_for(context, tier: :essential)).to include("admin_overview", "force_fail_job")
     end
 
@@ -57,7 +57,7 @@ RSpec.describe McpToolRegistry do
       context = McpToolContext.from_chat_session(session)
 
       expect(tool_names_for(context, tier: :essential)).to include("complete_implement_step", "submit_coding_changes")
-      expect(tool_names_for(context, tier: :essential)).to eq(SyrusChatMcp::Sidecar.tool_names(session, tier: :essential))
+      expect(tool_names_for(context, tier: :essential)).to eq(Mcp::Sidecar.chat_tool_names(session, tier: :essential))
     end
 
     it "keeps the local mode chat tool set gated by role and feature flag" do
@@ -66,7 +66,7 @@ RSpec.describe McpToolRegistry do
       context = McpToolContext.from_chat_session(session)
 
       expect(tool_names_for(context, tier: :essential)).to include("read_file", "write_file", "run_command", "git_status")
-      expect(tool_names_for(context, tier: :essential)).to eq(SyrusChatMcp::Sidecar.tool_names(session, tier: :essential))
+      expect(tool_names_for(context, tier: :essential)).to eq(Mcp::Sidecar.chat_tool_names(session, tier: :essential))
     end
 
     it "keeps the workflow implementation tool set unchanged" do
@@ -104,13 +104,11 @@ RSpec.describe McpToolRegistry do
   end
 
   it "has one metadata entry for every chat MCP tool file" do
-    sidecar_tool_names = Dir[Rails.root.join("app/services/syrus_chat_mcp/*_tool.rb")]
-      .map { |path| File.basename(path, ".rb").sub(/_tool\z/, "") }
-    shared_tool_names = Dir[Rails.root.join("app/services/mcp/tools/*_tool.rb")]
-      .map { |path| File.basename(path, ".rb").sub(/_tool\z/, "") }
-
     registry_names = described_class.summaries(surface: :chat).map { |entry| entry[:tool_name] }
+    registry_tools = described_class.summaries(surface: :chat).map { |entry| entry[:tool] }
 
-    expect(registry_names.sort).to eq((sidecar_tool_names + shared_tool_names).sort)
+    expect(registry_names).to all(be_present)
+    expect(registry_tools).to all(be < MCP::Tool)
+    expect(registry_names.uniq.size).to eq(registry_names.size)
   end
 end

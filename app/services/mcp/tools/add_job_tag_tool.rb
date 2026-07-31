@@ -1,0 +1,42 @@
+require "mcp"
+
+module Mcp::Tools
+  class AddJobTagTool < MCP::Tool
+    extend AuthorizationSupport
+    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
+
+    tool_name "add_job_tag"
+
+    description "Attach a user-owned tag to a Job in this chat session's repository."
+
+    input_schema(
+      properties: {
+        job_id: { type: "integer", description: "Syrus Job id." },
+        tag_id: { type: "integer", description: "Tag id." }
+      },
+      required: %w[job_id tag_id]
+    )
+
+    class << self
+      def call(job_id:, tag_id:, server_context:)
+        chat_session = server_context.fetch(:chat_session)
+        job = find_job!(job_id)
+
+        tag = chat_session.user.tags.find_by(id: tag_id)
+        return Mcp::Tools.invalid("tag not found for this user: #{tag_id}") unless tag
+
+        job.job_tags.find_or_create_by!(tag: tag)
+        broadcast_job_update(chat_session.user, job)
+        Mcp::Tools.success(success: true)
+      rescue ActiveRecord::RecordInvalid => e
+        Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
+      end
+
+      private
+
+      def broadcast_job_update(user, job)
+        AppEvents.broadcast(user: user, type: "updated", resource: "job", id: job.id, changed: [ "tags" ])
+      end
+    end
+  end
+end

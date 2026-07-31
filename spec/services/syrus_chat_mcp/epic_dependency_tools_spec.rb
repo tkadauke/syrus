@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "SyrusChatMcp epic dependency tools" do
+RSpec.describe "Mcp::Tools epic dependency tools" do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
@@ -9,8 +9,8 @@ RSpec.describe "SyrusChatMcp epic dependency tools" do
     MCP::Server.new(
       name: "syrus-chat-sidecar",
       tools: [
-        SyrusChatMcp::AddEpicDependencyTool,
-        SyrusChatMcp::RemoveEpicDependencyTool
+        Mcp::Tools::AddEpicDependencyTool,
+        Mcp::Tools::RemoveEpicDependencyTool
       ],
       server_context: { chat_session: chat_session }
     )

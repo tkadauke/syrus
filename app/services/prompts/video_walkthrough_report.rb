@@ -1,6 +1,6 @@
 module Prompts
   # The structured analysis the chat agent gets back when it CALLS
-  # `get_walkthrough_analysis` (SyrusChatMcp::GetWalkthroughAnalysisTool). This
+  # `get_walkthrough_analysis` (Mcp::Tools::GetWalkthroughAnalysisTool). This
   # is the first-class-tool-event half of the handoff: instead of a giant
   # spoofed user message dumping the analysis into the thread, the agent asks
   # for the analysis and this renders as a tool_result — narration transcript,

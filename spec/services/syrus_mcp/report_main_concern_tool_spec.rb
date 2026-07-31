@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusMcp::ReportMainConcernTool do
+RSpec.describe Mcp::Tools::ReportMainConcernTool do
   include ActiveJob::TestHelper
 
   let(:run) { Factories.job.initial_run }

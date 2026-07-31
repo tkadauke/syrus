@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusMcp::SubmitReconciliationFeedbackTool do
+RSpec.describe Mcp::Tools::SubmitReconciliationFeedbackTool do
   let(:user)       { Factories.user }
   let(:repository) { Factories.repository(user: user) }
 

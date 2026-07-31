@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusMcp::SubmitTestPlanTool do
+RSpec.describe Mcp::Tools::SubmitTestPlanTool do
   let(:run) { Factories.job.initial_run }
 
   def call(steps: [ "Run bin/rspec spec/services/steps/test_plan_spec.rb" ], notes: "Focus on the initial workflow.")

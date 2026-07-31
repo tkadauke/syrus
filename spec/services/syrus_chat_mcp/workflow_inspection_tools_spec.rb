@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "SyrusChatMcp workflow inspection tools" do
+RSpec.describe "Mcp::Tools workflow inspection tools" do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
@@ -9,9 +9,9 @@ RSpec.describe "SyrusChatMcp workflow inspection tools" do
     MCP::Server.new(
       name: "syrus-chat-sidecar",
       tools: [
-        SyrusChatMcp::ListJobWorkflowsTool,
-        SyrusChatMcp::ReadWorkflowTool,
-        SyrusChatMcp::ReadRunTranscriptTool
+        Mcp::Tools::ListJobWorkflowsTool,
+        Mcp::Tools::ReadWorkflowTool,
+        Mcp::Tools::ReadRunTranscriptTool
       ],
       server_context: { chat_session: chat_session }
     )
@@ -84,7 +84,7 @@ RSpec.describe "SyrusChatMcp workflow inspection tools" do
       admin_session = ChatSession.create!(user: admin)
       admin_server = MCP::Server.new(
         name: "syrus-chat-sidecar",
-        tools: [ SyrusChatMcp::ListJobWorkflowsTool ],
+        tools: [ Mcp::Tools::ListJobWorkflowsTool ],
         server_context: { chat_session: admin_session }
       )
 

@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "SyrusChatMcp side-effect pending tools" do
+RSpec.describe "Mcp::Tools side-effect pending tools" do
   include ActiveJob::TestHelper
 
   let!(:_bootstrap_admin) { Factories.user(admin: true) }
@@ -13,15 +13,15 @@ RSpec.describe "SyrusChatMcp side-effect pending tools" do
     MCP::Server.new(
       name: "syrus-chat-sidecar",
       tools: [
-        SyrusChatMcp::ReopenJobTool,
-        SyrusChatMcp::FireScheduledTaskNowTool,
-        SyrusChatMcp::CreateRepoDocumentTool,
-        SyrusChatMcp::DeleteRepoDocumentTool,
-        SyrusChatMcp::PollJobFeedbackTool,
-        SyrusChatMcp::CheckJobMergeabilityTool,
-        SyrusChatMcp::DelegateIssueTool,
-        SyrusChatMcp::PauseLandingQueueTool,
-        SyrusChatMcp::ResumeLandingQueueTool
+        Mcp::Tools::ReopenJobTool,
+        Mcp::Tools::FireScheduledTaskNowTool,
+        Mcp::Tools::CreateRepoDocumentTool,
+        Mcp::Tools::DeleteRepoDocumentTool,
+        Mcp::Tools::PollJobFeedbackTool,
+        Mcp::Tools::CheckJobMergeabilityTool,
+        Mcp::Tools::DelegateIssueTool,
+        Mcp::Tools::PauseLandingQueueTool,
+        Mcp::Tools::ResumeLandingQueueTool
       ],
       server_context: { chat_session: chat_session }
     )
@@ -199,7 +199,7 @@ RSpec.describe "SyrusChatMcp side-effect pending tools" do
     admin_session = ChatSession.create!(user: admin)
     admin_server = MCP::Server.new(
       name: "syrus-chat-sidecar",
-      tools: [ SyrusChatMcp::CheckJobMergeabilityTool ],
+      tools: [ Mcp::Tools::CheckJobMergeabilityTool ],
       server_context: { chat_session: admin_session }
     )
 

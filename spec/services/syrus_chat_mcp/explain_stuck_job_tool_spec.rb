@@ -1,7 +1,7 @@
 require "rails_helper"
-require Rails.root.join("app/services/syrus_chat_mcp/sidecar")
 
-RSpec.describe SyrusChatMcp::ExplainStuckJobTool do
+
+RSpec.describe Mcp::Tools::ExplainStuckJobTool do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
@@ -67,7 +67,7 @@ RSpec.describe SyrusChatMcp::ExplainStuckJobTool do
   end
 
   it "is exposed through the deferred sidecar" do
-    expect(SyrusChatMcp::DeferredSidecar::DEFERRED_TOOLS).to include(described_class)
-    expect(SyrusChatMcp::DeferredSidecar.tool_names(chat_session)).to include("explain_stuck_job")
+    expect(Mcp::Sidecar::CHAT_DEFERRED_TOOLS).to include(described_class)
+    expect(Mcp::Sidecar.chat_tool_names(chat_session, tier: :deferred)).to include("explain_stuck_job")
   end
 end

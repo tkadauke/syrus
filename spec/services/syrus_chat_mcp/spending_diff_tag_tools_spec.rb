@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "SyrusChatMcp spending, diff, and tag tools" do
+RSpec.describe "Mcp::Tools spending, diff, and tag tools" do
   include ActiveSupport::Testing::TimeHelpers
 
   let!(:_bootstrap_admin) { Factories.user(admin: true) }
@@ -13,12 +13,12 @@ RSpec.describe "SyrusChatMcp spending, diff, and tag tools" do
     MCP::Server.new(
       name: "syrus-chat-sidecar",
       tools: [
-        SyrusChatMcp::GetSpendingTool,
-        SyrusChatMcp::GetJobDiffTool,
-        SyrusChatMcp::ListTagsTool,
-        SyrusChatMcp::CreateTagTool,
-        SyrusChatMcp::AddJobTagTool,
-        SyrusChatMcp::RemoveJobTagTool
+        Mcp::Tools::GetSpendingTool,
+        Mcp::Tools::GetJobDiffTool,
+        Mcp::Tools::ListTagsTool,
+        Mcp::Tools::CreateTagTool,
+        Mcp::Tools::AddJobTagTool,
+        Mcp::Tools::RemoveJobTagTool
       ],
       server_context: { chat_session: chat_session }
     )
@@ -160,7 +160,7 @@ RSpec.describe "SyrusChatMcp spending, diff, and tag tools" do
     admin_session = ChatSession.create!(user: admin)
     admin_server = MCP::Server.new(
       name: "syrus-chat-sidecar",
-      tools: [ SyrusChatMcp::GetJobDiffTool ],
+      tools: [ Mcp::Tools::GetJobDiffTool ],
       server_context: { chat_session: admin_session }
     )
 

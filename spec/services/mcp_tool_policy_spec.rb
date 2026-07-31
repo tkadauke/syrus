@@ -21,7 +21,7 @@ RSpec.describe McpToolPolicy do
       tools   = described_class.for(context)
 
       expect(tools).to include(
-        SyrusMcp::ReadLiveStateTool,
+        Mcp::Tools::ReadLiveStateTool,
         Mcp::Tools::ReadMemoryTool,
         Mcp::Tools::WriteMemoryTool,
         Mcp::Tools::DeleteMemoryTool,
@@ -45,9 +45,9 @@ RSpec.describe McpToolPolicy do
       tools   = described_class.for(context)
 
       expect(tools).to include(
-        SyrusMcp::ReadLiveStateTool,
-        SyrusMcp::ReadRunWorkerHealthTool,
-        SyrusMcp::SubmitAdversarialReviewTool
+        Mcp::Tools::ReadLiveStateTool,
+        Mcp::Tools::ReadRunWorkerHealthTool,
+        Mcp::Tools::SubmitAdversarialReviewTool
       )
       expect(tools).not_to include(SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool)
       expect(tools.size).to eq(12)
@@ -117,18 +117,18 @@ RSpec.describe McpToolPolicy do
       tools   = described_class.for(context)
 
       expect(tools).to include(
-        SyrusMcp::SubmitSummaryTool,
-        SyrusMcp::SubmitTestPlanTool,
-        SyrusMcp::SubmitReconciliationFeedbackTool
+        Mcp::Tools::SubmitSummaryTool,
+        Mcp::Tools::SubmitTestPlanTool,
+        Mcp::Tools::SubmitReconciliationFeedbackTool
       )
-      expect(tools).not_to include(SyrusMcp::SubmitAdversarialReviewTool)
+      expect(tools).not_to include(Mcp::Tools::SubmitAdversarialReviewTool)
     end
 
     it "does not include submit_reconciliation_feedback for the standard implement role" do
       context = McpToolContext.from_run(run)
       tools   = described_class.for(context)
 
-      expect(tools).not_to include(SyrusMcp::SubmitReconciliationFeedbackTool)
+      expect(tools).not_to include(Mcp::Tools::SubmitReconciliationFeedbackTool)
     end
 
     it "includes submit_job_metadata for refresh_job_metadata runs" do
@@ -281,7 +281,7 @@ RSpec.describe McpToolPolicy do
       context = context_for(chat_session)
       tools = described_class.for(context)
 
-      expect(tools & SyrusChatMcp::Sidecar::ADMIN_TOOLS).to be_empty
+      expect(tools & Mcp::Sidecar::CHAT_ADMIN_TOOLS).to be_empty
     end
 
     it "includes admin tools for admin users" do
@@ -290,7 +290,7 @@ RSpec.describe McpToolPolicy do
       context = context_for(admin_session)
       tools = described_class.for(context)
 
-      expect(tools).to include(*SyrusChatMcp::Sidecar::ADMIN_TOOLS)
+      expect(tools).to include(*Mcp::Sidecar::CHAT_ADMIN_TOOLS)
     end
 
     it "includes insight read tools when agent_insights is enabled" do
@@ -315,14 +315,14 @@ RSpec.describe McpToolPolicy do
       context = context_for(chat_session)
       tools = described_class.for(context)
 
-      expect(tools & SyrusChatMcp::Sidecar::CODING_TOOLS).to be_empty
+      expect(tools & Mcp::Sidecar::CHAT_CODING_TOOLS).to be_empty
     end
 
     it "excludes local mode tools" do
       context = context_for(chat_session)
       tools = described_class.for(context)
 
-      expect(tools & SyrusChatMcp::Sidecar::LOCAL_MODE_TOOLS).to be_empty
+      expect(tools & Mcp::Sidecar::CHAT_LOCAL_MODE_TOOLS).to be_empty
     end
 
     it "excludes walkthrough tools when the feature is disabled" do
@@ -332,7 +332,7 @@ RSpec.describe McpToolPolicy do
       context = context_for(chat_session)
       tools = described_class.for(context)
 
-      expect(tools & SyrusChatMcp::Sidecar::WALKTHROUGH_TOOLS).to be_empty
+      expect(tools & Mcp::Sidecar::CHAT_WALKTHROUGH_TOOLS).to be_empty
     end
 
     it "includes walkthrough tools when the feature is enabled" do
@@ -342,7 +342,7 @@ RSpec.describe McpToolPolicy do
       context = context_for(chat_session)
       tools = described_class.for(context)
 
-      expect(tools & SyrusChatMcp::Sidecar::WALKTHROUGH_TOOLS).to eq(SyrusChatMcp::Sidecar::WALKTHROUGH_TOOLS)
+      expect(tools & Mcp::Sidecar::CHAT_WALKTHROUGH_TOOLS).to eq(Mcp::Sidecar::CHAT_WALKTHROUGH_TOOLS)
     end
   end
 
@@ -407,7 +407,7 @@ RSpec.describe McpToolPolicy do
       context = context_for(coding_session)
       tools = described_class.for(context)
 
-      expect(tools).to include(*SyrusChatMcp::Sidecar::CODING_TOOLS)
+      expect(tools).to include(*Mcp::Sidecar::CHAT_CODING_TOOLS)
     end
 
     it "excludes coding tools when feature is disabled" do
@@ -416,7 +416,7 @@ RSpec.describe McpToolPolicy do
       context = context_for(coding_session)
       tools = described_class.for(context)
 
-      expect(tools & SyrusChatMcp::Sidecar::CODING_TOOLS).to be_empty
+      expect(tools & Mcp::Sidecar::CHAT_CODING_TOOLS).to be_empty
     end
   end
 
@@ -431,7 +431,7 @@ RSpec.describe McpToolPolicy do
       context = context_for(local_session)
       tools = described_class.for(context)
 
-      expect(tools).to include(*SyrusChatMcp::Sidecar::LOCAL_MODE_TOOLS)
+      expect(tools).to include(*Mcp::Sidecar::CHAT_LOCAL_MODE_TOOLS)
     end
 
     it "excludes local mode tools when feature is disabled" do
@@ -440,7 +440,7 @@ RSpec.describe McpToolPolicy do
       context = context_for(local_session)
       tools = described_class.for(context)
 
-      expect(tools & SyrusChatMcp::Sidecar::LOCAL_MODE_TOOLS).to be_empty
+      expect(tools & Mcp::Sidecar::CHAT_LOCAL_MODE_TOOLS).to be_empty
     end
   end
 
@@ -450,7 +450,7 @@ RSpec.describe McpToolPolicy do
       context = context_for(session)
 
       policy_tools = described_class.for(context).map(&:tool_name)
-      sidecar_essential = SyrusChatMcp::Sidecar.tools_for(session).map(&:tool_name)
+      sidecar_essential = Mcp::Sidecar.chat_tools(session, tier: :essential).map(&:tool_name)
 
       expect(policy_tools).to include(*sidecar_essential)
     end
@@ -460,7 +460,7 @@ RSpec.describe McpToolPolicy do
       context = context_for(session)
 
       policy_tools = described_class.for(context).map(&:tool_name)
-      sidecar_deferred = SyrusChatMcp::DeferredSidecar.tools_for(session).map(&:tool_name)
+      sidecar_deferred = Mcp::Sidecar.chat_tools(session, tier: :deferred).map(&:tool_name)
 
       expect(policy_tools).to include(*sidecar_deferred)
     end

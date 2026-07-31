@@ -32,3 +32,8 @@ Tool exposure metadata is declared in `McpToolRegistry`. Use
 need authoritative tool profile data such as surface, tier, admin-only status,
 feature flag gates, required roles/capabilities, and read-only vs mutation
 classification.
+
+Tool implementations live under `Mcp::Tools`, and the stdio server processes
+are built through the shared `Mcp::Sidecar` infrastructure. Protocol-visible
+server names remain stable: `syrus-chat-sidecar`,
+`syrus-chat-deferred-sidecar`, and `syrus-mcp-sidecar`.

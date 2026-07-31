@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusChatMcp::Sidecar do
+RSpec.describe Mcp::Sidecar do
   before do
     feature = Feature.find_or_create_by!(slug: "video_walkthroughs") do |record|
       record.category = "Labs"
@@ -20,7 +20,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
   def server_for(chat_session, tier: :all)
     MCP::Server.new(
       name: "syrus-chat-sidecar",
-      tools: described_class.tools_for(chat_session, tier: tier),
+      tools: described_class.chat_tools(chat_session, tier: tier),
       server_context: { chat_session: chat_session }
     )
   end
@@ -112,8 +112,8 @@ RSpec.describe SyrusChatMcp::Sidecar do
       feature.update!(enabled: true)
       coding_session = ChatSession.create!(user: user, repository: repository, mode: "coding")
 
-      coding_tool_names = described_class.tool_names(coding_session, tier: :essential)
-      planning_tool_names = described_class.tool_names(chat_session, tier: :essential)
+      coding_tool_names = described_class.chat_tool_names(coding_session, tier: :essential)
+      planning_tool_names = described_class.chat_tool_names(chat_session, tier: :essential)
 
       expect(coding_tool_names).to include("reset_workspace", "complete_implement_step", "submit_coding_changes")
       expect(planning_tool_names).not_to include("reset_workspace", "complete_implement_step", "submit_coding_changes")
@@ -124,7 +124,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
               .update!(enabled: false)
       coding_session = ChatSession.create!(user: user, repository: repository, mode: "coding")
 
-      tool_names = described_class.tool_names(coding_session, tier: :essential)
+      tool_names = described_class.chat_tool_names(coding_session, tier: :essential)
 
       expect(tool_names).not_to include("reset_workspace", "complete_implement_step", "submit_coding_changes")
     end
@@ -259,32 +259,25 @@ RSpec.describe SyrusChatMcp::Sidecar do
     end
 
     it "assigns every chat MCP tool file to exactly one tier" do
-      # Gather tool file basenames from the sidecar-specific directories AND the
-      # shared mcp/tools/ namespace (memory tools migrated there in this refactor).
-      sidecar_tool_names = Dir[Rails.root.join("app/services/syrus_chat_mcp/*_tool.rb")]
-        .map { |path| File.basename(path, ".rb").sub(/_tool\z/, "") }
-      shared_tool_names = Dir[Rails.root.join("app/services/mcp/tools/*_tool.rb")]
-        .map { |path| File.basename(path, ".rb").sub(/_tool\z/, "") }
-      chat_exposed_syrus_mcp_tool_names = %w[list_insights read_insight]
-      file_tool_names = (sidecar_tool_names + shared_tool_names + chat_exposed_syrus_mcp_tool_names).sort
+      registry_names = McpToolRegistry.summaries(surface: :chat).map { |entry| entry[:tool_name].to_s }.sort
 
-      essential_names = described_class.tool_names(tier: :essential)
-      deferred_names  = described_class.tool_names(tier: :deferred)
+      essential_names = described_class.chat_tool_names(tier: :essential)
+      deferred_names  = described_class.chat_tool_names(tier: :deferred)
 
       expect(essential_names & deferred_names).to be_empty
-      expect((essential_names + deferred_names).sort).to eq(file_tool_names)
+      expect((essential_names + deferred_names).sort).to eq(registry_names)
     end
 
     it "exposes deferred tool names through the deferred sidecar" do
-      names = SyrusChatMcp::DeferredSidecar.tool_names(chat_session)
+      names = Mcp::Sidecar.chat_tool_names(chat_session, tier: :deferred)
 
       expect(names).to include("draw_shape", "read_workflow", "assign_job_to_epic")
       expect(names).not_to include("repo_info", "rename_chat", "ask_user_question", "admin_overview")
     end
 
     it "registers search_syrus_docs in DEFERRED_TOOLS" do
-      expect(SyrusChatMcp::DeferredSidecar::DEFERRED_TOOLS).to include(SyrusChatMcp::SearchSyrusDocsTool)
-      expect(SyrusChatMcp::DeferredSidecar.tool_names(chat_session)).to include("search_syrus_docs")
+      expect(Mcp::Sidecar::CHAT_DEFERRED_TOOLS).to include(Mcp::Tools::SearchSyrusDocsTool)
+      expect(Mcp::Sidecar.chat_tool_names(chat_session, tier: :deferred)).to include("search_syrus_docs")
     end
 
     it "keeps deferred tool schemas callable through the deferred server" do
@@ -403,8 +396,8 @@ RSpec.describe SyrusChatMcp::Sidecar do
         "force_fail_job"
       )
       admin_tool_names = tool_names.select { |name| name.start_with?("admin_") || name == "force_fail_job" }
-      expect(described_class.tool_names(tier: :essential)).to include(*admin_tool_names)
-      expect(described_class.tool_names(tier: :deferred)).not_to include(*tool_names.grep(/\Aadmin_/))
+      expect(described_class.chat_tool_names(tier: :essential)).to include(*admin_tool_names)
+      expect(described_class.chat_tool_names(tier: :deferred)).not_to include(*tool_names.grep(/\Aadmin_/))
     end
 
     it "advertises the repair toolkit to repositoryless Supervisor chats owned by admins" do
@@ -448,57 +441,44 @@ RSpec.describe SyrusChatMcp::Sidecar do
     end
   end
 
-  describe ".new" do
-    it "loads the ChatSession from SYRUS_CHAT_SESSION_ID by default" do
-      with_chat_session_env(chat_session.id.to_s) do
-        sidecar = described_class.new
-        expect(sidecar.instance_variable_get(:@chat_session)).to eq(chat_session)
-      end
+  describe ".chat" do
+    it "builds a chat server context from a session id" do
+      sidecar = described_class.chat(session_id: chat_session.id)
+
+      expect(sidecar.instance_variable_get(:@server_name)).to eq("syrus-chat-sidecar")
+      expect(sidecar.instance_variable_get(:@server_context).call[:chat_session]).to eq(chat_session)
     end
 
-    it "loads the ChatSession from an explicit session_id" do
-      sidecar = described_class.new(session_id: chat_session.id)
-
-      expect(sidecar.instance_variable_get(:@chat_session)).to eq(chat_session)
-    end
-
-    it "loads the current message from SYRUS_CHAT_CURRENT_MESSAGE_ID" do
+    it "loads the current message from an explicit current_message_id" do
       message = chat_session.messages.create!(role: "assistant", content: { "text" => "Confirm?" })
+      sidecar = described_class.chat(session_id: chat_session.id, current_message_id: message.id)
 
-      with_current_message_env(message.id.to_s) do
-        sidecar = described_class.new(session_id: chat_session.id)
-        expect(sidecar.instance_variable_get(:@current_message)).to eq(message)
-      end
+      expect(sidecar.instance_variable_get(:@server_context).call[:current_message]).to eq(message)
     end
 
-    it "loads server name from env" do
-      with_sidecar_env(
-        "SYRUS_CHAT_MCP_TOOL_TIER" => "deferred",
-        "SYRUS_CHAT_MCP_SERVER_NAME" => "syrus-chat-deferred-sidecar"
-      ) do
-        sidecar = described_class.new(session_id: chat_session.id)
+    it "uses the deferred server name for deferred chat tools" do
+      sidecar = described_class.chat(session_id: chat_session.id, tier: :deferred)
 
-        expect(sidecar.instance_variable_get(:@server_name)).to eq("syrus-chat-deferred-sidecar")
-      end
+      expect(sidecar.instance_variable_get(:@server_name)).to eq("syrus-chat-deferred-sidecar")
     end
 
-    it "raises KeyError when no session id is available" do
-      with_chat_session_env(nil) do
-        expect { described_class.new }.to raise_error(KeyError, /SYRUS_CHAT_SESSION_ID/)
-      end
+    it "accepts an explicit protocol-visible server name" do
+      sidecar = described_class.chat(session_id: chat_session.id, server_name: "custom-chat-sidecar")
+
+      expect(sidecar.instance_variable_get(:@server_name)).to eq("custom-chat-sidecar")
     end
   end
 
   describe "walkthrough labs flag" do
     it "advertises the walkthrough tools only while the feature is enabled" do
-      names = SyrusChatMcp::DeferredSidecar.tool_names(chat_session)
+      names = Mcp::Sidecar.chat_tool_names(chat_session, tier: :deferred)
       expect(names).to include("get_walkthrough_analysis", "analyze_walkthrough_segment", "read_walkthrough_frame")
 
       Feature.find_by!(slug: "video_walkthroughs").update!(enabled: false)
 
-      names = SyrusChatMcp::DeferredSidecar.tool_names(chat_session)
+      names = Mcp::Sidecar.chat_tool_names(chat_session, tier: :deferred)
       expect(names).not_to include("get_walkthrough_analysis", "analyze_walkthrough_segment", "read_walkthrough_frame")
-      expect(described_class.tool_names(chat_session, tier: :deferred)).not_to include("get_walkthrough_analysis")
+      expect(described_class.chat_tool_names(chat_session, tier: :deferred)).not_to include("get_walkthrough_analysis")
     end
   end
 
@@ -513,7 +493,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
     it "does not advertise local mode tools for non-local sessions even when feature is enabled" do
       enable_local_mode
 
-      names = described_class.tool_names(chat_session, tier: :essential)
+      names = described_class.chat_tool_names(chat_session, tier: :essential)
 
       expect(names).not_to include(*local_mode_tools)
     end
@@ -522,7 +502,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
       enable_local_mode
       local_session = ChatSession.create!(user: user, repository: repository, mode: "local")
 
-      names = described_class.tool_names(local_session, tier: :essential)
+      names = described_class.chat_tool_names(local_session, tier: :essential)
 
       expect(names).to include(*local_mode_tools)
     end
@@ -530,13 +510,13 @@ RSpec.describe SyrusChatMcp::Sidecar do
     it "does not advertise local mode tools when feature is disabled even in local mode" do
       local_session = ChatSession.create!(user: user, repository: repository, mode: "local")
 
-      names = described_class.tool_names(local_session, tier: :essential)
+      names = described_class.chat_tool_names(local_session, tier: :essential)
 
       expect(names).not_to include(*local_mode_tools)
     end
 
     it "includes local mode tools in the tool tier coverage check when session is nil" do
-      all_essential = described_class.tool_names(nil, tier: :essential)
+      all_essential = described_class.chat_tool_names(nil, tier: :essential)
 
       expect(all_essential).to include(*local_mode_tools)
     end

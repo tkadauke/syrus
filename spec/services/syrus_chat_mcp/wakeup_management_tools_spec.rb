@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "SyrusChatMcp wakeup management tools" do
+RSpec.describe "Mcp::Tools wakeup management tools" do
   include ActiveJob::TestHelper
 
   let(:user) { Factories.user }
@@ -11,8 +11,8 @@ RSpec.describe "SyrusChatMcp wakeup management tools" do
     MCP::Server.new(
       name: "syrus-chat-sidecar",
       tools: [
-        SyrusChatMcp::ListWakeupsTool,
-        SyrusChatMcp::CancelWakeupTool
+        Mcp::Tools::ListWakeupsTool,
+        Mcp::Tools::CancelWakeupTool
       ],
       server_context: { chat_session: chat_session }
     )

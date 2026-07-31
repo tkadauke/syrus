@@ -1,12 +1,11 @@
 require "rails_helper"
 
-# These specs build the MCP::Server via Sidecar#build_server, which reads
-# the plugin registry. The `around` block registers CoreToolSet so the
-# sidecar has its full default tool list, matching what production boots with.
-#
-# For composition tests (multi-tool-set, available_for? gating, collision),
-# the inner examples manage the registry state themselves.
-RSpec.describe SyrusMcp::Sidecar do
+# These specs build the same MCP::Server the sidecar does, but feed
+# JSON-RPC frames directly through Server#handle_json instead of going
+# through the StdioTransport. Avoids subprocess + Rails-boot overhead
+# while still exercising the full handshake + tool registration that
+# claude will see when it spawns the binary.
+RSpec.describe Mcp::Sidecar do
   let(:run) { Factories.job.initial_run }
 
   around do |ex|
@@ -220,19 +219,20 @@ RSpec.describe SyrusMcp::Sidecar do
     end
   end
 
-  describe ".new(run_id:)" do
-    it "stores only the id for later tool calls" do
-      sidecar = described_class.new(run_id: run.id)
-      expect(sidecar.instance_variable_get(:@run_id)).to eq(run.id)
-      expect(sidecar.instance_variable_get(:@run)).to be_nil
+  describe ".workflow" do
+    it "stores only a run id context for later tool calls" do
+      sidecar = described_class.workflow(run_id: run.id)
+
+      expect(sidecar.instance_variable_get(:@server_name)).to eq("syrus-mcp-sidecar")
+      expect(sidecar.instance_variable_get(:@server_context).call).to eq(run_id: run.id)
     end
 
     it "does not query the database during sidecar initialization" do
-      expect(SyrusMcp).not_to receive(:run_from_context)
+      expect(Run).not_to receive(:includes)
 
-      sidecar = described_class.new(run_id: 0)
+      sidecar = described_class.workflow(run_id: 0)
 
-      expect(sidecar.instance_variable_get(:@run_id)).to eq(0)
+      expect(sidecar.instance_variable_get(:@server_context).call).to eq(run_id: 0)
     end
   end
 

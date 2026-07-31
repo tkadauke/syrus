@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusChatMcp::RepoInfoTool do
+RSpec.describe Mcp::Tools::RepoInfoTool do
   let(:user) { Factories.user(github_token: "ghp_test_token") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets", default_branch: "trunk", trigger_label: "syrus") }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }

@@ -168,8 +168,8 @@ RSpec.describe "Mcp::Tools shared memory tools" do
           Mcp::Tools::SearchMemoriesTool,
           Mcp::Tools::ListMemoriesTool,
           Mcp::Tools::DeleteMemoryTool,
-          SyrusChatMcp::PublishMemoryTool,
-          SyrusChatMcp::UnpublishMemoryTool
+          Mcp::Tools::PublishMemoryTool,
+          Mcp::Tools::UnpublishMemoryTool
         ],
         server_context: { chat_session: chat_session }
       )
@@ -247,25 +247,14 @@ RSpec.describe "Mcp::Tools shared memory tools" do
       expect(payload(unpublish_response).dig(:memory, :published)).to be false
     end
 
-    it "asserts no tool class name duplication between syrus_mcp and syrus_chat_mcp" do
-      run_class_names  = Dir[Rails.root.join("app/services/syrus_mcp/*_tool.rb")]
+    it "asserts every registry tool class has a unique MCP tool name" do
+      tool_file_names = Dir[Rails.root.join("app/services/mcp/tools/*_tool.rb")]
         .map { |path| File.basename(path, ".rb") }
-      chat_class_names = Dir[Rails.root.join("app/services/syrus_chat_mcp/*_tool.rb")]
-        .map { |path| File.basename(path, ".rb") }
-      shared_class_names = Dir[Rails.root.join("app/services/mcp/tools/*_tool.rb")]
-        .map { |path| File.basename(path, ".rb") }
+      registry_names = McpToolRegistry.summaries.map { |entry| "#{entry[:surface]}:#{entry[:tier]}:#{entry[:tool_name]}" }
+      registry_classes = McpToolRegistry.summaries.map { |entry| entry[:tool].name.demodulize.underscore }
 
-      expect(run_class_names & chat_class_names).to be_empty,
-        "Duplicate tool file basenames found between syrus_mcp/ and syrus_chat_mcp/: " \
-        "#{(run_class_names & chat_class_names).inspect}"
-
-      expect(run_class_names & shared_class_names).to be_empty,
-        "Duplicate tool file basenames found between syrus_mcp/ and mcp/tools/: " \
-        "#{(run_class_names & shared_class_names).inspect}"
-
-      expect(chat_class_names & shared_class_names).to be_empty,
-        "Duplicate tool file basenames found between syrus_chat_mcp/ and mcp/tools/: " \
-        "#{(chat_class_names & shared_class_names).inspect}"
+      expect(registry_names.uniq.size).to eq(registry_names.size)
+      expect(registry_classes.uniq.sort).to all(be_in(tool_file_names))
     end
   end
 end

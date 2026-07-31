@@ -51,7 +51,7 @@ RSpec.describe "Local Mode MCP tools" do
     end
   end
 
-  describe SyrusChatMcp::ReadFileTool do
+  describe Mcp::Tools::ReadFileTool do
     include_examples "disconnected daemon", "read_file", { path: "README.md" }
 
     it "dispatches read_file to the daemon and returns the result" do
@@ -67,7 +67,7 @@ RSpec.describe "Local Mode MCP tools" do
     end
   end
 
-  describe SyrusChatMcp::WriteFileTool do
+  describe Mcp::Tools::WriteFileTool do
     include_examples "disconnected daemon", "write_file", { path: "foo.rb", content: "# hello" }
 
     it "dispatches write_file to the daemon" do
@@ -81,7 +81,7 @@ RSpec.describe "Local Mode MCP tools" do
     end
   end
 
-  describe SyrusChatMcp::ListFilesTool do
+  describe Mcp::Tools::ListFilesTool do
     include_examples "disconnected daemon", "list_files", {}
 
     it "dispatches list_files to the daemon with a default path" do
@@ -97,7 +97,7 @@ RSpec.describe "Local Mode MCP tools" do
     end
   end
 
-  describe SyrusChatMcp::RunCommandTool do
+  describe Mcp::Tools::RunCommandTool do
     include_examples "disconnected daemon", "run_command", { command: "echo hi" }
 
     it "dispatches run_command to the daemon" do
@@ -124,7 +124,7 @@ RSpec.describe "Local Mode MCP tools" do
     end
   end
 
-  describe SyrusChatMcp::GitDiffTool do
+  describe Mcp::Tools::GitDiffTool do
     include_examples "disconnected daemon", "git_diff", {}
 
     it "dispatches git_diff to the daemon" do
@@ -140,7 +140,7 @@ RSpec.describe "Local Mode MCP tools" do
     end
   end
 
-  describe SyrusChatMcp::GitStatusTool do
+  describe Mcp::Tools::GitStatusTool do
     include_examples "disconnected daemon", "git_status", {}
 
     it "dispatches git_status to the daemon" do
@@ -156,7 +156,7 @@ RSpec.describe "Local Mode MCP tools" do
     end
   end
 
-  describe SyrusChatMcp::OpenInLocalModeTool do
+  describe Mcp::Tools::OpenInLocalModeTool do
     let(:repository) { Factories.repository(user: user) }
 
     before { allow(Feature).to receive(:local_mode_enabled?).and_return(true) }
@@ -206,7 +206,7 @@ RSpec.describe "Local Mode MCP tools" do
     end
   end
 
-  describe SyrusChatMcp::CancelLocalModeTool do
+  describe Mcp::Tools::CancelLocalModeTool do
     let(:repository) { Factories.repository(user: user) }
 
     it "returns a taken-over job (with pr) to implemented state" do
@@ -257,7 +257,7 @@ RSpec.describe "Local Mode MCP tools" do
     end
   end
 
-  describe SyrusChatMcp::CompleteImplementStepTool do
+  describe Mcp::Tools::CompleteImplementStepTool do
     let(:repository) { Factories.repository(user: user) }
 
     before { allow(StepDispatcher).to receive(:start_workflow) }
@@ -322,7 +322,7 @@ RSpec.describe "Local Mode MCP tools" do
     end
   end
 
-  describe SyrusChatMcp::CreateCodingJobTool do
+  describe Mcp::Tools::CreateCodingJobTool do
     let(:repository) { Factories.repository(user: user) }
 
     before { chat_session.chat_attachments.create!(attachable: repository) }

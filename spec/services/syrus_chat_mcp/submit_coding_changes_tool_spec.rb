@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusChatMcp::SubmitCodingChangesTool do
+RSpec.describe Mcp::Tools::SubmitCodingChangesTool do
   include ActiveJob::TestHelper
 
   let(:user) { Factories.user }

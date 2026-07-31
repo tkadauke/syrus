@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "SyrusChatMcp pinned context tools" do
+RSpec.describe "Mcp::Tools pinned context tools" do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
@@ -9,8 +9,8 @@ RSpec.describe "SyrusChatMcp pinned context tools" do
     MCP::Server.new(
       name: "syrus-chat-sidecar",
       tools: [
-        SyrusChatMcp::UpdatePinnedContextTool,
-        SyrusChatMcp::RemovePinnedContextTool
+        Mcp::Tools::UpdatePinnedContextTool,
+        Mcp::Tools::RemovePinnedContextTool
       ],
       server_context: { chat_session: chat_session }
     )

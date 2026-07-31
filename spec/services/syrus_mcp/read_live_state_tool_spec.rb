@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusMcp::ReadLiveStateTool do
+RSpec.describe Mcp::Tools::ReadLiveStateTool do
   let(:run) { Factories.job.initial_run }
 
   def call(detail: "compact", context: { run_id: run.id })
