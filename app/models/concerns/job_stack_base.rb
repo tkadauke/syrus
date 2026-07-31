@@ -4,6 +4,14 @@ module JobStackBase
   def effective_base_branch
     return base_default_branch if stack_base_forces_main?
 
+    if parent_job.present? &&
+        parent_job.open? &&
+        parent_job.pr_number.present? &&
+        parent_job.branch_name.present? &&
+        !parent_job.dependency_succeeded?
+      return parent_job.branch_name
+    end
+
     parent = dependencies.includes(:depends_on_job).map(&:depends_on_job).compact.find do |dependency_job|
       dependency_job.open? &&
         dependency_job.pr_number.present? &&

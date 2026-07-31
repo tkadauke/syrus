@@ -1611,6 +1611,32 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       expect(job).not_to be_stack_ready_for_execution
     end
 
+    it "collapses redundant transitive same-epic dependencies to the most-downstream parent" do
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      root = Factories.job_record(
+        user: user, repository: repository, epic: epic, issue_number: 41, state: "approved",
+        branch_name: "syrus/issue-41", pr_number: 6
+      )
+      root.runs.create!(trigger_kind: "initial", agent_provider: root.agent_provider, head_sha: "a" * 40)
+      middle = Factories.job_record(
+        user: user, repository: repository, epic: epic, issue_number: 42, state: "approved",
+        branch_name: "syrus/issue-42", pr_number: 7
+      )
+      middle.runs.create!(trigger_kind: "initial", agent_provider: middle.agent_provider, head_sha: "b" * 40)
+      JobDependency.create!(job: middle, depends_on_job: root, source: "manual")
+      leaf = Factories.job_record(
+        user: user, repository: repository, epic: epic, issue_number: 43, state: "approved"
+      )
+      root_dependency = JobDependency.create!(job: leaf, depends_on_job: root, source: "manual")
+      middle_dependency = JobDependency.create!(job: leaf, depends_on_job: middle, source: "manual")
+
+      expect(leaf.reload).to be_dependencies_satisfied
+      expect(leaf).to be_stack_ready_for_execution
+      expect(leaf.reload.parent_job).to eq(middle)
+      expect(leaf.effective_base_branch).to eq("syrus/issue-42")
+      expect(JobDependency.where(id: [ root_dependency.id, middle_dependency.id ]).count).to eq(2)
+    end
+
     it "can start on a single open dependency by making it the stack parent" do
       prerequisite = Job.create!(user: user, repository: repository, issue_number: 42)
       prerequisite.update!(branch_name: "syrus/issue-42-#{prerequisite.id}", pr_number: 7)

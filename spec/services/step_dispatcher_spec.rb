@@ -191,6 +191,37 @@ RSpec.describe StepDispatcher do
       }.to change { s1.runs.count }.by(1)
       expect(job.reload.parent_job).to eq(prerequisite)
     end
+
+    it "starts landing workflows when redundant transitive dependencies resolve to one stack parent" do
+      epic = Factories.epic(user: job.user, repository: job.repository, state: "in_progress")
+      root = Factories.job_record(
+        user: job.user, repository: job.repository, epic: epic, issue_number: 97, state: "approved",
+        branch_name: "syrus/issue-97", pr_number: 97
+      )
+      root.runs.create!(trigger_kind: "initial", agent_provider: root.agent_provider, head_sha: "a" * 40)
+      middle = Factories.job_record(
+        user: job.user, repository: job.repository, epic: epic, issue_number: 98, state: "approved",
+        branch_name: "syrus/issue-98", pr_number: 98
+      )
+      middle.runs.create!(trigger_kind: "initial", agent_provider: middle.agent_provider, head_sha: "b" * 40)
+      JobDependency.create!(job: middle, depends_on_job: root, source: "manual")
+      landing_job = Factories.job_record(
+        user: job.user, repository: job.repository, epic: epic, issue_number: 99, state: "approved",
+        branch_name: "syrus/issue-99", pr_number: 99
+      )
+      JobDependency.create!(job: landing_job, depends_on_job: root, source: "manual")
+      JobDependency.create!(job: landing_job, depends_on_job: middle, source: "manual")
+      auto_merge = Workflows::AutoMerge.instantiate(job: landing_job)
+      first_step = auto_merge.first_step
+
+      expect {
+        described_class.start_workflow(auto_merge)
+      }.to change { first_step.runs.count }.by(1)
+
+      expect(auto_merge.reload).not_to be_failed
+      expect(auto_merge.failure_reason).to be_nil
+      expect(landing_job.reload.parent_job).to eq(middle)
+    end
   end
 
   describe ".advance_from" do

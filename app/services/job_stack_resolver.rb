@@ -1,3 +1,5 @@
+require "set"
+
 class JobStackResolver
   def initialize(job)
     @job = job
@@ -25,17 +27,19 @@ class JobStackResolver
           parent_ready?(dep.depends_on_job)
       }
       return force_main! if open_unmerged.empty?
-      return false unless open_unmerged.size == 1
 
-      update_parent!(open_unmerged.first.depends_on_job)
+      parent = stack_parent_for(open_unmerged)
+      return false unless parent
+
+      update_parent!(parent)
       return true
     end
 
     return false if unresolved.any?(&:pending?)
     return false if unresolved.any? { |dependency| dependency.depends_on_job_id.blank? }
-    return false unless unresolved.size == 1
 
-    parent = unresolved.first.depends_on_job
+    parent = stack_parent_for(unresolved)
+    return false unless parent
     return false unless parent_ready?(parent)
 
     update_parent!(parent)
@@ -71,5 +75,41 @@ class JobStackResolver
       parent.pr_number.present? &&
       parent.branch_name.present? &&
       parent.head_sha.present?
+  end
+
+  def stack_parent_for(dependencies)
+    parents = dependencies.map(&:depends_on_job).compact.uniq
+    return parents.first if parents.size == 1
+
+    downstream = parents.reject do |candidate|
+      (parents - [ candidate ]).any? do |other_parent|
+        reaches_job?(other_parent, candidate)
+      end
+    end
+    return nil unless downstream.size == 1
+
+    parent = downstream.first
+    redundant = parents - [ parent ]
+    Rails.logger.info(
+      "[JobStackResolver] #{job_slug(@job)} using #{job_slug(parent)} as stack parent; " \
+      "ignoring redundant transitive dependencies #{redundant.map { |dependency| job_slug(dependency) }.join(", ")}"
+    )
+    parent
+  end
+
+  def reaches_job?(from, target, seen = Set.new)
+    return true if from.id == target.id
+    return false if seen.include?(from.id)
+
+    seen << from.id
+    from.dependencies.includes(:depends_on_job).any? do |dependency|
+      next false if dependency.depends_on_job.blank?
+
+      reaches_job?(dependency.depends_on_job, target, seen)
+    end
+  end
+
+  def job_slug(job)
+    job.respond_to?(:slug) ? job.slug : "JOB-#{job.id}"
   end
 end
