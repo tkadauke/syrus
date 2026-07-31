@@ -132,6 +132,10 @@ Non-agentic. Validates that all open Epic child Jobs are approved and the member
 
 Agentic. Rebases member branches onto a growing integration branch in dependency order. Tries deterministic `git rebase` first; hands conflicts to the agent on failure.
 
+### merge_train_reconcile
+
+Agentic. Runs on the built merge-train integration branch before prepare, graders, coverage, and landing. Asks the configured agent provider to inspect the integrated tree for cross-Job inconsistencies. No diff is a successful result; focused reconciliation edits are committed onto the integration branch and then the normal gates continue.
+
 ### merge_train_land
 
 Non-agentic. Pushes the integration branch, merges one integration PR into base, then comments on and closes the member PRs.

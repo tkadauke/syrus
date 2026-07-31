@@ -41,7 +41,9 @@ Branch refs are fetched through the repository's authenticated GitHub URL so pri
 
 ## Grader validation
 
-After building the integration branch, Syrus runs the full grader suite on it (same as `auto_merge`: `retry_until(graders, repair: landing_fix)`). If graders fail, the `landing_fix` agent repairs the integration branch, and graders re-run up to `grade_max_iterations` times.
+After building the integration branch, Syrus runs `merge_train_reconcile` on it before prepare, graders, coverage, and landing. This invokes the configured agent provider against the integration branch to inspect the combined member work for cross-Job inconsistencies. If no reconciliation work is needed, no diff is treated as success. If focused reconciliation edits are needed, Syrus commits them onto the integration branch and updates the train's integration SHA.
+
+Syrus then runs the full grader suite on the integration branch (same as `auto_merge`: `retry_until(graders, repair: landing_fix)`). If graders fail, the `landing_fix` agent repairs the integration branch, and graders re-run up to `grade_max_iterations` times.
 
 ## Land phase
 

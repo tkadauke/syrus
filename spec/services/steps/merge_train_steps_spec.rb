@@ -41,6 +41,20 @@ RSpec.describe "Steps::MergeTrain*" do
     git
   end
 
+  def stub_reconcile_handler(handler, head_values:, status: "", step_diff: "")
+    workspace = instance_double(WorkflowWorkspace, setup: nil, path: Pathname.new("/tmp/ws"), branch_name: "x")
+    git = instance_double(GitRunner)
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(handler).to receive(:head_sha).and_return(*head_values)
+    allow(handler).to receive(:run_agent)
+    allow(handler).to receive(:assert_branch_history_intact!)
+    allow(handler).to receive(:diff_against_sha).and_return(step_diff)
+    allow(git).to receive(:run)
+    allow(git).to receive(:run).with("status", "--porcelain", chdir: "/tmp/ws").and_return(status)
+    git
+  end
+
   def octokit_error(error_class, status:, message:)
     error_class.new(status: status, body: { message: message })
   end
@@ -227,7 +241,7 @@ RSpec.describe "Steps::MergeTrain*" do
       expect(GithubClient).not_to have_received(:active_installation_for)
     end
 
-    it "skips prepare and graders when the built integration SHA already passed grading" do
+    it "leaves reconciliation queued when the built integration SHA already passed grading" do
       a = member_job(issue_number: 1)
       b = member_job(issue_number: 2)
       train = build_train([ a, b ])
@@ -254,9 +268,10 @@ RSpec.describe "Steps::MergeTrain*" do
 
       expect(git).to have_received(:run).with("rebase", train.integration_branch, chdir: "/tmp/ws").twice
       expect(workflow.steps.order(:position).pluck(:kind, :state)).to include(
-        [ "prepare", "cancelled" ],
-        [ "grader_fanout", "cancelled" ],
-        [ "grader_collect", "cancelled" ],
+        [ "merge_train_reconcile", "queued" ],
+        [ "prepare", "queued" ],
+        [ "grader_fanout", "queued" ],
+        [ "grader_collect", "queued" ],
         [ "merge_train_land", "queued" ]
       )
       expect(train.reload.integration_sha).to eq("intsha999")
@@ -317,6 +332,77 @@ RSpec.describe "Steps::MergeTrain*" do
 
       expect { handler.call }.to raise_error(Steps::Base::StepFailed, /not rebased onto the integration branch/)
       expect(train.reload.state).not_to eq("grading")
+    end
+  end
+
+  describe Steps::MergeTrainReconcile do
+    it "treats no reconciliation diff as success and records the integration SHA" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      train.update!(integration_sha: "intsha999")
+      handler = step_handler(described_class, "merge_train_reconcile", train, a)
+      git = stub_reconcile_handler(handler, head_values: %w[intsha999 intsha999], step_diff: "")
+
+      handler.call
+
+      expect(git).to have_received(:run).with("checkout", train.integration_branch, chdir: "/tmp/ws")
+      expect(handler).to have_received(:run_agent).with(prompt: handler.run.reload.prompt)
+      expect(handler).to have_received(:assert_branch_history_intact!)
+      expect(handler.run.reload.head_sha).to eq("intsha999")
+      expect(handler.run.agent_diff).to eq("")
+      expect(train.reload.integration_sha).to eq("intsha999")
+      expect(handler.run.job_logs.pluck(:chunk).join("\n")).to include("merge_train_reconcile: no reconciliation changes needed")
+    end
+
+    it "commits focused reconciliation changes onto the integration branch" do
+      a = member_job(issue_number: 1)
+      b = member_job(issue_number: 2)
+      train = build_train([ a, b ])
+      handler = step_handler(described_class, "merge_train_reconcile", train, b)
+      diff = "diff --git a/app/shared.rb b/app/shared.rb\n+consistent"
+      git = stub_reconcile_handler(handler, head_values: %w[oldsha123 newsha456], step_diff: diff)
+      allow(handler).to receive(:commit_agent_changes)
+
+      handler.call
+
+      expect(git).to have_received(:run).with("checkout", train.integration_branch, chdir: "/tmp/ws")
+      expect(handler).to have_received(:commit_agent_changes).with("Syrus merge-train reconciliation")
+      expect(handler).to have_received(:assert_branch_history_intact!)
+      expect(handler.run.reload.base_sha).to eq("oldsha123")
+      expect(handler.run.head_sha).to eq("newsha456")
+      expect(handler.run.agent_diff).to eq(diff)
+      expect(handler.run.step_agent_diff).to eq(diff)
+      expect(train.reload.integration_sha).to eq("newsha456")
+      expect(handler.run.job_logs.pluck(:chunk).join("\n")).to include("merge_train_reconcile: committed reconciliation changes")
+    end
+
+    it "skips downstream validation after a no-op reconciliation when the same head is already validated" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = Workflows::MergeTrain.instantiate(job: a, artifacts: { "merge_train_id" => train.id })
+      reconcile_step = workflow.steps.find_by!(kind: "merge_train_reconcile")
+      run = Run.create!(job: a, step: reconcile_step, trigger_kind: "merge_train")
+      handler = described_class.new(run)
+      stub_reconcile_handler(handler, head_values: %w[intsha999 intsha999], step_diff: "")
+      allow(LandingValidationCache).to receive(:valid_head_for?).with(job: a, head_sha: "intsha999").and_return(true)
+
+      handler.call
+
+      expect(workflow.steps.order(:position).pluck(:kind, :state)).to include(
+        [ "prepare", "cancelled" ],
+        [ "grader_fanout", "cancelled" ],
+        [ "grader_collect", "cancelled" ],
+        [ "merge_train_land", "queued" ]
+      )
+    end
+
+    it "fails when reconciliation leaves the working tree dirty" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      handler = step_handler(described_class, "merge_train_reconcile", train, a)
+      stub_reconcile_handler(handler, head_values: %w[oldsha oldsha], status: " M app.rb", step_diff: "")
+
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed, /working tree is not clean/)
     end
   end
 

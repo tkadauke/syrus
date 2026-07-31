@@ -126,6 +126,11 @@ When merge trains are enabled, approved child Jobs land atomically only after
 the Epic has released its children and all open siblings are approved. Children
 blocked by an upstream Epic dependency stay in the queue with a
 `waiting for Epic to release` reason instead of dispatching a train early.
+After Syrus builds the train's integration branch, it runs an agentic
+reconciliation pass on that branch before prepare, graders, coverage, and
+landing. A no-diff reconciliation continues normally; focused fixes are
+committed to the integration branch and still pass the normal gates before
+the Epic lands.
 
 Reconciliation is configured via `reconciliation_mode` in `.syrus.yml` or
 per-Epic:

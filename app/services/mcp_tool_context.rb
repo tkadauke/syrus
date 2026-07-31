@@ -76,7 +76,7 @@ class McpToolContext
 
   private_class_method def self.role_for_run(run)
     case run.step&.kind
-    when "agent_rebase", "stack_agent_rebase", "push_agent_rebase"
+    when "agent_rebase", "stack_agent_rebase", "push_agent_rebase", "merge_train_reconcile"
       AgentRole::WORKFLOW_REBASE_CONFLICT
     when "summarize", "summarize_amend", "test_plan"
       AgentRole::WORKFLOW_SUMMARY_TEST_PLAN

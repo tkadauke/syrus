@@ -72,7 +72,7 @@ Validates mergeability, re-runs required graders on the exact PR branch, then me
 
 **When it fires:** All open child Jobs of an Epic are approved and `AppSetting.merge_train_enabled` is true.
 
-**Step chain:** `merge_train_assemble → merge_train_build → prepare → retry_until(graders, repair: landing_fix) → merge_train_land`
+**Step chain:** `merge_train_assemble → merge_train_build → merge_train_reconcile → prepare → retry_until(graders, repair: landing_fix) → merge_train_land`
 
 Atomically lands all Epic child PRs through a single integration branch. See the Merge Train documentation for details.
 

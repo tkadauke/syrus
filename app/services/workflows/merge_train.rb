@@ -1,7 +1,7 @@
 module Workflows
   # Land a whole Epic's children together as one atomic merge.
   #
-  #   merge_train_assemble → merge_train_build → prepare →
+  #   merge_train_assemble → merge_train_build → merge_train_reconcile → prepare →
   #     retry_until(grader_fanout → grader_collect, repair: landing_fix) →
   #     try(merge_train_land).on_failure("merge_train_base_moved",
   #       merge_train_rebase →
@@ -12,7 +12,7 @@ module Workflows
   # single integration branch in topological order; prepare installs deps;
   # the grade & fix loop runs graders ONCE on the integrated tip (the exact
   # tree that will exist on base after the Epic merges) and lets the agent
-  # commit reconciliation fixes; land merges the integration branch into the
+  # commit focused landing fixes; land merges the integration branch into the
   # base in a single atomic merge and closes the child PRs. There is no
   # bisection — an unrepairable integration fails the whole Epic attempt and
   # lands nothing (Epic consistency). See docs/plans/landing-merge-train.md.
@@ -27,6 +27,7 @@ module Workflows
   class MergeTrain < Base
     steps :merge_train_assemble,
           :merge_train_build,
+          :merge_train_reconcile,
           :prepare,
           Workflows::RetryUntil.new(
             repair_first: false,
@@ -54,6 +55,7 @@ module Workflows
       [
         "merge_train_assemble",
         "merge_train_build",
+        "merge_train_reconcile",
         "prepare",
         Workflows::RetryUntil.new(
           max_iterations: AppSetting.grade_max_iterations,

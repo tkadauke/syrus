@@ -76,6 +76,7 @@ class Step
                 reconcile_strategy: :auto_merge),
       Entry.new(kind: "merge_train_assemble", handler: "MergeTrainAssemble", label: "Assemble train",          style: "bg-green-100 text-green-800", agentic: false),
       Entry.new(kind: "merge_train_build",  handler: "MergeTrainBuild",    label: "Build integration branch",  style: "bg-green-100 text-green-800", agentic: true),
+      Entry.new(kind: "merge_train_reconcile", handler: "MergeTrainReconcile", label: "Reconcile train",       style: "bg-teal-100 text-teal-700",   agentic: true),
       Entry.new(kind: "merge_train_land",   handler: "MergeTrainLand",     label: "Land Epic",                  style: "bg-green-100 text-green-800", agentic: false,
                 reconcile_strategy: :merge_train_land),
       Entry.new(kind: "merge_train_rebase", handler: "MergeTrainRebase",   label: "Rebase integration branch", style: "bg-teal-100 text-teal-700",   agentic: false),

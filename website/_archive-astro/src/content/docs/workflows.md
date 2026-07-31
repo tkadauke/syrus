@@ -128,7 +128,7 @@ ordering when building the integration branch.
 
 Trigger: an Epic whose every open child is approved, when the merge-train
 is enabled (`AppSetting.merge_train_enabled`, default off). Steps:
-`merge_train_assemble -> merge_train_build -> prepare ->
+`merge_train_assemble -> merge_train_build -> merge_train_reconcile -> prepare ->
 retry_until(grader_fanout -> grader_collect, repair: landing_fix) ->
 merge_train_land`.
 
@@ -192,7 +192,8 @@ rolling cap prevents endless CI-failure loops on the same Job.
 | `force_push` | No | Force-push a rebased branch with an explicit `--force-with-lease` lease |
 | `auto_merge` | No | Re-check GitHub merge gates and merge the approved PR |
 | `merge_train_assemble` | No | Validate an Epic train's locked members |
-| `merge_train_build` | No | Merge the Epic's members into one integration branch |
+| `merge_train_build` | Yes | Merge the Epic's members into one integration branch, handing conflicts to the agent |
+| `merge_train_reconcile` | Yes | Reconcile cross-Job inconsistencies on the integration branch before validation |
 | `merge_train_land` | No | Atomically merge the integration branch and close member PRs |
 | `manual` | Yes | Run an operator-supplied prompt |
 

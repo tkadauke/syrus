@@ -56,7 +56,7 @@ describe "details JSON bag" do
 
   describe "#agentic?" do
     it "is true for kinds that spawn an agent" do
-      %w[ implement summarize respond summarize_amend analyze_and_fix agent_rebase landing_fix manual ].each do |k|
+      %w[ implement summarize respond summarize_amend analyze_and_fix agent_rebase landing_fix merge_train_reconcile manual ].each do |k|
         expect(build_step(kind: k).agentic?).to be(true), "expected #{k} to be agentic"
       end
     end
