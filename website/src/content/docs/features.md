@@ -30,6 +30,10 @@ that provider show an additive red triangle warning in dashboards, lists, and
 the Job header until usage is restored or the Job is retried/switched with
 another configured provider. Transient provider outages remain separate from
 quota exhaustion and keep the existing non-red circuit treatment.
+Repository throughput metrics are available per repository through the app
+API at `GET /api/v1/app/repositories/:id/throughput_metrics`, reporting PR
+creation, output, landing, and review funnel windows with explicit confidence
+labels for sparse samples.
 
 Job kinds:
 

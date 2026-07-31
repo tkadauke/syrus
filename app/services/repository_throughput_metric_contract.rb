@@ -42,7 +42,7 @@ class RepositoryThroughputMetricContract
   def metrics_for(range)
     hours = [(range.end - range.begin) / 1.hour, 1.0 / 60].max
     jobs = jobs_in(range)
-    opened_jobs = pr_opened_jobs_in(range)
+    pr_creation = pr_creation_for(range, hours)
     landed_jobs = landed_jobs_in(range)
     landing_workflows = workflows_in(range, trigger_kinds: LANDING_TRIGGER_KINDS)
     failed_landing_workflows = landing_workflows.select { |workflow| failed_or_cancelled?(workflow) }
@@ -55,7 +55,7 @@ class RepositoryThroughputMetricContract
 
     {
       range: { start: range.begin.iso8601, end: range.end.iso8601, hours: hours.round(4) },
-      pr_creation: rate_payload(opened_jobs.size, hours, sample_count: opened_jobs.size),
+      pr_creation: pr_creation,
       output: {
         commits: rate_payload(output[:commits], hours, sample_count: output[:commit_sample_count]),
         loc: rate_payload(output[:net_loc], hours, sample_count: output[:diff_sample_count]).merge(
@@ -63,7 +63,8 @@ class RepositoryThroughputMetricContract
           deletions: output[:deletions],
           net: output[:net_loc],
           unavailable_sample_count: output[:unavailable_sample_count]
-        )
+        ),
+        by_job: output[:by_job]
       },
       landing: {
         landing_units: rate_payload(
@@ -95,11 +96,11 @@ class RepositoryThroughputMetricContract
         approval_to_landing_latency_seconds: duration_payload(approved_to_landing_latencies(landed_jobs)),
         approval_count: approvals.size,
         approval_vote_count: approval_vote_count,
-        pr_opened_count: opened_jobs.size
+        pr_opened_count: pr_creation[:total_observed_count]
       },
       samples: {
         jobs_seen: jobs.size,
-        prs_opened: opened_jobs.size,
+        prs_opened: pr_creation[:total_observed_count],
         output_runs_with_diffs: output[:diff_sample_count],
         landed_jobs: landed_jobs.size,
         landing_workflows: landing_workflows.size,
@@ -114,6 +115,22 @@ class RepositoryThroughputMetricContract
     repository.jobs.where(created_at: range).to_a
   end
 
+  def pr_creation_for(range, hours)
+    jobs_by_source = pr_opened_jobs_in(range).group_by { |job| pr_source_for(job) }
+    syrus_authored = jobs_by_source.fetch(:syrus_authored, [])
+    external = jobs_by_source.fetch(:external, [])
+    fork_review = jobs_by_source.fetch(:fork_review, [])
+
+    rate_payload(syrus_authored.size, hours, sample_count: syrus_authored.size).merge(
+      total_observed_count: syrus_authored.size + external.size + fork_review.size,
+      series: {
+        syrus_authored: rate_payload(syrus_authored.size, hours, sample_count: syrus_authored.size),
+        external: rate_payload(external.size, hours, sample_count: external.size),
+        fork_review: rate_payload(fork_review.size, hours, sample_count: fork_review.size)
+      }
+    )
+  end
+
   def pr_opened_jobs_in(range)
     pr_open_steps_in(range).map { |step| step.workflow.job }.uniq
   end
@@ -126,8 +143,17 @@ class RepositoryThroughputMetricContract
       .to_a
       .select do |step|
         step.workflow.job.pr_number.present? ||
-          step.workflow.job.external_pr_number.present?
+          step.workflow.job.external_pr_number.present? ||
+          step.workflow.job.fork_review_pr_number.present?
       end
+  end
+
+  def pr_source_for(job)
+    return :syrus_authored if job.pr_number.present?
+    return :external if job.external_pr_number.present?
+    return :fork_review if job.fork_review_pr_number.present?
+
+    :unknown
   end
 
   def landed_jobs_in(range)
@@ -155,6 +181,25 @@ class RepositoryThroughputMetricContract
 
     diffs = runs.filter_map { |run| run.step_agent_diff.presence || run.agent_diff.presence }
     loc = diffs.map { |diff| diff_loc(diff) }
+    by_job = runs.group_by(&:job).map do |job, job_runs|
+      job_diffs = job_runs.filter_map { |run| run.step_agent_diff.presence || run.agent_diff.presence }
+      job_loc = job_diffs.map { |diff| diff_loc(diff) }
+
+      {
+        job_id: job.id,
+        pr_source: pr_source_for(job).to_s,
+        pr_number: job.pr_number,
+        external_pr_number: job.external_pr_number,
+        fork_review_pr_number: job.fork_review_pr_number,
+        commit_count: job_runs.filter_map { |run| run.head_sha.presence }.uniq.size,
+        sample_count: job_runs.size,
+        diff_sample_count: job_diffs.size,
+        unavailable_sample_count: job_runs.size - job_diffs.size,
+        additions: job_loc.sum { |item| item[:additions] },
+        deletions: job_loc.sum { |item| item[:deletions] },
+        net: job_loc.sum { |item| item[:additions] - item[:deletions] }
+      }
+    end.sort_by { |item| item[:job_id] }
 
     {
       commits: runs.filter_map { |run| run.head_sha.presence }.uniq.size,
@@ -163,7 +208,8 @@ class RepositoryThroughputMetricContract
       deletions: loc.sum { |item| item[:deletions] },
       net_loc: loc.sum { |item| item[:additions] - item[:deletions] },
       diff_sample_count: diffs.size,
-      unavailable_sample_count: runs.size - diffs.size
+      unavailable_sample_count: runs.size - diffs.size,
+      by_job: by_job
     }
   end
 

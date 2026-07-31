@@ -23,11 +23,120 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     )
   end
 
+  def workflow_for(job, trigger_kind: "initial", started_at: Time.current - 10.minutes, finished_at: Time.current - 5.minutes)
+    Workflow.create!(
+      job: job,
+      user: job.user,
+      trigger_kind: trigger_kind,
+      agent_provider: job.agent_provider,
+      state: "succeeded",
+      started_at: started_at,
+      finished_at: finished_at,
+      created_at: started_at
+    )
+  end
+
+  def step_for(workflow, kind:, finished_at: Time.current - 5.minutes)
+    Step.create!(
+      workflow: workflow,
+      kind: kind,
+      position: 0,
+      state: "succeeded",
+      started_at: finished_at - 1.minute,
+      finished_at: finished_at
+    )
+  end
+
   it "401s with a JSON error when signed out" do
     get "/api/v1/app/repositories"
 
     expect(response).to have_http_status(:unauthorized)
     expect(parse_body.dig("error", "code")).to eq("unauthorized")
+  end
+
+  it "401s throughput metrics when signed out" do
+    repository = Factories.repository(user: user)
+
+    get "/api/v1/app/repositories/#{repository.id}/throughput_metrics"
+
+    expect(response).to have_http_status(:unauthorized)
+    expect(parse_body.dig("error", "code")).to eq("unauthorized")
+  end
+
+  it "404s throughput metrics for repositories outside the signed-in user's workspace" do
+    repository = Factories.repository(user: Factories.user)
+
+    sign_in_as(user)
+    get "/api/v1/app/repositories/#{repository.id}/throughput_metrics"
+
+    expect(response).to have_http_status(:not_found)
+    expect(parse_body.dig("error", "code")).to eq("not_found")
+  end
+
+  it "returns repository throughput metrics from durable workflow rows" do
+    travel_to Time.zone.local(2026, 7, 31, 12, 0, 0) do
+      repository = Factories.repository(user: user)
+      job = Factories.job_record(user: user, repository: repository, pr_number: 123, created_at: 30.minutes.ago)
+      workflow = workflow_for(job, started_at: 25.minutes.ago, finished_at: 20.minutes.ago)
+      step = step_for(workflow, kind: "pr_open", finished_at: 20.minutes.ago)
+      output_step = step_for(workflow, kind: "implement", finished_at: 10.minutes.ago)
+      Run.create!(
+        job: job,
+        user: user,
+        step: output_step,
+        trigger_kind: "initial",
+        agent_provider: "claude",
+        state: "succeeded",
+        started_at: 11.minutes.ago,
+        finished_at: 10.minutes.ago,
+        head_sha: "c" * 40,
+        step_agent_diff: <<~DIFF
+          diff --git a/app.rb b/app.rb
+          index 111..222 100644
+          --- a/app.rb
+          +++ b/app.rb
+          @@ -1 +1,2 @@
+          -old
+          +new
+          +another
+        DIFF
+      )
+
+      sign_in_as(user)
+      get "/api/v1/app/repositories/#{repository.id}/throughput_metrics"
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body).to include(
+        "version" => 1,
+        "repository_id" => repository.id
+      )
+      expect(body.dig("windows", "1h", "pr_creation")).to include(
+        "count" => 1,
+        "sample_count" => 1,
+        "confidence" => "low",
+        "total_observed_count" => 1
+      )
+      expect(body.dig("windows", "1h", "pr_creation", "series", "syrus_authored"))
+        .to include("count" => 1)
+      expect(body.dig("windows", "1h", "output", "loc")).to include(
+        "additions" => 2,
+        "deletions" => 1,
+        "net" => 1
+      )
+      expect(body.dig("windows", "1h", "output", "by_job")).to contain_exactly(
+        include(
+          "job_id" => job.id,
+          "pr_source" => "syrus_authored",
+          "commit_count" => 1,
+          "sample_count" => 1,
+          "additions" => 2,
+          "deletions" => 1,
+          "net" => 1
+        )
+      )
+      expect(step.reload).to be_succeeded
+    end
   end
 
   it "lists active and archived repositories for the signed-in user" do

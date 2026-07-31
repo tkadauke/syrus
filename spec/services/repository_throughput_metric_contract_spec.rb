@@ -67,8 +67,41 @@ RSpec.describe RepositoryThroughputMetricContract do
 
     result = call.fetch(:windows).fetch("1h").fetch(:pr_creation)
 
-    expect(result).to include(count: 1, sample_count: 1, confidence: "low")
+    expect(result).to include(count: 1, sample_count: 1, confidence: "low", total_observed_count: 1)
     expect(result.fetch(:per_hour)).to eq(1.0)
+    expect(result.dig(:series, :syrus_authored)).to include(count: 1, per_hour: 1.0)
+    expect(result.dig(:series, :external)).to include(count: 0, confidence: "none")
+    expect(result.dig(:series, :fork_review)).to include(count: 0, confidence: "none")
+  end
+
+  it "keeps mixed PR creation sources in separate series" do
+    syrus_job = Factories.job_record(user: user, repository: repository, pr_number: 123, created_at: now - 30.minutes)
+    external_job = Factories.job_record(
+      user: user,
+      repository: repository,
+      pr_number: nil,
+      external_pr_number: 456,
+      created_at: now - 28.minutes
+    )
+    fork_review_job = Factories.job_record(
+      user: user,
+      repository: repository,
+      pr_number: nil,
+      fork_review_pr_number: 789,
+      created_at: now - 26.minutes
+    )
+
+    [ syrus_job, external_job, fork_review_job ].each_with_index do |job, index|
+      workflow = workflow_for(job, trigger_kind: "initial", started_at: now - (20 - index).minutes)
+      step_for(workflow, kind: "pr_open", finished_at: now - (18 - index).minutes)
+    end
+
+    pr_creation = call.fetch(:windows).fetch("1h").fetch(:pr_creation)
+
+    expect(pr_creation).to include(count: 1, total_observed_count: 3)
+    expect(pr_creation.dig(:series, :syrus_authored)).to include(count: 1, sample_count: 1)
+    expect(pr_creation.dig(:series, :external)).to include(count: 1, sample_count: 1)
+    expect(pr_creation.dig(:series, :fork_review)).to include(count: 1, sample_count: 1)
   end
 
   it "reports output commits and LOC from succeeded output run snapshots and diffs" do
@@ -95,6 +128,43 @@ RSpec.describe RepositoryThroughputMetricContract do
 
     expect(output.fetch(:commits)).to include(count: 1, per_hour: 1.0, sample_count: 1, confidence: "low")
     expect(output.fetch(:loc)).to include(count: 1, additions: 2, deletions: 1, net: 1, unavailable_sample_count: 0)
+    expect(output.fetch(:by_job)).to contain_exactly(
+      include(
+        job_id: job.id,
+        pr_source: "unknown",
+        commit_count: 1,
+        sample_count: 1,
+        diff_sample_count: 1,
+        unavailable_sample_count: 0,
+        additions: 2,
+        deletions: 1,
+        net: 1
+      )
+    )
+  end
+
+  it "keeps output sample sizes honest when run diffs are unavailable" do
+    job = Factories.job_record(user: user, repository: repository, pr_number: 123, created_at: now - 40.minutes)
+    workflow = workflow_for(job, trigger_kind: "initial")
+    step = step_for(workflow, kind: "implement", finished_at: now - 25.minutes)
+    run_for(job, step, head_sha: "b" * 40, step_agent_diff: "")
+
+    output = call.fetch(:windows).fetch("1h").fetch(:output)
+
+    expect(output.fetch(:loc)).to include(count: 0, sample_count: 0, confidence: "none", unavailable_sample_count: 1)
+    expect(output.fetch(:by_job)).to contain_exactly(
+      include(
+        job_id: job.id,
+        pr_source: "syrus_authored",
+        commit_count: 1,
+        sample_count: 1,
+        diff_sample_count: 0,
+        unavailable_sample_count: 1,
+        additions: 0,
+        deletions: 0,
+        net: 0
+      )
+    )
   end
 
   it "defines landing throughput, merge-train size, latency, and landing waste" do
@@ -208,5 +278,38 @@ RSpec.describe RepositoryThroughputMetricContract do
     expect(result.fetch("1h").dig(:pr_creation)).to include(count: 0, sample_count: 0, confidence: "none")
     expect(result.fetch("last_active").dig(:pr_creation)).to include(count: 1, sample_count: 1, confidence: "low")
     expect(Time.iso8601(result.fetch("last_active").dig(:range, :end))).to eq(now - 2.days)
+  end
+
+  it "reports empty windows without smoothing sparse data into nonzero rates" do
+    window = call.fetch(:windows).fetch("1h")
+
+    expect(window.fetch(:pr_creation)).to include(count: 0, per_hour: 0.0, sample_count: 0, confidence: "none")
+    expect(window.dig(:output, :commits)).to include(count: 0, per_hour: 0.0, sample_count: 0, confidence: "none")
+    expect(window.dig(:output, :loc)).to include(count: 0, per_hour: 0.0, sample_count: 0, confidence: "none")
+    expect(window.dig(:landing, :jobs_landed)).to include(count: 0, per_hour: 0.0, sample_count: 0, confidence: "none")
+  end
+
+  it "marks low-activity recent windows with low confidence" do
+    job = Factories.job_record(user: user, repository: repository, pr_number: 123, created_at: now - 30.minutes)
+    workflow = workflow_for(job, trigger_kind: "initial")
+    step_for(workflow, kind: "pr_open", finished_at: now - 20.minutes)
+
+    window = call.fetch(:windows).fetch("4h")
+
+    expect(window.fetch(:pr_creation)).to include(count: 1, sample_count: 1, confidence: "low")
+    expect(window.fetch(:pr_creation).fetch(:per_hour)).to eq(0.25)
+  end
+
+  it "reports active recent windows with higher confidence when sample size is large enough" do
+    5.times do |index|
+      job = Factories.job_record(user: user, repository: repository, issue_number: 300 + index, pr_number: 400 + index, created_at: now - 30.minutes)
+      workflow = workflow_for(job, trigger_kind: "initial", started_at: now - (25 - index).minutes)
+      step_for(workflow, kind: "pr_open", finished_at: now - (20 - index).minutes)
+    end
+
+    pr_creation = call.fetch(:windows).fetch("1h").fetch(:pr_creation)
+
+    expect(pr_creation).to include(count: 5, sample_count: 5, confidence: "medium")
+    expect(pr_creation.fetch(:per_hour)).to eq(5.0)
   end
 end

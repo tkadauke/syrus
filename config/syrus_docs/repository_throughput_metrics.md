@@ -27,6 +27,15 @@ The current contract is produced by `RepositoryThroughputMetricContract` and ret
 }
 ```
 
+Authenticated app clients can read the same contract for one repository at:
+
+```http
+GET /api/v1/app/repositories/:id/throughput_metrics
+```
+
+The endpoint is scoped through the signed-in user's repository workspace
+memberships and computes directly from durable rows at request time.
+
 ## Windows
 
 Standard windows are `1h`, `4h`, `24h`, and `7d`, ending at the requested `now`.
@@ -49,8 +58,18 @@ Sparse rates must be displayed with their confidence label rather than presented
 
 ## PR Creation Throughput
 
-`pr_creation` counts Jobs whose successful `pr_open` Step finished in the
-window and whose Job has `pr_number` or `external_pr_number`.
+`pr_creation.count` counts only Syrus-authored PRs: Jobs whose successful
+`pr_open` Step finished in the window and whose Job has `pr_number`.
+
+External and fork-review PRs are not mixed into that headline rate. They are
+reported only as explicit separate series:
+
+- `pr_creation.series.syrus_authored`
+- `pr_creation.series.external`
+- `pr_creation.series.fork_review`
+
+`pr_creation.total_observed_count` is the sum of those observed series. Use it
+only when the UI is clearly showing a mixed-source total.
 
 Source fields:
 
@@ -59,6 +78,7 @@ Source fields:
 - `steps.finished_at`
 - `jobs.pr_number`
 - `jobs.external_pr_number`
+- `jobs.fork_review_pr_number`
 
 This avoids inventing a PR-created timestamp. If a PR exists but the original
 `pr_open` Step is unavailable, it is not counted as observed PR creation
@@ -72,8 +92,15 @@ committed-output sample, not a full Git commit count, because Syrus does not
 currently persist every commit in a typed table.
 
 `output.loc` parses `runs.step_agent_diff` first, then `runs.agent_diff`, and
-reports additions, deletions, and net LOC. Diffs without a captured patch
-increase `unavailable_sample_count`.
+reports additions, deletions, net LOC, and sample size. Diffs without a
+captured patch increase `unavailable_sample_count`.
+
+`output.by_job` exposes per-Job/PR samples where data is available. Each sample
+contains the Job id, PR source and PR numbers, observed commit count, run sample
+count, diff sample count, unavailable diff count, additions, deletions, and net
+LOC. This is still derived from persisted Syrus run snapshots; exact GitHub
+commit lists or file-level PR metadata can be added later under a new contract
+version if needed.
 
 Output-producing Step kinds:
 
