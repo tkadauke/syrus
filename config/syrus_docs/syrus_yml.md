@@ -166,6 +166,6 @@ reconciliation_mode: none    # skip reconciliation; siblings land independently
 
 Valid values: `pr`, `none`. Omitting the key defaults to `pr`.
 
-The reconciliation Job is a `kind=direct` Job that depends on all sibling Jobs in the Epic and runs a cross-cutting review before siblings are allowed to land. See the `reconciliation.md` operator doc for full details.
+The reconciliation Job is a `kind=direct` Job that depends on the final child Job for linear Epics, or all sibling Jobs for explicit nonlinear Epics, and runs a cross-cutting review before siblings are allowed to land. See the `reconciliation.md` operator doc for full details.
 
 An Epic-level `reconciliation_mode` column takes precedence over this `.syrus.yml` setting.

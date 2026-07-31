@@ -123,8 +123,10 @@ automatically create a **reconciliation Job** — a synthesizing review that
 checks all sibling changes together for consistency, naming conflicts, shared
 migration issues, and cross-cutting concerns that per-Job review may miss.
 
-The reconciliation Job depends on every sibling Job in the Epic and holds
-siblings from landing until it finishes. Once it closes, sibling Jobs proceed
+For linear Epics, the reconciliation Job depends only on the final child Job
+in the stack, preserving the single-parent branch chain. For explicit
+nonlinear Epics, it depends on every sibling Job. In both cases it holds
+siblings from landing until it finishes; once it closes, sibling Jobs proceed
 to the landing queue normally.
 
 When merge trains are enabled, approved child Jobs land atomically only after

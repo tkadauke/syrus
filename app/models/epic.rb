@@ -482,7 +482,7 @@ class Epic < ApplicationRecord
       state: "triaging"
     )
 
-    sibling_jobs.each do |sibling|
+    EpicDependencyPolicy::Base.for(epic_dependency_policy).reconciliation_dependency_jobs(self, sibling_jobs).each do |sibling|
       recon_job.dependencies.create!(
         depends_on_job: sibling,
         source: "manual",

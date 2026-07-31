@@ -6,7 +6,7 @@ Epic reconciliation automatically creates a synthesizing Job after all sibling J
 
 When an Epic goes `in_progress` and has 2 or more child Jobs, Syrus creates a **reconciliation Job**. This Job:
 
-1. **Depends on all sibling Jobs** — it cannot start until every sibling Job has cleared the landing queue (approved and unblocked).
+1. **Depends on the stack tip** — for linear Epics, it depends only on the final child Job in the chain, preserving the single-parent stack. For explicit nonlinear Epics, it depends on all sibling Jobs.
 2. **Runs a review prompt** — the agent reads the combined diff across all sibling branches and checks for consistency, naming conflicts, API contract mismatches, shared migration conflicts, and cross-cutting concerns.
 3. **Blocks landing** — sibling Jobs cannot land while the reconciliation Job is open. The reconciliation Job itself is not blocked; only siblings are held.
 4. **Auto-clears** — when the reconciliation Job closes (merged or no-changes), the Epic's `reconciliation_job_id` is cleared and sibling Jobs can proceed to landing.
@@ -19,6 +19,8 @@ The reconciliation Job is a `kind=direct` Job attached to the Epic. It is create
 - When a new child Job is added to an already `in_progress` Epic and the total sibling count reaches 2.
 
 The Job is idempotent — Syrus will not create a second reconciliation Job while one is already open (`reconciliation_job_id` is set on the Epic).
+
+For Epics using the default linear dependency policy, the child Job graph must have exactly one final child Job. If persisted children do not form a single chain, reconciliation creation raises a clear configuration error instead of creating a fan-in Job.
 
 ## Landing gate
 
