@@ -606,6 +606,19 @@ The view respects the same ownership model as the rest of the app:
 non-admin users see only their own Run and chat costs, while admins see
 global totals across the instance.
 
+## Repository Throughput Metrics
+
+Repository throughput metrics use a versioned contract derived from
+existing Syrus records before adding rollup persistence. Each repository
+window reports counts, per-hour rates, sample counts, and confidence labels
+for PR creation, committed output, landing throughput, landing waste, and
+the review funnel.
+
+The canonical windows are 1h, 4h, 24h, and 7d, plus a one-hour
+last-active fallback when recent activity is sparse. Low-sample windows are
+labelled instead of treated as stable averages, so operators can distinguish
+"nothing happened recently" from "the repository is slow."
+
 ## Repository Automation
 
 Repository settings control trigger label, polling, default branch,
