@@ -36,6 +36,12 @@ GET /api/v1/app/repositories/:id/throughput_metrics
 The endpoint is scoped through the signed-in user's repository workspace
 memberships and computes directly from durable rows at request time.
 
+The repository overview page also renders this contract as a throughput panel.
+It exposes the same window selector, headline rates, confidence labels,
+sample counts, merge-train unit/job split, review funnel, and landing
+bottleneck signals. UI consumers should keep the API contract as the source of
+truth rather than duplicating metric derivation in React.
+
 ## Windows
 
 Standard windows are `1h`, `4h`, `24h`, and `7d`, ending at the requested `now`.
