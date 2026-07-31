@@ -202,8 +202,8 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
       {command.isError ? <PanelMessage tone="error">{errorMessage(command.error, t("command_error"))}</PanelMessage> : null}
       {dialog}
 
-      <div className="grid gap-6 lg:grid-cols-[62%_38%]">
-        <div className="space-y-6">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,31fr)_minmax(0,19fr)]">
+        <div className="min-w-0 space-y-6">
           {payload.epic.description.trim() ? (
             <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
               <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("description")}</h2>
@@ -215,7 +215,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
           <HistorySection versions={payload.versions || []} />
         </div>
 
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <DependenciesSection command={dependencyCommand} currentEpicId={payload.epic.id} dependencies={payload.dependencies} dependents={payload.dependents} prefix={prefix} />
           <DetailsPanel epic={payload.epic} jobs={payload.jobs} prefix={prefix} />
         </div>
@@ -421,7 +421,7 @@ function DependencyGraph({ graph }: { graph: EpicGraph }) {
           <span className="text-gray-500 dark:text-gray-400">({t("epic_dep", { count: graph.epic_dependency_count })}, {t("job_blocker", { count: graph.job_blocker_count })})</span>
         </span>
       </summary>
-      <div className="border-t border-gray-100 p-3 dark:border-gray-800">
+      <div aria-label={t("dependency_graph_scroll_region")} className="overflow-x-auto border-t border-gray-100 p-3 dark:border-gray-800">
         <TopoDepGraph nodes={graph.nodes} edges={graph.edges} />
       </div>
     </details>
@@ -784,4 +784,3 @@ function epicOwnerLabel(epic: EpicDetailPayload["epic"], t: (key: string, opts?:
   const owner = epic.owner_user || epic.owner
   return owner ? t("owner_label", { email: owner.email_address }) : t("unclaimed")
 }
-

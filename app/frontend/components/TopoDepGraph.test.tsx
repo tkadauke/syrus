@@ -191,6 +191,17 @@ describe("TopoDepGraph", () => {
     expect(container.firstChild).toHaveClass("my-custom")
   })
 
+  it("sizes the graph to its content so overflow parents can scroll it", () => {
+    const { container } = render(
+      <MemoryRouter>
+        <TopoDepGraph edges={[edge("a", "b")]} nodes={[node("a"), node("b")]} />
+      </MemoryRouter>
+    )
+
+    expect(container.firstChild).toHaveClass("min-w-full")
+    expect(container.firstChild).toHaveClass("w-max")
+  })
+
   it("renders a label with no title portion without an extra paragraph", () => {
     renderGraph([node("n", { label: "SOLO" })], [])
     expect(screen.getByText("SOLO")).toBeInTheDocument()

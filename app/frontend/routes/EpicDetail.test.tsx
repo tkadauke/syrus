@@ -190,6 +190,44 @@ describe("EpicDetail start implementing", () => {
   })
 })
 
+describe("EpicDetail dependency graph", () => {
+  it("keeps a wide graph inside a horizontal scroll region", () => {
+    const payload = detailPayload({ startable: false })
+    payload.graph = {
+      empty: false,
+      node_count: 2,
+      epic_dependency_count: 1,
+      job_blocker_count: 0,
+      initially_open: true,
+      nodes: [
+        {
+          id: "epic_3",
+          kind: "epic",
+          label: "EPIC-3 Onboarding",
+          state: "ready",
+          epic_id: null,
+          url: "/epics/3",
+          is_focal: true,
+        },
+        {
+          id: "epic_4",
+          kind: "epic",
+          label: "EPIC-4 Follow-up",
+          state: "ready",
+          epic_id: null,
+          url: "/epics/4",
+          is_focal: false,
+        },
+      ],
+      edges: [{ from_id: "epic_3", to_id: "epic_4" }],
+    }
+
+    renderDetail(payload)
+
+    expect(screen.getByLabelText("Dependency graph scroll region")).toHaveClass("overflow-x-auto")
+  })
+})
+
 describe("ProgressBar", () => {
   it("renders an empty bar when there are no jobs", () => {
     render(<ProgressBar jobs={[]} totalCount={0} />)

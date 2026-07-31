@@ -34,6 +34,7 @@
 
   "no_external_dependencies": "No external dependencies",
   "dependency_graph": "Dependency graph",
+  "dependency_graph_scroll_region": "Dependency graph scroll region",
   "epic_dep_one": "{{count}} epic dep",
   "epic_dep_other": "{{count}} epic deps",
   "job_blocker_one": "{{count}} job blocker",

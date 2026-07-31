@@ -29,6 +29,7 @@
   "none": "Keine",
   "no_external_dependencies": "Keine externen Abhängigkeiten",
   "dependency_graph": "Abhängigkeitsgraph",
+  "dependency_graph_scroll_region": "Scrollbereich für Abhängigkeitsgraph",
   "epic_dep_one": "{{count}} Epic-Abhängigkeit",
   "epic_dep_other": "{{count}} Epic-Abhängigkeiten",
   "job_blocker_one": "{{count}} Aufgaben-Blocker",

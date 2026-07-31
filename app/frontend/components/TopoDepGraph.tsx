@@ -112,7 +112,7 @@ export function TopoDepGraph({
   if (nodes.length === 0) return null
 
   return (
-    <div className={["relative", className].filter(Boolean).join(" ")} ref={containerRef}>
+    <div className={["relative min-w-full w-max", className].filter(Boolean).join(" ")} ref={containerRef}>
       <div className="flex items-start gap-16">
         {columns.map((colNodes, colIdx) => (
           <div className="flex flex-col gap-3" key={colIdx}>
