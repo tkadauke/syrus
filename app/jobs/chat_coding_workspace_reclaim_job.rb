@@ -9,9 +9,10 @@
 # hence the hop back to `chat`.
 #
 # reclaim_coding_checkout! backs up any un-pushed / uncommitted work to the
-# remote before deleting, and leaves coding_checkout_branch set, so a later
-# chat turn transparently re-materializes the checkout. A live turn holding the
-# workspace open is unaffected: the reclaim just frees disk that ensure_
+# remote before deleting. Standalone chat work is backed up through the
+# per-chat WIP tag instead of a persistent `syrus-chat-<id>` branch; existing
+# Job branch checkouts still restore from their Job branch. A live turn holding
+# the workspace open is unaffected: the reclaim just frees disk that ensure_
 # coding_checkout! will re-clone on demand.
 class ChatCodingWorkspaceReclaimJob < ApplicationJob
   queue_as :chat

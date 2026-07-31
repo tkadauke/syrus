@@ -16,7 +16,7 @@ The terminal relay address is configured via `SYRUS_TERMINAL_HOST`. See the Term
 
 **Category:** Labs
 
-Enables Coding Mode for Syrus Chat. When active, the chat workspace gets a writable full clone on a dedicated branch so the agent can implement code directly during a chat session instead of just planning. After the agent commits, it calls `complete_implement_step` or `submit_coding_changes` to hand off to a `coding_handoff` workflow, which requires operator confirmation before dispatching.
+Enables Coding Mode for Syrus Chat. When active, the chat workspace gets a writable full clone so the agent can implement code directly during a chat session instead of just planning. New chat-authored work starts on the repository default branch; accepted `submit_coding_changes` captures the current HEAD to an immutable `syrus/chat-<chat_id>-handoff-<pending_action_id>` branch. Existing Job work can still use that Job's branch and hand off with `complete_implement_step`. Both handoff paths require operator confirmation before dispatching a `coding_handoff` workflow.
 
 **Workspace reclamation.** A Coding-Mode checkout (writable full clone + installed dependencies) is commonly 1–2 GB, so Syrus reclaims that disk aggressively while never losing work:
 
@@ -24,7 +24,7 @@ Enables Coding Mode for Syrus Chat. When active, the chat workspace gets a writa
 - **When idle** — `WorkflowWorkspacePruneJob` reclaims checkouts inactive longer than `ChatWorkspace::RECLAIM_IDLE_CODING_AFTER` (48 h).
 - **Under disk pressure** — when retained checkouts exceed `AppSetting.chat_coding_workspace_budget_mb` (`0` = unlimited), the least-recently-active are LRU-evicted.
 
-Reclamation is safe and transparent: before deleting, any un-pushed commits are pushed to the coding branch, and any uncommitted work is snapshotted into a WIP commit pushed to a `syrus-wip/chat-<id>` tag ref (keeping the branch history clean). The session keeps its `coding_checkout_branch`, so the next chat turn re-clones the branch and re-applies the WIP snapshot before the agent runs — the agent cannot tell the workspace was ever removed. If a backup push fails, the on-disk checkout is preserved rather than deleted. See `AppSetting.chat_coding_workspace_budget_mb`.
+Reclamation is safe and transparent: before deleting, standalone default-branch chat work is backed up to a `syrus-wip/chat-<id>` tag ref, so Syrus never pushes local chat commits directly to `refs/heads/<default>`. If the checkout is on a non-default Job/user branch, Syrus pushes that branch and snapshots any uncommitted work to the same WIP tag. The session keeps `coding_checkout_branch` as the restore/source ref, so the next chat turn re-clones the ref and consumes the WIP snapshot before the agent runs — the agent cannot tell the workspace was ever removed. If a backup push fails, the on-disk checkout is preserved rather than deleted. See `AppSetting.chat_coding_workspace_budget_mb`.
 
 **Multi-pod (Kubernetes) setup.** The three coding sidebar endpoints (`coding_files`, `coding_file`, `coding_diff`) proxy to a lightweight HTTP relay running on the `chat` queue worker. The relay address is recorded per-session in `chat_sessions.coding_relay_address`. For web pods to reach the worker relay, set `SYRUS_TERMINAL_HOST` to the worker pod IP via the Downward API field `status.podIP` on worker pods — the same setting used by the terminal feature. In single-host and Docker Compose deployments the relay binds to `127.0.0.1` and both web and worker share the same host, so no additional configuration is needed.
 
