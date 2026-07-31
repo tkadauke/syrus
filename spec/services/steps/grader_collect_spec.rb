@@ -263,8 +263,49 @@ RSpec.describe Steps::GraderCollect do
       "iteration" => 1,
       "grader_count" => 3,
       "wall_clock_s" => be_within(0.001).of(0.34),
-      "summed_duration_s" => be_within(0.001).of(0.9)
+      "summed_duration_s" => be_within(0.001).of(0.9),
+      "failed_required_count" => 0
+    )
+    metrics = workflow.artifact(LandingThroughputMetrics::ARTIFACT_KEY).dig("grader_parallelism").first
+    expect(metrics).to include(
+      "iteration" => 1,
+      "grader_count" => 3,
+      "cap" => 3,
+      "wall_clock_s" => be_within(0.001).of(0.34),
+      "summed_duration_s" => be_within(0.001).of(0.9),
+      "parallelism_speedup" => be_within(0.001).of(2.647),
+      "parallelism_efficiency" => be_within(0.001).of(0.882),
+      "failed_required_count" => 0,
+      "outcome" => "passed"
     )
     expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include("grader wall-clock 0.3s vs summed duration 0.9s")
+  end
+
+  it "records failed grader loop metrics before raising" do
+    base_time = Time.zone.parse("2026-07-31 12:00:00 UTC")
+    workflow.update!(trigger_kind: "auto_merge")
+    workflow.steps.where(kind: "grader").delete_all
+    Step.create!(
+      workflow: workflow,
+      kind: "grader",
+      position: 100,
+      iteration: 1,
+      loop_id: loop_id,
+      state: "failed",
+      started_at: base_time,
+      finished_at: base_time + 0.5.seconds,
+      details: { "name" => "rspec", "required" => true, "duration_s" => 0.5 }
+    )
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: rspec")
+
+    metrics = workflow.reload.artifact(LandingThroughputMetrics::ARTIFACT_KEY).dig("grader_parallelism").first
+    expect(metrics).to include(
+      "iteration" => 1,
+      "grader_count" => 1,
+      "cap" => AppSetting.max_concurrent_landing_grader_runs,
+      "failed_required_count" => 1,
+      "outcome" => "failed"
+    )
   end
 end

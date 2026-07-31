@@ -274,6 +274,37 @@ RSpec.describe LandingValidationCache do
     end
   end
 
+  describe "throughput metric artifact compatibility" do
+    it "records supported skip match types for debug payload consumers" do
+      job = make_job
+      workflow = make_workflow(job)
+      decision = described_class::Decision.new(
+        true,
+        "tree/base/grader configuration match",
+        "same_tree",
+        { "head_sha" => "old" },
+        make_workflow(job)
+      )
+
+      LandingThroughputMetrics.record_validation_decision!(
+        workflow: workflow,
+        decision: decision,
+        context: "merge_train",
+        head_sha: "new",
+        base_sha: "base"
+      )
+
+      expect(workflow.reload.artifact(LandingThroughputMetrics::ARTIFACT_KEY).dig("validation_decisions").last).to include(
+        "context" => "merge_train",
+        "outcome" => "skipped",
+        "match_type" => "same_tree",
+        "reason" => "tree/base/grader configuration match",
+        "head_sha" => "new",
+        "base_sha" => "base"
+      )
+    end
+  end
+
   describe ".carry_forward_source_for" do
     it "accepts a successful required-grader validation with the current grader fingerprint" do
       job = make_job

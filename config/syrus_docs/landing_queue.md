@@ -30,6 +30,15 @@ Refreshes GitHub's mergeability status for the PR. If GitHub is still computing 
 
 Before merging, Syrus re-runs the required grader suite on the exact PR branch being landed, using each grader's `fast` command when configured. Landing validation is pass/fail only and does not run `coverage_analyze`. In `auto_merge` and `merge_train` workflows, grader fanout is parallelized inside the single landing unit and capped by `AppSetting.max_concurrent_landing_grader_runs` (default `2`). Same-repo landing remains serialized; the cap only controls how many grader Runs from that one landing unit can occupy the `:merges` queue at once.
 
+Landing throughput instrumentation is written to each Workflow's
+`landing_throughput_metrics` artifact and surfaced in admin workflow debug
+payloads. Validation decisions record whether landing graders were skipped or
+rerun, the cache match type (`exact_head`, `same_tree`, or
+`clean_rebase_carry_forward`), and the rejection reason when Syrus reruns
+validation. Grader fanout records the grader count, configured cap, batch
+enqueue counts, wall-clock duration, summed individual durations, speedup,
+parallelism efficiency, and whether required graders failed.
+
 If graders fail, `landing_fix` (an agentic repair step) attempts a fix, and graders re-run. This loop repeats up to `grade_max_iterations` times.
 
 ### push and auto_merge

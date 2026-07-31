@@ -464,6 +464,15 @@ class StepDispatcher
       "enqueued_at" => Time.current.iso8601
     }.compact
     @workflow.set_artifact!("grader_fanout_batches", batches)
+    LandingThroughputMetrics.record_grader_fanout_batch!(
+      workflow: @workflow,
+      fanout_step: @from_step,
+      grader_steps: graders,
+      created_runs: created_runs,
+      cap: cap,
+      active_before: active_before,
+      queue: queue_name
+    )
 
     Rails.logger.info(
       "[StepDispatcher] workflow #{@workflow.id} enqueued #{created_runs.size}/#{graders.size} " \

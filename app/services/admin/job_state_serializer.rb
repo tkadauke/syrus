@@ -20,6 +20,7 @@ module Admin
         state: wf.state,
         failure_count: wf.failure_count,
         artifacts: wf.artifacts,
+        landing_throughput_metrics: wf.artifact(LandingThroughputMetrics::ARTIFACT_KEY),
         cleaned_up_at: wf.cleaned_up_at,
         retry_available: wf.retry_available?,
         started_at: wf.started_at,

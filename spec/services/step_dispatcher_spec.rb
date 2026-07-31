@@ -444,6 +444,17 @@ RSpec.describe StepDispatcher do
         "active_before" => 0,
         "queue" => "merges"
       )
+      expect(fanout_workflow.artifact(LandingThroughputMetrics::ARTIFACT_KEY).dig("grader_fanout_batches").last).to include(
+        "fanout_step_id" => fanout.id,
+        "iteration" => fanout.iteration,
+        "loop_id" => loop_id,
+        "grader_count" => 3,
+        "enqueued_count" => 1,
+        "cap" => 1,
+        "active_before" => 0,
+        "queue" => "merges",
+        "cap_limited" => true
+      )
     end
 
     it "fans out landing graders up to the configured cap" do

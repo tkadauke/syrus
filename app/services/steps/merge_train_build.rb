@@ -60,6 +60,13 @@ module Steps
         grader_fingerprint: current_grader_fingerprint,
         changed_files_fingerprint: current_changed_files_fingerprint(base_sha)
       )
+      LandingThroughputMetrics.record_validation_decision!(
+        workflow: workflow,
+        decision: decision,
+        context: "merge_train",
+        head_sha: sha,
+        base_sha: base_sha
+      )
       if decision.reusable?
         skip_revalidated_grade_steps!(sha, decision)
       else

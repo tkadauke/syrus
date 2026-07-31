@@ -979,6 +979,15 @@ RSpec.describe "Steps::MergeTrain*" do
       expect(handler.workflow.steps.find_by!(kind: "prepare")).to be_cancelled
       expect(handler.workflow.steps.find_by!(kind: "grader_fanout")).to be_cancelled
       expect(handler.workflow.steps.find_by!(kind: "merge_train_land_after_rebase")).to be_queued
+      expect(handler.workflow.artifact(LandingThroughputMetrics::ARTIFACT_KEY).dig("validation_decisions").last).to include(
+        "context" => "merge_train_rebase",
+        "outcome" => "skipped",
+        "match_type" => "clean_rebase_carry_forward",
+        "reason" => "prior required-grader validation matches current grader configuration",
+        "head_sha" => "newintsha999",
+        "base_sha" => "newbase222",
+        "source_workflow_id" => prior.id
+      )
       expect(handler.run.job_logs.pluck(:chunk).join("\n")).to include("merge_train_rebase: carried green grade across clean rebase")
     end
 

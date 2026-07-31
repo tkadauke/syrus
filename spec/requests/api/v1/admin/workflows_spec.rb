@@ -140,6 +140,25 @@ RSpec.describe "API: /api/v1/admin/workflows/:id/*", type: :request do
       )
     end
 
+    it "exposes landing throughput metrics as a debug payload" do
+      metrics = {
+        "validation_decisions" => [
+          {
+            "context" => "auto_merge",
+            "outcome" => "skipped",
+            "match_type" => "exact_head",
+            "reason" => "head/base/grader configuration match"
+          }
+        ]
+      }
+      workflow.set_artifact!(LandingThroughputMetrics::ARTIFACT_KEY, metrics)
+
+      get "/api/v1/admin/workflows/#{workflow.id}", headers: auth
+
+      expect(response).to be_successful
+      expect(parse_body["landing_throughput_metrics"]).to eq(metrics)
+    end
+
     it "404s for an unknown workflow id" do
       get "/api/v1/admin/workflows/999999", headers: auth
       expect(response).to have_http_status(:not_found)

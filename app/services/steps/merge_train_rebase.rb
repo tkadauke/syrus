@@ -75,6 +75,19 @@ module Steps
         changed_files_fingerprint: changed_files_fingerprint,
         validation_source: "clean_rebase"
       )
+      LandingThroughputMetrics.record_validation_decision!(
+        workflow: workflow,
+        decision: LandingValidationCache::Decision.new(
+          true,
+          source.reason,
+          "clean_rebase_carry_forward",
+          source.artifact,
+          source.workflow
+        ),
+        context: "merge_train_rebase",
+        head_sha: head_sha,
+        base_sha: base_sha
+      )
       skip_revalidated_grade_steps!(head_sha, source)
     end
 

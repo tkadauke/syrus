@@ -22,6 +22,7 @@ module Steps
         raise StepFailed, "auto_merge: #{gate.reason}" unless gate.merge_ready?
 
         decision = landing_validation_decision(client, pr_repo, pr)
+        record_landing_validation_decision!(decision, pr)
         if decision.reusable?
           skip_revalidated_landing_steps!(pr, decision)
         else
@@ -98,6 +99,16 @@ module Steps
           cursor = cursor.next_step
         end
       end
+    end
+
+    def record_landing_validation_decision!(decision, pr)
+      LandingThroughputMetrics.record_validation_decision!(
+        workflow: workflow,
+        decision: decision,
+        context: "auto_merge",
+        head_sha: MergeabilityRecorder.head_sha(pr),
+        base_sha: MergeabilityRecorder.base_sha(pr)
+      )
     end
 
     def current_tree_sha(client, pr_repo, pr)

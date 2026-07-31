@@ -176,6 +176,15 @@ RSpec.describe Steps::MergeabilityPreflight do
     expect(workflow.reload).to be_running
     expect(run.reload).to be_running
     expect(run.job_logs.pluck(:chunk).join("\n")).to include("auto_merge: reusing cached landing validation (exact_head)")
+    expect(workflow.artifact(LandingThroughputMetrics::ARTIFACT_KEY).dig("validation_decisions").last).to include(
+      "context" => "auto_merge",
+      "outcome" => "skipped",
+      "match_type" => "exact_head",
+      "reason" => "head/base/grader configuration match",
+      "head_sha" => "abc",
+      "base_sha" => "def",
+      "source_workflow_id" => prior.id
+    )
   end
 
   it "runs landing graders when the cached validation has a different base" do
@@ -203,5 +212,12 @@ RSpec.describe Steps::MergeabilityPreflight do
 
     expect(workflow.steps.find_by!(kind: "grader_fanout")).to be_queued
     expect(run.job_logs.pluck(:chunk).join("\n")).to include("auto_merge: landing graders will run - base SHA changed")
+    expect(workflow.reload.artifact(LandingThroughputMetrics::ARTIFACT_KEY).dig("validation_decisions").last).to include(
+      "context" => "auto_merge",
+      "outcome" => "rerun",
+      "reason" => include("base SHA changed"),
+      "head_sha" => "abc",
+      "base_sha" => "new-base"
+    )
   end
 end
