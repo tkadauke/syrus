@@ -738,6 +738,13 @@ function normalizeCloneForCapture(clonedDoc: Document) {
   // the current visible state of inner scroll containers (e.g. the chat message stream,
   // which uses overflow-y-auto and doesn't scroll the window), we mirror the original
   // scroll positions onto the cloned elements so html2canvas renders from the right offset.
+  clonedDoc.querySelectorAll<HTMLDetailsElement>("details:not([open])").forEach((details) => {
+    Array.from(details.children).forEach((child) => {
+      if (child.tagName.toLowerCase() === "summary") return
+      if (child instanceof HTMLElement) child.style.setProperty("display", "none", "important")
+    })
+  })
+
   const originalEls = Array.from(document.querySelectorAll<HTMLElement>("*"))
 
   clonedDoc.querySelectorAll<HTMLElement>("*").forEach((clonedEl, i) => {

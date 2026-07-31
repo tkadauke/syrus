@@ -614,6 +614,32 @@ describe("BugReportButton", () => {
       document.body.removeChild(stickyEl)
     })
 
+    it("onclone callback hides closed details contents", async () => {
+      renderButton()
+      await openDialog()
+
+      await waitFor(() => expect(mockHtml2canvas).toHaveBeenCalled())
+
+      const [, options] = mockHtml2canvas.mock.calls[0]
+      const onclone = options!.onclone as (document: Document, element: HTMLElement) => void
+
+      const details = document.createElement("details")
+      const summary = document.createElement("summary")
+      summary.textContent = "Folders and filters"
+      const closedContent = document.createElement("div")
+      closedContent.textContent = "Hidden filters"
+      details.append(summary, closedContent)
+      document.body.appendChild(details)
+
+      onclone(document, document.body)
+
+      expect(summary.style.display).toBe("")
+      expect(closedContent.style.getPropertyValue("display")).toBe("none")
+      expect(closedContent.style.getPropertyPriority("display")).toBe("important")
+
+      document.body.removeChild(details)
+    })
+
     it("uses viewport windowWidth/windowHeight for full-page capture even when the document overflows the viewport", async () => {
       Object.defineProperty(window, "innerWidth", { configurable: true, value: 402 })
       Object.defineProperty(window, "innerHeight", { configurable: true, value: 714 })
