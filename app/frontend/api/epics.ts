@@ -15,7 +15,7 @@ export type EpicSearchOption = {
 }
 
 export type EpicReconciliationMode = "pr" | "feedback" | "none" | null
-export type EpicDependencyPolicy = "inherit" | "linear" | "nonlinear"
+export type EpicDependencyPolicy = "linear" | "nonlinear"
 
 export type EpicFormRecord = {
   id: number | null

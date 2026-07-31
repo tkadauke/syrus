@@ -490,7 +490,7 @@
     "feedback_hint": "Commenta domini operis semper automatice initiantur, independenter ab hac optione.",
     "epic_dependency_linear": "Linearis — opera filia Epici unam catenam formare debent",
     "epic_dependency_nonlinear": "Non linearis — ramos aut confluentes dependentias permittere",
-    "epic_dependency_hint": "Epica nova hunc default repositorii accipiunt nisi Epicum superat.",
+    "epic_dependency_hint": "Haec optio consilium ad Epica creanda praebet; unumquodque Epic suam rationem dependentiarum servat.",
     "heading_new": "Repositorium addere",
     "heading_edit": "{{slug}} recensere",
     "owner_err_no_token": "Nullum signum GitHub configuratum. Repositorium manu inscribe aut signum in Testimoniis adde.",

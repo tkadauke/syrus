@@ -13,9 +13,10 @@ class Epic < ApplicationRecord
   MERGED_JOB_CLOSURE_REASONS = %w[ pr_merged external_pr_merged ].freeze
   SUCCESSFUL_JOB_CLOSURE_REASONS = (MERGED_JOB_CLOSURE_REASONS + %w[ no_changes ]).freeze
   RECONCILIATION_MODES = %w[ pr feedback none ].freeze
-  EPIC_DEPENDENCY_POLICIES = %w[ inherit linear nonlinear ].freeze
+  EPIC_DEPENDENCY_POLICIES = %w[ linear nonlinear ].freeze
 
   attr_readonly :number
+  attribute :epic_dependency_policy, :string, default: "linear"
 
   belongs_to :user
   belongs_to :owner, class_name: "User", optional: true, inverse_of: :owned_epics

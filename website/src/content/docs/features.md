@@ -146,12 +146,12 @@ collapsible history section that records title and description changes with
 the actor, timestamp, and before/after text.
 
 Repositories default new Epics to a linear child-Job dependency policy: child
-Jobs should form one ordered chain. Operators can relax the repository default
-to nonlinear, or override an individual Epic to inherit, require linear
-dependencies, or allow nonlinear branching and fan-in. Bundled Epic proposals
-are checked at confirmation time and linear proposals with branching, fan-in,
-or disconnected child Jobs are rejected with the offending child slugs unless
-the proposal used the explicit nonlinear override.
+Jobs should form one ordered chain. Each Epic stores a concrete policy when it
+is created: linear by default, or nonlinear when the operator explicitly
+overrides it. Bundled Epic proposals are checked at confirmation time and
+linear proposals with branching, fan-in, or disconnected child Jobs are rejected
+with the offending child slugs unless the proposal used the explicit nonlinear
+override.
 
 ### Epic reconciliation
 

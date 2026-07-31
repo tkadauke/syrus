@@ -208,6 +208,7 @@ RSpec.describe ChatEpicProposalMaterializer do
   end
 
   it "accepts a linear child Job chain under the default linear policy" do
+    repository.update!(epic_dependency_policy: "nonlinear")
     proposal = epic_proposal
     first = child_for(proposal, "first")
     second = child_for(proposal, "second")
@@ -218,6 +219,7 @@ RSpec.describe ChatEpicProposalMaterializer do
     result = described_class.new(user: user).file!(proposal)
 
     expect(result.jobs.map(&:issue_title)).to eq([ "First", "Second", "Third" ])
+    expect(result.epic.epic_dependency_policy).to eq("linear")
     expect(second.reload.job.dependencies.map(&:depends_on_job)).to contain_exactly(first.reload.job)
     expect(third.reload.job.dependencies.map(&:depends_on_job)).to contain_exactly(second.reload.job)
   end
@@ -301,9 +303,11 @@ RSpec.describe ChatEpicProposalMaterializer do
     depend_on(left, root)
     depend_on(right, root)
 
+    result = nil
     expect {
-      described_class.new(user: user).file!(proposal)
+      result = described_class.new(user: user).file!(proposal)
     }.to change(Job, :count).by(3)
+    expect(result.epic.epic_dependency_policy).to eq("nonlinear")
   end
 
   it "creates pending Job dependencies for unresolved cross-card Job proposal references" do

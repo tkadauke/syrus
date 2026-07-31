@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_31_170000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_31_171000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -468,7 +468,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_170000) do
     t.datetime "created_at", null: false
     t.text "description"
     t.datetime "done_at"
-    t.string "epic_dependency_policy", default: "inherit", null: false
+    t.string "epic_dependency_policy", default: "linear", null: false
     t.string "github_issue_url"
     t.integer "number", null: false
     t.integer "owner_id"

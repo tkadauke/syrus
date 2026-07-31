@@ -82,6 +82,7 @@ class ChatEpicProposalMaterializer
       repository: repository,
       title: proposal.title,
       description: proposal.body,
+      epic_dependency_policy: proposal.nonlinear_dependency_override? ? "nonlinear" : "linear",
       state: "ready"
     )
   end
@@ -94,11 +95,7 @@ class ChatEpicProposalMaterializer
     return EpicDependencyPolicy::Nonlinear.new if epic_proposal.nonlinear_dependency_override?
 
     target_epic = epic_proposal.target_epic
-    policy_name = if target_epic
-      target_epic.resolved_epic_dependency_policy
-    else
-      (epic_proposal.repository || epic_proposal.chat_session.repository).epic_dependency_policy
-    end
+    policy_name = target_epic ? target_epic.resolved_epic_dependency_policy : "linear"
     EpicDependencyPolicy::Base.for(policy_name)
   end
 

@@ -72,12 +72,12 @@ RSpec.describe Epic do
     expect(epic.auto_approve_mode).to eq("if_graders_pass")
   end
 
-  it "defaults dependency policy to inherit and resolves through the repository" do
+  it "defaults dependency policy to linear even when the repository default is nonlinear" do
     repository = Factories.repository(epic_dependency_policy: "nonlinear")
     epic = Factories.epic(user: repository.user, repository: repository)
 
-    expect(epic.epic_dependency_policy).to eq("inherit")
-    expect(epic.resolved_epic_dependency_policy).to eq("nonlinear")
+    expect(epic.epic_dependency_policy).to eq("linear")
+    expect(epic.resolved_epic_dependency_policy).to eq("linear")
   end
 
   it "allows an Epic to override the repository dependency policy" do
@@ -93,6 +93,14 @@ RSpec.describe Epic do
   it "rejects unknown Epic dependency policy overrides" do
     epic = Factories.epic
     epic.epic_dependency_policy = "braided"
+
+    expect(epic).not_to be_valid
+    expect(epic.errors[:epic_dependency_policy]).to be_present
+  end
+
+  it "rejects the retired inherited Epic dependency policy" do
+    epic = Factories.epic
+    epic.epic_dependency_policy = "inherit"
 
     expect(epic).not_to be_valid
     expect(epic.errors[:epic_dependency_policy]).to be_present

@@ -39,7 +39,7 @@ function detailPayload(overrides: Partial<EpicDetailPayload["epic"]> = {}): Epic
       max_commits_behind_base: null,
       furthest_behind_job_id: null,
       furthest_behind_job_path: null,
-      epic_dependency_policy: "inherit",
+      epic_dependency_policy: "linear",
       resolved_epic_dependency_policy: "linear",
       ...overrides
     },
@@ -92,25 +92,25 @@ describe("EpicDetail origin_chat link", () => {
     expect(screen.queryByRole("link", { name: /view in chat/i })).not.toBeInTheDocument()
   })
 
-  it("renders the effective dependency policy and repository default", () => {
+  it("renders the concrete dependency policy", () => {
     renderDetail(detailPayload({
-      epic_dependency_policy: "inherit",
+      epic_dependency_policy: "linear",
       resolved_epic_dependency_policy: "linear",
       repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", epic_dependency_policy: "linear" }
     }))
 
     expect(screen.getByText("Dependency policy")).toBeInTheDocument()
-    expect(screen.getByText("Linear (repository default: Linear)")).toBeInTheDocument()
+    expect(screen.getByText("Linear")).toBeInTheDocument()
   })
 
-  it("renders an explicit Epic dependency-policy override", () => {
+  it("renders nonlinear dependency policy", () => {
     renderDetail(detailPayload({
       epic_dependency_policy: "nonlinear",
       resolved_epic_dependency_policy: "nonlinear",
       repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", epic_dependency_policy: "linear" }
     }))
 
-    expect(screen.getByText("Nonlinear (Epic override)")).toBeInTheDocument()
+    expect(screen.getByText("Nonlinear")).toBeInTheDocument()
   })
 })
 

@@ -146,14 +146,12 @@ export function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payl
             onChange={(event) => setValues({ ...values, epic_dependency_policy: event.target.value as import("../api/epics").EpicDependencyPolicy })}
             value={values.epic_dependency_policy}
           >
-            <option value="inherit">{t("epic_dependency_policy_inherit")}</option>
             <option value="linear">{t("epic_dependency_policy_linear")}</option>
             <option value="nonlinear">{t("epic_dependency_policy_nonlinear")}</option>
           </select>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             {values.epic_dependency_policy === "nonlinear" ? t("epic_dependency_policy_nonlinear_hint") :
-             values.epic_dependency_policy === "linear" ? t("epic_dependency_policy_linear_hint") :
-             t("epic_dependency_policy_inherit_hint")}
+             t("epic_dependency_policy_linear_hint")}
           </p>
         </Field>
 

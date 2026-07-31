@@ -1,6 +1,5 @@
 class EpicDependencyPolicy::Base
   POLICIES = {
-    "inherit" => "EpicDependencyPolicy::Inherit",
     "linear" => "EpicDependencyPolicy::Linear",
     "nonlinear" => "EpicDependencyPolicy::Nonlinear"
   }.freeze

@@ -1,5 +1,6 @@
 require "rails_helper"
 require Rails.root.join("db/migrate/20260731124500_add_epic_dependency_policy_settings")
+require Rails.root.join("db/migrate/20260731171000_remove_inherited_epic_dependency_policy")
 
 RSpec.describe AddEpicDependencyPolicySettings do
   let(:connection) { ActiveRecord::Base.connection }
@@ -7,6 +8,7 @@ RSpec.describe AddEpicDependencyPolicySettings do
 
   after do
     migration.up
+    RemoveInheritedEpicDependencyPolicy.new.up
     Repository.reset_column_information
     Epic.reset_column_information
   end
@@ -34,6 +36,6 @@ RSpec.describe AddEpicDependencyPolicySettings do
     epic = Factories.epic(user: repository.user, repository: repository)
 
     expect(repository.epic_dependency_policy).to eq("linear")
-    expect(epic.epic_dependency_policy).to eq("inherit")
+    expect(epic.epic_dependency_policy).to eq("linear")
   end
 end

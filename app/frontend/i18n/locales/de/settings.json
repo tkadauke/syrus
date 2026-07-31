@@ -490,7 +490,7 @@
     "feedback_hint": "Kommentare des Job-Eigentümers lösen unabhängig von dieser Einstellung immer automatisch aus.",
     "epic_dependency_linear": "Linear — Epic-Kind-Jobs müssen eine Kette bilden",
     "epic_dependency_nonlinear": "Nichtlinear — Verzweigungen oder Fan-in-Abhängigkeiten erlauben",
-    "epic_dependency_hint": "Neue Epics übernehmen diesen Repository-Standard, sofern das Epic ihn nicht überschreibt.",
+    "epic_dependency_hint": "Diese Einstellung dient als Orientierung beim Erstellen von Epics; jedes Epic speichert seine eigene Abhängigkeitsrichtlinie.",
     "heading_new": "Repository hinzufügen",
     "heading_edit": "{{slug}} bearbeiten",
     "owner_err_no_token": "Kein GitHub-Token konfiguriert. Geben Sie das Repository manuell ein oder fügen Sie in den Zugangsdaten ein Token hinzu.",

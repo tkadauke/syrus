@@ -671,9 +671,7 @@ function DetailsPanel({ epic, jobs, prefix }: { epic: EpicDetailPayload["epic"];
         <div>
           <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("epic_dependency_policy_detail")}</dt>
           <dd className="mt-0.5 text-gray-700 dark:text-gray-200">
-            {epic.epic_dependency_policy === "inherit"
-              ? t("epic_dependency_policy_detail_inherit", { policy: epicDependencyPolicyLabel(epic.resolved_epic_dependency_policy, t), repositoryPolicy: epicDependencyPolicyLabel(epic.repository.epic_dependency_policy, t) })
-              : t("epic_dependency_policy_detail_override", { policy: epicDependencyPolicyLabel(epic.resolved_epic_dependency_policy, t) })}
+            {epicDependencyPolicyLabel(epic.resolved_epic_dependency_policy, t)}
           </dd>
         </div>
         <div>

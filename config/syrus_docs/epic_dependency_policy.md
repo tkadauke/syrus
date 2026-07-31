@@ -11,20 +11,19 @@ Repository `epic_dependency_policy` values:
 
 Epic `epic_dependency_policy` values:
 
-- `inherit` (default) — use the repository's `epic_dependency_policy`.
-- `linear` — require one ordered chain for this Epic.
+- `linear` (default) — require one ordered chain for this Epic.
 - `nonlinear` — allow branching or fan-in dependencies for this Epic.
 
 ## Resolution
 
-Use `Epic#resolved_epic_dependency_policy` when behavior needs the effective value:
+Epics store concrete policy names. `Epic#resolved_epic_dependency_policy` is kept as the behavior-facing accessor, but it now returns the stored concrete policy rather than resolving through the repository at runtime:
 
 ```ruby
-epic.epic_dependency_policy          # "inherit"
-epic.resolved_epic_dependency_policy # "linear" or "nonlinear"
+epic.epic_dependency_policy          # "linear" or "nonlinear"
+epic.resolved_epic_dependency_policy # same concrete value
 ```
 
-The built-in repository default is `linear` so new Epics are linear unless the repository or Epic explicitly opts into nonlinear dependencies.
+New Epics are linear unless the operator explicitly opts that Epic into nonlinear dependencies. Existing Epics that used the retired `inherit` value were backfilled once to the repository policy that was current at migration time, so later repository setting changes do not alter existing Epic behavior.
 
 ## Execution readiness
 
@@ -36,4 +35,4 @@ For nonlinear Epics, eager execution still requires an unambiguous stack base. A
 
 Bundled Epic proposal confirmation validates proposed child Jobs against the resolved policy before creating the Epic or Jobs. Under `linear`, sibling `depends_on` edges must make every child comparable with every other child: one child, a simple chain, or a chain with redundant transitive edges is valid; fan-in, fan-out, disconnected roots/leaves, and parallel child Jobs are rejected with the offending slugs in the error.
 
-`propose_epic_with_jobs` accepts `epic.nonlinear_dependency_override: true` as an explicit proposal-time override. Agents should set it only when the operator explicitly requested nonlinear execution.
+`propose_epic_with_jobs` accepts `epic.nonlinear_dependency_override: true` as an explicit proposal-time override. Agents should set it only when the operator explicitly requested nonlinear execution. Proposal-created Epics without that override persist `linear` before child Job dependencies are materialized.

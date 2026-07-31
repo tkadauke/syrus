@@ -490,7 +490,7 @@
     "feedback_hint": "Job owner comments always trigger automatically regardless of this setting.",
     "epic_dependency_linear": "Linear — require Epic child Jobs to form one chain",
     "epic_dependency_nonlinear": "Nonlinear — allow branching or fan-in child dependencies",
-    "epic_dependency_hint": "New Epics inherit this repository default unless the Epic overrides it.",
+    "epic_dependency_hint": "Use this setting as guidance when creating Epics; each Epic stores its own dependency policy.",
     "heading_new": "Add repository",
     "heading_edit": "Edit {{slug}}",
     "owner_err_no_token": "No GitHub token configured. Enter the repository manually or add a token in Credentials.",

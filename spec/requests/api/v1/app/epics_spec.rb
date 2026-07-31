@@ -78,7 +78,7 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       "description" => "Install tasteful columns.",
       "repository_id" => repository.id,
       "github_issue_url" => "https://github.com/acme/widgets/issues/12",
-      "epic_dependency_policy" => "inherit",
+      "epic_dependency_policy" => "linear",
       "resolved_epic_dependency_policy" => "linear",
       "epic_path" => epic_path(epic)
     )
@@ -137,7 +137,7 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       "epic_dependency_policy" => "linear"
     )
     expect(body["epic"]).to include(
-      "epic_dependency_policy" => "inherit",
+      "epic_dependency_policy" => "linear",
       "resolved_epic_dependency_policy" => "linear"
     )
     expect(body["summary"]).to include(
@@ -890,7 +890,8 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       title: "Raise the forum",
       description: "Install tasteful columns.",
       repository_id: repository.id,
-      github_issue_url: "https://github.com/acme/widgets/issues/12"
+      github_issue_url: "https://github.com/acme/widgets/issues/12",
+      epic_dependency_policy: "linear"
     )
     expect(parse_body).to include(
       "message" => "Epic created.",
@@ -999,6 +1000,21 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
         title: "Bad policy",
         repository_id: repository.id,
         epic_dependency_policy: "mesh"
+      }
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("Epic dependency policy")
+  end
+
+  it "rejects the retired inherited Epic dependency policy" do
+    sign_in_as(user)
+
+    post "/api/v1/app/epics", params: {
+      epic: {
+        title: "Inherited policy",
+        repository_id: repository.id,
+        epic_dependency_policy: "inherit"
       }
     }
 

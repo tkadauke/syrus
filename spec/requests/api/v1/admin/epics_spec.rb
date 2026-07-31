@@ -178,7 +178,7 @@ RSpec.describe "API: /api/v1/admin/epics", type: :request do
         "title" => "Launch",
         "owner_status" => "unclaimed",
         "owner_user" => nil,
-        "epic_dependency_policy" => "inherit",
+        "epic_dependency_policy" => "linear",
         "resolved_epic_dependency_policy" => "linear",
         "complete" => false,
         "ready_to_start" => false  # depends on prereq Epic that isn't done
