@@ -505,7 +505,7 @@ class User < ApplicationRecord
   def opencode_configured?
     return false if opencode_backend.blank? || opencode_model.blank?
 
-    OpencodeBackend::Base.for(opencode_backend).configured?(self)
+    ::OpenCodeBackend::Base.for(opencode_backend).configured?(self)
   rescue KeyError
     false
   end

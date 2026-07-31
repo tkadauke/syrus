@@ -1,4 +1,4 @@
-module OpencodeBackend
+module OpenCodeBackend
   class OpenaiApi < Base
     def configured?(user)
       user.opencode_api_key.present?

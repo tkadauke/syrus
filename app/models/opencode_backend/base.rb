@@ -1,9 +1,9 @@
-module OpencodeBackend
+module OpenCodeBackend
   class Base
     BACKENDS = {
-      "openai_api" => "OpencodeBackend::OpenaiApi",
-      "ollama" => "OpencodeBackend::Ollama",
-      "azure_openai" => "OpencodeBackend::AzureOpenai"
+      "openai_api" => "OpenCodeBackend::OpenaiApi",
+      "ollama" => "OpenCodeBackend::Ollama",
+      "azure_openai" => "OpenCodeBackend::AzureOpenai"
     }.freeze
 
     def self.for(name)

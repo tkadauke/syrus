@@ -1,4 +1,4 @@
-module OpencodeBackend
+module OpenCodeBackend
   class Ollama < Base
     def configured?(user)
       user.opencode_endpoint_url.present?
