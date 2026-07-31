@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react"
+import { useId, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { EpicCompactCard } from "./EpicPreviewCard"
 import { JobCompactCard } from "./JobPreviewCard"
@@ -53,6 +53,14 @@ export function computeNodeLayers(nodes: GraphNode[], edges: GraphEdge[]): Map<s
 }
 
 type ArrowPath = { key: string; d: string }
+type ArrowLayer = { graphKey: string; paths: ArrowPath[] }
+
+function graphRenderKey(nodes: GraphNode[], edges: GraphEdge[]): string {
+  return JSON.stringify({
+    nodes: nodes.map((node) => node.id),
+    edges: edges.map((edge) => [edge.from_id, edge.to_id]),
+  })
+}
 
 export function TopoDepGraph({
   nodes,
@@ -64,11 +72,13 @@ export function TopoDepGraph({
   className?: string
 }) {
   const navigate = useNavigate()
+  const markerId = `topo-arrow-${useId().replace(/:/g, "")}`
   const containerRef = useRef<HTMLDivElement>(null)
   const nodeRefs = useRef(new Map<string, Element>())
-  const [arrows, setArrows] = useState<ArrowPath[]>([])
+  const [arrowLayer, setArrowLayer] = useState<ArrowLayer>({ graphKey: "", paths: [] })
   const [svgDims, setSvgDims] = useState({ w: 0, h: 0 })
 
+  const graphKey = useMemo(() => graphRenderKey(nodes, edges), [nodes, edges])
   const layers = computeNodeLayers(nodes, edges)
   const maxLayer = nodes.length === 0 ? -1 : Math.max(...Array.from(layers.values()))
   const columns: GraphNode[][] = Array.from({ length: maxLayer + 1 }, () => [])
@@ -101,15 +111,21 @@ export function TopoDepGraph({
     }
 
     // Return prev unchanged if computed value is identical — prevents re-render loop.
-    setArrows((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next))
+    setArrowLayer((prev) =>
+      prev.graphKey === graphKey && JSON.stringify(prev.paths) === JSON.stringify(next)
+        ? prev
+        : { graphKey, paths: next }
+    )
     setSvgDims((prev) => {
       const w = Math.ceil(cRect.width)
       const h = Math.ceil(cRect.height)
       return prev.w === w && prev.h === h ? prev : { w, h }
     })
-  }, [edges, nodes])
+  }, [edges, graphKey, nodes])
 
   if (nodes.length === 0) return null
+
+  const arrows = arrowLayer.graphKey === graphKey ? arrowLayer.paths : []
 
   return (
     <div className={["relative min-w-full w-max", className].filter(Boolean).join(" ")} ref={containerRef}>
@@ -156,7 +172,7 @@ export function TopoDepGraph({
       >
         <defs>
           <marker
-            id="topo-arrow"
+            id={markerId}
             markerHeight="6"
             markerUnits="strokeWidth"
             markerWidth="6"
@@ -172,7 +188,7 @@ export function TopoDepGraph({
             d={d}
             fill="none"
             key={key}
-            markerEnd="url(#topo-arrow)"
+            markerEnd={`url(#${markerId})`}
             stroke="#9ca3af"
             strokeWidth="1.5"
           />

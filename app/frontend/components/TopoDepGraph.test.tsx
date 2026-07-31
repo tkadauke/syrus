@@ -176,6 +176,24 @@ describe("TopoDepGraph", () => {
     expect(screen.getAllByRole("button")).toHaveLength(3)
   })
 
+  it("removes old arrows immediately when the graph changes", () => {
+    const { container, rerender } = render(
+      <MemoryRouter>
+        <TopoDepGraph edges={[edge("a", "b")]} nodes={[node("a"), node("b")]} />
+      </MemoryRouter>
+    )
+
+    expect(container.querySelectorAll("path[marker-end]")).toHaveLength(1)
+
+    rerender(
+      <MemoryRouter>
+        <TopoDepGraph edges={[]} nodes={[node("a")]} />
+      </MemoryRouter>
+    )
+
+    expect(container.querySelectorAll("path[marker-end]")).toHaveLength(0)
+  })
+
   it("places nodes with edges in separate columns", () => {
     renderGraph([node("a"), node("b")], [edge("a", "b")])
     // Both nodes rendered in separate layer-columns
