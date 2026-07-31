@@ -18,7 +18,9 @@ RSpec.describe "API: /api/v1/admin/worker_health", type: :request do
                                    observed_at: 10.minutes.ago,
                                    cpu_used_percent: 50,
                                    memory_used_percent: 60,
-                                   data_root_used_percent: 70)
+                                   data_root_used_percent: 70,
+                                   cpu_pressure_full: 0.3,
+                                   io_pressure_full: 0.6)
     WorkerHostHealthSample.create!(hostname: "worker-b", role: "worker", version: "abc123",
                                    observed_at: 10.minutes.ago,
                                    cpu_used_percent: 99,
@@ -32,6 +34,10 @@ RSpec.describe "API: /api/v1/admin/worker_health", type: :request do
     expect(body["current"].map { |worker| worker["hostname"] }).to eq([ "worker-a" ])
     expect(body["hosts"].map { |host| host["hostname"] }).to eq([ "worker-a" ])
     expect(body.dig("hosts", 0, "windows", "1h")).to include("sample_count" => 1)
+    expect(body.dig("hosts", 0, "windows", "1h")).to include(
+      "cpu_pressure_full" => { "avg" => 0.3, "max" => 0.3 },
+      "io_pressure_full" => { "avg" => 0.6, "max" => 0.6 }
+    )
     expect(body.dig("hosts", 0, "recent_samples", 0)).to include(
       "hostname" => "worker-a",
       "cpu_used_percent" => 50.0
