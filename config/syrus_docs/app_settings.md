@@ -22,6 +22,12 @@ Number of implement→adversarial-review iterations run before graders. `0` disa
 
 Consecutive failure threshold. When a ScheduledTask accumulates this many consecutive failures it auto-pauses (state `auto_paused`). Also used by `AutoRetryScheduler` as a signal for provider circuit-breaker suppression.
 
+### main_concern_report_threshold
+
+**Type:** integer · **Default:** 2 · **Min:** 1
+
+Number of independent agent reports needed before Syrus surfaces a broken-main concern as actionable. This avoids treating one speculative `report_main_concern` call as definitive while still escalating repeated evidence.
+
 ## Landing queue
 
 ### merge_train_enabled
@@ -71,6 +77,12 @@ On self-hosted instances, set this to the `owner/name` of your own Syrus fork. I
 **Type:** integer · **Default:** 0 (unlimited)
 
 Global, cluster-wide cap on how many `:runs` queue Runs execute at once, across **all** worker pods. `RunJob` enforces it with a best-effort defer-and-re-enqueue gate (DB-counted, so it holds across pods). Set this when running multiple worker pods so total compute concurrency — and Claude/Codex cost and rate-limit exposure — does not scale with pod count; each pod's `JOB_CONCURRENCY` only bounds that single pod. `0` means no global cap. Main-branch grader Runs are on `:runs` and are counted; landing/merge Runs (`:merges` queue) are not counted, so they can't be starved by a saturated agent cap.
+
+### proactive_rebase_commit_threshold
+
+**Type:** integer · **Default:** 20 · **Min:** 1
+
+How far behind the base branch a PR can fall before merge-state polling proactively dispatches a `rebase` workflow, even when GitHub still reports the PR as mergeable. This keeps long-lived branches close to base without rebasing every PR on every base update.
 
 ## GitHub App
 

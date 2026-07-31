@@ -54,6 +54,12 @@ Adds subtle motion-safe chat animations: new messages fade in, the jump-to-botto
 
 Records structured slow-request, SQL query, and phase-timing events to logs and a short-lived admin diagnostics buffer. Useful for profiling production performance. No user-facing impact.
 
+## agent_insights
+
+**Category:** Labs
+
+Enables read-only insight Jobs that inspect recent workflow runs and surface operator suggestions as `InsightSuggestion` records. When enabled, insight agents receive the `submit_insight`, `list_insights`, and `read_insight` MCP tools through the agent-insight tool profile. See `agent_insights.md` for the workflow chain and record shape.
+
 ## unified_work_engine_reconciler
 
 **Category:** Operations

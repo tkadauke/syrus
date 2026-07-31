@@ -42,6 +42,10 @@ Agentic. A focused repair step inside `auto_merge` and `merge_train` workflows. 
 
 Agentic. Operator-triggered free-form step; prompt is supplied at dispatch time.
 
+### agent_insight_run
+
+Agentic. Runs the repository insight prompt for an `agent_insight` workflow. The agent inspects recent workflow history and records findings with `submit_insight`; code changes and PR creation are not part of this workflow.
+
 ## Review and quality steps
 
 ### adversarial_review
@@ -186,6 +190,10 @@ Same as above, but used in `coding_handoff` workflows without a repair loop — 
 ### apply_suggestions
 
 Non-agentic. Applies structured code-suggestion patches (e.g., from review comments) before the agent responds.
+
+### auto_close
+
+Non-agentic. Closes infrastructure-style anchor Jobs after their workflow has finished. Used by `agent_insight` so read-only insight Jobs do not remain in the normal operator queue.
 
 ## Step resilience: in-place worker_died retry
 

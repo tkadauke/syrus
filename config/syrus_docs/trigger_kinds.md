@@ -6,7 +6,7 @@ Every `Workflow` has a `trigger_kind` that identifies what the attempt is for an
 
 **When it fires:** A new GitHub issue receives the trigger label (or a `direct` or `cron` Job is created).
 
-**Step chain:** `prepare → adversarial_review_loop? → retry_until(implement, graders) → coverage_analyze? → summarize → test_plan → pr_open`
+**Step chain:** `prepare → optional loop(implement → adversarial_review) → retry_until(implement → grader_fanout → grader_collect) → coverage_analyze → summarize → test_plan → pr_open`
 
 The primary workflow: explores the repo, writes code, runs graders, and opens a PR.
 
@@ -14,7 +14,7 @@ The primary workflow: explores the repo, writes code, runs graders, and opens a 
 
 **When it fires:** New non-Syrus-bot review comments appear on the Job's PR since the last addressed comment.
 
-**Step chain:** `prepare → retry_until(respond, graders) → coverage_analyze? → coverage_pr_comment? → summarize_amend → try(push)`
+**Step chain:** `prepare → optional loop(respond → adversarial_review) → retry_until(respond → grader_fanout → grader_collect) → coverage_analyze → coverage_pr_comment → summarize_amend → try(push)`
 
 Addresses review feedback, updates the PR description, and pushes. Comments authored by the configured Syrus GitHub App bot are ignored so automated comments such as coverage reports do not self-trigger feedback workflows. Syrus records which `PrReviewComment` rows a workflow is handling, marks them handled only after the workflow succeeds, and leaves failed or rate-limited handling visible on the Job detail pending-feedback panel for manual retry. If the push encounters a non-fast-forward conflict, dynamically inserts an agent-rebase recovery chain.
 
@@ -38,7 +38,7 @@ The agent inspects the failing checks and fixes the root cause, then pushes the 
 
 **When it fires:** Operator triggers a retry of a failed Job from the UI or admin API.
 
-**Step chain:** Same as `initial` (`prepare → retry_until(implement, graders) → summarize → test_plan → pr_open`).
+**Step chain:** Same as `initial` (`prepare → optional loop(implement → adversarial_review) → retry_until(implement → grader_fanout → grader_collect) → coverage_analyze → summarize → test_plan → pr_open`).
 
 Starts the implementation from scratch on the existing branch.
 
@@ -64,7 +64,7 @@ Structurally like `retry`; treated identically in most code paths.
 
 **When it fires:** A Job is approved (via the landing queue) and Syrus is ready to land the PR.
 
-**Step chain:** `mergeability_preflight → prepare → retry_until(graders, repair: landing_fix) → coverage_analyze? → push → auto_merge`
+**Step chain:** `mergeability_preflight → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → coverage_analyze? → push → auto_merge`
 
 Validates mergeability, re-runs required graders on the exact PR branch, then merges. Transient GitHub errors defer the Job back to `approved` for retry. Does not run `implement` — only landing validation and merge.
 
@@ -72,7 +72,7 @@ Validates mergeability, re-runs required graders on the exact PR branch, then me
 
 **When it fires:** All open child Jobs of an Epic are approved and `AppSetting.merge_train_enabled` is true.
 
-**Step chain:** `merge_train_assemble → merge_train_build → merge_train_reconcile → prepare → retry_until(graders, repair: landing_fix) → merge_train_land`
+**Step chain:** `merge_train_assemble → merge_train_build → merge_train_reconcile → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → try(merge_train_land)`
 
 Atomically lands all Epic child PRs through a single integration branch. See the Merge Train documentation for details.
 
@@ -116,7 +116,7 @@ Like `coding_handoff`, requires operator confirmation before the workflow dispat
 
 **When it fires:** Spawned automatically by `MainHealthChangedService` when the repository's main branch is detected as broken (grader health transitions to broken).
 
-**Step chain:** `preflight_grader_fanout → [preflight_grader steps] → preflight_grader_collect → prepare → retry_until(implement, grader_fanout, grader_collect) → summarize → test_plan → pr_open`
+**Step chain:** `prepare → preflight_grader_fanout → [preflight_grader steps] → preflight_grader_collect → retry_until(implement → grader_fanout → grader_collect) → summarize → test_plan → pr_open`
 
 The workflow runs a preflight grader check before invoking the agent. If the preflight graders all pass (indicating the broken signal was a false positive), `preflight_grader_collect` cancels the implement chain and the workflow closes immediately — the agent never runs. `after_success` then updates `grader_health` to healthy, calls `MainHealthChangedService.on_health_change!`, and closes the anchor job.
 
@@ -125,6 +125,8 @@ If any required preflight grader fails, the chain continues normally to the impl
 ## main_grader
 
 **When it fires:** An internal trigger for running graders against the main branch (used for automated main-branch health checks).
+
+**Step chain:** `prepare → grader_fanout → grader_collect`
 
 This trigger kind is infrastructure-facing and not surfaced in the operator Job state machine. It does not produce a PR or appear in the normal Job workflow list.
 
@@ -144,3 +146,11 @@ This trigger kind is infrastructure-facing and not surfaced in the operator Job 
 Only the Job's latest workflow is eligible for "Retry from failed step" (`Workflow#retry_available?` checks `latest_for_job?`). The `reopen` AASM event also carries this guard, so a superseded workflow cannot be reopened even by direct API calls.
 
 **Retry/Reopen suppression:** Infrastructure Jobs and their anchor workflows are not operator-retryable. The "Retry from failed step", "Retry implementation", and "Reopen" UI actions are suppressed for infrastructure jobs in `App::JobDetailPayload` and `App::JobRetryActions`.
+
+## agent_insight
+
+**When it fires:** An operator or scheduled insight sweep creates an `agent_insight` Job while the `agent_insights` feature flag is enabled.
+
+**Step chain:** `prepare → agent_insight_run → auto_close`
+
+Runs a read-only agent analysis pass over recent workflow history and records `InsightSuggestion` rows through `submit_insight`. The anchor Job auto-closes after success or failure so insight runs do not accumulate in the normal operator queue.

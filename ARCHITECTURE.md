@@ -704,11 +704,13 @@ Current Workflow chains:
 | `manual` / `resume` | `manual` |
 | `rebase` | `auto_rebase → agent_rebase → force_push` |
 | `stack_rebase` | `stack_auto_rebase → stack_agent_rebase → stack_force_push` |
-| `auto_merge` | `mergeability_preflight → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → push → auto_merge` |
-| `merge_train` | `merge_train_assemble → merge_train_build → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → merge_train_land` |
+| `auto_merge` | `mergeability_preflight → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → coverage_analyze? → push → auto_merge` |
+| `merge_train` | `merge_train_assemble → merge_train_build → merge_train_reconcile → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → coverage_analyze? → try(merge_train_land)` |
 | `coding_handoff` | `prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open` (no existing PR) or `prepare → grader_fanout → grader_collect → summarize_amend → push` (PR already open) |
 | `local_mode_handoff` | `prepare → grader_fanout → grader_collect → summarize_amend → push` (PR already open) or `prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open` (no PR yet) |
-| `main_grader` | `grader_fanout → grader_collect` (no retry loop; result drives `repository.grader_health`; anchor Job is closed and excluded from dashboard; routes to `:runs` queue) |
+| `main_grader` | `prepare → grader_fanout → grader_collect` (no retry loop; result drives `repository.grader_health`; anchor Job is closed and excluded from dashboard; routes to `:runs` queue) |
+| `main_branch_repair` | `prepare → preflight_grader_fanout → preflight_grader_collect → retry_until(implement → grader_fanout → grader_collect) → summarize → test_plan → pr_open` |
+| `agent_insight` | `prepare → agent_insight_run → auto_close` |
 
 `prepare` reads `.syrus.yml` or auto-detects setup commands from
 lockfiles. Explicit `.syrus.yml` commands are operator intent and
