@@ -408,6 +408,7 @@ class MainHealthChangedService
     NotificationService.create_for(
       user: user,
       kind: "main_broken",
+      repository: @repository,
       body: body
     )
   end
@@ -422,6 +423,7 @@ class MainHealthChangedService
     NotificationService.create_for(
       user: user,
       kind: "main_inconclusive",
+      repository: @repository,
       body: "Main branch health is inconclusive on #{@repository.slug}: graders need operator review at #{sha_short}."
     )
   end
@@ -439,6 +441,7 @@ class MainHealthChangedService
     NotificationService.create_for(
       user: user,
       kind: "main_recovered",
+      repository: @repository,
       body: body
     )
   end

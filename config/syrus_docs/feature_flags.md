@@ -52,6 +52,10 @@ Supervisor chat identity is stored on `chat_sessions.system_kind = "supervisor"`
 
 While the flag is enabled, normal chat update paths cannot hide, delete, rename, or unpin the Supervisor chat. `SupervisorChat.ensure_for!(admin_user)` creates or repairs the affordance with title `Supervisor`, `pinned: true`, no repository attachment, and a populated `last_message_at` so it appears in the sidebar.
 
+Major operational events are also recorded in the Supervisor chat while the flag is enabled. `SupervisorEvents.publish!(kind:, severity:, subject:, repository:, actor:, summary:, details:, dedupe_key:)` writes one durable `ChatMessage` system row per admin Supervisor chat with a plain `text` field for existing rendering/search plus structured `supervisor_event` metadata. It updates `last_message_at`, clears `last_read_at`, and broadcasts a chat update so the sidebar surfaces the event as unread. The publisher no-ops completely while `admin_supervisor_chat` is disabled.
+
+Initial event sources are existing notifications (`NotificationService`) for job failures, implemented Jobs, merged PRs, PR feedback completion, upstream PR closure, Epic completion, and main-branch health changes, plus `submit_insight` when an Agent Insight suggestion becomes available. Callers should pass stable `dedupe_key` values for poll-driven events; the service suppresses duplicate keys observed in the recent Supervisor chat history to prevent repeated poll loops from flooding admins.
+
 ## chat_polish
 
 **Category:** UI Experiments

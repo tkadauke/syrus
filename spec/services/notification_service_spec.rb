@@ -1,6 +1,10 @@
 require "rails_helper"
 
 RSpec.describe NotificationService do
+  after do
+    Feature.clear_enabled_cache!("admin_supervisor_chat")
+  end
+
   describe ".create_for" do
     it "creates a notification for an existing user" do
       user = Factories.user
@@ -26,6 +30,41 @@ RSpec.describe NotificationService do
       expect(ActionCable.server).to have_received(:broadcast).with(
         AppUserChannel.broadcasting_for(user),
         { type: "notification_created", unread_count: 1 }
+      )
+    end
+
+    it "publishes a supervisor event when supervisor chat is enabled" do
+      feature = Feature.find_or_create_by!(slug: "admin_supervisor_chat") do |record|
+        record.category = "Operations"
+        record.name = "Admin supervisor chat"
+      end
+      feature.update!(enabled: true)
+      Feature.clear_enabled_cache!("admin_supervisor_chat")
+
+      admin = Factories.user(admin: true)
+      user = Factories.user
+      job = Factories.job_record(user: user)
+      allow(ActionCable.server).to receive(:broadcast)
+      allow(AppEvents).to receive(:broadcast)
+
+      described_class.create_for(
+        user: user,
+        kind: "job_failed",
+        job: job,
+        pr_url: "https://github.com/acme/widgets/pull/1",
+        body: "JOB-1 failed after repeated retries"
+      )
+
+      message = admin.chat_sessions.find_by!(system_kind: "supervisor").messages.last
+      expect(message.content["supervisor_event"]).to include(
+        "kind" => "job_failed",
+        "severity" => "critical",
+        "summary" => "JOB-1 failed after repeated retries"
+      )
+      expect(message.content.dig("supervisor_event", "details")).to include(
+        "notification_kind" => "job_failed",
+        "job_id" => job.id,
+        "pr_url" => "https://github.com/acme/widgets/pull/1"
       )
     end
 

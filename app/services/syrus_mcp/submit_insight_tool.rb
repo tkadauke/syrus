@@ -92,6 +92,21 @@ module SyrusMcp
           suggested_prompt:  suggested_prompt.presence,
           memory_suggestion: memory_suggestion.presence
         )
+        SupervisorEvents.publish!(
+          kind: "agent_insight_available",
+          severity: severity_s == "high" ? "warning" : "info",
+          subject: "Agent Insight available",
+          repository: suggestion.repository,
+          actor: run,
+          summary: "#{suggestion.title} (#{suggestion.severity}, #{(suggestion.confidence * 100).round}% confidence)",
+          details: {
+            "insight_suggestion_id" => suggestion.id,
+            "job_id" => run.job_id,
+            "run_id" => run.id,
+            "category" => suggestion.category
+          },
+          dedupe_key: "agent_insight_available:#{suggestion.id}"
+        )
 
         insights = Array(run.workflow.artifact("insights"))
         insights << {

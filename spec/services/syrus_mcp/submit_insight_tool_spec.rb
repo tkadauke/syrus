@@ -76,6 +76,29 @@ RSpec.describe SyrusMcp::SubmitInsightTool do
       )
     end
 
+    it "publishes a supervisor event for the new insight" do
+      allow(SupervisorEvents).to receive(:publish!)
+
+      call(title: "High-value finding", category: "configuration", severity: "high", confidence: 0.91)
+
+      suggestion = InsightSuggestion.last
+      expect(SupervisorEvents).to have_received(:publish!).with(
+        kind: "agent_insight_available",
+        severity: "warning",
+        subject: "Agent Insight available",
+        repository: repository,
+        actor: run,
+        summary: "High-value finding (high, 91% confidence)",
+        details: {
+          "insight_suggestion_id" => suggestion.id,
+          "job_id" => run.job_id,
+          "run_id" => run.id,
+          "category" => "configuration"
+        },
+        dedupe_key: "agent_insight_available:#{suggestion.id}"
+      )
+    end
+
     it "appends multiple insights to the same workflow artifact" do
       call(title: "Finding 1", category: "config", severity: "medium", confidence: 0.7)
       call(title: "Finding 2", category: "config", severity: "low",    confidence: 0.5)
