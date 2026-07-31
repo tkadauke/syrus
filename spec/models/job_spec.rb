@@ -1974,20 +1974,43 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
     end
   end
 
-  describe "preempted creation (state: closed at create time)" do
+  describe "externally implemented issue Jobs" do
     let(:user) { Factories.user }
     let(:repository) { Factories.repository(user: user) }
 
-    it "does NOT auto-spawn an initial Run when the Job is born closed" do
+    it "does NOT auto-spawn an initial Run when the Job is born implemented" do
       preempted = Job.create!(
         user: user, repository: repository, issue_number: 99,
-        state: "closed", closure_reason: "preempted",
-        external_pr_number: 7, finished_at: Time.current
+        state: "implemented", external_pr_number: 7
       )
       expect(preempted.runs).to be_empty
-      expect(preempted).to be_closed
-      expect(preempted.closure_reason).to eq("preempted")
+      expect(preempted).to be_implemented
+      expect(preempted.closure_reason).to be_nil
       expect(preempted.external_pr_number).to eq(7)
+    end
+
+    it "marks an existing Job implemented and clears terminal/review metadata" do
+      job = Factories.job_record(
+        user: user,
+        repository: repository,
+        issue_number: 99,
+        state: "closed",
+        closure_reason: "preempted",
+        external_pr_number: 7,
+        finished_at: Time.current,
+        approved_at: Time.current,
+        approved_via: "github_review",
+        approval_evidence: { "review" => "old" }
+      )
+
+      job.mark_externally_implemented!(7)
+
+      expect(job).to be_implemented
+      expect(job.closure_reason).to be_nil
+      expect(job.finished_at).to be_nil
+      expect(job.approved_at).to be_nil
+      expect(job.approved_via).to be_nil
+      expect(job.approval_evidence).to eq({})
     end
 
     it "does not auto-spawn a Run before triage advances" do

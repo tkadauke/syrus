@@ -597,6 +597,23 @@ class Job < ApplicationRecord
     close_with_reason!(reason)
   end
 
+  def mark_externally_implemented!(number)
+    transaction do
+      runs.active.find_each do |run|
+        run.cancel! if run.may_cancel?
+        run.save!
+      end
+
+      self.external_pr_number = number
+      self.state = "implemented"
+      self.closure_reason = nil
+      self.finished_at = nil
+      self.landing_failure_reason = nil
+      clear_approval_metadata
+      save!
+    end
+  end
+
   # The most recently created Run on this thread, regardless of state.
   def current_run
     runs.last

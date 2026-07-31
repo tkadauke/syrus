@@ -473,16 +473,17 @@ RSpec.describe PollRepositoryJob do
         end
       end
 
-      it "creates a brand-new issue's Job in closed/preempted state with the external PR captured, no Run" do
+      it "creates a brand-new issue's Job in implemented state with the external PR captured, no Run" do
         expect {
           described_class.perform_now(repository.id)
         }.to change(Job, :count).by(2)  # one for #42 (preempted), one for #46 (normal)
 
         preempted = Job.find_by(repository: repository, issue_number: 42)
-        expect(preempted.state).to eq("closed")
-        expect(preempted.closure_reason).to eq("preempted")
+        expect(preempted.kind).to eq("issue")
+        expect(preempted.state).to eq("implemented")
+        expect(preempted.closure_reason).to be_nil
         expect(preempted.external_pr_number).to eq(99)
-        expect(preempted.finished_at).to be_present
+        expect(preempted.finished_at).to be_nil
         expect(preempted.runs).to be_empty   # no auto-Run
 
         normal = Job.find_by(repository: repository, issue_number: 46)
@@ -490,7 +491,7 @@ RSpec.describe PollRepositoryJob do
         expect(normal.runs).to be_empty
       end
 
-      it "attaches the external PR to a stalled prior Job (failed, no Syrus PR shipped) and closes it as preempted" do
+      it "attaches the external PR to a stalled prior Job and marks it implemented" do
         # Pre-seed: #42 has a Job whose initial run failed and we never opened a PR.
         prior = Factories.job(user: user, repository: repository, issue_number: 42)
         prior.runs.first.tap { |r| r.fail!; r.save! }
@@ -499,29 +500,32 @@ RSpec.describe PollRepositoryJob do
           described_class.perform_now(repository.id)
         }.to change { prior.reload.external_pr_number }.from(nil).to(99)
 
-        expect(prior).to be_closed
-        expect(prior.closure_reason).to eq("preempted")
+        expect(prior).to be_implemented
+        expect(prior.closure_reason).to be_nil
+        expect(prior.finished_at).to be_nil
       end
 
-      it "attaches the external PR to a Job that already has a Syrus PR (informational) — does NOT close it" do
+      it "attaches the external PR to a Job that already has a Syrus PR and leaves it reviewable" do
         prior = Job.create!(user: user, repository: repository, issue_number: 42, pr_number: 7, branch_name: "syrus/issue-42-1")
         # Job is open with a syrus PR; we just learned about a competing external PR.
         expect {
           described_class.perform_now(repository.id)
         }.to change { prior.reload.external_pr_number }.from(nil).to(99)
 
-        expect(prior).to be_open                  # NOT closed
+        expect(prior).to be_implemented
         expect(prior.closure_reason).to be_nil
       end
 
-      it "leaves a Job alone if it has an active Run (mid-flight), but still records the external PR" do
+      it "cancels active Runs when an external PR makes an in-flight Job reviewable" do
         prior = Factories.job(user: user, repository: repository, issue_number: 42)
-        prior.runs.first.start!  # running
+        run = prior.runs.first
+        run.start!  # running
 
         described_class.perform_now(repository.id)
         prior.reload
         expect(prior.external_pr_number).to eq(99)
-        expect(prior).to be_open
+        expect(prior).to be_implemented
+        expect(run.reload).to be_cancelled
       end
 
       it "does NOT record Syrus's own PR as external (closedByPullRequestsReferences includes ours)" do

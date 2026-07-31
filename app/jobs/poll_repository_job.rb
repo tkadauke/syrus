@@ -94,34 +94,25 @@ class PollRepositoryJob < ApplicationJob
 
       if linked && prior.external_pr_number != linked[:number]
         Rails.logger.info("[PollRepositoryJob] #{repository.slug}##{issue.number} preempt-attach to #{prior.slug}: external PR ##{linked[:number]}")
-        prior.update!(external_pr_number: linked[:number])
-        # If Syrus has nothing in flight here, close the thread as
-        # preempted so the operator sees the right state. Open Jobs
-        # with an active Run are left alone — that agent finishes and
-        # the duplicate-PR situation gets surfaced at PR-opening time.
-        if prior.open? && prior.pr_number.blank? && !prior.any_active_run?
-          prior.cancel_active_runs_and_close!("preempted")
-        end
+        prior.mark_externally_implemented!(linked[:number]) if prior.open?
         return :preempt_attached
       else
         return :deduped
       end
     end
 
-    # Brand-new issue — preempted at first sight: record the Job in
-    # closed state and don't schedule a Run.
+    # Brand-new issue — already implemented externally at first sight.
+    # Keep the issue-backed Job reviewable without scheduling an agent Run.
     if linked
-      Rails.logger.info("[PollRepositoryJob] #{repository.slug}##{issue.number} preempted by PR ##{linked[:number]}")
+      Rails.logger.info("[PollRepositoryJob] #{repository.slug}##{issue.number} implemented by external PR ##{linked[:number]}")
       job = Job.create!(
         user: repository.user,
         repository: repository,
         issue_number: issue.number,
         issue_title: issue_title(issue),
         issue_body: issue_body(issue),
-        state: "closed",
-        closure_reason: "preempted",
-        external_pr_number: linked[:number],
-        finished_at: Time.current
+        state: "implemented",
+        external_pr_number: linked[:number]
       )
       enqueue_issue_image_ingest(job)
       return :preempted
