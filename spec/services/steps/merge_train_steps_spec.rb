@@ -37,6 +37,7 @@ RSpec.describe "Steps::MergeTrain*" do
     allow(handler).to receive(:streaming_git).and_return(git)
     allow(git).to receive(:run)
     allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/ws").and_return("#{head}\n")
+    allow(git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: "/tmp/ws").and_return("treesha123\n")
     allow(git).to receive(:run).with("rev-parse", "FETCH_HEAD", chdir: "/tmp/ws").and_return("#{base}\n")
     git
   end
@@ -270,7 +271,11 @@ RSpec.describe "Steps::MergeTrain*" do
         artifacts: {
           LandingValidationCache::ARTIFACT_KEY => {
             "required_graders_passed" => true,
-            "head_sha" => "intsha999"
+            "head_sha" => "intsha999",
+            "tree_sha" => "treesha123",
+            "base_sha" => "basesha123",
+            "base_ref" => "master",
+            "grader_fingerprint" => "fp"
           }
         }
       )
@@ -282,6 +287,7 @@ RSpec.describe "Steps::MergeTrain*" do
       handler = described_class.new(run)
       git = stub_git(handler)
       allow(handler).to receive(:run_agent)
+      allow(GraderConclusionCache).to receive(:fingerprint_for_plan).and_return("fp")
 
       handler.call
 
@@ -294,6 +300,74 @@ RSpec.describe "Steps::MergeTrain*" do
         [ "merge_train_land", "queued" ]
       )
       expect(train.reload.integration_sha).to eq("intsha999")
+      expect(run.job_logs.pluck(:chunk).join("\n")).to include("merge_train: reusing cached grading validation (exact_head)")
+    end
+
+    it "skips prepare and graders when a rebuilt integration SHA has the same validated tree" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      prior = Workflow.create!(
+        job: a,
+        trigger_kind: "merge_train",
+        artifacts: {
+          LandingValidationCache::ARTIFACT_KEY => {
+            "required_graders_passed" => true,
+            "head_sha" => "oldint111",
+            "tree_sha" => "treesha123",
+            "base_sha" => "basesha123",
+            "base_ref" => "master",
+            "grader_fingerprint" => "fp"
+          }
+        }
+      )
+      Step.create!(workflow: prior, kind: "merge_train_land", position: 0)
+
+      workflow = Workflows::MergeTrain.instantiate(job: a, artifacts: { "merge_train_id" => train.id })
+      build_step = workflow.steps.find_by!(kind: "merge_train_build")
+      run = Run.create!(job: a, step: build_step, trigger_kind: "merge_train")
+      handler = described_class.new(run)
+      stub_git(handler, head: "newint222")
+      allow(handler).to receive(:run_agent)
+      allow(GraderConclusionCache).to receive(:fingerprint_for_plan).and_return("fp")
+
+      handler.call
+
+      expect(workflow.steps.find_by!(kind: "grader_fanout")).to be_cancelled
+      expect(workflow.steps.find_by!(kind: "merge_train_land")).to be_queued
+      expect(run.job_logs.pluck(:chunk).join("\n")).to include("merge_train: reusing cached grading validation (same_tree)")
+    end
+
+    it "runs graders when the built integration branch has a different base" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      prior = Workflow.create!(
+        job: a,
+        trigger_kind: "merge_train",
+        artifacts: {
+          LandingValidationCache::ARTIFACT_KEY => {
+            "required_graders_passed" => true,
+            "head_sha" => "intsha999",
+            "tree_sha" => "treesha123",
+            "base_sha" => "oldbase",
+            "base_ref" => "master",
+            "grader_fingerprint" => "fp"
+          }
+        }
+      )
+      Step.create!(workflow: prior, kind: "merge_train_land", position: 0)
+
+      workflow = Workflows::MergeTrain.instantiate(job: a, artifacts: { "merge_train_id" => train.id })
+      build_step = workflow.steps.find_by!(kind: "merge_train_build")
+      run = Run.create!(job: a, step: build_step, trigger_kind: "merge_train")
+      handler = described_class.new(run)
+      stub_git(handler, base: "newbase")
+      allow(handler).to receive(:run_agent)
+      allow(GraderConclusionCache).to receive(:fingerprint_for_plan).and_return("fp")
+
+      handler.call
+
+      expect(workflow.steps.find_by!(kind: "grader_fanout")).to be_queued
+      expect(run.job_logs.pluck(:chunk).join("\n")).to include("merge_train: landing graders will run - base SHA changed")
     end
 
     it "hands the in-progress rebase to the agent on conflict, then verifies by end-state and integrates" do

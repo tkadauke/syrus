@@ -100,7 +100,37 @@ RSpec.describe Steps::GraderCollect do
 
     expect(workflow.reload.artifact(LandingValidationCache::ARTIFACT_KEY)).to include(
       "required_graders_passed" => true,
-      "head_sha" => "abc123"
+      "head_sha" => "abc123",
+      "tree_sha" => "abc123"
+    )
+  end
+
+  it "records auto_merge base semantics on the landing validation artifact" do
+    job.update!(mergeability_base_sha: "base123", mergeability_base_ref: "main")
+    workflow.update!(trigger_kind: "auto_merge")
+
+    handler.call
+
+    expect(workflow.reload.artifact(LandingValidationCache::ARTIFACT_KEY)).to include(
+      "head_sha" => "abc123",
+      "base_sha" => "base123",
+      "base_ref" => "main"
+    )
+  end
+
+  it "records merge_train integration branch base semantics on the landing validation artifact" do
+    epic = Factories.epic(user: job.user, repository: job.repository)
+    train = MergeTrain.create!(epic: epic, repository: job.repository, base_branch: "master")
+    workflow.update!(trigger_kind: "merge_train")
+    workflow.set_artifact!("merge_train_id", train.id)
+    workflow.set_artifact!("merge_train_base_sha", "trainbase123")
+
+    handler.call
+
+    expect(workflow.reload.artifact(LandingValidationCache::ARTIFACT_KEY)).to include(
+      "head_sha" => "abc123",
+      "base_sha" => "trainbase123",
+      "base_ref" => "master"
     )
   end
 

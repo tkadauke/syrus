@@ -49,11 +49,19 @@ module Steps
       return unless LandingValidationCache.green_validation_present?(job)
 
       head_sha = streaming_git.run("rev-parse", "HEAD", chdir: workspace.path.to_s).strip
+      tree_sha = streaming_git.run("rev-parse", "HEAD^{tree}", chdir: workspace.path.to_s).to_s.strip.presence
       base_sha = job.mergeability_base_sha.presence
       base_ref = job.mergeability_base_ref.presence
       return if head_sha.blank? || base_sha.blank?
 
-      LandingValidationCache.record!(workflow: workflow, head_sha: head_sha, base_sha: base_sha, base_ref: base_ref)
+      LandingValidationCache.record!(
+        workflow: workflow,
+        head_sha: head_sha,
+        tree_sha: tree_sha,
+        base_sha: base_sha,
+        base_ref: base_ref,
+        validation_source: "clean_rebase"
+      )
       log("force_push: carried green grade across clean rebase (#{repository.slug}: trust_clean_rebase_grade); next landing will skip re-grading head #{head_sha.first(7)}")
     rescue StandardError => e
       Rails.logger.warn("[ForcePush] carry-forward landing validation failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
@@ -87,6 +95,5 @@ module Steps
         auto_rebase_result["pre_sha"].presence
       end
     end
-
   end
 end
