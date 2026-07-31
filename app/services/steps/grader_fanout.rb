@@ -15,22 +15,6 @@ module Steps
   # is snapshotted onto its Step#details — immutable for that Step,
   # immune to `.syrus.yml` evolution.
   class GraderFanout < Base
-    FAST_GRADER_TRIGGER_KINDS = %w[
-      auto_merge
-      ci_failure
-      main_branch_repair
-      main_grader
-      merge_train
-    ].freeze
-
-    FAST_GRADER_REPEAT_TRIGGER_KINDS = %w[
-      chat_feedback
-      coding_handoff
-      initial
-      pr_comment
-      retry
-    ].freeze
-
     def call
       workspace.setup
       plan = effective_plan(RepoGradePlan.for(workspace.path))
@@ -183,25 +167,12 @@ module Steps
     end
 
     def effective_plan(plan)
-      fast = fast_grader_context?
-      plan.with(
-        graders: plan.graders.map do |grader|
-          command = grader.command_for(fast: fast)
-          metadata = {
-            "standard_command" => grader.command,
-            "fast_command" => grader.fast_command,
-            "fast_variant" => fast && grader.fast_command.present?
-          }.compact
-
-          grader.with(command: command, metadata: metadata)
-        end
-      )
+      LandingGraderPlan.effective(plan, trigger_kind: workflow.trigger_kind, iteration: run.iteration)
     end
 
     def fast_grader_context?
-      return true if FAST_GRADER_TRIGGER_KINDS.include?(workflow.trigger_kind)
-
-      run.iteration.to_i > 1 && FAST_GRADER_REPEAT_TRIGGER_KINDS.include?(workflow.trigger_kind)
+      LandingGraderPlan::FAST_TRIGGER_KINDS.include?(workflow.trigger_kind) ||
+        (run.iteration.to_i > 1 && LandingGraderPlan::REPEAT_FAST_TRIGGER_KINDS.include?(workflow.trigger_kind))
     end
   end
 end

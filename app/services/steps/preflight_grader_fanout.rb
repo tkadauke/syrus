@@ -34,17 +34,7 @@ module Steps
     private
 
     def effective_plan(plan)
-      plan.with(
-        graders: plan.graders.map do |grader|
-          metadata = {
-            "standard_command" => grader.command,
-            "fast_command" => grader.fast_command,
-            "fast_variant" => grader.fast_command.present?
-          }.compact
-
-          grader.with(command: grader.command_for(fast: true), metadata: metadata)
-        end
-      )
+      LandingGraderPlan.landing(plan)
     end
 
     def materialize_grader_steps!(graders)
