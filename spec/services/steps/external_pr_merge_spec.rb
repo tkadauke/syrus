@@ -47,6 +47,7 @@ RSpec.describe Steps::ExternalPrMerge do
 
     allow(GithubClient).to receive(:for).and_return(client)
     allow(client).to receive(:pull_request).and_return(pr)
+    workflow.set_artifact!("external_pr_head_sha", "abc123")
   end
 
   it "merges the external PR via GitHub and closes the job" do
@@ -55,7 +56,7 @@ RSpec.describe Steps::ExternalPrMerge do
     described_class.new(run).call
 
     expect(client).to have_received(:merge_pull_request)
-      .with("acme/widgets", 99, hash_including(merge_method: "rebase"))
+      .with("acme/widgets", 99, hash_including(merge_method: "rebase", sha: "abc123"))
     expect(job.reload).to be_closed
     expect(job.closure_reason).to eq("external_pr_merged")
   end
@@ -90,6 +91,32 @@ RSpec.describe Steps::ExternalPrMerge do
     expect(push_git).to have_received(:run)
       .with("push", "https://token@example.com/acme/widgets.git", "HEAD:refs/heads/contributor-branch", chdir: "/tmp/external-pr-workspace")
     expect(client).to have_received(:merge_pull_request)
+      .with("acme/widgets", 99, hash_including(sha: "def456"))
+  end
+
+  it "passes the graded external PR head SHA to GitHub so stale heads are rejected" do
+    allow(client).to receive(:merge_pull_request).and_raise(
+      Octokit::UnprocessableEntity.new(status: 422, body: { message: "Head branch was modified. Review and try the merge again." })
+    )
+
+    expect {
+      described_class.new(run).call
+    }.to raise_error(Steps::Base::StepFailed, /GitHub merge failed/)
+
+    expect(client).to have_received(:merge_pull_request)
+      .with("acme/widgets", 99, hash_including(sha: "abc123"))
+    expect(job.reload).to be_landing
+  end
+
+  it "raises StepFailed instead of merging when the prepared head SHA is missing" do
+    workflow.set_artifact!("external_pr_head_sha", nil)
+    allow(client).to receive(:merge_pull_request)
+
+    expect {
+      described_class.new(run).call
+    }.to raise_error(Steps::Base::StepFailed, /missing prepared external PR head SHA/)
+
+    expect(client).not_to have_received(:merge_pull_request)
   end
 
   it "raises StepFailed when GitHub does not confirm the merge" do

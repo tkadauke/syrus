@@ -20,8 +20,8 @@ module Steps
         return
       end
 
-      push_same_repository_repairs!
-      merge_result = merge_pull_request(client)
+      pushed_head_sha = push_same_repository_repairs!
+      merge_result = merge_pull_request(client, expected_head_sha(pushed_head_sha))
       return unless merge_result
 
       merged = merge_result.respond_to?(:merged) ? merge_result.merged : merge_result[:merged]
@@ -41,22 +41,31 @@ module Steps
 
       workspace.setup
       local_head = GitRunner.new.run("rev-parse", "HEAD", chdir: workspace.path.to_s).strip
-      return if local_head == original_head_sha
+      return local_head if local_head == original_head_sha
 
       log("external_pr_merge: pushing repair commit(s) to #{repository.slug}:#{head_ref}", kind: "system")
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
       push_url = repository.authenticated_push_url(GithubClient.for(repository: repository, user: job.user).access_token)
       git.run("push", push_url, "HEAD:refs/heads/#{head_ref}", chdir: workspace.path.to_s)
+      local_head
     rescue GitRunner::GitError => e
       raise StepFailed, "external_pr_merge: failed to push repair commits to #{head_ref}: #{e.message}"
     end
 
-    def merge_pull_request(client)
+    def expected_head_sha(pushed_head_sha)
+      sha = pushed_head_sha.presence || workflow.artifact("external_pr_head_sha").to_s.presence
+      return sha if sha.present?
+
+      raise StepFailed, "external_pr_merge: missing prepared external PR head SHA"
+    end
+
+    def merge_pull_request(client, expected_sha)
       client.merge_pull_request(
         repository.slug,
         job.external_pr_number,
         commit_title: "Merge #{repository.slug}##{job.external_pr_number} via Syrus",
-        merge_method: "rebase"
+        merge_method: "rebase",
+        sha: expected_sha
       )
     rescue Octokit::MethodNotAllowed => e
       raise StepFailed, "external_pr_merge: GitHub merge failed: #{e.message}"

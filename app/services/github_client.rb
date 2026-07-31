@@ -244,14 +244,19 @@ class GithubClient
     end
   end
 
-  def merge_pull_request(repo_slug, pr_number, commit_title:, merge_method:)
+  def merge_pull_request(repo_slug, pr_number, commit_title:, merge_method:, sha: nil)
+    options = {
+      commit_title: commit_title,
+      merge_method: merge_method
+    }
+    options[:sha] = sha if sha.present?
+
     track_rate_limits do
       @client.merge_pull_request(
         repo_slug,
         pr_number,
         "",
-        commit_title: commit_title,
-        merge_method: merge_method
+        **options
       )
     end
   rescue Octokit::TooManyRequests => e
