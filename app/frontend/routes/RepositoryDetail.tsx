@@ -143,6 +143,8 @@ function RepositoryThroughputPanel({ repositoryId }: { repositoryId: number }) {
     )
   }
 
+  if (!metrics.data.windows || !metrics.data.windows["4h"]) return null
+
   return <RepositoryThroughputDashboard metrics={metrics.data} windowKey={windowKey} onWindowChange={setWindowKey} />
 }
 
