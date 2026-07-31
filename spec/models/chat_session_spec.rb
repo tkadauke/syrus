@@ -347,6 +347,9 @@ RSpec.describe ChatSession do
           action: "update_header",
           chat: {
             chat_provider: "claude",
+            effective_chat_provider: "claude",
+            effective_chat_provider_label: "Claude Code",
+            provider_availability: nil,
             coding_checkout_uncommitted: false,
             title: "Updated chat",
             title_pending: false,

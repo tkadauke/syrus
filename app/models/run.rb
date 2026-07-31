@@ -275,8 +275,7 @@ class Run < ApplicationRecord
   def broadcast_provider_availability_after_failure!
     return if agent_provider.blank?
 
-    App::ProviderAvailability.broadcast_changed(user: user, provider: agent_provider)
-    availability = App::ProviderAvailability.for_user(user, agent_provider)
+    availability = App::ProviderAvailability.broadcast_changed(user: user, provider: agent_provider)
     retry_after = availability&.dig(:retry_after)
     ProviderAvailabilityBroadcastJob.set(wait_until: Time.zone.parse(retry_after)).perform_later(user_id, agent_provider) if retry_after.present?
   rescue StandardError => e

@@ -1,12 +1,22 @@
 module App
   class ProviderAvailability
-    def self.for_user(user, provider, now: Time.current)
-      new(user: user, provider: provider, now: now).status
+    def self.for_user(user, provider, now: Time.current, cached: true)
+      return new(user: user, provider: provider, now: now).status unless cached
+
+      key = cache_key(user, provider, now)
+      return nil unless key
+
+      cache = Current.provider_availability_cache ||= {}
+      return cache[key] if cache.key?(key)
+
+      cache[key] = new(user: user, provider: provider, now: now).status
     end
 
     def self.broadcast_changed(user:, provider:, now: Time.current)
       return unless user && provider.present?
 
+      clear_cache!(user: user, provider: provider)
+      availability = for_user(user, provider, now: now, cached: false)
       AppEvents.broadcast(
         user: user,
         type: "provider_availability.changed",
@@ -15,9 +25,26 @@ module App
         changed: [ "provider_availability" ],
         payload: {
           provider: provider,
-          availability: for_user(user, provider, now: now)
+          availability: availability
         }
       )
+      availability
+    end
+
+    def self.clear_cache!(user: nil, provider: nil)
+      cache = Current.provider_availability_cache
+      return unless cache
+      return cache.clear unless user && provider.present?
+
+      user_id = user.respond_to?(:id) ? user.id : user
+      provider = provider.to_s
+      cache.delete_if { |(cached_user_id, cached_provider, _), _| cached_user_id == user_id && cached_provider == provider }
+    end
+
+    def self.cache_key(user, provider, now)
+      return if user.blank? || provider.blank?
+
+      [ user.id, provider.to_s, now.to_i ]
     end
 
     def initialize(user:, provider:, now: Time.current)

@@ -2,6 +2,7 @@ class Current < ActiveSupport::CurrentAttributes
   attribute :session,
             :api_user,
             :feature_enabled_cache,
+            :provider_availability_cache,
             :performance_logging_enabled,
             :performance_sql_count,
             :performance_sql_duration_ms,
