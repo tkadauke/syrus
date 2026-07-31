@@ -127,32 +127,6 @@ type LocalDiffState = {
   error: string | null
 }
 
-function renderUnifiedDiff(diff: string): ReactNode[] {
-  const nodes: ReactNode[] = []
-  diff.split("\n").forEach((line, index) => {
-    let className: string
-    if (line.startsWith("+++") || line.startsWith("---")) {
-      className = "text-gray-500 dark:text-gray-400"
-    } else if (line.startsWith("@@")) {
-      className = "text-blue-600 dark:text-blue-400"
-    } else if (line.startsWith("+")) {
-      className = "bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
-    } else if (line.startsWith("-")) {
-      className = "bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-300"
-    } else if (line.startsWith("diff ") || line.startsWith("index ")) {
-      className = "font-semibold text-gray-700 dark:text-gray-300"
-    } else {
-      className = "text-gray-700 dark:text-gray-300"
-    }
-    nodes.push(
-      <div className={`block whitespace-pre ${className}`} key={index}>
-        {line || " "}
-      </div>
-    )
-  })
-  return nodes
-}
-
 function LocalDiffPanel() {
   const { t } = useT("chat")
   const [state, setState] = useState<LocalDiffState>({ diff: null, mode: "head", loading: true, error: null })
@@ -233,9 +207,7 @@ function LocalDiffPanel() {
         </p>
       ) : (
         <div className="overflow-x-auto rounded border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-950">
-          <code className="block p-3 font-mono text-xs leading-5">
-            {renderUnifiedDiff(diff!)}
-          </code>
+          <UnifiedDiffViewer diff={diff!} />
         </div>
       )}
     </div>
@@ -1020,7 +992,7 @@ function CodingFilesPanel({ payload }: { payload: ChatPayload }) {
                       <span>+{selectedDiff.additions}</span>
                       <span>-{selectedDiff.deletions}</span>
                     </div>
-                    <CodingDiffViewer diff={selectedDiff.patch} />
+                    <UnifiedDiffViewer diff={selectedDiff.patch} testId="coding-diff-viewer" />
                   </>
                 ) : (
                   <div className="flex h-full min-h-[16rem] items-center justify-center p-4 text-sm text-gray-400 dark:text-gray-500">{t("source_select_diff_file")}</div>
@@ -1069,11 +1041,11 @@ function CodingSourceViewer({ content, path }: { content: string; path: string }
   )
 }
 
-function CodingDiffViewer({ diff }: { diff: string }) {
+function UnifiedDiffViewer({ diff, testId }: { diff: string; testId?: string }) {
   const lines = parseUnifiedDiff(diff)
 
   return (
-    <table className="min-w-full border-separate border-spacing-0 font-mono text-xs" data-testid="coding-diff-viewer">
+    <table className="min-w-full border-separate border-spacing-0 font-mono text-xs" data-testid={testId}>
       <tbody>
         {lines.map((line, index) => (
           <tr className={diffLineClass(line.kind)} data-diff-kind={line.kind} key={`${index}-${line.kind}-${line.oldLine || ""}-${line.newLine || ""}`}>
