@@ -26,7 +26,7 @@ module App
     end
 
     def payload
-      {
+      result = {
         job: job_json,
         repository: repository_json(@job.repository),
         epic: epic_json(@job.epic),
@@ -50,6 +50,9 @@ module App
         actions: actions_json,
         paths: paths_json
       }
+      stages = deployment_stages_json
+      result[:deployment_stages] = stages if stages
+      result
     end
 
     def workflows_payload
@@ -247,6 +250,23 @@ module App
         created_at: iso8601(attachment.created_at),
         app_delete_path: "/api/v1/app/jobs/#{@job.id}/attachments/#{attachment.id}"
       }
+    end
+
+    def deployment_stages_json
+      return nil if @job.landed_sha.blank?
+
+      stages = RepoDeploymentStagesReader.for_repository(@job.repository).stages
+      return nil if stages.empty?
+
+      statuses = @job.deployment_stage_statuses.index_by(&:stage_name)
+      stages.map do |stage|
+        status = statuses[stage.name]
+        {
+          name: stage.name,
+          label: stage.label,
+          reached_at: iso8601(status&.reached_at)
+        }
+      end
     end
 
     def summary_json

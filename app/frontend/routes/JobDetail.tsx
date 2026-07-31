@@ -13,7 +13,7 @@ import { Markdown } from "../lib/Markdown"
 import { translateBlockedReason } from "../lib/translateBlockedReason"
 import { workflowSlug } from "../lib/slugs"
 import { buttonClass } from "../lib/buttonClasses"
-import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobDetail, fetchJobWorkflows, ignorePendingFeedback, replacePendingFeedback, submitJobFeedback, updateJobPriority, type JobApprovalRecord, type JobApprovalStatus, type JobDetailPayload, type JobTestPlan, type JobWorkflow, type PendingFeedbackComment } from "../api/jobs"
+import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobDetail, fetchJobWorkflows, ignorePendingFeedback, replacePendingFeedback, submitJobFeedback, updateJobPriority, type JobApprovalRecord, type JobApprovalStatus, type JobDeploymentStage, type JobDetailPayload, type JobTestPlan, type JobWorkflow, type PendingFeedbackComment } from "../api/jobs"
 import { CoverageCard } from "../components/CoverageCard"
 import { SyrusTour } from "../components/SyrusTour"
 import { useTour } from "../hooks/useTour"
@@ -157,6 +157,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, activeTab,
               payload={payload}
             />
           </div>
+          {payload.deployment_stages?.length ? <DeploymentStagePipeline stages={payload.deployment_stages} /> : null}
           <div className="flex flex-wrap items-center gap-2">
             <p className="mt-1 break-words text-sm text-gray-600 dark:text-gray-300">
               <Link className="font-mono hover:underline" to={withRoutePrefix(payload.repository.repository_path, prefix)}>{payload.repository.slug}</Link>
@@ -214,6 +215,37 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, activeTab,
       {activeTab === "attachments" ? <AttachmentsTab payload={payload} queryKey={queryKey} onNotice={setNotice} /> : null}
       {activeTab === "source" ? <SourceTab jobId={String(payload.job.id)} coverageInfo={latestWorkflowCoverage(payload.workflows)} /> : null}
     </>
+  )
+}
+
+function DeploymentStagePipeline({ stages }: { stages: JobDeploymentStage[] }) {
+  return (
+    <div aria-label="Deployment stages" className="mt-3 overflow-x-auto pb-1">
+      <ol className="flex min-w-max items-start" data-testid="deployment-stage-pipeline">
+        {stages.map((stage, index) => {
+          const reached = Boolean(stage.reached_at)
+          const nextReached = Boolean(stages[index + 1]?.reached_at)
+          return (
+            <li className="flex items-start" data-reached={reached ? "true" : "false"} key={stage.name}>
+              <div className="flex w-36 flex-col items-start gap-1">
+                <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full border text-[11px] font-semibold ${reached ? "border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : "border-gray-300 bg-gray-100 text-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500"}`}>
+                  {reached ? "✓" : ""}
+                </span>
+                <span className="max-w-32 break-words text-xs font-medium text-gray-800 dark:text-gray-100">{stage.label}</span>
+                <span className={`text-xs ${reached ? "text-emerald-700 dark:text-emerald-300" : "text-gray-400 dark:text-gray-500"}`}>
+                  {reached ? <RelativeTimestamp value={stage.reached_at} /> : "Pending"}
+                </span>
+              </div>
+              {index < stages.length - 1 ? (
+                <span className="mt-2.5 h-0.5 w-16 shrink-0 overflow-hidden rounded bg-gray-200 dark:bg-gray-800" aria-hidden="true">
+                  <span className={`block h-full ${reached && nextReached ? "bg-emerald-500" : "bg-transparent"}`} />
+                </span>
+              ) : null}
+            </li>
+          )
+        })}
+      </ol>
+    </div>
   )
 }
 
@@ -949,6 +981,5 @@ function AttachmentsTab({ payload, queryKey, onNotice }: { payload: JobDetailPay
     </section>
   )
 }
-
 
 
