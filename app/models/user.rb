@@ -506,16 +506,9 @@ class User < ApplicationRecord
   def opencode_configured?
     return false if opencode_backend.blank? || opencode_model.blank?
 
-    case opencode_backend
-    when "openai_api"
-      opencode_api_key.present?
-    when "azure_openai"
-      opencode_api_key.present? && opencode_endpoint_url.present?
-    when "ollama"
-      opencode_endpoint_url.present?
-    else
-      false
-    end
+    OpencodeBackend::Base.for(opencode_backend).configured?(self)
+  rescue KeyError
+    false
   end
 
   # Generate (and persist) a fresh API token. Returns the
