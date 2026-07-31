@@ -333,42 +333,200 @@ RSpec.describe RepositoryThroughputMetricContract do
       user: user,
       repository: repository,
       pr_number: 125,
-      approved_at: now - 10.minutes
+      approved_at: now - 10.minutes,
+      approved_via: "operator"
     )
     immediate_workflow = workflow_for(immediate, trigger_kind: "initial")
     step_for(immediate_workflow, kind: "pr_open", finished_at: now - 25.minutes)
     JobApproval.create!(job: immediate, user: user, approved_at: now - 10.minutes)
+    PrReviewComment.create!(
+      job: immediate,
+      pr_type: "direct",
+      comment_kind: "issue",
+      github_comment_id: 2,
+      actionable: false,
+      comment_created_at: now - 18.minutes
+    )
 
     reviewed = Factories.job_record(
       user: user,
       repository: repository,
       pr_number: 126,
-      approved_at: now - 8.minutes
+      approved_at: now - 8.minutes,
+      approved_via: "github_review"
     )
     reviewed_workflow = workflow_for(reviewed, trigger_kind: "initial")
     step_for(reviewed_workflow, kind: "pr_open", finished_at: now - 30.minutes)
     JobApproval.create!(job: reviewed, user: user, approved_at: now - 8.minutes)
-    workflow_for(reviewed, trigger_kind: "pr_comment", created_at: now - 15.minutes)
+    feedback_workflow = workflow_for(reviewed, trigger_kind: "pr_comment", created_at: now - 15.minutes)
     PrReviewComment.create!(
       job: reviewed,
       pr_type: "direct",
       comment_kind: "review",
       github_comment_id: 1,
       actionable: true,
-      comment_created_at: now - 20.minutes
+      comment_created_at: now - 20.minutes,
+      handling_workflow: feedback_workflow,
+      handled_at: now - 12.minutes,
+      actioned_at: now - 12.minutes
     )
 
     funnel = call.fetch(:windows).fetch("1h").fetch(:review_funnel)
 
     expect(funnel).to include(
       jobs_with_pr_feedback: 1,
+      jobs_with_feedback_before_approval: 1,
       feedback_rounds: 1,
       jobs_approved_immediately_without_feedback: 1,
       approval_count: 2,
       approval_vote_count: 2,
       pr_opened_count: 2
     )
+    expect(funnel.dig(:approval_sources, :operator)).to include(count: 1, confidence: "low")
+    expect(funnel.dig(:approval_sources, :github_review)).to include(count: 1, confidence: "low")
+    expect(funnel.dig(:approval_sources, :auto)).to include(count: 0, confidence: "none")
+    expect(funnel.fetch(:feedback_rounds_by_job)).to contain_exactly(
+      include(
+        job_id: reviewed.id,
+        round_count: 1,
+        workflow_round_count: 1,
+        comment_count: 1,
+        review_comment_count: 1,
+        first_feedback_at: (now - 20.minutes).iso8601,
+        last_addressed_at: (now - 12.minutes).iso8601
+      )
+    )
+    expect(funnel.fetch(:pr_open_to_first_feedback_seconds)).to include(sample_count: 1, average: 10.minutes.to_i)
+    expect(funnel.fetch(:feedback_to_addressed_seconds)).to include(sample_count: 1, average: 8.minutes.to_i)
+    expect(funnel.fetch(:pr_open_to_approval_seconds)).to include(sample_count: 2, average: 1_110)
     expect(funnel.fetch(:approval_latency_seconds)).to include(sample_count: 2, average: 1_110)
+    expect(funnel.fetch(:approval_to_landing_start_seconds)).to include(sample_count: 0, confidence: "none")
+  end
+
+  it "counts issue-comment, review-comment, and fork-review feedback as per-job feedback rounds" do
+    job = Factories.job_record(
+      user: user,
+      repository: repository,
+      pr_number: 126,
+      approved_at: now - 5.minutes,
+      approved_via: "github_review"
+    )
+    workflow_for(job, trigger_kind: "pr_comment", created_at: now - 35.minutes)
+    workflow_for(job, trigger_kind: "chat_feedback", created_at: now - 25.minutes)
+
+    PrReviewComment.create!(
+      job: job,
+      pr_type: "direct",
+      comment_kind: "issue",
+      github_comment_id: 10,
+      actionable: true,
+      comment_created_at: now - 40.minutes
+    )
+    PrReviewComment.create!(
+      job: job,
+      pr_type: "direct",
+      comment_kind: "review",
+      github_comment_id: 11,
+      actionable: true,
+      comment_created_at: now - 35.minutes
+    )
+    PrReviewComment.create!(
+      job: job,
+      pr_type: "fork_review",
+      comment_kind: "review",
+      github_comment_id: 12,
+      actionable: true,
+      comment_created_at: now - 30.minutes
+    )
+
+    by_job = call.fetch(:windows).fetch("1h").dig(:review_funnel, :feedback_rounds_by_job)
+
+    expect(call.fetch(:windows).fetch("1h").dig(:review_funnel, :feedback_rounds)).to eq(3)
+    expect(by_job).to contain_exactly(
+      include(
+        job_id: job.id,
+        round_count: 3,
+        workflow_round_count: 2,
+        comment_count: 3,
+        issue_comment_count: 1,
+        review_comment_count: 2,
+        fork_review_comment_count: 1
+      )
+    )
+  end
+
+  it "counts repeated feedback loops from existing feedback workflows even when comment batches are sparse" do
+    job = Factories.job_record(
+      user: user,
+      repository: repository,
+      pr_number: 128,
+      approved_at: now - 2.minutes,
+      approved_via: "operator"
+    )
+    3.times do |index|
+      workflow_for(job, trigger_kind: "pr_comment", created_at: now - (45 - (index * 10)).minutes)
+    end
+    PrReviewComment.create!(
+      job: job,
+      pr_type: "direct",
+      comment_kind: "issue",
+      github_comment_id: 20,
+      actionable: true,
+      comment_created_at: now - 45.minutes
+    )
+
+    funnel = call.fetch(:windows).fetch("1h").fetch(:review_funnel)
+
+    expect(funnel.fetch(:feedback_rounds)).to eq(3)
+    expect(funnel.fetch(:feedback_rounds_by_job)).to contain_exactly(include(job_id: job.id, round_count: 3, comment_count: 1))
+  end
+
+  it "separates auto-approval from operator approval where approved_via supports it" do
+    operator_job = Factories.job_record(
+      user: user,
+      repository: repository,
+      pr_number: 125,
+      approved_at: now - 12.minutes,
+      approved_via: "bulk"
+    )
+    auto_job = Factories.job_record(
+      user: user,
+      repository: repository,
+      pr_number: 126,
+      approved_at: now - 10.minutes,
+      approved_via: "auto_rule"
+    )
+    unknown_job = Factories.job_record(
+      user: user,
+      repository: repository,
+      pr_number: 127,
+      approved_at: now - 8.minutes,
+      approved_via: nil
+    )
+
+    [ operator_job, auto_job, unknown_job ].each do |job|
+      JobApproval.create!(job: job, user: user, approved_at: job.approved_at)
+    end
+
+    sources = call.fetch(:windows).fetch("1h").dig(:review_funnel, :approval_sources)
+
+    expect(sources.fetch(:operator)).to include(count: 1)
+    expect(sources.fetch(:auto)).to include(count: 1)
+    expect(sources.fetch(:unknown)).to include(count: 1)
+    expect(sources.fetch(:github_review)).to include(count: 0)
+  end
+
+  it "excludes cancelled and no-change jobs from approval and no-feedback approval samples" do
+    Factories.job_record(user: user, repository: repository, state: "closed", closure_reason: "cancelled", pr_number: 129)
+    Factories.job_record(user: user, repository: repository, state: "no_change_needed")
+
+    funnel = call.fetch(:windows).fetch("1h").fetch(:review_funnel)
+
+    expect(funnel).to include(
+      approval_count: 0,
+      jobs_approved_immediately_without_feedback: 0,
+      jobs_with_feedback_before_approval: 0
+    )
   end
 
   it "keeps sparse windows honest with sample counts, confidence labels, and last-active fallback" do

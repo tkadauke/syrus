@@ -204,21 +204,54 @@ Fields:
 
 The review funnel tracks PR review flow from durable comments and approvals:
 
-- `jobs_with_pr_feedback` - unique Jobs with `PrReviewComment#comment_created_at` in the window.
-- `feedback_rounds` - `pr_comment` and `chat_feedback` Workflows created in the window.
+- `jobs_with_pr_feedback` - unique Jobs with actionable
+  `PrReviewComment#comment_created_at` in the window.
+- `jobs_with_feedback_before_approval` - Jobs approved in the window that
+  had at least one actionable PR feedback comment at or before approval.
+- `feedback_rounds` - per-Job feedback rounds in the window. Syrus uses the
+  larger of feedback Workflow count (`pr_comment`/`chat_feedback`) and
+  actionable `PrReviewComment` batches when comments exist without a matching
+  Workflow row.
+- `feedback_rounds_by_job` - per-Job samples with PR source, PR numbers,
+  total round count, Workflow round count, comment counts split by issue,
+  review, and fork-review feedback, and first/last feedback and addressed
+  timestamps.
 - `jobs_approved_immediately_without_feedback` - Jobs approved in the window
   with no PR feedback comment at or before approval.
+- `approval_sources` - approval counts by durable source where available:
+  `operator` (`operator` and dashboard `bulk`), `auto` (`auto_rule`),
+  `github_review`, and `unknown`.
 - `approval_count` - Jobs approved in the window, based on `jobs.approved_at`.
 - `approval_vote_count` - raw `JobApproval` votes recorded in the window.
-- `approval_latency_seconds` - `jobs.approved_at - successful pr_open step.finished_at`.
-- `approval_to_landing_latency_seconds` - same latency used in landing metrics.
+- `pr_open_to_first_feedback_seconds` - first PR feedback comment timestamp
+  minus successful `pr_open` Step completion.
+- `feedback_to_addressed_seconds` - handled feedback timestamp minus feedback
+  comment timestamp for actionable comments addressed in the window.
+- `pr_open_to_approval_seconds` / `approval_latency_seconds` -
+  `jobs.approved_at - successful pr_open step.finished_at`.
+- `approval_to_landing_start_seconds` /
+  `approval_to_landing_latency_seconds` - landing Workflow start minus
+  `jobs.approved_at`.
+- `approval_to_landed_seconds` - successful Job close timestamp minus
+  `jobs.approved_at`.
+
+Every duration payload includes sample size and confidence. Empty, cancelled,
+and no-change Jobs only contribute when the durable timestamp for the measured
+funnel stage exists; a cancelled or no-change Job without approval is not
+treated as an immediate approval.
 
 Source fields:
 
 - `pr_review_comments.comment_created_at`
+- `pr_review_comments.pr_type`
+- `pr_review_comments.comment_kind`
+- `pr_review_comments.actionable`
+- `pr_review_comments.handled_at`
+- `pr_review_comments.actioned_at`
 - `workflows.trigger_kind IN ("pr_comment", "chat_feedback")`
 - `workflows.created_at`
 - `jobs.approved_at`
+- `jobs.approved_via`
 - `job_approvals.approved_at`
 - successful `pr_open` Step completion
 

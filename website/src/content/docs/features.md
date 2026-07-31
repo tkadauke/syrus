@@ -631,6 +631,13 @@ attempts; report grader-phase time, mergeability/rebase wait, base-moved
 regrades, cached validation reuse, failed train cooldown waste, and a current
 optimistic capacity estimate from recent successful landing-unit wall time.
 
+Review funnel windows count Jobs that received PR feedback before approval,
+Jobs approved without feedback, feedback rounds per Job, and approval sources
+where Syrus can distinguish operator, bulk, auto-rule, and GitHub-review
+approval. They also report sample-sized latency distributions for PR open to
+first feedback, feedback to addressed, PR open to approval, approval to
+landing start, and approval to landed.
+
 ## Repository Automation
 
 Repository settings control trigger label, polling, default branch,

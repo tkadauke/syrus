@@ -20,6 +20,12 @@ class RepositoryThroughputMetricContract
     stack_auto_rebase stack_agent_rebase
   ].freeze
   LANDING_VALIDATION_CACHED_REASON = "landing_validation_cached".freeze
+  APPROVAL_SOURCE_BY_VIA = {
+    "operator" => :operator,
+    "bulk" => :operator,
+    "auto_rule" => :auto,
+    "github_review" => :github_review
+  }.freeze
 
   def initialize(repository:, now: Time.current)
     @repository = repository
@@ -112,10 +118,18 @@ class RepositoryThroughputMetricContract
       },
       review_funnel: {
         jobs_with_pr_feedback: feedback[:jobs_with_pr_feedback],
+        jobs_with_feedback_before_approval: jobs_with_feedback_before_approval(approvals),
         feedback_rounds: feedback[:feedback_rounds],
+        feedback_rounds_by_job: feedback[:feedback_rounds_by_job],
         jobs_approved_immediately_without_feedback: approved_immediately_without_feedback(approvals),
+        approval_sources: approval_sources_payload(approvals),
+        pr_open_to_first_feedback_seconds: duration_payload(pr_open_to_first_feedback_latencies(feedback[:jobs_with_feedback])),
+        feedback_to_addressed_seconds: duration_payload(feedback_to_addressed_latencies(range)),
+        pr_open_to_approval_seconds: duration_payload(approval_latencies(approvals)),
         approval_latency_seconds: duration_payload(approval_latencies(approvals)),
+        approval_to_landing_start_seconds: duration_payload(approved_to_landing_latencies(landed_jobs)),
         approval_to_landing_latency_seconds: duration_payload(approved_to_landing_latencies(landed_jobs)),
+        approval_to_landed_seconds: duration_payload(approval_to_landed_latencies(landed_jobs)),
         approval_count: approvals.size,
         approval_vote_count: approval_vote_count,
         pr_opened_count: pr_creation[:total_observed_count]
@@ -347,32 +361,98 @@ class RepositoryThroughputMetricContract
     comments = PrReviewComment.joins(:job)
       .where(jobs: { repository_id: repository.id })
       .where(comment_created_at: range)
+      .where(actionable: true)
+      .includes(:job)
       .to_a
 
     feedback_workflows = Workflow.joins(:job)
       .where(jobs: { repository_id: repository.id })
       .where(trigger_kind: %w[ pr_comment chat_feedback ])
       .where(created_at: range)
-      .count
+      .includes(:job)
+      .to_a
+    feedback_rounds_by_job = feedback_rounds_by_job(comments, feedback_workflows)
 
     {
       jobs_with_pr_feedback: comments.map(&:job_id).uniq.size,
-      feedback_rounds: feedback_workflows,
+      jobs_with_feedback: comments.map(&:job).uniq,
+      feedback_rounds: feedback_rounds_by_job.sum { |item| item[:round_count] },
+      feedback_rounds_by_job: feedback_rounds_by_job,
       comment_count: comments.size
     }
   end
 
+  def feedback_rounds_by_job(comments, feedback_workflows)
+    comment_groups = comments.group_by(&:job)
+    workflow_groups = feedback_workflows.group_by(&:job)
+    (comment_groups.keys + workflow_groups.keys).uniq.map do |job|
+      job_comments = comment_groups.fetch(job, [])
+      job_workflows = workflow_groups.fetch(job, [])
+      comment_rounds = fallback_comment_round_count(job_comments)
+      round_count = [ job_workflows.size, comment_rounds ].max
+
+      {
+        job_id: job.id,
+        pr_source: pr_source_for(job).to_s,
+        pr_number: job.pr_number,
+        external_pr_number: job.external_pr_number,
+        fork_review_pr_number: job.fork_review_pr_number,
+        round_count: round_count,
+        workflow_round_count: job_workflows.size,
+        comment_count: job_comments.size,
+        issue_comment_count: job_comments.count { |comment| comment.comment_kind == "issue" },
+        review_comment_count: job_comments.count { |comment| comment.comment_kind == "review" },
+        fork_review_comment_count: job_comments.count { |comment| comment.pr_type == "fork_review" },
+        first_feedback_at: iso8601(job_comments.filter_map(&:comment_created_at).min),
+        last_feedback_at: iso8601(job_comments.filter_map(&:comment_created_at).max),
+        first_addressed_at: iso8601(job_comments.filter_map { |comment| feedback_addressed_at(comment) }.min),
+        last_addressed_at: iso8601(job_comments.filter_map { |comment| feedback_addressed_at(comment) }.max)
+      }
+    end.sort_by { |item| item[:job_id] }
+  end
+
+  def fallback_comment_round_count(comments)
+    comments
+      .select(&:actionable?)
+      .group_by { |comment| [ comment.pr_type, comment.comment_kind, comment.comment_created_at&.to_i ] }
+      .size
+  end
+
   def approvals_in(range)
-    repository.jobs.where(approved_at: range).includes(:pr_review_comments, :workflows).to_a
+    repository.jobs.where(approved_at: range).includes(:job_approvals, :pr_review_comments, :workflows).to_a
   end
 
   def approved_immediately_without_feedback(approved_jobs)
     approved_jobs.count do |job|
-      job.pr_review_comments.none? do |comment|
-        comment.comment_created_at.present? &&
-          comment.comment_created_at <= job.approved_at
-      end
+      !feedback_before_approval?(job)
     end
+  end
+
+  def jobs_with_feedback_before_approval(approved_jobs)
+    approved_jobs.count { |job| feedback_before_approval?(job) }
+  end
+
+  def feedback_before_approval?(job)
+    job.pr_review_comments.any? do |comment|
+      comment.actionable? &&
+      comment.comment_created_at.present? &&
+        job.approved_at.present? &&
+        comment.comment_created_at <= job.approved_at
+    end
+  end
+
+  def approval_sources_payload(approved_jobs)
+    grouped = approved_jobs.group_by { |job| approval_source_for(job) }
+    {
+      operator: count_payload(grouped.fetch(:operator, []).size),
+      auto: count_payload(grouped.fetch(:auto, []).size),
+      github_review: count_payload(grouped.fetch(:github_review, []).size),
+      unknown: count_payload(grouped.fetch(:unknown, []).size)
+    }
+  end
+
+  def approval_source_for(job)
+    APPROVAL_SOURCE_BY_VIA.fetch(job.approved_via, :unknown)
   end
 
   def approval_vote_count_in(range)
@@ -397,6 +477,15 @@ class RepositoryThroughputMetricContract
       next unless landing_started_at && job.approved_at
 
       landing_started_at - job.approved_at
+    end
+  end
+
+  def approval_to_landed_latencies(landed_jobs)
+    landed_jobs.filter_map do |job|
+      next unless job.finished_at && job.approved_at
+      next if job.finished_at < job.approved_at
+
+      job.finished_at - job.approved_at
     end
   end
 
@@ -445,6 +534,36 @@ class RepositoryThroughputMetricContract
       .select { |workflow| LANDING_TRIGGER_KINDS.include?(workflow.trigger_kind) && workflow.succeeded? }
       .filter_map(&:started_at)
       .min
+  end
+
+  def pr_open_to_first_feedback_latencies(jobs)
+    jobs.filter_map do |job|
+      pr_opened_at = pr_opened_at(job)
+      first_feedback_at = job.pr_review_comments.filter_map(&:comment_created_at).min
+      next unless pr_opened_at && first_feedback_at
+      next if first_feedback_at < pr_opened_at
+
+      first_feedback_at - pr_opened_at
+    end
+  end
+
+  def feedback_to_addressed_latencies(range)
+    PrReviewComment.joins(:job)
+      .where(jobs: { repository_id: repository.id })
+      .where(handled_at: range)
+      .where(actionable: true)
+      .to_a
+      .filter_map do |comment|
+        addressed_at = feedback_addressed_at(comment)
+        next unless comment.comment_created_at && addressed_at
+        next if addressed_at < comment.comment_created_at
+
+        addressed_at - comment.comment_created_at
+      end
+  end
+
+  def feedback_addressed_at(comment)
+    comment.handled_at || comment.actioned_at
   end
 
   def landing_attempt_payload(attempts, hours)
@@ -531,6 +650,14 @@ class RepositoryThroughputMetricContract
     }
   end
 
+  def count_payload(count)
+    {
+      count: count,
+      sample_count: count,
+      confidence: confidence_for(count)
+    }
+  end
+
   def ratio_payload(numerator, denominator)
     {
       numerator: numerator,
@@ -569,6 +696,10 @@ class RepositoryThroughputMetricContract
 
     sorted = values.sort
     sorted[((sorted.size - 1) * percentile).ceil].round
+  end
+
+  def iso8601(value)
+    value&.iso8601
   end
 
   def confidence_for(sample_count)
