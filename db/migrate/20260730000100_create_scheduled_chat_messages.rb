@@ -10,6 +10,8 @@ class CreateScheduledChatMessages < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :scheduled_chat_messages, [ :sent_at, :fire_at ]
+    unless index_exists?(:scheduled_chat_messages, [ :sent_at, :fire_at ])
+      add_index :scheduled_chat_messages, [ :sent_at, :fire_at ]
+    end
   end
 end
