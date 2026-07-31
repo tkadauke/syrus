@@ -175,30 +175,38 @@ function BreakdownTable({ title, entityLabel, rows, prefix, columns, emptyLabel 
     <section aria-label={title} className="overflow-hidden rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
       <TableHeader title={title} />
       {rows.length === 0 ? <EmptyTable label={emptyLabel} /> : (
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-          <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-            <tr>
-              <SortableHeader label={entityLabel} sortKey="label" sort={sort} setSort={setSort} />
-              <SortableHeader label={t("spending.col_jobs")} sortKey="jobs_count" sort={sort} setSort={setSort} align="right" />
-              <SortableHeader label={t("spending.col_total")} sortKey="total_usd" sort={sort} setSort={setSort} align="right" />
-              <SortableHeader label={columns === "users" ? t("spending.col_last_30") : t("spending.col_avg_job")} sortKey={columns === "users" ? "last_30_days_usd" : "average_job_usd"} sort={sort} setSort={setSort} align="right" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
-            {sorted.map((row) => (
-              <tr key={row.id}>
-                <td className="max-w-0 px-4 py-3">
-                  <Link className="truncate font-medium text-blue-700 dark:text-blue-300 underline hover:no-underline" to={withRoutePrefix(row.path, prefix)}>
-                    {row.display_number ? `${row.display_number} / ${row.label}` : row.label}
-                  </Link>
-                </td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-700 dark:text-gray-300">{row.jobs_count}</td>
-                <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900 dark:text-gray-100">{formatCurrency(row.total_usd)}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-700 dark:text-gray-300">{formatCurrency(columns === "users" ? row.last_30_days_usd || 0 : row.average_job_usd)}</td>
+        <div className="overflow-x-auto">
+          <table className="min-w-[40rem] table-fixed w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+            <colgroup>
+              <col />
+              <col className="w-20" />
+              <col className="w-32" />
+              <col className="w-32" />
+            </colgroup>
+            <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+              <tr>
+                <SortableHeader label={entityLabel} sortKey="label" sort={sort} setSort={setSort} />
+                <SortableHeader label={t("spending.col_jobs")} sortKey="jobs_count" sort={sort} setSort={setSort} align="right" />
+                <SortableHeader label={t("spending.col_total")} sortKey="total_usd" sort={sort} setSort={setSort} align="right" />
+                <SortableHeader label={columns === "users" ? t("spending.col_last_30") : t("spending.col_avg_job")} sortKey={columns === "users" ? "last_30_days_usd" : "average_job_usd"} sort={sort} setSort={setSort} align="right" />
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
+              {sorted.map((row) => (
+                <tr key={row.id}>
+                  <td className="max-w-0 px-4 py-3">
+                    <Link className="block truncate font-medium text-blue-700 dark:text-blue-300 underline hover:no-underline" title={breakdownLabel(row)} to={withRoutePrefix(row.path, prefix)}>
+                      {breakdownLabel(row)}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums text-gray-700 dark:text-gray-300">{row.jobs_count}</td>
+                  <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900 dark:text-gray-100">{formatCurrency(row.total_usd)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-gray-700 dark:text-gray-300">{formatCurrency(columns === "users" ? row.last_30_days_usd || 0 : row.average_job_usd)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   )
@@ -329,7 +337,10 @@ function sortValue(row: SpendingBreakdownRow | SpendingTriggerRow, key: SortKey)
   return "average_job_usd" in row ? row.average_job_usd : 0
 }
 
+function breakdownLabel(row: SpendingBreakdownRow) {
+  return row.display_number ? `${row.display_number} / ${row.label}` : row.label
+}
+
 function humanize(value: string) {
   return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
-

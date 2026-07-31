@@ -73,4 +73,28 @@ describe("SpendingInsights scope label translation", () => {
     renderSpending(basePayload({ scope: { admin: false, user_id: 2, label: "jane@example.com" } }))
     expect(await screen.findByText(/jane@example\.com/)).toBeInTheDocument()
   })
+
+  it("constrains long breakdown labels to the entity column", async () => {
+    renderSpending(basePayload({
+      breakdowns: {
+        epics: [{
+          id: 181,
+          label: "Improved bug reports: routing, context, attachments, and transcript",
+          path: "/epics/181",
+          jobs_count: 3,
+          total_usd: 42.12,
+          average_job_usd: 14.04,
+          display_number: "EPIC-181"
+        }],
+        users: [],
+        repositories: [],
+        trigger_kinds: []
+      }
+    }))
+
+    const epicLink = await screen.findByRole("link", { name: "EPIC-181 / Improved bug reports: routing, context, attachments, and transcript" })
+    expect(epicLink).toHaveClass("block", "truncate")
+    expect(epicLink).toHaveAttribute("title", "EPIC-181 / Improved bug reports: routing, context, attachments, and transcript")
+    expect(epicLink.closest("table")).toHaveClass("table-fixed", "w-full")
+  })
 })
