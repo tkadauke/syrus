@@ -12,4 +12,7 @@ class EpicDependencyPolicy::Base
   def resolve(epic)
     raise NotImplementedError
   end
+
+  def validate_proposed_child_graph!(_proposals)
+  end
 end

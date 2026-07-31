@@ -771,6 +771,7 @@ module Api
               depends_on_epic_ids: depends_on_epic_ids
             }
             update_attrs[:media_ids] = Array(attrs[:media_ids]).reject(&:blank?) if attrs.key?(:media_ids)
+            update_attrs[:nonlinear_dependency_override] = ActiveModel::Type::Boolean.new.cast(attrs[:nonlinear_dependency_override]) if attrs.key?(:nonlinear_dependency_override)
             proposal.update!(update_attrs)
             rebuild_proposal_dependencies!(chat_session, proposal, Array(attrs[:dependency_slugs]))
             proposal.reset_to_proposed_after_edit!

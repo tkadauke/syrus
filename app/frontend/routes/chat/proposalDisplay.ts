@@ -7,11 +7,12 @@
 // proposal components move out of the 6k-line Chat.tsx next.
 import type { ChatProposal, ChatProposalChild, ChatProposalDependency } from "../../api/chats"
 
-export type EditableProposal = Pick<ChatProposal, "id" | "title" | "slug" | "body" | "proposed" | "app_update_path"> & {
+export type EditableProposal = Pick<ChatProposal, "id" | "title" | "slug" | "body" | "proposed" | "epic_bundle" | "app_update_path"> & {
   dependency_slugs?: string[]
   dependencies?: ChatProposalDependency[]
   depends_on_job_ids?: number[]
   depends_on_epic_ids?: number[]
+  nonlinear_dependency_override?: boolean
 }
 
 export type DependencyPill = {
@@ -32,6 +33,7 @@ export function editableChildProposal(child: ChatProposalChild): EditableProposa
     slug: child.slug,
     body: child.body,
     proposed: child.proposed,
+    epic_bundle: false,
     app_update_path: child.app_update_path,
     dependency_slugs: child.dependencies,
     dependencies: (child.dependency_details || []).map((dependency) => ({
@@ -43,7 +45,8 @@ export function editableChildProposal(child: ChatProposalChild): EditableProposa
       materialized_path: dependency.materialized_path
     })),
     depends_on_job_ids: child.depends_on_job_ids || [],
-    depends_on_epic_ids: child.depends_on_epic_ids || []
+    depends_on_epic_ids: child.depends_on_epic_ids || [],
+    nonlinear_dependency_override: false
   }
 }
 

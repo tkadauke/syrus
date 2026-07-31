@@ -41,6 +41,7 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
   const [proposalDeps, setProposalDeps] = useState<DependencyPill[]>(initialProposalDependencyPills(proposal))
   const [jobDeps, setJobDeps] = useState<DependencyPill[]>((proposal.depends_on_job_ids || []).map((id) => ({ key: String(id), label: `JOB-${id}` })))
   const [epicDeps, setEpicDeps] = useState<DependencyPill[]>((proposal.depends_on_epic_ids || []).map((id) => ({ key: String(id), label: `EPIC-${id}` })))
+  const [nonlinearDependencyOverride, setNonlinearDependencyOverride] = useState(Boolean(proposal.nonlinear_dependency_override))
   const [proposalQuery, setProposalQuery] = useState("")
   const [jobQuery, setJobQuery] = useState("")
   const [epicQuery, setEpicQuery] = useState("")
@@ -57,7 +58,8 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
       body,
       dependency_slugs: proposalDeps.map((dep) => dep.key),
       depends_on_job_ids: jobDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id)),
-      depends_on_epic_ids: epicDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id))
+      depends_on_epic_ids: epicDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id)),
+      nonlinear_dependency_override: nonlinearDependencyOverride
     }),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
@@ -155,6 +157,17 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
                 setSelected={setEpicDeps}
               />
             </div>
+            {proposal.epic_bundle ? (
+              <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200">
+                <input
+                  checked={nonlinearDependencyOverride}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-700"
+                  onChange={(event) => setNonlinearDependencyOverride(event.target.checked)}
+                  type="checkbox"
+                />
+                Allow nonlinear child Job graph
+              </label>
+            ) : null}
           </div>
           <div className="flex justify-end gap-2 border-t border-gray-200 px-5 py-4 dark:border-gray-800">
             <button className={secondaryButton()} onClick={onClose} type="button">{t("cancel")}</button>

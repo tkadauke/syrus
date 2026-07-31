@@ -25,3 +25,9 @@ epic.resolved_epic_dependency_policy # "linear" or "nonlinear"
 ```
 
 The built-in repository default is `linear` so new Epics are linear unless the repository or Epic explicitly opts into nonlinear dependencies.
+
+## Proposal validation
+
+Bundled Epic proposal confirmation validates proposed child Jobs against the resolved policy before creating the Epic or Jobs. Under `linear`, sibling `depends_on` edges must make every child comparable with every other child: one child, a simple chain, or a chain with redundant transitive edges is valid; fan-in, fan-out, disconnected roots/leaves, and parallel child Jobs are rejected with the offending slugs in the error.
+
+`propose_epic_with_jobs` accepts `epic.nonlinear_dependency_override: true` as an explicit proposal-time override. Agents should set it only when the operator explicitly requested nonlinear execution.

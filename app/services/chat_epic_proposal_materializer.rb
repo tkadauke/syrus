@@ -15,6 +15,7 @@ class ChatEpicProposalMaterializer
 
     @chat_session = epic_proposal.chat_session
     job_proposals = proposed_children_for(epic_proposal)
+    validate_child_dependency_policy!(epic_proposal, job_proposals)
     ensure_active_repositories!([ epic_proposal ] + job_proposals)
     jobs = []
     epic = nil
@@ -83,6 +84,22 @@ class ChatEpicProposalMaterializer
       description: proposal.body,
       state: "ready"
     )
+  end
+
+  def validate_child_dependency_policy!(epic_proposal, job_proposals)
+    policy_for(epic_proposal).validate_proposed_child_graph!(job_proposals)
+  end
+
+  def policy_for(epic_proposal)
+    return EpicDependencyPolicy::Nonlinear.new if epic_proposal.nonlinear_dependency_override?
+
+    target_epic = epic_proposal.target_epic
+    policy_name = if target_epic
+      target_epic.resolved_epic_dependency_policy
+    else
+      (epic_proposal.repository || epic_proposal.chat_session.repository).epic_dependency_policy
+    end
+    EpicDependencyPolicy::Base.for(policy_name)
   end
 
   def create_job_for(proposal, epic)

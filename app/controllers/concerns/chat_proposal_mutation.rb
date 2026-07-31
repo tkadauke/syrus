@@ -10,7 +10,7 @@ module ChatProposalMutation
   private
 
   def proposal_update_params
-    params.require(:proposal).permit(:title, :body, dependency_slugs: [], depends_on_job_ids: [], depends_on_epic_ids: [], media_ids: [])
+    params.require(:proposal).permit(:title, :body, :nonlinear_dependency_override, dependency_slugs: [], depends_on_job_ids: [], depends_on_epic_ids: [], media_ids: [])
   end
 
   def rebuild_proposal_dependencies!(chat_session, proposal, dependency_slugs)

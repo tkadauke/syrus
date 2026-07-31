@@ -44,7 +44,8 @@ module SyrusChatMcp
             target_repo: { type: "string", description: "Repository slug owner/name. Defaults to the chat repository." },
             depends_on_job_ids: { type: "array", items: { type: "integer" }, description: "Existing Job IDs this Epic depends on." },
             depends_on_proposal_slugs: { type: "array", items: { type: "string" }, description: "Epic proposal slugs in this chat session that this Epic depends on. Declaring this here wires the epic-to-epic dependency automatically at confirmation time — preferred over calling add_epic_dependency afterward." },
-            depends_on: { type: "array", items: { type: "string" }, description: "Proposal slugs or string-encoded Epic ids (e.g. `epic:42`) this Epic depends on. Blocks ALL child jobs from starting until these epics complete. Use this when the whole epic must wait for upstream work; use `jobs[].depends_on_epic_ids` only when individual jobs need to wait while siblings can proceed independently." }
+            depends_on: { type: "array", items: { type: "string" }, description: "Proposal slugs or string-encoded Epic ids (e.g. `epic:42`) this Epic depends on. Blocks ALL child jobs from starting until these epics complete. Use this when the whole epic must wait for upstream work; use `jobs[].depends_on_epic_ids` only when individual jobs need to wait while siblings can proceed independently." },
+            nonlinear_dependency_override: { type: "boolean", description: "Allow the child Jobs to form a nonlinear graph. Set this only when the operator explicitly requested nonlinear execution; otherwise child Jobs must form one chain." }
           },
           required: %w[slug]
         },
@@ -146,7 +147,8 @@ module SyrusChatMcp
           description: epic["description"].to_s.strip,
           target_repo: epic["target_repo"].to_s.strip,
           depends_on_job_ids: normalize_integer_list(epic["depends_on_job_ids"]),
-          depends_on: normalize_string_list(epic["depends_on"]) | normalize_string_list(epic["depends_on_proposal_slugs"])
+          depends_on: normalize_string_list(epic["depends_on"]) | normalize_string_list(epic["depends_on_proposal_slugs"]),
+          nonlinear_dependency_override: ActiveModel::Type::Boolean.new.cast(epic["nonlinear_dependency_override"]) == true
         }
       end
 
@@ -281,6 +283,7 @@ module SyrusChatMcp
           labels: nil,
           depends_on_job_ids: epic[:depends_on_job_ids],
           epic_depends_on_tokens: JSON.generate(epic[:depends_on]),
+          nonlinear_dependency_override: epic[:nonlinear_dependency_override],
           state: "proposed",
           edited_at: proposal.persisted? ? Time.current : nil
         )
@@ -347,6 +350,7 @@ module SyrusChatMcp
           target_epic: SyrusChatMcp.target_epic_payload(proposal),
           depends_on: proposal.epic_dependency_tokens,
           depends_on_proposal_slugs: proposal.epic_dependency_tokens.reject { |token| token.match?(/\Aepic:\d+\z/) },
+          nonlinear_dependency_override: proposal.nonlinear_dependency_override?,
           child_jobs: proposal.child_proposals.map do |child|
             {
               id: child.id,

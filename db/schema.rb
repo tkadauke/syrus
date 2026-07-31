@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_31_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_31_123000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -242,6 +242,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_120000) do
     t.string "kind", default: "syrus_issue", null: false
     t.string "labels"
     t.json "media_ids", null: false
+    t.boolean "nonlinear_dependency_override", default: false, null: false
     t.integer "parent_proposal_id"
     t.datetime "rejected_at"
     t.integer "repository_id"

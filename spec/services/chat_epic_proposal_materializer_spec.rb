@@ -15,6 +15,20 @@ RSpec.describe ChatEpicProposalMaterializer do
     )
   end
 
+  def child_for(proposal, slug)
+    proposal.child_proposals.create!(
+      chat_session: chat_session,
+      slug: slug,
+      title: slug.titleize,
+      body: "Build #{slug}.",
+      repository: repository
+    )
+  end
+
+  def depend_on(proposal, dependency)
+    ChatProposalDependency.create!(proposal: proposal, depends_on: dependency)
+  end
+
   it "materializes the Epic, child Jobs, and sibling Job dependencies in one transaction" do
     proposal = epic_proposal
     prerequisite_epic = Factories.epic(user: user, repository: repository)
@@ -193,6 +207,105 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(result.epic.reload.depends_on_epics).to contain_exactly(prerequisite)
   end
 
+  it "accepts a linear child Job chain under the default linear policy" do
+    proposal = epic_proposal
+    first = child_for(proposal, "first")
+    second = child_for(proposal, "second")
+    third = child_for(proposal, "third")
+    depend_on(second, first)
+    depend_on(third, second)
+
+    result = described_class.new(user: user).file!(proposal)
+
+    expect(result.jobs.map(&:issue_title)).to eq([ "First", "Second", "Third" ])
+    expect(second.reload.job.dependencies.map(&:depends_on_job)).to contain_exactly(first.reload.job)
+    expect(third.reload.job.dependencies.map(&:depends_on_job)).to contain_exactly(second.reload.job)
+  end
+
+  it "accepts unordered child proposals when dependencies still form one chain" do
+    proposal = epic_proposal
+    third = child_for(proposal, "third")
+    first = child_for(proposal, "first")
+    second = child_for(proposal, "second")
+    depend_on(second, first)
+    depend_on(third, second)
+
+    result = described_class.new(user: user).file!(proposal)
+
+    expect(result.jobs.map(&:issue_title)).to eq([ "First", "Second", "Third" ])
+  end
+
+  it "accepts redundant transitive sibling edges in a linear chain" do
+    proposal = epic_proposal
+    first = child_for(proposal, "first")
+    second = child_for(proposal, "second")
+    third = child_for(proposal, "third")
+    depend_on(second, first)
+    depend_on(third, second)
+    depend_on(third, first)
+
+    expect {
+      described_class.new(user: user).file!(proposal)
+    }.to change(Job, :count).by(3)
+  end
+
+  it "rejects fan-in child dependency graphs under the default linear policy" do
+    proposal = epic_proposal
+    left = child_for(proposal, "left")
+    right = child_for(proposal, "right")
+    merge = child_for(proposal, "merge")
+    depend_on(merge, left)
+    depend_on(merge, right)
+
+    expect {
+      described_class.new(user: user).file!(proposal)
+    }.to raise_error(ArgumentError, /single chain.*left, right/)
+    expect(proposal.reload).to be_proposed
+  end
+
+  it "rejects fan-out child dependency graphs under the default linear policy" do
+    proposal = epic_proposal
+    root = child_for(proposal, "root")
+    left = child_for(proposal, "left")
+    right = child_for(proposal, "right")
+    depend_on(left, root)
+    depend_on(right, root)
+
+    expect {
+      described_class.new(user: user).file!(proposal)
+    }.to raise_error(ArgumentError, /single chain.*left, right/)
+    expect(proposal.reload).to be_proposed
+  end
+
+  it "rejects multiple root and leaf child graphs under the default linear policy" do
+    proposal = epic_proposal
+    first = child_for(proposal, "first")
+    second = child_for(proposal, "second")
+    third = child_for(proposal, "third")
+    fourth = child_for(proposal, "fourth")
+    depend_on(second, first)
+    depend_on(fourth, third)
+
+    expect {
+      described_class.new(user: user).file!(proposal)
+    }.to raise_error(ArgumentError, /single chain.*first, third/)
+    expect(proposal.reload).to be_proposed
+  end
+
+  it "allows nonlinear child graphs when the proposal has an explicit override" do
+    proposal = epic_proposal
+    proposal.update!(nonlinear_dependency_override: true)
+    root = child_for(proposal, "root")
+    left = child_for(proposal, "left")
+    right = child_for(proposal, "right")
+    depend_on(left, root)
+    depend_on(right, root)
+
+    expect {
+      described_class.new(user: user).file!(proposal)
+    }.to change(Job, :count).by(3)
+  end
+
   it "creates pending Job dependencies for unresolved cross-card Job proposal references" do
     prerequisite = chat_session.proposals.create!(
       slug: "upstream-job",
@@ -293,6 +406,7 @@ RSpec.describe ChatEpicProposalMaterializer do
   it "rolls back the Epic when a child Job cannot be created" do
     other_repository = Factories.repository(user: user)
     proposal = epic_proposal
+    proposal.update!(nonlinear_dependency_override: true)
     proposal.child_proposals.create!(
       chat_session: chat_session,
       slug: "good",
