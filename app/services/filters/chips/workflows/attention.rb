@@ -3,7 +3,7 @@ module Filters
     module Workflows
       class Attention < Base
         filter_name "attention"
-        label "Attention preset"
+        label "Preset"
         bucket :preset
         operators :is
 

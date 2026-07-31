@@ -4257,7 +4257,7 @@ describe("App", () => {
       expect(within(moreGroup!).getByRole("link", { name: "Stale 1" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?smart_folder_id=2")
       expect(within(moreGroup!).getByRole("link", { name: "Merged this week 0" })).toHaveAttribute("href", "/app-shell/dashboard/jobs?smart_folder_id=3")
       expect(within(foldersPanel).getAllByRole("link", { name: /All jobs/ })).toHaveLength(1)
-      expect(screen.getByRole("button", { name: /Attention preset.*Merged this week/ })).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: /Preset.*Merged this week/ })).toBeInTheDocument()
       const savedReviewLink = within(foldersPanel).getByRole("link", { name: "Saved review 2" })
       expect(savedReviewLink).toHaveAttribute("href", "/app-shell/dashboard/jobs?smart_folder_id=4")
       expect(within(foldersPanel).queryByRole("link", { name: "Manage" })).not.toBeInTheDocument()
@@ -14966,7 +14966,7 @@ function dashboardPayload(overrides: Record<string, unknown> = {}) {
         },
         {
           field: "attention",
-          label: "Attention preset",
+          label: "Preset",
           bucket: "preset",
           operators: ["is"],
           values: [
