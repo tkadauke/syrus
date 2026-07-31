@@ -52,91 +52,16 @@ module SyrusChatMcp
   # sidecar whose schemas are resolved through Claude Code ToolSearch on
   # demand.
   class Sidecar
-    ADMIN_TOOLS = [
-      AdminOverviewTool,
-      AdminStuckJobsTool,
-      AdminQueueDetailTool,
-      AdminListProcessesTool,
-      AdminListRunsTool,
-      AdminListUsersTool,
-      AdminVersionTool,
-      ReadWorkerHealthTool,
-      AdminKillProcessTool,
-      AdminReapStaleRunsTool,
-      AdminPausePollingTool,
-      AdminUnpausePollingTool,
-      AdminPauseRunsTool,
-      AdminUnpauseRunsTool,
-      AdminClearGithubCacheTool,
-      AdminPauseUserSchedulingTool,
-      AdminUnpauseUserSchedulingTool,
-      AdminRetryStepTool,
-      AdminCleanupWorkspaceTool,
-      AdminRefreshInstallationsTool,
-      ForceFailJobTool
-    ].freeze
-
-    # Gated by the `video_walkthroughs` labs Feature (see tools_for_session).
-    WALKTHROUGH_TOOLS = [
-      GetWalkthroughAnalysisTool,
-      AnalyzeWalkthroughSegmentTool,
-      ReadWalkthroughFrameTool
-    ].freeze
-
-    # Gated by the `coding_mode` labs Feature AND chat.coding? (see tools_for_session).
-    CODING_TOOLS = [
-      CompleteImplementStepTool,
-      SubmitCodingChangesTool
-    ].freeze
-
-    # Gated by the `local_mode` labs Feature AND chat_session.mode == "local"
-    # (see tools_for_session). Tools dispatch through the daemon tunnel.
-    LOCAL_MODE_TOOLS = [
-      ReadFileTool,
-      WriteFileTool,
-      ListFilesTool,
-      RunCommandTool,
-      GitDiffTool,
-      GitStatusTool,
-      OpenInLocalModeTool,
-      CancelLocalModeTool,
-      CreateCodingJobTool
-    ].freeze
-
-    TOOLS = [
-      AttachRepositoryTool,
-      ProposeEpicTool,
-      ProposeJobTool,
-      ProposeEpicWithJobsTool,
-      ListProposalsTool,
-      DeleteProposalTool,
-      SetBookmarkTool,
-      ListJobsTool,
-      SearchJobsTool,
-      ReadJobTool,
-      ListEpicsTool,
-      ReadEpicTool,
-      ApproveJobTool,
-      CancelJobTool,
-      CloseJobSuccessfullyTool,
-      RetryJobTool,
-      SetJobPriorityTool,
-      Mcp::Tools::WriteMemoryTool,
-      Mcp::Tools::ReadMemoryTool,
-      RepoInfoTool,
-      SubmitChatFeedbackTool,
-      RenameChatTool,
-      SuggestNextStepTool,
-      AskUserQuestionTool,
-      *CODING_TOOLS,
-      *ADMIN_TOOLS,
-      *LOCAL_MODE_TOOLS
-    ].freeze
+    TOOLS = McpToolRegistry.tools(surface: :chat, tier: :essential).freeze
+    ADMIN_TOOLS = McpToolRegistry.entries.select { |entry| entry.surface == :chat && entry.admin_only }.map(&:tool).freeze
+    WALKTHROUGH_TOOLS = McpToolRegistry.entries.select { |entry| entry.surface == :chat && entry.feature_flag == :video_walkthroughs }.map(&:tool).freeze
+    CODING_TOOLS = McpToolRegistry.entries.select { |entry| entry.surface == :chat && entry.required_roles.include?(AgentRole::CHAT_CODING) }.map(&:tool).freeze
+    LOCAL_MODE_TOOLS = McpToolRegistry.entries.select { |entry| entry.surface == :chat && entry.required_roles.include?(AgentRole::CHAT_LOCAL) }.map(&:tool).freeze
 
     def self.tool_names(chat_session = nil, tier: nil)
       return DeferredSidecar.tool_names(chat_session) if tier.to_s == "deferred"
 
-      tools = chat_session ? tools_for(chat_session, tier: tier) : TOOLS
+      tools = chat_session ? tools_for(chat_session, tier: tier) : McpToolRegistry.tools(surface: :chat, tier: :essential)
       tools.map { |tool| tool.name.demodulize.sub(/Tool\z/, "").underscore }
     end
 
@@ -194,90 +119,10 @@ module SyrusChatMcp
   end
 
   class DeferredSidecar < Sidecar
-    DEFERRED_TOOLS = [
-      UpdatePinnedContextTool,
-      RemovePinnedContextTool,
-      ListChatsTool,
-      ListRepositoriesTool,
-      GetJobDiffTool,
-      UpdateJobTool,
-      ListJobWorkflowsTool,
-      ReadWorkflowTool,
-      ReadRunTranscriptTool,
-      ExplainStuckJobTool,
-      AssignJobToEpicTool,
-      ListOpenIssuesTool,
-      ListOpenPrsTool,
-      SearchChatsTool,
-      ReadChatMessagesTool,
-      GetSpendingTool,
-      ListTagsTool,
-      CreateTagTool,
-      AddJobTagTool,
-      RemoveJobTagTool,
-      RebaseJobTool,
-      ReopenJobTool,
-      PollJobFeedbackTool,
-      CheckJobMergeabilityTool,
-      DelegateIssueTool,
-      ReadPrTool,
-      UnapproveJobTool,
-      RemoveJobFromEpicTool,
-      StartEpicTool,
-      MoveEpicToBacklogTool,
-      ArchiveEpicTool,
-      UpdateEpicTool,
-      AddEpicDependencyTool,
-      RemoveEpicDependencyTool,
-      AddJobDependencyTool,
-      RemoveJobDependencyTool,
-      Mcp::Tools::SearchMemoriesTool,
-      Mcp::Tools::ListMemoriesTool,
-      Mcp::Tools::DeleteMemoryTool,
-      PublishMemoryTool,
-      UnpublishMemoryTool,
-      ListRepoDocumentsTool,
-      ReadRepoDocumentTool,
-      CreateRepoDocumentTool,
-      DeleteRepoDocumentTool,
-      ReadSceneTool,
-      DrawShapeTool,
-      DrawTextTool,
-      DrawLineTool,
-      DrawArrowTool,
-      DrawFreedrawTool,
-      DrawFrameTool,
-      DrawEmbedTool,
-      DrawImageTool,
-      MoveElementTool,
-      DeleteElementTool,
-      ListChatMediaTool,
-      SaveCanvasTool,
-      ClearCanvasTool,
-      LoadCanvasTool,
-      UpdateSceneTool,
-      ScheduleRecurringTool,
-      ScheduleWakeupTool,
-      ListWakeupsTool,
-      CancelWakeupTool,
-      ListScheduledTasksTool,
-      ReadScheduledTaskTool,
-      UpdateScheduledTaskTool,
-      PauseScheduledTaskTool,
-      ResumeScheduledTaskTool,
-      DeleteScheduledTaskTool,
-      FireScheduledTaskNowTool,
-      PauseLandingQueueTool,
-      ResumeLandingQueueTool,
-      ReadQueueTool,
-      SearchSyrusDocsTool,
-      GetWalkthroughAnalysisTool,
-      AnalyzeWalkthroughSegmentTool,
-      ReadWalkthroughFrameTool
-    ].freeze
+    DEFERRED_TOOLS = McpToolRegistry.tools(surface: :chat, tier: :deferred).freeze
 
     def self.tool_names(chat_session = nil)
-      tools = chat_session ? tools_for(chat_session) : DEFERRED_TOOLS - Sidecar::TOOLS
+      tools = chat_session ? tools_for(chat_session) : McpToolRegistry.tools(surface: :chat, tier: :deferred)
       tools.map { |tool| tool.name.demodulize.sub(/Tool\z/, "").underscore }
     end
 
