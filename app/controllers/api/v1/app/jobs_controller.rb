@@ -7,7 +7,7 @@ module Api
         def index
           jobs = Current.user.jobs
                              .without_active_workflows
-                             .includes(:epic, :repository, :runs, workflows: { steps: :runs })
+                             .includes(:epic, :repository, :runs, :deployment_stage_statuses, workflows: { steps: :runs })
                              .order(updated_at: :desc, id: :desc)
           jobs = filter_jobs(jobs)
           limit = params.fetch(:limit, 20).to_i.clamp(1, 100)
@@ -243,7 +243,7 @@ module Api
         def compact_job_json(job)
           workflow = job.workflows.max_by { |candidate| [ candidate.finished_at.nil? ? 1 : 0, candidate.finished_at || Time.zone.at(0), candidate.id || 0 ] }
           steps = workflow&.steps&.sort_by(&:position) || []
-          {
+          payload = {
             id: job.id,
             epic_id: job.epic_id,
             epic_title: job.epic&.title,
@@ -270,6 +270,26 @@ module Api
               steps: steps.map { |step| compact_step_json(step) }
             }
           }
+
+          if deployment_stages_configured?(job.repository)
+            payload[:latest_deployment_stage] = ::App::DeploymentStageSummary.for(
+              job,
+              stages: deployment_stages_for(job.repository)
+            )
+          end
+
+          payload
+        end
+
+        def deployment_stages_configured?(repository)
+          deployment_stages_for(repository).any?
+        end
+
+        def deployment_stages_for(repository)
+          @deployment_stages_by_repository_id ||= {}
+          @deployment_stages_by_repository_id.fetch(repository.id) do
+            @deployment_stages_by_repository_id[repository.id] = RepoDeploymentStagesReader.for_repository(repository).stages
+          end
         end
 
         def compact_step_json(step)

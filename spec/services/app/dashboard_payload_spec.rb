@@ -147,6 +147,48 @@ RSpec.describe App::DashboardPayload do
     end
   end
 
+  describe "deployment column" do
+    let(:staging) { SyrusYml::DeploymentStage.new(name: "staging", label: "On Staging", tag: "staging", tag_pattern: nil) }
+    let(:production) { SyrusYml::DeploymentStage.new(name: "production", label: "In Production", tag: "production", tag_pattern: nil) }
+
+    before do
+      allow(RepoDeploymentStagesReader).to receive(:for_repository).and_return(
+        RepoDeploymentStagesReader::Result.new(stages: [ staging, production ], source: ".syrus.yml", note: nil)
+      )
+    end
+
+    it "exposes deployment as an optional job column" do
+      result = call(subject: "job")
+      optional_keys = result[:controls][:columns][:optional].map { |c| c[:key] }
+
+      expect(optional_keys).to include("deployment")
+    end
+
+    it "serializes the furthest configured deployment stage reached" do
+      job = Factories.job_record(user: user, repository: repo, landed_sha: "abc123")
+      job.deployment_stage_statuses.create!(stage_name: "staging", reached_at: Time.zone.parse("2026-07-30T12:00:00Z"))
+      job.deployment_stage_statuses.create!(stage_name: "production", reached_at: Time.zone.parse("2026-07-30T13:00:00Z"))
+
+      result = call(subject: "job")
+      item = result[:items].find { |i| i[:id] == job.id }
+
+      expect(item[:latest_deployment_stage]).to eq(
+        name: "production",
+        label: "In Production",
+        reached_at: "2026-07-30T13:00:00Z"
+      )
+    end
+
+    it "serializes nil when deployment stages are configured but none are reached" do
+      job = Factories.job_record(user: user, repository: repo, landed_sha: "abc123")
+
+      result = call(subject: "job")
+      item = result[:items].find { |i| i[:id] == job.id }
+
+      expect(item).to include(latest_deployment_stage: nil)
+    end
+  end
+
   describe "landing queue blocker job entries" do
     before { SmartFolder.ensure_builtins_for_subject!("job") }
 

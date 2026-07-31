@@ -87,6 +87,28 @@ RSpec.describe "App API job detail", type: :request do
     expect(jobs_payload.find { |j| j["id"] == without_epic.id }).to include("epic_title" => nil)
   end
 
+  it "includes latest_deployment_stage for compact jobs when stages are configured" do
+    user.update!(api_token: "syrus_cli_token")
+    staging = SyrusYml::DeploymentStage.new(name: "staging", label: "On Staging", tag: "staging", tag_pattern: nil)
+    production = SyrusYml::DeploymentStage.new(name: "production", label: "In Production", tag: "production", tag_pattern: nil)
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).and_return(
+      RepoDeploymentStagesReader::Result.new(stages: [ staging, production ], source: ".syrus.yml", note: nil)
+    )
+    landed = Factories.job_record(repository: repo, issue_number: 101, issue_title: "Deploy me", state: "implemented", landed_sha: "abc123")
+    landed.deployment_stage_statuses.create!(stage_name: "staging", reached_at: Time.zone.parse("2026-07-30T12:00:00Z"))
+
+    get "/api/v1/app/jobs", params: { repo: "acme/widgets", state: "implemented", limit: 10 },
+      headers: { "Authorization" => "Bearer syrus_cli_token" }
+
+    expect(response).to have_http_status(:ok)
+    payload = parse_body.fetch("jobs").find { |item| item.fetch("id") == landed.id }
+    expect(payload.fetch("latest_deployment_stage")).to eq(
+      "name" => "staging",
+      "label" => "On Staging",
+      "reached_at" => "2026-07-30T12:00:00Z"
+    )
+  end
+
   it "hides jobs with active workflows from the app job list" do
     user.update!(api_token: "syrus_cli_token")
     idle = Factories.job_record(repository: repo, issue_number: 101, issue_title: "Ready", state: "implemented")

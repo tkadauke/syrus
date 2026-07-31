@@ -91,6 +91,7 @@
     "landing_queue_position": "Warteschlange",
     "landing_queue_blocked_reason": "Blockierungsgrund",
     "latest": "Neueste",
+    "deployment": "Deployment",
     "workflows_count": "Anzahl Arbeitsabläufe",
     "started": "Gestartet",
     "started_at": "Gestartet am",

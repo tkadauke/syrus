@@ -88,6 +88,12 @@ export type DashboardClaimOwner = {
   profile_path: string
 }
 
+export type DashboardDeploymentStage = {
+  name: string
+  label: string
+  reached_at: string | null
+}
+
 export type DashboardLandingQueueEntry = {
   key: string
   position: number
@@ -116,6 +122,7 @@ export type DashboardJobItem = {
   latest_workflow_trigger_kind: string | null
   pr_url: string | null
   latest_workflow_state: string
+  latest_deployment_stage?: DashboardDeploymentStage | null
   landing_queue_position: number | null
   landing_queue_blocked_reason: string | null
   landing_queue_entry_key: string | null

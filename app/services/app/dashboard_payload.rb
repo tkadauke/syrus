@@ -58,6 +58,7 @@ module App
         "repository" => "Repository",
         "owner" => "Owner",
         "latest" => "Latest",
+        "deployment" => "Deployment",
         "workflows_count" => "Workflows count",
         "started" => "Started",
         "commits_behind_base" => "Behind",
@@ -341,7 +342,7 @@ module App
       ensure_landing_queue_snapshot! if landing_queue_visible?
       scope = filtered_jobs_scope
       total = scope.count
-      scope = scope.with_latest_workflow_snapshot.preload(:repository, :user, :owner_user, :claimed_by_user, :tags, :workflows, :runs, chat_proposals: [ :chat_session, :messages ], epic: { chat_proposals: [ :chat_session, :messages ] })
+      scope = scope.with_latest_workflow_snapshot.preload(:repository, :user, :owner_user, :claimed_by_user, :tags, :workflows, :runs, :deployment_stage_statuses, chat_proposals: [ :chat_session, :messages ], epic: { chat_proposals: [ :chat_session, :messages ] })
       jobs = sorted_jobs(scope).to_a
       @current_jobs = jobs
       items = jobs.map { |job| job_json(job) }

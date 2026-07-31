@@ -12,7 +12,7 @@ module App
       def job_json(job)
         owner_user = job_owner_user(job)
 
-        {
+        payload = {
           type: "job",
           id: job.id,
           kind: job.kind,
@@ -64,6 +64,26 @@ module App
             source_path: source_job_path(job)
           }
         }
+
+        if deployment_stages_configured?(job.repository)
+          payload[:latest_deployment_stage] = App::DeploymentStageSummary.for(
+            job,
+            stages: deployment_stages_for(job.repository)
+          )
+        end
+
+        payload
+      end
+
+      def deployment_stages_configured?(repository)
+        deployment_stages_for(repository).any?
+      end
+
+      def deployment_stages_for(repository)
+        @deployment_stages_by_repository_id ||= {}
+        @deployment_stages_by_repository_id.fetch(repository.id) do
+          @deployment_stages_by_repository_id[repository.id] = RepoDeploymentStagesReader.for_repository(repository).stages
+        end
       end
 
       def job_epic_json(epic)

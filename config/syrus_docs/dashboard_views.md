@@ -4,7 +4,7 @@ The Jobs and Epics dashboards support three view modes toggled from the toolbar:
 
 ## list
 
-Default tabular view. Supports column visibility, sorting, and pagination. Columns are configurable per-user per-subject.
+Default tabular view. Supports column visibility, sorting, and pagination. Columns are configurable per-user per-subject. The Jobs dashboard includes an optional `deployment` column, hidden by default, that shows the furthest configured deployment stage a Job has reached.
 
 ## kanban
 

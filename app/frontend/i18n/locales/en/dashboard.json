@@ -91,6 +91,7 @@
     "landing_queue_position": "Queue",
     "landing_queue_blocked_reason": "Blocked reason",
     "latest": "Latest",
+    "deployment": "Deployment",
     "workflows_count": "Workflows count",
     "started": "Started",
     "started_at": "Started at",

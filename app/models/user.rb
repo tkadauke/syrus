@@ -86,7 +86,7 @@ class User < ApplicationRecord
   DASHBOARD_OPTIONAL_COLUMNS = {
     "epics" => %w[state owner repository updated created_at updated_at done_at archived_at],
     "jobs" => %w[
-      state repository owner latest workflows_count started priority commits_behind_base
+      state repository owner latest deployment workflows_count started priority commits_behind_base
       created_at updated_at started_at finished_at approved_at
       dependencies_overridden_at last_feedback_addressed_at
       last_seen_comment_at pr_mergeable_checked_at

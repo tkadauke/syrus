@@ -554,6 +554,7 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
   }
   if (column === "owner") return <td className="px-4 py-3"><DashboardOwnerLabel job={job} prefix={prefix} /></td>
   if (column === "latest") return <LatestWorkflowCell job={job} />
+  if (column === "deployment") return <DeploymentStageCell job={job} prefix={prefix} />
   if (column === "workflows_count") return <td className="px-4 py-3 text-gray-700 dark:text-gray-200">{job.workflows_count}</td>
   if (column === "priority") return <PriorityPillCell priority={job.priority} />
   if (column === "commits_behind_base") return <td className="px-4 py-3"><CommitsBehindBadge count={job.commits_behind_base} /></td>
@@ -578,6 +579,19 @@ function PriorityPillCell({ priority }: { priority: string }) {
   const tone = PRIORITY_TONE[priority]
   if (!tone) return <td className="px-4 py-3" />
   return <td className="px-4 py-3"><TonePill tone={tone}>{priority}</TonePill></td>
+}
+
+function DeploymentStageCell({ job, prefix }: { job: DashboardJobItem; prefix: string }) {
+  const stage = job.latest_deployment_stage
+  if (!stage) return <td className="px-4 py-3 text-gray-400 dark:text-gray-500">—</td>
+
+  return (
+    <td className="px-4 py-3">
+      <Link className="inline-flex items-center whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-emerald-950/50 dark:text-emerald-200 dark:ring-emerald-800 dark:hover:bg-emerald-900/70" title={stage.reached_at ?? undefined} to={withRoutePrefix(job.paths.job_path, prefix)}>
+        {stage.label || stage.name}
+      </Link>
+    </td>
+  )
 }
 
 function DashboardOwnerLabel({ job, prefix, quiet = false }: { job: DashboardJobItem; prefix: string; quiet?: boolean }) {
