@@ -29,6 +29,14 @@ selected surface, error rates by tool, and chat-vs-workflow usage breakdown.
 
 Tool exposure metadata is declared in `McpToolRegistry`. Use
 `McpToolRegistry.summaries(surface: ..., tier: ...)` when docs or usage payloads
-need authoritative tool profile data such as surface, tier, admin-only status,
-feature flag gates, required roles/capabilities, and read-only vs mutation
-classification.
+need authoritative tool profile data:
+
+- `tool_name`
+- `surface`
+- `tier`
+- `admin_only`
+- `feature_flag`
+- `required_roles`
+- `capability`
+- `mutation`
+- `read_only`
