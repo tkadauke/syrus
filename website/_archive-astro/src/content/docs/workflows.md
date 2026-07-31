@@ -111,11 +111,14 @@ asynchronously after a push, `auto_merge` briefly polls for a transient
 not thrown away just because GitHub had not finished recomputing yet.
 
 Landing attempts reuse a prior green grading result when the exact same
-head SHA has already passed required graders, so an unchanged PR does not
-spend another full grade cycle at merge time. Repositories can also opt
-into **Trust clean rebases** (`trust_clean_rebase_grade`) to carry a
-green result across a conflict-free rebase, trading a small
-logical-conflict risk for landing throughput.
+head SHA has already passed required graders, or when a different commit
+has the same Git tree SHA, base ref, base SHA, and required-grader
+fingerprint. Repositories can also opt into **Trust clean rebases**
+(`trust_clean_rebase_grade`) to carry a green result across a
+conflict-free rebase, trading a small logical-conflict risk for landing
+throughput. Landing logs name the reuse path (`exact_head`,
+`same_tree`, or `clean_rebase_carry_forward`) or explain why graders ran
+again.
 
 In the dashboard, the landing queue treats each Epic as one contiguous
 landing unit. The Epic's child Jobs stay grouped together, with their
@@ -139,8 +142,9 @@ branch, runs the graders **once** on the combined tree, lets the agent
 commit reconciliation fixes if needed, and then lands the whole branch in
 a **single atomic merge**. The child PRs are closed with a back-link to
 the integration merge and their Jobs marked merged. If a retry rebuilds
-the same integration SHA that already passed required graders, Syrus
-reuses that signal and proceeds directly to landing.
+the same integration SHA or the same integration tree that already passed
+required graders for the same base and grader configuration, Syrus reuses
+that signal and proceeds directly to landing.
 
 The guarantee is **Epic consistency**: an Epic advances as a whole,
 green, dependency-closed set or not at all — there are never half-merged

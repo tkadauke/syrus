@@ -48,8 +48,22 @@ module Steps
 
       @git.run("checkout", @integration, chdir: @chdir)
       sha = @git.run("rev-parse", "HEAD", chdir: @chdir).strip
+      tree_sha = @git.run("rev-parse", "HEAD^{tree}", chdir: @chdir).strip
       train.update!(integration_branch: @integration, integration_sha: sha, state: "grading")
       log("merge_train: built #{@integration} at #{sha.first(9)} (#{members.size} member(s) integrated)")
+      decision = LandingValidationCache.reusable_for?(
+        job: job,
+        head_sha: sha,
+        tree_sha: tree_sha,
+        base_sha: base_sha,
+        base_ref: train.base_branch,
+        grader_fingerprint: current_grader_fingerprint
+      )
+      if decision.reusable?
+        skip_revalidated_grade_steps!(sha, decision)
+      else
+        log("merge_train: landing graders will run - #{decision.reason}", kind: "system")
+      end
     end
 
     private
@@ -148,5 +162,43 @@ module Steps
       ).to_s
     end
 
+    def current_grader_fingerprint
+      plan = RepoGradePlan.for(workspace.path)
+      plan = fast_grader_plan(plan)
+      GraderConclusionCache.fingerprint_for_plan(plan)
+    rescue StandardError => e
+      log("merge_train: could not fingerprint current landing graders: #{e.message}", kind: "system")
+      nil
+    end
+
+    def fast_grader_plan(plan)
+      plan.with(
+        graders: plan.graders.map do |grader|
+          command = grader.command_for(fast: true)
+          metadata = {
+            "standard_command" => grader.command,
+            "fast_command" => grader.fast_command,
+            "fast_variant" => grader.fast_command.present?
+          }.compact
+
+          grader.with(command: command, metadata: metadata)
+        end
+      )
+    end
+
+    def skip_revalidated_grade_steps!(sha, decision)
+      log("merge_train: reusing cached grading validation (#{decision.match_type}) for #{sha.first(7)} - #{decision.reason}", kind: "system")
+      Step.suppress_cancel_cascade do
+        cursor = step.next_step
+        while cursor && cursor.kind != "merge_train_land"
+          if cursor.may_cancel?
+            cursor.cancellation_reason = "landing_validation_cached"
+            cursor.cancel!
+            cursor.save!
+          end
+          cursor = cursor.next_step
+        end
+      end
+    end
   end
 end
