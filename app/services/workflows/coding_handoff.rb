@@ -13,19 +13,16 @@ module Workflows
     def self.trigger_kind = "coding_handoff"
 
     def self.steps_for(job)
-      chain = [
-        "prepare",
+      prepare_then(
+        job,
         Workflows::RetryUntil.new(
           max_iterations: AppSetting.grade_max_iterations,
           repair_first: false,
           repair: [ :coding_handoff_fix ],
           check: [ :grader_fanout, :grader_collect ]
         ),
-        "summarize",
-        "test_plan",
-        "pr_open"
-      ]
-      prepare_skipped_for?(job) ? chain.reject { |s| s == "prepare" } : chain
+        initial_pr_finish_steps
+      )
     end
 
     def self.after_success(workflow)

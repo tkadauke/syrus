@@ -107,6 +107,57 @@ module Workflows
       "coverage_analyze" if RepoCoveragePlanReader.for_job(job)
     end
 
+    def self.prepare_then(job, *nodes)
+      chain = [ "prepare", *nodes.flatten ].compact
+      without_skipped_prepare(job, chain)
+    end
+
+    def self.without_skipped_prepare(job, chain)
+      prepare_skipped_for?(job) ? chain.reject { |node| node == "prepare" } : chain
+    end
+
+    def self.adversarial_review_loop(job, agent_step:)
+      rounds = adversarial_review_rounds(job)
+      return nil unless rounds.positive?
+
+      Workflows::Loop.new(max_iterations: rounds, steps: [ agent_step, :adversarial_review ])
+    end
+
+    def self.grader_retry_loop(agent_step, max_iterations: AppSetting.grade_max_iterations)
+      Workflows::RetryUntil.new(
+        max_iterations: max_iterations,
+        repair: [ agent_step ],
+        check: [ :grader_fanout, :grader_collect ]
+      )
+    end
+
+    def self.landing_grader_retry_loop(max_iterations: AppSetting.grade_max_iterations)
+      Workflows::RetryUntil.new(
+        max_iterations: max_iterations,
+        repair_first: false,
+        repair: [ :landing_fix ],
+        check: [ :grader_fanout, :grader_collect ]
+      )
+    end
+
+    def self.grader_gate_steps
+      [ "grader_fanout", "grader_collect" ]
+    end
+
+    def self.initial_pr_finish_steps
+      [ "summarize", "test_plan", "pr_open" ]
+    end
+
+    def self.feedback_finish_steps
+      [
+        "coverage_analyze",
+        "coverage_pr_comment",
+        "summarize_amend",
+        "refresh_job_metadata",
+        follow_up_push(max_iterations: AppSetting.grade_max_iterations)
+      ]
+    end
+
     def self.adversarial_review_rounds(job)
       plan = RepoAdversarialReviewPlan.for_job(job)
       return plan.rounds if plan.enabled?
@@ -120,12 +171,7 @@ module Workflows
         "remote_branch_advanced_rebase_conflict",
         [
           :push_agent_rebase,
-          Workflows::RetryUntil.new(
-            max_iterations: max_iterations,
-            repair_first: false,
-            repair: [ :landing_fix ],
-            check: [ :grader_fanout, :grader_collect ]
-          ),
+          landing_grader_retry_loop(max_iterations: max_iterations),
           :push_after_rebase
         ]
       )

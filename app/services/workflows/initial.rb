@@ -32,44 +32,16 @@ module Workflows
   # workflow.artifacts["pr_title"]/["pr_body"] and runs
   # PullRequestOpener.
   class Initial < Base
-    steps :prepare,
-          Workflows::RetryUntil.new(
-            repair: [ :implement ],
-            check: [ :grader_fanout, :grader_collect ]
-          ),
-          :coverage_analyze,
-          :summarize,
-          :test_plan,
-          :pr_open
-
     def self.trigger_kind = "initial"
 
     def self.steps_for(job)
-      chain = [
-        "prepare",
-        adversarial_review_loop(job),
-        Workflows::RetryUntil.new(
-          max_iterations: AppSetting.grade_max_iterations,
-          repair: [ :implement ],
-          check: [ :grader_fanout, :grader_collect ]
-        ),
+      prepare_then(
+        job,
+        adversarial_review_loop(job, agent_step: :implement),
+        grader_retry_loop(:implement),
         "coverage_analyze",
-        "summarize",
-        "test_plan",
-        "pr_open"
-      ].compact
-      prepare_skipped_for?(job) ? chain.reject { |node| node == "prepare" } : chain
-    end
-
-    def self.adversarial_review_loop(job)
-      rounds = adversarial_review_rounds(job)
-      return nil unless rounds.positive?
-
-      Workflows::Loop.new(
-        max_iterations: rounds,
-        steps: [ :implement, :adversarial_review ]
+        initial_pr_finish_steps
       )
     end
-
   end
 end

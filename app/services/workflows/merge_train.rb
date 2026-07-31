@@ -25,58 +25,32 @@ module Workflows
   # rebase conflicts, merge_train_rebase fails with "rebuild required" and
   # MergeTrainFailureHandler falls back to a full merge_train rebuild.
   class MergeTrain < Base
-    steps :merge_train_assemble,
-          :merge_train_build,
-          :merge_train_reconcile,
-          :prepare,
-          Workflows::RetryUntil.new(
-            repair_first: false,
-            repair: [ :landing_fix ],
-            check: [ :grader_fanout, :grader_collect ]
-          ),
-          Workflows::Try.new(:merge_train_land).on_failure(
-            Steps::MergeTrainLand::BaseMoved::FAILURE_CODE,
-            [
-              :merge_train_rebase,
-              Workflows::RetryUntil.new(
-                repair_first: false,
-                repair: [ :landing_fix ],
-                check: [ :grader_fanout, :grader_collect ]
-              ),
-              :merge_train_land_after_rebase
-            ]
-          )
-
     def self.trigger_kind = "merge_train"
 
     def self.queue_name = :merges
 
     def self.steps_for(job)
-      [
+      chain = [
         "merge_train_assemble",
         "merge_train_build",
         "merge_train_reconcile",
         "prepare",
-        Workflows::RetryUntil.new(
-          max_iterations: AppSetting.grade_max_iterations,
-          repair_first: false,
-          repair: [ :landing_fix ],
-          check: [ :grader_fanout, :grader_collect ]
-        ),
-        Workflows::Try.new(:merge_train_land).on_failure(
-          Steps::MergeTrainLand::BaseMoved::FAILURE_CODE,
-          [
-            :merge_train_rebase,
-            Workflows::RetryUntil.new(
-              max_iterations: AppSetting.grade_max_iterations,
-              repair_first: false,
-              repair: [ :landing_fix ],
-              check: [ :grader_fanout, :grader_collect ]
-            ),
-            :merge_train_land_after_rebase
-          ]
-        )
+        landing_grader_retry_loop,
+        coverage_analyze_for(job),
+        merge_train_land_with_rebase_recovery
       ].compact
+      without_skipped_prepare(job, chain)
+    end
+
+    def self.merge_train_land_with_rebase_recovery
+      Workflows::Try.new(:merge_train_land).on_failure(
+        Steps::MergeTrainLand::BaseMoved::FAILURE_CODE,
+        [
+          :merge_train_rebase,
+          landing_grader_retry_loop,
+          :merge_train_land_after_rebase
+        ]
+      )
     end
 
     def self.after_fail(workflow)

@@ -9,33 +9,20 @@ module Workflows
   # iteration, and auto_merge re-fetches PR state immediately before
   # calling GitHub's merge API.
   class AutoMerge < Base
-    steps :mergeability_preflight,
-          :prepare,
-          Workflows::RetryUntil.new(
-            repair_first: false,
-            repair: [ :landing_fix ],
-            check: [ :grader_fanout, :grader_collect ]
-          ),
-          :push,
-          :auto_merge
-
     def self.trigger_kind = "auto_merge"
 
     def self.queue_name = :merges
 
     def self.steps_for(job)
-      [
+      chain = [
         "mergeability_preflight",
         "prepare",
-        Workflows::RetryUntil.new(
-          max_iterations: AppSetting.grade_max_iterations,
-          repair_first: false,
-          repair: [ :landing_fix ],
-          check: [ :grader_fanout, :grader_collect ]
-        ),
+        landing_grader_retry_loop,
+        coverage_analyze_for(job),
         "push",
         "auto_merge"
       ].compact
+      without_skipped_prepare(job, chain)
     end
 
     def self.after_success(_workflow)

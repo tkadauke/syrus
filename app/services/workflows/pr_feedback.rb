@@ -15,38 +15,15 @@ module Workflows
   class PrFeedback < Base
     extend Workflows::FeedbackHandling
 
-    steps :prepare,
-          Workflows::RetryUntil.new(repair: [ :respond ], check: [ :grader_fanout, :grader_collect ]),
-          :coverage_analyze,
-          :coverage_pr_comment,
-          :summarize_amend,
-          :refresh_job_metadata,
-          follow_up_push
-
     def self.trigger_kind = "pr_comment"
 
     def self.steps_for(job)
-      [
-        "prepare",
-        adversarial_review_loop(job),
-        Workflows::RetryUntil.new(
-          max_iterations: AppSetting.grade_max_iterations,
-          repair: [ :respond ],
-          check: [ :grader_fanout, :grader_collect ]
-        ),
-        "coverage_analyze",
-        "coverage_pr_comment",
-        "summarize_amend",
-        "refresh_job_metadata",
-        follow_up_push(max_iterations: AppSetting.grade_max_iterations)
-      ].compact
-    end
-
-    def self.adversarial_review_loop(job)
-      rounds = adversarial_review_rounds(job)
-      return nil unless rounds.positive?
-
-      Workflows::Loop.new(max_iterations: rounds, steps: [ :respond, :adversarial_review ])
+      prepare_then(
+        job,
+        adversarial_review_loop(job, agent_step: :respond),
+        grader_retry_loop(:respond),
+        feedback_finish_steps
+      )
     end
 
     # Mark the most recently-addressed PR comment so the feedback

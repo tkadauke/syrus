@@ -28,6 +28,22 @@ RSpec.describe Workflows::CodingHandoff do
       expect(kinds.last(3)).to eq(%w[ summarize test_plan pr_open ])
     end
 
+    it "materializes the representative chain template" do
+      workflow = described_class.instantiate(job: job)
+
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(
+        %w[ prepare grader_fanout grader_collect summarize test_plan pr_open ]
+      )
+      expect(workflow.chain_template).to eq([
+        { "type" => "step", "kind" => "prepare" },
+        { "type" => "step", "kind" => "grader_fanout" },
+        { "type" => "step", "kind" => "grader_collect" },
+        { "type" => "step", "kind" => "summarize" },
+        { "type" => "step", "kind" => "test_plan" },
+        { "type" => "step", "kind" => "pr_open" }
+      ])
+    end
+
     it "omits prepare when job has skip_prepare_reason" do
       allow(job).to receive(:skip_prepare?).and_return(true)
       kinds = described_class.steps_for(job)

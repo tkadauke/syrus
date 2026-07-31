@@ -11,24 +11,15 @@ module Workflows
   # implement phase here is "look at the failing checks, find the
   # root cause, fix the code or the test".
   class CiFailure < Base
-    steps :prepare,
-          Workflows::RetryUntil.new(repair: [ :analyze_and_fix ], check: [ :grader_fanout, :grader_collect ]),
-          :summarize_amend,
-          follow_up_push
-
     def self.trigger_kind = "ci_failure"
 
-    def self.steps_for(_job)
-      [
-        "prepare",
-        Workflows::RetryUntil.new(
-          max_iterations: AppSetting.grade_max_iterations,
-          repair: [ :analyze_and_fix ],
-          check: [ :grader_fanout, :grader_collect ]
-        ),
+    def self.steps_for(job)
+      prepare_then(
+        job,
+        grader_retry_loop(:analyze_and_fix),
         "summarize_amend",
         follow_up_push(max_iterations: AppSetting.grade_max_iterations)
-      ]
+      )
     end
   end
 end
