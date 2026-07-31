@@ -43,6 +43,7 @@ function buildPayload(): RepositoryDetailPayload {
     agent_provider_label: null,
     effective_agent_provider: "claude",
     effective_agent_provider_label: "Claude",
+    epic_dependency_policy: "linear" as const,
     github_url: "https://github.com/acme/widgets",
     created_at: "2026-01-01T00:00:00Z",
     owner_user: { id: 2, display_name: "Ada Lovelace", email_address: "ada@example.com", admin: false },

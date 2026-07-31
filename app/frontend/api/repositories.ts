@@ -19,6 +19,7 @@ export type RepositoryRow = {
   archived_at: string | null
   agent_provider: string | null
   agent_provider_label: string
+  epic_dependency_policy: "linear" | "nonlinear"
   last_poll_status: string | null
   last_poll_started_at: string | null
   last_poll_error: string | null
@@ -247,6 +248,7 @@ export type RepositoryDetailRecord = {
   agent_provider_label: string | null
   effective_agent_provider: string
   effective_agent_provider_label: string
+  epic_dependency_policy: "linear" | "nonlinear"
   github_url: string
   created_at: string
   owner_user: RepositoryOwnerUser

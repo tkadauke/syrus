@@ -639,12 +639,24 @@ function DetailsPanel({ epic, jobs, prefix }: { epic: EpicDetailPayload["epic"];
           </dd>
         </div>
         <div>
+          <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("epic_dependency_policy_detail")}</dt>
+          <dd className="mt-0.5 text-gray-700 dark:text-gray-200">
+            {epic.epic_dependency_policy === "inherit"
+              ? t("epic_dependency_policy_detail_inherit", { policy: epicDependencyPolicyLabel(epic.resolved_epic_dependency_policy, t), repositoryPolicy: epicDependencyPolicyLabel(epic.repository.epic_dependency_policy, t) })
+              : t("epic_dependency_policy_detail_override", { policy: epicDependencyPolicyLabel(epic.resolved_epic_dependency_policy, t) })}
+          </dd>
+        </div>
+        <div>
           <dt className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("updated_label")}</dt>
           <dd className="mt-0.5 text-gray-700 dark:text-gray-200"><RelativeTimestamp value={epic.updated_at} /></dd>
         </div>
       </dl>
     </section>
   )
+}
+
+function epicDependencyPolicyLabel(policy: "linear" | "nonlinear", t: (key: string, opts?: Record<string, unknown>) => string) {
+  return policy === "nonlinear" ? t("epic_dependency_policy_nonlinear") : t("epic_dependency_policy_linear")
 }
 
 function uniqueActiveMembers(jobs: EpicDetailJob[]) {
@@ -784,4 +796,3 @@ function epicOwnerLabel(epic: EpicDetailPayload["epic"], t: (key: string, opts?:
   const owner = epic.owner_user || epic.owner
   return owner ? t("owner_label", { email: owner.email_address }) : t("unclaimed")
 }
-

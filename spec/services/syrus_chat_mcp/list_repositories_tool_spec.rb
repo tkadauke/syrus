@@ -39,7 +39,8 @@ RSpec.describe SyrusChatMcp::ListRepositoriesTool do
       slug: "acme/alpha",
       owner: "acme",
       name: "alpha",
-      default_branch: "trunk"
+      default_branch: "trunk",
+      epic_dependency_policy: "linear"
     )
     expect(repositories.first[:created_at]).to be_present
   end

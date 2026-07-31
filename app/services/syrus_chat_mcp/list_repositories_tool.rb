@@ -51,6 +51,7 @@ module SyrusChatMcp
           owner: repository.owner,
           name: repository.name,
           default_branch: repository.default_branch,
+          epic_dependency_policy: repository.epic_dependency_policy,
           created_at: repository.created_at.iso8601
         }
       end

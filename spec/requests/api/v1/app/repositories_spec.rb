@@ -167,6 +167,7 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     expect(body.dig("repository", "main_branch_repair_enabled")).to eq(true)
     expect(body.dig("repository", "main_branch_repair_auto_approve")).to eq(false)
     expect(body.dig("repository", "treat_grader_timeouts_as_failures")).to eq(false)
+    expect(body.dig("repository", "epic_dependency_policy")).to eq("linear")
     expect(body["configured_agent_providers"]).to include(
       { "value" => "codex", "label" => "Codex" },
       { "value" => "claude", "label" => "Claude Code" }

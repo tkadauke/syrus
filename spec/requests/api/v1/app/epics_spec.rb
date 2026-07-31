@@ -131,7 +131,15 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       "owner_status" => "mine",
       "owner_user" => include("id" => user.id, "email_address" => user.email_address)
     )
-    expect(body.dig("epic", "repository")).to include("slug" => "acme/widgets", "repository_path" => repository_path(repository))
+    expect(body.dig("epic", "repository")).to include(
+      "slug" => "acme/widgets",
+      "repository_path" => repository_path(repository),
+      "epic_dependency_policy" => "linear"
+    )
+    expect(body["epic"]).to include(
+      "epic_dependency_policy" => "inherit",
+      "resolved_epic_dependency_policy" => "linear"
+    )
     expect(body["summary"]).to include(
       "done_jobs_count" => 1,
       "total_jobs_count" => 2,

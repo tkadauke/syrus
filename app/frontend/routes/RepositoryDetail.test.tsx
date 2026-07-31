@@ -27,6 +27,7 @@ function repositoryDetailPayload() {
       agent_provider_label: null,
       effective_agent_provider: "claude",
       effective_agent_provider_label: "Claude",
+      epic_dependency_policy: "nonlinear",
       github_url: "https://github.com/acme/widgets",
       created_at: "2026-01-01T00:00:00Z",
       owner_user: { id: 2, display_name: "Ada Lovelace", email_address: "ada@example.com", admin: false },
@@ -111,6 +112,13 @@ describe("RepositoryDetailRoute archive", () => {
     await waitFor(() => {
       expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true }))
     })
+  })
+
+  it("renders the repository Epic dependency default", async () => {
+    renderRoute()
+
+    expect(await screen.findByText("Epic dependency policy")).toBeInTheDocument()
+    expect(screen.getByText("Nonlinear by default")).toBeInTheDocument()
   })
 
   it("calls the archive API when the user confirms", async () => {

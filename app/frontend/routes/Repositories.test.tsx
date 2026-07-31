@@ -24,6 +24,7 @@ function repositoryRow() {
     archived_at: null,
     agent_provider: null,
     agent_provider_label: "Claude",
+    epic_dependency_policy: "linear",
     last_poll_status: null,
     last_poll_started_at: null,
     last_poll_error: null,
