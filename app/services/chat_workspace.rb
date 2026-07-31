@@ -6,6 +6,15 @@ require "open3"
 # Unlike WorkflowWorkspace, this workspace is long-lived and is not reset
 # between turns. Repositories are cloned lazily under the session root.
 class ChatWorkspace
+  class ResetRefused < StandardError
+    attr_reader :status
+
+    def initialize(message, status:)
+      @status = status
+      super(message)
+    end
+  end
+
   CLONE_DEPTH = 50
   EXCLUDE_ENTRY = ".syrus/".freeze
   # Remote tag ref that safely backs up a reclaimed coding checkout's
@@ -95,6 +104,10 @@ class ChatWorkspace
       prepare_finished_at: chat_session.coding_checkout_prepare_finished_at,
       prepare_failure: chat_session.coding_checkout_prepare_failure
     }
+  end
+
+  def self.coding_reset_status(chat_session, repository)
+    new(chat_session).coding_reset_status(repository)
   end
 
   def self.git_value(path, *args)
@@ -283,6 +296,10 @@ class ChatWorkspace
     new(chat_session).reset_after_coding_handoff!(repository)
   end
 
+  def self.reset_coding_workspace!(chat_session, repository, confirm_discard: false)
+    new(chat_session).reset_coding_workspace!(repository, confirm_discard: confirm_discard)
+  end
+
   # On-disk size of a path in bytes. Uses `du -sk` (KB) for portability across
   # GNU (Linux worker) and BSD (macOS dev) — `du -sb` is GNU-only.
   def self.du_bytes(path)
@@ -434,6 +451,57 @@ class ChatWorkspace
     enqueue_prepare!(repository)
     write_relay_credentials!
     path
+  end
+
+  def coding_reset_status(repository)
+    path = self.class.repo_path_for(@chat_session, repository)
+    default_branch = repository.default_branch
+    exists = path.join(".git").directory?
+    current_branch = exists ? self.class.git_value(path, "branch", "--show-current") : nil
+    head_sha = exists ? self.class.git_value(path, "rev-parse", "--short=12", "HEAD") : nil
+    base_ref = "refs/remotes/origin/#{default_branch}"
+    base_sha = exists ? self.class.git_value(path, "rev-parse", "--short=12", base_ref) : nil
+    ahead_count = exists ? git_count(path, "rev-list", "--count", "#{base_ref}..HEAD") : 0
+    dirty = exists && self.class.uncommitted_changes?(path)
+    destructive = dirty || ahead_count.to_i.positive?
+
+    {
+      path: path.to_s,
+      exists: exists,
+      configured_branch: @chat_session.coding_checkout_branch,
+      current_branch: current_branch,
+      head_sha: head_sha,
+      default_branch: default_branch,
+      default_branch_ref: base_ref,
+      default_branch_sha: base_sha,
+      dirty: dirty,
+      committed_ahead_count: ahead_count.to_i,
+      destructive_reset_required: destructive,
+      prepare_status: @chat_session.coding_checkout_prepare_status,
+      prepare_started_at: @chat_session.coding_checkout_prepare_started_at,
+      prepare_finished_at: @chat_session.coding_checkout_prepare_finished_at,
+      prepare_failure: @chat_session.coding_checkout_prepare_failure
+    }
+  end
+
+  def reset_coding_workspace!(repository, confirm_discard: false)
+    before = coding_reset_status(repository)
+    if before[:destructive_reset_required] && !ActiveModel::Type::Boolean.new.cast(confirm_discard)
+      raise ResetRefused.new(
+        "reset_workspace would discard local work; call it again with confirm_discard: true to reset.",
+        status: before
+      )
+    end
+
+    path = reset_after_coding_handoff!(repository)
+    after = coding_reset_status(repository)
+
+    {
+      reset: true,
+      path: path.to_s,
+      before: before,
+      after: after
+    }
   end
 
   # Sets up a writable coding checkout on an existing Job branch.
@@ -793,6 +861,12 @@ class ChatWorkspace
     status.success? && out.strip.present?
   rescue StandardError
     false
+  end
+
+  def git_count(path, *args)
+    Integer(self.class.git_value(path, *args) || 0)
+  rescue ArgumentError
+    0
   end
 
   def fast_forward!(repository, path)

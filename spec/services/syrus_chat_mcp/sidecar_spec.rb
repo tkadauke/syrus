@@ -104,7 +104,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
       expect(tool_names).not_to include("complete_implement_step")
     end
 
-    it "exposes complete_implement_step only in Coding Mode when the feature flag is on" do
+    it "exposes coding tools only in Coding Mode when the feature flag is on" do
       feature = Feature.find_or_create_by!(slug: "coding_mode") { |f| f.category = "Labs"; f.name = "Coding Mode" }
       feature.update!(enabled: true)
       coding_session = ChatSession.create!(user: user, repository: repository, mode: "coding")
@@ -112,18 +112,18 @@ RSpec.describe SyrusChatMcp::Sidecar do
       coding_tool_names = described_class.tool_names(coding_session, tier: :essential)
       planning_tool_names = described_class.tool_names(chat_session, tier: :essential)
 
-      expect(coding_tool_names).to include("complete_implement_step")
-      expect(planning_tool_names).not_to include("complete_implement_step")
+      expect(coding_tool_names).to include("reset_workspace", "complete_implement_step", "submit_coding_changes")
+      expect(planning_tool_names).not_to include("reset_workspace", "complete_implement_step", "submit_coding_changes")
     end
 
-    it "hides complete_implement_step in Coding Mode when the feature flag is off" do
+    it "hides coding tools in Coding Mode when the feature flag is off" do
       Feature.find_or_create_by!(slug: "coding_mode") { |f| f.category = "Labs"; f.name = "Coding Mode" }
               .update!(enabled: false)
       coding_session = ChatSession.create!(user: user, repository: repository, mode: "coding")
 
       tool_names = described_class.tool_names(coding_session, tier: :essential)
 
-      expect(tool_names).not_to include("complete_implement_step")
+      expect(tool_names).not_to include("reset_workspace", "complete_implement_step", "submit_coding_changes")
     end
 
     it "advertises specialty tools via the deferred tools/list" do

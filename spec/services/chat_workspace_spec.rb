@@ -853,6 +853,70 @@ RSpec.describe ChatWorkspace, :ci_only do
       expect(chat_session.coding_checkout_prepare_status).to eq("queued")
       expect(chat_session.coding_checkout_prepare_failure).to be_nil
     end
+
+    it "reports dirty and committed-ahead status for a coding checkout" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      File.write(coding_path.join("feature.rb"), "puts 1\n")
+      sh("git -C #{coding_path} add feature.rb")
+      sh("git -C #{coding_path} commit -q -m 'local feature'")
+      File.write(coding_path.join("scratch.txt"), "uncommitted\n")
+
+      status = described_class.coding_reset_status(chat_session, repository)
+
+      expect(status).to include(
+        path: coding_path.to_s,
+        exists: true,
+        configured_branch: "main",
+        current_branch: "main",
+        default_branch: "main",
+        dirty: true,
+        committed_ahead_count: 1,
+        destructive_reset_required: true
+      )
+      expect(status[:head_sha]).to be_present
+      expect(status[:default_branch_sha]).to be_present
+    end
+
+    it "refuses to reset dirty or committed-ahead work without confirmation" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      File.write(coding_path.join("feature.rb"), "puts 1\n")
+      sh("git -C #{coding_path} add feature.rb")
+      sh("git -C #{coding_path} commit -q -m 'local feature'")
+
+      expect {
+        described_class.reset_coding_workspace!(chat_session, repository)
+      }.to raise_error(ChatWorkspace::ResetRefused, /confirm_discard/)
+
+      expect(coding_path.join("feature.rb")).to exist
+      expect(`git -C #{coding_path} rev-list --count origin/main..HEAD`.strip).to eq("1")
+    end
+
+    it "resets confirmed abandoned work to a clean default-branch checkout and queues prep" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      File.write(coding_path.join("feature.rb"), "puts 1\n")
+      sh("git -C #{coding_path} add feature.rb")
+      sh("git -C #{coding_path} commit -q -m 'local feature'")
+      File.write(coding_path.join("scratch.txt"), "uncommitted\n")
+      chat_session.update_columns(coding_checkout_uncommitted: true)
+      add_remote_commit("fresh after abandoned work")
+      remote_main = remote_ref_sha("refs/heads/main")
+
+      ActiveJob::Base.queue_adapter.enqueued_jobs.clear
+      result = nil
+      expect {
+        result = described_class.reset_coding_workspace!(chat_session, repository, confirm_discard: true)
+      }.to have_enqueued_job(ChatWorkspacePrepareJob).with(chat_session.id, repository.id).on_queue("chat")
+
+      expect(result[:before]).to include(destructive_reset_required: true, committed_ahead_count: 1)
+      expect(result[:after]).to include(dirty: false, committed_ahead_count: 0, destructive_reset_required: false)
+      expect(`git -C #{coding_path} rev-parse HEAD`.strip).to eq(remote_main)
+      expect(`git -C #{coding_path} status --porcelain`.strip).to eq("")
+      expect(coding_path.join("feature.rb")).not_to exist
+      expect(coding_path.join("scratch.txt")).not_to exist
+      expect(chat_session.reload.coding_checkout_branch).to eq("main")
+      expect(chat_session.coding_checkout_uncommitted).to eq(false)
+      expect(chat_session.coding_checkout_prepare_status).to eq("queued")
+    end
   end
 
   def seed_remote(bare_path)
