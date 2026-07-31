@@ -38,20 +38,28 @@ RSpec.describe SyrusChatMcp::ExplainStuckJobTool do
     job = Factories.job(user: user, repository: repository, issue_title: "Silent run")
     run = job.initial_run
     workflow = run.step.workflow
-    workflow.update_columns(state: "running", started_at: 10.minutes.ago)
-    run.update_columns(state: "running", started_at: 10.minutes.ago, last_heartbeat_at: 10.minutes.ago)
+    stale_at = (Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes).ago
+    workflow.update_columns(state: "running", started_at: stale_at)
+    run.update_columns(state: "running", started_at: stale_at, last_heartbeat_at: stale_at)
 
     response = call_tool(job_id: job.id)
     payload = response_payload(response)
 
     expect(response.dig(:result, :isError)).to be_falsey
+    expect(payload).to include(stuck: true)
     expect(payload.fetch(:stuck_list)).to include(listed: true)
-    expect(payload.fetch(:job)).to include(id: job.id, issue_title: "Silent run", state: job.reload.state)
+    expect(payload.fetch(:job)).to include(id: job.id, title: "Silent run", issue_title: "Silent run", state: job.reload.state)
     expect(payload.dig(:stuck_list, :items)).to include(hash_including(
       kind: "running_run_without_live_worker_evidence",
       workflow_id: workflow.id,
       run_id: run.id
     ))
+    expect(payload.fetch(:issues).first).to include(
+      kind: "running_run_without_live_worker_evidence",
+      attention_state: "operator_action_required",
+      workflow_id: workflow.id,
+      run_id: run.id
+    )
   end
 
   it "is exposed through the deferred sidecar" do
