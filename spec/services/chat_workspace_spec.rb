@@ -373,6 +373,22 @@ RSpec.describe ChatWorkspace do
 
       expect(result).to be_nil
     end
+
+    it "returns the file tree from a selected commit ref" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      initial_sha = sh("git -C #{checkout_path} rev-parse HEAD").strip
+      File.write(checkout_path.join("NEW.md").to_s, "# New\n")
+      sh("git -C #{checkout_path} add NEW.md")
+      sh("git -C #{checkout_path} commit -q -m 'add new file'")
+
+      result = described_class.file_tree(chat_session, repository, ref: initial_sha)
+
+      expect(result).not_to be_nil
+      expect(result[:files]).to include("README.md")
+      expect(result[:files]).not_to include("NEW.md")
+      expect(result[:checkout_branch]).to eq("syrus-chat-#{chat_session.id}")
+    end
   end
 
   describe ".file_content" do

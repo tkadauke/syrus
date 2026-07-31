@@ -97,8 +97,8 @@ class ChatWorkspace
   # Returns { files: ["path/to/file", ...], checkout_branch: "..." }
   # for the coding checkout. Files are sorted and exclude .git, .syrus,
   # and node_modules trees. Returns nil if the checkout does not exist.
-  def self.file_tree(chat_session, repository)
-    new(chat_session).file_tree(repository)
+  def self.file_tree(chat_session, repository, ref: nil)
+    new(chat_session).file_tree(repository, ref: ref)
   end
 
   # Returns { content: "...", binary: false, too_large: false } or
@@ -433,9 +433,11 @@ class ChatWorkspace
     clear_relay_credentials!
   end
 
-  def file_tree(repository)
+  def file_tree(repository, ref: nil)
     path = self.class.repo_path_for(@chat_session, repository)
     return nil unless path.join(".git").directory?
+
+    return file_tree_at_ref(path, ref) if ref.present?
 
     files = []
     Find.find(path.to_s) do |entry|
@@ -727,6 +729,26 @@ class ChatWorkspace
       content: raw.encode(Encoding::UTF_8, invalid: :replace, undef: :replace),
       binary: false,
       too_large: false
+    }
+  end
+
+  def file_tree_at_ref(checkout_dir, ref)
+    return nil unless valid_commit_ref?(ref)
+
+    out, status = Open3.capture2e(
+      { "GIT_TERMINAL_PROMPT" => "0" },
+      "git", "ls-tree", "-r", "-z", "--name-only", ref,
+      chdir: checkout_dir.to_s
+    )
+    return nil unless status.success?
+
+    files = out.split("\0").reject do |relative_path|
+      relative_path.blank? || relative_path.split("/").any? { |part| self.class::EXCLUDED_DIR_NAMES.include?(part) }
+    end
+
+    {
+      files: files.sort,
+      checkout_branch: @chat_session.coding_checkout_branch
     }
   end
 

@@ -846,8 +846,11 @@ export function answerAgentQuestion(path: string, answer: string) {
   return postJson<ChatPayload>(path, { answer })
 }
 
-export function fetchCodingFileTree(path: string) {
-  return getJson<CodingFilesPayload>(path)
+export function fetchCodingFileTree(path: string, ref?: string | null) {
+  const params = new URLSearchParams()
+  if (ref) params.set("ref", ref)
+  const query = params.toString()
+  return getJson<CodingFilesPayload>(query ? `${path}?${query}` : path)
 }
 
 export function fetchCodingCommits(path: string) {

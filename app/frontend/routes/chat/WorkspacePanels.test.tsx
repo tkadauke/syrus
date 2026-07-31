@@ -255,6 +255,11 @@ describe("ChatWorkspacePanel coding files", () => {
 
     await screen.findByRole("option", { name: /Add commit browser/ })
     fireEvent.change(screen.getByLabelText("Commit"), { target: { value: sha } })
+
+    await waitFor(() => {
+      expect(fetchCodingFileTree).toHaveBeenCalledWith("/api/v1/app/chats/1/coding_files", sha)
+    })
+
     fireEvent.click(await screen.findByRole("button", { name: "README.md" }))
 
     await waitFor(() => {

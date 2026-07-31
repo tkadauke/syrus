@@ -19,7 +19,7 @@ These routes are served by the relay:
 
 | Route | Returns |
 |---|---|
-| `GET /workspace/files?session_id=N` | File tree for the checkout |
+| `GET /workspace/files?session_id=N[&ref=<sha>]` | File tree for the live checkout or a commit |
 | `GET /workspace/commits?session_id=N` | Up to 50 recent commits on the checkout branch |
 | `GET /workspace/file?session_id=N&path=<rel>[&ref=<sha>]` | File content from the live checkout or a commit |
 | `GET /workspace/diff?session_id=N&mode=<cumulative\|turn>[&ref=<sha>]` | Live checkout diff or a single-commit diff |

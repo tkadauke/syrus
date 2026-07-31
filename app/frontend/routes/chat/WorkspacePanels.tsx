@@ -818,8 +818,8 @@ function CodingFilesPanel({ payload }: { payload: ChatPayload }) {
   const refetchInterval = agentBusy ? 3000 : 15000
 
   const fileTree = useQuery({
-    queryKey: ["coding_files", filesPath],
-    queryFn: () => fetchCodingFileTree(filesPath!),
+    queryKey: ["coding_files", filesPath, selectedRef],
+    queryFn: () => fetchCodingFileTree(filesPath!, selectedRef || null),
     enabled: !!filesPath,
     refetchInterval
   })
@@ -865,6 +865,12 @@ function CodingFilesPanel({ payload }: { payload: ChatPayload }) {
     }
   }, [diffFiles, selectedDiffFile])
 
+  useEffect(() => {
+    if (selectedFile && fileTree.data && !fileTree.data.files.includes(selectedFile)) {
+      setSelectedFile(null)
+    }
+  }, [fileTree.data, selectedFile])
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 items-center gap-1 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
@@ -908,6 +914,7 @@ function CodingFilesPanel({ payload }: { payload: ChatPayload }) {
           className="w-full rounded border border-gray-200 bg-white px-2 py-1 font-mono text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
           onChange={(event) => {
             setSelectedRef(event.target.value)
+            setSelectedFile(null)
             setSelectedDiffFile(null)
           }}
           value={selectedRef}

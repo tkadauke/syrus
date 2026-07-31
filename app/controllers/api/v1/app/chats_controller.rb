@@ -870,7 +870,10 @@ module Api
             return
           end
 
-          result = proxy_to_coding_relay(chat_session, "files")
+          relay_params = {}
+          relay_params[:ref] = params[:ref].to_s.strip if params[:ref].present?
+
+          result = proxy_to_coding_relay(chat_session, "files", params: relay_params)
           unless result
             render_error("not_found", "Coding checkout not available.", status: :not_found)
             return

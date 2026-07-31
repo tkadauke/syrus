@@ -127,6 +127,15 @@ RSpec.describe ChatWorkspaceRelay do
         expect(body["checkout_branch"]).to eq("syrus-chat-#{chat_session.id}")
       end
 
+      it "passes an optional ref to ChatWorkspace.file_tree" do
+        sha = "d" * 40
+
+        res = get_relay("/workspace/files?session_id=#{chat_session.id}&ref=#{sha}")
+
+        expect(res.code).to eq("200")
+        expect(ChatWorkspace).to have_received(:file_tree).with(anything, anything, ref: sha)
+      end
+
       it "returns 401 for a wrong bearer token" do
         res = get_relay("/workspace/files?session_id=#{chat_session.id}", bearer: "wrong")
         expect(res.code).to eq("401")

@@ -11,7 +11,7 @@ require "json"
 # is a per-session bearer token (chat_sessions.coding_relay_token).
 #
 # Routes:
-#   GET /workspace/files?session_id=N
+#   GET /workspace/files?session_id=N[&ref=<sha>]
 #   GET /workspace/commits?session_id=N
 #   GET /workspace/file?session_id=N&path=<rel_path>[&ref=<sha>]
 #   GET /workspace/diff?session_id=N&mode=<cumulative|turn>[&ref=<sha>]
@@ -131,7 +131,7 @@ class ChatWorkspaceRelay
       repo = session.repository
       return send_response(client, 422) unless repo
 
-      result = ChatWorkspace.file_tree(session, repo)
+      result = ChatWorkspace.file_tree(session, repo, ref: params["ref"].presence)
       return send_response(client, 404) unless result
 
       send_response(client, 200, result)
