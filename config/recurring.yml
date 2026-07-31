@@ -31,6 +31,9 @@ default: &default
   poll_scheduled_tasks:
     class: PollScheduledTasksJob
     schedule: every minute
+  poll_scheduled_chat_messages:
+    class: PollScheduledChatMessagesJob
+    schedule: every minute
   sync_enabled_forks:
     class: SyncEnabledForksJob
     schedule: every 15 minutes

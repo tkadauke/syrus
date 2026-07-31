@@ -62,6 +62,7 @@ function makePayload(overrides: Partial<ChatPayload["chat"]> = {}): ChatPayload 
       app_branch_path: "/api/v1/app/chats/1/branch",
       app_share_path: "/api/v1/app/chats/1/share",
       app_enqueue_message_path: "/api/v1/app/chats/1/queued_messages",
+      app_scheduled_messages_path: "/api/v1/app/chats/1/scheduled_messages",
       app_stop_path: "/api/v1/app/chats/1/stop",
       app_daemon_connection_path: "/api/v1/app/chats/1/daemon_connection",
       app_bookmarks_path: "/api/v1/app/chats/1/bookmarks",

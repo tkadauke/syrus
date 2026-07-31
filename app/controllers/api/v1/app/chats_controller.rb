@@ -512,6 +512,44 @@ module Api
           render_temporary_chat_lock_error
         end
 
+        def create_scheduled_message
+          chat_session = find_chat_session
+          body = params.dig(:scheduled_message, :body).to_s.strip
+          fire_at = Time.zone.parse(params.dig(:scheduled_message, :fire_at).to_s)
+
+          if body.blank?
+            render_error("validation_failed", "Message cannot be blank.", status: :unprocessable_content)
+            return
+          end
+
+          unless fire_at
+            render_error("validation_failed", "fire_at is required.", status: :unprocessable_content)
+            return
+          end
+
+          if fire_at <= Time.current
+            render_error("validation_failed", "fire_at must be in the future.", status: :unprocessable_content)
+            return
+          end
+
+          scheduled_message = chat_session.scheduled_messages.create!(
+            user: Current.user,
+            body: body,
+            fire_at: fire_at
+          )
+
+          render json: {
+            id: scheduled_message.id,
+            body: scheduled_message.body,
+            fire_at: scheduled_message.fire_at.iso8601,
+            message: "Message scheduled."
+          }, status: :created
+        rescue ArgumentError
+          render_error("validation_failed", "fire_at is invalid.", status: :unprocessable_content)
+        rescue ActiveRecord::RecordInvalid => e
+          render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        end
+
         def update_queued_message
           chat_session = find_chat_session
           queued_message = chat_session.queued_messages.find(params[:queued_message_id])

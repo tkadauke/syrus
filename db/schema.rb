@@ -1210,6 +1210,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_01_123000) do
     t.index ["user_id"], name: "index_runs_on_user_id"
   end
 
+  create_table "scheduled_chat_messages", force: :cascade do |t|
+    t.text "body", null: false
+    t.integer "chat_session_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "fire_at", null: false
+    t.datetime "sent_at"
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["chat_session_id"], name: "index_scheduled_chat_messages_on_chat_session_id"
+    t.index ["sent_at", "fire_at"], name: "index_scheduled_chat_messages_on_sent_at_and_fire_at"
+    t.index ["user_id"], name: "index_scheduled_chat_messages_on_user_id"
+  end
+
   create_table "scheduled_tasks", force: :cascade do |t|
     t.datetime "archived_at"
     t.string "auto_approve_mode", default: "never", null: false
@@ -1642,6 +1655,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_01_123000) do
   add_foreign_key "runs", "jobs"
   add_foreign_key "runs", "steps"
   add_foreign_key "runs", "users"
+  add_foreign_key "scheduled_chat_messages", "chat_sessions"
+  add_foreign_key "scheduled_chat_messages", "users"
   add_foreign_key "scheduled_tasks", "cron_templates"
   add_foreign_key "scheduled_tasks", "repositories"
   add_foreign_key "scheduled_tasks", "users"

@@ -281,6 +281,7 @@ function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
       app_branch_path: "",
       app_share_path: "",
       app_enqueue_message_path: "",
+      app_scheduled_messages_path: "",
       app_stop_path: "",
       app_daemon_connection_path: "",
       app_bookmarks_path: "",

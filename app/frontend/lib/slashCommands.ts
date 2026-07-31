@@ -40,6 +40,7 @@ export const slashCommands = [
   { name: "/report", kind: "system", args: [], description: "File a GitHub issue about Syrus" },
   { name: "/scratch", kind: "system", args: [{ name: "text", required: false }], description: "Stash text to the scratch pad, or open the scratch pad panel." },
   { name: "/share", kind: "system", args: [], description: "Copy a shareable link to this chat" },
+  { name: "/schedule", kind: "system", args: [{ name: "time", required: false }, { name: "message", required: false }], description: "Schedule a chat message to send later." },
   {
     name: "/jobs",
     kind: "system",

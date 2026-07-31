@@ -8,7 +8,7 @@ import { GeminiSetupSheet } from "../../components/GeminiSetupSheet"
 import { AnalyzingHint, annotationHoldLabel, annotationIdleHintKind, annotationShortcutLabel, formatClock, RECORDER_WARNING_SECONDS, shouldShowAnnotationSurfaceNote, useNativeRecorderHud, useWalkthroughRecorder, WalkthroughRecorderHUD } from "../../components/WalkthroughRecorder"
 import { isWalkthroughVideoFile, MAX_WALKTHROUGH_BYTES, MAX_WALKTHROUGH_DURATION_SECONDS, measureVideoDuration, retryVideoWalkthrough, uploadVideoWalkthrough } from "../../api/videoWalkthroughs"
 import { refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
-import { attachChatRepository, branchChat, clearChatHistory, createChat, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatWhiteboard, rejectChatProposal, renameChat, sendChatMessage, shareChat, stopChat, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateQueuedChatMessage, type ChatBranchPayload, type ChatCreatedPayload, type ChatMode, type ChatPayload, type ChatProposal, type ChatQueuedMessage, type ShareChatPayload } from "../../api/chats"
+import { attachChatRepository, branchChat, clearChatHistory, createChat, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatWhiteboard, rejectChatProposal, renameChat, scheduleChatMessage, sendChatMessage, shareChat, stopChat, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateQueuedChatMessage, type ChatBranchPayload, type ChatCreatedPayload, type ChatMode, type ChatPayload, type ChatProposal, type ChatQueuedMessage, type ShareChatPayload } from "../../api/chats"
 import { postJobCommand } from "../../api/jobs"
 import { CloseIcon } from "../../components/CloseIcon"
 import { EnqueueIcon } from "../../components/EnqueueIcon"
@@ -16,6 +16,7 @@ import { ImageAnnotationModal } from "../../components/ImageAnnotationModal"
 import { SendIcon } from "../../components/SendIcon"
 import { StopIcon } from "../../components/StopIcon"
 import { filterSlashCommands, findSlashCommand, slashCommandDescription, slashCommandPrompt, slashCommandQuery, slashCommandSignature, type SlashCommand, type SlashCommandMatch } from "../../lib/slashCommands"
+import { formatScheduledTime, parseScheduleCommandArgs } from "../../lib/scheduleTime"
 import { useBugReportTrigger } from "../../lib/bugReportContext"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
@@ -27,6 +28,7 @@ import { lastAssistantRenderedMessage } from "./streamBuilders"
 import { PencilIcon, UploadIcon } from "./icons"
 import { isAgentActive } from "./messageDisplay"
 import { storeWorkspacePreference } from "./workspaceTabs"
+import { ScheduleMessageModal } from "./ScheduleMessageModal"
 
 
 
@@ -55,6 +57,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const [pendingConfirmation, setPendingConfirmation] = useState<PendingSlashCommandConfirmation | null>(null)
   const [activeCommandIndex, setActiveCommandIndex] = useState(0)
   const [clearConfirmationOpen, setClearConfirmationOpen] = useState(false)
+  const [scheduleModal, setScheduleModal] = useState<{ time: string; body: string } | null>(null)
   const bugReportTrigger = useBugReportTrigger()
   const [attachmentPopoverOpen, setAttachmentPopoverOpen] = useState(false)
   // One walkthrough video per message (v1). The chip above the composer
@@ -253,6 +256,26 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     },
     onError: (error) => {
       onNotice(errorMessage(error, "Command failed."))
+    }
+  })
+  const scheduleMessage = useMutation({
+    mutationFn: (input: { fireAt: Date; body: string }) => scheduleChatMessage(payload.paths.app_scheduled_messages_path, {
+      body: input.body,
+      fireAt: input.fireAt.toISOString()
+    }),
+    onSuccess: (result) => {
+      setText("")
+      setPendingConfirmation(null)
+      setScheduleModal(null)
+      try {
+        window.localStorage.removeItem(CHAT_DRAFT_KEY_PREFIX + chatId)
+      } catch (_error) {
+        // Local storage can be unavailable in hardened browser modes.
+      }
+      onNotice(`Message scheduled for ${formatScheduledTime(new Date(result.fire_at))}.`)
+    },
+    onError: (error) => {
+      onNotice(errorMessage(error, "Could not schedule message."))
     }
   })
   const detachRepository = useMutation({
@@ -525,6 +548,18 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
 
     if (command.name === "/share") {
       systemAction.mutate({ kind: "share" })
+      return
+    }
+
+    if (command.name === "/schedule") {
+      const parsed = parseScheduleCommandArgs(argsText)
+      if (parsed) {
+        scheduleMessage.mutate(parsed)
+      } else {
+        setScheduleModal(prefillScheduleModal(argsText))
+        setText("")
+        onNotice(null)
+      }
       return
     }
 
@@ -1149,6 +1184,18 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           }}
         />
       ) : null}
+      {scheduleModal ? (
+        <ScheduleMessageModal
+          initialBody={scheduleModal.body}
+          initialTime={scheduleModal.time}
+          submitting={scheduleMessage.isPending}
+          onCancel={() => {
+            setScheduleModal(null)
+            textareaRef.current?.focus()
+          }}
+          onSchedule={(input) => scheduleMessage.mutate(input)}
+        />
+      ) : null}
       <form
         className={`relative transition-shadow ${isDragOver ? "ring-2 ring-blue-400 dark:ring-blue-500" : ""}`}
         data-tour="chat-compose"
@@ -1350,7 +1397,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           <button
             aria-label={agentActive ? t("enqueue_message") : t("send_message")}
             className="flex h-8 min-h-11 w-8 min-w-11 items-center justify-center rounded text-blue-600 hover:bg-gray-100 disabled:opacity-40 sm:min-h-0 sm:min-w-0 dark:text-blue-400 dark:hover:bg-gray-800"
-            disabled={send.isPending || systemAction.isPending || systemCommandAction.isPending || (text.trim().length === 0 && walkthrough?.status !== "ready" && attachments.length === 0) || pendingConfirmation != null || attachmentError != null}
+            disabled={send.isPending || systemAction.isPending || systemCommandAction.isPending || scheduleMessage.isPending || (text.trim().length === 0 && walkthrough?.status !== "ready" && attachments.length === 0) || pendingConfirmation != null || attachmentError != null}
             type="submit"
           >
             {agentActive ? <EnqueueIcon className="h-5 w-5" /> : <SendIcon className="h-5 w-5" />}
@@ -1729,6 +1776,19 @@ function readAttachmentFile(file: File): Promise<ChatComposeAttachment> {
     reader.onerror = () => reject(reader.error)
     reader.readAsDataURL(file)
   })
+}
+
+function prefillScheduleModal(argsText: string) {
+  const trimmed = argsText.trim()
+  if (!trimmed) return { time: "", body: "" }
+
+  const firstSpace = trimmed.search(/\s/)
+  if (firstSpace === -1) return { time: trimmed, body: "" }
+
+  return {
+    time: trimmed.slice(0, firstSpace),
+    body: trimmed.slice(firstSpace + 1).trim()
+  }
 }
 
 function SlashCommandConfirmation({ commandName, disabled, text, onCancel, onConfirm }: { commandName: SlashCommand["name"]; disabled: boolean; text: string; onCancel: () => void; onConfirm: () => void }) {

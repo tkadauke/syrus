@@ -185,6 +185,7 @@ Rails.application.routes.draw do
         delete "chats/:id/messages", to: "chats#clear_messages", constraints: { id: /\d+/ }
         post "chats/:id/message", to: "chats#message", constraints: { id: /\d+/ }
         post "chats/:id/queued_messages", to: "chats#enqueue_message", constraints: { id: /\d+/ }
+        post "chats/:id/scheduled_messages", to: "chats#create_scheduled_message", constraints: { id: /\d+/ }
         patch "chats/:id/queued_messages/:queued_message_id", to: "chats#update_queued_message", constraints: { id: /\d+/, queued_message_id: /\d+/ }
         delete "chats/:id/queued_messages/:queued_message_id", to: "chats#destroy_queued_message", constraints: { id: /\d+/, queued_message_id: /\d+/ }
         post "chats/:id/scratchpad_items", to: "chats#create_scratchpad_item", constraints: { id: /\d+/ }

@@ -22,7 +22,8 @@ describe("slashCommands", () => {
     "/discard",
     "/cancel",
     "/retry",
-    "/clear-canvas"
+    "/clear-canvas",
+    "/schedule"
   ]
 
   it("registers /propose as a guided wizard skill command", () => {
@@ -85,6 +86,16 @@ describe("slashCommands", () => {
     expect(match?.command.description).toBe("Copy a shareable link to this chat")
     expect(match?.command.args).toEqual([])
     expect(match ? slashCommandSignature(match.command) : "missing").toBe("")
+  })
+
+  it("registers /schedule with optional time and message args", () => {
+    const match = findSlashCommand("/schedule 2h check the queue")
+
+    expect(match?.command.kind).toBe("system")
+    expect(match?.command.description).toBe("Schedule a chat message to send later.")
+    expect(match?.command.args).toEqual([{ name: "time", required: false }, { name: "message", required: false }])
+    expect(match?.argsText).toBe("2h check the queue")
+    expect(match ? slashCommandSignature(match.command) : "missing").toBe("[time] [message]")
   })
 
   it("keeps agent-backed commands as skill commands", () => {

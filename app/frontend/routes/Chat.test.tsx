@@ -319,6 +319,43 @@ describe("chat slash commands", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/epics/7")
   })
 
+  it("schedules a message immediately when /schedule has time and message args", async () => {
+    const fetchMock = mockChatRouteFetch()
+    const before = Date.now()
+    renderRoute()
+
+    await submitSlashCommand("/schedule 2h check JOB-123")
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(([input]) => String(input) === "/api/v1/app/chats/8/scheduled_messages")).toBe(true)
+    })
+    const scheduleCall = fetchMock.mock.calls.find(([input]) => String(input) === "/api/v1/app/chats/8/scheduled_messages")
+    const scheduledMessage = JSON.parse(scheduleCall?.[1]?.body as string).scheduled_message
+    expect(scheduleCall?.[1]?.method).toBe("POST")
+    expect(scheduledMessage.body).toBe("check JOB-123")
+    expect(new Date(scheduledMessage.fire_at).getTime()).toBeGreaterThanOrEqual(before + 2 * 60 * 60 * 1000)
+    expect(new Date(scheduledMessage.fire_at).getTime()).toBeLessThanOrEqual(Date.now() + 2 * 60 * 60 * 1000)
+    expect(await screen.findByText(/Message scheduled for/)).toBeInTheDocument()
+  })
+
+  it("opens a schedule modal when /schedule is missing args", async () => {
+    const fetchMock = mockChatRouteFetch()
+    renderRoute()
+
+    await submitSlashCommand("/schedule")
+
+    const dialog = await screen.findByRole("dialog", { name: "Schedule Message" })
+    fireEvent.change(within(dialog).getByLabelText("Time"), { target: { value: "30m" } })
+    fireEvent.change(within(dialog).getByLabelText("Message"), { target: { value: "Check the landing queue" } })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Schedule" }))
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(([input]) => String(input) === "/api/v1/app/chats/8/scheduled_messages")).toBe(true)
+    })
+    const scheduleCall = fetchMock.mock.calls.find(([input]) => String(input) === "/api/v1/app/chats/8/scheduled_messages")
+    expect(JSON.parse(scheduleCall?.[1]?.body as string).scheduled_message.body).toBe("Check the landing queue")
+  })
+
   for (const command of ["/discard JOB-DRAFT-1", "/cancel 42", "/retry 42", "/clear-canvas"]) {
     it(`shows confirmation before executing ${command}`, async () => {
       const fetchMock = mockChatRouteFetch(chatPayload({
@@ -2600,6 +2637,15 @@ function mockChatRouteFetch(payload = chatPayload()) {
     if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
       return Promise.resolve(new Response(null, { status: 204 }))
     }
+    if (path === "/api/v1/app/chats/8/scheduled_messages" && init?.method === "POST") {
+      const body = JSON.parse(String(init.body || "{}")).scheduled_message || {}
+      return Promise.resolve(jsonResponse({
+        id: 1,
+        body: body.body || "",
+        fire_at: body.fire_at || new Date().toISOString(),
+        message: "Message scheduled."
+      }, 201))
+    }
 
     return Promise.resolve(jsonResponse(payload))
   })
@@ -2836,6 +2882,7 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
       app_clear_path: "/api/v1/app/chats/8/messages",
       app_branch_path: "/api/v1/app/chats/8/branch",
       app_enqueue_message_path: "/api/v1/app/chats/8/queued_messages",
+      app_scheduled_messages_path: "/api/v1/app/chats/8/scheduled_messages",
       app_stop_path: "/api/v1/app/chats/8/stop",
       app_bookmarks_path: "/api/v1/app/chats/8/bookmarks",
       app_attachments_path: "/api/v1/app/chats/8/attachments",
