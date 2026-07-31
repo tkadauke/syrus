@@ -1,7 +1,12 @@
 import { useEffect, useRef } from "react"
 
-const SHAKE_THRESHOLD = 15 // m/s²
-const CONSECUTIVE_FRAMES_NEEDED = 2
+const SHAKE_ACCELERATION_THRESHOLD = 18 // m/s², when gravity-free acceleration is available
+const SHAKE_ACCELERATION_WITH_GRAVITY_THRESHOLD = 24 // m/s²
+const SHAKE_DELTA_THRESHOLD = 12 // m/s² frame-to-frame change
+const CONSECUTIVE_FRAMES_NEEDED = 3
+const SHAKE_COOLDOWN_MS = 1500
+
+type AccelerationVector = { x: number; y: number; z: number }
 
 type DeviceMotionEventWithPermission = typeof DeviceMotionEvent & {
   requestPermission?: () => Promise<PermissionState>
@@ -10,6 +15,8 @@ type DeviceMotionEventWithPermission = typeof DeviceMotionEvent & {
 export function useShakeToReport(onShake: () => void) {
   const onShakeRef = useRef(onShake)
   const consecutiveRef = useRef(0)
+  const lastAccelerationRef = useRef<AccelerationVector | null>(null)
+  const lastShakeAtRef = useRef(-SHAKE_COOLDOWN_MS)
 
   useEffect(() => {
     onShakeRef.current = onShake
@@ -19,17 +26,32 @@ export function useShakeToReport(onShake: () => void) {
     if (typeof window === "undefined" || !("DeviceMotionEvent" in window)) return
 
     function handleMotion(event: DeviceMotionEvent) {
-      const accel = event.accelerationIncludingGravity
+      const accel = event.acceleration ?? event.accelerationIncludingGravity
       if (!accel) return
       const x = accel.x ?? 0
       const y = accel.y ?? 0
       const z = accel.z ?? 0
+      const previous = lastAccelerationRef.current
+      lastAccelerationRef.current = { x, y, z }
+      if (!previous) return
+
       const magnitude = Math.sqrt(x * x + y * y + z * z)
-      if (magnitude > SHAKE_THRESHOLD) {
+      const delta = Math.sqrt(
+        (x - previous.x) ** 2 +
+        (y - previous.y) ** 2 +
+        (z - previous.z) ** 2
+      )
+      const threshold = event.acceleration ? SHAKE_ACCELERATION_THRESHOLD : SHAKE_ACCELERATION_WITH_GRAVITY_THRESHOLD
+      const now = event.timeStamp || Date.now()
+
+      if (magnitude > threshold && delta > SHAKE_DELTA_THRESHOLD) {
         consecutiveRef.current++
         if (consecutiveRef.current >= CONSECUTIVE_FRAMES_NEEDED) {
           consecutiveRef.current = 0
-          onShakeRef.current()
+          if (now - lastShakeAtRef.current >= SHAKE_COOLDOWN_MS) {
+            lastShakeAtRef.current = now
+            onShakeRef.current()
+          }
         }
       } else {
         consecutiveRef.current = 0
