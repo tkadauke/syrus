@@ -211,4 +211,37 @@ RSpec.describe Steps::GraderCollect do
       "output" => "Error: Test timed out in 5000ms."
     )
   end
+
+  it "records grader wall-clock as the parallel window rather than summed duration" do
+    base_time = Time.zone.parse("2026-07-31 12:00:00 UTC")
+    workflow.steps.where(kind: "grader").delete_all
+    [
+      [ "alpha", base_time, base_time + 0.30.seconds ],
+      [ "beta", base_time + 0.02.seconds, base_time + 0.32.seconds ],
+      [ "gamma", base_time + 0.04.seconds, base_time + 0.34.seconds ]
+    ].each_with_index do |(name, started_at, finished_at), index|
+      Step.create!(
+        workflow: workflow,
+        kind: "grader",
+        position: 100 + index,
+        iteration: 1,
+        loop_id: loop_id,
+        state: "succeeded",
+        started_at: started_at,
+        finished_at: finished_at,
+        details: { "name" => name, "required" => true, "duration_s" => 0.30 }
+      )
+    end
+
+    handler.call
+
+    measurement = workflow.reload.artifact("grader_parallelism").first
+    expect(measurement).to include(
+      "iteration" => 1,
+      "grader_count" => 3,
+      "wall_clock_s" => be_within(0.001).of(0.34),
+      "summed_duration_s" => be_within(0.001).of(0.9)
+    )
+    expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include("grader wall-clock 0.3s vs summed duration 0.9s")
+  end
 end

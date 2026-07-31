@@ -58,6 +58,16 @@ Agentic. An independent reviewer agent critiques the implementation, calls `subm
 
 Non-agentic. Reads grader definitions from `.syrus.yml` and materializes one `grader` Step per configured grader command. Run once at the start of each check cycle.
 
+For landing workflows (`auto_merge` and `merge_train`), after materialization
+Syrus enqueues every grader Run in the batch before `grader_collect` is allowed
+to run. Those Runs use the `merges` queue, so practical fanout is capped by the
+available `merges` workers: `MERGE_CONCURRENCY` per worker process times the
+number of worker pods consuming that queue. With enough capacity, elapsed grader
+time should approach the slowest required grader plus queue and startup overhead,
+not the sum of all required grader durations. Each collect step records
+`grader_parallelism` measurements on the workflow artifact with wall-clock and
+summed grader durations.
+
 ### grader
 
 Non-agentic. Runs a single grader command (e.g., `bin/rspec`). Required graders must pass; non-required graders warn on failure.

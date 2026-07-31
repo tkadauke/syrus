@@ -230,6 +230,9 @@ coverage, and landing. Nonlinear Epics with multiple approved leaves are
 assembled into that same combined branch first. A no-diff reconciliation
 continues normally; focused fixes are committed to the integration branch
 and still pass the normal gates before the Epic lands.
+Landing grader commands are fanned out as separate Runs and then collected, so
+with enough `merges` queue capacity the landing wait is bounded by the slowest
+required grader plus overhead rather than by the sum of all grader durations.
 
 New Epics no longer create a standalone `Reconciliation: ...` child Job just
 to review sibling consistency. Existing historical reconciliation Jobs remain

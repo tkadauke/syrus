@@ -259,9 +259,12 @@ class StepDispatcher
 
   def advance!
     return if handle_successful_adversarial_loop_iteration
+    return if enqueue_parallel_grader_runs_after_fanout
 
     next_step = find_next_runnable
     if next_step
+      return if waiting_for_parallel_graders?(next_step)
+
       # Idempotency: cascade_failure_to_step fires fail_from twice
       # (once from Step#fail_workflow!, once explicitly from
       # Run#cascade_failure_to_step). For grader Steps that
@@ -353,6 +356,8 @@ class StepDispatcher
   def advance_to_next_runnable!
     next_step = find_next_runnable
     if next_step
+      return if waiting_for_parallel_graders?(next_step)
+
       # Idempotency: cascade_failure_to_step fires fail_from twice
       # (once from Step#fail_workflow!, once explicitly from
       # Run#cascade_failure_to_step). For grader Steps that
@@ -364,6 +369,77 @@ class StepDispatcher
     else
       finish_workflow!
     end
+  end
+
+  def enqueue_parallel_grader_runs_after_fanout
+    return false unless @from_step&.kind == "grader_fanout"
+    return false unless landing_grader_fanout?
+
+    graders = contiguous_grader_steps_after(@from_step)
+    return false if graders.empty?
+
+    created_runs = []
+    prior_flag = Thread.current[:syrus_enqueue_parallel_grader_runs]
+    Thread.current[:syrus_enqueue_parallel_grader_runs] = true
+    Step.transaction do
+      graders.each do |grader|
+        next unless grader.queued?
+        next if grader.runs.any?
+
+        created_runs << self.class.create_run_and_enqueue(grader, @workflow)
+      end
+    end
+    record_parallel_fanout!(graders, created_runs) if created_runs.any?
+    created_runs.any? || graders.any? { |grader| grader.queued? || grader.running? }
+  ensure
+    Thread.current[:syrus_enqueue_parallel_grader_runs] = prior_flag
+  end
+
+  def contiguous_grader_steps_after(step)
+    steps = []
+    cursor = step.next_step
+    while cursor&.kind == "grader"
+      steps << cursor
+      cursor = cursor.next_step
+    end
+    steps
+  end
+
+  def waiting_for_parallel_graders?(next_step)
+    return false unless next_step&.kind == "grader_collect"
+
+    grader_scope = @workflow.steps.where(kind: "grader")
+    grader_scope = if next_step.loop_id.present?
+      grader_scope.where(loop_id: next_step.loop_id, iteration: next_step.iteration)
+    else
+      grader_scope.where(iteration: next_step.iteration)
+    end
+
+    grader_scope.where(state: %w[ queued running ]).exists?
+  end
+
+  def record_parallel_fanout!(graders, created_runs)
+    queue_name = Workflows.for(trigger_kind: @workflow.trigger_kind).queue_name&.to_s
+    batches = Array(@workflow.artifact("grader_fanout_batches"))
+    batches << {
+      "fanout_step_id" => @from_step.id,
+      "iteration" => @from_step.iteration,
+      "loop_id" => @from_step.loop_id,
+      "grader_step_ids" => graders.map(&:id),
+      "run_ids" => created_runs.map(&:id),
+      "queue" => queue_name,
+      "enqueued_at" => Time.current.iso8601
+    }.compact
+    @workflow.set_artifact!("grader_fanout_batches", batches)
+
+    Rails.logger.info(
+      "[StepDispatcher] workflow #{@workflow.id} enqueued #{created_runs.size}/#{graders.size} " \
+      "grader run(s) for parallel fanout on #{queue_name || "workflow"} queue"
+    )
+  end
+
+  def landing_grader_fanout?
+    %w[ auto_merge merge_train ].include?(@workflow.trigger_kind)
   end
 
   def loop_node_for(step)

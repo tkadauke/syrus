@@ -393,13 +393,36 @@ class RunJob < ApplicationJob
   # outer loop breaks and SQ frees the worker for the next job.
   def next_inline_run
     return nil if @workflow.reload.terminal?
+    return nil if yielding_to_parallel_grader_queue?
+
     cursor = @step.next_step
     while cursor
+      if landing_grader_fanout? && @step.kind == "grader" && cursor.kind == "grader" && cursor.runs.where(state: "queued").exists?
+        return nil
+      end
+
       queued = cursor.runs.where(state: "queued").order(:created_at).last
       return queued if queued
       cursor = cursor.next_step
     end
     nil
+  end
+
+  def yielding_to_parallel_grader_queue?
+    return false unless landing_grader_fanout?
+    return false unless @step.kind == "grader_fanout"
+
+    cursor = @step.next_step
+    while cursor&.kind == "grader"
+      return true if cursor.runs.where(state: "queued").exists?
+
+      cursor = cursor.next_step
+    end
+    false
+  end
+
+  def landing_grader_fanout?
+    %w[ auto_merge merge_train ].include?(@workflow.trigger_kind)
   end
 
   def workflow_starting?

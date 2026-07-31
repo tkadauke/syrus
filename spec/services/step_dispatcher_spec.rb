@@ -398,6 +398,79 @@ RSpec.describe StepDispatcher do
       expect(workflow.steps.where.not(loop_id: nil)).to be_empty
       expect(workflow.reload).to be_queued
     end
+
+    it "enqueues every materialized grader before grader_collect can run" do
+      clear_enqueued_jobs
+      fanout_workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "auto_merge",
+        chain_template: [
+          {
+            "type" => "retry_until",
+            "max_iterations" => 1,
+            "repair_first" => false,
+            "repair" => %w[ landing_fix ],
+            "check" => %w[ grader_fanout grader_collect ]
+          }
+        ]
+      )
+      loop_id = SecureRandom.uuid
+      fanout = Step.create!(workflow: fanout_workflow, kind: "grader_fanout", position: 0, loop_id: loop_id)
+      collect = Step.create!(workflow: fanout_workflow, kind: "grader_collect", position: 4, loop_id: loop_id)
+      graders = %w[alpha beta gamma].map.with_index do |name, index|
+        Step.create!(
+          workflow: fanout_workflow,
+          kind: "grader",
+          position: index + 1,
+          loop_id: loop_id,
+          details: { "name" => name, "required" => true }
+        )
+      end
+      ([ fanout ] + graders + [ collect ]).each_cons(2) { |from, to| from.update!(next_step_id: to.id) }
+
+      expect {
+        described_class.advance_from(fanout)
+      }.to change { Run.count }.by(3)
+
+      expect(graders.map { |grader| grader.reload.runs.count }).to eq([ 1, 1, 1 ])
+      expect(collect.reload.runs).to be_empty
+      expect(enqueued_jobs.count { |entry| entry[:job] == RunJob }).to eq(3)
+      expect(fanout_workflow.reload.artifact("grader_fanout_batches").last).to include(
+        "fanout_step_id" => fanout.id,
+        "grader_step_ids" => graders.map(&:id),
+        "run_ids" => graders.map { |grader| grader.runs.last.id },
+        "queue" => "merges"
+      )
+    end
+
+    it "does not enqueue grader_collect while parallel grader siblings are still active" do
+      fanout_workflow = Workflow.create!(job: job, trigger_kind: "auto_merge")
+      loop_id = SecureRandom.uuid
+      first = Step.create!(workflow: fanout_workflow, kind: "grader", position: 0, loop_id: loop_id, state: "running", started_at: 2.seconds.ago)
+      second = Step.create!(workflow: fanout_workflow, kind: "grader", position: 1, loop_id: loop_id, state: "running", started_at: 2.seconds.ago)
+      last = Step.create!(workflow: fanout_workflow, kind: "grader", position: 2, loop_id: loop_id, state: "succeeded", started_at: 2.seconds.ago, finished_at: Time.current)
+      collect = Step.create!(workflow: fanout_workflow, kind: "grader_collect", position: 3, loop_id: loop_id)
+      first.update!(next_step_id: second.id)
+      second.update!(next_step_id: last.id)
+      last.update!(next_step_id: collect.id)
+
+      expect {
+        described_class.advance_from(last)
+      }.not_to change { collect.runs.count }
+    end
+
+    it "also gates grader_collect for non-loop grader fanout workflows" do
+      fanout_workflow = Workflow.create!(job: job, trigger_kind: "coding_handoff")
+      first = Step.create!(workflow: fanout_workflow, kind: "grader", position: 0, state: "running", started_at: 2.seconds.ago)
+      last = Step.create!(workflow: fanout_workflow, kind: "grader", position: 1, state: "succeeded", started_at: 2.seconds.ago, finished_at: Time.current)
+      collect = Step.create!(workflow: fanout_workflow, kind: "grader_collect", position: 2)
+      first.update!(next_step_id: last.id)
+      last.update!(next_step_id: collect.id)
+
+      expect {
+        described_class.advance_from(last)
+      }.not_to change { collect.runs.count }
+    end
   end
 
   describe ".fail_from" do

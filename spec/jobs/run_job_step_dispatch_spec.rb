@@ -77,6 +77,59 @@ RSpec.describe RunJob, "step-dispatch path" do
     }.not_to have_enqueued_job(RunJob)
   end
 
+  it "yields materialized graders to the queue instead of running them inline" do
+    fanout_workflow = Workflow.create!(
+      job: job,
+      trigger_kind: "auto_merge",
+      chain_template: [
+        {
+          "type" => "retry_until",
+          "max_iterations" => 1,
+          "repair_first" => false,
+          "repair" => %w[ landing_fix ],
+          "check" => %w[ grader_fanout grader_collect ]
+        }
+      ]
+    )
+    loop_id = SecureRandom.uuid
+    fanout = Step.create!(workflow: fanout_workflow, kind: "grader_fanout", position: 0, loop_id: loop_id)
+    collect = Step.create!(workflow: fanout_workflow, kind: "grader_collect", position: 1, loop_id: loop_id)
+    fanout.update!(next_step_id: collect.id)
+    invoked = []
+
+    handler_class = Class.new(Steps::Base) do
+      define_method(:call) do
+        invoked << step.kind
+        next unless step.kind == "grader_fanout"
+
+        continuation = step.next_step
+        graders = %w[alpha beta gamma].map.with_index do |name, index|
+          Step.create!(
+            workflow: workflow,
+            kind: "grader",
+            position: index + 1,
+            loop_id: step.loop_id,
+            iteration: step.iteration,
+            details: { "name" => name, "required" => true }
+          )
+        end
+        workflow.steps.where(id: continuation.id).update_all(position: 4)
+        ([ step ] + graders + [ continuation ]).each_cons(2) { |from, to| from.update!(next_step_id: to.id) }
+      end
+    end
+    allow(Steps).to receive(:handler_for).and_return(handler_class)
+
+    run = StepDispatcher.start_workflow(fanout_workflow)
+    ActiveJob::Base.queue_adapter.enqueued_jobs.clear
+    described_class.perform_now(run.id)
+
+    expect(invoked).to eq([ "grader_fanout" ])
+    expect(fanout_workflow.steps.where(kind: "grader").count).to eq(3)
+    expect(fanout_workflow.steps.where(kind: "grader").flat_map(&:runs).map(&:state)).to all(eq("queued"))
+    expect(collect.reload.runs).to be_empty
+    expect(ActiveJob::Base.queue_adapter.enqueued_jobs.count { |entry| entry[:job] == RunJob }).to eq(3)
+  end
+
   it "does not overwrite a terminal state applied while the handler is running" do
     externally_failed_handler = Class.new(Steps::Base) do
       def call
