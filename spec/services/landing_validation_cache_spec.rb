@@ -12,6 +12,10 @@ RSpec.describe LandingValidationCache do
     Workflow.create!(job: job, trigger_kind: "initial", artifacts: artifacts)
   end
 
+  def changed_files_fingerprint(files = [ "app/models/job.rb" ])
+    described_class.changed_files_fingerprint(files)
+  end
+
   describe ".record!" do
     it "writes required_graders_passed, SHAs, base_ref, and checked_at to the workflow artifact" do
       job = make_job
@@ -24,7 +28,8 @@ RSpec.describe LandingValidationCache do
           tree_sha: "tree123",
           base_sha: "def456",
           base_ref: "main",
-          grader_fingerprint: "grade-fp"
+          grader_fingerprint: "grade-fp",
+          changed_files_fingerprint: changed_files_fingerprint
         )
 
         artifact = workflow.reload.artifact("landing_validation")
@@ -35,6 +40,7 @@ RSpec.describe LandingValidationCache do
           "base_sha" => "def456",
           "base_ref" => "main",
           "grader_fingerprint" => "grade-fp",
+          "changed_files_fingerprint" => changed_files_fingerprint,
           "validation_source" => "graders",
           "checked_at" => Time.current.iso8601
         )
@@ -277,10 +283,15 @@ RSpec.describe LandingValidationCache do
         "base_sha" => "old-base",
         "base_ref" => "main",
         "grader_fingerprint" => "fp",
+        "changed_files_fingerprint" => changed_files_fingerprint,
         "validation_source" => "graders"
       } })
 
-      decision = described_class.carry_forward_source_for(job: job, grader_fingerprint: "fp")
+      decision = described_class.carry_forward_source_for(
+        job: job,
+        grader_fingerprint: "fp",
+        changed_files_fingerprint: changed_files_fingerprint
+      )
 
       expect(decision).to be_reusable
       expect(decision.match_type).to eq("clean_rebase_carry_forward_source")
@@ -294,10 +305,15 @@ RSpec.describe LandingValidationCache do
         "base_sha" => "old-base",
         "base_ref" => "main",
         "grader_fingerprint" => "fp",
+        "changed_files_fingerprint" => changed_files_fingerprint,
         "validation_source" => "clean_rebase"
       } })
 
-      decision = described_class.carry_forward_source_for(job: job, grader_fingerprint: "fp")
+      decision = described_class.carry_forward_source_for(
+        job: job,
+        grader_fingerprint: "fp",
+        changed_files_fingerprint: changed_files_fingerprint
+      )
 
       expect(decision).not_to be_reusable
       expect(decision.reason).to eq("no prior required-grader validation matched current grader configuration")
@@ -310,13 +326,39 @@ RSpec.describe LandingValidationCache do
         "head_sha" => "old-head",
         "base_sha" => "old-base",
         "base_ref" => "main",
-        "grader_fingerprint" => "old-fp"
+        "grader_fingerprint" => "old-fp",
+        "changed_files_fingerprint" => changed_files_fingerprint
       } })
 
-      decision = described_class.carry_forward_source_for(job: job, grader_fingerprint: "new-fp")
+      decision = described_class.carry_forward_source_for(
+        job: job,
+        grader_fingerprint: "new-fp",
+        changed_files_fingerprint: changed_files_fingerprint
+      )
 
       expect(decision).not_to be_reusable
       expect(decision.reason).to eq("required grader configuration changed")
+    end
+
+    it "rejects carry-forward when the changed-file selection changed" do
+      job = make_job
+      make_workflow(job, artifacts: { "landing_validation" => {
+        "required_graders_passed" => true,
+        "head_sha" => "old-head",
+        "base_sha" => "old-base",
+        "base_ref" => "main",
+        "grader_fingerprint" => "fp",
+        "changed_files_fingerprint" => changed_files_fingerprint([ "app/old.rb" ])
+      } })
+
+      decision = described_class.carry_forward_source_for(
+        job: job,
+        grader_fingerprint: "fp",
+        changed_files_fingerprint: changed_files_fingerprint([ "app/new.rb" ])
+      )
+
+      expect(decision).not_to be_reusable
+      expect(decision.reason).to eq("changed-file selection changed")
     end
   end
 end

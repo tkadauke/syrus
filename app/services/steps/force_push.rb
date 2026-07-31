@@ -48,7 +48,12 @@ module Steps
       return unless clean_auto_rebase?
 
       grader_fingerprint = current_landing_grader_fingerprint
-      source = LandingValidationCache.carry_forward_source_for(job: job, grader_fingerprint: grader_fingerprint)
+      changed_files_fingerprint = current_changed_files_fingerprint
+      source = LandingValidationCache.carry_forward_source_for(
+        job: job,
+        grader_fingerprint: grader_fingerprint,
+        changed_files_fingerprint: changed_files_fingerprint
+      )
       unless source.reusable?
         log("force_push: did not carry green grade across clean rebase - #{source.reason}", kind: "system")
         return
@@ -70,6 +75,7 @@ module Steps
         base_sha: base_sha,
         base_ref: base_ref,
         grader_fingerprint: grader_fingerprint,
+        changed_files_fingerprint: changed_files_fingerprint,
         validation_source: "clean_rebase"
       )
       log("force_push: carried green grade across clean rebase (#{repository.slug}: trust_clean_rebase_grade, #{source.reason}); next landing will skip re-grading head #{head_sha.first(7)}")
@@ -84,6 +90,16 @@ module Steps
       GraderConclusionCache.fingerprint_for_plan(plan)
     rescue StandardError => e
       log("force_push: could not fingerprint current landing graders for carry-forward: #{e.message}", kind: "system")
+      nil
+    end
+
+    def current_changed_files_fingerprint
+      base_sha = job.mergeability_base_sha.presence || default_branch_ref
+      files = streaming_git.run("diff", "--name-only", "#{base_sha}...HEAD", chdir: workspace.path.to_s)
+        .split("\n").map(&:strip).reject(&:empty?)
+      LandingValidationCache.changed_files_fingerprint(files)
+    rescue StandardError => e
+      log("force_push: could not fingerprint current changed-file selection for carry-forward: #{e.message}", kind: "system")
       nil
     end
 
