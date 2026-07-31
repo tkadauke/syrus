@@ -4,11 +4,7 @@ class TestCaseSearchIndex < SearchRecord
   class << self
     def upsert(test_case)
       connection.transaction do
-        connection.exec_delete(
-          "DELETE FROM test_case_fts WHERE test_case_id = ?",
-          "TestCaseSearchIndex Delete",
-          [ bind(test_case.id) ]
-        )
+        delete(test_case.id)
 
         connection.exec_insert(
           <<~SQL.squish,
@@ -37,6 +33,14 @@ class TestCaseSearchIndex < SearchRecord
           ]
         )
       end
+    end
+
+    def delete(test_case_id)
+      connection.exec_delete(
+        "DELETE FROM test_case_fts WHERE test_case_id = ?",
+        "TestCaseSearchIndex Delete",
+        [ bind(test_case_id) ]
+      )
     end
 
     def search(query, user_id:, limit: 20, snippet_start: "<mark>", snippet_end: "</mark>", snippet_tokens: 16)

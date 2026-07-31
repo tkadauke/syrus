@@ -13,7 +13,7 @@ class TestCase < ApplicationRecord
   scope :skipped, -> { where(status: "skipped") }
   scope :errored, -> { where(status: "error") }
 
-  after_commit :index_for_search, on: %i[create update]
+  after_commit :index_for_search, on: %i[create update destroy]
 
   private
 

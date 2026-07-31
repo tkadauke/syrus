@@ -51,6 +51,15 @@ RSpec.describe TestCase do
     expect(build_case(file_path: nil, output: nil, failure_message: nil, failure_backtrace: nil)).to be_valid
   end
 
+  it "queues search indexing when destroyed" do
+    test_case = build_case
+    test_case.save!
+
+    expect {
+      test_case.destroy!
+    }.to have_enqueued_job(IndexTestCaseSearchJob).with(test_case.id)
+  end
+
   describe "scopes" do
     before do
       TestCase::STATUSES.each do |s|

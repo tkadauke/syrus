@@ -64,6 +64,21 @@ RSpec.describe TestCaseSearchIndex do
     expect(described_class.search("NewTestName", user_id: user.id).map { |row| row[:test_case_id] }).to eq([ test_case.id ])
   end
 
+  it "deletes rows for a removed test case" do
+    test_case = TestCase.create!(
+      test_run: test_run,
+      repository: repo,
+      name: "RemovedTestName passes",
+      suite_name: "Suite",
+      status: "passed"
+    )
+
+    described_class.upsert(test_case)
+    described_class.delete(test_case.id)
+
+    expect(described_class.search("RemovedTestName", user_id: user.id)).to be_empty
+  end
+
   it "scopes results to the requested user" do
     own_test = TestCase.create!(
       test_run: test_run,

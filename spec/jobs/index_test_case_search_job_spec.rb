@@ -37,10 +37,29 @@ RSpec.describe IndexTestCaseSearchJob do
     }.to change { indexed_test_case_ids }.from([]).to([ test_case.id ])
   end
 
-  it "skips missing test cases" do
+  it "removes stale index rows for missing test cases" do
+    SearchRecord.connection.exec_insert(
+      <<~SQL.squish,
+        INSERT INTO test_case_fts (
+          name, suite_name, file_path, test_case_id, user_id, repository_id, status, created_at
+        )
+        VALUES (
+          'Stale test',
+          'Suite',
+          'spec/stale_spec.rb',
+          123,
+          #{user.id},
+          #{repo.id},
+          'passed',
+          '#{Time.current.iso8601}'
+        )
+      SQL
+      "TestCaseSearchIndex Test Insert"
+    )
+
     expect {
-      described_class.perform_now(0)
-    }.not_to change { indexed_test_case_ids }
+      described_class.perform_now(123)
+    }.to change { indexed_test_case_ids }.from([ 123 ]).to([])
   end
 
   def indexed_test_case_ids
