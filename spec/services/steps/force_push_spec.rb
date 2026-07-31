@@ -121,6 +121,7 @@ RSpec.describe Steps::ForcePush do
       allow(git).to receive(:run)
       allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/workspace").and_return("#{head}\n")
       allow(git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: "/tmp/workspace").and_return("newtree789\n")
+      allow(git).to receive(:run).with("diff", "--name-only", "basesha...HEAD", chdir: "/tmp/workspace").and_return("app/models/job.rb\n")
       git
     end
 
@@ -128,7 +129,14 @@ RSpec.describe Steps::ForcePush do
       workflow.set_artifact!("auto_rebase_result", { "reason" => "rebased", "changed" => true, "succeeded" => true, "pre_sha" => "old", "post_sha" => "new" })
       job.update!(mergeability_base_sha: "basesha", mergeability_base_ref: "master")
       prior = Workflows::AutoMerge.instantiate(job: job)
-      LandingValidationCache.record!(workflow: prior, head_sha: "oldhead", base_sha: "oldbase", base_ref: "master", grader_fingerprint: "fp")
+      LandingValidationCache.record!(
+        workflow: prior,
+        head_sha: "oldhead",
+        base_sha: "oldbase",
+        base_ref: "master",
+        grader_fingerprint: "fp",
+        changed_files_fingerprint: LandingValidationCache.changed_files_fingerprint([ "app/models/job.rb" ])
+      )
       allow(GraderConclusionCache).to receive(:fingerprint_for_plan).and_return("fp")
     end
 
@@ -144,6 +152,7 @@ RSpec.describe Steps::ForcePush do
       expect(artifact["head_sha"]).to eq("newhead789")
       expect(artifact["base_sha"]).to eq("basesha")
       expect(artifact["grader_fingerprint"]).to eq("fp")
+      expect(artifact["changed_files_fingerprint"]).to eq(LandingValidationCache.changed_files_fingerprint([ "app/models/job.rb" ]))
       expect(artifact["required_graders_passed"]).to be(true)
     end
 
@@ -178,6 +187,18 @@ RSpec.describe Steps::ForcePush do
 
       expect(workflow.reload.artifact("landing_validation")).to be_nil
       expect(run.job_logs.pluck(:chunk).join("\n")).to include("required grader configuration changed")
+    end
+
+    it "does not re-stamp when the changed-file selection changes" do
+      job.repository.update!(trust_clean_rebase_grade: true)
+      handler = described_class.new(run)
+      git = stub_git(handler)
+      allow(git).to receive(:run).with("diff", "--name-only", "basesha...HEAD", chdir: "/tmp/workspace").and_return("app/services/new.rb\n")
+
+      handler.call
+
+      expect(workflow.reload.artifact("landing_validation")).to be_nil
+      expect(run.job_logs.pluck(:chunk).join("\n")).to include("changed-file selection changed")
     end
 
     it "does not re-stamp when the PR has no prior green grade to carry forward" do

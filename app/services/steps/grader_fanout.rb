@@ -33,6 +33,7 @@ module Steps
 
       # Skip graders whose when_files_changed globs don't match this PR's diff.
       files = changed_files
+      record_changed_files!(files)
       active_graders, skipped_graders = plan.graders.partition { |g| files_match?(g, files) }
       skipped_graders.each { |g| log("[grader_fanout] skipped #{g.name} (no matching files changed)") }
 
@@ -83,6 +84,12 @@ module Steps
       workflow.set_artifact!("grade_plan_source", plan.source)
       workflow.set_artifact!(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY, grader_fingerprint)
       workflow.set_artifact!(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY, current_head_sha)
+    end
+
+    def record_changed_files!(files)
+      normalized = Array(files).map(&:to_s).sort
+      workflow.set_artifact!("grade_plan_changed_files", normalized)
+      workflow.set_artifact!("grade_plan_changed_files_fingerprint", LandingValidationCache.changed_files_fingerprint(normalized))
     end
 
     def reusable_success(grader_fingerprint)

@@ -242,7 +242,8 @@ RSpec.describe "Steps::MergeTrain*" do
             "tree_sha" => "treesha123",
             "base_sha" => "basesha123",
             "base_ref" => "master",
-            "grader_fingerprint" => "fp"
+            "grader_fingerprint" => "fp",
+            "changed_files_fingerprint" => LandingValidationCache.changed_files_fingerprint([ "app/models/job.rb" ])
           }
         }
       )
@@ -255,6 +256,7 @@ RSpec.describe "Steps::MergeTrain*" do
       git = stub_git(handler)
       allow(handler).to receive(:run_agent)
       allow(GraderConclusionCache).to receive(:fingerprint_for_plan).and_return("fp")
+      allow(git).to receive(:run).with("diff", "--name-only", "basesha123...HEAD", chdir: "/tmp/ws").and_return("app/models/job.rb\n")
 
       handler.call
 
@@ -282,7 +284,8 @@ RSpec.describe "Steps::MergeTrain*" do
             "tree_sha" => "treesha123",
             "base_sha" => "basesha123",
             "base_ref" => "master",
-            "grader_fingerprint" => "fp"
+            "grader_fingerprint" => "fp",
+            "changed_files_fingerprint" => LandingValidationCache.changed_files_fingerprint([ "app/models/job.rb" ])
           }
         }
       )
@@ -292,9 +295,10 @@ RSpec.describe "Steps::MergeTrain*" do
       build_step = workflow.steps.find_by!(kind: "merge_train_build")
       run = Run.create!(job: a, step: build_step, trigger_kind: "merge_train")
       handler = described_class.new(run)
-      stub_git(handler, head: "newint222")
+      git = stub_git(handler, head: "newint222")
       allow(handler).to receive(:run_agent)
       allow(GraderConclusionCache).to receive(:fingerprint_for_plan).and_return("fp")
+      allow(git).to receive(:run).with("diff", "--name-only", "basesha123...HEAD", chdir: "/tmp/ws").and_return("app/models/job.rb\n")
 
       handler.call
 
@@ -316,7 +320,8 @@ RSpec.describe "Steps::MergeTrain*" do
             "tree_sha" => "treesha123",
             "base_sha" => "oldbase",
             "base_ref" => "master",
-            "grader_fingerprint" => "fp"
+            "grader_fingerprint" => "fp",
+            "changed_files_fingerprint" => LandingValidationCache.changed_files_fingerprint([ "app/models/job.rb" ])
           }
         }
       )
@@ -705,6 +710,7 @@ RSpec.describe "Steps::MergeTrain*" do
             "base_sha" => "oldbase111",
             "base_ref" => "master",
             "grader_fingerprint" => "fp",
+            "changed_files_fingerprint" => LandingValidationCache.changed_files_fingerprint([ "app/models/job.rb" ]),
             "validation_source" => "graders"
           }
         }
@@ -722,6 +728,7 @@ RSpec.describe "Steps::MergeTrain*" do
       allow(git).to receive(:run).with("rev-parse", "FETCH_HEAD", chdir: "/tmp/ws").and_return("newbase222\n")
       allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/ws").and_return("newintsha999\n")
       allow(git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: "/tmp/ws").and_return("newtree999\n")
+      allow(git).to receive(:run).with("diff", "--name-only", "newbase222...HEAD", chdir: "/tmp/ws").and_return("app/models/job.rb\n")
       allow(GraderConclusionCache).to receive(:fingerprint_for_plan).and_return("fp")
 
       handler.call
@@ -733,6 +740,7 @@ RSpec.describe "Steps::MergeTrain*" do
         "base_sha" => "newbase222",
         "base_ref" => "master",
         "grader_fingerprint" => "fp",
+        "changed_files_fingerprint" => LandingValidationCache.changed_files_fingerprint([ "app/models/job.rb" ]),
         "validation_source" => "clean_rebase"
       )
       expect(handler.workflow.steps.find_by!(kind: "prepare")).to be_cancelled
@@ -755,7 +763,8 @@ RSpec.describe "Steps::MergeTrain*" do
             "head_sha" => "intsha111",
             "base_sha" => "oldbase111",
             "base_ref" => "master",
-            "grader_fingerprint" => "old-fp"
+            "grader_fingerprint" => "old-fp",
+            "changed_files_fingerprint" => LandingValidationCache.changed_files_fingerprint([ "app/models/job.rb" ])
           }
         }
       )
@@ -772,6 +781,7 @@ RSpec.describe "Steps::MergeTrain*" do
       allow(git).to receive(:run).with("rev-parse", "FETCH_HEAD", chdir: "/tmp/ws").and_return("newbase222\n")
       allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/ws").and_return("newintsha999\n")
       allow(git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: "/tmp/ws").and_return("newtree999\n")
+      allow(git).to receive(:run).with("diff", "--name-only", "newbase222...HEAD", chdir: "/tmp/ws").and_return("app/models/job.rb\n")
       allow(GraderConclusionCache).to receive(:fingerprint_for_plan).and_return("new-fp")
 
       handler.call
