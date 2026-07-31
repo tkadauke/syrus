@@ -151,7 +151,8 @@ RSpec.describe Steps::MergeabilityPreflight do
         "tree_sha" => "tree-abc",
         "base_sha" => "def",
         "base_ref" => "main",
-        "grader_fingerprint" => "fp"
+        "grader_fingerprint" => "fp",
+        "changed_files_fingerprint" => LandingValidationCache.changed_files_fingerprint([ "app/models/job.rb" ])
       }
     })
     allow(client).to receive(:pull_request).and_return(pr(mergeable_state: "clean", mergeable: true, head_sha: "abc", base_sha: "def"))
@@ -160,6 +161,7 @@ RSpec.describe Steps::MergeabilityPreflight do
     workspace = instance_double(WorkflowWorkspace, setup: nil, path: Rails.root)
     allow(handler).to receive(:workspace).and_return(workspace)
     allow(GraderConclusionCache).to receive(:fingerprint_for_plan).and_return("fp")
+    allow(GitRunner).to receive(:new).and_return(instance_double(GitRunner, run: "app/models/job.rb\n"))
 
     handler.call
 
@@ -185,7 +187,8 @@ RSpec.describe Steps::MergeabilityPreflight do
         "tree_sha" => "tree-abc",
         "base_sha" => "old-base",
         "base_ref" => "main",
-        "grader_fingerprint" => "fp"
+        "grader_fingerprint" => "fp",
+        "changed_files_fingerprint" => LandingValidationCache.changed_files_fingerprint([ "app/models/job.rb" ])
       }
     })
     allow(client).to receive(:pull_request).and_return(pr(mergeable_state: "clean", mergeable: true, head_sha: "abc", base_sha: "new-base"))
@@ -194,6 +197,7 @@ RSpec.describe Steps::MergeabilityPreflight do
     workspace = instance_double(WorkflowWorkspace, setup: nil, path: Rails.root)
     allow(handler).to receive(:workspace).and_return(workspace)
     allow(GraderConclusionCache).to receive(:fingerprint_for_plan).and_return("fp")
+    allow(GitRunner).to receive(:new).and_return(instance_double(GitRunner, run: "app/models/job.rb\n"))
 
     handler.call
 

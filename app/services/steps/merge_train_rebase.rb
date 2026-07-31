@@ -45,16 +45,21 @@ module Steps
 
       log("merge_train_rebase: rebased #{train.integration_branch} to " \
           "#{new_integration_sha.first(9)} (new base #{new_base_sha.first(9)})")
-      carry_forward_landing_validation!(train, head_sha: new_integration_sha, tree_sha: tree_sha, base_sha: new_base_sha)
+      carry_forward_landing_validation!(git, chdir, train, head_sha: new_integration_sha, tree_sha: tree_sha, base_sha: new_base_sha)
     end
 
     private
 
-    def carry_forward_landing_validation!(train, head_sha:, tree_sha:, base_sha:)
+    def carry_forward_landing_validation!(git, chdir, train, head_sha:, tree_sha:, base_sha:)
       return unless repository.trust_clean_rebase_grade?
 
       grader_fingerprint = current_landing_grader_fingerprint
-      source = LandingValidationCache.carry_forward_source_for(job: job, grader_fingerprint: grader_fingerprint)
+      changed_files_fingerprint = current_changed_files_fingerprint(git, chdir, base_sha)
+      source = LandingValidationCache.carry_forward_source_for(
+        job: job,
+        grader_fingerprint: grader_fingerprint,
+        changed_files_fingerprint: changed_files_fingerprint
+      )
       unless source.reusable?
         log("merge_train_rebase: did not carry green grade across clean rebase - #{source.reason}", kind: "system")
         return
@@ -67,6 +72,7 @@ module Steps
         base_sha: base_sha,
         base_ref: train.base_branch,
         grader_fingerprint: grader_fingerprint,
+        changed_files_fingerprint: changed_files_fingerprint,
         validation_source: "clean_rebase"
       )
       skip_revalidated_grade_steps!(head_sha, source)
@@ -78,6 +84,15 @@ module Steps
       GraderConclusionCache.fingerprint_for_plan(plan)
     rescue StandardError => e
       log("merge_train_rebase: could not fingerprint current landing graders for carry-forward: #{e.message}", kind: "system")
+      nil
+    end
+
+    def current_changed_files_fingerprint(git, chdir, base_sha)
+      files = git.run("diff", "--name-only", "#{base_sha}...HEAD", chdir: chdir)
+        .split("\n").map(&:strip).reject(&:empty?)
+      LandingValidationCache.changed_files_fingerprint(files)
+    rescue StandardError => e
+      log("merge_train_rebase: could not fingerprint current changed-file selection for carry-forward: #{e.message}", kind: "system")
       nil
     end
 

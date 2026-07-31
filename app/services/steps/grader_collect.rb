@@ -127,7 +127,8 @@ module Steps
         tree_sha: current_tree_sha,
         base_sha: base_sha,
         base_ref: base_ref,
-        grader_fingerprint: workflow.artifact(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY)
+        grader_fingerprint: workflow.artifact(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY),
+        changed_files_fingerprint: workflow.artifact("grade_plan_changed_files_fingerprint")
       )
     rescue StandardError => e
       Rails.logger.warn("[GraderCollect] landing validation capture failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")

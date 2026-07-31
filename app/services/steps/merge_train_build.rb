@@ -57,7 +57,8 @@ module Steps
         tree_sha: tree_sha,
         base_sha: base_sha,
         base_ref: train.base_branch,
-        grader_fingerprint: current_grader_fingerprint
+        grader_fingerprint: current_grader_fingerprint,
+        changed_files_fingerprint: current_changed_files_fingerprint(base_sha)
       )
       if decision.reusable?
         skip_revalidated_grade_steps!(sha, decision)
@@ -168,6 +169,15 @@ module Steps
       GraderConclusionCache.fingerprint_for_plan(plan)
     rescue StandardError => e
       log("merge_train: could not fingerprint current landing graders: #{e.message}", kind: "system")
+      nil
+    end
+
+    def current_changed_files_fingerprint(base_sha)
+      files = @git.run("diff", "--name-only", "#{base_sha}...HEAD", chdir: @chdir)
+        .split("\n").map(&:strip).reject(&:empty?)
+      LandingValidationCache.changed_files_fingerprint(files)
+    rescue StandardError => e
+      log("merge_train: could not fingerprint current changed-file selection: #{e.message}", kind: "system")
       nil
     end
 

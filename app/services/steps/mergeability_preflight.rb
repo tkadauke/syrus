@@ -45,7 +45,8 @@ module Steps
         job: job,
         pr: pr,
         tree_sha: current_tree_sha(client, pr_repo, pr),
-        grader_fingerprint: current_grader_fingerprint
+        grader_fingerprint: current_grader_fingerprint,
+        changed_files_fingerprint: current_changed_files_fingerprint(pr)
       )
     end
 
@@ -103,6 +104,17 @@ module Steps
       client.commit_tree_sha(pr_repo.slug, MergeabilityRecorder.head_sha(pr)).to_s.presence
     rescue StandardError => e
       log("auto_merge: could not read current tree SHA for landing validation cache: #{e.message}", kind: "system")
+      nil
+    end
+
+    def current_changed_files_fingerprint(pr)
+      workspace.setup
+      base_sha = MergeabilityRecorder.base_sha(pr).presence || default_branch_ref
+      files = GitRunner.new.run("diff", "--name-only", "#{base_sha}...HEAD", chdir: workspace.path.to_s)
+        .split("\n").map(&:strip).reject(&:empty?)
+      LandingValidationCache.changed_files_fingerprint(files)
+    rescue StandardError => e
+      log("auto_merge: could not fingerprint current changed-file selection: #{e.message}", kind: "system")
       nil
     end
 
