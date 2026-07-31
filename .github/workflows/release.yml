@@ -206,7 +206,7 @@ jobs:
       # state. (The one residue is the versioned image the build spine already
       # pushed — a tested, unreferenced tag, overwritten on the next attempt.)
       - name: Log in to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@v4.5.2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
