@@ -148,13 +148,20 @@ RSpec.describe Steps::MergeabilityPreflight do
       LandingValidationCache::ARTIFACT_KEY => {
         "required_graders_passed" => true,
         "head_sha" => "abc",
-        "base_sha" => "old-base",
-        "base_ref" => "main"
+        "tree_sha" => "tree-abc",
+        "base_sha" => "def",
+        "base_ref" => "main",
+        "grader_fingerprint" => "fp"
       }
     })
     allow(client).to receive(:pull_request).and_return(pr(mergeable_state: "clean", mergeable: true, head_sha: "abc", base_sha: "def"))
+    allow(client).to receive(:commit_tree_sha).with("acme/widgets", "abc").and_return("tree-abc")
+    handler = described_class.new(run)
+    workspace = instance_double(WorkflowWorkspace, setup: nil, path: Rails.root)
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(GraderConclusionCache).to receive(:fingerprint_for_plan).and_return("fp")
 
-    described_class.new(run).call
+    handler.call
 
     states = workflow.steps.order(:position).pluck(:kind, :state)
     expect(states).to include(
@@ -166,5 +173,31 @@ RSpec.describe Steps::MergeabilityPreflight do
     )
     expect(workflow.reload).to be_running
     expect(run.reload).to be_running
+    expect(run.job_logs.pluck(:chunk).join("\n")).to include("auto_merge: reusing cached landing validation (exact_head)")
+  end
+
+  it "runs landing graders when the cached validation has a different base" do
+    prior = Workflows::Initial.instantiate(job: job)
+    prior.update!(artifacts: {
+      LandingValidationCache::ARTIFACT_KEY => {
+        "required_graders_passed" => true,
+        "head_sha" => "abc",
+        "tree_sha" => "tree-abc",
+        "base_sha" => "old-base",
+        "base_ref" => "main",
+        "grader_fingerprint" => "fp"
+      }
+    })
+    allow(client).to receive(:pull_request).and_return(pr(mergeable_state: "clean", mergeable: true, head_sha: "abc", base_sha: "new-base"))
+    allow(client).to receive(:commit_tree_sha).with("acme/widgets", "abc").and_return("tree-abc")
+    handler = described_class.new(run)
+    workspace = instance_double(WorkflowWorkspace, setup: nil, path: Rails.root)
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(GraderConclusionCache).to receive(:fingerprint_for_plan).and_return("fp")
+
+    handler.call
+
+    expect(workflow.steps.find_by!(kind: "grader_fanout")).to be_queued
+    expect(run.job_logs.pluck(:chunk).join("\n")).to include("auto_merge: landing graders will run - base SHA changed")
   end
 end

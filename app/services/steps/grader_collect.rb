@@ -117,19 +117,42 @@ module Steps
       return if workflow.trigger_kind == "main_grader"
 
       head_sha = current_head_sha
-      base_sha = workflow.trigger_kind == "auto_merge" ? job.mergeability_base_sha.presence : nil
-      base_ref = workflow.trigger_kind == "auto_merge" ? job.mergeability_base_ref.presence : nil
+      base_sha = landing_base_sha
+      base_ref = landing_base_ref
       return if head_sha.blank?
 
       LandingValidationCache.record!(
         workflow: workflow,
         head_sha: head_sha,
+        tree_sha: current_tree_sha,
         base_sha: base_sha,
-        base_ref: base_ref
+        base_ref: base_ref,
+        grader_fingerprint: workflow.artifact(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY)
       )
     rescue StandardError => e
       Rails.logger.warn("[GraderCollect] landing validation capture failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
       nil
+    end
+
+    def landing_base_sha
+      return job.mergeability_base_sha.presence if workflow.trigger_kind == "auto_merge"
+      return workflow.artifact("merge_train_base_sha").presence if workflow.trigger_kind == "merge_train"
+
+      nil
+    end
+
+    def landing_base_ref
+      return job.mergeability_base_ref.presence if workflow.trigger_kind == "auto_merge"
+      return merge_train_base_ref if workflow.trigger_kind == "merge_train"
+
+      nil
+    end
+
+    def merge_train_base_ref
+      id = workflow.artifact("merge_train_id")
+      return nil if id.blank?
+
+      MergeTrain.find_by(id: id)&.base_branch.presence
     end
 
     def current_head_sha
@@ -141,6 +164,15 @@ module Steps
     rescue StandardError => e
       Rails.logger.warn("[GraderCollect] current HEAD capture failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
       @current_head_sha = nil
+    end
+
+    def current_tree_sha
+      return @current_tree_sha if defined?(@current_tree_sha)
+
+      @current_tree_sha = GitRunner.new.run("rev-parse", "HEAD^{tree}", chdir: workspace.path.to_s).strip
+    rescue StandardError => e
+      Rails.logger.warn("[GraderCollect] current tree capture failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
+      @current_tree_sha = nil
     end
   end
 end
