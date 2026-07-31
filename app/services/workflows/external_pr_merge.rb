@@ -1,19 +1,21 @@
 module Workflows
   # Approved external PR ready to land.
   #
-  #   mergeability_preflight → grader_fanout → grader_collect → external_pr_merge
+  #   mergeability_preflight → prepare → grader_fanout → grader_collect → external_pr_merge
   #
   # Same-repository external PRs can be repaired before landing:
   #
-  #   mergeability_preflight → retry_until(grader_fanout → grader_collect, repair: landing_fix) → external_pr_merge
+  #   mergeability_preflight → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → external_pr_merge
   #
-  # Graders run on the external PR's HEAD to validate before merging.
-  # No prepare or normal push step — same-repository repair commits
+  # Prepare installs dependencies before graders run on the external
+  # PR's HEAD to validate before merging. No normal push step —
+  # same-repository repair commits
   # are pushed by the final external_pr_merge step, while fork PRs
   # receive a REQUEST_CHANGES review on grader failure and fail_landing!
   # reverts the job to :implemented for contributor follow-up.
   class ExternalPrMerge < Base
     steps :mergeability_preflight,
+          :prepare,
           :grader_fanout,
           :grader_collect,
           :external_pr_merge
@@ -36,6 +38,7 @@ module Workflows
 
       [
         "mergeability_preflight",
+        "prepare",
         grade_gate,
         "external_pr_merge"
       ].flatten

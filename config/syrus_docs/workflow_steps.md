@@ -8,7 +8,7 @@ Each Syrus workflow is a chain of steps. Steps are either **agentic** (invoke th
 
 Non-agentic. Runs the commands from `.syrus.yml` `prepare:` (or auto-detected from lockfiles) in the cloned workspace. Explicit commands hard-fail on error; auto-detected commands soft-fail with a warning so a wrong guess doesn't block the first run. Per-timeout: 10 minutes per command.
 
-Present in: `initial`, `pr_comment`, `chat_feedback`, `ci_failure`, `retry`, `auto_merge`, `merge_train`, `coding_handoff`.
+Present in: `initial`, `pr_comment`, `chat_feedback`, `ci_failure`, `retry`, `auto_merge`, `external_pr_merge`, `merge_train`, `coding_handoff`.
 
 ## Agentic implementation steps
 

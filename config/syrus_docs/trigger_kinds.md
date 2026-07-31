@@ -72,9 +72,9 @@ Validates mergeability, re-runs required graders on the exact PR branch, then me
 
 **When it fires:** An `external_pr` Job is approved through the landing queue.
 
-**Step chain:** `mergeability_preflight → grader_fanout → grader_collect → external_pr_merge`
+**Step chain:** `mergeability_preflight → prepare → grader_fanout → grader_collect → external_pr_merge`
 
-Validates the externally filed PR and merges it through GitHub's merge API. Same-repository external PRs can run `landing_fix` after grader failures and push repair commits back to the PR head before merge. Fork PRs receive a `REQUEST_CHANGES` review on required grader failure and return to `implemented` for re-approval after the contributor pushes a fix.
+Validates the externally filed PR and merges it through GitHub's merge API. The workflow prepares the workspace before running graders but does not run a normal push step. Same-repository external PRs can run `landing_fix` after grader failures and push repair commits back to the PR head before merge. Fork PRs receive a `REQUEST_CHANGES` review on required grader failure and return to `implemented` for re-approval after the contributor pushes a fix.
 
 ## merge_train
 

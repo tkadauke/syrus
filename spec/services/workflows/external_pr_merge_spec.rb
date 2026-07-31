@@ -33,11 +33,11 @@ RSpec.describe Workflows::ExternalPrMerge do
     allow(client).to receive(:create_pr_review)
   end
 
-  it "materializes the step chain without prepare or push" do
+  it "materializes the step chain with prepare but without push" do
     workflow = described_class.instantiate(job: job)
 
     expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-      %w[mergeability_preflight grader_fanout grader_collect external_pr_merge]
+      %w[mergeability_preflight prepare grader_fanout grader_collect external_pr_merge]
     )
   end
 
@@ -47,7 +47,7 @@ RSpec.describe Workflows::ExternalPrMerge do
     workflow = described_class.instantiate(job: job)
 
     expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-      %w[mergeability_preflight grader_fanout grader_collect external_pr_merge]
+      %w[mergeability_preflight prepare grader_fanout grader_collect external_pr_merge]
     )
     expect(workflow.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[grader_fanout grader_collect])
     expect(workflow.chain_template).to include(
@@ -67,6 +67,7 @@ RSpec.describe Workflows::ExternalPrMerge do
     expect(workflow.steps.where.not(loop_id: nil)).to be_empty
     expect(workflow.chain_template).to eq([
       { "type" => "step", "kind" => "mergeability_preflight" },
+      { "type" => "step", "kind" => "prepare" },
       { "type" => "step", "kind" => "grader_fanout" },
       { "type" => "step", "kind" => "grader_collect" },
       { "type" => "step", "kind" => "external_pr_merge" }

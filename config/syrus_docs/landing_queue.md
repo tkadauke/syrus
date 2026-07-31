@@ -41,9 +41,9 @@ The Job transitions to `pr_merged`. If the merged PR was depended on by other Jo
 
 ## external_pr_merge workflow
 
-**Step chain:** `mergeability_preflight → grader_fanout → grader_collect → external_pr_merge`
+**Step chain:** `mergeability_preflight → prepare → grader_fanout → grader_collect → external_pr_merge`
 
-External PR Jobs use the GitHub PR as the source of truth instead of a Syrus-owned branch. The workflow skips `prepare` and the normal `push` step, refreshes GitHub mergeability, runs required graders against the external PR head, then calls GitHub's merge API for the external PR number.
+External PR Jobs use the GitHub PR as the source of truth instead of a Syrus-owned branch. The workflow refreshes GitHub mergeability, prepares the workspace so grader dependencies are installed, runs required graders against the external PR head, then calls GitHub's merge API for the external PR number. It still skips the normal `push` step.
 
 For same-repository external PRs, grader failures enter the `landing_fix` retry loop before merge. If the agent commits a repair, `external_pr_merge` pushes the local repair commit to the PR's actual head branch immediately before merging. For fork PRs, Syrus cannot push repairs; required grader failures post a `REQUEST_CHANGES` review and `fail_landing!` returns the Job to `implemented`.
 
