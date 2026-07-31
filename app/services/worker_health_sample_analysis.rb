@@ -4,6 +4,8 @@ class WorkerHealthSampleAnalysis
     memory_used_percent
     data_root_used_percent
     load_1m
+    load_5m
+    load_15m
     cpu_pressure_some
     cpu_pressure_full
     io_pressure_some

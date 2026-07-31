@@ -148,6 +148,8 @@ export type RunWorkerHealthCorrelation = {
     memory_used_percent?: WorkerHealthMetricSummary | null
     data_root_used_percent?: WorkerHealthMetricSummary | null
     load_1m?: WorkerHealthMetricSummary | null
+    load_5m?: WorkerHealthMetricSummary | null
+    load_15m?: WorkerHealthMetricSummary | null
     cpu_pressure_some?: WorkerHealthMetricSummary | null
     cpu_pressure_full?: WorkerHealthMetricSummary | null
     io_pressure_some?: WorkerHealthMetricSummary | null
