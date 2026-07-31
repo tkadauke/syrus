@@ -46,6 +46,10 @@ class Feature < ApplicationRecord
     enabled?(:agent_insights)
   end
 
+  def self.admin_supervisor_chat_enabled?
+    enabled?(:admin_supervisor_chat)
+  end
+
   def self.unified_work_engine_reconciler_enabled?
     enabled?(WorkEngine::Gate::FEATURE_SLUG)
   end

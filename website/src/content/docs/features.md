@@ -249,7 +249,10 @@ restored from the Hidden chats section in user settings. The sidebar actions
 menu can also permanently delete a chat after a confirmation dialog: deletion
 removes the conversation, its messages, attachments, proposals, whiteboard,
 search-index entries, and the chat workspace on disk, and is refused while a
-turn is still running. In the V2 layout, the
+turn is still running. When the `admin_supervisor_chat` operations flag is
+enabled, admins also get one durable **Supervisor** chat. Syrus provisions it on
+demand, keeps it pinned and visible, and blocks ordinary rename, hide, unpin,
+or delete actions for that chat while the flag remains enabled. In the V2 layout, the
 sidebar search field opens a dedicated search
 page where operators can search Jobs, Epics, and chat messages from
 one ranked result list, then narrow results to a single type. Search terms

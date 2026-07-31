@@ -42,6 +42,16 @@ Enables walkthrough video intake in Syrus Chat. Operators can record or drag in 
 
 Enables the Local chat mode and the `syrus local` daemon command. The agent connects to a daemon running on the user's local machine via a reverse WebSocket tunnel to read/write files and run commands locally, without requiring a server-side clone.
 
+## admin_supervisor_chat
+
+**Category:** Operations
+
+Enables one durable pinned Supervisor chat per admin user. The app admin API can open or provision the chat at `/api/v1/app/admin/supervisor_chat`; the endpoint returns `404` with `feature_disabled` while the flag is off and `403` for non-admins.
+
+Supervisor chat identity is stored on `chat_sessions.system_kind = "supervisor"`, separate from the ordinary chat `mode` (`planning`, `coding`, `local`). A unique database index on `(user_id, system_kind)` enforces at most one Supervisor chat for each admin while allowing unlimited ordinary chats with `system_kind = NULL`.
+
+While the flag is enabled, normal chat update paths cannot hide, delete, rename, or unpin the Supervisor chat. `SupervisorChat.ensure_for!(admin_user)` creates or repairs the affordance with title `Supervisor`, `pinned: true`, no repository attachment, and a populated `last_message_at` so it appears in the sidebar.
+
 ## chat_polish
 
 **Category:** UI Experiments

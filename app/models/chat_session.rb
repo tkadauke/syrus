@@ -3,6 +3,7 @@ class ChatSession < ApplicationRecord
   TITLE_MAX_LENGTH = 120
   SUGGESTED_NEXT_STEP_MAX_BYTES = 200
   MODES = %w[planning coding local].freeze
+  SYSTEM_KINDS = %w[supervisor].freeze
   DAEMON_STATES = %w[connected disconnected].freeze
   EFFORT_LEVELS = %w[none medium high].freeze
 
@@ -64,6 +65,7 @@ class ChatSession < ApplicationRecord
   # released BEFORE `dependent: :destroy` deletes the proposals they
   # reference, or the proposal delete raises InvalidForeignKey.
   before_destroy :release_unresolved_proposal_dependencies, prepend: true
+  before_destroy :prevent_enabled_supervisor_destroy, prepend: true
   # Filesystem + FTS cleanup is deliberately NOT done here: it runs
   # post-commit on the worker via ChatSessionCleanupJob, so a rollback
   # can't leave irreversible side effects behind and the rm_rf happens
@@ -78,16 +80,20 @@ class ChatSession < ApplicationRecord
   validates :cumulative_cost_usd,
             numericality: { greater_than_or_equal_to: 0 }
   enum :mode, { planning: "planning", coding: "coding", local: "local" }, validate: { allow_nil: true }
+  enum :system_kind, { supervisor: "supervisor" }, prefix: true, validate: { allow_nil: true }
 
   validates :chat_provider, inclusion: { in: User::CHAT_PROVIDERS }, allow_nil: true
   validates :chat_model, length: { maximum: 100 }, allow_nil: true
   validates :local_daemon_state, inclusion: { in: DAEMON_STATES }, allow_nil: true
   validates :chat_effort, inclusion: { in: EFFORT_LEVELS }, allow_nil: true
   validates :share_token, uniqueness: true, allow_nil: true
+  validates :system_kind, uniqueness: { scope: :user_id }, allow_nil: true
+  validate :enabled_supervisor_affordance_is_preserved, if: :enabled_supervisor_chat?
 
   normalizes :chat_provider, with: ->(value) { value.to_s.strip.presence }
   normalizes :chat_model, with: ->(value) { value.to_s.strip.presence }
   normalizes :mode, with: ->(value) { value.to_s.strip.presence }
+  normalizes :system_kind, with: ->(value) { value.to_s.strip.presence }
 
   scope :attached_to_repository, ->(repository) {
     joins(:chat_attachments)
@@ -104,6 +110,10 @@ class ChatSession < ApplicationRecord
 
   def title_pending?
     title.blank? && messages.where(role: "user").exists?
+  end
+
+  def supervisor_chat?
+    system_kind == "supervisor"
   end
 
   def repository=(repository)
@@ -362,6 +372,10 @@ class ChatSession < ApplicationRecord
     )
   end
 
+  def enabled_supervisor_chat?
+    supervisor_chat? && Feature.admin_supervisor_chat_enabled?
+  end
+
   private
 
   def header_previously_changed?
@@ -398,6 +412,19 @@ class ChatSession < ApplicationRecord
 
   def enqueue_cleanup_job
     ChatSessionCleanupJob.perform_later(id, workspace_path)
+  end
+
+  def enabled_supervisor_affordance_is_preserved
+    errors.add(:title, "cannot be changed for the supervisor chat") if title_changed? && persisted?
+    errors.add(:pinned, "cannot be disabled for the supervisor chat") if pinned == false
+    errors.add(:hidden_at, "cannot be set for the supervisor chat") if hidden_at.present?
+  end
+
+  def prevent_enabled_supervisor_destroy
+    return unless enabled_supervisor_chat?
+
+    errors.add(:base, "Supervisor chat cannot be deleted while the feature is enabled")
+    throw :abort
   end
 
   def attached_records_for(type)

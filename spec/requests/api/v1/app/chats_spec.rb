@@ -354,6 +354,18 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(chat.reload.pinned?).to eq(false)
   end
 
+  it "does not unpin an enabled supervisor chat" do
+    Feature.create!(slug: "admin_supervisor_chat", category: "Operations", name: "Admin supervisor chat", enabled: true)
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, system_kind: "supervisor", title: "Supervisor", pinned: true)
+
+    patch "/api/v1/app/chats/#{chat.id}", params: { pinned: false }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "code")).to eq("forbidden")
+    expect(chat.reload).to be_pinned
+  end
+
   it "does not load hidden chats when paginating one sidebar group" do
     sign_in_as(user)
     chats = 7.times.map do |index|
@@ -605,6 +617,18 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(chat.reload.hidden_at).to be_nil
   end
 
+  it "does not hide an enabled supervisor chat" do
+    Feature.create!(slug: "admin_supervisor_chat", category: "Operations", name: "Admin supervisor chat", enabled: true)
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, system_kind: "supervisor", title: "Supervisor", pinned: true)
+
+    patch "/api/v1/app/chats/#{chat.id}/hide"
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "code")).to eq("forbidden")
+    expect(chat.reload.hidden_at).to be_nil
+  end
+
   it "lists hidden chats for recovery in hidden order" do
     sign_in_as(user)
     older = ChatSession.create!(user: user, repository: repository, title: "Older", hidden_at: 2.days.ago)
@@ -639,6 +663,18 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(chat.reload.title).to eq("Release planning")
     expect(parse_body["message"]).to eq("Chat renamed.")
     expect(parse_body.dig("chat", "title")).to eq("Release planning")
+  end
+
+  it "does not rename an enabled supervisor chat" do
+    Feature.create!(slug: "admin_supervisor_chat", category: "Operations", name: "Admin supervisor chat", enabled: true)
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, system_kind: "supervisor", title: "Supervisor", pinned: true)
+
+    post "/api/v1/app/chats/#{chat.id}/rename", params: { name: "Renamed" }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(parse_body.dig("error", "code")).to eq("forbidden")
+    expect(chat.reload.title).to eq("Supervisor")
   end
 
   it "rejects invalid chat rename names" do
@@ -752,6 +788,18 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       expect(response).to have_http_status(:conflict)
       expect(parse_body.dig("error", "code")).to eq("turn_in_flight")
       expect(parse_body.dig("error", "message")).to include("while a turn is in progress")
+      expect(ChatSession.exists?(chat.id)).to be(true)
+    end
+
+    it "does not delete an enabled supervisor chat" do
+      Feature.create!(slug: "admin_supervisor_chat", category: "Operations", name: "Admin supervisor chat", enabled: true)
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, system_kind: "supervisor", title: "Supervisor", pinned: true)
+
+      delete "/api/v1/app/chats/#{chat.id}"
+
+      expect(response).to have_http_status(:forbidden)
+      expect(parse_body.dig("error", "code")).to eq("forbidden")
       expect(ChatSession.exists?(chat.id)).to be(true)
     end
 

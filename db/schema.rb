@@ -310,6 +310,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_01_124855) do
     t.string "share_token"
     t.datetime "stop_requested_at"
     t.string "suggested_next_step"
+    t.string "system_kind"
     t.string "title"
     t.boolean "turn_in_flight", default: false, null: false
     t.datetime "updated_at", null: false
@@ -319,6 +320,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_01_124855) do
     t.index ["share_token"], name: "index_chat_sessions_on_share_token", unique: true
     t.index ["user_id", "cumulative_cost_usd"], name: "idx_chat_sessions_spending_user_cost"
     t.index ["user_id", "hidden_at"], name: "index_chat_sessions_on_user_id_and_hidden_at"
+    t.index ["user_id", "system_kind"], name: "index_chat_sessions_on_user_id_and_system_kind", unique: true
     t.index ["user_id"], name: "index_chat_sessions_on_user_id"
     t.index ["workspace_path"], name: "index_chat_sessions_on_workspace_path"
   end

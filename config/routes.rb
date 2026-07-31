@@ -293,6 +293,7 @@ Rails.application.routes.draw do
           post "console/clear_github_cache", to: "console#clear_github_cache"
           get "installations", to: "installations#index"
           post "installations/refresh", to: "installations#refresh"
+          get "supervisor_chat", to: "supervisor_chats#show"
           resources :invitations, only: %i[ index create destroy ]
           resources :features, only: %i[ index update ], param: :slug
           get "performance", to: "performance#show"

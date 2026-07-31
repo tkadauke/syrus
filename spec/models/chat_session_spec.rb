@@ -625,6 +625,57 @@ RSpec.describe ChatSession do
     end
   end
 
+  describe "system_kind" do
+    it "accepts supervisor as a durable chat identity separate from mode" do
+      session = described_class.new(user: repo.user, system_kind: "supervisor", mode: "planning", title: "Supervisor", pinned: true)
+
+      expect(session).to be_valid
+      expect(session).to be_system_kind_supervisor
+      expect(session).to be_planning
+    end
+
+    it "rejects unknown system kinds" do
+      session = described_class.new(user: repo.user, system_kind: "ops")
+
+      expect(session).not_to be_valid
+      expect(session.errors[:system_kind]).to be_present
+    end
+
+    it "enforces one supervisor chat per user at the database level" do
+      now = Time.current
+      attrs = {
+        user_id: repo.user.id,
+        system_kind: "supervisor",
+        title: "Supervisor",
+        pinned: true,
+        created_at: now,
+        updated_at: now
+      }
+      described_class.insert_all!([ attrs ])
+
+      expect { described_class.insert_all!([ attrs.merge(created_at: now + 1.second, updated_at: now + 1.second) ]) }
+        .to raise_error(ActiveRecord::RecordNotUnique)
+    end
+
+    it "allows ordinary chats to keep nil system_kind for the same user" do
+      expect {
+        described_class.create!(user: repo.user)
+        described_class.create!(user: repo.user)
+      }.to change(described_class, :count).by(2)
+    end
+
+    it "prevents hiding, renaming, unpinning, or destroying a supervisor chat while enabled" do
+      Feature.create!(slug: "admin_supervisor_chat", category: "Operations", name: "Admin supervisor chat", enabled: true)
+      session = described_class.create!(user: repo.user, system_kind: "supervisor", title: "Supervisor", pinned: true)
+
+      expect(session.update(title: "Renamed")).to be(false)
+      expect(session.update(pinned: false)).to be(false)
+      expect(session.update(hidden_at: Time.current)).to be(false)
+      expect { session.destroy! }.to raise_error(ActiveRecord::RecordNotDestroyed)
+      expect(described_class.exists?(session.id)).to be(true)
+    end
+  end
+
   describe "title length" do
     it "rejects titles longer than TITLE_MAX_LENGTH so no code path can overflow" do
       session = described_class.new(user: repo.user, title: "R" * (ChatSession::TITLE_MAX_LENGTH + 1))

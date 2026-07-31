@@ -48,6 +48,13 @@ features:
     description: "Enables agent insight analysis jobs that inspect recent workflow runs and surface improvement suggestions."
     description_i18n_key: "features.slugs.agent_insights.description"
     default: false
+  - slug: admin_supervisor_chat
+    category: "Operations"
+    name: "Admin supervisor chat"
+    name_i18n_key: "features.slugs.admin_supervisor_chat.name"
+    description: "Enables one durable pinned Supervisor chat per admin user."
+    description_i18n_key: "features.slugs.admin_supervisor_chat.description"
+    default: false
   - slug: unified_work_engine_reconciler
     category: "Operations"
     name: "Unified work-engine reconciler"

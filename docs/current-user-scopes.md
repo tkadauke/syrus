@@ -86,6 +86,7 @@ admin-only:
   - app/controllers/api/v1/app/admin/invitations_controller.rb
   - app/controllers/api/v1/app/admin/queue_controller.rb
   - app/controllers/api/v1/app/admin/spawned_processes_controller.rb
+  - app/controllers/api/v1/app/admin/supervisor_chats_controller.rb
   - app/controllers/api/v1/app/admin/users_controller.rb
   - app/controllers/api/v1/app/auth_controller.rb
   - app/controllers/api/v1/app/base_controller.rb
