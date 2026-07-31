@@ -58,6 +58,23 @@ present.
 - The chat payload exposes `coding_relay_ready: true` once the relay address is
   recorded, so the UI can show a loading state while the relay warms up.
 
+## Pre-turn checkout and prep visibility
+
+`ChatTurnJob` calls `ChatWorkspace.ensure_coding_checkout!` before building the
+Coding Mode prompt. That method creates the writable checkout on first use,
+restores a reclaimed checkout when needed, and enqueues `ChatWorkspacePrepareJob`
+asynchronous repository prep after creation or restoration. The agent does not
+need to initialize the workspace manually; its first step should be normal
+inspection/editing inside the reported checkout path.
+
+`chat_sessions` stores the latest prep snapshot in
+`coding_checkout_prepare_status`, `coding_checkout_prepare_started_at`,
+`coding_checkout_prepare_finished_at`, and `coding_checkout_prepare_failure`.
+The Coding Mode prompt and chat environment snapshot report the checkout path,
+current branch/ref, default branch, and prep status (`queued`, `running`,
+`succeeded`, `failed`, or `unknown`) so setup failures remain visible even
+though they do not block the agent turn.
+
 ## Multi-worker note
 
 The chat queue must run on exactly one worker pod. Chat workspaces are on local

@@ -221,6 +221,7 @@ class ChatTurnJob < ApplicationJob
   def ensure_coding_checkout!
     ChatWorkspace.ensure_coding_checkout!(@chat, @chat.repository)
   rescue StandardError => e
+    @coding_checkout_setup_error = "#{e.class}: #{e.message}"
     Rails.logger.warn("[ChatTurnJob] coding checkout setup failed for chat ##{@chat.id}: #{e.class}: #{e.message}")
   end
 
@@ -242,7 +243,7 @@ class ChatTurnJob < ApplicationJob
     return nil unless Feature.coding_mode_enabled?
     return nil unless @chat.coding?
 
-    Prompts::ChatCodingMode.new(chat_session: @chat).to_s
+    Prompts::ChatCodingMode.new(chat_session: @chat, setup_error: @coding_checkout_setup_error).to_s
   end
 
   def proposal_outcome_message?

@@ -86,7 +86,9 @@ class AgentEnvironmentSnapshot
       "- Repository freshness: attached checkouts may drift; use `repo_info`, `git fetch`, or `git pull --ff-only` inside an attached repo when current state matters."
     ]
 
+    lines.concat(chat_workspace_rule_lines)
     lines.concat(chat_repository_lines)
+    lines.concat(chat_coding_workspace_lines)
     lines.concat(chat_elaboration_epic_lines)
     lines.concat(chat_tool_lines)
     lines.concat(recent_proposal_activity_lines)
@@ -215,6 +217,46 @@ class AgentEnvironmentSnapshot
     "#{count} changed path#{'s' unless count == 1}: #{sample}"
   rescue StandardError => e
     "unavailable (#{e.class}: #{e.message})"
+  end
+
+  def chat_coding_workspace_lines
+    return [] unless Feature.coding_mode_enabled?
+    return [] unless chat_session&.coding?
+    return [ "- Coding checkout: unavailable; chat has no scoped repository." ] unless repository
+
+    snapshot = ChatWorkspace.coding_checkout_snapshot(chat_session, repository)
+    [
+      "- Coding checkout: path=#{snapshot[:path]}, exists=#{snapshot[:exists] ? 'yes' : 'no'}, branch=#{snapshot[:current_branch] || snapshot[:configured_branch] || '(unknown)'}, ref=#{snapshot[:head_sha] || '(unknown)'}, default=#{snapshot[:default_branch]}",
+      "- Coding checkout prep: #{chat_prepare_status(snapshot)}"
+    ]
+  rescue StandardError => e
+    [ "- Coding checkout: unavailable (#{e.class}: #{e.message})" ]
+  end
+
+  def chat_prepare_status(snapshot)
+    status = snapshot[:prepare_status].presence || "unknown"
+    parts = [ status ]
+    parts << "started=#{snapshot[:prepare_started_at].iso8601}" if snapshot[:prepare_started_at]
+    parts << "finished=#{snapshot[:prepare_finished_at].iso8601}" if snapshot[:prepare_finished_at]
+    parts << "last_failure=#{snapshot[:prepare_failure]}" if snapshot[:prepare_failure].present?
+    parts.join(", ")
+  end
+
+  def chat_workspace_rule_lines
+    if Feature.coding_mode_enabled? && chat_session&.coding?
+      [
+        "- Tool availability: commit and push through Bash inside the coding checkout; handoff tools require operator confirmation before Syrus dispatches automation.",
+        "- Repository checkout rule: the scoped Coding Mode checkout is writable. Other attached repository checkouts remain read-only.",
+        "- Repository freshness: use `git fetch` inside the coding checkout when current remote state matters."
+      ]
+    else
+      [
+        "- Tool availability: no commit, push, or PR-opening tool is available in chat; draft proposals or schedules for operator confirmation.",
+        "- Repository checkout rule: attached checkouts under `/syrus-home/.syrus/chat-workspaces/*/repositories/` are read-only; never use Write, Edit, or Bash to create, modify, delete, rename, move, format, or generate files there. Propose Syrus Jobs or Epics for code changes and wait for operator confirmation.",
+        "- Writable area: attached repository checkouts must not be written. Do not write memory to the filesystem -- use the Syrus memory MCP tools instead (see Memory section below).",
+        "- Repository freshness: attached checkouts may drift; use `repo_info`, `git fetch`, or `git pull --ff-only` inside an attached repo when current state matters."
+      ]
+    end
   end
 
   def git(*args)

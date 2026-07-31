@@ -81,7 +81,9 @@ RSpec.describe ChatTurnJob do
     allow(ChatWorkspace).to receive(:ensure_coding_checkout!).and_raise(StandardError, "clone failed")
     allow(Rails.logger).to receive(:warn)
     ran_agent = false
-    ChatTurnJob.agent_runner = ->(**_) {
+    received = {}
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      received.merge!(kwargs)
       ran_agent = true
       result_fixture(session_id: "s1")
     }
@@ -92,6 +94,8 @@ RSpec.describe ChatTurnJob do
     expect(Rails.logger).to have_received(:warn).with(
       /coding checkout setup failed for chat ##{chat.id}: StandardError: clone failed/
     )
+    expect(received[:prompt]).to include("Checkout setup warning")
+    expect(received[:prompt]).to include("StandardError: clone failed")
   end
 
   it "updates coding_checkout_uncommitted after the turn when there are uncommitted changes" do
@@ -188,7 +192,11 @@ RSpec.describe ChatTurnJob do
     job = Factories.job_record(user: user, repository: repository, issue_title: "Add widget API",
                                branch_name: "syrus/direct-999")
     chat.chat_attachments.create!(attachable: job)
-    chat.update!(mode: "coding")
+    chat.update!(
+      mode: "coding",
+      coding_checkout_branch: "syrus-chat-#{chat.id}",
+      coding_checkout_prepare_status: "queued"
+    )
 
     received = {}
     ChatTurnJob.agent_runner = ->(**kwargs) {
@@ -199,6 +207,11 @@ RSpec.describe ChatTurnJob do
     described_class.perform_now(chat.id, user_message.id)
 
     expect(received[:prompt]).to include(workspace_path.to_s)
+    expect(received[:prompt]).to include("Checkout path: `#{workspace_path.join('repositories', 'acme', 'widgets')}`")
+    expect(received[:prompt]).to include("Current branch: `syrus-chat-#{chat.id}`")
+    expect(received[:prompt]).to include("Current ref: `(unknown)`")
+    expect(received[:prompt]).to include("Default branch: `main`")
+    expect(received[:prompt]).to include("Prep status: queued")
     expect(received[:prompt]).to include("syrus/direct-999")
     expect(received[:prompt]).to include("Add widget API")
     expect(received[:prompt]).to include(job.id.to_s)

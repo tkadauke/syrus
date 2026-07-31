@@ -143,6 +143,16 @@ RSpec.describe ChatWorkspace, :ci_only do
       }.to have_enqueued_job(ChatWorkspacePrepareJob).with(chat_session.id, repository.id).on_queue("chat")
     end
 
+    it "records prep as queued when setup enqueues asynchronous preparation" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+
+      chat_session.reload
+      expect(chat_session.coding_checkout_prepare_status).to eq("queued")
+      expect(chat_session.coding_checkout_prepare_started_at).to be_nil
+      expect(chat_session.coding_checkout_prepare_finished_at).to be_nil
+      expect(chat_session.coding_checkout_prepare_failure).to be_nil
+    end
+
     it "does not enqueue ChatWorkspacePrepareJob when coding checkout is already set" do
       described_class.ensure_coding_checkout!(chat_session, repository)
 

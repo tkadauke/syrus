@@ -115,6 +115,13 @@ The coding sidebar includes a file tree, a diff browser, and a compact commit
 selector. Operators can inspect the live working tree at HEAD or choose a recent
 commit on the checkout branch to view file contents and that commit's diff.
 
+Before each Coding Mode turn, Syrus attempts to create or restore the writable
+checkout. When that checkout is first created or restored, repository
+preparation runs asynchronously on the chat worker so the agent can begin
+inspecting the code while setup is queued or running. The agent-visible context
+includes the checkout path, current branch/ref, default branch, and the latest
+known prep status or failure.
+
 The `complete_implement_step` chat tool signals that a coding session on an
 existing Job is complete and ready for graders, summarize, and PR open. The
 `submit_coding_changes` chat tool creates a new direct Job from committed branch

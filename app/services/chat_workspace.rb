@@ -78,6 +78,32 @@ class ChatWorkspace
     false
   end
 
+  def self.coding_checkout_snapshot(chat_session, repository)
+    path = repo_path_for(chat_session, repository)
+    git_dir = path.join(".git")
+    {
+      path: path,
+      exists: git_dir.directory?,
+      configured_branch: chat_session.coding_checkout_branch,
+      current_branch: git_value(path, "branch", "--show-current"),
+      head_sha: git_value(path, "rev-parse", "--short=12", "HEAD"),
+      default_branch: repository.default_branch,
+      prepare_status: chat_session.coding_checkout_prepare_status,
+      prepare_started_at: chat_session.coding_checkout_prepare_started_at,
+      prepare_finished_at: chat_session.coding_checkout_prepare_finished_at,
+      prepare_failure: chat_session.coding_checkout_prepare_failure
+    }
+  end
+
+  def self.git_value(path, *args)
+    return nil unless path.join(".git").directory?
+
+    output, status = Open3.capture2e("git", *args, chdir: path.to_s)
+    status.success? ? output.strip.presence : nil
+  rescue StandardError
+    nil
+  end
+
   # Discards the coding checkout: switches back to the default branch,
   # deletes the coding branch locally, and tries to delete the remote branch
   # if it was pushed. Clears coding_checkout_branch and
@@ -347,7 +373,7 @@ class ChatWorkspace
     create_coding_branch!(path, branch)
     @chat_session.update_columns(coding_checkout_branch: branch)
     @chat_session.chat_attachments.find_or_create_by!(attachable: repository)
-    ChatWorkspacePrepareJob.perform_later(@chat_session.id, repository.id)
+    enqueue_prepare!(repository)
     write_relay_credentials!
     path
   end
@@ -387,7 +413,7 @@ class ChatWorkspace
     full_clone_at_branch!(repository, path, branch_name)
     @chat_session.update_columns(coding_checkout_branch: branch_name)
     @chat_session.chat_attachments.find_or_create_by!(attachable: repository)
-    ChatWorkspacePrepareJob.perform_later(@chat_session.id, repository.id)
+    enqueue_prepare!(repository)
     path
   end
 
@@ -628,6 +654,18 @@ class ChatWorkspace
     end
 
     GitInfoExclude.ensure_entry!(path, EXCLUDE_ENTRY)
+    enqueue_prepare!(repository)
+  end
+
+  def enqueue_prepare!(repository)
+    now = Time.current
+    @chat_session.update_columns(
+      coding_checkout_prepare_status: "queued",
+      coding_checkout_prepare_started_at: nil,
+      coding_checkout_prepare_finished_at: nil,
+      coding_checkout_prepare_failure: nil,
+      updated_at: now
+    )
     ChatWorkspacePrepareJob.perform_later(@chat_session.id, repository.id)
   end
 
