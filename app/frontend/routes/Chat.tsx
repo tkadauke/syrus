@@ -9,6 +9,7 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
+import { ProviderAvailabilityWarning } from "../components/ProviderAvailabilityWarning"
 import { GeminiSetupSheet } from "../components/GeminiSetupSheet"
 import { AnalyzingHint, annotationHoldLabel, annotationIdleHintKind, annotationShortcutLabel, formatClock, RECORDER_WARNING_SECONDS, shouldShowAnnotationSurfaceNote, useNativeRecorderHud, useWalkthroughRecorder, WalkthroughRecorderHUD } from "../components/WalkthroughRecorder"
 import {
@@ -357,7 +358,10 @@ function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; paylo
       {whiteboardFullscreen || !isDesktop ? null : (
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className={`break-words text-3xl font-semibold ${payload.chat.title_pending ? "animate-pulse text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"}`}>{title}</h1>
+            <h1 className={`flex min-w-0 items-center gap-2 break-words text-3xl font-semibold ${payload.chat.title_pending ? "animate-pulse text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"}`}>
+              <span className="min-w-0 break-words">{title}</span>
+              <ProviderAvailabilityWarning availability={payload.chat.provider_availability} className="mt-1" />
+            </h1>
             {payload.local_mode_enabled && payload.chat.mode === "local" && payload.chat.local_daemon_state === "connected" ? (
               <div className="mt-1 flex items-center gap-1.5 text-sm text-emerald-700 dark:text-emerald-400">
                 <span aria-hidden="true" className="h-2 w-2 rounded-full bg-emerald-500" />

@@ -10,6 +10,7 @@ import { formatClock } from "../../components/WalkthroughRecorder"
 import { updateRecentChatCache } from "../../lib/chatCache"
 import { createWhiteboardSnapshot, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, updateChatProvider, fetchCodingFileTree, fetchCodingCommits, fetchCodingFileContent, fetchCodingDiff, updateChatMode, type ChatMode, type ChatPayload, type ChatRenderItem, type ChatWhiteboardElement, type ChatWhiteboardScene, type WhiteboardSnapshot } from "../../api/chats"
 import { CloseIcon } from "../../components/CloseIcon"
+import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
 import { createConsumer, type Subscription } from "@rails/actioncable"
 import { useT } from "../../hooks/useT"
 import { ChatJobStatusPanel } from "../ChatJobStatusPanel"
@@ -459,7 +460,10 @@ export function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { pay
                   </option>
                 ))}
               </select>
-              <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("chat_settings_effective_provider", { label: payload.chat.effective_chat_provider_label || t("chat_settings_effective_default") })}</span>
+              <span className="mt-1 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                <span>{t("chat_settings_effective_provider", { label: payload.chat.effective_chat_provider_label || t("chat_settings_effective_default") })}</span>
+                <ProviderAvailabilityWarning availability={payload.chat.provider_availability} />
+              </span>
             </label>
           ) : null}
           {provider.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(provider.error, t("provider_update_error"))}</div> : null}

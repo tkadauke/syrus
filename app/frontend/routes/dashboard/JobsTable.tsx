@@ -13,6 +13,7 @@ import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { PrHoverCard } from "../../components/PrHoverCard"
 import { NoticeToast } from "../../components/NoticeToast"
 import { StartBlockedReasonPill } from "../../components/StartBlockedReasonPill"
+import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
 import { StatusPill, TonePill } from "../../components/StatusPill"
 import { bulkDashboardJobs, type DashboardBulkJobAction, type DashboardJobItem, type DashboardLandingQueueEntry } from "../../api/dashboard"
 import type { LandingQueueBlockerJob } from "../../api/jobs"
@@ -471,6 +472,7 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
       <div className="min-w-0 text-gray-700 dark:text-gray-200">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <WorkflowBadges state={job.summary_state} triggerAriaPrefix="Active workflow trigger" triggerKind={job.active_workflow_trigger_kind} />
+          <ProviderAvailabilityWarning availability={job.provider_availability} />
           {job.total_cost_usd == null ? null : <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{formatCurrency(job.total_cost_usd)}</span>}
           <RepositorySlugLink prefix={prefix} repository={job.repository} />
           <OwnerBadge badge={job.owner_badge} />
@@ -515,6 +517,7 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
     return (
       <td className="max-w-md px-4 py-3">
         <div className="flex items-center gap-1.5">
+          <ProviderAvailabilityWarning availability={job.provider_availability} />
           <Link className="font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(job.paths.job_path, prefix)}><PendingJobTitle pending={Boolean(job.title_pending)} title={job.title} /></Link>
           {job.needs_attention ? <span aria-label={t("needs_attention_aria")} className="shrink-0 rounded bg-amber-200 px-1 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-800 dark:text-amber-200">!</span> : null}
         </div>

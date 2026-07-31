@@ -1,5 +1,6 @@
 import { deleteJson, getJson, patchJson, postForm, postJson } from "./client"
 import type { MergeTrainStatus } from "./epics"
+import type { ProviderAvailability } from "./providerAvailability"
 
 export type JobRepository = {
   id: number
@@ -62,6 +63,7 @@ export type JobRecord = {
   validity: string
   credential_mode: string | null
   agent_provider: string | null
+  provider_availability?: ProviderAvailability
   stack_base: string
   issue_number: number | null
   issue_url: string | null

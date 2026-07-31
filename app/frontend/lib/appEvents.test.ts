@@ -14,6 +14,7 @@ describe("queryKeysFor", () => {
     expect(queryKeysFor(event("epic", 5))).toEqual([["dashboard"], ["epics"], ["epics", "5"]])
     expect(queryKeysFor(event("repository", 3))).toEqual([["dashboard"], ["repositories"], ["repositories", "3"]])
     expect(queryKeysFor(event("chat", 5))).toEqual([["chats"], ["chats", "5"]])
+    expect(queryKeysFor(event("provider_availability", "codex"))).toEqual([["dashboard"], ["jobs"], ["chats"]])
     expect(queryKeysFor(event("admin_overview", null))).toEqual([["admin", "overview"], ["admin", "stuck"]])
     expect(queryKeysFor(event("unknown", 1))).toEqual([])
   })
@@ -27,6 +28,21 @@ describe("queryKeysFor", () => {
 })
 
 describe("applyAppEvent", () => {
+  it("invalidates dashboard, jobs, and chats when provider availability changes", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, {
+      type: "provider_availability.changed",
+      resource: "provider_availability",
+      id: "codex",
+      changed: ["provider_availability"]
+    })
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs"] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats"] })
+  })
+
   it("updates and invalidates notification cache when a notification is created", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
@@ -604,7 +620,7 @@ describe("applyAppEvent", () => {
   })
 })
 
-function event(resource: string, id: number | null) {
+function event(resource: string, id: number | string | null) {
   return {
     type: `${resource}.updated`,
     resource,

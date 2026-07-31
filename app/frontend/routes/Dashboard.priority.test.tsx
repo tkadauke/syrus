@@ -171,6 +171,66 @@ describe("PRIORITY_TONE", () => {
 })
 
 describe("urgent row highlight", () => {
+  it("shows a red usage-limit warning on affected job rows", () => {
+    const payload = buildPayload([
+      {
+        ...kanbanJobItem(1, "medium"),
+        kind: "direct",
+        state: "running",
+        tags: [],
+        workflows_count: 1,
+        total_cost_usd: null,
+        provider_availability: {
+          provider: "codex",
+          label: "Codex",
+          model: null,
+          state: "exhausted",
+          open: true,
+          usage_exhausted: true,
+          retry_after: null,
+          reason: "Provider usage limit exhausted.",
+          message: "Codex usage limit reached. This item uses Codex until usage resets or you switch providers."
+        }
+      } as DashboardJobItem
+    ])
+    payload.preferences.visible_columns = ["title"]
+    payload.controls.columns.required = [{ key: "title", title: "Title" }]
+
+    renderPayload(payload)
+
+    expect(screen.getByRole("img", { name: /Codex usage limit reached/ })).toBeInTheDocument()
+  })
+
+  it("does not show the red usage warning for transient provider circuits", () => {
+    const payload = buildPayload([
+      {
+        ...kanbanJobItem(1, "medium"),
+        kind: "direct",
+        state: "running",
+        tags: [],
+        workflows_count: 1,
+        total_cost_usd: null,
+        provider_availability: {
+          provider: "codex",
+          label: "Codex",
+          model: null,
+          state: "open",
+          open: true,
+          usage_exhausted: false,
+          retry_after: null,
+          reason: "Provider transient failures.",
+          message: "Codex appears temporarily unavailable."
+        }
+      } as DashboardJobItem
+    ])
+    payload.preferences.visible_columns = ["title"]
+    payload.controls.columns.required = [{ key: "title", title: "Title" }]
+
+    renderPayload(payload)
+
+    expect(screen.queryByRole("img", { name: /temporarily unavailable/ })).not.toBeInTheDocument()
+  })
+
   it("applies a red background to the desktop table row for urgent jobs", () => {
     renderTable([ jobItem(1, "urgent") ])
     const pill = screen.getByText("urgent")

@@ -426,6 +426,8 @@ module Api
             title: job.issue_title.to_s,
             path: job_path(job),
             state: job_summary_state(job),
+            agent_provider: job.agent_provider,
+            provider_availability: ::App::ProviderAvailability.for_user(Current.user, job.agent_provider),
             pr_number: job.pr_number,
             pr_url: ::App::Presentation.job_pr_url(job),
             owner_user_id: job.owner_user_id,

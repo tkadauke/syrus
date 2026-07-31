@@ -240,6 +240,7 @@ class ChatSession < ApplicationRecord
 
   def broadcast_app_header_update
     repository = self.repository
+    effective_provider = effective_chat_provider
     AppEvents.broadcast(
       user: user,
       type: "updated",
@@ -252,7 +253,10 @@ class ChatSession < ApplicationRecord
           title: title,
           title_pending: title_pending?,
           pinned_context: pinned_context,
-          chat_provider: effective_chat_provider,
+          chat_provider: effective_provider,
+          effective_chat_provider: effective_provider,
+          effective_chat_provider_label: App::Presentation.agent_provider_label(effective_provider),
+          provider_availability: App::ProviderAvailability.for_user(user, effective_provider),
           mode: mode,
           local_daemon_state: local_daemon_state,
           local_daemon_repo: local_daemon_repo,

@@ -1,4 +1,5 @@
 import { ApiError, deleteJson, getJson, patchJson, postForm, postJson } from "./client"
+import type { ProviderAvailability } from "./providerAvailability"
 
 export type ChatRepository = {
   id: number
@@ -17,6 +18,7 @@ export type ChatRecord = {
   chat_provider?: string | null
   effective_chat_provider?: string
   effective_chat_provider_label?: string
+  provider_availability?: ProviderAvailability
   chat_provider_options?: ChatProviderOption[]
   chat_model?: string | null
   available_chat_models?: ChatModelOption[]

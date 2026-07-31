@@ -9,6 +9,7 @@ import { cancelCodingCheckout, deleteChat, fetchChat, fetchChats, fetchMoreChats
 import { ApiError } from "../../api/client"
 import { CloseIcon } from "../../components/CloseIcon"
 import { PinIcon } from "../../components/PinIcon"
+import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
 import { updateChatUnread } from "../../lib/chatCache"
 import { chatQueryKey } from "../Chat"
@@ -280,6 +281,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
                         {chat.pinned ? (
                           <PinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-600 dark:text-blue-300" />
                         ) : null}
+                        <ProviderAvailabilityWarning availability={chat.provider_availability} className="mt-0.5" />
                         <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{sidebarChatTitle(chat, t("chat:new_title"))}</span>
                         <span className="flex shrink-0 items-start gap-1 group-hover:hidden">
                           <RecentChatActivityMarker active={Boolean(chat.turn_in_flight || chat.agent_busy)} unread={unread} />

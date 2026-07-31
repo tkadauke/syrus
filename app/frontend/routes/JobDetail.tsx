@@ -15,6 +15,7 @@ import { workflowSlug } from "../lib/slugs"
 import { buttonClass } from "../lib/buttonClasses"
 import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobDetail, fetchJobTestResults, fetchJobWorkflows, ignorePendingFeedback, replacePendingFeedback, retryPendingFeedback, submitJobFeedback, updateJobPriority, type JobApprovalRecord, type JobApprovalStatus, type JobDetailPayload, type JobTestCase, type JobTestPlan, type JobTestRun, type JobTestSuite, type JobWorkflow, type PendingFeedbackComment } from "../api/jobs"
 import { CoverageCard } from "../components/CoverageCard"
+import { ProviderAvailabilityWarning } from "../components/ProviderAvailabilityWarning"
 import { SyrusTour } from "../components/SyrusTour"
 import { useTour } from "../hooks/useTour"
 import { errorMessage } from "../lib/errorMessage"
@@ -164,6 +165,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, activeTab,
               <JobSourceLink payload={payload} prefix={prefix} />
             </p>
             {payload.job.agent_provider ? <SmallPill>{payload.job.agent_provider}</SmallPill> : null}
+            <ProviderAvailabilityWarning availability={payload.job.provider_availability} />
             {payload.job.credential_mode ? <SmallPill>{payload.job.credential_mode}</SmallPill> : null}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-sm text-gray-500 dark:text-gray-400">

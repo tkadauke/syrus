@@ -10,6 +10,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { NoticeToast } from "../components/NoticeToast"
+import { ProviderAvailabilityWarning } from "../components/ProviderAvailabilityWarning"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import { RepositoryTabs } from "../components/RepositoryTabs"
 import { StatusPill as StateStatusPill, TonePill } from "../components/StatusPill"
@@ -560,6 +561,7 @@ function JobRow({ job, prefix }: { job: RepositoryDetailJob; prefix: string }) {
       </td>
       <td className="px-4 py-3">
         <SourceLink job={job} prefix={prefix} />
+        <ProviderAvailabilityWarning availability={job.provider_availability} className="ml-1 inline-flex align-[-0.125em]" />
         {job.issue_title ? <Link className="ml-1 text-gray-700 dark:text-gray-300 hover:underline" to={withRoutePrefix(job.job_path, prefix)}>{job.issue_title}</Link> : null}
         {job.pr_number && job.pr_url ? <a className="ml-1 text-xs text-indigo-700 underline hover:no-underline" href={job.pr_url} rel="noopener" target="_blank">PR #{job.pr_number}</a> : null}
         {job.external_pr_number && job.external_pr_url ? <a className="ml-1 text-xs text-violet-700 underline hover:no-underline" href={job.external_pr_url} rel="noopener" target="_blank">PR #{job.external_pr_number}</a> : null}

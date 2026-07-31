@@ -17,3 +17,10 @@ provider-specific session state, and updates `chat_provider` deliberately. In
 the chat settings update path, selecting **Default** for a non-empty chat stores
 the chat's current effective provider instead of writing `nil`, so the next
 turn cannot drift because user defaults changed.
+
+When the current user's usage is exhausted for a provider, chats whose effective
+provider matches that provider include `provider_availability` in list/detail
+payloads and show a red triangle warning in the sidebar, header, and provider
+settings. Switching the chat to another configured provider clears the warning
+for that chat immediately. Transient provider circuits are not treated as usage
+exhaustion and keep their existing non-red UI.

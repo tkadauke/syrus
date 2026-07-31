@@ -252,6 +252,7 @@ module Api
               state: job.state,
               closure_reason: job.closure_reason,
               agent_provider: job.agent_provider,
+              provider_availability: ::App::ProviderAvailability.for_user(Current.user, job.agent_provider),
               pr_number: job.pr_number,
               external_pr_number: job.external_pr_number,
               pr_mergeable: job.pr_mergeable,

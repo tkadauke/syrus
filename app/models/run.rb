@@ -105,7 +105,11 @@ class Run < ApplicationRecord
                        if: :saved_change_to_state_to_failed?
   after_update_commit :classify_failure!,
                        if: :saved_change_to_state_to_failed?
+  after_update_commit :broadcast_provider_availability_after_failure!,
+                       if: :saved_change_to_state_to_failed?
   after_update_commit :clear_transcript_on_success!,
+                       if: :saved_change_to_state_to_succeeded?
+  after_update_commit :broadcast_provider_availability_after_success!,
                        if: :saved_change_to_state_to_succeeded?
 
   def saved_change_to_state_to_cancelled?
@@ -265,6 +269,27 @@ class Run < ApplicationRecord
     RunFailureClassifier.persist!(self)
   rescue StandardError => e
     Rails.logger.warn("[RunFailureClassifier] failed for Run ##{id}: #{e.class}: #{e.message}")
+    nil
+  end
+
+  def broadcast_provider_availability_after_failure!
+    return if agent_provider.blank?
+
+    App::ProviderAvailability.broadcast_changed(user: user, provider: agent_provider)
+    availability = App::ProviderAvailability.for_user(user, agent_provider)
+    retry_after = availability&.dig(:retry_after)
+    ProviderAvailabilityBroadcastJob.set(wait_until: Time.zone.parse(retry_after)).perform_later(user_id, agent_provider) if retry_after.present?
+  rescue StandardError => e
+    Rails.logger.warn("[ProviderAvailability] failed to broadcast for Run ##{id}: #{e.class}: #{e.message}")
+    nil
+  end
+
+  def broadcast_provider_availability_after_success!
+    return if agent_provider.blank?
+
+    App::ProviderAvailability.broadcast_changed(user: user, provider: agent_provider)
+  rescue StandardError => e
+    Rails.logger.warn("[ProviderAvailability] failed to broadcast success for Run ##{id}: #{e.class}: #{e.message}")
     nil
   end
 

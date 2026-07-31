@@ -280,6 +280,8 @@ module Api
             id: job.id,
             state: job.state,
             closure_reason: job.closure_reason,
+            agent_provider: job.agent_provider,
+            provider_availability: ::App::ProviderAvailability.for_user(Current.user, job.agent_provider),
             approved_at: job.approved_at&.iso8601,
             approved_via: job.approved_via,
             approved_by_user_id: job.approved_by_user_id,

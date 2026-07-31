@@ -17,7 +17,10 @@ module JobExecutionAccessors
   end
 
   def switch_agent_provider!(provider)
+    previous_provider = agent_provider
     update!(agent_provider: provider)
+    App::ProviderAvailability.broadcast_changed(user: user, provider: previous_provider) if previous_provider.present? && previous_provider != provider
+    App::ProviderAvailability.broadcast_changed(user: user, provider: provider)
   end
 
   # The very first Run — the one that created the branch and PR.

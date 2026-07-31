@@ -38,6 +38,7 @@ class SwitchChatProviderJob < ApplicationJob
     write_claude_session_to_disk!(workspace_path, new_session_id, jsonl) if provider == "claude" && jsonl.present?
 
     ApplicationRecord.transaction do
+      previous_provider = @chat.effective_chat_provider
       @chat.update!(chat_provider: provider)
 
       if @chat.messages.exists?
@@ -48,6 +49,8 @@ class SwitchChatProviderJob < ApplicationJob
           @chat.create_claude_session!(attrs)
         end
       end
+      App::ProviderAvailability.broadcast_changed(user: @chat.user, provider: previous_provider) if previous_provider.present? && previous_provider != provider
+      App::ProviderAvailability.broadcast_changed(user: @chat.user, provider: provider)
     end
   end
 

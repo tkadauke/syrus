@@ -19,6 +19,11 @@ diffs, PR link, attachments, dependencies, and logs. Operators can retry,
 cancel, run again, change priority, approve, or inspect the related PR.
 When a Job came from a chat proposal, or belongs to an Epic that came from a
 chat proposal, the Jobs UI links back to the originating chat message.
+If an agent provider hits a current user's usage or quota limit, Jobs that use
+that provider show an additive red triangle warning in dashboards, lists, and
+the Job header until usage is restored or the Job is retried/switched with
+another configured provider. Transient provider outages remain separate from
+quota exhaustion and keep the existing non-red circuit treatment.
 
 Job kinds:
 
@@ -401,6 +406,9 @@ Provider usage-limit and quota-exhaustion failures are surfaced as prominent
 chat banners. When Syrus can identify the provider/model, it halts automation
 for that scope immediately; when the model is unclear, it fails closed at the
 provider level and preserves the underlying provider error in the banner.
+Chats that currently use the exhausted provider also show a red warning marker
+in the sidebar, chat header, and provider settings until usage resets or the
+operator switches the chat to another configured provider.
 
 Agents can persist structured memories such as user preferences, project
 facts, feedback, references, and decisions. Memories are private to their

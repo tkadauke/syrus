@@ -251,6 +251,8 @@ module Api
             summary_state: ::App::Presentation.job_summary_state(job),
             title: job.issue_title.to_s,
             issue_title: job.issue_title.to_s,
+            agent_provider: job.agent_provider,
+            provider_availability: ::App::ProviderAvailability.for_user(Current.user, job.agent_provider),
             repository_id: job.repository_id,
             repository_slug: job.repository.slug,
             branch_name: job.branch_name,

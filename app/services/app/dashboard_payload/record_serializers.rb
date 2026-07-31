@@ -22,6 +22,8 @@ module App
           summary_state: summary_state(job),
           validity: job.validity,
           priority: job.priority,
+          agent_provider: job.agent_provider,
+          provider_availability: ::App::ProviderAvailability.for_user(user, job.agent_provider),
           total_cost_usd: job.display_total_cost_usd&.to_f,
           issue_number: job.issue_number,
           issue_url: App::Presentation.job_issue_url(job),

@@ -1,6 +1,7 @@
 import { getJson, patchJson, postJson } from "./client"
 import type { SetupStatusPayload } from "./setup"
 import type { JobRetryState } from "./jobs"
+import type { ProviderAvailability } from "./providerAvailability"
 
 export type RepositoryEpicDependencyPolicy = "linear" | "nonlinear"
 
@@ -343,6 +344,8 @@ export type RepositoryDetailJob = {
   priority: string
   issue_number: number | null
   issue_title: string
+  agent_provider: string | null
+  provider_availability?: ProviderAvailability
   job_path: string
   source: {
     label: string
@@ -363,6 +366,8 @@ export type RepositoryNeedsTriageJob = {
   id: number
   issue_title: string
   issue_number: number | null
+  agent_provider: string | null
+  provider_availability?: ProviderAvailability
   job_path: string
   source: {
     label: string

@@ -1070,6 +1070,7 @@ module Api
 
         def chat_json(chat_session)
           repository = chat_session.repository
+          effective_provider = chat_session.effective_chat_provider
           {
             id: chat_session.id,
             title: chat_session.title.presence || ChatSession.fallback_title_for(repository),
@@ -1077,8 +1078,9 @@ module Api
             pinned: chat_session.pinned?,
             pinned_context: chat_session.pinned_context,
             chat_provider: chat_session.chat_provider,
-            effective_chat_provider: chat_session.effective_chat_provider,
-            effective_chat_provider_label: chat_provider_label(chat_session.effective_chat_provider),
+            effective_chat_provider: effective_provider,
+            effective_chat_provider_label: chat_provider_label(effective_provider),
+            provider_availability: ::App::ProviderAvailability.for_user(Current.user, effective_provider),
             chat_provider_options: chat_provider_options(chat_session),
             chat_model: chat_session.chat_model,
             available_chat_models: available_chat_models_for(chat_session),

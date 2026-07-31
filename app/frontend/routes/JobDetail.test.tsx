@@ -59,6 +59,27 @@ describe("JobDetailView", () => {
     vi.restoreAllMocks()
   })
 
+  it("shows a red usage-limit warning in the job detail header", () => {
+    renderJobDetail(jobPayload({
+      job: {
+        ...baseJob(),
+        provider_availability: {
+          provider: "codex",
+          label: "Codex",
+          model: null,
+          state: "exhausted",
+          open: true,
+          usage_exhausted: true,
+          retry_after: null,
+          reason: "Provider usage limit exhausted.",
+          message: "Codex usage limit reached. This item uses Codex until usage resets or you switch providers."
+        }
+      }
+    }))
+
+    expect(screen.getByRole("img", { name: /Codex usage limit reached/ })).toBeInTheDocument()
+  })
+
   it("links the origin chat from the job header", () => {
     renderJobDetail(jobPayload({
       job: {

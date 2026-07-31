@@ -37,6 +37,28 @@ function renderSidebar(
 }
 
 describe("RecentChatsSidebar active chat highlighting", () => {
+  it("shows a red usage-limit warning for affected chats", () => {
+    renderSidebar([
+      chatNav({
+        id: 1,
+        title: "Codex chat",
+        provider_availability: {
+          provider: "codex",
+          label: "Codex",
+          model: null,
+          state: "exhausted",
+          open: true,
+          usage_exhausted: true,
+          retry_after: null,
+          reason: "Provider usage limit exhausted.",
+          message: "Codex usage limit reached. This item uses Codex until usage resets or you switch providers."
+        }
+      })
+    ])
+
+    expect(screen.getByRole("img", { name: /Codex usage limit reached/ })).toBeInTheDocument()
+  })
+
   it("does not highlight a chat as active when the URL is not /chats/:id even if current=true", () => {
     renderSidebar([chatNav({ id: 1, title: "My Chat", current: true })])
 

@@ -94,6 +94,7 @@ module App
         triaging_reason: @job.triaging_reason,
         credential_mode: @job.credential_mode,
         agent_provider: @job.agent_provider,
+        provider_availability: App::ProviderAvailability.for_user(@user, @job.agent_provider),
         stack_base: @job.stack_base,
         parent_job_id: @job.parent_job_id,
         effective_base_branch: @job.effective_base_branch,

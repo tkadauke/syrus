@@ -10,6 +10,7 @@ import { translateBlockedReason } from "../lib/translateBlockedReason"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { NoticeToast } from "../components/NoticeToast"
 import { CloseIcon } from "../components/CloseIcon"
+import { ProviderAvailabilityWarning } from "../components/ProviderAvailabilityWarning"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import {
@@ -528,6 +529,7 @@ export function JobsSection({ epicRepositorySlug, jobs, newJobPath, prefix }: { 
                   <SlugHoverCard kind="job" id={job.id}>
                     <CopyableSlug slug={job.slug} className="text-xs" />
                   </SlugHoverCard>
+                  <ProviderAvailabilityWarning availability={job.provider_availability} />
                   {job.title ? (
                     <Link className="text-gray-700 hover:underline dark:text-gray-200" to={withRoutePrefix(job.path, prefix)}>{job.title}</Link>
                   ) : (

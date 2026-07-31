@@ -1,5 +1,6 @@
 import { getJson, patchJson, postJson } from "./client"
 import type { JobRetryState, LandingQueueBlockerJob, LandingQueueDependencyEdge } from "./jobs"
+import type { ProviderAvailability } from "./providerAvailability"
 
 import type { SetupStatusPayload } from "./setup"
 
@@ -106,6 +107,8 @@ export type DashboardJobItem = {
   summary_state: string
   validity: string
   priority: string
+  agent_provider: string | null
+  provider_availability?: ProviderAvailability
   total_cost_usd: number | null
   issue_number: number | null
   issue_url: string | null
