@@ -43,6 +43,7 @@ RSpec.describe "API: /api/v1/admin/worker_health", type: :request do
       "cpu_used_percent" => 50.0
     )
   end
+
   it "returns bounded minute-resolution buckets with useful rollups" do
     travel_to Time.zone.parse("2026-07-31 12:30:30 UTC") do
       InstanceVersion.create!(hostname: "worker-a", role: "worker", version: "abc123",
