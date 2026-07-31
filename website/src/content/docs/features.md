@@ -73,9 +73,10 @@ state drift.
 
 The same classifications power stuck visibility. Admin overview health, the
 dedicated stuck list, and chat explanations distinguish stale queue claims,
-queue starvation, dependency blocks, unsuccessful closed dependencies,
-retryable failed steps, main-health blocks, and semantic operator-needed
-failures from the same reconciler evidence and repair plan.
+failed queue executions, paused queues, queue starvation, dependency blocks,
+unsuccessful closed dependencies, retryable failed steps, main-health blocks,
+terminal workflows whose cleanup is blocked by active descendants, and semantic
+operator-needed failures from the same reconciler evidence and repair plan.
 
 ## Coding Mode
 

@@ -59,7 +59,9 @@ Each repair execution includes:
 The classifier currently emits these families:
 
 - `queued_run_without_queue_claim`
+- `queued_run_solid_queue_failed_execution`
 - `queued_run_stale_queue_claim`
+- `runs_paused`
 - `running_run_without_live_worker_evidence`
 - `queued_workflow_without_first_run`
 - `running_workflow_without_active_descendants`
@@ -69,6 +71,7 @@ The classifier currently emits these families:
 - `completed_main_grader_job`
 - `dependency_stack_start_block`
 - `main_health_start_block`
+- `main_branch_broken`
 - `resource_congestion`
 - `rate_limit`
 - `workspace_missing`
@@ -76,6 +79,7 @@ The classifier currently emits these families:
 - `resumable_agent_session_missing`
 - `retryable_run_failure`
 - `nonretryable_semantic_git_failure`
+- `cleanup_blocked_by_active_descendants`
 - `workflow_workspace_prune_risk`
 
 `safe_to_auto_repair` only describes whether the repair planner may choose an
@@ -93,8 +97,12 @@ Planner examples:
 
 - A queued Run with no SolidQueue claim returns `reenqueue_run` for the same
   Run.
+- A queued Run whose SolidQueue execution failed also returns `reenqueue_run`;
+  the persisted Run remains the source of truth.
 - A stale queued Run with an existing queue claim returns
   `diagnose_queue_starvation`; it does not duplicate work.
+- Paused Run queues return `wait_for_queue_resume`, preserving the operator's
+  pause instead of creating duplicate queue pressure.
 - A stale running Run first plans to mark the Run as `worker_died`, then
   prefers `ResumeWorkflowEnqueuer` when an agent session exists, otherwise
   `RetryFailedStepEnqueuer` when the workflow workspace exists, otherwise a
@@ -108,6 +116,8 @@ Planner examples:
   unless an existing safe rebuild path is declared, such as merge-train rebuild.
 - Main-health, dependency, stack, and capacity blocks return waiting plans, not
   failed retries.
+- Terminal Workflows with active descendants return operator-review cleanup
+  plans, because cleanup must not race still-active Step or Run rows.
 
 ## Stuck visibility and explanations
 

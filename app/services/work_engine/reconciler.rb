@@ -64,6 +64,7 @@ module WorkEngine
       :solid_queue_available,
       :solid_queue_jobs,
       :solid_queue_processes,
+      :solid_queue_pauses,
       :spawned_process_ids,
       :instance_version_ids,
       :main_health,
@@ -81,6 +82,7 @@ module WorkEngine
           solid_queue_available: solid_queue_available,
           solid_queue_jobs: solid_queue_jobs,
           solid_queue_processes: solid_queue_processes,
+          solid_queue_pauses: solid_queue_pauses,
           spawned_process_ids: spawned_process_ids,
           instance_version_ids: instance_version_ids,
           main_health: main_health,
@@ -135,6 +137,7 @@ module WorkEngine
 
       issues = []
       issues.concat(classify_queued_runs)
+      issues.concat(classify_paused_queues)
       issues.concat(classify_running_runs)
       issues.concat(classify_workflows)
       issues.concat(classify_job_workflow_drift)
@@ -142,12 +145,14 @@ module WorkEngine
       issues.concat(classify_unambiguous_job_state_drift)
       issues.concat(classify_completed_main_grader_jobs)
       issues.concat(classify_start_blocks)
+      issues.concat(classify_main_broken_workflows)
       issues.concat(classify_resource_congestion)
       issues.concat(classify_rate_limits)
       issues.concat(classify_workspace_availability)
       issues.concat(classify_resumable_sessions)
       issues.concat(classify_retryable_failures)
       issues.concat(classify_nonretryable_failures)
+      issues.concat(classify_cleanup_blockers)
       issues.concat(classify_workspace_prune_risks)
 
       result = Result.new(source: source, captured_at: now, snapshot: snapshot, issues: issues, repair_plans: [], repair_executions: [])
@@ -220,6 +225,16 @@ module WorkEngine
             evidence: run_evidence(run).merge(solid_queue_state: "missing", age_seconds: seconds_since(run.created_at)),
             explanation: "Run ##{run.id} is queued but no active SolidQueue RunJob references it."
           )
+        elsif sq[:failed]
+          issue(
+            kind: :queued_run_solid_queue_failed_execution,
+            severity: :error,
+            affected_ids: ids_for(run).merge(solid_queue_job_ids: [ sq[:id] ]),
+            safe_to_auto_repair: workflow&.running? || workflow&.queued?,
+            recommended_repair_action: "reenqueue_run",
+            evidence: run_evidence(run).merge(solid_queue: sq, solid_queue_state: "failed_execution"),
+            explanation: "Run ##{run.id} is queued but its SolidQueue RunJob has a failed execution."
+          )
         elsif sq[:claimed] && older_than?(sq[:claimed_at], QUEUE_STARVATION_AFTER) && !solid_queue_process_live?(sq[:process_id])
           issue(
             kind: :queued_run_stale_queue_claim,
@@ -233,6 +248,36 @@ module WorkEngine
           )
         end
       end
+    end
+
+    def classify_paused_queues
+      return [] unless solid_queue[:available]
+
+      paused_queue_names = solid_queue[:pauses].map { |pause| pause[:queue_name] }.compact.uniq
+      return [] if paused_queue_names.empty?
+
+      affected_runs = runs.select(&:queued?).select do |run|
+        sq = solid_queue_for_run(run)
+        paused_queue_names.include?(sq&.dig(:queue_name)) || sq.nil? && paused_queue_names.include?("runs")
+      end
+      return [] if affected_runs.empty?
+
+      [
+        issue(
+          kind: :runs_paused,
+          severity: :info,
+          affected_ids: {
+            run_ids: affected_runs.map(&:id),
+            workflow_ids: affected_runs.filter_map(&:workflow_id),
+            job_ids: affected_runs.map(&:job_id)
+          },
+          safe_to_auto_repair: false,
+          recommended_repair_action: "operator_resume_queue",
+          check_after: now + RESOURCE_CONGESTION_CHECK_AFTER,
+          evidence: { paused_queues: paused_queue_names },
+          explanation: "Queued Runs are blocked because their SolidQueue queue is paused."
+        )
+      ]
     end
 
     def classify_running_runs
@@ -398,6 +443,23 @@ module WorkEngine
       end
     end
 
+    def classify_main_broken_workflows
+      workflows.filter_map do |workflow|
+        next unless workflow.artifact("main_broken")
+
+        issue(
+          kind: :main_branch_broken,
+          severity: :warning,
+          affected_ids: ids_for(workflow),
+          safe_to_auto_repair: false,
+          recommended_repair_action: "wait_for_main_recovery",
+          check_after: now + RESOURCE_CONGESTION_CHECK_AFTER,
+          evidence: workflow_evidence(workflow).merge(main_broken: true),
+          explanation: "Workflow ##{workflow.id} is blocked from retry because the base branch is marked broken."
+        )
+      end
+    end
+
     def classify_resource_congestion
       issues = []
       max = AppSetting.max_concurrent_agent_runs
@@ -543,6 +605,26 @@ module WorkEngine
       end
     end
 
+    def classify_cleanup_blockers
+      workflows.select { |workflow| %w[succeeded failed cancelled].include?(workflow.state) }.filter_map do |workflow|
+        next if workflow.cleaned_up_at.present?
+        next unless workflow.live_descendants?
+
+        issue(
+          kind: :cleanup_blocked_by_active_descendants,
+          severity: :warning,
+          affected_ids: ids_for(workflow),
+          safe_to_auto_repair: false,
+          recommended_repair_action: "operator_review_active_descendants",
+          evidence: workflow_evidence(workflow).merge(
+            active_step_ids: workflow.steps.active.pluck(:id),
+            active_run_ids: workflow.runs.active.pluck(:id)
+          ),
+          explanation: "Workflow ##{workflow.id} is terminal but still has active descendants that prevent workspace cleanup."
+        )
+      end
+    end
+
     def classify_workspace_prune_risks
       cutoff = now - (WorkflowWorkspacePruneJob::RETAIN_AFTER_FAILURE - 1.day)
       workflows.filter_map do |workflow|
@@ -576,6 +658,7 @@ module WorkEngine
         solid_queue_available: solid_queue[:available],
         solid_queue_jobs: solid_queue[:jobs],
         solid_queue_processes: solid_queue[:processes],
+        solid_queue_pauses: solid_queue[:pauses],
         spawned_process_ids: SpawnedProcess.where(run_id: runs.map(&:id)).or(SpawnedProcess.where(workflow_id: workflows.map(&:id))).pluck(:id),
         instance_version_ids: InstanceVersion.fresh.pluck(:id),
         main_health: repositories.index_with(&:main_health).transform_keys(&:slug),
@@ -610,10 +693,11 @@ module WorkEngine
       {
         available: true,
         jobs: parsed,
-        processes: SolidQueue::Process.all.map { |process| { id: process.id, hostname: process.hostname, last_heartbeat_at: process.last_heartbeat_at } }
+        processes: SolidQueue::Process.all.map { |process| { id: process.id, hostname: process.hostname, last_heartbeat_at: process.last_heartbeat_at } },
+        pauses: SolidQueue::Pause.all.map { |pause| { id: pause.id, queue_name: pause.queue_name, created_at: pause.created_at } }
       }
     rescue ActiveRecord::StatementInvalid, NameError
-      { available: false, jobs: [], processes: [] }
+      { available: false, jobs: [], processes: [], pauses: [] }
     end
 
     def solid_queue_for_run(run)

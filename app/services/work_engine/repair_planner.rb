@@ -275,12 +275,33 @@ module WorkEngine
         end
       end
 
+      class QueuedRunSolidQueueFailedExecution < Base
+        def plan
+          automatic_plan(
+            "reenqueue_run",
+            primary_run,
+            "The Run is queued but its SolidQueue execution failed, so the narrowest repair is to enqueue the same persisted Run again.",
+            execution_steps: [ "Run#reenqueue!" ],
+            preconditions: { run_state: "queued", workflow_state: %w[queued running], queue_execution_failed: true }
+          )
+        end
+      end
+
       class QueuedRunStaleQueueClaim < Base
         def plan
           waiting_plan(
             "diagnose_queue_starvation",
             "The Run still has a queue claim, so duplicating it could execute the same work twice.",
             preconditions: { queue_claim_present: true, worker_heartbeat_stale: true }
+          )
+        end
+      end
+
+      class RunsPaused < Base
+        def plan
+          waiting_plan(
+            "wait_for_queue_resume",
+            "The Run queue is paused, so re-enqueueing would not make progress and may obscure the operator pause."
           )
         end
       end
@@ -539,6 +560,15 @@ module WorkEngine
         end
       end
 
+      class MainBranchBroken < Base
+        def plan
+          waiting_plan(
+            "wait_for_main_recovery",
+            "The workflow is blocked by main-branch health, so retry should wait for the recovery signal."
+          )
+        end
+      end
+
       class ResourceCongestion < Base
         def plan
           waiting_plan("wait_for_capacity", "The issue is capacity or disk pressure, not failed work; automatic retries would add load.")
@@ -568,6 +598,15 @@ module WorkEngine
           waiting_plan(
             "retry_or_archive_before_workspace_prune",
             "The failed Workflow workspace is near the retention cutoff; retry or inspect it before pruning if the local state matters."
+          )
+        end
+      end
+
+      class CleanupBlockedByActiveDescendants < Base
+        def plan
+          operator_plan(
+            "operator_review_active_descendants",
+            "The workflow is terminal but still has active descendant work, so cleanup must wait for or resolve that state drift first."
           )
         end
       end
