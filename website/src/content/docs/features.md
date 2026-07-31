@@ -62,12 +62,12 @@ and defer to the unified work-engine reconciler. This makes the unified
 reconciler the single authority for classifying and repairing split-brain state
 across Jobs, Workflows, Steps, Runs, queue records, and worker processes.
 
-The first reconciler layer is a read-only consistency classifier. It snapshots
-the scoped Job, Workflow, Step, Run, SolidQueue, SpawnedProcess, worker
-heartbeat, workspace, dependency/stack, main-health, and provider rate-limit
-signals, then returns structured issue records with severity, evidence,
-affected ids, repair safety, recommended action, retry/check timing, and an
-operator-facing explanation. Repair execution remains a separate rollout step.
+The first reconciler layer is read-only. It snapshots the scoped Job, Workflow,
+Step, Run, SolidQueue, SpawnedProcess, worker heartbeat, workspace,
+dependency/stack, main-health, and provider rate-limit signals, then returns
+structured issue records and repair plans with severity, evidence, affected ids,
+repair safety, retry/check timing, and an operator-facing explanation. Repair
+execution remains a separate rollout step.
 
 ## Coding Mode
 

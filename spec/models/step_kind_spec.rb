@@ -121,4 +121,24 @@ RSpec.describe Step::Kind do
       end
     end
   end
+
+  describe "repair_semantics" do
+    it "marks deterministic idempotent steps as safe in-place retry candidates" do
+      %w[prepare grader grader_collect grade coverage_analyze preflight_grader].each do |kind|
+        expect(described_class.fetch(kind)).to be_deterministic_idempotent_repair,
+          "expected #{kind} to be deterministic/idempotent for repair planning"
+      end
+    end
+
+    it "marks git publication and landing steps as publication repairs" do
+      %w[pr_open push push_after_rebase force_push auto_merge merge_train_land].each do |kind|
+        expect(described_class.fetch(kind)).to be_publication_repair,
+          "expected #{kind} to require publication-aware repair planning"
+      end
+    end
+
+    it "marks merge train build for the rebuild path" do
+      expect(described_class.fetch("merge_train_build")).to be_rebuild_repair
+    end
+  end
 end

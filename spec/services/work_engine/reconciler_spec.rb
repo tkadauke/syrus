@@ -24,6 +24,10 @@ RSpec.describe WorkEngine::Reconciler do
     result.issues.find { |issue| issue.kind == name.to_s }
   end
 
+  def plan(result, action)
+    result.repair_plans.find { |repair_plan| repair_plan.action == action.to_s }
+  end
+
   def solid_queue_run_job(run, claimed: false, process_id: nil, created_at: 10.minutes.ago)
     ensure_solid_queue_test_tables!
     queue_job = SolidQueue::Job.create!(
@@ -69,6 +73,7 @@ RSpec.describe WorkEngine::Reconciler do
     expect(result).to be_a(described_class::Result)
     expect(result.snapshot.run_ids).to include(run.id)
     expect(result.snapshot.solid_queue_available).to eq(false)
+    expect(result.repair_plans).to eq([])
     expect(run.reload.state).to eq("queued")
   end
 
@@ -87,6 +92,12 @@ RSpec.describe WorkEngine::Reconciler do
     )
     expect(issue.affected_ids[:run_ids]).to eq([ run.id ])
     expect(issue.evidence["solid_queue_state"]).to eq("missing")
+    expect(plan(result, :reenqueue_run)).to have_attributes(
+      auto_executable: true,
+      target_type: "Run",
+      target_id: run.id,
+      execution_steps: [ "Run#reenqueue!" ]
+    )
   end
 
   it "classifies a queued Run with a stale SolidQueue claim" do
@@ -99,6 +110,7 @@ RSpec.describe WorkEngine::Reconciler do
     expect(issue.severity).to eq("warning")
     expect(issue.safe_to_auto_repair).to eq(false)
     expect(issue.recommended_repair_action).to eq("check_queue_worker_or_wait")
+    expect(plan(result, :diagnose_queue_starvation).auto_executable).to eq(false)
   end
 
   it "classifies a stale running Run without live worker evidence" do
@@ -110,6 +122,8 @@ RSpec.describe WorkEngine::Reconciler do
     )
     step.update_columns(state: "running", started_at: run.started_at)
     workflow.update_columns(state: "running", started_at: run.started_at)
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
 
     result = reconcile(run_id: run.id)
     issue = kind(result, :running_run_without_live_worker_evidence)
@@ -117,6 +131,34 @@ RSpec.describe WorkEngine::Reconciler do
     expect(issue.severity).to eq("critical")
     expect(issue.safe_to_auto_repair).to eq(true)
     expect(issue.recommended_repair_action).to eq("fail_run_as_worker_died")
+    expect(plan(result, :mark_worker_died_and_retry_failed_step)).to have_attributes(
+      auto_executable: true,
+      target_id: run.id
+    )
+    expect(run.reload.state).to eq("running")
+  end
+
+  it "plans session resume after a stale running agent Run loses its worker" do
+    agent_step = workflow.steps.find_by!(kind: "implement")
+    agent_run = agent_step.runs.create!(
+      job: job,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: "claude",
+      state: "running",
+      started_at: (Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes).ago,
+      last_heartbeat_at: (Run::STALE_HEARTBEAT_THRESHOLD + 5.minutes).ago
+    )
+    ClaudeSession.create!(resumable: agent_run, provider: "claude", session_id: "session-1", transcript_jsonl: "{}\n")
+    agent_step.update_columns(state: "running", started_at: agent_run.started_at)
+    workflow.update_columns(state: "running", started_at: agent_run.started_at)
+    ensure_solid_queue_test_tables!
+
+    result = reconcile(run_id: agent_run.id)
+    repair_plan = plan(result, :mark_worker_died_and_resume_failed_step)
+
+    expect(repair_plan).to have_attributes(auto_executable: true, target_id: agent_run.id)
+    expect(repair_plan.execution_steps).to eq([ "Run#fail!(agent_outcome: worker_died)", "ResumeWorkflowEnqueuer.call" ])
+    expect(agent_run.reload.state).to eq("running")
   end
 
   it "classifies a queued Workflow without a first Run" do
@@ -129,6 +171,7 @@ RSpec.describe WorkEngine::Reconciler do
 
     expect(issue.safe_to_auto_repair).to eq(true)
     expect(issue.recommended_repair_action).to eq("start_workflow")
+    expect(plan(result, :start_workflow)).to have_attributes(auto_executable: true, target_id: workflow.id)
   end
 
   it "classifies explicit dependency or stack start blocks as wait-only" do
@@ -147,6 +190,7 @@ RSpec.describe WorkEngine::Reconciler do
     expect(issue.severity).to eq("info")
     expect(issue.safe_to_auto_repair).to eq(false)
     expect(issue.check_after).to be_present
+    expect(plan(result, :wait_for_dependency_or_stack_readiness).auto_executable).to eq(false)
   end
 
   it "classifies Job/Workflow state drift" do
@@ -172,6 +216,7 @@ RSpec.describe WorkEngine::Reconciler do
 
     expect(issue.severity).to eq("critical")
     expect(issue.recommended_repair_action).to eq("start_over_with_fresh_workflow")
+    expect(plan(result, :operator_review_missing_workspace).auto_executable).to eq(false)
   end
 
   it "classifies resumable agent sessions present and missing" do
@@ -203,6 +248,87 @@ RSpec.describe WorkEngine::Reconciler do
     expect(present_issue.safe_to_auto_repair).to eq(true)
     expect(missing_issue.affected_ids[:run_ids]).to include(missing.id)
     expect(missing_issue.safe_to_auto_repair).to eq(false)
+    expect(plan(result, :resume_failed_step)).to have_attributes(auto_executable: true, target_id: present.id)
+  end
+
+  it "plans retryable rate-limit failures for the reset time instead of immediate retry" do
+    reset_at = 12.minutes.from_now
+    job.user.update!(gh_rate_limit_reset_at: reset_at)
+    run.update_columns(state: "failed", finished_at: Time.current)
+    step.update_columns(state: "failed", finished_at: Time.current)
+    workflow.update_columns(state: "failed", finished_at: Time.current)
+    RunFailureClassification.create!(
+      run: run,
+      classification: "rate_limited",
+      retryable: true,
+      confidence: 0.9,
+      reason: "GitHub API rate limited",
+      classified_at: Time.current
+    )
+
+    result = reconcile(run_id: run.id)
+    issue = kind(result, :retryable_run_failure)
+    repair_plan = plan(result, :schedule_retry_after_rate_limit)
+
+    expect(issue.retry_after.to_i).to eq(reset_at.to_i)
+    expect(repair_plan.auto_executable).to eq(false)
+    expect(repair_plan.retry_after.to_i).to eq(reset_at.to_i)
+  end
+
+  it "plans deterministic idempotent failed steps for in-place retry" do
+    step.update_columns(kind: "grader", state: "failed", finished_at: Time.current)
+    workflow.update_columns(state: "failed", finished_at: Time.current, cleaned_up_at: nil)
+    run.update_columns(state: "failed", finished_at: Time.current)
+    RunFailureClassification.create!(
+      run: run,
+      classification: "timeout",
+      retryable: true,
+      confidence: 0.85,
+      reason: "grader timed out",
+      classified_at: Time.current
+    )
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
+
+    result = reconcile(run_id: run.id)
+    repair_plan = plan(result, :retry_failed_step)
+
+    expect(repair_plan).to have_attributes(auto_executable: true, target_type: "Workflow", target_id: workflow.id)
+    expect(repair_plan.preconditions["step_repair_semantics"]).to eq("deterministic_idempotent")
+  end
+
+  it "escalates retryable failures when the retry budget is exhausted" do
+    step.update_columns(kind: "grader", state: "failed", finished_at: Time.current)
+    workflow.update_columns(state: "failed", finished_at: Time.current, cleaned_up_at: nil)
+    run.update_columns(state: "failed", finished_at: Time.current)
+    RunFailureClassification.create!(
+      run: run,
+      classification: "timeout",
+      retryable: true,
+      confidence: 0.85,
+      reason: "grader timed out",
+      classified_at: Time.current
+    )
+    AutoRetryScheduler::MAX_ATTEMPTS.times do |index|
+      AutoRetryAttempt.create!(
+        job: job,
+        workflow: workflow,
+        run: run,
+        agent_provider: run.agent_provider,
+        failure_classification: "timeout",
+        retry_kind: "failed_step",
+        attempt_number: index + 1,
+        scheduled_at: Time.current
+      )
+    end
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
+
+    result = reconcile(run_id: run.id)
+    repair_plan = plan(result, :operator_review_retry_budget_exhausted)
+
+    expect(repair_plan.auto_executable).to eq(false)
+    expect(repair_plan.preconditions["retry_budget_available"]).to eq(false)
   end
 
   it "classifies nonretryable semantic and git failures" do
@@ -221,6 +347,27 @@ RSpec.describe WorkEngine::Reconciler do
 
     expect(issue.safe_to_auto_repair).to eq(false)
     expect(issue.evidence["classification"]).to eq("git_conflict")
+    expect(plan(result, :operator_review_nonretryable_failure).auto_executable).to eq(false)
+  end
+
+  it "escalates non-idempotent publication step failures" do
+    step.update_columns(kind: "pr_open", state: "failed", finished_at: Time.current)
+    workflow.update_columns(state: "failed", finished_at: Time.current)
+    run.update_columns(state: "failed", finished_at: Time.current)
+    RunFailureClassification.create!(
+      run: run,
+      classification: "git_non_fast_forward",
+      retryable: false,
+      confidence: 0.95,
+      reason: "branch changed before push",
+      classified_at: Time.current
+    )
+
+    result = reconcile(run_id: run.id)
+    repair_plan = plan(result, :operator_review_nonretryable_failure)
+
+    expect(repair_plan.auto_executable).to eq(false)
+    expect(repair_plan.preconditions["step_repair_semantics"]).to eq("publication")
   end
 
   it "classifies provider rate limits from the circuit breaker" do
@@ -242,5 +389,9 @@ RSpec.describe WorkEngine::Reconciler do
     expect(issue.severity).to eq("warning")
     expect(issue.retry_after).to eq(decision.retry_after)
     expect(issue.recommended_repair_action).to eq("wait_for_provider_recovery")
+    expect(plan(result, :schedule_retry_after_rate_limit)).to have_attributes(
+      auto_executable: false,
+      retry_after: decision.retry_after
+    )
   end
 end

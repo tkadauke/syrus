@@ -90,7 +90,7 @@ module WorkEngine
       end
     end
 
-    Result = Data.define(:source, :captured_at, :snapshot, :issues) do
+    Result = Data.define(:source, :captured_at, :snapshot, :issues, :repair_plans) do
       def issue_kinds = issues.map(&:kind)
       def ok? = issues.empty?
 
@@ -99,7 +99,8 @@ module WorkEngine
           source: source,
           captured_at: captured_at.iso8601,
           snapshot: snapshot.as_json,
-          issues: issues.map(&:as_json)
+          issues: issues.map(&:as_json),
+          repair_plans: repair_plans.map(&:as_json)
         }
       end
     end
@@ -140,9 +141,11 @@ module WorkEngine
       issues.concat(classify_rate_limits)
       issues.concat(classify_workspace_availability)
       issues.concat(classify_resumable_sessions)
+      issues.concat(classify_retryable_failures)
       issues.concat(classify_nonretryable_failures)
 
-      Result.new(source: source, captured_at: now, snapshot: snapshot, issues: issues)
+      result = Result.new(source: source, captured_at: now, snapshot: snapshot, issues: issues, repair_plans: [])
+      result.with(repair_plans: WorkEngine::RepairPlanner.call(result: result, now: now))
     ensure
       Rails.logger.info(
         "[WorkEngine::Reconciler] requested by #{source}" \
@@ -405,6 +408,31 @@ module WorkEngine
       end
     end
 
+    def classify_retryable_failures
+      runs.select(&:failed?).filter_map do |run|
+        classification = run.run_failure_classification
+        next if classification.nil?
+        next unless classification.retryable
+
+        issue(
+          kind: :retryable_run_failure,
+          severity: :warning,
+          affected_ids: ids_for(run),
+          safe_to_auto_repair: true,
+          recommended_repair_action: "plan_retry",
+          retry_after: retry_after_for(run, classification),
+          evidence: run_evidence(run).merge(
+            classification: classification.classification,
+            retryable: classification.retryable,
+            confidence: classification.confidence,
+            reason: classification.reason,
+            step_repair_semantics: step_repair_semantics(run.step)
+          ),
+          explanation: "Run ##{run.id} failed with a retryable classification."
+        )
+      end
+    end
+
     def classify_nonretryable_failures
       runs.select(&:failed?).filter_map do |run|
         classification = run.run_failure_classification
@@ -611,6 +639,20 @@ module WorkEngine
     def parse_time(value)
       Time.iso8601(value.to_s)
     rescue ArgumentError, TypeError
+      nil
+    end
+
+    def retry_after_for(run, classification)
+      return run.user.gh_rate_limit_reset_at if classification.classification == "rate_limited" && run.user.gh_rate_limit_reset_at&.future?
+
+      nil
+    end
+
+    def step_repair_semantics(step)
+      return nil unless step
+
+      Step::Kind.fetch(step.kind).repair_semantics.to_s
+    rescue ArgumentError
       nil
     end
 
