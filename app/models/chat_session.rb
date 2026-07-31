@@ -64,6 +64,7 @@ class ChatSession < ApplicationRecord
   has_one :local_daemon_session, dependent: :destroy
 
   after_update_commit :broadcast_header, if: :header_previously_changed?
+  before_validation :seed_chat_provider, on: :create
   after_create :attach_initial_repository
   # prepend: dependent-association callbacks (declared above) also run
   # as before_destroy; the pending JobDependency placeholders must be
@@ -87,6 +88,7 @@ class ChatSession < ApplicationRecord
   enum :mode, { planning: "planning", coding: "coding", local: "local" }, validate: { allow_nil: true }
   enum :system_kind, { supervisor: "supervisor" }, prefix: true, validate: { allow_nil: true }
 
+  validates :chat_provider, presence: true, if: :persisted?
   validates :chat_provider, inclusion: { in: User::CHAT_PROVIDERS }, allow_nil: true
   validates :chat_model, length: { maximum: 100 }, allow_nil: true
   validates :local_daemon_state, inclusion: { in: DAEMON_STATES }, allow_nil: true
@@ -135,11 +137,11 @@ class ChatSession < ApplicationRecord
   end
 
   def effective_chat_provider
-    chat_provider.presence || user&.effective_chat_provider || "claude"
+    chat_provider.presence || "claude"
   end
 
-  def pin_chat_provider!(provider = effective_chat_provider, broadcast: true)
-    resolved_provider = provider.to_s.strip.presence || "claude"
+  def pin_chat_provider!(provider = nil, broadcast: true)
+    resolved_provider = provider.to_s.strip.presence || initial_chat_provider
     return chat_provider if chat_provider.present?
 
     unless User::CHAT_PROVIDERS.include?(resolved_provider)
@@ -157,6 +159,10 @@ class ChatSession < ApplicationRecord
     chat_provider
   end
 
+  def initial_chat_provider
+    user&.effective_chat_provider || "claude"
+  end
+
   def workspace_root
     ChatWorkspace.path_for(self)
   end
@@ -164,6 +170,10 @@ class ChatSession < ApplicationRecord
   def attached_documents
     records = attached_records_for("Document")
     records.to_a
+  end
+
+  def seed_chat_provider
+    self.chat_provider ||= initial_chat_provider
   end
 
   def attached_documents_in_scope

@@ -288,7 +288,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_023000) do
   create_table "chat_sessions", force: :cascade do |t|
     t.string "chat_effort"
     t.string "chat_model"
-    t.string "chat_provider"
+    t.string "chat_provider", null: false
     t.string "coding_checkout_branch"
     t.text "coding_checkout_prepare_failure"
     t.datetime "coding_checkout_prepare_finished_at"

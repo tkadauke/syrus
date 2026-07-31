@@ -22,7 +22,6 @@ export type ChatRecord = {
   effective_chat_provider?: string
   effective_chat_provider_label?: string
   provider_availability?: ProviderAvailability
-  chat_provider_options?: ChatProviderOption[]
   chat_model?: string | null
   available_chat_models?: ChatModelOption[]
   mode?: ChatMode | null
@@ -45,14 +44,6 @@ export type ChatRecord = {
   coding_checkout_uncommitted?: boolean
   coding_checkout_branch?: string | null
   chat_effort?: string | null
-}
-
-export type ChatProviderOption = {
-  value: string | null
-  label: string
-  configured: boolean
-  effective_provider: string
-  effective_label: string
 }
 
 export type ChatModelOption = {
@@ -508,7 +499,6 @@ export type ChatPayload = {
     app_attachments_path: string
     app_video_walkthroughs_path: string
     app_whiteboard_path: string
-    app_switch_provider_path: string
     app_scratchpad_reorder_path: string
     app_cancel_coding_checkout_path?: string
     app_coding_files_path?: string
@@ -687,10 +677,6 @@ export function renameChat(path: string, title: string) {
 
 export function updateChatPinned(id: number | string, pinned: boolean) {
   return patchJson<ChatPayload>(`/api/v1/app/chats/${id}`, { chat: { pinned } })
-}
-
-export function updateChatProvider(id: number | string, chatProvider: string | null) {
-  return patchJson<ChatPayload>(`/api/v1/app/chats/${id}`, { chat: { chat_provider: chatProvider } })
 }
 
 export function updateChatMode(id: number | string, mode: ChatMode | null) {

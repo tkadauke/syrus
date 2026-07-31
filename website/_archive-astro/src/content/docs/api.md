@@ -191,11 +191,8 @@ curl -X PATCH https://syrus.example.com/api/v1/app/chats/123 \
   -d '{ "chat": { "pinned": true } }'
 ```
 
-The same endpoint also accepts `{ "chat": { "chat_provider": "codex" } }` or
-`"claude"` to pin a chat to an explicit provider. Send `null` or an empty
-string for **Default**, which follows the user's chat provider setting and then
-the default agent provider. Explicit providers must be configured for the
-authenticated user.
+Chat providers are pinned when a chat is created. The chat update endpoint does
+not switch existing chats between providers.
 
 ## Branch a Chat
 

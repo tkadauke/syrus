@@ -61,7 +61,6 @@ import {
   sendChatMessage,
   shareChat,
   stopChat,
-  updateChatProvider,
   cancelCodingCheckout,
   fetchCodingFileTree,
   fetchCodingFileContent,
@@ -289,7 +288,6 @@ function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
       app_attachments_path: "",
       app_video_walkthroughs_path: "",
       app_whiteboard_path: "",
-      app_switch_provider_path: "",
       app_scratchpad_reorder_path: ""
     },
     gemini_configured: false,

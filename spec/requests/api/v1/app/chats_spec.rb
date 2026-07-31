@@ -163,15 +163,16 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
   it "preserves a default provider setting when branching an empty chat" do
     sign_in_as(user)
+    user.update!(chat_provider: "codex")
     chat = ChatSession.create!(user: user, repository: repository, title: "Release planning", chat_provider: nil)
 
     post "/api/v1/app/chats/#{chat.id}/branch"
 
     expect(response).to have_http_status(:created)
-    expect(ChatSession.find(parse_body["id"]).chat_provider).to be_nil
+    expect(ChatSession.find(parse_body["id"]).chat_provider).to eq("codex")
   end
 
-  it "pins a default provider setting when branching a chat with messages" do
+  it "preserves the source provider when branching a chat with messages" do
     sign_in_as(user)
     user.update!(chat_provider: "claude")
     chat = ChatSession.create!(user: user, repository: repository, title: "Release planning", chat_provider: nil)
@@ -923,7 +924,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(response).to have_http_status(:created)
     chat = ChatSession.last
     expect(chat.user).to eq(user)
-    expect(chat.chat_provider).to be_nil
+    expect(chat.chat_provider).to eq("claude")
     expect(chat.effective_chat_provider).to eq("claude")
     expect(chat.title).to be_nil
     expect(chat).not_to be_title_pending
@@ -932,7 +933,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body.dig("chat", "title")).to eq("widgets")
     expect(parse_body.dig("chat", "title_pending")).to eq(false)
     expect(parse_body.dig("chat", "repository", "slug")).to eq("acme/widgets")
-    expect(parse_body.dig("chat", "chat_provider")).to be_nil
+    expect(parse_body.dig("chat", "chat_provider")).to eq("claude")
     expect(parse_body.dig("chat", "effective_chat_provider")).to eq("claude")
   end
 
@@ -947,7 +948,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(response).to have_http_status(:created)
     chat = ChatSession.last
     expect(chat.user).to eq(user)
-    expect(chat.chat_provider).to be_nil
+    expect(chat.chat_provider).to eq("claude")
     expect(chat.effective_chat_provider).to eq("claude")
     expect(chat.repository).to be_nil
     expect(chat.last_message_at).to be_nil
@@ -957,37 +958,26 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body).to include("message" => "Chat created.", "redirect_to" => chat_path(chat))
   end
 
-  it "updates a chat provider setting to default or a configured explicit provider" do
+  it "does not update a chat provider through the chat settings endpoint" do
     sign_in_as(user)
     user.update!(codex_api_key: "sk-test")
     chat = ChatSession.create!(user: user, repository: repository)
 
     patch "/api/v1/app/chats/#{chat.id}", params: { chat: { chat_provider: "codex" } }
 
-    expect(response).to have_http_status(:ok)
-    expect(chat.reload.chat_provider).to eq("codex")
-    expect(parse_body.dig("chat", "chat_provider")).to eq("codex")
-    expect(parse_body.dig("chat", "effective_chat_provider")).to eq("codex")
-    expect(parse_body.dig("chat", "chat_provider_options")).to include(
-      include("value" => nil, "label" => "Default", "configured" => true),
-      include("value" => "claude", "label" => "Claude", "configured" => true),
-      include("value" => "codex", "label" => "Codex", "configured" => true)
-    )
-
-    patch "/api/v1/app/chats/#{chat.id}", params: { chat: { chat_provider: "" } }
-
-    expect(response).to have_http_status(:ok)
-    expect(chat.reload.chat_provider).to be_nil
-    expect(parse_body.dig("chat", "chat_provider")).to be_nil
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("pinned is required.")
+    expect(chat.reload.chat_provider).to eq("claude")
   end
 
-  it "pins Default to the current effective provider for non-empty chats" do
+  it "keeps an existing chat provider stable when the user's default changes" do
     sign_in_as(user)
     user.update!(codex_api_key: "sk-test", chat_provider: "claude")
     chat = ChatSession.create!(user: user, repository: repository)
     chat.messages.create!(role: "user", content: { "text" => "Keep this provider" })
 
-    patch "/api/v1/app/chats/#{chat.id}", params: { chat: { chat_provider: "" } }
+    user.update!(chat_provider: "codex")
+    get "/api/v1/app/chats/#{chat.id}"
 
     expect(response).to have_http_status(:ok)
     expect(chat.reload.chat_provider).to eq("claude")
@@ -995,21 +985,14 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body.dig("chat", "effective_chat_provider")).to eq("claude")
   end
 
-  it "rejects unknown or unconfigured explicit chat providers" do
+  it "does not expose chat provider options in chat payloads" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository)
 
-    patch "/api/v1/app/chats/#{chat.id}", params: { chat: { chat_provider: "codex" } }
+    get "/api/v1/app/chats/#{chat.id}"
 
-    expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to eq("Chat provider is not configured.")
-    expect(chat.reload.chat_provider).to be_nil
-
-    patch "/api/v1/app/chats/#{chat.id}", params: { chat: { chat_provider: "oracle" } }
-
-    expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to eq("Chat provider is not configured.")
-    expect(chat.reload.chat_provider).to be_nil
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("chat", "chat_provider_options")).to be_nil
   end
 
   it "updates chat mode to planning or coding and returns it in the payload" do
@@ -3707,48 +3690,8 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
   describe "POST /api/v1/app/chats/:id/switch_provider" do
     let(:chat) { ChatSession.create!(user: user) }
 
-    it "returns 401 when not signed in" do
+    it "is not routable" do
       post "/api/v1/app/chats/#{chat.id}/switch_provider", params: { provider: "codex" }
-
-      expect(response).to have_http_status(:unauthorized)
-    end
-
-    it "enqueues SwitchChatProviderJob with the target provider" do
-      sign_in_as(user)
-
-      expect {
-        post "/api/v1/app/chats/#{chat.id}/switch_provider", params: { provider: "codex" }
-      }.to have_enqueued_job(SwitchChatProviderJob).with(chat.id, "codex")
-
-      expect(response).to have_http_status(:ok)
-      expect(parse_body["message"]).to eq("Switching to codex.")
-    end
-
-    it "returns 422 for an invalid provider" do
-      sign_in_as(user)
-
-      post "/api/v1/app/chats/#{chat.id}/switch_provider", params: { provider: "unknown" }
-
-      expect(response).to have_http_status(:unprocessable_content)
-      expect(parse_body.dig("error", "code")).to eq("validation_failed")
-    end
-
-    it "returns 422 when a turn is in-flight" do
-      sign_in_as(user)
-      chat.messages.create!(role: "user", content: { "text" => "hello" })
-
-      expect {
-        post "/api/v1/app/chats/#{chat.id}/switch_provider", params: { provider: "codex" }
-      }.not_to have_enqueued_job(SwitchChatProviderJob)
-
-      expect(response).to have_http_status(:unprocessable_content)
-      expect(parse_body.dig("error", "code")).to eq("turn_in_flight")
-    end
-
-    it "returns 404 when the chat belongs to another user" do
-      sign_in_as(Factories.user)
-
-      post "/api/v1/app/chats/#{chat.id}/switch_provider", params: { provider: "claude" }
 
       expect(response).to have_http_status(:not_found)
     end

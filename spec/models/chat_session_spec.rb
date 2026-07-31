@@ -21,16 +21,17 @@ RSpec.describe ChatSession do
     expect(session).to be_valid
   end
 
-  it "allows a nullable supported chat provider" do
+  it "allows a supported chat provider" do
     session = described_class.new(user: repo.user, chat_provider: "codex")
 
     expect(session).to be_valid
   end
 
-  it "normalizes blank chat providers to nil" do
+  it "seeds blank chat providers from the user's effective chat provider" do
+    repo.user.update!(agent_provider: "codex", chat_provider: nil)
     session = described_class.create!(user: repo.user, chat_provider: "")
 
-    expect(session.chat_provider).to be_nil
+    expect(session.chat_provider).to eq("codex")
   end
 
   it "rejects unknown chat providers" do
@@ -87,26 +88,27 @@ RSpec.describe ChatSession do
   end
 
 
-  it "resolves chat provider from the session, user chat provider, then user agent provider" do
+  it "resolves persisted chat provider from the session only" do
     inherited = described_class.new(user: Factories.user(agent_provider: "codex"))
     user_override = described_class.new(user: Factories.user(agent_provider: "codex", chat_provider: "claude"))
     session_override = described_class.new(user: Factories.user(agent_provider: "claude"), chat_provider: "codex")
 
-    expect(inherited.effective_chat_provider).to eq("codex")
+    expect(inherited.effective_chat_provider).to eq("claude")
     expect(user_override.effective_chat_provider).to eq("claude")
     expect(session_override.effective_chat_provider).to eq("codex")
   end
 
   it "pins a blank chat provider to the current effective provider" do
     user = Factories.user(agent_provider: "codex", chat_provider: "claude")
-    session = described_class.create!(user: user)
+    session = described_class.new(user: user)
+    session.chat_provider = nil
 
     expect {
       session.pin_chat_provider!
-    }.to change { session.reload.chat_provider }.from(nil).to("claude")
+    }.to change(session, :chat_provider).from(nil).to("claude")
 
     user.update!(chat_provider: "codex")
-    expect(session.reload.effective_chat_provider).to eq("claude")
+    expect(session.effective_chat_provider).to eq("claude")
   end
 
   it "requires a user" do

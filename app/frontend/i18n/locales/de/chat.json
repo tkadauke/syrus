@@ -223,7 +223,6 @@
   "aria_close_panel": "Panel schließen",
   "aria_refresh_diff": "Diff aktualisieren",
   "aria_refresh": "Aktualisieren",
-  "aria_chat_provider": "Chat-Anbieter",
   "aria_chat_model": "Chat-Modell",
   "chat_model_default": "Standardmodell",
   "ph_search_name_id": "Nach Name oder ID suchen...",

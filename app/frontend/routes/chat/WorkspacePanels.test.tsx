@@ -69,7 +69,6 @@ function makePayload(overrides: Partial<ChatPayload["chat"]> = {}): ChatPayload 
       app_attachments_path: "/api/v1/app/chats/1/attachments",
       app_video_walkthroughs_path: "/api/v1/app/chats/1/video_walkthroughs",
       app_whiteboard_path: "/api/v1/app/chats/1/whiteboard",
-      app_switch_provider_path: "/api/v1/app/chats/1/switch_provider",
       app_scratchpad_reorder_path: "/api/v1/app/chats/1/scratchpad_items/reorder"
     },
     gemini_configured: false,
@@ -146,27 +145,23 @@ describe("ChatSettingsDialog", () => {
     expect(screen.getByRole("link", { name: "Chat credentials" })).toBeInTheDocument()
   })
 
-  it("shows 'Effective: Default' when no effective provider label is set", () => {
+  it("shows the fallback provider when no effective provider label is set", () => {
     const payload = makePayload({
-      chat_provider_options: [
-        { value: "provider_a", label: "Provider A", configured: true, effective_provider: "provider_a", effective_label: "Provider A" },
-        { value: "provider_b", label: "Provider B", configured: true, effective_provider: "provider_b", effective_label: "Provider B" }
-      ]
+      effective_chat_provider: "provider_a",
+      effective_chat_provider_label: undefined
     })
     renderDialog(payload)
-    expect(screen.getByText("Effective: Default")).toBeInTheDocument()
+    expect(screen.getByText("provider_a")).toBeInTheDocument()
+    expect(screen.queryByLabelText("Chat provider")).not.toBeInTheDocument()
   })
 
   it("shows the effective provider label when one is set", () => {
     const payload = makePayload({
-      chat_provider_options: [
-        { value: "provider_a", label: "Provider A", configured: true, effective_provider: "provider_a", effective_label: "Provider A" },
-        { value: "provider_b", label: "Provider B", configured: true, effective_provider: "provider_b", effective_label: "Provider B" }
-      ],
       effective_chat_provider_label: "Provider A"
     })
     renderDialog(payload)
-    expect(screen.getByText("Effective: Provider A")).toBeInTheDocument()
+    expect(screen.getByText("Provider A")).toBeInTheDocument()
+    expect(screen.queryByLabelText("Chat provider")).not.toBeInTheDocument()
   })
 })
 

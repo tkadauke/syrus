@@ -223,7 +223,6 @@
   "aria_close_panel": "Close panel",
   "aria_refresh_diff": "Refresh diff",
   "aria_refresh": "Refresh",
-  "aria_chat_provider": "Chat provider",
   "aria_chat_model": "Chat model",
   "chat_model_default": "Default model",
   "ph_search_name_id": "Search by name or id...",

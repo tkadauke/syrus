@@ -78,7 +78,6 @@ module ChatSerialization
           app_bookmarks_path: "/api/v1/app/chats/#{chat_session.id}/bookmarks",
           app_attachments_path: "/api/v1/app/chats/#{chat_session.id}/attachments",
           app_whiteboard_path: "/api/v1/app/chats/#{chat_session.id}/whiteboard",
-          app_switch_provider_path: "/api/v1/app/chats/#{chat_session.id}/switch_provider",
           app_scratchpad_reorder_path: "/api/v1/app/chats/#{chat_session.id}/scratchpad_items/reorder",
           app_video_walkthroughs_path: "/api/v1/app/chats/#{chat_session.id}/video_walkthroughs",
           app_cancel_coding_checkout_path: "/api/v1/app/chats/#{chat_session.id}/coding_checkout",

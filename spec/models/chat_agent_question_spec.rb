@@ -27,6 +27,8 @@ RSpec.describe ChatAgentQuestion do
       content: { "text" => "No" }
     )
     expect(chat_session.reload.last_message_at).to be_present
+    jobs = ActiveJob::Base.queue_adapter.enqueued_jobs
+    expect(jobs.any? { |job| job.fetch(:job) == ChatTurnJob && job.fetch(:args) == [ chat_session.id, chat_session.messages.sole.id ] }).to eq(true)
   end
 
   it "does not enqueue a ChatTurnJob when an agent turn is already running" do
