@@ -415,6 +415,56 @@ RSpec.describe "Steps::MergeTrain*" do
       )
     end
 
+    it "lets no-op reconciliation proceed to validation when the head is not already validated" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      workflow = Workflows::MergeTrain.instantiate(job: a, artifacts: { "merge_train_id" => train.id })
+      reconcile_step = workflow.steps.find_by!(kind: "merge_train_reconcile")
+      run = Run.create!(job: a, step: reconcile_step, trigger_kind: "merge_train")
+      handler = described_class.new(run)
+      stub_reconcile_handler(handler, head_values: %w[intsha999 intsha999], step_diff: "")
+      allow(LandingValidationCache).to receive(:valid_head_for?).with(job: a, head_sha: "intsha999").and_return(false)
+
+      handler.call
+
+      expect(workflow.steps.order(:position).pluck(:kind, :state)).to include(
+        [ "prepare", "queued" ],
+        [ "grader_fanout", "queued" ],
+        [ "grader_collect", "queued" ],
+        [ "merge_train_land", "queued" ]
+      )
+      expect(run.reload.step_agent_diff).to eq("")
+      expect(train.reload.integration_sha).to eq("intsha999")
+    end
+
+    it "keeps an agent reconciliation commit as the integration head that graders will validate" do
+      a = member_job(issue_number: 1)
+      b = member_job(issue_number: 2)
+      train = build_train([ a, b ])
+      train.update!(integration_sha: "assembled999")
+      workflow = Workflows::MergeTrain.instantiate(job: b, artifacts: { "merge_train_id" => train.id })
+      reconcile_step = workflow.steps.find_by!(kind: "merge_train_reconcile")
+      run = Run.create!(job: b, step: reconcile_step, trigger_kind: "merge_train")
+      handler = described_class.new(run)
+      diff = "diff --git a/app/shared.rb b/app/shared.rb\n+agent reconciliation"
+      stub_reconcile_handler(handler, head_values: %w[assembled999 reconciled123], step_diff: diff)
+      allow(handler).to receive(:commit_agent_changes)
+
+      handler.call
+
+      expect(handler).to have_received(:commit_agent_changes).with("Syrus merge-train reconciliation")
+      expect(run.reload.base_sha).to eq("assembled999")
+      expect(run.head_sha).to eq("reconciled123")
+      expect(run.step_agent_diff).to eq(diff)
+      expect(train.reload.integration_sha).to eq("reconciled123")
+      expect(workflow.steps.order(:position).pluck(:kind, :state)).to include(
+        [ "prepare", "queued" ],
+        [ "grader_fanout", "queued" ],
+        [ "grader_collect", "queued" ],
+        [ "merge_train_land", "queued" ]
+      )
+    end
+
     it "fails when reconciliation leaves the working tree dirty" do
       a = member_job(issue_number: 1)
       train = build_train([ a ])
