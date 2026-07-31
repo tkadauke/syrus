@@ -36,18 +36,19 @@ queues across two worker configs and select one per pod with the
 **The home worker MUST be a single pod** (`replicas: 1`, `strategy: Recreate`).
 Chat workspaces (`ChatWorkspace`, at
 `$SYRUS_DATA_ROOT/chat-workspaces/<chat_session_id>`) are local-disk and
-long-lived, and — unlike Workflows — chat has **no** pod-affinity mechanism:
-`chat_sessions` records no `worker_hostname`, and `ensure_coding_checkout!`
-is a no-op once the coding branch exists (`return if
-coding_checkout_branch.present?`), so it never re-clones on a second pod. A chat
-session's turns therefore MUST all land on the same pod, which holds only because
-exactly one pod consumes `chat`. Never put `chat` on the compute DaemonSet, and
-never scale the home worker past one replica. (If the chat tier ever needs to
-scale, chat first needs its own per-pod affinity — a `resume-<hostname>`-style
-chat queue keyed off `chat_sessions.workspace_path`.) Coding-mode **handoff** is
-exempt: `complete_implement_step` / `submit_coding_changes` require the branch to
-be pushed to the remote first, so the resulting `coding_handoff` Workflow clones
-fresh from GitHub and runs safely on any compute pod.
+long-lived, and — unlike Workflows — chat has **no** pod-affinity mechanism.
+`chat_sessions` records no `worker_hostname`; while a coding checkout is on
+disk, `ensure_coding_checkout!` returns that local checkout instead of re-cloning
+on another pod. A chat session's turns therefore MUST all land on the same pod,
+which holds only because exactly one pod consumes `chat`. Never put `chat` on
+the compute DaemonSet, and never scale the home worker past one replica. (If the
+chat tier ever needs to scale, chat first needs its own per-pod affinity — a
+`resume-<hostname>`-style chat queue keyed off `chat_sessions.workspace_path`.)
+Coding-mode **handoff** is exempt: `submit_coding_changes` captures the current
+HEAD to an immutable handoff branch after confirmation, and
+`complete_implement_step` uses the pushed Job branch, so the resulting
+`coding_handoff` Workflow clones fresh from GitHub and runs safely on any
+compute pod.
 
 `SOLID_QUEUE_CONFIG` is a path relative to the Rails root; if it points at a
 missing file SolidQueue silently falls back to its *own* built-in default (not

@@ -19,6 +19,7 @@ Rails.application.config.to_prepare do
     "pending_actions/delegate_issue",
     "pending_actions/pause_landing_queue",
     "pending_actions/resume_landing_queue",
+    "pending_actions/submit_coding_changes",
     "pending_actions/submit_chat_feedback",
     "pending_actions/reopen_epic_and_attach_job",
     "pending_actions/admin_kill_process",

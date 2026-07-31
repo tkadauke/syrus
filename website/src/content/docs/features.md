@@ -122,13 +122,14 @@ inspecting the code while setup is queued or running. The agent-visible context
 includes the checkout path, current branch/ref, default branch, and the latest
 known prep status or failure.
 
-The `complete_implement_step` chat tool signals that a coding session on an
-existing Job is complete and ready for graders, summarize, and PR open. The
-`submit_coding_changes` chat tool creates a new direct Job from committed branch
-changes and immediately dispatches the same CodingHandoff workflow — this is the
-primary path when planning and implementation happen in the same chat session:
-talk in chat, commit changes to a branch, push, call the tool, and Syrus takes
-over from graders onward.
+New chat-authored work starts on the repository default branch unless the agent
+intentionally checks out another ref. The `submit_coding_changes` chat tool
+creates a new direct Job from the active committed HEAD; after operator
+confirmation Syrus captures that HEAD to an immutable
+`syrus/chat-<chat_id>-handoff-<pending_action_id>` branch and dispatches the
+CodingHandoff workflow. The `complete_implement_step` chat tool signals that a
+coding session on an existing Job branch is complete and ready for graders,
+summarize, and PR open.
 
 During a handoff, the Job remains linked to the originating chat so it stays
 visible in the chat Jobs tab and grader failures can route back to the same

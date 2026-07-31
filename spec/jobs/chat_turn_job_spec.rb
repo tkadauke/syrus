@@ -194,7 +194,7 @@ RSpec.describe ChatTurnJob do
     chat.chat_attachments.create!(attachable: job)
     chat.update!(
       mode: "coding",
-      coding_checkout_branch: "syrus-chat-#{chat.id}",
+      coding_checkout_branch: "main",
       coding_checkout_prepare_status: "queued"
     )
 
@@ -208,7 +208,7 @@ RSpec.describe ChatTurnJob do
 
     expect(received[:prompt]).to include(workspace_path.to_s)
     expect(received[:prompt]).to include("Checkout path: `#{workspace_path.join('repositories', 'acme', 'widgets')}`")
-    expect(received[:prompt]).to include("Current branch: `syrus-chat-#{chat.id}`")
+    expect(received[:prompt]).to include("Current branch: `main`")
     expect(received[:prompt]).to include("Current ref: `(unknown)`")
     expect(received[:prompt]).to include("Default branch: `main`")
     expect(received[:prompt]).to include("Prep status: queued")

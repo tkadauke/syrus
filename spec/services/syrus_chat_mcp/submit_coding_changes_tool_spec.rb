@@ -84,6 +84,19 @@ RSpec.describe SyrusChatMcp::SubmitCodingChangesTool do
     expect(pending_action.payload).to include("title" => "Add user profile page")
   end
 
+  it "defaults branch to the active coding checkout branch" do
+    allow(ChatWorkspace).to receive(:coding_checkout_snapshot)
+      .with(chat_session, repository)
+      .and_return(current_branch: "main")
+
+    response = call_tool(title: "Implement feature", description: "Implements the feature.")
+    body = payload(response)
+    pending_action = chat_session.pending_actions.find(body[:pending_action_id])
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(pending_action.payload["branch"]).to eq("main")
+  end
+
   it "accepts an explicit repository_id" do
     other_repo = Factories.repository(user: user)
 

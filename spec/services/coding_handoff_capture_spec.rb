@@ -40,7 +40,6 @@ RSpec.describe CodingHandoffCapture, :ci_only do
       git!(@remote, "symbolic-ref", "HEAD", "refs/heads/main")
 
       git!(@root, "clone", @remote.to_s, @checkout.to_s)
-      git!(@checkout, "checkout", "-b", "syrus-chat-#{chat_session.id}")
       git!(@checkout, "config", "user.name", "Chat Agent")
       git!(@checkout, "config", "user.email", "chat@example.com")
 
@@ -64,14 +63,14 @@ RSpec.describe CodingHandoffCapture, :ci_only do
       chat_session: chat_session,
       repository: repository,
       user: user,
-      source_branch: "syrus-chat-#{chat_session.id}",
+      source_branch: "main",
       handoff_branch: "syrus/chat-#{chat_session.id}-handoff-123"
     )
 
     remote_sha = git!(@remote, "rev-parse", "refs/heads/syrus/chat-#{chat_session.id}-handoff-123").strip
     expect(remote_sha).to eq(head_sha)
     expect(snapshot).to include(
-      "source_branch" => "syrus-chat-#{chat_session.id}",
+      "source_branch" => "main",
       "handoff_branch" => "syrus/chat-#{chat_session.id}-handoff-123",
       "head_sha" => head_sha,
       "default_branch" => "main",
@@ -86,7 +85,7 @@ RSpec.describe CodingHandoffCapture, :ci_only do
         chat_session: chat_session,
         repository: repository,
         user: user,
-        source_branch: "syrus-chat-#{chat_session.id}",
+        source_branch: "main",
         handoff_branch: "syrus/chat-#{chat_session.id}-handoff-123"
       )
     }.to raise_error(described_class::CaptureError, /no committed changes/)

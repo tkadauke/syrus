@@ -97,14 +97,14 @@ RSpec.describe ChatWorkspace, :ci_only do
   end
 
   describe ".ensure_coding_checkout!" do
-    it "full-clones the repository and creates a coding branch on first call" do
+    it "full-clones the repository on the default branch on first call" do
       described_class.ensure_coding_checkout!(chat_session, repository)
 
       path = described_class.repo_path_for(chat_session, repository)
       expect(path.join(".git")).to exist
       branch = `git -C #{path} rev-parse --abbrev-ref HEAD`.strip
-      expect(branch).to eq("syrus-chat-#{chat_session.id}")
-      expect(chat_session.reload.coding_checkout_branch).to eq("syrus-chat-#{chat_session.id}")
+      expect(branch).to eq("main")
+      expect(chat_session.reload.coding_checkout_branch).to eq("main")
     end
 
     it "is idempotent when coding_checkout_branch is already set" do
@@ -128,7 +128,7 @@ RSpec.describe ChatWorkspace, :ci_only do
       described_class.ensure_coding_checkout!(chat_session, repository)
 
       expect(shallow_path.join(".git")).to exist
-      expect(`git -C #{shallow_path} rev-parse --abbrev-ref HEAD`.strip).to eq("syrus-chat-#{chat_session.id}")
+      expect(`git -C #{shallow_path} rev-parse --abbrev-ref HEAD`.strip).to eq("main")
     end
 
     it "records a repository attachment on the session" do
@@ -245,7 +245,7 @@ RSpec.describe ChatWorkspace, :ci_only do
     it "replaces an existing checkout when called with a different branch" do
       # First set up a regular coding checkout
       described_class.ensure_coding_checkout!(chat_session, repository)
-      expect(chat_session.reload.coding_checkout_branch).to eq("syrus-chat-#{chat_session.id}")
+      expect(chat_session.reload.coding_checkout_branch).to eq("main")
 
       described_class.ensure_job_branch_checkout!(chat_session, repository, job_branch)
 
@@ -313,10 +313,10 @@ RSpec.describe ChatWorkspace, :ci_only do
   end
 
   describe ".cancel_coding_checkout!" do
-    it "deletes the coding branch and clears coding checkout state on the session" do
+    it "clears default-branch coding checkout state on the session" do
       described_class.ensure_coding_checkout!(chat_session, repository)
       path = described_class.repo_path_for(chat_session, repository)
-      expect(`git -C #{path} rev-parse --abbrev-ref HEAD`.strip).to eq("syrus-chat-#{chat_session.id}")
+      expect(`git -C #{path} rev-parse --abbrev-ref HEAD`.strip).to eq("main")
 
       described_class.cancel_coding_checkout!(chat_session, repository)
 
@@ -366,7 +366,7 @@ RSpec.describe ChatWorkspace, :ci_only do
       expect(result).not_to be_nil
       expect(result[:files]).to be_an(Array)
       expect(result[:files]).to include("README.md")
-      expect(result[:checkout_branch]).to eq("syrus-chat-#{chat_session.id}")
+      expect(result[:checkout_branch]).to eq("main")
     end
 
     it "excludes .git directory entries" do
@@ -667,9 +667,15 @@ RSpec.describe ChatWorkspace, :ci_only do
       sh("git ls-remote #{bare_remote_dir} #{ref}").strip.present?
     end
 
-    it "reclaims disk, pushes the branch, and leaves the session resumable" do
+    def remote_ref_sha(ref)
+      sh("git ls-remote #{bare_remote_dir} #{ref}").split(/\s+/).first
+    end
+
+    it "reclaims disk, backs up default-branch commits to a tag, and leaves the session resumable" do
       described_class.ensure_coding_checkout!(chat_session, repository)
-      # A committed-but-unpushed change on the coding branch.
+      # A committed local change on the default branch is never pushed back to
+      # refs/heads/main; the per-chat backup tag carries it across reclaim.
+      main_before = remote_ref_sha("refs/heads/main")
       File.write(coding_path.join("feature.rb"), "puts 1\n")
       sh("git -C #{coding_path} add feature.rb")
       sh("git -C #{coding_path} commit -q -m 'add feature'")
@@ -679,8 +685,8 @@ RSpec.describe ChatWorkspace, :ci_only do
 
       expect(freed).to be > 0
       expect(coding_path.join(".git")).not_to exist
-      # Branch preserved on the remote, session still points at it.
-      expect(remote_has_ref?("refs/heads/#{branch}")).to be(true)
+      expect(remote_ref_sha("refs/heads/main")).to eq(main_before)
+      expect(remote_has_ref?(wip_tag_ref)).to be(true)
       expect(chat_session.reload.coding_checkout_branch).to eq(branch)
     end
 
@@ -715,9 +721,10 @@ RSpec.describe ChatWorkspace, :ci_only do
 
       expect(coding_path.join(".git")).to exist
       expect(`git -C #{coding_path} rev-parse --abbrev-ref HEAD`.strip)
-        .to eq("syrus-chat-#{chat_session.id}")
-      # Committed work is back from the pushed branch.
+        .to eq("main")
+      # Committed work is back from the backup tag.
       expect(coding_path.join("feature.rb")).to exist
+      expect(remote_has_ref?(wip_tag_ref)).to be(false)
     end
 
     it "restores uncommitted work exactly on re-materialize, then drops the tag" do

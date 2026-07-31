@@ -9,8 +9,10 @@ module SyrusChatMcp
 
     description <<~DESC
       Create a Syrus Job from committed branch changes and dispatch the CodingHandoff
-      workflow (graders → summarize → PR open). Use this after pushing the implementation
-      branch: `git push origin <branch>`. The operator must confirm the pending action.
+      workflow (graders → summarize → PR open). Use this after committing the
+      implementation. The current branch is captured to an immutable handoff branch
+      after the operator confirms the pending action; you do not need to push a
+      standalone chat branch first.
       Only available when the coding_mode feature is enabled.
     DESC
 
@@ -22,7 +24,7 @@ module SyrusChatMcp
         },
         branch: {
           type: "string",
-          description: "The git branch containing the committed implementation."
+          description: "The current git branch containing the committed implementation. Defaults to the active coding checkout branch."
         },
         title: {
           type: "string",
@@ -33,11 +35,11 @@ module SyrusChatMcp
           description: "A brief, one-paragraph summary of what was implemented — 2 to 4 sentences maximum. Do NOT include git logs, file listings, command output, or exhaustive change lists. The operator reads this in a small confirmation card, so brevity is essential."
         }
       },
-      required: %w[branch title description]
+      required: %w[title description]
     )
 
     class << self
-      def call(branch:, title:, description:, repository_id: nil, server_context:)
+      def call(title:, description:, branch: nil, repository_id: nil, server_context:)
         chat_session = server_context.fetch(:chat_session)
 
         return SyrusChatMcp.invalid("Coding Mode is not enabled") unless Feature.coding_mode_enabled?
@@ -45,7 +47,7 @@ module SyrusChatMcp
         repository = resolve_repository(chat_session, repository_id)
         return SyrusChatMcp.invalid("repository not found or not accessible") unless repository
 
-        branch = branch.to_s.strip
+        branch = branch.to_s.strip.presence || current_checkout_branch(chat_session, repository).to_s.strip
         return SyrusChatMcp.invalid("branch is required") if branch.blank?
 
         title = title.to_s.strip
@@ -87,6 +89,12 @@ module SyrusChatMcp
         else
           chat_session.repository
         end
+      end
+
+      def current_checkout_branch(chat_session, repository)
+        ChatWorkspace.coding_checkout_snapshot(chat_session, repository)[:current_branch].presence
+      rescue StandardError
+        nil
       end
     end
   end
