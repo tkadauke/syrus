@@ -49,6 +49,8 @@ RSpec.describe ChatWorkspacePrepareJob do
   it "no-ops when the checkout directory does not exist" do
     expect(RepoPrepPlan).not_to receive(:for)
     expect { described_class.perform_now(chat_session.id, repository.id) }.not_to raise_error
+    expect(chat_session.reload.coding_checkout_prepare_status).to eq("failed")
+    expect(chat_session.coding_checkout_prepare_failure).to include("checkout not found")
   end
 
   it "no-ops when the plan has no commands" do
@@ -58,6 +60,9 @@ RSpec.describe ChatWorkspacePrepareJob do
 
     expect(ProcessRunner).not_to receive(:new)
     expect { described_class.perform_now(chat_session.id, repository.id) }.not_to raise_error
+    expect(chat_session.reload.coding_checkout_prepare_status).to eq("succeeded")
+    expect(chat_session.coding_checkout_prepare_started_at).to be_present
+    expect(chat_session.coding_checkout_prepare_finished_at).to be_present
   end
 
   it "runs each prep command with a scrubbed env, bash wrapper, and 10-minute timeout" do
@@ -76,6 +81,7 @@ RSpec.describe ChatWorkspacePrepareJob do
     ).and_return(runner_double)
 
     described_class.perform_now(chat_session.id, repository.id)
+    expect(chat_session.reload.coding_checkout_prepare_status).to eq("succeeded")
   end
 
   it "runs all commands when each succeeds" do
@@ -106,6 +112,8 @@ RSpec.describe ChatWorkspacePrepareJob do
 
       expect(Rails.logger).to receive(:warn).with(/guessed setup command failed/)
       expect { described_class.perform_now(chat_session.id, repository.id) }.not_to raise_error
+      expect(chat_session.reload.coding_checkout_prepare_status).to eq("failed")
+      expect(chat_session.coding_checkout_prepare_failure).to include("guessed setup command failed")
     end
 
     it "stops running further commands after the first guessed failure" do
@@ -141,6 +149,8 @@ RSpec.describe ChatWorkspacePrepareJob do
 
       expect(Rails.logger).to receive(:error).with(/explicit .syrus.yml command failed/)
       expect { described_class.perform_now(chat_session.id, repository.id) }.not_to raise_error
+      expect(chat_session.reload.coding_checkout_prepare_status).to eq("failed")
+      expect(chat_session.coding_checkout_prepare_failure).to include("explicit .syrus.yml command failed")
     end
 
     it "stops running further commands after an explicit failure" do

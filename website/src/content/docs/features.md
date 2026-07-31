@@ -56,6 +56,13 @@ When the `coding_mode` feature flag is enabled and a chat session is in coding
 mode, the chat agent gains tools to implement changes directly in a repository
 checkout and hand them off to Syrus automation.
 
+Before each Coding Mode turn, Syrus attempts to create or restore the writable
+checkout. When that checkout is first created or restored, repository
+preparation runs asynchronously on the chat worker so the agent can begin
+inspecting the code while setup is queued or running. The agent-visible context
+includes the checkout path, current branch/ref, default branch, and the latest
+known prep status or failure.
+
 The `complete_implement_step` chat tool signals that a coding session on an
 existing Job is complete and ready for graders, summarize, and PR open. The
 `submit_coding_changes` chat tool creates a new direct Job from committed branch

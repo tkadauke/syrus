@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_30_172000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_30_203000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -286,6 +286,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_30_172000) do
     t.string "chat_model"
     t.string "chat_provider"
     t.string "coding_checkout_branch"
+    t.text "coding_checkout_prepare_failure"
+    t.datetime "coding_checkout_prepare_finished_at"
+    t.datetime "coding_checkout_prepare_started_at"
+    t.string "coding_checkout_prepare_status"
     t.boolean "coding_checkout_uncommitted", default: false, null: false
     t.string "coding_relay_address"
     t.string "coding_relay_token"

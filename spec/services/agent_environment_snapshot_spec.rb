@@ -169,6 +169,37 @@ RSpec.describe AgentEnvironmentSnapshot do
       expect(snapshot).to include("save_canvas, clear_canvas")
     end
 
+    it "renders writable checkout and prep status for Coding Mode chats" do
+      feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|
+        record.category = "Labs"
+        record.name = "Coding Mode"
+      end
+      previous_enabled = feature.enabled?
+      feature.update!(enabled: true)
+      repo = repository(owner: "rome", name: "forums", default_branch: "trunk")
+      chat = ChatSession.create!(
+        user: repo.user,
+        repository: repo,
+        mode: "coding",
+        coding_checkout_branch: "syrus-chat-123",
+        coding_checkout_prepare_status: "failed",
+        coding_checkout_prepare_failure: "npm ci failed"
+      )
+
+      snapshot = described_class.for_chat(repository: repo, chat_session: chat)
+
+      expect(snapshot).to include("commit and push through Bash inside the coding checkout")
+      expect(snapshot).to include("the scoped Coding Mode checkout is writable")
+      expect(snapshot).not_to include("attached checkouts under `/syrus-home/.syrus/chat-workspaces/*/repositories/` are read-only")
+      expect(snapshot).to include("Coding checkout: path=#{ChatWorkspace.repo_path_for(chat, repo)}")
+      expect(snapshot).to include("branch=syrus-chat-123")
+      expect(snapshot).to include("default=trunk")
+      expect(snapshot).to include("Coding checkout prep: failed")
+      expect(snapshot).to include("last_failure=npm ci failed")
+    ensure
+      feature&.update!(enabled: previous_enabled)
+    end
+
     it "renders confirmed proposal activity with canonical Syrus IDs" do
       repo = repository(owner: "rome", name: "forums")
       chat = ChatSession.create!(user: repo.user, repository: repo)

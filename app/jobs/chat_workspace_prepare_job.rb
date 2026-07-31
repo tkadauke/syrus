@@ -14,10 +14,12 @@ class ChatWorkspacePrepareJob < ApplicationJob
   def perform(chat_session_id, repository_id)
     chat_session = ChatSession.find(chat_session_id)
     repository = Repository.find(repository_id)
+    mark_prepare_running!(chat_session)
 
     path = ChatWorkspace.repo_path_for(chat_session, repository)
     unless path.join(".git").directory?
       Rails.logger.info("[ChatWorkspacePrepareJob] checkout not found at #{path}; skipping")
+      mark_prepare_failed!(chat_session, "checkout not found at #{path}")
       return
     end
 
@@ -28,6 +30,7 @@ class ChatWorkspacePrepareJob < ApplicationJob
 
     if plan.commands.empty?
       Rails.logger.info("[ChatWorkspacePrepareJob] no commands to run; skipping")
+      mark_prepare_succeeded!(chat_session)
       return
     end
 
@@ -38,13 +41,19 @@ class ChatWorkspacePrepareJob < ApplicationJob
 
       if plan.guessed?
         Rails.logger.warn("[ChatWorkspacePrepareJob] guessed setup command failed — workspace will work but may need manual setup")
+        mark_prepare_failed!(chat_session, "guessed setup command failed: #{cmd}")
       else
         Rails.logger.error("[ChatWorkspacePrepareJob] explicit .syrus.yml command failed — workspace may be unprepared")
+        mark_prepare_failed!(chat_session, "explicit .syrus.yml command failed: #{cmd}")
       end
       return
     end
 
     Rails.logger.info("[ChatWorkspacePrepareJob] all commands completed successfully")
+    mark_prepare_succeeded!(chat_session)
+  rescue StandardError => e
+    mark_prepare_failed!(chat_session, "#{e.class}: #{e.message}") if defined?(chat_session) && chat_session
+    raise
   end
 
   private
@@ -62,5 +71,33 @@ class ChatWorkspacePrepareJob < ApplicationJob
   rescue StandardError => e
     Rails.logger.error("[ChatWorkspacePrepareJob] command raised #{e.class}: #{e.message}")
     false
+  end
+
+  def mark_prepare_running!(chat_session)
+    chat_session.update_columns(
+      coding_checkout_prepare_status: "running",
+      coding_checkout_prepare_started_at: Time.current,
+      coding_checkout_prepare_finished_at: nil,
+      coding_checkout_prepare_failure: nil,
+      updated_at: Time.current
+    )
+  end
+
+  def mark_prepare_succeeded!(chat_session)
+    chat_session.update_columns(
+      coding_checkout_prepare_status: "succeeded",
+      coding_checkout_prepare_finished_at: Time.current,
+      coding_checkout_prepare_failure: nil,
+      updated_at: Time.current
+    )
+  end
+
+  def mark_prepare_failed!(chat_session, message)
+    chat_session.update_columns(
+      coding_checkout_prepare_status: "failed",
+      coding_checkout_prepare_finished_at: Time.current,
+      coding_checkout_prepare_failure: message.to_s.truncate(2_000),
+      updated_at: Time.current
+    )
   end
 end
