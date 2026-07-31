@@ -140,7 +140,6 @@ swallows sampler failures so worker liveness is never destabilized by metrics.
 Rows are retained for `WorkerHostHealthSample::RETAIN_AFTER` (7 days, matching
 `RunHealthSnapshot::RETAIN_AFTER`) and pruned daily by
 `WorkerHostHealthSamplePruneJob`.
-
 The current admin overview, `/api/v1/admin/version`, and the admin queue
 workers payload include worker health snapshots alongside the existing
 data-root disk fields. Disk alerts still come from the most-full worker's
