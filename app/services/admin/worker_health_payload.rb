@@ -3,6 +3,8 @@ module Admin
     DEFAULT_WINDOW = 24.hours
     CURRENT_SAMPLE_WINDOW = 15.minutes
     SAMPLE_LIMIT_PER_HOST = 12
+    DEFAULT_MINUTE_BUCKET_WINDOW = 1.hour
+    MAX_MINUTE_BUCKET_WINDOW = 24.hours
     TREND_WINDOWS = {
       "15m" => 15.minutes,
       "1h" => 1.hour,
@@ -10,11 +12,12 @@ module Admin
       "24h" => 24.hours
     }.freeze
 
-    def initialize(hostname: nil, since: nil, until_time: nil, sample_limit_per_host: SAMPLE_LIMIT_PER_HOST)
+    def initialize(hostname: nil, since: nil, until_time: nil, sample_limit_per_host: SAMPLE_LIMIT_PER_HOST, minute_bucket_window_minutes: DEFAULT_MINUTE_BUCKET_WINDOW / 1.minute)
       @hostname = hostname.presence
       @until_time = parse_time(until_time) || Time.current
       @since = parse_time(since) || (@until_time - DEFAULT_WINDOW)
       @sample_limit_per_host = sample_limit_per_host.to_i.clamp(0, 100)
+      @minute_bucket_window = minute_bucket_window_minutes.to_i.minutes.clamp(0.seconds, MAX_MINUTE_BUCKET_WINDOW)
     end
 
     def as_json(*)
@@ -25,6 +28,11 @@ module Admin
           until: until_time.iso8601
         },
         current_sample_window_seconds: CURRENT_SAMPLE_WINDOW.to_i,
+        minute_bucket: {
+          granularity_seconds: 1.minute.to_i,
+          window_minutes: (minute_bucket_window / 1.minute).to_i,
+          max_window_minutes: (MAX_MINUTE_BUCKET_WINDOW / 1.minute).to_i
+        },
         current: current_workers,
         hosts: host_history
       }
@@ -32,7 +40,7 @@ module Admin
 
     private
 
-    attr_reader :hostname, :since, :until_time, :sample_limit_per_host
+    attr_reader :hostname, :since, :until_time, :sample_limit_per_host, :minute_bucket_window
 
     def current_workers
       @current_workers ||= InstanceVersion.fresh.where(role: "worker").then { |scope|
@@ -53,6 +61,7 @@ module Admin
           hostname: host,
           current: current_workers.find { |worker| worker.fetch(:hostname) == host },
           windows: TREND_WINDOWS.transform_values { |duration| summarize(host_samples.select { |sample| sample.observed_at >= until_time - duration }) },
+          minute_buckets: minute_buckets(host_samples),
           recent_samples: host_samples.first(sample_limit_per_host).map { |sample| sample_payload(sample) }
         }
       end
@@ -111,11 +120,38 @@ module Admin
         memory_used_percent: numeric_summary(host_samples, :memory_used_percent),
         data_root_used_percent: numeric_summary(host_samples, :data_root_used_percent),
         load_1m: numeric_summary(host_samples, :load_1m),
+        load_5m: numeric_summary(host_samples, :load_5m),
+        load_15m: numeric_summary(host_samples, :load_15m),
         cpu_pressure_some: numeric_summary(host_samples, :cpu_pressure_some),
+        cpu_pressure_full: numeric_summary(host_samples, :cpu_pressure_full),
         io_pressure_some: numeric_summary(host_samples, :io_pressure_some),
+        io_pressure_full: numeric_summary(host_samples, :io_pressure_full),
         warning_count: host_samples.count { |sample| health_for(sample: sample).fetch(:level) == "warning" },
         critical_count: host_samples.count { |sample| health_for(sample: sample).fetch(:level) == "critical" }
       }
+    end
+
+    def minute_buckets(host_samples)
+      return [] if minute_bucket_window.zero?
+
+      bucket_end = floor_minute(until_time)
+      requested_bucket_count = (minute_bucket_window / 1.minute).to_i
+      bucket_start = [ floor_minute(since), bucket_end - (requested_bucket_count - 1).minutes ].max
+      samples_by_minute = host_samples
+        .select { |sample| sample.observed_at >= bucket_start && sample.observed_at <= until_time }
+        .group_by { |sample| floor_minute(sample.observed_at) }
+
+      buckets = []
+      minute = bucket_start
+      while minute <= bucket_end
+        buckets << minute_bucket_payload(minute, samples_by_minute.fetch(minute, []))
+        minute += 1.minute
+      end
+      buckets
+    end
+
+    def minute_bucket_payload(minute, host_samples)
+      summarize(host_samples).merge(minute: minute.iso8601)
     end
 
     def empty_summary
@@ -184,6 +220,10 @@ module Admin
 
     def latest_sample_by_hostname
       @latest_sample_by_hostname ||= samples.group_by(&:hostname).transform_values(&:first)
+    end
+
+    def floor_minute(value)
+      Time.zone.at((value.to_f / 60).floor * 60)
     end
 
     def samples_for(host)

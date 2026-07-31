@@ -309,7 +309,7 @@ function WorkerHealthPanel({ health }: { health: WorkerHealthPayload }) {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("queue.worker_health")}</h2>
-        <span className="text-xs text-gray-500 dark:text-gray-400">{t("queue.worker_health_range", { since: formatRelativeDate(new Date(health.range.since)) })}</span>
+        <span className="text-xs text-gray-500 dark:text-gray-400">{t("queue.worker_health_range", { since: formatRelativeDate(new Date(health.range.since)), minutes: health.minute_bucket?.window_minutes ?? 60 })}</span>
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
         {hosts.map((host) => <WorkerHealthHostPanel host={host} key={host.hostname} />)}
@@ -324,6 +324,7 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthPayload["hosts"][nu
   const sample = current?.sample || host.recent_samples[0]
   const level = current?.health.level || (sample ? "ok" : "unknown")
   const oneHour = host.windows["1h"]
+  const minuteBuckets = host.minute_buckets ?? []
 
   return (
     <details className={`rounded border ${workerHealthBorder(level)} bg-white dark:bg-gray-900`} open={level === "critical" || level === "warning"}>
@@ -348,28 +349,32 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthPayload["hosts"][nu
           <HealthStat label={t("queue.last_sample")} value={sample ? formatRelativeDate(new Date(sample.observed_at)) : "-"} />
           <HealthStat label={t("queue.one_hour_max")} value={oneHour ? compactTrend(oneHour) : "-"} />
         </div>
-        {host.recent_samples.length > 0 ? (
+        {minuteBuckets.length > 0 ? (
           <div className="mt-3 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-xs">
               <thead className="bg-gray-50 dark:bg-gray-800 text-left font-medium uppercase text-gray-500 dark:text-gray-400">
                 <tr>
-                  <th className="px-3 py-2">{t("queue.col_observed")}</th>
+                  <th className="px-3 py-2">{t("queue.col_minute")}</th>
+                  <th className="px-3 py-2">{t("queue.col_samples")}</th>
                   <th className="px-3 py-2">{t("queue.metric_cpu")}</th>
                   <th className="px-3 py-2">{t("queue.metric_memory")}</th>
                   <th className="px-3 py-2">{t("queue.metric_disk")}</th>
                   <th className="px-3 py-2">{t("queue.metric_load")}</th>
+                  <th className="px-3 py-2">{t("queue.metric_cpu_pressure")}</th>
                   <th className="px-3 py-2">{t("queue.metric_io")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {host.recent_samples.map((recent) => (
-                  <tr key={recent.id}>
-                    <td className="px-3 py-2 text-gray-600 dark:text-gray-300">{formatRelativeDate(new Date(recent.observed_at))}</td>
-                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatPercent(recent.cpu_used_percent)}</td>
-                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatPercent(recent.memory_used_percent)}</td>
-                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatPercent(recent.data_root_used_percent)}</td>
-                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatNumber(recent.load_1m)}</td>
-                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatPercent(recent.io_pressure_some)}</td>
+                {minuteBuckets.map((bucket) => (
+                  <tr key={bucket.minute}>
+                    <td className="px-3 py-2 text-gray-600 dark:text-gray-300">{formatRelativeDate(new Date(bucket.minute))}</td>
+                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{bucket.sample_count}</td>
+                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(bucket.cpu_used_percent, "percent")}</td>
+                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(bucket.memory_used_percent, "percent")}</td>
+                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(bucket.data_root_used_percent, "percent")}</td>
+                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(bucket.load_1m, "number")}</td>
+                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(bucket.cpu_pressure_some, "percent")}</td>
+                    <td className="px-3 py-2 text-gray-700 dark:text-gray-200">{formatSummary(bucket.io_pressure_some, "percent")}</td>
                   </tr>
                 ))}
               </tbody>
@@ -505,6 +510,12 @@ function formatPercent(value?: number | null) {
 function formatNumber(value?: number | null) {
   if (value == null) return "-"
   return `${Math.round(value * 100) / 100}`
+}
+
+function formatSummary(summary?: { avg: number; max: number } | null, kind: "percent" | "number" = "number") {
+  if (!summary) return "-"
+  const format = kind === "percent" ? formatPercent : formatNumber
+  return `${format(summary.max)} / ${format(summary.avg)}`
 }
 
 function formatQueues(queues: QueueWorker["queues"]) {

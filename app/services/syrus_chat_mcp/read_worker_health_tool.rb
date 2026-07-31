@@ -11,7 +11,8 @@ module SyrusChatMcp
         hostname: { type: "string", description: "Optional worker hostname to inspect." },
         since: { type: "string", description: "Optional ISO8601 range start. Defaults to 24 hours ago." },
         until: { type: "string", description: "Optional ISO8601 range end. Defaults to now." },
-        sample_limit_per_host: { type: "integer", description: "Maximum recent raw samples per hostname, up to 100." }
+        sample_limit_per_host: { type: "integer", description: "Maximum recent raw samples per hostname, up to 100." },
+        minute_bucket_window_minutes: { type: "integer", description: "Minute-resolution history window ending at until, up to 1440 minutes. Defaults to 60." }
       }
     )
 
@@ -24,7 +25,11 @@ module SyrusChatMcp
             hostname: arguments[:hostname],
             since: arguments[:since],
             until_time: arguments[:until],
-            sample_limit_per_host: arguments.fetch(:sample_limit_per_host, ::Admin::WorkerHealthPayload::SAMPLE_LIMIT_PER_HOST)
+            sample_limit_per_host: arguments.fetch(:sample_limit_per_host, ::Admin::WorkerHealthPayload::SAMPLE_LIMIT_PER_HOST),
+            minute_bucket_window_minutes: arguments.fetch(
+              :minute_bucket_window_minutes,
+              ::Admin::WorkerHealthPayload::DEFAULT_MINUTE_BUCKET_WINDOW / 1.minute
+            )
           ).as_json
         )
       end
