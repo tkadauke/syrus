@@ -2941,6 +2941,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       body: "Add screens.",
       repository: repository
     )
+    ChatProposalDependency.create!(proposal: ui, depends_on: schema)
 
     post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm"
 
