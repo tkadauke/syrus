@@ -95,6 +95,29 @@ RSpec.describe Steps::GraderCollect do
     )).to be(false)
   end
 
+  it "passes when only optional graders fail" do
+    workflow.steps.find_by!(kind: "grader").update!(
+      state: "failed",
+      details: { "name" => "lint", "required" => false, "exit_code" => 1 }
+    )
+
+    expect { handler.call }.not_to raise_error
+
+    iteration = workflow.reload.artifact("iterations").first
+    expect(iteration).to include(
+      include("name" => "lint", "required" => false, "status" => "failed")
+    )
+  end
+
+  it "fails collection when any required grader fails" do
+    workflow.steps.find_by!(kind: "grader").update!(
+      state: "failed",
+      details: { "name" => "rspec", "required" => true, "exit_code" => 1 }
+    )
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: rspec")
+  end
+
   it "records a reusable validation artifact when required graders pass" do
     handler.call
 

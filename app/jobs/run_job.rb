@@ -8,7 +8,9 @@ class RunJob < ApplicationJob
   # can't get a thread. Splitting queues keeps short jobs fast.
   queue_as :runs
 
-  # One Run at a time per Job. Per-Job (not per-repo) is the right
+  # One Run at a time per Job, except landing grader fanout Runs which are
+  # capped by StepDispatcher and intentionally allowed to overlap. Per-Job
+  # (not per-repo) is otherwise the right
   # granularity: the Workflow's per-Workflow workspace at
   # $SYRUS_DATA_ROOT/workflows/<workflow_id>/ is shared across the
   # chain's steps, but two concurrent Workflows on the same Job
@@ -16,7 +18,7 @@ class RunJob < ApplicationJob
   # the per-Job key prevents two Runs (same Workflow's next step or
   # a parallel Workflow) from interleaving.
   limits_concurrency to: 1, key: ->(run_id) {
-    "job:#{::Run.where(id: run_id).pick(:job_id)}"
+    concurrency_key_for(run_id)
   }
 
   discard_on ActiveRecord::RecordNotFound
@@ -24,6 +26,19 @@ class RunJob < ApplicationJob
   # Test seam — let specs swap in a fake runner without exec'ing claude.
   class << self
     attr_accessor :agent_runner
+
+    def concurrency_key_for(run_id)
+      run = ::Run.includes(step: :workflow).find_by(id: run_id)
+      return "job:" unless run
+      return "landing-grader:#{run.id}" if landing_grader_run?(run)
+
+      "job:#{run.job_id}"
+    end
+
+    def landing_grader_run?(run)
+      run.step&.kind == "grader" &&
+        %w[ auto_merge merge_train ].include?(run.step.workflow&.trigger_kind)
+    end
   end
 
   # Every Run in the new model belongs to a Step (via `runs.step_id`),

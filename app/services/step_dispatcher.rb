@@ -259,7 +259,7 @@ class StepDispatcher
 
   def advance!
     return if handle_successful_adversarial_loop_iteration
-    return if enqueue_parallel_grader_runs_after_fanout
+    return if enqueue_landing_grader_runs
 
     next_step = find_next_runnable
     if next_step
@@ -371,28 +371,47 @@ class StepDispatcher
     end
   end
 
-  def enqueue_parallel_grader_runs_after_fanout
-    return false unless @from_step&.kind == "grader_fanout"
+  def enqueue_landing_grader_runs
+    return false unless %w[ grader_fanout grader ].include?(@from_step&.kind)
     return false unless landing_grader_fanout?
 
-    graders = contiguous_grader_steps_after(@from_step)
+    graders = landing_grader_steps_for(@from_step)
     return false if graders.empty?
 
+    cap = AppSetting.max_concurrent_landing_grader_runs
     created_runs = []
+    active_before = 0
     prior_flag = Thread.current[:syrus_enqueue_parallel_grader_runs]
     Thread.current[:syrus_enqueue_parallel_grader_runs] = true
     Step.transaction do
-      graders.each do |grader|
+      graders = Step.where(id: graders.map(&:id)).order(:position).lock.to_a
+      active_before = active_landing_grader_count(graders)
+      slots = cap - active_before
+      next if slots <= 0
+
+      graders.select { |grader| pending_landing_grader?(grader) }.first(slots).each do |grader|
         next unless grader.queued?
         next if grader.runs.any?
 
         created_runs << self.class.create_run_and_enqueue(grader, @workflow)
       end
     end
-    record_parallel_fanout!(graders, created_runs) if created_runs.any?
-    created_runs.any? || graders.any? { |grader| grader.queued? || grader.running? }
+    record_parallel_fanout!(graders, created_runs, cap: cap, active_before: active_before) if created_runs.any?
+    created_runs.any? || landing_graders_incomplete?(graders)
   ensure
     Thread.current[:syrus_enqueue_parallel_grader_runs] = prior_flag
+  end
+
+  def landing_grader_steps_for(step)
+    return contiguous_grader_steps_after(step) if step.kind == "grader_fanout"
+
+    scope = @workflow.steps.where(kind: "grader")
+    scope = if step.loop_id.present?
+      scope.where(loop_id: step.loop_id, iteration: step.iteration)
+    else
+      scope.where(iteration: step.iteration)
+    end
+    scope.order(:position).to_a
   end
 
   def contiguous_grader_steps_after(step)
@@ -403,6 +422,18 @@ class StepDispatcher
       cursor = cursor.next_step
     end
     steps
+  end
+
+  def pending_landing_grader?(grader)
+    grader.queued? && grader.runs.none?
+  end
+
+  def active_landing_grader_count(graders)
+    graders.count { |grader| grader.running? || (grader.queued? && grader.runs.any?) }
+  end
+
+  def landing_graders_incomplete?(graders)
+    graders.any? { |grader| grader.queued? || grader.running? }
   end
 
   def waiting_for_parallel_graders?(next_step)
@@ -418,7 +449,7 @@ class StepDispatcher
     grader_scope.where(state: %w[ queued running ]).exists?
   end
 
-  def record_parallel_fanout!(graders, created_runs)
+  def record_parallel_fanout!(graders, created_runs, cap:, active_before:)
     queue_name = Workflows.for(trigger_kind: @workflow.trigger_kind).queue_name&.to_s
     batches = Array(@workflow.artifact("grader_fanout_batches"))
     batches << {
@@ -427,6 +458,8 @@ class StepDispatcher
       "loop_id" => @from_step.loop_id,
       "grader_step_ids" => graders.map(&:id),
       "run_ids" => created_runs.map(&:id),
+      "cap" => cap,
+      "active_before" => active_before,
       "queue" => queue_name,
       "enqueued_at" => Time.current.iso8601
     }.compact
@@ -434,7 +467,8 @@ class StepDispatcher
 
     Rails.logger.info(
       "[StepDispatcher] workflow #{@workflow.id} enqueued #{created_runs.size}/#{graders.size} " \
-      "grader run(s) for parallel fanout on #{queue_name || "workflow"} queue"
+      "grader run(s) for capped landing fanout on #{queue_name || "workflow"} queue " \
+      "(cap=#{cap}, active_before=#{active_before})"
     )
   end
 

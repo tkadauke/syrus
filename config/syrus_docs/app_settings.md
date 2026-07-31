@@ -36,6 +36,12 @@ When true, approved Epic child Jobs do not land one-by-one. They wait until ever
 
 Maximum number of PRs that can participate in a single merge train. `merge_train_assemble` rejects the train if the member count exceeds this limit.
 
+### max_concurrent_landing_grader_runs
+
+**Type:** integer · **Default:** 2 · **Min:** 1
+
+Maximum number of landing grader Runs that one `auto_merge` or `merge_train` workflow may execute at the same time. Syrus still keeps one active landing unit per repository; this setting only parallelizes grader checks inside that one landing unit. Landing graders run on the `:merges` queue, so they do not consume the normal implementation/chat `:runs` worker pool.
+
 ## Instance mode
 
 ### mode

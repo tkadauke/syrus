@@ -61,6 +61,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_023000) do
     t.integer "grade_max_iterations", default: 5, null: false
     t.integer "main_concern_report_threshold", default: 2, null: false
     t.integer "max_concurrent_agent_runs", default: 0, null: false
+    t.integer "max_concurrent_landing_grader_runs", default: 2, null: false
     t.integer "max_job_failures", default: 3, null: false
     t.boolean "merge_train_enabled", default: false, null: false
     t.integer "merge_train_max_size", default: 20, null: false

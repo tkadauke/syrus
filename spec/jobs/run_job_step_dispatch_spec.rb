@@ -77,7 +77,22 @@ RSpec.describe RunJob, "step-dispatch path" do
     }.not_to have_enqueued_job(RunJob)
   end
 
+  it "keeps the per-Job concurrency key for normal workflow runs" do
+    run = s_implement.runs.create!(job: job, trigger_kind: "initial")
+
+    expect(described_class.concurrency_key_for(run.id)).to eq("job:#{job.id}")
+  end
+
+  it "uses a unique concurrency key for landing grader runs" do
+    landing_workflow = Workflow.create!(job: job, trigger_kind: "auto_merge")
+    grader = Step.create!(workflow: landing_workflow, kind: "grader", position: 0)
+    run = grader.runs.create!(job: job, trigger_kind: "auto_merge")
+
+    expect(described_class.concurrency_key_for(run.id)).to eq("landing-grader:#{run.id}")
+  end
+
   it "yields materialized graders to the queue instead of running them inline" do
+    AppSetting.current.update!(max_concurrent_landing_grader_runs: 2)
     fanout_workflow = Workflow.create!(
       job: job,
       trigger_kind: "auto_merge",
@@ -125,9 +140,9 @@ RSpec.describe RunJob, "step-dispatch path" do
 
     expect(invoked).to eq([ "grader_fanout" ])
     expect(fanout_workflow.steps.where(kind: "grader").count).to eq(3)
-    expect(fanout_workflow.steps.where(kind: "grader").flat_map(&:runs).map(&:state)).to all(eq("queued"))
+    expect(fanout_workflow.steps.where(kind: "grader").order(:position).map { |step| step.runs.count }).to eq([ 1, 1, 0 ])
     expect(collect.reload.runs).to be_empty
-    expect(ActiveJob::Base.queue_adapter.enqueued_jobs.count { |entry| entry[:job] == RunJob }).to eq(3)
+    expect(ActiveJob::Base.queue_adapter.enqueued_jobs.count { |entry| entry[:job] == RunJob }).to eq(2)
   end
 
   it "does not overwrite a terminal state applied while the handler is running" do
