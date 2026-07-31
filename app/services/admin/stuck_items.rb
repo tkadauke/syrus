@@ -2,6 +2,8 @@ module Admin
   # Reconciler-backed "stuck things" watchlist used by the admin overview,
   # dedicated stuck page, token API, and chat MCP admin tools.
   class StuckItems
+    ADMIN_STUCK_THRESHOLD = 5.minutes
+
     Item = Data.define(
       :kind,
       :severity,

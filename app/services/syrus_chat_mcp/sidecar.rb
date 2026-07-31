@@ -55,7 +55,6 @@ module SyrusChatMcp
     ADMIN_TOOLS = [
       AdminOverviewTool,
       AdminStuckJobsTool,
-      ExplainStuckJobTool,
       AdminQueueDetailTool,
       AdminListProcessesTool,
       AdminListRunsTool,
