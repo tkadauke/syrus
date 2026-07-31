@@ -28,10 +28,20 @@ class CreateMcpToolUsages < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :mcp_tool_usages, [ :surface, :created_at ]
-    add_index :mcp_tool_usages, [ :surface, :normalized_tool_name, :created_at ], name: "idx_mcp_tool_usages_surface_tool_window"
-    add_index :mcp_tool_usages, [ :server_name, :normalized_tool_name, :created_at ], name: "idx_mcp_tool_usages_server_tool_window"
-    add_index :mcp_tool_usages, [ :run_id, :tool_use_id ]
-    add_index :mcp_tool_usages, [ :chat_session_id, :tool_use_id ]
+    unless index_exists?(:mcp_tool_usages, [ :surface, :created_at ])
+      add_index :mcp_tool_usages, [ :surface, :created_at ]
+    end
+    unless index_exists?(:mcp_tool_usages, [ :surface, :normalized_tool_name, :created_at ], name: "idx_mcp_tool_usages_surface_tool_window")
+      add_index :mcp_tool_usages, [ :surface, :normalized_tool_name, :created_at ], name: "idx_mcp_tool_usages_surface_tool_window"
+    end
+    unless index_exists?(:mcp_tool_usages, [ :server_name, :normalized_tool_name, :created_at ], name: "idx_mcp_tool_usages_server_tool_window")
+      add_index :mcp_tool_usages, [ :server_name, :normalized_tool_name, :created_at ], name: "idx_mcp_tool_usages_server_tool_window"
+    end
+    unless index_exists?(:mcp_tool_usages, [ :run_id, :tool_use_id ])
+      add_index :mcp_tool_usages, [ :run_id, :tool_use_id ]
+    end
+    unless index_exists?(:mcp_tool_usages, [ :chat_session_id, :tool_use_id ])
+      add_index :mcp_tool_usages, [ :chat_session_id, :tool_use_id ]
+    end
   end
 end
