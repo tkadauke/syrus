@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { useEffect, useRef, useState } from "react"
 import { NoticeToast } from "../components/NoticeToast"
-import { useT } from "../hooks/useT"
 import {
   createLinkingToken,
   deletePlatformIdentity,
@@ -13,16 +12,22 @@ import {
   type PlatformIdentitiesPayload,
   type PlatformIdentity
 } from "../api/platformIdentities"
-import { ApiError } from "../api/client"
+import { useT } from "../hooks/useT"
+import { errorMessage } from "../lib/errorMessage"
 
 const queryKey = ["platform_identities"] as const
+
+const PLATFORM_LABELS: Record<string, string> = {
+  telegram: "Telegram",
+  slack: "Slack"
+}
 
 export function ConnectedPlatformsRoute() {
   const { t } = useT("settings")
   const [notice, setNotice] = useState<string | null>(null)
 
   return (
-    <main aria-label={t("connected_platforms.aria")} className="mx-auto max-w-4xl space-y-6 p-6">
+    <main aria-label={t("connected_platforms.heading")} className="mx-auto max-w-4xl space-y-6 p-6">
       <header>
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("connected_platforms.heading")}</h1>
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t("connected_platforms.description")}</p>
@@ -42,7 +47,7 @@ function ConnectedPlatformsPanel({ onNotice }: { onNotice: (message: string | nu
   })
 
   if (result.isPending) return <PanelMessage>{t("connected_platforms.loading")}</PanelMessage>
-  if (result.isError) return <PanelMessage tone="error">{errorMessage(result.error, t("connected_platforms.load_error"))}</PanelMessage>
+  if (result.isError) return <PanelMessage tone="error">{errorMessage(result.error, t("connected_platforms.error_load"))}</PanelMessage>
 
   return <PlatformsView onNotice={onNotice} payload={result.data} />
 }
@@ -97,7 +102,7 @@ function PlatformRow({
   onNotice: (message: string | null) => void
 }) {
   const { t } = useT("settings")
-  const label = platformLabel(availablePlatform.platform, t)
+  const label = PLATFORM_LABELS[availablePlatform.platform] ?? availablePlatform.platform
   const [linkingToken, setLinkingToken] = useState<LinkingTokenPayload | null>(null)
   const [linkError, setLinkError] = useState<string | null>(null)
 
@@ -109,7 +114,7 @@ function PlatformRow({
       onNotice(null)
     },
     onError: (err) => {
-      setLinkError(errorMessage(err, t("connected_platforms.connect_error", { platform: label })))
+      setLinkError(errorMessage(err, t("connected_platforms.error_start_linking", { platform: label })))
     }
   })
 
@@ -129,7 +134,7 @@ function PlatformRow({
           {identity ? (
             <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
               {identity.external_handle
-                ? t("connected_platforms.connected_as", { handle: identity.external_handle, date: new Date(identity.linked_at).toLocaleDateString() })
+                ? t("connected_platforms.connected_as_since", { handle: identity.external_handle, date: new Date(identity.linked_at).toLocaleDateString() })
                 : t("connected_platforms.connected_since", { date: new Date(identity.linked_at).toLocaleDateString() })}
             </p>
           ) : (
@@ -200,8 +205,8 @@ function LinkingInstructions({
   onLinked: (payload: PlatformIdentitiesPayload) => void
   onNotice: (message: string | null) => void
 }) {
-  const { t } = useT("settings")
   const [copied, setCopied] = useState(false)
+  const { t } = useT("settings")
   const onLinkedRef = useRef(onLinked)
   onLinkedRef.current = onLinked
 
@@ -214,14 +219,14 @@ function LinkingInstructions({
           const event = data as { type?: string; payload?: PlatformIdentitiesPayload }
           if (event.type === "platform_identity_linked" && event.payload) {
             onLinkedRef.current(event.payload)
-            onNotice(t("connected_platforms.connected_notice", { platform: platformLabel(platform, t) }))
+            onNotice(t("connected_platforms.connected_notice", { platform: PLATFORM_LABELS[platform] ?? platform }))
           }
         }
       }
     )
 
     return () => subscription.unsubscribe()
-  }, [platform, onNotice])
+  }, [platform, onNotice, t])
 
   async function copyToken() {
     try {
@@ -235,7 +240,7 @@ function LinkingInstructions({
 
   return (
     <div className="mt-3 rounded border border-blue-100 dark:border-blue-900/60 bg-blue-50 dark:bg-blue-950/40 p-3 text-sm text-blue-950 dark:text-blue-100">
-      <p className="font-medium">{t("connected_platforms.instructions_heading")}</p>
+      <p className="font-medium">{t("connected_platforms.how_to_connect")}</p>
       <p className="mt-1 text-xs">{tokenPayload.instructions.text}</p>
       {tokenPayload.instructions.bot_handle ? (
         <div className="mt-2 flex items-center gap-2">
@@ -251,7 +256,7 @@ function LinkingInstructions({
           </button>
         </div>
       ) : null}
-      <p className="mt-2 text-xs text-blue-700 dark:text-blue-300">{t("connected_platforms.expires")}</p>
+      <p className="mt-2 text-xs text-blue-700 dark:text-blue-300">{t("connected_platforms.expires_waiting")}</p>
     </div>
   )
 }
@@ -262,12 +267,4 @@ function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?
     muted: "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400"
   }
   return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
-}
-
-function errorMessage(error: Error, fallback: string) {
-  return error instanceof ApiError ? error.message : fallback
-}
-
-function platformLabel(platform: string, t: (key: string, options?: Record<string, unknown>) => string) {
-  return t(`connected_platforms.platforms.${platform}`, { defaultValue: platform })
 }

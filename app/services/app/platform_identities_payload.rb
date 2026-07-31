@@ -1,26 +1,37 @@
 module App
   class PlatformIdentitiesPayload
-    def self.for(user)
-      new(user).as_json
+    SUPPORTED_PLATFORMS = %w[telegram slack].freeze
+
+    def self.call(user:, message: nil)
+      new(user: user, message: message).call
     end
 
-    def initialize(user)
+    def self.platform_configured?(platform)
+      case platform
+      when "telegram" then AppSetting.telegram_configured?
+      when "slack" then false
+      else false
+      end
+    end
+
+    def initialize(user:, message: nil)
       @user = user
+      @message = message
     end
 
-    def as_json
-      {
+    def call
+      payload = {
         platform_identities: identities.map { |identity| identity_json(identity) },
         available_platforms: available_platforms_json
       }
+      payload[:message] = @message if @message.present?
+      payload
     end
 
     private
 
-    attr_reader :user
-
     def identities
-      user.platform_identities.order(:platform)
+      @identities ||= @user.platform_identities.order(:platform)
     end
 
     def identity_json(identity)
@@ -33,12 +44,16 @@ module App
     end
 
     def available_platforms_json
-      PlatformIdentity::PLATFORMS.map do |platform|
+      SUPPORTED_PLATFORMS.map do |platform|
         {
           platform: platform,
-          configured: PlatformIdentity::PlatformConfig::Base.for(platform).configured?
+          configured: platform_configured?(platform)
         }
       end
+    end
+
+    def platform_configured?(platform)
+      self.class.platform_configured?(platform)
     end
   end
 end

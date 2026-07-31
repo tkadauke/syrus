@@ -129,7 +129,15 @@ RSpec.describe PollTelegramUpdatesJob do
         allow_any_instance_of(TelegramClient).to receive(:get_updates).and_return([update])
 
         expect(AppEvents).to receive(:broadcast).with(
-          hash_including(user: user, type: "platform_identity_linked")
+          hash_including(
+            user: user,
+            type: "platform_identity_linked",
+            resource: "platform_identity",
+            payload: hash_including(
+              platform_identities: array_including(hash_including(platform: "telegram")),
+              available_platforms: array_including(hash_including(platform: "telegram"))
+            )
+          )
         )
 
         described_class.new.perform
