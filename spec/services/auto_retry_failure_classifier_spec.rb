@@ -48,6 +48,16 @@ RSpec.describe AutoRetryFailureClassifier do
     expect(described_class.non_retryable_message?("PR branch changed before Syrus could push WF-123")).to be(true)
   end
 
+  it "recognizes stale merge-train reconciliation heads as non-retryable rebuild failures" do
+    message = "merge_train_reconcile: built integration branch syrus/merge-train-epic-1-2 at abc123 is unavailable; rebuild required"
+
+    expect(described_class.non_retryable_message?(message)).to be(true)
+  end
+
+  it "recognizes unresolved merge-train rebase conflicts as non-retryable" do
+    expect(described_class.non_retryable_message?("merge_train: rebase for syrus/issue-3 was not completed")).to be(true)
+  end
+
   it "classifies timeout diagnostics as retryable" do
     fail_run!(error_class: "Timeout::Error", error_message: "execution expired")
 

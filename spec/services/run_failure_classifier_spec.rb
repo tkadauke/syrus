@@ -165,6 +165,25 @@ RSpec.describe RunFailureClassifier do
     expect(classification.retryable).to eq(false)
   end
 
+  it "classifies stale merge-train reconciliation heads as rebuild-required" do
+    run.update!(state: "failed")
+    diagnostic(
+      "Steps::Base::StepFailed",
+      "merge_train_reconcile: built integration branch syrus/merge-train-epic-1-2 at abc123 is unavailable; rebuild required"
+    )
+
+    expect(classification.classification).to eq("merge_train_rebuild_required")
+    expect(classification.retryable).to eq(false)
+  end
+
+  it "classifies unresolved merge-train rebase conflicts separately from generic git corruption" do
+    run.update!(state: "failed")
+    diagnostic("Steps::Base::StepFailed", "merge_train: rebase for syrus/issue-3 was not completed")
+
+    expect(classification.classification).to eq("merge_train_rebase_conflict")
+    expect(classification.retryable).to eq(false)
+  end
+
   it "prefers MCP sidecar failures over max-turns when the tool never registered" do
     run.update!(state: "failed", agent_outcome: "error_max_turns")
     process("stopped")

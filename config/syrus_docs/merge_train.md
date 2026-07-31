@@ -31,17 +31,20 @@ If either check fails, the train is cancelled and member Jobs revert to `approve
 
 ## Build phase
 
-`merge_train_build` creates a fresh integration branch starting from the base branch tip. It then rebases each member branch onto the growing integration tip in dependency order (respecting `Depends-on:` lines between child Jobs).
+`merge_train_build` creates a fresh integration branch starting from the base branch tip. It then rebases each member branch onto the growing integration tip in dependency order (respecting `Depends-on:` lines between child Jobs). Explicit nonlinear Epics are handled the same way: a root with multiple approved leaves produces one integration branch containing every member branch before reconciliation runs.
 
 For each member branch:
 - Syrus first tries a deterministic `git rebase`. If clean, it advances the integration tip.
 - On conflict, the agentic `merge_train_build` step hands the in-progress rebase to the agent, which must resolve conflicts and run `git rebase --continue`. Syrus verifies completion by end-state (clean worktree, integration branch is an ancestor) rather than by rebase-internal refs.
+- If the agent cannot complete that conflict resolution, the run is classified as `merge_train_rebase_conflict` so operators see an actionable merge-train conflict instead of a generic git failure.
 
 Branch refs are fetched through the repository's authenticated GitHub URL so private branches work under App or PAT credentials.
 
 ## Grader validation
 
-After building the integration branch, Syrus runs `merge_train_reconcile` on it before prepare, graders, coverage, and landing. This invokes the configured agent provider against the integration branch to inspect the combined member work for cross-Job inconsistencies. If no reconciliation work is needed, no diff is treated as success. If focused reconciliation edits are needed, Syrus commits them onto the integration branch and updates the train's integration SHA.
+After building the integration branch, Syrus runs `merge_train_reconcile` on the recorded integration SHA before prepare, graders, coverage, and landing. This invokes the configured agent provider against the combined member work to inspect for cross-Job inconsistencies. If no reconciliation work is needed, no diff is treated as success. If focused reconciliation edits are needed, Syrus commits them onto the integration branch and updates the train's integration SHA.
+
+If Syrus cannot check out the recorded integration SHA for reconciliation, the train fails with a rebuild-required classification instead of reconciling one arbitrary member branch.
 
 Syrus then runs the full grader suite on the integration branch (same as `auto_merge`: `retry_until(graders, repair: landing_fix)`). If graders fail, the `landing_fix` agent repairs the integration branch, and graders re-run up to `grade_max_iterations` times.
 

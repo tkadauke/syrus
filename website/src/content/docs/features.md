@@ -113,10 +113,11 @@ the Epic has released its children and all open siblings are approved. Children
 blocked by an upstream Epic dependency stay in the queue with a
 `waiting for Epic to release` reason instead of dispatching a train early.
 After Syrus builds the train's integration branch, it runs an agentic
-reconciliation pass on that branch before prepare, graders, coverage, and
-landing. A no-diff reconciliation continues normally; focused fixes are
-committed to the integration branch and still pass the normal gates before
-the Epic lands.
+reconciliation pass on the recorded integrated SHA before prepare, graders,
+coverage, and landing. Nonlinear Epics with multiple approved leaves are
+assembled into that same combined branch first. A no-diff reconciliation
+continues normally; focused fixes are committed to the integration branch
+and still pass the normal gates before the Epic lands.
 
 New Epics no longer create a standalone `Reconciliation: ...` child Job just
 to review sibling consistency. Existing historical reconciliation Jobs remain

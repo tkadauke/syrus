@@ -42,8 +42,12 @@ class AutoRetryFailureClassifier
     /required grader failed/i,
     /rebase cap reached/i,
     /This branch can't be rebased/i,
+    /merge_train: rebase for .* was not completed/i,
+    /merge_train: integrating .* left a dirty worktree/i,
+    /merge_train: .* was not rebased onto the integration branch/i,
     /merge_train: base moved .* rebuild required/i,
     /merge_train: missing built base SHA; rebuild required/i,
+    /merge_train_reconcile: built integration branch .* rebuild required/i,
     /merge_train: integration PR has merge conflicts .*operator intervention required/i
   ].freeze
 

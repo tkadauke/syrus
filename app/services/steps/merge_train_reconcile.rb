@@ -10,7 +10,7 @@ module Steps
       raise StepFailed, "merge_train_reconcile: integration branch is missing; rebuild required" if train.integration_branch.blank?
 
       workspace.setup
-      git.run("checkout", train.integration_branch, chdir: workspace.path.to_s)
+      checkout_integration_branch!(train)
 
       run.update!(prompt: compose_prompt(train)) if run.prompt.blank?
       log("invoking agent for merge_train_reconcile step (#{workflow.slug}, #{train.integration_branch})")
@@ -43,6 +43,19 @@ module Steps
 
     def git
       @git ||= streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0", "GIT_EDITOR" => "true" })
+    end
+
+    def checkout_integration_branch!(train)
+      chdir = workspace.path.to_s
+      if train.integration_sha.present?
+        git.run("checkout", "-B", train.integration_branch, train.integration_sha, chdir: chdir)
+      else
+        git.run("checkout", train.integration_branch, chdir: chdir)
+      end
+    rescue GitRunner::GitError => e
+      raise StepFailed,
+            "merge_train_reconcile: built integration branch #{train.integration_branch} " \
+            "at #{train.integration_sha.presence || 'unknown SHA'} is unavailable; rebuild required (#{e.message})"
     end
 
     def compose_prompt(train)

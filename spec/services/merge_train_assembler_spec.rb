@@ -39,6 +39,17 @@ RSpec.describe MergeTrainAssembler do
     expect(result.job_ids).to eq([ parent_placeholder.id, dependent.id ])
   end
 
+  it "includes every leaf in an explicit nonlinear fan-in Epic" do
+    root = child(issue_number: 1)
+    leaf_a = child(issue_number: 2, parent_job: root)
+    leaf_b = child(issue_number: 3, parent_job: root)
+
+    result = described_class.call(epic)
+
+    expect(result).to be_ready
+    expect(result.job_ids).to eq([ root.id, leaf_a.id, leaf_b.id ])
+  end
+
   it "is not ready when any open child is unapproved" do
     child(issue_number: 1, state: "approved")
     child(issue_number: 2, state: "implemented")

@@ -363,7 +363,7 @@ RSpec.describe "Steps::MergeTrain*" do
 
       handler.call
 
-      expect(git).to have_received(:run).with("checkout", train.integration_branch, chdir: "/tmp/ws")
+      expect(git).to have_received(:run).with("checkout", "-B", train.integration_branch, "intsha999", chdir: "/tmp/ws")
       expect(handler).to have_received(:run_agent).with(prompt: handler.run.reload.prompt)
       expect(handler).to have_received(:assert_branch_history_intact!)
       expect(handler.run.reload.head_sha).to eq("intsha999")
@@ -376,6 +376,7 @@ RSpec.describe "Steps::MergeTrain*" do
       a = member_job(issue_number: 1)
       b = member_job(issue_number: 2)
       train = build_train([ a, b ])
+      train.update!(integration_sha: "oldsha123")
       handler = step_handler(described_class, "merge_train_reconcile", train, b)
       diff = "diff --git a/app/shared.rb b/app/shared.rb\n+consistent"
       git = stub_reconcile_handler(handler, head_values: %w[oldsha123 newsha456], step_diff: diff)
@@ -383,7 +384,7 @@ RSpec.describe "Steps::MergeTrain*" do
 
       handler.call
 
-      expect(git).to have_received(:run).with("checkout", train.integration_branch, chdir: "/tmp/ws")
+      expect(git).to have_received(:run).with("checkout", "-B", train.integration_branch, train.integration_sha, chdir: "/tmp/ws")
       expect(handler).to have_received(:commit_agent_changes).with("Syrus merge-train reconciliation")
       expect(handler).to have_received(:assert_branch_history_intact!)
       expect(handler.run.reload.base_sha).to eq("oldsha123")
@@ -421,6 +422,67 @@ RSpec.describe "Steps::MergeTrain*" do
       stub_reconcile_handler(handler, head_values: %w[oldsha oldsha], status: " M app.rb", step_diff: "")
 
       expect { handler.call }.to raise_error(Steps::Base::StepFailed, /working tree is not clean/)
+    end
+
+    it "fails actionably when the recorded integration SHA is unavailable" do
+      a = member_job(issue_number: 1)
+      train = build_train([ a ])
+      train.update!(integration_sha: "missing123")
+      handler = step_handler(described_class, "merge_train_reconcile", train, a)
+      workspace = instance_double(WorkflowWorkspace, setup: nil, path: Pathname.new("/tmp/ws"), branch_name: "x")
+      git = instance_double(GitRunner)
+      allow(handler).to receive(:workspace).and_return(workspace)
+      allow(handler).to receive(:streaming_git).and_return(git)
+      allow(git).to receive(:run)
+      allow(git).to receive(:run)
+        .with("checkout", "-B", train.integration_branch, "missing123", chdir: "/tmp/ws")
+        .and_raise(GitRunner::GitError.new([ "checkout" ], 128, "fatal: reference is not a tree"))
+      allow(handler).to receive(:run_agent)
+
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed, /built integration branch .* rebuild required/)
+      expect(handler).not_to have_received(:run_agent)
+    end
+
+    it "runs reconciliation after assembling a nonlinear fan-in integration branch" do
+      authenticated_fetch_url = "https://token.example/acme/widgets.git"
+      client = instance_double(GithubClient, access_token: "ghs_train")
+      allow(GithubClient).to receive(:for).and_return(client)
+      allow_any_instance_of(Repository).to receive(:authenticated_push_url)
+        .with("ghs_train")
+        .and_return(authenticated_fetch_url)
+
+      root = member_job(issue_number: 1)
+      leaf_a = member_job(issue_number: 2)
+      leaf_b = member_job(issue_number: 3)
+      leaf_a.update!(parent_job: root)
+      leaf_b.update!(parent_job: root)
+      train = build_train([ root, leaf_a, leaf_b ])
+      build_handler = step_handler(Steps::MergeTrainBuild, "merge_train_build", train, leaf_b)
+      build_git = stub_git(build_handler, head: "assembled999", base: "base111")
+      allow(build_handler).to receive(:run_agent)
+
+      build_handler.call
+
+      expect(build_git).to have_received(:run).with("fetch", authenticated_fetch_url, "refs/heads/syrus/issue-1", chdir: "/tmp/ws")
+      expect(build_git).to have_received(:run).with("fetch", authenticated_fetch_url, "refs/heads/syrus/issue-2", chdir: "/tmp/ws")
+      expect(build_git).to have_received(:run).with("fetch", authenticated_fetch_url, "refs/heads/syrus/issue-3", chdir: "/tmp/ws")
+      expect(train.reload.integration_sha).to eq("assembled999")
+
+      reconcile_handler = step_handler(described_class, "merge_train_reconcile", train, leaf_b)
+      reconcile_git = stub_reconcile_handler(
+        reconcile_handler,
+        head_values: %w[assembled999 reconciled123],
+        step_diff: "diff --git a/app/reconcile.rb b/app/reconcile.rb\n+merged leaves"
+      )
+      allow(reconcile_handler).to receive(:commit_agent_changes)
+
+      reconcile_handler.call
+
+      expect(reconcile_git).to have_received(:run).with("checkout", "-B", train.integration_branch, "assembled999", chdir: "/tmp/ws")
+      expect(reconcile_handler).to have_received(:run_agent).with(prompt: reconcile_handler.run.reload.prompt)
+      expect(reconcile_handler.run.prompt).to include(root.slug, leaf_a.slug, leaf_b.slug)
+      expect(train.reload.integration_sha).to eq("reconciled123")
+      expect(reconcile_handler.run.reload.step_agent_diff).to include("merged leaves")
     end
   end
 

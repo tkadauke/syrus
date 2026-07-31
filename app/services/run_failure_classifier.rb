@@ -41,6 +41,10 @@ class RunFailureClassifier
       result("worker_died", 0.95, true, "The worker or agent process disappeared while the run was active.")
     when branch_diverged?
       result("branch_diverged", 0.95, false, "The PR branch changed before Syrus could push this workflow.")
+    when merge_train_rebase_conflict?
+      result("merge_train_rebase_conflict", 0.90, false, "The merge-train integration rebase needs operator attention before the train can continue.")
+    when merge_train_rebuild_required?
+      result("merge_train_rebuild_required", 0.90, false, "The merge-train integration branch must be rebuilt before this workflow can continue.")
     when empty_commit?
       result("empty_commit", 0.85, false, "A git commit or amend was rejected because it would be empty (not a corrupt workspace).")
     when git_state_corrupt?
@@ -105,6 +109,18 @@ class RunFailureClassifier
   def branch_diverged?
     diagnostic&.error_class.to_s.match?(/Steps::PrOpen::BranchDiverged/) ||
       text_match?(/PR branch changed before Syrus could push|branch diverged|non-fast-forward/i)
+  end
+
+  def merge_train_rebuild_required?
+    text_match?(
+      /merge_train: base moved .* rebuild required|merge_train: missing built base SHA; rebuild required|merge_train_reconcile: built integration branch .* rebuild required/i
+    )
+  end
+
+  def merge_train_rebase_conflict?
+    text_match?(
+      /merge_train: rebase for .* was not completed|merge_train: integrating .* left a dirty worktree|merge_train: .* was not rebased onto the integration branch/i
+    )
   end
 
   def empty_commit?
