@@ -2,6 +2,8 @@ import { getJson, patchJson, postJson } from "./client"
 import type { SetupStatusPayload } from "./setup"
 import type { JobRetryState } from "./jobs"
 
+export type RepositoryEpicDependencyPolicy = "linear" | "nonlinear"
+
 export type RepositoryRow = {
   id: number
   slug: string
@@ -58,7 +60,7 @@ export type RepositoryFormRecord = {
   agent_provider: string
   auto_approve_mode: string
   feedback_policy: string
-  epic_dependency_policy: string
+  epic_dependency_policy: RepositoryEpicDependencyPolicy
   github_owner_id: number | null
   github_repository_id: number | null
   repository_path: string | null
@@ -118,7 +120,7 @@ export type RepositoryInput = {
   agent_provider: string
   auto_approve_mode: string
   feedback_policy: string
-  epic_dependency_policy: string
+  epic_dependency_policy: RepositoryEpicDependencyPolicy
   github_owner_id: string
   github_repository_id: string
 }

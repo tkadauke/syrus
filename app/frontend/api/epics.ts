@@ -1,10 +1,11 @@
 import { deleteJson, getJson, patchJson, postJson } from "./client"
 import type { DashboardGraphEdge, DashboardGraphNode } from "./dashboard"
+import type { RepositoryEpicDependencyPolicy } from "./repositories"
 
 export type EpicRepositoryOption = {
   id: number
   slug: string
-  epic_dependency_policy: "linear" | "nonlinear"
+  epic_dependency_policy: RepositoryEpicDependencyPolicy
 }
 
 export type EpicSearchOption = {
@@ -60,7 +61,7 @@ export type EpicDetailRepository = {
   id: number
   slug: string
   repository_path: string
-  epic_dependency_policy: "linear" | "nonlinear"
+  epic_dependency_policy: RepositoryEpicDependencyPolicy
 }
 
 export type EpicOwner = {

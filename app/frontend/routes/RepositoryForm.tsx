@@ -16,6 +16,7 @@ import {
   type InsightScheduleConfigRecord,
   type InsightScheduleConfigInput,
   type RepositoryFormPayload,
+  type RepositoryEpicDependencyPolicy,
   type RepositoryInput,
   syncFork,
   updateInsightScheduleConfig,
@@ -489,7 +490,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
             <select
               aria-label={t('repository_form.label_epic_dependency_policy')}
               className={inputClass()}
-              onChange={(event) => setValues({ ...values, epic_dependency_policy: event.target.value })}
+              onChange={(event) => setValues({ ...values, epic_dependency_policy: event.target.value as RepositoryEpicDependencyPolicy })}
               value={values.epic_dependency_policy}
             >
               <option value="linear">{t('repository_form.epic_dependency_linear')}</option>
