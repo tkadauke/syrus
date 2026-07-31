@@ -310,6 +310,7 @@ function SummaryTab({ payload, command, prefix, queryKey }: { payload: JobDetail
               {payload.job.branch_name ? <KeyValue label={t("detail_branch")}><code className="break-all">{payload.job.branch_name}</code></KeyValue> : null}
               <KeyValue label={t("detail_stack_base")}><StackBaseForm command={command} payload={payload} /></KeyValue>
               {payload.job.pr_number || payload.job.external_pr_number ? <KeyValue label={t("detail_pull_request")}><PullRequestSummary payload={payload} /></KeyValue> : null}
+              {!payload.job.pr_number && !payload.job.external_pr_number && payload.job.no_pr_reason ? <KeyValue label={t("detail_pull_request")}><span className="text-gray-600 dark:text-gray-300">{payload.job.no_pr_reason.message || t("no_pr_opened")}</span></KeyValue> : null}
               <KeyValue label={t("detail_cost")}>{payload.job.total_cost_usd == null ? "-" : formatCurrency(payload.job.total_cost_usd)} <span className="text-xs text-gray-400 dark:text-gray-500">({payload.job.billed_runs_count} {t("detail_billed")})</span></KeyValue>
               <KeyValue label={t("detail_started")}><RelativeTimestamp value={payload.job.started_at} /></KeyValue>
               {payload.job.finished_at ? <KeyValue label={t("detail_closed")}><RelativeTimestamp value={payload.job.finished_at} /> ({payload.job.closure_reason || "unspecified"})</KeyValue> : null}
@@ -1020,4 +1021,3 @@ function AttachmentsTab({ payload, queryKey, onNotice }: { payload: JobDetailPay
     </section>
   )
 }
-

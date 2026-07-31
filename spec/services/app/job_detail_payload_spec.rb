@@ -59,6 +59,28 @@ RSpec.describe App::JobDetailPayload do
         label: "Epic proposal"
       )
     end
+
+    it "includes the no-PR reason recorded by a reconciliation workflow" do
+      job = Factories.job_record(user: user, repository: repo, kind: "direct", issue_number: nil, issue_title: "Reconcile stack")
+      Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "succeeded",
+        artifacts: {
+          "no_pr_reason" => {
+            "kind" => "empty_reconciliation",
+            "message" => "No PR was opened because reconciliation made no additional changes beyond syrus/direct-parent.",
+            "base_branch" => "syrus/direct-parent"
+          }
+        }
+      )
+
+      expect(payload_for(job).dig(:job, :no_pr_reason)).to include(
+        "kind" => "empty_reconciliation",
+        "message" => "No PR was opened because reconciliation made no additional changes beyond syrus/direct-parent.",
+        "base_branch" => "syrus/direct-parent"
+      )
+    end
   end
 
   describe "#origin_chat_json" do

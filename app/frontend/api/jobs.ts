@@ -67,6 +67,7 @@ export type JobRecord = {
   pr_url: string | null
   external_pr_number: number | null
   external_pr_url: string | null
+  no_pr_reason: { kind?: string; message?: string; base_branch?: string; detected_at?: string } | null
   pr_mergeable: boolean | null
   pr_mergeable_checked_at: string | null
   closure_reason: string | null

@@ -79,6 +79,25 @@ describe("JobDetailView", () => {
       .toHaveAttribute("href", "/app-shell/chats/4#message-12")
   })
 
+  it("shows why no pull request was opened for empty reconciliation work", () => {
+    renderJobDetail(jobPayload({
+      job: {
+        ...baseJob(),
+        state: "closed",
+        summary_state: "closed",
+        closure_reason: "no_changes",
+        finished_at: "2026-07-31T06:00:00Z",
+        no_pr_reason: {
+          kind: "empty_reconciliation",
+          message: "No PR was opened because reconciliation made no additional changes beyond syrus/direct-parent.",
+          base_branch: "syrus/direct-parent"
+        }
+      }
+    }))
+
+    expect(screen.getByText("No PR was opened because reconciliation made no additional changes beyond syrus/direct-parent.")).toBeInTheDocument()
+  })
+
   it("links scheduled jobs back to their scheduled task", () => {
     renderJobDetail(jobPayload({
       job: {
@@ -1198,6 +1217,7 @@ function baseJob(): JobDetailPayload["job"] {
     pr_url: null,
     external_pr_number: null,
     external_pr_url: null,
+    no_pr_reason: null,
     pr_mergeable: null,
     pr_mergeable_checked_at: null,
     closure_reason: null,

@@ -91,6 +91,7 @@
   "detail_branch": "Branch",
   "detail_stack_base": "Stack-Basis",
   "detail_pull_request": "Pull Request",
+  "no_pr_opened": "Es wurde kein Pull Request geöffnet.",
   "detail_cost": "Kosten",
   "detail_started": "Gestartet",
   "detail_closed": "Geschlossen",

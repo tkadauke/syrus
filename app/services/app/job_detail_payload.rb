@@ -107,6 +107,7 @@ module App
         pr_url: pr_url(@job.pr_number),
         external_pr_number: @job.external_pr_number,
         external_pr_url: pr_url(@job.external_pr_number),
+        no_pr_reason: no_pr_reason_json,
         pr_mergeable: @job.pr_mergeable,
         pr_mergeable_checked_at: iso8601(@job.pr_mergeable_checked_at),
         commits_behind_base: @job.commits_behind_base,
@@ -233,6 +234,14 @@ module App
         pending_description: policy_obj.pending_description,
         approvals_count: approvals.size
       }
+    end
+
+    def no_pr_reason_json
+      @job.workflows
+          .select { |workflow| workflow.artifacts.is_a?(Hash) && workflow.artifacts["no_pr_reason"].is_a?(Hash) }
+          .max_by(&:created_at)
+          &.artifacts
+          &.fetch("no_pr_reason", nil)
     end
 
     def attachment_json(attachment)

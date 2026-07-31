@@ -26,6 +26,8 @@ While `epic.reconciliation_job_id` is present and the reconciliation Job is open
 
 Once the reconciliation Job closes (regardless of closure reason), `refresh_auto_state!` clears `reconciliation_job_id` and sibling Jobs can proceed to landing normally.
 
+When a PR-mode reconciliation Job produces no additional diff against its effective stack parent, Syrus treats that as a successful empty reconciliation. The `pr_open` step records a no-PR reason on the Workflow, skips PR creation, and closes the Job with `closure_reason: no_changes` so dependent Jobs and Epic completion can proceed. If a duplicate empty reconciliation PR already exists, Syrus comments on it, closes it unmerged, and closes the Job as `no_changes`.
+
 ## Configuration
 
 Reconciliation mode is resolved with this precedence:

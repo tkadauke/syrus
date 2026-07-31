@@ -89,6 +89,7 @@
   "detail_branch": "Ramus",
   "detail_stack_base": "Basis struis",
   "detail_pull_request": "Petitio trahendi",
+  "no_pr_opened": "Nulla petitio trahendi aperta est.",
   "detail_cost": "Sumptus",
   "detail_started": "Inceptum",
   "detail_closed": "Clausum",

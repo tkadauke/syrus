@@ -117,6 +117,11 @@ The reconciliation Job depends on every sibling Job in the Epic and holds
 siblings from landing until it finishes. Once it closes, sibling Jobs proceed
 to the landing queue normally.
 
+If reconciliation finds no additional patch beyond the effective stack parent,
+Syrus closes the reconciliation Job successfully as `no_changes` instead of
+opening a duplicate PR. The Job detail page keeps the reconciliation summary,
+test plan, and a no-PR explanation for review.
+
 When merge trains are enabled, approved child Jobs land atomically only after
 the Epic has released its children and all open siblings are approved. Children
 blocked by an upstream Epic dependency stay in the queue with a

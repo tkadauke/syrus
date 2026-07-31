@@ -30,8 +30,15 @@ module Steps
     def call
       workspace.setup
       verify_coding_handoff_snapshot!
-      log("pr_open: pushing branch and opening PR (#{workflow.slug})")
+      log("pr_open: checking PR open preconditions (#{workflow.slug})")
 
+      if empty_reconciliation_patch?
+        close_empty_reconciliation_pr_if_needed
+        close_empty_reconciliation_job!
+        return
+      end
+
+      log("pr_open: pushing branch and opening PR (#{workflow.slug})")
       push_branch
 
       if job.pr_number.present?  # idempotent: upstream PR already open (non-fork or post-approval)
@@ -53,6 +60,66 @@ module Steps
     end
 
     private
+
+    def empty_reconciliation_patch?
+      return false unless reconciliation_job?
+
+      git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
+      base_branch = job.effective_base_branch
+      base_ref = reconciliation_comparison_ref(git, base_branch)
+      git.run("diff", "--quiet", "#{base_ref}..HEAD", "--", chdir: workspace.path.to_s)
+      log("pr_open: reconciliation produced no changes against #{base_branch}")
+      true
+    rescue GitRunner::GitError => e
+      return false if e.exit_status == 1
+
+      raise
+    end
+
+    def reconciliation_job?
+      return false unless job.epic_id
+
+      epic = Epic.find_by(id: job.epic_id, reconciliation_job_id: job.id)
+      epic&.resolved_reconciliation_mode == "pr"
+    end
+
+    def reconciliation_comparison_ref(git, base_branch)
+      return workspace.base_ref if job.base_on_upstream_default? && base_branch == job.base_default_branch
+
+      ref = "refs/remotes/origin/#{base_branch}"
+      git.run(
+        "fetch",
+        repository.authenticated_url(user: job.user),
+        "+refs/heads/#{base_branch}:#{ref}",
+        chdir: workspace.path.to_s
+      )
+      ref
+    end
+
+    def close_empty_reconciliation_pr_if_needed
+      return if job.pr_number.blank?
+
+      pr_repo = job.effective_pr_repository
+      client = GithubClient.for(repository: pr_repo, user: job.user)
+      client.add_issue_comment(pr_repo.slug, job.pr_number, empty_reconciliation_pr_comment)
+      client.close_pull_request(pr_repo.slug, job.pr_number)
+      log("pr_open: closed empty reconciliation PR ##{job.pr_number}")
+    end
+
+    def close_empty_reconciliation_job!
+      base_branch = job.effective_base_branch
+      workflow.set_artifact!("no_pr_reason", {
+        "kind" => "empty_reconciliation",
+        "message" => "No PR was opened because reconciliation made no additional changes beyond #{base_branch}.",
+        "base_branch" => base_branch,
+        "detected_at" => Time.current.iso8601
+      })
+      job.close_with_reason!("no_changes") if job.may_close?
+    end
+
+    def empty_reconciliation_pr_comment
+      "Syrus is closing this reconciliation PR because the final branch has no diff against the effective stack parent (`#{job.effective_base_branch}`). The reconciliation Job is being closed successfully as `no_changes`."
+    end
 
     def verify_coding_handoff_snapshot!
       return unless workflow.trigger_kind == "coding_handoff"
