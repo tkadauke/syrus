@@ -126,6 +126,9 @@ When merge trains are enabled, approved child Jobs land atomically only after
 the Epic has released its children and all open siblings are approved. Children
 blocked by an upstream Epic dependency stay in the queue with a
 `waiting for Epic to release` reason instead of dispatching a train early.
+Landing grader commands are fanned out as separate Runs and then collected, so
+with enough `merges` queue capacity the landing wait is bounded by the slowest
+required grader plus overhead rather than by the sum of all grader durations.
 
 Reconciliation is configured via `reconciliation_mode` in `.syrus.yml` or
 per-Epic:

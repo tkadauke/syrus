@@ -17,6 +17,7 @@ module Steps
     def call
       grader_steps = current_iteration_graders
       append_iteration_results!(grader_steps)
+      record_parallelism!(grader_steps)
 
       failed_required = grader_steps.select do |g|
         g.details && g.details["required"] && g.state == "failed"
@@ -97,6 +98,32 @@ module Steps
         end
       end
       workflow.set_artifact!("iterations", iterations)
+    end
+
+    def record_parallelism!(grader_steps)
+      timed_steps = grader_steps.select { |g| g.started_at && g.finished_at }
+      return if timed_steps.empty?
+
+      started_at = timed_steps.map(&:started_at).min
+      finished_at = timed_steps.map(&:finished_at).max
+      wall_clock_s = finished_at - started_at
+      summed_duration_s = timed_steps.sum do |g|
+        duration = g.details.to_h["duration_s"]
+        duration.present? ? duration.to_f : (g.finished_at - g.started_at)
+      end
+
+      measurements = Array(workflow.artifact("grader_parallelism"))
+      measurements[run.iteration - 1] = {
+        "iteration" => run.iteration,
+        "grader_count" => grader_steps.size,
+        "started_at" => started_at.iso8601,
+        "finished_at" => finished_at.iso8601,
+        "wall_clock_s" => wall_clock_s.round(3),
+        "summed_duration_s" => summed_duration_s.round(3)
+      }
+      workflow.set_artifact!("grader_parallelism", measurements)
+
+      log("[grader_collect] grader wall-clock #{wall_clock_s.round(1)}s vs summed duration #{summed_duration_s.round(1)}s")
     end
 
     def record_grader_conclusions!(grader_steps, aggregate_status)
