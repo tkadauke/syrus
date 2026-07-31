@@ -289,6 +289,7 @@
     "landing_paused_main_broken": "Landing paused: main branch broken",
     "repository_archived": "Repository archived",
     "waiting_epic_merge_train": "Waiting for Epic merge-train",
+    "legacy_epic_reconciliation_pending": "Waiting for historical reconciliation Job",
     "auto_merge_not_enabled": "Auto-merge not enabled for repository",
     "review_requested_changes": "Review requested changes",
     "missing_pull_request": "Missing pull request",

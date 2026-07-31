@@ -275,6 +275,7 @@ module Api
           {
             message: message,
             merge_train_branch: active_train&.integration_branch,
+            merge_train_status: ::App::MergeTrainStatus.for_epic(epic),
             origin_chat: epic_origin_chat_json(epic),
             epic: detail_epic_json(epic, jobs: jobs),
             summary: {

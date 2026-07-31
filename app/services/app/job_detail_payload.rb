@@ -30,6 +30,7 @@ module App
         job: job_json,
         repository: repository_json(@job.repository),
         epic: epic_json(@job.epic),
+        merge_train_status: App::MergeTrainStatus.for_job(@job),
         origin_chat: origin_chat_json,
         pinned: @user.job_pins.exists?(job: @job),
         tags: @job.tags.ordered.map { |tag| tag_json(tag) },

@@ -5,6 +5,7 @@ const STATIC_REASONS: Record<string, string> = {
   "landing paused: main branch broken": "common:blocked_reasons.landing_paused_main_broken",
   "repository archived": "common:blocked_reasons.repository_archived",
   "waiting for Epic merge-train": "common:blocked_reasons.waiting_epic_merge_train",
+  "epic reconciliation pending": "common:blocked_reasons.legacy_epic_reconciliation_pending",
   "auto-merge not enabled for repository": "common:blocked_reasons.auto_merge_not_enabled",
   "review requested changes": "common:blocked_reasons.review_requested_changes",
   "missing pull request": "common:blocked_reasons.missing_pull_request",

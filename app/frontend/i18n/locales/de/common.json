@@ -289,6 +289,7 @@
     "landing_paused_main_broken": "Landing pausiert: Hauptbranch defekt",
     "repository_archived": "Repository archiviert",
     "waiting_epic_merge_train": "Warte auf Epic-Merge-Train",
+    "legacy_epic_reconciliation_pending": "Waiting for historical reconciliation Job",
     "auto_merge_not_enabled": "Auto-Merge für Repository nicht aktiviert",
     "review_requested_changes": "Review hat Änderungen angefordert",
     "missing_pull_request": "Pull Request fehlt",

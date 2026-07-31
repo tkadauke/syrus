@@ -97,7 +97,11 @@ module Prompts
             context, a goal, or a dependency chain. Epics can have
             dependencies between their child Jobs; Syrus respects them
             when scheduling. Auto-approval rules can attach at the Epic
-            level so trusted Epics merge without per-PR review.
+            level so trusted Epics merge without per-PR review. Current
+            Epics reconcile sibling work inside the Epic merge-train
+            workflow after the integration branch is built; do not
+            recommend creating standalone reconciliation Jobs unless the
+            Epic already has a historical reconciliation Job.
           - **ScheduledTask** — a cron-style or one-shot prompt
             attached to a repository. Fires Jobs of kind `cron` at the
             scheduled time, optionally backed by a reusable

@@ -25,6 +25,7 @@ import {
   type EpicDependencyRecord,
   type EpicDetailJob,
   type EpicDetailPayload,
+  type MergeTrainStatus,
   type EpicOwnerUser,
   type EpicVersionRecord,
   type EpicGraph,
@@ -183,6 +184,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
 
         <div className="space-y-2">
           <ProgressBar jobs={payload.jobs} totalCount={payload.summary.total_jobs_count} />
+          {payload.merge_train_status ? <MergeTrainStatusBanner status={payload.merge_train_status} /> : null}
           <div className="flex flex-wrap items-center gap-2">
             <StateChips jobs={payload.jobs} />
             {payload.summary.dependency_edge_count > 0 ? (
@@ -222,6 +224,32 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
       </div>
     </>
   )
+}
+
+function MergeTrainStatusBanner({ status }: { status: MergeTrainStatus }) {
+  const { t } = useT("epics")
+  const tone = status.phase === "failed"
+    ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-200"
+    : "border-teal-200 bg-teal-50 text-teal-900 dark:border-teal-900/70 dark:bg-teal-950/40 dark:text-teal-100"
+  return (
+    <div className={`rounded border px-3 py-2 text-sm ${tone}`}>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="font-medium">{t(`merge_train_phase.${status.phase}`, { defaultValue: status.phase })}</span>
+        <span>{t("merge_train_members", { count: status.member_count })}</span>
+        {status.branch ? <code className="break-all rounded bg-white/60 px-1.5 py-0.5 font-mono text-xs dark:bg-black/20">{status.branch}</code> : null}
+      </div>
+      <p className="mt-1 text-xs opacity-90">{mergeTrainDetail(status, t)}</p>
+    </div>
+  )
+}
+
+function mergeTrainDetail(status: MergeTrainStatus, t: ReturnType<typeof useT>["t"]) {
+  if (status.phase === "failed") return status.failure_reason ? t("merge_train_failed_with_reason", { reason: status.failure_reason }) : t("merge_train_failed")
+  if (status.reconciliation?.result === "no_changes") return t("merge_train_reconcile_no_changes")
+  if (status.reconciliation?.result === "committed") return t("merge_train_reconcile_committed")
+  if (status.reconciliation?.result === "failed") return t("merge_train_reconcile_failed")
+  if (status.current_step_label) return t("merge_train_current_step", { step: status.current_step_label })
+  return t("merge_train_running")
 }
 
 function DependenciesSection({

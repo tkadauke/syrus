@@ -40,11 +40,18 @@ For each member branch:
 
 Branch refs are fetched through the repository's authenticated GitHub URL so private branches work under App or PAT credentials.
 
-## Grader validation
+## Reconciliation phase
 
 After building the integration branch, Syrus runs `merge_train_reconcile` on the recorded integration SHA before prepare, graders, coverage, and landing. This invokes the configured agent provider against the combined member work to inspect for cross-Job inconsistencies. If no reconciliation work is needed, no diff is treated as success. If focused reconciliation edits are needed, Syrus commits them onto the integration branch and updates the train's integration SHA.
 
 If Syrus cannot check out the recorded integration SHA for reconciliation, the train fails with a rebuild-required classification instead of reconciling one arbitrary member branch.
+
+Operator-facing states:
+- **No-op reconciliation** — the train reports that reconciliation completed with no code changes and continues to graders.
+- **Reconciliation commits** — the train reports that the agent committed focused integration fixes; those commits stay on the integration branch and must pass the normal gates before landing.
+- **Reconciliation failure** — the train fails inside the merge-train workflow. Operators should inspect the failed `merge_train_reconcile` run and retry the merge train after addressing the cause; they should not create a standalone reconciliation Job for current Epics.
+
+## Grader validation
 
 Syrus then runs the full grader suite on the integration branch (same as `auto_merge`: `retry_until(graders, repair: landing_fix)`). If graders fail, the `landing_fix` agent repairs the integration branch, and graders re-run up to `grade_max_iterations` times.
 

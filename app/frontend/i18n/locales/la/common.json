@@ -289,6 +289,7 @@
     "landing_paused_main_broken": "Landing suspensa: ramus principalis fractus",
     "repository_archived": "Repositorium archivatum",
     "waiting_epic_merge_train": "Exspectatur agmen Epici coniungendi",
+    "legacy_epic_reconciliation_pending": "Waiting for historical reconciliation Job",
     "auto_merge_not_enabled": "Coniunctio automatica repositorio non permissa",
     "review_requested_changes": "Recensio mutationes postulavit",
     "missing_pull_request": "Petitio extrahendi deest",

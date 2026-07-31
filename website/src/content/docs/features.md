@@ -128,6 +128,12 @@ The legacy `reconciliation_mode` setting is retained for compatibility with
 older standalone reconciliation Jobs, but current Epics reconcile during
 merge-train landing after the integration branch is built.
 
+When reconciliation is a no-op, operators see that the merge train is
+continuing through normal gates. If the agent commits reconciliation fixes,
+those commits are validated on the integration branch before landing. If
+reconciliation fails, operators retry or inspect the merge-train workflow
+rather than filing a separate reconciliation Job.
+
 Chats can propose Epics or propose an Epic with child Jobs, including
 Epic-level dependencies on existing Epics or other chat Epic proposals. Chat
 Epic proposals can reference each other by proposal slug, so operators can

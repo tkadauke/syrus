@@ -14,12 +14,14 @@ When merge trains are enabled and every open Epic child Job is approved, Syrus d
 
 This removes the old fan-in dependency shape where Syrus created a separate reconciliation Job with a single arbitrary PR base and made siblings wait on it.
 
+For current Epics, operator and chat guidance should talk about the merge-train reconciliation phase. If reconciliation is blocked or failed, retry or inspect the `merge_train` workflow and its `merge_train_reconcile` step. Do not propose a new standalone reconciliation Job unless the Epic already has a historical `reconciliation_job_id` pointing at one.
+
 ## Historical standalone Jobs
 
 Existing standalone reconciliation Jobs remain historically readable. Syrus does not destructively remove them, and the legacy compatibility paths still apply:
 
 - `Epic#work_jobs` excludes the linked reconciliation Job from Epic completion checks.
-- The landing queue still reports `epic reconciliation pending` while an existing linked reconciliation Job is open.
+- The landing queue still reports `epic reconciliation pending` while an existing linked reconciliation Job is open; the UI labels this as a historical reconciliation Job wait.
 - Once the linked Job closes, `refresh_auto_state!` clears `reconciliation_job_id`.
 - Empty PR-mode reconciliation Jobs still use the existing no-PR / `no_changes` close path rather than cancellation semantics.
 

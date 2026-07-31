@@ -1,4 +1,5 @@
 import { deleteJson, getJson, patchJson, postForm, postJson } from "./client"
+import type { MergeTrainStatus } from "./epics"
 
 export type JobRepository = {
   id: number
@@ -516,6 +517,7 @@ export type JobDetailPayload = {
   job: JobRecord
   repository: JobRepository
   epic: JobEpic | null
+  merge_train_status?: MergeTrainStatus | null
   origin_chat: JobOriginChat | null
   pinned: boolean
   tags: JobTag[]

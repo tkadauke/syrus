@@ -257,6 +257,7 @@ function SummaryTab({ payload, command, prefix, queryKey }: { payload: JobDetail
   return (
     <div className="space-y-4">
       <NeedsAttentionBanner job={payload.job} />
+      {payload.merge_train_status ? <JobMergeTrainPanel payload={payload} /> : null}
       {payload.landing_queue_entry ? (
         <PanelMessage>
           {t("landing_queue_position", { position: payload.landing_queue_entry.position })}
@@ -666,6 +667,35 @@ function feedbackTriggerLabel(triggerKind: string, t: ReturnType<typeof useT>["t
   if (triggerKind === "chat_feedback") return t("feedback_trigger_chat")
   if (triggerKind === "pr_comment") return t("feedback_trigger_pr")
   return triggerKind.replaceAll("_", " ")
+}
+
+function JobMergeTrainPanel({ payload }: { payload: JobDetailPayload }) {
+  const { t } = useT("jobs")
+  const status = payload.merge_train_status
+  if (!status) return null
+
+  const tone = status.phase === "failed"
+    ? "border-red-200 bg-red-50 text-red-800 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-200"
+    : "border-teal-200 bg-teal-50 text-teal-900 dark:border-teal-900/70 dark:bg-teal-950/40 dark:text-teal-100"
+  return (
+    <section className={`rounded border px-4 py-3 text-sm ${tone}`}>
+      <span className="block font-medium">
+        {t(`merge_train_phase.${status.phase}`, { defaultValue: status.phase })}
+        {payload.epic ? ` · ${payload.epic.display_number}` : ""}
+      </span>
+      <span className="mt-1 block">{jobMergeTrainDetail(status, t)}</span>
+      {status.branch ? <code className="mt-1 block break-all font-mono text-xs">{status.branch}</code> : null}
+    </section>
+  )
+}
+
+function jobMergeTrainDetail(status: NonNullable<JobDetailPayload["merge_train_status"]>, t: ReturnType<typeof useT>["t"]) {
+  if (status.phase === "failed") return status.failure_reason ? t("merge_train_failed_with_reason", { reason: status.failure_reason }) : t("merge_train_failed")
+  if (status.reconciliation?.result === "no_changes") return t("merge_train_reconcile_no_changes")
+  if (status.reconciliation?.result === "committed") return t("merge_train_reconcile_committed")
+  if (status.reconciliation?.result === "failed") return t("merge_train_reconcile_failed")
+  if (status.current_step_label) return t("merge_train_current_step", { step: status.current_step_label })
+  return t("merge_train_running")
 }
 
 function RetryStatePanel({ payload }: { payload: JobDetailPayload }) {

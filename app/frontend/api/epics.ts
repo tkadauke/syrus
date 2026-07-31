@@ -98,6 +98,29 @@ export type EpicDetailSummary = {
   blocked_reason: string | null
 }
 
+export type MergeTrainReconciliationStatus = {
+  step_id: number
+  state: string
+  result: "no_changes" | "committed" | "failed" | "running" | null
+  run_id: number | null
+  head_sha: string | null
+  diff_bytes: number
+}
+
+export type MergeTrainStatus = {
+  id: number
+  state: string
+  phase: "assembling" | "reconciling" | "grading" | "landing" | "failed" | "landed" | string
+  branch: string | null
+  member_count: number
+  workflow_id: number | null
+  workflow_state: string | null
+  current_step_kind: string | null
+  current_step_label: string | null
+  reconciliation: MergeTrainReconciliationStatus | null
+  failure_reason: string | null
+}
+
 export type EpicStateTransition = {
   label: string
   target_state: string
@@ -153,6 +176,7 @@ export type EpicOriginChat = {
 export type EpicDetailPayload = {
   message?: string | null
   origin_chat?: EpicOriginChat | null
+  merge_train_status?: MergeTrainStatus | null
   epic: EpicDetailRecord
   summary: EpicDetailSummary
   state_transitions: EpicStateTransition[]
