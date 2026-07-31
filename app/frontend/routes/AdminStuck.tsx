@@ -74,6 +74,7 @@ function StuckTable({ items, prefix }: { items: StuckItem[]; prefix: string }) {
         <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
           <tr>
             <th className="px-4 py-2">{t("stuck.col_severity")}</th>
+            <th className="px-4 py-2">{t("stuck.col_status")}</th>
             <th className="px-4 py-2">{t("stuck.col_kind")}</th>
             <th className="px-4 py-2">{t("stuck.col_detail")}</th>
             <th className="px-4 py-2">{t("stuck.col_context")}</th>
@@ -89,6 +90,7 @@ function StuckTable({ items, prefix }: { items: StuckItem[]; prefix: string }) {
                   {item.severity}
                 </span>
               </td>
+              <td className="px-4 py-2 text-xs text-gray-600 dark:text-gray-300">{statusLabel(item.attention_state, t)}</td>
               <td className="px-4 py-2 font-mono text-xs text-gray-700 dark:text-gray-200">{item.kind}</td>
               <td className="px-4 py-2 text-gray-700 dark:text-gray-200">{item.detail}</td>
               <td className="px-4 py-2 text-xs text-gray-600 dark:text-gray-300">{contextLabel(item)}</td>
@@ -126,6 +128,14 @@ function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?
 
 function severityClass(severity: string) {
   return severity === "alarm" ? "bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300" : "bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300"
+}
+
+function statusLabel(status: string | undefined, t: (key: string) => string) {
+  if (status === "auto_repairable") return t("stuck.status_auto_repairable")
+  if (status === "operator_action_required") return t("stuck.status_operator_action_required")
+  if (status === "repaired") return t("stuck.status_repaired")
+  if (status === "waiting") return t("stuck.status_waiting")
+  return status || "-"
 }
 
 function contextLabel(item: StuckItem) {

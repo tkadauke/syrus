@@ -1,137 +1,178 @@
 module Admin
-  # Computes the "stuck things" watchlist used by the admin
-  # overview's tile + the dedicated stuck list pages. One
-  # source of truth so the two views can't drift.
-  #
-  # Returns Items, each with:
-  #   :kind      — :stale_heartbeat | :reaper_starved | :queued_workflow_no_run | :nearly_pruned
-  #   :severity  — :warn | :alarm
-  #   :detail    — short human description
-  #   :run       — Run record, when applicable
-  #   :workflow  — Workflow record, when applicable
-  #   :job       — Job record, always
-  #   :age_label — formatted age ("12m", "2d", "3h")
-  #
-  # Two heartbeat thresholds:
-  #   ADMIN_STUCK_THRESHOLD — concerning but not yet dead.
-  #   Run::STALE_HEARTBEAT_THRESHOLD — the reaper's cap; if a Run
-  #     is still running past this point, the reaper may be starved.
+  # Reconciler-backed "stuck things" watchlist used by the admin overview,
+  # dedicated stuck page, token API, and chat MCP admin tools.
   class StuckItems
-    ADMIN_STUCK_THRESHOLD = 5.minutes
+    Item = Data.define(
+      :kind,
+      :severity,
+      :reconciler_severity,
+      :detail,
+      :age_label,
+      :run,
+      :workflow,
+      :job,
+      :issue,
+      :repair_plan,
+      :repair_execution,
+      :attention_state
+    )
 
-    Item = Data.define(:kind, :severity, :detail, :age_label, :run, :workflow, :job)
+    WAITING_ACTIONS = %w[
+      diagnose_queue_starvation
+      schedule_retry_after_rate_limit
+      wait_for_agent_capacity
+      wait_for_blocker_or_operator_override
+      wait_for_capacity
+      wait_for_dependency_or_stack_readiness
+      wait_for_main_health
+      retry_or_archive_before_workspace_prune
+    ].freeze
 
     def self.all
       new.all
     end
 
+    def self.for_job(job)
+      new(job_id: job.id).all
+    end
+
+    def initialize(job_id: nil, now: Time.current)
+      @job_id = job_id
+      @now = now
+    end
+
     def all
-      stale_runs + queued_workflows_without_runs + orphaned_jobs + nearly_pruned_workflows
+      result.issues.each_with_index.map do |issue, index|
+        build_item(issue, result.repair_plans[index], repair_execution_for(result.repair_plans[index]))
+      end
     end
 
     private
 
-    def stale_runs
-      stuck_cutoff  = ADMIN_STUCK_THRESHOLD.ago
-      reaper_cutoff = Run::STALE_HEARTBEAT_THRESHOLD.ago
+    attr_reader :job_id, :now
 
-      Run.where(state: "running")
-         .where(
-           "(last_heartbeat_at IS NOT NULL AND last_heartbeat_at < :t) OR " \
-           "(last_heartbeat_at IS NULL AND started_at < :t)",
-           t: stuck_cutoff
-         )
-         .includes(:job, step: :workflow)
-         .map do |r|
-        last_signal = r.last_heartbeat_at || r.started_at
-        past_reaper = last_signal && last_signal < reaper_cutoff
+    def result
+      @result ||= WorkEngine::Reconciler.call(source: self.class.name, job_id: job_id, now: now)
+    end
 
-        Item.new(
-          kind:      past_reaper ? :reaper_starved : :stale_heartbeat,
-          severity:  past_reaper ? :alarm : :warn,
-          detail:    detail_for_run(r, last_signal, past_reaper),
-          age_label: age_label_for(last_signal),
-          run:       r,
-          workflow:  r.step&.workflow,
-          job:       r.job
-        )
+    def build_item(issue, repair_plan, repair_execution)
+      run = record_for(Run, issue, :run_ids)
+      workflow = record_for(Workflow, issue, :workflow_ids) || run&.workflow
+      job = record_for(Job, issue, :job_ids) || workflow&.job || run&.job
+
+      Item.new(
+        kind: issue.kind,
+        severity: severity_for(issue),
+        reconciler_severity: issue.severity,
+        detail: detail_for(issue, repair_plan, job),
+        age_label: age_label_for(age_timestamp(issue, run, workflow, job)),
+        run: run,
+        workflow: workflow,
+        job: job,
+        issue: issue,
+        repair_plan: repair_plan,
+        repair_execution: repair_execution,
+        attention_state: attention_state_for(repair_plan, repair_execution)
+      )
+    end
+
+    def record_for(klass, issue, key)
+      id = issue.affected_ids.fetch(key, []).first
+      klass.find_by(id: id)
+    end
+
+    def repair_execution_for(repair_plan)
+      return nil unless repair_plan
+
+      result.repair_executions.find do |execution|
+        execution.action == repair_plan.action &&
+          execution.target_type == repair_plan.target_type &&
+          execution.target_id == repair_plan.target_id
       end
     end
 
-    def nearly_pruned_workflows
-      cutoff = (WorkflowWorkspacePruneJob::RETAIN_AFTER_FAILURE - 1.day).ago
-      Workflow.where(state: "failed")
-              .where(cleaned_up_at: nil)
-              .where("finished_at < ?", cutoff)
-              .includes(:job)
-              .map do |wf|
-        Item.new(
-          kind:      :nearly_pruned,
-          severity:  :warn,
-          detail:    "#{wf.slug} (#{wf.trigger_kind}) failed — workspace about to be pruned",
-          age_label: age_label_for(wf.finished_at),
-          run:       nil,
-          workflow:  wf,
-          job:       wf.job
-        )
+    def severity_for(issue)
+      issue.severity.in?(%w[error critical]) ? "alarm" : "warn"
+    end
+
+    def attention_state_for(repair_plan, repair_execution)
+      return "repaired" if repair_execution&.status == "applied"
+      return "operator_action_required" unless repair_plan
+      return "auto_repairable" if repair_plan.auto_executable
+      return "waiting" if WAITING_ACTIONS.include?(repair_plan.action)
+
+      "operator_action_required"
+    end
+
+    def detail_for(issue, repair_plan, job)
+      case issue.kind
+      when "queued_run_without_queue_claim"
+        "Stale queue claim missing: #{issue.explanation} The reconciler can re-enqueue the same Run."
+      when "queued_run_stale_queue_claim"
+        "Stale queue claim: #{issue.explanation} Waiting avoids duplicating work while the queue claim is investigated."
+      when "resource_congestion"
+        "Queue starvation or worker capacity pressure: #{issue.explanation}"
+      when "dependency_stack_start_block"
+        dependency_detail(issue, job)
+      when "main_health_start_block"
+        "Main health blocked: #{issue.explanation}"
+      when "retryable_run_failure"
+        "Failed step retryable: #{issue.explanation} #{repair_plan&.reason}"
+      when "nonretryable_semantic_git_failure"
+        "Operator action required: #{issue.explanation} #{repair_plan&.reason}"
+      when "job_without_active_workflow"
+        "Operator action required: #{issue.explanation}"
+      else
+        [ issue.explanation, repair_plan&.reason ].compact.join(" ")
+      end.squish
+    end
+
+    def dependency_detail(issue, job)
+      return "Dependency blocked: #{issue.explanation}" unless job
+
+      unsuccessful = job.unsatisfied_dependencies.select do |dependency|
+        dependency.depends_on_job&.closed? && !dependency.dependency_succeeded?
+      end
+      if unsuccessful.any?
+        labels = unsuccessful.map { |dependency| dependency.depends_on_job.slug }.to_sentence
+        "Unsuccessful closed dependency: #{job.slug} is blocked because #{labels} closed without a successful dependency resolution."
+      else
+        "Dependency blocked: #{issue.explanation}"
       end
     end
 
-    def queued_workflows_without_runs
-      cutoff = ReapStaleRunsJob::ORPHAN_RUN_GRACE_PERIOD.ago
-      Workflow.where(state: "queued")
-              .where("created_at < ?", cutoff)
-              .includes(:job, :steps)
-              .filter_map do |wf|
-        first = wf.steps.find { |step| step.position.zero? }
-        next unless first&.queued?
-        next if first.runs.exists?
-        next unless wf.job&.open?
-
-        Item.new(
-          kind:      :queued_workflow_no_run,
-          severity:  wf.landing_workflow? ? :alarm : :warn,
-          detail:    "#{wf.slug} (#{wf.trigger_kind}) queued for #{age_label_for(wf.created_at)} with no first Run",
-          age_label: age_label_for(wf.created_at),
-          run:       nil,
-          workflow:  wf,
-          job:       wf.job
-        )
-      end
-    end
-
-    def orphaned_jobs
-      Job.where(state: %w[running landing])
-         .where.not(id: Workflow.active.select(:job_id))
-         .where("updated_at < ?", ADMIN_STUCK_THRESHOLD.ago)
-         .includes(:repository)
-         .map do |job|
-        Item.new(
-          kind:      :job_without_active_workflow,
-          severity:  :alarm,
-          detail:    "#{job.slug} is #{job.state}, but has no active workflow",
-          age_label: age_label_for(job.updated_at),
-          run:       nil,
-          workflow:  nil,
-          job:       job
-        )
-      end
-    end
-
-    def detail_for_run(run, last_signal, past_reaper)
-      base = "Run ##{run.id} silent for #{age_label_for(last_signal)}"
-      past_reaper ? "#{base} — past reaper threshold, but still `running`. ReapStaleRunsJob may be starved." : base
+    def age_timestamp(issue, run, workflow, job)
+      [
+        issue.evidence["last_heartbeat_at"],
+        issue.evidence["started_at"],
+        issue.evidence["created_at"],
+        issue.evidence["finished_at"],
+        issue.evidence["updated_at"],
+        run&.last_heartbeat_at,
+        run&.started_at,
+        workflow&.started_at,
+        workflow&.created_at,
+        job&.updated_at
+      ].compact.filter_map { |value| parse_time(value) }.first
     end
 
     def age_label_for(time)
-      return "—" if time.nil?
-      seconds = (Time.current - time).to_i
+      return "-" if time.nil?
+      seconds = (now - time).to_i
       return "#{seconds}s" if seconds < 60
       mins = seconds / 60
       return "#{mins}m" if mins < 60
       hours = mins / 60
       return "#{hours}h" if hours < 48
       "#{hours / 24}d"
+    end
+
+    def parse_time(value)
+      return value.to_time if value.respond_to?(:to_time)
+
+      Time.iso8601(value.to_s)
+    rescue ArgumentError, TypeError
+      nil
     end
   end
 end

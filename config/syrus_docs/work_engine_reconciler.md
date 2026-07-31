@@ -64,6 +64,7 @@ The classifier currently emits these families:
 - `queued_workflow_without_first_run`
 - `running_workflow_without_active_descendants`
 - `job_workflow_state_drift`
+- `job_without_active_workflow`
 - `unambiguous_job_state_drift`
 - `completed_main_grader_job`
 - `dependency_stack_start_block`
@@ -75,6 +76,7 @@ The classifier currently emits these families:
 - `resumable_agent_session_missing`
 - `retryable_run_failure`
 - `nonretryable_semantic_git_failure`
+- `workflow_workspace_prune_risk`
 
 `safe_to_auto_repair` only describes whether the repair planner may choose an
 automatic action. The classifier and planner are side-effect free; mutations are
@@ -106,6 +108,26 @@ Planner examples:
   unless an existing safe rebuild path is declared, such as merge-train rebuild.
 - Main-health, dependency, stack, and capacity blocks return waiting plans, not
   failed retries.
+
+## Stuck visibility and explanations
+
+Admin stuck surfaces are reconciler-backed. The admin overview health tile,
+dedicated stuck list, token admin stuck API, `admin_stuck_jobs`, and
+`explain_stuck_job` all expose the same issue kinds, evidence, repair plans,
+and derived attention state:
+
+- `auto_repairable` when the plan is safe for automatic execution
+- `waiting` when the plan is blocked by queue capacity, dependency or stack
+  readiness, main-branch health, provider rate limits, or queue-claim
+  diagnosis
+- `operator_action_required` for semantic failures, unsafe state drift, missing
+  workspaces, and other non-idempotent cases
+- `repaired` when a repair execution result reports an applied action
+
+The stuck copy distinguishes stale queue claims, queue starvation/capacity
+pressure, dependency blocks, unsuccessful closed dependencies, main-health
+blocks, retryable failed steps, and semantic/operator-needed failures from the
+reconciler issue and repair-plan pair.
 
 ## Repair execution
 

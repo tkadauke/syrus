@@ -57,7 +57,7 @@ RSpec.describe "API: /api/v1/admin/overview", type: :request do
       get "/api/v1/admin/overview", headers: auth
       stuck = parse_body["stuck"]
       expect(stuck).not_to be_empty
-      expect(stuck.first["kind"]).to eq("stale_heartbeat")
+      expect(stuck.first["kind"]).to eq("running_run_without_live_worker_evidence")
       expect(stuck.first["run_id"]).to eq(run.id)
     end
 
@@ -74,7 +74,7 @@ RSpec.describe "API: /api/v1/admin/overview", type: :request do
 
       item = parse_body["items"].find { |row| row["workflow_id"] == workflow.id }
       expect(item).to include(
-        "kind" => "queued_workflow_no_run",
+        "kind" => "queued_workflow_without_first_run",
         "severity" => "alarm",
         "job_id" => job.id,
         "workflow_trigger_kind" => "auto_merge",
@@ -167,7 +167,7 @@ RSpec.describe "API: /api/v1/admin/overview", type: :request do
       get "/api/v1/admin/stuck", headers: auth
       expect(response).to be_successful
       items = parse_body["items"]
-      expect(items.first["kind"]).to eq("stale_heartbeat")
+      expect(items.first["kind"]).to eq("running_run_without_live_worker_evidence")
       expect(items.first["severity"]).to eq("warn")
     end
   end

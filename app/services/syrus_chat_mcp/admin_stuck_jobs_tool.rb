@@ -23,23 +23,15 @@ module SyrusChatMcp
       end
 
       def stuck_job_payload(item)
-        run = item.run
-        workflow = item.workflow
         job = item.job
-
-        {
+        ::Admin::StuckItemPayload.serialize(item: item, include_actions: false).merge(
           id: job&.id,
           title: job&.issue_title,
           state: job&.state,
-          last_heartbeat_at: run&.last_heartbeat_at&.iso8601,
-          workflow_state: workflow&.state,
-          run_state: run&.state,
-          kind: item.kind.to_s,
-          severity: item.severity.to_s,
-          detail: item.detail,
-          workflow_id: workflow&.id,
-          run_id: run&.id
-        }
+          last_heartbeat_at: item.run&.last_heartbeat_at&.iso8601,
+          workflow_state: item.workflow&.state,
+          run_state: item.run&.state
+        )
       end
     end
   end

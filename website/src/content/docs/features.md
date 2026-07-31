@@ -71,6 +71,12 @@ marking dead running Runs as `worker_died`, scheduling retry or resume recovery,
 finishing terminal orphan Workflows, and repairing unambiguous Job/Workflow
 state drift.
 
+The same classifications power stuck visibility. Admin overview health, the
+dedicated stuck list, and chat explanations distinguish stale queue claims,
+queue starvation, dependency blocks, unsuccessful closed dependencies,
+retryable failed steps, main-health blocks, and semantic operator-needed
+failures from the same reconciler evidence and repair plan.
+
 ## Coding Mode
 
 When the `coding_mode` feature flag is enabled and a chat session is in coding
@@ -385,8 +391,12 @@ settings panel lists, filters, edits, publishes, unpublishes, and deletes
 memories, with admins able to manage memories across users.
 
 Admin users also get chat tools for operational diagnostics: overview,
-stuck Jobs, queue tabs, spawned processes, Runs, users, and running
-instance versions. State-changing admin tools, such as pausing runs,
+stuck Jobs, stuck explanations, queue tabs, spawned processes, Runs, users,
+and running instance versions. The stuck views and `explain_stuck_job` tool
+use the work-engine reconciler's classifications and repair plans, so they
+show whether Syrus is waiting on capacity, dependencies, main health, or rate
+limits; can safely auto-repair; already repaired the issue; or needs operator
+action. State-changing admin tools, such as pausing runs,
 killing a process, clearing the GitHub cache, or refreshing installations,
 create pending actions and wait for operator confirmation before applying.
 Non-admin chats do not advertise those tools, and each admin tool repeats

@@ -3,6 +3,8 @@ import { getJson, postJson } from "./client"
 export type StuckItem = {
   kind: string
   severity: "warn" | "alarm" | string
+  reconciler_severity?: string
+  attention_state?: "repaired" | "waiting" | "auto_repairable" | "operator_action_required" | string
   detail: string
   age_label: string
   run_id: number | null
@@ -16,6 +18,9 @@ export type StuckItem = {
   job_path: string | null
   force_fail_path: string | null
   has_transcript: boolean
+  issue?: Record<string, unknown> | null
+  repair_plan?: Record<string, unknown> | null
+  repair_execution?: Record<string, unknown> | null
 }
 
 export type AdminStuckPayload = {

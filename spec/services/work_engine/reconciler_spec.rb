@@ -104,6 +104,33 @@ RSpec.describe WorkEngine::Reconciler do
     )
   end
 
+  it "classifies a queued retry Run inside a running Workflow that has previous Runs" do
+    ensure_solid_queue_test_tables!
+    run.update_columns(state: "failed", finished_at: 6.minutes.ago)
+    retry_run = step.runs.create!(
+      job: job,
+      user: job.user,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider,
+      state: "queued",
+      created_at: 5.minutes.ago,
+      updated_at: 5.minutes.ago
+    )
+    clear_solid_queue_test_tables!
+    workflow.update_columns(state: "running", started_at: 6.minutes.ago)
+    step.update_columns(state: "queued")
+
+    result = reconcile(workflow_id: workflow.id)
+    issue = result.issues.find do |candidate|
+      candidate.kind == "queued_run_without_queue_claim" &&
+        candidate.affected_ids[:run_ids] == [ retry_run.id ]
+    end
+
+    expect(issue).to be_present
+    expect(issue.safe_to_auto_repair).to eq(true)
+    expect(plan(result, :reenqueue_run)).to have_attributes(target_id: retry_run.id)
+  end
+
   it "executes safe queued Run re-enqueue repairs when requested" do
     ensure_solid_queue_test_tables!
     run.update_columns(state: "queued", created_at: 5.minutes.ago, updated_at: 5.minutes.ago)

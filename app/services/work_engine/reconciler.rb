@@ -138,6 +138,7 @@ module WorkEngine
       issues.concat(classify_running_runs)
       issues.concat(classify_workflows)
       issues.concat(classify_job_workflow_drift)
+      issues.concat(classify_jobs_without_active_workflows)
       issues.concat(classify_unambiguous_job_state_drift)
       issues.concat(classify_completed_main_grader_jobs)
       issues.concat(classify_start_blocks)
@@ -147,6 +148,7 @@ module WorkEngine
       issues.concat(classify_resumable_sessions)
       issues.concat(classify_retryable_failures)
       issues.concat(classify_nonretryable_failures)
+      issues.concat(classify_workspace_prune_risks)
 
       result = Result.new(source: source, captured_at: now, snapshot: snapshot, issues: issues, repair_plans: [], repair_executions: [])
       repair_plans = WorkEngine::RepairPlanner.call(result: result, now: now)
@@ -244,7 +246,7 @@ module WorkEngine
 
         issue(
           kind: :running_run_without_live_worker_evidence,
-          severity: heartbeat_stale ? :critical : :error,
+          severity: heartbeat_stale ? :critical : :warning,
           affected_ids: ids_for(run).merge(solid_queue_job_ids: [ sq&.dig(:id) ], spawned_process_ids: [ live_process&.id ]),
           safe_to_auto_repair: heartbeat_stale && run.may_fail?,
           recommended_repair_action: heartbeat_stale ? "fail_run_as_worker_died" : "capture_diagnostics",
@@ -323,6 +325,29 @@ module WorkEngine
             reason: plan.reason
           },
           explanation: "Job ##{job.id} has unambiguous Workflow-derived state drift."
+        )
+      end
+    end
+
+    def classify_jobs_without_active_workflows
+      jobs.filter_map do |job|
+        next unless job.state.in?(%w[running landing])
+        next if workflows.any? { |workflow| workflow.job_id == job.id && %w[queued running].include?(workflow.state) }
+        next unless older_than?(job.updated_at, RESOURCE_CONGESTION_CHECK_AFTER)
+
+        issue(
+          kind: :job_without_active_workflow,
+          severity: :critical,
+          affected_ids: ids_for(job).merge(workflow_ids: [ job.latest_workflow&.id ]),
+          safe_to_auto_repair: false,
+          recommended_repair_action: "operator_review_state_transition",
+          evidence: {
+            job_state: job.state,
+            latest_workflow_id: job.latest_workflow&.id,
+            latest_workflow_state: job.latest_workflow&.state,
+            updated_at: job.updated_at&.iso8601
+          },
+          explanation: "Job ##{job.id} is #{job.state}, but has no active Workflow."
         )
       end
     end
@@ -514,6 +539,28 @@ module WorkEngine
             reason: classification.reason
           ),
           explanation: "Run ##{run.id} failed with a nonretryable semantic or git classification."
+        )
+      end
+    end
+
+    def classify_workspace_prune_risks
+      cutoff = now - (WorkflowWorkspacePruneJob::RETAIN_AFTER_FAILURE - 1.day)
+      workflows.filter_map do |workflow|
+        next unless workflow.failed?
+        next if workflow.cleaned_up_at.present?
+        next unless workflow.finished_at.present? && workflow.finished_at < cutoff
+
+        issue(
+          kind: :workflow_workspace_prune_risk,
+          severity: :warning,
+          affected_ids: ids_for(workflow),
+          safe_to_auto_repair: false,
+          recommended_repair_action: "retry_or_archive_before_workspace_prune",
+          evidence: workflow_evidence(workflow).merge(
+            finished_at: workflow.finished_at&.iso8601,
+            prune_after: (workflow.finished_at + WorkflowWorkspacePruneJob::RETAIN_AFTER_FAILURE).iso8601
+          ),
+          explanation: "Workflow ##{workflow.id} failed and its workspace is close to the retention cutoff."
         )
       end
     end

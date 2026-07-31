@@ -279,6 +279,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
       expect(tool_names).not_to include(
         "admin_overview",
         "admin_stuck_jobs",
+        "explain_stuck_job",
         "admin_queue_detail",
         "admin_list_processes",
         "admin_list_runs",
@@ -327,6 +328,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
       expect(tool_names).to include(
         "admin_overview",
         "admin_stuck_jobs",
+        "explain_stuck_job",
         "admin_queue_detail",
         "admin_list_processes",
         "admin_list_runs",
@@ -346,7 +348,7 @@ RSpec.describe SyrusChatMcp::Sidecar do
         "admin_refresh_installations",
         "force_fail_job"
       )
-      admin_tool_names = tool_names.select { |name| name.start_with?("admin_") || name == "force_fail_job" }
+      admin_tool_names = tool_names.select { |name| name.start_with?("admin_") || name.in?(%w[explain_stuck_job force_fail_job]) }
       expect(described_class.tool_names(tier: :essential)).to include(*admin_tool_names)
       expect(described_class.tool_names(tier: :deferred)).not_to include(*tool_names.grep(/\Aadmin_/))
     end

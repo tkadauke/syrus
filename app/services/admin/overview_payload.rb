@@ -122,34 +122,7 @@ module Admin
     end
 
     def stuck_items
-      ::Admin::StuckItems.all.map { |i| serialize_stuck(i) }
-    end
-
-    def serialize_stuck(item)
-      {
-        kind: item.kind.to_s,
-        severity: item.severity.to_s,
-        detail: item.detail,
-        age_label: item.age_label,
-        run_id: item.run&.id,
-        workflow_id: item.workflow&.id,
-        workflow_slug: item.workflow&.slug,
-        workflow_path: item.workflow ? App::WorkflowNavigation.path(item.workflow) : nil,
-        workflow_trigger_kind: item.workflow&.trigger_kind,
-        step_kind: item.workflow&.current_step&.kind,
-        job_id: item.job&.id,
-        job_state: item.job&.state,
-        job_path: item.job ? "/jobs/#{item.job.id}" : nil,
-        force_fail_path: force_fail_path_for(item.job),
-        has_transcript: item.run&.claude_session.present?
-      }
-    end
-
-    def force_fail_path_for(job)
-      return unless job&.state.in?(%w[running queued implemented approved landing])
-      return unless job.may_force_fail?
-
-      "/api/v1/app/jobs/#{job.id}/force_fail"
+      ::Admin::StuckItems.all.map { |item| ::Admin::StuckItemPayload.serialize(item: item) }
     end
   end
 end

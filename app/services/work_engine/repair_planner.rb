@@ -480,6 +480,15 @@ module WorkEngine
         end
       end
 
+      class JobWithoutActiveWorkflow < Base
+        def plan
+          operator_plan(
+            "operator_review_state_transition",
+            "The Job is still marked active, but no queued or running Workflow owns work for it."
+          )
+        end
+      end
+
       class UnambiguousJobStateDrift < Base
         def plan
           automatic_plan(
@@ -550,6 +559,15 @@ module WorkEngine
           operator_plan(
             "operator_review_missing_workspace",
             "The workspace needed for an in-place repair is missing; starting over must be chosen deliberately."
+          )
+        end
+      end
+
+      class WorkflowWorkspacePruneRisk < Base
+        def plan
+          waiting_plan(
+            "retry_or_archive_before_workspace_prune",
+            "The failed Workflow workspace is near the retention cutoff; retry or inspect it before pruning if the local state matters."
           )
         end
       end

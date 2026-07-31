@@ -16,6 +16,7 @@ RSpec.describe "SyrusChatMcp admin tools" do
   ADMIN_TOOLS = {
     "admin_overview" => {},
     "admin_stuck_jobs" => {},
+    "explain_stuck_job" => { job_id: 1 },
     "admin_queue_detail" => { tab: "pending" },
     "admin_list_processes" => {},
     "admin_list_runs" => {},
@@ -164,9 +165,33 @@ RSpec.describe "SyrusChatMcp admin tools" do
       id: job.id,
       title: "Silent run",
       state: job.reload.state,
+      kind: "running_run_without_live_worker_evidence",
+      attention_state: "operator_action_required",
       last_heartbeat_at: run.reload.last_heartbeat_at.iso8601,
       workflow_state: "running",
       run_state: "running",
+      workflow_id: workflow.id,
+      run_id: run.id
+    )
+    expect(payload.fetch(:items).first.fetch(:repair_plan)).to include(action: "capture_run_diagnostics")
+  end
+
+  it "explains one stuck Job from reconciler issues and repair plans" do
+    job = Factories.job(user: admin, repository: repository, issue_title: "Silent run")
+    run = job.initial_run
+    workflow = run.step.workflow
+    workflow.update_columns(state: "running", started_at: 10.minutes.ago)
+    run.update_columns(state: "running", started_at: 10.minutes.ago, last_heartbeat_at: 10.minutes.ago)
+
+    response = call_tool(admin_session, "explain_stuck_job", { job_id: job.id })
+    payload = payload_for(response)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(payload).to include(stuck: true)
+    expect(payload.fetch(:job)).to include(id: job.id, title: "Silent run", state: job.reload.state)
+    expect(payload.fetch(:issues).first).to include(
+      kind: "running_run_without_live_worker_evidence",
+      attention_state: "operator_action_required",
       workflow_id: workflow.id,
       run_id: run.id
     )

@@ -74,4 +74,7 @@ Diagnostic reconciler calls remain read-only by default. The feature-gated
 recurring repair path executes only repair plans marked `auto_executable`, and
 audits each action to system logs plus `JobLog` when a Run is available. See
 `work_engine_reconciler.md` for the issue families, result shape, and execution
-contract.
+contract. Admin stuck visibility and the structured `explain_stuck_job` chat
+tool use the reconciler's read-only classifications and repair plans so
+operators see the same reason, wait/repair/operator status, and evidence that
+the repair loop uses.
