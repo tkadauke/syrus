@@ -399,6 +399,13 @@ class ChatTurnJob < ApplicationJob
       return if tool_name.blank?
 
       flush_current_assistant_content!
+      McpToolUsageRecorder.record_chat_tool_call(
+        chat_session: @chat,
+        tool_name: tool_name,
+        tool_use_id: tool_use_id,
+        tool_input: tool_input,
+        provider: @chat.effective_chat_provider
+      ) if mcp_tool_name?(tool_name)
       @chat.messages.create!(
         role: "tool_use",
         tool_name: tool_name,
@@ -414,6 +421,16 @@ class ChatTurnJob < ApplicationJob
       return if tool_name.blank? && tool_use_id.blank? && tool_result_content.blank?
 
       flush_current_assistant_content!
+      if mcp_tool_name?(tool_name) || mcp_tool_result_id?(tool_use_id)
+        McpToolUsageRecorder.record_chat_tool_result(
+          chat_session: @chat,
+          tool_name: tool_name,
+          tool_use_id: tool_use_id,
+          content: tool_result_content,
+          error: tool_result_error == true,
+          provider: @chat.effective_chat_provider
+        )
+      end
       @chat.messages.create!(
         role: "tool_result",
         tool_name: tool_name,
@@ -432,6 +449,15 @@ class ChatTurnJob < ApplicationJob
 
       create_message!("system", system_content_for(chunk, mcp_servers: mcp_servers))
     end
+  end
+
+  def mcp_tool_name?(tool_name)
+    name = tool_name.to_s
+    name.start_with?("mcp__") || name.include?(".")
+  end
+
+  def mcp_tool_result_id?(tool_use_id)
+    tool_use_id.present? && McpToolUsage.where(chat_session: @chat, tool_use_id: tool_use_id.to_s).exists?
   end
 
   def flush_current_assistant_content!

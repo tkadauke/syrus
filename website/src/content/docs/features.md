@@ -367,6 +367,9 @@ Chat transcripts also surface MCP sidecar health. Syrus distinguishes
 available, pending, and unavailable chat tools so operators can tell when
 proposal, schedule, bookmark, or whiteboard persistence is not ready and
 retry the turn or inspect worker logs instead of chasing blind retries.
+Workflow and chat MCP calls are also recorded as durable usage rows so the
+admin API can report top tools, unused advertised tools, error rates, and
+chat-versus-workflow usage over a time window without reparsing transcripts.
 Provider usage-limit and quota-exhaustion failures are surfaced as prominent
 chat banners. When Syrus can identify the provider/model, it halts automation
 for that scope immediately; when the model is unclear, it fails closed at the

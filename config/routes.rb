@@ -275,6 +275,7 @@ Rails.application.routes.draw do
             end
           end
           get "runs/:run_id/transcript", to: "transcripts#show"
+          get "mcp_tool_usage", to: "mcp_tool_usage#show"
           resources :users, only: %i[ index show update ] do
             member do
               post :pause_scheduling
@@ -337,6 +338,7 @@ Rails.application.routes.draw do
         # plus a raw-JSONL pass-through.
         get "runs/:run_id/transcript",     to: "transcripts#show"
         get "runs/:run_id/transcript/raw", to: "transcripts#raw"
+        get "mcp_tool_usage",              to: "mcp_tool_usage#show"
 
         # Queue introspection for external admin API clients.
         get  "queue/active",              to: "queue#active"

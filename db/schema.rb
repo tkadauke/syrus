@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_31_124500) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_31_170000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -906,6 +906,44 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_124500) do
     t.index ["workflow_id"], name: "index_main_concern_reports_on_workflow_id"
   end
 
+  create_table "mcp_tool_usages", force: :cascade do |t|
+    t.integer "chat_session_id"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.boolean "error", default: false, null: false
+    t.string "error_class"
+    t.string "error_message_summary", limit: 512
+    t.integer "input_bytes"
+    t.integer "job_id"
+    t.string "normalized_tool_name", null: false
+    t.string "provider"
+    t.string "raw_tool_name", null: false
+    t.integer "repository_id"
+    t.integer "result_bytes"
+    t.integer "run_id"
+    t.string "server_name"
+    t.string "session_id"
+    t.datetime "started_at"
+    t.string "status", null: false
+    t.string "surface", null: false
+    t.string "tool_name", null: false
+    t.string "tool_use_id"
+    t.datetime "updated_at", null: false
+    t.integer "user_id"
+    t.integer "workflow_id"
+    t.index ["chat_session_id", "tool_use_id"], name: "index_mcp_tool_usages_on_chat_session_id_and_tool_use_id"
+    t.index ["chat_session_id"], name: "index_mcp_tool_usages_on_chat_session_id"
+    t.index ["job_id"], name: "index_mcp_tool_usages_on_job_id"
+    t.index ["repository_id"], name: "index_mcp_tool_usages_on_repository_id"
+    t.index ["run_id", "tool_use_id"], name: "index_mcp_tool_usages_on_run_id_and_tool_use_id"
+    t.index ["run_id"], name: "index_mcp_tool_usages_on_run_id"
+    t.index ["server_name", "normalized_tool_name", "created_at"], name: "idx_mcp_tool_usages_server_tool_window"
+    t.index ["surface", "created_at"], name: "index_mcp_tool_usages_on_surface_and_created_at"
+    t.index ["surface", "normalized_tool_name", "created_at"], name: "idx_mcp_tool_usages_surface_tool_window"
+    t.index ["user_id"], name: "index_mcp_tool_usages_on_user_id"
+    t.index ["workflow_id"], name: "index_mcp_tool_usages_on_workflow_id"
+  end
+
   create_table "merge_train_members", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.integer "job_id", null: false
@@ -1532,6 +1570,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_31_124500) do
   add_foreign_key "main_concern_reports", "repositories"
   add_foreign_key "main_concern_reports", "runs"
   add_foreign_key "main_concern_reports", "workflows"
+  add_foreign_key "mcp_tool_usages", "chat_sessions"
+  add_foreign_key "mcp_tool_usages", "jobs"
+  add_foreign_key "mcp_tool_usages", "repositories"
+  add_foreign_key "mcp_tool_usages", "runs"
+  add_foreign_key "mcp_tool_usages", "users"
+  add_foreign_key "mcp_tool_usages", "workflows"
   add_foreign_key "merge_train_members", "jobs"
   add_foreign_key "merge_train_members", "merge_trains"
   add_foreign_key "merge_trains", "epics"

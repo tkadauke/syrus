@@ -8,6 +8,7 @@ class Workflow < ApplicationRecord
   belongs_to :job
   belongs_to :user
   has_many :steps, -> { order(:position) }, dependent: :destroy
+  has_many :mcp_tool_usages, dependent: :nullify
   has_many :auto_retry_attempts, dependent: :destroy
   has_one_attached :coverage_hit_map
 

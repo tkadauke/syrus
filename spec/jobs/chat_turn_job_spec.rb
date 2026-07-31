@@ -1703,6 +1703,37 @@ RSpec.describe ChatTurnJob do
     expect(tool_result_msg.tool_use_id).to eq("toolu_r1")
   end
 
+  it "records chat MCP usage while preserving tool messages" do
+    ChatTurnJob.agent_runner = ->(log_sink:, **_) {
+      log_sink.call("● repo_info(...)", kind: "tool_call",
+                                      tool_name: "mcp__syrus-chat-sidecar__repo_info",
+                                      tool_input: { "repo" => repository.slug },
+                                      tool_use_id: "mcp_1")
+      log_sink.call("ok", kind: "tool_result",
+                          tool_name: "mcp__syrus-chat-sidecar__repo_info",
+                          tool_result_content: { "slug" => repository.slug },
+                          tool_result_error: false,
+                          tool_use_id: "mcp_1")
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    usage = McpToolUsage.sole
+    expect(usage).to have_attributes(
+      surface: "chat",
+      provider: chat.effective_chat_provider,
+      server_name: "syrus-chat-sidecar",
+      normalized_tool_name: "repo_info",
+      status: "completed",
+      error: false,
+      chat_session_id: chat.id,
+      repository_id: repository.id,
+      user_id: user.id
+    )
+    expect(chat.messages.where(role: %w[tool_use tool_result]).count).to eq(2)
+  end
+
   it "flushes partial assistant content before the cancellation system message on stop" do
     ChatTurnJob.agent_runner = ->(log_sink:, stop_requested:, **_) {
       log_sink.call("Working...", kind: "thinking", thinking: "Working...", signature: "s")

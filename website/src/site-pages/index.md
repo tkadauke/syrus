@@ -86,8 +86,8 @@ tasks, retries, PR feedback, and operator actions are modeled for teams,
 not just a single local coding session.
 
 **It keeps agent work auditable.** Each run records prompts, transcripts,
-tool output, diffs, PR copy, queue state, and operational logs so you can
-debug what happened after the PR exists.
+tool output, MCP usage, diffs, PR copy, queue state, and operational logs so
+you can debug what happened after the PR exists.
 
 **It handles more than first drafts.** Initial issue work, PR comments,
 CI-failure retries, scheduled maintenance, manual retries, and rebases

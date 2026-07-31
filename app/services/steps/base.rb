@@ -107,18 +107,17 @@ module Steps
         last_flush = Time.current
       end
 
-      # `**` swallows the structured kwargs that ClaudeInvocation /
-      # CodexInvocation pass on tool_use / tool_result events
-      # (tool_name, tool_input, tool_result_content, tool_use_id,
-      # …). The buffered sink only uses chunk + kind for log
-      # batching; the structured metadata is consumed by callers
-      # that wire log_sink directly (e.g. ChatTurnJob). Without the
-      # `**`, every submit_summary call (and any other MCP tool
-      # use) blows up with ArgumentError mid-run. Mirrors the
-      # `**` in RunJob#log and Steps::Base#log for the same reason.
-      sink = lambda do |chunk, kind: nil, **|
+      sink = lambda do |chunk, kind: nil, tool_name: nil, tool_input: nil,
+                       tool_result_content: nil, tool_result_error: nil,
+                       tool_use_id: nil, **|
         text = chunk.to_s
         next if text.strip.empty?  # mirrors #log: blank lines don't accumulate
+        record_mcp_tool_usage(kind: kind,
+                              tool_name: tool_name,
+                              tool_input: tool_input,
+                              tool_result_content: tool_result_content,
+                              tool_result_error: tool_result_error,
+                              tool_use_id: tool_use_id)
         flush.call if !buffer.empty? && kind != last_kind
         last_kind = kind
         buffer << text
@@ -134,6 +133,37 @@ module Steps
       rate_ok = elapsed >= LOG_FLUSH_MIN_GAP || buffer.bytesize >= LOG_FLUSH_MAX_BUF
 
       flush_due && rate_ok
+    end
+
+    def record_mcp_tool_usage(kind:, tool_name:, tool_input:, tool_result_content:, tool_result_error:, tool_use_id:)
+      return unless kind.to_s.in?(%w[tool_call tool_result])
+      return unless mcp_tool_name?(tool_name) || mcp_tool_result_id?(tool_use_id)
+
+      if kind.to_s == "tool_call"
+        McpToolUsageRecorder.record_workflow_tool_call(
+          run: run,
+          tool_name: tool_name,
+          tool_use_id: tool_use_id,
+          tool_input: tool_input
+        )
+      else
+        McpToolUsageRecorder.record_workflow_tool_result(
+          run: run,
+          tool_name: tool_name,
+          tool_use_id: tool_use_id,
+          content: tool_result_content,
+          error: tool_result_error == true
+        )
+      end
+    end
+
+    def mcp_tool_name?(tool_name)
+      name = tool_name.to_s
+      name.start_with?("mcp__") || name.include?(".")
+    end
+
+    def mcp_tool_result_id?(tool_use_id)
+      tool_use_id.present? && McpToolUsage.where(run: run, tool_use_id: tool_use_id.to_s).exists?
     end
 
     def utf8(text)
