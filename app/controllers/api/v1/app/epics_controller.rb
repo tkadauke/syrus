@@ -287,7 +287,7 @@ module Api
         end
 
         def detail_payload(epic, message: nil)
-          jobs = epic.jobs.includes(:repository, :deployment_stage_statuses, :dependencies, :dependent_links).order(:id).to_a
+          jobs = epic.jobs.includes(:repository, :deployment_stage_statuses, :dependencies, :dependent_links, :workflows).order(:id).to_a
           deployment_stages_plan = RepoDeploymentStagesReader.for_repository(epic.repository)
           blocked_dependency = epic.dependencies.includes(:depends_on_epic, :depends_on_job).find { |dependency| !dependency.dependency_succeeded? }
           graph = EpicDependencyGraphRenderer.new(epic).render
@@ -295,6 +295,7 @@ module Api
 
           {
             message: message,
+            simple_mode: AppSetting.simple?,
             merge_train_branch: active_train&.integration_branch,
             merge_train_status: ::App::MergeTrainStatus.for_epic(epic),
             origin_chat: epic_origin_chat_json(epic),
@@ -304,7 +305,8 @@ module Api
               total_jobs_count: jobs.size,
               dependency_edge_count: epic.dependencies.size + epic.dependent_links.size,
               blocked: blocked_dependency.present?,
-              blocked_reason: epic_blocked_reason(blocked_dependency)
+              blocked_reason: epic_blocked_reason(blocked_dependency),
+              review_summary: review_summary_for(jobs)
             },
             state_transitions: ::App::Presentation.epic_state_transition_options(epic).map do |label, target_state|
               {
@@ -385,6 +387,7 @@ module Api
             title: epic.title.to_s,
             description: epic.description.to_s,
             state: epic.state,
+            simple_status: simple_epic_status(epic, jobs),
             stuck: epic.stuck?,
             startable: epic.may_start_implementing?(actor: Current.user),
             # Names of unfinished dependencies keeping a backlog/ready Epic
@@ -422,6 +425,29 @@ module Api
             id: owner.id,
             email_address: owner.email_address
           }
+        end
+
+        def simple_epic_status(epic, jobs)
+          return "done" if epic.user_approved_at.present?
+          return "something_went_wrong" if jobs.any? { |job| job.closed? && !Epic::MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
+          return "working_on_it" if jobs.any?(&:open?)
+          return "ready_for_your_review" if epic.review_ready?
+          return "wrapping_up" if jobs.any? && jobs.all? { |job| job.closed? && Epic::MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
+
+          "working_on_it"
+        end
+
+        def review_summary_for(jobs)
+          latest_completed_job = jobs
+            .select(&:closed?)
+            .max_by { |job| job.finished_at || job.updated_at || job.created_at }
+          return nil unless latest_completed_job
+
+          workflow = latest_completed_job.workflows
+                                         .where(state: "succeeded")
+                                         .order(finished_at: :desc, updated_at: :desc, id: :desc)
+                                         .find { |candidate| candidate.artifact("summary").present? }
+          workflow&.artifact("summary").presence
         end
 
         def graph_json(graph)

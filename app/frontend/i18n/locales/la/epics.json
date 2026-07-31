@@ -20,6 +20,8 @@
   "more_actions": "Actiones plures",
 
   "description": "Descriptio",
+  "summary": "Summarium",
+  "summary_pending": "Syrus summarium huius rei adhuc parat.",
   "blocked": "Impedita",
   "merge_train_phase": {
     "assembling": "Merge train assembling",
@@ -136,5 +138,12 @@
   "view_in_chat": "In colloquio vide",
 
   "furthest_behind_one": "maxime post: {{count}} comissio",
-  "furthest_behind_other": "maxime post: {{count}} comissiones"
+  "furthest_behind_other": "maxime post: {{count}} comissiones",
+  "simple_status": {
+    "working_on_it": "In opere",
+    "wrapping_up": "Concluditur",
+    "ready_for_your_review": "Paratum recognitui tuo",
+    "done": "Factum",
+    "something_went_wrong": "Aliquid erravit"
+  }
 }

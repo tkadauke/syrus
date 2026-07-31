@@ -1,8 +1,10 @@
 {
   "title": "Übersicht",
+  "simple_title": "Deine Arbeit",
   "loading": "Wird geladen...",
   "load_error": "Übersicht konnte nicht geladen werden.",
   "new_epic": "Neues Epic",
+  "new_feature": "Neues Feature",
   "new_job": "Neue Aufgabe",
   "tab_epics": "Epics",
   "tab_jobs": "Aufgaben",
@@ -30,6 +32,8 @@
   "no_items_in_lane": "Keine {{subject}}",
   "empty_title": "Noch keine {{subject}}",
   "empty_description": "Noch keine {{subject}} vorhanden. Aufgaben aus einer direkten Eingabe oder einem markierten GitHub-Issue erstellen.",
+  "simple_empty_title": "Noch keine Features",
+  "simple_empty_description": "Erstelle ein Feature, wenn Syrus neue Arbeit übernehmen soll.",
   "setup_credentials_description": "Zuerst Anmeldedaten einrichten, damit Syrus mit GitHub und dem ausgewählten Agenten kommunizieren kann.",
   "setup_description": "Zuerst Setup abschließen, damit Syrus Aufgaben für ein Repository ausführen kann.",
   "open_setup": "Setup öffnen",
@@ -129,5 +133,12 @@
   "broken_main_dismiss": "Ausblenden",
   "needs_attention_aria": "Benötigt Aufmerksamkeit",
   "epic_commits_behind_one": "{{count}} Commit zurück",
-  "epic_commits_behind_other": "{{count}} Commits zurück"
+  "epic_commits_behind_other": "{{count}} Commits zurück",
+  "simple_status": {
+    "working_on_it": "In Arbeit",
+    "wrapping_up": "Wird abgeschlossen",
+    "ready_for_your_review": "Bereit zur Prüfung",
+    "done": "Fertig",
+    "something_went_wrong": "Etwas ist schiefgelaufen"
+  }
 }

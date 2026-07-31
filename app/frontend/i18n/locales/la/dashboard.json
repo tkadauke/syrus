@@ -1,8 +1,10 @@
 {
   "title": "Tabula",
+  "simple_title": "Opera tua",
   "loading": "Oneratur...",
   "load_error": "Tabula onerari non potest.",
   "new_epic": "Nova Epica",
+  "new_feature": "Novum Feature",
   "new_job": "Novum Opus",
   "tab_epics": "Epica",
   "tab_jobs": "Opera",
@@ -30,6 +32,8 @@
   "no_items_in_lane": "Nulli {{subject}}",
   "empty_title": "Nulli {{subject}} adhuc",
   "empty_description": "Nulli {{subject}} adhuc existunt. Opus ex mandato directo vel quaestione GitHub signata crea.",
+  "simple_empty_title": "Nulla Feature adhuc",
+  "simple_empty_description": "Feature crea cum Syrum novum opus agere velis.",
   "setup_credentials_description": "Primum documenta perfice ut Syrus cum GitHub et agente electo colloqui possit.",
   "setup_description": "Primum configurationem perfice ut Syrus opus contra repositorium exsequi possit.",
   "open_setup": "Configurationem aperi",
@@ -129,5 +133,12 @@
   "broken_main_dismiss": "Dimitte",
   "needs_attention_aria": "Attentionem requirit",
   "epic_commits_behind_one": "{{count}} comissio post",
-  "epic_commits_behind_other": "{{count}} comissiones post"
+  "epic_commits_behind_other": "{{count}} comissiones post",
+  "simple_status": {
+    "working_on_it": "In opere",
+    "wrapping_up": "Concluditur",
+    "ready_for_your_review": "Paratum recognitui tuo",
+    "done": "Factum",
+    "something_went_wrong": "Aliquid erravit"
+  }
 }

@@ -117,6 +117,7 @@ module App
 
     def chrome_payload
       {
+        simple_mode: AppSetting.simple?,
         subject: subject,
         view: view,
         page: page,
@@ -140,6 +141,7 @@ module App
 
     def rows_payload
       {
+        simple_mode: AppSetting.simple?,
         subject: subject,
         view: view,
         page: page,
@@ -192,6 +194,8 @@ module App
     end
 
     def subject
+      return "epic" if AppSetting.simple?
+
       @subject ||= normalize_subject(params[:subject]) ||
                    normalize_subject(params[:dashboard_subject]) ||
                    normalize_subject(user.dashboard_preferences["last_subject"]) ||
@@ -199,6 +203,8 @@ module App
     end
 
     def view
+      return "list" if AppSetting.simple?
+
       @view ||= params[:view].to_s.presence_in(available_views) ||
                 folder_pref_view ||
                 user.dashboard_preferences.dig(subject.pluralize, "last_view").to_s.presence_in(available_views) ||
@@ -207,6 +213,8 @@ module App
     end
 
     def available_views
+      return %w[list] if AppSetting.simple?
+
       subject == "workflow" ? VIEWS : VIEWS + %w[dependencies]
     end
 
@@ -529,7 +537,7 @@ module App
 
     def paths_json
       {
-        dashboard_path: dashboard_path_for(subject),
+        dashboard_path: AppSetting.simple? ? dashboard_epics_path : dashboard_path_for(subject),
         dashboard_jobs_path: dashboard_jobs_path,
         dashboard_epics_path: dashboard_epics_path,
         dashboard_workflows_path: dashboard_workflows_path,

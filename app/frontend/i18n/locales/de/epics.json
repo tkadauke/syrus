@@ -17,6 +17,8 @@
   "add_job": "+ Aufgabe hinzufügen",
   "more_actions": "Weitere Aktionen",
   "description": "Beschreibung",
+  "summary": "Zusammenfassung",
+  "summary_pending": "Syrus bereitet diese Feature-Zusammenfassung noch vor.",
   "blocked": "Blockiert",
   "merge_train_phase": {
     "assembling": "Merge train assembling",
@@ -124,5 +126,12 @@
   "view_in_chat": "Im Chat anzeigen",
 
   "furthest_behind_one": "am weitesten zurück: {{count}} Commit",
-  "furthest_behind_other": "am weitesten zurück: {{count}} Commits"
+  "furthest_behind_other": "am weitesten zurück: {{count}} Commits",
+  "simple_status": {
+    "working_on_it": "In Arbeit",
+    "wrapping_up": "Wird abgeschlossen",
+    "ready_for_your_review": "Bereit zur Prüfung",
+    "done": "Fertig",
+    "something_went_wrong": "Etwas ist schiefgelaufen"
+  }
 }

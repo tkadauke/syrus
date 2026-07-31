@@ -36,6 +36,7 @@ module Api
 
           def declared_features
             declarations = Features::SyncFromYaml.declarations.uniq { |d| d.fetch(:slug) }
+            declarations = declarations.reject { |declaration| %w[coding_mode local_mode].include?(declaration.fetch(:slug)) } if AppSetting.simple?
             records = Feature.where(slug: declarations.map { |declaration| declaration.fetch(:slug) }).index_by(&:slug)
 
             declarations.map do |declaration|

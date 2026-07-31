@@ -17,6 +17,34 @@ import { errorMessage } from "../../lib/errorMessage"
 // WorkflowsTable with their bulk actions, mobile lists, and per-row cells.
 // Entry points rendered by the table view. Depends only on leaf modules.
 
+export function SimpleFeaturesTable({ items, prefix }: { items: DashboardEpicItem[]; prefix: string }) {
+  const { t } = useT("dashboard")
+
+  return (
+    <div className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+      <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+        {items.map((epic) => (
+          <li key={epic.id}>
+            <Link
+              aria-label={`${epic.title} ${simpleStatusLabel(epic.simple_status, t)}`}
+              className="grid gap-2 px-4 py-4 text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-gray-200 dark:hover:bg-gray-800 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center md:gap-4"
+              to={withRoutePrefix(epic.paths.epic_path, prefix)}
+            >
+              <span className="min-w-0 break-words text-base font-semibold text-gray-900 dark:text-gray-100">{epic.title}</span>
+              <span className="text-sm font-medium text-blue-700 dark:text-blue-300">{simpleStatusLabel(epic.simple_status, t)}</span>
+              {epic.updated_at ? <span className="text-sm text-gray-500 dark:text-gray-400">{formatRelativeDate(new Date(epic.updated_at))}</span> : null}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function simpleStatusLabel(status: string | undefined, t: (key: string, opts?: Record<string, unknown>) => string) {
+  return t(`simple_status.${status || "working_on_it"}`, { defaultValue: status || "Working on it" })
+}
+
 export function EpicsTable({ items, columns, prefix, sortState }: { items: DashboardEpicItem[]; columns: string[]; prefix: string; sortState: DashboardSortState }) {
   const { t } = useT("dashboard")
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())

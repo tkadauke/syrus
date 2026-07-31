@@ -70,6 +70,7 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
   const steps = checklistSteps(setup, user, bootstrap?.app.mode_configured ?? false)
   const activeStep = steps.find((step) => !step.complete)
   const complete = !activeStep
+  const dashboardPath = bootstrap?.app.mode === "simple" ? "/dashboard/epics" : "/dashboard/jobs?view=list"
 
   return (
     <main aria-label={t("onboarding_aria")} className="mx-auto max-w-5xl space-y-6 p-6">
@@ -139,7 +140,7 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
         <section className="rounded border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 p-4">
           <h2 className="text-sm font-medium text-green-900 dark:text-green-100">{t('onboarding.ready_heading')}</h2>
           <p className="mt-1 text-sm text-green-800 dark:text-green-200">{t('onboarding.ready_description')}</p>
-          <Link className="mt-3 inline-flex rounded bg-green-700 px-3 py-2 text-sm font-medium text-white hover:bg-green-800" to={withRoutePrefix("/dashboard/jobs?view=list", prefix)}>
+          <Link className="mt-3 inline-flex rounded bg-green-700 px-3 py-2 text-sm font-medium text-white hover:bg-green-800" to={withRoutePrefix(dashboardPath, prefix)}>
             {t('onboarding.open_dashboard')}
           </Link>
         </section>
@@ -265,4 +266,3 @@ function primaryCtaClass(current: boolean) {
   const base = "inline-flex shrink-0 justify-center rounded px-3 py-2 text-sm font-medium"
   return current ? `${base} min-w-48 bg-blue-600 text-white hover:bg-blue-700` : `${base} border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800`
 }
-

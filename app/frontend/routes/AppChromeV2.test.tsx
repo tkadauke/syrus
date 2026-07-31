@@ -70,6 +70,29 @@ describe("AppChromeV2", () => {
     unmount()
   })
 
+  it("hides scheduled tasks and dashboard subject links in simple mode", () => {
+    renderAppChrome(<div>Dashboard</div>, {
+      initialEntries: ["/dashboard"],
+      bootstrap: bootstrapPayload({
+        app: {
+          revision: "dev",
+          revision_url: null,
+          version: null,
+          built_at: null,
+          bug_report_mode: null,
+          report_issue_repo_slug: "tkadauke/syrus",
+          mode: "simple",
+          mode_configured: true
+        }
+      })
+    })
+
+    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/dashboard/epics")
+    expect(screen.queryByRole("link", { name: "Schedules" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Jobs" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Workflows" })).not.toBeInTheDocument()
+  })
+
   it("reuses an existing unstarted chat without creating a chat", async () => {
     const createEmptyChat = vi.spyOn(chatsApi, "createEmptyChat")
     const fetchNewChat = vi.spyOn(chatsApi, "fetchNewChat")
@@ -855,4 +878,3 @@ function bootstrapPayload(overrides: Partial<BootstrapPayload> = {}): BootstrapP
     ...overrides
   } as unknown as BootstrapPayload
 }
-

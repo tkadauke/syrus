@@ -78,6 +78,7 @@ export type EpicDetailRecord = {
   title: string
   description: string
   state: string
+  simple_status?: string
   stuck: boolean
   startable: boolean
   start_blocked_on: string[]
@@ -109,6 +110,7 @@ export type EpicDetailSummary = {
   dependency_edge_count: number
   blocked: boolean
   blocked_reason: string | null
+  review_summary?: string | null
 }
 
 export type MergeTrainReconciliationStatus = {
@@ -192,6 +194,7 @@ export type EpicOriginChat = {
 
 export type EpicDetailPayload = {
   message?: string | null
+  simple_mode?: boolean
   origin_chat?: EpicOriginChat | null
   merge_train_status?: MergeTrainStatus | null
   epic: EpicDetailRecord

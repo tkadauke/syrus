@@ -189,6 +189,15 @@ export function dashboardEmptyFallbackPath(payload: DashboardPayload) {
 }
 
 export function dashboardEmptyState(payload: DashboardPayload, t: (key: string, opts?: Record<string, unknown>) => string) {
+  if (payload.simple_mode) {
+    return {
+      title: t("simple_empty_title"),
+      description: t("simple_empty_description"),
+      actionPath: payload.paths.new_epic_path,
+      actionText: t("new_feature")
+    }
+  }
+
   const subject = subjectLabel(payload.subject, 2)
   if (payload.setup && !payload.setup.complete) {
     const setupDescription = payload.setup.next_step === "credentials"

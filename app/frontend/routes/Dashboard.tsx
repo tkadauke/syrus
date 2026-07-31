@@ -1,7 +1,7 @@
 import { useMediaQuery } from "./dashboard/components"
 import { DashboardKanban } from "./dashboard/KanbanBoard"
 import { JobsDashboardTable } from "./dashboard/JobsTable"
-import { EpicsTable, WorkflowsTable } from "./dashboard/EpicWorkflowTables"
+import { EpicsTable, SimpleFeaturesTable, WorkflowsTable } from "./dashboard/EpicWorkflowTables"
 import { dashboardEmptyState, dashboardLinkFromSearch, dashboardVisibleColumns, epicTableColumns, pageLink, sortValue, sortableColumnFor, subjectLabel, uniqueValue, withRoutePrefix } from "./dashboard/helpers"
 import type { DashboardSortState } from "./dashboard/helpers"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -70,8 +70,8 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
   return (
     <main aria-label={t("title")} className="mx-auto max-w-[96rem] space-y-5 px-0 py-4 sm:p-6">
       <header className="flex flex-wrap items-center gap-3">
-        <h1 className="flex-1 text-3xl font-semibold text-gray-900 dark:text-white">{t("title")}</h1>
-        {isDesktop ? <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={true} /> : null}
+        <h1 className="flex-1 text-3xl font-semibold text-gray-900 dark:text-white">{payload.simple_mode ? t("simple_title") : t("title")}</h1>
+        {isDesktop && !payload.simple_mode ? <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={true} /> : null}
         <DashboardCreateActions payload={payload} prefix={prefix} />
       </header>
       <ReadinessPanel prefix={prefix} readiness={readiness} />
@@ -79,12 +79,12 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
 
       {isDesktop ? (
         <>
-          <DesktopDashboardControls pathname={pathname} payload={payload} search={search} />
+          {payload.simple_mode ? null : <DesktopDashboardControls pathname={pathname} payload={payload} search={search} />}
           <DashboardContent pathname={pathname} payload={payload} prefix={prefix} search={search} />
         </>
       ) : (
         <>
-          <MobileDashboardControls pathname={pathname} payload={payload} prefix={prefix} search={search} />
+          {payload.simple_mode ? null : <MobileDashboardControls pathname={pathname} payload={payload} prefix={prefix} search={search} />}
           <DashboardContent pathname={pathname} payload={payload} prefix={prefix} search={search} />
         </>
       )}
@@ -380,8 +380,8 @@ function DashboardCreateActions({ payload, prefix }: { payload: DashboardPayload
   const { t } = useT("dashboard")
   return (
     <div className="flex flex-wrap gap-2" data-tour="dashboard-create-actions">
-      <Link className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500" to={withRoutePrefix(payload.paths.new_epic_path, prefix)}>{t("new_epic")}</Link>
-      <Link className="rounded bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-500" to={withRoutePrefix(payload.paths.new_job_path, prefix)}>{t("new_job")}</Link>
+      <Link className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500" to={withRoutePrefix(payload.paths.new_epic_path, prefix)}>{payload.simple_mode ? t("new_feature") : t("new_epic")}</Link>
+      {payload.simple_mode ? null : <Link className="rounded bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-500" to={withRoutePrefix(payload.paths.new_job_path, prefix)}>{t("new_job")}</Link>}
     </div>
   )
 }
@@ -651,6 +651,7 @@ export function DashboardTable({ payload, prefix, setupStatus }: { payload: Dash
 
   const columns = dashboardVisibleColumns(payload)
   const items = payload.items ?? []
+  if (payload.simple_mode) return <SimpleFeaturesTable items={items.filter((item): item is DashboardEpicItem => item.type === "epic")} prefix={prefix} />
   if (payload.subject === "job") return <JobsDashboardTable columns={columns} items={items.filter((item): item is DashboardJobItem => item.type === "job")} landingQueueEntries={payload.landing_queue.entries ?? []} prefix={prefix} sortState={sortState} t={t} />
   if (payload.subject === "workflow") return <WorkflowsTable columns={columns} items={items.filter((item): item is DashboardWorkflowItem => item.type === "workflow")} prefix={prefix} sortState={sortState} />
 

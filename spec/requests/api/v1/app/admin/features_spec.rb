@@ -74,6 +74,22 @@ RSpec.describe "API: /api/v1/app/admin/features", type: :request do
     ])
   end
 
+  it "omits developer-only mode flags in simple mode" do
+    sign_in_as(admin)
+    AppSetting.current.update!(mode: "simple", mode_configured_at: Time.current)
+    allow(Features::SyncFromYaml).to receive(:declarations).and_return(declarations + [
+      { slug: "coding_mode", category: "Labs", name: "Coding mode", description: "Write code from chat.", default_enabled: false },
+      { slug: "local_mode", category: "Labs", name: "Local mode", description: "Connect local repos.", default_enabled: false }
+    ])
+
+    get "/api/v1/app/admin/features"
+
+    expect(response).to have_http_status(:ok)
+    slugs = parse_body["categories"].flat_map { |category| category["features"].map { |feature| feature["slug"] } }
+    expect(slugs).to include("new_dashboard", "fast_queue")
+    expect(slugs).not_to include("coding_mode", "local_mode")
+  end
+
   it "updates a declared feature" do
     sign_in_as(admin)
 

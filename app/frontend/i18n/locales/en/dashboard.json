@@ -1,8 +1,10 @@
 {
   "title": "Dashboard",
+  "simple_title": "Your work",
   "loading": "Loading...",
   "load_error": "Unable to load dashboard.",
   "new_epic": "New Epic",
+  "new_feature": "New Feature",
   "new_job": "New Job",
   "tab_epics": "Epics",
   "tab_jobs": "Jobs",
@@ -30,6 +32,8 @@
   "no_items_in_lane": "No {{subject}}",
   "empty_title": "No {{subject}} yet",
   "empty_description": "No {{subject}} exist yet. Create work from a direct prompt or a labelled GitHub issue.",
+  "simple_empty_title": "No features yet",
+  "simple_empty_description": "Create a feature when you are ready to ask Syrus for new work.",
   "setup_credentials_description": "Finish credentials first so Syrus can talk to GitHub and the selected agent.",
   "setup_description": "Finish setup first so Syrus can run work against a repository.",
   "open_setup": "Open setup",
@@ -129,5 +133,12 @@
   "broken_main_dismiss": "Dismiss",
   "needs_attention_aria": "Needs attention",
   "epic_commits_behind_one": "{{count}} commit behind",
-  "epic_commits_behind_other": "{{count}} commits behind"
+  "epic_commits_behind_other": "{{count}} commits behind",
+  "simple_status": {
+    "working_on_it": "Working on it",
+    "wrapping_up": "Wrapping up",
+    "ready_for_your_review": "Ready for your review",
+    "done": "Done",
+    "something_went_wrong": "Something went wrong"
+  }
 }

@@ -170,6 +170,7 @@ export type DashboardEpicItem = {
   title: string
   description: string
   state: string
+  simple_status?: string
   stuck: boolean
   all_jobs_closed: boolean
   owner: DashboardOwner | null
@@ -284,6 +285,7 @@ export type DashboardFilterSuggestion = {
 }
 
 export type DashboardPayload = {
+  simple_mode?: boolean
   subject: DashboardSubject
   view: string
   page: number

@@ -13,6 +13,7 @@ function job(state: string, overrides: Partial<EpicDetailJob> = {}): EpicDetailJ
 function detailPayload(overrides: Partial<EpicDetailPayload["epic"]> = {}): EpicDetailPayload {
   return {
     message: null,
+    simple_mode: false,
     epic: {
       id: 3,
       number: 3,
@@ -20,6 +21,7 @@ function detailPayload(overrides: Partial<EpicDetailPayload["epic"]> = {}): Epic
       title: "Onboarding",
       description: "",
       state: "ready",
+      simple_status: "working_on_it",
       stuck: false,
       startable: true,
       start_blocked_on: [],
@@ -45,7 +47,7 @@ function detailPayload(overrides: Partial<EpicDetailPayload["epic"]> = {}): Epic
       resolved_epic_dependency_policy: "linear",
       ...overrides
     },
-    summary: { done_jobs_count: 0, total_jobs_count: 0, dependency_edge_count: 0, blocked: false, blocked_reason: null },
+    summary: { done_jobs_count: 0, total_jobs_count: 0, dependency_edge_count: 0, blocked: false, blocked_reason: null, review_summary: null },
     state_transitions: [],
     graph: { empty: true, node_count: 0, epic_dependency_count: 0, job_blocker_count: 0, initially_open: false, nodes: [], edges: [] },
     dependencies: [],
@@ -79,6 +81,36 @@ function renderDetail(payload: EpicDetailPayload) {
     </QueryClientProvider>
   )
 }
+
+describe("EpicDetail simple mode", () => {
+  it("shows the feature summary and omits implementation details", () => {
+    const payload = detailPayload({
+      title: "Checkout polish",
+      description: "Original implementation prompt.",
+      review_ready: true,
+      startable: false,
+      simple_status: "ready_for_your_review"
+    })
+    payload.simple_mode = true
+    payload.summary.review_summary = "Checkout settings now save correctly."
+    payload.jobs = [job("closed", { pr_number: 12, pr_url: "https://github.com/acme/widgets/pull/12" })]
+    payload.graph = { empty: false, node_count: 1, epic_dependency_count: 1, job_blocker_count: 0, initially_open: true, nodes: [], edges: [] }
+    payload.dependencies = [{ epic_id: 2, title: "Dependency", state: "done", url: "/epics/2" }]
+
+    renderDetail(payload)
+
+    expect(screen.getByRole("heading", { name: "Checkout polish" })).toBeInTheDocument()
+    expect(screen.getByText("Ready for your review")).toBeInTheDocument()
+    expect(screen.getByText("Checkout settings now save correctly.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Looks Good" })).toBeInTheDocument()
+    expect(screen.queryByText("Jobs")).not.toBeInTheDocument()
+    expect(screen.queryByText("Dependency graph")).not.toBeInTheDocument()
+    expect(screen.queryByText("History")).not.toBeInTheDocument()
+    expect(screen.queryByText("Details")).not.toBeInTheDocument()
+    expect(screen.queryByText("PR #12")).not.toBeInTheDocument()
+    expect(screen.queryByText("EPIC-3")).not.toBeInTheDocument()
+  })
+})
 
 describe("EpicDetail origin_chat link", () => {
   it("renders a View in Chat link when origin_chat is present", () => {

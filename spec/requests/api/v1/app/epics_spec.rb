@@ -281,6 +281,31 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     expect(rendered).not_to have_key("deployment_stages")
   end
 
+  it "includes simple-mode status and latest completed job summary" do
+    sign_in_as(user)
+    AppSetting.current.update!(mode: "simple", mode_configured_at: Time.current)
+    epic = Factories.epic(user: user, repository: repository, title: "Checkout polish", state: "in_progress")
+    job = Factories.job_record(
+      user: user,
+      repository: repository,
+      epic: epic,
+      issue_number: 12,
+      issue_title: "Save settings",
+      state: "closed",
+      closure_reason: "pr_merged",
+      finished_at: 1.minute.ago
+    )
+    Workflow.create!(job: job, trigger_kind: "initial", state: "succeeded", artifacts: { "summary" => "Settings now save correctly." }, finished_at: Time.current)
+
+    get "/api/v1/app/epics/#{epic.id}"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body).to include("simple_mode" => true)
+    expect(body.dig("epic", "simple_status")).to eq("ready_for_your_review")
+    expect(body.dig("summary", "review_summary")).to eq("Settings now save correctly.")
+  end
+
   describe "simple-mode review actions" do
     around do |example|
       setting = AppSetting.current

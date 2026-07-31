@@ -123,6 +123,7 @@ module App
           title: epic.title,
           description: epic.description.to_s,
           state: epic.state,
+          simple_status: simple_epic_status(epic),
           stuck: epic.stuck?,
           all_jobs_closed: epic.all_jobs_closed?,
           owner: owner_json(epic.owner),
@@ -166,6 +167,18 @@ module App
                   end
           counts[state] += 1
         end.to_h
+      end
+
+      def simple_epic_status(epic)
+        return "done" if epic.user_approved_at.present?
+
+        jobs = epic.jobs.to_a
+        return "something_went_wrong" if jobs.any? { |job| job.closed? && !Epic::MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
+        return "working_on_it" if jobs.any?(&:open?)
+        return "ready_for_your_review" if epic.review_ready?
+        return "wrapping_up" if jobs.any? && jobs.all? { |job| job.closed? && Epic::MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
+
+        "working_on_it"
       end
 
       def owner_json(owner)

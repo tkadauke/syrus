@@ -17,6 +17,8 @@ module Api
         end
 
         def issues
+          return render_error("not_found", "GitHub issues are not available in simple mode.", status: :not_found) if AppSetting.simple?
+
           repository = find_repository
           render json: repository_issues_payload(repository, state: issue_state)
         end
@@ -437,6 +439,7 @@ module Api
 
           payload = {
             message: message,
+            simple_mode: AppSetting.simple?,
             repository: repository_detail_json(repository),
             tabs: repository_tabs_json(repository),
             counts: repository_counts_json(repository),

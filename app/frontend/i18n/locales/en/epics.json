@@ -20,6 +20,8 @@
   "more_actions": "More actions",
 
   "description": "Description",
+  "summary": "Summary",
+  "summary_pending": "Syrus is still preparing this feature summary.",
   "blocked": "Blocked",
   "merge_train_phase": {
     "assembling": "Merge train assembling",
@@ -136,5 +138,12 @@
   "view_in_chat": "View in Chat",
 
   "furthest_behind_one": "furthest behind: {{count}} commit",
-  "furthest_behind_other": "furthest behind: {{count}} commits"
+  "furthest_behind_other": "furthest behind: {{count}} commits",
+  "simple_status": {
+    "working_on_it": "Working on it",
+    "wrapping_up": "Wrapping up",
+    "ready_for_your_review": "Ready for your review",
+    "done": "Done",
+    "something_went_wrong": "Something went wrong"
+  }
 }

@@ -171,6 +171,7 @@ export type GitHubBranchesPayload = {
 
 export type RepositoryDetailPayload = {
   message?: string | null
+  simple_mode?: boolean
   repository: RepositoryDetailRecord
   tabs: RepositoryTab[]
   counts: {
