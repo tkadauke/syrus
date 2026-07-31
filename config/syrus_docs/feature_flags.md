@@ -16,11 +16,12 @@ The terminal relay address is configured via `SYRUS_TERMINAL_HOST`. See the Term
 
 **Category:** Labs
 
-Enables Coding Mode for Syrus Chat. When active, the chat workspace gets a writable full clone so the agent can implement code directly during a chat session instead of just planning. New chat-authored work starts on the repository default branch; accepted `submit_coding_changes` captures the current HEAD to an immutable `syrus/chat-<chat_id>-handoff-<pending_action_id>` branch. Existing Job work can still use that Job's branch and hand off with `complete_implement_step`. Both handoff paths require operator confirmation before dispatching a `coding_handoff` workflow.
+Enables Coding Mode for Syrus Chat. When active, the chat workspace gets a writable full clone so the agent can implement code directly during a chat session instead of just planning. New chat-authored work starts on the repository default branch; accepted `submit_coding_changes` captures the current HEAD to an immutable `syrus/chat-<chat_id>-handoff-<pending_action_id>` branch, dispatches a `coding_handoff` workflow, then resets the chat checkout to the repository default branch tip and queues prep again for the next Coding Mode turn. Existing Job work can still use that Job's branch and hand off with `complete_implement_step`. Both handoff paths require operator confirmation before dispatching automation.
 
 **Workspace reclamation.** A Coding-Mode checkout (writable full clone + installed dependencies) is commonly 1–2 GB, so Syrus reclaims that disk aggressively while never losing work:
 
-- **On successful handoff** — once the branch is pushed and the PR is open, the checkout is fully reproducible from the remote, so `ChatCodingWorkspaceReclaimJob` (on the `chat` queue) frees it.
+- **After accepted `submit_coding_changes`** — once capture publishes the immutable handoff branch and the `coding_handoff` workflow starts, Syrus resets the chat checkout to a clean default-branch tip, clears dirty checkout state, and queues `ChatWorkspacePrepareJob` again.
+- **After successful handoff workflow** — once graders pass and the PR is open, the checkout is already reproducible from remote state, so `ChatCodingWorkspaceReclaimJob` (on the `chat` queue) may free its disk.
 - **When idle** — `WorkflowWorkspacePruneJob` reclaims checkouts inactive longer than `ChatWorkspace::RECLAIM_IDLE_CODING_AFTER` (48 h).
 - **Under disk pressure** — when retained checkouts exceed `AppSetting.chat_coding_workspace_budget_mb` (`0` = unlimited), the least-recently-active are LRU-evicted.
 

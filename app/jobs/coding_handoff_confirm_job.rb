@@ -46,7 +46,11 @@ class CodingHandoffConfirmJob < ApplicationJob
 
     GenerateJobTitleJob.perform_later(job) if title.nil?
 
-    post_message!(chat_session, "Coding handoff dispatched: #{job.slug} is running graders and will open a PR when ready.")
+    reset_message = reset_chat_workspace(chat_session, repository)
+    post_message!(
+      chat_session,
+      "Coding handoff dispatched: #{job.slug} is running graders and will open a PR when ready. #{reset_message}"
+    )
 
   rescue CodingHandoffCapture::CaptureError, ArgumentError => e
     post_message!(chat_session, "Coding handoff failed: #{e.message}")
@@ -92,5 +96,13 @@ class CodingHandoffConfirmJob < ApplicationJob
       Changed files:
       #{changed_files.map { |path| "- `#{path}`" }.join("\n")}
     BODY
+  end
+
+  def reset_chat_workspace(chat_session, repository)
+    path = ChatWorkspace.reset_after_coding_handoff!(chat_session, repository)
+    "The chat workspace was reset to #{repository.default_branch} and preparation was queued again at #{path}."
+  rescue StandardError => e
+    Rails.logger.warn("[CodingHandoffConfirmJob] chat workspace reset failed for chat #{chat_session.id}: #{e.class}: #{e.message}")
+    "The handoff branch was captured, but the chat workspace reset failed; inspect the checkout before starting unrelated Coding Mode work."
   end
 end
