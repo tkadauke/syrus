@@ -58,6 +58,7 @@ export type RepositoryFormRecord = {
   agent_provider: string
   auto_approve_mode: string
   feedback_policy: string
+  epic_dependency_policy: string
   github_owner_id: number | null
   github_repository_id: number | null
   repository_path: string | null
@@ -117,6 +118,7 @@ export type RepositoryInput = {
   agent_provider: string
   auto_approve_mode: string
   feedback_policy: string
+  epic_dependency_policy: string
   github_owner_id: string
   github_repository_id: string
 }

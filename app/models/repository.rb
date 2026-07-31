@@ -4,6 +4,7 @@ class Repository < ApplicationRecord
   GITHUB_NAME = /\A[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?\z/
   REVIEW_POLICIES = %w[ self two_person final_say ].freeze
   FEEDBACK_POLICIES = %w[ auto confirm ].freeze
+  EPIC_DEPENDENCY_POLICIES = %w[ linear nonlinear ].freeze
   CI_HEALTH_STATES = %w[ unknown healthy broken not_configured inconclusive ].freeze
   GRADER_HEALTH_STATES = %w[ unknown healthy broken inconclusive ].freeze
 
@@ -17,6 +18,7 @@ class Repository < ApplicationRecord
   # logical-conflict risk for landing throughput. See Steps::ForcePush.
   attribute :trust_clean_rebase_grade, :boolean, default: false
   attribute :feedback_policy, :string, default: "confirm"
+  attribute :epic_dependency_policy, :string, default: "linear"
   attribute :fork_pr_grace_period_hours, :integer, default: 24
   attribute :upstream_pr_grace_period_days, :integer, default: 7
   attribute :ci_health, :string, default: "unknown"
@@ -66,6 +68,7 @@ class Repository < ApplicationRecord
   validates :agent_provider, inclusion: { in: User::AGENT_PROVIDERS }, allow_nil: true
   validates :review_policy, presence: true, inclusion: { in: REVIEW_POLICIES }
   validates :feedback_policy, presence: true, inclusion: { in: FEEDBACK_POLICIES }
+  validates :epic_dependency_policy, presence: true, inclusion: { in: EPIC_DEPENDENCY_POLICIES }
   validates :name, uniqueness: {
     scope: :owner,
     case_sensitive: false,

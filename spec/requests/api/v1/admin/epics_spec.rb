@@ -43,7 +43,8 @@ RSpec.describe "API: /api/v1/admin/epics", type: :request do
                  repo: "acme/api",
                  title: "Treat the API as a public road",
                  description: "Pave the path for external orchestrators.",
-                 auto_approve_mode: "if_graders_pass"
+                 auto_approve_mode: "if_graders_pass",
+                 epic_dependency_policy: "nonlinear"
                }
              },
              headers: auth(admin_token)
@@ -56,10 +57,13 @@ RSpec.describe "API: /api/v1/admin/epics", type: :request do
       expect(created.title).to eq("Treat the API as a public road")
       expect(created.description).to eq("Pave the path for external orchestrators.")
       expect(created.auto_approve_mode).to eq("if_graders_pass")
+      expect(created.epic_dependency_policy).to eq("nonlinear")
 
       body = parse_body
       expect(body["message"]).to eq("Epic created.")
       expect(body.dig("epic", "id")).to eq(created.id)
+      expect(body.dig("epic", "epic_dependency_policy")).to eq("nonlinear")
+      expect(body.dig("epic", "resolved_epic_dependency_policy")).to eq("nonlinear")
       expect(body.dig("epic", "repository", "slug")).to eq("acme/api")
     end
 
@@ -98,7 +102,7 @@ RSpec.describe "API: /api/v1/admin/epics", type: :request do
       body = parse_body
       expect(body["count"]).to eq(3)
       epic_payload = body["epics"].find { |e| e["title"] == "Launch" }
-      expect(epic_payload).to include("id", "number", "state", "repository", "auto_approve_mode", "owner_user_id", "owner_status", "owner_user")
+      expect(epic_payload).to include("id", "number", "state", "repository", "auto_approve_mode", "epic_dependency_policy", "resolved_epic_dependency_policy", "owner_user_id", "owner_status", "owner_user")
       expect(epic_payload["repository"]).to eq("acme/widgets")
     end
 
@@ -174,6 +178,8 @@ RSpec.describe "API: /api/v1/admin/epics", type: :request do
         "title" => "Launch",
         "owner_status" => "unclaimed",
         "owner_user" => nil,
+        "epic_dependency_policy" => "inherit",
+        "resolved_epic_dependency_policy" => "linear",
         "complete" => false,
         "ready_to_start" => false  # depends on prereq Epic that isn't done
       )

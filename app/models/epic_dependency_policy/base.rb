@@ -1,0 +1,15 @@
+class EpicDependencyPolicy::Base
+  POLICIES = {
+    "inherit" => "EpicDependencyPolicy::Inherit",
+    "linear" => "EpicDependencyPolicy::Linear",
+    "nonlinear" => "EpicDependencyPolicy::Nonlinear"
+  }.freeze
+
+  def self.for(name)
+    POLICIES.fetch(name.to_s).constantize.new
+  end
+
+  def resolve(epic)
+    raise NotImplementedError
+  end
+end

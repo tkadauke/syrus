@@ -136,7 +136,24 @@ export function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payl
             {values.reconciliation_mode === "pr" ? t("reconciliation_mode_pr_hint") :
              values.reconciliation_mode === "feedback" ? t("reconciliation_mode_feedback_hint") :
              values.reconciliation_mode === "none" ? t("reconciliation_mode_none_hint") :
-             t("reconciliation_mode_default_hint")}
+            t("reconciliation_mode_default_hint")}
+          </p>
+        </Field>
+
+        <Field label={t("epic_dependency_policy_label")}>
+          <select
+            className={inputClass()}
+            onChange={(event) => setValues({ ...values, epic_dependency_policy: event.target.value as import("../api/epics").EpicDependencyPolicy })}
+            value={values.epic_dependency_policy}
+          >
+            <option value="inherit">{t("epic_dependency_policy_inherit")}</option>
+            <option value="linear">{t("epic_dependency_policy_linear")}</option>
+            <option value="nonlinear">{t("epic_dependency_policy_nonlinear")}</option>
+          </select>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {values.epic_dependency_policy === "nonlinear" ? t("epic_dependency_policy_nonlinear_hint") :
+             values.epic_dependency_policy === "linear" ? t("epic_dependency_policy_linear_hint") :
+             t("epic_dependency_policy_inherit_hint")}
           </p>
         </Field>
 
@@ -173,7 +190,8 @@ function inputFromPayload(payload: EpicFormPayload): EpicInput {
     description: payload.epic.description,
     repository_id: payload.epic.repository_id ? String(payload.epic.repository_id) : "",
     github_issue_url: payload.epic.github_issue_url,
-    reconciliation_mode: payload.epic.reconciliation_mode
+    reconciliation_mode: payload.epic.reconciliation_mode,
+    epic_dependency_policy: payload.epic.epic_dependency_policy
   }
 }
 
@@ -193,4 +211,3 @@ function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?
   }
   return <div className={`rounded border p-4 text-sm ${colors[tone]}`}>{children}</div>
 }
-

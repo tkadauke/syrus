@@ -28,6 +28,20 @@ RSpec.describe Repository do
     expect(repo.review_policy).to eq("final_say")
   end
 
+  it "defaults Epic dependency policy to linear and accepts nonlinear" do
+    repo = Repository.create!(user: owner, owner: "acme", name: "widgets")
+    expect(repo.epic_dependency_policy).to eq("linear")
+
+    repo.update!(epic_dependency_policy: "nonlinear")
+    expect(repo.epic_dependency_policy).to eq("nonlinear")
+  end
+
+  it "rejects unknown Epic dependency policies" do
+    repo = Repository.new(user: owner, owner: "acme", name: "widgets", epic_dependency_policy: "mesh")
+    expect(repo).not_to be_valid
+    expect(repo.errors[:epic_dependency_policy]).to be_present
+  end
+
   it "rejects unknown review policies" do
     repo = Repository.new(user: owner, owner: "acme", name: "widgets", review_policy: "committee")
     expect(repo).not_to be_valid

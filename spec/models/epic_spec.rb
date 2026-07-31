@@ -72,6 +72,32 @@ RSpec.describe Epic do
     expect(epic.auto_approve_mode).to eq("if_graders_pass")
   end
 
+  it "defaults dependency policy to inherit and resolves through the repository" do
+    repository = Factories.repository(epic_dependency_policy: "nonlinear")
+    epic = Factories.epic(user: repository.user, repository: repository)
+
+    expect(epic.epic_dependency_policy).to eq("inherit")
+    expect(epic.resolved_epic_dependency_policy).to eq("nonlinear")
+  end
+
+  it "allows an Epic to override the repository dependency policy" do
+    repository = Factories.repository(epic_dependency_policy: "linear")
+    epic = Factories.epic(user: repository.user, repository: repository, epic_dependency_policy: "nonlinear")
+
+    expect(epic.resolved_epic_dependency_policy).to eq("nonlinear")
+
+    epic.update!(epic_dependency_policy: "linear")
+    expect(epic.resolved_epic_dependency_policy).to eq("linear")
+  end
+
+  it "rejects unknown Epic dependency policy overrides" do
+    epic = Factories.epic
+    epic.epic_dependency_policy = "braided"
+
+    expect(epic).not_to be_valid
+    expect(epic.errors[:epic_dependency_policy]).to be_present
+  end
+
   it "keeps child Job epic titles in sync when renamed" do
     epic = Factories.epic(title: "Migration train")
     job = Factories.job_record(user: epic.user, repository: epic.repository, epic: epic)

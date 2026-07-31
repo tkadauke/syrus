@@ -32,6 +32,7 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     body = parse_body
     expect(body.dig("epic", "id")).to be_nil
     expect(body["repositories"]).to contain_exactly(include("id" => repository.id, "slug" => "acme/widgets"))
+    expect(body["repositories"]).to contain_exactly(include("epic_dependency_policy" => "linear"))
     expect(body.to_s).not_to include("other/private")
     expect(body["dashboard_epics_path"]).to eq(dashboard_epics_path)
   end
@@ -77,6 +78,8 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       "description" => "Install tasteful columns.",
       "repository_id" => repository.id,
       "github_issue_url" => "https://github.com/acme/widgets/issues/12",
+      "epic_dependency_policy" => "inherit",
+      "resolved_epic_dependency_policy" => "linear",
       "epic_path" => epic_path(epic)
     )
   end
@@ -964,7 +967,8 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
         title: "Raise the basilica",
         description: "Install louder columns.",
         repository_id: other_repo.id,
-        github_issue_url: "https://github.com/acme/marble/issues/7"
+        github_issue_url: "https://github.com/acme/marble/issues/7",
+        epic_dependency_policy: "nonlinear"
       }
     }
 
@@ -973,9 +977,25 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       title: "Raise the basilica",
       description: "Install louder columns.",
       repository_id: other_repo.id,
-      github_issue_url: "https://github.com/acme/marble/issues/7"
+      github_issue_url: "https://github.com/acme/marble/issues/7",
+      epic_dependency_policy: "nonlinear"
     )
     expect(parse_body).to include("message" => "Epic updated.", "redirect_to" => epic_path(epic))
+  end
+
+  it "rejects invalid Epic dependency policy overrides" do
+    sign_in_as(user)
+
+    post "/api/v1/app/epics", params: {
+      epic: {
+        title: "Bad policy",
+        repository_id: repository.id,
+        epic_dependency_policy: "mesh"
+      }
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("Epic dependency policy")
   end
 
   it "exposes Epics on shared repositories (any membership role)" do

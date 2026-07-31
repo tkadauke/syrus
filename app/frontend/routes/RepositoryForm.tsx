@@ -484,6 +484,21 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
               {t('repository_form.feedback_hint')}
             </p>
           </Field>
+
+          <Field label={t('repository_form.label_epic_dependency_policy')}>
+            <select
+              aria-label={t('repository_form.label_epic_dependency_policy')}
+              className={inputClass()}
+              onChange={(event) => setValues({ ...values, epic_dependency_policy: event.target.value })}
+              value={values.epic_dependency_policy}
+            >
+              <option value="linear">{t('repository_form.epic_dependency_linear')}</option>
+              <option value="nonlinear">{t('repository_form.epic_dependency_nonlinear')}</option>
+            </select>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {t('repository_form.epic_dependency_hint')}
+            </p>
+          </Field>
         </section>
 
         <section className="space-y-3">
@@ -649,6 +664,7 @@ function inputFromPayload(payload: RepositoryFormPayload): RepositoryInput {
     agent_provider: payload.repository.agent_provider,
     auto_approve_mode: payload.repository.auto_approve_mode,
     feedback_policy: payload.repository.feedback_policy,
+    epic_dependency_policy: payload.repository.epic_dependency_policy,
     github_owner_id: payload.repository.github_owner_id == null ? "" : String(payload.repository.github_owner_id),
     github_repository_id: payload.repository.github_repository_id == null ? "" : String(payload.repository.github_repository_id)
   }
@@ -749,4 +765,3 @@ function repoErrorMessage(t: TFunction, error: string): { text: string; tone: "e
   if (error === "not_found") return { text: t('repository_form.repo_err_not_found'), tone: "error" }
   return { text: t('repository_form.repo_err_generic'), tone: "muted" }
 }
-

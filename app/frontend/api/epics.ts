@@ -4,6 +4,7 @@ import type { DashboardGraphEdge, DashboardGraphNode } from "./dashboard"
 export type EpicRepositoryOption = {
   id: number
   slug: string
+  epic_dependency_policy: "linear" | "nonlinear"
 }
 
 export type EpicSearchOption = {
@@ -12,6 +13,7 @@ export type EpicSearchOption = {
 }
 
 export type EpicReconciliationMode = "pr" | "feedback" | "none" | null
+export type EpicDependencyPolicy = "inherit" | "linear" | "nonlinear"
 
 export type EpicFormRecord = {
   id: number | null
@@ -23,6 +25,8 @@ export type EpicFormRecord = {
   repository_id: number | null
   github_issue_url: string
   reconciliation_mode: EpicReconciliationMode
+  epic_dependency_policy: EpicDependencyPolicy
+  resolved_epic_dependency_policy: "linear" | "nonlinear" | null
   epic_path: string | null
 }
 
@@ -43,6 +47,7 @@ export type EpicInput = {
   repository_id: string
   github_issue_url: string
   reconciliation_mode: EpicReconciliationMode
+  epic_dependency_policy: EpicDependencyPolicy
 }
 
 export type EpicSavedPayload = {
@@ -55,6 +60,7 @@ export type EpicDetailRepository = {
   id: number
   slug: string
   repository_path: string
+  epic_dependency_policy: "linear" | "nonlinear"
 }
 
 export type EpicOwner = {
@@ -88,6 +94,8 @@ export type EpicDetailRecord = {
   max_commits_behind_base: number | null
   furthest_behind_job_id: number | null
   furthest_behind_job_path: string | null
+  epic_dependency_policy: EpicDependencyPolicy
+  resolved_epic_dependency_policy: "linear" | "nonlinear"
 }
 
 export type EpicDetailSummary = {

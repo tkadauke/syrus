@@ -344,6 +344,8 @@ module Api
             repository_id: epic.repository_id,
             github_issue_url: epic.github_issue_url.to_s,
             reconciliation_mode: epic.reconciliation_mode,
+            epic_dependency_policy: epic.epic_dependency_policy,
+            resolved_epic_dependency_policy: epic.resolved_epic_dependency_policy,
             epic_path: epic.persisted? ? epic_path(epic) : nil
           }
         end
@@ -378,6 +380,8 @@ module Api
             owner_user: owner_user_json(epic.owner_user),
             repository_slug: epic.repository.slug,
             repository: repository_json(epic.repository).merge(repository_path: repository_path(epic.repository)),
+            epic_dependency_policy: epic.epic_dependency_policy,
+            resolved_epic_dependency_policy: epic.resolved_epic_dependency_policy,
             max_commits_behind_base: furthest_behind&.commits_behind_base,
             furthest_behind_job_id: furthest_behind&.id,
             furthest_behind_job_path: furthest_behind ? job_path(furthest_behind) : nil
@@ -434,7 +438,8 @@ module Api
         def repository_json(repository)
           {
             id: repository.id,
-            slug: repository.slug
+            slug: repository.slug,
+            epic_dependency_policy: repository.epic_dependency_policy
           }
         end
 
@@ -606,7 +611,7 @@ module Api
         end
 
         def epic_params
-          params.require(:epic).permit(:title, :description, :repository_id, :github_issue_url, :reconciliation_mode)
+          params.require(:epic).permit(:title, :description, :repository_id, :github_issue_url, :reconciliation_mode, :epic_dependency_policy)
         end
       end
     end

@@ -18,10 +18,12 @@ function formPayload(overrides: Partial<EpicFormPayload["epic"]> = {}): EpicForm
       repository_id: 1,
       github_issue_url: "",
       reconciliation_mode: null,
+      epic_dependency_policy: "inherit",
+      resolved_epic_dependency_policy: "linear",
       epic_path: null,
       ...overrides
     },
-    repositories: [{ id: 1, slug: "acme/widgets" }],
+    repositories: [{ id: 1, slug: "acme/widgets", epic_dependency_policy: "linear" }],
     dashboard_epics_path: "/dashboard/epics"
   }
 }

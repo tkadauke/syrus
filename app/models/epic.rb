@@ -13,6 +13,7 @@ class Epic < ApplicationRecord
   MERGED_JOB_CLOSURE_REASONS = %w[ pr_merged external_pr_merged ].freeze
   SUCCESSFUL_JOB_CLOSURE_REASONS = (MERGED_JOB_CLOSURE_REASONS + %w[ no_changes ]).freeze
   RECONCILIATION_MODES = %w[ pr feedback none ].freeze
+  EPIC_DEPENDENCY_POLICIES = %w[ inherit linear nonlinear ].freeze
 
   attr_readonly :number
 
@@ -39,6 +40,7 @@ class Epic < ApplicationRecord
   validates :number, presence: true, numericality: { only_integer: true, greater_than: 0 }, uniqueness: true
   validates :title, presence: true
   validates :state, presence: true, inclusion: { in: STATES }
+  validates :epic_dependency_policy, presence: true, inclusion: { in: EPIC_DEPENDENCY_POLICIES }
   validate :user_is_repository_member
 
   after_initialize :default_pending_epic_dependency_refs
@@ -245,6 +247,12 @@ class Epic < ApplicationRecord
   # The effective reconciliation mode: Epic column → .syrus.yml → "pr".
   def resolved_reconciliation_mode
     RepoReconciliationPlan.for_epic(self).mode
+  end
+
+  def resolved_epic_dependency_policy
+    return nil unless repository
+
+    EpicDependencyPolicy::Base.for(epic_dependency_policy).resolve(self)
   end
 
   # Creates a reconciliation Job if the Epic is in_progress, has 2+ work

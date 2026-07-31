@@ -106,6 +106,11 @@ rejects changes that would create a cycle. The page also includes a
 collapsible history section that records title and description changes with
 the actor, timestamp, and before/after text.
 
+Repositories default new Epics to a linear child-Job dependency policy: child
+Jobs should form one ordered chain. Operators can relax the repository default
+to nonlinear, or override an individual Epic to inherit, require linear
+dependencies, or allow nonlinear branching and fan-in.
+
 ### Epic reconciliation
 
 When an Epic goes `in_progress` with two or more child Jobs, Syrus can

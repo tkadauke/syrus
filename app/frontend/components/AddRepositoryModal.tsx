@@ -70,6 +70,7 @@ export function AddRepositoryModal({ onClose, onSaved }: { onClose: () => void; 
       agent_provider: "",
       auto_approve_mode: r.auto_approve_mode,
       feedback_policy: r.feedback_policy,
+      epic_dependency_policy: r.epic_dependency_policy,
       github_owner_id: "",
       github_repository_id: ""
     })
