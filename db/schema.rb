@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_30_172000) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_31_120000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -956,10 +956,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_30_172000) do
     t.datetime "created_at", null: false
     t.bigint "github_comment_id", null: false
     t.string "github_handle"
+    t.datetime "handled_at"
+    t.datetime "handling_failed_at"
+    t.string "handling_failure_reason"
+    t.datetime "handling_started_at"
+    t.string "handling_state"
+    t.integer "handling_workflow_id"
+    t.datetime "ignored_at"
     t.integer "job_id", null: false
     t.string "pr_type", null: false
     t.datetime "updated_at", null: false
     t.index ["actioned_at"], name: "index_pr_review_comments_on_actioned_at"
+    t.index ["handling_state"], name: "index_pr_review_comments_on_handling_state"
+    t.index ["handling_workflow_id"], name: "index_pr_review_comments_on_handling_workflow_id"
     t.index ["job_id", "pr_type", "comment_kind", "github_comment_id"], name: "index_pr_review_comments_uniqueness", unique: true
     t.index ["job_id"], name: "index_pr_review_comments_on_job_id"
   end
@@ -1527,6 +1536,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_30_172000) do
   add_foreign_key "notifications", "jobs"
   add_foreign_key "notifications", "users"
   add_foreign_key "pr_review_comments", "jobs"
+  add_foreign_key "pr_review_comments", "workflows", column: "handling_workflow_id"
   add_foreign_key "repositories", "installations"
   add_foreign_key "repositories", "repositories", column: "upstream_repository_id"
   add_foreign_key "repositories", "users"

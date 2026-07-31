@@ -21,6 +21,11 @@ export type PendingFeedbackComment = {
   comment_kind: string
   body: string | null
   comment_created_at: string | null
+  handling_state?: "pending" | "active" | "failed" | "handled" | "ignored"
+  handling_workflow_id?: number | null
+  handling_failed_at?: string | null
+  handling_failure_reason?: string | null
+  retryable?: boolean
 }
 
 export type JobEpic = {
@@ -693,6 +698,10 @@ export function ignorePendingFeedback(jobId: number, commentId: number) {
 
 export function replacePendingFeedback(jobId: number, commentId: number, body: string) {
   return postJson<PendingFeedbackActionPayload>(`/api/v1/app/jobs/${jobId}/pending_feedback/${commentId}/replace`, { body })
+}
+
+export function retryPendingFeedback(jobId: number, commentId: number) {
+  return postJson<PendingFeedbackActionPayload>(`/api/v1/app/jobs/${jobId}/pending_feedback/${commentId}/retry`)
 }
 
 export function updateJobPriority(path: string, priority: string) {

@@ -117,6 +117,31 @@ describe("JobDetailView", () => {
       .toHaveAttribute("href", "/app-shell/scheduled_tasks/12")
   })
 
+  it("shows retry affordance for failed pending feedback handling", () => {
+    renderJobDetail(jobPayload({
+      pending_feedback: [
+        {
+          id: 17,
+          github_handle: "reviewer",
+          attributed_to: "external",
+          pr_type: "direct",
+          comment_kind: "issue",
+          body: "Please add the missing regression.",
+          comment_created_at: "2026-07-30T10:00:00Z",
+          handling_state: "failed",
+          handling_workflow_id: 11517,
+          handling_failed_at: "2026-07-30T10:05:00Z",
+          handling_failure_reason: "rate_limit",
+          retryable: true
+        }
+      ]
+    }))
+
+    expect(screen.getByText("Last attempt failed: rate_limit")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Retry addressing PR feedback" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Apply" })).not.toBeInTheDocument()
+  })
+
   it("links the originating message when origin_chat is present", () => {
     renderJobDetail(jobPayload({
       origin_chat: {

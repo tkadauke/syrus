@@ -544,7 +544,7 @@ RSpec.describe PollPullRequestJob do
       expect(record.actioned_at).to be_nil
     end
 
-    it "creates PrReviewComment records and marks qualifying ones as actioned when workflow is triggered" do
+    it "creates PrReviewComment records and marks qualifying ones as handling active when workflow is triggered" do
       stub_issue_comments([
         { id: 1, body: "Please fix the typo", user: { login: "reviewer" }, created_at: t1.iso8601 }
       ])
@@ -556,8 +556,10 @@ RSpec.describe PollPullRequestJob do
         .and change { job.workflows.where(trigger_kind: "pr_comment").count }.by(1)
 
       record = PrReviewComment.last
-      expect(record.actioned_at).to be_present
+      expect(record.actioned_at).to be_nil
       expect(record.actioned_by).to eq("auto_poll")
+      expect(record.handling_state).to eq("active")
+      expect(record.handling_workflow).to eq(job.workflows.where(trigger_kind: "pr_comment").last)
     end
 
     it "does not enqueue workflow for external actionable comments when feedback_policy is confirm" do

@@ -110,6 +110,7 @@ Rails.application.routes.draw do
         post "jobs/:job_id/pending_feedback/:id/apply", to: "pending_feedback#apply", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
         post "jobs/:job_id/pending_feedback/:id/ignore", to: "pending_feedback#ignore", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
         post "jobs/:job_id/pending_feedback/:id/replace", to: "pending_feedback#replace", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
+        post "jobs/:job_id/pending_feedback/:id/retry", to: "pending_feedback#retry", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
         post "jobs/:job_id/poll_feedback", to: "job_run_commands#poll_feedback", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/rebase", to: "job_run_commands#rebase", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/check_mergeability", to: "job_run_commands#check_mergeability", constraints: { job_id: /[a-zA-Z0-9_-]+/ }

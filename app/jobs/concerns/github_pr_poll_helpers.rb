@@ -7,6 +7,7 @@ module GithubPrPollHelpers
   # hash that round-trips through Workflow.artifacts (JSON column).
   def serialize_comment(c)
     {
+      "id"         => c.id,
       "author"     => c.user&.login,
       "body"       => c.body,
       "path"       => (c.respond_to?(:path) ? c.path : nil),

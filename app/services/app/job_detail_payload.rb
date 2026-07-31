@@ -321,13 +321,11 @@ module App
     end
 
     def pending_feedback_json
-      return [] unless @job.repository.feedback_policy_confirm?
-
       @job.pr_review_comments
           .actionable_comments
-          .unactioned
           .where.not(attributed_to: "job_owner")
           .order(:comment_created_at, :id)
+          .select { |comment| @job.repository.feedback_policy_confirm? ? comment.pending_for_operator? : comment.retryable_handling? }
           .map do |comment|
         {
           id: comment.id,
@@ -336,7 +334,12 @@ module App
           pr_type: comment.pr_type,
           comment_kind: comment.comment_kind,
           body: comment.body,
-          comment_created_at: iso8601(comment.comment_created_at)
+          comment_created_at: iso8601(comment.comment_created_at),
+          handling_state: comment.handling_state || "pending",
+          handling_workflow_id: comment.handling_workflow_id,
+          handling_failed_at: iso8601(comment.handling_failed_at),
+          handling_failure_reason: comment.handling_failure_reason,
+          retryable: comment.retryable_handling?
         }
       end
     end

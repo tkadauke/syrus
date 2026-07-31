@@ -38,7 +38,7 @@ Syrus starts from events your team already uses:
 | Source | What Syrus does |
 | --- | --- |
 | GitHub issue | A trigger label creates a Job and starts the initial issue-to-PR Workflow. |
-| PR feedback | New human review comments create a follow-up Workflow on the same branch; Syrus App bot comments are ignored. |
+| PR feedback | New human review comments create a follow-up Workflow on the same branch; failed handling stays visible and retryable without another GitHub comment. |
 | Scheduled task | A recurring or one-shot prompt creates a Job without a GitHub issue. |
 | Retry | An operator asks Syrus to run another attempt on an existing Job. |
 | Rebase | Syrus detects an unmergeable branch it controls and runs a rebase Workflow. |

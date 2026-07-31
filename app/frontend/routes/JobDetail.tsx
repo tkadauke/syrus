@@ -13,7 +13,7 @@ import { Markdown } from "../lib/Markdown"
 import { translateBlockedReason } from "../lib/translateBlockedReason"
 import { workflowSlug } from "../lib/slugs"
 import { buttonClass } from "../lib/buttonClasses"
-import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobDetail, fetchJobTestResults, fetchJobWorkflows, ignorePendingFeedback, replacePendingFeedback, submitJobFeedback, updateJobPriority, type JobApprovalRecord, type JobApprovalStatus, type JobDetailPayload, type JobTestCase, type JobTestPlan, type JobTestRun, type JobTestSuite, type JobWorkflow, type PendingFeedbackComment } from "../api/jobs"
+import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobDetail, fetchJobTestResults, fetchJobWorkflows, ignorePendingFeedback, replacePendingFeedback, retryPendingFeedback, submitJobFeedback, updateJobPriority, type JobApprovalRecord, type JobApprovalStatus, type JobDetailPayload, type JobTestCase, type JobTestPlan, type JobTestRun, type JobTestSuite, type JobWorkflow, type PendingFeedbackComment } from "../api/jobs"
 import { CoverageCard } from "../components/CoverageCard"
 import { SyrusTour } from "../components/SyrusTour"
 import { useTour } from "../hooks/useTour"
@@ -494,9 +494,17 @@ function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: numbe
     }
   })
 
+  const retry = useMutation({
+    mutationFn: (commentId: number) => retryPendingFeedback(jobId, commentId),
+    onSuccess: (data) => {
+      setNotice(data.message)
+      void queryClient.invalidateQueries({ queryKey })
+    }
+  })
+
   if (comments.length === 0) return null
 
-  const isPending = apply.isPending || ignore.isPending || replace.isPending
+  const isPending = apply.isPending || ignore.isPending || replace.isPending || retry.isPending
 
   return (
     <section className="rounded border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/60 dark:bg-amber-950/30">
@@ -510,9 +518,9 @@ function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: numbe
           <button className="ml-2 hover:underline" onClick={() => setNotice(null)} type="button">{t("dismiss")}</button>
         </div>
       ) : null}
-      {(apply.isError || ignore.isError || replace.isError) ? (
+      {(apply.isError || ignore.isError || replace.isError || retry.isError) ? (
         <p className="mt-2 text-xs text-red-600 dark:text-red-400">
-          {apply.error instanceof Error ? apply.error.message : ignore.error instanceof Error ? ignore.error.message : replace.error instanceof Error ? replace.error.message : "Action failed."}
+          {apply.error instanceof Error ? apply.error.message : ignore.error instanceof Error ? ignore.error.message : replace.error instanceof Error ? replace.error.message : retry.error instanceof Error ? retry.error.message : "Action failed."}
         </p>
       ) : null}
       <div className="mt-3 space-y-3">
@@ -526,6 +534,11 @@ function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: numbe
               {comment.comment_created_at ? <span>· <RelativeTimestamp value={comment.comment_created_at} /></span> : null}
             </div>
             <p className="mt-2 whitespace-pre-wrap break-words text-sm text-gray-700 dark:text-gray-300">{comment.body}</p>
+            {comment.handling_state === "failed" ? (
+              <p className="mt-2 text-xs font-medium text-red-700 dark:text-red-300">
+                {t("pending_feedback_last_failed", { reason: comment.handling_failure_reason || t("pending_feedback_failure_unknown") })}
+              </p>
+            ) : null}
             {replaceId === comment.id ? (
               <div className="mt-3 space-y-2">
                 <textarea
@@ -556,22 +569,35 @@ function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: numbe
               </div>
             ) : (
               <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={isPending}
-                  onClick={() => apply.mutate(comment.id)}
-                  type="button"
-                >
-                  Apply
-                </button>
-                <button
-                  className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
-                  disabled={isPending}
-                  onClick={() => { setReplaceId(comment.id); setReplaceBody("") }}
-                  type="button"
-                >
-                  Replace
-                </button>
+                {comment.retryable ? (
+                  <button
+                    className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={isPending}
+                    onClick={() => retry.mutate(comment.id)}
+                    type="button"
+                  >
+                    {t("pending_feedback_retry")}
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={isPending}
+                      onClick={() => apply.mutate(comment.id)}
+                      type="button"
+                    >
+                      Apply
+                    </button>
+                    <button
+                      className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+                      disabled={isPending}
+                      onClick={() => { setReplaceId(comment.id); setReplaceBody("") }}
+                      type="button"
+                    >
+                      Replace
+                    </button>
+                  </>
+                )}
                 <button
                   className="text-xs text-gray-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400"
                   disabled={isPending}

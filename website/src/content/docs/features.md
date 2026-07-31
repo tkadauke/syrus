@@ -273,6 +273,10 @@ Job reaches review.
 App surfaces, including the Job detail page, can also submit feedback directly
 for implemented or failed Jobs, bypassing the chat pending-action confirmation
 while creating the same `chat_feedback` Workflow.
+If a feedback workflow fails before the comment is addressed, the source PR
+comment remains on the Job detail pending-feedback panel with the last failure
+reason and a retry action. Retrying reuses the stored comment and workflow
+artifacts; the operator does not need to add another GitHub comment.
 
 Attached repository checkouts are read-only for the chat agent. Chat can run
 through Claude or Codex. Empty chats can stay on **Default**, which follows the

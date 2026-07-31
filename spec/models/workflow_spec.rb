@@ -756,27 +756,58 @@ RSpec.describe Workflow do
 
   describe "Workflows::PrFeedback.after_success" do
     let(:job) { Factories.job }
+    let!(:comment) do
+      PrReviewComment.create!(
+        job: job,
+        pr_type: "direct",
+        comment_kind: "issue",
+        github_comment_id: 1,
+        github_handle: "reviewer",
+        attributed_to: "external",
+        actionable: true,
+        body: "Please fix this",
+        handling_state: "active",
+        comment_created_at: Time.iso8601("2026-05-17T18:00:00Z")
+      )
+    end
     let(:wf) do
       described_class.create!(
         job: job,
         trigger_kind: "pr_comment",
+        state: "running",
         artifacts: { "pr_comments" => [
           { "id" => 1, "created_at" => "2026-05-17T18:00:00Z" },
           { "id" => 2, "created_at" => "2026-05-17T20:30:00Z" }
-        ] }
+        ],
+        "pr_review_comment_ids" => [ comment.id ] }
       )
     end
 
-    it "marks the job's feedback as addressed at the latest comment timestamp" do
+    it "marks the job's feedback as addressed and marks source comments handled" do
       Workflows::PrFeedback.after_success(wf)
 
       expect(job.reload.last_feedback_addressed_at).to be_within(1.second).of(Time.iso8601("2026-05-17T20:30:00Z"))
+      expect(comment.reload.handling_state).to eq("handled")
+      expect(comment.handled_at).to be_present
+      expect(comment.actioned_at).to be_present
     end
 
     it "is a no-op when artifacts has no pr_comments" do
       wf.update!(artifacts: {})
 
       expect { Workflows::PrFeedback.after_success(wf) }.not_to change { job.reload.last_feedback_addressed_at }
+    end
+
+    it "marks source comments failed with the failed run outcome" do
+      step = Step.create!(workflow: wf, kind: "respond", details: {}, state: "failed")
+      Run.create!(job: job, step: step, trigger_kind: "pr_comment", state: "failed", agent_outcome: "rate_limit")
+
+      Workflows::PrFeedback.after_fail(wf)
+
+      comment.reload
+      expect(comment.handling_state).to eq("failed")
+      expect(comment.handling_failure_reason).to eq("rate_limit")
+      expect(comment.actioned_at).to be_nil
     end
   end
 

@@ -179,12 +179,13 @@ class PollForkReviewPrJob < ApplicationJob
       "feedback_cutoff" => @job.last_seen_fork_review_comment_at&.iso8601,
       "pr_feedback_iteration" => iteration,
       "pr_feedback_auto" => true,
-      "pr_feedback_source_handle" => source_handle
+      "pr_feedback_source_handle" => source_handle,
+      "pr_review_comment_ids" => qualifying_records.map(&:id)
     }
     workflow = Workflows::PrFeedback.instantiate(job: @job, artifacts: artifacts)
     StepDispatcher.start_workflow(workflow)
 
-    qualifying_records.each { |r| r.mark_actioned!(by: "auto_poll") }
+    qualifying_records.each { |r| r.mark_handling_started!(workflow: workflow, by: "auto_poll") }
 
     latest = new_comments.map(&:created_at).compact.max
     @job.update!(last_seen_fork_review_comment_at: latest) if latest

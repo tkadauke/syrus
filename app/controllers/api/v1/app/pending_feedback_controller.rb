@@ -29,7 +29,7 @@ module Api
             return
           end
 
-          comment.mark_actioned!(by: "operator:apply")
+          comment.mark_handling_started!(workflow: result.workflow, by: "operator:apply")
 
           render json: {
             message: "Feedback applied.",
@@ -42,7 +42,7 @@ module Api
           comment = find_pending_comment(job)
           return unless comment
 
-          comment.mark_actioned!(by: "operator:ignore")
+          comment.mark_ignored!
           render json: ::App::JobDetailPayload.build(job: job.reload, user: Current.user)
         end
 
@@ -69,10 +69,37 @@ module Api
             return
           end
 
-          comment.mark_actioned!(by: "operator:replace")
+          comment.mark_handling_started!(workflow: result.workflow, by: "operator:replace")
 
           render json: {
             message: "Feedback applied with replacement text.",
+            workflow: { id: result.workflow.id, state: result.workflow.state }
+          }, status: :created
+        end
+
+        def retry
+          job = find_job
+          comment = pending_comments(job).detect { |candidate| candidate.id == params[:id].to_i }
+          unless comment&.retryable_handling?
+            render_error("not_found", "Comment not found or not retryable.", status: :not_found)
+            return
+          end
+
+          if active_feedback_workflow_for?(job, comment)
+            render_error("conflict", "A feedback workflow is already queued or running for this comment.", status: :conflict)
+            return
+          end
+
+          result = retry_feedback_handling(job, comment)
+          unless result.success?
+            render_error("validation_failed", result.error, status: :unprocessable_content)
+            return
+          end
+
+          comment.mark_handling_started!(workflow: result.workflow, by: "operator:retry")
+
+          render json: {
+            message: "Retry addressing PR feedback started.",
             workflow: { id: result.workflow.id, state: result.workflow.state }
           }, status: :created
         end
@@ -84,7 +111,7 @@ module Api
         end
 
         def find_pending_comment(job)
-          comment = pending_comments(job).find_by(id: params[:id])
+          comment = pending_comments(job).detect { |candidate| candidate.id == params[:id].to_i }
           unless comment
             render_error("not_found", "Comment not found or already actioned.", status: :not_found)
             return nil
@@ -95,9 +122,9 @@ module Api
         def pending_comments(job)
           job.pr_review_comments
              .actionable_comments
-             .unactioned
              .where.not(attributed_to: "job_owner")
              .order(:comment_created_at, :id)
+             .select(&:pending_for_operator?)
         end
 
         def comment_json(comment)
@@ -108,7 +135,12 @@ module Api
             pr_type: comment.pr_type,
             comment_kind: comment.comment_kind,
             body: comment.body,
-            comment_created_at: comment.comment_created_at&.iso8601
+            comment_created_at: comment.comment_created_at&.iso8601,
+            handling_state: comment.handling_state || "pending",
+            handling_workflow_id: comment.handling_workflow_id,
+            handling_failed_at: comment.handling_failed_at&.iso8601,
+            handling_failure_reason: comment.handling_failure_reason,
+            retryable: comment.retryable_handling?
           }
         end
 
@@ -122,6 +154,39 @@ module Api
               "confirmed_by" => "operator"
             }
           }
+        end
+
+        def active_feedback_workflow_for?(job, comment)
+          job.workflows.active.where(trigger_kind: Workflow::TriggerKind.feedback_values).any? do |workflow|
+            workflow_references_comment?(workflow, comment)
+          end
+        end
+
+        def workflow_references_comment?(workflow, comment)
+          Array(workflow.artifact("pr_review_comment_ids")).map(&:to_i).include?(comment.id) ||
+            workflow.artifact("feedback_source").to_h["pr_review_comment_id"].to_i == comment.id
+        end
+
+        def retry_feedback_handling(job, comment)
+          original = comment.handling_workflow
+          if original&.trigger_kind == "pr_comment"
+            artifacts = original.artifacts.to_h.deep_dup
+            artifacts["pr_feedback_iteration"] = job.workflows.where(trigger_kind: Workflow::TriggerKind.feedback_values).count + 1
+            artifacts["pr_review_comment_ids"] = Array(artifacts["pr_review_comment_ids"]).map(&:to_i).presence || [ comment.id ]
+            workflow = Workflows::PrFeedback.instantiate(job: job, artifacts: artifacts, agent_provider: job.agent_provider)
+            StepDispatcher.start_workflow(workflow)
+            ChatFeedbackSubmission::Result.new(workflow: workflow, error: nil)
+          else
+            artifacts = original&.artifacts.to_h
+            source = artifacts["feedback_source"].to_h.presence || feedback_source_artifacts(comment, "retry")["feedback_source"]
+            source = source.merge("action" => "retry", "confirmed_by" => "operator")
+            ChatFeedbackSubmission.call(
+              job: job,
+              feedback: artifacts["chat_feedback"].presence || comment.body.to_s,
+              allowed_states: %w[implemented failed],
+              extra_artifacts: { "feedback_source" => source }
+            )
+          end
         end
       end
     end

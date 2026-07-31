@@ -13,6 +13,8 @@ module Workflows
   # --resumes respond and produces the *commit message for the
   # amendment* (not a fresh PR title). push is non-agentic.
   class PrFeedback < Base
+    extend Workflows::FeedbackHandling
+
     steps :prepare,
           Workflows::RetryUntil.new(repair: [ :respond ], check: [ :grader_fanout, :grader_collect ]),
           :coverage_analyze,
@@ -55,6 +57,7 @@ module Workflows
       end.max
 
       workflow.job.mark_feedback_addressed!(addressed_at)
+      mark_source_comments_handled(workflow)
       job = workflow.job
       NotificationService.create_for(
         user: job.user,
@@ -69,6 +72,14 @@ module Workflows
       Time.iso8601(value.to_s)
     rescue ArgumentError
       nil
+    end
+
+    def self.after_fail(workflow)
+      mark_source_comments_failed(workflow)
+    end
+
+    def self.after_cancel(workflow)
+      mark_source_comments_failed(workflow)
     end
   end
 end

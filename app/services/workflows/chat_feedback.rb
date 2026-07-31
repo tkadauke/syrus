@@ -3,6 +3,8 @@ module Workflows
   # PR feedback, but the prompt source is the chat_feedback artifact instead
   # of GitHub comments.
   class ChatFeedback < Base
+    extend Workflows::FeedbackHandling
+
     steps :prepare,
           Workflows::RetryUntil.new(repair: [ :respond ], check: [ :grader_fanout, :grader_collect ]),
           :coverage_analyze,
@@ -33,6 +35,18 @@ module Workflows
       return nil unless rounds.positive?
 
       Workflows::Loop.new(max_iterations: rounds, steps: [ :respond, :adversarial_review ])
+    end
+
+    def self.after_success(workflow)
+      mark_source_comments_handled(workflow)
+    end
+
+    def self.after_fail(workflow)
+      mark_source_comments_failed(workflow)
+    end
+
+    def self.after_cancel(workflow)
+      mark_source_comments_failed(workflow)
     end
   end
 end
