@@ -1734,6 +1734,42 @@ RSpec.describe ChatTurnJob do
     expect(chat.messages.where(role: %w[tool_use tool_result]).count).to eq(2)
   end
 
+  it "moves pending action cards from the initiating user message to the producing tool call" do
+    job = Factories.job(repository: repository)
+    pending_action = chat.pending_actions.create!(
+      action: "rebase_job",
+      payload: { "job_id" => job.id },
+      requested_by: "agent"
+    )
+    user_message.update!(pending_action: pending_action)
+
+    ChatTurnJob.agent_runner = ->(log_sink:, **_) {
+      log_sink.call("I will request the rebase.", kind: "assistant_text")
+      log_sink.call("● rebase_job(...)", kind: "tool_call",
+                    tool_name: "syrus-chat-sidecar.rebase_job",
+                    tool_input: { "job_id" => job.id },
+                    tool_use_id: "toolu_rebase")
+      log_sink.call("Job rebase requires operator confirmation.", kind: "tool_result",
+                    tool_name: "syrus-chat-sidecar.rebase_job",
+                    tool_result_content: JSON.generate(
+                      pending_confirmation_id: pending_action.id,
+                      pending_action_id: pending_action.id,
+                      state: "pending",
+                      message: "Job rebase requires operator confirmation."
+                    ),
+                    tool_result_error: false,
+                    tool_use_id: "toolu_rebase")
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    tool_use_msg = chat.messages.find_by!(role: "tool_use", tool_use_id: "toolu_rebase")
+    expect(tool_use_msg.pending_action).to eq(pending_action)
+    expect(user_message.reload.pending_action).to be_nil
+    expect(pending_action.reload.message).to eq(tool_use_msg)
+  end
+
   it "flushes partial assistant content before the cancellation system message on stop" do
     ChatTurnJob.agent_runner = ->(log_sink:, stop_requested:, **_) {
       log_sink.call("Working...", kind: "thinking", thinking: "Working...", signature: "s")

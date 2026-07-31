@@ -58,7 +58,13 @@ module SyrusChatMcp
 
     def attach_pending_action_to_current_message!(server_context, pending_action)
       if (msg = server_context[:current_message])
-        msg.update_columns(pending_action_id: pending_action.id)
+        ChatMessage.transaction do
+          msg.chat_session.messages
+            .where(pending_action_id: pending_action.id)
+            .where.not(id: msg.id)
+            .update_all(pending_action_id: nil)
+          msg.update_columns(pending_action_id: pending_action.id)
+        end
       end
     end
 

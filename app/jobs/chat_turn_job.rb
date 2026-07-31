@@ -431,6 +431,7 @@ class ChatTurnJob < ApplicationJob
           provider: @chat.effective_chat_provider
         )
       end
+      anchor_pending_action_to_tool_call!(tool_use_id, tool_result_content) unless tool_result_error == true
       @chat.messages.create!(
         role: "tool_result",
         tool_name: tool_name,
@@ -458,6 +459,44 @@ class ChatTurnJob < ApplicationJob
 
   def mcp_tool_result_id?(tool_use_id)
     tool_use_id.present? && McpToolUsage.where(chat_session: @chat, tool_use_id: tool_use_id.to_s).exists?
+  end
+
+  def anchor_pending_action_to_tool_call!(tool_use_id, tool_result_content)
+    pending_action_id = pending_action_id_from_tool_result(tool_result_content)
+    return if pending_action_id.blank? || tool_use_id.blank?
+
+    pending_action = @chat.pending_actions.find_by(id: pending_action_id)
+    tool_message = @chat.messages.find_by(role: "tool_use", tool_use_id: tool_use_id)
+    return unless pending_action && tool_message
+
+    ChatMessage.transaction do
+      @chat.messages
+        .where(pending_action_id: pending_action.id)
+        .where.not(id: tool_message.id)
+        .update_all(pending_action_id: nil)
+      tool_message.update_columns(pending_action_id: pending_action.id)
+    end
+  end
+
+  def pending_action_id_from_tool_result(tool_result_content)
+    parsed = pending_action_tool_result_hash(tool_result_content)
+    parsed&.fetch("pending_action_id", nil) || parsed&.fetch("pending_confirmation_id", nil)
+  end
+
+  def pending_action_tool_result_hash(tool_result_content)
+    case tool_result_content
+    when Hash
+      tool_result_content
+    when String
+      JSON.parse(tool_result_content)
+    when Array
+      text = tool_result_content
+        .find { |block| block.is_a?(Hash) && block["type"] == "text" }
+        &.fetch("text", nil)
+      text.present? ? JSON.parse(text) : nil
+    end
+  rescue JSON::ParserError, TypeError
+    nil
   end
 
   def flush_current_assistant_content!

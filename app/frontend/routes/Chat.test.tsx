@@ -7,7 +7,7 @@ import { ChatRoute } from "./Chat"
 import { getStartingPhrase } from "./chat/streamChrome"
 import { shouldAnimateMessageEntrance } from "./chat/MessageCards"
 import { storedWorkspaceCollapsed, workspaceTabLabel, mobileChatTabLabel } from "./chat/workspaceTabs"
-import { renderChatMessages } from "./chat/streamBuilders"
+import { buildMessageStreamItems, renderChatMessages } from "./chat/streamBuilders"
 import { asExcalidrawElements, VALID_EXCALIDRAW_TYPES } from "./chat/whiteboardScene"
 
 describe("storedWorkspaceCollapsed", () => {
@@ -3095,6 +3095,127 @@ describe("chat effort selector in toolbar", () => {
 })
 
 describe("renderChatMessages tool_result content key", () => {
+  it("anchors proposal and pending action cards after the tool events that produced them", () => {
+    const proposal = {
+      id: 88,
+      kind: "job",
+      kind_label: "Job",
+      state: "proposed",
+      state_label: "Proposed",
+      title: "Fix transcript cards",
+      slug: "job-fix-transcript-cards",
+      body: "Keep cards next to their producing calls.",
+      proposed: true,
+      resolved: false,
+      epic_bundle: false,
+      scoped_repository_slug: "tkadauke/syrus",
+      dependency_slugs: [],
+      depends_on_job_ids: [],
+      depends_on_epic_ids: [],
+      dependencies: [],
+      has_dependencies: false,
+      target_epic_label: null,
+      app_update_path: "/api/v1/app/chats/122/proposals/88",
+      app_confirm_path: "/api/v1/app/chats/122/proposals/88/confirm",
+      app_reject_path: "/api/v1/app/chats/122/proposals/88/reject",
+      materialized_label: null,
+      materialized_path: null,
+      materialized: null,
+      materialized_epic_state: null,
+      materialized_epic_state_path: null,
+      media_ids: []
+    }
+
+    const messages = [
+      {
+        type: "message" as const,
+        id: 1,
+        role: "user" as const,
+        content: { text: "Please prepare these actions." },
+        text: "Please prepare these actions.",
+        bookmarkable: true
+      },
+      {
+        type: "message" as const,
+        id: 2,
+        role: "assistant" as const,
+        content: [{ type: "text", text: "I will draft the job first." }],
+        text: "I will draft the job first.",
+        bookmarkable: true
+      },
+      {
+        type: "message" as const,
+        id: 3,
+        role: "tool_use" as const,
+        tool_name: "syrus-chat-sidecar.propose_job",
+        content: { type: "tool_use", id: "toolu_propose", name: "propose_job", input: { title: "Fix transcript cards" } },
+        text: "",
+        bookmarkable: false
+      },
+      {
+        type: "message" as const,
+        id: 4,
+        role: "assistant" as const,
+        content: [{ type: "text", text: "Job proposal proposed." }],
+        text: "Job proposal proposed.",
+        bookmarkable: true,
+        proposal
+      },
+      {
+        type: "message" as const,
+        id: 5,
+        role: "assistant" as const,
+        content: [{ type: "text", text: "Now I will request the rebase." }],
+        text: "Now I will request the rebase.",
+        bookmarkable: true
+      },
+      {
+        type: "message" as const,
+        id: 6,
+        role: "tool_use" as const,
+        tool_name: "syrus-chat-sidecar.rebase_job",
+        content: { type: "tool_use", id: "toolu_rebase", name: "rebase_job", input: { job_id: 2325 } },
+        text: "",
+        bookmarkable: false
+      },
+      {
+        type: "message" as const,
+        id: 7,
+        role: "tool_result" as const,
+        tool_name: "syrus-chat-sidecar.rebase_job",
+        content: {
+          type: "tool_result",
+          tool_use_id: "toolu_rebase",
+          content: "{\"pending_action_id\":114,\"message\":\"Job rebase requires operator confirmation.\"}",
+          is_error: false
+        },
+        text: "",
+        bookmarkable: false
+      }
+    ]
+    const pendingActions = [{
+      id: 114,
+      label: "Rebase JOB-2325",
+      detail: null,
+      state: "pending" as const,
+      action: "rebase_job",
+      action_type: null,
+      chat_message_id: 6,
+      app_confirm_path: "/api/v1/app/chats/122/pending_actions/114/confirm",
+      app_reject_path: "/api/v1/app/chats/122/pending_actions/114/reject",
+      app_cancel_path: "/api/v1/app/chats/122/pending_actions/114"
+    }]
+
+    const stream = buildMessageStreamItems(renderChatMessages(messages), pendingActions)
+    const proposalIndex = stream.findIndex((item) => item.type === "message" && item.proposal?.id === proposal.id)
+    const pendingActionIndex = stream.findIndex((item) => item.type === "pending_action" && item.pendingAction.id === 114)
+
+    expect(proposalIndex).toBeGreaterThan(stream.findIndex((item) => item.type === "tool_group" && item.calls.some((call) => call.message_id === 3)))
+    expect(pendingActionIndex).toBeGreaterThan(stream.findIndex((item) => item.type === "tool_group" && item.calls.some((call) => call.message_id === 6)))
+    expect(pendingActionIndex).toBeLessThan(stream.findIndex((item) => item.type === "message" && item.id === 5) + 3)
+    expect(stream[pendingActionIndex - 1].type).toBe("tool_group")
+  })
+
   it("renders result_body from the canonical 'content' key, not the legacy 'result' key", () => {
     const messages = [
       {
