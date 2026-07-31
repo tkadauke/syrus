@@ -1591,7 +1591,7 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
     end
 
     it "blocks when multiple same-epic dependencies are approved but not yet merged" do
-      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress", epic_dependency_policy: "nonlinear")
       dep_a = Factories.job_record(
         user: user, repository: repository, epic: epic, issue_number: 41, state: "approved",
         branch_name: "syrus/issue-41", pr_number: 6
@@ -1798,7 +1798,7 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
     end
 
     it "releases blocked_by_epic and starts the workflow when a same-epic dep resolves after the epic is already in_progress" do
-      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      epic = Factories.epic(user: user, repository: repository, state: "ready")
       prerequisite = Factories.job_record(
         user: user, repository: repository, epic: epic, issue_number: 42,
         state: "implemented", branch_name: "syrus/issue-42", pr_number: 7
@@ -1806,6 +1806,7 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       job = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 43, state: "blocked_by_epic")
       workflow = Workflows::Initial.instantiate(job: job)
       JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual")
+      epic.update_columns(state: "in_progress")
 
       expect(job).to be_blocked_by_epic
       expect(workflow.first_step.runs).to be_empty

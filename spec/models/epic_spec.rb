@@ -1181,7 +1181,7 @@ RSpec.describe Epic do
       expect(dep_ids).to contain_exactly(final.id)
     end
 
-    it "raises a clear error when a linear Epic has no unique final child Job" do
+    it "skips linear reconciliation when there is no unique final child Job" do
       allow(RepoReconciliationPlan).to receive(:for_epic).and_return(
         RepoReconciliationPlan::Result.new(mode: "pr", source: "default", note: nil)
       )
@@ -1190,13 +1190,11 @@ RSpec.describe Epic do
       add_child(epic, number: 2)
       epic.update_columns(state: "in_progress")
 
-      expect {
-        epic.maybe_create_reconciliation_job!
-      }.to raise_error(ArgumentError, /linear Epic reconciliation requires one linear child Job chain/)
+      expect { epic.maybe_create_reconciliation_job! }.not_to change(Job, :count)
       expect(epic.reload.reconciliation_job_id).to be_nil
     end
 
-    it "rejects linear reconciliation for a fan-in child graph even with one leaf" do
+    it "skips linear reconciliation for a fan-in child graph even with one leaf" do
       allow(RepoReconciliationPlan).to receive(:for_epic).and_return(
         RepoReconciliationPlan::Result.new(mode: "pr", source: "default", note: nil)
       )
@@ -1208,9 +1206,7 @@ RSpec.describe Epic do
       add_job_dependency(final, second)
       epic.update_columns(state: "in_progress")
 
-      expect {
-        epic.maybe_create_reconciliation_job!
-      }.to raise_error(ArgumentError, /linear Epic reconciliation requires one linear child Job chain/)
+      expect { epic.maybe_create_reconciliation_job! }.not_to change(Job, :count)
       expect(epic.reload.reconciliation_job_id).to be_nil
     end
 

@@ -67,16 +67,11 @@ class EpicDependencyPolicy::Linear < EpicDependencyPolicy::Base
     unordered = sibling_ids.combination(2).find do |left_id, right_id|
       !reachable.fetch(left_id).include?(right_id) && !reachable.fetch(right_id).include?(left_id)
     end
-    raise ArgumentError, "linear Epic reconciliation requires one linear child Job chain" if unordered
+    return [] if unordered
 
     referenced_ids = edges.map(&:second).uniq
     leaf_jobs = sibling_jobs.reject { |job| referenced_ids.include?(job.id) }
 
-    if leaf_jobs.one?
-      leaf_jobs
-    else
-      raise ArgumentError,
-            "linear Epic reconciliation requires one linear child Job chain; found #{leaf_jobs.length} final children"
-    end
+    leaf_jobs.one? ? leaf_jobs : []
   end
 end

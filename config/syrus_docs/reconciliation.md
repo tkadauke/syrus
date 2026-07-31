@@ -20,7 +20,7 @@ The reconciliation Job is a `kind=direct` Job attached to the Epic. It is create
 
 The Job is idempotent — Syrus will not create a second reconciliation Job while one is already open (`reconciliation_job_id` is set on the Epic).
 
-For Epics using the default linear dependency policy, the child Job graph must have exactly one final child Job. If persisted children do not form a single chain, reconciliation creation raises a clear configuration error instead of creating a fan-in Job.
+For Epics using the default linear dependency policy, the child Job graph must have exactly one final child Job. If persisted children do not form a single chain, reconciliation creation is deferred instead of creating a fan-in Job.
 
 ## Landing gate
 

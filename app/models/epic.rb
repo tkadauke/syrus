@@ -465,6 +465,9 @@ class Epic < ApplicationRecord
   private
 
   def create_reconciliation_job!(sibling_jobs)
+    reconciliation_dependency_jobs = EpicDependencyPolicy::Base.for(epic_dependency_policy).reconciliation_dependency_jobs(self, sibling_jobs)
+    return if reconciliation_dependency_jobs.empty?
+
     prompt = Prompts::EpicReconciliation.new(
       epic: self,
       jobs: sibling_jobs,
@@ -482,7 +485,7 @@ class Epic < ApplicationRecord
       state: "triaging"
     )
 
-    EpicDependencyPolicy::Base.for(epic_dependency_policy).reconciliation_dependency_jobs(self, sibling_jobs).each do |sibling|
+    reconciliation_dependency_jobs.each do |sibling|
       recon_job.dependencies.create!(
         depends_on_job: sibling,
         source: "manual",
