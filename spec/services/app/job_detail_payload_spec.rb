@@ -9,6 +9,31 @@ RSpec.describe App::JobDetailPayload do
   end
 
   describe "#job_json" do
+    it "includes a compact worker health correlation summary" do
+      job = Factories.job(repository: repo)
+      run = job.initial_run
+      run.workflow.update!(worker_hostname: "worker-a")
+      run.update!(started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+      WorkerHostHealthSample.create!(
+        hostname: "worker-a",
+        role: "worker",
+        version: "abc123",
+        observed_at: 5.minutes.ago,
+        cpu_pressure_some: 60.0
+      )
+
+      payload = payload_for(job)
+
+      expect(payload.dig(:job, :worker_health_correlation)).to include(
+        runs_analyzed: 1,
+        pressure_run_count: 1
+      )
+      expect(payload.dig(:job, :worker_health_correlation, :latest_pressure_runs).first).to include(
+        run_id: run.id,
+        step_kind: run.step.kind
+      )
+    end
+
     it "links a chat-created Job back to the proposal message" do
       chat = ChatSession.create!(user: user, repository: repo, title: "Release planning")
       job = Factories.job_record(user: user, repository: repo, kind: "direct", issue_number: nil, issue_title: "Map auth")
@@ -318,6 +343,38 @@ RSpec.describe App::JobDetailPayload do
         silent_timeout_s: 120
       )
       expect(active_process[:id]).not_to eq(finished.id)
+    end
+
+    it "includes worker health correlation on each run payload" do
+      job = Factories.job_record(repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "succeeded", worker_hostname: "worker-1")
+      step = Step.create!(workflow: workflow, kind: "grader", position: 0, state: "succeeded", details: { "name" => "rspec" })
+      run = Run.create!(
+        job: job,
+        step: step,
+        trigger_kind: "initial",
+        agent_provider: "claude",
+        state: "succeeded",
+        started_at: 10.minutes.ago,
+        finished_at: 1.minute.ago
+      )
+      WorkerHostHealthSample.create!(
+        hostname: "worker-1",
+        role: "worker",
+        version: "abc123",
+        observed_at: 5.minutes.ago,
+        cpu_pressure_some: 52.0
+      )
+
+      correlation = payload_for(job).dig(:workflows, 0, :steps, 0, :runs, 0, :worker_health_correlation)
+
+      expect(correlation).to include(
+        run_id: run.id,
+        step_kind: "grader",
+        primary_hostname: "worker-1",
+        sample_count: 1
+      )
+      expect(correlation.dig(:pressure, :level)).to eq("critical")
     end
   end
 

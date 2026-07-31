@@ -92,6 +92,7 @@ export type JobRecord = {
   scheduled_task?: JobScheduledTask | null
   total_cost_usd: number | null
   billed_runs_count: number
+  worker_health_correlation?: JobWorkerHealthCorrelation | null
   source_chat: JobSourceChat | null
   workflows_count: number
   runs_count: number
@@ -109,6 +110,83 @@ export type JobRecord = {
   main_branch_repair: boolean
   start_blocked_reason: string | null
   start_blocked_at: string | null
+}
+
+export type WorkerHealthMetricSummary = {
+  avg: number
+  max: number
+}
+
+export type RunWorkerHealthCorrelation = {
+  run_id: number
+  job_id: number
+  workflow_id: number | null
+  step_id: number | null
+  step_kind: string | null
+  run_state: string
+  hostnames: string[]
+  primary_hostname: string | null
+  range: {
+    started_at: string | null
+    finished_at: string | null
+    effective_since: string | null
+    effective_until: string | null
+    duration_seconds: number | null
+    still_running: boolean
+    retained_since: string
+    start_fallback?: string | null
+  }
+  sample_count: number
+  samples_missing: boolean
+  retention_limited: boolean
+  summary: {
+    first_observed_at: string | null
+    last_observed_at: string | null
+    warning_count: number
+    critical_count: number
+    cpu_used_percent?: WorkerHealthMetricSummary | null
+    memory_used_percent?: WorkerHealthMetricSummary | null
+    data_root_used_percent?: WorkerHealthMetricSummary | null
+    load_1m?: WorkerHealthMetricSummary | null
+    cpu_pressure_some?: WorkerHealthMetricSummary | null
+    cpu_pressure_full?: WorkerHealthMetricSummary | null
+    io_pressure_some?: WorkerHealthMetricSummary | null
+    io_pressure_full?: WorkerHealthMetricSummary | null
+  }
+  pressure: {
+    level: "unknown" | "ok" | "warning" | "critical"
+    reasons: string[]
+  }
+  processes: Array<{
+    id: number
+    kind: string
+    hostname: string | null
+    pid: number | null
+    outcome: string | null
+    started_at: string | null
+    finished_at: string | null
+    last_chunk_at: string | null
+    command: string | null
+  }>
+  recent_samples?: Array<{
+    id: number
+    hostname: string
+    observed_at: string
+    cpu_used_percent: number | null
+    memory_used_percent: number | null
+    data_root_used_percent: number | null
+    cpu_pressure_some: number | null
+    io_pressure_some: number | null
+  }>
+}
+
+export type JobWorkerHealthCorrelation = {
+  retained_since: string
+  runs_analyzed: number
+  pressure_run_count: number
+  latest_pressure_runs: RunWorkerHealthCorrelation[]
+  missing_sample_run_count: number
+  generated_at: string
 }
 
 export type JobOwnerUser = {
@@ -359,6 +437,7 @@ export type JobRun = {
   run_diagnostic: { id: number; present: boolean; created_at: string | null; error_class?: string; error_message?: string } | null
   health_snapshots: Array<{ id: number; health_status: string | null; hint: string | null; run_state: string | null; last_log_preview: string | null; created_at: string | null }>
   active_process?: JobRunActiveProcess | null
+  worker_health_correlation?: RunWorkerHealthCorrelation | null
   agent_session: { session_id: string; provider: string | null; transcript_pruned: boolean; transcript_bytes: number | null; transcript_lines: number | null } | null
   can_stop: boolean
   can_diagnose: boolean

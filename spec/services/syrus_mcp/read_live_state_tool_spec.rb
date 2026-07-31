@@ -22,6 +22,7 @@ RSpec.describe SyrusMcp::ReadLiveStateTool do
       expect(payload.dig("job", "repository")).to eq(run.job.repository.slug)
       expect(payload.dig("workflow", "id")).to eq(run.workflow_id)
       expect(payload.dig("run", "id")).to eq(run.id)
+      expect(payload.dig("worker_health_correlation", "run_id")).to eq(run.id)
       expect(payload.dig("links", "api_run_transcript")).to eq("/api/v1/admin/runs/#{run.id}/transcript")
       expect(payload).to include("queue", "chat")
       expect(payload).not_to include("recent_workflows")

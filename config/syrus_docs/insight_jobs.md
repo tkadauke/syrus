@@ -30,6 +30,8 @@ Once enabled, the following become active:
 - `GET /api/v1/app/admin/insights` API endpoint (admin only)
 - `POST /api/v1/app/admin/insights/:id/promote_memory` API endpoint (admin only)
 - The `submit_insight` MCP tool is available to agents running in insight workflows
+- The `read_run_worker_health` MCP tool is available so insight agents can use
+  retained worker host pressure as evidence for Run and Step patterns
 
 All endpoints and routes return 404 when the feature flag is off.
 
@@ -47,7 +49,7 @@ Returns the standard repository detail payload with a notice that the job was st
 
 ## What the Agent Analyzes
 
-The agent receives a read-only view of the repository's workspace and recent job history (last 14 days, up to 50 `issue`-kind jobs). It uses the `submit_insight` MCP tool to record findings — one call per distinct pattern.
+The agent receives a read-only view of the repository's workspace and recent job history (last 14 days, up to 50 `issue`-kind jobs). It uses the `submit_insight` MCP tool to record findings — one call per distinct pattern. It can also call `read_run_worker_health(run_id:)` to inspect retained CPU, memory, disk, CPU pressure, and IO pressure samples for a specific Run window, including whether the Run's history was clipped by the worker-health retention window.
 
 Each `InsightSuggestion` captures:
 - **title** — concise description of the finding (≤ 200 chars)

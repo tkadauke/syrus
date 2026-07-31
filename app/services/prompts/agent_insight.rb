@@ -81,13 +81,15 @@ module Prompts
         ## Your Task
 
         Inspect the repository's recent workflow runs and agent transcripts using the
-        tools available to you (`read_live_state`, memory tools, `list_insights`,
-        `read_insight`). Look for:
+        tools available to you (`read_live_state`, `read_run_worker_health`, memory
+        tools, `list_insights`, `read_insight`). Look for:
 
         - Repeated failures or struggle patterns across multiple Jobs
         - Inefficient agent behaviors (excessive tool calls, wrong approaches)
         - Missed opportunities for memory or knowledge capture
         - Configuration issues that cause unnecessary failures
+        - Worker host pressure that repeatedly coincides with a step kind or grader
+          (for example, rspec Runs lining up with CPU starvation)
         - Patterns that suggest a recurring task would be valuable
 
         For each concrete finding, call `submit_insight` with:
@@ -95,7 +97,9 @@ module Prompts
         - A `category` (e.g. "repeated_failure", "inefficiency", "configuration", "memory_gap", "recurring_task")
         - A `severity` ("low", "medium", or "high")
         - Your `confidence` (0.0–1.0) that this is a real pattern, not a one-off
-        - `evidence` — an array of `{job_id, run_id, kind}` objects that support the finding
+        - `evidence` — an array of `{job_id, run_id, kind}` objects that support the finding.
+          Use `read_run_worker_health` when host pressure, CPU starvation, memory,
+          disk, or IO pressure may explain a Run or repeated step behavior.
         - A `suggested_prompt` for a Job or ScheduledTask that would address it (optional)
         - A `memory_suggestion` with the exact text to store if this is a durable fact (optional)
 

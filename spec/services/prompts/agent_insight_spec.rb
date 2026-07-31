@@ -96,6 +96,12 @@ RSpec.describe Prompts::AgentInsight do
         expect(out).to include("list_insights")
         expect(out).to include("read_insight")
       end
+
+      it "mentions worker health correlation evidence" do
+        out = described_class.new(repository: repository).to_s
+        expect(out).to include("read_run_worker_health")
+        expect(out).to include("CPU starvation")
+      end
     end
 
     describe "memory dedup guidance" do
