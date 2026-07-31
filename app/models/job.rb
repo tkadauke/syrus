@@ -632,13 +632,17 @@ class Job < ApplicationRecord
     return if closed?
     if failure_count >= AppSetting.max_job_failures
       close_with_reason!("too_many_failures")
-      NotificationService.create_for(
-        user: user,
-        kind: "job_failed",
-        job: self,
-        pr_url: notification_pr_url,
-        body: "#{slug} failed after repeated retries: #{title.truncate(80)}"
-      )
+      if AppSetting.simple? && epic
+        epic.notify_child_failed
+      else
+        NotificationService.create_for(
+          user: user,
+          kind: "job_failed",
+          job: self,
+          pr_url: notification_pr_url,
+          body: "#{slug} failed after repeated retries: #{title.truncate(80)}"
+        )
+      end
     end
   end
 

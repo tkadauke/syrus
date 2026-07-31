@@ -91,6 +91,33 @@ RSpec.describe "API: /api/v1/app/notifications", type: :request do
     expect(parse_body.dig("notifications", 0, "job_title")).to eq(job.title)
   end
 
+  it "omits job and PR metadata from notification payloads in simple mode" do
+    setting = AppSetting.current
+    original_mode = setting.mode
+    setting.update!(mode: "simple", mode_configured_at: Time.current)
+    sign_in_as(user)
+    job = Factories.job_record(user: user)
+    notification_for(
+      user,
+      kind: "epic_review_ready",
+      body: "Your feature 'Checkout' is ready for your review",
+      job: job,
+      pr_url: "https://github.com/acme/widgets/pull/7"
+    )
+
+    get "/api/v1/app/notifications"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("notifications", 0)).to include(
+      "body" => "Your feature 'Checkout' is ready for your review",
+      "pr_url" => nil,
+      "job_id" => nil,
+      "job_title" => nil
+    )
+  ensure
+    setting&.update!(mode: original_mode || "advanced")
+  end
+
   it "marks all current-user notifications read" do
     sign_in_as(user)
     unread = notification_for(user)

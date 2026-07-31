@@ -14612,7 +14612,7 @@ function credentialsPayload(overrides: {
   }
 }
 
-function notificationPreferencesPayload(overrides: Partial<Record<"job_failed" | "job_implemented" | "desktop_job_failed" | "desktop_job_implemented" | "pr_comment_addressed" | "pr_merged" | "epic_completed" | "epic_review_ready", boolean>> & { message?: string } = {}) {
+function notificationPreferencesPayload(overrides: Partial<Record<"job_failed" | "job_implemented" | "desktop_job_failed" | "desktop_job_implemented" | "pr_comment_addressed" | "pr_merged" | "epic_completed" | "epic_review_ready" | "epic_failed" | "epic_feedback_queued", boolean>> & { message?: string } = {}) {
   return {
     notification_preferences: {
       job_failed: overrides.job_failed ?? true,
@@ -14622,7 +14622,9 @@ function notificationPreferencesPayload(overrides: Partial<Record<"job_failed" |
       pr_comment_addressed: overrides.pr_comment_addressed ?? true,
       pr_merged: overrides.pr_merged ?? true,
       epic_completed: overrides.epic_completed ?? false,
-      epic_review_ready: overrides.epic_review_ready ?? true
+      epic_review_ready: overrides.epic_review_ready ?? true,
+      epic_failed: overrides.epic_failed ?? true,
+      epic_feedback_queued: overrides.epic_feedback_queued ?? true
     },
     message: overrides.message
   }

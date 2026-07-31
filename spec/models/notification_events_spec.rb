@@ -127,7 +127,59 @@ RSpec.describe "notification event generation" do
 
     expect(Notification.where(kind: "epic_review_ready").sole).to have_attributes(
       user_id: user.id,
-      body: "Feature \"Reviewable feature\" is ready for your review"
+      body: "Your feature 'Reviewable feature' is ready for your review"
+    )
+  ensure
+    setting&.update!(mode: original_mode || "advanced")
+  end
+
+  it "creates a feature-level failure notification in simple mode when a child job exhausts retries" do
+    setting = AppSetting.current
+    original_mode = setting.mode
+    original_max_failures = setting.max_job_failures
+    setting.update!(mode: "simple", mode_configured_at: Time.current, max_job_failures: 1)
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress", title: "Checkout polish")
+    job = Factories.job_record(user: user, repository: repository, epic: epic, state: "running", pr_number: 77, branch_name: "syrus/job-77")
+
+    expect {
+      job.record_run_failure!
+    }.to change { Notification.where(kind: "epic_failed").count }.by(1)
+    expect(Notification.where(kind: "job_failed").count).to eq(0)
+
+    notification = Notification.where(kind: "epic_failed").sole
+    expect(notification).to have_attributes(
+      user_id: user.id,
+      job_id: nil,
+      pr_url: nil,
+      body: "Something went wrong with 'Checkout polish' — Syrus is looking into it"
+    )
+    expect(notification.body).not_to match(/JOB-|#77|syrus\/job-77/)
+  ensure
+    setting&.update!(mode: original_mode || "advanced", max_job_failures: original_max_failures || 3)
+  end
+
+  it "creates a feature-level notification when simple-mode review feedback queues follow-up work" do
+    setting = AppSetting.current
+    original_mode = setting.mode
+    setting.update!(mode: "simple", mode_configured_at: Time.current)
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress", title: "Checkout polish")
+    Factories.job_record(user: user, repository: repository, epic: epic, state: "closed", closure_reason: "pr_merged")
+    epic.reload.auto_complete!
+    Notification.delete_all
+
+    expect {
+      epic.reload.append_review_feedback_job!(feedback: "Button contrast is off.", actor: user)
+    }.to change { Notification.where(kind: "epic_feedback_queued").count }.by(1)
+
+    expect(Notification.where(kind: "epic_feedback_queued").sole).to have_attributes(
+      user_id: user.id,
+      job_id: nil,
+      pr_url: nil,
+      body: "Got it — Syrus is working on 'Checkout polish'"
     )
   ensure
     setting&.update!(mode: original_mode || "advanced")

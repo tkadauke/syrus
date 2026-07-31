@@ -116,6 +116,8 @@ class User < ApplicationRecord
     "pr_merged" => true,
     "epic_completed" => false,
     "epic_review_ready" => true,
+    "epic_failed" => true,
+    "epic_feedback_queued" => true,
     "upstream_pr_closed" => true,
     "main_broken" => true,
     "main_inconclusive" => true,

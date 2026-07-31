@@ -126,7 +126,11 @@ graders pass without a per-Job approval step. When every child Job in the Epic
 has merged, the feature becomes ready for review at the Epic level. From the
 Epic page the operator can start a preview, mark the feature as looking good,
 or submit plain-text feedback. Feedback creates a new child Job at the end of
-the Epic's linear chain and moves the feature back to working status.
+the Epic's linear chain and moves the feature back to working status. Simple
+mode notifications use the feature title only: they announce ready-for-review,
+terminal feature problems that need attention, and accepted review feedback;
+Job IDs, PR numbers, branch names, commit SHAs, and grader details are
+suppressed.
 
 An Epic has a board state: `backlog`, `ready`, `in_progress`, `done`, or
 `archived`. Child Jobs can be blocked until the Epic starts, and Epics can

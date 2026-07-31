@@ -265,6 +265,7 @@ class Epic < ApplicationRecord
 
       job.advance_after_triage! if job.may_advance_after_triage?
       refresh_auto_state!
+      notify_review_feedback_queued
       job
     end
   end
@@ -310,6 +311,8 @@ class Epic < ApplicationRecord
   # reconciliation Job when an Epic entered :in_progress; new Epics reconcile
   # inside merge-train landing after the integration branch is built.
   def maybe_create_reconciliation_job!(raise_on_invalid_graph: true)
+    return if AppSetting.simple?
+
     false
   end
 
@@ -498,6 +501,34 @@ class Epic < ApplicationRecord
     end
   end
 
+  def notify_epic_review_ready
+    NotificationService.create_for(
+      user: owner_user || owner || user,
+      kind: "epic_review_ready",
+      body: AppSetting.simple? ? "Your feature '#{title}' is ready for your review" : "Feature \"#{title}\" is ready for your review"
+    )
+  end
+
+  def notify_child_failed
+    return unless AppSetting.simple?
+
+    NotificationService.create_for(
+      user: owner_user || owner || user,
+      kind: "epic_failed",
+      body: "Something went wrong with '#{title}' — Syrus is looking into it"
+    )
+  end
+
+  def notify_review_feedback_queued
+    return unless AppSetting.simple?
+
+    NotificationService.create_for(
+      user: owner_user || owner || user,
+      kind: "epic_feedback_queued",
+      body: "Got it — Syrus is working on '#{title}'"
+    )
+  end
+
   private
 
   def start_implementing_block_reason(actor)
@@ -623,14 +654,6 @@ class Epic < ApplicationRecord
       update!(owner: new_owner, owner_user: new_owner, claimed_at: Time.current)
       claim_child_jobs_to_owner!
     end
-  end
-
-  def notify_epic_review_ready
-    NotificationService.create_for(
-      user: owner_user || owner || user,
-      kind: "epic_review_ready",
-      body: "Feature \"#{title}\" is ready for your review"
-    )
   end
 
   def resolve_pending_child_jobs

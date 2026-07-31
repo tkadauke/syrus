@@ -61,7 +61,7 @@ module Api
         end
 
         def notification_json(notification)
-          {
+          payload = {
             id: notification.id,
             kind: notification.kind,
             body: notification.body,
@@ -71,6 +71,11 @@ module Api
             job_title: notification.job&.title,
             created_at: notification.created_at.iso8601
           }
+          if AppSetting.simple?
+            payload.merge(pr_url: nil, job_id: nil, job_title: nil)
+          else
+            payload
+          end
         end
 
         def unread_count

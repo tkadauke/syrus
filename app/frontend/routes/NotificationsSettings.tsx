@@ -21,6 +21,8 @@ const notificationPreferenceKinds: Array<{ kind: NotificationPreferenceKind; lab
   { kind: "pr_merged", labelKey: "notifications.pref_pr_merged" },
   { kind: "epic_completed", labelKey: "notifications.pref_epic_completed" },
   { kind: "epic_review_ready", labelKey: "notifications.pref_epic_review_ready" },
+  { kind: "epic_failed", labelKey: "notifications.pref_epic_failed" },
+  { kind: "epic_feedback_queued", labelKey: "notifications.pref_epic_feedback_queued" },
   { kind: "main_inconclusive", labelKey: "notifications.pref_main_inconclusive" }
 ]
 
@@ -147,4 +149,3 @@ function NotificationPreferenceToggles({
     </div>
   )
 }
-
