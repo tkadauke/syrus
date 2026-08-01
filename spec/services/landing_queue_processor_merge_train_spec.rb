@@ -30,7 +30,7 @@ RSpec.describe LandingQueueProcessor, "merge-train integration" do
       child = approved_child(1)
 
       entry = described_class.entries(Job.where(id: child.id)).first
-      expect(entry.blocked_reason).to eq("waiting for Epic to release")
+      expect(entry.blocked_reason).to eq({ key: "waiting_epic_release" })
     end
 
     it "does not block Epic children for the merge-train reason when the flag is off" do
