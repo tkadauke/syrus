@@ -6018,8 +6018,8 @@ describe("App", () => {
     expect(screen.getAllByText("IO pressure").length).toBeGreaterThan(0)
     expect(screen.getByText("Memory available")).toBeInTheDocument()
     expect(screen.getByText("Data root available")).toBeInTheDocument()
-    expect(screen.getByText("15m")).toBeInTheDocument()
-    expect(screen.getAllByText("avg 25% / max 25%").length).toBeGreaterThan(0)
+    expect(screen.getByTestId("worker-health-chart-worker-a-cpu_used_percent")).toBeInTheDocument()
+    expect(screen.getByText("Exact values")).toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/admin/queue/workers",
       expect.objectContaining({

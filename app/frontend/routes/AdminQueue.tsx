@@ -31,6 +31,34 @@ import {
   type WorkerHealthPayload
 } from "../api/adminQueue"
 
+const workerHealthQuickRanges = [
+  { label: "30m", minutes: 30 },
+  { label: "1h", minutes: 60 },
+  { label: "2h", minutes: 120 },
+  { label: "6h", minutes: 360 },
+  { label: "24h", minutes: 1440 }
+] as const
+
+type WorkerHealthChartMetric = {
+  key: keyof Pick<WorkerHealthBucket, "cpu_used_percent" | "load_1m" | "memory_used_percent" | "data_root_used_percent" | "cpu_pressure_some" | "io_pressure_some">
+  labelKey: string
+  unit: "percent" | "number"
+  color: string
+  max?: number
+  warning?: number
+  critical?: number
+}
+
+const workerHealthChartMetrics: WorkerHealthChartMetric[] = [
+  { key: "cpu_used_percent", labelKey: "queue.metric_cpu", unit: "percent", max: 100, warning: 80, critical: 95, color: "#2563eb" },
+  { key: "load_1m", labelKey: "queue.metric_load", unit: "number", color: "#7c3aed" },
+  { key: "memory_used_percent", labelKey: "queue.metric_memory", unit: "percent", max: 100, warning: 85, critical: 95, color: "#059669" },
+  { key: "data_root_used_percent", labelKey: "queue.metric_disk", unit: "percent", max: 100, warning: 85, critical: 95, color: "#d97706" },
+  { key: "cpu_pressure_some", labelKey: "queue.metric_cpu_pressure", unit: "percent", max: 100, warning: 10, critical: 30, color: "#dc2626" },
+  { key: "io_pressure_some", labelKey: "queue.metric_io_pressure", unit: "percent", max: 100, warning: 10, critical: 30, color: "#0891b2" }
+]
+
+type WorkerHealthBucket = WorkerHealthPayload["hosts"][number]["minute_buckets"][number]
 
 export function AdminQueueRoute() {
   const params = useParams()
@@ -301,15 +329,70 @@ function WorkersPanel({ payload }: { payload: WorkersQueuePayload }) {
 
 function WorkerHealthPanel({ health }: { health: WorkerHealthPayload }) {
   const { t } = useT("admin")
+  const location = useLocation()
+  const navigate = useNavigate()
   const hosts = health.hosts ?? []
+  const params = new URLSearchParams(location.search)
+  const startValue = toDateTimeLocalValue(params.get("since") || health.range.since)
+  const endValue = toDateTimeLocalValue(params.get("until") || health.range.until)
+  const activeMinutes = Math.round((new Date(health.range.until).getTime() - new Date(health.range.since).getTime()) / 60000)
+
+  function applyRange(nextSince: string, nextUntil: string) {
+    const next = new URLSearchParams(location.search)
+    next.set("since", nextSince)
+    next.set("until", nextUntil)
+    next.set("minute_bucket_window_minutes", String(rangeMinutes(nextSince, nextUntil)))
+    navigate(`${location.pathname}?${next.toString()}`)
+  }
+
+  function applyQuickRange(minutes: number) {
+    const until = new Date()
+    const since = new Date(until.getTime() - minutes * 60_000)
+    applyRange(since.toISOString(), until.toISOString())
+  }
 
   if (hosts.length === 0) return <PanelMessage>{t("queue.no_worker_health")}</PanelMessage>
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("queue.worker_health")}</h2>
-        <span className="text-xs text-gray-500 dark:text-gray-400">{t("queue.worker_health_range", { since: formatRelativeDate(new Date(health.range.since)), minutes: health.minute_bucket?.window_minutes ?? 60 })}</span>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("queue.worker_health")}</h2>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("queue.worker_health_range", { since: formatRelativeDate(new Date(health.range.since)), minutes: health.minute_bucket?.window_minutes ?? 60 })}</p>
+        </div>
+        <form
+          aria-label="Worker health range"
+          className="flex flex-wrap items-end gap-2 text-xs"
+          onSubmit={(event) => {
+            event.preventDefault()
+            const form = event.currentTarget
+            const since = fromDateTimeLocalValue(new FormData(form).get("since")?.toString())
+            const until = fromDateTimeLocalValue(new FormData(form).get("until")?.toString())
+            if (since && until) applyRange(since, until)
+          }}
+        >
+          <div className="flex flex-wrap gap-1" role="group" aria-label="Worker health quick ranges">
+            {workerHealthQuickRanges.map((range) => (
+              <button
+                className={`rounded border px-2 py-1 font-medium ${Math.abs(activeMinutes - range.minutes) <= 1 ? "border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"}`}
+                key={range.label}
+                onClick={() => applyQuickRange(range.minutes)}
+                type="button"
+              >
+                {range.label}
+              </button>
+            ))}
+          </div>
+          <label className="grid gap-1 text-gray-600 dark:text-gray-300">
+            <span>{t("queue.worker_health_start")}</span>
+            <input className="rounded border border-gray-300 bg-white px-2 py-1 text-gray-900 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100" defaultValue={startValue} name="since" type="datetime-local" />
+          </label>
+          <label className="grid gap-1 text-gray-600 dark:text-gray-300">
+            <span>{t("queue.worker_health_end")}</span>
+            <input className="rounded border border-gray-300 bg-white px-2 py-1 text-gray-900 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100" defaultValue={endValue} name="until" type="datetime-local" />
+          </label>
+          <button className="rounded border border-gray-900 bg-gray-900 px-3 py-1.5 font-medium text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900" type="submit">{t("queue.worker_health_apply")}</button>
+        </form>
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
         {hosts.map((host) => <WorkerHealthHostPanel host={host} key={host.hostname} />)}
@@ -325,6 +408,7 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthPayload["hosts"][nu
   const level = current?.health.level || (sample ? "ok" : "unknown")
   const oneHour = host.windows["1h"]
   const minuteBuckets = host.minute_buckets ?? []
+  const chartBuckets = minuteBuckets.length > 0 ? minuteBuckets : samplesToBuckets(host.recent_samples)
 
   return (
     <details className={`rounded border ${workerHealthBorder(level)} bg-white dark:bg-gray-900`} open={level === "critical" || level === "warning"}>
@@ -353,7 +437,10 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthPayload["hosts"][nu
           <HealthStat label={t("queue.data_root_available")} value={formatBytes(sample?.data_root_available_bytes)} />
           <HealthStat label={t("queue.one_hour_max")} value={oneHour ? compactTrend(oneHour) : "-"} />
         </div>
-        <WorkerHealthTrendTable windows={host.windows} />
+        <WorkerHealthCharts buckets={chartBuckets} hostname={host.hostname} />
+        <details className="mt-3">
+          <summary className="cursor-pointer text-xs font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100">{t("queue.worker_health_exact_values")}</summary>
+          <WorkerHealthTrendTable windows={host.windows} />
         {minuteBuckets.length > 0 ? (
           <div className="mt-3 overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-xs">
@@ -386,8 +473,99 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthPayload["hosts"][nu
             </table>
           </div>
         ) : null}
+        </details>
       </div>
     </details>
+  )
+}
+
+function WorkerHealthCharts({ buckets, hostname }: { buckets: WorkerHealthBucket[]; hostname: string }) {
+  const { t } = useT("admin")
+
+  if (buckets.length === 0) {
+    return <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{t("queue.no_worker_health_buckets")}</p>
+  }
+
+  return (
+    <div className="mt-4 grid gap-x-4 gap-y-5 md:grid-cols-2" data-testid={`worker-health-charts-${hostname}`}>
+      {workerHealthChartMetrics.map((metric) => (
+        <WorkerHealthMetricChart buckets={buckets} hostname={hostname} key={metric.key} metric={metric} title={t(metric.labelKey)} />
+      ))}
+    </div>
+  )
+}
+
+function samplesToBuckets(samples: WorkerHealthPayload["hosts"][number]["recent_samples"]) {
+  return samples
+    .slice()
+    .reverse()
+    .map((sample) => ({
+      sample_count: 1,
+      first_observed_at: sample.observed_at,
+      last_observed_at: sample.observed_at,
+      warning_count: 0,
+      critical_count: 0,
+      minute: sample.observed_at,
+      cpu_used_percent: summaryPoint(sample.cpu_used_percent),
+      load_1m: summaryPoint(sample.load_1m),
+      memory_used_percent: summaryPoint(sample.memory_used_percent),
+      data_root_used_percent: summaryPoint(sample.data_root_used_percent),
+      cpu_pressure_some: summaryPoint(sample.cpu_pressure_some),
+      io_pressure_some: summaryPoint(sample.io_pressure_some)
+    }))
+}
+
+function summaryPoint(value?: number | null) {
+  return value == null ? null : { avg: value, max: value }
+}
+
+function WorkerHealthMetricChart({ buckets, hostname, metric, title }: { buckets: WorkerHealthBucket[]; hostname: string; metric: WorkerHealthChartMetric; title: string }) {
+  const values = buckets.map((bucket) => {
+    const summary = bucket[metric.key]
+    return summary?.max ?? null
+  })
+  const numericValues = values.filter((value): value is number => value != null)
+  const maxValue = metric.max ?? Math.max(1, ...numericValues) * 1.15
+  const points = values.map((value, index) => value == null ? null : chartPoint(index, value, buckets.length, maxValue)).filter(Boolean) as Array<{ x: number; y: number }>
+  const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" ")
+  const missingCount = buckets.filter((bucket) => bucket.sample_count === 0).length
+  const lastValue = numericValues.length > 0 ? numericValues[numericValues.length - 1] : null
+
+  return (
+    <div className="min-w-0">
+      <div className="mb-1 flex items-center justify-between gap-3">
+        <h3 className="text-xs font-semibold uppercase text-gray-600 dark:text-gray-300">{title}</h3>
+        <span className="font-mono text-xs text-gray-900 dark:text-gray-100">{formatMetricValue(lastValue, metric.unit)}</span>
+      </div>
+      <svg aria-label={`${hostname} ${title} chart`} className="h-32 w-full overflow-visible" data-testid={`worker-health-chart-${hostname}-${metric.key}`} preserveAspectRatio="none" role="img" viewBox="0 0 320 120">
+        <line className="stroke-gray-200 dark:stroke-gray-700" x1="0" x2="320" y1="108" y2="108" />
+        <line className="stroke-gray-200 dark:stroke-gray-700" x1="0" x2="320" y1="12" y2="12" />
+        {metric.warning != null ? <ThresholdLine label="warn" max={maxValue} value={metric.warning} /> : null}
+        {metric.critical != null ? <ThresholdLine label="crit" max={maxValue} value={metric.critical} /> : null}
+        {buckets.map((bucket, index) => bucket.sample_count === 0 ? (
+          <rect className="fill-gray-200 dark:fill-gray-700" height="96" key={bucket.minute} opacity="0.45" width={Math.max(1.5, 320 / Math.max(1, buckets.length) - 1)} x={chartX(index, buckets.length)} y="12">
+            <title>{`${formatRelativeDate(new Date(bucket.minute))}: missing sample`}</title>
+          </rect>
+        ) : null)}
+        {path ? <path d={path} fill="none" stroke={metric.color} strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" vectorEffect="non-scaling-stroke" /> : null}
+      </svg>
+      <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+        <span>{formatRelativeDate(new Date(buckets[0]?.minute))}</span>
+        <span>{missingCount > 0 ? `${missingCount} missing` : `${numericValues.length} samples`}</span>
+        <span>{formatRelativeDate(new Date(buckets[buckets.length - 1]?.minute))}</span>
+      </div>
+    </div>
+  )
+}
+
+function ThresholdLine({ label, max, value }: { label: string; max: number; value: number }) {
+  const y = chartY(value, max)
+
+  return (
+    <>
+      <line className="stroke-amber-500/70" strokeDasharray="4 4" x1="0" x2="320" y1={y} y2={y} vectorEffect="non-scaling-stroke" />
+      <text className="fill-amber-700 text-[10px] dark:fill-amber-300" x="4" y={Math.max(10, y - 3)}>{label}</text>
+    </>
   )
 }
 
@@ -550,6 +728,52 @@ function formatSummary(summary?: { avg: number; max: number } | null, kind: "per
   const formatter = kind === "percent" ? formatPercent : formatNumber
 
   return `avg ${formatter(summary.avg)} / max ${formatter(summary.max)}`
+}
+
+function formatMetricValue(value: number | null, kind: WorkerHealthChartMetric["unit"]) {
+  if (kind === "percent") return formatPercent(value)
+
+  return formatNumber(value)
+}
+
+function chartPoint(index: number, value: number, count: number, max: number) {
+  return { x: chartX(index, count), y: chartY(value, max) }
+}
+
+function chartX(index: number, count: number) {
+  if (count <= 1) return 160
+
+  return (index / (count - 1)) * 320
+}
+
+function chartY(value: number, max: number) {
+  const clamped = Math.max(0, Math.min(value, max))
+
+  return 108 - (clamped / max) * 96
+}
+
+function toDateTimeLocalValue(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ""
+
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+  return local.toISOString().slice(0, 16)
+}
+
+function fromDateTimeLocalValue(value?: string) {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+
+  return date.toISOString()
+}
+
+function rangeMinutes(since: string, until: string) {
+  const start = new Date(since).getTime()
+  const end = new Date(until).getTime()
+  if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return 60
+
+  return Math.max(1, Math.min(1440, Math.ceil((end - start) / 60_000)))
 }
 
 function formatPercent(value?: number | null) {

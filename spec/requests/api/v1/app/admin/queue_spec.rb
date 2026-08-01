@@ -293,7 +293,7 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
       "hostname" => "worker-a",
       "health" => include("level" => "ok")
     )
-    expect(Time.iso8601(body.dig("worker_health", "range", "since"))).to be > 7.hours.ago
+    expect(Time.iso8601(body.dig("worker_health", "range", "since"))).to be > 3.hours.ago
     expect(body.dig("worker_health", "hosts", 0, "recent_samples").length).to eq(1)
     expect(body.dig("worker_health", "hosts", 0, "recent_samples", 0)).to include(
       "cpu_used_percent" => 20,
@@ -308,6 +308,36 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
       "cpu_used_percent" => include("max" => 20.0),
       "io_pressure_some" => include("max" => 4.0)
     )
+  end
+
+  it "passes explicit worker health time ranges through the workers payload" do
+    sign_in_as(admin)
+    travel_to Time.zone.parse("2026-07-31 12:30:30 UTC") do
+      InstanceVersion.create!(hostname: "worker-a", role: "worker", version: "abc123",
+                              started_at: 5.minutes.ago, last_heartbeat_at: 10.seconds.ago)
+      WorkerHostHealthSample.create!(hostname: "worker-a", role: "worker", version: "abc123",
+                                     observed_at: Time.zone.parse("2026-07-31 09:30:00 UTC"),
+                                     cpu_used_percent: 15)
+      WorkerHostHealthSample.create!(hostname: "worker-a", role: "worker", version: "abc123",
+                                     observed_at: Time.zone.parse("2026-07-31 10:30:00 UTC"),
+                                     cpu_used_percent: 25)
+
+      get "/api/v1/app/admin/queue/workers",
+          params: {
+            since: "2026-07-31T10:00:00Z",
+            until: "2026-07-31T11:00:00Z",
+            minute_bucket_window_minutes: 60
+          }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body.dig("worker_health", "range")).to include(
+        "since" => "2026-07-31T10:00:00Z",
+        "until" => "2026-07-31T11:00:00Z"
+      )
+      expect(body.dig("worker_health", "minute_bucket", "window_minutes")).to eq(60)
+      expect(body.dig("worker_health", "hosts", 0, "recent_samples").map { |sample| sample["cpu_used_percent"] }).to eq([ 25.0 ])
+    end
   end
 
   it "runs ReapStaleRunsJob inline" do

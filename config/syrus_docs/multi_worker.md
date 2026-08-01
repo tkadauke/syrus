@@ -144,8 +144,13 @@ Rows are retained for `WorkerHostHealthSample::RETAIN_AFTER` (7 days, matching
 The current admin overview, `/api/v1/admin/version`, and the admin queue
 workers payload include worker health snapshots alongside the existing
 data-root disk fields. The Workers tab (`/admin/queue/workers`) renders that
-payload inline as a per-host health dashboard using a shorter 6-hour default
-lookback for page load, with compact 15m/1h/6h trends and recent samples.
+payload inline as a per-host chart dashboard using a shorter 2-hour default
+lookback for page load. Operators can switch quick ranges (`30m`, `1h`, `2h`,
+`6h`, `24h`) or enter explicit start/end times; the tab persists those values
+in the URL and forwards them to the worker-health `since`, `until`, and
+minute-bucket window params. Charts cover CPU, load, memory, data-root disk
+usage, CPU pressure, and IO pressure, with compact exact-value tables kept as
+drilldown.
 Still-running stale worker instances stay in the dashboard even when they have
 no retained host-health sample, so operators can distinguish stale heartbeat
 from no-sample states. Disk alerts still come from the most-full worker's
