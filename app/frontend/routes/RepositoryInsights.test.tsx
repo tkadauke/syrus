@@ -243,6 +243,46 @@ describe("RepositoryInsightsRoute", () => {
       expect(screen.getByText("The old flaky test still fails.")).toBeInTheDocument()
 
       fireEvent.click(screen.getByRole("button", { name: "Remove memory" }))
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/insight_suggestions/1",
+          expect.objectContaining({ method: "PATCH" })
+        )
+      })
+    })
+  })
+
+  describe("card body expansion", () => {
+    beforeEach(() => {
+      vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: vi.fn() as any, dialog: <></> })
+    })
+
+    it("expands and collapses a suggestion when clicking the card body", async () => {
+      renderRoute()
+
+      const title = await screen.findByText("Frequent prepare failures")
+      expect(screen.queryByText("Suggested prompt")).not.toBeInTheDocument()
+
+      fireEvent.click(title)
+      expect(screen.getByText("Suggested prompt")).toBeInTheDocument()
+
+      fireEvent.click(title)
+      expect(screen.queryByText("Suggested prompt")).not.toBeInTheDocument()
+    })
+
+    it("does not collapse a suggestion when clicking an action button", async () => {
+      const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+        const url = String(input)
+        if (url.includes("/insight_suggestions/1") && init?.method === "PATCH") {
+          return Promise.resolve(jsonResponse({ message: "Saved.", suggestion: makeSuggestion(), memory_id: 4 }))
+        }
+        return Promise.resolve(jsonResponse(payload()))
+      })
+
+      renderRoute()
+
+      fireEvent.click(await screen.findByText("Frequent prepare failures"))
+      fireEvent.click(screen.getByRole("button", { name: "Save as memory" }))
 
       await waitFor(() => {
         expect(fetchSpy).toHaveBeenCalledWith(
@@ -250,6 +290,7 @@ describe("RepositoryInsightsRoute", () => {
           expect.objectContaining({ method: "PATCH" })
         )
       })
+      expect(screen.getByText("Suggested prompt")).toBeInTheDocument()
     })
   })
 

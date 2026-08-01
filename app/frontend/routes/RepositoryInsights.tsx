@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useState } from "react"
+import { useState, type MouseEvent } from "react"
 import { Link, useParams, useLocation } from "react-router-dom"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useT } from "../hooks/useT"
@@ -254,10 +254,16 @@ function SuggestionCard({
     if (confirmed) dismissMutation.mutate()
   }
 
+  function handleCardClick(event: MouseEvent<HTMLDivElement>) {
+    if (isInteractiveClickTarget(event.target)) return
+
+    setExpanded((v) => !v)
+  }
+
   return (
     <article className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       {confirmDialog}
-      <div className="p-4">
+      <div className="cursor-pointer p-4" onClick={handleCardClick}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -588,4 +594,8 @@ function StatePill({ state }: { state: string }) {
       {t(`state_${state}`)}
     </span>
   )
+}
+
+function isInteractiveClickTarget(target: EventTarget | null) {
+  return target instanceof Element && Boolean(target.closest("a, button, input, label, select, textarea, [role='button'], [role='link']"))
 }
