@@ -38,8 +38,7 @@ class User < ApplicationRecord
     "codex_api_key" => "Codex API key",
     "codex_auth_json" => "Codex ChatGPT auth.json",
     "gemini_api_key" => "Gemini API key",
-    "opencode_api_key" => "OpenCode API key",
-    "telegram_chat_id" => "Telegram chat ID"
+    "opencode_api_key" => "OpenCode API key"
   }.freeze
   DASHBOARD_PREFERENCES_DEFAULTS = {
     "last_subject" => "epic",
