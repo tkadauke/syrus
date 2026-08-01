@@ -98,6 +98,9 @@ In **Agent Settings**, choose your default agent provider. Then open
   page in a new tab; paste the returned code and Syrus stores the resulting
   Codex auth JSON. You can still paste an existing local `auth.json`
   manually from **Credentials**.
+- **OpenCode** uses a structured backend choice plus a model name. OpenAI API
+  and Azure OpenAI backends require an API key; Ollama and Azure OpenAI
+  require an endpoint URL.
 
 Set **Max turns** to the cap you want for agent runs. The default is meant
 to prevent runaway loops while still allowing normal implementation work.
