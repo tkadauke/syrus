@@ -127,7 +127,7 @@ instead of broader model scopes.
 | `app/controllers/concerns/chat_session_lifecycle.rb` | per-user/private | Chat-session lifecycle helpers (extracted from `ChatsController`) create the session as `Current.user` and branch from a source chat. |
 | `app/controllers/concerns/chat_provider_options.rb` | per-user/private | Chat-provider picker helpers (extracted from `ChatsController`) build options from `Current.user`'s configured agent providers. |
 | `app/controllers/concerns/chat_search.rb` | per-user/private | Chat-search helpers (extracted from `ChatsController`) search and filter `Current.user`'s chats and serialize the results. |
-| `app/controllers/concerns/performance_logging_context.rb` | per-user/private | Performance log request context records the current user's id/admin flag for authenticated app requests. |
+| `app/controllers/concerns/performance_logging_context.rb` | per-user/private | Performance log request diagnostics include the current user's id/admin flag when a signed-in user is available. |
 | `app/controllers/api/v1/app/credentials/documents_controller.rb` | per-user/private | Personal credential documents are listed, created, and deleted through `Current.user.documents`. |
 | `app/controllers/api/v1/app/cron_templates_controller.rb` | per-user/private | Cron templates and selectable repositories are scoped to the current user. |
 | `app/controllers/api/v1/app/dashboard_controller.rb` | per-user/private | Dashboard payload, preferences, bulk job actions, tags, approvals, and broadcasts operate on `Current.user` jobs/epics/tags. |
