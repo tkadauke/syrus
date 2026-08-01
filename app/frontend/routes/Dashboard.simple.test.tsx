@@ -79,6 +79,7 @@ function simpleDashboardPayload(): DashboardPayload {
         summary_state: "open",
         validity: "valid",
         priority: "medium",
+        agent_provider: "codex",
         total_cost_usd: null,
         issue_number: null,
         issue_url: null,
@@ -92,6 +93,7 @@ function simpleDashboardPayload(): DashboardPayload {
         landing_queue_position: null,
         landing_queue_blocked_reason: null,
         landing_queue_entry_key: null,
+        blocked_reason: null,
         created_at: null,
         updated_at: null,
         started_at: null,
@@ -115,6 +117,8 @@ function simpleDashboardPayload(): DashboardPayload {
         source_chat: null,
         needs_attention: false,
         needs_attention_reason: null,
+        start_blocked_reason: null,
+        start_blocked_at: null,
         paths: { job_path: "/jobs/2", source_path: "/jobs/2/source" }
       }
     ],
