@@ -253,6 +253,7 @@ function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload;
 
   const telegramSecret = payload.settings.clearable_secrets.find(s => s.key === "telegram_bot_token")
   const tokenSet = telegramSecret?.set ?? false
+  const telegramConfigured = tokenSet && handleInput.trim().length > 0
 
   const saveToken = useMutation({
     mutationFn: () => updateAdminSettings({
@@ -339,7 +340,7 @@ function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload;
 
       <button
         className="rounded bg-gray-100 dark:bg-gray-700 px-3.5 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={startPolling.isPending || !tokenSet}
+        disabled={startPolling.isPending || !telegramConfigured}
         onClick={() => { onNotice(null); startPolling.mutate() }}
         type="button"
       >

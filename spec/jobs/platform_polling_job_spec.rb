@@ -141,7 +141,13 @@ RSpec.describe PlatformPollingJob do
       after  { clear_solid_queue_test_tables! }
 
       it "enqueues each registered subclass that is not already running" do
-        expect { described_class.start_all! }.to have_enqueued_job(concrete_class)
+        expect { expect(described_class.start_all!).to eq([concrete_class.name]) }.to have_enqueued_job(concrete_class)
+      end
+
+      it "skips a subclass that is not configured" do
+        concrete_class.configured_flag = false
+
+        expect { expect(described_class.start_all!).to eq([]) }.not_to have_enqueued_job(concrete_class)
       end
 
       it "skips a subclass that already has an unfinished SolidQueue job" do
@@ -151,7 +157,7 @@ RSpec.describe PlatformPollingJob do
           priority: 0,
           arguments: "{}"
         )
-        expect { described_class.start_all! }.not_to have_enqueued_job(concrete_class)
+        expect { expect(described_class.start_all!).to eq([]) }.not_to have_enqueued_job(concrete_class)
       end
 
       it "skips unconfigured subclasses" do
@@ -164,7 +170,7 @@ RSpec.describe PlatformPollingJob do
 
     it "tolerates missing SolidQueue tables without raising" do
       allow(SolidQueue::Job).to receive(:where).and_raise(ActiveRecord::StatementInvalid)
-      expect { described_class.start_all! }.not_to raise_error
+      expect(described_class.start_all!).to eq([])
     end
   end
 end

@@ -2,7 +2,7 @@ class PollTelegramUpdatesJob < PlatformPollingJob
   private
 
   def configured?
-    AppSetting.telegram_bot_token.present?
+    AppSetting.telegram_configured?
   end
 
   def poll_once

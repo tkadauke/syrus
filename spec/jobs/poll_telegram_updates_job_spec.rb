@@ -7,7 +7,7 @@ RSpec.describe PollTelegramUpdatesJob do
   let(:token) { "bot-token-xyz" }
 
   before do
-    AppSetting.current.update!(telegram_bot_token: token, telegram_update_offset: 0)
+    AppSetting.current.update!(telegram_bot_token: token, telegram_bot_handle: "MySyrusBot", telegram_update_offset: 0)
     allow_any_instance_of(TelegramClient).to receive(:get_updates).and_return([])
     allow_any_instance_of(TelegramClient).to receive(:send_message)
     allow_any_instance_of(described_class).to receive(:duplicate_running?).and_return(false)
@@ -16,13 +16,19 @@ RSpec.describe PollTelegramUpdatesJob do
   after { clear_enqueued_jobs }
 
   describe "#configured?" do
-    it "returns true when telegram_bot_token is set" do
+    it "returns true when telegram_bot_token and telegram_bot_handle are set" do
       job = described_class.new
       expect(job.send(:configured?)).to be true
     end
 
     it "returns false when telegram_bot_token is blank" do
       AppSetting.current.update_column(:telegram_bot_token, nil)
+      job = described_class.new
+      expect(job.send(:configured?)).to be false
+    end
+
+    it "returns false when telegram_bot_handle is blank" do
+      AppSetting.current.update!(telegram_bot_handle: nil)
       job = described_class.new
       expect(job.send(:configured?)).to be false
     end
@@ -33,7 +39,7 @@ RSpec.describe PollTelegramUpdatesJob do
       expect { described_class.new.perform }.to have_enqueued_job(described_class)
     end
 
-    it "does not re-enqueue when token is absent" do
+    it "does not re-enqueue when Telegram is not configured" do
       AppSetting.current.update_column(:telegram_bot_token, nil)
       expect { described_class.new.perform }.not_to have_enqueued_job(described_class)
     end
