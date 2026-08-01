@@ -50,7 +50,7 @@ export function AdminOverview() {
         <Metric title={t("overview.github_rate_limits")} value={data.github_rate_limits.length} context={data.github_rate_limits.length > 0 ? data.github_rate_limits.map((user) => user.email).join(", ") : t("overview.all_healthy")} tone={data.github_rate_limits.length > 0 ? "warn" : "ok"} />
         <Metric title={t("overview.agent_session_capture")} value={captureRate == null ? "-" : `${Math.round(captureRate * 100)}%`} context={t("overview.capture_of", { captured: data.agent_session_capture_rate.captured, total: data.agent_session_capture_rate.total })} tone={captureRate == null || captureRate >= 0.95 ? "ok" : "warn"} />
         <Metric title={t("overview.data_root_disk")} value={dataRoot ? `${dataRoot.used_percent}%` : "?"} context={dataRoot ? `${t("overview.disk_free", { free: formatBytes(dataRoot.available_bytes), path: dataRoot.path })}${dataRoot.hostname ? ` (${dataRoot.hostname})` : ""}` : t("overview.unavailable")} tone={dataRootTone(dataRoot?.level)} />
-        <Metric title={t("overview.stuck_things")} value={data.stuck.length} context={data.stuck.length > 0 ? t("overview.needs_attention") : t("overview.nothing_flagged")} href={withRoutePrefix("/admin/stuck", prefix)} tone={data.stuck.some((item) => item.severity === "alarm") ? "alarm" : data.stuck.length > 0 ? "warn" : "ok"} />
+        <Metric title={t("overview.stuck_things")} value={data.stuck_pagination.total} context={data.stuck_pagination.total > 0 ? t("overview.needs_attention") : t("overview.nothing_flagged")} href={withRoutePrefix("/admin/stuck", prefix)} tone={data.stuck.some((item) => item.severity === "alarm") ? "alarm" : data.stuck_pagination.total > 0 ? "warn" : "ok"} />
       </section>
 
       {data.stuck.length > 0 ? (

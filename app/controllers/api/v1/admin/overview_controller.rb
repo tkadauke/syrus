@@ -9,11 +9,11 @@ module Api
       #   GET /api/v1/admin/stuck    → full StuckItems list
       class OverviewController < BaseController
         def show
-          render json: ::Admin::OverviewPayload.new.as_json
+          render json: ::Admin::OverviewPayload.new(params: params).as_json
         end
 
         def stuck
-          render json: ::Admin::OverviewPayload.new.stuck_json
+          render json: ::Admin::OverviewPayload.new(params: params).stuck_json
         end
       end
     end

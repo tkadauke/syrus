@@ -327,7 +327,12 @@
     "status_waiting": "Waiting",
     "force_fail": "Force fail",
     "force_failing": "Failing...",
-    "force_fail_error": "Unable to force fail job."
+    "force_fail_error": "Unable to force fail job.",
+    "aria_pagination": "Stuck items pagination",
+    "showing": "Showing {{first}}-{{last}} of {{total}}",
+    "previous": "Previous",
+    "next": "Next",
+    "page_of": "Page {{page}} of {{total}}"
   },
   "console": {
     "heading": "Operator Console",

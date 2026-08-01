@@ -25,10 +25,20 @@ export type StuckItem = {
 
 export type AdminStuckPayload = {
   items: StuckItem[]
+  pagination: {
+    page: number
+    per_page: number
+    total: number
+    total_pages: number
+    first_item: number
+    last_item: number
+    previous_path: string | null
+    next_path: string | null
+  }
 }
 
-export function fetchAdminStuck() {
-  return getJson<AdminStuckPayload>("/api/v1/app/admin/stuck")
+export function fetchAdminStuck(page = 1, signal?: AbortSignal) {
+  return getJson<AdminStuckPayload>(`/api/v1/app/admin/stuck?page=${page}`, { signal })
 }
 
 export function forceFailStuckJob(path: string) {

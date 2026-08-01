@@ -4,7 +4,7 @@ module Api
       module Admin
         class OverviewController < BaseController
           def show
-            render json: ::Admin::OverviewPayload.new.as_json
+            render json: ::Admin::OverviewPayload.new(params: params).as_json
           end
         end
       end

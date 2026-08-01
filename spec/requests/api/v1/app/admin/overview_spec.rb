@@ -56,9 +56,16 @@ RSpec.describe "API: /api/v1/app/admin/overview", type: :request do
       "worker_health",
       "workers",
       "recurring",
-      "stuck"
+      "stuck",
+      "stuck_pagination"
     )
     expect(body["active_runs"]["total"]).to eq(1)
+    expect(body["stuck_pagination"]).to include(
+      "page" => 1,
+      "per_page" => 50,
+      "total" => 1,
+      "total_pages" => 1
+    )
     expect(body["stuck"].first).to include(
       "kind" => "running_run_without_live_worker_evidence",
       "attention_state" => "operator_action_required",

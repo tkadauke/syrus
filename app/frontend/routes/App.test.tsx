@@ -2437,6 +2437,7 @@ describe("App", () => {
             hosts: []
           },
           recurring: { overdue: [] },
+          stuck_pagination: { page: 1, per_page: 50, total: 1, total_pages: 1, first_item: 1, last_item: 1, previous_path: null, next_path: null },
           stuck: [
             {
               kind: "stale_heartbeat",
@@ -2506,6 +2507,7 @@ describe("App", () => {
           data_root_disk_usage: null,
           workers: { total: 1, stale: 0 },
           recurring: { overdue: [] },
+          stuck_pagination: { page: 1, per_page: 50, total: 0, total_pages: 1, first_item: 0, last_item: 0, previous_path: null, next_path: null },
           stuck: []
         }),
         { status: 200, headers: { "Content-Type": "application/json" } }
@@ -6049,7 +6051,17 @@ describe("App", () => {
           force_fail_path: "/api/v1/app/jobs/1/force_fail",
           has_transcript: true
         }
-      ]
+      ],
+      pagination: {
+        page: 1,
+        per_page: 50,
+        total: 51,
+        total_pages: 2,
+        first_item: 1,
+        last_item: 50,
+        previous_path: null,
+        next_path: "/admin/stuck?page=2"
+      }
     }
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
@@ -6071,6 +6083,8 @@ describe("App", () => {
     expect(screen.getByRole("heading", { name: "Stuck Things" }).closest("header")).toHaveClass("items-end", "justify-between")
     expect(screen.getByRole("button", { name: /Refresh/ })).toHaveClass("shrink-0")
     expect(await screen.findByText("Run #4 silent for 10m")).toBeInTheDocument()
+    expect(screen.getByText("Showing 1-50 of 51")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute("href", "/app-shell/admin/stuck?page=2")
     expect(screen.getByText("stale_heartbeat")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "WF-2" })).toHaveAttribute("href", "/app-shell/jobs/1?tab=workflows#workflow-2")
     expect(screen.getByRole("link", { name: "Job" })).toHaveAttribute("href", "/app-shell/jobs/1")
@@ -6087,7 +6101,7 @@ describe("App", () => {
       )
     })
     expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/admin/stuck",
+      "/api/v1/app/admin/stuck?page=1",
       expect.objectContaining({
         credentials: "same-origin",
         headers: { Accept: "application/json" }

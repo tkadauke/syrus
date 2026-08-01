@@ -134,6 +134,12 @@ dedicated stuck list, token admin stuck API, `admin_stuck_jobs`, and
 `explain_stuck_job` all expose the same issue kinds, evidence, repair plans,
 and derived attention state:
 
+The React admin overview and dedicated stuck list paginate visible stuck items
+in 50-item pages. The `/api/v1/app/admin/stuck` and `/api/v1/admin/stuck`
+payloads accept `page` and return `pagination` metadata with the total count;
+the overview embeds the first page plus `stuck_pagination` so the health tile
+can show the full stuck total without rendering every row.
+
 - `auto_repairable` when the plan is safe for automatic execution
 - `waiting` when the plan is blocked by queue capacity, dependency or stack
   readiness, main-branch health, provider rate limits, or queue-claim

@@ -1,5 +1,11 @@
 module Admin
   class OverviewPayload
+    STUCK_ITEMS_PER_PAGE = 50
+
+    def initialize(params: {})
+      @params = params
+    end
+
     def as_json(*)
       PerformanceLogging.phase("admin_overview_payload") do
         payload = {
@@ -27,7 +33,8 @@ module Admin
           data_root_disk_usage: PerformanceLogging.phase("admin_overview.data_root_disk_usage") { data_root_disk_usage_payload },
           worker_data_root_usages: PerformanceLogging.phase("admin_overview.worker_data_root_usages") { InstanceVersion.worker_data_root_usages },
           worker_health: PerformanceLogging.phase("admin_overview.worker_health") { worker_health_payload(sample_limit_per_host: 4) },
-          stuck: PerformanceLogging.phase("admin_overview.stuck") { stuck_items }
+          stuck: PerformanceLogging.phase("admin_overview.stuck") { paginated_stuck_items },
+          stuck_pagination: PerformanceLogging.phase("admin_overview.stuck_pagination") { stuck_pagination }
         }
 
         payload[:workers] = PerformanceLogging.phase("admin_overview.workers") { workers_payload }
@@ -37,10 +44,17 @@ module Admin
     end
 
     def stuck_json
-      PerformanceLogging.phase("admin_stuck_payload") { { items: stuck_items } }
+      PerformanceLogging.phase("admin_stuck_payload") do
+        {
+          items: paginated_stuck_items,
+          pagination: stuck_pagination
+        }
+      end
     end
 
     private
+
+    attr_reader :params
 
     def low_rate_limit_users
       User.where("gh_rate_limit_remaining IS NOT NULL AND gh_rate_limit_limit > 0").select do |u|
@@ -135,7 +149,50 @@ module Admin
     end
 
     def stuck_items
-      ::Admin::StuckItems.all.map { |item| ::Admin::StuckItemPayload.serialize(item: item) }
+      @stuck_items ||= ::Admin::StuckItems.all.map { |item| ::Admin::StuckItemPayload.serialize(item: item) }
+    end
+
+    def paginated_stuck_items
+      stuck_items.slice(stuck_offset, STUCK_ITEMS_PER_PAGE) || []
+    end
+
+    def stuck_pagination
+      total = stuck_items.size
+      {
+        page: stuck_page,
+        per_page: STUCK_ITEMS_PER_PAGE,
+        total: total,
+        total_pages: stuck_total_pages,
+        first_item: total.zero? ? 0 : stuck_offset + 1,
+        last_item: [ stuck_offset + paginated_stuck_items.size, total ].min,
+        previous_path: stuck_page > 1 ? stuck_page_path(stuck_page - 1) : nil,
+        next_path: stuck_page < stuck_total_pages ? stuck_page_path(stuck_page + 1) : nil
+      }
+    end
+
+    def stuck_offset
+      (stuck_page - 1) * STUCK_ITEMS_PER_PAGE
+    end
+
+    def stuck_page
+      [ requested_stuck_page, stuck_total_pages ].min
+    end
+
+    def requested_stuck_page
+      @stuck_page ||= begin
+        value = params.respond_to?(:[]) ? params[:page] : nil
+        Integer(value.presence || 1)
+      rescue ArgumentError, TypeError
+        1
+      end.clamp(1, Float::INFINITY)
+    end
+
+    def stuck_total_pages
+      [ (stuck_items.size.to_f / STUCK_ITEMS_PER_PAGE).ceil, 1 ].max
+    end
+
+    def stuck_page_path(page)
+      "/admin/stuck?page=#{page}"
     end
   end
 end

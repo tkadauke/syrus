@@ -92,6 +92,16 @@ export type AdminOverviewPayload = {
     repair_plan?: Record<string, unknown> | null
     repair_execution?: Record<string, unknown> | null
   }>
+  stuck_pagination: {
+    page: number
+    per_page: number
+    total: number
+    total_pages: number
+    first_item: number
+    last_item: number
+    previous_path: string | null
+    next_path: string | null
+  }
 }
 
 export type WorkerHealthLevel = "ok" | "warning" | "critical" | "unknown" | string

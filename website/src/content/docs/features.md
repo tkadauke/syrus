@@ -444,7 +444,9 @@ actions and wait for operator confirmation before applying. Non-admin chats do
 not advertise those tools, and each admin tool repeats the admin check when it
 runs. Admins can also force-fail an open stuck Job from the stuck Jobs page,
 admin API, or confirmed chat tool so the normal Retry path becomes available
-without closing the Job.
+without closing the Job. The stuck Jobs page and admin stuck APIs paginate
+results in 50-item pages, while the admin overview shows the first page and a
+total stuck count.
 Admin queue filters can be saved as smart folders from the queue sidebar,
 then renamed or deleted inline from the saved-folder list so repeated
 operational views stay available beside the built-in queue folders.

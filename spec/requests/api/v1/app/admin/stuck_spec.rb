@@ -57,6 +57,34 @@ RSpec.describe "API: /api/v1/app/admin/stuck", type: :request do
     expect(parse_body["items"].first["repair_plan"]).to include("action" => "capture_run_diagnostics")
   end
 
+  it "paginates stuck items 50 at a time" do
+    sign_in_as(admin)
+    51.times do
+      job = Factories.job(user: admin)
+      job.initial_run.update_columns(
+        state: "running",
+        started_at: 10.minutes.ago,
+        last_heartbeat_at: 10.minutes.ago
+      )
+    end
+
+    get "/api/v1/app/admin/stuck", params: { page: 2 }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["items"].size).to eq(1)
+    expect(body["pagination"]).to include(
+      "page" => 2,
+      "per_page" => 50,
+      "total" => 51,
+      "total_pages" => 2,
+      "first_item" => 51,
+      "last_item" => 51,
+      "previous_path" => "/admin/stuck?page=1",
+      "next_path" => nil
+    )
+  end
+
   it "surfaces a stale queued retry Run even when the Workflow has previous Runs" do
     ensure_solid_queue_test_tables!
     clear_solid_queue_test_tables!

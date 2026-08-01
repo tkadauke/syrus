@@ -4,7 +4,7 @@ module Api
       module Admin
         class StuckController < BaseController
           def index
-            render json: ::Admin::OverviewPayload.new.stuck_json
+            render json: ::Admin::OverviewPayload.new(params: params).stuck_json
           end
         end
       end

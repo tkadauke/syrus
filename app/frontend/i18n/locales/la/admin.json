@@ -327,7 +327,12 @@
     "status_waiting": "Exspectans",
     "force_fail": "Deficere cogere",
     "force_failing": "Deficiens...",
-    "force_fail_error": "Opus cogendo deficere non potuit."
+    "force_fail_error": "Opus cogendo deficere non potuit.",
+    "aria_pagination": "Paginatio rerum haerentium",
+    "showing": "Ostenduntur {{first}}-{{last}} ex {{total}}",
+    "previous": "Prior",
+    "next": "Proximus",
+    "page_of": "Pagina {{page}} ex {{total}}"
   },
   "console": {
     "heading": "Consola Operatoris",

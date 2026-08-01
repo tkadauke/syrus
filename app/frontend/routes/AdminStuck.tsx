@@ -1,7 +1,7 @@
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ReactNode } from "react"
-import { Link, useLocation } from "react-router-dom"
+import { Link, useLocation, useSearchParams } from "react-router-dom"
 import { forceFailStuckJob, fetchAdminStuck, type StuckItem } from "../api/adminStuck"
 import { workflowSlug } from "../lib/slugs"
 import { useT } from "../hooks/useT"
@@ -14,10 +14,12 @@ export function AdminStuck() {
   const { t } = useT("admin")
   usePageTitle(t("page_title_stuck"))
   const location = useLocation()
+  const [searchParams] = useSearchParams()
+  const page = parsePage(searchParams.get("page"))
   const prefix = routePrefix(location.pathname)
   const stuck = useQuery({
-    queryKey: ["admin", "stuck"],
-    queryFn: fetchAdminStuck,
+    queryKey: ["admin", "stuck", page],
+    queryFn: ({ signal }) => fetchAdminStuck(page, signal),
     refetchInterval: POLL_INTERVAL_MS
   })
 
@@ -41,13 +43,13 @@ export function AdminStuck() {
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         {stuck.isPending ? <PanelMessage>{t("stuck.loading")}</PanelMessage> : null}
         {stuck.isError ? <PanelMessage tone="error">{t("stuck.error_load")}</PanelMessage> : null}
-        {stuck.isSuccess ? <StuckTable items={stuck.data.items} prefix={prefix} /> : null}
+        {stuck.isSuccess ? <StuckTable items={stuck.data.items} pagination={stuck.data.pagination} prefix={prefix} /> : null}
       </section>
     </main>
   )
 }
 
-function StuckTable({ items, prefix }: { items: StuckItem[]; prefix: string }) {
+function StuckTable({ items, pagination, prefix }: { items: StuckItem[]; pagination: { page: number; per_page: number; total: number; total_pages: number; first_item: number; last_item: number; previous_path: string | null; next_path: string | null }; prefix: string }) {
   const { t } = useT("admin")
   const queryClient = useQueryClient()
   const forceFail = useMutation({
@@ -68,57 +70,76 @@ function StuckTable({ items, prefix }: { items: StuckItem[]; prefix: string }) {
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div>
       {forceFail.isError ? <PanelMessage tone="error">{errorMessage(forceFail.error, t("stuck.force_fail_error"))}</PanelMessage> : null}
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-        <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-          <tr>
-            <th className="px-4 py-2">{t("stuck.col_severity")}</th>
-            <th className="px-4 py-2">{t("stuck.col_status")}</th>
-            <th className="px-4 py-2">{t("stuck.col_kind")}</th>
-            <th className="px-4 py-2">{t("stuck.col_detail")}</th>
-            <th className="px-4 py-2">{t("stuck.col_context")}</th>
-            <th className="px-4 py-2">{t("stuck.col_age")}</th>
-            <th className="px-4 py-2 text-right">{t("stuck.col_links")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-          {items.map((item) => (
-            <tr key={`${item.kind}-${item.run_id || "none"}-${item.workflow_id || "none"}`}>
-              <td className="px-4 py-2">
-                <span className={`rounded px-1.5 py-0.5 font-mono text-xs uppercase ${severityClass(item.severity)}`}>
-                  {item.severity}
-                </span>
-              </td>
-              <td className="px-4 py-2 text-xs text-gray-600 dark:text-gray-300">{statusLabel(item.attention_state, t)}</td>
-              <td className="px-4 py-2 font-mono text-xs text-gray-700 dark:text-gray-200">{item.kind}</td>
-              <td className="px-4 py-2 text-gray-700 dark:text-gray-200">{item.detail}</td>
-              <td className="px-4 py-2 text-xs text-gray-600 dark:text-gray-300">{contextLabel(item)}</td>
-              <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">{item.age_label}</td>
-              <td className="space-x-3 px-4 py-2 text-right text-xs">
-                {item.workflow_path ? (
-                  <Link className="text-blue-600 dark:text-blue-300 underline hover:no-underline" to={withRoutePrefix(item.workflow_path, prefix)}>{item.workflow_slug || "Workflow"}</Link>
-                ) : null}
-                {item.job_id ? <Link className="text-blue-600 dark:text-blue-300 underline hover:no-underline" to={withRoutePrefix(item.job_path || `/jobs/${item.job_id}`, prefix)}>Job</Link> : null}
-                {item.run_id && item.has_transcript ? (
-                  <Link className="text-indigo-600 dark:text-indigo-300 underline hover:no-underline" to={withRoutePrefix(`/admin/runs/${item.run_id}/transcript`, prefix)}>Transcript</Link>
-                ) : null}
-                {item.force_fail_path ? (
-                  <button
-                    className="font-medium text-red-600 underline hover:no-underline disabled:cursor-not-allowed disabled:text-gray-400 dark:text-red-300 dark:disabled:text-gray-500"
-                    disabled={forceFail.isPending}
-                    onClick={() => forceFail.mutate(item.force_fail_path as string)}
-                    type="button"
-                  >
-                    {forceFail.isPending ? t("stuck.force_failing") : t("stuck.force_fail")}
-                  </button>
-                ) : null}
-              </td>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+          <thead className="bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+            <tr>
+              <th className="px-4 py-2">{t("stuck.col_severity")}</th>
+              <th className="px-4 py-2">{t("stuck.col_status")}</th>
+              <th className="px-4 py-2">{t("stuck.col_kind")}</th>
+              <th className="px-4 py-2">{t("stuck.col_detail")}</th>
+              <th className="px-4 py-2">{t("stuck.col_context")}</th>
+              <th className="px-4 py-2">{t("stuck.col_age")}</th>
+              <th className="px-4 py-2 text-right">{t("stuck.col_links")}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+            {items.map((item) => (
+              <tr key={`${item.kind}-${item.run_id || "none"}-${item.workflow_id || "none"}`}>
+                <td className="px-4 py-2">
+                  <span className={`rounded px-1.5 py-0.5 font-mono text-xs uppercase ${severityClass(item.severity)}`}>
+                    {item.severity}
+                  </span>
+                </td>
+                <td className="px-4 py-2 text-xs text-gray-600 dark:text-gray-300">{statusLabel(item.attention_state, t)}</td>
+                <td className="px-4 py-2 font-mono text-xs text-gray-700 dark:text-gray-200">{item.kind}</td>
+                <td className="px-4 py-2 text-gray-700 dark:text-gray-200">{item.detail}</td>
+                <td className="px-4 py-2 text-xs text-gray-600 dark:text-gray-300">{contextLabel(item)}</td>
+                <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">{item.age_label}</td>
+                <td className="space-x-3 px-4 py-2 text-right text-xs">
+                  {item.workflow_path ? (
+                    <Link className="text-blue-600 dark:text-blue-300 underline hover:no-underline" to={withRoutePrefix(item.workflow_path, prefix)}>{item.workflow_slug || "Workflow"}</Link>
+                  ) : null}
+                  {item.job_id ? <Link className="text-blue-600 dark:text-blue-300 underline hover:no-underline" to={withRoutePrefix(item.job_path || `/jobs/${item.job_id}`, prefix)}>Job</Link> : null}
+                  {item.run_id && item.has_transcript ? (
+                    <Link className="text-indigo-600 dark:text-indigo-300 underline hover:no-underline" to={withRoutePrefix(`/admin/runs/${item.run_id}/transcript`, prefix)}>Transcript</Link>
+                  ) : null}
+                  {item.force_fail_path ? (
+                    <button
+                      className="font-medium text-red-600 underline hover:no-underline disabled:cursor-not-allowed disabled:text-gray-400 dark:text-red-300 dark:disabled:text-gray-500"
+                      disabled={forceFail.isPending}
+                      onClick={() => forceFail.mutate(item.force_fail_path as string)}
+                      type="button"
+                    >
+                      {forceFail.isPending ? t("stuck.force_failing") : t("stuck.force_fail")}
+                    </button>
+                  ) : null}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <StuckPagination pagination={pagination} prefix={prefix} />
     </div>
+  )
+}
+
+function StuckPagination({ pagination, prefix }: { pagination: { page: number; total_pages: number; total: number; first_item: number; last_item: number; previous_path: string | null; next_path: string | null }; prefix: string }) {
+  const { t } = useT("admin")
+  if (pagination.total_pages <= 1) return null
+
+  return (
+    <nav aria-label={t("stuck.aria_pagination")} className="flex items-center justify-between border-t border-gray-200 dark:border-gray-700 px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+      <span>{t("stuck.showing", { first: pagination.first_item, last: pagination.last_item, total: pagination.total })}</span>
+      <div className="flex items-center gap-2">
+        {pagination.previous_path ? <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.previous_path, prefix)}>{t("stuck.previous")}</Link> : <span className={disabledPaginationClass()}>{t("stuck.previous")}</span>}
+        <span className="px-2 text-xs text-gray-500 dark:text-gray-400">{t("stuck.page_of", { page: pagination.page, total: pagination.total_pages })}</span>
+        {pagination.next_path ? <Link className={paginationLinkClass()} to={withRoutePrefix(pagination.next_path, prefix)}>{t("stuck.next")}</Link> : <span className={disabledPaginationClass()}>{t("stuck.next")}</span>}
+      </div>
+    </nav>
   )
 }
 
@@ -146,4 +167,17 @@ function contextLabel(item: StuckItem) {
   if (parts.length === 0 && item.workflow_id) parts.push(item.workflow_slug || workflowSlug(item.workflow_id))
 
   return parts.join(" · ") || "-"
+}
+
+function parsePage(value: string | null) {
+  const parsed = Number.parseInt(value || "1", 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1
+}
+
+function paginationLinkClass() {
+  return "rounded border border-gray-300 dark:border-gray-700 px-3 py-1 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+}
+
+function disabledPaginationClass() {
+  return "rounded border border-gray-200 dark:border-gray-800 px-3 py-1 text-gray-400 dark:text-gray-600"
 }

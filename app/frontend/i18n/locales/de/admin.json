@@ -327,7 +327,12 @@
     "status_waiting": "Wartet",
     "force_fail": "Fehlschlagen erzwingen",
     "force_failing": "Schlägt fehl...",
-    "force_fail_error": "Job konnte nicht zwangsweise als fehlgeschlagen markiert werden."
+    "force_fail_error": "Job konnte nicht zwangsweise als fehlgeschlagen markiert werden.",
+    "aria_pagination": "Paginierung hängender Elemente",
+    "showing": "Zeige {{first}}-{{last}} von {{total}}",
+    "previous": "Zurück",
+    "next": "Weiter",
+    "page_of": "Seite {{page}} von {{total}}"
   },
   "console": {
     "heading": "Betreiberkonsole",
