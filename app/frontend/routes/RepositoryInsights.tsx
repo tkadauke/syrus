@@ -52,7 +52,7 @@ export function RepositoryInsightsRoute() {
     )
   }
 
-  const { repository, tabs, counts, suggestions, meta } = query.data
+  const { repository, tabs, suggestions, meta } = query.data
 
   function handleFilterChange(filter: StateFilter) {
     setStateFilter(filter)
@@ -73,13 +73,12 @@ export function RepositoryInsightsRoute() {
 
       <InsightSuggestionsList
         repositoryId={repositoryId}
-        counts={counts}
         suggestions={suggestions}
         meta={meta}
         page={page}
-        onPageChange={setPage}
         stateFilter={stateFilter}
         onFilterChange={handleFilterChange}
+        onPageChange={setPage}
       />
     </main>
   )
@@ -87,7 +86,6 @@ export function RepositoryInsightsRoute() {
 
 function InsightSuggestionsList({
   repositoryId,
-  counts,
   suggestions,
   meta,
   page,
@@ -96,7 +94,6 @@ function InsightSuggestionsList({
   onFilterChange
 }: {
   repositoryId: string
-  counts: Record<StateFilter, number>
   suggestions: InsightSuggestion[]
   meta: PaginationMeta
   page: number
@@ -107,10 +104,10 @@ function InsightSuggestionsList({
   const { t } = useT("insights")
 
   const filterTabs: Array<{ key: StateFilter; label: string; count: number }> = [
-    { key: "pending", label: t("filter_pending"), count: counts.pending },
-    { key: "accepted", label: t("filter_accepted"), count: counts.accepted },
-    { key: "dismissed", label: t("filter_dismissed"), count: counts.dismissed },
-    { key: "all", label: t("filter_all"), count: counts.all }
+    { key: "pending", label: t("filter_pending"), count: meta.counts.pending },
+    { key: "accepted", label: t("filter_accepted"), count: meta.counts.accepted },
+    { key: "dismissed", label: t("filter_dismissed"), count: meta.counts.dismissed },
+    { key: "all", label: t("filter_all"), count: meta.counts.all }
   ]
 
   const firstItem = meta.total === 0 ? 0 : (page - 1) * meta.per_page + 1

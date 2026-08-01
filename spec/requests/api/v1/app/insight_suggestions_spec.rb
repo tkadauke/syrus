@@ -134,6 +134,26 @@ RSpec.describe "App API insight suggestions", type: :request do
       )
     end
 
+    it "filters suggestions by state and returns unfiltered state counts" do
+      create_suggestion(title: "Pending")
+      accepted = create_suggestion(title: "Accepted")
+      dismissed = create_suggestion(title: "Dismissed")
+      accepted.accept!
+      dismissed.dismiss!
+
+      get "/api/v1/app/repositories/#{repository.id}/insight_suggestions", params: { state: "accepted" }
+
+      body = parse_body
+      expect(body["suggestions"].map { |s| s["id"] }).to eq([ accepted.id ])
+      expect(body["meta"]).to include("total" => 1, "state" => "accepted")
+      expect(body.dig("meta", "counts")).to include(
+        "pending"   => 1,
+        "accepted"  => 1,
+        "dismissed" => 1,
+        "all"       => 3
+      )
+    end
+
     it "paginates suggestions and returns the correct subset on page 2" do
       suggestions = 25.times.map { |i| create_suggestion(title: "Suggestion #{i}", confidence: (25 - i).to_f / 25) }
 

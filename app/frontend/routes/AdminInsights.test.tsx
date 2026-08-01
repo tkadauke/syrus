@@ -35,7 +35,15 @@ function makeSuggestion(overrides: Record<string, unknown> = {}) {
 }
 
 function makeMeta(overrides: Record<string, unknown> = {}) {
-  return { total: 1, page: 1, per_page: 20, total_pages: 1, ...overrides }
+  return {
+    total: 1,
+    page: 1,
+    per_page: 20,
+    total_pages: 1,
+    state: "pending",
+    counts: { pending: 1, accepted: 0, dismissed: 0, all: 1 },
+    ...overrides
+  }
 }
 
 function payload(suggestions: unknown[] = [makeSuggestion()], meta = makeMeta({ total: suggestions.length })) {
@@ -125,6 +133,22 @@ describe("AdminInsightsRoute", () => {
       await waitFor(() => {
         expect(fetchSpy).toHaveBeenCalledWith(
           expect.stringContaining("page=2"),
+          expect.anything()
+        )
+      })
+    })
+
+    it("clicking a state tab re-fetches page 1 with that state", async () => {
+      const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload([makeSuggestion()])))
+
+      renderRoute()
+
+      const dismissedTab = await screen.findByRole("button", { name: /Dismissed/ })
+      fireEvent.click(dismissedTab)
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          expect.stringContaining("state=dismissed"),
           expect.anything()
         )
       })

@@ -8,6 +8,7 @@ module Api
         prepend_before_action :require_agent_insights_feature
 
         PER_PAGE = 20
+        STATES = %w[pending accepted dismissed all].freeze
 
         def index
           repository = find_repository
@@ -21,8 +22,7 @@ module Api
             .includes(:job, :created_job)
             .order(Arel.sql("CASE severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, confidence DESC"))
 
-          relation = state == "all" ? base_relation : base_relation.where(state: state)
-
+          relation    = state == "all" ? base_relation : base_relation.where(state: state)
           total       = relation.count
           total_pages = [ (total.to_f / per_page).ceil, 1 ].max
           suggestions = relation.offset((page - 1) * per_page).limit(per_page)
@@ -36,7 +36,9 @@ module Api
               total:       total,
               page:        page,
               per_page:    per_page,
-              total_pages: total_pages
+              total_pages: total_pages,
+              state:       state,
+              counts:      state_counts(repository.insight_suggestions)
             }
           }
         end
@@ -105,15 +107,21 @@ module Api
 
         def state_param
           state = params[:state].to_s
-          return state if InsightSuggestion::STATES.include?(state) || state == "all"
+          STATES.include?(state) ? state : "all"
+        end
 
-          "all"
+        def state_counts(relation)
+          counts = relation.group(:state).count
+          {
+            pending:   counts.fetch("pending", 0),
+            accepted:  counts.fetch("accepted", 0),
+            dismissed: counts.fetch("dismissed", 0),
+            all:       counts.values.sum
+          }
         end
 
         def suggestion_counts(repository)
-          grouped = repository.insight_suggestions.group(:state).count
-          counts = InsightSuggestion::STATES.index_with { |state| grouped[state] || 0 }
-          counts.merge("all" => counts.values.sum)
+          state_counts(repository.insight_suggestions).transform_keys(&:to_s)
         end
 
         def require_agent_insights_feature

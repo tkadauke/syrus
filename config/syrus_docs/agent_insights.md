@@ -53,7 +53,7 @@ Each `submit_insight` call creates one `InsightSuggestion` row:
 | `stale_memory_text` | text  | Snapshot of stale/wrong memory text.                              |
 | `stale_memory_evidence` | text | Explanation of why the memory no longer matches current reality. |
 | `target_insight`  | FK      | Existing insight referenced by `revise_existing_insight`.        |
-| `state`           | string  | `pending` → `accepted` or `dismissed`.                           |
+| `state`           | string  | `pending` → `accepted` or `dismissed`; dismissed suggestions can return to `pending`. |
 | `created_job`     | FK      | Populated when the operator promotes the suggestion into a Job.  |
 
 ## MCP tools

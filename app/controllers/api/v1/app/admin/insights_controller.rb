@@ -7,15 +7,18 @@ module Api
           before_action :require_admin
 
           PER_PAGE = 20
+          STATES = %w[pending accepted dismissed all].freeze
 
           def index
             page     = page_param
             per_page = per_page_param
+            state    = state_param
 
-            relation = InsightSuggestion
+            base_relation = InsightSuggestion
               .includes(:job, :repository, :created_job)
               .order(Arel.sql("CASE severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, confidence DESC, insight_suggestions.created_at DESC"))
 
+            relation    = state == "all" ? base_relation : base_relation.where(state: state)
             total       = relation.count
             total_pages = [ (total.to_f / per_page).ceil, 1 ].max
             suggestions = relation.offset((page - 1) * per_page).limit(per_page)
@@ -26,7 +29,9 @@ module Api
                 total:       total,
                 page:        page,
                 per_page:    per_page,
-                total_pages: total_pages
+                total_pages: total_pages,
+                state:       state,
+                counts:      state_counts(InsightSuggestion.all)
               }
             }
           end
@@ -71,6 +76,21 @@ module Api
             per_page = params[:per_page].to_i
             return PER_PAGE unless per_page.positive?
             [ per_page, 100 ].min
+          end
+
+          def state_param
+            state = params[:state].to_s
+            STATES.include?(state) ? state : "all"
+          end
+
+          def state_counts(relation)
+            counts = relation.group(:state).count
+            {
+              pending:   counts.fetch("pending", 0),
+              accepted:  counts.fetch("accepted", 0),
+              dismissed: counts.fetch("dismissed", 0),
+              all:       counts.values.sum
+            }
           end
 
           def require_agent_insights_feature

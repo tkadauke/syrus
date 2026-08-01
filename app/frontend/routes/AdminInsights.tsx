@@ -11,10 +11,11 @@ type StateFilter = "pending" | "accepted" | "dismissed" | "all"
 export function AdminInsightsRoute() {
   const { t } = useT("insights")
   const [page, setPage] = useState(1)
+  const [stateFilter, setStateFilter] = useState<StateFilter>("pending")
 
   const query = useQuery({
-    queryKey: ["admin", "insights", page],
-    queryFn: () => fetchAdminInsights(page)
+    queryKey: ["admin", "insights", stateFilter, page],
+    queryFn: () => fetchAdminInsights(page, 20, stateFilter)
   })
 
   if (query.isPending) {
@@ -33,42 +34,46 @@ export function AdminInsightsRoute() {
     )
   }
 
-  return <AdminInsightsList suggestions={query.data.suggestions} meta={query.data.meta} page={page} onPageChange={setPage} />
+  return (
+    <AdminInsightsList
+      suggestions={query.data.suggestions}
+      meta={query.data.meta}
+      page={page}
+      stateFilter={stateFilter}
+      onFilterChange={setStateFilter}
+      onPageChange={setPage}
+    />
+  )
 }
 
 function AdminInsightsList({
   suggestions,
   meta,
   page,
+  stateFilter,
+  onFilterChange,
   onPageChange
 }: {
   suggestions: AdminInsightSuggestion[]
   meta: PaginationMeta
   page: number
+  stateFilter: StateFilter
+  onFilterChange: (filter: StateFilter) => void
   onPageChange: (page: number) => void
 }) {
   const { t } = useT("insights")
   const location = useLocation()
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
-  const [stateFilter, setStateFilter] = useState<StateFilter>("pending")
-
   function handleFilterChange(filter: StateFilter) {
-    setStateFilter(filter)
+    onFilterChange(filter)
     onPageChange(1)
   }
 
-  const filtered = suggestions.filter((s) => stateFilter === "all" || s.state === stateFilter)
-  const counts = {
-    pending: suggestions.filter((s) => s.state === "pending").length,
-    accepted: suggestions.filter((s) => s.state === "accepted").length,
-    dismissed: suggestions.filter((s) => s.state === "dismissed").length
-  }
-
   const filterTabs: Array<{ key: StateFilter; label: string; count: number }> = [
-    { key: "pending", label: t("filter_pending"), count: counts.pending },
-    { key: "accepted", label: t("filter_accepted"), count: counts.accepted },
-    { key: "dismissed", label: t("filter_dismissed"), count: counts.dismissed },
-    { key: "all", label: t("filter_all"), count: suggestions.length }
+    { key: "pending", label: t("filter_pending"), count: meta.counts.pending },
+    { key: "accepted", label: t("filter_accepted"), count: meta.counts.accepted },
+    { key: "dismissed", label: t("filter_dismissed"), count: meta.counts.dismissed },
+    { key: "all", label: t("filter_all"), count: meta.counts.all }
   ]
 
   const firstItem = meta.total === 0 ? 0 : (page - 1) * meta.per_page + 1
@@ -103,7 +108,7 @@ function AdminInsightsList({
         </nav>
       </div>
 
-      {filtered.length === 0 ? (
+      {suggestions.length === 0 ? (
         <div className="rounded border border-gray-200 bg-white p-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
           {t("empty")}
         </div>
@@ -122,7 +127,7 @@ function AdminInsightsList({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-900">
-              {filtered.map((suggestion) => (
+              {suggestions.map((suggestion) => (
                 <AdminSuggestionRow key={suggestion.id} prefix={prefix} suggestion={suggestion} />
               ))}
             </tbody>

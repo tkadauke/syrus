@@ -46,6 +46,13 @@ export type PaginationMeta = {
   page: number
   per_page: number
   total_pages: number
+  state: "pending" | "accepted" | "dismissed" | "all"
+  counts: {
+    pending: number
+    accepted: number
+    dismissed: number
+    all: number
+  }
 }
 
 export type InsightSuggestionCounts = {
@@ -98,8 +105,9 @@ export type AdminInsightsPayload = {
 }
 
 export function fetchInsightSuggestions(repositoryId: string | number, page = 1, perPage = 20, state = "all") {
+  const params = new URLSearchParams({ page: String(page), per_page: String(perPage), state })
   return getJson<InsightSuggestionsPayload>(
-    `/api/v1/app/repositories/${repositoryId}/insight_suggestions?page=${page}&per_page=${perPage}&state=${encodeURIComponent(state)}`
+    `/api/v1/app/repositories/${repositoryId}/insight_suggestions?${params.toString()}`
   )
 }
 
@@ -143,8 +151,9 @@ export function discussInsightSuggestion(id: number) {
   return postJson<InsightSuggestionDiscussPayload>(`/api/v1/app/insight_suggestions/${id}/discuss`, {})
 }
 
-export function fetchAdminInsights(page = 1, perPage = 20) {
-  return getJson<AdminInsightsPayload>(`/api/v1/app/admin/insights?page=${page}&per_page=${perPage}`)
+export function fetchAdminInsights(page = 1, perPage = 20, state = "all") {
+  const params = new URLSearchParams({ page: String(page), per_page: String(perPage), state })
+  return getJson<AdminInsightsPayload>(`/api/v1/app/admin/insights?${params.toString()}`)
 }
 
 export function promoteInsightMemory(id: number) {

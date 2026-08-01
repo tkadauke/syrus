@@ -67,7 +67,7 @@ Each `InsightSuggestion` captures:
 
 ## Reviewing Suggestions
 
-Navigate to `/repositories/:id/insights` to see all suggestions for a repository, ordered by severity (high → low) then confidence (high → low). Filter by state: Pending, Accepted, Dismissed, or All.
+Navigate to `/repositories/:id/insights` to see suggestions for a repository, ordered by severity (high → low) then confidence (high → low). Filter by state: Pending, Accepted, Dismissed, or All. Lists are paginated, and the state counts reflect all matching suggestions, not only the current page.
 
 Regular chat agents can inspect the same suggestions with `list_insights` and
 `read_insight`. Non-admin chat agents can only list/read suggestions for the
@@ -88,10 +88,9 @@ Each suggestion shows:
 
 Click **Accept** to open a confirmation form. The form pre-fills with the suggested prompt (if any). You can:
 - Edit the prompt text
-- Toggle whether to create a direct Job from the prompt
-- Confirm to mark the suggestion accepted (and optionally create the job)
+- Confirm to mark the suggestion accepted and create a direct Job from the prompt
 
-The `accepted_at` timestamp is recorded, and if a job was created, `created_job_id` links back to it.
+The `accepted_at` timestamp is recorded, and `created_job_id` links back to the created Job.
 
 For `remove_memory` suggestions, **Remove memory** accepts the suggestion and
 soft-deletes the target `ChatMemory` through `ChatMemory#soft_delete_by!`.
@@ -101,11 +100,11 @@ never deletes memories directly.
 
 ### Dismiss
 
-Click **Dismiss** to mark the suggestion dismissed. The `dismissed_at` timestamp is recorded. Accepted and dismissed suggestions cannot be re-opened; create a new direct job manually if needed.
+Click **Dismiss** to confirm and mark the suggestion dismissed. The `dismissed_at` timestamp is recorded. Dismissed suggestions can be restored from the Dismissed tab with **Undismiss**, which returns them to Pending; accepted suggestions cannot be reopened.
 
 ### Save as Memory
 
-When `memory_suggestion` is present, a **Save as memory** button appears. Clicking it creates a `ChatMemory` record with:
+When `memory_suggestion` is present, a **Save as memory** button appears on pending and accepted suggestions. Clicking it creates a `ChatMemory` record with:
 - `kind: "project_fact"`
 - `scope: "repository"` (scoped to this repository)
 - `source_type: "insight"`, `source_id: <suggestion_id>`
@@ -116,7 +115,7 @@ The memory becomes available to future agents working on the same repository.
 
 ## Admin View
 
-`/admin/insights` shows a cross-repository table of all suggestions (requires admin role + feature flag on). Each row includes the repository slug, the user who owns the source job, severity, confidence, and state.
+`/admin/insights` shows a paginated, state-filterable cross-repository table of all suggestions (requires admin role + feature flag on). Each row includes the repository slug, the user who owns the source job, severity, confidence, and state.
 
 Admins can expand rows to see the full suggested prompt, memory suggestion, and
 stale-memory removal evidence. They can **Promote to instance memory** for
