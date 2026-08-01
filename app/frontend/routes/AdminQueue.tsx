@@ -405,7 +405,8 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthPayload["hosts"][nu
   const { t } = useT("admin")
   const current = host.current
   const sample = current?.sample || host.recent_samples[0]
-  const level = current?.health.level || (sample ? "ok" : "unknown")
+  const status = host.status || (current ? "current" : "historical")
+  const level = current?.health.level || (sample ? "historical" : "unknown")
   const oneHour = host.windows["1h"]
   const minuteBuckets = host.minute_buckets ?? []
   const chartBuckets = minuteBuckets.length > 0 ? minuteBuckets : samplesToBuckets(host.recent_samples)
@@ -418,7 +419,7 @@ function WorkerHealthHostPanel({ host }: { host: WorkerHealthPayload["hosts"][nu
             <span className="font-mono text-sm font-semibold text-gray-900 dark:text-gray-100">{host.hostname}</span>
             <span className={`rounded px-2 py-0.5 text-xs font-medium ${workerHealthBadge(level)}`}>{workerHealthLabel(level, t)}</span>
           </div>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{current?.health.reasons.length ? current.health.reasons.join("; ") : t("queue.worker_health_ok")}</p>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{current?.health.reasons.length ? current.health.reasons.join("; ") : status === "current" ? t("queue.worker_health_ok") : t("queue.worker_health_historical")}</p>
         </div>
         <div className="grid grid-cols-2 gap-3 text-right text-xs sm:grid-cols-3 lg:grid-cols-6">
           <HealthStat label={t("queue.metric_cpu")} value={formatPercent(sample?.cpu_used_percent)} />
@@ -665,6 +666,7 @@ function ProcessTable({ processes }: { processes: QueueProcess[] }) {
             <th className="px-4 py-2">{t("queue.col_host")}</th>
             <th className="px-4 py-2">{t("queue.col_pid")}</th>
             <th className="px-4 py-2">{t("queue.col_heartbeat")}</th>
+            <th className="px-4 py-2">{t("queue.col_state")}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -674,6 +676,7 @@ function ProcessTable({ processes }: { processes: QueueProcess[] }) {
               <td className="px-4 py-2 text-gray-700 dark:text-gray-200">{process.hostname || "-"}</td>
               <td className="px-4 py-2 text-gray-700 dark:text-gray-200">{process.pid}</td>
               <td className="px-4 py-2 text-gray-600 dark:text-gray-300"><RelativeTimestamp value={process.last_heartbeat_at} /></td>
+              <td className={`px-4 py-2 ${process.stale ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}`}>{process.stale ? t("queue.worker_stale") : t("queue.worker_healthy")}</td>
             </tr>
           ))}
         </tbody>
@@ -693,12 +696,14 @@ function QueueError({ error }: { error: Error }) {
 function workerHealthBorder(level: string) {
   if (level === "critical") return "border-red-300 dark:border-red-800"
   if (level === "warning" || level === "unknown") return "border-amber-300 dark:border-amber-800"
+  if (level === "historical") return "border-gray-200 dark:border-gray-700"
   return "border-emerald-200 dark:border-emerald-800"
 }
 
 function workerHealthBadge(level: string) {
   if (level === "critical") return "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200"
   if (level === "warning" || level === "unknown") return "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+  if (level === "historical") return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200"
   return "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
 }
 
@@ -706,6 +711,7 @@ function workerHealthLabel(level: string, t: (key: string) => string) {
   if (level === "critical") return t("queue.worker_critical")
   if (level === "warning") return t("queue.worker_warning")
   if (level === "unknown") return t("queue.worker_unknown")
+  if (level === "historical") return t("queue.worker_historical")
   return t("queue.worker_healthy")
 }
 

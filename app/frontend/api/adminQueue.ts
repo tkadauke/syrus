@@ -41,6 +41,7 @@ export type QueueWorker = {
   threads: number | null
   last_heartbeat_at: string | null
   stale: boolean
+  status?: "current" | "stale" | string
 }
 
 export type QueueProcess = {
@@ -48,6 +49,8 @@ export type QueueProcess = {
   pid: number
   hostname: string | null
   last_heartbeat_at: string | null
+  stale?: boolean
+  status?: "current" | "stale" | string
 }
 
 export type ActiveQueuePayload = AdminFilteredPayload & {

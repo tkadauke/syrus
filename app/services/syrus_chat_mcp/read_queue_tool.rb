@@ -3,6 +3,7 @@ require "mcp"
 module SyrusChatMcp
   class ReadQueueTool < MCP::Tool
     QUEUES = %w[runs chat default merges].freeze
+    PROCESS_STALE_THRESHOLD = InstanceVersion::HEARTBEAT_STALE_THRESHOLD
 
     tool_name "read_queue"
 
@@ -56,14 +57,19 @@ module SyrusChatMcp
       def worker_rows
         return [] unless model_queryable?("SolidQueue::Process")
 
-        "SolidQueue::Process".constantize.where(kind: "Worker").order(:hostname, :pid).map do |worker|
+        "SolidQueue::Process".constantize
+          .where(kind: "Worker")
+          .where("last_heartbeat_at > ?", PROCESS_STALE_THRESHOLD.ago)
+          .order(:hostname, :pid)
+          .map do |worker|
           {
             hostname: worker.hostname,
             pid: worker.pid,
             queues: worker_queues(worker),
             threads: worker.metadata&.dig("thread_pool_size"),
             last_heartbeat_at: worker.last_heartbeat_at,
-            stale: worker.last_heartbeat_at.nil? || worker.last_heartbeat_at < 2.minutes.ago
+            stale: false,
+            status: "current"
           }
         end
       end

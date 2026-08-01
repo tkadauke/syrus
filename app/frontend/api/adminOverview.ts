@@ -160,6 +160,7 @@ export type CurrentWorkerHealth = {
 
 export type WorkerHealthHost = {
   hostname: string
+  status?: "current" | "historical" | string
   current: CurrentWorkerHealth | null
   windows: Record<string, WorkerHealthSummary>
   minute_buckets: WorkerHealthMinuteBucket[]

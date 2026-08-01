@@ -256,9 +256,12 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
   it "returns worker and process inventory" do
     sign_in_as(admin)
     solid_queue_process(hostname: "worker-a", pid: 101, metadata: { "queues" => "runs", "thread_pool_size" => 2 })
+    solid_queue_process(hostname: "worker-old", pid: 102, last_heartbeat_at: 3.minutes.ago, metadata: { "queues" => "runs" })
     solid_queue_process(kind: "Dispatcher", hostname: "dispatcher-a", pid: 202)
     InstanceVersion.create!(hostname: "worker-a", role: "worker", version: "abc123",
                             started_at: 5.minutes.ago, last_heartbeat_at: 10.seconds.ago)
+    InstanceVersion.create!(hostname: "worker-old", role: "worker", version: "abc123",
+                            started_at: 10.minutes.ago, last_heartbeat_at: 3.minutes.ago)
     WorkerHostHealthSample.create!(hostname: "worker-a", role: "worker", version: "abc123",
                                    observed_at: 1.minute.ago,
                                    cpu_used_percent: 20,
@@ -276,26 +279,42 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
                                    cpu_used_percent: 99,
                                    memory_used_percent: 99,
                                    data_root_used_percent: 99)
+    WorkerHostHealthSample.create!(hostname: "worker-old", role: "worker", version: "abc123",
+                                   observed_at: 30.minutes.ago,
+                                   cpu_used_percent: 35)
 
     get "/api/v1/app/admin/queue/workers"
 
     expect(response).to have_http_status(:ok)
     body = parse_body
+    expect(body["workers"].map { |worker| worker["hostname"] }).to eq([ "worker-a" ])
     expect(body["workers"].first).to include(
       "hostname" => "worker-a",
       "pid" => 101,
       "queues" => [ "runs" ],
       "threads" => 2,
-      "stale" => false
+      "stale" => false,
+      "status" => "current"
     )
-    expect(body["all_processes"].map { |process| process["kind"] }).to eq([ "Dispatcher", "Worker" ])
+    expect(body["all_processes"].map { |process| process["kind"] }).to eq([ "Dispatcher", "Worker", "Worker" ])
+    expect(body["all_processes"].find { |process| process["hostname"] == "worker-old" }).to include(
+      "stale" => true,
+      "status" => "stale"
+    )
     expect(body.dig("worker_health", "current", 0)).to include(
       "hostname" => "worker-a",
       "health" => include("level" => "ok")
     )
+    historical = body.dig("worker_health", "hosts").find { |host| host["hostname"] == "worker-old" }
+    expect(historical).to include(
+      "status" => "historical",
+      "current" => nil
+    )
+    expect(historical.dig("windows", "1h")).to include("sample_count" => 1)
     expect(Time.iso8601(body.dig("worker_health", "range", "since"))).to be > 3.hours.ago
-    expect(body.dig("worker_health", "hosts", 0, "recent_samples").length).to eq(1)
-    expect(body.dig("worker_health", "hosts", 0, "recent_samples", 0)).to include(
+    current_host = body.dig("worker_health", "hosts").find { |host| host["hostname"] == "worker-a" }
+    expect(current_host["recent_samples"].length).to eq(1)
+    expect(current_host.dig("recent_samples", 0)).to include(
       "cpu_used_percent" => 20,
       "load_1m" => 1.5,
       "memory_available_bytes" => 4.gigabytes,
@@ -303,7 +322,7 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
       "cpu_pressure_some" => 3,
       "io_pressure_some" => 4
     )
-    expect(body.dig("worker_health", "hosts", 0, "windows", "6h")).to include(
+    expect(current_host.dig("windows", "6h")).to include(
       "sample_count" => 1,
       "cpu_used_percent" => include("max" => 20.0),
       "io_pressure_some" => include("max" => 4.0)
@@ -365,13 +384,13 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     )
   end
 
-  def solid_queue_process(kind: "Worker", hostname:, pid:, metadata: {})
+  def solid_queue_process(kind: "Worker", hostname:, pid:, metadata: {}, last_heartbeat_at: Time.current)
     SolidQueue::Process.create!(
       kind: kind,
       name: "#{kind.downcase}-#{pid}",
       hostname: hostname,
       pid: pid,
-      last_heartbeat_at: Time.current,
+      last_heartbeat_at: last_heartbeat_at,
       created_at: Time.current,
       metadata: metadata
     )

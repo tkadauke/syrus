@@ -83,6 +83,16 @@ describe("AdminQueue worker health charts", () => {
     expect(screen.getByText("Queues")).toBeInTheDocument()
     expect(screen.getByText("Kind")).toBeInTheDocument()
   })
+
+  it("labels health hosts without a current heartbeat as historical", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(workerQueuePayload()))
+
+    renderAdminQueue()
+
+    expect(await screen.findByTestId("worker-health-charts-worker-a")).toBeInTheDocument()
+    expect(screen.getByText("historical")).toBeInTheDocument()
+    expect(screen.getByText("Historical samples in this range; host is not currently heartbeating.")).toBeInTheDocument()
+  })
 })
 
 function workerQueuePayload() {
@@ -94,7 +104,8 @@ function workerQueuePayload() {
         queues: "runs",
         threads: 2,
         last_heartbeat_at: "2026-05-30T12:00:00Z",
-        stale: false
+        stale: false,
+        status: "current"
       }
     ],
     all_processes: [
@@ -102,7 +113,9 @@ function workerQueuePayload() {
         kind: "Worker",
         hostname: "worker-a",
         pid: 101,
-        last_heartbeat_at: "2026-05-30T12:00:00Z"
+        last_heartbeat_at: "2026-05-30T12:00:00Z",
+        stale: false,
+        status: "current"
       }
     ],
     worker_health: {
@@ -131,6 +144,7 @@ function workerQueuePayload() {
       hosts: [
         {
           hostname: "worker-a",
+          status: "historical",
           current: null,
           windows: {
             "15m": summary(25, 1.2, 45, 55, 3, 4),

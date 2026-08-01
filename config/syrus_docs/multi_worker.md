@@ -143,27 +143,32 @@ Rows are retained for `WorkerHostHealthSample::RETAIN_AFTER` (7 days, matching
 `WorkerHostHealthSamplePruneJob`.
 The current admin overview, `/api/v1/admin/version`, and the admin queue
 workers payload include worker health snapshots alongside the existing
-data-root disk fields. The Workers tab (`/admin/queue/workers`) renders that
-payload inline as a per-host chart dashboard using a shorter 2-hour default
-lookback for page load. Operators can switch quick ranges (`30m`, `1h`, `2h`,
-`6h`, `24h`) or enter explicit start/end times; the tab persists those values
-in the URL and forwards them to the worker-health `since`, `until`, and
-minute-bucket window params. Charts cover CPU, load, memory, data-root disk
-usage, CPU pressure, and IO pressure, with compact exact-value tables kept as
-drilldown.
-Still-running stale worker instances stay in the dashboard even when they have
-no retained host-health sample, so operators can distinguish stale heartbeat
-from no-sample states. Disk alerts still come from the most-full worker's
-`InstanceVersion` reading so existing alert behavior is unchanged. For deeper
-inspection, `/api/v1/admin/worker_health` and `/api/v1/app/admin/worker_health`
-return live worker status plus compact 15m/1h/6h/24h summaries, recent
-samples, and bounded minute-resolution buckets. By default each host includes
-one bucket per minute for the last hour, ending at `until`; callers can increase
-that bounded minute window with `minute_bucket_window_minutes` up to 24 hours.
-Each bucket includes the minute timestamp, sample count, warning/critical
-counts, and max/avg summaries for CPU, load, memory, data-root disk, CPU
-pressure, and IO pressure. The payload can be filtered with `hostname`, `since`,
-`until`, `sample_limit_per_host`, and `minute_bucket_window_minutes`.
+data-root disk fields. Freshness follows `InstanceVersion` worker heartbeat
+semantics: the current worker lists only include workers with a fresh heartbeat,
+so deploy-era hostnames fall out of the active fleet view after the stale
+threshold even before their historical metrics expire. The Workers tab
+(`/admin/queue/workers`) renders that payload inline as a per-host chart
+dashboard using a shorter 2-hour default lookback for page load. Operators can
+switch quick ranges (`30m`, `1h`, `2h`, `6h`, `24h`) or enter explicit start/end
+times; the tab persists those values in the URL and forwards them to the
+worker-health `since`, `until`, and minute-bucket window params. Charts cover
+CPU, load, memory, data-root disk usage, CPU pressure, and IO pressure, with
+compact exact-value tables kept as drilldown. Hosts that have samples in the
+selected range but no fresh worker heartbeat remain chartable and are labeled
+historical instead of current. Solid Queue process rows in the Workers tab use
+the same heartbeat threshold: stale worker process rows are filtered out of the
+primary worker table and labeled stale in the full process inventory.
+Disk alerts still come from the most-full worker's `InstanceVersion` reading so
+existing alert behavior is unchanged. For deeper inspection,
+`/api/v1/admin/worker_health` and `/api/v1/app/admin/worker_health` return live
+worker status plus compact 15m/1h/6h/24h summaries, recent samples, and bounded
+minute-resolution buckets. By default each host includes one bucket per minute
+for the last hour, ending at `until`; callers can increase that bounded minute
+window with `minute_bucket_window_minutes` up to 24 hours. Each bucket includes
+the minute timestamp, sample count, warning/critical counts, and max/avg
+summaries for CPU, load, memory, data-root disk, CPU pressure, and IO pressure.
+The payload can be filtered with `hostname`, `since`, `until`,
+`sample_limit_per_host`, and `minute_bucket_window_minutes`.
 
 Admin chat agents can call `read_worker_health` for the same payload. Use it
 when diagnosing pod-local pressure, recurring worker warnings, or failure
