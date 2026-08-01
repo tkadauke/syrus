@@ -1,10 +1,12 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { I18nextProvider } from "react-i18next"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
 import { RepositoryInsightsRoute } from "./RepositoryInsights"
 import * as useConfirmModule from "../hooks/useConfirm"
+import i18n from "../i18n"
 
 function makeSuggestion(overrides: Record<string, unknown> = {}) {
   return {
@@ -50,18 +52,46 @@ function renderRoute(suggestions?: unknown[], meta?: Record<string, unknown>) {
   vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload(suggestions, meta ? makeMeta(meta) : undefined)))
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/app-shell/repositories/1/insights"]}>
-        <Routes>
-          <Route element={<RepositoryInsightsRoute />} path="/app-shell/repositories/:id/insights" />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>
+    <I18nextProvider i18n={i18n}>
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/app-shell/repositories/1/insights"]}>
+          <Routes>
+            <Route element={<RepositoryInsightsRoute />} path="/app-shell/repositories/:id/insights" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    </I18nextProvider>
   )
 }
 
 describe("RepositoryInsightsRoute", () => {
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(async () => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    await i18n.changeLanguage("en")
+  })
+
+  it("shows insight age next to confidence in suggestion headers", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(new Date("2026-06-25T12:00:00Z"))
+
+    renderRoute([
+      makeSuggestion({
+        title: "Trim repeated setup retries",
+        category: "workflow",
+        severity: "medium",
+        confidence: 0.4,
+        suggested_prompt: null,
+        memory_suggestion: null,
+        has_memory_suggestion: false,
+        created_at: "2026-06-25T10:00:00Z"
+      })
+    ])
+
+    expect(await screen.findByRole("heading", { level: 3, name: "Trim repeated setup retries" })).toBeInTheDocument()
+    const confidence = screen.getByText(/40% confidence/)
+    expect(within(confidence).getByText("2 hours ago")).toHaveAttribute("dateTime", "2026-06-25T10:00:00Z")
+  })
 
   describe("dismiss confirmation", () => {
     let mockConfirm: ReturnType<typeof vi.fn>
@@ -340,13 +370,15 @@ describe("RepositoryInsightsRoute", () => {
 
       const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
       render(
-        <QueryClientProvider client={client}>
-          <MemoryRouter initialEntries={["/app-shell/repositories/1/insights"]}>
-            <Routes>
-              <Route element={<RepositoryInsightsRoute />} path="/app-shell/repositories/:id/insights" />
-            </Routes>
-          </MemoryRouter>
-        </QueryClientProvider>
+        <I18nextProvider i18n={i18n}>
+          <QueryClientProvider client={client}>
+            <MemoryRouter initialEntries={["/app-shell/repositories/1/insights"]}>
+              <Routes>
+                <Route element={<RepositoryInsightsRoute />} path="/app-shell/repositories/:id/insights" />
+              </Routes>
+            </MemoryRouter>
+          </QueryClientProvider>
+        </I18nextProvider>
       )
 
       await screen.findByText("Showing 1–20 of 21")

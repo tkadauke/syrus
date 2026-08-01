@@ -79,7 +79,7 @@ agent insight workflows because that tool records against the anchor insight Job
 and its workflow artifacts.
 
 Each suggestion shows:
-- Title, category tag, severity pill, confidence percentage
+- Title, category tag, severity pill, confidence percentage, and age
 - Clickable evidence links to jobs and run transcripts
 - Expandable detail showing the suggested prompt and memory suggestion text
 - Remove-memory proposals render as destructive stale-memory cards with the target memory id, stale text, and evidence

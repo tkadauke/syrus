@@ -5,6 +5,7 @@ import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useT } from "../hooks/useT"
 import { useConfirm } from "../hooks/useConfirm"
 import { RepositoryTabs } from "../components/RepositoryTabs"
+import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import {
   acceptInsightSuggestion,
   acceptRemoveMemoryInsight,
@@ -268,6 +269,9 @@ function SuggestionCard({
               </span>
               <span className="text-xs text-gray-500 dark:text-gray-400">
                 {t("confidence", { pct: Math.round(suggestion.confidence * 100) })}
+                <span aria-hidden="true"> · </span>
+                <span className="sr-only">{t("age_label")} </span>
+                <RelativeTimestamp value={suggestion.created_at} />
               </span>
               {suggestion.state !== "pending" && (
                 <StatePill state={suggestion.state} />
