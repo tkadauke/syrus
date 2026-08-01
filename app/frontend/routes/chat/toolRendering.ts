@@ -17,9 +17,9 @@ export function toolLabel(name: string) {
 export function simpleToolProgressLabel(name: string) {
   const normalized = name.replace(/[^a-z0-9]/gi, "").toLowerCase()
 
-  if (["read", "readfile", "grep", "glob", "ls"].includes(normalized)) return "Reading code..."
+  if (["read", "readfile", "readfiletool", "grep", "glob", "ls"].includes(normalized)) return "Reading code..."
   if (["bash", "edit", "multiedit", "write", "create"].includes(normalized)) return "Making changes..."
-  if (["websearch", "webfetch"].includes(normalized)) return "Looking something up..."
+  if (["websearch", "webfetch", "websearchtool", "webfetchtool"].includes(normalized)) return "Looking something up..."
 
   return "Thinking..."
 }

@@ -801,7 +801,7 @@ function ChatWorkspace({
   if (!isDesktop && !expanded) {
     return (
       <div className="flex min-h-0 flex-1 flex-col bg-white dark:bg-gray-950">
-        <nav aria-label={t("aria_mobile_tabs")} className="flex shrink-0 overflow-x-auto border-b border-gray-200 px-2 pt-2 text-sm font-medium dark:border-gray-700">
+        <nav aria-label={t("aria_mobile_tabs")} className="flex min-h-[44px] shrink-0 overflow-x-auto border-b border-gray-200 px-[max(0.5rem,env(safe-area-inset-left))] pt-2 text-sm font-medium dark:border-gray-700">
           {(["chat", ...availableTabs] as MobileChatTab[]).map((tab) => (
             <button
               className={workspaceTabClass(activeMobileTab === tab)}

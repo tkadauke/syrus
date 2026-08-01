@@ -2,7 +2,7 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ErrorInfo, MouseEvent as ReactMouseEvent, ReactNode } from "react"
-import { Component, useCallback, useEffect, useRef, useState } from "react"
+import { Component, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import "@excalidraw/excalidraw/index.css"
 import { ApiError } from "../../api/client"
@@ -26,7 +26,7 @@ import type { ChatMessageImageAttachment } from "./messageDisplay"
 import type { FileTreeNode } from "./fileTree"
 import { buildFileTree } from "./fileTree"
 import { attachmentDataUrl, imageAttachments } from "./messageDisplay"
-import { availableWorkspaceTabs, workspaceTabClass, workspaceTabLabel } from "./workspaceTabs"
+import { availableWorkspaceTabs, defaultWorkspaceTab, workspaceTabClass, workspaceTabLabel } from "./workspaceTabs"
 import { diffGutterClass, diffMarkerClass, parseUnifiedDiff } from "../jobDetail/diffRendering"
 
 
@@ -68,7 +68,12 @@ export function ChatWorkspacePanel({
   simpleMode?: boolean
 }) {
   const { t } = useT("chat")
-  const tabs = availableWorkspaceTabs(payload, simpleMode)
+  const tabs = useMemo(() => availableWorkspaceTabs(payload, simpleMode), [payload, simpleMode])
+
+  useEffect(() => {
+    if (!tabs.includes(activeTab)) onSelectTab(defaultWorkspaceTab(payload, simpleMode))
+  }, [activeTab, onSelectTab, payload, simpleMode, tabs])
+
   return (
     <aside aria-label={t("aria_chat_workspace")} className={`flex min-h-0 min-w-0 flex-1 flex-col rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900 ${fullscreen ? "" : "h-full w-full"}`}>
       {fullscreen || !showTabs ? null : (
