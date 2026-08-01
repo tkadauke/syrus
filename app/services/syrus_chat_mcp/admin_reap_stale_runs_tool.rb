@@ -15,6 +15,7 @@ module SyrusChatMcp
         return chat_session if chat_session.is_a?(MCP::Tool::Response)
 
         create_pending_admin_action(
+          server_context: server_context,
           chat_session: chat_session,
           action: "admin_reap_stale_runs",
           payload: {},

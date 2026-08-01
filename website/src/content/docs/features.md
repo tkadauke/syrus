@@ -256,6 +256,13 @@ or delete actions for that chat while the flag remains enabled. Major operationa
 events, including Job notifications, Epic completion, main-branch health changes,
 and new Agent Insight suggestions, are posted there as durable system messages
 without starting an agent turn; new events mark the chat unread in the sidebar.
+When an admin chats in Supervisor, the agent uses admin-oriented guidance:
+system event messages are treated as operational context, incident summaries
+favor evidence and recommended next steps, and risky actions such as retries,
+cancellations, rebases, pause/unpause, cleanup, or follow-up Jobs stay behind
+proposal or pending-action confirmation flows. Supervisor event messages and
+pending-action outcome notices are retained in compact history fallback so the
+chat remains auditable even when provider resume needs fallback context.
 In the V2 layout, the
 sidebar search field opens a dedicated search
 page where operators can search Jobs, Epics, and chat messages from

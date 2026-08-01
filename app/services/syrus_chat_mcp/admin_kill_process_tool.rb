@@ -26,6 +26,7 @@ module SyrusChatMcp
         return SyrusChatMcp.invalid("process not found: #{process_id}") unless process
 
         create_pending_admin_action(
+          server_context: server_context,
           chat_session: chat_session,
           action: "admin_kill_process",
           payload: { "process_id" => process.id },

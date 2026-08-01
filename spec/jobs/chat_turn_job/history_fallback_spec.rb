@@ -159,6 +159,29 @@ RSpec.describe ChatTurnJob::HistoryFallback do
       expect(host.send(:chat_history_entry, msg)).to eq("system: Graders passed")
     end
 
+    it "returns text for supervisor event messages" do
+      msg = MsgDouble.new(
+        role: "system",
+        content: {
+          "text" => "[CRITICAL] Workflow stalled\nRUN-42 has no heartbeat.",
+          "supervisor_event" => { "kind" => "run_stalled", "severity" => "critical" }
+        },
+        tool_name: nil,
+        proposal: nil,
+        pending_action: nil
+      )
+
+      expect(host.send(:chat_history_entry, msg)).to include("system: [CRITICAL] Workflow stalled")
+    end
+
+    it "returns text for pending action outcome notifications" do
+      msg = system_msg(
+        "Pending action confirmed: retry_job (JOB-12). The action has been applied.",
+        source: ChatPendingActionOutcomeNotification::SOURCE
+      )
+      expect(host.send(:chat_history_entry, msg)).to include("system: Pending action confirmed")
+    end
+
     it "returns text for proposal lifecycle text patterns" do
       %w[confirmed rejected withdrawn created materialized].each do |verb|
         text = "Proposal \"Fix it\" #{verb}"
@@ -247,6 +270,22 @@ RSpec.describe ChatTurnJob::HistoryFallback do
       expect(check("anything", source: "grader_report")).to be(true)
     end
 
+    it "returns true for source=pending_action_notification" do
+      expect(check("anything", source: ChatPendingActionOutcomeNotification::SOURCE)).to be(true)
+    end
+
+    it "returns true for supervisor_event content" do
+      msg = MsgDouble.new(
+        role: "system",
+        content: { "text" => "event", "supervisor_event" => { "kind" => "queue_backlog" } },
+        tool_name: nil,
+        proposal: nil,
+        pending_action: nil
+      )
+
+      expect(host.send(:important_system_message?, msg, "event")).to be(true)
+    end
+
     it "returns true for proposal-lifecycle text (case-insensitive match)" do
       expect(check("Proposal \"Foo\" confirmed")).to be(true)
       expect(check("proposal \"Foo\" REJECTED")).to be(true)
@@ -258,6 +297,7 @@ RSpec.describe ChatTurnJob::HistoryFallback do
       expect(check("Agent turn completed")).to be(true)
       expect(check("MCP unavailable: retrying")).to be(true)
       expect(check("Codex resume")).to be(true)
+      expect(check("Pending action dismissed: rebase_job")).to be(true)
     end
 
     it "returns false for unrecognized system messages" do
@@ -369,6 +409,20 @@ RSpec.describe ChatTurnJob::HistoryFallback do
       result = host.chat_history_fallback
       expect(result).not_to be_nil
       expect(result).to include("system: Graders passed")
+    end
+
+    it "includes supervisor event messages in the transcript" do
+      chat.messages.create!(
+        role: "system",
+        content: {
+          "text" => "[WARNING] Queue backlog\nThe runs queue has 18 pending entries.",
+          "supervisor_event" => { "kind" => "queue_backlog", "severity" => "warning" }
+        }
+      )
+
+      result = host.chat_history_fallback
+      expect(result).not_to be_nil
+      expect(result).to include("system: [WARNING] Queue backlog")
     end
   end
 end

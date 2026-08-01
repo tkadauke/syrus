@@ -87,8 +87,10 @@ class ChatTurnJob
       source = content["source"].to_s
       return true if source == "proposal_notification"
       return true if source == "grader_report"
+      return true if source == ChatPendingActionOutcomeNotification::SOURCE
+      return true if content["supervisor_event"].present?
       text.match?(/\AProposal .*(confirmed|rejected|withdrawn|created|materialized)/i) ||
-        text.match?(/\A(Cancelled by operator|Agent turn failed|Agent turn completed|MCP unavailable|Codex resume)/i)
+        text.match?(/\A(Pending action (confirmed|rejected|dismissed)|Cancelled by operator|Agent turn failed|Agent turn completed|MCP unavailable|Codex resume)/i)
     end
 
     def proposal_summary(proposal)

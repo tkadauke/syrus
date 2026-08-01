@@ -114,6 +114,27 @@ RSpec.describe "SyrusChatMcp admin tools" do
     end
   end
 
+  it "anchors admin pending actions to the current assistant message" do
+    message = admin_session.messages.create!(role: "assistant", content: { "text" => "I can pause runs." })
+
+    allow(AppEvents).to receive(:broadcast)
+    expect(AppEvents).to receive(:broadcast) do |user:, payload:, **|
+      expect(user).to eq(admin)
+      expect(payload).to include(
+        action: "pending_action_updated",
+        chat_message_id: message.id
+      )
+    end
+
+    response = SyrusChatMcp::AdminPauseRunsTool.call(
+      server_context: { chat_session: admin_session, current_message: message }
+    )
+
+    expect(response).to be_a(MCP::Tool::Response)
+    expect(message.reload.pending_action).to eq(admin_session.pending_actions.last)
+    expect(message.pending_action).to have_attributes(action: "admin_pause_runs", state: "pending")
+  end
+
   it "rejects missing process and user targets gracefully" do
     process_response = call_tool(admin_session, "admin_kill_process", { process_id: 999_999 })
     user_response = call_tool(admin_session, "admin_pause_user_scheduling", { user_id: 999_999 })

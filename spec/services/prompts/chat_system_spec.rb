@@ -69,6 +69,23 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).not_to include("## Product Owner Mode")
   end
 
+  it "injects supervisor guidance for supervisor chats" do
+    admin = Factories.user(admin: true)
+    repo = repository(user: admin, owner: "acme", name: "ops")
+    chat = ChatSession.create!(user: admin, repository: repo, system_kind: "supervisor")
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(out).to include("## Supervisor Mode")
+    expect(out.index("## Supervisor Mode")).to be < out.index("Repository context:")
+    expect(out).to include("Treat system messages with `supervisor_event` payloads")
+    expect(out).to include("summarize incidents")
+    expect(out).to include("Ask clarifying questions sparingly")
+    expect(out).to include("For risky or state-changing operations such as retries, cancellations,")
+    expect(out).to include("pending action first")
+    expect(out).to include("Keep audit clarity in the chat")
+  end
+
   it "frames chat as planning and proposal drafting, not editing" do
     out = described_class.new(repository: repo).to_s
 

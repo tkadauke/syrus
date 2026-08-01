@@ -26,6 +26,7 @@ module SyrusChatMcp
         return SyrusChatMcp.invalid("workflow not found: #{workflow_id}") unless workflow
 
         create_pending_admin_action(
+          server_context: server_context,
           chat_session: chat_session,
           action: "admin_cleanup_workspace",
           payload: { "workflow_id" => workflow.id },

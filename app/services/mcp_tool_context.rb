@@ -102,7 +102,9 @@ class McpToolContext
   end
 
   private_class_method def self.role_for_chat(chat_session)
-    if chat_session.coding?
+    if chat_session.system_kind_supervisor?
+      AgentRole::CHAT_ADMIN
+    elsif chat_session.coding?
       AgentRole::CHAT_CODING
     elsif chat_session.mode == "local"
       AgentRole::CHAT_LOCAL

@@ -1,5 +1,7 @@
 module SyrusChatMcp
   module AdminPendingActionToolSupport
+    include ProposalToolSupport
+
     private
 
     def admin_chat_session(server_context)
@@ -16,8 +18,10 @@ module SyrusChatMcp
       SyrusChatMcp.unauthorized("Admin access required")
     end
 
-    def create_pending_admin_action(chat_session:, action:, payload:, message:)
-      pending_action = chat_session.pending_actions.create!(
+    def create_pending_admin_action(server_context:, chat_session:, action:, payload:, message:)
+      pending_action = create_pending_action_for_current_message!(
+        server_context,
+        chat_session,
         action: action,
         payload: payload,
         requested_by: "agent"

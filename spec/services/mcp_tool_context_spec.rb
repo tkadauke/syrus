@@ -176,6 +176,12 @@ RSpec.describe McpToolContext do
       expect(context.role).to eq(AgentRole::CHAT_PLANNER)
     end
 
+    it "assigns CHAT_ADMIN role for a supervisor session" do
+      supervisor_session = ChatSession.create!(user: user, repository: repository, system_kind: "supervisor")
+      context = described_class.from_chat_session(supervisor_session)
+      expect(context.role).to eq(AgentRole::CHAT_ADMIN)
+    end
+
     it "assigns CHAT_CODING role for a coding session" do
       coding_session = ChatSession.create!(user: user, repository: repository, mode: "coding")
       context = described_class.from_chat_session(coding_session)

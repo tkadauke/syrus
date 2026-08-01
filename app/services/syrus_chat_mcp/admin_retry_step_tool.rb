@@ -33,6 +33,7 @@ module SyrusChatMcp
         end
 
         create_pending_admin_action(
+          server_context: server_context,
           chat_session: chat_session,
           action: "admin_retry_step",
           payload: { "workflow_id" => workflow.id, "step_slug" => step_slug },

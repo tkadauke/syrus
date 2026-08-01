@@ -181,6 +181,25 @@ RSpec.describe McpToolPolicy do
     end
   end
 
+  describe "chat admin role" do
+    it "includes admin tools for admin supervisor chats" do
+      admin = Factories.user(admin: true)
+      admin_session = ChatSession.create!(user: admin, repository: Factories.repository(user: admin), system_kind: "supervisor")
+      tools = described_class.for(context_for(admin_session))
+
+      expect(McpToolContext.from_chat_session(admin_session).role).to eq(AgentRole::CHAT_ADMIN)
+      expect(tools).to include(*SyrusChatMcp::Sidecar::ADMIN_TOOLS)
+    end
+
+    it "still excludes admin tools when a non-admin has a supervisor-kind session" do
+      supervisor_session = chat_session(system_kind: "supervisor")
+      tools = described_class.for(context_for(supervisor_session))
+
+      expect(McpToolContext.from_chat_session(supervisor_session).role).to eq(AgentRole::CHAT_ADMIN)
+      expect(tools & SyrusChatMcp::Sidecar::ADMIN_TOOLS).to be_empty
+    end
+  end
+
   describe "chat coding role" do
     before do
       Feature.find_or_create_by!(slug: "coding_mode") { |f| f.category = "Labs"; f.name = "Coding Mode" }

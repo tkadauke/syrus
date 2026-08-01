@@ -26,6 +26,7 @@ module SyrusChatMcp
         return SyrusChatMcp.invalid("user not found: #{user_id}") unless user
 
         create_pending_admin_action(
+          server_context: server_context,
           chat_session: chat_session,
           action: "admin_pause_user_scheduling",
           payload: { "user_id" => user.id },

@@ -14,7 +14,13 @@ module SyrusChatMcp
         chat_session = require_admin(server_context)
         return chat_session if chat_session.is_a?(MCP::Tool::Response)
 
-        create_pending_admin_action(chat_session: chat_session, action: "admin_refresh_installations", payload: {}, message: "Refresh GitHub App installations?")
+        create_pending_admin_action(
+          server_context: server_context,
+          chat_session: chat_session,
+          action: "admin_refresh_installations",
+          payload: {},
+          message: "Refresh GitHub App installations?"
+        )
       end
     end
   end
