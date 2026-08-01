@@ -23,6 +23,7 @@ function adminPayload(overrides: Record<string, unknown> = {}) {
       video_storage_budget_mb: 2048,
       video_storage_budget_bytes: 2147483648,
       mode: "advanced",
+      telegram_bot_handle: "",
       grade_max_iterations: 3,
       adversarial_review_rounds: 0,
       merge_train_enabled: false,

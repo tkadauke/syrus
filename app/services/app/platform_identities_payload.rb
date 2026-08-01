@@ -1,17 +1,17 @@
 module App
   class PlatformIdentitiesPayload
-    SUPPORTED_PLATFORMS = %w[telegram slack].freeze
-
     def self.call(user:, message: nil)
       new(user: user, message: message).call
     end
 
+    def self.supported_platform?(platform)
+      ExternalPlatforms.include?(platform)
+    end
+
     def self.platform_configured?(platform)
-      case platform
-      when "telegram" then AppSetting.telegram_configured?
-      when "slack" then false
-      else false
-      end
+      ExternalPlatforms.fetch(platform).configured?
+    rescue KeyError
+      false
     end
 
     def initialize(user:, message: nil)
@@ -44,10 +44,11 @@ module App
     end
 
     def available_platforms_json
-      SUPPORTED_PLATFORMS.map do |platform|
+      ExternalPlatforms.all.map do |platform|
         {
-          platform: platform,
-          configured: platform_configured?(platform)
+          platform: platform.key,
+          label: platform.label,
+          configured: platform.configured?
         }
       end
     end

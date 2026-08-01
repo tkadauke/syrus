@@ -85,6 +85,18 @@ Controls where in-app bug reports are sent. The slug is also used for the "Repor
 
 On self-hosted instances, set this to the `owner/name` of your own Syrus fork. If the fork is tracked in Syrus as a repository, reports will be routed as Jobs; if not, they will be filed as GitHub issues against that slug.
 
+### telegram_bot_handle
+
+**Type:** string
+
+The public Telegram bot username that users message when linking their account from **Settings → Connected Platforms**. Telegram is considered configured only when both `telegram_bot_handle` and `telegram_bot_token` are present.
+
+### telegram_bot_token
+
+**Type:** text (encrypted)
+
+The Telegram bot token used by `PollTelegramUpdatesJob` and outbound Telegram delivery. Stored encrypted via Active Record Encryption. Telegram is considered configured only when both `telegram_bot_token` and `telegram_bot_handle` are present.
+
 ### max_concurrent_agent_runs
 
 **Type:** integer · **Default:** 0 (unlimited)

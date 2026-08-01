@@ -9,6 +9,7 @@ export type PlatformIdentity = {
 
 export type AvailablePlatform = {
   platform: string
+  label: string
   configured: boolean
 }
 

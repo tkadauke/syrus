@@ -281,6 +281,11 @@ RSpec.describe AppSetting do
       expect(AppSetting.telegram_bot_token).to eq("secret-token-123")
     end
 
+    it ".telegram_bot_handle normalizes a leading at-sign" do
+      AppSetting.current.update!(telegram_bot_handle: " @MySyrusBot ")
+      expect(AppSetting.telegram_bot_handle).to eq("MySyrusBot")
+    end
+
     it "encrypts telegram_bot_token at rest" do
       AppSetting.current.update!(telegram_bot_token: "my-secret-token")
 
@@ -298,6 +303,14 @@ RSpec.describe AppSetting do
     it ".telegram_update_offset reflects the stored value" do
       AppSetting.current.update!(telegram_update_offset: 99)
       expect(AppSetting.telegram_update_offset).to eq(99)
+    end
+
+    it ".telegram_configured? requires both bot token and bot handle" do
+      AppSetting.current.update!(telegram_bot_token: "token", telegram_bot_handle: nil)
+      expect(AppSetting.telegram_configured?).to be false
+
+      AppSetting.current.update!(telegram_bot_handle: "MySyrusBot")
+      expect(AppSetting.telegram_configured?).to be true
     end
 
     it "telegram_bot_token is a clearable secret" do

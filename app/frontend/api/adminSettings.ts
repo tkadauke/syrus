@@ -14,6 +14,7 @@ export type AdminSettingsPayload = {
     max_concurrent_agent_runs: number
     proactive_rebase_commit_threshold: number
     mode: "advanced" | "simple"
+    telegram_bot_handle: string
     clearable_secrets: ClearableSecret[]
   }
   message?: string
@@ -26,6 +27,7 @@ export type AdminSettingsUpdate = Partial<{
   max_concurrent_agent_runs: number
   proactive_rebase_commit_threshold: number
   mode: "advanced" | "simple"
+  telegram_bot_handle: string
   telegram_bot_token: string
 }>
 

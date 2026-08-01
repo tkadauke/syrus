@@ -249,12 +249,16 @@ function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload;
   const { t } = useT("admin")
   const queryClient = useQueryClient()
   const [tokenInput, setTokenInput] = useState("")
+  const [handleInput, setHandleInput] = useState(payload.settings.telegram_bot_handle)
 
   const telegramSecret = payload.settings.clearable_secrets.find(s => s.key === "telegram_bot_token")
   const tokenSet = telegramSecret?.set ?? false
 
   const saveToken = useMutation({
-    mutationFn: () => updateAdminSettings({ telegram_bot_token: tokenInput }),
+    mutationFn: () => updateAdminSettings({
+      telegram_bot_handle: handleInput,
+      ...(tokenInput.trim() ? { telegram_bot_token: tokenInput } : {})
+    }),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       setTokenInput("")
@@ -277,6 +281,10 @@ function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload;
     }
   })
 
+  useEffect(() => {
+    setHandleInput(payload.settings.telegram_bot_handle)
+  }, [payload.settings.telegram_bot_handle])
+
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 space-y-4">
       <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("settings.telegram_heading")}</h2>
@@ -286,6 +294,15 @@ function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload;
       </div>
 
       <div className="flex flex-wrap gap-2">
+        <input
+          aria-label={t("settings.telegram_handle_label")}
+          autoComplete="off"
+          className="min-w-48 flex-1 rounded border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm dark:bg-gray-800 dark:text-gray-100"
+          onChange={(e) => setHandleInput(e.target.value)}
+          placeholder={t("settings.telegram_handle_placeholder")}
+          type="text"
+          value={handleInput}
+        />
         <input
           aria-label={t("settings.telegram_token_label")}
           autoComplete="off"
@@ -297,7 +314,7 @@ function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload;
         />
         <button
           className="rounded bg-terracotta-600 px-3.5 py-1.5 text-sm font-medium text-white hover:bg-terracotta-500 disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={saveToken.isPending || !tokenInput.trim()}
+          disabled={saveToken.isPending || (!tokenInput.trim() && handleInput === payload.settings.telegram_bot_handle)}
           onClick={() => { onNotice(null); saveToken.mutate() }}
           type="button"
         >

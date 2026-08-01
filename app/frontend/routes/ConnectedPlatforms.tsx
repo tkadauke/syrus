@@ -17,11 +17,6 @@ import { errorMessage } from "../lib/errorMessage"
 
 const queryKey = ["platform_identities"] as const
 
-const PLATFORM_LABELS: Record<string, string> = {
-  telegram: "Telegram",
-  slack: "Slack"
-}
-
 export function ConnectedPlatformsRoute() {
   const { t } = useT("settings")
   const [notice, setNotice] = useState<string | null>(null)
@@ -102,7 +97,7 @@ function PlatformRow({
   onNotice: (message: string | null) => void
 }) {
   const { t } = useT("settings")
-  const label = PLATFORM_LABELS[availablePlatform.platform] ?? availablePlatform.platform
+  const label = availablePlatform.label || availablePlatform.platform
   const [linkingToken, setLinkingToken] = useState<LinkingTokenPayload | null>(null)
   const [linkError, setLinkError] = useState<string | null>(null)
 
@@ -219,7 +214,8 @@ function LinkingInstructions({
           const event = data as { type?: string; payload?: PlatformIdentitiesPayload }
           if (event.type === "platform_identity_linked" && event.payload) {
             onLinkedRef.current(event.payload)
-            onNotice(t("connected_platforms.connected_notice", { platform: PLATFORM_LABELS[platform] ?? platform }))
+            const linkedPlatform = event.payload.available_platforms.find((ap) => ap.platform === platform)
+            onNotice(t("connected_platforms.connected_notice", { platform: linkedPlatform?.label || platform }))
           }
         }
       }

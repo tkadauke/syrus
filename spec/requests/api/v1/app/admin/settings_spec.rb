@@ -26,13 +26,14 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
 
   it "returns editable settings including clearable secrets" do
     sign_in_as(admin)
-    AppSetting.current.update!(signups_open: true)
+    AppSetting.current.update!(signups_open: true, telegram_bot_handle: "MySyrusBot")
 
     get "/api/v1/app/admin/settings"
 
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body.dig("settings", "signups_open")).to be true
+    expect(body.dig("settings", "telegram_bot_handle")).to eq("MySyrusBot")
     secrets = body.dig("settings", "clearable_secrets")
     telegram = secrets.find { |s| s["key"] == "telegram_bot_token" }
     expect(telegram).to include("key" => "telegram_bot_token", "label" => "Telegram bot token", "set" => false)
@@ -52,11 +53,13 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
     sign_in_as(admin)
 
     patch "/api/v1/app/admin/settings", params: {
-      app_setting: { telegram_bot_token: "new-bot-token" }
+      app_setting: { telegram_bot_token: "new-bot-token", telegram_bot_handle: "MySyrusBot" }
     }
 
     expect(response).to have_http_status(:ok)
-    expect(AppSetting.current.reload.telegram_bot_token).to eq("new-bot-token")
+    setting = AppSetting.current.reload
+    expect(setting.telegram_bot_token).to eq("new-bot-token")
+    expect(setting.telegram_bot_handle).to eq("MySyrusBot")
   end
 
   it "updates signups_open" do

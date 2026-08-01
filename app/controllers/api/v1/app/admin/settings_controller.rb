@@ -44,6 +44,7 @@ module Api
                 max_concurrent_agent_runs: setting.max_concurrent_agent_runs,
                 proactive_rebase_commit_threshold: setting.proactive_rebase_commit_threshold,
                 mode: setting.mode,
+                telegram_bot_handle: AppSetting.telegram_bot_handle.to_s,
                 clearable_secrets: AppSetting.clearable_secrets.map do |key, label|
                   {
                     key: key,
@@ -56,7 +57,7 @@ module Api
           end
 
           def settings_params
-            permitted_settings = [ :signups_open, :video_retention_days, :video_storage_budget_mb, :max_concurrent_agent_runs, :proactive_rebase_commit_threshold, :mode ] +
+            permitted_settings = [ :signups_open, :video_retention_days, :video_storage_budget_mb, :max_concurrent_agent_runs, :proactive_rebase_commit_threshold, :mode, :telegram_bot_handle ] +
                                  AppSetting.clearable_secrets.keys.map(&:to_sym)
 
             params

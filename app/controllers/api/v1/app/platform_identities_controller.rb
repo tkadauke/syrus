@@ -17,7 +17,7 @@ module Api
 
         def linking_token
           platform = params[:platform].to_s
-          unless ::App::PlatformIdentitiesPayload::SUPPORTED_PLATFORMS.include?(platform)
+          unless ::App::PlatformIdentitiesPayload.supported_platform?(platform)
             return render_error("bad_request", I18n.t("api.platform_identities.unsupported_platform"), status: :bad_request)
           end
 
@@ -41,13 +41,7 @@ module Api
         end
 
         def linking_instructions(platform, token)
-          case platform
-          when "telegram"
-            bot_handle = AppSetting.telegram_bot_handle
-            { text: "Send /start #{token} to @#{bot_handle} on Telegram", bot_handle: bot_handle }
-          when "slack"
-            { text: "This platform is not yet configured." }
-          end
+          ::App::ExternalPlatforms.fetch(platform).linking_instructions(token)
         end
       end
     end

@@ -178,11 +178,11 @@ class AppSetting < ApplicationRecord
   end
 
   def self.telegram_bot_handle
-    current.telegram_bot_handle.presence
+    current.telegram_bot_handle.to_s.strip.delete_prefix("@").presence
   end
 
   def self.telegram_configured?
-    telegram_bot_handle.present?
+    telegram_bot_token.present? && telegram_bot_handle.present?
   end
 
   def self.report_issue_repo_slug

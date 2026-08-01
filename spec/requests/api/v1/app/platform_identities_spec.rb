@@ -42,6 +42,10 @@ RSpec.describe "API: /api/v1/app/platform_identities", type: :request do
       expect(body["available_platforms"]).to be_an(Array)
       platforms = body["available_platforms"].map { |p| p["platform"] }
       expect(platforms).to include("telegram", "slack")
+      expect(body["available_platforms"]).to include(
+        include("platform" => "telegram", "label" => "Telegram"),
+        include("platform" => "slack", "label" => "Slack")
+      )
     end
 
     it "returns empty list when user has no linked identities" do
@@ -102,7 +106,7 @@ RSpec.describe "API: /api/v1/app/platform_identities", type: :request do
 
     it "422s when the platform is not configured" do
       sign_in_as(user)
-      allow(AppSetting).to receive(:telegram_configured?).and_return(false)
+      AppSetting.current.update!(telegram_bot_token: "token", telegram_bot_handle: nil)
 
       post "/api/v1/app/platform_identities/linking_token", params: { platform: "telegram" }
 
@@ -112,8 +116,7 @@ RSpec.describe "API: /api/v1/app/platform_identities", type: :request do
 
     it "returns a signed token and instructions when configured" do
       sign_in_as(user)
-      allow(AppSetting).to receive(:telegram_configured?).and_return(true)
-      allow(AppSetting).to receive(:telegram_bot_handle).and_return("MyBot")
+      AppSetting.current.update!(telegram_bot_token: "token", telegram_bot_handle: "MyBot")
 
       post "/api/v1/app/platform_identities/linking_token", params: { platform: "telegram" }
 
@@ -126,8 +129,7 @@ RSpec.describe "API: /api/v1/app/platform_identities", type: :request do
 
     it "issues a verifiable token containing user_id and platform" do
       sign_in_as(user)
-      allow(AppSetting).to receive(:telegram_configured?).and_return(true)
-      allow(AppSetting).to receive(:telegram_bot_handle).and_return("MyBot")
+      AppSetting.current.update!(telegram_bot_token: "token", telegram_bot_handle: "MyBot")
 
       post "/api/v1/app/platform_identities/linking_token", params: { platform: "telegram" }
 
