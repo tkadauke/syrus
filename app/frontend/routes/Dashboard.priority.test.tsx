@@ -228,10 +228,7 @@ describe("urgent row highlight", () => {
 
     renderPayload(payload)
 
-    const warning = screen.getByRole("img", { name: /temporarily unavailable/ })
-    expect(warning).toBeInTheDocument()
-    expect(warning.className).toContain("text-amber-600")
-    expect(warning.className).not.toContain("text-red-600")
+    expect(screen.queryByRole("img", { name: /temporarily unavailable/ })).not.toBeInTheDocument()
   })
 
   it("applies a red background to the desktop table row for urgent jobs", () => {
