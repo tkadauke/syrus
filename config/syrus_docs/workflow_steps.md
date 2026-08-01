@@ -68,6 +68,15 @@ When a grader defines a `.syrus.yml` `fast:` command, Syrus uses that alternate 
 
 When a grader defines a `.syrus.yml` `ci:` command, Syrus uses it in `ci_failure` workflows so CI-only checks can run when the workflow is specifically repairing a failed CI signal. If `ci:` is absent, `ci_failure` workflows fall back to `run:`, not `fast:`. `main_grader` workflows also prefer `ci:` when it is configured, because main-branch health should match the checks that can fail in GitHub CI; for graders without `ci:`, `main_grader` falls back to `fast:` and then `run:`.
 
+`grader` Runs also persist bounded command spans for top-level phases inside
+composite commands. The splitter recognizes conservative top-level `&&`, `||`,
+and `;` operators outside quotes and shell groupings, then labels common Syrus
+phases such as `bundle check`, `bundle install`, `db:test:prepare`, `rspec`,
+`rubocop`, `frontend tests`, `frontend build`, `website build`, `migration
+checks`, `eager load check`, and `production build boot`. Commands that are too
+complex to split safely fall back to one whole-command span with metadata naming
+the fallback reason.
+
 ### grader_collect
 
 Non-agentic. Aggregates grader results. Fails the check cycle if any required grader failed; succeeds otherwise.
@@ -180,6 +189,8 @@ Non-agentic. Materializes one `preflight_grader` Step per configured grader at t
 
 Non-agentic. Identical to `grader` but writes logs to `.syrus/grade-output/preflight/<name>.log` to avoid collisions with the main grade loop's per-iteration log files.
 
+Preflight graders use the same command-span instrumentation as normal graders.
+
 ### preflight_grader_collect
 
 Non-agentic. Aggregates preflight grader results. Two outcomes:
@@ -194,6 +205,20 @@ Unlike `grader_collect`, this step never raises `StepFailed` — a grader failur
 ### grader_fanout / grader_collect
 
 Same as above, but used in `coding_handoff` workflows without a repair loop — graders must pass on the first attempt.
+
+## Grader command spans
+
+`grader` and `preflight_grader` Runs persist `CommandSpan` rows associated with
+the Run, Step, Workflow, Job, and spawned process when available. Each span
+records sequence, name, command excerpt, start/finish timestamps, duration,
+exit status/outcome, hostname, and metadata.
+
+The Bash timing harness preserves the original single `bash -c` execution,
+output capture, timeout handling, and failure behavior. It emits private
+framed marker tokens that Syrus strips before writing grade output to
+`.syrus/grade-output` or durable `JobLog` rows. Timeouts, stops, and operator
+kills close any unfinished span with the Run-level outcome, so a killed slow
+grader still shows the active phase.
 
 ### apply_suggestions
 

@@ -499,7 +499,10 @@ recent per-pod inspection, so operators and agents can inspect pod pressure
 without an external metrics system. Run and Job detail payloads also include
 compact worker-health correlations, and insight agents can compare retained
 host pressure across Runs when filing suggestions about repeated grader or
-step behavior. The same worker health data is visible
+step behavior. Grader and preflight grader Runs include command spans for
+common phases such as dependency checks, installs, database preparation, test
+suites, and frontend builds, so slow setup can be separated from slow tests.
+The same worker health data is visible
 from the Workers tab as a per-host dashboard with current status and compact
 recent trends. State-changing admin tools, such as pausing runs, killing a
 process, clearing the GitHub cache, or refreshing installations, create pending

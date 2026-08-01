@@ -151,8 +151,27 @@ class CaptureRunDiagnostic
       "run_started_at"   => @run.started_at&.iso8601,
       "run_turns"        => @run.agent_turns,
       "run_outcome"      => @run.agent_outcome,
+      "command_spans"    => command_spans_snapshot,
       "workspace_path"   => @workspace&.path&.to_s
     }
+  end
+
+  def command_spans_snapshot
+    @run.command_spans.ordered.limit(50).map do |span|
+      {
+        "id" => span.id,
+        "sequence" => span.sequence,
+        "name" => span.name,
+        "command_excerpt" => truncate(span.command_excerpt, 300),
+        "started_at" => span.started_at&.iso8601,
+        "finished_at" => span.finished_at&.iso8601,
+        "duration_ms" => span.duration_ms,
+        "exit_status" => span.exit_status,
+        "outcome" => span.outcome,
+        "hostname" => span.hostname,
+        "metadata" => span.metadata
+      }
+    end
   end
 
   def truncate(string, limit)

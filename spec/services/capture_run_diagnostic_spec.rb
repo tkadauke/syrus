@@ -105,6 +105,34 @@ RSpec.describe CaptureRunDiagnostic, :ci_only do
       expect(snap["job_branch"]).to eq("syrus/issue-7-#{job.id}")
       expect(snap["run_trigger_kind"]).to eq("initial")
     end
+
+    it "includes bounded command span timing for failed run diagnostics" do
+      run.command_spans.create!(
+        job: job,
+        workflow: run.workflow,
+        step: run.step,
+        sequence: 1,
+        name: "rspec",
+        command_excerpt: "bin/rspec",
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago,
+        duration_ms: 60_000,
+        exit_status: 1,
+        outcome: "failed",
+        hostname: "worker-a"
+      )
+
+      described_class.capture(run, exception)
+
+      span = run.reload.run_diagnostic.repo_snapshot.fetch("command_spans").first
+      expect(span).to include(
+        "name" => "rspec",
+        "command_excerpt" => "bin/rspec",
+        "duration_ms" => 60_000,
+        "outcome" => "failed",
+        "hostname" => "worker-a"
+      )
+    end
   end
 
   def sh(cmd)

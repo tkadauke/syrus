@@ -168,8 +168,12 @@ Workflow and insight agents can call `read_run_worker_health` to correlate a
 specific Run with retained host samples. The tool uses
 `workflows.worker_hostname`, the Run's start/finish timestamps, related
 `SpawnedProcess` host metadata, and the Step kind to return a compact pressure
-summary plus optional raw samples. The Job detail payload also includes a
-recent-run aggregate, and each serialized Run includes its own compact
-correlation. Runs older than `WorkerHostHealthSample::RETAIN_AFTER` are marked
-`retention_limited`; missing hostnames or samples return `pressure.level:
-"unknown"` rather than treating the interval as healthy.
+summary plus optional raw samples. For `grader` and `preflight_grader` Runs,
+the payload also includes durable command spans for phases such as `bundle
+check`, `bundle install`, `db:test:prepare`, and `rspec`; each span carries its
+own hostname, timing window, pressure summary, sample count, and retention
+flags. The Job detail payload also includes a recent-run aggregate, and each
+serialized Run includes its own compact correlation. Runs or spans older than
+`WorkerHostHealthSample::RETAIN_AFTER` are marked `retention_limited`; missing
+hostnames or samples return `pressure.level: "unknown"` rather than treating
+the interval as healthy.

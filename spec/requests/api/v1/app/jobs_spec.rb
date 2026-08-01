@@ -266,6 +266,20 @@ RSpec.describe "App API job detail", type: :request do
     run.job_logs.create!(sequence: 1, kind: "rate_limited", chunk: "[rate-limited] core quota exhausted")
     run.run_health_snapshots.create!(run_state: "running", health_status: "healthy", log_count: 1)
     run.create_run_diagnostic!(error_class: "Timeout::Error", error_message: "too much marble")
+    run.command_spans.create!(
+      job: job,
+      workflow: run.workflow,
+      step: run.step,
+      sequence: 1,
+      name: "bundle check",
+      command_excerpt: "bundle check",
+      started_at: 2.minutes.ago,
+      finished_at: 1.minute.ago,
+      duration_ms: 60_000,
+      exit_status: 0,
+      outcome: "succeeded",
+      hostname: "worker-a"
+    )
     run.create_run_failure_classification!(
       classification: "timeout",
       confidence: 0.8,
@@ -355,6 +369,13 @@ RSpec.describe "App API job detail", type: :request do
     expect(first_run["failure_classification"]).not_to have_key("classifier_inputs")
     expect(first_run["run_diagnostic"]).to include("present" => true)
     expect(first_run["run_diagnostic"]).not_to have_key("error_message")
+    expect(first_run["command_spans"]).to contain_exactly(include(
+      "name" => "bundle check",
+      "command_excerpt" => "bundle check",
+      "outcome" => "succeeded",
+      "hostname" => "worker-a"
+    ))
+    expect(first_run.dig("worker_health_correlation", "command_spans", 0, "name")).to eq("bundle check")
   end
 
   it "returns job detail cost after a run records cost metadata" do

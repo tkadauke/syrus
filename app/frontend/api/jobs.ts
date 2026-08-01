@@ -175,6 +175,7 @@ export type RunWorkerHealthCorrelation = {
     last_chunk_at: string | null
     command: string | null
   }>
+  command_spans?: JobCommandSpan[]
   recent_samples?: Array<{
     id: number
     hostname: string
@@ -185,6 +186,34 @@ export type RunWorkerHealthCorrelation = {
     cpu_pressure_some: number | null
     io_pressure_some: number | null
   }>
+}
+
+export type JobCommandSpan = {
+  id: number
+  run_id: number
+  job_id: number
+  workflow_id: number
+  step_id: number
+  spawned_process_id: number | null
+  sequence: number
+  name: string
+  command_excerpt: string
+  started_at: string | null
+  finished_at: string | null
+  duration_ms: number | null
+  duration_s: number | null
+  exit_status: number | null
+  outcome: string | null
+  hostname: string | null
+  metadata: Record<string, unknown> | null
+  sample_count: number
+  samples_missing: boolean
+  retention_limited: boolean
+  summary: Record<string, unknown>
+  pressure: {
+    level: "unknown" | "ok" | "warning" | "critical"
+    reasons: string[]
+  }
 }
 
 export type JobWorkerHealthCorrelation = {
@@ -444,6 +473,7 @@ export type JobRun = {
   run_diagnostic: { id: number; present: boolean; created_at: string | null; error_class?: string; error_message?: string } | null
   health_snapshots: Array<{ id: number; health_status: string | null; hint: string | null; run_state: string | null; last_log_preview: string | null; created_at: string | null }>
   active_process?: JobRunActiveProcess | null
+  command_spans?: JobCommandSpan[]
   worker_health_correlation?: RunWorkerHealthCorrelation | null
   agent_session: { session_id: string; provider: string | null; transcript_pruned: boolean; transcript_bytes: number | null; transcript_lines: number | null } | null
   can_stop: boolean

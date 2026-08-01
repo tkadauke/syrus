@@ -36,25 +36,34 @@ module Steps
       timed_out = false
 
       sink, flush = buffered_log_sink
+      span_plan = GraderCommandSpans::Plan.for(command)
+      span_recorder = GraderCommandSpans::Recorder.new(run: run, step: step, workflow: workflow, plan: span_plan)
+      runner_command = span_recorder.wrap(span_plan.shell_command)
 
       File.open(absolute_log_path, "wb") do |file|
-        result = ProcessRunner.new(
-          env: env,
-          command: [ "bash", "-c", command ],
-          chdir: workspace.path,
-          timeout: timeout_minutes.minutes,
-          kind: "grader",
-          run: run,
-          workflow: workflow,
-          on_output_chunk: ->(chunk) do
-            file.write(chunk)
-            file.flush
-            sink.call(chunk, kind: "grade_log")
-          end
-        ).run
+        result = run_with_span_recording(
+          runner_command: runner_command,
+          display_command: command,
+          timeout_minutes: timeout_minutes,
+          span_recorder: span_recorder,
+          file: file,
+          sink: sink
+        )
 
         timed_out = result.timed_out
         exit_code = timed_out ? TIMEOUT_EXIT_CODE : result.exit_status
+        trailing_chunk = span_recorder.flush_visible
+        if trailing_chunk.present?
+          file.write(trailing_chunk)
+          file.flush
+          sink.call(trailing_chunk, kind: "grade_log")
+        end
+        span_recorder.finalize!(
+          exit_code: exit_code,
+          timed_out: timed_out,
+          stopped: result.stopped,
+          operator_killed: result.operator_killed
+        )
 
         if timed_out
           timeout_message = "\n[timed out after #{timeout_minutes} minutes]\n"
@@ -89,6 +98,31 @@ module Steps
     end
 
     private
+
+    def run_with_span_recording(runner_command:, display_command:, timeout_minutes:, span_recorder:, file:, sink:)
+      ProcessRunner.new(
+        env: env,
+        command: [ "bash", "-c", runner_command ],
+        chdir: workspace.path,
+        timeout: timeout_minutes.minutes,
+        kind: "grader",
+        run: run,
+        workflow: workflow,
+        display_command: display_command,
+        on_spawned_process: ->(process) { span_recorder.spawned_process = process },
+        on_output_chunk: ->(chunk) do
+          visible_chunk = span_recorder.consume(chunk)
+          next if visible_chunk.empty?
+
+          file.write(visible_chunk)
+          file.flush
+          sink.call(visible_chunk, kind: "grade_log")
+        end
+      ).run
+    rescue StandardError
+      span_recorder.finalize!(exit_code: nil, timed_out: false)
+      raise
+    end
 
     def grader_log_path(name)
       Pathname.new(".syrus/grade-output/iteration-#{run.iteration}/#{name}.log")

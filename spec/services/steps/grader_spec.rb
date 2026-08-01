@@ -104,6 +104,9 @@ RSpec.describe Steps::Grader do
     expect(details["timed_out"]).to be true
     expect(details["exit_code"]).to eq(Steps::Grader::TIMEOUT_EXIT_CODE)
     expect(@ws_path.join(details["log_path"]).read).to include("[timed out after 1 minutes]")
+    span = run.reload.command_spans.first
+    expect(span.outcome).to eq("timed_out")
+    expect(span.exit_status).to eq(Steps::Grader::TIMEOUT_EXIT_CODE)
   end
 
   it "runs the configured command without formatter-specific mutation" do
@@ -121,5 +124,48 @@ RSpec.describe Steps::Grader do
     handler.call
 
     expect(captured_command).to eq([ "bash", "-c", "bin/rspec spec/models --format json --out custom.json" ])
+  end
+
+  it "records spans for successful composite grader phases without writing markers to grade logs" do
+    step.update!(details: step.details.merge("command" => "printf check && printf install && printf spec"))
+
+    handler.call
+
+    spans = run.reload.command_spans.ordered
+    expect(spans.map(&:outcome)).to eq(%w[ succeeded succeeded succeeded ])
+    expect(spans.map(&:sequence)).to eq([ 1, 2, 3 ])
+    expect(spans.map(&:command_excerpt)).to eq([ "printf check", "printf install", "printf spec" ])
+    expect(spans.map(&:spawned_process_id)).to all(be_present)
+    expect(SpawnedProcess.find(spans.first.spawned_process_id).command).to eq("printf check && printf install && printf spec")
+    expect(@ws_path.join(step.reload.details["log_path"]).read).to eq("checkinstallspec")
+  end
+
+  it "records the failing composite phase and preserves shell failure semantics" do
+    step.update!(details: step.details.merge("command" => "printf ok && ruby -e 'exit 7' && printf skipped"))
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /grader tests failed/)
+
+    spans = run.reload.command_spans.ordered
+    expect(spans.map(&:outcome)).to eq(%w[ succeeded failed ])
+    expect(spans.last.exit_status).to eq(7)
+    expect(spans.map(&:command_excerpt)).not_to include("printf skipped")
+  end
+
+  it "records preflight grader spans through the shared grader implementation" do
+    preflight_step = Step.create!(
+      workflow: workflow,
+      kind: "preflight_grader",
+      position: 100,
+      details: step.details.merge("command" => "printf preflight && printf done")
+    )
+    preflight_run = preflight_step.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running", iteration: preflight_step.iteration)
+    preflight_handler = Steps::PreflightGrader.new(preflight_run)
+    fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
+    allow(preflight_handler).to receive(:workspace).and_return(fake_ws)
+
+    preflight_handler.call
+
+    expect(preflight_run.reload.command_spans.ordered.map(&:command_excerpt)).to eq([ "printf preflight", "printf done" ])
+    expect(@ws_path.join(preflight_step.reload.details["log_path"]).to_s).to include("/preflight/tests.log")
   end
 end

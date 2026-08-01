@@ -5,9 +5,10 @@ module SyrusMcp
     tool_name "read_run_worker_health"
 
     description <<~DESC
-      Read worker host health samples correlated to a Run's execution window.
-      Defaults to the current Run. Insight agents may pass another run_id from
-      the same repository to compare host pressure across Runs.
+      Read worker host health samples correlated to a Run's execution window,
+      including any durable command spans recorded inside the Run. Defaults to
+      the current Run. Insight agents may pass another run_id from the same
+      repository to compare host pressure across Runs and grader phases.
     DESC
 
     input_schema(

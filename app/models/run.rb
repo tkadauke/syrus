@@ -19,6 +19,7 @@ class Run < ApplicationRecord
   has_many :run_health_snapshots, -> { order(:created_at) }, dependent: :destroy
   has_many :auto_retry_attempts, dependent: :nullify
   has_many :spawned_processes, dependent: :nullify
+  has_many :command_spans, -> { order(:sequence, :id) }, dependent: :destroy
   has_one :claude_session, as: :resumable, dependent: :destroy
   has_one :run_diagnostic, dependent: :destroy
   has_one :run_failure_classification, dependent: :destroy

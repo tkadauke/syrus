@@ -69,6 +69,40 @@ RSpec.describe WorkerHealthRunCorrelation do
     expect(payload[:processes].first).to include(kind: "grader", command: "bin/rspec")
   end
 
+  it "correlates command spans with host samples for each span window" do
+    wf = workflow
+    step = step_for(wf)
+    run = run_for(step)
+    span = CommandSpan.create!(
+      job: job,
+      workflow: wf,
+      step: step,
+      run: run,
+      sequence: 1,
+      name: "rspec",
+      command_excerpt: "bin/rspec",
+      hostname: "worker-a",
+      started_at: now - 7.minutes,
+      finished_at: now - 6.minutes,
+      duration_ms: 60_000,
+      outcome: "succeeded",
+      exit_status: 0
+    )
+    sample(observed_at: now - 6.minutes - 30.seconds, cpu_used_percent: 99.0, cpu_pressure_some: 55.0)
+    sample(observed_at: now - 3.minutes, cpu_used_percent: 10.0)
+
+    payload = described_class.for_run(run, now: now)
+
+    expect(payload[:command_spans].first).to include(
+      id: span.id,
+      name: "rspec",
+      sample_count: 1,
+      samples_missing: false
+    )
+    expect(payload.dig(:command_spans, 0, :pressure, :level)).to eq("critical")
+    expect(payload.dig(:command_spans, 0, :summary, :cpu_used_percent)).to eq(avg: 99.0, max: 99.0)
+  end
+
   it "uses now as the end of the window for a still-running Run" do
     wf = workflow
     step = step_for(wf, kind: "implement", details: {})

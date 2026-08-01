@@ -17,6 +17,21 @@ RSpec.describe SyrusMcp::ReadRunWorkerHealthTool do
       observed_at: 5.minutes.ago,
       cpu_pressure_some: 25.0
     )
+    CommandSpan.create!(
+      job: run.job,
+      workflow: run.workflow,
+      step: run.step,
+      run: run,
+      sequence: 1,
+      name: "bundle check",
+      command_excerpt: "bundle check",
+      hostname: "worker-a",
+      started_at: 6.minutes.ago,
+      finished_at: 4.minutes.ago,
+      duration_ms: 120_000,
+      outcome: "succeeded",
+      exit_status: 0
+    )
 
     response = described_class.call(server_context: { run_id: run.id })
 
@@ -25,6 +40,7 @@ RSpec.describe SyrusMcp::ReadRunWorkerHealthTool do
     expect(payload["run_id"]).to eq(run.id)
     expect(payload["primary_hostname"]).to eq("worker-a")
     expect(payload.dig("pressure", "level")).to eq("warning")
+    expect(payload.dig("command_spans", 0, "name")).to eq("bundle check")
   end
 
   it "allows same-repository run lookup for insight comparisons" do

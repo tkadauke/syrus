@@ -25,6 +25,7 @@ class SpawnedProcess < ApplicationRecord
   belongs_to :run, optional: true
   belongs_to :workflow, optional: true
   belongs_to :kill_requested_by_user, class_name: "User", optional: true
+  has_many :command_spans, dependent: :nullify
 
   validates :kind, presence: true, inclusion: { in: KINDS,
             message: ->(_, value) { "#{value[:value].inspect} is not in SpawnedProcess::KINDS — register it explicitly before spawning" } }

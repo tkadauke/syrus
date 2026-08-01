@@ -390,6 +390,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_01_150000) do
     t.index ["run_id"], name: "index_claude_sessions_on_run_id", unique: true
   end
 
+  create_table "command_spans", force: :cascade do |t|
+    t.string "command_excerpt", limit: 1024, null: false
+    t.datetime "created_at", null: false
+    t.integer "duration_ms"
+    t.integer "exit_status"
+    t.datetime "finished_at"
+    t.string "hostname", limit: 255
+    t.bigint "job_id", null: false
+    t.json "metadata", null: false
+    t.string "name", limit: 128, null: false
+    t.string "outcome", limit: 32
+    t.bigint "run_id", null: false
+    t.integer "sequence", null: false
+    t.bigint "spawned_process_id"
+    t.datetime "started_at", null: false
+    t.bigint "step_id", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "workflow_id", null: false
+    t.index ["hostname", "started_at"], name: "index_command_spans_on_hostname_and_started_at"
+    t.index ["run_id", "sequence"], name: "index_command_spans_on_run_id_and_sequence", unique: true
+    t.index ["spawned_process_id"], name: "index_command_spans_on_spawned_process_id"
+    t.index ["workflow_id", "step_id"], name: "index_command_spans_on_workflow_id_and_step_id"
+  end
+
   create_table "coverage_snapshots", force: :cascade do |t|
     t.string "branch", null: false
     t.decimal "branches_pct", precision: 5, scale: 2
@@ -1562,6 +1586,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_01_150000) do
   add_foreign_key "chat_wakeups", "users"
   add_foreign_key "chat_whiteboards", "chat_sessions"
   add_foreign_key "claude_sessions", "runs"
+  add_foreign_key "command_spans", "jobs"
+  add_foreign_key "command_spans", "runs"
+  add_foreign_key "command_spans", "spawned_processes"
+  add_foreign_key "command_spans", "steps"
+  add_foreign_key "command_spans", "workflows"
   add_foreign_key "coverage_snapshots", "jobs"
   add_foreign_key "coverage_snapshots", "repositories"
   add_foreign_key "coverage_snapshots", "workflows"

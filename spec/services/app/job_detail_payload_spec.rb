@@ -425,7 +425,7 @@ RSpec.describe App::JobDetailPayload do
       expect(active_process[:id]).not_to eq(finished.id)
     end
 
-    it "omits worker health correlation on each run payload" do
+    it "includes compact worker health correlation on each run payload" do
       job = Factories.job_record(repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "succeeded", worker_hostname: "worker-1")
       step = Step.create!(workflow: workflow, kind: "grader", position: 0, state: "succeeded", details: { "name" => "rspec" })
@@ -448,7 +448,13 @@ RSpec.describe App::JobDetailPayload do
 
       correlation = payload_for(job).dig(:workflows, 0, :steps, 0, :runs, 0, :worker_health_correlation)
 
-      expect(correlation).to be_nil
+      expect(correlation).to include(
+        run_id: run.id,
+        primary_hostname: "worker-1",
+        sample_count: 1,
+        command_spans: []
+      )
+      expect(correlation.dig(:pressure, :level)).to eq("critical")
     end
 
     it "serializes only workflow artifact fields needed by the detail UI" do

@@ -62,7 +62,7 @@ module App
 
       def workflows_scope
         @job.workflows
-            .includes(steps: { runs: [ :claude_session, :run_diagnostic, :run_failure_classification, :run_health_snapshots, :spawned_processes ] })
+            .includes(steps: { runs: [ :claude_session, :run_diagnostic, :run_failure_classification, :run_health_snapshots, :spawned_processes, :command_spans ] })
             .reorder(created_at: :desc, id: :desc)
       end
 
@@ -155,7 +155,8 @@ module App
           run_diagnostic: run_diagnostic_json(run.run_diagnostic),
           health_snapshots: run.run_health_snapshots.ordered.map { |snapshot| health_snapshot_json(snapshot) },
           active_process: active_process_json(run),
-          worker_health_correlation: nil,
+          command_spans: run.command_spans.ordered.map { |span| command_span_json(span) },
+          worker_health_correlation: WorkerHealthRunCorrelation.for_run(run, sample_limit: 0),
           agent_session: agent_session_json(session),
           can_stop: run.may_cancel?,
           can_diagnose: run.queued? || run.running?,
@@ -186,6 +187,10 @@ module App
           wall_timeout_s: process.wall_timeout_s,
           silent_timeout_s: process.silent_timeout_s
         }
+      end
+
+      def command_span_json(span)
+        WorkerHealthRunCorrelation.for_span(span, sample_limit: 0)
       end
 
       def workflow_failure_classification_json(workflow)

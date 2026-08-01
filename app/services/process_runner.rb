@@ -57,6 +57,7 @@ class ProcessRunner
                  kind: nil,
                  run: nil,
                  workflow: nil,
+                 display_command: nil,
                  on_spawned_process: nil)
     @env = env
     @command = command
@@ -73,6 +74,7 @@ class ProcessRunner
     @kind = kind
     @run = run
     @workflow = workflow
+    @display_command = display_command
     @on_spawned_process = on_spawned_process
 
     # Idempotent — only the first call in this process spawns the
@@ -302,7 +304,7 @@ class ProcessRunner
   end
 
   def command_string
-    @command.compact.map(&:to_s).join(" ").safe_byteslice(0, 4096)
+    (@display_command.presence || @command.compact.map(&:to_s).join(" ")).safe_byteslice(0, 4096)
   end
 
   # Feed the child's stdin. When there is a payload, write it on a separate
