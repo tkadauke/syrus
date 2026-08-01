@@ -13,6 +13,7 @@ RSpec.describe "API: /api/v1/app/admin/performance", type: :request do
     Feature.where(slug: "performance_logging").delete_all
     Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
     Current.reset
+    PerformanceLogging::Store.clear!
     PerformanceLogging::Store.append(
       "event" => "syrus.performance.slow_phase",
       "phase" => "dashboard_payload",

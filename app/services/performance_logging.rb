@@ -136,6 +136,7 @@ module PerformanceLogging
 
   def record_request(payload, duration_ms)
     return if suppressed?
+    return if ignored_request?(payload)
     return unless enabled?
     return if duration_ms.to_f < slow_request_threshold_ms
 
@@ -226,6 +227,17 @@ module PerformanceLogging
     return true if payload[:cached] || payload[:name] == "SCHEMA"
 
     payload[:sql].to_s.match?(/\A\s*(BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE SAVEPOINT)\b/i)
+  end
+
+  def ignored_request?(payload)
+    controller = payload[:controller].to_s
+    return true if controller.in?([
+      "Api::V1::Admin::PerformanceController",
+      "Api::V1::App::Admin::PerformanceController"
+    ])
+
+    path = payload[:path].to_s
+    path.start_with?("/api/v1/admin/performance", "/api/v1/app/admin/performance")
   end
 
   def emit(event)

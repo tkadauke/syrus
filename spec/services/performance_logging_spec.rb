@@ -101,6 +101,26 @@ RSpec.describe PerformanceLogging do
     )
   end
 
+  it "does not record the performance diagnostics endpoint as a slow request" do
+    Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+    Current.reset
+    allow(described_class).to receive(:slow_request_threshold_ms).and_return(1.0)
+
+    described_class.record_request(
+      {
+        method: "GET",
+        path: "/api/v1/app/admin/performance?revision_scope=all",
+        controller: "Api::V1::App::Admin::PerformanceController",
+        action: "show",
+        format: "json",
+        status: 200
+      },
+      1_500.0
+    )
+
+    expect(described_class::Store.recent).to be_empty
+  end
+
   it "records slow phase events with safe metadata" do
     Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
     Current.reset

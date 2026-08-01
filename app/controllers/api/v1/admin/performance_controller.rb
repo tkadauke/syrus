@@ -3,7 +3,7 @@ module Api
     module Admin
       class PerformanceController < BaseController
         def show
-          render json: ::Admin::PerformancePayload.new(params: params).as_json
+          render json: PerformanceLogging.suppress { ::Admin::PerformancePayload.new(params: params).as_json }
         end
       end
     end
