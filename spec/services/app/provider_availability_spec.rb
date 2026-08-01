@@ -130,6 +130,54 @@ RSpec.describe App::ProviderAvailability do
     expect(described_class.for_user(user, "claude", now: now, cached: false)).to be_nil
   end
 
+  it "does not trust stale rate-limit classifications without direct provider evidence" do
+    failed_run(
+      provider: "codex",
+      outcome: nil,
+      classification: "rate_limited",
+      message: "grader rspec failed (exit 1): ActiveRecord::PendingMigrationError",
+      step_kind: "grader"
+    ).tap do |run|
+      JobLog.append!(run: run, chunk: "work_engine action=schedule_retry_after_rate_limit", kind: "system")
+    end
+
+    expect(described_class.for_user(user, "codex", now: now)).to be_nil
+  end
+
+  it "shows rate-limited availability for direct provider 429 diagnostics" do
+    failed_run(
+      provider: "codex",
+      outcome: "turn_failed",
+      classification: "rate_limited",
+      message: "[codex error] HTTP 429 too many requests",
+      step_kind: "implement"
+    )
+
+    expect(described_class.for_user(user, "codex", now: now)).to include(
+      provider: "codex",
+      state: "rate_limited",
+      usage_exhausted: false
+    )
+  end
+
+  it "shows rate-limited availability for classifications backed by explicit rate-limited log kinds" do
+    failed_run(
+      provider: "codex",
+      outcome: "turn_failed",
+      classification: "rate_limited",
+      message: "provider invocation failed",
+      step_kind: "implement"
+    ).run_failure_classification.update!(
+      classifier_inputs: { "job_log_kinds" => [ "rate_limited" ] }
+    )
+
+    expect(described_class.for_user(user, "codex", now: now)).to include(
+      provider: "codex",
+      state: "rate_limited",
+      usage_exhausted: false
+    )
+  end
+
   it "includes Codex 5-hour and weekly usage percentages when a usage snapshot exists" do
     user.update!(
       codex_usage_status: "ok",

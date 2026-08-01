@@ -279,16 +279,24 @@ module App
     end
 
     def rate_limited?(run, text)
-      return true if run.agent_outcome.to_s.in?(%w[rate_limited rate_limit])
-      return true if run.run_failure_classification&.classification == "rate_limited"
+      return true if ProviderRateLimitEvidence::OUTCOMES.include?(run.agent_outcome.to_s)
+      if run.run_failure_classification&.classification == "rate_limited"
+        return true if ProviderRateLimitEvidence.direct?(run, text: text, include_logs: false, provider_only: true)
+        return true if classified_from_rate_limited_log?(run)
+      end
 
-      text.match?(/rate[ -]?limit|too many requests|quota exceeded|429/i)
+      ProviderRateLimitEvidence.direct?(run, text: text, include_logs: false, provider_only: true)
+    end
+
+    def classified_from_rate_limited_log?(run)
+      return false unless run.step.nil? || run.step&.agentic? == true
+
+      Array(run.run_failure_classification&.classifier_inputs&.fetch("job_log_kinds", [])).include?("rate_limited")
     end
 
     def diagnostic_text(run)
       [
         run.agent_outcome,
-        run.run_failure_classification&.classification,
         run.run_diagnostic&.error_class,
         run.run_diagnostic&.error_message
       ].compact.join(" ")

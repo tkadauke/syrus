@@ -161,6 +161,34 @@ RSpec.describe ProviderCircuitBreaker do
     expect(decision.failure_count).to eq(0)
   end
 
+  it "does not count stale rate-limit classifications from non-agentic grader failures" do
+    5.times do |index|
+      job = Factories.job(repository: Factories.repository(user: user), issue_number: index + 1)
+      workflow = Workflow.create!(job: job, trigger_kind: "auto_merge", agent_provider: "codex")
+      step = Step.create!(workflow: workflow, kind: "grader", position: 0)
+      run = Run.create!(
+        job: job,
+        user: user,
+        step: step,
+        trigger_kind: "auto_merge",
+        state: "failed",
+        agent_provider: "codex",
+        finished_at: now - 1.minute
+      )
+      RunDiagnostic.create!(run: run, error_class: "Steps::Base::StepFailed", error_message: "grader rspec failed (exit 1): ActiveRecord::PendingMigrationError")
+      JobLog.append!(run: run, chunk: "work_engine action=schedule_retry_after_rate_limit", kind: "system")
+      run.create_run_failure_classification!(
+        classification: "rate_limited",
+        confidence: 0.9,
+        retryable: true,
+        reason: "stale false-positive rate limit",
+        classified_at: now
+      )
+    end
+
+    expect(described_class.call("codex", now: now)).not_to be_open
+  end
+
   it "ignores old transient failures outside the rolling window" do
     5.times do |index|
       run = failed_agent_run(job: Factories.job(repository: Factories.repository(user: user), issue_number: index + 1))

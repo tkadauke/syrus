@@ -15,7 +15,7 @@ class ProviderCircuitBreaker
 
   TRANSIENT_PATTERNS = [
     /provider[_ -]?transient/i,
-    /rate.?limit/i,
+    /\brate[ -](?:limit(?:ed|ing)?|limited?)\b/i,
     /too many requests/i,
     /\b429\b/,
     /temporar(?:y|ily)/i,
@@ -188,10 +188,15 @@ class ProviderCircuitBreaker
 
   def retryable?(run)
     return true if RETRYABLE_OUTCOMES.include?(run.agent_outcome.to_s)
+    return true if run.run_failure_classification&.classification == "provider_transient"
+    if run.run_failure_classification&.classification == "rate_limited"
+      return true if ProviderRateLimitEvidence.direct?(run, include_logs: include_logs?, provider_only: true)
+    end
+
     return true if transient_text?(diagnostic_text(run))
     return false unless include_logs?
 
-    return true if run.job_logs.where(kind: "rate_limited").exists?
+    return true if ProviderRateLimitEvidence.direct?(run, text: "", include_logs: true, provider_only: true)
 
     false
   end

@@ -105,9 +105,35 @@ RSpec.describe RunFailureClassifier do
     expect(classification.classification).to eq("rate_limited")
   end
 
-  it "classifies agent-reported rate_limit text with underscores" do
+  it "does not classify internal snake_case rate-limit action text as provider rate-limit evidence" do
+    run.update!(state: "failed", agent_provider: "codex")
+    diagnostic("Steps::Base::StepFailed", "grader rspec failed (exit 1)")
+    JobLog.append!(
+      run: run,
+      chunk: "ActiveRecord::PendingMigrationError: Migrations are pending. To resolve this issue, run bin/rails db:migrate RAILS_ENV=test.",
+      kind: "grade_log"
+    )
+    JobLog.append!(
+      run: run,
+      chunk: "work_engine repair_plan action=schedule_retry_after_rate_limit target=#{run.id}",
+      kind: "system"
+    )
+
+    result = classification
+
+    expect(result.classification).to eq("validation_or_user_error")
+    expect(result.retryable).to eq(false)
+  end
+
+  it "does not classify agent-reported snake_case rate_limit text as provider rate-limit evidence" do
     run.update!(state: "failed", agent_provider: "claude")
     JobLog.append!(run: run, chunk: "FAIL: Steps::Base::StepFailed: agent reported rate_limit", kind: nil)
+
+    expect(classification.classification).not_to eq("rate_limited")
+  end
+
+  it "classifies human-readable provider rate-limit text" do
+    run.update!(state: "failed", agent_provider: "claude", agent_summary: "Claude API error: HTTP 429 too many requests")
 
     expect(classification.classification).to eq("rate_limited")
     expect(classification.retryable).to eq(true)
