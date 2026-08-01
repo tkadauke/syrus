@@ -225,7 +225,7 @@ function renderInlineText(text: string, shouldLinkifySlugs: boolean, key: number
 
 function renderInlineToken(token: string, key: number, options: RenderInlineOptions): ReactNode {
   if (token.startsWith("`")) {
-    return <code key={key}>{token.slice(1, -1)}</code>
+    return <code key={key}>{renderInlineText(token.slice(1, -1), options.linkifySlugs !== false, 0)}</code>
   }
   if (token.startsWith("**")) {
     return <strong key={key}>{renderInline(token.slice(2, -2), options)}</strong>

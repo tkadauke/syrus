@@ -44,6 +44,22 @@ describe("Markdown", () => {
     expect(screen.getByRole("link", { name: "EPIC-5" })).toHaveAttribute("href", "/epics/5")
   })
 
+  it("links job and epic slugs inside inline code spans", () => {
+    const { container } = render(
+      <MemoryRouter>
+        <Markdown text="See `JOB-100` and `EPIC-5`" />
+      </MemoryRouter>
+    )
+
+    const jobLink = screen.getByRole("link", { name: "JOB-100" })
+    const epicLink = screen.getByRole("link", { name: "EPIC-5" })
+
+    expect(jobLink).toHaveAttribute("href", "/jobs/100")
+    expect(epicLink).toHaveAttribute("href", "/epics/5")
+    expect(container.querySelector("code a[href='/jobs/100']")).toBe(jobLink)
+    expect(container.querySelector("code a[href='/epics/5']")).toBe(epicLink)
+  })
+
   it("does not linkify slugs inside markdown links", () => {
     render(
       <MemoryRouter>
