@@ -44,3 +44,17 @@ filtered to `implemented` Jobs.
 Skill commands, such as `/canvas`, `/feedback`, and `/propose`, are sent through
 the normal chat message path so the agent can interpret them and call the
 matching MCP tools.
+
+## Proposal dependencies
+
+Chat proposal cards can declare dependency edges to existing Jobs/Epics or to
+other Job proposal slugs in the same chat. Proposal-slug Job dependencies are
+temporary placeholders while a proposal cascade is materializing. Once the
+referenced proposal creates a Job, Syrus promotes the placeholder to a concrete
+`JobDependency`; if the proposal is rejected, withdrawn, deleted, or confirmed
+without a Job, Syrus removes the placeholder and rechecks any queued dependent
+Jobs.
+
+Pending dependency payloads include `unresolved_ref_kind` and
+`unresolved_ref_state`, allowing operators and tools to distinguish actionable
+pending proposal references from stale or orphaned references.

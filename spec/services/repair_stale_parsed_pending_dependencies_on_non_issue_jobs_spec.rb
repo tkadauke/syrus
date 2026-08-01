@@ -43,6 +43,50 @@ RSpec.describe Maintenance::RepairStaleParsedPendingDependenciesOnNonIssueJobs d
     expect(JobDependency.exists?(manual.id)).to be(true)
   end
 
+  it "resolves manual pending proposal dependencies when the proposal has a Job" do
+    job = direct_job
+    workflow, first_step = queued_workflow_for(job)
+    proposal = proposal_with_job(slug: "materialized-upstream")
+    dependency = JobDependency.create!(
+      job: job,
+      source: "manual",
+      unresolved_chat_proposal: proposal
+    )
+
+    result = described_class.call
+
+    expect(result.removed_count).to eq(0)
+    expect(result.restarted_job_ids).to eq([ job.id ])
+    expect(dependency.reload).to be_resolved
+    expect(dependency.depends_on_job).to eq(proposal.job)
+    expect(first_step.runs.count).to eq(1)
+    expect(workflow.reload).to be_queued
+  end
+
+  it "removes stale manual pending proposal dependencies and starts queued workflows" do
+    job = direct_job
+    _workflow, first_step = queued_workflow_for(job)
+    stale_proposal = ChatProposal.create!(
+      chat_session: ChatSession.create!(user: user, repository: repository),
+      slug: "orphaned-upstream",
+      title: "Orphaned upstream",
+      body: "No longer materializable.",
+      state: "withdrawn"
+    )
+    dependency = JobDependency.create!(
+      job: job,
+      source: "manual",
+      unresolved_chat_proposal: stale_proposal
+    )
+
+    expect {
+      result = described_class.call
+      expect(result.removed_count).to eq(1)
+      expect(result.restarted_job_ids).to eq([ job.id ])
+    }.to change { JobDependency.exists?(dependency.id) }.from(true).to(false)
+      .and change { first_step.runs.count }.by(1)
+  end
+
   it "preserves parsed pending dependencies on issue jobs" do
     job = Factories.job_record(user: user, repository: repository, issue_number: 44, kind: "issue", state: "queued")
     dependency = parsed_pending_dependency(job, number: 1101)
@@ -124,6 +168,25 @@ RSpec.describe Maintenance::RepairStaleParsedPendingDependenciesOnNonIssueJobs d
       unresolved_owner: repository.owner,
       unresolved_repo: repository.name,
       unresolved_number: number
+    )
+  end
+
+  def proposal_with_job(slug:)
+    upstream = Factories.job_record(
+      user: user,
+      repository: repository,
+      kind: "direct",
+      issue_number: nil,
+      state: "closed",
+      closure_reason: "pr_merged"
+    )
+    ChatProposal.create!(
+      chat_session: ChatSession.create!(user: user, repository: repository),
+      slug: slug,
+      title: "Materialized upstream",
+      body: "Already filed.",
+      state: "confirmed",
+      job: upstream
     )
   end
 end

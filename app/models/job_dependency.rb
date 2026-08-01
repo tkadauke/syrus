@@ -36,6 +36,22 @@ class JobDependency < ApplicationRecord
     "#{unresolved_owner}/#{unresolved_repo}##{unresolved_number}"
   end
 
+  def pending_reference_kind
+    return nil unless pending?
+    return "proposal" if unresolved_chat_proposal_id.present?
+
+    "github_issue"
+  end
+
+  def pending_reference_state
+    return nil unless pending?
+    return "actionable" unless unresolved_chat_proposal
+    return "actionable" if unresolved_chat_proposal.proposed?
+    return "resolvable" if unresolved_chat_proposal.job_id.present?
+
+    "orphaned"
+  end
+
   def dependency_succeeded?
     return depends_on_epic.done? if depends_on_epic_id.present?
     return resolved_dependency_succeeded? if resolved?

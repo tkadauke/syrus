@@ -121,6 +121,21 @@ RSpec.describe JobDependency do
       expect(dependency.referenced_epic).to eq(epic)
       expect(dependency).to be_dependency_succeeded
     end
+
+    it "classifies actionable and orphaned pending proposal references" do
+      chat = ChatSession.create!(user: user, repository: repository)
+      actionable = ChatProposal.create!(chat_session: chat, slug: "still-proposed", title: "Still proposed", body: "Wait.")
+      orphaned = ChatProposal.create!(chat_session: chat, slug: "withdrawn", title: "Withdrawn", body: "Gone.", state: "withdrawn")
+      job = issue_job(1)
+
+      actionable_dependency = described_class.create!(job: job, unresolved_chat_proposal: actionable, source: "manual")
+      orphaned_dependency = described_class.create!(job: job, unresolved_chat_proposal: orphaned, source: "manual")
+
+      expect(actionable_dependency.pending_reference_kind).to eq("proposal")
+      expect(actionable_dependency.pending_reference_state).to eq("actionable")
+      expect(orphaned_dependency.pending_reference_kind).to eq("proposal")
+      expect(orphaned_dependency.pending_reference_state).to eq("orphaned")
+    end
   end
 
   describe "explicit Epic targets" do

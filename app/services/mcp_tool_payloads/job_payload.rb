@@ -78,6 +78,8 @@ module McpToolPayloads
         {
           pending: true,
           unresolved_ref: dependency.unresolved_slug,
+          unresolved_ref_kind: dependency.pending_reference_kind,
+          unresolved_ref_state: dependency.pending_reference_state,
           source: dependency.source
         }
       elsif dependency.depends_on_job

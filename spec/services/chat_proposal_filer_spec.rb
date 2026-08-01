@@ -82,6 +82,23 @@ RSpec.describe ChatProposalFiler do
       )
     end
 
+    it "resolves pending proposal-backed dependencies after the referenced proposal files" do
+      upstream = proposal(slug: "upstream-job", title: "Upstream job")
+      dependent = Factories.job_record(user: user, repository: repository, kind: "direct", issue_number: nil)
+      dependency = JobDependency.create!(
+        job: dependent,
+        unresolved_chat_proposal: upstream,
+        source: "manual",
+        created_by_user: user
+      )
+
+      described_class.new(user: user, repository: repository).file!([ upstream ])
+
+      expect(dependency.reload).to be_resolved
+      expect(dependency.depends_on_job).to eq(upstream.reload.job)
+      expect(dependency.unresolved_chat_proposal).to be_nil
+    end
+
     it "attaches created Jobs to the originating chat session" do
       job_proposal = proposal(slug: "job-attachment", title: "Attached job")
 

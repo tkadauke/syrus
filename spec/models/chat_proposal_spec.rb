@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe ChatProposal do
+  include ActiveJob::TestHelper
+
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
@@ -198,5 +200,46 @@ RSpec.describe ChatProposal do
       expect(described_class.transitive_downstream_closure([ root ])).to contain_exactly(root, middle, leaf)
       expect(described_class.transitive_downstream_closure([ unrelated ])).to contain_exactly(unrelated)
     end
+  end
+
+  describe "unresolved JobDependency placeholders" do
+    it "removes orphaned placeholders and starts queued workflows when a proposal is rejected" do
+      blocked_job = Factories.job_record(user: user, repository: repository, kind: "direct", issue_number: nil, state: "queued")
+      _workflow, first_step = queued_workflow_for(blocked_job)
+      dependency = JobDependency.create!(
+        job: blocked_job,
+        unresolved_chat_proposal: proposal("discarded-upstream"),
+        source: "manual",
+        created_by_user: user
+      )
+
+      expect {
+        dependency.unresolved_chat_proposal.update!(state: "rejected")
+      }.to change { JobDependency.exists?(dependency.id) }.from(true).to(false)
+        .and change { first_step.runs.count }.by(1)
+    end
+
+    it "removes placeholders and starts queued workflows when a proposal is deleted" do
+      blocked_job = Factories.job_record(user: user, repository: repository, kind: "direct", issue_number: nil, state: "queued")
+      _workflow, first_step = queued_workflow_for(blocked_job)
+      upstream = proposal("deleted-upstream")
+      dependency = JobDependency.create!(
+        job: blocked_job,
+        unresolved_chat_proposal: upstream,
+        source: "manual",
+        created_by_user: user
+      )
+
+      expect {
+        upstream.destroy!
+      }.to change { JobDependency.exists?(dependency.id) }.from(true).to(false)
+        .and change { first_step.runs.count }.by(1)
+    end
+  end
+
+  def queued_workflow_for(job)
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "queued")
+    first_step = Step.create!(workflow: workflow, kind: "implement", position: 0)
+    [ workflow, first_step ]
   end
 end

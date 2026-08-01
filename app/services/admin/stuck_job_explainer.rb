@@ -209,7 +209,9 @@ module Admin
           dependency_id: dependency.id,
           source: dependency.source,
           pending: true,
-          unresolved_ref: dependency.unresolved_slug
+          unresolved_ref: dependency.unresolved_slug,
+          unresolved_ref_kind: dependency.pending_reference_kind,
+          unresolved_ref_state: dependency.pending_reference_state
         }
       elsif dependency.depends_on_epic
         {
@@ -243,7 +245,16 @@ module Admin
     end
 
     def unsatisfied_leaf_blockers(dependency, seen = Set.new)
-      return [ { key: "dependency:#{dependency.id}", dependency_id: dependency.id, pending: true, unresolved_ref: dependency.unresolved_slug } ] if dependency.pending?
+      if dependency.pending?
+        return [ {
+          key: "dependency:#{dependency.id}",
+          dependency_id: dependency.id,
+          pending: true,
+          unresolved_ref: dependency.unresolved_slug,
+          unresolved_ref_kind: dependency.pending_reference_kind,
+          unresolved_ref_state: dependency.pending_reference_state
+        } ]
+      end
       return [ { key: "epic:#{dependency.depends_on_epic_id}", epic_id: dependency.depends_on_epic_id, target_type: "epic", state: dependency.depends_on_epic&.state } ] if dependency.depends_on_epic_id.present?
 
       target = dependency.depends_on_job

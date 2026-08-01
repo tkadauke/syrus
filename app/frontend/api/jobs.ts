@@ -279,6 +279,8 @@ export type JobDependency = {
   pending: boolean
   succeeded: boolean
   unresolved_slug: string | null
+  unresolved_ref_kind?: "github_issue" | "proposal" | null
+  unresolved_ref_state?: "actionable" | "resolvable" | "orphaned" | null
   depends_on_job: JobDependencyTarget | null
   depends_on_epic: JobDependencyEpicTarget | null
 }

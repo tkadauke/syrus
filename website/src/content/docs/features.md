@@ -358,6 +358,11 @@ an Epic until a developer claims and elaborates that Epic.
 Proposal cards can also declare dependency edges up front, including Jobs
 blocked on existing Epics, Epics blocked on existing Jobs, and proposed Jobs
 blocked on specific Job proposals in other cards from the same chat session.
+Proposal-slug Job dependencies are temporary while a proposal cascade is being
+confirmed: Syrus promotes them to concrete Job dependencies when the referenced
+proposal creates a Job, and removes them if the referenced proposal is rejected,
+withdrawn, deleted, or confirmed without a Job so real Jobs do not stay queued
+behind stale proposal slugs.
 Actions that need explicit approval, such as
 canceling, closing a Job successfully as `no_changes`, retrying, reopening,
 polling feedback, checking mergeability,

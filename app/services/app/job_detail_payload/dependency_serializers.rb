@@ -17,6 +17,8 @@ module App
           pending: dependency.pending?,
           succeeded: dependency.dependency_succeeded?,
           unresolved_slug: dependency.unresolved_slug,
+          unresolved_ref_kind: dependency.pending_reference_kind,
+          unresolved_ref_state: dependency.pending_reference_state,
           created_by_user_id: dependency.created_by_user_id,
           depends_on_job: job_target && dependency_job_json(job_target),
           depends_on_epic: epic_target && dependency_epic_json(epic_target)

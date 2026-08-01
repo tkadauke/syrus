@@ -45,6 +45,11 @@ class ChatProposal < ApplicationRecord
   has_many :dependents, through: :dependent_edges, source: :proposal
 
   has_many :messages, class_name: "ChatMessage", foreign_key: :proposal_id, dependent: :nullify
+  has_many :unresolved_job_dependencies,
+           class_name: "JobDependency",
+           foreign_key: :unresolved_chat_proposal_id,
+           dependent: :destroy,
+           inverse_of: :unresolved_chat_proposal
 
   enum :kind, {
     syrus_issue: "syrus_issue",
@@ -69,6 +74,10 @@ class ChatProposal < ApplicationRecord
   validate :media_ids_belong_to_chat_session, on: :create
 
   before_validation :default_repository, on: :create
+  before_destroy :capture_unresolved_dependency_job_ids, prepend: true
+  after_update_commit :repair_unresolved_job_dependency_placeholders,
+                      if: :repair_unresolved_job_dependency_placeholders?
+  after_destroy_commit :restart_jobs_after_destroyed_unresolved_dependencies
 
   def state=(value)
     super(STATE_ALIASES.fetch(value.to_s, value))
@@ -123,6 +132,10 @@ class ChatProposal < ApplicationRecord
 
   def reset_to_proposed_after_edit!
     update!(state: "proposed", edited_at: Time.current)
+  end
+
+  def repair_unresolved_job_dependency_placeholders!
+    repair_unresolved_job_dependency_placeholders
   end
 
   def self.topological_sort(scope)
@@ -190,6 +203,48 @@ class ChatProposal < ApplicationRecord
   private_class_method :transitive_closure
 
   private
+
+  def repair_unresolved_job_dependency_placeholders?
+    saved_change_to_state? || saved_change_to_job_id?
+  end
+
+  def repair_unresolved_job_dependency_placeholders
+    return if proposed?
+
+    affected_open_job_ids = Set.new
+
+    unresolved_job_dependencies.pending.includes(:job).find_each do |dependency|
+      affected_open_job_ids << dependency.job_id if dependency.job.open?
+
+      if job_id.present?
+        dependency.resolve!(depends_on_job: job)
+        Rails.logger.info(
+          "[JobDependency] resolved pending proposal dep on #{::App::Presentation.job_slug(dependency.job_id)}: " \
+          "#{slug} -> #{job.slug}"
+        )
+      else
+        Rails.logger.info(
+          "[JobDependency] removed orphaned pending proposal dep " \
+          "job_id=#{dependency.job_id} unresolved_ref=#{slug}"
+        )
+        dependency.destroy!
+      end
+    rescue ActiveRecord::RecordInvalid => e
+      Rails.logger.warn(
+        "[JobDependency] failed to repair pending proposal dep on #{::App::Presentation.job_slug(dependency.job_id)}: #{e.message}"
+      )
+    end
+
+    Job.where(id: affected_open_job_ids.to_a).find_each(&:start_pending_workflows_if_dependencies_satisfied!)
+  end
+
+  def capture_unresolved_dependency_job_ids
+    @destroyed_unresolved_dependency_job_ids = unresolved_job_dependencies.pending.joins(:job).merge(Job.open_threads).pluck(:job_id)
+  end
+
+  def restart_jobs_after_destroyed_unresolved_dependencies
+    Job.where(id: Array(@destroyed_unresolved_dependency_job_ids)).find_each(&:start_pending_workflows_if_dependencies_satisfied!)
+  end
 
   def default_repository
     self.repository ||= chat_session&.repository
