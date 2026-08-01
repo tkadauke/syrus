@@ -13,6 +13,7 @@ RSpec.describe "API: /api/v1/app/admin/performance", type: :request do
     Feature.where(slug: "performance_logging").delete_all
     Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
     Current.reset
+    PerformanceLogging::Store.clear!
     PerformanceLogging::Store.append(
       "event" => "syrus.performance.slow_phase",
       "phase" => "dashboard_payload",
@@ -29,6 +30,11 @@ RSpec.describe "API: /api/v1/app/admin/performance", type: :request do
       "occurred_at" => "2026-08-01T11:00:00Z",
       "app_revision" => "old-sha"
     )
+  end
+
+  after do
+    PerformanceLogging::Store.clear!
+    Current.reset
   end
 
   it "401s with a JSON error when signed out" do
