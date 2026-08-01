@@ -428,13 +428,7 @@ module Api
         end
 
         def simple_epic_status(epic, jobs)
-          return "done" if epic.user_approved_at.present?
-          return "something_went_wrong" if jobs.any? { |job| job.closed? && !Epic::MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
-          return "working_on_it" if jobs.any?(&:open?)
-          return "ready_for_your_review" if epic.review_ready?
-          return "wrapping_up" if jobs.any? && jobs.all? { |job| job.closed? && Epic::MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
-
-          "working_on_it"
+          epic.simple_status(jobs: jobs)
         end
 
         def review_summary_for(jobs)

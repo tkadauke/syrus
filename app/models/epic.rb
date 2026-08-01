@@ -229,6 +229,16 @@ class Epic < ApplicationRecord
       child_jobs.all? { |job| job.closed? && MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
   end
 
+  def simple_status(jobs: work_jobs.reload)
+    return "done" if user_approved_at.present?
+    return "something_went_wrong" if jobs.any? { |job| job.closed? && !MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
+    return "working_on_it" if jobs.any?(&:open?)
+    return "ready_for_your_review" if review_ready?
+    return "wrapping_up" if jobs.any? && jobs.all? { |job| job.closed? && MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
+
+    "working_on_it"
+  end
+
   def mark_user_approved!
     update!(user_approved_at: Time.current)
   end

@@ -200,6 +200,34 @@ RSpec.describe Epic do
     end
   end
 
+  describe "#simple_status" do
+    around do |example|
+      setting = AppSetting.current
+      original_mode = setting.mode
+      setting.update!(mode: "simple", mode_configured_at: Time.current)
+      example.run
+    ensure
+      setting&.update!(mode: original_mode || "advanced")
+    end
+
+    it "returns the feature status shared by simple-mode API payloads" do
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      child_job(epic: epic, number: 10, closure_reason: "pr_merged")
+
+      expect(epic.reload.simple_status).to eq("ready_for_your_review")
+
+      epic.mark_user_approved!
+      expect(epic.reload.simple_status).to eq("done")
+    end
+
+    it "flags closed non-merged child Jobs as needing attention" do
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+      child_job(epic: epic, number: 10, closure_reason: "cancelled")
+
+      expect(epic.reload.simple_status).to eq("something_went_wrong")
+    end
+  end
+
   describe "#append_review_feedback_job!" do
     around do |example|
       setting = AppSetting.current
