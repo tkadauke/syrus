@@ -14,6 +14,7 @@ import {
 } from "../api/platformIdentities"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
+import { useConfirm } from "../hooks/useConfirm"
 
 const queryKey = ["platform_identities"] as const
 
@@ -100,6 +101,7 @@ function PlatformRow({
   const label = availablePlatform.label || availablePlatform.platform
   const [linkingToken, setLinkingToken] = useState<LinkingTokenPayload | null>(null)
   const [linkError, setLinkError] = useState<string | null>(null)
+  const { confirm, dialog } = useConfirm()
 
   const connect = useMutation({
     mutationFn: () => createLinkingToken(availablePlatform.platform),
@@ -113,12 +115,12 @@ function PlatformRow({
     }
   })
 
-  function handleDisconnect() {
-    if (window.confirm(t("connected_platforms.disconnect_confirm", { platform: label }))) {
-      setLinkingToken(null)
-      setLinkError(null)
-      onDisconnect()
-    }
+  async function handleDisconnect() {
+    if (!await confirm({ message: t("connected_platforms.disconnect_confirm", { platform: label }), destructive: true })) return
+
+    setLinkingToken(null)
+    setLinkError(null)
+    onDisconnect()
   }
 
   return (
@@ -185,6 +187,7 @@ function PlatformRow({
           tokenPayload={linkingToken}
         />
       ) : null}
+      {dialog}
     </div>
   )
 }

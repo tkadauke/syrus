@@ -145,4 +145,34 @@ describe("AdminSettings SecretRow", () => {
     expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/admin/settings", expect.objectContaining({ method: "PATCH" }))
     expect(reloadMock).not.toHaveBeenCalled()
   })
+
+  it("opens confirm dialog instead of window.confirm when clearing the Telegram token", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(adminPayload({
+      settings: {
+        ...adminPayload().settings,
+        telegram_bot_handle: "MySyrusBot",
+        clearable_secrets: [
+          { key: "telegram_bot_token", label: "Telegram bot token", set: true }
+        ]
+      }
+    })))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <AdminSettings />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const clearButton = await screen.findByRole("button", { name: "Clear" })
+    fireEvent.click(clearButton)
+
+    await waitFor(() => {
+      expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({
+        destructive: true,
+        message: "Clear the Telegram bot token?"
+      }))
+    })
+  })
 })

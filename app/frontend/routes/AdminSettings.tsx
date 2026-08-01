@@ -248,6 +248,7 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
 function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload; onNotice: (message: string | null) => void }) {
   const { t } = useT("admin")
   const queryClient = useQueryClient()
+  const { confirm, dialog } = useConfirm()
   const [tokenInput, setTokenInput] = useState("")
   const [handleInput, setHandleInput] = useState(payload.settings.telegram_bot_handle)
 
@@ -325,8 +326,8 @@ function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload;
           <button
             className="rounded bg-red-50 dark:bg-red-950/40 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/60 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={clearToken.isPending}
-            onClick={() => {
-              if (window.confirm(t("settings.telegram_token_clear_confirm"))) {
+            onClick={async () => {
+              if (await confirm({ message: t("settings.telegram_token_clear_confirm"), destructive: true })) {
                 onNotice(null)
                 clearToken.mutate()
               }
@@ -350,6 +351,7 @@ function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload;
       {saveToken.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(saveToken.error, t("settings.error_update"))}</p> : null}
       {clearToken.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(clearToken.error, t("settings.error_clear"))}</p> : null}
       {startPolling.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{t("settings.telegram_polling_error")}</p> : null}
+      {dialog}
     </section>
   )
 }
