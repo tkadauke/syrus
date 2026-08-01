@@ -33,6 +33,28 @@ describe("Markdown", () => {
     expect(screen.getByText("Third")).toBeInTheDocument()
   })
 
+  it("preserves raw ordered list numbers", () => {
+    const { container } = render(<Markdown text={"2. Second\n5. Fifth\n7. Seventh"} />)
+
+    const list = container.querySelector("ol")
+    const items = Array.from(container.querySelectorAll("li"))
+    expect(list).toHaveAttribute("start", "2")
+    expect(items.map((item) => item.getAttribute("value"))).toEqual(["2", "5", "7"])
+  })
+
+  it("renders indented lists as children of their parent item", () => {
+    const { container } = render(
+      <Markdown text={"1. First track\n   - Child A\n   - Child B\n2. Second track\n   - Child C"} />
+    )
+
+    const topList = container.querySelector("ol")
+    expect(topList?.children).toHaveLength(2)
+    expect(topList?.children[0]).toHaveTextContent("First trackChild AChild B")
+    expect(topList?.children[1]).toHaveTextContent("Second trackChild C")
+    expect(topList?.querySelectorAll(":scope > li > ul")).toHaveLength(2)
+    expect(Array.from(topList?.querySelectorAll(":scope > li") ?? []).map((item) => item.getAttribute("value"))).toEqual(["1", "2"])
+  })
+
   it("links job and epic slugs in plain text", () => {
     render(
       <MemoryRouter>

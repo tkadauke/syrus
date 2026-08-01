@@ -3,6 +3,8 @@ import { containsSlug, linkifySlugs } from "./linkifySlugs"
 
 type InlineToken = string | ReactNode
 type RenderInlineOptions = { linkifySlugs?: boolean }
+type ListMarker = { indent: number; ordered: boolean; value?: number; content: string }
+type ListItem = { content: string; nested: ReactNode[]; value?: number }
 
 export function Markdown({ className, text }: { className?: string; text: string }) {
   return <div className={className}>{renderBlocks(text)}</div>
@@ -74,25 +76,10 @@ function renderBlocks(text: string): ReactNode[] {
       continue
     }
 
-    if (/^\s*[-*+]\s+/.test(line)) {
-      const { items, nextIndex } = collectListItems(lines, index, /^\s*[-*+]\s+/, /^\s*[-*+]\s+/)
+    if (listMarker(line)) {
+      const { node, nextIndex } = renderList(lines, index, key++)
+      blocks.push(node)
       index = nextIndex
-      blocks.push(
-        <ul key={`block-${key++}`}>
-          {items.map((item, itemIndex) => <li key={itemIndex}>{renderInline(item)}</li>)}
-        </ul>
-      )
-      continue
-    }
-
-    if (/^\s*\d+[.)]\s+/.test(line)) {
-      const { items, nextIndex } = collectListItems(lines, index, /^\s*\d+[.)]\s+/, /^\s*\d+[.)]\s+/)
-      index = nextIndex
-      blocks.push(
-        <ol key={`block-${key++}`}>
-          {items.map((item, itemIndex) => <li key={itemIndex}>{renderInline(item)}</li>)}
-        </ol>
-      )
       continue
     }
 
@@ -107,31 +94,104 @@ function renderBlocks(text: string): ReactNode[] {
   return blocks
 }
 
-function collectListItems(lines: string[], index: number, markerPattern: RegExp, markerReplacement: RegExp) {
-  const items: string[] = []
+function renderList(lines: string[], index: number, key: number) {
+  const firstMarker = listMarker(lines[index])
+  if (!firstMarker) return { node: null, nextIndex: index }
+
+  const items: ListItem[] = []
+  const { indent, ordered } = firstMarker
 
   while (index < lines.length) {
-    const line = lines[index]
-    if (markerPattern.test(line)) {
-      items.push(line.replace(markerReplacement, ""))
-      index += 1
-      continue
+    const marker = listMarker(lines[index])
+    if (!marker || marker.indent !== indent || marker.ordered !== ordered) break
+
+    const item: ListItem = { content: marker.content, nested: [], value: marker.value }
+    index += 1
+
+    while (index < lines.length) {
+      if (lines[index].trim() === "") {
+        if (nextNonBlankListMarker(lines, index + 1, indent)) {
+          index += 1
+          continue
+        }
+        break
+      }
+
+      const nextMarker = listMarker(lines[index])
+      if (nextMarker) {
+        if (nextMarker.indent > indent) {
+          const nested = renderList(lines, index, key + items.length + item.nested.length + 1)
+          if (nested.node) item.nested.push(nested.node)
+          index = nested.nextIndex
+          continue
+        }
+        break
+      }
+
+      if (lineIndent(lines[index]) > indent) {
+        item.content = `${item.content} ${lines[index].trim()}`
+        index += 1
+        continue
+      }
+
+      break
     }
 
-    if (line.trim() === "" && nextNonBlankLineMatches(lines, index + 1, markerPattern)) {
-      index += 1
-      continue
-    }
-
-    break
+    items.push(item)
   }
 
-  return { items, nextIndex: index }
+  const node = ordered ? (
+    <ol key={`block-${key}`} start={firstMarker.value}>
+      {items.map((item, itemIndex) => (
+        <li key={itemIndex} value={item.value}>
+          {renderInline(item.content)}
+          {item.nested}
+        </li>
+      ))}
+    </ol>
+  ) : (
+    <ul key={`block-${key}`}>
+      {items.map((item, itemIndex) => (
+        <li key={itemIndex}>
+          {renderInline(item.content)}
+          {item.nested}
+        </li>
+      ))}
+    </ul>
+  )
+
+  return { node, nextIndex: index }
 }
 
-function nextNonBlankLineMatches(lines: string[], index: number, pattern: RegExp) {
-  while (index < lines.length && lines[index].trim() === "") index += 1
-  return index < lines.length && pattern.test(lines[index])
+function listMarker(line: string): ListMarker | null {
+  const marker = line.match(/^(\s*)([-*+]|\d+[.)])\s+(.+)$/)
+  if (!marker) return null
+
+  const ordered = /^\d/.test(marker[2])
+  return {
+    content: marker[3],
+    indent: marker[1].replace(/\t/g, "    ").length,
+    ordered,
+    value: ordered ? Number.parseInt(marker[2], 10) : undefined
+  }
+}
+
+function lineIndent(line: string) {
+  return line.match(/^\s*/)?.[0].replace(/\t/g, "    ").length ?? 0
+}
+
+function nextNonBlankListMarker(lines: string[], index: number, parentIndent: number) {
+  while (index < lines.length) {
+    if (lines[index].trim() === "") {
+      index += 1
+      continue
+    }
+
+    const marker = listMarker(lines[index])
+    return Boolean(marker && marker.indent >= parentIndent)
+  }
+
+  return false
 }
 
 function startsBlock(lines: string[], index: number) {
@@ -140,8 +200,7 @@ function startsBlock(lines: string[], index: number) {
     /^\s*```/.test(line) ||
     /^(#{1,4})\s+/.test(line) ||
     /^\s*>\s?/.test(line) ||
-    /^\s*[-*+]\s+/.test(line) ||
-    /^\s*\d+[.)]\s+/.test(line) ||
+    Boolean(listMarker(line)) ||
     /^\s*(?:---+|\*\*\*+)\s*$/.test(line) ||
     isTableStart(lines, index)
   )
