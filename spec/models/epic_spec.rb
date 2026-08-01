@@ -1384,34 +1384,22 @@ RSpec.describe Epic do
       expect(epic.all_jobs_closed?).to be true
     end
 
-    it "reconciliation Job inherits owner_user_id from the epic when already claimed" do
-      allow(RepoReconciliationPlan).to receive(:for_epic).and_return(
-        RepoReconciliationPlan::Result.new(mode: "pr", source: "default", note: nil)
-      )
+    it "child job created under a claimed epic inherits owner_user_id" do
       epic = make_epic(state: "in_progress")
       epic.update!(owner_user: user)
-      add_child(epic, number: 1)
-      add_child(epic, number: 2)
 
-      epic.maybe_create_reconciliation_job!
+      job = user.jobs.create!(repository: repository, epic: epic, kind: "direct", issue_title: "Standalone task")
 
-      recon_job = epic.reload.reconciliation_job
-      expect(recon_job.owner_user_id).to eq(user.id)
+      expect(job.owner_user_id).to eq(user.id)
     end
 
-    it "reconciliation Job leaves owner_user_id nil when epic is unclaimed" do
-      allow(RepoReconciliationPlan).to receive(:for_epic).and_return(
-        RepoReconciliationPlan::Result.new(mode: "pr", source: "default", note: nil)
-      )
+    it "child job created under an unclaimed epic leaves owner_user_id nil" do
       epic = make_epic(state: "in_progress")
       expect(epic.owner_user_id).to be_nil
-      add_child(epic, number: 1)
-      add_child(epic, number: 2)
 
-      epic.maybe_create_reconciliation_job!
+      job = user.jobs.create!(repository: repository, epic: epic, kind: "direct", issue_title: "Standalone task")
 
-      recon_job = epic.reload.reconciliation_job
-      expect(recon_job.owner_user_id).to be_nil
+      expect(job.owner_user_id).to be_nil
     end
   end
 end
