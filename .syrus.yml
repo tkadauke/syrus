@@ -188,3 +188,14 @@ coverage:
   on_miss: warn
   pr_comment: true
   hitmap_ttl_days: 7
+
+deployment_stages:
+  - name: staging
+    label: "On Staging"
+    tag: staging
+  - name: production
+    label: "In Production"
+    tag: production
+  - name: public
+    label: "Released to Public"
+    tag: release

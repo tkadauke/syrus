@@ -295,6 +295,16 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release edit "$TAG" --draft=false
 
+      - name: Advance 'release' deployment tag
+        if: ${{ !inputs.dry_run }}
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          git fetch --tags --quiet
+          git tag -f release "$TAG"
+          git push --force origin release
+        continue-on-error: true
+
       # review_notes path: leave the draft unpublished and point the maintainer at it.
       - name: Hold the release as a draft for notes review
         if: needs.prepare.outputs.review_notes == 'true'

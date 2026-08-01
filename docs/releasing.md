@@ -306,6 +306,18 @@ release just recomputes from the newest tag. That means no version-bump
 commit, no branch-protection carve-out for CI, and no manual version bookkeeping
 — pick a `bump`, and the tag does the rest.
 
+## Deployment stage tags
+
+Three **moving** git tags track where each released commit stands in the deployment pipeline. The Syrus deployment stage poller reads these tags to show per-Job deployment status in the UI.
+
+| Tag | Advanced by | Meaning |
+|---|---|---|
+| `staging` | `bin/deploy --staging` after a successful rollout | Deployed to the staging cluster |
+| `production` | `bin/deploy --production` after a successful rollout | Deployed to the production cluster |
+| `release` | `.github/workflows/release.yml` after `gh release edit … --draft=false` | Published as a public GitHub Release |
+
+These are stable pointers — not the versioned `vX.Y.Z` release tags. `staging` and `production` point to whatever `HEAD` was in the Syrus repo when `bin/deploy` last ran. `release` is fast-forwarded to the version tag's commit once the release is published (with `continue-on-error: true` so a tag-push hiccup never triggers the release rollback path).
+
 ## Release notes
 
 **Claude-written highlights over a mechanical changelog** — the hybrid most

@@ -365,10 +365,16 @@ MSG
 # --- restart -----------------------------------------------------------
 if [ "$DEPLOY_STAGING" = true ]; then
   rollout "staging" "$STAGING_KUBECONFIG" "$NAMESPACE_STAGING"
+  git tag -f staging HEAD
+  git push --force origin staging
+  echo "→ staging tag → ${SHA}"
 fi
 
 if [ "$DEPLOY_PRODUCTION" = true ]; then
   rollout "production" "$PRODUCTION_KUBECONFIG" "$NAMESPACE_PRODUCTION"
+  git tag -f production HEAD
+  git push --force origin production
+  echo "→ production tag → ${SHA}"
 fi
 
 echo ""

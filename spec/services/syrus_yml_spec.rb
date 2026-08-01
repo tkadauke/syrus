@@ -780,5 +780,26 @@ RSpec.describe SyrusYml do
         YAML
       }.to raise_error(described_class::ParseError, /deployment_stages\[0\]: must be a mapping/)
     end
+
+    it "parses the three stages declared in .syrus.yml for this repository" do
+      config = parse(<<~YAML)
+        deployment_stages:
+          - name: staging
+            label: "On Staging"
+            tag: staging
+          - name: production
+            label: "In Production"
+            tag: production
+          - name: public
+            label: "Released to Public"
+            tag: release
+      YAML
+
+      stages = config.deployment_stages
+      expect(stages.size).to eq(3)
+      expect(stages[0]).to eq(described_class::DeploymentStage.new(name: "staging", label: "On Staging", tag: "staging", tag_pattern: nil))
+      expect(stages[1]).to eq(described_class::DeploymentStage.new(name: "production", label: "In Production", tag: "production", tag_pattern: nil))
+      expect(stages[2]).to eq(described_class::DeploymentStage.new(name: "public", label: "Released to Public", tag: "release", tag_pattern: nil))
+    end
   end
 end
