@@ -1,6 +1,6 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { I18nextProvider } from "react-i18next"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
@@ -66,9 +66,10 @@ function renderRoute(suggestions?: unknown[], meta?: Record<string, unknown>) {
 
 describe("RepositoryInsightsRoute", () => {
   afterEach(async () => {
+    cleanup()
     vi.useRealTimers()
-    vi.restoreAllMocks()
     await i18n.changeLanguage("en")
+    vi.restoreAllMocks()
   })
 
   it("shows insight age next to confidence in suggestion headers", async () => {
