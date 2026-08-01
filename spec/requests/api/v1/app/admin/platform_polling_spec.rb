@@ -4,8 +4,24 @@ RSpec.describe "API: POST /api/v1/app/admin/platform_polling/start", type: :requ
   let!(:admin) { Factories.user(admin: true) }
   let(:non_admin) { Factories.user(admin: false) }
 
+  def build_polling_stub
+    @polling_stub_klass = Class.new(PlatformPollingJob) do
+      def self.name = "FakePlatformPollingJob"
+
+      private
+
+      def configured? = true
+    end
+  end
+
   def parse_body
     JSON.parse(response.body)
+  end
+
+  after do
+    next unless @polling_stub_klass
+
+    PlatformPollingJob.instance_variable_get(:@registry).delete(@polling_stub_klass)
   end
 
   it "401s when signed out" do
@@ -39,13 +55,7 @@ RSpec.describe "API: POST /api/v1/app/admin/platform_polling/start", type: :requ
       after  { clear_solid_queue_test_tables! }
 
       it "enqueues registered subclasses not already running and returns their names" do
-        stub_klass = Class.new(PlatformPollingJob) do
-          def self.name = "FakePlatformPollingJob"
-
-          private
-
-          def configured? = true
-        end
+        stub_klass = build_polling_stub
         allow(PlatformPollingJob).to receive(:registry).and_return([stub_klass])
         allow(stub_klass).to receive(:perform_later)
 
@@ -57,13 +67,7 @@ RSpec.describe "API: POST /api/v1/app/admin/platform_polling/start", type: :requ
       end
 
       it "skips subclasses that already have an unfinished job" do
-        stub_klass = Class.new(PlatformPollingJob) do
-          def self.name = "FakePlatformPollingJob"
-
-          private
-
-          def configured? = true
-        end
+        stub_klass = build_polling_stub
         allow(PlatformPollingJob).to receive(:registry).and_return([stub_klass])
         SolidQueue::Job.create!(
           class_name: "FakePlatformPollingJob",
