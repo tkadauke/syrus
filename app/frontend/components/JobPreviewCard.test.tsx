@@ -179,28 +179,35 @@ describe("JobCompactCard", () => {
 
   it("applies focal ring styling when isFocal is true", () => {
     render(<JobCompactCard isFocal label="EPIC-1 / #1 T" state="open" />)
-    expect(screen.getByRole("button").className).toContain("ring-2")
+    expect(screen.getByTestId("job-compact-card").className).toContain("ring-2")
   })
 
   it("does not apply ring styling when isFocal is false", () => {
     render(<JobCompactCard label="EPIC-1 / #1 T" state="open" />)
-    expect(screen.getByRole("button").className).not.toContain("ring-2")
+    expect(screen.getByTestId("job-compact-card").className).not.toContain("ring-2")
   })
 
   it("applies gray left accent when epicId is null", () => {
     render(<JobCompactCard epicId={null} label="No Epic / JOB-1 T" state="open" />)
-    expect(screen.getByRole("button").className).toContain("border-l-4")
+    expect(screen.getByTestId("job-compact-card").className).toContain("border-l-4")
   })
 
   it("does not apply left accent when epicId is set", () => {
     render(<JobCompactCard epicId={7} label="EPIC-7 / #1 T" state="open" />)
-    expect(screen.getByRole("button").className).not.toContain("border-l-4")
+    expect(screen.getByTestId("job-compact-card").className).not.toContain("border-l-4")
   })
 
-  it("calls onClick when the button is clicked", () => {
+  it("calls onClick when the card is clicked", () => {
     const onClick = vi.fn()
     render(<JobCompactCard label="EPIC-1 / #1 T" onClick={onClick} state="open" />)
-    fireEvent.click(screen.getByRole("button"))
+    fireEvent.click(screen.getByTestId("job-compact-card"))
+    expect(onClick).toHaveBeenCalledOnce()
+  })
+
+  it("calls onClick when Enter is pressed on the card", () => {
+    const onClick = vi.fn()
+    render(<JobCompactCard label="EPIC-1 / #1 T" onClick={onClick} state="open" />)
+    fireEvent.keyDown(screen.getByRole("link", { name: "EPIC-1 / #1 T" }), { key: "Enter" })
     expect(onClick).toHaveBeenCalledOnce()
   })
 

@@ -1,4 +1,4 @@
-import { forwardRef } from "react"
+import { forwardRef, type KeyboardEvent, type ReactNode } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
 import { fetchJobDetail } from "../api/jobs"
@@ -62,19 +62,31 @@ export function JobPreviewCard({ id, compact = false }: { id: number; compact?: 
 // and the title from that structure.
 // Epicless jobs (epicId === null) get a gray left accent.
 export const JobCompactCard = forwardRef<
-  HTMLButtonElement,
-  { label: string; state: string; epicId?: number | null; isFocal?: boolean; onClick?: () => void }
->(({ label, state, epicId = null, isFocal = false, onClick }, ref) => {
+  HTMLDivElement,
+  { label: string; state: string; epicId?: number | null; isFocal?: boolean; onClick?: () => void; renderSlug?: (slug: string) => ReactNode }
+>(({ label, state, epicId = null, isFocal = false, onClick, renderSlug }, ref) => {
   const slashIdx = label.indexOf(" / ")
   const jobPart = slashIdx === -1 ? label : label.slice(slashIdx + 3)
   const spaceInJob = jobPart.indexOf(" ")
   const slug = spaceInJob === -1 ? jobPart : jobPart.slice(0, spaceInJob)
   const title = spaceInJob === -1 ? "" : jobPart.slice(spaceInJob + 1)
+  const interactiveProps = onClick ? {
+    "aria-label": label,
+    onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.target !== event.currentTarget) return
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault()
+        onClick()
+      }
+    },
+    role: "link",
+    tabIndex: 0,
+  } : {}
 
   return (
-    <button
+    <div
       className={[
-        "w-48 rounded-lg border bg-white p-3 text-left shadow-sm transition-shadow hover:shadow-md dark:bg-gray-900",
+        "w-48 cursor-pointer rounded-lg border bg-white p-3 text-left shadow-sm transition-shadow hover:shadow-md dark:bg-gray-900",
         isFocal
           ? "border-gray-900 ring-2 ring-gray-900 dark:border-gray-100 dark:ring-gray-100"
           : "border-gray-200 dark:border-gray-700",
@@ -82,15 +94,17 @@ export const JobCompactCard = forwardRef<
       ]
         .filter(Boolean)
         .join(" ")}
+      data-testid="job-compact-card"
       onClick={onClick}
       ref={ref}
+      {...interactiveProps}
     >
       <div className="mb-1 flex items-center gap-1.5 overflow-hidden">
-        <span className="shrink-0 font-mono text-xs text-gray-500 dark:text-gray-400">{slug}</span>
+        {renderSlug ? renderSlug(slug) : <span className="shrink-0 font-mono text-xs text-gray-500 dark:text-gray-400">{slug}</span>}
         <StatusPill state={state} />
       </div>
       {title && <p className="truncate text-xs text-gray-700 dark:text-gray-300">{title}</p>}
-    </button>
+    </div>
   )
 })
 JobCompactCard.displayName = "JobCompactCard"

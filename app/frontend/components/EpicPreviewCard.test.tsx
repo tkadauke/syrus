@@ -203,18 +203,25 @@ describe("EpicCompactCard", () => {
 
   it("applies focal ring styling when isFocal is true", () => {
     render(<EpicCompactCard isFocal label="EPIC-1 Title" state="open" />)
-    expect(screen.getByRole("button").className).toContain("ring-2")
+    expect(screen.getByTestId("epic-compact-card").className).toContain("ring-2")
   })
 
   it("does not apply ring styling when isFocal is false", () => {
     render(<EpicCompactCard label="EPIC-1 Title" state="open" />)
-    expect(screen.getByRole("button").className).not.toContain("ring-2")
+    expect(screen.getByTestId("epic-compact-card").className).not.toContain("ring-2")
   })
 
-  it("calls onClick when the button is clicked", () => {
+  it("calls onClick when the card is clicked", () => {
     const onClick = vi.fn()
     render(<EpicCompactCard label="EPIC-1 Title" onClick={onClick} state="open" />)
-    fireEvent.click(screen.getByRole("button"))
+    fireEvent.click(screen.getByTestId("epic-compact-card"))
+    expect(onClick).toHaveBeenCalledOnce()
+  })
+
+  it("calls onClick when Enter is pressed on the card", () => {
+    const onClick = vi.fn()
+    render(<EpicCompactCard label="EPIC-1 Title" onClick={onClick} state="open" />)
+    fireEvent.keyDown(screen.getByRole("link", { name: "EPIC-1 Title" }), { key: "Enter" })
     expect(onClick).toHaveBeenCalledOnce()
   })
 

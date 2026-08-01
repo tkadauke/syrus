@@ -1,4 +1,4 @@
-import { forwardRef } from "react"
+import { forwardRef, type KeyboardEvent, type ReactNode } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
 import type { EpicDetailJob } from "../api/epics"
@@ -109,30 +109,44 @@ export function EpicPreviewCard({ id, compact = false }: { id: number; compact?:
 // Compact variant for use in graph/dependency views. Fixed width, 1-line
 // title and state badge only — no data fetching required.
 export const EpicCompactCard = forwardRef<
-  HTMLButtonElement,
-  { label: string; state: string; isFocal?: boolean; onClick?: () => void }
->(({ label, state, isFocal = false, onClick }, ref) => {
+  HTMLDivElement,
+  { label: string; state: string; isFocal?: boolean; onClick?: () => void; renderSlug?: (slug: string) => ReactNode }
+>(({ label, state, isFocal = false, onClick, renderSlug }, ref) => {
   const spaceIdx = label.indexOf(" ")
   const slug = spaceIdx === -1 ? label : label.slice(0, spaceIdx)
   const title = spaceIdx === -1 ? "" : label.slice(spaceIdx + 1)
+  const interactiveProps = onClick ? {
+    "aria-label": label,
+    onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.target !== event.currentTarget) return
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault()
+        onClick()
+      }
+    },
+    role: "link",
+    tabIndex: 0,
+  } : {}
 
   return (
-    <button
+    <div
       className={[
-        "w-48 rounded-lg border bg-white p-3 text-left shadow-sm transition-shadow hover:shadow-md dark:bg-gray-900",
+        "w-48 cursor-pointer rounded-lg border bg-white p-3 text-left shadow-sm transition-shadow hover:shadow-md dark:bg-gray-900",
         isFocal
           ? "border-gray-900 ring-2 ring-gray-900 dark:border-gray-100 dark:ring-gray-100"
           : "border-gray-200 dark:border-gray-700",
       ].join(" ")}
+      data-testid="epic-compact-card"
       onClick={onClick}
       ref={ref}
+      {...interactiveProps}
     >
       <div className="mb-1 flex items-center gap-1.5 overflow-hidden">
-        <span className="shrink-0 font-mono text-xs text-gray-500 dark:text-gray-400">{slug}</span>
+        {renderSlug ? renderSlug(slug) : <span className="shrink-0 font-mono text-xs text-gray-500 dark:text-gray-400">{slug}</span>}
         <StatusPill state={state} />
       </div>
       {title && <p className="truncate text-xs text-gray-700 dark:text-gray-300">{title}</p>}
-    </button>
+    </div>
   )
 })
 EpicCompactCard.displayName = "EpicCompactCard"

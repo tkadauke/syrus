@@ -1,7 +1,9 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
+import { CopyableSlug } from "./CopyableSlug"
 import { EpicCompactCard } from "./EpicPreviewCard"
 import { JobCompactCard } from "./JobPreviewCard"
+import { SlugHoverCard } from "./SlugHoverCard"
 
 export type GraphNode = {
   id: string
@@ -60,6 +62,14 @@ function graphRenderKey(nodes: GraphNode[], edges: GraphEdge[]): string {
     nodes: nodes.map((node) => node.id),
     edges: edges.map((edge) => [edge.from_id, edge.to_id]),
   })
+}
+
+function numericNodeId(node: GraphNode): number | null {
+  const idMatch = node.id.match(/_(\d+)$/)
+  if (idMatch) return Number.parseInt(idMatch[1], 10)
+
+  const slugMatch = node.label.match(/\b(?:EPIC|JOB)-(\d+)\b/)
+  return slugMatch ? Number.parseInt(slugMatch[1], 10) : null
 }
 
 export function TopoDepGraph({
@@ -139,6 +149,7 @@ export function TopoDepGraph({
                   key={node.id}
                   label={node.label}
                   onClick={() => navigate(node.url)}
+                  renderSlug={(slug) => <GraphSlug id={numericNodeId(node)} kind="epic" slug={slug} />}
                   ref={(el) => {
                     if (el) nodeRefs.current.set(node.id, el)
                     else nodeRefs.current.delete(node.id)
@@ -152,6 +163,7 @@ export function TopoDepGraph({
                   key={node.id}
                   label={node.label}
                   onClick={() => navigate(node.url)}
+                  renderSlug={(slug) => <GraphSlug id={numericNodeId(node)} kind="job" slug={slug} />}
                   ref={(el) => {
                     if (el) nodeRefs.current.set(node.id, el)
                     else nodeRefs.current.delete(node.id)
@@ -195,5 +207,23 @@ export function TopoDepGraph({
         ))}
       </svg>
     </div>
+  )
+}
+
+function GraphSlug({ id, kind, slug }: { id: number | null; kind: "epic" | "job"; slug: string }) {
+  const content = <CopyableSlug className="shrink-0 text-xs" slug={slug} />
+
+  return (
+    <span
+      className="shrink-0"
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+    >
+      {id ? (
+        <SlugHoverCard id={id} kind={kind}>
+          {content}
+        </SlugHoverCard>
+      ) : content}
+    </span>
   )
 }

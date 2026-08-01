@@ -160,7 +160,7 @@ class EpicDependencyGraphRenderer
   end
 
   def job_label(job)
-    source = job.issue_number.present? ? "##{job.issue_number}" : job.slug
+    source = job.slug
     title = job.issue_title.to_s.strip
     base = title.present? ? "#{source} #{title}" : source
 

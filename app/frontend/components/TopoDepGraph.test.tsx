@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { type GraphEdge, type GraphNode, TopoDepGraph, computeNodeLayers } from "./TopoDepGraph"
 
 const mockNavigate = vi.fn()
@@ -102,6 +102,13 @@ describe("computeNodeLayers", () => {
 // --- Render ---
 
 describe("TopoDepGraph", () => {
+  beforeEach(() => {
+    mockNavigate.mockReset()
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+  })
+
   it("renders nothing when there are no nodes", () => {
     const { container } = render(
       <MemoryRouter>
@@ -136,44 +143,53 @@ describe("TopoDepGraph", () => {
 
   it("applies focal ring styling to the focal node", () => {
     renderGraph([node("f", { is_focal: true })], [])
-    expect(screen.getByRole("button").className).toContain("ring-2")
+    expect(screen.getByTestId("epic-compact-card").className).toContain("ring-2")
   })
 
   it("does not apply ring styling to non-focal nodes", () => {
     renderGraph([node("n", { is_focal: false })], [])
-    expect(screen.getByRole("button").className).not.toContain("ring-2")
+    expect(screen.getByTestId("epic-compact-card").className).not.toContain("ring-2")
   })
 
   it("applies a gray left accent to epicless job nodes", () => {
     renderGraph([node("j", { kind: "job", epic_id: null })], [])
-    expect(screen.getByRole("button").className).toContain("border-l-4")
+    expect(screen.getByTestId("job-compact-card").className).toContain("border-l-4")
   })
 
   it("does not apply a left accent to job nodes that belong to an epic", () => {
     renderGraph([node("j", { kind: "job", epic_id: 5 })], [])
-    expect(screen.getByRole("button").className).not.toContain("border-l-4")
+    expect(screen.getByTestId("job-compact-card").className).not.toContain("border-l-4")
   })
 
   it("does not apply a left accent to epic nodes", () => {
     renderGraph([node("e", { kind: "epic", epic_id: null })], [])
-    expect(screen.getByRole("button").className).not.toContain("border-l-4")
+    expect(screen.getByTestId("epic-compact-card").className).not.toContain("border-l-4")
   })
 
   it("navigates to the node url when clicked", () => {
     renderGraph([node("n", { url: "/epics/EPIC-7" })], [])
-    fireEvent.click(screen.getByRole("button"))
+    fireEvent.click(screen.getByTestId("epic-compact-card"))
     expect(mockNavigate).toHaveBeenCalledWith("/epics/EPIC-7")
   })
 
   it("navigates to job url for job nodes", () => {
     renderGraph([node("j", { kind: "job", url: "/jobs/JOB-42" })], [])
-    fireEvent.click(screen.getByRole("button"))
+    fireEvent.click(screen.getByTestId("job-compact-card"))
     expect(mockNavigate).toHaveBeenCalledWith("/jobs/JOB-42")
   })
 
-  it("renders all nodes as buttons", () => {
+  it("renders all nodes as compact cards", () => {
     renderGraph([node("a"), node("b"), node("c")], [])
-    expect(screen.getAllByRole("button")).toHaveLength(3)
+    expect(screen.getAllByTestId("epic-compact-card")).toHaveLength(3)
+  })
+
+  it("renders graph slugs as copyable controls without navigating the card", () => {
+    renderGraph([node("epic_7", { label: "EPIC-7 Big feature", url: "/epics/7" })], [])
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy EPIC-7 to clipboard" }))
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("EPIC-7")
+    expect(mockNavigate).not.toHaveBeenCalled()
   })
 
   it("removes old arrows immediately when the graph changes", () => {
@@ -197,7 +213,7 @@ describe("TopoDepGraph", () => {
   it("places nodes with edges in separate columns", () => {
     renderGraph([node("a"), node("b")], [edge("a", "b")])
     // Both nodes rendered in separate layer-columns
-    expect(screen.getAllByRole("button")).toHaveLength(2)
+    expect(screen.getAllByTestId("epic-compact-card")).toHaveLength(2)
   })
 
   it("accepts a className prop applied to the container", () => {

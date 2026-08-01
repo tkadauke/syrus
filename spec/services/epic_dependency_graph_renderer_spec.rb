@@ -65,7 +65,7 @@ RSpec.describe EpicDependencyGraphRenderer do
     expect(result.epic_dependency_count).to eq(0)
     expect(result.job_blocker_count).to eq(1)
     expect(result.nodes).to include(
-      hash_including(id: "job_#{blocker.id}", kind: "job", label: "#{other_epic.slug} / #3 Deliver marble",
+      hash_including(id: "job_#{blocker.id}", kind: "job", label: "#{other_epic.slug} / #{blocker.slug} Deliver marble",
                      state: blocker.state, epic_id: other_epic.id, url: "/jobs/#{blocker.slug}", is_focal: false)
     )
     expect(result.edges).to contain_exactly(
@@ -148,6 +148,6 @@ RSpec.describe EpicDependencyGraphRenderer do
 
     expect(result).to be_empty
     expect(result.nodes.map { |n| n[:id] }).not_to include("job_#{first.id}", "job_#{second.id}")
-    expect(result.nodes.map { |n| n[:label] }).not_to include(/#10 Survey ruins/, /#11 Rebuild columns/)
+    expect(result.nodes.map { |n| n[:label] }).not_to include(/#{first.slug} Survey ruins/, /#{second.slug} Rebuild columns/)
   end
 end
