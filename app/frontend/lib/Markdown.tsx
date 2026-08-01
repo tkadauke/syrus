@@ -7,7 +7,7 @@ type ListMarker = { indent: number; ordered: boolean; value?: number; content: s
 type ListItem = { content: string; nested: ReactNode[]; value?: number }
 
 export function Markdown({ className, text }: { className?: string; text: string }) {
-  return <div className={className}>{renderBlocks(text)}</div>
+  return <div className={["chat-prose", className].filter(Boolean).join(" ")}>{renderBlocks(text)}</div>
 }
 
 export function PlainText({ className, text }: { className?: string; text: string }) {
