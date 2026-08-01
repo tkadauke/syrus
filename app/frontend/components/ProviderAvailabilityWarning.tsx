@@ -3,7 +3,7 @@ import type { ProviderAvailability } from "../api/providerAvailability"
 export function ProviderAvailabilityWarning({ availability, className = "" }: { availability?: ProviderAvailability | null; className?: string }) {
   if (!availability?.usage_exhausted && availability?.state !== "rate_limited") return null
 
-  const label = availability.message || `${availability.label || availability.provider} usage limit reached. This item uses ${availability.label || availability.provider} until usage resets or you switch providers.`
+  const label = availability.message || `${availability.label || availability.provider} usage limit reached. This item uses ${availability.label || availability.provider} until usage resets.`
   const tone = availability.usage_exhausted ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"
 
   return (

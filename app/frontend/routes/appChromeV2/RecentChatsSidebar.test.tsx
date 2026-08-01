@@ -52,7 +52,7 @@ describe("RecentChatsSidebar active chat highlighting", () => {
           usage_exhausted: true,
           retry_after: null,
           reason: "Provider usage limit exhausted.",
-          message: "Codex usage limit reached. This item uses Codex until usage resets or you switch providers."
+          message: "Codex usage limit reached. This item uses Codex until usage resets."
         }
       })
     ])

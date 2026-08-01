@@ -189,7 +189,7 @@ describe("urgent row highlight", () => {
           usage_exhausted: true,
           retry_after: null,
           reason: "Provider usage limit exhausted.",
-          message: "Codex usage limit reached. This item uses Codex until usage resets or you switch providers."
+          message: "Codex usage limit reached. This item uses Codex until usage resets."
         }
       } as DashboardJobItem
     ])
@@ -228,7 +228,10 @@ describe("urgent row highlight", () => {
 
     renderPayload(payload)
 
-    expect(screen.queryByRole("img", { name: /temporarily unavailable/ })).not.toBeInTheDocument()
+    const warning = screen.getByRole("img", { name: /temporarily unavailable/ })
+    expect(warning).toBeInTheDocument()
+    expect(warning.className).toContain("text-amber-600")
+    expect(warning.className).not.toContain("text-red-600")
   })
 
   it("applies a red background to the desktop table row for urgent jobs", () => {

@@ -755,10 +755,6 @@ export function stopChat(path: string) {
   return postJson<ChatPayload>(path)
 }
 
-export function switchChatProvider(path: string, provider: string) {
-  return postJson<{ message: string }>(path, { provider })
-}
-
 function chatMessagePayload(text: string, attachments: ChatMessageAttachmentInput[]) {
   const chatMessage: {
     text: string
