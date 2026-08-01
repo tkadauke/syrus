@@ -251,11 +251,13 @@ removes the conversation, its messages, attachments, proposals, whiteboard,
 search-index entries, and the chat workspace on disk, and is refused while a
 turn is still running. When the `admin_supervisor_chat` operations flag is
 enabled, admins also get one durable **Supervisor** chat. Syrus provisions it on
-demand, keeps it pinned and visible, and blocks ordinary rename, hide, unpin,
-or delete actions for that chat while the flag remains enabled. Major operational
+the chat index payload, renders it as a distinct admin row above normal chat
+groups, keeps it pinned and visible, and blocks ordinary rename, hide, unpin, or
+delete actions for that chat while the flag remains enabled. Major operational
 events, including Job notifications, Epic completion, main-branch health changes,
 and new Agent Insight suggestions, are posted there as durable system messages
-without starting an agent turn; new events mark the chat unread in the sidebar.
+without starting an agent turn; new events mark the chat unread in the sidebar
+with an unread count and strongest event severity.
 In the V2 layout, the
 sidebar search field opens a dedicated search
 page where operators can search Jobs, Epics, and chat messages from

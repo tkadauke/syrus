@@ -16,6 +16,7 @@ module ChatIndexPayload
     chat_ids = PerformanceLogging.phase("chat_recent_chats.ids", chat_id: current_chat_session.id) do
       Current.user.chat_sessions
         .visible
+        .ordinary_chats
         .order(Arel.sql("chat_sessions.pinned DESC, #{chat_activity_order_sql} DESC"), id: :desc)
         .limit(20)
         .pluck(:id)
@@ -26,20 +27,21 @@ module ChatIndexPayload
     PerformanceLogging.phase("chat_recent_chats.serialize", chat_id: current_chat_session.id, count: chat_ids.size) do
       Current.user.chat_sessions
         .visible
+        .ordinary_chats
         .where(id: chat_ids)
         .preload(repository_attachments: :attachable)
         .to_a
         .sort_by { |chat_session| [ chat_activity_at(chat_session), chat_session.id ] }
         .reverse
         .map do |chat_session|
-        chat_json(chat_session).merge(
-          current: chat_session.id == current_chat_session.id,
-          last_message_at: chat_session.last_message_at&.iso8601,
-          unread: chat_unread?(chat_session),
-          created_at: chat_session.created_at.iso8601,
-          updated_at: chat_session.updated_at.iso8601
-        )
-      end
+          chat_json(chat_session).merge(
+            current: chat_session.id == current_chat_session.id,
+            last_message_at: chat_session.last_message_at&.iso8601,
+            unread: chat_unread?(chat_session),
+            created_at: chat_session.created_at.iso8601,
+            updated_at: chat_session.updated_at.iso8601
+          )
+        end
     end
   end
 
@@ -73,6 +75,14 @@ module ChatIndexPayload
 
       groups.sort_by { |group| group.delete(:active_at) || Time.at(0) }.reverse
     end
+  end
+
+  def supervisor_chat_index_json
+    return unless Feature.admin_supervisor_chat_enabled?
+    return unless Current.user.admin?
+
+    chat_session = SupervisorChat.ensure_for!(Current.user)
+    chat_index_json(chat_session).merge(supervisor_unread_summary(chat_session))
   end
 
   def chat_index_group_json(key:, label:, repository_id:, chats:, has_more:)
@@ -118,6 +128,7 @@ module ChatIndexPayload
   def chat_index_group_scope(repository_id)
     scope = Current.user.chat_sessions
       .visible
+      .ordinary_chats
       .left_outer_joins(:repository_attachments)
       .order(Arel.sql("chat_sessions.pinned DESC, #{chat_activity_order_sql} DESC, chat_sessions.id DESC"))
 
@@ -131,6 +142,7 @@ module ChatIndexPayload
   def chat_index_repositories
     repository_ids = Current.user.chat_sessions
       .visible
+      .ordinary_chats
       .joins(:repository_attachments)
       .where(chat_attachments: { attachable_type: "Repository" })
       .distinct
@@ -160,5 +172,26 @@ module ChatIndexPayload
 
   def chat_activity_at(chat_session)
     chat_session.last_message_at || chat_session.created_at
+  end
+
+  def supervisor_unread_summary(chat_session)
+    unread_messages = chat_session.messages.where(role: "system")
+    unread_messages = unread_messages.where("created_at > ?", chat_session.last_read_at) if chat_session.last_read_at.present?
+
+    severity_rank = { "info" => 0, "warning" => 1, "critical" => 2 }
+    severities = unread_messages.limit(200).filter_map do |message|
+      content = message.content
+      next unless content.is_a?(Hash)
+
+      severity = content.dig("supervisor_event", "severity").to_s
+      severity if severity_rank.key?(severity)
+    end
+
+    unread_count = unread_messages.count
+    {
+      unread: unread_count.positive? || (chat_unread?(chat_session) && chat_session.messages.exists?),
+      supervisor_unread_count: unread_count,
+      supervisor_unread_severity: severities.max_by { |severity| severity_rank.fetch(severity) }
+    }
   end
 end

@@ -5,13 +5,23 @@ export function updateRecentChatCache(queryClient: QueryClient, chat: ChatRecord
   queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], (current) => {
     if (!current || !Array.isArray(current.groups)) return current
 
-    const existing = current.groups.flatMap((group) => group.chats).find((item) => item.id === chat.id)
+    const existing = current.supervisor_chat?.id === chat.id
+      ? current.supervisor_chat
+      : current.groups.flatMap((group) => group.chats).find((item) => item.id === chat.id)
     const updated = recentChatRecord(chat, existing, options.occurredAt)
+    if (updated.system_kind === "supervisor") {
+      return {
+        ...current,
+        supervisor_chat: {
+          ...current.supervisor_chat,
+          ...updated
+        },
+        groups: withoutChat(current.groups, chat.id)
+      }
+    }
+
     const targetKey = chatGroupKey(updated)
-    const groups = current.groups.map((group) => ({
-      ...group,
-      chats: group.chats.filter((item) => item.id !== chat.id)
-    }))
+    const groups = withoutChat(current.groups, chat.id)
     const targetIndex = groups.findIndex((group) => group.key === targetKey)
     const targetGroup = targetIndex >= 0 ? groups[targetIndex] : chatGroupFor(updated)
     const nextChats = options.prepend || !existing
@@ -35,6 +45,7 @@ export function updateChatUnread(queryClient: QueryClient, id: number, unread: b
     if (!current) return current
     return {
       ...current,
+      supervisor_chat: current.supervisor_chat?.id === id ? { ...current.supervisor_chat, unread } : current.supervisor_chat,
       groups: current.groups.map((group) => ({
         ...group,
         chats: group.chats.map((chat) => chat.id === id ? { ...chat, unread } : chat)
@@ -99,4 +110,11 @@ export function chatGroupFor(chat: ChatNavRecord): ChatGroupRecord {
 
 export function chatGroupKey(chat: ChatNavRecord) {
   return chat.repository ? `repository-${chat.repository.id}` : "general"
+}
+
+function withoutChat(groups: ChatGroupRecord[], chatId: number) {
+  return groups.map((group) => ({
+    ...group,
+    chats: group.chats.filter((item) => item.id !== chatId)
+  }))
 }

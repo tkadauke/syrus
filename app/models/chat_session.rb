@@ -101,6 +101,7 @@ class ChatSession < ApplicationRecord
   }
   scope :visible, -> { where(hidden_at: nil) }
   scope :hidden, -> { where.not(hidden_at: nil) }
+  scope :ordinary_chats, -> { where(system_kind: nil) }
 
   def self.fallback_title_for(repository)
     return unless repository
@@ -277,6 +278,7 @@ class ChatSession < ApplicationRecord
         chat: {
           title: title,
           title_pending: title_pending?,
+          system_kind: system_kind,
           pinned_context: pinned_context,
           chat_provider: effective_provider,
           effective_chat_provider: effective_provider,

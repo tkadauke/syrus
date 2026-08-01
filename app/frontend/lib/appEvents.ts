@@ -327,6 +327,12 @@ function flushChatDetailInvalidation(queryClient: QueryClient, queryKey: QueryKe
 function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
   if (event.resource !== "chat" || event.id == null) return false
 
+  if (event.changed?.includes("supervisor_event")) {
+    void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
+    void queryClient.invalidateQueries({ queryKey: ["chats", String(event.id)] })
+    return true
+  }
+
   const replaceTail = chatReplaceTailPayload(event.payload)
   if (replaceTail) {
     let patched = false
@@ -499,7 +505,7 @@ type ChatControlsPayload = {
 
 type ChatHeaderPayload = {
   action: "update_header"
-  chat: Partial<Pick<ChatRecord, "title" | "title_pending" | "pinned_context" | "chat_provider" | "effective_chat_provider" | "effective_chat_provider_label" | "provider_availability" | "mode" | "local_daemon_state" | "local_daemon_repo" | "local_daemon_branch" | "repository" | "stop_requested_at" | "cumulative_input_tokens" | "cumulative_output_tokens" | "cumulative_cost_usd" | "coding_checkout_uncommitted">>
+  chat: Partial<Pick<ChatRecord, "title" | "title_pending" | "system_kind" | "pinned_context" | "chat_provider" | "effective_chat_provider" | "effective_chat_provider_label" | "provider_availability" | "mode" | "local_daemon_state" | "local_daemon_repo" | "local_daemon_branch" | "repository" | "stop_requested_at" | "cumulative_input_tokens" | "cumulative_output_tokens" | "cumulative_cost_usd" | "coding_checkout_uncommitted">>
 }
 
 type ChatBookmarkPayload = {
@@ -585,6 +591,7 @@ function chatHeaderPayload(payload: unknown): ChatHeaderPayload | null {
   const updates: ChatHeaderPayload["chat"] = {}
   if (typeof chat.title === "string" || chat.title === null) updates.title = chat.title
   if (typeof chat.title_pending === "boolean") updates.title_pending = chat.title_pending
+  if (chat.system_kind === "supervisor" || chat.system_kind === null) updates.system_kind = chat.system_kind
   if (typeof chat.pinned_context === "string" || chat.pinned_context === null) updates.pinned_context = chat.pinned_context
   if (typeof chat.chat_provider === "string") updates.chat_provider = chat.chat_provider
   if (typeof chat.effective_chat_provider === "string") updates.effective_chat_provider = chat.effective_chat_provider

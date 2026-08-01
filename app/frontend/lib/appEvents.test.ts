@@ -408,6 +408,66 @@ describe("applyAppEvent", () => {
     expect(recent?.groups[0].chats[0].repository).toEqual({ id: 3, slug: "acme/widgets" })
   })
 
+  it("applies supervisor chat header payloads to the top-level recent slot", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "old")]))
+    queryClient.setQueryData(["chats", "recent"], {
+      supervisor_chat: {
+        ...chatPayload([]).chat,
+        id: 9,
+        title: "Supervisor",
+        title_pending: false,
+        system_kind: "supervisor",
+        current: false,
+        last_message_at: "2026-05-30T12:00:00Z",
+        unread: false,
+        pending_proposal_count: 0,
+        scratchpad_items_count: 0
+      },
+      groups: [{
+        key: "general",
+        label: "General",
+        repository_id: null,
+        has_more: false,
+        chats: []
+      }],
+      repositories: []
+    })
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: {
+        action: "update_header",
+        chat: {
+          title: "Supervisor",
+          title_pending: false,
+          system_kind: "supervisor",
+          cumulative_input_tokens: 300
+        }
+      }
+    })
+
+    expect(invalidate).not.toHaveBeenCalled()
+    const recent = queryClient.getQueryData<{ supervisor_chat?: { system_kind?: string; cumulative_input_tokens?: number }; groups: Array<{ chats: unknown[] }> }>(["chats", "recent"])
+    expect(recent?.supervisor_chat?.system_kind).toBe("supervisor")
+    expect(recent?.supervisor_chat?.cumulative_input_tokens).toBe(300)
+    expect(recent?.groups[0].chats).toEqual([])
+  })
+
+  it("invalidates recent chats when a supervisor event appends", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      changed: ["last_message_at", "last_read_at", "supervisor_event"]
+    })
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
+  })
+
   it("applies chat header payloads when the cached recent chat list is missing", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")

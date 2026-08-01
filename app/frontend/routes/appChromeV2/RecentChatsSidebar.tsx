@@ -53,6 +53,7 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
     staleTime: 30_000
   })
   const sections = useMemo(() => chatSectionsFromPayload(chats.data?.groups || [], loadedSections), [chats.data?.groups, loadedSections])
+  const supervisorChat = featureFlags.admin_supervisor_chat === true ? chats.data?.supervisor_chat : null
 
   function showLess(key: string) {
     setLoadedSections((current) => {
@@ -224,6 +225,14 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
       }}
       ref={sidebarRootRef}
     >
+      {supervisorChat ? (
+        <SupervisorChatLink
+          activeChatId={activeChatId}
+          chat={supervisorChat}
+          onCloseDrawer={onCloseDrawer}
+          prefix={prefix}
+        />
+      ) : null}
       <nav aria-label={t("nav:recent_chats_aria")} className="space-y-4">
         {sections.map((section) => {
           const collapsed = collapsedSections.has(section.key)
@@ -337,6 +346,41 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
           )
         })}
       </nav>
+    </div>
+  )
+}
+
+function SupervisorChatLink({ activeChatId, chat, onCloseDrawer, prefix }: { activeChatId: number | null; chat: ChatNavRecord; onCloseDrawer: () => void; prefix: string }) {
+  const active = chat.id === activeChatId
+  const unread = chat.unread && !active
+  const severity = chat.supervisor_unread_severity
+  const count = chat.supervisor_unread_count ?? 0
+  const severityClass = severity === "critical"
+    ? "bg-red-600 text-white dark:bg-red-500"
+    : severity === "warning"
+      ? "bg-amber-500 text-white dark:bg-amber-400 dark:text-gray-950"
+      : "bg-blue-600 text-white dark:bg-blue-400 dark:text-gray-950"
+
+  return (
+    <div className="mb-3 border-b border-gray-200 pb-3 dark:border-gray-800">
+      <Link
+        className={`flex min-h-[44px] w-full min-w-0 items-center gap-2 rounded px-2.5 py-2 text-xs font-semibold ${active ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950" : "bg-gray-100 text-gray-900 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700"}`}
+        onClick={onCloseDrawer}
+        to={withRoutePrefix(chat.chat_path, prefix)}
+      >
+        <span aria-hidden="true" className={`grid h-6 w-6 shrink-0 place-items-center rounded border text-[0.68rem] font-bold ${active ? "border-white/40 bg-white/15" : "border-gray-300 bg-white text-gray-700 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200"}`}>
+          S
+        </span>
+        <span className={`min-w-0 flex-1 truncate ${unread ? "font-bold" : ""}`}>Supervisor</span>
+        <span className={`rounded px-1.5 py-0.5 text-[0.62rem] font-bold uppercase tracking-normal ${active ? "bg-white/15 text-white dark:bg-slate-900/10 dark:text-slate-950" : "bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300"}`}>
+          Admin
+        </span>
+        {unread ? (
+          <span className={`min-w-5 rounded px-1.5 py-0.5 text-center text-[0.68rem] font-bold ${severityClass}`}>
+            {count > 99 ? "99+" : Math.max(count, 1)}
+          </span>
+        ) : null}
+      </Link>
     </div>
   )
 }

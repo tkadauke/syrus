@@ -28,6 +28,7 @@ module Api
         def index
           render json: PerformanceLogging.phase("chats_index_payload") {
             {
+              supervisor_chat: supervisor_chat_index_json,
               groups: PerformanceLogging.phase("chats_index.groups") { recent_chats_index_json },
               repositories: PerformanceLogging.phase("chats_index.repositories") { Current.user.repositories.active.order(:owner, :name).map { |repository| repository_json(repository) } }
             }

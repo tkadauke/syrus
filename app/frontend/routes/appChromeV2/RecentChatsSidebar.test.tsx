@@ -12,10 +12,11 @@ function LocationProbe() {
 
 function renderSidebar(
   chats: ChatNavRecord[],
-  options: { prefix?: string; onCloseDrawer?: () => void; renderOptions?: Parameters<typeof render>[1] } = {}
+  options: { featureFlags?: Record<string, boolean>; prefix?: string; onCloseDrawer?: () => void; renderOptions?: Parameters<typeof render>[1]; supervisorChat?: ChatNavRecord | null } = {}
 ) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   queryClient.setQueryData<ChatsIndexPayload>(["chats", "recent"], chatsIndexPayload({
+    supervisor_chat: options.supervisorChat,
     groups: [chatGroup({ chats })]
   }))
 
@@ -23,7 +24,7 @@ function renderSidebar(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={["/"]}>
         <RecentChatsSidebar
-          featureFlags={{}}
+          featureFlags={options.featureFlags ?? {}}
           onCloseDrawer={options.onCloseDrawer ?? (() => {})}
           onNotice={() => {}}
           prefix={options.prefix ?? ""}
@@ -90,6 +91,64 @@ describe("RecentChatsSidebar active chat highlighting", () => {
 
     const link = screen.getByRole("link", { name: "Active Chat" })
     expect(link.className).toContain("bg-blue-50")
+  })
+})
+
+describe("RecentChatsSidebar supervisor chat", () => {
+  it("renders supervisor above ordinary chat groups with unread severity count", () => {
+    renderSidebar(
+      [chatNav({ id: 2, title: "Planning" })],
+      {
+        featureFlags: { admin_supervisor_chat: true },
+        supervisorChat: chatNav({
+          id: 1,
+          title: "Supervisor",
+          system_kind: "supervisor",
+          unread: true,
+          supervisor_unread_count: 4,
+          supervisor_unread_severity: "critical"
+        })
+      }
+    )
+
+    const links = screen.getAllByRole("link")
+    expect(links[0]).toHaveTextContent("Supervisor")
+    expect(links[0]).toHaveTextContent("Admin")
+    expect(links[0]).toHaveTextContent("4")
+    expect(links[1]).toHaveTextContent("Planning")
+  })
+
+  it("hides supervisor when the feature flag is off", () => {
+    renderSidebar(
+      [chatNav({ id: 2, title: "Planning" })],
+      {
+        featureFlags: { admin_supervisor_chat: false },
+        supervisorChat: chatNav({ id: 1, title: "Supervisor", system_kind: "supervisor" })
+      }
+    )
+
+    expect(screen.queryByRole("link", { name: /Supervisor/ })).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Planning" })).toBeInTheDocument()
+  })
+
+  it("hides supervisor for non-admin payloads even when the feature flag is on", () => {
+    renderSidebar(
+      [chatNav({ id: 2, title: "Planning" })],
+      { featureFlags: { admin_supervisor_chat: true }, supervisorChat: null }
+    )
+
+    expect(screen.queryByRole("link", { name: /Supervisor/ })).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Planning" })).toBeInTheDocument()
+  })
+
+  it("does not render supervisor chats from ordinary groups", () => {
+    renderSidebar([
+      chatNav({ id: 1, title: "Supervisor", system_kind: "supervisor" }),
+      chatNav({ id: 2, title: "Planning" })
+    ])
+
+    expect(screen.queryByRole("link", { name: /Supervisor/ })).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Planning" })).toBeInTheDocument()
   })
 })
 

@@ -9,6 +9,13 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     JSON.parse(response.body)
   end
 
+  def set_supervisor_feature(enabled)
+    Feature.find_or_create_by!(slug: "admin_supervisor_chat") do |feature|
+      feature.category = "Operations"
+      feature.name = "Admin supervisor chat"
+    end.update!(enabled: enabled)
+  end
+
   it "401s with a JSON error when signed out" do
     get "/api/v1/app/chats"
 
@@ -256,6 +263,73 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(body["groups"].second["chats"].first).to include("id" => older_chat.id, "unread" => false, "pending_proposal_count" => 1)
     expect(body["groups"].first["chats"].first["last_message_at"]).to be_present
     expect(body.to_s).not_to include("Foreign chat")
+  end
+
+  it "exposes the enabled admin supervisor chat separately above ordinary groups" do
+    set_supervisor_feature(true)
+    admin = Factories.user(admin: true)
+    sign_in_as(admin)
+    ordinary = ChatSession.create!(user: admin, title: "Planning", pinned: true, last_message_at: 1.hour.ago)
+
+    get "/api/v1/app/chats"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    supervisor = admin.chat_sessions.find_by!(system_kind: "supervisor")
+    expect(body["supervisor_chat"]).to include(
+      "id" => supervisor.id,
+      "title" => "Supervisor",
+      "system_kind" => "supervisor",
+      "pinned" => true,
+      "repository" => nil,
+      "unread" => false,
+      "supervisor_unread_count" => 0,
+      "supervisor_unread_severity" => nil
+    )
+    expect(body["groups"].flat_map { |group| group["chats"] }.map { |chat| chat["id"] }).to eq([ ordinary.id ])
+  end
+
+  it "includes supervisor unread count and strongest severity" do
+    set_supervisor_feature(true)
+    admin = Factories.user(admin: true)
+    chat = SupervisorChat.ensure_for!(admin)
+    chat.update!(last_read_at: 10.minutes.ago)
+    chat.messages.create!(role: "system", content: { "text" => "Warn", "supervisor_event" => { "severity" => "warning" } }, created_at: 5.minutes.ago)
+    chat.messages.create!(role: "system", content: { "text" => "Critical", "supervisor_event" => { "severity" => "critical" } }, created_at: 1.minute.ago)
+    sign_in_as(admin)
+
+    get "/api/v1/app/chats"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["supervisor_chat"]).to include(
+      "unread" => true,
+      "supervisor_unread_count" => 2,
+      "supervisor_unread_severity" => "critical"
+    )
+  end
+
+  it "hides supervisor payloads when the feature is off or the user is not an admin" do
+    set_supervisor_feature(false)
+    admin = Factories.user(admin: true)
+    ChatSession.create!(user: admin, system_kind: "supervisor", title: "Supervisor", pinned: true)
+    sign_in_as(admin)
+
+    get "/api/v1/app/chats"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["supervisor_chat"]).to be_nil
+    expect(parse_body.to_s).not_to include("Supervisor")
+
+    set_supervisor_feature(true)
+    non_admin = Factories.user(admin: false)
+    ChatSession.create!(user: non_admin, system_kind: "supervisor", title: "Supervisor", pinned: true)
+    sign_in_as(non_admin)
+
+    get "/api/v1/app/chats"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["supervisor_chat"]).to be_nil
+    expect(parse_body.to_s).not_to include("Supervisor")
   end
 
   it "omits hidden chats from recent chat groups" do

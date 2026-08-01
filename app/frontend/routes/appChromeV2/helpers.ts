@@ -101,6 +101,7 @@ export function chatSectionsFromPayload(groups: ChatGroupRecord[], loadedSection
     const loaded = loadedSections[group.key]
     const seen = new Set<number>()
     const chats = [...group.chats, ...(loaded?.chats || [])]
+      .filter((chat) => chat.system_kind !== "supervisor")
       .filter((chat) => {
         if (seen.has(chat.id)) return false
 
