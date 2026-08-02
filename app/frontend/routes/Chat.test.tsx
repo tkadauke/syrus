@@ -1028,6 +1028,67 @@ describe("chat proposal cards", () => {
     expect(await screen.findByText("Survey north aqueduct")).toBeInTheDocument()
   })
 
+  it("closes the edit modal on Escape when the proposal is unchanged", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [messageWithProposal(9, proposal())]
+      })))
+    })
+
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit JOB-DRAFT-1" }))
+    expect(screen.getByRole("dialog", { name: "Edit proposal" })).toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: "Escape" })
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Edit proposal" })).not.toBeInTheDocument()
+    })
+    expect(screen.queryByText("Discard unsaved proposal changes?")).not.toBeInTheDocument()
+  })
+
+  it("asks before discarding proposal edits on Escape when fields changed", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [messageWithProposal(9, proposal())]
+      })))
+    })
+
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Edit JOB-DRAFT-1" }))
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Survey north aqueduct" } })
+
+    fireEvent.keyDown(document, { key: "Escape" })
+
+    expect(await screen.findByText("Discard unsaved proposal changes?")).toBeInTheDocument()
+    expect(screen.getByRole("dialog", { name: "Edit proposal" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Keep editing" }))
+    await waitFor(() => {
+      expect(screen.queryByText("Discard unsaved proposal changes?")).not.toBeInTheDocument()
+    })
+    expect(screen.getByRole("dialog", { name: "Edit proposal" })).toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: "Escape" })
+    fireEvent.click(await screen.findByRole("button", { name: "Discard changes" }))
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Edit proposal" })).not.toBeInTheDocument()
+    })
+  })
+
   it("searches proposal dependencies and adds a selected result as a pill", async () => {
     const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)

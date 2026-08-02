@@ -8,6 +8,7 @@ import "@excalidraw/excalidraw/index.css"
 import { confirmChatProposal, confirmPendingAction, rejectChatProposal, rejectPendingAction, searchChatEpics, searchChatJobs, searchChatProposals, updateChatProposal, type ChatEpicDependencySearchResult, type ChatJobDependencySearchResult, type ChatPendingAction, type ChatPendingActionInline, type ChatPayload, type ChatProposal, type ChatProposalChild, type ChatProposalChildDependency, type ChatProposalDependency, type ChatProposalSearchResult } from "../../api/chats"
 import { fetchBootstrap } from "../../api/bootstrap"
 import { CloseIcon } from "../../components/CloseIcon"
+import { ConfirmDialog } from "../../components/ConfirmDialog"
 import { ConfirmationCard } from "../../components/ConfirmationCard"
 import { StartEpicButton } from "../../components/StartEpicButton"
 import { Markdown } from "../../lib/Markdown"
@@ -49,9 +50,31 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
   const [proposalResults, setProposalResults] = useState<ChatProposalSearchResult[]>([])
   const [jobResults, setJobResults] = useState<ChatJobDependencySearchResult[]>([])
   const [epicResults, setEpicResults] = useState<ChatEpicDependencySearchResult[]>([])
+  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false)
   const searchProposals = useCallback((query: string, signal: AbortSignal) => searchChatProposals(chatId, query, proposal.id, { signal }), [chatId, proposal.id])
   const searchJobs = useCallback((query: string, signal: AbortSignal) => searchChatJobs(query, { signal }), [])
   const searchEpics = useCallback((query: string, signal: AbortSignal) => searchChatEpics(query, { signal }), [])
+  const hasChanges = title !== proposal.title ||
+    body !== proposal.body ||
+    !sameValues(proposalDeps.map((dep) => dep.key), initialProposalDependencyPills(proposal).map((dep) => dep.key)) ||
+    !sameValues(jobDeps.map((dep) => dep.key), (proposal.depends_on_job_ids || []).map(String)) ||
+    !sameValues(epicDeps.map((dep) => dep.key), (proposal.depends_on_epic_ids || []).map(String)) ||
+    nonlinearDependencyOverride !== Boolean(proposal.nonlinear_dependency_override)
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape" || confirmDiscardOpen) return
+      event.preventDefault()
+      if (hasChanges) {
+        setConfirmDiscardOpen(true)
+      } else {
+        onClose()
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown)
+    return () => document.removeEventListener("keydown", onKeyDown)
+  }, [confirmDiscardOpen, hasChanges, onClose])
 
   const save = useMutation({
     mutationFn: () => updateChatProposal(appendSearch(proposal.app_update_path, search), {
@@ -181,9 +204,23 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
           </div>
         </form>
       </div>
+      <ConfirmDialog
+        cancelLabel="Keep editing"
+        confirmLabel="Discard changes"
+        destructive
+        message="Discard unsaved proposal changes?"
+        onCancel={() => setConfirmDiscardOpen(false)}
+        onConfirm={onClose}
+        open={confirmDiscardOpen}
+      />
     </div>,
     document.body
   )
+}
+
+function sameValues(first: string[], second: string[]) {
+  if (first.length !== second.length) return false
+  return first.every((value, index) => value === second[index])
 }
 
 function DependencyPicker({ label, placeholder, query, results, selected, setQuery, setSelected }: { label: string; placeholder: string; query: string; results: DependencyPill[]; selected: DependencyPill[]; setQuery: (query: string) => void; setSelected: (selected: DependencyPill[]) => void }) {
