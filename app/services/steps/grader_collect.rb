@@ -21,7 +21,7 @@ module Steps
       failed_required = grader_steps.select do |g|
         g.details && g.details["required"] && g.state == "failed"
       end
-      record_parallelism!(grader_steps, failed_required: failed_required)
+      record_grader_loop_metrics!(grader_steps, failed_required: failed_required)
       aggregate_status = GraderConclusionCache.aggregate_status_for(failed_required)
       record_grader_conclusions!(grader_steps, aggregate_status)
 
@@ -100,7 +100,7 @@ module Steps
       workflow.set_artifact!("iterations", iterations)
     end
 
-    def record_parallelism!(grader_steps, failed_required:)
+    def record_grader_loop_metrics!(grader_steps, failed_required:)
       timed_steps = grader_steps.select { |g| g.started_at && g.finished_at }
       return if timed_steps.empty?
 
@@ -112,23 +112,21 @@ module Steps
         duration.present? ? duration.to_f : (g.finished_at - g.started_at)
       end
 
-      measurements = Array(workflow.artifact("grader_parallelism"))
+      measurements = Array(workflow.artifact("grader_loops"))
       measurements[run.iteration - 1] = {
         "iteration" => run.iteration,
         "grader_count" => grader_steps.size,
-        "cap" => landing_grader_context? ? AppSetting.max_concurrent_landing_grader_runs : nil,
         "started_at" => started_at.iso8601,
         "finished_at" => finished_at.iso8601,
         "wall_clock_s" => wall_clock_s.round(3),
         "summed_duration_s" => summed_duration_s.round(3),
         "failed_required_count" => failed_required.size
       }.compact
-      workflow.set_artifact!("grader_parallelism", measurements)
-      LandingThroughputMetrics.record_grader_parallelism!(
+      workflow.set_artifact!("grader_loops", measurements)
+      LandingThroughputMetrics.record_grader_loop!(
         workflow: workflow,
         iteration: run.iteration,
         grader_count: grader_steps.size,
-        cap: landing_grader_context? ? AppSetting.max_concurrent_landing_grader_runs : grader_steps.size,
         started_at: started_at,
         finished_at: finished_at,
         wall_clock_s: wall_clock_s,
@@ -137,10 +135,6 @@ module Steps
       )
 
       log("[grader_collect] grader wall-clock #{wall_clock_s.round(1)}s vs summed duration #{summed_duration_s.round(1)}s")
-    end
-
-    def landing_grader_context?
-      %w[auto_merge merge_train].include?(workflow.trigger_kind)
     end
 
     def record_grader_conclusions!(grader_steps, aggregate_status)

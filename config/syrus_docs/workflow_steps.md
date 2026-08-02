@@ -58,17 +58,9 @@ Agentic. An independent reviewer agent critiques the implementation, calls `subm
 
 Non-agentic. Reads grader definitions from `.syrus.yml` and materializes one `grader` Step per configured grader command. Run once at the start of each check cycle.
 
-For landing workflows (`auto_merge` and `merge_train`), after materialization
-Syrus enqueues every grader Run in the batch before `grader_collect` is allowed
-to run. Those Runs use the `merges` queue, so practical fanout is capped by the
-available `merges` workers: `MERGE_CONCURRENCY` per worker process times the
-number of worker pods consuming that queue. With enough capacity, elapsed grader
-time should approach the slowest required grader plus queue and startup overhead,
-not the sum of all required grader durations. Each collect step records
-`grader_parallelism` measurements on the workflow artifact with grader count,
-landing cap, wall-clock duration, summed individual durations, failed required
-count, speedup, and parallelism efficiency. The same data is also mirrored under
-`landing_throughput_metrics.grader_parallelism` for admin/debug consumers.
+Grader materialization remains sequential within the current workflow workspace.
+Landing-specific fanout is not enabled; any future design needs isolated
+workspaces for grader side effects before multiple grader Runs can overlap.
 
 ### grader
 
@@ -83,9 +75,8 @@ When a grader defines a `.syrus.yml` `ci:` command, Syrus uses it in `ci_failure
 ### grader_collect
 
 Non-agentic. Aggregates grader results. Fails the check cycle if any required grader failed; succeeds otherwise.
-Failed collect steps still write the grader parallelism metric before raising, so
-landing repair loops show whether the failed attempt was cap-limited or actually
-spent time running graders.
+Failed collect steps still write grader loop timing before raising, so landing
+repair loops show whether the failed attempt actually spent time running graders.
 
 ### grade
 

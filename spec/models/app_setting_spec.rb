@@ -64,14 +64,6 @@ RSpec.describe AppSetting do
     expect(AppSetting.grade_max_iterations).to eq(2)
   end
 
-  it ".max_concurrent_landing_grader_runs defaults to 2 and reflects the setting" do
-    expect(AppSetting.max_concurrent_landing_grader_runs).to eq(2)
-
-    AppSetting.current.update!(max_concurrent_landing_grader_runs: 4)
-
-    expect(AppSetting.max_concurrent_landing_grader_runs).to eq(4)
-  end
-
   it ".adversarial_review_rounds defaults to 0 and reflects the setting" do
     expect(AppSetting.adversarial_review_rounds).to eq(0)
 
@@ -94,17 +86,6 @@ RSpec.describe AppSetting do
 
     expect(setting).not_to be_valid
     expect(setting.errors[:adversarial_review_rounds]).to include("must be greater than or equal to 0")
-  end
-
-  it "rejects a max_concurrent_landing_grader_runs below 1" do
-    setting = AppSetting.current
-
-    setting.max_concurrent_landing_grader_runs = 0
-    expect(setting).not_to be_valid
-    expect(setting.errors[:max_concurrent_landing_grader_runs]).to be_present
-
-    setting.max_concurrent_landing_grader_runs = 1
-    expect(setting).to be_valid
   end
 
   it ".video_retention_days returns the column value (default 7)" do

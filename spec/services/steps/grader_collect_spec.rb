@@ -235,7 +235,7 @@ RSpec.describe Steps::GraderCollect do
     )
   end
 
-  it "records grader wall-clock as the parallel window rather than summed duration" do
+  it "records grader loop timing without fanout-specific fields" do
     base_time = Time.zone.parse("2026-07-31 12:00:00 UTC")
     workflow.steps.where(kind: "grader").delete_all
     [
@@ -258,7 +258,7 @@ RSpec.describe Steps::GraderCollect do
 
     handler.call
 
-    measurement = workflow.reload.artifact("grader_parallelism").first
+    measurement = workflow.reload.artifact("grader_loops").first
     expect(measurement).to include(
       "iteration" => 1,
       "grader_count" => 3,
@@ -266,18 +266,18 @@ RSpec.describe Steps::GraderCollect do
       "summed_duration_s" => be_within(0.001).of(0.9),
       "failed_required_count" => 0
     )
-    metrics = workflow.artifact(LandingThroughputMetrics::ARTIFACT_KEY).dig("grader_parallelism").first
+    metrics = workflow.artifact(LandingThroughputMetrics::ARTIFACT_KEY).dig("grader_loops").first
     expect(metrics).to include(
       "iteration" => 1,
       "grader_count" => 3,
-      "cap" => 3,
       "wall_clock_s" => be_within(0.001).of(0.34),
       "summed_duration_s" => be_within(0.001).of(0.9),
-      "parallelism_speedup" => be_within(0.001).of(2.647),
-      "parallelism_efficiency" => be_within(0.001).of(0.882),
       "failed_required_count" => 0,
       "outcome" => "passed"
     )
+    expect(metrics).not_to have_key("cap")
+    expect(metrics).not_to have_key("parallelism_speedup")
+    expect(metrics).not_to have_key("parallelism_efficiency")
     expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include("grader wall-clock 0.3s vs summed duration 0.9s")
   end
 
@@ -299,13 +299,13 @@ RSpec.describe Steps::GraderCollect do
 
     expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: rspec")
 
-    metrics = workflow.reload.artifact(LandingThroughputMetrics::ARTIFACT_KEY).dig("grader_parallelism").first
+    metrics = workflow.reload.artifact(LandingThroughputMetrics::ARTIFACT_KEY).dig("grader_loops").first
     expect(metrics).to include(
       "iteration" => 1,
       "grader_count" => 1,
-      "cap" => AppSetting.max_concurrent_landing_grader_runs,
       "failed_required_count" => 1,
       "outcome" => "failed"
     )
+    expect(metrics).not_to have_key("cap")
   end
 end

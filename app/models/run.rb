@@ -303,9 +303,7 @@ class Run < ApplicationRecord
     # not bounce through SolidQueue. Runs created for other workflows
     # in the same thread still need their own queue dispatch.
     current_workflow_id = Thread.current[:syrus_current_run]&.workflow_id
-    if current_workflow_id && current_workflow_id == workflow_id && !Thread.current[:syrus_enqueue_parallel_grader_runs]
-      return
-    end
+    return if current_workflow_id && current_workflow_id == workflow_id
 
     queue = resume_worker_queue || workflow_template_class.queue_name
     RunJob.set(queue: queue, priority: job.solid_queue_priority).perform_later(id)

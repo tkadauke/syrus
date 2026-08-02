@@ -47,13 +47,6 @@ class AppSetting < ApplicationRecord
     only_integer: true,
     greater_than_or_equal_to: 0
   }
-  # Landing graders run on the `:merges` queue inside a single landing unit.
-  # Keep this bounded so one auto_merge / merge_train can approach slowest-
-  # grader wall-clock without occupying every merge worker thread.
-  validates :max_concurrent_landing_grader_runs, numericality: {
-    only_integer: true,
-    greater_than_or_equal_to: 1
-  }
   # Proactive rebase fires when commits_behind_base exceeds this threshold,
   # even when GitHub's mergeable_state is clean. Must be >= 1 (0 would trigger
   # a rebase on every PR with any commits behind, which is never the intent).
@@ -117,10 +110,6 @@ class AppSetting < ApplicationRecord
   # 0 = unlimited.
   def self.max_concurrent_agent_runs
     current.max_concurrent_agent_runs
-  end
-
-  def self.max_concurrent_landing_grader_runs
-    current.max_concurrent_landing_grader_runs
   end
 
   def self.proactive_rebase_commit_threshold

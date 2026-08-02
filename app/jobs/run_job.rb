@@ -8,9 +8,7 @@ class RunJob < ApplicationJob
   # can't get a thread. Splitting queues keeps short jobs fast.
   queue_as :runs
 
-  # One Run at a time per Job, except landing grader fanout Runs which are
-  # capped by StepDispatcher and intentionally allowed to overlap. Per-Job
-  # (not per-repo) is otherwise the right
+  # One Run at a time per Job. Per-Job (not per-repo) is the right
   # granularity: the Workflow's per-Workflow workspace at
   # $SYRUS_DATA_ROOT/workflows/<workflow_id>/ is shared across the
   # chain's steps, but two concurrent Workflows on the same Job
@@ -18,7 +16,7 @@ class RunJob < ApplicationJob
   # the per-Job key prevents two Runs (same Workflow's next step or
   # a parallel Workflow) from interleaving.
   limits_concurrency to: 1, key: ->(run_id) {
-    concurrency_key_for(run_id)
+    "job:#{::Run.where(id: run_id).pick(:job_id)}"
   }
 
   discard_on ActiveRecord::RecordNotFound
@@ -26,19 +24,6 @@ class RunJob < ApplicationJob
   # Test seam — let specs swap in a fake runner without exec'ing claude.
   class << self
     attr_accessor :agent_runner
-
-    def concurrency_key_for(run_id)
-      run = ::Run.includes(step: :workflow).find_by(id: run_id)
-      return "job:" unless run
-      return "landing-grader:#{run.id}" if landing_grader_run?(run)
-
-      "job:#{run.job_id}"
-    end
-
-    def landing_grader_run?(run)
-      run.step&.kind == "grader" &&
-        %w[ auto_merge merge_train ].include?(run.step.workflow&.trigger_kind)
-    end
   end
 
   # Every Run in the new model belongs to a Step (via `runs.step_id`),
@@ -408,36 +393,13 @@ class RunJob < ApplicationJob
   # outer loop breaks and SQ frees the worker for the next job.
   def next_inline_run
     return nil if @workflow.reload.terminal?
-    return nil if yielding_to_parallel_grader_queue?
-
     cursor = @step.next_step
     while cursor
-      if landing_grader_fanout? && @step.kind == "grader" && cursor.kind == "grader" && cursor.runs.where(state: "queued").exists?
-        return nil
-      end
-
       queued = cursor.runs.where(state: "queued").order(:created_at).last
       return queued if queued
       cursor = cursor.next_step
     end
     nil
-  end
-
-  def yielding_to_parallel_grader_queue?
-    return false unless landing_grader_fanout?
-    return false unless @step.kind == "grader_fanout"
-
-    cursor = @step.next_step
-    while cursor&.kind == "grader"
-      return true if cursor.runs.where(state: "queued").exists?
-
-      cursor = cursor.next_step
-    end
-    false
-  end
-
-  def landing_grader_fanout?
-    %w[ auto_merge merge_train ].include?(@workflow.trigger_kind)
   end
 
   def workflow_starting?
