@@ -376,11 +376,6 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     return null
   }
 
-  function jobIdArg(value: string): string | null {
-    const match = value.trim().match(/^(?:JOB-)?(\d+)$/i)
-    return match ? match[1] : null
-  }
-
   function handleReviewWithId(jobId: string) {
     fetchJobDetail(jobId).then((detail) => {
       const prUrl = detail.job.pr_url
@@ -607,7 +602,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     }
 
     if (command.name === "/review") {
-      const id = jobIdArg(argsText)
+      const id = numericArg(argsText)
       if (!id) {
         onNotice("Usage: /review <id>")
         return

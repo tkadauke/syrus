@@ -12,7 +12,7 @@ import { usePageTitle } from "../hooks/usePageTitle"
 import { useBackendOutage } from "../hooks/useBackendUpdate"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { ApiError } from "../api/client"
-import { DashboardSmartFolderNav } from "../components/DashboardSmartFolderNav"
+import { DashboardSmartFolderNav, smartFolderIdFromSearch } from "../components/DashboardSmartFolderNav"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import { CloseIcon } from "../components/CloseIcon"
 import { TonePill } from "../components/StatusPill"
@@ -575,14 +575,6 @@ function DashboardFilterBar({ payload, pathname, search }: { payload: DashboardP
 }
 
 const legacyFilterKeys = ["state", "repository_id", "kind", "trigger_kind", "job_id", "attention", "start_blocked", "tag_ids", "pr", "age"]
-
-function smartFolderIdFromSearch(search: string) {
-  const value = new URLSearchParams(search).get("smart_folder_id")
-  if (!value) return null
-
-  const id = Number(value)
-  return Number.isInteger(id) ? id : null
-}
 
 export function DashboardTable({ payload, pathname = "", prefix, search = "", setupStatus }: { payload: DashboardPayload; pathname?: string; prefix: string; search?: string; setupStatus: ReturnType<typeof useSetupStatus> }) {
   const { t } = useT("dashboard")

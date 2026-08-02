@@ -585,7 +585,7 @@ function folderWithActive(folder: DashboardSmartFolder, activeSmartFolderId: num
   return folder.active === active ? folder : { ...folder, active }
 }
 
-function smartFolderIdFromSearch(search: string) {
+export function smartFolderIdFromSearch(search: string) {
   const value = new URLSearchParams(search).get("smart_folder_id")
   if (!value) return null
 
