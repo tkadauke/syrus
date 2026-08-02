@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
 import { ChatSettingsDialog, ChatWorkspacePanel } from "./WorkspacePanels"
 import type { ChatPayload } from "../../api/chats"
-import { fetchCodingCommits, fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree } from "../../api/chats"
+import { fetchCodingCommits, fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree, switchChatProvider } from "../../api/chats"
 
 vi.mock("../../api/chats", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/chats")>()
@@ -13,7 +13,8 @@ vi.mock("../../api/chats", async (importOriginal) => {
     fetchCodingCommits: vi.fn(),
     fetchCodingDiff: vi.fn(),
     fetchCodingFileContent: vi.fn(),
-    fetchCodingFileTree: vi.fn()
+    fetchCodingFileTree: vi.fn(),
+    switchChatProvider: vi.fn()
   }
 })
 
@@ -65,6 +66,7 @@ function makePayload(overrides: Partial<ChatPayload["chat"]> = {}): ChatPayload 
       app_scheduled_messages_path: "/api/v1/app/chats/1/scheduled_messages",
       app_stop_path: "/api/v1/app/chats/1/stop",
       app_daemon_connection_path: "/api/v1/app/chats/1/daemon_connection",
+      app_switch_provider_path: "/api/v1/app/chats/1/switch_provider",
       app_bookmarks_path: "/api/v1/app/chats/1/bookmarks",
       app_attachments_path: "/api/v1/app/chats/1/attachments",
       app_video_walkthroughs_path: "/api/v1/app/chats/1/video_walkthroughs",
@@ -164,7 +166,8 @@ describe("ChatSettingsDialog", () => {
     expect(screen.queryByLabelText("Chat provider")).not.toBeInTheDocument()
   })
 
-  it("shows the pinned provider without a switch control", () => {
+  it("renders configured explicit provider options and switches through the switch endpoint", async () => {
+    vi.mocked(switchChatProvider).mockResolvedValue({ message: "Switching to codex." })
     const payload = makePayload({
       chat_provider: "claude",
       effective_chat_provider: "claude",
@@ -176,8 +179,9 @@ describe("ChatSettingsDialog", () => {
     })
 
     renderDialog(payload)
-    expect(screen.getByText("Claude")).toBeInTheDocument()
-    expect(screen.queryByLabelText("Chat provider")).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText("Chat provider"), { target: { value: "codex" } })
+
+    await waitFor(() => expect(switchChatProvider).toHaveBeenCalledWith("/api/v1/app/chats/1/switch_provider", "codex"))
   })
 })
 

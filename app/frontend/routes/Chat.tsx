@@ -284,6 +284,7 @@ function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
       app_scheduled_messages_path: "",
       app_stop_path: "",
       app_daemon_connection_path: "",
+      app_switch_provider_path: "",
       app_bookmarks_path: "",
       app_attachments_path: "",
       app_video_walkthroughs_path: "",

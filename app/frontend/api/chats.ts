@@ -504,6 +504,7 @@ export type ChatPayload = {
     app_scheduled_messages_path: string
     app_stop_path: string
     app_daemon_connection_path: string
+    app_switch_provider_path: string
     app_bookmarks_path: string
     app_attachments_path: string
     app_video_walkthroughs_path: string
@@ -686,6 +687,10 @@ export function renameChat(path: string, title: string) {
 
 export function updateChatPinned(id: number | string, pinned: boolean) {
   return patchJson<ChatPayload>(`/api/v1/app/chats/${id}`, { chat: { pinned } })
+}
+
+export function switchChatProvider(path: string, chatProvider: string) {
+  return postJson<{ message: string }>(path, { provider: chatProvider })
 }
 
 export function updateChatMode(id: number | string, mode: ChatMode | null) {

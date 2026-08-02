@@ -74,14 +74,7 @@ module Api
 
           chat_params = params[:chat]
           if chat_params.respond_to?(:key?) && chat_params.key?(:chat_provider)
-            provider = normalized_chat_provider_param(chat_params[:chat_provider])
-            unless provider.present? && Current.user.chat_provider_configured?(provider)
-              render_error("validation_failed", "Chat provider is not configured.", status: :unprocessable_content)
-              return
-            end
-
-            chat_session.update!(chat_provider: provider)
-            render json: chat_payload(chat_session.reload, message: "Chat provider updated.")
+            render_error("validation_failed", "Chat provider must be switched through the switch_provider endpoint.", status: :unprocessable_content)
             return
           end
 
@@ -367,6 +360,30 @@ module Api
           chat_session.update!(attrs)
 
           render json: { message: "Daemon connection state updated." }
+        end
+
+        def switch_provider
+          chat_session = find_chat_session
+          provider = normalized_chat_provider_param(params[:provider])
+
+          unless User::CHAT_PROVIDERS.include?(provider)
+            render_error("validation_failed", "Invalid provider. Must be one of: #{User::CHAT_PROVIDERS.join(", ")}.", status: :unprocessable_content)
+            return
+          end
+
+          unless Current.user.chat_provider_configured?(provider)
+            render_error("validation_failed", "Chat provider is not configured.", status: :unprocessable_content)
+            return
+          end
+
+          if chat_session.turn_in_flight? || chat_session.agent_busy?
+            render_error("turn_in_flight", "Cannot switch provider while a turn is in progress.", status: :unprocessable_content)
+            return
+          end
+
+          SwitchChatProviderJob.perform_later(chat_session.id, provider)
+
+          render json: { message: "Switching to #{provider}." }
         end
 
         def rename
