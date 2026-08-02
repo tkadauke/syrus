@@ -106,6 +106,7 @@ path; ambiguous running Runs still use the normal stale-heartbeat threshold.
 The same classifications power stuck visibility. Admin overview health, the
 dedicated stuck list, and chat explanations distinguish stale queue claims,
 failed queue executions, paused queues, queue starvation, dependency blocks,
+stale dependency start blocks whose dependencies now resolve as satisfied,
 unsuccessful closed dependencies, retryable failed steps, main-health blocks,
 terminal workflows whose cleanup is blocked by active descendants, and semantic
 operator-needed failures from the same reconciler evidence and repair plan.

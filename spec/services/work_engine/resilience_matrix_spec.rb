@@ -397,7 +397,9 @@ RSpec.describe "Work engine resilience regression matrix" do
       action: :wait_for_dependency_or_stack_readiness,
       auto_executable: false,
       setup: lambda {
-        _job, workflow, _step, run = matrix_graph
+        job, workflow, _step, run = matrix_graph
+        prerequisite = Factories.job(repository: job.repository, issue_number: 99)
+        JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual")
         run.destroy!
         workflow.update_columns(
           state: "queued",

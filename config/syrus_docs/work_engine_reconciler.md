@@ -78,6 +78,7 @@ The classifier currently emits these families:
 - `unambiguous_job_state_drift`
 - `completed_main_grader_job`
 - `dependency_stack_start_block`
+- `stale_dependency_start_block`
 - `main_health_start_block`
 - `main_branch_broken`
 - `resource_congestion`
@@ -139,7 +140,11 @@ Planner examples:
 - Git publication, landing, and semantic failures return operator-review plans
   unless an existing safe rebuild path is declared, such as merge-train rebuild.
 - Main-health, dependency, stack, and capacity blocks return waiting plans, not
-  failed retries.
+  failed retries. If a queued Workflow still has
+  `stack_dependencies_not_ready` persisted but the current dependency resolver
+  returns no unsatisfied dependencies, the reconciler emits
+  `stale_dependency_start_block` with an automatic
+  `clear_stale_start_block_and_start_workflow` repair.
 - Terminal Workflows with active descendants return operator-review cleanup
   plans, because cleanup must not race still-active Step or Run rows.
 
@@ -184,6 +189,8 @@ when the feature flag is enabled and legacy fixers defer to it. The executor:
 
 Current automatic repairs include re-enqueueing queued Runs with no queue claim,
 starting queued Workflows whose first Step has no Run when readiness gates pass,
+clearing stale dependency start blocks whose dependency resolution is now
+satisfied,
 marking dead running Runs as `worker_died` and scheduling the planned retry path,
 retrying or resuming safe failed Runs, finishing running Workflows whose
 descendants are terminal, closing completed main-grader Jobs, and applying

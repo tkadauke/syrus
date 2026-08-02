@@ -1229,6 +1229,33 @@ RSpec.describe StepDispatcher, "stack_dependencies_not_ready block reason" do
     expect(workflow.reload.artifact("start_blocked_reason")).to be_nil
   end
 
+  it "clears stack_dependencies_not_ready and starts when the only blocking dependency is removed" do
+    prerequisite = Factories.job(repository: job_model.repository, issue_number: 99)
+    dependency = JobDependency.create!(job: job_model, depends_on_job: prerequisite, source: "manual")
+
+    described_class.start_workflow(workflow)
+    expect(workflow.reload.artifact("start_blocked_reason")).to eq("stack_dependencies_not_ready")
+    expect(s1.runs.count).to eq(0)
+
+    dependency.destroy!
+
+    expect(workflow.reload.artifact("start_blocked_reason")).to be_nil
+    expect(s1.runs.count).to eq(1)
+  end
+
+  it "keeps stack_dependencies_not_ready when another dependency is still unsatisfied" do
+    first = Factories.job(repository: job_model.repository, issue_number: 99)
+    second = Factories.job(repository: job_model.repository, issue_number: 100)
+    removed_dependency = JobDependency.create!(job: job_model, depends_on_job: first, source: "manual")
+    JobDependency.create!(job: job_model, depends_on_job: second, source: "manual")
+
+    described_class.start_workflow(workflow)
+    removed_dependency.destroy!
+
+    expect(workflow.reload.artifact("start_blocked_reason")).to eq("stack_dependencies_not_ready")
+    expect(s1.runs.count).to eq(0)
+  end
+
   it "does not record the block reason on a rebase workflow (rebase is cancelled instead)" do
     prerequisite = Factories.job_record(repository: job_model.repository, issue_number: 99, state: "closed", closure_reason: "pr_closed")
     blocked_job = Factories.job_record(

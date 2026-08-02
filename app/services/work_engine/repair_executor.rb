@@ -248,6 +248,20 @@ module WorkEngine
         end
       end
 
+      class ClearStaleStartBlockAndStartWorkflow < Base
+        def perform
+          workflow = target_workflow
+          return skipped("Workflow no longer exists") unless workflow
+          return skipped("Workflow is #{workflow.state}, not queued") unless workflow.queued?
+          return skipped("Workflow is not dependency-blocked") unless workflow.artifact("start_blocked_reason") == StepDispatcher::STACK_BLOCK_REASON
+          return skipped("Dependencies are still unsatisfied") if workflow.job.unsatisfied_dependencies.any?
+
+          StepDispatcher.clear_start_blocked!(workflow, StepDispatcher::STACK_BLOCK_REASON)
+          run = StepDispatcher.start_workflow(workflow.reload)
+          run ? success("cleared stale dependency block and started Workflow ##{workflow.id} with Run ##{run.id}") : skipped("workflow start remained blocked")
+        end
+      end
+
       class CancelStaleAutoRetryWorkflow < Base
         def perform
           workflow = target_workflow

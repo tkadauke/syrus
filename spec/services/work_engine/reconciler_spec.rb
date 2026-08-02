@@ -863,6 +863,8 @@ RSpec.describe WorkEngine::Reconciler do
 
   it "classifies explicit dependency or stack start blocks as wait-only" do
     run.destroy!
+    prerequisite = Factories.job(repository: job.repository, issue_number: 99)
+    JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual")
     workflow.update_columns(
       state: "queued",
       artifacts: {
@@ -878,6 +880,7 @@ RSpec.describe WorkEngine::Reconciler do
     expect(issue.safe_to_auto_repair).to eq(false)
     expect(issue.recommended_repair_action).to eq("wait_for_dependency_or_stack_readiness")
     expect(issue.check_after).to be_present
+    expect(issue.evidence.fetch("unsatisfied_dependencies")).to be_present
     expect(plan(result, :wait_for_dependency_or_stack_readiness).auto_executable).to eq(false)
   end
 
@@ -902,6 +905,50 @@ RSpec.describe WorkEngine::Reconciler do
       recommended_repair_action: "start_workflow"
     )
     expect(plan(result, :start_workflow)).to have_attributes(auto_executable: true, target_id: workflow.id)
+  end
+
+  it "classifies a stale dependency start block as repairable when dependencies are satisfied" do
+    run.destroy!
+    workflow.update_columns(
+      state: "queued",
+      created_at: 5.minutes.ago,
+      updated_at: 5.minutes.ago,
+      artifacts: {
+        "start_blocked_reason" => StepDispatcher::STACK_BLOCK_REASON,
+        "start_blocked_next_check_at" => 3.minutes.from_now.iso8601
+      }
+    )
+    step.update_columns(state: "queued")
+
+    result = reconcile(workflow_id: workflow.id)
+    issue = kind(result, :stale_dependency_start_block)
+
+    expect(issue.safe_to_auto_repair).to eq(true)
+    expect(issue.recommended_repair_action).to eq("clear_stale_start_block_and_start_workflow")
+    expect(issue.evidence.fetch("unsatisfied_dependencies")).to eq([])
+    expect(kind(result, :dependency_stack_start_block)).to be_nil
+    expect(kind(result, :queued_workflow_without_first_run)).to be_nil
+    expect(plan(result, :clear_stale_start_block_and_start_workflow)).to have_attributes(auto_executable: true, target_id: workflow.id)
+  end
+
+  it "repairs a stale dependency start block by clearing it and starting the workflow" do
+    run.destroy!
+    workflow.update_columns(
+      state: "queued",
+      created_at: 5.minutes.ago,
+      updated_at: 5.minutes.ago,
+      artifacts: {
+        "start_blocked_reason" => StepDispatcher::STACK_BLOCK_REASON,
+        "start_blocked_next_check_at" => 3.minutes.from_now.iso8601
+      }
+    )
+    step.update_columns(state: "queued")
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+
+    expect(plan(result, :clear_stale_start_block_and_start_workflow)).to have_attributes(auto_executable: true, target_id: workflow.id)
+    expect(workflow.reload.artifact("start_blocked_reason")).to be_nil
+    expect(step.runs.count).to eq(1)
   end
 
   it "classifies main-health start blocks with the matching wait-only action" do

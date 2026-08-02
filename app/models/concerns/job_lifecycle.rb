@@ -52,6 +52,18 @@ module JobLifecycle
     true
   end
 
+  def recheck_queued_workflow_start_blocks!
+    return false unless queued? || running? || implemented?
+
+    rechecked = false
+    workflows.where(state: "queued").find_each do |workflow|
+      workflow.association(:job).target = self
+      StepDispatcher.start_workflow(workflow)
+      rechecked = true
+    end
+    rechecked
+  end
+
   def restore_epic_block_if_not_started!
     return false unless queued?
     return false if runs.where(state: %w[running succeeded failed]).exists?

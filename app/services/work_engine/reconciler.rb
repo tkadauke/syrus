@@ -368,6 +368,22 @@ module WorkEngine
     def classify_workflows
       workflows.filter_map do |workflow|
         if workflow.queued? && older_than?(workflow.created_at, ORPHAN_RUN_GRACE_PERIOD) && queued_without_first_run?(workflow)
+          if stale_dependency_start_block?(workflow)
+            next issue(
+              kind: :stale_dependency_start_block,
+              severity: :error,
+              affected_ids: ids_for(workflow),
+              safe_to_auto_repair: workflow.job.open?,
+              recommended_repair_action: "clear_stale_start_block_and_start_workflow",
+              evidence: workflow_evidence(workflow).merge(
+                first_step_id: workflow.first_step&.id,
+                start_blocked_reason: workflow.artifact("start_blocked_reason"),
+                unsatisfied_dependencies: []
+              ),
+              explanation: "Workflow ##{workflow.id} has a stale dependency start block, but current dependency resolution is satisfied."
+            )
+          end
+
           issue(
             kind: :queued_workflow_without_first_run,
             severity: start_blocked?(workflow) ? :info : :error,
@@ -1089,6 +1105,11 @@ module WorkEngine
       next_check_at.present? && next_check_at <= now
     end
 
+    def stale_dependency_start_block?(workflow)
+      workflow.artifact("start_blocked_reason") == StepDispatcher::STACK_BLOCK_REASON &&
+        workflow.job.unsatisfied_dependencies.empty?
+    end
+
     def dependency_block_reason?(reason)
       %w[dependency_failed stack_dependencies_not_ready stack_fan_in_base_unavailable job_not_ready_for_execution].include?(reason.to_s)
     end
@@ -1097,6 +1118,8 @@ module WorkEngine
       case reason.to_s
       when StepDispatcher::MAIN_HEALTH_BLOCK_REASON
         StepDispatcher.main_health_blocking?(workflow)
+      when StepDispatcher::STACK_BLOCK_REASON
+        !stale_dependency_start_block?(workflow)
       else
         true
       end

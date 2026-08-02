@@ -607,6 +607,22 @@ module WorkEngine
         end
       end
 
+      class StaleDependencyStartBlock < Base
+        def plan
+          automatic_plan(
+            "clear_stale_start_block_and_start_workflow",
+            primary_workflow,
+            "Current dependency resolution is satisfied, so the stale dependency start block can be cleared and the workflow can be dispatched.",
+            execution_steps: [ "StepDispatcher.clear_start_blocked!", "StepDispatcher.start_workflow" ],
+            preconditions: {
+              workflow_state: "queued",
+              start_blocked_reason: StepDispatcher::STACK_BLOCK_REASON,
+              unsatisfied_dependencies: []
+            }
+          )
+        end
+      end
+
       class RunningWorkflowWithoutActiveDescendants < Base
         def plan
           automatic_plan(

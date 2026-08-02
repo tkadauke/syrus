@@ -17,6 +17,8 @@ class JobDependency < ApplicationRecord
 
   after_save_commit :materialize_derived_epic_dependency, if: :depends_on_job_id?
   after_save_commit :refresh_same_epic_reconciliation, if: :same_epic_job_dependency?
+  after_save_commit :recheck_dependent_job_start_blocks
+  after_destroy_commit :recheck_dependent_job_start_blocks
 
   scope :resolved, -> { where.not(depends_on_job_id: nil) }
   scope :pending, -> { where(depends_on_job_id: nil, depends_on_epic_id: nil) }
@@ -177,6 +179,10 @@ class JobDependency < ApplicationRecord
 
   def refresh_same_epic_reconciliation
     job.epic.maybe_create_reconciliation_job!(raise_on_invalid_graph: false)
+  end
+
+  def recheck_dependent_job_start_blocks
+    job&.recheck_queued_workflow_start_blocks!
   end
 
   def same_epic_job_dependency?
