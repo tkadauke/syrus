@@ -1790,7 +1790,7 @@ describe("App", () => {
       expect(within(recentNav).getByRole("link", { name: "New chat" })).toHaveAttribute("href", "/app-shell/chats/2")
       expect(within(recentNav).getByRole("link", { name: "New chat" })).toHaveClass("text-gray-700")
       expect(within(recentNav).getByText("New chat")).toHaveClass("font-semibold")
-      expect(within(recentNav).getByRole("link", { name: "Widgets active" })).toHaveClass("bg-blue-50", "text-blue-700")
+      expect(within(recentNav).getByRole("link", { name: "Widgets active" })).toHaveAttribute("href", "/app-shell/chats/10")
       expect(within(within(recentNav).getByRole("link", { name: "Widgets active" })).getByTitle("Chat turn active")).toBeInTheDocument()
       fireEvent.click(within(recentNav).getByRole("button", { name: "Chat actions for Widgets active" }))
       expect(await within(recentNav).findByText("Bookmarks")).toHaveClass("font-semibold")
