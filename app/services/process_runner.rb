@@ -192,8 +192,18 @@ class ProcessRunner
         @stdin_writer&.join
         killer.kill
         status = wait_thread.value
+        process_exit_status = status.exitstatus || 1
+        clean_exit_after_aliveness =
+          aliveness_failed &&
+          process_exit_status.zero? &&
+          !timed_out &&
+          !stopped &&
+          !silent_timed_out &&
+          !operator_killed
+        aliveness_failed = false if clean_exit_after_aliveness
+
         result = Result.new(
-          exit_status: (timed_out || silent_timed_out || aliveness_failed || operator_killed) ? nil : (status.exitstatus || 1),
+          exit_status: (timed_out || silent_timed_out || aliveness_failed || operator_killed) ? nil : process_exit_status,
           timed_out: timed_out,
           stopped: stopped,
           silent_timed_out: silent_timed_out,

@@ -34,11 +34,12 @@ module Steps
       started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       exit_code = nil
       timed_out = false
+      runner_result = nil
 
       sink, flush = buffered_log_sink
 
       File.open(absolute_log_path, "wb") do |file|
-        result = ProcessRunner.new(
+        runner_result = ProcessRunner.new(
           env: env,
           command: [ "bash", "-c", command ],
           chdir: workspace.path,
@@ -53,8 +54,8 @@ module Steps
           end
         ).run
 
-        timed_out = result.timed_out
-        exit_code = timed_out ? TIMEOUT_EXIT_CODE : result.exit_status
+        timed_out = runner_result.timed_out
+        exit_code = timed_out ? TIMEOUT_EXIT_CODE : runner_result.exit_status
 
         if timed_out
           timeout_message = "\n[timed out after #{timeout_minutes} minutes]\n"
@@ -67,7 +68,7 @@ module Steps
       flush.call
 
       duration_s = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
-      passed = exit_code.to_i.zero?
+      passed = runner_result&.success?
 
       append_grade_diagnostic(absolute_log_path, "\n[grader:#{name}] failed (exit #{exit_code})\n") unless passed
 

@@ -106,6 +106,25 @@ RSpec.describe Steps::Grader do
     expect(@ws_path.join(details["log_path"]).read).to include("[timed out after 1 minutes]")
   end
 
+  it "fails grader runs when ProcessRunner reports a non-exit failure" do
+    fake_result = ProcessRunner::Result.new(
+      exit_status: nil, timed_out: false, stopped: false,
+      silent_timed_out: false, operator_killed: false,
+      aliveness_failed: true, duration_s: 0.1, spawned_process_id: nil
+    )
+
+    allow(ProcessRunner).to receive(:new) do |**kwargs|
+      kwargs[:on_output_chunk]&.call("parent process disappeared")
+      instance_double(ProcessRunner, run: fake_result)
+    end
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /grader tests failed/)
+
+    details = step.reload.details
+    expect(details["exit_code"]).to be_nil
+    expect(@ws_path.join(details["log_path"]).read).to include("[grader:tests] failed")
+  end
+
   it "runs the configured command without formatter-specific mutation" do
     step.update!(details: step.details.merge("command" => "bin/rspec spec/models --format json --out custom.json"))
     captured_command = nil

@@ -226,6 +226,9 @@ RSpec.describe ProcessRunner, :ci_only do
     # Without the aliveness probe, the run would hang at least 10s
     # waiting for the disowned child's pipe to close. With the probe,
     # it completes in well under a second.
+    expect(result).to be_success
+    expect(result).not_to be_aliveness_failed
+    expect(result.exit_status).to eq(0)
     expect(result.duration_s).to be < 3
   end
 
