@@ -352,6 +352,7 @@ export type DashboardPayload = {
   lanes: DashboardLane[]
   kanban_limit: number | null
   setup?: SetupStatusPayload
+  rows_current_for_search?: boolean
   paths: {
     dashboard_path: string
     dashboard_jobs_path: string
@@ -495,7 +496,7 @@ export function fetchDashboardRows(search = "", options: { signal?: AbortSignal 
   return getJson<DashboardRowsPayload>(`/api/v1/app/dashboard${dashboardSectionSearch(search, "rows")}`, options)
 }
 
-export function mergeDashboardPayload(chrome: DashboardChromePayload, rows: DashboardRowsPayload): DashboardPayload {
+export function mergeDashboardPayload(chrome: DashboardChromePayload, rows: DashboardRowsPayload, options: { rowsCurrentForSearch?: boolean } = {}): DashboardPayload {
   const activeSmartFolderId = rows.active_smart_folder_id ?? chrome.active_smart_folder_id
   const rowControls = rows.controls ?? {}
 
@@ -522,6 +523,7 @@ export function mergeDashboardPayload(chrome: DashboardChromePayload, rows: Dash
     smart_folders: chrome.smart_folders.map((folder) => ({ ...folder, active: folder.id === activeSmartFolderId })),
     active_smart_folder_id: activeSmartFolderId,
     setup: chrome.setup,
+    rows_current_for_search: options.rowsCurrentForSearch ?? true,
     paths: chrome.paths
   }
 }

@@ -43,8 +43,8 @@ export function DashboardRoute() {
   const payload = useMemo(() => {
     if (!dashboardChrome.data || !dashboardRows.data) return null
 
-    return mergeDashboardPayload(dashboardChrome.data, dashboardRows.data)
-  }, [dashboardChrome.data, dashboardRows.data])
+    return mergeDashboardPayload(dashboardChrome.data, dashboardRows.data, { rowsCurrentForSearch: !dashboardRows.isPlaceholderData })
+  }, [dashboardChrome.data, dashboardRows.data, dashboardRows.isPlaceholderData])
 
   if (!payload && (dashboardChrome.isPending || dashboardRows.isPending)) return <main aria-label={t("title")} className="p-6 text-sm text-gray-600 dark:text-gray-300">{t("loading")}</main>
   if (dashboardChrome.isError) return <DashboardError error={dashboardChrome.error} />

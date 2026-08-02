@@ -294,6 +294,23 @@ describe("DashboardSmartFolderNav", () => {
     expect(screen.getByRole("button", { name: "Save folder" })).toBeInTheDocument()
   })
 
+  it("hides save controls while user-defined folder navigation is waiting for current rows", () => {
+    renderNav([
+      folder({ id: 101, name: "Review", active: false, filter: savedFilter, path: "/dashboard/jobs?smart_folder_id=101" }),
+      folder({ id: 102, name: "Blocked", active: true, filter: changedFilter, path: "/dashboard/jobs?smart_folder_id=102" })
+    ], {
+      payload: {
+        active_smart_folder_id: 102,
+        filter: savedFilter,
+        rows_current_for_search: false
+      },
+      search: "?smart_folder_id=102"
+    })
+
+    expect(screen.queryByRole("button", { name: "Update Blocked" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Save folder" })).not.toBeInTheDocument()
+  })
+
   it("shows only save controls when a selected builtin folder filter changes", () => {
     renderNav([
       folder({ id: 7, name: "Inbox", key: "inbox", kind: "builtin", active: true, filter: savedFilter, path: "/dashboard/jobs?smart_folder_id=7" })
@@ -304,6 +321,23 @@ describe("DashboardSmartFolderNav", () => {
 
     expect(screen.queryByRole("button", { name: "Update Inbox" })).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Save folder" })).toBeInTheDocument()
+  })
+
+  it("hides save controls while builtin folder navigation is waiting for current rows", () => {
+    renderNav([
+      folder({ id: 7, name: "Inbox", key: "inbox", kind: "builtin", active: false, filter: savedFilter, path: "/dashboard/jobs?smart_folder_id=7" }),
+      folder({ id: 8, name: "Queued", key: "queued", kind: "builtin", active: true, filter: changedFilter, path: "/dashboard/jobs?smart_folder_id=8" })
+    ], {
+      payload: {
+        active_smart_folder_id: 8,
+        filter: savedFilter,
+        rows_current_for_search: false
+      },
+      search: "?smart_folder_id=8"
+    })
+
+    expect(screen.queryByRole("button", { name: "Update Queued" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Save folder" })).not.toBeInTheDocument()
   })
 
   it("hides save controls when filters remain but no folder is selected", () => {

@@ -13,7 +13,7 @@ import { errorMessage } from "../lib/errorMessage"
 
 const dashboardFilterOverrideKeys = ["q", "state", "repository_id", "kind", "trigger_kind", "job_id", "attention", "start_blocked", "tag_ids", "pr", "age"]
 
-type DashboardSmartFolderPayload = Pick<DashboardPayload, "active_smart_folder_id" | "broken_repositories" | "filter" | "health_blocked_repositories" | "landing_queue" | "smart_folders" | "subject" | "view">
+type DashboardSmartFolderPayload = Pick<DashboardPayload, "active_smart_folder_id" | "broken_repositories" | "filter" | "health_blocked_repositories" | "landing_queue" | "rows_current_for_search" | "smart_folders" | "subject" | "view">
 
 export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: DashboardSmartFolderPayload; prefix: string; search: string }) {
   const { t } = useT("nav")
@@ -46,7 +46,8 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
   const appliedTree = filterTreeFromPayload(payload.filter)
   const hasAppliedFilter = topFilterChildren(appliedTree).length > 0
   const selectedFolder = payload.smart_folders.find((folder) => folder.id === activeSmartFolderId)
-  const filterChangedFromSelectedFolder = selectedFolder?.filter != null && !filterTreesEqual(appliedTree, filterTreeFromPayload(selectedFolder.filter))
+  const rowsCurrentForSearch = payload.rows_current_for_search ?? true
+  const filterChangedFromSelectedFolder = rowsCurrentForSearch && selectedFolder?.filter != null && !filterTreesEqual(appliedTree, filterTreeFromPayload(selectedFolder.filter))
   const canUpdateFilter = activeFolder != null && filterChangedFromSelectedFolder
   const canSaveFilter = selectedFolder != null && hasAppliedFilter && filterChangedFromSelectedFolder
   const landingPause = useMutation({
