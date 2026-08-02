@@ -3549,6 +3549,58 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(action.reload).to be_pending
   end
 
+  it "repairs and emits tool-call anchors for check_job_mergeability pending actions" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    job = Factories.job(repository: repository)
+    action = chat.pending_actions.create!(
+      action: "check_job_mergeability",
+      payload: { "job_id" => job.id }
+    )
+    tool_use = chat.messages.create!(
+      role: "tool_use",
+      tool_name: "syrus-chat-sidecar.check_job_mergeability",
+      tool_use_id: "toolu_mergeability",
+      content: {
+        "type" => "tool_use",
+        "id" => "toolu_mergeability",
+        "name" => "check_job_mergeability",
+        "input" => { "job_id" => job.id }
+      }
+    )
+    chat.messages.create!(
+      role: "tool_result",
+      tool_name: "syrus-chat-sidecar.check_job_mergeability",
+      tool_use_id: "toolu_mergeability",
+      content: {
+        "type" => "tool_result",
+        "tool_use_id" => "toolu_mergeability",
+        "content" => [
+          {
+            "type" => "text",
+            "text" => JSON.generate(
+              pending_action_id: action.id,
+              state: "pending",
+              message: "Check mergeability for #{job.slug}?"
+            )
+          }
+        ],
+        "is_error" => false
+      }
+    )
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(parse_body["pending_actions"]).to contain_exactly(
+      include(
+        "id" => action.id,
+        "label" => "Check mergeability for #{job.slug}",
+        "chat_message_id" => tool_use.id
+      )
+    )
+    expect(action.reload).to have_attributes(tool_call_message: tool_use, tool_use_id: "toolu_mergeability")
+  end
+
   it "counts proposed chat proposals and pending actions in the chat header payload" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)

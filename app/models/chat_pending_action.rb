@@ -52,6 +52,7 @@ class ChatPendingAction < ApplicationRecord
   belongs_to :repository, optional: true
   belongs_to :user
   belongs_to :result, polymorphic: true, optional: true
+  belongs_to :tool_call_message, class_name: "ChatMessage", foreign_key: :chat_message_id, optional: true
   has_one :message, class_name: "ChatMessage", foreign_key: :pending_action_id, dependent: :nullify, inverse_of: :pending_action
 
   enum :state, STATES.index_with(&:itself), validate: true
@@ -133,7 +134,84 @@ class ChatPendingAction < ApplicationRecord
     payload.to_h["job_id"].to_s == job.id.to_s
   end
 
+  def anchor_message
+    tool_call_message || message
+  end
+
+  def self.anchor_to_tool_call!(chat_session:, pending_action_id:, tool_use_id:)
+    return if pending_action_id.blank? || tool_use_id.blank?
+
+    pending_action = chat_session.pending_actions.find_by(id: pending_action_id)
+    tool_message = chat_session.messages.find_by(role: "tool_use", tool_use_id: tool_use_id.to_s)
+    return unless pending_action && tool_message
+
+    ChatMessage.transaction do
+      pending_action.update_columns(chat_message_id: tool_message.id, tool_use_id: tool_use_id.to_s, updated_at: Time.current)
+      chat_session.messages
+        .where(pending_action_id: pending_action.id)
+        .where.not(id: tool_message.id)
+        .update_all(pending_action_id: nil)
+      tool_message.update_columns(pending_action_id: pending_action.id)
+    end
+
+    pending_action
+  end
+
+  def self.pending_action_id_from_tool_result(tool_result_content)
+    parsed = pending_action_tool_result_hash(tool_result_content)
+    parsed&.fetch("pending_action_id", nil) ||
+      parsed&.fetch(:pending_action_id, nil) ||
+      parsed&.fetch("pending_confirmation_id", nil) ||
+      parsed&.fetch(:pending_confirmation_id, nil)
+  end
+
+  def self.repair_tool_call_anchors_for!(chat_session)
+    unanchored_ids = chat_session.pending_actions
+      .where(state: %w[queued pending], chat_message_id: nil)
+      .pluck(:id)
+    return if unanchored_ids.blank?
+
+    chat_session.messages
+      .where(role: "tool_result")
+      .where.not(tool_use_id: [ nil, "" ])
+      .order(:created_at, :id)
+      .find_each do |message|
+        pending_action_id = pending_action_id_from_tool_result(tool_result_payload(message))
+        next unless unanchored_ids.include?(pending_action_id.to_i)
+
+        anchor_to_tool_call!(
+          chat_session: chat_session,
+          pending_action_id: pending_action_id,
+          tool_use_id: message.tool_use_id
+        )
+      end
+  end
+
   private
+
+  def self.tool_result_payload(message)
+    if message.content.is_a?(Hash) && message.content["type"] == "tool_result"
+      message.content["content"] || message.content["result"]
+    else
+      message.content
+    end
+  end
+
+  def self.pending_action_tool_result_hash(tool_result_content)
+    case tool_result_content
+    when Hash
+      tool_result_content
+    when String
+      JSON.parse(tool_result_content)
+    when Array
+      text = tool_result_content
+        .find { |block| block.is_a?(Hash) && (block["type"] || block[:type]) == "text" }
+        &.then { |block| block["text"] || block[:text] }
+      text.present? ? JSON.parse(text) : nil
+    end
+  rescue JSON::ParserError, TypeError
+    nil
+  end
 
   def derive_owner_from_chat_session
     return unless chat_session
@@ -225,7 +303,7 @@ class ChatPendingAction < ApplicationRecord
       payload: {
         action: "pending_action_updated",
         pending_action_id: id,
-        chat_message_id: message&.id,
+        chat_message_id: anchor_message&.id,
         state: state
       }
     )

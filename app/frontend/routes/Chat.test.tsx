@@ -3607,6 +3607,76 @@ describe("renderChatMessages tool_result content key", () => {
     expect(stream[pendingActionIndex - 1].type).toBe("tool_group")
   })
 
+  it("appends only truly unanchored pending actions at the bottom", () => {
+    const messages = [
+      {
+        type: "message" as const,
+        id: 1,
+        role: "user" as const,
+        content: { text: "Check this job" },
+        text: "Check this job",
+        bookmarkable: true
+      },
+      {
+        type: "message" as const,
+        id: 2,
+        role: "tool_use" as const,
+        tool_name: "syrus-chat-sidecar.check_job_mergeability",
+        content: { type: "tool_use", id: "toolu_merge", name: "check_job_mergeability", input: { job_id: 2351 } },
+        text: "",
+        bookmarkable: false
+      },
+      {
+        type: "message" as const,
+        id: 3,
+        role: "tool_result" as const,
+        tool_name: "syrus-chat-sidecar.check_job_mergeability",
+        content: {
+          type: "tool_result",
+          tool_use_id: "toolu_merge",
+          content: [{ type: "text", text: "{\"pending_action_id\":201}" }],
+          is_error: false
+        },
+        text: "",
+        bookmarkable: false
+      },
+      {
+        type: "message" as const,
+        id: 4,
+        role: "assistant" as const,
+        content: [{ type: "text", text: "Done." }],
+        text: "Done.",
+        bookmarkable: true
+      }
+    ]
+    const anchored = {
+      id: 201,
+      label: "Check mergeability for JOB-2351",
+      detail: null,
+      state: "pending" as const,
+      action: "check_job_mergeability",
+      action_type: null,
+      chat_message_id: 2,
+      app_confirm_path: "/api/v1/app/chats/122/pending_actions/201/confirm",
+      app_reject_path: "/api/v1/app/chats/122/pending_actions/201/reject",
+      app_cancel_path: "/api/v1/app/chats/122/pending_actions/201"
+    }
+    const legacy = {
+      ...anchored,
+      id: 202,
+      label: "Cancel JOB-2352",
+      action: "cancel_job",
+      chat_message_id: null
+    }
+
+    const stream = buildMessageStreamItems(renderChatMessages(messages), [anchored, legacy])
+    const anchoredIndex = stream.findIndex((item) => item.type === "pending_action" && item.pendingAction.id === 201)
+    const legacyIndex = stream.findIndex((item) => item.type === "pending_action" && item.pendingAction.id === 202)
+
+    expect(stream[anchoredIndex - 1].type).toBe("tool_group")
+    expect(legacyIndex).toBe(stream.length - 1)
+  })
+
   it("renders result_body from the canonical 'content' key, not the legacy 'result' key", () => {
     const messages = [
       {

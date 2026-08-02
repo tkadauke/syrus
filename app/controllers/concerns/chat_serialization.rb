@@ -138,7 +138,9 @@ module ChatSerialization
   end
 
   def pending_actions_json(chat_session)
-    chat_session.pending_actions.where(state: %w[queued pending]).order(:created_at, :id).map do |action|
+    ChatPendingAction.repair_tool_call_anchors_for!(chat_session)
+
+    chat_session.pending_actions.includes(:tool_call_message, :message).where(state: %w[queued pending]).order(:created_at, :id).map do |action|
       {
         id: action.id,
         label: pending_action_label(action),
@@ -146,7 +148,7 @@ module ChatSerialization
         state: action.state,
         action: action.action,
         action_type: action.action_type,
-        chat_message_id: action.message&.id,
+        chat_message_id: action.anchor_message&.id,
         app_confirm_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/confirm",
         app_reject_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/reject",
         app_cancel_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}"

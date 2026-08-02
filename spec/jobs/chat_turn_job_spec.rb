@@ -1783,6 +1783,90 @@ RSpec.describe ChatTurnJob do
     expect(pending_action.reload.message).to eq(tool_use_msg)
   end
 
+  it "anchors multiple pending actions in one turn to their own producing tool calls" do
+    rebase_job = Factories.job(repository: repository)
+    retry_job = Factories.job(repository: repository, issue_number: 43)
+    rebase_action = chat.pending_actions.create!(
+      action: "rebase_job",
+      payload: { "job_id" => rebase_job.id },
+      requested_by: "agent"
+    )
+    retry_action = chat.pending_actions.create!(
+      action: "retry_job",
+      payload: { "job_id" => retry_job.id },
+      requested_by: "agent"
+    )
+    user_message.update!(pending_action: retry_action)
+
+    ChatTurnJob.agent_runner = ->(log_sink:, **_) {
+      log_sink.call("● rebase_job(...)", kind: "tool_call",
+                    tool_name: "syrus-chat-sidecar.rebase_job",
+                    tool_input: { "job_id" => rebase_job.id },
+                    tool_use_id: "toolu_rebase")
+      log_sink.call("{}", kind: "tool_result",
+                    tool_name: "syrus-chat-sidecar.rebase_job",
+                    tool_result_content: {
+                      "pending_action_id" => rebase_action.id,
+                      "state" => "pending"
+                    },
+                    tool_result_error: false,
+                    tool_use_id: "toolu_rebase")
+      log_sink.call("● retry_job(...)", kind: "tool_call",
+                    tool_name: "syrus-chat-sidecar.retry_job",
+                    tool_input: { "job_id" => retry_job.id },
+                    tool_use_id: "toolu_retry")
+      log_sink.call("{}", kind: "tool_result",
+                    tool_name: "syrus-chat-sidecar.retry_job",
+                    tool_result_content: [
+                      {
+                        "type" => "text",
+                        "text" => JSON.generate(
+                          pending_confirmation_id: retry_action.id,
+                          state: "pending"
+                        )
+                      }
+                    ],
+                    tool_result_error: false,
+                    tool_use_id: "toolu_retry")
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    rebase_message = chat.messages.find_by!(role: "tool_use", tool_use_id: "toolu_rebase")
+    retry_message = chat.messages.find_by!(role: "tool_use", tool_use_id: "toolu_retry")
+    expect(rebase_action.reload).to have_attributes(tool_call_message: rebase_message, tool_use_id: "toolu_rebase")
+    expect(retry_action.reload).to have_attributes(tool_call_message: retry_message, tool_use_id: "toolu_retry")
+    expect(user_message.reload.pending_action).to be_nil
+  end
+
+  it "anchors pending actions from symbol-keyed hash tool results" do
+    job = Factories.job(repository: repository)
+    pending_action = chat.pending_actions.create!(
+      action: "cancel_job",
+      payload: { "job_id" => job.id },
+      requested_by: "agent"
+    )
+
+    ChatTurnJob.agent_runner = ->(log_sink:, **_) {
+      log_sink.call("● cancel_job(...)", kind: "tool_call",
+                    tool_name: "syrus-chat-sidecar.cancel_job",
+                    tool_input: { "job_id" => job.id },
+                    tool_use_id: "toolu_cancel")
+      log_sink.call("{}", kind: "tool_result",
+                    tool_name: "syrus-chat-sidecar.cancel_job",
+                    tool_result_content: { pending_action_id: pending_action.id, state: "pending" },
+                    tool_result_error: false,
+                    tool_use_id: "toolu_cancel")
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    tool_use_msg = chat.messages.find_by!(role: "tool_use", tool_use_id: "toolu_cancel")
+    expect(pending_action.reload).to have_attributes(tool_call_message: tool_use_msg, tool_use_id: "toolu_cancel")
+  end
+
   it "flushes partial assistant content before the cancellation system message on stop" do
     ChatTurnJob.agent_runner = ->(log_sink:, stop_requested:, **_) {
       log_sink.call("Working...", kind: "thinking", thinking: "Working...", signature: "s")
