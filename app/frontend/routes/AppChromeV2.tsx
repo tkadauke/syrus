@@ -8,12 +8,13 @@ import { type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode, us
 import { useTranslation } from "react-i18next"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
-import { createEmptyChat, fetchNewChat, type ChatMessageItem, type ChatsIndexPayload } from "../api/chats"
+import { createEmptyChat, fetchNewChat, type ChatsIndexPayload } from "../api/chats"
 import { patchJson } from "../api/client"
 import { dashboardChromeSearch, fetchDashboardChrome, type DashboardChromePayload, type DashboardSubject } from "../api/dashboard"
 import { fetchTerminalSessions } from "../api/terminal"
 import { BugReportButton, type BugReportButtonHandle } from "../components/BugReportButton"
 import { BugReportContext } from "../lib/bugReportContext"
+import type { BugReportOpenOptions, BugReportOptionalAttachment } from "../lib/bugReportOptionalAttachments"
 import { BuildBadge } from "../components/BuildBadge"
 import { CloseIcon } from "../components/CloseIcon"
 import { DashboardSmartFolderNav } from "../components/DashboardSmartFolderNav"
@@ -62,11 +63,17 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const [sidebarWidth, setSidebarWidth] = useState(storedSidebarWidth)
   const [sidebarResize, setSidebarResize] = useState<{ startX: number; startWidth: number } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [bugReportAttachments, setBugReportAttachments] = useState<BugReportOptionalAttachment[]>([])
   const mainRef = useRef<HTMLElement | null>(null)
   const bugReportRef = useRef<BugReportButtonHandle | null>(null)
-  const openBugReport = useCallback((messages?: ChatMessageItem[]) => {
-    bugReportRef.current?.open(messages)
+  const openBugReport = useCallback((options?: BugReportOpenOptions) => {
+    bugReportRef.current?.open(options)
   }, [])
+  const registerBugReportAttachments = useCallback((attachments: BugReportOptionalAttachment[]) => {
+    setBugReportAttachments(attachments)
+    return () => setBugReportAttachments((current) => current === attachments ? [] : current)
+  }, [])
+  const bugReportContextValue = useMemo(() => ({ openBugReport, registerBugReportAttachments }), [openBugReport, registerBugReportAttachments])
   const pageContent = redirectsToSetup(data, normalizedPath)
     ? <Navigate replace to={`${prefix}/onboarding`} />
     : children ?? <Outlet />
@@ -172,7 +179,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   }
 
   return (
-    <BugReportContext.Provider value={{ openBugReport }}>
+    <BugReportContext.Provider value={bugReportContextValue}>
     <div className="flex h-[100dvh] overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white">
       <aside className="relative hidden shrink-0 lg:flex" data-html2canvas-ignore style={{ width: `${sidebarWidth}px` }}>
         <SidebarContent
@@ -272,7 +279,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         )}
         {showQuote ? <PubliliusSyrusFooter quote={quote} /> : null}
       </main>
-      {user ? <BugReportButton bugReportMode={data?.app?.bug_report_mode ?? null} chatId={activeChatIdFromPath(location.pathname)} context={bugReportContext(location.pathname)} position="bottom-right" ref={bugReportRef} reportIssueRepoSlug={data?.app?.report_issue_repo_slug ?? null} /> : null}
+      {user ? <BugReportButton bugReportMode={data?.app?.bug_report_mode ?? null} chatId={activeChatIdFromPath(location.pathname)} context={bugReportContext(location.pathname)} pageAttachments={bugReportAttachments} position="bottom-right" ref={bugReportRef} reportIssueRepoSlug={data?.app?.report_issue_repo_slug ?? null} /> : null}
       <BuildBadge builtAt={data?.app?.built_at} revision={data?.app?.revision} version={data?.app?.version} />
     </div>
     </BugReportContext.Provider>

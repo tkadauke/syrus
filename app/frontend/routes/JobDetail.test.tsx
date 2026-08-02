@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import type { BootstrapPayload } from "../api/bootstrap"
 import * as useTourModule from "../hooks/useTour"
 import type { JobDetailPayload, JobRun, JobSourcePayload, JobStep, JobTestResultsPayload, JobWorkflow } from "../api/jobs"
+import { BugReportContext } from "../lib/bugReportContext"
+import type { BugReportOptionalAttachment } from "../lib/bugReportOptionalAttachments"
 import { FeedbackHistoryPanel, JobDetailView, TestPlanPanel } from "./JobDetail"
 import { StepAdversarialReviewPanel } from "./jobDetail/WorkflowGraph"
 
@@ -100,6 +102,82 @@ describe("JobDetailView", () => {
 
     expect(screen.getByRole("link", { name: "Job proposal in Roadmap chat" }))
       .toHaveAttribute("href", "/app-shell/chats/4#message-12")
+  })
+
+  it("registers a recent workflow context bug-report attachment", async () => {
+    let registeredAttachments: BugReportOptionalAttachment[] = []
+    const payload = jobPayload({
+      workflows: [
+        workflow({
+          id: 4,
+          slug: "WF-4",
+          trigger_kind: "initial",
+          state: "succeeded",
+          agent_provider: "codex",
+          created_at: "2026-08-01T10:00:00Z",
+          steps: [
+            step({
+              kind: "implement",
+              display_name: "Implement",
+              display_status: "succeeded",
+              state: "succeeded",
+              runs: [
+                run({
+                  id: 40,
+                  state: "succeeded",
+                  agent_provider: "codex",
+                  agent_outcome: "success",
+                  head_sha: "abc123",
+                  agent_summary: "Implemented the workflow context attachment."
+                })
+              ]
+            })
+          ]
+        })
+      ],
+      workflows_pagination: workflowPagination(1)
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <BugReportContext.Provider value={{
+          openBugReport: () => {},
+          registerBugReportAttachments: (attachments) => {
+            registeredAttachments = attachments
+            return () => {}
+          }
+        }}>
+          <MemoryRouter initialEntries={["/app-shell/jobs/1"]}>
+            <JobDetailView
+              activeTab="summary"
+              onSelectTab={() => {}}
+              payload={payload}
+              prefix="/app-shell"
+              queryKey={["jobs", "1", "detail", ""]}
+            />
+          </MemoryRouter>
+        </BugReportContext.Provider>
+      </QueryClientProvider>
+    )
+
+    await waitFor(() => expect(registeredAttachments).toHaveLength(1))
+    expect(registeredAttachments[0].label).toBe("Recent workflow context")
+
+    const file = await registeredAttachments[0].buildFile()
+    expect(file?.name).toBe("job-workflows-context.txt")
+    expect(file?.type).toBe("text/plain")
+    const text = await file!.text()
+    expect(text).toContain("Job: JOB-1")
+    expect(text).toContain("Title: Add origin chat link")
+    expect(text).toContain("Repository: acme/widgets")
+    expect(text).toContain("Workflow 1: WF-4")
+    expect(text).toContain("Trigger: initial")
+    expect(text).toContain("Kind: implement")
+    expect(text).toContain("Run 40")
+    expect(text).toContain("Head SHA: abc123")
+    expect(text).toContain("Summary: Implemented the workflow context attachment.")
   })
 
   it("shows why no pull request was opened for empty reconciliation work", () => {

@@ -28,6 +28,8 @@ import { formatCurrency, jobSlug, withRoutePrefix } from "./jobDetail/formatting
 import { latestWorkflowCoverage, workflowCreatedAtTime } from "./jobDetail/workflowArtifacts"
 import { WorkflowsTab } from "./jobDetail/WorkflowGraph"
 import { SourceTab } from "./jobDetail/SourceBrowser"
+import { useBugReportTrigger } from "../lib/bugReportContext"
+import { jobWorkflowContextBugReportAttachment } from "./jobDetail/bugReportWorkflowContext"
 
 export function JobDetailRoute() {
   const { t } = useT("jobs")
@@ -84,6 +86,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, activeTab,
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const [feedbackPanelOpen, setFeedbackPanelOpen] = useState(false)
   const command = useJobCommand(payload.job.id, queryKey, workflowsQueryKey, setNotice)
+  const bugReportTrigger = useBugReportTrigger()
   const title = payload.job.issue_title || jobSourceLabel(payload, t)
   const workflowAnchor = location.hash.startsWith("#workflow-") ? location.hash.slice(1) : null
   const renderedWorkflowIds = payload.workflows.map((workflow) => workflow.id).join(",")
@@ -128,6 +131,13 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, activeTab,
   useEffect(() => {
     setNotice(payload.message || null)
   }, [payload.job.id, payload.message])
+
+  useEffect(() => {
+    const attachment = jobWorkflowContextBugReportAttachment(payload)
+    if (!attachment) return undefined
+
+    return bugReportTrigger.registerBugReportAttachments([attachment])
+  }, [bugReportTrigger, payload])
 
   useEffect(() => {
     if (activeTab !== "workflows" || !workflowAnchor) return undefined

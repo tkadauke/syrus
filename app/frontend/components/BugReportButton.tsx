@@ -2,13 +2,14 @@ import { useMutation } from "@tanstack/react-query"
 import type { ChangeEvent, FormEvent, KeyboardEvent, ReactNode } from "react"
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react"
 import { createBugReport } from "../api/bugReports"
-import type { ChatMessageItem } from "../api/chats"
 import { useShakeToReport } from "../hooks/useShakeToReport"
 import { useT } from "../hooks/useT"
 import { CloseIcon } from "./CloseIcon"
 import { NoticeToast } from "./NoticeToast"
 import { errorMessage } from "../lib/errorMessage"
 import { getRecentErrors, type RecentError } from "../lib/errorRingBuffer"
+import type { BugReportOpenOptions, BugReportOptionalAttachment } from "../lib/bugReportOptionalAttachments"
+import { mergeOptionalAttachments } from "../lib/bugReportOptionalAttachments"
 
 type Html2Canvas = typeof import("html2canvas-pro").default
 type ScreenshotChoice = "viewport" | "fullPage" | "none"
@@ -30,7 +31,7 @@ type BugReportContext = {
 const MAX_FULL_PAGE_SCREENSHOT_PIXELS = 8_000_000
 const MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024
 const MAX_EXTRA_ATTACHMENTS = 9
-const TRANSCRIPT_PREVIEW_MAX_CHARS = 300
+const OPTIONAL_ATTACHMENT_PREVIEW_MAX_CHARS = 300
 const ACCEPTED_ATTACHMENT_TYPES = [
   "text/plain", "text/markdown", "text/x-markdown", "application/pdf",
   "image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml",
@@ -107,16 +108,17 @@ function collectContext(chatId?: number | null): BugReportContext {
 }
 
 export interface BugReportButtonHandle {
-  open: (messages?: ChatMessageItem[]) => void
+  open: (options?: BugReportOpenOptions) => void
 }
 
 export const BugReportButton = forwardRef<BugReportButtonHandle, {
   bugReportMode?: "direct_job" | "github_issue" | null
   chatId?: number | null
   context: string
+  pageAttachments?: BugReportOptionalAttachment[]
   position?: "bottom-left" | "bottom-right"
   reportIssueRepoSlug?: string | null
-}>(function BugReportButton({ bugReportMode, chatId, context, position = "bottom-right", reportIssueRepoSlug }, ref) {
+}>(function BugReportButton({ bugReportMode, chatId, context, pageAttachments = [], position = "bottom-right", reportIssueRepoSlug }, ref) {
   const { t } = useT("common")
   const [open, setOpen] = useState(false)
   const [capturing, setCapturing] = useState(false)
@@ -128,8 +130,8 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   const [captureError, setCaptureError] = useState<string | null>(null)
   const [attachments, setAttachments] = useState<File[]>([])
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
-  const [transcriptMessages, setTranscriptMessages] = useState<ChatMessageItem[]>([])
-  const [includeTranscript, setIncludeTranscript] = useState(false)
+  const [optionalAttachments, setOptionalAttachments] = useState<BugReportOptionalAttachment[]>([])
+  const [selectedOptionalAttachmentIds, setSelectedOptionalAttachmentIds] = useState<Set<string>>(new Set())
   const [notice, setNotice] = useState<ReactNode>(null)
   const [pos, setPos] = useState<ButtonPos>(() => clampPos(loadPos() ?? defaultPos(position)))
 
@@ -148,17 +150,13 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
 
   // Always-current reference to openDialog so the imperative handle never closes
   // over a stale version of the function.
-  const openDialogRef = useRef<((messages?: ChatMessageItem[]) => void) | null>(null)
+  const openDialogRef = useRef<((options?: BugReportOpenOptions) => void) | null>(null)
 
   const bugReport = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const allAttachments = [...attachments]
-      if (includeTranscript && transcriptMessages.length > 0) {
-        const text = serializeTranscript(transcriptMessages)
-        if (text.trim().length > 0) {
-          allAttachments.push(new File([text], "chat-transcript.txt", { type: "text/plain" }))
-        }
-      }
+      const generatedAttachments = await buildSelectedOptionalAttachments(optionalAttachments, selectedOptionalAttachmentIds)
+      allAttachments.push(...generatedAttachments)
       return createBugReport({
         title,
         description,
@@ -177,8 +175,8 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
       setAttachments([])
       setAttachmentError(null)
       setBugContext(null)
-      setTranscriptMessages([])
-      setIncludeTranscript(false)
+      setOptionalAttachments([])
+      setSelectedOptionalAttachmentIds(new Set())
 
       if (payload.issue_url) {
         const issueUrl = payload.issue_url
@@ -216,15 +214,16 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   useShakeToReport(() => { if (!capturing && !open) void openDialog() })
 
   // Keep the ref up to date so the imperative handle always calls the latest openDialog.
-  openDialogRef.current = (messages?: ChatMessageItem[]) => void openDialog(messages ?? [])
+  openDialogRef.current = (options?: BugReportOpenOptions) => void openDialog(options)
 
   useImperativeHandle(ref, () => ({
-    open(messages?: ChatMessageItem[]) {
-      openDialogRef.current?.(messages)
+    open(options?: BugReportOpenOptions) {
+      openDialogRef.current?.(options)
     }
   }), [])
 
-  async function openDialog(withMessages: ChatMessageItem[] = []) {
+  async function openDialog(options: BugReportOpenOptions = {}) {
+    const mergedOptionalAttachments = mergeOptionalAttachments(pageAttachments, options.optionalAttachments)
     bugReport.reset()
     setTitle(`${context} bug`)
     setDescription("")
@@ -233,8 +232,8 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
     setCaptureError(null)
     setAttachments([])
     setAttachmentError(null)
-    setTranscriptMessages(withMessages)
-    setIncludeTranscript(false)
+    setOptionalAttachments(mergedOptionalAttachments)
+    setSelectedOptionalAttachmentIds(new Set(mergedOptionalAttachments.filter((attachment) => attachment.defaultChecked).map((attachment) => attachment.id)))
     setNotice(null)
     setBugContext(collectContext(chatId))
     setCapturing(true)
@@ -283,8 +282,8 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
     setCaptureError(null)
     setAttachments([])
     setAttachmentError(null)
-    setTranscriptMessages([])
-    setIncludeTranscript(false)
+    setOptionalAttachments([])
+    setSelectedOptionalAttachmentIds(new Set())
     setOpen(false)
   }
 
@@ -318,8 +317,22 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
     setAttachmentError(null)
   }
 
+  function toggleOptionalAttachment(id: string, checked: boolean) {
+    setSelectedOptionalAttachmentIds((current) => {
+      const next = new Set(current)
+      if (checked) next.add(id)
+      else next.delete(id)
+      return next
+    })
+    setAttachmentError(null)
+  }
+
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (attachments.length + selectedOptionalAttachmentIds.size > MAX_EXTRA_ATTACHMENTS) {
+      setAttachmentError(t("bug_report.attachments_max_reached"))
+      return
+    }
     bugReport.mutate()
   }
 
@@ -389,10 +402,6 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
     }
     void openDialog()
   }
-
-  const visibleTranscriptMessages = transcriptMessages.filter(
-    (m) => (m.role === "user" || m.role === "assistant") && m.text.trim().length > 0
-  )
 
   const isGitHubIssueMode = bugReportMode === "github_issue"
   const submitLabel = bugReport.isPending
@@ -528,32 +537,34 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
                     ))}
                   </ul>
                 ) : null}
+                {optionalAttachments.length > 0 ? (
+                  <div className="space-y-2 rounded border border-gray-200 dark:border-gray-700 p-3">
+                    {optionalAttachments.map((attachment) => {
+                      const checked = selectedOptionalAttachmentIds.has(attachment.id)
+                      return (
+                        <label className="flex cursor-pointer items-start gap-2 text-sm text-gray-700 dark:text-gray-300" key={attachment.id}>
+                          <input
+                            checked={checked}
+                            className="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                            onChange={(e) => toggleOptionalAttachment(attachment.id, e.target.checked)}
+                            type="checkbox"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block font-medium text-gray-800 dark:text-gray-200">{attachment.label}</span>
+                            {attachment.description ? <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{attachment.description}</span> : null}
+                            {checked && attachment.preview ? (
+                              <span className="mt-2 block max-h-32 overflow-y-auto whitespace-pre-wrap rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-2 font-mono text-xs text-gray-600 dark:text-gray-400">
+                                {truncateForPreview(attachment.preview)}
+                              </span>
+                            ) : null}
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                ) : null}
               </div>
               <WhatsIncluded bugContext={bugContext} captures={captures} screenshotChoice={screenshotChoice} />
-
-              {visibleTranscriptMessages.length > 0 ? (
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-                    <input
-                      checked={includeTranscript}
-                      className="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
-                      onChange={(e) => setIncludeTranscript(e.target.checked)}
-                      type="checkbox"
-                    />
-                    {t("bug_report.include_transcript")}
-                  </label>
-                  {includeTranscript ? (
-                    <div aria-label={t("bug_report.transcript_preview")} className="max-h-48 overflow-y-auto rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 text-xs text-gray-600 dark:text-gray-400 space-y-3">
-                      {visibleTranscriptMessages.map((m, i) => (
-                        <div key={i}>
-                          <div className="font-semibold text-gray-700 dark:text-gray-300">[{m.role === "user" ? "User" : "Assistant"}]</div>
-                          <p className="mt-0.5 whitespace-pre-wrap font-mono">{truncateForPreview(m.text)}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
 
               {bugReport.isError ? (
                 <p className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 px-3 py-2 text-sm text-red-700 dark:text-red-300" role="alert">
@@ -828,14 +839,19 @@ function revokeCaptures(captures: ScreenshotCaptures) {
   })
 }
 
-function serializeTranscript(messages: ChatMessageItem[]): string {
-  return messages
-    .filter((m) => (m.role === "user" || m.role === "assistant") && m.text.trim().length > 0)
-    .map((m) => `[${m.role === "user" ? "User" : "Assistant"}]\n${m.text}`)
-    .join("\n\n")
+async function buildSelectedOptionalAttachments(attachments: BugReportOptionalAttachment[], selectedIds: Set<string>) {
+  const files: File[] = []
+
+  for (const attachment of attachments) {
+    if (!selectedIds.has(attachment.id)) continue
+    const file = await attachment.buildFile()
+    if (file) files.push(file)
+  }
+
+  return files
 }
 
 function truncateForPreview(text: string): string {
-  if (text.length <= TRANSCRIPT_PREVIEW_MAX_CHARS) return text
-  return text.slice(0, TRANSCRIPT_PREVIEW_MAX_CHARS) + "…"
+  if (text.length <= OPTIONAL_ATTACHMENT_PREVIEW_MAX_CHARS) return text
+  return `${text.slice(0, OPTIONAL_ATTACHMENT_PREVIEW_MAX_CHARS)}...`
 }

@@ -8,6 +8,8 @@ import type { BugReportPayload } from "../api/bugReports"
 import { getRecentErrors } from "../lib/errorRingBuffer"
 import type { ChatMessageItem } from "../api/chats"
 import html2canvasModule from "html2canvas-pro"
+import { chatTranscriptBugReportAttachment } from "../lib/chatBugReportAttachments"
+import type { BugReportOptionalAttachment } from "../lib/bugReportOptionalAttachments"
 
 vi.mock("../api/bugReports", () => ({
   createBugReport: vi.fn()
@@ -42,6 +44,7 @@ function renderButton(props: {
   context?: string
   chatId?: number | null
   bugReportMode?: "direct_job" | "github_issue" | null
+  pageAttachments?: BugReportOptionalAttachment[]
 } = {}) {
   const ref = createRef<BugReportButtonHandle>()
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
@@ -51,6 +54,11 @@ function renderButton(props: {
     </QueryClientProvider>
   )
   return ref
+}
+
+function reportOptions(messages: ChatMessageItem[]) {
+  const attachment = chatTranscriptBugReportAttachment(messages)
+  return { optionalAttachments: attachment ? [attachment] : [] }
 }
 
 function getBugButton() {
@@ -408,7 +416,7 @@ describe("BugReportButton", () => {
     it("shows the transcript checkbox", async () => {
       const ref = renderButton()
 
-      ref.current?.open(sampleMessages)
+      ref.current?.open(reportOptions(sampleMessages))
 
       await screen.findByRole("checkbox", { name: /include chat transcript/i })
     })
@@ -416,44 +424,42 @@ describe("BugReportButton", () => {
     it("does not show transcript preview when checkbox is unchecked (default)", async () => {
       const ref = renderButton()
 
-      ref.current?.open(sampleMessages)
+      ref.current?.open(reportOptions(sampleMessages))
 
       await screen.findByRole("checkbox", { name: /include chat transcript/i })
-      expect(screen.queryByText("[User]")).not.toBeInTheDocument()
-      expect(screen.queryByText("[Assistant]")).not.toBeInTheDocument()
+      expect(screen.queryByText(/\[User\] Hello, I found a bug\./)).not.toBeInTheDocument()
+      expect(screen.queryByText(/\[Assistant\] Thanks for reporting!/)).not.toBeInTheDocument()
     })
 
     it("shows transcript preview when checkbox is checked", async () => {
       const ref = renderButton()
 
-      ref.current?.open(sampleMessages)
+      ref.current?.open(reportOptions(sampleMessages))
 
       const checkbox = await screen.findByRole("checkbox", { name: /include chat transcript/i })
       fireEvent.click(checkbox)
 
-      expect(screen.getByText("[User]")).toBeInTheDocument()
-      expect(screen.getByText("Hello, I found a bug.")).toBeInTheDocument()
-      expect(screen.getByText("[Assistant]")).toBeInTheDocument()
-      expect(screen.getByText("Thanks for reporting!")).toBeInTheDocument()
+      expect(screen.getByText(/\[User\] Hello, I found a bug\./)).toBeInTheDocument()
+      expect(screen.getByText(/\[Assistant\] Thanks for reporting!/)).toBeInTheDocument()
     })
 
     it("filters tool_use and empty messages from the preview", async () => {
       const ref = renderButton()
 
-      ref.current?.open(sampleMessages)
+      ref.current?.open(reportOptions(sampleMessages))
 
       const checkbox = await screen.findByRole("checkbox", { name: /include chat transcript/i })
       fireEvent.click(checkbox)
 
-      // Only user + assistant messages appear (the tool_use row is skipped)
-      const labels = screen.getAllByText(/^\[(User|Assistant)\]$/)
-      expect(labels).toHaveLength(2)
+      expect(screen.getByText(/\[User\] Hello, I found a bug\./)).toBeInTheDocument()
+      expect(screen.getByText(/\[Assistant\] Thanks for reporting!/)).toBeInTheDocument()
+      expect(screen.queryByText(/\[Tool/)).not.toBeInTheDocument()
     })
 
     it("submits without transcript file when checkbox is unchecked", async () => {
       const ref = renderButton()
 
-      ref.current?.open(sampleMessages)
+      ref.current?.open(reportOptions(sampleMessages))
 
       await screen.findByRole("dialog")
       fireEvent.click(screen.getByRole("button", { name: /create job/i }))
@@ -469,7 +475,7 @@ describe("BugReportButton", () => {
     it("submits with a transcript file when checkbox is checked", async () => {
       const ref = renderButton()
 
-      ref.current?.open(sampleMessages)
+      ref.current?.open(reportOptions(sampleMessages))
 
       const checkbox = await screen.findByRole("checkbox", { name: /include chat transcript/i })
       fireEvent.click(checkbox)
@@ -488,7 +494,7 @@ describe("BugReportButton", () => {
     it("includes user and assistant messages in the transcript file content", async () => {
       const ref = renderButton()
 
-      ref.current?.open(sampleMessages)
+      ref.current?.open(reportOptions(sampleMessages))
 
       const checkbox = await screen.findByRole("checkbox", { name: /include chat transcript/i })
       fireEvent.click(checkbox)
@@ -509,7 +515,7 @@ describe("BugReportButton", () => {
     it("does not include tool_use messages in the transcript file", async () => {
       const ref = renderButton()
 
-      ref.current?.open(sampleMessages)
+      ref.current?.open(reportOptions(sampleMessages))
 
       const checkbox = await screen.findByRole("checkbox", { name: /include chat transcript/i })
       fireEvent.click(checkbox)
@@ -525,11 +531,79 @@ describe("BugReportButton", () => {
     })
   })
 
+  describe("optional attachments", () => {
+    it("does not submit an unchecked generated attachment", async () => {
+      renderButton({
+        pageAttachments: [{
+          id: "diagnostics",
+          label: "Diagnostics",
+          preview: "diagnostic preview",
+          defaultChecked: false,
+          buildFile: () => new File(["diagnostic body"], "diagnostics.txt", { type: "text/plain" })
+        }]
+      })
+
+      await openDialog()
+      expect(screen.getByRole("checkbox", { name: /diagnostics/i })).not.toBeChecked()
+      fireEvent.click(screen.getByRole("button", { name: /create job/i }))
+
+      await waitFor(() => {
+        expect(bugReportsApi.createBugReport).toHaveBeenCalledTimes(1)
+        const [input] = vi.mocked(bugReportsApi.createBugReport).mock.calls[0]
+        expect((input.attachments ?? []).some((file: File) => file.name === "diagnostics.txt")).toBe(false)
+      })
+    })
+
+    it("submits a checked generated attachment with its filename, type, and content", async () => {
+      renderButton({
+        pageAttachments: [{
+          id: "diagnostics",
+          label: "Diagnostics",
+          preview: "diagnostic preview",
+          defaultChecked: true,
+          buildFile: () => new File(["diagnostic body"], "diagnostics.txt", { type: "text/plain" })
+        }]
+      })
+
+      await openDialog()
+      expect(screen.getByText("diagnostic preview")).toBeInTheDocument()
+      fireEvent.click(screen.getByRole("button", { name: /create job/i }))
+
+      await waitFor(async () => {
+        expect(bugReportsApi.createBugReport).toHaveBeenCalledTimes(1)
+        const [input] = vi.mocked(bugReportsApi.createBugReport).mock.calls[0]
+        const generatedFile = (input.attachments ?? []).find((file: File) => file.name === "diagnostics.txt")
+        expect(generatedFile).toBeDefined()
+        expect(generatedFile?.type).toBe("text/plain")
+        expect(await generatedFile!.text()).toBe("diagnostic body")
+      })
+    })
+
+    it("counts selected generated attachments against the attachment limit", async () => {
+      renderButton({
+        pageAttachments: [{
+          id: "diagnostics",
+          label: "Diagnostics",
+          defaultChecked: true,
+          buildFile: () => new File(["diagnostic body"], "diagnostics.txt", { type: "text/plain" })
+        }]
+      })
+
+      await openDialog()
+      const files = Array.from({ length: 9 }, (_, index) => new File([`file ${index}`], `file-${index}.txt`, { type: "text/plain" }))
+      fireEvent.change(screen.getByLabelText(/add files/i), { target: { files } })
+      fireEvent.click(screen.getByRole("button", { name: /create job/i }))
+
+      expect(await screen.findByText("You can attach at most 9 additional files.")).toBeInTheDocument()
+      expect(bugReportsApi.createBugReport).not.toHaveBeenCalled()
+    })
+  })
+
   describe("when opened via handle without messages", () => {
     it("does not show the transcript section", async () => {
       const ref = renderButton()
 
-      ref.current?.open([])
+      ref.current?.open({ optionalAttachments: [] })
 
       await screen.findByRole("dialog")
       expect(screen.queryByRole("checkbox", { name: /include chat transcript/i })).not.toBeInTheDocument()

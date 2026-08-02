@@ -1,12 +1,14 @@
 import { createContext, useContext } from "react"
-import type { ChatMessageItem } from "../api/chats"
+import type { BugReportOpenOptions, BugReportOptionalAttachment } from "./bugReportOptionalAttachments"
 
 interface BugReportContextValue {
-  openBugReport: (messages?: ChatMessageItem[]) => void
+  openBugReport: (options?: BugReportOpenOptions) => void
+  registerBugReportAttachments: (attachments: BugReportOptionalAttachment[]) => () => void
 }
 
 export const BugReportContext = createContext<BugReportContextValue>({
-  openBugReport: () => {}
+  openBugReport: () => {},
+  registerBugReportAttachments: () => () => {}
 })
 
 export function useBugReportTrigger() {

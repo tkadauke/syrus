@@ -18,6 +18,7 @@ import { StopIcon } from "../../components/StopIcon"
 import { filterSlashCommands, findSlashCommand, slashCommandDescription, slashCommandPrompt, slashCommandQuery, slashCommandSignature, type SlashCommand, type SlashCommandMatch } from "../../lib/slashCommands"
 import { formatScheduledTime, parseScheduleCommandArgs } from "../../lib/scheduleTime"
 import { useBugReportTrigger } from "../../lib/bugReportContext"
+import { chatTranscriptBugReportAttachment } from "../../lib/chatBugReportAttachments"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { type ChatQueryKey, CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TOTAL_MAX_BYTES, CHAT_COMPOSE_MAX_ROWS, CHAT_DRAFT_KEY_PREFIX, GHOST_SUGGESTION_TAB_GRACE_MS } from "./constants"
@@ -642,7 +643,10 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     }
 
     if (command.name === "/report") {
-      bugReportTrigger.openBugReport(payload.messages)
+      const transcriptAttachment = chatTranscriptBugReportAttachment(payload.messages)
+      bugReportTrigger.openBugReport({
+        optionalAttachments: transcriptAttachment ? [transcriptAttachment] : []
+      })
       setText("")
       onNotice(null)
       return
