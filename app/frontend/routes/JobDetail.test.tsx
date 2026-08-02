@@ -183,7 +183,7 @@ describe("JobDetailView", () => {
     expect(screen.queryByRole("link", { name: "View in chat" })).not.toBeInTheDocument()
   })
 
-  it("renders configured deployment stages below the job state badge", () => {
+  it("renders configured deployment stages at the top of the details section", () => {
     const reachedAt = "2026-07-30T12:00:00Z"
     renderJobDetail(jobPayload({
       deployment_stages: [
@@ -199,6 +199,13 @@ describe("JobDetailView", () => {
     expect(within(pipeline).getByText("Released to Public")).toBeInTheDocument()
     expect(pipeline.querySelector(`time[datetime="${reachedAt}"]`)).toBeInTheDocument()
     expect(within(pipeline).getAllByText("Pending")).toHaveLength(2)
+
+    const details = screen.getByRole("heading", { name: "Details" }).closest("section")
+    expect(details).toContainElement(pipeline)
+    const stateLabel = within(details as HTMLElement).getByText("State")
+    expect(
+      pipeline.compareDocumentPosition(stateLabel) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
   })
 
   it("omits deployment stages when the payload does not include them", () => {

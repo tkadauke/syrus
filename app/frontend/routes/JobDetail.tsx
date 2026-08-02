@@ -158,7 +158,6 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, activeTab,
               payload={payload}
             />
           </div>
-          {payload.deployment_stages?.length ? <DeploymentStagePipeline stages={payload.deployment_stages} /> : null}
           <div className="flex flex-wrap items-center gap-2">
             <p className="mt-1 break-words text-sm text-gray-600 dark:text-gray-300">
               <Link className="font-mono hover:underline" to={withRoutePrefix(payload.repository.repository_path, prefix)}>{payload.repository.slug}</Link>
@@ -341,6 +340,7 @@ function SummaryTab({ payload, command, prefix, queryKey }: { payload: JobDetail
         <div className="space-y-4">
           <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900" data-tour="job-pr-link">
             <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("section_details")}</h2>
+            {payload.deployment_stages?.length ? <DeploymentStagePipeline stages={payload.deployment_stages} /> : null}
             <div className="mt-3 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
               <KeyValue label={t("detail_state")}><StatusPill state={payload.job.summary_state} /></KeyValue>
               <KeyValue label={t("detail_owner")}><JobOwnerLabel command={command} payload={payload} prefix={prefix} /></KeyValue>
