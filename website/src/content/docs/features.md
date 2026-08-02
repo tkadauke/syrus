@@ -381,8 +381,9 @@ Dashboard and repository bulk retry choose a narrower recovery path first:
 resume a failed agentic step when possible, retry the failed step while its
 workspace remains available, retry or rebuild landing workflows for landing
 failures, and use a full implementation retry only as the fallback. Bulk retry
-responses include action and skipped-reason counts, including active Runs and
-open provider circuits.
+responses include action and skipped-reason counts, including active Runs,
+already-current passing PRs, duplicate retry workflows, and open provider
+circuits.
 Proposal cards show dependency status before the title: either dependency
 proposal links with confirmed or pending badges, resolved Epic proposal links,
 or an explicit no-dependencies note.

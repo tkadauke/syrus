@@ -30,6 +30,7 @@ module Steps
     def call
       workspace.setup
       verify_coding_handoff_snapshot!
+      workflow.set_artifact!("publication_branch", workspace.branch_name)
       log("pr_open: checking PR open preconditions (#{workflow.slug})")
 
       if empty_reconciliation_patch?
@@ -39,7 +40,7 @@ module Steps
       end
 
       log("pr_open: pushing branch and opening PR (#{workflow.slug})")
-      push_branch
+      return if push_branch == :superseded
 
       if job.pr_number.present?  # idempotent: upstream PR already open (non-fork or post-approval)
         log("pr_open: branch pushed for existing PR ##{job.pr_number}")
@@ -253,11 +254,14 @@ module Steps
     def push_branch
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
       push_url = repository.authenticated_push_url(GithubClient.for(repository: repository, user: job.user).access_token)
-      verify_existing_pr_branch_not_diverged!(git, push_url) if job.pr_number.present?
+      return :superseded if job.pr_number.present? && verify_existing_pr_branch_not_diverged!(git, push_url) == :superseded
       git.run("push", push_url, "HEAD:refs/heads/#{workspace.branch_name}",
               chdir: workspace.path.to_s)
+      :pushed
     rescue GitRunner::GitError => e
       raise unless job.pr_number.present? && push_rejected?(e)
+
+      return supersede_stale_publication!("push rejected after a newer workflow updated the PR branch") if stale_publication_workflow?
 
       record_branch_divergence!(git, e.message)
       raise BranchDiverged, branch_divergence_message
@@ -270,6 +274,8 @@ module Steps
       local_sha = current_head_sha(git)
       return if remote_sha == local_sha
       return if ancestor?(git, remote_sha, "HEAD")
+
+      return supersede_stale_publication!("remote PR branch moved because a newer workflow updated it", remote_sha: remote_sha, local_sha: local_sha) if stale_publication_workflow?
 
       record_branch_divergence!(git, "remote PR branch moved before push", remote_sha: remote_sha, local_sha: local_sha)
       raise BranchDiverged, branch_divergence_message
@@ -305,6 +311,26 @@ module Steps
       }.compact)
       artifact = workflow.artifact("branch_divergence")
       log("pr_open: branch diverged for #{workspace.branch_name}; remote=#{artifact['remote_sha']} local=#{artifact['local_sha']}")
+    end
+
+    def stale_publication_workflow?
+      workflow.reload.superseded_by_newer_successful_publication?
+    end
+
+    def supersede_stale_publication!(message, remote_sha: nil, local_sha: nil)
+      workflow.set_artifact!("retry_cancelled_reason", "superseded")
+      workflow.set_artifact!("retry_cancelled_at", Time.current.iso8601)
+      workflow.set_artifact!("superseded_publication", {
+        "branch" => workspace.branch_name,
+        "remote_sha" => remote_sha.presence,
+        "local_sha" => local_sha.presence,
+        "detected_at" => Time.current.iso8601,
+        "message" => message
+      }.compact)
+      log("pr_open: #{workflow.slug} superseded; #{message}")
+      workflow.cancel! if workflow.may_cancel?
+      workflow.save!
+      :superseded
     end
 
     def remote_branch_sha(git)

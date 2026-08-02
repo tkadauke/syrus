@@ -101,6 +101,36 @@ RSpec.describe RetryWorkflowEnqueuer do
     }.not_to change { job.workflows.where(trigger_kind: "retry").count }
   end
 
+  it "rejects jobs with an active retry workflow that has not started a run yet" do
+    finish_current_run!
+    Workflows::Retry.instantiate(job: job, agent_provider: job.agent_provider)
+
+    expect {
+      result = described_class.call(job: job)
+      expect(result).not_to be_success
+      expect(result.error).to eq("A retry workflow is already queued or running for this Job.")
+    }.not_to change { job.workflows.where(trigger_kind: "retry").count }
+  end
+
+  it "does not enqueue implementation retry when the PR is already current and passing" do
+    finish_current_run!(state: "failed")
+    job.update!(
+      state: "failed",
+      pr_number: 77,
+      branch_name: "syrus/direct-#{job.id}",
+      commits_behind_base: 0,
+      pr_checks_state: "passing"
+    )
+
+    expect {
+      result = described_class.call(job: job)
+      expect(result).not_to be_success
+      expect(result.error).to eq("PR is already current and checks are passing.")
+    }.not_to change { job.workflows.where(trigger_kind: "retry").count }
+
+    expect(job.reload).to be_implemented
+  end
+
   it "rejects retries before the initial workflow has run" do
     job.initial_run.destroy!
 

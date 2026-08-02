@@ -134,4 +134,19 @@ RSpec.describe SmartRetryEnqueuer do
     expect(result).not_to be_success
     expect(result.skipped_by_reason).to eq(closed: 1, approved: 1, no_change_needed: 1)
   end
+
+  it "skips jobs whose PR is already current and passing" do
+    ready_job, = failed_job
+    ready_job.update!(
+      pr_number: 77,
+      branch_name: "syrus/direct-ready",
+      commits_behind_base: 0,
+      pr_checks_state: "passing"
+    )
+
+    result = described_class.call(job: ready_job, automatic: true)
+
+    expect(result).not_to be_success
+    expect(result.reason).to eq(:pr_ready)
+  end
 end

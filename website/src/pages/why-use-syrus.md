@@ -48,7 +48,7 @@ Syrus makes those responsibilities part of the system:
 - **summarize** and **summarize_amend** collect PR copy through structured
   MCP output
 - **pr_open**, **push**, and **force_push** handle the deterministic GitHub
-  side
+  side, including stale duplicate retry publication races
 
 That separation keeps the agent focused on the code change and keeps the
 harness responsible for state, Git, and PR mechanics.

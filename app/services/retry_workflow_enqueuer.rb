@@ -18,15 +18,33 @@ class RetryWorkflowEnqueuer
   def call
     validate_provider_validation!
     eligibility = RetryWorkflowEligibility.call(job: job)
+    reconcile_ready_pr! if eligibility.code == "pr_ready"
     return failure(eligibility.message) unless eligibility.eligible?
     return failure("That agent is not available for retry.") unless agent_provider_allowed?
     return circuit_failure if automatic? && provider_circuit.open?
 
     job.sync_skip_prepare_from_source!
-    state_error = prepare_job_state_for_retry
-    return failure(state_error) if state_error
 
-    workflow = Workflows::Retry.instantiate(job: job, artifacts: artifacts, agent_provider: agent_provider)
+    failure_result = nil
+    workflow = nil
+    job.with_lock do
+      job.reload
+      eligibility = RetryWorkflowEligibility.call(job: job)
+      reconcile_ready_pr! if eligibility.code == "pr_ready"
+      if eligibility.eligible?
+        state_error = prepare_job_state_for_retry
+        if state_error
+          failure_result = failure(state_error)
+        else
+          workflow = Workflows::Retry.instantiate(job: job, artifacts: artifacts, agent_provider: agent_provider)
+        end
+      else
+        failure_result = failure(eligibility.message)
+      end
+    end
+
+    return failure_result if failure_result
+
     StepDispatcher.start_workflow(workflow)
     Result.new(workflow: workflow, error: nil, circuit: nil)
   end
@@ -97,6 +115,14 @@ class RetryWorkflowEnqueuer
     end
 
     nil
+  end
+
+  def reconcile_ready_pr!
+    return unless job.failed? && job.may_retry_after_failure?
+
+    job.retry_after_failure!
+    job.mark_implemented! if job.may_mark_implemented?
+    job.save!
   end
 
   def failure(message, circuit: nil)

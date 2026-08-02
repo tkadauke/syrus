@@ -88,6 +88,45 @@ RSpec.describe RetryWorkflowEligibility do
       expect(result.code).to eq("active_run")
     end
 
+    it "is ineligible when another retry workflow is already active" do
+      job = make_job
+      make_started_workflow(job)
+      Workflow.create!(job: job, trigger_kind: "retry", state: "queued")
+
+      result = described_class.call(job: job)
+
+      expect(result).not_to be_eligible
+      expect(result.code).to eq("duplicate_retry")
+    end
+
+    it "is ineligible when the PR is already current and passing" do
+      job = make_job(
+        pr_number: 77,
+        branch_name: "syrus/direct-ready",
+        commits_behind_base: 0,
+        pr_checks_state: "passing"
+      )
+      make_started_workflow(job)
+
+      result = described_class.call(job: job)
+
+      expect(result).not_to be_eligible
+      expect(result.code).to eq("pr_ready")
+    end
+
+    it "is ineligible when the provided retry workflow has been superseded by a newer success" do
+      job = make_job(pr_number: 77, branch_name: "syrus/direct-77")
+      make_started_workflow(job)
+      older = make_workflow(job, trigger_kind: "retry", state: "running")
+      newer = make_workflow(job, trigger_kind: "retry", state: "succeeded")
+      newer.update!(artifacts: { "publication_branch" => "syrus/direct-77" })
+
+      result = described_class.call(job: job, workflow: older)
+
+      expect(result).not_to be_eligible
+      expect(result.code).to eq("superseded")
+    end
+
     it "is ineligible when the initial workflow has never run" do
       job = make_job
       # Create an initial workflow in queued state with no runs

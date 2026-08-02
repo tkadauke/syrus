@@ -27,10 +27,12 @@ failed step while the workflow workspace is available, retry or rebuild landing
 workflows for landing failures, and only fall back to a full
 `Workflows::Retry` implementation retry when narrower recovery is unavailable.
 
-Bulk retry skips closed Jobs, approved Jobs, no-change-needed Jobs, Jobs with
-active Runs, and automatic retries blocked by the provider circuit breaker. The
-API response includes `retry_summary.actions` and `retry_summary.skipped`
-buckets so operators can see how many Jobs took each path.
+Bulk retry skips closed Jobs, approved Jobs, no-change-needed Jobs, Jobs whose
+open PR is already current with base and passing checks, Jobs with active Runs,
+Jobs with an active queued/running retry Workflow, and automatic retries blocked
+by the provider circuit breaker. The API response includes
+`retry_summary.actions` and `retry_summary.skipped` buckets so operators can see
+how many Jobs took each path.
 
 The explicit Job detail `Retry implementation` action remains available for
 operators who intentionally want a full implementation retry.

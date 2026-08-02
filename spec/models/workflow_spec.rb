@@ -91,6 +91,32 @@ RSpec.describe Workflow do
       expect(wf).to be_failed
       expect(wf.finished_at).to be_present
     end
+
+    it "cancels older active retry workflows after a newer workflow publishes the same PR branch" do
+      job.update!(state: "implemented", pr_number: 77, branch_name: "syrus/direct-#{job.id}")
+      older = described_class.create!(
+        job: job,
+        trigger_kind: "retry",
+        state: "queued",
+        artifacts: { "publication_branch" => job.branch_name }
+      )
+      Step.create!(workflow: older, kind: "implement", position: 0)
+      newer = described_class.create!(
+        job: job,
+        trigger_kind: "retry",
+        state: "running",
+        started_at: 1.minute.ago,
+        artifacts: { "publication_branch" => job.branch_name }
+      )
+      allow(WorkflowWorkspace).to receive(:cleanup_for)
+
+      newer.succeed!
+      newer.save!
+
+      expect(older.reload).to be_cancelled
+      expect(older.artifact("retry_cancelled_reason")).to eq("superseded")
+      expect(older.artifact("superseded_by_workflow_id")).to eq(newer.id)
+    end
   end
 
   describe "feedback addressed watermark" do

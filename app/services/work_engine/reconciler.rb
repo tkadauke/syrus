@@ -732,6 +732,7 @@ module WorkEngine
 
         nonretryable = classification.retryable == false || NONRETRYABLE_CLASSIFICATIONS.include?(classification.classification)
         next unless nonretryable
+        next if stale_publication_divergence?(run, classification)
 
         issue(
           kind: :nonretryable_semantic_git_failure,
@@ -748,6 +749,17 @@ module WorkEngine
           explanation: "Run ##{run.id} failed with a nonretryable semantic or git classification."
         )
       end
+    end
+
+    def stale_publication_divergence?(run, classification)
+      return false unless classification.classification == "git_non_fast_forward"
+
+      workflow = run.step&.workflow
+      return false unless workflow
+      return true if workflow.artifact("retry_cancelled_reason") == "superseded"
+      return true if workflow.artifact("superseded_publication").present?
+
+      workflow.superseded_by_newer_successful_publication?
     end
 
     def classify_cleanup_blockers

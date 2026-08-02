@@ -402,6 +402,55 @@ RSpec.describe Steps::PrOpen, :ci_only do
     expect(git).not_to have_received(:run).with("push", anything, anything, chdir: anything)
   end
 
+  it "cancels an older retry pr_open when a newer workflow already published the PR branch" do
+    job.update!(state: "running", pr_number: 77, branch_name: "syrus/issue-42-#{job.id}")
+    newer = Workflow.create!(job: job, trigger_kind: "retry", agent_provider: workflow.agent_provider)
+    newer.update!(state: "succeeded", artifacts: { "publication_branch" => "syrus/issue-42-#{job.id}" })
+    pr_open_run = Run.create!(
+      job: job,
+      step: pr_open_step,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider
+    )
+    handler = described_class.new(pr_open_run)
+    path = Pathname.new("/tmp/syrus-pr-open-spec")
+    workspace = instance_double(WorkflowWorkspace, branch_name: "syrus/issue-42-#{job.id}", path: path)
+    client = instance_double(GithubClient, access_token: "token")
+    git = instance_double(GitRunner)
+    push_url = repository.authenticated_push_url("token")
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(GithubClient).to receive(:for).with(repository: repository, user: job.user).and_return(client)
+    allow(git).to receive(:run).with(
+      "fetch",
+      push_url,
+      "+refs/heads/syrus/issue-42-#{job.id}:refs/remotes/origin/syrus/issue-42-#{job.id}",
+      chdir: path.to_s
+    ).and_return("")
+    allow(git).to receive(:run)
+      .with("rev-parse", "refs/remotes/origin/syrus/issue-42-#{job.id}", chdir: path.to_s)
+      .and_return("remote-sha\n")
+    allow(git).to receive(:run)
+      .with("rev-parse", "HEAD", chdir: path.to_s)
+      .and_return("local-sha\n")
+    allow(git).to receive(:run)
+      .with("merge-base", "--is-ancestor", "remote-sha", "HEAD", chdir: path.to_s)
+      .and_raise(GitRunner::GitError.new([ "merge-base" ], 1, "not ancestor"))
+
+    expect(handler.send(:push_branch)).to eq(:superseded)
+
+    expect(workflow.reload).to be_cancelled
+    expect(workflow.artifact("retry_cancelled_reason")).to eq("superseded")
+    expect(workflow.artifact("superseded_publication")).to include(
+      "branch" => "syrus/issue-42-#{job.id}",
+      "remote_sha" => "remote-sha",
+      "local_sha" => "local-sha"
+    )
+    expect(workflow.artifact("branch_divergence")).to be_nil
+    expect(git).not_to have_received(:run).with("push", anything, anything, chdir: anything)
+  end
+
   context "for coding handoff workflows" do
     let(:workflow) do
       Workflow.create!(

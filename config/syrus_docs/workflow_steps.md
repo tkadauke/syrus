@@ -94,6 +94,12 @@ Agentic. Asks the agent to call `submit_test_plan` with reviewer-facing test ste
 
 Non-agentic. Pushes the branch and opens the PR using the title/body from workflow artifacts. Falls back to `PrSummarizer`, then to a templated default if no agent-authored copy is available.
 
+When a duplicate retry workflow reaches `pr_open` after a newer workflow has
+already published the same PR branch, Syrus marks the older workflow
+superseded/cancelled instead of surfacing a nonretryable branch-divergence
+failure. Real branch divergence with no newer successful publisher still
+requires operator review.
+
 ## Push and rebase steps
 
 ### push

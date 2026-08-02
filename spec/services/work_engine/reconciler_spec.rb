@@ -1062,6 +1062,28 @@ RSpec.describe WorkEngine::Reconciler do
     expect(repair_plan.preconditions["step_repair_semantics"]).to eq("publication")
   end
 
+  it "does not escalate stale pr_open divergence after a newer workflow published the same branch" do
+    job.update!(pr_number: 77, branch_name: "syrus/direct-#{job.id}")
+    step.update_columns(kind: "pr_open", state: "failed", finished_at: Time.current)
+    workflow.update_columns(state: "failed", finished_at: Time.current)
+    run.update_columns(state: "failed", finished_at: Time.current)
+    RunFailureClassification.create!(
+      run: run,
+      classification: "git_non_fast_forward",
+      retryable: false,
+      confidence: 0.95,
+      reason: "branch changed before push",
+      classified_at: Time.current
+    )
+    newer = Workflow.create!(job: job, trigger_kind: "retry", agent_provider: workflow.agent_provider)
+    newer.update!(state: "succeeded", artifacts: { "publication_branch" => job.branch_name })
+
+    result = reconcile(run_id: run.id)
+
+    expect(kind(result, :nonretryable_semantic_git_failure)).to be_nil
+    expect(plan(result, :operator_review_nonretryable_failure)).to be_nil
+  end
+
   it "classifies provider rate limits from the circuit breaker" do
     decision = ProviderCircuitBreaker::Decision.new(
       provider: "claude",

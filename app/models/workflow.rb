@@ -66,6 +66,7 @@ class Workflow < ApplicationRecord
         self.finished_at = Time.current
         cleanup_workspace!
         propagate_succeed_to_job!
+        cancel_superseded_retry_workflows!
         dispatch_hook(:after_success)
       }
     end
@@ -352,6 +353,40 @@ class Workflow < ApplicationRecord
     job.workflows.maximum(:id) == id
   end
 
+  def superseded_by_newer_successful_publication?
+    return false unless job.pr_number.present? || job.fork_review_pr_number.present?
+    return false unless publication_branch_name.present?
+
+    job.workflows
+       .where(state: "succeeded")
+       .where("id > ?", id)
+       .any? do |candidate|
+         publication_branch_name_for(candidate) == publication_branch_name
+       end
+  end
+
+  def cancel_superseded_retry_workflows!
+    return false unless job.pr_number.present? || job.fork_review_pr_number.present?
+    return false unless publication_branch_name.present?
+
+    job.workflows
+       .active
+       .where(trigger_kind: "retry")
+       .where("id < ?", id)
+       .find_each do |candidate|
+         next unless publication_branch_name_for(candidate) == publication_branch_name
+
+         candidate.artifacts = (candidate.artifacts || {}).merge(
+           "retry_cancelled_reason" => "superseded",
+           "retry_cancelled_at" => Time.current.iso8601,
+           "superseded_by_workflow_id" => id
+         )
+         candidate.cancel! if candidate.may_cancel?
+         candidate.save!
+       end
+    true
+  end
+
   # Read-or-default convenience for artifact access. Nil-safe
   # against a freshly-created Workflow whose `artifacts` column
   # hasn't been touched yet.
@@ -498,6 +533,14 @@ class Workflow < ApplicationRecord
 
 
   private
+
+  def publication_branch_name
+    artifact("publication_branch").presence || job.branch_name.presence
+  end
+
+  def publication_branch_name_for(candidate)
+    candidate.artifact("publication_branch").presence || candidate.job.branch_name.presence
+  end
 
   def default_user_from_job
     self.user ||= job&.user
