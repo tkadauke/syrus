@@ -74,7 +74,7 @@ describe("ConnectedPlatformsRoute", () => {
 
   beforeEach(() => {
     mockConfirm = vi.fn().mockResolvedValue(true)
-    vi.mocked(useConfirm).mockReturnValue({ confirm: mockConfirm, dialog: <></> })
+    vi.mocked(useConfirm).mockReturnValue({ confirm: mockConfirm as any, dialog: <></> })
   })
 
   afterEach(() => {

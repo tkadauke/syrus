@@ -43,7 +43,7 @@ function ConnectedPlatformsPanel({ onNotice }: { onNotice: (message: string | nu
   })
 
   if (result.isPending) return <PanelMessage>{t("connected_platforms.loading")}</PanelMessage>
-  if (result.isError) return <PanelMessage tone="error">{errorMessage(result.error, t("connected_platforms.error_load"))}</PanelMessage>
+  if (result.isError) return <PanelMessage tone="error">{errorMessage(result.error, t("connected_platforms.load_error"))}</PanelMessage>
 
   return <PlatformsView onNotice={onNotice} payload={result.data} />
 }
@@ -111,7 +111,7 @@ function PlatformRow({
       onNotice(null)
     },
     onError: (err) => {
-      setLinkError(errorMessage(err, t("connected_platforms.error_start_linking", { platform: label })))
+      setLinkError(errorMessage(err, t("connected_platforms.connect_error", { platform: label })))
     }
   })
 
@@ -131,7 +131,7 @@ function PlatformRow({
           {identity ? (
             <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
               {identity.external_handle
-                ? t("connected_platforms.connected_as_since", { handle: identity.external_handle, date: new Date(identity.linked_at).toLocaleDateString() })
+                ? t("connected_platforms.connected_as", { handle: identity.external_handle, date: new Date(identity.linked_at).toLocaleDateString() })
                 : t("connected_platforms.connected_since", { date: new Date(identity.linked_at).toLocaleDateString() })}
             </p>
           ) : (
@@ -239,7 +239,7 @@ function LinkingInstructions({
 
   return (
     <div className="mt-3 rounded border border-blue-100 dark:border-blue-900/60 bg-blue-50 dark:bg-blue-950/40 p-3 text-sm text-blue-950 dark:text-blue-100">
-      <p className="font-medium">{t("connected_platforms.how_to_connect")}</p>
+      <p className="font-medium">{t("connected_platforms.instructions_heading")}</p>
       <p className="mt-1 text-xs">{tokenPayload.instructions.text}</p>
       {tokenPayload.instructions.bot_handle ? (
         <div className="mt-2 flex items-center gap-2">
@@ -255,7 +255,7 @@ function LinkingInstructions({
           </button>
         </div>
       ) : null}
-      <p className="mt-2 text-xs text-blue-700 dark:text-blue-300">{t("connected_platforms.expires_waiting")}</p>
+      <p className="mt-2 text-xs text-blue-700 dark:text-blue-300">{t("connected_platforms.expires")}</p>
     </div>
   )
 }
