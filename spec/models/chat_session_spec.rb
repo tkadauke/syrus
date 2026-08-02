@@ -651,6 +651,7 @@ RSpec.describe ChatSession do
       attrs = {
         user_id: repo.user.id,
         system_kind: "supervisor",
+        chat_provider: "claude",
         title: "Supervisor",
         pinned: true,
         created_at: now,
