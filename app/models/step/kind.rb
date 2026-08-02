@@ -66,6 +66,8 @@ class Step
       Entry.new(kind: "respond",            handler: "Respond",            label: "Address feedback",           style: "bg-cyan-100 text-cyan-700",   agentic: true),
       Entry.new(kind: "summarize_amend",    handler: "SummarizeAmend",     label: "Summarize",                  style: "bg-indigo-100 text-indigo-700", agentic: true,
                 required_mcp_tools: %w[submit_summary]),
+      Entry.new(kind: "refresh_job_metadata", handler: "RefreshJobMetadata", label: "Refresh metadata",          style: "bg-purple-100 text-purple-700", agentic: true,
+                required_mcp_tools: %w[submit_job_metadata]),
       Entry.new(kind: "push",               handler: "Push",               label: "Push",                       style: "bg-emerald-100 text-emerald-700", agentic: false,
                 repair_semantics: :publication),
       Entry.new(kind: "push_agent_rebase",  handler: "PushAgentRebase",    label: "Resolve push rebase",       style: "bg-teal-100 text-teal-700",   agentic: true),

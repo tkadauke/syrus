@@ -467,11 +467,11 @@ RSpec.describe Workflows do
       ])
     end
 
-    it "instantiates PrFeedback with respond → grader_fanout → grader_collect → summarize_amend → try(push)" do
+    it "instantiates PrFeedback with respond → grader_fanout → grader_collect → summarize_amend → refresh_job_metadata → try(push)" do
       allow(RepoAdversarialReviewPlan).to receive(:for_job).with(job)
         .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "no .syrus.yml", criteria: []))
       wf = Workflows::PrFeedback.instantiate(job: job)
-      expect(wf.steps.pluck(:kind)).to eq(%w[ prepare respond grader_fanout grader_collect coverage_analyze coverage_pr_comment summarize_amend push ])
+      expect(wf.steps.pluck(:kind)).to eq(%w[ prepare respond grader_fanout grader_collect coverage_analyze coverage_pr_comment summarize_amend refresh_job_metadata push ])
       expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ respond grader_fanout grader_collect ])
       expect(wf.chain_template).to include(
         {
@@ -497,7 +497,7 @@ RSpec.describe Workflows do
       expect(wf.trigger_kind).to eq("chat_feedback")
       expect(wf.agent_provider).to eq("codex")
       expect(wf.artifact("chat_feedback")).to eq("Please tighten the dashboard copy.")
-      expect(wf.steps.pluck(:kind)).to eq(%w[ prepare respond grader_fanout grader_collect coverage_analyze coverage_pr_comment summarize_amend push ])
+      expect(wf.steps.pluck(:kind)).to eq(%w[ prepare respond grader_fanout grader_collect coverage_analyze coverage_pr_comment summarize_amend refresh_job_metadata push ])
       expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ respond grader_fanout grader_collect ])
       expect(wf.chain_template).to include(
         {

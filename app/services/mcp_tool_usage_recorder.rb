@@ -61,6 +61,7 @@ class McpToolUsageRecorder
       SyrusMcp::ReportMainConcernTool,
       SyrusMcp::SubmitSummaryTool,
       SyrusMcp::SubmitTestPlanTool,
+      SyrusMcp::SubmitJobMetadataTool,
       SyrusMcp::SubmitAdversarialReviewTool,
       SyrusMcp::SubmitReconciliationFeedbackTool,
       SyrusMcp::SubmitInsightTool,

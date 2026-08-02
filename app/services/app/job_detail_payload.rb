@@ -313,6 +313,15 @@ module App
     end
 
     def summary_json
+      if (entry = latest_canonical_metadata_entry)
+        workflow, metadata = entry
+        return {
+          workflow_id: workflow.id,
+          text: metadata["summary"],
+          finished_at: iso8601(workflow.finished_at)
+        }
+      end
+
       run = @job.runs
                 .where.not(agent_summary: [ nil, "" ])
                 .order(created_at: :desc, id: :desc)
@@ -329,10 +338,9 @@ module App
     def test_plan_json
       entry = @job.workflows.to_a.filter_map do |workflow|
         next unless workflow.succeeded?
-        next unless %w[initial retry].include?(workflow.trigger_kind)
         next unless workflow.artifacts.is_a?(Hash)
 
-        plan = workflow.artifacts["test_plan"]
+        plan = canonical_test_plan_for(workflow)
         next unless plan.is_a?(Hash) && plan.present?
 
         steps = Array(plan["steps"]).map(&:to_s).map(&:strip).reject(&:empty?)
@@ -349,6 +357,30 @@ module App
         steps: steps,
         notes: plan["notes"].presence
       }
+    end
+
+    def latest_canonical_metadata_entry
+      @job.workflows.to_a.filter_map do |workflow|
+        next unless workflow.succeeded?
+
+        metadata = workflow.artifact("job_metadata")
+        next unless metadata.is_a?(Hash)
+        next unless metadata["changed"] == true
+        next if metadata["summary"].blank?
+
+        [ workflow, metadata ]
+      end.max_by { |workflow, _metadata| [ workflow.finished_at || workflow.created_at, workflow.id ] }
+    end
+
+    def canonical_test_plan_for(workflow)
+      metadata = workflow.artifact("job_metadata")
+      if metadata.is_a?(Hash) && metadata["changed"] == true && metadata["test_plan"].is_a?(Hash)
+        return metadata["test_plan"]
+      end
+
+      return workflow.artifact("test_plan") if %w[initial retry].include?(workflow.trigger_kind)
+
+      nil
     end
 
     def has_test_results?

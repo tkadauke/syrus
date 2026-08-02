@@ -80,7 +80,7 @@ class McpToolContext
     case run.step&.kind
     when "agent_rebase", "stack_agent_rebase", "push_agent_rebase"
       AgentRole::WORKFLOW_REBASE_CONFLICT
-    when "summarize", "summarize_amend", "test_plan"
+    when "summarize", "summarize_amend", "test_plan", "refresh_job_metadata"
       AgentRole::WORKFLOW_SUMMARY_TEST_PLAN
     when "adversarial_review"
       AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER

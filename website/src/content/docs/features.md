@@ -446,9 +446,12 @@ After discussing changes with an operator, the chat agent can propose
 structured feedback on an implemented or approved Job. Operator confirmation
 creates a `chat_feedback` Workflow, runs the agent on the existing PR branch,
 and unapproves approved Jobs so the follow-up change returns to review before
-landing. If the Job is still queued or running, Syrus stores the feedback as
-a waiting pending action and promotes it for operator confirmation when the
-Job reaches review.
+landing. After a successful feedback workflow, Syrus asks the agent whether the
+feedback changed the Job's effective intent; when it did, Syrus refreshes the
+top-level Job summary, test plan, and managed PR title/body separately from the
+follow-up commit message. If the Job is still queued or running, Syrus stores
+the feedback as a waiting pending action and promotes it for operator
+confirmation when the Job reaches review.
 App surfaces, including the Job detail page, can also submit feedback directly
 for implemented or failed Jobs, bypassing the chat pending-action confirmation
 while creating the same `chat_feedback` Workflow.

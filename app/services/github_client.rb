@@ -266,6 +266,18 @@ class GithubClient
     raise
   end
 
+  def update_pull_request_metadata(repo_slug, pr_number, title: nil, body: nil)
+    attrs = {}
+    attrs[:title] = title if title.present?
+    attrs[:body] = body if body.present?
+    return if attrs.empty?
+
+    track_rate_limits { @client.update_pull_request(repo_slug, pr_number, **attrs) }
+  rescue Octokit::TooManyRequests => e
+    Rails.logger.warn("[GithubClient] #{@user.email_address} rate-limited updating #{repo_slug}##{pr_number}: #{e.message}")
+    raise
+  end
+
   def update_pull_request_base(repo_slug, pr_number, base:)
     track_rate_limits { @client.update_pull_request(repo_slug, pr_number, base: base) }
   rescue Octokit::TooManyRequests => e

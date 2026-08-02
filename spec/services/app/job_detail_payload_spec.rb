@@ -320,7 +320,7 @@ RSpec.describe App::JobDetailPayload do
       expect(payload_for(job)[:test_plan]).to be_nil
     end
 
-    it "ignores unfinished and non initial/retry workflow test plans" do
+    it "ignores unfinished and non-canonical follow-up workflow test plans" do
       job = Factories.job_record(repository: repo)
       Workflow.create!(
         job: job,
@@ -338,6 +338,76 @@ RSpec.describe App::JobDetailPayload do
       )
 
       expect(payload_for(job)[:test_plan]).to be_nil
+    end
+
+    it "uses canonical metadata test plans from succeeded feedback workflows" do
+      job = Factories.job_record(repository: repo)
+      workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "pr_comment",
+        state: "succeeded",
+        artifacts: {
+          "job_metadata" => {
+            "changed" => true,
+            "test_plan" => {
+              "steps" => [ "Run bin/rspec spec/services/job_metadata_refresh_applier_spec.rb" ],
+              "notes" => "Review refreshed PR body."
+            }
+          }
+        }
+      )
+
+      expect(payload_for(job)[:test_plan]).to eq(
+        workflow_id: workflow.id,
+        steps: [ "Run bin/rspec spec/services/job_metadata_refresh_applier_spec.rb" ],
+        notes: "Review refreshed PR body."
+      )
+    end
+  end
+
+  describe "#summary_json" do
+    it "prefers canonical metadata summaries from succeeded workflows over run summaries" do
+      job = Factories.job(repository: repo)
+      job.initial_run.update!(agent_summary: "Stale initial summary.", finished_at: 2.hours.ago)
+      workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "chat_feedback",
+        state: "succeeded",
+        finished_at: 1.hour.ago,
+        artifacts: {
+          "job_metadata" => {
+            "changed" => true,
+            "summary" => "The current intent preserves provider switching."
+          }
+        }
+      )
+
+      expect(payload_for(job)[:summary]).to eq(
+        workflow_id: workflow.id,
+        text: "The current intent preserves provider switching.",
+        finished_at: workflow.finished_at.iso8601
+      )
+    end
+
+    it "ignores canonical metadata from unfinished workflows" do
+      job = Factories.job(repository: repo)
+      job.initial_run.update!(agent_summary: "Latest completed run summary.", finished_at: 2.hours.ago)
+      Workflow.create!(
+        job: job,
+        trigger_kind: "chat_feedback",
+        state: "running",
+        artifacts: {
+          "job_metadata" => {
+            "changed" => true,
+            "summary" => "Unfinished metadata."
+          }
+        }
+      )
+
+      expect(payload_for(job)[:summary]).to include(
+        run_id: job.initial_run.id,
+        text: "Latest completed run summary."
+      )
     end
   end
 

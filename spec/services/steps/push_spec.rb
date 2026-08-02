@@ -29,6 +29,29 @@ RSpec.describe Steps::Push do
     described_class.new(run).send(:update_managed_pr_footers)
   end
 
+  it "does not re-fetch and rewrite PR footers after applying refreshed metadata" do
+    handler = described_class.new(run)
+
+    allow(handler).to receive(:workspace).and_return(instance_double(
+      WorkflowWorkspace,
+      setup: nil,
+      branch_name: "syrus/issue-42",
+      path: Pathname.new("/tmp/workspace")
+    ))
+    git = instance_double(GitRunner)
+    client = instance_double(GithubClient, access_token: "token")
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
+    allow(repository).to receive(:authenticated_push_url).with("token").and_return("https://push.example/repo.git")
+    allow(git).to receive(:run)
+    allow(JobMetadataRefreshApplier).to receive(:new).with(workflow).and_return(instance_double(JobMetadataRefreshApplier, call: "applied refreshed Job metadata"))
+    workflow.set_artifact!("job_metadata_applied", { "changed" => true })
+
+    expect(handler).not_to receive(:update_managed_pr_footers)
+
+    handler.call
+  end
+
   it "rebases onto the remote branch and retries when a follow-up push is not a fast-forward" do
     job.update!(branch_name: "syrus/issue-42")
     handler = described_class.new(run)

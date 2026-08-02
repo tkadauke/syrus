@@ -33,7 +33,7 @@ RSpec.describe McpToolPolicy do
         SyrusMcp::SubmitTestPlanTool,
         SyrusMcp::ReportMainConcernTool
       )
-      expect(tools).not_to include(SyrusMcp::SubmitAdversarialReviewTool)
+      expect(tools).not_to include(SyrusMcp::SubmitAdversarialReviewTool, SyrusMcp::SubmitJobMetadataTool)
       expect(tools.size).to eq(11)
     end
 
@@ -83,6 +83,14 @@ RSpec.describe McpToolPolicy do
       expect(tools).not_to include(SyrusMcp::SubmitReconciliationFeedbackTool)
     end
 
+    it "includes submit_job_metadata for refresh_job_metadata runs" do
+      run.step.update_columns(kind: "refresh_job_metadata")
+      context = McpToolContext.from_run(run.reload)
+      tools   = described_class.for(context)
+
+      expect(tools).to include(SyrusMcp::SubmitJobMetadataTool)
+    end
+
     describe ".capability_permitted?" do
       it "permits submit_summary for the implement role" do
         context = McpToolContext.from_run(run)
@@ -112,6 +120,11 @@ RSpec.describe McpToolPolicy do
       it "denies submit_chat_feedback for the standard implement role" do
         context = McpToolContext.from_run(run)
         expect(described_class.capability_permitted?(context, :submit_chat_feedback)).to be(false)
+      end
+
+      it "permits submit_job_metadata for the summary/test-plan role" do
+        context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_SUMMARY_TEST_PLAN, user: user)
+        expect(described_class.capability_permitted?(context, :submit_job_metadata)).to be(true)
       end
     end
   end

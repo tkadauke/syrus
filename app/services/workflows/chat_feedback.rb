@@ -10,6 +10,7 @@ module Workflows
           :coverage_analyze,
           :coverage_pr_comment,
           :summarize_amend,
+          :refresh_job_metadata,
           follow_up_push
 
     def self.trigger_kind = "chat_feedback"
@@ -26,6 +27,7 @@ module Workflows
         "coverage_analyze",
         "coverage_pr_comment",
         "summarize_amend",
+        "refresh_job_metadata",
         follow_up_push(max_iterations: AppSetting.grade_max_iterations)
       ].compact
     end

@@ -108,6 +108,29 @@ RSpec.describe SyrusMcp::Sidecar do
     end
   end
 
+  describe "tools/call submit_job_metadata" do
+    it "persists canonical metadata when the run belongs to refresh_job_metadata" do
+      run.step.update_columns(kind: "refresh_job_metadata")
+      response = jsonrpc(server_for(run.reload), "tools/call", params: {
+        name: "submit_job_metadata",
+        arguments: {
+          changed: true,
+          title: "Preserve provider switching",
+          summary: "The Job now preserves provider switching.",
+          pr_body: "Preserves provider switching.",
+          test_plan: { steps: [ "Run bin/rspec spec/services/syrus_mcp/sidecar_spec.rb" ] },
+          intent_revision_reason: "Feedback changed the effective intent."
+        }
+      })
+
+      expect(response[:result][:isError]).to be_falsey
+      expect(run.workflow.reload.artifact("job_metadata")).to include(
+        "changed" => true,
+        "title" => "Preserve provider switching"
+      )
+    end
+  end
+
   describe "tools/call submit_test_plan" do
     it "persists the test plan on the Workflow via the JSON-RPC path" do
       response = jsonrpc(server_for(run), "tools/call", params: {

@@ -15,11 +15,11 @@ RSpec.describe Workflows::PrFeedback do
     workflow = described_class.instantiate(job: job)
 
     expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-      %w[ prepare respond grader_fanout grader_collect coverage_analyze coverage_pr_comment summarize_amend push ]
+      %w[ prepare respond grader_fanout grader_collect coverage_analyze coverage_pr_comment summarize_amend refresh_job_metadata push ]
     )
   end
 
-  it "places coverage_analyze immediately after grader_collect and coverage_pr_comment before summarize_amend" do
+  it "places metadata refresh after summarize_amend and before push" do
     workflow = described_class.instantiate(job: job)
 
     kinds = workflow.steps.order(:position).pluck(:kind)
@@ -27,10 +27,14 @@ RSpec.describe Workflows::PrFeedback do
     analyze_pos  = kinds.index("coverage_analyze")
     comment_pos  = kinds.index("coverage_pr_comment")
     summarize_pos = kinds.index("summarize_amend")
+    refresh_pos   = kinds.index("refresh_job_metadata")
+    push_pos      = kinds.index("push")
 
     expect(analyze_pos).to eq(collect_pos + 1)
     expect(comment_pos).to eq(analyze_pos + 1)
     expect(summarize_pos).to eq(comment_pos + 1)
+    expect(refresh_pos).to eq(summarize_pos + 1)
+    expect(push_pos).to eq(refresh_pos + 1)
   end
 
   context "when adversarial review is enabled" do
@@ -45,7 +49,7 @@ RSpec.describe Workflows::PrFeedback do
 
       kinds = workflow.steps.order(:position).pluck(:kind)
       expect(kinds).to eq(
-        %w[ prepare respond adversarial_review respond grader_fanout grader_collect coverage_analyze coverage_pr_comment summarize_amend push ]
+        %w[ prepare respond adversarial_review respond grader_fanout grader_collect coverage_analyze coverage_pr_comment summarize_amend refresh_job_metadata push ]
       )
     end
 

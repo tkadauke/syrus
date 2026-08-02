@@ -73,7 +73,21 @@ class JobSearchIndex < SearchRecord
     private
 
     def body_for(job)
-      [ job.issue_body, (job.description if job.respond_to?(:description)) ].compact_blank.join("\n\n")
+      [
+        job.issue_body,
+        canonical_summary_for(job),
+        (job.description if job.respond_to?(:description))
+      ].compact_blank.join("\n\n")
+    end
+
+    def canonical_summary_for(job)
+      job.workflows
+         .where(state: "succeeded")
+         .order(Arel.sql("COALESCE(finished_at, created_at) DESC"), id: :desc)
+         .lazy
+         .filter_map { |workflow| workflow.artifact("job_metadata") }
+         .find { |metadata| metadata.is_a?(Hash) && metadata["changed"] == true && metadata["summary"].present? }
+         &.fetch("summary")
     end
   end
 end

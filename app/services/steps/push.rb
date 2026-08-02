@@ -13,10 +13,21 @@ module Steps
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
       push_url = repository.authenticated_push_url(GithubClient.for(repository: repository, user: job.user).access_token)
       push_branch(git, push_url)
-      update_managed_pr_footers
+      apply_job_metadata_refresh
+      update_managed_pr_footers unless refreshed_job_metadata_applied?
     end
 
     private
+
+    def apply_job_metadata_refresh
+      result = JobMetadataRefreshApplier.new(workflow).call
+      log("push: #{result}") if result.present?
+    end
+
+    def refreshed_job_metadata_applied?
+      workflow.reload.artifact("job_metadata_applied").is_a?(Hash) &&
+        workflow.artifact("job_metadata_applied")["changed"] == true
+    end
 
     def push_branch(git, push_url)
       git.run("push", push_url, "HEAD:refs/heads/#{workspace.branch_name}",
@@ -59,10 +70,11 @@ module Steps
     def update_managed_pr_footers
       return if job.pr_number.blank?
 
-      client = GithubClient.for(repository: repository, user: job.user)
-      pr = client.pull_request(repository.slug, job.pr_number, bypass_cache: true)
+      pr_repo = job.effective_pr_repository
+      client = GithubClient.for(repository: pr_repo, user: job.user)
+      pr = client.pull_request(pr_repo.slug, job.pr_number, bypass_cache: true)
       body = PrCostFooter.apply(PrStackFooter.apply(pr.body.to_s, job), job)
-      client.update_pull_request_body(repository.slug, job.pr_number, body)
+      client.update_pull_request_body(pr_repo.slug, job.pr_number, body)
       log("push: updated PR ##{job.pr_number} managed footers")
     end
   end

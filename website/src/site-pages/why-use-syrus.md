@@ -45,8 +45,8 @@ Syrus makes those responsibilities part of the system:
   installs before the agent starts
 - **implement**, **respond**, and **analyze_and_fix** run the agent in a
   Workflow with a specific trigger kind
-- **summarize** and **summarize_amend** collect PR copy through structured
-  MCP output
+- **summarize**, **summarize_amend**, and **refresh_job_metadata** collect
+  revision copy and canonical review metadata through structured MCP output
 - **pr_open**, **push**, and **force_push** handle the deterministic GitHub
   side, including stale duplicate retry publication races
 

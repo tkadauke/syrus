@@ -14,6 +14,7 @@ RSpec.describe Steps do
       expect(described_class.handler_for("pr_open")).to eq(Steps::PrOpen)
       expect(described_class.handler_for("respond")).to eq(Steps::Respond)
       expect(described_class.handler_for("summarize_amend")).to eq(Steps::SummarizeAmend)
+      expect(described_class.handler_for("refresh_job_metadata")).to eq(Steps::RefreshJobMetadata)
       expect(described_class.handler_for("push")).to eq(Steps::Push)
       expect(described_class.handler_for("push_agent_rebase")).to eq(Steps::PushAgentRebase)
       expect(described_class.handler_for("push_after_rebase")).to eq(Steps::PushAfterRebase)

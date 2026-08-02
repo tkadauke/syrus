@@ -39,6 +39,10 @@ RSpec.describe Step::Kind do
       expect(described_class.fetch("test_plan").required_mcp_tools).to eq(%w[submit_test_plan])
     end
 
+    it "returns submit_job_metadata for refresh_job_metadata" do
+      expect(described_class.fetch("refresh_job_metadata").required_mcp_tools).to eq(%w[submit_job_metadata])
+    end
+
     it "returns submit_adversarial_review for adversarial_review" do
       expect(described_class.fetch("adversarial_review").required_mcp_tools).to eq(%w[submit_adversarial_review])
     end

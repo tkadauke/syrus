@@ -99,7 +99,11 @@ Agentic. Asks the agent to call `submit_summary` with a PR title, body, and oper
 
 ### summarize_amend
 
-Agentic. Same as `summarize` but used after `respond` or `analyze_and_fix` to update the existing PR description.
+Agentic. Same as `summarize` but used after `respond` or `analyze_and_fix` to produce the follow-up commit message for this revision. It does not refresh the canonical Job title, PR body, or test plan.
+
+### refresh_job_metadata
+
+Agentic. Runs after successful `pr_comment` and `chat_feedback` workflows. Asks the agent to call `submit_job_metadata` with either `changed=false` for narrow fixes or canonical Job/PR metadata when feedback changed the Job's effective intent. The subsequent `push` step applies changed metadata to direct Job titles, managed PR title/body, Job detail summary/test plan, and search indexing.
 
 ### test_plan
 
@@ -119,7 +123,7 @@ requires operator review.
 
 ### push
 
-Non-agentic. Pushes the PR branch. On a non-fast-forward rejection, fetches and attempts a deterministic rebase, retrying the push if clean. If the rebase conflicts, dynamically inserts `push_agent_rebase` → grader repair loop → `push_after_rebase`.
+Non-agentic. Pushes the PR branch, applies any `job_metadata` refresh artifact, and updates managed PR footers. On a non-fast-forward rejection, fetches and attempts a deterministic rebase, retrying the push if clean. If the rebase conflicts, dynamically inserts `push_agent_rebase` → grader repair loop → `push_after_rebase`.
 
 ### push_agent_rebase
 
