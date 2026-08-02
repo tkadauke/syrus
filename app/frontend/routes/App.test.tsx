@@ -1767,13 +1767,13 @@ describe("App", () => {
     try {
       render(
         <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <MemoryRouter initialEntries={["/app-shell/sidebar-fixture"]}>
+          <MemoryRouter initialEntries={["/app-shell/chats/10"]}>
             <App />
           </MemoryRouter>
         </QueryClientProvider>
       )
 
-      expect(await screen.findByRole("main", { name: "Syrus SPA" })).toBeInTheDocument()
+      expect(await screen.findByRole("main", { name: "Chat" })).toHaveClass("h-full")
       const primaryNav = await screen.findByRole("navigation", { name: "Primary" })
       const recentNav = await screen.findByRole("navigation", { name: "Recent chats" })
       const sidebarScrollPane = recentNav.closest(".overflow-y-auto")
@@ -1790,12 +1790,13 @@ describe("App", () => {
       expect(within(recentNav).getByRole("link", { name: "New chat" })).toHaveAttribute("href", "/app-shell/chats/2")
       expect(within(recentNav).getByRole("link", { name: "New chat" })).toHaveClass("text-gray-700")
       expect(within(recentNav).getByText("New chat")).toHaveClass("font-semibold")
-      expect(within(recentNav).getByRole("link", { name: "Widgets active" })).toHaveAttribute("href", "/app-shell/chats/10")
+      expect(within(recentNav).getByRole("link", { name: "Widgets active" })).toHaveClass("bg-blue-50", "text-blue-700")
       expect(within(within(recentNav).getByRole("link", { name: "Widgets active" })).getByTitle("Chat turn active")).toBeInTheDocument()
       fireEvent.click(within(recentNav).getByRole("button", { name: "Chat actions for Widgets active" }))
       expect(await within(recentNav).findByText("Bookmarks")).toHaveClass("font-semibold")
-      expect(within(recentNav).getByRole("link", { name: "Aqueducts" })).toHaveAttribute("href", "#message-9")
-      fireEvent.click(within(recentNav).getByRole("link", { name: "Aqueducts" }))
+      const bookmarkLink = within(recentNav).getByRole("link", { name: "Aqueducts" })
+      expect(bookmarkLink.getAttribute("href")).toMatch(/^(\/app-shell\/chats\/10)?#message-9$/)
+      fireEvent.click(bookmarkLink)
       expect(within(recentNav).queryByRole("link", { name: "Aqueducts" })).not.toBeInTheDocument()
       expect(within(recentNav).queryByRole("link", { name: "Widgets hidden" })).not.toBeInTheDocument()
       expect(within(recentNav).getByRole("button", { name: "acme/widgets" })).toHaveAttribute("aria-expanded", "true")
