@@ -48,8 +48,12 @@ module SyrusChatMcp
         return SyrusChatMcp.invalid("unknown depends_on_proposal_slugs: #{unknown_slugs.join(', ')}") if unknown_slugs.any?
         non_epic_slugs = dependencies.reject(&:epic?).map(&:slug)
         return SyrusChatMcp.invalid("depends_on_proposal_slugs must reference Epic proposals: #{non_epic_slugs.join(', ')}") if non_epic_slugs.any?
+        dependency_error = proposal_dependency_target_error(dependencies)
+        return SyrusChatMcp.invalid(dependency_error) if dependency_error
         unknown_job_ids = unknown_job_dependency_ids(chat_session, depends_on_job_ids)
         return SyrusChatMcp.invalid("unknown depends_on_job_ids: #{unknown_job_ids.join(', ')}") if unknown_job_ids.any?
+        dependency_error = dependency_target_error(chat_session.user.jobs, depends_on_job_ids)
+        return SyrusChatMcp.invalid(dependency_error) if dependency_error
 
         proposal = nil
         ChatProposal.transaction do

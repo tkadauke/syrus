@@ -63,10 +63,16 @@ module SyrusChatMcp
         return SyrusChatMcp.invalid("unknown depends_on slug(s): #{unknown_slugs.join(', ')}") if unknown_slugs.any?
         non_job_dependency = dependencies.find { |dependency| !dependency.syrus_issue? && !dependency.job? }
         return SyrusChatMcp.invalid("depends_on slug must reference a Job proposal: #{non_job_dependency.slug}") if non_job_dependency
+        dependency_error = proposal_dependency_target_error(dependencies)
+        return SyrusChatMcp.invalid(dependency_error) if dependency_error
         unknown_epic_ids = unknown_epic_dependency_ids(chat_session, depends_on_epic_ids)
         return SyrusChatMcp.invalid("unknown depends_on_epic_ids: #{unknown_epic_ids.join(', ')}") if unknown_epic_ids.any?
+        dependency_error = dependency_target_error(chat_session.user.epics, depends_on_epic_ids)
+        return SyrusChatMcp.invalid(dependency_error) if dependency_error
         unknown_job_ids = unknown_job_dependency_ids(chat_session, depends_on_job_ids)
         return SyrusChatMcp.invalid("unknown depends_on_job_ids: #{unknown_job_ids.join(', ')}") if unknown_job_ids.any?
+        dependency_error = dependency_target_error(chat_session.user.jobs, depends_on_job_ids)
+        return SyrusChatMcp.invalid(dependency_error) if dependency_error
 
         proposal = nil
         ChatProposal.transaction do

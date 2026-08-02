@@ -119,6 +119,48 @@ RSpec.describe SyrusChatMcp::ProposeJobTool do
     expect(payload[:depends_on_job_ids]).to eq([ prerequisite.id ])
   end
 
+  it "rejects existing Job dependencies that are already closed unsuccessfully" do
+    prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 7)
+    prerequisite.update_columns(state: "closed", closure_reason: "cancelled", finished_at: Time.current)
+
+    response = call_tool(
+      repo: repository.slug,
+      title: "Wait forever",
+      description: "This dependency cannot become satisfied.",
+      depends_on_job_ids: [ prerequisite.id ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include(
+      "Cannot depend on #{prerequisite.slug} because it is closed as cancelled and will not satisfy dependencies."
+    )
+    expect(chat_session.proposals.find_by(title: "Wait forever")).to be_nil
+  end
+
+  it "rejects proposal slugs that already materialized to closed unsuccessful Jobs" do
+    prerequisite = chat_session.proposals.create!(
+      repository: repository,
+      slug: "failed-job",
+      title: "Failed job",
+      body: "Already failed.",
+      kind: "job",
+      job: Factories.job_record(user: user, repository: repository, issue_number: 7, state: "closed", closure_reason: "cancelled")
+    )
+
+    response = call_tool(
+      repo: repository.slug,
+      title: "Follow failed job",
+      description: "This dependency cannot become satisfied.",
+      depends_on: [ prerequisite.slug ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include(
+      "Cannot depend on #{prerequisite.job.slug} because it is closed as cancelled and will not satisfy dependencies."
+    )
+    expect(chat_session.proposals.find_by(title: "Follow failed job")).to be_nil
+  end
+
   it "rejects unknown Epic dependency IDs" do
     other_user = Factories.user
     other_repo = Factories.repository(user: other_user)

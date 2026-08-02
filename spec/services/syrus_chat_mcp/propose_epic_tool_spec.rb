@@ -65,6 +65,23 @@ RSpec.describe SyrusChatMcp::ProposeEpicTool do
     expect(proposal.depends_on_job_ids).to eq([ prerequisite.id ])
   end
 
+  it "rejects existing Job dependencies that are already closed unsuccessfully" do
+    prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 7)
+    prerequisite.update_columns(state: "closed", closure_reason: "cancelled", finished_at: Time.current)
+
+    response = call_tool(
+      title: "Blocked Epic",
+      description: "This dependency cannot become satisfied.",
+      depends_on_job_ids: [ prerequisite.id ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include(
+      "Cannot depend on #{prerequisite.slug} because it is closed as cancelled and will not satisfy dependencies."
+    )
+    expect(chat_session.proposals.find_by(title: "Blocked Epic")).to be_nil
+  end
+
   it "persists Epic proposal slug dependencies" do
     prerequisite = chat_session.proposals.create!(
       repository: repository,

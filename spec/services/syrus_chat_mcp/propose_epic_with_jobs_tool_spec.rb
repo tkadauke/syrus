@@ -233,6 +233,41 @@ RSpec.describe SyrusChatMcp::ProposeEpicWithJobsTool do
     expect(ui.dependencies).to contain_exactly(prerequisite)
   end
 
+  it "rejects cross-card Job proposal dependencies that already closed unsuccessfully" do
+    prerequisite = chat_session.proposals.create!(
+      repository: repository,
+      slug: "upstream-job",
+      title: "Upstream",
+      body: "Do this first.",
+      kind: "job",
+      job: Factories.job_record(user: user, repository: repository, issue_number: 7, state: "closed", closure_reason: "cancelled")
+    )
+
+    response = call_tool(
+      epic: {
+        slug: "m3-proposals",
+        title: "M3 proposals",
+        description: "Make proposal review atomic.",
+        target_repo: repository.slug
+      },
+      jobs: [
+        {
+          slug: "ui",
+          target_repo: repository.slug,
+          title: "Render proposal card",
+          description: "Show rows for child jobs.",
+          depends_on: [ "upstream-job" ]
+        }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include(
+      "Cannot depend on #{prerequisite.job.slug} because it is closed as cancelled and will not satisfy dependencies."
+    )
+    expect(chat_session.proposals.where(slug: "m3-proposals")).to be_empty
+  end
+
   it "rejects unknown cross-entity dependencies without creating proposals" do
     other_user = Factories.user
     other_repo = Factories.repository(user: other_user)
@@ -247,6 +282,41 @@ RSpec.describe SyrusChatMcp::ProposeEpicWithJobsTool do
 
     expect(response[:result][:isError]).to be(true)
     expect(response[:result][:content].first[:text]).to include("unknown epic depends_on_job_ids")
+    expect(chat_session.proposals.count).to eq(0)
+  end
+
+  it "rejects existing Epic-level Job dependencies that are already closed unsuccessfully" do
+    prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 7)
+    prerequisite.update_columns(state: "closed", closure_reason: "cancelled", finished_at: Time.current)
+
+    response = call_tool(
+      epic: { slug: "epic", title: "Epic", description: "Desc.", target_repo: repository.slug, depends_on_job_ids: [ prerequisite.id ] },
+      jobs: [
+        { slug: "ui", target_repo: repository.slug, title: "UI", description: "Build it." }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include(
+      "Cannot depend on #{prerequisite.slug} because it is closed as cancelled and will not satisfy dependencies."
+    )
+    expect(chat_session.proposals.count).to eq(0)
+  end
+
+  it "rejects existing child Job Epic dependencies that are already archived" do
+    prerequisite = Factories.epic(user: user, repository: repository, state: "archived")
+
+    response = call_tool(
+      epic: { slug: "epic", title: "Epic", description: "Desc.", target_repo: repository.slug },
+      jobs: [
+        { slug: "ui", target_repo: repository.slug, title: "UI", description: "Build it.", depends_on_epic_ids: [ prerequisite.id ] }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include(
+      "Cannot depend on #{prerequisite.slug} because it is archived and will not satisfy dependencies."
+    )
     expect(chat_session.proposals.count).to eq(0)
   end
 
@@ -332,6 +402,29 @@ RSpec.describe SyrusChatMcp::ProposeEpicWithJobsTool do
     expect(response[:result][:isError]).to be_falsey
     expect(proposal.dependencies).to be_empty
     expect(proposal.epic_dependency_tokens).to eq([ "epic:#{prerequisite.id}" ])
+  end
+
+  it "rejects string-encoded confirmed Epic dependencies that are already archived" do
+    prerequisite = Factories.epic(user: user, repository: repository, state: "archived")
+
+    response = call_tool(
+      epic: {
+        slug: "dependent",
+        title: "Dependent",
+        description: "Depends on a confirmed Epic.",
+        target_repo: repository.slug,
+        depends_on: [ "epic:#{prerequisite.id}" ]
+      },
+      jobs: [
+        { slug: "child", target_repo: repository.slug, title: "Child", description: "Build it." }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include(
+      "Cannot depend on #{prerequisite.slug} because it is archived and will not satisfy dependencies."
+    )
+    expect(chat_session.proposals.count).to eq(0)
   end
 
   it "rejects unknown sibling dependencies without creating proposals" do

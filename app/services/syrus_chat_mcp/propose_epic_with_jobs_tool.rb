@@ -198,14 +198,21 @@ module SyrusChatMcp
 
         dependency_slugs = jobs.flat_map { |job| job[:depends_on] }.uniq
         cross_card_slugs = dependency_slugs - slugs
-        known_cross_card_slugs = chat_session.proposals.where(slug: cross_card_slugs).where(kind: %w[syrus_issue job]).pluck(:slug)
+        known_cross_card_proposals = chat_session.proposals.where(slug: cross_card_slugs).where(kind: %w[syrus_issue job]).to_a
+        known_cross_card_slugs = known_cross_card_proposals.map(&:slug)
         unknown = cross_card_slugs - known_cross_card_slugs
         return "unknown depends_on slug(s): #{unknown.join(', ')}" if unknown.any?
+        target_error = invalid_dependency_target_message(known_cross_card_proposals.filter_map(&:job))
+        return target_error if target_error
         unknown_job_ids = epic[:depends_on_job_ids] - user.jobs.where(id: epic[:depends_on_job_ids]).pluck(:id)
         return "unknown epic depends_on_job_ids: #{unknown_job_ids.join(', ')}" if unknown_job_ids.any?
+        target_error = invalid_dependency_target_message(user.jobs.where(id: epic[:depends_on_job_ids]))
+        return target_error if target_error
         unknown_epic_ids = jobs.flat_map { |job| job[:depends_on_epic_ids] }.uniq
         unknown_epic_ids -= user.epics.where(id: unknown_epic_ids).pluck(:id)
         return "unknown job depends_on_epic_ids: #{unknown_epic_ids.join(', ')}" if unknown_epic_ids.any?
+        target_error = invalid_dependency_target_message(user.epics.where(id: jobs.flat_map { |job| job[:depends_on_epic_ids] }.uniq))
+        return target_error if target_error
         return "depends_on would create a cycle" if cyclic?(jobs)
 
         nil
@@ -238,12 +245,29 @@ module SyrusChatMcp
         depends_on.each do |token|
           if token.match?(/\Aepic:\d+\z/)
             epic_id = token.split(":", 2).last
-            return "unknown depends_on Epic id: #{epic_id}" unless user.epics.exists?(id: epic_id)
+            epic = user.epics.find_by(id: epic_id)
+            return "unknown depends_on Epic id: #{epic_id}" unless epic
+
+            target_error = invalid_dependency_target_message([ epic ])
+            return target_error if target_error
           else
             proposal = chat_session.proposals.find_by(slug: token)
             return "unknown depends_on slug: #{token}" unless proposal
             return "depends_on slug must reference an Epic proposal: #{token}" unless proposal.epic?
+
+            target_error = invalid_dependency_target_message([ proposal.epic ].compact)
+            return target_error if target_error
           end
+        end
+
+        nil
+      end
+
+      def invalid_dependency_target_message(targets)
+        Array(targets).each do |target|
+          ProposalDependencyValidator.validate!(target)
+        rescue ArgumentError => e
+          return e.message
         end
 
         nil

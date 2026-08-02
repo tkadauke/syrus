@@ -59,9 +59,10 @@ Pending dependency payloads include `unresolved_ref_kind` and
 `unresolved_ref_state`, allowing operators and tools to distinguish actionable
 pending proposal references from stale or orphaned references.
 
-Proposal confirmation validates dependency targets before materializing Job or
-Epic dependency rows. Dependencies on terminal targets that cannot satisfy the
-same runtime dependency gate are rejected with an operator-facing message, for
-example a Job closed as `cancelled` or an archived Epic. Successfully closed
-Job dependencies (`pr_merged`, `external_pr_merged`, `pr_approved`,
-`no_changes`) are valid and do not block the new Job from starting.
+Proposal creation, proposal edits, and confirmation validate dependency targets
+before storing proposal dependency fields or materializing Job/Epic dependency
+rows. Dependencies on terminal targets that cannot satisfy the same runtime
+dependency gate are rejected with an operator-facing message, for example a Job
+closed as `cancelled` or an archived Epic. Successfully closed Job dependencies
+(`pr_merged`, `external_pr_merged`, `pr_approved`, `no_changes`) are valid and
+do not block the new Job from starting.

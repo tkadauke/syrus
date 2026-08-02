@@ -95,5 +95,32 @@ module SyrusChatMcp
       ids = normalize_integer_list(job_ids)
       ids - chat_session.user.jobs.where(id: ids).pluck(:id)
     end
+
+    def dependency_target_error(scope, ids)
+      records_by_id = scope.where(id: ids).index_by(&:id)
+      ids.each do |id|
+        target = records_by_id[id]
+        next unless target
+
+        ProposalDependencyValidator.validate!(target)
+      rescue ArgumentError => e
+        return e.message
+      end
+
+      nil
+    end
+
+    def proposal_dependency_target_error(proposals)
+      Array(proposals).each do |proposal|
+        target = proposal.job || proposal.epic
+        next unless target
+
+        ProposalDependencyValidator.validate!(target)
+      rescue ArgumentError => e
+        return e.message
+      end
+
+      nil
+    end
   end
 end

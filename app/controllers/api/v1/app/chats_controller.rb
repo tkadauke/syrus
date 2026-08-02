@@ -827,6 +827,8 @@ module Api
           ApplicationRecord.transaction do
             depends_on_job_ids = dependency_ids!(Current.user.jobs, Array(attrs[:depends_on_job_ids]), "depends_on_job_ids")
             depends_on_epic_ids = dependency_ids!(Current.user.epics, Array(attrs[:depends_on_epic_ids]), "depends_on_epic_ids")
+            validate_proposal_dependency_targets!(Current.user.jobs.where(id: depends_on_job_ids))
+            validate_proposal_dependency_targets!(Current.user.epics.where(id: depends_on_epic_ids))
             update_attrs = {
               title: attrs[:title],
               body: attrs[:body],
@@ -1109,6 +1111,10 @@ module Api
 
         def find_proposal(chat_session)
           chat_session.proposals.find(params[:proposal_id])
+        end
+
+        def validate_proposal_dependency_targets!(targets)
+          targets.each { |target| ProposalDependencyValidator.validate!(target) }
         end
 
         def product_owner_proposal_adds_jobs_to_epics?(proposal)
