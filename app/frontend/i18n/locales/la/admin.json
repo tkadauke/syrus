@@ -253,6 +253,8 @@
     "mode_help": "Provectus: plena experientia programmatoris cum approbationibus manualibus et omnibus moderamentis. Simplex: approbatio et fusio automatica, sine modo scribendi, sine modo locali, sine officiis temporatis.",
     "mode_advanced": "Provectus (programmator)",
     "mode_simple": "Simplex (non technicus)",
+    "mode_confirm_to_advanced": "Modus provectus plenam experientiam programmatoris reddit, cum approbationibus manualibus, modo scribendi, modo locali, officiis temporatis, et omnibus moderamentis. Syrus mutationem servabit et hanc paginam iterum onerabit.",
+    "mode_confirm_to_simple": "Modus simplex superficies programmatoribus destinatas celat, modum scribendi, modum localem, et officia temporata exstinguit, atque simpliciores cursus recognitionis per proprietates adhibet. Syrus mutationem servabit et hanc paginam iterum onerabit.",
     "settings_updated": "Optiones renovatae."
   },
   "github_app": {

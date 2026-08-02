@@ -58,6 +58,11 @@ paths, commands, and raw outputs are hidden. Running calls show brief progress
 text, successful calls leave no transcript entry, failed calls show only "Hit a
 snag", and the chat workspace does not show the Context tab.
 
+Admins can switch between simple and advanced mode from Admin Settings. Syrus
+shows a confirmation that explains the mode-specific changes, saves only after
+confirmation, and reloads the page so the visible navigation and copy match the
+new mode.
+
 ## Notifications
 
 Signed-in operators see a bell in the app chrome with the current unread

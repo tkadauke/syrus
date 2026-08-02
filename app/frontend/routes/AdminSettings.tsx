@@ -11,6 +11,7 @@ import {
 import { NoticeToast } from "../components/NoticeToast"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
+import * as pageReload from "../lib/pageReload"
 import { useConfirm } from "../hooks/useConfirm"
 
 const queryKey = ["admin", "settings"] as const
@@ -97,6 +98,7 @@ function SecretRow({ secret, onNotice }: { secret: ClearableSecret; onNotice: (m
 
 function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; onNotice: (message: string | null) => void }) {
   const { t } = useT("admin")
+  const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
   const [signupsOpen, setSignupsOpen] = useState(payload.settings.signups_open)
   const [videoRetentionDays, setVideoRetentionDays] = useState(String(payload.settings.video_retention_days))
@@ -116,6 +118,7 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       onNotice(updated.message || t("settings.settings_updated"))
+      if (updated.settings.mode !== payload.settings.mode) pageReload.reloadPage()
     }
   })
 
@@ -128,9 +131,16 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
     setMode(payload.settings.mode)
   }, [payload.settings.signups_open, payload.settings.video_retention_days, payload.settings.video_storage_budget_mb, payload.settings.max_concurrent_agent_runs, payload.settings.proactive_rebase_commit_threshold, payload.settings.mode])
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     onNotice(null)
+    if (mode !== payload.settings.mode) {
+      const confirmed = await confirm({ message: modeChangeMessage(t, payload.settings.mode, mode) })
+      if (!confirmed) {
+        setMode(payload.settings.mode)
+        return
+      }
+    }
     update.mutate()
   }
 
@@ -226,8 +236,14 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
         {update.isPending ? t("settings.saving") : t("settings.save")}
       </button>
       {update.isError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(update.error, t("settings.error_update"))}</p> : null}
+      {dialog}
     </form>
   )
+}
+
+function modeChangeMessage(t: ReturnType<typeof useT<"admin">>["t"], from: "advanced" | "simple", to: "advanced" | "simple") {
+  if (from === to) return ""
+  return to === "advanced" ? t("settings.mode_confirm_to_advanced") : t("settings.mode_confirm_to_simple")
 }
 
 function SettingsError({ error }: { error: Error }) {
@@ -238,4 +254,3 @@ function SettingsError({ error }: { error: Error }) {
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
   return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}>{children}</div>
 }
-

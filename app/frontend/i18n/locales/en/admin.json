@@ -253,6 +253,8 @@
     "mode_help": "Advanced: full developer experience with manual approvals, coding mode, and all controls. Simple: auto-approve and auto-merge, no coding mode, no local mode, no scheduled tasks.",
     "mode_advanced": "Advanced (developer)",
     "mode_simple": "Simple (non-technical)",
+    "mode_confirm_to_advanced": "Advanced mode restores the full developer experience, including manual approvals, Coding Mode, Local Mode, scheduled tasks, and all operator controls. Syrus will save the change and reload this page.",
+    "mode_confirm_to_simple": "Simple mode hides developer-only surfaces, disables Coding Mode, Local Mode, and scheduled tasks, and uses simpler feature-level review flows. Syrus will save the change and reload this page.",
     "settings_updated": "Settings updated."
   },
   "github_app": {

@@ -253,6 +253,8 @@
     "mode_help": "Erweitert: volle Entwicklererfahrung mit manuellen Freigaben, Coding-Modus und allen Steuerelementen. Einfach: Auto-Freigabe und Auto-Merge, kein Coding-Modus, kein lokaler Modus, keine geplanten Aufgaben.",
     "mode_advanced": "Erweitert (Entwickler)",
     "mode_simple": "Einfach (nicht-technisch)",
+    "mode_confirm_to_advanced": "Der erweiterte Modus stellt die volle Entwicklererfahrung wieder her, einschließlich manueller Freigaben, Coding-Modus, lokalem Modus, geplanten Aufgaben und allen Operator-Steuerelementen. Syrus speichert die Änderung und lädt diese Seite neu.",
+    "mode_confirm_to_simple": "Der einfache Modus blendet entwicklerorientierte Bereiche aus, deaktiviert Coding-Modus, lokalen Modus und geplante Aufgaben und nutzt einfachere Feature-Review-Abläufe. Syrus speichert die Änderung und lädt diese Seite neu.",
     "settings_updated": "Einstellungen aktualisiert."
   },
   "github_app": {

@@ -3,6 +3,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
+
+const reloadMock = vi.hoisted(() => vi.fn())
+
+vi.mock("../lib/pageReload", () => ({
+  reloadPage: reloadMock
+}))
+
 import { AdminSettings } from "./AdminSettings"
 import * as useConfirmModule from "../hooks/useConfirm"
 
@@ -11,8 +18,11 @@ function adminPayload(overrides: Record<string, unknown> = {}) {
     settings: {
       signups_open: false,
       max_concurrent_agent_runs: 0,
+      proactive_rebase_commit_threshold: 1,
       video_retention_days: 7,
+      video_storage_budget_mb: 2048,
       video_storage_budget_bytes: 2147483648,
+      mode: "advanced",
       grade_max_iterations: 3,
       adversarial_review_rounds: 0,
       merge_train_enabled: false,
@@ -26,7 +36,9 @@ function adminPayload(overrides: Record<string, unknown> = {}) {
 }
 
 function renderRoute() {
-  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(adminPayload()))
+  if (!vi.isMockFunction(window.fetch)) {
+    vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(adminPayload())))
+  }
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
@@ -43,6 +55,7 @@ describe("AdminSettings SecretRow", () => {
   beforeEach(() => {
     mockConfirm = vi.fn().mockResolvedValue(true)
     vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: mockConfirm as any, dialog: <></> })
+    reloadMock.mockClear()
   })
 
   afterEach(() => vi.restoreAllMocks())
@@ -86,5 +99,49 @@ describe("AdminSettings SecretRow", () => {
 
     await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
     expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/admin/settings/clear_secret", expect.anything())
+  })
+
+  it("confirms and reloads when saving a mode change", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/admin/settings" && init?.method === "PATCH") {
+        return Promise.resolve(jsonResponse(adminPayload({
+          message: "Settings updated.",
+          settings: { ...adminPayload().settings, mode: "simple" }
+        })))
+      }
+      return Promise.resolve(jsonResponse(adminPayload()))
+    })
+
+    renderRoute()
+
+    fireEvent.change(await screen.findByLabelText("Instance mode"), { target: { value: "simple" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => {
+      expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({
+        message: expect.stringContaining("Simple mode hides developer-only surfaces")
+      }))
+    })
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/settings", expect.objectContaining({ method: "PATCH" }))
+      expect(reloadMock).toHaveBeenCalled()
+    })
+  })
+
+  it("resets the dropdown when cancelling a mode change", async () => {
+    mockConfirm.mockResolvedValue(false)
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(adminPayload()))
+
+    renderRoute()
+
+    const modeSelect = await screen.findByLabelText("Instance mode")
+    fireEvent.change(modeSelect, { target: { value: "simple" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() => {
+      expect(modeSelect).toHaveValue("advanced")
+    })
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/admin/settings", expect.objectContaining({ method: "PATCH" }))
+    expect(reloadMock).not.toHaveBeenCalled()
   })
 })
