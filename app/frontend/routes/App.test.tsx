@@ -9190,7 +9190,7 @@ describe("App", () => {
     const payload = jobDetailPayload({
       landing_queue_entry: {
         position: 1,
-        blocked_reason: "waiting for epic siblings to be approved",
+        blocked_reason: { key: "waiting_epic_siblings" },
         waiting_for_jobs: [
           { id: 43, label: "#43", title: "Approve sibling aqueduct", job_path: "/jobs/43" }
         ]
