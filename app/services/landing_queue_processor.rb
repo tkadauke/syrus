@@ -1,6 +1,14 @@
 class LandingQueueProcessor
   MERGEABILITY_RECHECK_DELAY = 1.minute
   MERGEABILITY_WAIT_REASON = { key: "waiting_github_mergeability" }.freeze
+  PRIORITY_ORDER_SQL = [
+    "CASE jobs.priority",
+    "WHEN 'urgent' THEN 0",
+    "WHEN 'high' THEN 1",
+    "WHEN 'medium' THEN 2",
+    "WHEN 'low' THEN 3",
+    "ELSE 4 END"
+  ].join(" ").freeze
 
   # How many Jobs at the front of a repository's landing queue are
   # worth keeping rebased ahead of time. Proactive rebasing of the
@@ -92,41 +100,29 @@ class LandingQueueProcessor
     occupied_repo_ids = Set.new(Job.landing.pluck(:repository_id))
     landed_workflows = []
 
-    dispatch_merge_trains!(occupied_repo_ids, landed_workflows) if AppSetting.merge_train_enabled?
-
     queue_entries = refresh_snapshot!(Job.landing_queue)
-    queue_entries.each do |entry|
-      next if occupied_repo_ids.include?(entry.job.repository_id)
-      next unless entry.eligible?
+    queue_entries.group_by(&:landing_unit_key).each_value do |unit_entries|
+      first_entry = unit_entries.first
+      repository_id = first_entry.job.repository_id
+      next if occupied_repo_ids.include?(repository_id)
 
-      workflow = land(entry.job)
+      workflow = if merge_train_unit?(first_entry)
+        next if first_entry.blocker_jobs.any?
+
+        MergeTrainDispatcher.try_dispatch!(first_entry.job.epic)
+      else
+        entry = unit_entries.find(&:eligible?)
+        land(entry.job) if entry
+      end
       next unless workflow
 
       landed_workflows << workflow
-      occupied_repo_ids << entry.job.repository_id
+      occupied_repo_ids << repository_id
     end
 
     refresh_snapshot!(Job.landing_queue) if landed_workflows.any?
 
     landed_workflows.first
-  end
-
-  # Dispatch an atomic merge-train for each repository whose Epic is
-  # ready (all open children approved). One train per repo per tick;
-  # marks the repo occupied so the per-Job loop skips it.
-  def dispatch_merge_trains!(occupied_repo_ids, landed_workflows)
-    candidate_epic_ids = Job.approved.where.not(epic_id: nil).distinct.pluck(:epic_id)
-    return if candidate_epic_ids.empty?
-
-    Epic.where(id: candidate_epic_ids).includes(:repository).find_each do |epic|
-      next if occupied_repo_ids.include?(epic.repository_id)
-
-      workflow = MergeTrainDispatcher.try_dispatch!(epic)
-      next unless workflow
-
-      occupied_repo_ids << epic.repository_id
-      landed_workflows << workflow
-    end
   end
 
   def entries(scope = Job.all)
@@ -240,8 +236,12 @@ class LandingQueueProcessor
   def queue_candidates(scope)
     scope.where(state: %w[ approved landing ])
          .includes(:user, :repository, :epic, :parent_job, dependencies: [ :depends_on_job, :depends_on_epic ])
-         .order(Arel.sql("COALESCE(jobs.approved_at, jobs.updated_at) ASC"), :id)
+         .order(Arel.sql(PRIORITY_ORDER_SQL), Arel.sql("COALESCE(jobs.approved_at, jobs.updated_at) ASC"), :id)
          .to_a
+  end
+
+  def merge_train_unit?(entry)
+    AppSetting.merge_train_enabled? && entry.job.epic_id.present?
   end
 
   def epic_grouped_dependency_order(jobs)
@@ -458,8 +458,7 @@ class LandingQueueProcessor
       return blocked({ key: "landing_paused_main_broken" })
     end
     return blocked({ key: "repository_archived" }) if job.repository.archived?
-    if job.priority != "urgent" &&
-       job.repository.jobs.where(priority: "urgent").where.not(state: Job::TERMINAL_STATES).exists?
+    if job.priority != "urgent" && unrelated_urgent_job_active_for_repository?(job)
       return blocked({ key: "urgent_job_active" })
     end
     return blocked({ key: "waiting_epic_release" }) if job.blocked_by_epic_before_execution?
@@ -542,6 +541,14 @@ class LandingQueueProcessor
     return false if job.mergeability_checked_at.blank?
 
     job.mergeability_checked_at > MERGEABILITY_RECHECK_DELAY.ago
+  end
+
+  def unrelated_urgent_job_active_for_repository?(job)
+    job.repository.jobs
+       .where(priority: "urgent")
+       .where.not(state: Job::TERMINAL_STATES)
+       .where.not(id: job.id)
+       .any? { |urgent_job| !landing_queue_prerequisite_ids(urgent_job).include?(job.id) }
   end
 
   def unapproved_epic_siblings(job)

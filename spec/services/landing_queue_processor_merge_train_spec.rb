@@ -55,6 +55,57 @@ RSpec.describe LandingQueueProcessor, "merge-train integration" do
       expect(Workflow.where(trigger_kind: "auto_merge").count).to eq(0)
     end
 
+    it "does not dispatch a lower-priority train ahead of a higher-priority loose Job" do
+      AppSetting.current.update!(merge_train_enabled: true)
+      approved_child(1).update!(approved_at: 10.minutes.ago, priority: "low")
+      loose = Factories.job_record(
+        user: user, repository: repository,
+        issue_number: 9, state: "implemented",
+        pr_number: 509, branch_name: "syrus/issue-9"
+      )
+      loose.approve!(via: "operator")
+      loose.update!(approved_at: 1.minute.ago, priority: "urgent")
+      allow(MergeTrainDispatcher).to receive(:try_dispatch!).and_return(Object.new)
+
+      workflow = described_class.call
+
+      expect(workflow.job).to eq(loose)
+      expect(loose.reload).to be_landing
+      expect(MergeTrainDispatcher).not_to have_received(:try_dispatch!)
+    end
+
+    it "keeps a priority-boosted Epic train as one landing unit" do
+      AppSetting.current.update!(merge_train_enabled: true)
+      low_child = approved_child(1).tap { |job| job.update!(approved_at: 10.minutes.ago, priority: "low") }
+      urgent_child = approved_child(2).tap { |job| job.update!(approved_at: 1.minute.ago, priority: "urgent") }
+      high_loose = Factories.job_record(
+        user: user, repository: repository,
+        issue_number: 9, state: "approved",
+        pr_number: 509, branch_name: "syrus/issue-9",
+        approved_at: 5.minutes.ago, priority: "high"
+      )
+
+      entries = described_class.entries(Job.where(id: [ low_child.id, urgent_child.id, high_loose.id ]))
+
+      expect(entries.map(&:job_id)).to eq([ urgent_child.id, low_child.id, high_loose.id ])
+      expect(entries.first(2).map(&:landing_unit_key).uniq).to eq([ "epic:#{epic.id}" ])
+    end
+
+    it "does not dispatch a train while a member has an unmerged external blocker" do
+      AppSetting.current.update!(merge_train_enabled: true)
+      blocker = Factories.job_record(
+        user: user, repository: repository,
+        issue_number: 9, state: "implemented",
+        pr_number: 509, branch_name: "syrus/issue-9"
+      )
+      child = approved_child(1)
+      JobDependency.create!(job: child, depends_on_job: blocker, source: "manual")
+      allow(MergeTrainDispatcher).to receive(:try_dispatch!).and_return(Object.new)
+
+      expect(described_class.call).to be_nil
+      expect(MergeTrainDispatcher).not_to have_received(:try_dispatch!)
+    end
+
     it "routes try_land! for an Epic child to the train dispatcher" do
       AppSetting.current.update!(merge_train_enabled: true)
       child = approved_child(1)

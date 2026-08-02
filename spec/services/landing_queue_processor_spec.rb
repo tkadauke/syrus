@@ -429,6 +429,59 @@ RSpec.describe LandingQueueProcessor do
     expect(ready.reload).to be_approved
   end
 
+  describe "priority ordering" do
+    it "lands an urgent approved Job ahead of older medium and low Jobs" do
+      low = queue_job(issue_number: 1, approved_at: 10.minutes.ago).tap { |j| j.update!(priority: "low") }
+      medium = queue_job(issue_number: 2, approved_at: 5.minutes.ago)
+      urgent = queue_job(issue_number: 3, approved_at: 1.minute.ago).tap { |j| j.update!(priority: "urgent") }
+
+      workflow = described_class.call
+
+      expect(workflow.job).to eq(urgent)
+      expect(urgent.reload).to be_landing
+      expect(medium.reload).to be_approved
+      expect(low.reload).to be_approved
+    end
+
+    it "orders entries and cached positions by priority before FIFO approval time" do
+      low = queue_job(issue_number: 1, approved_at: 10.minutes.ago).tap { |j| j.update!(priority: "low") }
+      high = queue_job(issue_number: 2, approved_at: 1.minute.ago).tap { |j| j.update!(priority: "high") }
+      medium = queue_job(issue_number: 3, approved_at: 5.minutes.ago)
+      urgent = queue_job(issue_number: 4, approved_at: 30.seconds.ago).tap { |j| j.update!(priority: "urgent") }
+
+      entries = described_class.refresh_snapshot!(Job.where(id: [ low.id, high.id, medium.id, urgent.id ]))
+
+      expect(entries.map(&:job_id)).to eq([ urgent.id, high.id, medium.id, low.id ])
+      expect(urgent.reload.landing_queue_entry_position).to eq(1)
+      expect(high.reload.landing_queue_entry_position).to eq(2)
+      expect(medium.reload.landing_queue_entry_position).to eq(3)
+      expect(low.reload.landing_queue_entry_position).to eq(4)
+    end
+
+    it "keeps dependency prerequisites ahead of urgent dependents" do
+      dependent = queue_job(issue_number: 2, approved_at: 1.minute.ago).tap { |j| j.update!(priority: "urgent") }
+      prerequisite = queue_job(issue_number: 1, approved_at: 10.minutes.ago)
+      JobDependency.create!(job: dependent, depends_on_job: prerequisite, source: "manual")
+
+      entries = described_class.entries(Job.where(id: [ dependent.id, prerequisite.id ]))
+      workflow = described_class.call
+
+      expect(entries.map(&:job_id)).to eq([ prerequisite.id, dependent.id ])
+      expect(workflow.job).to eq(prerequisite)
+      expect(prerequisite.reload).to be_landing
+      expect(dependent.reload).to be_approved
+    end
+
+    it "uses priority-aware order for rebase prefetch depth" do
+      low = queue_job(issue_number: 1, approved_at: 10.minutes.ago).tap { |j| j.update!(priority: "low") }
+      queue_job(issue_number: 2, approved_at: 5.minutes.ago)
+      urgent = queue_job(issue_number: 3, approved_at: 1.minute.ago).tap { |j| j.update!(priority: "urgent") }
+
+      expect(described_class.rebase_prefetch_candidate?(urgent, depth: 1)).to be(true)
+      expect(described_class.rebase_prefetch_candidate?(low, depth: 1)).to be(false)
+    end
+  end
+
   # Regression: an approved Job on a repo without auto_merge_enabled
   # used to be picked up by the queue, transitioned to :landing,
   # then immediately failed at AutoMergeGate ("repository has not
