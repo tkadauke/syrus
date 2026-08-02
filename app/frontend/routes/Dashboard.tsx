@@ -333,7 +333,7 @@ export function DashboardContent({ payload, pathname, prefix, search }: { payloa
 
   return (
     <section className="min-w-0 space-y-4" data-tour="dashboard-table">
-      <DashboardTable payload={payload} prefix={prefix} setupStatus={setupStatus} />
+      <DashboardTable payload={payload} pathname={pathname} prefix={prefix} search={search} setupStatus={setupStatus} />
       {payload.view === "list" ? <Pagination pathname={pathname} search={search} payload={payload} /> : null}
     </section>
   )
@@ -583,7 +583,7 @@ function smartFolderIdFromSearch(search: string) {
   return Number.isInteger(id) ? id : null
 }
 
-export function DashboardTable({ payload, prefix, setupStatus }: { payload: DashboardPayload; prefix: string; setupStatus: ReturnType<typeof useSetupStatus> }) {
+export function DashboardTable({ payload, pathname = "", prefix, search = "", setupStatus }: { payload: DashboardPayload; pathname?: string; prefix: string; search?: string; setupStatus: ReturnType<typeof useSetupStatus> }) {
   const { t } = useT("dashboard")
   const queryClient = useQueryClient()
   const updateSort = useMutation({
@@ -639,7 +639,7 @@ export function DashboardTable({ payload, prefix, setupStatus }: { payload: Dash
     }
   }
 
-  if (payload.view === "kanban") return <DashboardKanban payload={payload} prefix={prefix} setupStatus={setupStatus} />
+  if (payload.view === "kanban") return <DashboardKanban payload={payload} prefix={prefix} rowsSearch={dashboardApiSearch(pathname, search)} setupStatus={setupStatus} />
 
   if ((payload.items ?? []).length === 0) {
     if (payload.total === 0 && payload.counts[`${payload.subject}s` as keyof DashboardPayload["counts"]] === 0) {

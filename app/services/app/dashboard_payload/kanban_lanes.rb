@@ -43,10 +43,8 @@ module App
               { epic: { chat_proposals: [ :chat_session, :messages ] } }
             )
             .order(created_at: :desc, id: :desc)
-            .limit(kanban_limit)
             .to_a
         end
-        PerformanceLogging.phase("dashboard_kanban_jobs.preload_runtime_state", count: records.size) { preload_job_runtime_state(records) }
 
         records.each do |job|
           lane = job_kanban_lane_for(job, visible_lanes)
@@ -54,25 +52,41 @@ module App
         end
 
         PerformanceLogging.phase("dashboard_kanban_jobs.serialize", count: records.size) do
-          lane_defs.map { |lane| lane_json(lane.fetch(:key), lane.fetch(:title), records_by_lane.fetch(lane.fetch(:key)).map { |job| job_json(job) }) }
+          lane_defs.map do |lane|
+            lane_key = lane.fetch(:key)
+            lane_records = records_by_lane.fetch(lane_key)
+            paginated_records = paginated_kanban_records(lane_key, lane_records)
+            PerformanceLogging.phase("dashboard_kanban_jobs.preload_runtime_state", lane: lane_key, count: paginated_records.size) { preload_job_runtime_state(paginated_records) }
+            lane_json(
+              lane_key,
+              lane.fetch(:title),
+              paginated_records.map { |job| job_json(job) },
+              total_count: lane_records.size,
+              offset: kanban_offset_for(lane_key)
+            )
+          end
         end
       end
 
       def epic_lanes_json
         lanes = user.dashboard_visible_kanban_lanes(:epics)
-        records = PerformanceLogging.phase("dashboard_kanban_epics.query", lanes: lanes.join(","), limit: kanban_limit) do
-          filtered_epics_scope
-            .includes(:owner, :repository, :owner_user, :jobs)
-            .where(state: lanes)
-            .order(updated_at: :desc, id: :desc)
-            .limit(kanban_limit)
-            .to_a
-        end
-        records_by_lane = lanes.to_h { |lane| [ lane, [] ] }
-        records.each { |epic| records_by_lane[epic.state] << epic if records_by_lane.key?(epic.state) }
 
-        PerformanceLogging.phase("dashboard_kanban_epics.serialize", count: records.size) do
-          lanes.map { |lane| lane_json(lane, lane.humanize, records_by_lane.fetch(lane).map { |epic| epic_json(epic) }) }
+        PerformanceLogging.phase("dashboard_kanban_epics.serialize", lanes: lanes.join(","), limit: kanban_limit) do
+          lanes.map do |lane|
+            offset = kanban_offset_for(lane)
+            scope = filtered_epics_scope.where(state: lane)
+            total_count = scope.count
+            records = PerformanceLogging.phase("dashboard_kanban_epics.query", lane: lane, offset: offset, limit: kanban_limit) do
+              scope
+                .includes(:owner, :repository, :owner_user, :jobs)
+                .order(updated_at: :desc, id: :desc)
+                .offset(offset)
+                .limit(kanban_limit)
+                .to_a
+            end
+
+            lane_json(lane, lane.humanize, records.map { |epic| epic_json(epic) }, total_count: total_count, offset: offset)
+          end
         end
       end
 
@@ -84,7 +98,6 @@ module App
             .where(state: workflow_kanban_candidate_states(lanes))
             .includes(:steps, job: [ :repository, :user, :owner_user ])
             .order(created_at: :desc, id: :desc)
-            .limit(kanban_limit)
             .to_a
         end
 
@@ -94,15 +107,31 @@ module App
         end
 
         PerformanceLogging.phase("dashboard_kanban_workflows.serialize", count: records.size) do
-          lanes.map { |lane| lane_json(lane, lane.humanize, records_by_lane.fetch(lane).map { |workflow| workflow_json(workflow) }) }
+          lanes.map do |lane|
+            lane_records = records_by_lane.fetch(lane)
+            offset = kanban_offset_for(lane)
+            paginated_records = paginated_kanban_records(lane, lane_records)
+            lane_json(
+              lane,
+              lane.humanize,
+              paginated_records.map { |workflow| workflow_json(workflow) },
+              total_count: lane_records.size,
+              offset: offset
+            )
+          end
         end
       end
 
-      def lane_json(key, title, items)
+      def lane_json(key, title, items, total_count: items.size, offset: 0)
+        loaded_count = offset + items.size
         {
           key: key,
           title: title,
-          count: items.size,
+          count: total_count,
+          total_count: total_count,
+          loaded_count: loaded_count,
+          has_more: loaded_count < total_count,
+          next_offset: loaded_count,
           items: items
         }
       end
@@ -164,6 +193,16 @@ module App
         return requested_limit if KANBAN_LIMIT_OPTIONS.include?(requested_limit)
 
         KANBAN_PER_PAGE
+      end
+
+      def paginated_kanban_records(lane, records)
+        records.slice(kanban_offset_for(lane), kanban_limit) || []
+      end
+
+      def kanban_offset_for(lane)
+        return 0 unless lane == params[:kanban_lane].to_s
+
+        [ Integer(params[:kanban_offset], exception: false).to_i, 0 ].max
       end
     end
   end

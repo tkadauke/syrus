@@ -4959,6 +4959,64 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: "Load more Running" })).not.toBeInTheDocument()
   })
 
+  it("loads another server-backed Kanban lane page without replacing other lanes", async () => {
+    const firstPageJobs = Array.from({ length: 20 }, (_, index) => dashboardJobItem({
+      id: index + 1,
+      title: `Repair aqueduct ${index + 1}`,
+      paths: { job_path: `/jobs/${index + 1}`, source_path: `/jobs/${index + 1}/source` }
+    }))
+    const nextPageJob = dashboardJobItem({
+      id: 21,
+      title: "Repair aqueduct 21",
+      paths: { job_path: "/jobs/21", source_path: "/jobs/21/source" }
+    })
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = new URL(String(input), "http://example.test")
+      const isLaneFetch = url.searchParams.get("kanban_lane") === "running"
+      const payload = dashboardPayload({
+        subject: "job",
+        view: "kanban",
+        total: 22,
+        lanes: isLaneFetch ? [
+          { key: "queued", title: "Queued", count: 1, items: [dashboardJobItem({ id: 99, title: "Server stale queued" })] },
+          { key: "running", title: "Running", count: 21, total_count: 21, loaded_count: 21, has_more: false, next_offset: 21, items: [nextPageJob] },
+          { key: "succeeded", title: "Succeeded", count: 0, items: [] }
+        ] : [
+          { key: "queued", title: "Queued", count: 1, items: [dashboardJobItem({ id: 98, title: "Keep queued card" })] },
+          { key: "running", title: "Running", count: 21, total_count: 21, loaded_count: 20, has_more: true, next_offset: 20, items: firstPageJobs },
+          { key: "succeeded", title: "Succeeded", count: 0, items: [] }
+        ],
+        kanban_limit: 100
+      })
+
+      return Promise.resolve(dashboardResponse(payload, input))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=kanban&smart_folder_id=7&scope=mine"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("link", { name: "Repair aqueduct 20" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Keep queued card" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Load more Running" }))
+
+    expect(await screen.findByRole("link", { name: "Repair aqueduct 21" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Keep queued card" })).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Server stale queued" })).not.toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/dashboard?view=kanban&smart_folder_id=7&scope=mine&subject=job&kanban_lane=running&kanban_offset=20&section=rows",
+      expect.objectContaining({
+        credentials: "same-origin",
+        headers: { Accept: "application/json" }
+      })
+    )
+  })
+
   it("shows a needs attention badge on stuck Epic kanban cards", async () => {
     mockDashboardFetch(dashboardPayload({
       subject: "epic",

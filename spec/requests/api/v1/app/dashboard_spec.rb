@@ -386,6 +386,72 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(lane_item_ids(body, "queued")).not_to include(blocked.id)
     end
 
+    it "returns per-lane Kanban counts and has_more metadata for jobs" do
+      user.update_dashboard_kanban_lanes!(subject: :jobs, lanes: %w[queued running])
+      12.times do |index|
+        Factories.job_record(repository: repo, owner_user: user, issue_number: index + 10, issue_title: "Running #{index}", state: "running", created_at: (index + 1).minutes.ago)
+      end
+      queued = Factories.job_record(repository: repo, owner_user: user, issue_number: 30, issue_title: "Queued", state: "queued")
+
+      get "/api/v1/app/dashboard", params: { subject: "job", view: "kanban", kanban_limit: 10 }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      running_lane = body.fetch("lanes").find { |lane| lane.fetch("key") == "running" }
+      queued_lane = body.fetch("lanes").find { |lane| lane.fetch("key") == "queued" }
+      expect(running_lane).to include(
+        "count" => 12,
+        "total_count" => 12,
+        "loaded_count" => 10,
+        "has_more" => true,
+        "next_offset" => 10
+      )
+      expect(running_lane.fetch("items").size).to eq(10)
+      expect(queued_lane).to include(
+        "count" => 1,
+        "total_count" => 1,
+        "loaded_count" => 1,
+        "has_more" => false,
+        "next_offset" => 1
+      )
+      expect(lane_item_ids(body, "queued")).to eq([ queued.id ])
+    end
+
+    it "loads another non-Done Kanban lane page without changing smart folder or ownership scope" do
+      other_user = Factories.user
+      oldest_owned = nil
+      11.times do |index|
+        job = Factories.job_record(repository: repo, owner_user: user, issue_number: index + 40, issue_title: "Owned running #{index}", state: "running", created_at: (index + 1).minutes.ago)
+        oldest_owned = job if index == 10
+      end
+      Factories.job_record(repository: repo, owner_user: other_user, issue_number: 60, issue_title: "Other running", state: "running", created_at: 20.minutes.ago)
+      folder = SmartFolder.create!(
+        user: user,
+        subject_type: "job",
+        name: "Running work",
+        kind: "user_defined",
+        filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "running" } ] }
+      )
+
+      get "/api/v1/app/dashboard", params: {
+        subject: "job",
+        view: "kanban",
+        scope: "mine",
+        smart_folder_id: folder.id,
+        kanban_limit: 10,
+        kanban_lane: "running",
+        kanban_offset: 10
+      }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      running_lane = body.fetch("lanes").find { |lane| lane.fetch("key") == "running" }
+      expect(body.fetch("active_smart_folder_id")).to eq(folder.id)
+      expect(body.dig("ownership_scope", "scope")).to eq("mine")
+      expect(running_lane).to include("total_count" => 11, "loaded_count" => 11, "has_more" => false, "next_offset" => 11)
+      expect(running_lane.fetch("items").map { |item| item.fetch("id") }).to eq([ oldest_owned.id ])
+    end
+
     it "marks the landing queue pause control visible when the landing smart folder is active" do
       user.update!(landing_paused: true)
       folder = SmartFolder.create!(
@@ -974,6 +1040,45 @@ RSpec.describe "App API dashboard commands", type: :request do
         "all_jobs_closed" => false,
         "job_state_counts" => { "closed" => 2, "preempted" => 1, "implemented" => 1 }
       )
+    end
+
+    it "returns per-lane Kanban counts and has_more metadata for Epics" do
+      12.times do |index|
+        Factories.epic(user: user, repository: repo, title: "Backlog #{index}", state: "backlog", updated_at: (index + 1).minutes.ago)
+      end
+
+      get "/api/v1/app/dashboard", params: { subject: "epic", view: "kanban", kanban_limit: 10 }
+
+      expect(response).to have_http_status(:ok)
+      backlog_lane = parse_body.fetch("lanes").find { |lane| lane.fetch("key") == "backlog" }
+      expect(backlog_lane).to include(
+        "count" => 12,
+        "total_count" => 12,
+        "loaded_count" => 10,
+        "has_more" => true,
+        "next_offset" => 10
+      )
+      expect(backlog_lane.fetch("items").size).to eq(10)
+    end
+
+    it "returns per-lane Kanban counts and has_more metadata for Workflows" do
+      12.times do |index|
+        job = Factories.job_record(repository: repo, owner_user: user, issue_number: index + 70, issue_title: "Workflow job #{index}", state: "running")
+        Workflow.create!(job: job, trigger_kind: "manual", state: "running", created_at: (index + 1).minutes.ago)
+      end
+
+      get "/api/v1/app/dashboard", params: { subject: "workflow", view: "kanban", scope: "mine", kanban_limit: 10 }
+
+      expect(response).to have_http_status(:ok)
+      running_lane = parse_body.fetch("lanes").find { |lane| lane.fetch("key") == "running" }
+      expect(running_lane).to include(
+        "count" => 12,
+        "total_count" => 12,
+        "loaded_count" => 10,
+        "has_more" => true,
+        "next_offset" => 10
+      )
+      expect(running_lane.fetch("items").size).to eq(10)
     end
 
     it "returns smart folder counts and hides empty when-present built-ins" do

@@ -12,7 +12,7 @@ import { CopyableSlug } from "../../components/CopyableSlug"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { OnboardingEmptyState, useSetupStatus } from "../../components/OnboardingEmptyState"
 import { NoticeToast } from "../../components/NoticeToast"
-import { updateDashboardEpicState, type DashboardEpicItem, type DashboardItem, type DashboardLane, type DashboardPayload, type DashboardSubject } from "../../api/dashboard"
+import { fetchDashboardRows, updateDashboardEpicState, type DashboardEpicItem, type DashboardItem, type DashboardLane, type DashboardPayload, type DashboardSubject } from "../../api/dashboard"
 import { errorMessage } from "../../lib/errorMessage"
 
 
@@ -22,13 +22,21 @@ import { errorMessage } from "../../lib/errorMessage"
 
 const KANBAN_CARDS_PER_PAGE = 20
 
-export function DashboardKanban({ payload, prefix, setupStatus }: { payload: DashboardPayload; prefix: string; setupStatus: ReturnType<typeof useSetupStatus> }) {
+export function DashboardKanban({ payload, prefix, rowsSearch, setupStatus }: { payload: DashboardPayload; prefix: string; rowsSearch: string; setupStatus: ReturnType<typeof useSetupStatus> }) {
   const { t } = useT("dashboard")
   const queryClient = useQueryClient()
   const [draggedEpic, setDraggedEpic] = useState<DashboardEpicItem | null>(null)
   const [dragOverLane, setDragOverLane] = useState<string | null>(null)
   const [optimisticLanes, setOptimisticLanes] = useState(payload.lanes ?? [])
   const [notice, setNotice] = useState<string | null>(null)
+  const loadLane = useMutation({
+    mutationFn: ({ lane }: { lane: DashboardLane }) => fetchDashboardRows(kanbanLaneSearch(rowsSearch, lane.key, lane.next_offset ?? lane.items.length)),
+    onSuccess: (rows, { lane }) => {
+      const fetchedLane = rows.lanes.find((candidate) => candidate.key === lane.key)
+      if (!fetchedLane) return
+      setOptimisticLanes((lanes) => mergeLoadedLane(lanes, fetchedLane))
+    }
+  })
   const moveEpic = useMutation({
     mutationFn: ({ epic, targetState }: { epic: DashboardEpicItem; sourceState: string; targetState: string }) => updateDashboardEpicState(epic.paths.app_state_path, targetState),
     onSuccess: (updated) => {
@@ -114,7 +122,10 @@ export function DashboardKanban({ payload, prefix, setupStatus }: { payload: Das
               onDragOver={(event) => dragOverLaneFor(lane, event)}
               onDragStart={startDrag}
               onDrop={(event) => dropOnLane(lane, event)}
+              onLoadMore={() => loadLane.mutate({ lane })}
               prefix={prefix}
+              serverLoadError={loadLane.isError && loadLane.variables?.lane.key === lane.key ? errorMessage(loadLane.error, t("load_error")) : null}
+              serverLoadPending={loadLane.isPending && loadLane.variables?.lane.key === lane.key}
               subject={payload.subject}
             />
           ))}
@@ -131,7 +142,10 @@ function KanbanLane({
   onDragOver,
   onDragStart,
   onDrop,
+  onLoadMore,
   prefix,
+  serverLoadError,
+  serverLoadPending,
   subject
 }: {
   draggingOver: boolean
@@ -140,18 +154,32 @@ function KanbanLane({
   onDragOver: (event: DragEvent<HTMLElement>) => void
   onDragStart: (epic: DashboardEpicItem, event: DragEvent<HTMLElement>) => void
   onDrop: (event: DragEvent<HTMLElement>) => void
+  onLoadMore: () => void
   prefix: string
+  serverLoadError: string | null
+  serverLoadPending: boolean
   subject: DashboardSubject
 }) {
   const { t } = useT("dashboard")
-  const itemSignature = lane.items.map((item) => `${item.type}-${item.id}`).join(",")
   const [visibleCount, setVisibleCount] = useState(KANBAN_CARDS_PER_PAGE)
   const visibleItems = lane.items.slice(0, visibleCount)
   const hiddenCount = lane.items.length - visibleItems.length
+  const serverHasMore = Boolean(lane.has_more)
+  const canLoadMore = hiddenCount > 0 || serverHasMore
 
   useEffect(() => {
     setVisibleCount(KANBAN_CARDS_PER_PAGE)
-  }, [lane.key, itemSignature])
+  }, [lane.key])
+
+  function loadMore() {
+    if (hiddenCount > 0) {
+      setVisibleCount((count) => count + KANBAN_CARDS_PER_PAGE)
+      return
+    }
+
+    setVisibleCount((count) => count + KANBAN_CARDS_PER_PAGE)
+    onLoadMore()
+  }
 
   return (
     <section
@@ -175,11 +203,13 @@ function KanbanLane({
             prefix={prefix}
           />
         ))}
-        {hiddenCount > 0 ? (
+        {serverLoadError ? <div className="rounded border border-red-200 bg-red-50 p-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200" role="alert">{serverLoadError}</div> : null}
+        {canLoadMore ? (
           <button
             aria-label={t("load_more_lane", { lane: lane.title })}
             className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-            onClick={() => setVisibleCount((count) => count + KANBAN_CARDS_PER_PAGE)}
+            disabled={serverLoadPending}
+            onClick={loadMore}
             type="button"
           >
             {t("load_more")}
@@ -293,6 +323,30 @@ function moveEpicBetweenLanes(lanes: DashboardLane[], epic: DashboardEpicItem, t
       ...lane,
       count: lane.count + 1,
       items: [optimisticEpic, ...lane.items]
+    }
+  })
+}
+
+function kanbanLaneSearch(search: string, lane: string, offset: number) {
+  const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search)
+  params.set("kanban_lane", lane)
+  params.set("kanban_offset", String(Math.max(0, offset)))
+  const next = params.toString()
+  return next ? `?${next}` : ""
+}
+
+function mergeLoadedLane(lanes: DashboardLane[], fetchedLane: DashboardLane) {
+  return lanes.map((lane) => {
+    if (lane.key !== fetchedLane.key) return lane
+
+    const existingKeys = new Set(lane.items.map((item) => `${item.type}-${item.id}`))
+    const appendedItems = fetchedLane.items.filter((item) => !existingKeys.has(`${item.type}-${item.id}`))
+
+    return {
+      ...lane,
+      ...fetchedLane,
+      items: [...lane.items, ...appendedItems],
+      loaded_count: (lane.items.length + appendedItems.length)
     }
   })
 }

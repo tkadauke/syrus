@@ -17,6 +17,8 @@ Jobs show the repository, source prompt, state, priority, credential mode,
 agent provider, active Workflow, past Workflows, transcripts, captured
 diffs, PR link, attachments, dependencies, and logs. Operators can retry,
 cancel, run again, change priority, approve, or inspect the related PR.
+Dashboard Kanban boards for Jobs, Epics, and Workflows load cards per lane and
+show a Load more control whenever older cards exist beyond the loaded window.
 For landed Jobs, Syrus can also record configured deployment stage progress
 from repository tags, such as staging, production, or public release. The
 Jobs dashboard has an optional Deployment column, hidden by default, that
