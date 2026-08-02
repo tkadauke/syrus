@@ -237,6 +237,7 @@ RSpec.describe RunJob, :ci_only do
         [ "coverage_analyze",     "succeeded" ],
         [ "coverage_pr_comment",  "succeeded" ],
         [ "summarize_amend",      "succeeded" ],
+        [ "refresh_job_metadata", "succeeded" ],
         [ "push",                 "succeeded" ]
       ])
       # No new PR — same Job's existing one
@@ -662,6 +663,11 @@ RSpec.describe RunJob, :ci_only do
       )
     when "test_plan"
       current.workflow.set_artifact!("test_plan", { steps: [ "Run bin/rspec" ], notes: nil })
+    when "refresh_job_metadata"
+      current.workflow.set_artifact!("job_metadata", {
+        "changed" => false,
+        "intent_revision_reason" => "Feedback only tightened implementation details."
+      })
     when "agent_rebase"
       sh("git -c user.name=t -c user.email=t@e -C #{workspace_path} commit --allow-empty -q -m 'rebased'")
     end
