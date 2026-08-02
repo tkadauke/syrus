@@ -47,7 +47,21 @@ RSpec.describe McpToolPolicy do
         SyrusMcp::SubmitAdversarialReviewTool
       )
       expect(tools).not_to include(SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool)
-      expect(tools.size).to eq(10)
+      expect(tools.size).to eq(9)
+    end
+
+    it "excludes report_main_concern from the adversarial_reviewer role" do
+      context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER, user: user)
+      tools   = described_class.for(context)
+
+      expect(tools).not_to include(SyrusMcp::ReportMainConcernTool)
+    end
+
+    it "includes report_main_concern for the implement role" do
+      context = McpToolContext.from_run(run)
+      tools   = described_class.for(context)
+
+      expect(tools).to include(SyrusMcp::ReportMainConcernTool)
     end
 
     it "returns submit_summary, submit_test_plan, and submit_reconciliation_feedback for the reconciliation_feedback role" do

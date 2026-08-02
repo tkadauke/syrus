@@ -66,6 +66,9 @@ class McpToolPolicy
   # Per-step workflow tool set. Submit tools are role-specific so the
   # adversarial reviewer cannot call submit_summary/submit_test_plan and
   # non-reviewer roles cannot call submit_adversarial_review.
+  # ReportMainConcernTool is excluded from the adversarial reviewer: it only
+  # sees a diff and cannot distinguish a real main-branch regression from a
+  # transient infrastructure failure, so granting it would produce false quorum signals.
   def workflow_tools
     base = [
       SyrusMcp::ReadLiveStateTool,
@@ -75,16 +78,15 @@ class McpToolPolicy
       Mcp::Tools::SearchMemoriesTool,
       Mcp::Tools::ListMemoriesTool,
       SyrusMcp::GetCoverageReportTool,
-      SyrusMcp::ReadRunWorkerHealthTool,
-      SyrusMcp::ReportMainConcernTool
+      SyrusMcp::ReadRunWorkerHealthTool
     ]
 
     if @context.role == AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER
       base + [ SyrusMcp::SubmitAdversarialReviewTool ]
     elsif @context.role == AgentRole::WORKFLOW_RECONCILIATION_FEEDBACK
-      base + [ SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool, SyrusMcp::SubmitReconciliationFeedbackTool ]
+      base + [ SyrusMcp::ReportMainConcernTool, SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool, SyrusMcp::SubmitReconciliationFeedbackTool ]
     else
-      base + [ SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool ]
+      base + [ SyrusMcp::ReportMainConcernTool, SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool ]
     end
   end
 
