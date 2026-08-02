@@ -254,16 +254,16 @@ function SuggestionCard({
     if (confirmed) dismissMutation.mutate()
   }
 
-  function handleCardClick(event: MouseEvent<HTMLDivElement>) {
+  function handleCardClick(event: MouseEvent<HTMLElement>) {
     if (isInteractiveClickTarget(event.target)) return
 
     setExpanded((v) => !v)
   }
 
   return (
-    <article className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+    <article className="cursor-pointer rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900" onClick={handleCardClick}>
       {confirmDialog}
-      <div className="cursor-pointer p-4" onClick={handleCardClick}>
+      <div className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -499,7 +499,7 @@ function AcceptForm({
   })
 
   return (
-    <div className="border-t border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
+    <div className="cursor-default border-t border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800" data-insight-card-interactive>
       <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100">{t("accept_heading")}</h4>
 
       <div className="mt-3">
@@ -597,5 +597,5 @@ function StatePill({ state }: { state: string }) {
 }
 
 function isInteractiveClickTarget(target: EventTarget | null) {
-  return target instanceof Element && Boolean(target.closest("a, button, input, label, select, textarea, [role='button'], [role='link']"))
+  return target instanceof Element && Boolean(target.closest("a, button, input, label, select, textarea, [role='button'], [role='link'], [data-insight-card-interactive]"))
 }

@@ -270,6 +270,18 @@ describe("RepositoryInsightsRoute", () => {
       expect(screen.queryByText("Suggested prompt")).not.toBeInTheDocument()
     })
 
+    it("expands a suggestion when clicking the card shell", async () => {
+      renderRoute()
+
+      const title = await screen.findByText("Frequent prepare failures")
+      const card = title.closest("article")
+      expect(card).toBeInTheDocument()
+
+      fireEvent.click(card!)
+
+      expect(screen.getByText("Suggested prompt")).toBeInTheDocument()
+    })
+
     it("does not collapse a suggestion when clicking an action button", async () => {
       const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
         const url = String(input)
