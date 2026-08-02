@@ -57,6 +57,7 @@ RSpec.describe SyrusMcp::SubmitInsightTool do
       expect(suggestion.confidence).to be_within(0.001).of(0.85)
       expect(suggestion.suggested_prompt).to eq("Fix the Gemfile lock")
       expect(suggestion.memory_suggestion).to eq("Prepare sometimes fails due to lock mismatch")
+      expect(suggestion.effective_proposal_type).to eq("create_job")
       expect(suggestion.state).to eq("pending")
       expect(suggestion.job).to eq(run.job)
       expect(suggestion.repository).to eq(repository)
@@ -178,6 +179,7 @@ RSpec.describe SyrusMcp::SubmitInsightTool do
     let(:other_repository) { Factories.repository(user: other_user) }
 
     it "rejects evidence referencing a job from another user's repository" do
+      user.update!(admin: false)
       foreign_job = Factories.job(user: other_user, repository: other_repository)
 
       response = call(
@@ -270,6 +272,55 @@ RSpec.describe SyrusMcp::SubmitInsightTool do
       suggestion = InsightSuggestion.last
       expect(suggestion.suggested_prompt).to be_nil
       expect(suggestion.memory_suggestion).to be_present
+    end
+
+    it "stores remove_memory proposals without deleting the target memory" do
+      memory = ChatMemory.create!(
+        user: user,
+        kind: "project_fact",
+        scope: "repository",
+        scope_id: repository.id,
+        content: "The flaky spec is still broken."
+      )
+
+      response = call(
+        title: "Remove fixed-bug memory",
+        category: "memory_stale",
+        severity: "medium",
+        confidence: 0.9,
+        proposal_type: "remove_memory",
+        target_memory_id: memory.id,
+        stale_memory_text: memory.content,
+        stale_memory_evidence: "The spec was fixed in JOB-200 and now passes."
+      )
+
+      expect(response).not_to be_error
+      suggestion = InsightSuggestion.last
+      expect(suggestion.effective_proposal_type).to eq("remove_memory")
+      expect(suggestion.target_memory).to eq(memory)
+      expect(suggestion.stale_memory_evidence).to include("JOB-200")
+      expect(memory.reload.deleted_at).to be_nil
+    end
+
+    it "rejects remove_memory proposals for inaccessible memories" do
+      user.update!(admin: false)
+      other_repo = Factories.repository(user: user)
+      memory = ChatMemory.create!(
+        user: user,
+        kind: "project_fact",
+        scope: "repository",
+        scope_id: other_repo.id,
+        content: "Other repo memory."
+      )
+
+      response = call(
+        proposal_type: "remove_memory",
+        target_memory_id: memory.id,
+        stale_memory_evidence: "Not true anymore."
+      )
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("target_memory_id")
     end
   end
 

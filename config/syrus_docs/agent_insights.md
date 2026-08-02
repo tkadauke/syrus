@@ -46,8 +46,13 @@ Each `submit_insight` call creates one `InsightSuggestion` row:
 | `severity`        | string  | `low`, `medium`, or `high`.                                       |
 | `confidence`      | float   | Agent's confidence (0.0–1.0).                                     |
 | `evidence`        | json    | Array of `{job_id, run_id, kind}` objects.                        |
+| `proposal_type`   | string  | `create_job`, `save_memory`, `remove_memory`, `revise_existing_insight`, or `informational`. Legacy rows infer this from prompt/memory fields. |
 | `suggested_prompt`| text    | Optional prompt for a follow-up Job or ScheduledTask.            |
 | `memory_suggestion`| text   | Optional text to store as a memory.                               |
+| `target_memory`   | FK      | Memory proposed for audited removal on `remove_memory` suggestions. |
+| `stale_memory_text` | text  | Snapshot of stale/wrong memory text.                              |
+| `stale_memory_evidence` | text | Explanation of why the memory no longer matches current reality. |
+| `target_insight`  | FK      | Existing insight referenced by `revise_existing_insight`.        |
 | `state`           | string  | `pending` → `accepted` or `dismissed`.                           |
 | `created_job`     | FK      | Populated when the operator promotes the suggestion into a Job.  |
 
@@ -60,9 +65,19 @@ The insight agent receives:
 - `read_live_state` — inspect the current run/workflow/job/queue state.
 - `read_memory`, `search_memories`, `list_memories` — read repository-scoped memories.
 - `write_memory` — store durable facts discovered during analysis.
-- `submit_insight` — record a finding (only present when `agent_insights` flag is on).
+- `submit_insight` — record a finding (only present when `agent_insights` flag is on), including structured removal/revision proposals.
 
 **Scope enforcement:** the `submit_insight` tool validates that `evidence.job_id` values belong to repositories accessible to the running user. Non-admin users cannot reference jobs from repositories they do not own. Admin users may reference any job.
+
+Insight runs must review pending, accepted, and dismissed insights for freshness
+before filing new ones. They should call `list_memories` / `read_memory` for
+repository-relevant memories and compare them with current code, docs, recent
+jobs, and accepted implementation state. If a memory is stale or wrong, the
+agent files a `remove_memory` insight with `target_memory_id`,
+`stale_memory_text`, and `stale_memory_evidence`; it must not call
+`delete_memory` directly during analysis. Operators accept removal proposals
+through the application, which soft-deletes the memory via
+`ChatMemory#soft_delete_by!` and records the normal audit event.
 
 ### Regular chat agents
 

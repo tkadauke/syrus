@@ -681,6 +681,11 @@ Agent insight runs inspect recent repository automation history and create
 structured suggestions the operator can accept, dismiss, or promote into
 follow-up work. Repository pages show per-repository suggestions, while admins
 can use the admin insights view to inspect suggestions across the instance.
+Insight runs also review pending/accepted/dismissed insights and repository
+memories for freshness. If a memory is stale or describes a fixed bug, the
+agent proposes a remove-memory insight; accepting it soft-deletes the target
+memory through the normal audited memory path instead of letting the analysis
+agent delete memory directly.
 
 When the `agent_insights` feature is enabled, regular chat agents can discover
 and call `list_insights` and `read_insight` to inspect suggestions for the

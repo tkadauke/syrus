@@ -14,9 +14,14 @@ function makeSuggestion(overrides: Record<string, unknown> = {}) {
     severity: "high",
     confidence: 0.85,
     state: "pending",
+    proposal_type: "create_job",
     suggested_prompt: "Fix the prepare step",
     memory_suggestion: "Always check bundle install logs",
     has_memory_suggestion: true,
+    target_memory_id: null,
+    stale_memory_text: null,
+    stale_memory_evidence: null,
+    target_insight_id: null,
     evidence: [],
     job_slug: "JOB-100",
     job_path: "/jobs/100",
@@ -205,6 +210,46 @@ describe("RepositoryInsightsRoute", () => {
 
       await screen.findByText("Frequent prepare failures")
       expect(screen.queryByRole("button", { name: "Save as memory" })).not.toBeInTheDocument()
+    })
+  })
+
+  describe("remove-memory proposals", () => {
+    beforeEach(() => {
+      vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: vi.fn() as any, dialog: <></> })
+    })
+
+    it("renders stale memory details distinctly and accepts by removing memory", async () => {
+      const removeMemory = makeSuggestion({
+        proposal_type: "remove_memory",
+        suggested_prompt: null,
+        memory_suggestion: null,
+        has_memory_suggestion: false,
+        target_memory_id: 44,
+        stale_memory_text: "The old flaky test still fails.",
+        stale_memory_evidence: "The test was fixed by JOB-200."
+      })
+      const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+        const url = String(input)
+        if (url.includes("/insight_suggestions/1") && init?.method === "PATCH") {
+          return Promise.resolve(jsonResponse({ message: "Memory removed and suggestion accepted.", suggestion: makeSuggestion({ ...removeMemory, state: "accepted" }), memory_id: 44 }))
+        }
+        return Promise.resolve(jsonResponse(payload([removeMemory])))
+      })
+
+      renderRoute([removeMemory])
+      fireEvent.click(await screen.findByRole("button", { name: "Expand" }))
+
+      expect(await screen.findByText("Remove memory #44")).toBeInTheDocument()
+      expect(screen.getByText("The old flaky test still fails.")).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "Remove memory" }))
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/insight_suggestions/1",
+          expect.objectContaining({ method: "PATCH" })
+        )
+      })
     })
   })
 

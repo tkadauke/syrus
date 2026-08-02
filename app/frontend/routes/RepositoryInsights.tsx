@@ -7,6 +7,7 @@ import { useConfirm } from "../hooks/useConfirm"
 import { RepositoryTabs } from "../components/RepositoryTabs"
 import {
   acceptInsightSuggestion,
+  acceptRemoveMemoryInsight,
   dismissInsightSuggestion,
   undismissInsightSuggestion,
   fetchInsightSuggestions,
@@ -234,6 +235,16 @@ function SuggestionCard({
     onError: (err) => setError(errorMessage(err, t("save_memory_error")))
   })
 
+  const acceptRemoveMemoryMutation = useMutation({
+    mutationFn: () => acceptRemoveMemoryInsight(suggestion.id),
+    onSuccess: (data) => {
+      setNotice(data.message)
+      setError(null)
+      queryClient.invalidateQueries({ queryKey })
+    },
+    onError: (err) => setError(errorMessage(err, t("remove_memory_error")))
+  })
+
   async function handleDismiss() {
     const confirmed = await confirm({
       message: t("dismiss_confirm_message"),
@@ -251,6 +262,7 @@ function SuggestionCard({
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <SeverityPill severity={suggestion.severity} />
+              <ProposalPill proposalType={suggestion.proposal_type} />
               <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400">
                 {suggestion.category}
               </span>
@@ -325,6 +337,28 @@ function SuggestionCard({
                 </pre>
               </div>
             )}
+            {suggestion.proposal_type === "remove_memory" && (
+              <div className="rounded border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/20">
+                <p className="text-xs font-medium uppercase text-red-700 dark:text-red-300">
+                  {t("remove_memory_label", { id: suggestion.target_memory_id })}
+                </p>
+                {suggestion.stale_memory_text && (
+                  <pre className="mt-1 whitespace-pre-wrap rounded bg-white p-3 text-xs text-red-900 ring-1 ring-red-100 dark:bg-gray-950 dark:text-red-200 dark:ring-red-900/60">
+                    {suggestion.stale_memory_text}
+                  </pre>
+                )}
+                {suggestion.stale_memory_evidence && (
+                  <p className="mt-2 whitespace-pre-wrap text-xs text-red-800 dark:text-red-200">
+                    {suggestion.stale_memory_evidence}
+                  </p>
+                )}
+              </div>
+            )}
+            {suggestion.proposal_type === "revise_existing_insight" && suggestion.target_insight_id && (
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                {t("target_insight_label", { id: suggestion.target_insight_id })}
+              </p>
+            )}
             {suggestion.created_job && (
               <div className="text-xs text-gray-600 dark:text-gray-400">
                 {t("created_job_label")}:{" "}
@@ -345,14 +379,25 @@ function SuggestionCard({
 
         {suggestion.state === "pending" && (
           <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
-            <button
-              className="rounded bg-terracotta-600 px-3 py-1 text-xs font-medium text-white hover:bg-terracotta-700 disabled:opacity-50"
-              disabled={showAcceptForm}
-              onClick={() => { setShowAcceptForm(true); setExpanded(true) }}
-              type="button"
-            >
-              {t("accept")}
-            </button>
+            {suggestion.proposal_type === "remove_memory" ? (
+              <button
+                className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                disabled={acceptRemoveMemoryMutation.isPending}
+                onClick={() => acceptRemoveMemoryMutation.mutate()}
+                type="button"
+              >
+                {acceptRemoveMemoryMutation.isPending ? t("removing_memory") : t("accept_remove_memory")}
+              </button>
+            ) : (
+              <button
+                className="rounded bg-terracotta-600 px-3 py-1 text-xs font-medium text-white hover:bg-terracotta-700 disabled:opacity-50"
+                disabled={showAcceptForm}
+                onClick={() => { setShowAcceptForm(true); setExpanded(true) }}
+                type="button"
+              >
+                {t("accept")}
+              </button>
+            )}
             <button
               className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
               disabled={dismissMutation.isPending}
@@ -513,6 +558,21 @@ function SeverityPill({ severity }: { severity: string }) {
   return (
     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}>
       {t(`severity_${severity}`)}
+    </span>
+  )
+}
+
+function ProposalPill({ proposalType }: { proposalType: InsightSuggestion["proposal_type"] }) {
+  const { t } = useT("insights")
+  const classes =
+    proposalType === "remove_memory"
+      ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+      : proposalType === "save_memory"
+        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
+        : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}>
+      {t(`proposal_${proposalType}`)}
     </span>
   )
 }

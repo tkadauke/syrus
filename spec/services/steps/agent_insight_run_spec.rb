@@ -105,15 +105,15 @@ RSpec.describe Steps::AgentInsightRun do
 
       it "includes accepted insight titles in the prompt" do
         handler.call
-        expect(run.reload.prompt).to include("Agent repeatedly fails at rebase step (accepted)")
+        expect(run.reload.prompt).to include("Agent repeatedly fails at rebase step (accepted, informational)")
       end
 
       it "includes dismissed insight titles in the prompt" do
         handler.call
-        expect(run.reload.prompt).to include("Memory gap for test runner config (dismissed)")
+        expect(run.reload.prompt).to include("Memory gap for test runner config (dismissed, informational)")
       end
 
-      it "does not include pending insights in the prompt" do
+      it "includes pending insights in the prompt for freshness review" do
         pending_insight = InsightSuggestion.create!(
           job: job,
           repository: repository,
@@ -124,7 +124,7 @@ RSpec.describe Steps::AgentInsightRun do
           state: "pending"
         )
         handler.call
-        expect(run.reload.prompt).not_to include("Pending finding nobody acted on")
+        expect(run.reload.prompt).to include("Pending finding nobody acted on (pending")
       end
 
       context "when insights belong to a different repository" do
@@ -148,11 +148,22 @@ RSpec.describe Steps::AgentInsightRun do
         end
       end
 
-      it "lists accepted insights before dismissed insights" do
+      it "lists pending insights before accepted and dismissed insights" do
+        InsightSuggestion.create!(
+          job: job,
+          repository: repository,
+          title: "Pending finding nobody acted on",
+          category: "inefficiency",
+          severity: "low",
+          confidence: 0.5,
+          state: "pending"
+        )
         handler.call
         prompt = run.reload.prompt
+        pending_pos = prompt.index("Pending finding nobody acted on")
         accepted_pos  = prompt.index("Agent repeatedly fails at rebase step")
         dismissed_pos = prompt.index("Memory gap for test runner config")
+        expect(pending_pos).to be < accepted_pos
         expect(accepted_pos).to be < dismissed_pos
       end
     end

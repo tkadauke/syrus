@@ -164,11 +164,43 @@ RSpec.describe "Admin API insight suggestions", type: :request do
       expect(suggestion["severity"]).to eq("medium")
       expect(suggestion["confidence"]).to be_within(0.01).of(0.75)
       expect(suggestion["state"]).to eq("pending")
+      expect(suggestion["proposal_type"]).to eq("create_job")
       expect(suggestion["has_memory_suggestion"]).to be true
       expect(suggestion["suggested_prompt"]).to eq("Fix the caching")
       expect(suggestion["repository"]["id"]).to eq(repository.id)
       expect(suggestion["repository"]["slug"]).to eq(repository.slug)
       expect(suggestion["user"]["id"]).to eq(other_user.id)
+    end
+  end
+
+  describe "PATCH /api/v1/app/insight_suggestions/:id as admin" do
+    before do
+      enable_feature
+      sign_in_as(admin)
+    end
+
+    it "soft-deletes remove_memory targets across repositories" do
+      memory = ChatMemory.create!(
+        user: other_user,
+        kind: "project_fact",
+        scope: "repository",
+        scope_id: repository.id,
+        content: "This fixed bug still exists."
+      )
+      suggestion = create_suggestion(
+        proposal_type: "remove_memory",
+        target_memory: memory,
+        stale_memory_text: memory.content,
+        stale_memory_evidence: "The implementation now handles this path."
+      )
+
+      patch "/api/v1/app/insight_suggestions/#{suggestion.id}",
+            params: { action_type: "accept" }, as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(memory.reload.deleted_at).to be_present
+      expect(memory.deleted_by_user).to eq(admin)
+      expect(suggestion.reload.accepted?).to be true
     end
   end
 

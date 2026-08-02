@@ -36,6 +36,7 @@ module Steps
                              .first
 
       known_insights = [
+        *repository.insight_suggestions.pending.order(updated_at: :desc).limit(25),
         *repository.insight_suggestions.accepted.order(updated_at: :desc).limit(25),
         *repository.insight_suggestions.dismissed.order(updated_at: :desc).limit(25)
       ]

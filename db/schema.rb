@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_02_024500) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_02_030000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -624,17 +624,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_024500) do
     t.json "evidence"
     t.integer "job_id", null: false
     t.text "memory_suggestion"
+    t.string "proposal_type", default: "informational", null: false
     t.integer "repository_id", null: false
     t.string "severity", default: "medium", null: false
+    t.text "stale_memory_evidence"
+    t.text "stale_memory_text"
     t.string "state", default: "pending", null: false
     t.text "suggested_prompt"
+    t.integer "target_insight_id"
+    t.integer "target_memory_id"
     t.string "title", null: false
     t.datetime "updated_at", null: false
     t.index ["created_job_id"], name: "index_insight_suggestions_on_created_job_id"
     t.index ["job_id"], name: "index_insight_suggestions_on_job_id"
+    t.index ["proposal_type"], name: "index_insight_suggestions_on_proposal_type"
     t.index ["repository_id", "created_at"], name: "index_insight_suggestions_on_repository_id_and_created_at"
     t.index ["repository_id"], name: "index_insight_suggestions_on_repository_id"
     t.index ["state"], name: "index_insight_suggestions_on_state"
+    t.index ["target_insight_id"], name: "index_insight_suggestions_on_target_insight_id"
+    t.index ["target_memory_id"], name: "index_insight_suggestions_on_target_memory_id"
   end
 
   create_table "installations", force: :cascade do |t|
@@ -1646,6 +1654,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_024500) do
   add_foreign_key "input_sources", "repositories"
   add_foreign_key "input_sources", "users"
   add_foreign_key "insight_schedule_configs", "repositories"
+  add_foreign_key "insight_suggestions", "chat_memories", column: "target_memory_id"
+  add_foreign_key "insight_suggestions", "insight_suggestions", column: "target_insight_id"
   add_foreign_key "insight_suggestions", "jobs"
   add_foreign_key "insight_suggestions", "jobs", column: "created_job_id"
   add_foreign_key "insight_suggestions", "repositories"

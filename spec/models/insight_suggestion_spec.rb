@@ -51,6 +51,42 @@ RSpec.describe InsightSuggestion do
       suggestion = create_suggestion
       expect(suggestion.state).to eq("pending")
     end
+
+    it "accepts remove_memory proposals with a target memory and explanation" do
+      memory = ChatMemory.create!(
+        user: user,
+        kind: "project_fact",
+        scope: "repository",
+        scope_id: repository.id,
+        content: "Old bug still exists."
+      )
+
+      suggestion = build_suggestion(
+        proposal_type: "remove_memory",
+        target_memory: memory,
+        stale_memory_text: memory.content,
+        stale_memory_evidence: "The referenced bug was fixed by JOB-123."
+      )
+
+      expect(suggestion).to be_valid
+    end
+
+    it "requires a target memory for remove_memory proposals" do
+      suggestion = build_suggestion(proposal_type: "remove_memory", stale_memory_evidence: "Fixed.")
+
+      expect(suggestion).not_to be_valid
+      expect(suggestion.errors[:target_memory]).to include("must be present for remove_memory proposals")
+    end
+
+    it "infers legacy create_job suggestions from suggested_prompt" do
+      expect(build_suggestion(proposal_type: "informational", suggested_prompt: "Fix it").effective_proposal_type).to eq("create_job")
+    end
+
+    it "infers legacy save_memory suggestions from memory_suggestion" do
+      suggestion = build_suggestion(proposal_type: "informational", memory_suggestion: "Remember this.")
+
+      expect(suggestion.effective_proposal_type).to eq("save_memory")
+    end
   end
 
   describe "state transitions" do

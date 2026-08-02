@@ -62,15 +62,23 @@ module Prompts
     def known_insights_section
       return if @known_insights.empty?
 
-      lines = @known_insights.map { |i| "- [#{i.id}] #{i.title} (#{i.state})" }
+      lines = @known_insights.map do |i|
+        "- [#{i.id}] #{i.title} (#{i.state}, #{i.effective_proposal_type})"
+      end
 
       <<~TEXT
         ## Known Insights
 
-        The following insights have already been filed for this repository. Do not refile
-        these unless you have evidence the underlying issue was reintroduced after a fix.
+        The following pending, accepted, and dismissed insights have already been filed
+        for this repository. Review them for freshness before filing anything new. Do
+        not refile these unless you have evidence the underlying issue was reintroduced
+        after a fix.
+        Do not refile known insights unless you have new evidence.
         Call `read_insight(id:)` to get the full details of any entry. Call `list_insights`
-        to page through more insights beyond those listed here:
+        to page through more insights beyond those listed here. If an existing insight is
+        stale, duplicated, or superseded, file a structured `revise_existing_insight`
+        suggestion that references `target_insight_id` and explains the replacement or
+        retirement path:
 
         #{lines.join("\n")}
       TEXT
@@ -87,6 +95,9 @@ module Prompts
         - Repeated failures or struggle patterns across multiple Jobs
         - Inefficient agent behaviors (excessive tool calls, wrong approaches)
         - Missed opportunities for memory or knowledge capture
+        - Existing pending or accepted insights that are stale, duplicated, or superseded
+          by current repository state
+        - Existing repository memories that are stale, wrong, or describe bugs already fixed
         - Configuration issues that cause unnecessary failures
         - Worker host pressure that repeatedly coincides with a step kind or grader
           (for example, rspec Runs lining up with CPU starvation)
@@ -102,17 +113,38 @@ module Prompts
           disk, or IO pressure may explain a Run or repeated step behavior.
         - A `suggested_prompt` for a Job or ScheduledTask that would address it (optional)
         - A `memory_suggestion` with the exact text to store if this is a durable fact (optional)
+        - A `proposal_type` (`create_job`, `save_memory`, `remove_memory`,
+          `revise_existing_insight`, or `informational`). Existing legacy behavior is still
+          supported, but use the explicit field for new suggestions.
+        - For `remove_memory`: include `target_memory_id`, the stale or wrong
+          `stale_memory_text`, and `stale_memory_evidence` explaining why the memory no
+          longer matches current code, docs, recent jobs, or accepted implementation state.
+        - For `revise_existing_insight`: include `target_insight_id` and explain what is
+          stale, duplicated, or superseded.
 
         ## When to use each suggestion type
 
-        **File a job suggestion (`suggested_prompt`)** when the finding is a code defect,
-        missing behavior, misconfiguration, or architectural gap that requires a code change
-        to resolve. Set `suggested_prompt` to a prompt that a future Job could act on.
+        **File a job suggestion (`proposal_type: "create_job"` with `suggested_prompt`)**
+        when the finding is a code defect, missing behavior, misconfiguration, or
+        architectural gap that requires a code change to resolve. Set `suggested_prompt`
+        to a prompt that a future Job could act on.
 
-        **File a memory suggestion (`memory_suggestion`)** when the finding is a behavioral
-        pattern, constraint, or workaround that future coding agents running against this
-        repository should be aware of — but where no code change is needed or possible right
-        now. The text should be durable advice agents can act on.
+        **File a memory suggestion (`proposal_type: "save_memory"` with
+        `memory_suggestion`)** when the finding is a behavioral pattern, constraint, or
+        workaround that future coding agents running against this repository should be
+        aware of — but where no code change is needed or possible right now. The text
+        should be durable advice agents can act on.
+
+        **File a stale-memory removal (`proposal_type: "remove_memory"`)** when an
+        existing memory is stale, wrong, or describes a bug that has since been fixed.
+        You must call `list_memories` and `read_memory` first, verify against current
+        repository reality, then submit the removal proposal with `target_memory_id`,
+        `stale_memory_text`, and `stale_memory_evidence`. Do NOT call `delete_memory`
+        during an insight run; operators accept removals through audited application code.
+
+        **File an existing-insight revision (`proposal_type: "revise_existing_insight"`)**
+        when a pending, accepted, or dismissed insight is stale, duplicated, or superseded.
+        Include `target_insight_id` and concrete evidence for the revision or retirement.
 
         **File both** when there is a code fix that should be filed as a Job AND there is
         interim context agents need to carry while that fix has not yet landed (e.g.,
@@ -125,10 +157,13 @@ module Prompts
         `suggested_prompt` and leave `memory_suggestion` blank.
 
         For durable facts you discover (e.g. recurring configuration issues, stable
-        patterns), call `write_memory` to store them so future agents benefit.
-        Before suggesting a new memory, call `list_memories` to check whether a similar
-        memory already exists for this repository. Only suggest a new memory if no
-        sufficiently similar one is present.
+        patterns), call `write_memory` to store them so future agents benefit only after
+        checking existing memories. Before suggesting or writing a new memory, call
+        `list_memories` and `read_memory` for repository-relevant memories to check
+        whether a similar memory already exists for this repository and whether existing
+        memories still match current code and recent accepted work. Only suggest a new memory if no sufficiently
+        similar one is present. If a memory needs replacement, propose removal of the stale
+        memory and a separate non-conflicting memory suggestion for the replacement.
 
         Call `submit_insight` once per distinct finding. Do not call it for speculative
         or single-instance observations below your confidence threshold. Aim for signal

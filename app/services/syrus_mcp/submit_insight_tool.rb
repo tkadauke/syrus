@@ -7,6 +7,7 @@ module SyrusMcp
   # Admin users may reference jobs across any repository they control.
   class SubmitInsightTool < MCP::Tool
     SEVERITIES = InsightSuggestion::SEVERITIES.freeze
+    PROPOSAL_TYPES = InsightSuggestion::PROPOSAL_TYPES.freeze
 
     tool_name "submit_insight"
 
@@ -54,6 +55,27 @@ module SyrusMcp
         memory_suggestion: {
           type: "string",
           description: "Optional exact text to store as a memory for future agents."
+        },
+        proposal_type: {
+          type: "string",
+          enum: PROPOSAL_TYPES,
+          description: "Action proposed by this insight: create_job, save_memory, remove_memory, revise_existing_insight, or informational."
+        },
+        target_memory_id: {
+          type: "integer",
+          description: "Required for remove_memory proposals. The ChatMemory id that should be removed if an operator accepts."
+        },
+        stale_memory_text: {
+          type: "string",
+          description: "For remove_memory proposals, the stale or wrong memory text being challenged."
+        },
+        stale_memory_evidence: {
+          type: "string",
+          description: "For remove_memory proposals, explain why the memory no longer matches current code, docs, jobs, or accepted state."
+        },
+        target_insight_id: {
+          type: "integer",
+          description: "For revise_existing_insight proposals, the existing InsightSuggestion id that is stale, duplicated, or superseded."
         }
       },
       required: %w[title category severity confidence]
@@ -63,7 +85,9 @@ module SyrusMcp
       MAX_TITLE_LENGTH = 200
 
       def call(title:, category:, severity:, confidence:, server_context:,
-               evidence: nil, suggested_prompt: nil, memory_suggestion: nil)
+               evidence: nil, suggested_prompt: nil, memory_suggestion: nil,
+               proposal_type: nil, target_memory_id: nil, stale_memory_text: nil,
+               stale_memory_evidence: nil, target_insight_id: nil)
         run = SyrusMcp.run_from_context(server_context)
 
         title_s     = SyrusMcp.utf8(title).strip
@@ -77,9 +101,25 @@ module SyrusMcp
         return SyrusMcp.invalid("severity must be one of: #{SEVERITIES.join(', ')}") unless SEVERITIES.include?(severity_s)
         return SyrusMcp.invalid("confidence must be between 0.0 and 1.0")         unless confidence_f.between?(0.0, 1.0)
 
+        proposal_type_s = normalize_proposal_type(proposal_type, suggested_prompt: suggested_prompt, memory_suggestion: memory_suggestion)
+        return SyrusMcp.invalid("proposal_type must be one of: #{PROPOSAL_TYPES.join(', ')}") unless PROPOSAL_TYPES.include?(proposal_type_s)
+
         normalized_evidence = normalize_evidence(evidence)
         scope_error = validate_evidence_scope(normalized_evidence, run)
         return SyrusMcp.invalid(scope_error) if scope_error
+
+        memory = nil
+        if proposal_type_s == "remove_memory"
+          memory = validate_target_memory(target_memory_id, run)
+          return SyrusMcp.invalid("target_memory_id must reference an active accessible repository memory") unless memory
+          return SyrusMcp.invalid("stale_memory_evidence is required for remove_memory proposals") if stale_memory_evidence.to_s.strip.blank?
+        end
+
+        target_insight = nil
+        if proposal_type_s == "revise_existing_insight"
+          target_insight = validate_target_insight(target_insight_id, run)
+          return SyrusMcp.invalid("target_insight_id must reference an accessible insight") unless target_insight
+        end
 
         suggestion = InsightSuggestion.create!(
           job:               run.job,
@@ -88,9 +128,14 @@ module SyrusMcp
           category:          category_s,
           severity:          severity_s,
           confidence:        confidence_f,
+          proposal_type:     proposal_type_s,
           evidence:          normalized_evidence.presence,
           suggested_prompt:  suggested_prompt.presence,
-          memory_suggestion: memory_suggestion.presence
+          memory_suggestion: memory_suggestion.presence,
+          target_memory:     memory,
+          stale_memory_text: stale_memory_text.presence || memory&.content,
+          stale_memory_evidence: stale_memory_evidence.presence,
+          target_insight:    target_insight
         )
         SupervisorEvents.publish!(
           kind: "agent_insight_available",
@@ -113,7 +158,8 @@ module SyrusMcp
           "id"       => suggestion.id,
           "title"    => suggestion.title,
           "category" => suggestion.category,
-          "severity" => suggestion.severity
+          "severity" => suggestion.severity,
+          "proposal_type" => suggestion.effective_proposal_type
         }
         run.workflow.set_artifact!("insights", insights)
 
@@ -141,6 +187,15 @@ module SyrusMcp
         end.compact
       end
 
+      def normalize_proposal_type(value, suggested_prompt:, memory_suggestion:)
+        explicit = value.to_s.presence
+        return explicit if explicit
+        return "create_job" if suggested_prompt.present?
+        return "save_memory" if memory_suggestion.present?
+
+        "informational"
+      end
+
       # Returns an error string if any evidence job_id is not accessible to
       # the run's user, nil otherwise. Admins bypass the check.
       def validate_evidence_scope(evidence, run)
@@ -155,6 +210,26 @@ module SyrusMcp
         return nil if foreign_ids.empty?
 
         "evidence references jobs not accessible to this user: #{foreign_ids.join(', ')}"
+      end
+
+      def validate_target_memory(memory_id, run)
+        id = Integer(memory_id, exception: false)
+        return unless id
+
+        scope = ChatMemory.active.where(id: id)
+        return scope.first if run.job.user.admin?
+
+        scope.find_by(user_id: run.job.user_id, scope: "repository", scope_id: run.job.repository_id)
+      end
+
+      def validate_target_insight(insight_id, run)
+        id = Integer(insight_id, exception: false)
+        return unless id
+
+        scope = InsightSuggestion.where(id: id)
+        return scope.first if run.job.user.admin?
+
+        scope.find_by(repository_id: run.job.repository_id)
       end
     end
   end

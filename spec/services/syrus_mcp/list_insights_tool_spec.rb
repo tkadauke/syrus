@@ -64,7 +64,7 @@ RSpec.describe SyrusMcp::ListInsightsTool do
       create_insight(title: "Scoped finding", severity: "high", confidence: 0.9)
 
       result = parsed_response(call)[:insights].first
-      expect(result.keys).to match_array(%i[id title state severity confidence created_at])
+      expect(result.keys).to match_array(%i[id title state proposal_type severity confidence created_at])
     end
 
     it "orders results newest-first" do

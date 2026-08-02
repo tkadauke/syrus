@@ -24,9 +24,14 @@ export type InsightSuggestion = {
   severity: "low" | "medium" | "high"
   confidence: number
   state: "pending" | "accepted" | "dismissed"
+  proposal_type: "create_job" | "save_memory" | "remove_memory" | "revise_existing_insight" | "informational"
   suggested_prompt: string | null
   memory_suggestion: string | null
   has_memory_suggestion: boolean
+  target_memory_id: number | null
+  stale_memory_text: string | null
+  stale_memory_evidence: string | null
+  target_insight_id: number | null
   evidence: InsightEvidenceItem[]
   job_slug: string
   job_path: string
@@ -113,6 +118,12 @@ export function undismissInsightSuggestion(id: number) {
 export function saveInsightMemory(id: number) {
   return patchJson<InsightSuggestionUpdatePayload>(`/api/v1/app/insight_suggestions/${id}`, {
     action_type: "save_memory"
+  })
+}
+
+export function acceptRemoveMemoryInsight(id: number) {
+  return patchJson<InsightSuggestionUpdatePayload>(`/api/v1/app/insight_suggestions/${id}`, {
+    action_type: "accept"
   })
 }
 

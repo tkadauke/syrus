@@ -1,6 +1,7 @@
 require "rails_helper"
 
 RSpec.describe "App API insight suggestions", type: :request do
+  let!(:seed_admin) { Factories.user(admin: true) }
   let(:user)       { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:job)        { Factories.job(user: user, repository: repository, kind: "agent_insight", issue_number: nil) }
@@ -167,6 +168,7 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect(suggestion["severity"]).to eq("medium")
       expect(suggestion["confidence"]).to be_within(0.01).of(0.75)
       expect(suggestion["state"]).to eq("pending")
+      expect(suggestion["proposal_type"]).to eq("create_job")
       expect(suggestion["has_memory_suggestion"]).to be true
       expect(suggestion["suggested_prompt"]).to eq("Fix the caching")
     end
@@ -268,6 +270,58 @@ RSpec.describe "App API insight suggestions", type: :request do
             params: { action_type: "accept" }, as: :json
 
       expect(response).to have_http_status(:unprocessable_content)
+    end
+
+    it "soft-deletes the target memory when accepting a remove_memory suggestion" do
+      memory = ChatMemory.create!(
+        user: user,
+        kind: "project_fact",
+        scope: "repository",
+        scope_id: repository.id,
+        content: "Old bug still exists."
+      )
+      suggestion = create_suggestion(
+        proposal_type: "remove_memory",
+        target_memory: memory,
+        stale_memory_text: memory.content,
+        stale_memory_evidence: "Current specs cover the fixed path."
+      )
+
+      expect {
+        patch "/api/v1/app/insight_suggestions/#{suggestion.id}",
+              params: { action_type: "accept" }, as: :json
+      }.to change(ChatMemoryAuditEvent.where(chat_memory: memory, event_type: "deleted"), :count).by(1)
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["message"]).to include("Memory removed")
+      expect(parse_body["suggestion"]["state"]).to eq("accepted")
+      expect(parse_body["memory_id"]).to eq(memory.id)
+      expect(memory.reload.deleted_at).to be_present
+      expect(memory.deleted_by_user).to eq(user)
+    end
+
+    it "rejects remove_memory acceptance for a memory the user cannot delete" do
+      other_user = Factories.user
+      memory = ChatMemory.create!(
+        user: other_user,
+        kind: "project_fact",
+        scope: "repository",
+        scope_id: repository.id,
+        content: "Published stale memory.",
+        published: true
+      )
+      suggestion = create_suggestion(
+        proposal_type: "remove_memory",
+        target_memory: memory,
+        stale_memory_evidence: "Wrong."
+      )
+
+      patch "/api/v1/app/insight_suggestions/#{suggestion.id}",
+            params: { action_type: "accept" }, as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(memory.reload.deleted_at).to be_nil
+      expect(suggestion.reload.pending?).to be true
     end
   end
 

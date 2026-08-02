@@ -13,9 +13,14 @@ function makeSuggestion(overrides: Record<string, unknown> = {}) {
     severity: "medium",
     confidence: 0.75,
     state: "pending",
+    proposal_type: "create_job",
     suggested_prompt: "Fix caching",
     memory_suggestion: null,
     has_memory_suggestion: false,
+    target_memory_id: null,
+    stale_memory_text: null,
+    stale_memory_evidence: null,
+    target_insight_id: null,
     evidence: [],
     job_slug: "JOB-200",
     job_path: "/jobs/200",
@@ -121,6 +126,38 @@ describe("AdminInsightsRoute", () => {
         expect(fetchSpy).toHaveBeenCalledWith(
           expect.stringContaining("page=2"),
           expect.anything()
+        )
+      })
+    })
+  })
+
+  describe("remove-memory proposals", () => {
+    it("renders stale memory details and accepts removal", async () => {
+      const removeMemory = makeSuggestion({
+        proposal_type: "remove_memory",
+        suggested_prompt: null,
+        target_memory_id: 88,
+        stale_memory_text: "This workaround is obsolete.",
+        stale_memory_evidence: "The code path was removed."
+      })
+      const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+        const url = String(input)
+        if (url.includes("/insight_suggestions/1") && init?.method === "PATCH") {
+          return Promise.resolve(jsonResponse({ message: "Memory removed and suggestion accepted.", suggestion: makeSuggestion({ ...removeMemory, state: "accepted" }), memory_id: 88 }))
+        }
+        return Promise.resolve(jsonResponse(payload([removeMemory])))
+      })
+
+      renderRoute([removeMemory])
+
+      fireEvent.click(await screen.findByRole("button", { name: "Cross-repo cache miss" }))
+      expect(await screen.findByText("Remove memory #88")).toBeInTheDocument()
+      fireEvent.click(screen.getByRole("button", { name: "Remove memory" }))
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/insight_suggestions/1",
+          expect.objectContaining({ method: "PATCH" })
         )
       })
     })

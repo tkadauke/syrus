@@ -3,7 +3,7 @@ import { useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { withRoutePrefix } from "../lib/routing"
 import { useT } from "../hooks/useT"
-import { fetchAdminInsights, promoteInsightMemory, type AdminInsightSuggestion, type PaginationMeta } from "../api/insights"
+import { acceptRemoveMemoryInsight, fetchAdminInsights, promoteInsightMemory, type AdminInsightSuggestion, type PaginationMeta } from "../api/insights"
 import { errorMessage } from "../lib/errorMessage"
 
 type StateFilter = "pending" | "accepted" | "dismissed" | "all"
@@ -184,6 +184,16 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
     onError: (err) => setError(errorMessage(err, t("promote_error")))
   })
 
+  const acceptRemoveMemoryMutation = useMutation({
+    mutationFn: () => acceptRemoveMemoryInsight(suggestion.id),
+    onSuccess: (data) => {
+      setNotice(data.message)
+      setError(null)
+      queryClient.invalidateQueries({ queryKey: ["admin", "insights"] })
+    },
+    onError: (err) => setError(errorMessage(err, t("remove_memory_error")))
+  })
+
   return (
     <>
       <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
@@ -198,6 +208,9 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
             </button>
             <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400">
               {suggestion.category}
+            </span>
+            <span className={`ml-2 rounded px-1.5 py-0.5 text-xs ${suggestion.proposal_type === "remove_memory" ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"}`}>
+              {t(`proposal_${suggestion.proposal_type}`)}
             </span>
           </div>
         </td>
@@ -239,6 +252,16 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
                 {promoteMutation.isPending ? t("promoting") : t("promote_to_instance")}
               </button>
             )}
+            {suggestion.state === "pending" && suggestion.proposal_type === "remove_memory" && (
+              <button
+                className="rounded border border-red-300 px-2 py-0.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/40"
+                disabled={acceptRemoveMemoryMutation.isPending}
+                onClick={() => acceptRemoveMemoryMutation.mutate()}
+                type="button"
+              >
+                {acceptRemoveMemoryMutation.isPending ? t("removing_memory") : t("accept_remove_memory")}
+              </button>
+            )}
           </div>
         </td>
       </tr>
@@ -261,6 +284,23 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
                 <pre className="mt-1 whitespace-pre-wrap rounded bg-white p-3 text-xs text-gray-700 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700">
                   {suggestion.memory_suggestion}
                 </pre>
+              </div>
+            )}
+            {suggestion.proposal_type === "remove_memory" && (
+              <div className="mt-2 rounded border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/20">
+                <p className="text-xs font-medium uppercase text-red-700 dark:text-red-300">
+                  {t("remove_memory_label", { id: suggestion.target_memory_id })}
+                </p>
+                {suggestion.stale_memory_text && (
+                  <pre className="mt-1 whitespace-pre-wrap rounded bg-white p-3 text-xs text-red-900 ring-1 ring-red-100 dark:bg-gray-950 dark:text-red-200 dark:ring-red-900/60">
+                    {suggestion.stale_memory_text}
+                  </pre>
+                )}
+                {suggestion.stale_memory_evidence && (
+                  <p className="mt-2 whitespace-pre-wrap text-xs text-red-800 dark:text-red-200">
+                    {suggestion.stale_memory_evidence}
+                  </p>
+                )}
               </div>
             )}
           </td>

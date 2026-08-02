@@ -80,10 +80,14 @@ module Api
         end
 
         def find_suggestion
-          suggestion = InsightSuggestion
-            .joins(:repository)
-            .where(repositories: { id: Current.user.repositories.select(:id) })
-            .find_by(id: params[:id])
+          suggestion = if Current.user.admin?
+                         InsightSuggestion.find_by(id: params[:id])
+                       else
+                         InsightSuggestion
+                           .joins(:repository)
+                           .where(repositories: { id: Current.user.repositories.select(:id) })
+                           .find_by(id: params[:id])
+                       end
 
           unless suggestion
             render_error("not_found", "Insight suggestion not found.", status: :not_found)
@@ -93,41 +97,17 @@ module Api
         end
 
         def handle_accept(suggestion)
-          created_job = nil
-
-          if ActiveModel::Type::Boolean.new.cast(params[:create_job])
-            prompt_text = params[:prompt].to_s.strip
-            if prompt_text.blank?
-              render_error("validation_failed", "Prompt can't be blank when creating a job.", status: :unprocessable_content)
-              return
-            end
-
-            repository = suggestion.repository
-            agent_provider = params[:agent_provider].to_s.presence || repository.effective_agent_provider
-
-            created_job = Current.user.jobs.create!(
-              repository: repository,
-              kind: "direct",
-              issue_number: nil,
-              issue_title: suggestion.title.truncate(120),
-              title_pending: false,
-              issue_body: prompt_text,
-              agent_provider: agent_provider,
-              priority: "medium",
-              state: Job.initial_state_for_creator(Current.user)
-            )
-            created_job.advance_after_triage! if created_job.may_advance_after_triage?
-          end
-
-          unless suggestion.accept!(created_job: created_job)
-            render_error("validation_failed", "Suggestion cannot be accepted (already accepted or dismissed).", status: :unprocessable_content)
+          result = InsightSuggestions::Proposals::Base.for(suggestion).accept!(actor: Current.user, params: params)
+          unless result&.ok?
+            render_error("validation_failed", result&.message || "Suggestion could not be accepted.", status: :unprocessable_content)
             return
           end
 
           render json: {
-            message: "Suggestion accepted.",
-            suggestion: suggestion_json(suggestion.reload),
-            job: created_job ? created_job_summary_json(created_job) : nil
+            message: result.message,
+            suggestion: suggestion_json(result.suggestion),
+            job: result.job ? created_job_summary_json(result.job) : nil,
+            memory_id: result.memory&.id
           }
         end
 
@@ -193,9 +173,14 @@ module Api
             severity: suggestion.severity,
             confidence: suggestion.confidence,
             state: suggestion.state,
+            proposal_type: suggestion.effective_proposal_type,
             suggested_prompt: suggestion.suggested_prompt,
             memory_suggestion: suggestion.memory_suggestion,
             has_memory_suggestion: suggestion.memory_suggestion.present?,
+            target_memory_id: suggestion.target_memory_id,
+            stale_memory_text: suggestion.stale_memory_text,
+            stale_memory_evidence: suggestion.stale_memory_evidence,
+            target_insight_id: suggestion.target_insight_id,
             evidence: evidence_json(suggestion.evidence),
             job_slug: suggestion.job.slug,
             job_path: job_path(suggestion.job),

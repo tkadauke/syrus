@@ -86,8 +86,8 @@ RSpec.describe Prompts::AgentInsight do
     context "when known_insights are provided" do
       let(:known_insights) do
         [
-          instance_double(InsightSuggestion, id: 101, title: "Agent repeatedly fails at rebase step", state: "accepted"),
-          instance_double(InsightSuggestion, id: 102, title: "Missing memory about test runner config", state: "dismissed")
+          instance_double(InsightSuggestion, id: 101, title: "Agent repeatedly fails at rebase step", state: "accepted", effective_proposal_type: "create_job"),
+          instance_double(InsightSuggestion, id: 102, title: "Missing memory about test runner config", state: "dismissed", effective_proposal_type: "save_memory")
         ]
       end
 
@@ -98,8 +98,8 @@ RSpec.describe Prompts::AgentInsight do
 
       it "lists each insight id, title, and state" do
         out = described_class.new(repository: repository, known_insights: known_insights).to_s
-        expect(out).to include("[101] Agent repeatedly fails at rebase step (accepted)")
-        expect(out).to include("[102] Missing memory about test runner config (dismissed)")
+        expect(out).to include("[101] Agent repeatedly fails at rebase step (accepted, create_job)")
+        expect(out).to include("[102] Missing memory about test runner config (dismissed, save_memory)")
       end
 
       it "instructs the agent not to refile known insights" do
@@ -136,6 +136,13 @@ RSpec.describe Prompts::AgentInsight do
       expect(out).to include("read_insight")
     end
 
+    it "instructs the agent to review stale existing insights and reference target_insight_id" do
+      out = described_class.new(repository: repository).to_s
+      expect(out).to include("revise_existing_insight")
+      expect(out).to include("target_insight_id")
+      expect(out).to match(/stale, duplicated, or superseded/i)
+    end
+
     it "mentions worker health correlation evidence" do
       out = described_class.new(repository: repository).to_s
       expect(out).to include("read_run_worker_health")
@@ -148,6 +155,14 @@ RSpec.describe Prompts::AgentInsight do
       out = described_class.new(repository: repository).to_s
       expect(out).to include("list_memories")
       expect(out).to include("memory already exists for this repository")
+    end
+
+    it "instructs stale memories to be proposed for removal instead of deleted directly" do
+      out = described_class.new(repository: repository).to_s
+      expect(out).to include("remove_memory")
+      expect(out).to include("target_memory_id")
+      expect(out).to include("stale_memory_evidence")
+      expect(out).to include("Do NOT call `delete_memory`")
     end
   end
 

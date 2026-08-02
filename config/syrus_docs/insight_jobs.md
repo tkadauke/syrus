@@ -59,8 +59,11 @@ Each `InsightSuggestion` captures:
 - **severity** — `low`, `medium`, or `high`
 - **confidence** — 0.0–1.0 score
 - **evidence** — array of `{job_id, run_id, kind}` supporting evidence
+- **proposal_type** — explicit action: `create_job`, `save_memory`, `remove_memory`, `revise_existing_insight`, or `informational`; existing rows that only have prompt/memory fields infer their legacy type
 - **suggested_prompt** — optional prompt text for a Job or ScheduledTask that would address the finding
 - **memory_suggestion** — optional text to store as an agent memory for future runs
+- **target_memory_id**, **stale_memory_text**, **stale_memory_evidence** — structured stale-memory removal proposal fields
+- **target_insight_id** — existing insight referenced by a revision/retirement proposal
 
 ## Reviewing Suggestions
 
@@ -79,6 +82,7 @@ Each suggestion shows:
 - Title, category tag, severity pill, confidence percentage
 - Clickable evidence links to jobs and run transcripts
 - Expandable detail showing the suggested prompt and memory suggestion text
+- Remove-memory proposals render as destructive stale-memory cards with the target memory id, stale text, and evidence
 
 ### Accept
 
@@ -88,6 +92,12 @@ Click **Accept** to open a confirmation form. The form pre-fills with the sugges
 - Confirm to mark the suggestion accepted (and optionally create the job)
 
 The `accepted_at` timestamp is recorded, and if a job was created, `created_job_id` links back to it.
+
+For `remove_memory` suggestions, **Remove memory** accepts the suggestion and
+soft-deletes the target `ChatMemory` through `ChatMemory#soft_delete_by!`.
+Non-admin operators can only remove memories they are allowed to delete; admins
+can accept stale-memory removals from the admin insight view. The insight agent
+never deletes memories directly.
 
 ### Dismiss
 
@@ -108,7 +118,12 @@ The memory becomes available to future agents working on the same repository.
 
 `/admin/insights` shows a cross-repository table of all suggestions (requires admin role + feature flag on). Each row includes the repository slug, the user who owns the source job, severity, confidence, and state.
 
-Admins can expand rows to see the full suggested prompt and memory suggestion, and can **Promote to instance memory** — this creates a `ChatMemory` with `scope: "instance"` rather than `scope: "repository"`, making it visible to all agents across all repositories.
+Admins can expand rows to see the full suggested prompt, memory suggestion, and
+stale-memory removal evidence. They can **Promote to instance memory** for
+memory suggestions — this creates a `ChatMemory` with `scope: "instance"` rather
+than `scope: "repository"`, making it visible to all agents across all
+repositories. For `remove_memory` suggestions, admins can accept the removal
+from the table.
 
 ## Concurrent Insight Jobs
 

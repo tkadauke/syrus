@@ -131,6 +131,7 @@ module SyrusMcp
           id:         insight.id,
           title:      insight.title,
           state:      insight.state,
+          proposal_type: insight.effective_proposal_type,
           severity:   insight.severity,
           confidence: insight.confidence,
           created_at: insight.created_at.iso8601
