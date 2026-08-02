@@ -1428,32 +1428,26 @@ describe("App", () => {
       if (path === "/api/v1/app/chats") {
         return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
-      if (
-        dashboardPathMatches(path, "/api/v1/app/dashboard?view=list&subject=job") ||
-        dashboardPathMatches(path, "/api/v1/app/dashboard?view=list&smart_folder_id=3&subject=job")
-      ) {
-        const payload = dashboardPayload({
-          subject: "job",
-          active_smart_folder_id: 3,
-          smart_folders: [
-            {
-              id: 3,
-              name: "Merged this week",
-              kind: "builtin",
-              subject_type: "job",
-              visibility: "always",
-              count: 8,
-              active: true,
-              path: "/dashboard/jobs?smart_folder_id=3"
-            }
-          ],
-          items: [dashboardJobItem()]
-        })
+      const url = new URL(path, "http://example.test")
+      if (url.pathname === "/api/v1/app/dashboard") {
         return Promise.resolve(
-          new Response(
-            JSON.stringify(dashboardSectionPayload(payload, path)),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
+          dashboardResponse(dashboardPayload({
+            subject: "job",
+            active_smart_folder_id: 3,
+            smart_folders: [
+              {
+                id: 3,
+                name: "Merged this week",
+                kind: "builtin",
+                subject_type: "job",
+                visibility: "always",
+                count: 8,
+                active: true,
+                path: "/dashboard/jobs?smart_folder_id=3"
+              }
+            ],
+            items: [dashboardJobItem()]
+          }), path)
         )
       }
 
@@ -4165,73 +4159,67 @@ describe("App", () => {
       if (path === "/api/v1/app/chats") {
         return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
-      if (
-        dashboardPathMatches(path, "/api/v1/app/dashboard?view=list&subject=job") ||
-        dashboardPathMatches(path, "/api/v1/app/dashboard?view=list&smart_folder_id=3&subject=job")
-      ) {
-        const payload = dashboardPayload({
-          subject: "job",
-          active_smart_folder_id: 3,
-          smart_folders: [
-            {
-              id: 5,
-              name: "All jobs",
-              kind: "builtin",
-              subject_type: "job",
-              visibility: "always",
-              count: 1982,
-              active: false,
-              path: "/dashboard/jobs?smart_folder_id=5"
-            },
-            {
-              id: 1,
-              name: "Inbox",
-              kind: "builtin",
-              subject_type: "job",
-              visibility: "always",
-              count: 3,
-              active: false,
-              path: "/dashboard/jobs?smart_folder_id=1"
-            },
-            {
-              id: 2,
-              name: "Stale",
-              kind: "builtin",
-              subject_type: "job",
-              visibility: "on_demand",
-              count: 1,
-              active: false,
-              path: "/dashboard/jobs?smart_folder_id=2"
-            },
-            {
-              id: 3,
-              name: "Merged this week",
-              kind: "builtin",
-              subject_type: "job",
-              visibility: "on_demand",
-              count: 0,
-              active: true,
-              path: "/dashboard/jobs?smart_folder_id=3"
-            },
-            {
-              id: 4,
-              name: "Saved review",
-              kind: "user_defined",
-              subject_type: "job",
-              visibility: "user_defined",
-              count: 2,
-              active: false,
-              path: "/dashboard/jobs?smart_folder_id=4"
-            }
-          ],
-          filter: { and: [ { field: "attention", op: "is", value: "merged_this_week" } ] },
-          items: [dashboardJobItem()]
-        })
+      const url = new URL(path, "http://example.test")
+      if (url.pathname === "/api/v1/app/dashboard") {
         return Promise.resolve(
-          new Response(
-            JSON.stringify(dashboardSectionPayload(payload, path)),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
+          dashboardResponse(dashboardPayload({
+            subject: "job",
+            active_smart_folder_id: 3,
+            smart_folders: [
+              {
+                id: 5,
+                name: "All jobs",
+                kind: "builtin",
+                subject_type: "job",
+                visibility: "always",
+                count: 1982,
+                active: false,
+                path: "/dashboard/jobs?smart_folder_id=5"
+              },
+              {
+                id: 1,
+                name: "Inbox",
+                kind: "builtin",
+                subject_type: "job",
+                visibility: "always",
+                count: 3,
+                active: false,
+                path: "/dashboard/jobs?smart_folder_id=1"
+              },
+              {
+                id: 2,
+                name: "Stale",
+                kind: "builtin",
+                subject_type: "job",
+                visibility: "on_demand",
+                count: 1,
+                active: false,
+                path: "/dashboard/jobs?smart_folder_id=2"
+              },
+              {
+                id: 3,
+                name: "Merged this week",
+                kind: "builtin",
+                subject_type: "job",
+                visibility: "on_demand",
+                count: 0,
+                active: true,
+                path: "/dashboard/jobs?smart_folder_id=3"
+              },
+              {
+                id: 4,
+                name: "Saved review",
+                kind: "user_defined",
+                subject_type: "job",
+                visibility: "user_defined",
+                count: 2,
+                active: false,
+                path: "/dashboard/jobs?smart_folder_id=4"
+              }
+            ],
+            filter: { and: [ { field: "attention", op: "is", value: "merged_this_week" } ] },
+            items: [dashboardJobItem()]
+          }), path)
         )
       }
 
@@ -4328,32 +4316,27 @@ describe("App", () => {
       if (url.pathname === "/api/v1/app/dashboard") {
         const activeSmartFolder = url.searchParams.get("smart_folder_id") === "7" || url.searchParams.get("section") === "chrome"
         return Promise.resolve(
-          new Response(
-            JSON.stringify(
-              dashboardPayload({
-                subject: "job",
-                view: "list",
-                active_smart_folder_id: activeSmartFolder ? 7 : null,
-                filter: appliedFilter,
-                smart_folders: [
-                  {
-                    id: 7,
-                    name: "My work",
-                    kind: "user_defined",
-                    position: 2,
-                    subject_type: "job",
-                    visibility: "user_defined",
-                    count: 1,
-                    active: activeSmartFolder,
-                    filter: savedFilter,
-                    path: "/dashboard/jobs?smart_folder_id=7"
-                  }
-                ],
-                items: [dashboardJobItem()]
-              })
-            ),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
+          dashboardResponse(dashboardPayload({
+            subject: "job",
+            view: "list",
+            active_smart_folder_id: activeSmartFolder ? 7 : null,
+            filter: appliedFilter,
+            smart_folders: [
+              {
+                id: 7,
+                name: "My work",
+                kind: "user_defined",
+                position: 2,
+                subject_type: "job",
+                visibility: "user_defined",
+                count: 1,
+                active: activeSmartFolder,
+                filter: savedFilter,
+                path: "/dashboard/jobs?smart_folder_id=7"
+              }
+            ],
+            items: [dashboardJobItem()]
+          }), path)
         )
       }
 
@@ -4416,37 +4399,31 @@ describe("App", () => {
       if (path === "/api/v1/app/chats") {
         return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
-      if (
-        dashboardPathMatches(path, "/api/v1/app/dashboard?view=list&subject=job") ||
-        dashboardPathMatches(path, "/api/v1/app/dashboard?view=list&smart_folder_id=7&subject=job")
-      ) {
-        const hasSmartFolder = new URL(path, "http://example.test").searchParams.get("smart_folder_id") === "7"
-        const payload = dashboardPayload({
-          subject: "job",
-          view: "list",
-          active_smart_folder_id: hasSmartFolder ? 7 : null,
-          filter: { and: [{ field: "kind", op: "is", value: "issue" }] },
-          smart_folders: [
-            {
-              id: 7,
-              name: "My work",
-              kind: "user_defined",
-              position: 2,
-              subject_type: "job",
-              visibility: "user_defined",
-              count: 1,
-              active: hasSmartFolder,
-              filter: { and: [{ field: "state", op: "is", value: "open" }] },
-              path: "/dashboard/jobs?view=list&smart_folder_id=7"
-            }
-          ],
-          items: [dashboardJobItem()]
-        })
+      const url = new URL(path, "http://example.test")
+      if (url.pathname === "/api/v1/app/dashboard") {
+        const hasSmartFolder = url.searchParams.get("smart_folder_id") === "7"
         return Promise.resolve(
-          new Response(
-            JSON.stringify(dashboardSectionPayload(payload, path)),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
+          dashboardResponse(dashboardPayload({
+            subject: "job",
+            view: "list",
+            active_smart_folder_id: hasSmartFolder ? 7 : null,
+            filter: { and: [{ field: "kind", op: "is", value: "issue" }] },
+            smart_folders: [
+              {
+                id: 7,
+                name: "My work",
+                kind: "user_defined",
+                position: 2,
+                subject_type: "job",
+                visibility: "user_defined",
+                count: 1,
+                active: hasSmartFolder,
+                filter: { and: [{ field: "state", op: "is", value: "open" }] },
+                path: "/dashboard/jobs?view=list&smart_folder_id=7"
+              }
+            ],
+            items: [dashboardJobItem()]
+          }), path)
         )
       }
 
@@ -4483,37 +4460,31 @@ describe("App", () => {
       if (path === "/api/v1/app/chats") {
         return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
-      if (
-        dashboardPathMatches(path, "/api/v1/app/dashboard?view=list&subject=job") ||
-        dashboardPathMatches(path, "/api/v1/app/dashboard?view=list&smart_folder_id=7&subject=job")
-      ) {
-        const hasSmartFolder = new URL(path, "http://example.test").searchParams.get("smart_folder_id") === "7"
-        const payload = dashboardPayload({
-          subject: "job",
-          view: "list",
-          active_smart_folder_id: hasSmartFolder ? 7 : null,
-          filter: { and: [{ field: "state", op: "is", value: "open" }] },
-          smart_folders: [
-            {
-              id: 7,
-              name: "My work",
-              kind: "user_defined",
-              position: 2,
-              subject_type: "job",
-              visibility: "user_defined",
-              count: 1,
-              active: hasSmartFolder,
-              filter: { and: [{ field: "state", op: "is", value: "open" }] },
-              path: "/dashboard/jobs?view=list&smart_folder_id=7"
-            }
-          ],
-          items: [dashboardJobItem()]
-        })
+      const url = new URL(path, "http://example.test")
+      if (url.pathname === "/api/v1/app/dashboard") {
+        const hasSmartFolder = url.searchParams.get("smart_folder_id") === "7"
         return Promise.resolve(
-          new Response(
-            JSON.stringify(dashboardSectionPayload(payload, path)),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
+          dashboardResponse(dashboardPayload({
+            subject: "job",
+            view: "list",
+            active_smart_folder_id: hasSmartFolder ? 7 : null,
+            filter: { and: [{ field: "state", op: "is", value: "open" }] },
+            smart_folders: [
+              {
+                id: 7,
+                name: "My work",
+                kind: "user_defined",
+                position: 2,
+                subject_type: "job",
+                visibility: "user_defined",
+                count: 1,
+                active: hasSmartFolder,
+                filter: { and: [{ field: "state", op: "is", value: "open" }] },
+                path: "/dashboard/jobs?view=list&smart_folder_id=7"
+              }
+            ],
+            items: [dashboardJobItem()]
+          }), path)
         )
       }
 
@@ -4565,32 +4536,28 @@ describe("App", () => {
         const q = url.searchParams.get("q")
         const filter = q ? decodeFilterQueryParam(q) : storedFilter
         const hasSmartFolder = url.searchParams.get("smart_folder_id") === "7"
-        const payload = dashboardPayload({
-          subject: "job",
-          view: "list",
-          active_smart_folder_id: hasSmartFolder ? 7 : null,
-          filter,
-          smart_folders: [
-            {
-              id: 7,
-              name: "My work",
-              kind: "user_defined",
-              position: 2,
-              subject_type: "job",
-              visibility: "user_defined",
-              count: 1,
-              active: hasSmartFolder,
-              filter: storedFilter,
-              path: "/dashboard/jobs?view=list&smart_folder_id=7"
-            }
-          ],
-          items: [dashboardJobItem()]
-        })
         return Promise.resolve(
-          new Response(
-            JSON.stringify(dashboardSectionPayload(payload, path)),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
+          dashboardResponse(dashboardPayload({
+            subject: "job",
+            view: "list",
+            active_smart_folder_id: hasSmartFolder ? 7 : null,
+            filter,
+            smart_folders: [
+              {
+                id: 7,
+                name: "My work",
+                kind: "user_defined",
+                position: 2,
+                subject_type: "job",
+                visibility: "user_defined",
+                count: 1,
+                active: hasSmartFolder,
+                filter: storedFilter,
+                path: "/dashboard/jobs?view=list&smart_folder_id=7"
+              }
+            ],
+            items: [dashboardJobItem()]
+          }), path)
         )
       }
 
@@ -4656,35 +4623,30 @@ describe("App", () => {
       }
       const url = new URL(path, "http://example.test")
       if (url.pathname === "/api/v1/app/dashboard") {
-        dashboardRequests.push(path)
+        if (url.searchParams.get("section") !== "chrome") dashboardRequests.push(path)
         const hasSmartFolder = url.searchParams.get("smart_folder_id") === "1"
         return Promise.resolve(
-          new Response(
-            JSON.stringify(
-              dashboardPayload({
-                subject: "job",
-                view: "list",
-                active_smart_folder_id: hasSmartFolder ? 1 : null,
-                filter: url.searchParams.get("q") ? decodeFilterQueryParam(url.searchParams.get("q")!) : { and: [] },
-                smart_folders: [
-                  {
-                    id: 1,
-                    name: "Inbox",
-                    kind: "attention_preset",
-                    position: 0,
-                    subject_type: "job",
-                    visibility: "primary",
-                    count: 1,
-                    active: hasSmartFolder,
-                    filter: { and: [{ field: "attention", op: "is", value: "inbox" }] },
-                    path: "/dashboard/jobs?view=list&smart_folder_id=1"
-                  }
-                ],
-                items: [dashboardJobItem()]
-              })
-            ),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
+          dashboardResponse(dashboardPayload({
+            subject: "job",
+            view: "list",
+            active_smart_folder_id: hasSmartFolder ? 1 : null,
+            filter: url.searchParams.get("q") ? decodeFilterQueryParam(url.searchParams.get("q")!) : { and: [] },
+            smart_folders: [
+              {
+                id: 1,
+                name: "Inbox",
+                kind: "attention_preset",
+                position: 0,
+                subject_type: "job",
+                visibility: "primary",
+                count: 1,
+                active: hasSmartFolder,
+                filter: { and: [{ field: "attention", op: "is", value: "inbox" }] },
+                path: "/dashboard/jobs?view=list&smart_folder_id=1"
+              }
+            ],
+            items: [dashboardJobItem()]
+          }), path)
         )
       }
 
@@ -4761,32 +4723,28 @@ describe("App", () => {
         (url.searchParams.get("smart_folder_id") === "7" || url.searchParams.get("section") === "chrome")
       ) {
         const hasSmartFolder = url.searchParams.get("smart_folder_id") === "7"
-        const payload = dashboardPayload({
-          subject: "job",
-          view: "list",
-          active_smart_folder_id: hasSmartFolder ? 7 : null,
-          filter: appliedFilter,
-          smart_folders: [
-            {
-              id: 7,
-              name: "My work",
-              kind: "user_defined",
-              position: 2,
-              subject_type: "job",
-              visibility: "user_defined",
-              count: 1,
-              active: hasSmartFolder,
-              filter: storedFilter,
-              path: "/dashboard/jobs?view=list&smart_folder_id=7"
-            }
-          ],
-          items: [dashboardJobItem()]
-        })
         return Promise.resolve(
-          new Response(
-            JSON.stringify(dashboardSectionPayload(payload, path)),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
+          dashboardResponse(dashboardPayload({
+            subject: "job",
+            view: "list",
+            active_smart_folder_id: hasSmartFolder ? 7 : null,
+            filter: appliedFilter,
+            smart_folders: [
+              {
+                id: 7,
+                name: "My work",
+                kind: "user_defined",
+                position: 2,
+                subject_type: "job",
+                visibility: "user_defined",
+                count: 1,
+                active: hasSmartFolder,
+                filter: storedFilter,
+                path: "/dashboard/jobs?view=list&smart_folder_id=7"
+              }
+            ],
+            items: [dashboardJobItem()]
+          }), path)
         )
       }
 
@@ -9232,7 +9190,7 @@ describe("App", () => {
     const payload = jobDetailPayload({
       landing_queue_entry: {
         position: 1,
-        blocked_reason: { key: "waiting_epic_siblings" },
+        blocked_reason: "waiting for epic siblings to be approved",
         waiting_for_jobs: [
           { id: 43, label: "#43", title: "Approve sibling aqueduct", job_path: "/jobs/43" }
         ]
