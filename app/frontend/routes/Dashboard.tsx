@@ -70,13 +70,13 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
 
   return (
     <main aria-label={t("title")} className="mx-auto max-w-[96rem] space-y-5 px-0 py-4 sm:p-6">
-      <header className="flex flex-wrap items-center gap-3">
+      <header className="flex flex-wrap items-center gap-3 px-4 sm:px-0">
         <h1 className="flex-1 text-3xl font-semibold text-gray-900 dark:text-white">{payload.simple_mode ? t("simple_title") : t("title")}</h1>
         {isDesktop && !payload.simple_mode ? <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={true} /> : null}
         <DashboardCreateActions payload={payload} prefix={prefix} />
       </header>
-      <ReadinessPanel prefix={prefix} readiness={readiness} />
-      <RepositoryHealthBanners prefix={prefix} repositories={payload.health_blocked_repositories ?? payload.broken_repositories ?? []} />
+      <ReadinessPanel className="mx-4 sm:mx-0" prefix={prefix} readiness={readiness} />
+      <RepositoryHealthBanners className="mx-4 sm:mx-0" prefix={prefix} repositories={payload.health_blocked_repositories ?? payload.broken_repositories ?? []} />
 
       {isDesktop ? (
         <>
@@ -129,7 +129,7 @@ export function DashboardTour() {
   return <SyrusTour run={run} steps={steps} onEvent={(data) => handleJoyrideCallback(data)} />
 }
 
-export function ReadinessPanel({ prefix, readiness }: { prefix: string; readiness?: NonNullable<NonNullable<BootstrapPayload["setup_status"]>["readiness"]> }) {
+export function ReadinessPanel({ className = "", prefix, readiness }: { className?: string; prefix: string; readiness?: NonNullable<NonNullable<BootstrapPayload["setup_status"]>["readiness"]> }) {
   const { t } = useT("dashboard")
   // While the desktop shell's backend update has the containers down,
   // readiness checks fail because the backend is deliberately unreachable —
@@ -145,7 +145,7 @@ export function ReadinessPanel({ prefix, readiness }: { prefix: string; readines
   if (failingChecks.length === 0) return null
 
   return (
-    <section aria-label={t("system_readiness")} className="rounded border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/40">
+    <section aria-label={t("system_readiness")} className={`${className} rounded border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/40`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-amber-950 dark:text-amber-100">{t("readiness_title")}</h2>
@@ -172,7 +172,7 @@ export function ReadinessPanel({ prefix, readiness }: { prefix: string; readines
   )
 }
 
-function RepositoryHealthBanners({ prefix, repositories }: { prefix: string; repositories: DashboardHealthBlockedRepository[] }) {
+function RepositoryHealthBanners({ className = "", prefix, repositories }: { className?: string; prefix: string; repositories: DashboardHealthBlockedRepository[] }) {
   const { t } = useT("dashboard")
   const queryClient = useQueryClient()
   const [dismissed, setDismissed] = useState<Set<number>>(() => new Set())
@@ -187,7 +187,7 @@ function RepositoryHealthBanners({ prefix, repositories }: { prefix: string; rep
   if (visible.length === 0) return null
 
   return (
-    <div className="space-y-2">
+    <div className={`${className} space-y-2`}>
       {visible.map((repo) => {
         const repair = repo.main_branch_repair
         const blockingJob = repair?.blocking_job
@@ -276,7 +276,7 @@ function DesktopDashboardControls({ payload, pathname, search }: { payload: Dash
 function MobileDashboardControls({ payload, pathname, prefix, search }: { payload: DashboardPayload; pathname: string; prefix: string; search: string }) {
   const { t } = useT("dashboard")
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 px-4 sm:px-0">
       <div aria-label={t("controls_label")} className="flex items-center justify-between gap-3 pb-1" role="group">
         <div className="min-w-0 flex-1 overflow-x-auto">
           <SubjectTabs className="inline-flex w-max flex-nowrap overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900" payload={payload} prefix={prefix} />
@@ -316,7 +316,7 @@ export function DashboardContent({ payload, pathname, prefix, search }: { payloa
     if (!isDesktop) {
       return (
         <section className="min-w-0 space-y-4">
-          <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">{t("dependencies_mobile_unavailable")}</div>
+          <div className="mx-4 rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 sm:mx-0">{t("dependencies_mobile_unavailable")}</div>
         </section>
       )
     }
@@ -656,7 +656,7 @@ export function DashboardTable({ payload, prefix, setupStatus }: { payload: Dash
       )
     }
 
-    return <div className="rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">{t("no_match", { subject: subjectLabel(payload.subject, 2) })}</div>
+    return <div className="mx-4 rounded border border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 sm:mx-0">{t("no_match", { subject: subjectLabel(payload.subject, 2) })}</div>
   }
 
   const columns = dashboardVisibleColumns(payload)
@@ -676,7 +676,7 @@ function Pagination({ payload, pathname, search }: { payload: DashboardPayload; 
   const lastItem = Math.min(payload.page * payload.per_page, payload.total)
 
   return (
-    <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+    <div className="mx-4 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300 sm:mx-0">
       <span>{t("showing_pagination", { first: firstItem, last: lastItem, total: payload.total })}</span>
       <div className="flex gap-2">
         {payload.page > 1 ? (
