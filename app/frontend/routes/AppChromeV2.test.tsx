@@ -607,6 +607,14 @@ describe("SidebarSearchForm", () => {
 
   it("populates the search field from the URL when on the search page", () => {
     renderAppChrome(<div />, {
+      initialEntries: ["/app-shell/search?query=hello%20world"]
+    })
+
+    expect(screen.getByLabelText("Search Syrus")).toHaveValue("hello world")
+  })
+
+  it("populates the search field from a legacy plain q search URL", () => {
+    renderAppChrome(<div />, {
       initialEntries: ["/app-shell/search?q=hello%20world"]
     })
 

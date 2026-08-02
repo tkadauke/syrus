@@ -310,10 +310,15 @@ turn is still running. In the V2 layout, the
 sidebar search field opens a dedicated search
 page where operators can search Jobs, Epics, and chat messages from
 one ranked result list, then narrow results to a single type. Search terms
-use Google-style matching: unquoted words are independent required terms, and
+use the `query=` URL parameter and Google-style matching: unquoted words are independent required terms, and
 quoted words search for an exact phrase. Matching chat messages are grouped
 by conversation, with the strongest snippet shown first and additional
-matches expandable inline. The older chat search page remains
+matches expandable inline. The global results page also supports the same
+predicate FilterBar used on dashboard lists: combined results expose common
+repository and timestamp filters, while single-type views expose the relevant
+Job or Epic filters. These filters keep the relevance order intact and are
+encoded in the `q=` URL parameter; older plain-text `q=` search links still
+open as text searches when no `query=` parameter is present. The older chat search page remains
 available for chat-specific repository, Epic, Job, and attachment filters.
 Operators can also share a chat with teammates on the same Syrus instance:
 the `/share` slash command copies a stable link to a read-only transcript

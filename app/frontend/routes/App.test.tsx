@@ -1063,8 +1063,8 @@ describe("App", () => {
       if (path.startsWith("/api/v1/app/filters/fk_options")) {
         return Promise.resolve(new Response(JSON.stringify({ options: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
-      if (path === "/api/v1/app/search?q=forum") {
-        return Promise.resolve(new Response(JSON.stringify([]), { status: 200, headers: { "Content-Type": "application/json" } }))
+      if (path === "/api/v1/app/search?query=forum") {
+        return Promise.resolve(new Response(JSON.stringify(unifiedSearchPayload([])), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
 
       return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -1085,7 +1085,7 @@ describe("App", () => {
       expect(await screen.findByRole("main", { name: "Search" })).toBeInTheDocument()
       await waitFor(() => {
         expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/search?q=forum",
+          "/api/v1/app/search?query=forum",
           expect.objectContaining({ credentials: "same-origin" })
         )
       })
@@ -1113,7 +1113,7 @@ describe("App", () => {
       if (path === "/api/v1/app/chats") {
         return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
-      if (path === "/api/v1/app/search?q=needle") {
+      if (path === "/api/v1/app/search?query=needle") {
         return Promise.resolve(new Response(JSON.stringify(unifiedSearchPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
 
@@ -1123,7 +1123,7 @@ describe("App", () => {
     try {
       render(
         <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <MemoryRouter initialEntries={["/app-shell/search?q=needle"]}>
+          <MemoryRouter initialEntries={["/app-shell/search?query=needle"]}>
             <App />
           </MemoryRouter>
         </QueryClientProvider>
@@ -1138,6 +1138,56 @@ describe("App", () => {
       expect(await screen.findByText((_content, element) => element?.textContent === "Second needle")).toBeInTheDocument()
       expect(screen.getByText((_content, element) => element?.textContent === "Third needle")).toBeInTheDocument()
       expect(screen.getByText("Only the top 2 additional matches are shown.")).toBeInTheDocument()
+    } finally {
+      fetchSpy.mockRestore()
+      script.remove()
+    }
+  })
+
+  it("keeps the v2 unified search term when applying filters", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      current_user: {
+        ...bootstrapPayload().current_user,
+      },
+      feature_flags: {
+        v2_ui: true
+      }
+    }))
+    document.body.appendChild(script)
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path.startsWith("/api/v1/app/search?")) {
+        return Promise.resolve(new Response(JSON.stringify(unifiedSearchPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/search?query=needle"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      await screen.findByRole("link", { name: "Forum planning" })
+      fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
+      fireEvent.click(screen.getByRole("button", { name: "Repository reference" }))
+
+      await waitFor(() => {
+        expect(fetchSpy.mock.calls.some((call) => {
+          const path = String(call[0])
+          return path.startsWith("/api/v1/app/search?") && path.includes("query=needle") && path.includes("q=")
+        })).toBe(true)
+      })
     } finally {
       fetchSpy.mockRestore()
       script.remove()
@@ -16401,8 +16451,7 @@ function chatSearchPayload() {
   }
 }
 
-function unifiedSearchPayload() {
-  return [
+function unifiedSearchPayload(results = [
     {
       type: "chat",
       id: 11,
@@ -16420,7 +16469,18 @@ function unifiedSearchPayload() {
       total_match_count: 4,
       has_more_matches: true
     }
-  ]
+  ]) {
+  return {
+    results,
+    filter: null,
+    controls: {
+      filter_schema: [
+        { field: "repository_id", label: "Repository", bucket: "fk", operators: ["is", "is_not", "is_one_of", "is_none_of"], typeahead: true },
+        { field: "created_at", label: "Created", bucket: "date", operators: ["before", "after", "between", "within_last", "more_than_ago", "is_set", "is_unset"], values: [] },
+        { field: "updated_at", label: "Updated", bucket: "date", operators: ["before", "after", "between", "within_last", "more_than_ago", "is_set", "is_unset"], values: [] }
+      ]
+    }
+  }
 }
 
 function chatSearchMatch(overrides: Record<string, unknown> = {}) {

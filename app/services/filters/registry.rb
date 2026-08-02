@@ -236,6 +236,23 @@ module Filters
         "created_at"    => "Filters::Chips::CreatedAt",
         "updated_at"    => "Filters::Chips::UpdatedAt"
       }
+    ),
+    chat_message: Subject.new(
+      name: :chat_message,
+      model: ChatMessage,
+      chips: {
+        "created_at" => "Filters::Chips::CreatedAt",
+        "updated_at" => "Filters::Chips::UpdatedAt"
+      }
+    ),
+    test_case: Subject.new(
+      name: :test_case,
+      model: TestCase,
+      chips: {
+        "repository_id" => "Filters::Chips::RepositoryId",
+        "created_at" => "Filters::Chips::CreatedAt",
+        "updated_at" => "Filters::Chips::UpdatedAt"
+      }
     )
   }.freeze
 

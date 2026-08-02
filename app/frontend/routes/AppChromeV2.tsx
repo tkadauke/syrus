@@ -538,7 +538,7 @@ function SidebarSearchForm({ onCloseDrawer, prefix }: { onCloseDrawer: () => voi
   function navigateToSearch(value: string) {
     const trimmedQuery = value.trim()
     onCloseDrawer()
-    navigate(trimmedQuery ? `${prefix}/search?q=${encodeURIComponent(trimmedQuery)}` : `${prefix}/search`)
+    navigate(trimmedQuery ? `${prefix}/search?query=${encodeURIComponent(trimmedQuery)}` : `${prefix}/search`)
   }
 
   useEffect(() => {
@@ -597,7 +597,21 @@ function SidebarSearchForm({ onCloseDrawer, prefix }: { onCloseDrawer: () => voi
 
 function searchQueryFromLocation(search: string, pathname: string) {
   if (!pathname.includes("/search")) return ""
-  return new URLSearchParams(search).get("q") || ""
+  const params = new URLSearchParams(search)
+  return params.get("query") || legacySearchQuery(params.get("q") || "")
+}
+
+function legacySearchQuery(value: string) {
+  if (!value) return ""
+
+  try {
+    const padded = value.padEnd(value.length + ((4 - value.length % 4) % 4), "=")
+    const json = window.atob(padded.replace(/-/g, "+").replace(/_/g, "/"))
+    const parsed = JSON.parse(json)
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? "" : value
+  } catch {
+    return value
+  }
 }
 
 function SidebarDashboardNav({ expanded, onCloseDrawer, prefix, showSubjects }: { expanded: boolean; onCloseDrawer: () => void; prefix: string; showSubjects: boolean }) {

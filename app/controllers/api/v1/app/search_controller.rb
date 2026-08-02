@@ -3,14 +3,21 @@ module Api
     module App
       class SearchController < BaseController
         TYPES = %w[job epic chat test_case].freeze
+        FILTER_SUBJECTS = {
+          "job"       => :job,
+          "epic"      => :epic,
+          "chat"      => :chat_message,
+          "test_case" => :test_case
+        }.freeze
+        COMMON_FILTER_FIELDS = %w[repository_id created_at updated_at].freeze
         DEFAULT_LIMIT = 30
         MAX_LIMIT = 100
         CHAT_GROUPED_MATCH_LIMIT = 3
 
         def index
-          query = params[:q].to_s.strip
+          query = search_query
           if query.length < 2
-            render_error("bad_request", "q must be at least 2 characters.", status: :bad_request)
+            render_error("bad_request", "query must be at least 2 characters.", status: :bad_request)
             return
           end
 
@@ -26,10 +33,31 @@ module Api
           rows.sort_by! { |row| [ row.fetch(:rank), row.fetch(:type_order), row.fetch(:ordinal) ] }
           @search_result_rows = rows
 
-          render json: rows.filter_map { |row| result_json(row) }.first(limit)
+          render json: {
+            results: rows.filter_map { |row| result_json(row) }.first(limit),
+            filter: active_filter_tree,
+            controls: {
+              filter_schema: filter_schema(selected_types)
+            }
+          }
         end
 
         private
+
+        def search_query
+          params[:query].to_s.strip.presence || legacy_search_query
+        end
+
+        def legacy_search_query
+          raw_q = params[::Filters::QueryParam::PARAM_NAME].to_s
+          return "" if raw_q.blank? || active_filter_tree.present?
+
+          raw_q.strip
+        end
+
+        def active_filter_tree
+          @active_filter_tree ||= ::Filters::QueryParam.decode(params[::Filters::QueryParam::PARAM_NAME])
+        end
 
         def search_types
           raw_types = Array.wrap(params[:types]).compact_blank
@@ -76,25 +104,111 @@ module Api
         end
 
         def job_search_rows(query, limit)
-          merge_slug_rows(
+          rows = merge_slug_rows(
             JobSearchIndex.search(query, user_id: Current.user.id, limit: limit),
             job_slug_rows(query)
-          ).first(limit)
+          )
+          apply_filter_to_rows("job", rows, :job_id).first(limit)
         end
 
         def epic_search_rows(query, limit)
-          merge_slug_rows(
+          rows = merge_slug_rows(
             EpicSearchIndex.search(query, user_id: Current.user.id, limit: limit),
             epic_slug_rows(query)
-          ).first(limit)
+          )
+          apply_filter_to_rows("epic", rows, :epic_id).first(limit)
         end
 
         def chat_search_rows(query, limit)
-          ChatMessageSearchIndex.search(query, user_id: Current.user.id, limit: limit)
+          apply_filter_to_rows(
+            "chat",
+            ChatMessageSearchIndex.search(query, user_id: Current.user.id, limit: limit),
+            :chat_message_id
+          )
         end
 
         def test_case_search_rows(query, limit)
-          TestCaseSearchIndex.search(query, user_id: Current.user.id, limit: limit)
+          apply_filter_to_rows(
+            "test_case",
+            TestCaseSearchIndex.search(query, user_id: Current.user.id, limit: limit),
+            :test_case_id
+          )
+        end
+
+        def apply_filter_to_rows(type, rows, id_key)
+          return rows if rows.empty? || active_filter_tree.blank?
+
+          subject = FILTER_SUBJECTS.fetch(type)
+          tree = filter_tree_for_subject(active_filter_tree, subject)
+          return rows if tree.blank?
+
+          ids = rows.filter_map { |row| row[id_key]&.to_i }
+          filtered_ids = filtered_scope(type, ids, tree).pluck(:id).to_set
+          rows.select { |row| filtered_ids.include?(row[id_key].to_i) }
+        end
+
+        def filtered_scope(type, ids, tree)
+          case type
+          when "job"
+            Jobs::Filter.from_tree(tree, user: Current.user).apply(Current.user.jobs.where(id: ids))
+          when "epic"
+            Epics::Filter.from_tree(tree, user: Current.user).apply(Current.user.epics.where(id: ids))
+          when "chat"
+            ::Filters::Compiler.call(
+              ::Filters::Ast.parse(tree),
+              scope: ChatMessage.joins(:chat_session).where(chat_sessions: { user_id: Current.user.id }, id: ids),
+              user: Current.user,
+              subject: :chat_message
+            )
+          when "test_case"
+            ::Filters::Compiler.call(
+              ::Filters::Ast.parse(tree),
+              scope: TestCase.joins(:repository).where(repositories: { user_id: Current.user.id }, id: ids),
+              user: Current.user,
+              subject: :test_case
+            )
+          else
+            raise ArgumentError, "unknown search result type: #{type.inspect}"
+          end
+        end
+
+        def filter_tree_for_subject(tree, subject)
+          pruned = prune_filter_node(tree, subject)
+          return if pruned.blank?
+
+          serialized = ::Filters::Ast.serialize(::Filters::Ast.parse(pruned))
+          return if serialized == ::Filters::Ast.serialize(::Filters::Ast::EMPTY)
+
+          serialized
+        end
+
+        def prune_filter_node(raw, subject)
+          node = raw.to_h.transform_keys(&:to_s)
+
+          if node["and"].is_a?(Array)
+            children = node["and"].filter_map { |child| prune_filter_node(child, subject) }
+            return nil if children.empty?
+
+            { "and" => children }
+          elsif node["or"].is_a?(Array)
+            children = node["or"].filter_map { |child| prune_filter_node(child, subject) }
+            return nil if children.empty?
+
+            { "or" => children }
+          elsif node["not"].is_a?(Hash)
+            child = prune_filter_node(node["not"], subject)
+            child ? { "not" => child } : nil
+          elsif node["field"].present?
+            ::Filters::Registry.exists?(node["field"], subject: subject) ? node : nil
+          end
+        end
+
+        def filter_schema(selected_types)
+          if selected_types.length == 1
+            ::Filters::Schema.for(subject: FILTER_SUBJECTS.fetch(selected_types.first), user: Current.user)
+          else
+            COMMON_FILTER_FIELDS.map { |field| ::Filters::Schema.chip_for(field, user: Current.user, subject: :job) }
+          end
         end
 
         def merge_slug_rows(search_rows, slug_rows)

@@ -14,15 +14,23 @@ RSpec.describe "App API unified search", type: :request do
     JSON.parse(response.body)
   end
 
+  def results
+    parse_body.fetch("results")
+  end
+
+  def filter_q(tree)
+    Filters::QueryParam.encode(tree)
+  end
+
   it "returns 400 when the query is blank or too short" do
-    get "/api/v1/app/search", params: { q: " a " }
+    get "/api/v1/app/search", params: { query: " a " }
 
     expect(response).to have_http_status(:bad_request)
     expect(parse_body.dig("error", "code")).to eq("bad_request")
   end
 
   it "rejects unknown result types" do
-    get "/api/v1/app/search", params: { q: "deploy", types: [ "job", "note" ] }
+    get "/api/v1/app/search", params: { query: "deploy", types: [ "job", "note" ] }
 
     expect(response).to have_http_status(:bad_request)
     expect(parse_body.dig("error", "message")).to include("job, epic, chat, or test_case")
@@ -43,10 +51,9 @@ RSpec.describe "App API unified search", type: :request do
     EpicSearchIndex.upsert(epic)
     ChatMessageSearchIndex.insert(chat_message)
 
-    get "/api/v1/app/search", params: { q: "deploy" }
+    get "/api/v1/app/search", params: { query: "deploy" }
 
     expect(response).to have_http_status(:ok)
-    results = parse_body
     by_type_and_id = results.index_by { |row| [ row.fetch("type"), row.fetch("id") ] }
     expect(results.map { |row| row["type"] }).to contain_exactly("job", "job", "epic", "chat")
     expect(by_type_and_id.fetch([ "job", stronger_job.id ])).to include(
@@ -90,19 +97,41 @@ RSpec.describe "App API unified search", type: :request do
     EpicSearchIndex.upsert(epic)
     ChatMessageSearchIndex.insert(chat_message)
 
-    get "/api/v1/app/search", params: { q: "deploy", types: [ "job" ], limit: 500 }
+    get "/api/v1/app/search", params: { query: "deploy", types: [ "job" ], limit: 500 }
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body).to contain_exactly(include("type" => "job", "id" => job.id))
+    expect(results).to contain_exactly(include("type" => "job", "id" => job.id))
+  end
+
+  it "uses query as the canonical full text search parameter" do
+    job = Factories.job_record(user: user, repository: repository, issue_title: "Canonical deploy job")
+    JobSearchIndex.upsert(job)
+
+    get "/api/v1/app/search", params: { query: "deploy" }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to include(include("type" => "job", "id" => job.id))
+    expect(parse_body.dig("controls", "filter_schema").map { |field| field.fetch("field") }).to include("repository_id", "created_at", "updated_at")
+  end
+
+  it "falls back to legacy plain-text q when query is absent" do
+    job = Factories.job_record(user: user, repository: repository, issue_title: "Legacy deploy job")
+    JobSearchIndex.upsert(job)
+
+    get "/api/v1/app/search", params: { q: "deploy" }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to include(include("type" => "job", "id" => job.id))
+    expect(parse_body.fetch("filter")).to be_nil
   end
 
   it "returns an existing job when searching by JOB slug" do
     job = Factories.job_record(user: user, repository: repository, issue_title: "Unindexed slug target")
 
-    get "/api/v1/app/search", params: { q: job.slug }
+    get "/api/v1/app/search", params: { query: job.slug }
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body).to include(
+    expect(results).to include(
       include(
         "type" => "job",
         "id" => job.id,
@@ -117,10 +146,10 @@ RSpec.describe "App API unified search", type: :request do
   it "returns an existing epic when searching by EPIC slug" do
     epic = Factories.epic(user: user, repository: repository, title: "Unindexed epic target")
 
-    get "/api/v1/app/search", params: { q: epic.slug }
+    get "/api/v1/app/search", params: { query: epic.slug }
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body).to include(
+    expect(results).to include(
       include(
         "type" => "epic",
         "id" => epic.id,
@@ -142,10 +171,9 @@ RSpec.describe "App API unified search", type: :request do
     other_message = ChatMessage.create!(chat_session: other_chat, role: "assistant", content: { "text" => "deploy elsewhere" })
     ([ best_message, other_message ] + grouped_messages).each { |message| ChatMessageSearchIndex.insert(message) }
 
-    get "/api/v1/app/search", params: { q: "deploy", types: [ "chat" ] }
+    get "/api/v1/app/search", params: { query: "deploy", types: [ "chat" ] }
 
     expect(response).to have_http_status(:ok)
-    results = parse_body
     expect(results.length).to eq(2)
     launch_result = results.find { |result| result["title"] == "Launch chat" }
     expect(launch_result).to include(
@@ -183,10 +211,9 @@ RSpec.describe "App API unified search", type: :request do
     )
     TestCaseSearchIndex.upsert(test_case)
 
-    get "/api/v1/app/search", params: { q: "LoginService", types: [ "test_case" ] }
+    get "/api/v1/app/search", params: { query: "LoginService", types: [ "test_case" ] }
 
     expect(response).to have_http_status(:ok)
-    results = parse_body
     expect(results.length).to eq(1)
     expect(results.first).to include(
       "type" => "test_case",
@@ -207,10 +234,77 @@ RSpec.describe "App API unified search", type: :request do
     other_job = Factories.job_record(user: other_user, repository: other_repo, issue_title: "Private deploy")
     JobSearchIndex.upsert(other_job)
 
-    get "/api/v1/app/search", params: { q: "deploy" }
+    get "/api/v1/app/search", params: { query: "deploy" }
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body).to eq([])
+    expect(results).to eq([])
+  end
+
+  it "uses q as an encoded filter AST when query is present" do
+    queued_job = Factories.job_record(user: user, repository: repository, issue_title: "Deploy queued job", state: "queued")
+    closed_job = Factories.job_record(user: user, repository: repository, issue_title: "Deploy closed job", state: "closed")
+    [ queued_job, closed_job ].each { |job| JobSearchIndex.upsert(job) }
+    tree = { "and" => [ { "field" => "state", "op" => "is", "value" => "closed" } ] }
+
+    get "/api/v1/app/search", params: { query: "deploy", q: filter_q(tree), types: [ "job" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(include("type" => "job", "id" => closed_job.id))
+    expect(parse_body.fetch("filter")).to eq(tree)
+  end
+
+  it "uses the job filter schema and narrows jobs by state" do
+    queued_job = Factories.job_record(user: user, repository: repository, issue_title: "Deploy queued job", state: "queued")
+    running_job = Factories.job_record(user: user, repository: repository, issue_title: "Deploy running job", state: "running")
+    [ queued_job, running_job ].each { |job| JobSearchIndex.upsert(job) }
+    tree = { "and" => [ { "field" => "state", "op" => "is", "value" => "running" } ] }
+
+    get "/api/v1/app/search", params: { query: "deploy", q: filter_q(tree), types: [ "job" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(include("type" => "job", "id" => running_job.id))
+    expect(parse_body.dig("controls", "filter_schema").map { |field| field.fetch("field") }).to include("state", "priority", "repository_id")
+  end
+
+  it "uses the epic filter schema and narrows epics by state" do
+    backlog_epic = Factories.epic(user: user, repository: repository, title: "Deploy backlog epic", state: "backlog")
+    active_epic = Factories.epic(user: user, repository: repository, title: "Deploy active epic", state: "in_progress")
+    [ backlog_epic, active_epic ].each { |epic| EpicSearchIndex.upsert(epic) }
+    tree = { "and" => [ { "field" => "state", "op" => "is", "value" => "in_progress" } ] }
+
+    get "/api/v1/app/search", params: { query: "deploy", q: filter_q(tree), types: [ "epic" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(include("type" => "epic", "id" => active_epic.id))
+    expect(parse_body.dig("controls", "filter_schema").map { |field| field.fetch("field") }).to include("state", "repository_id", "created_at")
+  end
+
+  it "applies common created_at filters to supported result types" do
+    older_job = Factories.job_record(user: user, repository: repository, issue_title: "Deploy old job", created_at: 5.days.ago)
+    newer_job = Factories.job_record(user: user, repository: repository, issue_title: "Deploy new job", created_at: 1.hour.ago)
+    [ older_job, newer_job ].each { |job| JobSearchIndex.upsert(job) }
+    tree = { "and" => [ { "field" => "created_at", "op" => "after", "value" => 1.day.ago.iso8601 } ] }
+
+    get "/api/v1/app/search", params: { query: "deploy", q: filter_q(tree), types: [ "job" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to contain_exactly(include("type" => "job", "id" => newer_job.id))
+  end
+
+  it "preserves relevance ordering after filters are applied" do
+    weaker_job = Factories.job_record(user: user, repository: repository, issue_title: "Weaker matching deploy job", state: "running")
+    stronger_job = Factories.job_record(user: user, repository: repository, issue_title: "Stronger matching deploy job", state: "running")
+    excluded_job = Factories.job_record(user: user, repository: repository, issue_title: "Excluded deploy job", state: "queued")
+    weaker_job.update!(issue_body: "deploy transcript")
+    stronger_job.update!(issue_body: "deploy deploy deploy transcript")
+    excluded_job.update!(issue_body: "deploy deploy deploy deploy transcript")
+    [ weaker_job, stronger_job, excluded_job ].each { |job| JobSearchIndex.upsert(job) }
+    tree = { "and" => [ { "field" => "state", "op" => "is", "value" => "running" } ] }
+
+    get "/api/v1/app/search", params: { query: "deploy", q: filter_q(tree), types: [ "job" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results.map { |row| row.fetch("id") }).to eq([ stronger_job.id, weaker_job.id ])
   end
 
   def prepare_search_tables

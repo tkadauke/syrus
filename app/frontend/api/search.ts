@@ -1,4 +1,5 @@
 import { getJson } from "./client"
+import type { FilterSchemaField } from "../components/FilterBar"
 
 export type SearchResultType = "job" | "epic" | "chat" | "test_case"
 
@@ -45,6 +46,14 @@ export type TestCaseSearchResult = BaseSearchResult & {
 
 export type SearchResult = JobSearchResult | EpicSearchResult | ChatSearchResult | TestCaseSearchResult
 
+export type SearchPayload = {
+  results: SearchResult[]
+  filter: Record<string, unknown> | null
+  controls: {
+    filter_schema: FilterSchemaField[]
+  }
+}
+
 export type ChatGroupedMatch = {
   id: number
   snippet: string
@@ -52,10 +61,8 @@ export type ChatGroupedMatch = {
   created_at: string | null
 }
 
-export function fetchSearch(q: string, types: SearchResultType[] = [], signal?: AbortSignal) {
-  const params = new URLSearchParams()
-  params.set("q", q)
-  types.forEach((type) => params.append("types[]", type))
+export function fetchSearch(search: string, signal?: AbortSignal) {
+  const params = new URLSearchParams(search)
 
-  return getJson<SearchResult[]>(`/api/v1/app/search?${params.toString()}`, { signal })
+  return getJson<SearchPayload>(`/api/v1/app/search?${params.toString()}`, { signal })
 }

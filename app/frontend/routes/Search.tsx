@@ -7,6 +7,7 @@ import { fetchSearch, type SearchResult, type SearchResultType, type TestCaseSea
 import { ChevronIcon } from "../components/ChevronIcon"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
+import { FilterBar, type FilterLinkBuilder } from "../components/FilterBar"
 
 type SearchFilter = SearchResultType | "all"
 
@@ -46,14 +47,14 @@ export function SearchRoute() {
   usePageTitle(t("search.heading"))
   const location = useLocation()
   const params = new URLSearchParams(location.search)
-  const query = params.get("q")?.trim() || ""
+  const query = searchTextFromParams(params)
   const activeFilter = activeFilterFromParams(params)
-  const selectedTypes = activeFilter === "all" ? [] : [activeFilter]
   const search = useQuery({
-    queryKey: ["search", query, activeFilter],
-    queryFn: ({ signal }) => fetchSearch(query, selectedTypes, signal),
+    queryKey: ["search", location.search],
+    queryFn: ({ signal }) => fetchSearch(location.search, signal),
     enabled: query.length >= 2
   })
+  const results = search.data?.results || []
 
   return (
     <main aria-label={t("search_aria")} className="mx-auto max-w-[72rem] space-y-6 p-6">
@@ -69,6 +70,18 @@ export function SearchRoute() {
             </Link>
           ))}
         </nav>
+        {search.data ? (
+          <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950">
+            <FilterBar
+              buildLink={searchFilterLink}
+              filter={search.data.filter}
+              filterSchema={search.data.controls.filter_schema}
+              pathname={location.pathname}
+              search={location.search}
+              suggestionSearch={activeFilter === "job" || activeFilter === "epic" ? { surface: "dashboard", subject: activeFilter } : undefined}
+            />
+          </section>
+        ) : null}
       </header>
 
       {query.length === 0 ? (
@@ -79,11 +92,11 @@ export function SearchRoute() {
         <SearchSkeleton />
       ) : search.isError ? (
         <PanelMessage tone="error">{t('search.error')}</PanelMessage>
-      ) : search.data.length === 0 ? (
+      ) : results.length === 0 ? (
         <PanelMessage>{t('search.no_results')}</PanelMessage>
       ) : (
         <section className="divide-y divide-gray-200 overflow-hidden rounded border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-950">
-          {search.data.map((result) => <SearchResultRow key={`${result.type}-${result.id}`} result={result} />)}
+          {results.map((result) => <SearchResultRow key={`${result.type}-${result.id}`} result={result} />)}
         </section>
       )}
     </main>
@@ -203,11 +216,30 @@ function activeFilterFromParams(params: URLSearchParams): SearchFilter {
   return type === "job" || type === "epic" || type === "chat" || type === "test_case" ? type : "all"
 }
 
+function searchTextFromParams(params: URLSearchParams) {
+  const canonical = params.get("query")?.trim()
+  if (canonical) return canonical
+
+  const legacy = params.get("q")?.trim() || ""
+  return isEncodedFilterTree(legacy) ? "" : legacy
+}
+
 function filterPath(pathname: string, search: string, filter: SearchFilter) {
   const params = new URLSearchParams(search)
   params.delete("types")
   params.delete("types[]")
   if (filter !== "all") params.append("types[]", filter)
+  const query = params.toString()
+  return query ? `${pathname}?${query}` : pathname
+}
+
+const searchFilterLink: FilterLinkBuilder = (pathname, search, updates) => {
+  const params = new URLSearchParams(search)
+  Object.entries(updates).forEach(([key, value]) => {
+    params.delete(key)
+    if (value != null && value !== "") params.set(key, String(value))
+  })
+
   const query = params.toString()
   return query ? `${pathname}?${query}` : pathname
 }
@@ -241,3 +273,15 @@ function sanitizeSnippet(html: string) {
   return output.innerHTML
 }
 
+function isEncodedFilterTree(value: string) {
+  if (!value) return false
+
+  try {
+    const padded = value.padEnd(value.length + ((4 - value.length % 4) % 4), "=")
+    const json = window.atob(padded.replace(/-/g, "+").replace(/_/g, "/"))
+    const parsed = JSON.parse(json)
+    return Boolean(parsed && typeof parsed === "object" && !Array.isArray(parsed))
+  } catch {
+    return false
+  }
+}
