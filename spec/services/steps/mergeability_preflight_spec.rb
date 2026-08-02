@@ -159,7 +159,7 @@ RSpec.describe Steps::MergeabilityPreflight do
     handler = described_class.new(run)
     workspace = instance_double(WorkflowWorkspace, setup: nil, path: Rails.root)
     allow(handler).to receive(:workspace).and_return(workspace)
-    allow(GraderConclusionCache).to receive(:fingerprint_for_plan).and_return("fp")
+    allow(handler).to receive(:current_grader_fingerprint).and_return("fp")
 
     handler.call
 
@@ -193,7 +193,7 @@ RSpec.describe Steps::MergeabilityPreflight do
     handler = described_class.new(run)
     workspace = instance_double(WorkflowWorkspace, setup: nil, path: Rails.root)
     allow(handler).to receive(:workspace).and_return(workspace)
-    allow(GraderConclusionCache).to receive(:fingerprint_for_plan).and_return("fp")
+    allow(handler).to receive(:current_grader_fingerprint).and_return("fp")
 
     handler.call
 

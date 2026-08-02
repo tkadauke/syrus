@@ -60,7 +60,11 @@ module Steps
         grader_fingerprint: current_grader_fingerprint
       )
       if decision.reusable?
-        skip_revalidated_grade_steps!(sha, decision)
+        if decision.match_type == "same_tree"
+          skip_revalidated_grade_steps!(sha, decision)
+        else
+          log("merge_train: reusing cached grading validation (#{decision.match_type}) for #{sha.first(7)} - #{decision.reason}", kind: "system")
+        end
       else
         log("merge_train: landing graders will run - #{decision.reason}", kind: "system")
       end
@@ -190,6 +194,8 @@ module Steps
       log("merge_train: reusing cached grading validation (#{decision.match_type}) for #{sha.first(7)} - #{decision.reason}", kind: "system")
       Step.suppress_cancel_cascade do
         cursor = step.next_step
+        cursor = cursor.next_step while cursor && cursor.kind != "merge_train_reconcile"
+        cursor = cursor&.next_step
         while cursor && cursor.kind != "merge_train_land"
           if cursor.may_cancel?
             cursor.cancellation_reason = "landing_validation_cached"
