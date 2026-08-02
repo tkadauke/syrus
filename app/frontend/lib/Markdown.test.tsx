@@ -26,8 +26,10 @@ describe("Markdown", () => {
     const { container } = render(<Markdown text={"1. First\n\n1. Second\n\n1. Third"} />)
 
     const lists = container.querySelectorAll("ol")
+    const items = Array.from(lists[0].querySelectorAll("li"))
     expect(lists).toHaveLength(1)
-    expect(lists[0].querySelectorAll("li")).toHaveLength(3)
+    expect(items).toHaveLength(3)
+    expect(items.map((item) => item.getAttribute("value"))).toEqual(["1", "1", "1"])
     expect(screen.getByText("First")).toBeInTheDocument()
     expect(screen.getByText("Second")).toBeInTheDocument()
     expect(screen.getByText("Third")).toBeInTheDocument()
