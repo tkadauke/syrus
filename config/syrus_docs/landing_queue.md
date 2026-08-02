@@ -18,6 +18,13 @@ Jobs wait in `approved` when:
 
 `inconclusive` main branch health is warning-only. Syrus shows the main-health warning surfaces and notifications, but it does not hold queued workflows or landing queue entries solely because the signal is inconclusive.
 
+The dashboard's landing queue `Blocked reason` column first shows the per-Job
+queue blocker recorded by `LandingQueueProcessor`. If that value is blank,
+the dashboard falls back to merge-train and start-gate diagnostics for the
+same landing unit, such as a queued merge train blocked by `urgent_job_active`,
+an already-active merge train, or landing state drift where a Job is in
+`landing` with no active workflow or train.
+
 ## auto_merge workflow
 
 **Step chain:** `mergeability_preflight → prepare → retry_until(graders, repair: landing_fix) → push → auto_merge`

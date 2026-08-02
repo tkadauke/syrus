@@ -295,6 +295,38 @@ RSpec.describe App::DashboardPayload do
         created_at: blocker_job.created_at.iso8601
       )
     end
+
+    it "falls back to a merge-train start blocker when a landing row has no per-job blocked reason" do
+      AppSetting.current.update!(merge_train_enabled: true)
+      epic = Factories.epic(user: user, repository: repo, state: "in_progress")
+      first = Factories.job_record(user: user, repository: repo, epic: epic, state: "landing", pr_number: 101)
+      tip = Factories.job_record(user: user, repository: repo, epic: epic, state: "landing", pr_number: 102)
+      train = MergeTrain.create!(epic: epic, repository: repo, base_branch: repo.default_branch)
+      MergeTrainMember.create!(merge_train: train, job: first, position: 0)
+      MergeTrainMember.create!(merge_train: train, job: tip, position: 1)
+      Workflow.create!(
+        job: tip,
+        trigger_kind: "merge_train",
+        state: "queued",
+        artifacts: { "merge_train_id" => train.id, "start_blocked_reason" => "urgent_job_active" }
+      )
+
+      result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
+      items = result[:items].index_by { |item| item[:id] }
+
+      expect(items.fetch(first.id)[:landing_queue_blocked_reason]).to eq("Merge train queued: urgent job active")
+      expect(items.fetch(tip.id)[:landing_queue_blocked_reason]).to eq("Merge train queued: urgent job active")
+    end
+
+    it "falls back to landing state drift when a landing row has no active workflow or train" do
+      job = Factories.job_record(user: user, repository: repo, state: "landing", pr_number: 101)
+      Workflow.create!(job: job, trigger_kind: "auto_merge", state: "failed")
+
+      result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
+      item = result[:items].find { |row| row[:id] == job.id }
+
+      expect(item[:landing_queue_blocked_reason]).to eq("Landing state drift: no active workflow")
+    end
   end
 
   describe "commits_behind_base in job items" do

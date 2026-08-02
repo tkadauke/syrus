@@ -270,7 +270,9 @@ enabled for your installation, failing checks can also create repair
 Workflows on Syrus-owned PRs. A Job remains in the landing queue — and
 does not merge — until every PR check has passed; if checks are still
 running (pending) or any required check has failed, the Job is held with
-a status message explaining the specific reason.
+a status message explaining the specific reason. Merge-train rows also
+surface group-level start blockers, such as an urgent Job holding a queued
+train, and state drift when a landing Job has no active workflow.
 
 The first-run guide is complete when your first Epic lands (all of its
 child Jobs merge); the **Setup** tab then drops off the navigation.

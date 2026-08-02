@@ -49,7 +49,9 @@ module App
       end
 
       def landing_queue_blocked_reason_for(job)
-        job.landing_queue_blocked_reason if landing_queue_visible?
+        return unless landing_queue_visible?
+
+        job.landing_queue_blocked_reason.presence || landing_queue_status_reason_for(job)
       end
 
       def blocked_reason_for(job)
@@ -93,6 +95,104 @@ module App
         if landing_queue_visible?
           job.landing_queue_entry_key.presence || "job:#{job.id}"
         end
+      end
+
+      def landing_queue_status_reason_for(job)
+        merge_train_status_reason_for(job) || landing_state_drift_reason_for(job)
+      end
+
+      def merge_train_status_reason_for(job)
+        return unless AppSetting.merge_train_enabled?
+        return unless job.epic_id.present?
+
+        if (reason = merge_train_start_blocked_reason_for(job))
+          return "Merge train queued: #{display_start_blocked_reason(reason)}"
+        end
+
+        return "Merge train already active" if merge_train_active_for?(job)
+
+        dispatcher_blocker = merge_train_dispatcher_blocker_for(job)
+        "Merge train queued: #{dispatcher_blocker}" if dispatcher_blocker.present?
+      end
+
+      def landing_state_drift_reason_for(job)
+        return unless job.landing?
+        return if active_workflow_for_landing_queue_job?(job)
+
+        "Landing state drift: no active workflow"
+      end
+
+      def merge_train_start_blocked_reason_for(job)
+        merge_train_workflow_data_by_epic_id.dig(job.epic_id, :start_blocked_reason)
+      end
+
+      def merge_train_active_for?(job)
+        merge_train_workflow_data_by_epic_id.dig(job.epic_id, :active) || active_merge_train_ids_by_epic_id.key?(job.epic_id)
+      end
+
+      def merge_train_dispatcher_blocker_for(job)
+        merge_train_dispatcher_blockers_by_epic_id[job.epic_id]
+      end
+
+      def active_workflow_for_landing_queue_job?(job)
+        active_workflow_job_ids.include?(job.id) || merge_train_active_for?(job)
+      end
+
+      def display_start_blocked_reason(reason)
+        reason.to_s.tr("_", " ")
+      end
+
+      def merge_train_workflow_data_by_epic_id
+        @merge_train_workflow_data_by_epic_id ||= begin
+          epic_ids = landing_queue_epic_ids
+          if epic_ids.empty?
+            {}
+          else
+            workflows = Workflow
+              .where(trigger_kind: "merge_train", state: %w[ queued running ], job_id: Job.where(epic_id: epic_ids).select(:id))
+              .select(:job_id, :state, :artifacts, :created_at, :id)
+              .order(created_at: :desc, id: :desc)
+            epic_id_by_job_id = Job.where(epic_id: epic_ids).pluck(:id, :epic_id).to_h
+
+            workflows.each_with_object({}) do |workflow, map|
+              epic_id = epic_id_by_job_id[workflow.job_id]
+              next unless epic_id
+
+              data = (map[epic_id] ||= {})
+              data[:active] = true
+              data[:start_blocked_reason] ||= workflow.artifact("start_blocked_reason") if workflow.queued?
+            end
+          end
+        end
+      end
+
+      def active_merge_train_ids_by_epic_id
+        @active_merge_train_ids_by_epic_id ||= begin
+          epic_ids = landing_queue_epic_ids
+          epic_ids.empty? ? {} : MergeTrain.active.where(epic_id: epic_ids).pluck(:epic_id, :id).to_h
+        end
+      end
+
+      def merge_train_dispatcher_blockers_by_epic_id
+        @merge_train_dispatcher_blockers_by_epic_id ||= begin
+          epic_ids = landing_queue_epic_ids
+          epics = epic_ids.empty? ? [] : Epic.where(id: epic_ids).includes(:repository)
+          epics.each_with_object({}) do |epic, map|
+            reason = MergeTrainDispatcher.blocker_reason(epic)
+            map[epic.id] = reason if reason.present?
+          end
+        end
+      end
+
+      def active_workflow_job_ids
+        @active_workflow_job_ids ||= begin
+          job_ids = current_landing_queue_jobs.map(&:id)
+          job_ids.empty? ? Set.new : Workflow.active.where(job_id: job_ids).pluck(:job_id).to_set
+        end
+      end
+
+      def landing_queue_epic_ids
+        @landing_queue_epic_ids ||= current_landing_queue_jobs.filter_map(&:epic_id).uniq
       end
 
       def landing_queue_entries
