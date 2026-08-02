@@ -33,6 +33,9 @@
     "agent_session_capture": "Captura sessionis agentis",
     "data_root_disk": "Discus radici datorum",
     "stuck_things": "Res Haerentes",
+    "chat_events_section": "Eventus sermonis circumscripti",
+    "chat_events_window": "{{total}} eventus per {{hours}}h",
+    "chat_event_failures": "Defectus evaluatoris",
     "all_idle": "omnes otiosi",
     "queue_empty": "agmen vacuum",
     "waiting_for_worker": "operatorem expectans",
@@ -51,8 +54,10 @@
     "aria_overview": "Conspectus administratoris",
     "aria_metrics": "Metrica systematis",
     "aria_stuck": "Res haerentes",
+    "aria_chat_events": "Sententiae evaluatoris eventuum sermonis",
     "capture_of": "{{captured}} ex {{total}}",
-    "disk_free": "{{free}} liberi apud {{path}}"
+    "disk_free": "{{free}} liberi apud {{path}}",
+    "no_chat_events": "Nulli eventus sermonis circumscripti scripti sunt."
   },
   "users": {
     "heading": "Utentes",

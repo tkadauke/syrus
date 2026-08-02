@@ -341,7 +341,10 @@ silent in the transcript, while `respond` and `act` decisions create an
 immediate wakeup for the real chat agent with the structured event, evaluator
 decision, and handoff prompt. Scoped Supervisor events mark the chat unread in
 the sidebar with an unread count and strongest event severity even when no
-visible response is created.
+visible response is created. The admin overview includes operator/debug
+visibility for this path: recent scoped events, 24-hour `no_op`/`respond`/`act`
+counts, evaluator state counts, and recent failure reasons. Failed evaluator
+events can be retried without duplicating already delivered visible wakeups.
 When an admin chats in Supervisor, the agent uses admin-oriented guidance:
 system event messages are treated as operational context, incident summaries
 favor evidence and recommended next steps, and risky actions such as retries,

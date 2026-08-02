@@ -2473,6 +2473,41 @@ describe("App", () => {
           provider_circuits: [],
           agent_session_capture_rate: { total: 3, captured: 3, rate: 1.0 },
           data_root_disk_usage: { path: "/syrus-home/.syrus", filesystem: "/dev/pvc", total_bytes: 100, used_bytes: 90, available_bytes: 10, used_percent: 90, mounted_on: "/syrus-home", observed_at: "2026-06-05T12:00:00Z", level: "warning" },
+          chat_scoped_events: {
+            window_hours: 24,
+            total: 3,
+            by_state: { completed: 2, failed: 1 },
+            by_decision: { no_op: 1, respond: 1, act: 0 },
+            failures: [
+              {
+                id: 8,
+                source_kind: "workflow_failed",
+                summary: "Workflow evaluator failed",
+                delivery_state: "pending",
+                evaluator_state: "failed",
+                error: "JSON::ParserError: evaluator did not return JSON",
+                created_at: "2026-06-05T11:00:00Z",
+                chat: { id: 4, title: "Supervisor", path: "/chats/4" },
+                job: { id: 12, slug: "JOB-12", path: "/jobs/12" }
+              }
+            ],
+            recent: [
+              {
+                id: 9,
+                source_kind: "workflow_failed",
+                summary: "Workflow failed",
+                severity: "critical",
+                delivery_state: "delivered",
+                evaluator_state: "completed",
+                decision: "respond",
+                reason: "operator should know",
+                created_at: "2026-06-05T11:01:00Z",
+                chat: { id: 4, title: "Supervisor", path: "/chats/4" },
+                repository: { id: 2, slug: "acme/widgets" },
+                job: { id: 12, slug: "JOB-12", path: "/jobs/12" }
+              }
+            ]
+          },
           workers: { total: 1, stale: 1 },
           worker_health: {
             generated_at: "2026-06-05T12:00:00Z",
@@ -2532,6 +2567,11 @@ describe("App", () => {
       expect(screen.getByRole("link", { name: "Run #4 silent for 10m" })).toHaveAttribute("href", "/app-shell/jobs/1?tab=workflows#workflow-2")
       expect(screen.getByText("Data root disk")).toBeInTheDocument()
       expect(screen.getByText("90%")).toBeInTheDocument()
+      expect(screen.getByRole("region", { name: "Scoped chat event evaluator decisions" })).toBeInTheDocument()
+      expect(screen.getByText("no_op: 1")).toBeInTheDocument()
+      expect(screen.getByText("respond: 1")).toBeInTheDocument()
+      expect(screen.getByText("JSON::ParserError: evaluator did not return JSON")).toBeInTheDocument()
+      expect(screen.getAllByRole("link", { name: "JOB-12" })[0]).toHaveAttribute("href", "/app-shell/jobs/12")
       expect(screen.getByRole("link", { name: /Workers/ })).toHaveClass("border-red-200")
       expect(screen.getByText("2")).toBeInTheDocument()
     } finally {
@@ -2551,6 +2591,14 @@ describe("App", () => {
           provider_circuits: [],
           agent_session_capture_rate: { total: 0, captured: 0, rate: null },
           data_root_disk_usage: null,
+          chat_scoped_events: {
+            window_hours: 24,
+            total: 0,
+            by_state: {},
+            by_decision: { no_op: 0, respond: 0, act: 0 },
+            failures: [],
+            recent: []
+          },
           workers: { total: 1, stale: 0 },
           recurring: { overdue: [] },
           stuck_pagination: { page: 1, per_page: 50, total: 0, total_pages: 1, first_item: 0, last_item: 0, previous_path: null, next_path: null },

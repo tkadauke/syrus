@@ -33,6 +33,9 @@
     "agent_session_capture": "Agent session capture",
     "data_root_disk": "Data root disk",
     "stuck_things": "Stuck things",
+    "chat_events_section": "Scoped chat events",
+    "chat_events_window": "{{total}} events in {{hours}}h",
+    "chat_event_failures": "Evaluator failures",
     "all_idle": "all idle",
     "queue_empty": "queue empty",
     "waiting_for_worker": "waiting for a worker",
@@ -51,8 +54,10 @@
     "aria_overview": "Admin overview",
     "aria_metrics": "System metrics",
     "aria_stuck": "Stuck things",
+    "aria_chat_events": "Scoped chat event evaluator decisions",
     "capture_of": "{{captured}} of {{total}}",
-    "disk_free": "{{free}} free at {{path}}"
+    "disk_free": "{{free}} free at {{path}}",
+    "no_chat_events": "No scoped chat events recorded."
   },
   "users": {
     "heading": "Users",

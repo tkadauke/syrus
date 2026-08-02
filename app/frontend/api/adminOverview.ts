@@ -59,6 +59,18 @@ export type AdminOverviewPayload = {
     observed_at: string
   }[]
   worker_health?: WorkerHealthPayload
+  chat_scoped_events: {
+    window_hours: number
+    total: number
+    by_state: Record<string, number>
+    by_decision: {
+      no_op: number
+      respond: number
+      act: number
+    }
+    failures: ChatScopedEventObservation[]
+    recent: ChatScopedEventObservation[]
+  }
   workers: {
     total?: number
     stale?: number
@@ -102,6 +114,42 @@ export type AdminOverviewPayload = {
     previous_path: string | null
     next_path: string | null
   }
+}
+
+export type ChatScopedEventObservation = {
+  id: number
+  source_kind: string
+  summary: string
+  severity?: string | null
+  delivery_state: string
+  evaluator_state: string
+  decision?: "no_op" | "respond" | "act" | string | null
+  reason?: string | null
+  dedupe_key?: string | null
+  error?: string | null
+  created_at: string
+  evaluated_at?: string | null
+  chat?: {
+    id: number
+    title: string
+    system_kind?: string | null
+    path: string
+  } | null
+  repository?: {
+    id: number
+    slug: string
+  } | null
+  job?: {
+    id: number
+    slug: string
+    path: string
+  } | null
+  epic?: {
+    id: number
+    slug: string
+    path: string
+  } | null
+  proposal_id?: number | null
 }
 
 export type WorkerHealthLevel = "ok" | "warning" | "critical" | "unknown" | string

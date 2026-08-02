@@ -36,6 +36,11 @@ artifacts are removed and the live chat provider session is left untouched.
 decisions create an immediate `ChatWakeup` containing the scoped event,
 evaluator decision, and handoff prompt; the live chat turn is instructed to
 refresh current Syrus state before relying on event data.
+The admin overview includes operator/debug observability for this pipeline:
+24-hour `no_op`/`respond`/`act` counts, evaluator state counts, recent scoped
+events, and recent evaluator failure reasons. Failed evaluator events remain
+retryable; already delivered actionable events are skipped on retry so visible
+chat wakeups are not duplicated.
 
 When the `admin_supervisor_chat` feature is enabled, the same scoped event flow
 also applies to ordinary chat threads for work that originated in that chat.

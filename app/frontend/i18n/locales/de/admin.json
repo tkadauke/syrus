@@ -33,6 +33,9 @@
     "agent_session_capture": "Agenten-Sitzungserfassung",
     "data_root_disk": "Datenverzeichnis-Festplatte",
     "stuck_things": "Hängende Elemente",
+    "chat_events_section": "Scoped Chat Events",
+    "chat_events_window": "{{total}} Ereignisse in {{hours}}h",
+    "chat_event_failures": "Evaluator-Fehler",
     "all_idle": "alle inaktiv",
     "queue_empty": "Warteschlange leer",
     "waiting_for_worker": "wartet auf Worker",
@@ -51,8 +54,10 @@
     "aria_overview": "Admin-Übersicht",
     "aria_metrics": "Systemmetriken",
     "aria_stuck": "Hängende Elemente",
+    "aria_chat_events": "Scoped-Chat-Event-Evaluator-Entscheidungen",
     "capture_of": "{{captured}} von {{total}}",
-    "disk_free": "{{free}} frei bei {{path}}"
+    "disk_free": "{{free}} frei bei {{path}}",
+    "no_chat_events": "Keine Scoped Chat Events aufgezeichnet."
   },
   "users": {
     "heading": "Benutzer",

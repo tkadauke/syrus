@@ -73,4 +73,45 @@ RSpec.describe ChatScopedEventEvaluatorJob do
 
     expect(ChatEventEvaluator).not_to have_received(:new)
   end
+
+  it "retries failed evaluator events" do
+    event.record_evaluator_failure!("JSON::ParserError: evaluator did not return JSON")
+    evaluator = instance_double(ChatEventEvaluator, call: { "decision" => "no_op", "reason" => "handled on retry" })
+    allow(ChatEventEvaluator).to receive(:new)
+      .with(event: event, chat_session: chat_session)
+      .and_return(evaluator)
+
+    described_class.perform_now(event.id, chat_session.id)
+
+    expect(evaluator).to have_received(:call)
+  end
+
+  it "does not duplicate visible wakeups when an actionable completed event is retried" do
+    event.record_evaluator_result!(
+      "decision" => "respond",
+      "reason" => "operator should know",
+      "handoff_prompt" => "Report the event."
+    )
+
+    expect {
+      described_class.perform_now(event.id, chat_session.id)
+      described_class.perform_now(event.id, chat_session.id)
+    }.to change(ChatWakeup, :count).by(1)
+
+    expect(event.reload).to be_delivered
+  end
+
+  it "skips already delivered scoped events" do
+    event.update!(
+      delivery_state: "delivered",
+      delivered_at: Time.current,
+      evaluator_state: "completed",
+      evaluator_result: { "decision" => "act" }
+    )
+    allow(ChatEventEvaluator).to receive(:new)
+
+    described_class.perform_now(event.id, chat_session.id)
+
+    expect(ChatEventEvaluator).not_to have_received(:new)
+  end
 end

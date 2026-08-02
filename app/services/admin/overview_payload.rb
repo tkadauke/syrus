@@ -33,6 +33,7 @@ module Admin
           data_root_disk_usage: PerformanceLogging.phase("admin_overview.data_root_disk_usage") { data_root_disk_usage_payload },
           worker_data_root_usages: PerformanceLogging.phase("admin_overview.worker_data_root_usages") { InstanceVersion.worker_data_root_usages },
           worker_health: PerformanceLogging.phase("admin_overview.worker_health") { worker_health_payload(sample_limit_per_host: 4) },
+          chat_scoped_events: PerformanceLogging.phase("admin_overview.chat_scoped_events") { chat_scoped_events_payload },
           stuck: PerformanceLogging.phase("admin_overview.stuck") { paginated_stuck_items },
           stuck_pagination: PerformanceLogging.phase("admin_overview.stuck_pagination") { stuck_pagination }
         }
@@ -115,6 +116,10 @@ module Admin
 
     def worker_health_payload(sample_limit_per_host:)
       ::Admin::WorkerHealthPayload.new(sample_limit_per_host: sample_limit_per_host).as_json
+    end
+
+    def chat_scoped_events_payload
+      ::Admin::ChatScopedEventObservabilityPayload.new.as_json
     end
 
     def workers_payload

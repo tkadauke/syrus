@@ -1,5 +1,6 @@
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useQuery } from "@tanstack/react-query"
+import type { ReactNode } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { fetchAdminOverview, type AdminOverviewPayload } from "../api/adminOverview"
 import { useT } from "../hooks/useT"
@@ -66,6 +67,8 @@ export function AdminOverview() {
           </ul>
         </section>
       ) : null}
+
+      <ChatScopedEventsSection data={data.chat_scoped_events} prefix={prefix} />
     </main>
   )
 }
@@ -118,6 +121,90 @@ function Metric({
       {content}
     </article>
   )
+}
+
+function ChatScopedEventsSection({ data, prefix }: { data: AdminOverviewPayload["chat_scoped_events"]; prefix: string }) {
+  const { t } = useT("admin")
+  const failures = data.failures || []
+  const recent = data.recent || []
+
+  return (
+    <section aria-label={t("overview.aria_chat_events")} className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+      <div className="flex flex-col gap-2 border-b border-gray-100 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-800 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("overview.chat_events_section")}</h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{t("overview.chat_events_window", { hours: data.window_hours, total: data.total })}</p>
+        </div>
+        <div className="flex flex-wrap gap-2 text-xs">
+          <DecisionPill label="no_op" value={data.by_decision.no_op} />
+          <DecisionPill label="respond" value={data.by_decision.respond} />
+          <DecisionPill label="act" value={data.by_decision.act} />
+          <DecisionPill label="failed" value={data.by_state.failed || 0} tone={(data.by_state.failed || 0) > 0 ? "alarm" : "idle"} />
+        </div>
+      </div>
+
+      {failures.length > 0 ? (
+        <div className="border-b border-red-100 bg-red-50 px-4 py-3 dark:border-red-900 dark:bg-red-950/30">
+          <div className="mb-2 text-xs font-medium uppercase text-red-700 dark:text-red-300">{t("overview.chat_event_failures")}</div>
+          <ul className="space-y-2">
+            {failures.map((event) => (
+              <li className="text-xs text-red-800 dark:text-red-200" key={`failure-${event.id}`}>
+                <EventLinks event={event} prefix={prefix} />
+                <span className="ml-2 font-mono">{event.error}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {recent.length > 0 ? (
+        <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+          {recent.map((event) => (
+            <li className="grid gap-2 px-4 py-3 text-sm lg:grid-cols-[minmax(0,1fr)_auto]" key={event.id}>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{event.summary || event.source_kind}</span>
+                  <span className="rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{event.source_kind}</span>
+                  {event.severity ? <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{event.severity}</span> : null}
+                </div>
+                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  <EventLinks event={event} prefix={prefix} />
+                  {event.reason ? <span className="ml-2">{event.reason}</span> : null}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs lg:justify-end">
+                <DecisionPill label={event.decision || event.evaluator_state} value={event.delivery_state} tone={event.evaluator_state === "failed" ? "alarm" : "idle"} />
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400">{t("overview.no_chat_events")}</div>
+      )}
+    </section>
+  )
+}
+
+function EventLinks({ event, prefix }: { event: AdminOverviewPayload["chat_scoped_events"]["recent"][number]; prefix: string }) {
+  const links = []
+  if (event.chat) links.push(<Link className="underline hover:no-underline" key="chat" to={withRoutePrefix(event.chat.path, prefix)}>{event.chat.title}</Link>)
+  if (event.job) links.push(<Link className="underline hover:no-underline" key="job" to={withRoutePrefix(event.job.path, prefix)}>{event.job.slug}</Link>)
+  if (event.epic) links.push(<Link className="underline hover:no-underline" key="epic" to={withRoutePrefix(event.epic.path, prefix)}>{event.epic.slug}</Link>)
+  if (event.repository) links.push(<span key="repo">{event.repository.slug}</span>)
+
+  return <span className="text-gray-600 dark:text-gray-300">{links.length > 0 ? intersperse(links, " · ") : `event ${event.id}`}</span>
+}
+
+function DecisionPill({ label, value, tone = "idle" }: { label: string; value: number | string; tone?: "idle" | "alarm" }) {
+  const className = tone === "alarm"
+    ? "rounded bg-red-100 px-2 py-0.5 font-mono text-red-700 dark:bg-red-950 dark:text-red-300"
+    : "rounded bg-gray-100 px-2 py-0.5 font-mono text-gray-600 dark:bg-gray-800 dark:text-gray-300"
+
+  return <span className={className}>{label}: {value}</span>
+}
+
+function intersperse(items: ReactNode[], separator: string) {
+  return items.flatMap((item, index) => index === 0 ? [item] : [separator, item])
 }
 
 function triggerContext(values: Record<string, number>, fallback: string) {

@@ -54,12 +54,18 @@ RSpec.describe "API: /api/v1/app/admin/overview", type: :request do
       "github_api_blocked_users",
       "agent_session_capture_rate",
       "worker_health",
+      "chat_scoped_events",
       "workers",
       "recurring",
       "stuck",
       "stuck_pagination"
     )
     expect(body["active_runs"]["total"]).to eq(1)
+    expect(body["chat_scoped_events"]).to include(
+      "window_hours" => 24,
+      "by_decision" => include("no_op" => 0, "respond" => 0, "act" => 0),
+      "recent" => []
+    )
     expect(body["stuck_pagination"]).to include(
       "page" => 1,
       "per_page" => 50,
