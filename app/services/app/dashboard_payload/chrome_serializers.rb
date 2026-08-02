@@ -52,7 +52,13 @@ module App
 
       def queued_blocked_job_count
         @queued_blocked_job_count ||= begin
-          queued_scope = jobs_base_scope.where(state: "queued").select(:id)
+          queued_folder_filter = SmartFolder::JOB_BUILTINS
+                                            .find { |definition| definition.fetch(:key) == "queued" }
+                                            .fetch(:filter)
+          queued_scope = Jobs::Filter.from_tree(queued_folder_filter, user: user)
+                                     .apply(jobs_base_scope)
+                                     .where(state: "queued")
+                                     .select(:id)
           Workflow.where(job_id: queued_scope, state: "queued")
                   .where("artifacts LIKE ?", '%"start_blocked_reason"%')
                   .select(:job_id)

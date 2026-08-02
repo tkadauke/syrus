@@ -507,6 +507,27 @@ RSpec.describe App::DashboardPayload do
       expect(queued_folder[:blocked_count]).to eq(1)
     end
 
+    it "excludes blocked queued jobs owned by other users in team scope" do
+      other_user = Factories.user
+      other_repo = Factories.repository(user: other_user, owner: "acme", name: "other-widgets")
+      mine = Factories.job_record(user: user, repository: repo, state: "queued")
+      theirs = Factories.job_record(user: other_user, repository: other_repo, state: "queued", owner_user: other_user)
+
+      [ mine, theirs ].each do |job|
+        Workflow.create!(
+          job: job,
+          trigger_kind: "initial",
+          state: "queued",
+          artifacts: { "start_blocked_reason" => "urgent_job_active" }
+        )
+      end
+
+      result = call(subject: "job", ownership_scope: "team")
+      queued_folder = result[:smart_folders].find { |f| f[:key] == "queued" }
+
+      expect(queued_folder[:blocked_count]).to eq(1)
+    end
+
     it "includes blocked_count of zero when no blocked queued jobs exist" do
       Factories.job_record(user: user, repository: repo, state: "queued")
 
