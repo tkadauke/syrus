@@ -333,11 +333,15 @@ live chat: Syrus clones the persisted transcript, uses the full context when it
 fits and otherwise caps to the latest 10,000 messages plus a byte budget, gives
 the evaluator read-only tools, stores its structured `no_op`/`respond`/`act`
 decision, and discards the temporary provider session without touching the live
-chat session. `no_op` decisions stay silent in the transcript, while `respond`
-and `act` decisions create an immediate wakeup for the real chat agent with the
-structured event, evaluator decision, and handoff prompt. Scoped events mark the
-chat unread in the sidebar with an unread count and strongest event severity
-even when no visible response is created.
+chat session. The same scoped event path wakes ordinary chat threads only for
+work that originated in that thread through confirmed proposal lineage: Jobs,
+Epics, related Workflows/Runs, and pull requests that map back to those Jobs.
+Unrelated Job and Epic events stay out of ordinary chats. `no_op` decisions stay
+silent in the transcript, while `respond` and `act` decisions create an
+immediate wakeup for the real chat agent with the structured event, evaluator
+decision, and handoff prompt. Scoped Supervisor events mark the chat unread in
+the sidebar with an unread count and strongest event severity even when no
+visible response is created.
 When an admin chats in Supervisor, the agent uses admin-oriented guidance:
 system event messages are treated as operational context, incident summaries
 favor evidence and recommended next steps, and risky actions such as retries,

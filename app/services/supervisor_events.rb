@@ -2,30 +2,62 @@ class SupervisorEvents
   SEVERITIES = %w[info warning critical].freeze
 
   class << self
-    def publish!(kind:, severity:, subject:, repository: nil, job: nil, epic: nil, proposal: nil, actor: nil, summary:, details: nil, dedupe_key: nil)
+    def publish!(kind:, severity:, subject:, repository: nil, job: nil, epic: nil, proposal: nil, workflow: nil, run: nil, pr_number: nil, actor: nil, summary:, details: nil, dedupe_key: nil)
       return [] unless Feature.admin_supervisor_chat_enabled?
+
+      recipients = ChatScopedEventRecipients.new(
+        repository: repository,
+        job: job,
+        epic: epic,
+        proposal: proposal,
+        workflow: workflow,
+        run: run,
+        pr_number: pr_number,
+        details: details
+      )
 
       event = normalize_event(
         kind: kind,
         severity: severity,
         subject: subject,
-        repository: repository,
+        repository: recipients.repository,
         actor: actor,
         summary: summary,
         details: details,
         dedupe_key: dedupe_key
       )
 
-      User.where(admin: true).find_each.filter_map do |admin|
-        publish_for_admin!(admin, event, repository: repository, job: job, epic: epic, proposal: proposal)
+      supervisor_events = User.where(admin: true).find_each.filter_map do |admin|
+        chat = SupervisorChat.ensure_for!(admin)
+        publish_for_chat!(
+          chat,
+          event,
+          repository: recipients.repository,
+          job: recipients.job,
+          epic: recipients.epic,
+          proposal: recipients.proposal,
+          changed_marker: "supervisor_event"
+        )
       end
+
+      scoped_chat_events = recipients.chat_sessions.filter_map do |chat|
+        publish_for_chat!(
+          chat,
+          event,
+          repository: recipients.repository,
+          job: recipients.job,
+          epic: recipients.epic,
+          proposal: recipients.proposal,
+          changed_marker: "scoped_event"
+        )
+      end
+
+      supervisor_events + scoped_chat_events
     end
 
     private
 
-    def publish_for_admin!(admin, event, repository:, job:, epic:, proposal:)
-      chat = SupervisorChat.ensure_for!(admin)
-
+    def publish_for_chat!(chat, event, repository:, job:, epic:, proposal:, changed_marker:)
       scoped_event = nil
       created = false
       now = Time.current
@@ -46,11 +78,11 @@ class SupervisorEvents
       return unless created
 
       AppEvents.broadcast(
-        user: admin,
+        user: chat.user,
         type: "updated",
         resource: "chat",
         id: chat.id,
-        changed: [ "last_message_at", "last_read_at", "supervisor_event" ]
+        changed: [ "last_message_at", "last_read_at", changed_marker ]
       )
       ChatScopedEventEvaluatorJob.perform_later(scoped_event.id, chat.id)
 

@@ -34,7 +34,7 @@ class ChatScopedEventWakeup
   def prompt_for(event)
     handoff = @evaluator_result["handoff_prompt"].to_s.presence || default_handoff(event)
     <<~PROMPT.strip
-      A scoped Syrus event evaluator decided this Supervisor event needs a live chat turn.
+      A scoped Syrus event evaluator decided this event needs a live chat turn.
 
       Before acting, read current Syrus state for any referenced Job, Workflow, Run, queue, repository, user, or process. The event data below may be stale.
 
@@ -50,13 +50,14 @@ class ChatScopedEventWakeup
   end
 
   def default_handoff(event)
-    "Review the event, verify current state, and provide the appropriate Supervisor update or proposed action."
+    "Review the event, verify current state, and provide the appropriate update or proposed action."
   end
 
   def metadata_for(event)
     {
       "scoped_event_wakeup" => true,
       "scoped_event_id" => event.id,
+      "scoped_event" => event.payload.merge("scoped_event_id" => event.id),
       "supervisor_event" => event.payload.merge("scoped_event_id" => event.id),
       "evaluator_decision" => @evaluator_result
     }

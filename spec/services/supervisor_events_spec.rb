@@ -26,6 +26,22 @@ RSpec.describe SupervisorEvents, type: :service do
     Feature.clear_enabled_cache!("admin_supervisor_chat")
   end
 
+  def chat_proposal(chat_session:, slug:, title:, job: nil, epic: nil, kind: "job")
+    ChatProposal.create!(
+      chat_session: chat_session,
+      repository: chat_session.repository,
+      slug: slug,
+      title: title,
+      body: "Body for #{title}",
+      kind: kind,
+      state: "confirmed",
+      job: job,
+      epic: epic,
+      confirmed_at: Time.current,
+      filed_at: Time.current
+    )
+  end
+
   it "no-ops while admin_supervisor_chat is disabled" do
     result = nil
     expect {
@@ -153,5 +169,91 @@ RSpec.describe SupervisorEvents, type: :service do
       id: chat.id,
       changed: [ "last_message_at", "last_read_at", "supervisor_event" ]
     )
+  end
+
+  it "delivers PR merge events to the ordinary chat that originated the Job" do
+    enable_supervisor_chat!
+    chat = ChatSession.create!(user: admin, repository: repository)
+    other_chat = ChatSession.create!(user: admin, repository: repository)
+    job = Factories.job_record(user: admin, repository: repository, issue_number: 45, pr_number: 17)
+    chat_proposal(chat_session: chat, slug: "merge-job", title: "Merge job", job: job)
+
+    described_class.publish!(
+      kind: "pr_merged",
+      severity: "info",
+      subject: "PR merged",
+      repository: repository,
+      summary: "PR #17 merged.",
+      details: { "pr_number" => 17 },
+      dedupe_key: "pr_merged:#{repository.id}:17"
+    )
+
+    scoped_event = chat.scoped_events.find_by!(source_kind: "pr_merged")
+    expect(scoped_event).to have_attributes(job_id: job.id, repository_id: repository.id)
+    expect(other_chat.scoped_events).to be_empty
+    expect(ChatScopedEventEvaluatorJob).to have_been_enqueued.with(scoped_event.id, chat.id)
+  end
+
+  it "delivers Job failure events from related Runs to the originating ordinary chat" do
+    enable_supervisor_chat!
+    chat = ChatSession.create!(user: admin, repository: repository)
+    job = Factories.job_record(user: admin, repository: repository, issue_number: 46)
+    run = Factories.run(job: job, user: admin, agent_provider: "claude", trigger_kind: "initial")
+    chat_proposal(chat_session: chat, slug: "failed-job", title: "Failed job", job: job)
+
+    described_class.publish!(
+      kind: "job_failed",
+      severity: "critical",
+      subject: "Job failed",
+      repository: repository,
+      run: run,
+      summary: "The implement run failed.",
+      dedupe_key: "job_failed:run:#{run.id}"
+    )
+
+    scoped_event = chat.scoped_events.find_by!(source_kind: "job_failed")
+    expect(scoped_event).to have_attributes(job_id: job.id, repository_id: repository.id)
+    expect(ChatScopedEventEvaluatorJob).to have_been_enqueued.with(scoped_event.id, chat.id)
+  end
+
+  it "delivers Epic completion events to the ordinary chat that originated the Epic" do
+    enable_supervisor_chat!
+    chat = ChatSession.create!(user: admin, repository: repository)
+    epic = Factories.epic(user: admin, repository: repository, title: "Scoped Epic")
+    chat_proposal(chat_session: chat, slug: "scoped-epic", title: "Scoped Epic", epic: epic, kind: "epic")
+
+    described_class.publish!(
+      kind: "epic_completed",
+      severity: "info",
+      subject: "Epic completed",
+      repository: repository,
+      epic: epic,
+      summary: "All child jobs merged.",
+      dedupe_key: "epic_completed:#{epic.id}"
+    )
+
+    scoped_event = chat.scoped_events.find_by!(source_kind: "epic_completed")
+    expect(scoped_event).to have_attributes(epic_id: epic.id, repository_id: repository.id)
+    expect(ChatScopedEventEvaluatorJob).to have_been_enqueued.with(scoped_event.id, chat.id)
+  end
+
+  it "keeps unrelated Job events out of ordinary chats" do
+    enable_supervisor_chat!
+    chat = ChatSession.create!(user: admin, repository: repository)
+    originated_job = Factories.job_record(user: admin, repository: repository, issue_number: 47)
+    unrelated_job = Factories.job_record(user: admin, repository: repository, issue_number: 48)
+    chat_proposal(chat_session: chat, slug: "originated-job", title: "Originated job", job: originated_job)
+
+    described_class.publish!(
+      kind: "job_failed",
+      severity: "critical",
+      subject: "Job failed",
+      repository: repository,
+      job: unrelated_job,
+      summary: "A different job failed.",
+      dedupe_key: "job_failed:#{unrelated_job.id}"
+    )
+
+    expect(chat.scoped_events).to be_empty
   end
 end

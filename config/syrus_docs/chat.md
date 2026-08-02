@@ -37,6 +37,14 @@ decisions create an immediate `ChatWakeup` containing the scoped event,
 evaluator decision, and handoff prompt; the live chat turn is instructed to
 refresh current Syrus state before relying on event data.
 
+When the `admin_supervisor_chat` feature is enabled, the same scoped event flow
+also applies to ordinary chat threads for work that originated in that chat.
+Syrus resolves ordinary chat scope from confirmed proposal lineage: the
+materialized proposal itself, its Job or Epic, a Job's Epic, related
+Workflows/Runs through their Job, and pull request numbers that map back to a
+Syrus Job. Ordinary chats do not receive events for unrelated Jobs or Epics, and
+generic chat attachments are not treated as origin evidence.
+
 The chat composer recognizes leading slash commands. Typing `/` opens the
 command palette.
 
