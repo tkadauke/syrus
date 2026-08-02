@@ -16,7 +16,12 @@ class CreateChatScopedEvents < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :chat_scoped_events, [ :chat_session_id, :delivery_state, :created_at ], name: "idx_chat_scoped_events_delivery"
-    add_index :chat_scoped_events, [ :chat_session_id, :dedupe_key ], unique: true, name: "idx_chat_scoped_events_dedupe"
+    unless index_exists?(:chat_scoped_events, [ :chat_session_id, :delivery_state, :created_at ], name: "idx_chat_scoped_events_delivery")
+      add_index :chat_scoped_events, [ :chat_session_id, :delivery_state, :created_at ], name: "idx_chat_scoped_events_delivery"
+    end
+
+    unless index_exists?(:chat_scoped_events, [ :chat_session_id, :dedupe_key ], name: "idx_chat_scoped_events_dedupe")
+      add_index :chat_scoped_events, [ :chat_session_id, :dedupe_key ], unique: true, name: "idx_chat_scoped_events_dedupe"
+    end
   end
 end
