@@ -5,6 +5,7 @@ module AgentRole
   CHAT_CODING     = "chat:coding"
   CHAT_LOCAL      = "chat:local"
   CHAT_WALKTHROUGH = "chat:walkthrough"
+  CHAT_EVALUATOR  = "chat:evaluator"
 
   # Workflow/run surface roles
   WORKFLOW_IMPLEMENT                = "workflow:implement"
@@ -40,7 +41,8 @@ module AgentRole
     CHAT_ADMIN,
     CHAT_CODING,
     CHAT_LOCAL,
-    CHAT_WALKTHROUGH
+    CHAT_WALKTHROUGH,
+    CHAT_EVALUATOR
   ].freeze
 
   HELPER_ROLES = [

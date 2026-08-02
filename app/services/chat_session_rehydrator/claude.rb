@@ -13,12 +13,13 @@ require "json"
 #   - Consecutive tool_result ChatMessages are merged into one JSONL user event
 #     with an array content (Claude's API expects all results bundled).
 class ChatSessionRehydrator::Claude
-  def initialize(chat_session, session_id: nil, cwd: nil, model: nil, tools: nil)
+  def initialize(chat_session, session_id: nil, cwd: nil, model: nil, tools: nil, messages: nil)
     @chat_session = chat_session
     @session_id   = session_id || chat_session.claude_session&.session_id
     @cwd          = cwd
     @model        = model
     @tools        = tools
+    @messages     = messages
   end
 
   # Returns JSONL string (one JSON object per line, trailing newline).
@@ -49,7 +50,7 @@ class ChatSessionRehydrator::Claude
     pending_tool_results = []  # tool_result blocks for the upcoming user JSONL event
     pending_tool_results_ts = nil
 
-    @chat_session.messages.order(:id).each do |msg|
+    messages_in_order.each do |msg|
       case msg.role
       when "user"
         # Flush any buffered tool_results before emitting a new user prompt —
@@ -117,6 +118,12 @@ class ChatSessionRehydrator::Claude
     end
 
     events
+  end
+
+  def messages_in_order
+    return @messages if @messages
+
+    @chat_session.messages.order(:id)
   end
 
   def user_prompt_event(text, ts)

@@ -327,10 +327,14 @@ demand, exposes it on the chat index payload, renders it as a distinct admin row
 above normal chat groups, keeps it pinned and visible, and blocks ordinary rename,
 hide, unpin, or delete actions for that chat while the flag remains enabled. Major operational
 events, including Job notifications, Epic completion, main-branch health changes,
-and new Agent Insight suggestions, are first stored as scoped chat event records
-and then posted there as durable system messages without starting an agent turn;
-new events mark the chat unread in the sidebar with an unread count and strongest
-event severity.
+and new Agent Insight suggestions, are first stored as scoped chat event records.
+Scoped events can run through an isolated disposable evaluator before waking the
+live chat: Syrus clones the persisted transcript, uses the full context when it
+fits and otherwise caps to the latest 10,000 messages plus a byte budget, gives
+the evaluator read-only tools, stores its structured `no_op`/`respond`/`act`
+decision, and discards the temporary provider session without touching the live
+chat session. Visible events mark the chat unread in the sidebar with an unread
+count and strongest event severity.
 When an admin chats in Supervisor, the agent uses admin-oriented guidance:
 system event messages are treated as operational context, incident summaries
 favor evidence and recommended next steps, and risky actions such as retries,

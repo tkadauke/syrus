@@ -1,5 +1,6 @@
 class ChatScopedEvent < ApplicationRecord
   DELIVERY_STATES = %w[pending delivered].freeze
+  EVALUATOR_STATES = %w[pending running completed failed].freeze
   MAX_DEDUPE_KEY_LENGTH = 255
   MAX_SOURCE_KIND_LENGTH = 100
 
@@ -12,6 +13,7 @@ class ChatScopedEvent < ApplicationRecord
 
   validates :source_kind, presence: true, length: { maximum: MAX_SOURCE_KIND_LENGTH }
   validates :delivery_state, presence: true, inclusion: { in: DELIVERY_STATES }
+  validates :evaluator_state, presence: true, inclusion: { in: EVALUATOR_STATES }
   validates :dedupe_key, length: { maximum: MAX_DEDUPE_KEY_LENGTH }, allow_nil: true
   validates :payload, presence: true
 
@@ -24,6 +26,43 @@ class ChatScopedEvent < ApplicationRecord
 
   def delivered?
     delivery_state == "delivered"
+  end
+
+  def evaluator_pending?
+    evaluator_state == "pending"
+  end
+
+  def evaluator_completed?
+    evaluator_state == "completed"
+  end
+
+  def evaluator_failed?
+    evaluator_state == "failed"
+  end
+
+  def mark_evaluator_running!(session_id:)
+    update!(
+      evaluator_state: "running",
+      evaluator_session_id: session_id,
+      evaluator_error: nil
+    )
+  end
+
+  def record_evaluator_result!(result)
+    update!(
+      evaluator_state: "completed",
+      evaluator_result: result,
+      evaluator_error: nil,
+      evaluated_at: Time.current
+    )
+  end
+
+  def record_evaluator_failure!(error)
+    update!(
+      evaluator_state: "failed",
+      evaluator_error: error.to_s,
+      evaluated_at: Time.current
+    )
   end
 
   def self.record!(chat_session:, source_kind:, payload:, repository: nil, job: nil, epic: nil, proposal: nil, dedupe_key: nil)

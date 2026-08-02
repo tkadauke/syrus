@@ -8,6 +8,7 @@ RSpec.describe AgentRole do
       expect(described_class::CHAT_CODING).to     eq("chat:coding")
       expect(described_class::CHAT_LOCAL).to      eq("chat:local")
       expect(described_class::CHAT_WALKTHROUGH).to eq("chat:walkthrough")
+      expect(described_class::CHAT_EVALUATOR).to  eq("chat:evaluator")
     end
 
     it "defines all workflow roles" do
@@ -50,7 +51,8 @@ RSpec.describe AgentRole do
         described_class::CHAT_ADMIN,
         described_class::CHAT_CODING,
         described_class::CHAT_LOCAL,
-        described_class::CHAT_WALKTHROUGH
+        described_class::CHAT_WALKTHROUGH,
+        described_class::CHAT_EVALUATOR
       )
     end
 

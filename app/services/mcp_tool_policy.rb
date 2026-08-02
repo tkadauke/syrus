@@ -99,12 +99,56 @@ class McpToolPolicy
   # Chat tool set mirrors the existing tools_for_session filtering logic,
   # now expressed through the context object instead of a raw ChatSession.
   def chat_tools
+    return chat_evaluator_tools if @context.role == AgentRole::CHAT_EVALUATOR
+
     tools = chat_base_tools
     tools = apply_admin_filter(tools)
     tools = apply_agent_insights_filter(tools)
     tools = apply_walkthrough_filter(tools)
     tools = apply_coding_filter(tools)
     tools = apply_local_mode_filter(tools)
+    tools
+  end
+
+  def chat_evaluator_tools
+    tools = [
+      SyrusChatMcp::ListJobsTool,
+      SyrusChatMcp::SearchJobsTool,
+      SyrusChatMcp::ReadJobTool,
+      SyrusChatMcp::ListEpicsTool,
+      SyrusChatMcp::ReadEpicTool,
+      SyrusChatMcp::ListProposalsTool,
+      SyrusChatMcp::RepoInfoTool,
+      SyrusChatMcp::ListChatsTool,
+      SyrusChatMcp::SearchChatsTool,
+      SyrusChatMcp::ReadChatMessagesTool,
+      SyrusChatMcp::ListRepositoriesTool,
+      SyrusChatMcp::GetJobDiffTool,
+      SyrusChatMcp::ListJobWorkflowsTool,
+      SyrusChatMcp::ReadWorkflowTool,
+      SyrusChatMcp::ReadRunTranscriptTool,
+      SyrusChatMcp::ListOpenIssuesTool,
+      SyrusChatMcp::ListOpenPrsTool,
+      SyrusChatMcp::ReadPrTool,
+      SyrusChatMcp::CheckJobMergeabilityTool,
+      SyrusChatMcp::ListRepoDocumentsTool,
+      SyrusChatMcp::ReadRepoDocumentTool,
+      SyrusChatMcp::ListChatMediaTool,
+      SyrusChatMcp::ReadSceneTool,
+      SyrusChatMcp::ListWakeupsTool,
+      SyrusChatMcp::ListScheduledTasksTool,
+      SyrusChatMcp::ReadScheduledTaskTool,
+      SyrusChatMcp::ReadQueueTool,
+      SyrusChatMcp::SearchSyrusDocsTool,
+      SyrusMcp::ListInsightsTool,
+      SyrusMcp::ReadInsightTool,
+      Mcp::Tools::ReadMemoryTool,
+      Mcp::Tools::SearchMemoriesTool,
+      Mcp::Tools::ListMemoriesTool
+    ]
+    tools = apply_admin_filter(tools)
+    tools = apply_agent_insights_filter(tools)
+    tools = apply_walkthrough_filter(tools)
     tools
   end
 

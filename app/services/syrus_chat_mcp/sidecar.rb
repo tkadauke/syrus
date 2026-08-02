@@ -137,6 +137,7 @@ module SyrusChatMcp
 
     def self.tool_names(chat_session = nil, tier: nil)
       return DeferredSidecar.tool_names(chat_session) if tier.to_s == "deferred"
+      return EvaluatorSidecar.tool_names(chat_session) if tier.to_s == "evaluator"
 
       tools = chat_session ? tools_for(chat_session, tier: tier) : TOOLS
       tools.map { |tool| tool.name.demodulize.sub(/Tool\z/, "").underscore }
@@ -144,6 +145,7 @@ module SyrusChatMcp
 
     def self.tools_for(chat_session, tier: nil)
       return DeferredSidecar.tools_for(chat_session) if tier.to_s == "deferred"
+      return EvaluatorSidecar.tools_for(chat_session) if tier.to_s == "evaluator"
 
       tools = tools_for_session(TOOLS, chat_session)
       tools << authorize_tool(ExplainStuckJobTool) if tier.to_s == "all" && !tools.include?(ExplainStuckJobTool)
@@ -185,13 +187,38 @@ module SyrusChatMcp
       server = MCP::Server.new(
         name: @server_name,
         tools: self.class.tools_for(@chat_session),
-        server_context: { chat_session: @chat_session, current_message: @current_message }.compact
+        server_context: { chat_session: @chat_session, current_message: @current_message, evaluator: evaluator? }.compact
       )
       transport = MCP::Server::Transports::StdioTransport.new(server)
 
       Signal.trap("TERM") { transport.close; exit 0 }
 
       transport.open
+    end
+
+    def evaluator?
+      false
+    end
+  end
+
+  class EvaluatorSidecar < Sidecar
+    def self.tool_names(chat_session = nil)
+      tools = chat_session ? tools_for(chat_session) : []
+      tools.map { |tool| tool.name.demodulize.sub(/Tool\z/, "").underscore }
+    end
+
+    def self.tools_for(chat_session)
+      context = McpToolContext.from_chat_session(chat_session, evaluator: true)
+      allowed = McpToolPolicy.for(context)
+      (TOOLS + DeferredSidecar::DEFERRED_TOOLS).select { |tool| allowed.include?(tool) }.map { |tool| authorize_tool(tool) }
+    end
+
+    def self.server_name
+      "syrus-chat-evaluator-sidecar"
+    end
+
+    def evaluator?
+      true
     end
   end
 

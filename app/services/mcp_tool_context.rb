@@ -42,10 +42,10 @@ class McpToolContext
     )
   end
 
-  def self.from_chat_session(chat_session)
+  def self.from_chat_session(chat_session, evaluator: false)
     new(
       surface:                :chat,
-      role:                   role_for_chat(chat_session),
+      role:                   evaluator ? AgentRole::CHAT_EVALUATOR : role_for_chat(chat_session),
       user:                   chat_session.user,
       repository:             chat_session.repository,
       chat_session:           chat_session,
@@ -58,7 +58,7 @@ class McpToolContext
   # shape ({ run_id: }) and chat-sidecar shape ({ chat_session: }).
   def self.from_server_context(server_context)
     if server_context.key?(:chat_session)
-      from_chat_session(server_context[:chat_session])
+      from_chat_session(server_context[:chat_session], evaluator: server_context[:evaluator] == true)
     elsif server_context.key?(:run)
       from_run(server_context[:run])
     else

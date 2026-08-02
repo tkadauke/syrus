@@ -16,9 +16,10 @@ require "json"
 class ChatSessionRehydrator::Codex
   BASH_TOOL_NAME = "bash"
 
-  def initialize(chat_session, session_id: nil, cwd: nil)
+  def initialize(chat_session, session_id: nil, cwd: nil, messages: nil)
     @chat_session = chat_session
     @session_id   = session_id || chat_session.claude_session&.session_id
+    @messages     = messages
   end
 
   # Returns JSONL string (one JSON object per line, trailing newline).
@@ -47,7 +48,7 @@ class ChatSessionRehydrator::Codex
     # or command info.
     pending_tool_uses = {}
 
-    @chat_session.messages.order(:id).each do |msg|
+    messages_in_order.each do |msg|
       case msg.role
       when "user", "system"
         # User prompts are passed directly to codex exec; system messages are
@@ -122,6 +123,12 @@ class ChatSessionRehydrator::Codex
     end
 
     events
+  end
+
+  def messages_in_order
+    return @messages if @messages
+
+    @chat_session.messages.order(:id)
   end
 
   # Returns only the text blocks from an assistant ChatMessage, dropping

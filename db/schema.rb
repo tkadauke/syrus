@@ -293,6 +293,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_180000) do
     t.datetime "delivered_at"
     t.string "delivery_state", default: "pending", null: false
     t.integer "epic_id"
+    t.datetime "evaluated_at"
+    t.text "evaluator_error"
+    t.json "evaluator_result"
+    t.string "evaluator_session_id"
+    t.string "evaluator_state", default: "pending", null: false
     t.integer "job_id"
     t.json "payload", null: false
     t.integer "proposal_id"
@@ -304,6 +309,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_180000) do
     t.index ["chat_session_id", "delivery_state", "created_at"], name: "idx_chat_scoped_events_delivery"
     t.index ["chat_session_id"], name: "index_chat_scoped_events_on_chat_session_id"
     t.index ["epic_id"], name: "index_chat_scoped_events_on_epic_id"
+    t.index ["evaluator_state", "created_at"], name: "idx_chat_scoped_events_evaluator"
     t.index ["job_id"], name: "index_chat_scoped_events_on_job_id"
     t.index ["proposal_id"], name: "index_chat_scoped_events_on_proposal_id"
     t.index ["repository_id"], name: "index_chat_scoped_events_on_repository_id"
