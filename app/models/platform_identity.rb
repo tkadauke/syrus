@@ -21,7 +21,7 @@ class PlatformIdentity < ApplicationRecord
       resource: "platform_identity",
       id: id,
       changed: [ "platform_identities" ],
-      payload: ::App::PlatformIdentitiesPayload.for(user)
+      payload: ::App::PlatformIdentitiesPayload.call(user: user)
     )
   end
 end

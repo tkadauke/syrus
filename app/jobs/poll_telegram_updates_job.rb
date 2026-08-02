@@ -51,14 +51,6 @@ class PollTelegramUpdatesJob < PlatformPollingJob
     identity.assign_attributes(user_id: user_id, external_handle: from["username"], linked_at: Time.current)
     identity.save!
 
-    AppEvents.broadcast(
-      user: identity.user,
-      type: "platform_identity_linked",
-      resource: "platform_identity",
-      id: identity.id,
-      payload: App::PlatformIdentitiesPayload.call(user: identity.user)
-    )
-
     telegram_client.send_message(
       chat_id: from["id"],
       text: "You're connected! You can now chat with Syrus here."
