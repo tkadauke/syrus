@@ -11345,7 +11345,7 @@ describe("App", () => {
       expect(screen.getByRole("main", { name: "Chat" })).toHaveClass("[height:calc(var(--chat-visual-viewport-height,100dvh)-4.5rem)]", "lg:[height:100%]")
       expect(mobileTabs).toHaveClass("min-h-[44px]", "px-[max(0.5rem,env(safe-area-inset-left))]")
       expect(screen.getByTestId("chat-message-stream")).toHaveClass("h-full", "min-h-0", "overflow-y-auto", "p-2")
-      expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveClass("min-h-11", "text-base", "sm:min-h-9", "sm:text-sm")
+      expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveClass("min-h-11", "text-base", "sm:min-h-9", "sm:text-sm", "py-[5px]", "sm:py-[7px]")
       expect(screen.getByRole("button", { name: "Add attachment" })).toHaveClass("h-6", "w-6", "min-h-11", "min-w-11", "sm:min-h-0", "sm:min-w-0")
       expect(screen.getByRole("button", { name: "Effort" })).toHaveClass("min-h-11", "sm:min-h-0")
       expect(screen.getByText("Discuss aqueducts.").parentElement?.parentElement).toHaveClass("px-0", "sm:rounded")
@@ -11367,6 +11367,25 @@ describe("App", () => {
     } finally {
       restoreMedia()
     }
+  })
+
+  it("renders the ghost suggestion overlay with the same vertical padding as the textarea", async () => {
+    const base = chatPayload()
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ ...base, chat: { ...base.chat, suggested_next_step: "Ask about this repository" } }), { status: 200, headers: { "Content-Type": "application/json" } })
+    )
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await screen.findByText("Discuss aqueducts.")
+    const overlay = screen.getByTestId("chat-suggestion-ghost")
+    expect(overlay).toHaveClass("py-[5px]", "sm:py-[7px]")
   })
 
   it("renders low chat token totals without rounding them down to 0k", async () => {
