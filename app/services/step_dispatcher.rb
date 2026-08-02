@@ -47,17 +47,21 @@ class StepDispatcher
     end
     clear_start_blocked!(workflow, DEPENDENCY_FAILED_BLOCK_REASON)
 
-    unless workflow.job.stack_ready_for_execution?
+    stack_resolution = JobStackResolver.new(workflow.job, workflow: workflow).resolve!
+    unless stack_resolution.ready?
       return fail_unstartable_landing_workflow!(workflow, "landing start blocked: stack dependencies not ready") if workflow.landing_workflow?
 
-      cancel_unstartable_rebase_workflow!(workflow, STACK_BLOCK_REASON)
+      reason = stack_resolution.reason || STACK_BLOCK_REASON
+      cancel_unstartable_rebase_workflow!(workflow, reason)
       unless RebaseWorkflowSelector::TRIGGER_KINDS.include?(workflow.trigger_kind)
-        record_start_blocked!(workflow, STACK_BLOCK_REASON, backoff: START_BLOCKED_BACKOFF) unless start_blocked_backoff_active?(workflow, STACK_BLOCK_REASON)
+        record_start_blocked!(workflow, reason, backoff: START_BLOCKED_BACKOFF, details: stack_resolution.blocker) unless start_blocked_backoff_active?(workflow, reason)
       end
-      warn_if_stuck_queued(workflow, STACK_BLOCK_REASON)
+      warn_if_stuck_queued(workflow, reason)
       return
     end
+    record_stack_resolution_artifacts!(workflow, stack_resolution)
     clear_start_blocked!(workflow, STACK_BLOCK_REASON)
+    clear_start_blocked!(workflow, FAN_IN_BLOCK_REASON)
 
     unless workflow.job.ready_for_execution?
       reason = if workflow.job.blocked_by_epic_before_execution?
@@ -113,6 +117,7 @@ class StepDispatcher
   URGENT_BLOCK_REASON = "urgent_job_active"
   DEPENDENCY_FAILED_BLOCK_REASON = "dependency_failed"
   STACK_BLOCK_REASON = "stack_dependencies_not_ready"
+  FAN_IN_BLOCK_REASON = JobStackResolver::FAN_IN_BLOCK_REASON
   JOB_BLOCK_REASON = "job_not_ready_for_execution"
   START_BLOCKED_BACKOFF = 5.minutes
 
@@ -142,18 +147,34 @@ class StepDispatcher
     next_check_at.present? && next_check_at.future?
   end
 
-  def self.record_start_blocked!(workflow, reason, backoff:)
+  def self.record_start_blocked!(workflow, reason, backoff:, details: nil)
     now = Time.current
     current = workflow.artifacts || {}
     blocked_since = current["start_blocked_reason"] == reason ? current["start_blocked_at"] : nil
-    workflow.update!(
-      artifacts: current.merge(
+    artifacts = current.merge(
         "start_blocked_reason" => reason,
         "start_blocked_at" => blocked_since.presence || now.iso8601,
         "start_blocked_last_seen_at" => now.iso8601,
         "start_blocked_next_check_at" => (now + backoff).iso8601
       )
-    )
+    if details.present?
+      artifacts["start_blocked_details"] = details
+    else
+      artifacts.delete("start_blocked_details")
+    end
+    workflow.update!(artifacts: artifacts)
+  end
+
+  def self.record_stack_resolution_artifacts!(workflow, resolution)
+    return if resolution.artifacts.blank?
+
+    artifacts = workflow.artifacts.to_h.merge(resolution.artifacts)
+    prepared = resolution.artifacts["prepared_stack_base"]
+    if prepared.is_a?(Hash) && prepared["branch_name"].present?
+      artifacts[RebaseTarget::BASE_BRANCH_ARTIFACT] = prepared["branch_name"]
+      artifacts[RebaseTarget::BASE_SHA_ARTIFACT] = prepared["head_sha"] if prepared["head_sha"].present?
+    end
+    workflow.update!(artifacts: artifacts)
   end
 
   def self.cancel_unstartable_closed_job_workflow!(workflow)
@@ -173,7 +194,8 @@ class StepDispatcher
       "start_blocked_reason",
       "start_blocked_at",
       "start_blocked_last_seen_at",
-      "start_blocked_next_check_at"
+      "start_blocked_next_check_at",
+      "start_blocked_details"
     )
     workflow.update!(artifacts: cleared)
   end

@@ -190,6 +190,10 @@ dispatches its ready child Jobs. In linear Epics, children with same-Epic
 parents can keep implementing down the stack once the immediate parent has
 an implemented PR branch; approval and landing order still waits for the
 normal dependency gates.
+For nonlinear same-Epic fan-in, Syrus can prepare a combined execution base
+from approved dependency PR branches when they merge cleanly; otherwise the
+queued child shows an explicit fan-in base blocker with the dependency branches
+that need landing, linearizing, or conflict resolution.
 Syrus can mark an Epic ready when its dependencies are done and all child
 Jobs are confirmed, then mark it done automatically when all child Jobs
 close through merged PR or no-change outcomes. When every child Job is

@@ -197,6 +197,7 @@ module Admin
         unsatisfied: unsatisfied.map { |dependency| dependency_payload(dependency) },
         multiple_leaf_dependencies: leaf_dependency_payloads(unsatisfied),
         redundant_transitive_dependencies: redundant_transitive_dependency_payloads(direct),
+        stack_resolution: stack_resolution_payload,
         selected_stack_parent: selected_stack_parent_payload,
         effective_base_branch: job.effective_base_branch,
         pr_base_mismatch: pr_base_mismatch_payload
@@ -299,13 +300,20 @@ module Admin
     end
 
     def selected_stack_parent
-      return job.parent_job if stack_parent_candidate?(job.parent_job)
-
-      job.dependencies.includes(:depends_on_job).map(&:depends_on_job).compact.find { |candidate| stack_parent_candidate?(candidate) }
+      stack_resolution.parent
     end
 
-    def stack_parent_candidate?(candidate)
-      candidate&.open? && candidate.pr_number.present? && candidate.branch_name.present? && !candidate.dependency_succeeded?
+    def stack_resolution_payload
+      resolution = stack_resolution
+      {
+        ready: resolution.ready?,
+        reason: resolution.reason,
+        blocker: resolution.blocker
+      }.compact
+    end
+
+    def stack_resolution
+      @stack_resolution ||= JobStackResolver.new(job).resolve!(apply: false)
     end
 
     def pr_base_mismatch_payload
@@ -462,6 +470,7 @@ module Admin
 
     def dependency_intervention_needed?(payload)
       payload.dig(:dependencies, :pending).present? ||
+        payload.dig(:dependencies, :stack_resolution, :reason).present? ||
         payload.dig(:dependencies, :multiple_leaf_dependencies).to_a.size > 1 ||
         payload.dig(:dependencies, :redundant_transitive_dependencies).present? ||
         payload.dig(:dependencies, :pr_base_mismatch, :mismatch)

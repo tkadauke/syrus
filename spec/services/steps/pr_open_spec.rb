@@ -140,7 +140,8 @@ RSpec.describe Steps::PrOpen, :ci_only do
       branch: "syrus/issue-42-#{job.id}",
       title: "T",
       body: "B",
-      job: job
+      job: job,
+      base: "main"
     ).and_return(99)
 
     handler.call
@@ -321,7 +322,8 @@ RSpec.describe Steps::PrOpen, :ci_only do
         branch: "syrus/issue-55-#{fork_job.id}",
         title: "[Review] Add greeting — approve to send to upstream-org/#{upstream.name}",
         body: a_string_including("Staging review", "upstream-org/#{upstream.name}", "Body text"),
-        job: fork_job
+        job: fork_job,
+        base: repository.default_branch
       ).and_return(201)
 
       handler.call

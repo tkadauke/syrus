@@ -1247,6 +1247,80 @@ RSpec.describe StepDispatcher, "stack_dependencies_not_ready block reason" do
     expect(rebase.reload).to be_cancelled
     expect(rebase.artifact("start_blocked_reason")).to eq("dependency_failed")
   end
+
+  context "with approved same-Epic fan-in dependency branches" do
+    let(:user) { Factories.user }
+    let(:repository) { Factories.repository(user: user) }
+    let(:epic) { Factories.epic(user: user, repository: repository, state: "in_progress", epic_dependency_policy: "nonlinear") }
+    let(:job_model) { Factories.job_record(user: user, repository: repository, epic: epic, state: "queued", issue_number: 1577) }
+
+    def approved_dependency(issue_number, branch_name, head_sha)
+      dependency = Factories.job_record(
+        user: user,
+        repository: repository,
+        epic: epic,
+        state: "approved",
+        issue_number: issue_number,
+        branch_name: branch_name,
+        pr_number: issue_number
+      )
+      dependency.runs.create!(trigger_kind: "initial", state: "succeeded", head_sha: head_sha)
+      dependency
+    end
+
+    it "starts the workflow on a prepared combined base when dependency branches merge cleanly" do
+      dep_a = approved_dependency(1574, "syrus/issue-1574", "a" * 40)
+      dep_b = approved_dependency(1575, "syrus/issue-1575", "b" * 40)
+      dep_c = approved_dependency(1576, "syrus/issue-1576", "c" * 40)
+      [ dep_a, dep_b, dep_c ].each { |dependency| JobDependency.create!(job: job_model, depends_on_job: dependency, source: "manual") }
+      builder = instance_double(JobStackPreparedBaseBuilder)
+      allow(JobStackPreparedBaseBuilder).to receive(:new).and_return(builder)
+      allow(builder).to receive(:call).and_return(
+        JobStackPreparedBaseBuilder::Result.new(
+          true,
+          "prepared",
+          "syrus/prepared-base-#{job_model.id}-#{workflow.id}",
+          "d" * 40,
+          [],
+          "prepared fan-in execution base"
+        )
+      )
+
+      expect {
+        described_class.start_workflow(workflow)
+      }.to change { s1.runs.count }.by(1)
+
+      expect(workflow.reload.artifact("start_blocked_reason")).to be_nil
+      expect(workflow.artifact("rebase_base_branch")).to eq("syrus/prepared-base-#{job_model.id}-#{workflow.id}")
+      expect(workflow.artifact("prepared_stack_base")).to include(
+        "succeeded" => true,
+        "reason" => "prepared"
+      )
+    end
+
+    it "records an explicit fan-in blocker when a prepared base cannot be built" do
+      dep_a = approved_dependency(1574, "syrus/issue-1574", "a" * 40)
+      dep_b = approved_dependency(1575, "syrus/issue-1575", "b" * 40)
+      dep_c = approved_dependency(1576, "syrus/issue-1576", "c" * 40)
+      [ dep_a, dep_b, dep_c ].each { |dependency| JobDependency.create!(job: job_model, depends_on_job: dependency, source: "manual") }
+      builder = instance_double(JobStackPreparedBaseBuilder)
+      allow(JobStackPreparedBaseBuilder).to receive(:new).and_return(builder)
+      allow(builder).to receive(:call).and_return(
+        JobStackPreparedBaseBuilder::Result.new(false, "merge_conflict_or_git_error", nil, nil, [], "conflict in app/models/widget.rb")
+      )
+
+      expect {
+        described_class.start_workflow(workflow)
+      }.not_to change { s1.runs.count }
+
+      expect(workflow.reload.artifact("start_blocked_reason")).to eq("stack_fan_in_base_unavailable")
+      expect(workflow.artifact("start_blocked_details")).to include(
+        "kind" => "fan_in_base_unavailable",
+        "action" => include("Land the sibling dependencies")
+      )
+      expect(workflow.artifact("start_blocked_details")["dependencies"].map { |dependency| dependency["job_id"] }).to contain_exactly(dep_a.id, dep_b.id, dep_c.id)
+    end
+  end
 end
 
 RSpec.describe StepDispatcher, "job_not_ready_for_execution block reason" do

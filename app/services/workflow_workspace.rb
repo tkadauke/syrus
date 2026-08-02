@@ -186,12 +186,15 @@ class WorkflowWorkspace
   # otherwise the fork's own `origin/<default>`. Used for branch creation and
   # for the three-dot diff base.
   def base_ref
-    self.class.base_ref_for(@job)
+    self.class.base_ref_for(@job, workflow: @workflow)
   end
 
   # SHA/ref-agnostic form usable without an instance (class method used by
   # local_diff_for on a failed workflow's on-disk workspace).
-  def self.base_ref_for(job)
+  def self.base_ref_for(job, workflow: nil)
+    prepared_base = workflow&.artifact(RebaseTarget::BASE_BRANCH_ARTIFACT).presence
+    return "origin/#{prepared_base}" if prepared_base.present?
+
     if job.base_on_upstream_default?
       "upstream/#{job.base_default_branch}"
     else

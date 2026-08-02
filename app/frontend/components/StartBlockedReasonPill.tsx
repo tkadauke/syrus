@@ -4,6 +4,7 @@ import { TonePill } from "./StatusPill"
 type StartBlockedReason =
   | "dependency_failed"
   | "stack_dependencies_not_ready"
+  | "stack_fan_in_base_unavailable"
   | "job_not_ready_for_execution"
   | "main_branch_broken"
   | "urgent_job_active"
@@ -11,6 +12,7 @@ type StartBlockedReason =
 const TONES: Record<StartBlockedReason, "amber" | "red" | "gray"> = {
   dependency_failed: "red",
   stack_dependencies_not_ready: "amber",
+  stack_fan_in_base_unavailable: "amber",
   job_not_ready_for_execution: "amber",
   main_branch_broken: "red",
   urgent_job_active: "gray"

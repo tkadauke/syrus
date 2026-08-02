@@ -92,6 +92,37 @@ RSpec.describe Admin::StuckJobExplainer do
     expect(payload.dig(:recommended_action)).to include(action: "inspect_logs", run_id: run.id)
   end
 
+  it "uses the stack resolver result for fan-in so it does not invent a selected parent" do
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress", epic_dependency_policy: "nonlinear")
+    job = Factories.job_record(user: user, repository: repository, epic: epic, state: "queued", issue_title: "Fan-in")
+    deps = [
+      Factories.job_record(user: user, repository: repository, epic: epic, state: "approved", issue_number: 1574, branch_name: "syrus/issue-1574", pr_number: 1574),
+      Factories.job_record(user: user, repository: repository, epic: epic, state: "approved", issue_number: 1575, branch_name: "syrus/issue-1575", pr_number: 1575),
+      Factories.job_record(user: user, repository: repository, epic: epic, state: "approved", issue_number: 1576, branch_name: "syrus/issue-1576", pr_number: 1576)
+    ]
+    deps.each_with_index do |dependency, index|
+      dependency.runs.create!(trigger_kind: "initial", state: "succeeded", head_sha: (index + 1).to_s * 40)
+      JobDependency.create!(job: job, depends_on_job: dependency, source: "manual")
+    end
+    Workflow.create!(
+      job: job,
+      trigger_kind: "initial",
+      state: "queued",
+      artifacts: { "start_blocked_reason" => "stack_fan_in_base_unavailable" }
+    ).steps.create!(kind: "prepare", position: 0)
+
+    payload = described_class.call(job.reload, github_client: no_github_client)
+
+    expect(payload.dig(:dependencies, :unsatisfied)).to be_empty
+    expect(payload.dig(:dependencies, :selected_stack_parent)).to be_nil
+    expect(payload.dig(:dependencies, :stack_resolution)).to include(
+      ready: false,
+      reason: "stack_fan_in_base_unavailable"
+    )
+    expect(payload.dig(:dependencies, :stack_resolution, :blocker, "dependencies").map { |dependency| dependency["job_id"] }).to contain_exactly(*deps.map(&:id))
+    expect(payload.dig(:recommended_action, :action)).to eq("manual_intervention")
+  end
+
   def pr_with_base(ref)
     Struct.new(:base).new(Struct.new(:ref).new(ref))
   end

@@ -157,7 +157,8 @@ module Steps
         branch: workspace.branch_name,
         title: title,
         body: body,
-        job: job
+        job: job,
+        base: pr_base_branch
       )
       log("pr_open: opened upstream PR #{upstream.slug}##{pr_number} from #{repository.slug} (#{title.inspect})")
       job.update!(
@@ -187,7 +188,8 @@ module Steps
         branch: workspace.branch_name,
         title: fork_review_pr_title(title),
         body: fork_review_pr_body(body),
-        job: job
+        job: job,
+        base: pr_base_branch
       )
       log("pr_open: opened fork review PR ##{pr_number} on #{repository.slug} (#{fork_review_pr_title(title).inspect})")
       job.update!(
@@ -209,7 +211,8 @@ module Steps
         branch: workspace.branch_name,
         title: title,
         body: body,
-        job: job
+        job: job,
+        base: pr_base_branch
       )
       log("pr_open: opened PR ##{pr_number} (#{title.inspect})")
       job.update!(
@@ -261,6 +264,10 @@ module Steps
 
       record_branch_divergence!(git, e.message)
       raise BranchDiverged, branch_divergence_message
+    end
+
+    def pr_base_branch
+      RebaseTarget.branch_for(job: job, workflow: workflow)
     end
 
     def verify_existing_pr_branch_not_diverged!(git, push_url)
