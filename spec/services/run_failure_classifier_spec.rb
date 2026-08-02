@@ -165,7 +165,7 @@ RSpec.describe RunFailureClassifier do
     result = described_class.persist!(grader_run)
 
     expect(result.classification).not_to eq("rate_limited")
-    expect(result.classification).to eq("application_error")
+    expect(result.classification).to eq("validation_or_user_error")
   end
 
   it "classifies provider usage-limit exhaustion separately from retryable rate limits" do
