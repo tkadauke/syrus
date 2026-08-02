@@ -73,6 +73,18 @@ module Api
           end
 
           chat_params = params[:chat]
+          if chat_params.respond_to?(:key?) && chat_params.key?(:chat_provider)
+            provider = normalized_chat_provider_param(chat_params[:chat_provider])
+            unless provider.present? && Current.user.chat_provider_configured?(provider)
+              render_error("validation_failed", "Chat provider is not configured.", status: :unprocessable_content)
+              return
+            end
+
+            chat_session.update!(chat_provider: provider)
+            render json: chat_payload(chat_session.reload, message: "Chat provider updated.")
+            return
+          end
+
           if chat_params.respond_to?(:key?) && chat_params.key?(:chat_model)
             model = chat_params[:chat_model].to_s.strip.presence
             if model
@@ -355,6 +367,25 @@ module Api
           chat_session.update!(attrs)
 
           render json: { message: "Daemon connection state updated." }
+        end
+
+        def switch_provider
+          chat_session = find_chat_session
+          provider = params[:provider].to_s.strip
+
+          unless User::CHAT_PROVIDERS.include?(provider)
+            render_error("validation_failed", "Invalid provider. Must be one of: #{User::CHAT_PROVIDERS.join(", ")}.", status: :unprocessable_content)
+            return
+          end
+
+          if chat_session.turn_in_flight? || chat_session.agent_busy?
+            render_error("turn_in_flight", "Cannot switch provider while a turn is in progress.", status: :unprocessable_content)
+            return
+          end
+
+          SwitchChatProviderJob.perform_later(chat_session.id, provider)
+
+          render json: { message: "Switching to #{provider}." }
         end
 
         def rename
@@ -1113,6 +1144,7 @@ module Api
             effective_chat_provider: effective_provider,
             effective_chat_provider_label: chat_provider_label(effective_provider),
             provider_availability: ::App::ProviderAvailability.for_user(Current.user, effective_provider),
+            chat_provider_options: chat_provider_options(chat_session),
             chat_model: chat_session.chat_model,
             available_chat_models: available_chat_models_for(chat_session),
             mode: chat_session.mode,

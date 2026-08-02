@@ -12016,9 +12016,25 @@ describe("App", () => {
     expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8/message", expect.objectContaining({ method: "POST" }))
   })
 
-  it("does not offer chat provider switching from chat settings", async () => {
+  it("offers chat provider switching from chat settings", async () => {
+    const providerOptions = [
+      { value: "claude", label: "Claude", configured: true, effective_provider: "claude", effective_label: "Claude" },
+      { value: "codex", label: "Codex", configured: true, effective_provider: "codex", effective_label: "Codex" }
+    ]
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(JSON.stringify(chatPayload({
+          chatProvider: "codex",
+          effectiveChatProvider: "codex",
+          chatProviderOptions: providerOptions
+        })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      return Promise.resolve(new Response(JSON.stringify(chatPayload({
+        chatProvider: "claude",
+        effectiveChatProvider: "claude",
+        chatProviderOptions: providerOptions
+      })), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
 
     render(
@@ -12034,9 +12050,15 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     await screen.findByText("Provider")
-    expect(screen.getByText("Claude")).toBeInTheDocument()
-    expect(screen.queryByLabelText("Chat provider")).not.toBeInTheDocument()
-    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8", expect.objectContaining({ method: "PATCH" }))
+    fireEvent.change(screen.getByLabelText("Chat provider"), { target: { value: "codex" } })
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/chats/8",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ chat: { chat_provider: "codex" } })
+      })
+    ))
   })
 
   it("opens the bug report dialog from the /report slash command with transcript opt-in", async () => {
@@ -16048,6 +16070,7 @@ function chatPayload(overrides: {
   stopRequestedAt?: string | null
   chatProvider?: string | null
   effectiveChatProvider?: string
+  chatProviderOptions?: Array<{ value: string; label: string; configured: boolean; effective_provider: string; effective_label: string }>
 } = {}) {
   const effectiveChatProvider = overrides.effectiveChatProvider ?? overrides.chatProvider ?? "claude"
   const effectiveChatProviderLabel = effectiveChatProvider === "codex" ? "Codex" : "Claude"
@@ -16062,6 +16085,7 @@ function chatPayload(overrides: {
       chat_provider: overrides.chatProvider ?? null,
       effective_chat_provider: effectiveChatProvider,
       effective_chat_provider_label: effectiveChatProviderLabel,
+      chat_provider_options: overrides.chatProviderOptions || [],
       chat_path: overrides.chatPath ?? "/chats/8",
       repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
       stop_requested_at: overrides.stopRequestedAt ?? null,
@@ -16158,6 +16182,7 @@ function chatPayload(overrides: {
       app_share_path: "/api/v1/app/chats/8/share",
       app_enqueue_message_path: "/api/v1/app/chats/8/queued_messages",
       app_stop_path: "/api/v1/app/chats/8/stop",
+      app_switch_provider_path: "/api/v1/app/chats/8/switch_provider",
       app_bookmarks_path: "/api/v1/app/chats/8/bookmarks",
       app_attachments_path: "/api/v1/app/chats/8/attachments",
       app_whiteboard_path: "/api/v1/app/chats/8/whiteboard"

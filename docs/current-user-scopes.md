@@ -22,6 +22,7 @@ per-user/private:
   - app/controllers/concerns/chat_attachment_search.rb
   - app/controllers/concerns/chat_index_payload.rb
   - app/controllers/concerns/chat_proposal_outcome.rb
+  - app/controllers/concerns/chat_provider_options.rb
   - app/controllers/concerns/chat_serialization.rb
   - app/controllers/concerns/chat_session_lifecycle.rb
   - app/controllers/concerns/chat_search.rb
@@ -125,6 +126,7 @@ instead of broader model scopes.
 | `app/controllers/concerns/chat_proposal_outcome.rb` | per-user/private | Proposal-outcome helpers (extracted from `ChatsController`) start a confirmed Epic as `Current.user` and build the confirmation/rejection notices. |
 | `app/controllers/concerns/chat_serialization.rb` | per-user/private | Chat JSON serializers (extracted from `ChatsController`) build the chat/message/attachment payloads, reading `Current.user` for unread state and ownership-scoped fields. |
 | `app/controllers/concerns/chat_session_lifecycle.rb` | per-user/private | Chat-session lifecycle helpers (extracted from `ChatsController`) create the session as `Current.user` and branch from a source chat. |
+| `app/controllers/concerns/chat_provider_options.rb` | per-user/private | Chat-provider picker helpers (extracted from `ChatsController`) build options from `Current.user`'s configured agent providers. |
 | `app/controllers/concerns/chat_search.rb` | per-user/private | Chat-search helpers (extracted from `ChatsController`) search and filter `Current.user`'s chats and serialize the results. |
 | `app/controllers/concerns/performance_logging_context.rb` | per-user/private | Performance log request diagnostics include the current user's id/admin flag when a signed-in user is available. |
 | `app/controllers/api/v1/app/credentials/documents_controller.rb` | per-user/private | Personal credential documents are listed, created, and deleted through `Current.user.documents`. |

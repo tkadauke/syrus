@@ -434,10 +434,11 @@ Attached repository checkouts are read-only for the chat agent. Chat can run
 through Claude or Codex. Syrus stores a concrete provider on each chat when it
 is created, seeded from the operator's current chat provider setting and then
 the default agent provider, so later user-default changes do not silently move
-the conversation between Claude and Codex. Existing chats cannot switch
-providers from chat settings. Branched chats preserve the stored provider
-choice, and stored agent sessions only resume when the next turn uses the same
-provider. Chat may
+the conversation between Claude and Codex. Operators can still explicitly choose
+Claude or Codex from chat settings when both are configured; explicit provider
+switching uses the normal rehydration flow. Branched chats preserve the stored
+provider choice, and stored agent sessions only resume when the next turn uses
+the same provider. Chat may
 read, search, list, and refresh checkouts for context, but code changes must
 be drafted as proposals for operator confirmation. Claude chat turns also
 deny Claude's file-editing tools (`Write`, `Edit`, `MultiEdit`, and

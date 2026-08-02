@@ -191,8 +191,9 @@ curl -X PATCH https://syrus.example.com/api/v1/app/chats/123 \
   -d '{ "chat": { "pinned": true } }'
 ```
 
-Chat providers are pinned when a chat is created. The chat update endpoint does
-not switch existing chats between providers.
+Chat providers are pinned when a chat is created. The same endpoint also accepts
+`{ "chat": { "chat_provider": "codex" } }` or `"claude"` to intentionally
+switch an existing chat to another configured provider.
 
 ## Branch a Chat
 

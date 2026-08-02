@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
 import { ChatSettingsDialog, ChatWorkspacePanel } from "./WorkspacePanels"
 import type { ChatPayload } from "../../api/chats"
-import { fetchCodingCommits, fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree } from "../../api/chats"
+import { fetchCodingCommits, fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree, updateChatProvider } from "../../api/chats"
 
 vi.mock("../../api/chats", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/chats")>()
@@ -13,7 +13,8 @@ vi.mock("../../api/chats", async (importOriginal) => {
     fetchCodingCommits: vi.fn(),
     fetchCodingDiff: vi.fn(),
     fetchCodingFileContent: vi.fn(),
-    fetchCodingFileTree: vi.fn()
+    fetchCodingFileTree: vi.fn(),
+    updateChatProvider: vi.fn()
   }
 })
 
@@ -65,6 +66,7 @@ function makePayload(overrides: Partial<ChatPayload["chat"]> = {}): ChatPayload 
       app_scheduled_messages_path: "/api/v1/app/chats/1/scheduled_messages",
       app_stop_path: "/api/v1/app/chats/1/stop",
       app_daemon_connection_path: "/api/v1/app/chats/1/daemon_connection",
+      app_switch_provider_path: "/api/v1/app/chats/1/switch_provider",
       app_bookmarks_path: "/api/v1/app/chats/1/bookmarks",
       app_attachments_path: "/api/v1/app/chats/1/attachments",
       app_video_walkthroughs_path: "/api/v1/app/chats/1/video_walkthroughs",
@@ -145,7 +147,7 @@ describe("ChatSettingsDialog", () => {
     expect(screen.getByRole("link", { name: "Chat credentials" })).toBeInTheDocument()
   })
 
-  it("shows the fallback provider when no effective provider label is set", () => {
+  it("shows the fallback provider when no effective provider label is set and no switch is available", () => {
     const payload = makePayload({
       effective_chat_provider: "provider_a",
       effective_chat_provider_label: undefined
@@ -155,13 +157,32 @@ describe("ChatSettingsDialog", () => {
     expect(screen.queryByLabelText("Chat provider")).not.toBeInTheDocument()
   })
 
-  it("shows the effective provider label when one is set", () => {
+  it("shows the effective provider label when one is set and no switch is available", () => {
     const payload = makePayload({
       effective_chat_provider_label: "Provider A"
     })
     renderDialog(payload)
     expect(screen.getByText("Provider A")).toBeInTheDocument()
     expect(screen.queryByLabelText("Chat provider")).not.toBeInTheDocument()
+  })
+
+  it("renders configured explicit provider options and updates the chat provider", async () => {
+    const updated = makePayload({ chat_provider: "codex", effective_chat_provider: "codex", effective_chat_provider_label: "Codex" })
+    vi.mocked(updateChatProvider).mockResolvedValue(updated)
+    const payload = makePayload({
+      chat_provider: "claude",
+      effective_chat_provider: "claude",
+      effective_chat_provider_label: "Claude",
+      chat_provider_options: [
+        { value: "claude", label: "Claude", configured: true, effective_provider: "claude", effective_label: "Claude" },
+        { value: "codex", label: "Codex", configured: true, effective_provider: "codex", effective_label: "Codex" }
+      ]
+    })
+
+    renderDialog(payload)
+    fireEvent.change(screen.getByLabelText("Chat provider"), { target: { value: "codex" } })
+
+    await waitFor(() => expect(updateChatProvider).toHaveBeenCalledWith(1, "codex"))
   })
 })
 

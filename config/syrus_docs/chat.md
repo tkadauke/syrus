@@ -10,14 +10,18 @@ before title generation or turn execution. Later changes to the user's defaults
 do not move that existing conversation between providers. A data migration
 backfills older blank-provider chats and the column is non-null afterward.
 
-Operators cannot switch an existing chat between providers. User-level
-chat/agent provider settings remain defaults for future chats only.
+Operators can still switch an existing chat explicitly through the chat provider
+switch endpoint or chat settings control. That path enqueues
+`SwitchChatProviderJob`, rehydrates provider-specific session state, and updates
+the stored `chat_provider` deliberately. User-level chat/agent provider settings
+remain defaults for future chats only.
 
 When the current user's usage is exhausted for a provider, chats whose effective
 provider matches that provider include `provider_availability` in list/detail
 payloads and show a red triangle warning in the sidebar, header, and chat
-settings. Transient provider circuits are not treated as usage exhaustion and
-keep their existing non-red UI.
+settings. Switching the chat to another configured provider clears the warning
+for that chat immediately. Transient provider circuits are not treated as usage
+exhaustion and keep their existing non-red UI.
 
 The chat composer recognizes leading slash commands. Typing `/` opens the
 command palette.
