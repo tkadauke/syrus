@@ -8,7 +8,7 @@ import "@excalidraw/excalidraw/index.css"
 import { ApiError } from "../../api/client"
 import { formatClock } from "../../components/WalkthroughRecorder"
 import { updateRecentChatCache } from "../../lib/chatCache"
-import { createWhiteboardSnapshot, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, fetchCodingFileTree, fetchCodingCommits, fetchCodingFileContent, fetchCodingDiff, updateChatMode, updateChatProvider, type ChatMode, type ChatPayload, type ChatRenderItem, type ChatWhiteboardElement, type ChatWhiteboardScene, type WhiteboardSnapshot } from "../../api/chats"
+import { createWhiteboardSnapshot, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, fetchCodingFileTree, fetchCodingCommits, fetchCodingFileContent, fetchCodingDiff, updateChatMode, switchChatProvider, type ChatMode, type ChatPayload, type ChatRenderItem, type ChatWhiteboardElement, type ChatWhiteboardScene, type WhiteboardSnapshot } from "../../api/chats"
 import { CloseIcon } from "../../components/CloseIcon"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
 import { createConsumer, type Subscription } from "@rails/actioncable"
@@ -413,10 +413,9 @@ export function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { pay
   const configuredExplicitOptions = providerOptions.filter((option) => option.configured)
   const showProviderSelector = configuredExplicitOptions.length > 1
   const provider = useMutation({
-    mutationFn: (value: string) => updateChatProvider(payload.chat.id, value),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
-      updateRecentChatCache(queryClient, updated.chat)
+    mutationFn: (value: string) => switchChatProvider(payload.paths.app_switch_provider_path, value),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey })
     }
   })
 

@@ -12023,12 +12023,8 @@ describe("App", () => {
     ]
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
-      if (path === "/api/v1/app/chats/8" && init?.method === "PATCH") {
-        return Promise.resolve(new Response(JSON.stringify(chatPayload({
-          chatProvider: "codex",
-          effectiveChatProvider: "codex",
-          chatProviderOptions: providerOptions
-        })), { status: 200, headers: { "Content-Type": "application/json" } }))
+      if (path === "/api/v1/app/chats/8/switch_provider" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({ message: "Switching to codex." }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       return Promise.resolve(new Response(JSON.stringify(chatPayload({
         chatProvider: "claude",
@@ -12053,10 +12049,10 @@ describe("App", () => {
     fireEvent.change(screen.getByLabelText("Chat provider"), { target: { value: "codex" } })
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/chats/8",
+      "/api/v1/app/chats/8/switch_provider",
       expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ chat: { chat_provider: "codex" } })
+        method: "POST",
+        body: JSON.stringify({ provider: "codex" })
       })
     ))
   })

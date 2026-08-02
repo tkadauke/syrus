@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
 import { ChatSettingsDialog, ChatWorkspacePanel } from "./WorkspacePanels"
 import type { ChatPayload } from "../../api/chats"
-import { fetchCodingCommits, fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree, updateChatProvider } from "../../api/chats"
+import { fetchCodingCommits, fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree, switchChatProvider } from "../../api/chats"
 
 vi.mock("../../api/chats", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/chats")>()
@@ -14,7 +14,7 @@ vi.mock("../../api/chats", async (importOriginal) => {
     fetchCodingDiff: vi.fn(),
     fetchCodingFileContent: vi.fn(),
     fetchCodingFileTree: vi.fn(),
-    updateChatProvider: vi.fn()
+    switchChatProvider: vi.fn()
   }
 })
 
@@ -166,9 +166,8 @@ describe("ChatSettingsDialog", () => {
     expect(screen.queryByLabelText("Chat provider")).not.toBeInTheDocument()
   })
 
-  it("renders configured explicit provider options and updates the chat provider", async () => {
-    const updated = makePayload({ chat_provider: "codex", effective_chat_provider: "codex", effective_chat_provider_label: "Codex" })
-    vi.mocked(updateChatProvider).mockResolvedValue(updated)
+  it("renders configured explicit provider options and starts a provider switch", async () => {
+    vi.mocked(switchChatProvider).mockResolvedValue({ message: "Switching to codex." })
     const payload = makePayload({
       chat_provider: "claude",
       effective_chat_provider: "claude",
@@ -182,7 +181,7 @@ describe("ChatSettingsDialog", () => {
     renderDialog(payload)
     fireEvent.change(screen.getByLabelText("Chat provider"), { target: { value: "codex" } })
 
-    await waitFor(() => expect(updateChatProvider).toHaveBeenCalledWith(1, "codex"))
+    await waitFor(() => expect(switchChatProvider).toHaveBeenCalledWith("/api/v1/app/chats/1/switch_provider", "codex"))
   })
 })
 
