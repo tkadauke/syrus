@@ -57,6 +57,7 @@ module Steps
       changed_files_fingerprint = current_changed_files_fingerprint(git, chdir, base_sha)
       source = LandingValidationCache.carry_forward_source_for(
         job: job,
+        base_ref: train.base_branch,
         grader_fingerprint: grader_fingerprint,
         changed_files_fingerprint: changed_files_fingerprint
       )

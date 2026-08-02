@@ -34,7 +34,7 @@ RSpec.describe Steps::GraderCollect do
       state: "succeeded",
       details: { "name" => "tests", "required" => true }
     )
-    fake_ws = instance_double(WorkflowWorkspace, path: @ws_path)
+    fake_ws = instance_double(WorkflowWorkspace, path: @ws_path, base_ref: "origin/main")
     git = instance_double(GitRunner, run: "abc123\n")
     allow(handler).to receive(:workspace).and_return(fake_ws)
     allow(GitRunner).to receive(:new).and_return(git)
@@ -124,7 +124,9 @@ RSpec.describe Steps::GraderCollect do
     expect(workflow.reload.artifact(LandingValidationCache::ARTIFACT_KEY)).to include(
       "required_graders_passed" => true,
       "head_sha" => "abc123",
-      "tree_sha" => "abc123"
+      "tree_sha" => "abc123",
+      "base_sha" => "abc123",
+      "base_ref" => job.effective_base_branch
     )
   end
 

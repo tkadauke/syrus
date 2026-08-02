@@ -82,6 +82,18 @@ RSpec.describe LandingValidationCache do
       expect(described_class.valid_for?(job: job, pr: pr)).to be true
     end
 
+    it "keeps exact-head reuse for legacy artifacts without base identity" do
+      job = make_job
+      make_workflow(job, artifacts: { "landing_validation" => { "required_graders_passed" => true, "head_sha" => "current_sha" } })
+      pr = double("pr", head: double(sha: "current_sha"), base: double(sha: "base", ref: "main"))
+
+      decision = described_class.decision_for_pr(job: job, pr: pr)
+
+      expect(decision).to be_reusable
+      expect(decision.match_type).to eq("exact_head")
+      expect(decision.reason).to eq("legacy exact-head validation match")
+    end
+
     it "returns false when the PR base changed" do
       job = make_job
       make_workflow(job, artifacts: { "landing_validation" => { "required_graders_passed" => true, "head_sha" => "current_sha", "base_sha" => "old_base", "base_ref" => "main" } })
@@ -320,6 +332,7 @@ RSpec.describe LandingValidationCache do
 
       decision = described_class.carry_forward_source_for(
         job: job,
+        base_ref: "main",
         grader_fingerprint: "fp",
         changed_files_fingerprint: changed_files_fingerprint
       )
@@ -342,6 +355,7 @@ RSpec.describe LandingValidationCache do
 
       decision = described_class.carry_forward_source_for(
         job: job,
+        base_ref: "main",
         grader_fingerprint: "fp",
         changed_files_fingerprint: changed_files_fingerprint
       )
@@ -363,6 +377,7 @@ RSpec.describe LandingValidationCache do
 
       decision = described_class.carry_forward_source_for(
         job: job,
+        base_ref: "main",
         grader_fingerprint: "new-fp",
         changed_files_fingerprint: changed_files_fingerprint
       )
@@ -384,12 +399,35 @@ RSpec.describe LandingValidationCache do
 
       decision = described_class.carry_forward_source_for(
         job: job,
+        base_ref: "main",
         grader_fingerprint: "fp",
         changed_files_fingerprint: changed_files_fingerprint([ "app/new.rb" ])
       )
 
       expect(decision).not_to be_reusable
       expect(decision.reason).to eq("changed-file selection changed")
+    end
+
+    it "rejects carry-forward when the base ref changed" do
+      job = make_job
+      make_workflow(job, artifacts: { "landing_validation" => {
+        "required_graders_passed" => true,
+        "head_sha" => "old-head",
+        "base_sha" => "old-base",
+        "base_ref" => "release",
+        "grader_fingerprint" => "fp",
+        "changed_files_fingerprint" => changed_files_fingerprint
+      } })
+
+      decision = described_class.carry_forward_source_for(
+        job: job,
+        base_ref: "main",
+        grader_fingerprint: "fp",
+        changed_files_fingerprint: changed_files_fingerprint
+      )
+
+      expect(decision).not_to be_reusable
+      expect(decision.reason).to eq("base ref changed from release to main")
     end
   end
 end

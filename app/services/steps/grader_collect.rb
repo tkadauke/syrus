@@ -177,14 +177,14 @@ module Steps
       return job.mergeability_base_sha.presence if workflow.trigger_kind == "auto_merge"
       return workflow.artifact("merge_train_base_sha").presence if workflow.trigger_kind == "merge_train"
 
-      nil
+      GitRunner.new.run("rev-parse", default_branch_ref, chdir: workspace.path.to_s).strip.presence
     end
 
     def landing_base_ref
       return job.mergeability_base_ref.presence if workflow.trigger_kind == "auto_merge"
       return merge_train_base_ref if workflow.trigger_kind == "merge_train"
 
-      nil
+      job.effective_base_branch.presence
     end
 
     def merge_train_base_ref

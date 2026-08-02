@@ -49,8 +49,10 @@ module Steps
 
       grader_fingerprint = current_landing_grader_fingerprint
       changed_files_fingerprint = current_changed_files_fingerprint
+      base_ref = job.mergeability_base_ref.presence
       source = LandingValidationCache.carry_forward_source_for(
         job: job,
+        base_ref: base_ref,
         grader_fingerprint: grader_fingerprint,
         changed_files_fingerprint: changed_files_fingerprint
       )
@@ -62,7 +64,6 @@ module Steps
       head_sha = streaming_git.run("rev-parse", "HEAD", chdir: workspace.path.to_s).strip
       tree_sha = streaming_git.run("rev-parse", "HEAD^{tree}", chdir: workspace.path.to_s).to_s.strip.presence
       base_sha = job.mergeability_base_sha.presence
-      base_ref = job.mergeability_base_ref.presence
       if head_sha.blank? || base_sha.blank?
         log("force_push: did not carry green grade across clean rebase - current head/base SHA unavailable", kind: "system")
         return
