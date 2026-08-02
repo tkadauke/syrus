@@ -39,7 +39,6 @@ const ACCEPTED_ATTACHMENT_TYPES = [
 
 const BUTTON_SIZE = 48 // h-12 = 3rem = 48px
 const BUTTON_MARGIN = 16 // 1rem
-const MOBILE_NAV_RESERVED_TOP = 144
 const DRAG_THRESHOLD = 8 // px — below this displacement a pointer interaction is a tap, not a drag
 const STORAGE_KEY = "bug-report-button-position"
 
@@ -78,10 +77,9 @@ function safeAreaBottom(): number {
 }
 
 function clampPos(pos: ButtonPos): ButtonPos {
-  const minTop = window.innerWidth < 1024 ? MOBILE_NAV_RESERVED_TOP : 0
   return {
     left: Math.max(0, Math.min(pos.left, window.innerWidth - BUTTON_SIZE)),
-    top: Math.max(minTop, Math.min(pos.top, window.innerHeight - BUTTON_SIZE))
+    top: Math.max(0, Math.min(pos.top, window.innerHeight - BUTTON_SIZE))
   }
 }
 

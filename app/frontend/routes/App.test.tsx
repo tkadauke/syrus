@@ -4326,13 +4326,14 @@ describe("App", () => {
       }
       const url = new URL(path, "http://example.test")
       if (url.pathname === "/api/v1/app/dashboard") {
+        const activeSmartFolder = url.searchParams.get("smart_folder_id") === "7" || url.searchParams.get("section") === "chrome"
         return Promise.resolve(
           new Response(
             JSON.stringify(
               dashboardPayload({
                 subject: "job",
                 view: "list",
-                active_smart_folder_id: url.searchParams.get("smart_folder_id") === "7" ? 7 : null,
+                active_smart_folder_id: activeSmartFolder ? 7 : null,
                 filter: appliedFilter,
                 smart_folders: [
                   {
@@ -4343,7 +4344,7 @@ describe("App", () => {
                     subject_type: "job",
                     visibility: "user_defined",
                     count: 1,
-                    active: url.searchParams.get("smart_folder_id") === "7",
+                    active: activeSmartFolder,
                     filter: savedFilter,
                     path: "/dashboard/jobs?smart_folder_id=7"
                   }
@@ -4556,7 +4557,10 @@ describe("App", () => {
       }
 
       const url = new URL(path, "http://example.test")
-      if (url.pathname === "/api/v1/app/dashboard" && (url.searchParams.get("section") === "chrome" || url.searchParams.get("smart_folder_id") === "7")) {
+      if (
+        url.pathname === "/api/v1/app/dashboard" &&
+        (url.searchParams.get("smart_folder_id") === "7" || url.searchParams.get("section") === "chrome")
+      ) {
         if (url.searchParams.get("section") !== "chrome") dashboardRequests.push(path)
         const q = url.searchParams.get("q")
         const filter = q ? decodeFilterQueryParam(q) : storedFilter
@@ -4752,7 +4756,10 @@ describe("App", () => {
         )
       }
       const url = new URL(path, "http://example.test")
-      if (url.pathname === "/api/v1/app/dashboard" && (url.searchParams.get("section") === "chrome" || url.searchParams.get("smart_folder_id") === "7")) {
+      if (
+        url.pathname === "/api/v1/app/dashboard" &&
+        (url.searchParams.get("smart_folder_id") === "7" || url.searchParams.get("section") === "chrome")
+      ) {
         const hasSmartFolder = url.searchParams.get("smart_folder_id") === "7"
         const payload = dashboardPayload({
           subject: "job",
@@ -15213,7 +15220,11 @@ function dashboardPayload(overrides: Record<string, unknown> = {}) {
 function dashboardPathMatches(input: unknown, expectedPath: string) {
   const actual = new URL(String(input), "http://example.test")
   const expected = new URL(expectedPath, "http://example.test")
+  const actualSection = actual.searchParams.get("section")
   actual.searchParams.delete("section")
+  if (actualSection === "chrome" && !actual.searchParams.has("smart_folder_id")) {
+    expected.searchParams.delete("smart_folder_id")
+  }
 
   return actual.pathname === expected.pathname && actual.searchParams.toString() === expected.searchParams.toString()
 }

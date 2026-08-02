@@ -75,6 +75,8 @@ describe("BugReportButton", () => {
   })
 
   afterEach(() => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 })
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 768 })
     vi.clearAllMocks()
     // Clean up prototype stubs defined above.
     delete (HTMLElement.prototype as unknown as Record<string, unknown>).setPointerCapture
@@ -112,14 +114,14 @@ describe("BugReportButton", () => {
     expect(button.style.top).toBe("456px")
   })
 
-  it("clamps a saved mobile position below the top navigation area", () => {
+  it("allows a saved mobile position near the top of the viewport", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 })
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 844 })
     localStorage.setItem("bug-report-button-position", JSON.stringify({ left: 300, top: 12 }))
 
     renderButton()
 
-    expect(getBugButton().style.top).toBe("144px")
+    expect(getBugButton().style.top).toBe("12px")
   })
 
   it("ignores malformed localStorage data and falls back to default", () => {
@@ -221,6 +223,25 @@ describe("BugReportButton", () => {
       expect(saved).not.toBeNull()
       expect(saved!.left).toBeGreaterThanOrEqual(0)
       expect(saved!.top).toBeGreaterThanOrEqual(0)
+    })
+
+    it("allows dragging to the top edge on mobile", () => {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 })
+      Object.defineProperty(window, "innerHeight", { configurable: true, value: 844 })
+      localStorage.setItem("bug-report-button-position", JSON.stringify({ left: 200, top: 300 }))
+      renderButton()
+      const button = getBugButton()
+
+      fireEvent.pointerDown(button, { clientX: 200, clientY: 300, pointerId: 1 })
+      fireEvent.pointerMove(button, { clientX: 40, clientY: 0, pointerId: 1 })
+      fireEvent.pointerUp(button, { clientX: 40, clientY: 0, pointerId: 1 })
+
+      const saved = JSON.parse(localStorage.getItem("bug-report-button-position") ?? "null") as {
+        left: number
+        top: number
+      } | null
+      expect(saved).not.toBeNull()
+      expect(saved!.top).toBe(0)
     })
   })
 
