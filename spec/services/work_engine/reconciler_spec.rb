@@ -731,6 +731,38 @@ RSpec.describe WorkEngine::Reconciler do
     expect(issue.affected_ids[:workflow_ids]).to include(workflow.id)
   end
 
+  it "treats a failed Job with a newer queued retry workflow as auto-repairable state drift" do
+    workflow.update_columns(
+      trigger_kind: "rebase",
+      state: "failed",
+      started_at: 10.minutes.ago,
+      finished_at: 9.minutes.ago,
+      created_at: 10.minutes.ago
+    )
+    retry_workflow = Workflow.create!(
+      job: job,
+      trigger_kind: "retry",
+      state: "queued",
+      created_at: 1.minute.ago
+    )
+    job.update_columns(state: "failed")
+
+    result = reconcile(job_id: job.id)
+    issue = kind(result, :unambiguous_job_state_drift)
+
+    expect(kind(result, :job_workflow_state_drift)).to be_nil
+    expect(issue).to have_attributes(
+      safe_to_auto_repair: true,
+      recommended_repair_action: "reconcile_job_state"
+    )
+    expect(issue.affected_ids[:workflow_ids]).to eq([ retry_workflow.id ])
+    expect(issue.evidence).to include(
+      "job_state" => "failed",
+      "target_state" => "queued",
+      "latest_workflow_state" => "queued"
+    )
+  end
+
   it "classifies missing workspaces for active workflows" do
     workflow.update_columns(state: "running", started_at: 5.minutes.ago, worker_hostname: nil)
     step.update_columns(state: "running", started_at: 5.minutes.ago)

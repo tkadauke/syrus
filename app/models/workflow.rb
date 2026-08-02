@@ -214,6 +214,7 @@ class Workflow < ApplicationRecord
     return if coding_handoff_workflow?
     return if local_mode_handoff_workflow?
     return if infrastructure_workflow?
+    return if newer_active_workflow?
 
     if no_changes_produced_failure?
       return unless job.may_mark_no_change_needed?
@@ -243,6 +244,16 @@ class Workflow < ApplicationRecord
       job.mark_failed!
       job.save!
     end
+  end
+
+  def newer_active_workflow?
+    return false unless persisted?
+
+    cutoff = created_at || Time.zone.at(0)
+    job.workflows
+       .active
+       .where("created_at > ? OR (created_at = ? AND id > ?)", cutoff, cutoff, id)
+       .exists?
   end
 
   def no_changes_produced_failure?

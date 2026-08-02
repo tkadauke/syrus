@@ -248,6 +248,53 @@ RSpec.describe Workflow do
         .to change { job.reload.state }.from("running").to("failed")
     end
 
+    it "does not let an older failed rebase workflow clobber a newer queued retry workflow" do
+      job.update!(state: "running")
+      old_rebase = described_class.create!(
+        job: job,
+        trigger_kind: "rebase",
+        state: "running",
+        started_at: 5.minutes.ago,
+        created_at: 5.minutes.ago
+      )
+      retry_workflow = described_class.create!(
+        job: job,
+        trigger_kind: "retry",
+        state: "queued",
+        created_at: 1.minute.ago
+      )
+
+      expect { old_rebase.fail!; old_rebase.save! }
+        .not_to change { job.reload.state }
+
+      expect(job.reload.state).to eq("running")
+      expect(job.latest_workflow).to eq(retry_workflow)
+    end
+
+    it "does not let an older failed rebase workflow clobber a newer running retry workflow" do
+      job.update!(state: "running")
+      old_rebase = described_class.create!(
+        job: job,
+        trigger_kind: "rebase",
+        state: "running",
+        started_at: 5.minutes.ago,
+        created_at: 5.minutes.ago
+      )
+      retry_workflow = described_class.create!(
+        job: job,
+        trigger_kind: "retry",
+        state: "running",
+        started_at: 1.minute.ago,
+        created_at: 1.minute.ago
+      )
+
+      expect { old_rebase.fail!; old_rebase.save! }
+        .not_to change { job.reload.state }
+
+      expect(job.reload.state).to eq("running")
+      expect(job.latest_workflow).to eq(retry_workflow)
+    end
+
     it "drives :running → :no_change_needed on workflow.fail! when the failing run has a NoChangesProduced diagnostic" do
       job.update!(state: "running")
       wf = described_class.create!(job: job, trigger_kind: "initial", state: "running", started_at: 1.minute.ago)

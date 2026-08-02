@@ -136,6 +136,15 @@ class ReconcileJobStatesJob < ApplicationJob
                   reason: "latest workflow :running but Job stuck at :failed",
                   steps: %i[ retry_after_failure! ])
 
+      when [ "failed", "queued" ]
+        # A newer retry/follow-up workflow was created after an older
+        # repair workflow failed, but the older terminal callback left
+        # the Job at :failed. Return it to :queued so the visible Job
+        # state matches the actionable workflow waiting to run.
+        new(job, target_state: "queued",
+                  reason: "latest workflow :queued but Job stuck at :failed",
+                  steps: %i[ retry_after_failure! ])
+
       when [ "failed", "cancelled" ]
         # Latest attempt was cancelled (operator stop, or chain
         # cascade). Lifting to :queued lets the operator decide

@@ -63,6 +63,17 @@ RSpec.describe ReconcileJobStatesJob do
     end
   end
 
+  describe "Job :failed with latest workflow :queued" do
+    it "lifts the Job to :queued for a newer retry waiting to run" do
+      build_workflow(state: "failed", trigger_kind: "rebase", started_at: 10.minutes.ago, finished_at: 9.minutes.ago)
+      build_workflow(state: "queued", trigger_kind: "retry", started_at: 1.minute.ago, finished_at: nil)
+      job.update!(state: "failed")
+
+      expect { described_class.new.perform }
+        .to change { job.reload.state }.from("failed").to("queued")
+    end
+  end
+
   describe "Job :failed with latest workflow :cancelled" do
     it "lifts the Job to :queued so the operator can decide what's next" do
       build_workflow(state: "cancelled")

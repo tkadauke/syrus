@@ -432,6 +432,7 @@ module WorkEngine
       jobs.filter_map do |job|
         active = workflows.select { |workflow| workflow.job_id == job.id && %w[queued running].include?(workflow.state) }
         next if active.empty? || job.closed? || %w[queued running landing coding approved].include?(job.state)
+        next if job.failed? && job.latest_workflow&.queued? && ReconcileJobStatesJob::Plan.for(job)
 
         issue(
           kind: :job_workflow_state_drift,
