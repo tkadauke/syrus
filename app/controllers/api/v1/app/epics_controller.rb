@@ -346,10 +346,10 @@ module Api
 
           if dependency.depends_on_job_id.present?
             job = dependency.depends_on_job
-            return "waiting for #{job.slug} to merge"
+            return { key: "waiting_to_merge", params: { slug: job.slug } }
           end
 
-          "waiting for Epic ##{dependency.depends_on_epic.number} to complete"
+          { key: "waiting_epic_to_complete", params: { number: dependency.depends_on_epic.number } }
         end
 
         def saved_payload(epic, message:)

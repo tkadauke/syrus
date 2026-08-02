@@ -130,7 +130,7 @@ export type DashboardJobItem = {
   landing_queue_position: number | null
   landing_queue_blocked_reason: BlockedReason | null
   landing_queue_entry_key: string | null
-  blocked_reason: string | null
+  blocked_reason: BlockedReason | null
   retry_state?: JobRetryState
   created_at: string | null
   updated_at: string | null

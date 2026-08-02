@@ -408,7 +408,10 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body["summary"]).to include(
       "blocked" => true,
-      "blocked_reason" => "waiting for #{prerequisite.slug} to merge"
+      "blocked_reason" => {
+        "key" => "waiting_to_merge",
+        "params" => { "slug" => prerequisite.slug }
+      }
     )
     expect(parse_body["dependencies"]).to eq([])
   end

@@ -1,5 +1,6 @@
 import { deleteJson, getJson, patchJson, postJson } from "./client"
 import type { DashboardGraphEdge, DashboardGraphNode } from "./dashboard"
+import type { BlockedReason } from "../lib/translateBlockedReason"
 import type { JobDeploymentStage } from "./jobs"
 import type { ProviderAvailability } from "./providerAvailability"
 import type { RepositoryEpicDependencyPolicy } from "./repositories"
@@ -109,7 +110,7 @@ export type EpicDetailSummary = {
   total_jobs_count: number
   dependency_edge_count: number
   blocked: boolean
-  blocked_reason: string | null
+  blocked_reason: BlockedReason | null
   review_summary?: string | null
 }
 

@@ -56,18 +56,18 @@ module App
         return unless blocked_folder_visible?
 
         return job.landing_queue_blocked_reason if job.landing_queue_blocked_reason.present?
-        return "pr_not_mergeable" if job.pr_mergeable == false
+        return { key: "pr_not_mergeable" } if job.pr_mergeable == false
 
         dep = preloaded_blocked_deps_by_job_id[job.id]
         return unless dep
 
         if dep.depends_on_epic_id.present?
-          "waiting for Epic ##{dep.depends_on_epic&.number} to complete"
+          { key: "waiting_epic_to_complete", params: { number: dep.depends_on_epic&.number } }
         elsif dep.depends_on_job_id.present?
-          "waiting for #{dep.depends_on_job.slug} to merge"
+          { key: "waiting_to_merge", params: { slug: dep.depends_on_job.slug } }
         else
           slug = dep.unresolved_slug
-          "waiting for #{slug} to merge" if slug.present?
+          { key: "waiting_to_merge", params: { slug: slug } } if slug.present?
         end
       end
 
