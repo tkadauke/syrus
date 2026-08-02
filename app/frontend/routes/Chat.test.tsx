@@ -1013,6 +1013,8 @@ describe("chat proposal cards", () => {
     renderRoute()
 
     fireEvent.click(await screen.findByRole("button", { name: "Edit JOB-DRAFT-1" }))
+    const dialog = screen.getByRole("dialog", { name: "Edit proposal" })
+    expect(dialog.parentElement?.parentElement).toBe(document.body)
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Survey north aqueduct" } })
     fireEvent.click(screen.getByRole("button", { name: "Save" }))
 

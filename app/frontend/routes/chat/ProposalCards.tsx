@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient, type UseMutationResult } from "@
 import type { FormEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react"
 import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
+import { createPortal } from "react-dom"
 import "@excalidraw/excalidraw/index.css"
 import { confirmChatProposal, confirmPendingAction, rejectChatProposal, rejectPendingAction, searchChatEpics, searchChatJobs, searchChatProposals, updateChatProposal, type ChatEpicDependencySearchResult, type ChatJobDependencySearchResult, type ChatPendingAction, type ChatPendingActionInline, type ChatPayload, type ChatProposal, type ChatProposalChild, type ChatProposalChildDependency, type ChatProposalDependency, type ChatProposalSearchResult } from "../../api/chats"
 import { fetchBootstrap } from "../../api/bootstrap"
@@ -78,7 +79,7 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
     save.mutate()
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-3 py-6">
       <div className="max-h-full w-full max-w-5xl overflow-y-auto rounded-lg bg-white shadow-xl dark:bg-gray-950" role="dialog" aria-modal="true" aria-labelledby="proposal-edit-title">
         <form onSubmit={submit}>
@@ -180,7 +181,8 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
