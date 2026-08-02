@@ -3486,6 +3486,80 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(workflow.artifact("chat_feedback")).to eq("Please tighten this implementation.")
   end
 
+  it "confirms check_job_mergeability pending actions through the app API" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    job = Factories.job_record(repository: repository, pr_number: 42)
+    action = chat.pending_actions.create!(
+      action: "check_job_mergeability",
+      payload: { "job_id" => job.id }
+    )
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}/confirm"
+    }.to have_enqueued_job(PollRebaseJob).with(job.id, bypass_cache: true)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Pending action confirmed.")
+    expect(action.reload).to be_confirmed
+  end
+
+  it "returns a validation error when confirming check_job_mergeability for a job without a PR" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    job = Factories.job_record(repository: repository)
+    action = chat.pending_actions.create!(
+      action: "check_job_mergeability",
+      payload: { "job_id" => job.id }
+    )
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}/confirm"
+    }.not_to have_enqueued_job(PollRebaseJob)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("No PR on this Job to check.")
+    expect(action.reload).to be_pending
+  end
+
+  it "returns a validation error when confirming check_job_mergeability for an inaccessible job" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    other_user = Factories.user
+    other_repository = Factories.repository(user: other_user, owner: "acme", name: "other")
+    other_job = Factories.job_record(user: other_user, repository: other_repository, pr_number: 42)
+    action = chat.pending_actions.create!(
+      action: "check_job_mergeability",
+      payload: { "job_id" => other_job.id }
+    )
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}/confirm"
+    }.not_to have_enqueued_job(PollRebaseJob)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("Job is not accessible.")
+    expect(action.reload).to be_pending
+  end
+
+  it "does not confirm pending actions from another chat through the app API" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    other_chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    job = Factories.job_record(repository: repository, pr_number: 42)
+    action = other_chat.pending_actions.create!(
+      action: "check_job_mergeability",
+      payload: { "job_id" => job.id }
+    )
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}/confirm"
+    }.not_to have_enqueued_job(PollRebaseJob)
+
+    expect(response).to have_http_status(:not_found)
+    expect(action.reload).to be_pending
+  end
+
   it "counts proposed chat proposals and pending actions in the chat header payload" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)

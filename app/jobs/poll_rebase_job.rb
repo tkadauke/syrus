@@ -31,6 +31,14 @@ class PollRebaseJob < ApplicationJob
   # leaves it false so the conditional-GET / 304 cycle keeps it cheap;
   # operator-initiated checks pay a fresh request to defeat GitHub's
   # eventual-consistency lag on the `mergeable` field.
+  def self.enqueue_manual_check(job_id)
+    if perform_accepts_bypass_cache?
+      perform_later(job_id, bypass_cache: true)
+    else
+      perform_later(job_id)
+    end
+  end
+
   def perform(job_id, bypass_cache: false)
     @job = Job.find_by(id: job_id)
     return unless @job
@@ -77,6 +85,13 @@ class PollRebaseJob < ApplicationJob
     # changes still fire.
     MergeabilityRecorder.record_github!(job: @job, pr: pr)
   end
+
+  def self.perform_accepts_bypass_cache?
+    instance_method(:perform).parameters.any? do |kind, name|
+      kind == :keyrest || (name == :bypass_cache && kind.in?(%i[key keyreq]))
+    end
+  end
+  private_class_method :perform_accepts_bypass_cache?
 
   private
 

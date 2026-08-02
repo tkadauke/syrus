@@ -3,12 +3,14 @@ module PendingActions
     action_key "check_job_mergeability"
 
     def execute
-      job = action_user_job
+      job = user.jobs.find_by(id: payload.fetch("job_id"))
+      raise ArgumentError, "Job is not accessible." unless job
+
       unless job.pr_number.present? || job.external_pr_number.present?
         raise ArgumentError, "No PR on this Job to check."
       end
 
-      PollRebaseJob.perform_later(job.id, bypass_cache: true)
+      PollRebaseJob.enqueue_manual_check(job.id)
       nil
     end
 

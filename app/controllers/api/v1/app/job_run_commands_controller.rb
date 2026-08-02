@@ -45,7 +45,7 @@ module Api
             return
           end
 
-          PollRebaseJob.perform_later(job.id, bypass_cache: true)
+          PollRebaseJob.enqueue_manual_check(job.id)
           render_job(job.reload, message: "Checking mergeability now...", changed: [ "mergeability" ])
         end
 
