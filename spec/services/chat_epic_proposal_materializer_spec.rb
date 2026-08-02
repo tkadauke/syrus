@@ -388,6 +388,37 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(dependency.unresolved_chat_proposal_id).to be_nil
   end
 
+  it "rejects child proposal dependencies that resolve to closed unsuccessful Jobs" do
+    prerequisite = chat_session.proposals.create!(
+      slug: "upstream-job",
+      title: "Upstream",
+      body: "Do this first.",
+      kind: "job",
+      repository: repository
+    )
+    ChatProposalFiler.new(user: user, repository: repository).file!([ prerequisite ])
+    prerequisite.reload.job.update_columns(state: "closed", closure_reason: "cancelled", finished_at: Time.current)
+    proposal = epic_proposal
+    child = proposal.child_proposals.create!(
+      chat_session: chat_session,
+      slug: "child",
+      title: "Child",
+      body: "Build it.",
+      repository: repository
+    )
+    ChatProposalDependency.create!(proposal: child, depends_on: prerequisite)
+
+    expect {
+      expect {
+        described_class.new(user: user).file!(proposal)
+      }.to raise_error(
+        ArgumentError,
+        "Cannot depend on #{prerequisite.job.slug} because it is closed as cancelled and will not satisfy dependencies."
+      )
+    }.to change(JobDependency, :count).by(0).and change(Job, :count).by(0)
+    expect(proposal.reload).to be_proposed
+  end
+
   it "excludes rejected child Jobs from materialization" do
     proposal = epic_proposal
     kept = proposal.child_proposals.create!(

@@ -99,6 +99,45 @@ RSpec.describe ChatProposalFiler do
       expect(dependency.unresolved_chat_proposal).to be_nil
     end
 
+    it "rejects Job proposal dependencies on closed unsuccessful Jobs" do
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 7)
+      prerequisite.update_columns(state: "closed", closure_reason: "cancelled", finished_at: Time.current)
+      job_proposal = proposal(
+        slug: "job-after-cancelled",
+        title: "Job after Cancelled",
+        depends_on_job_ids: [ prerequisite.id ]
+      )
+
+      expect {
+        expect {
+          described_class.new(user: user, repository: repository).file!([ job_proposal ])
+        }.to raise_error(
+          ArgumentError,
+          "Cannot depend on #{prerequisite.slug} because it is closed as cancelled and will not satisfy dependencies."
+        )
+      }.to change(JobDependency, :count).by(0).and change(Job, :count).by(0)
+      expect(job_proposal.reload).to be_proposed
+    end
+
+    it "allows Job proposal dependencies on successfully closed Jobs without blocking startup" do
+      prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 7)
+      prerequisite.update_columns(state: "closed", closure_reason: "pr_merged", finished_at: Time.current)
+      job_proposal = proposal(
+        slug: "job-after-merged",
+        title: "Job after Merged",
+        depends_on_job_ids: [ prerequisite.id ]
+      )
+
+      expect {
+        described_class.new(user: user, repository: repository).file!([ job_proposal ])
+      }.to change(JobDependency, :count).by(1)
+        .and have_enqueued_job(RunJob).exactly(:once)
+
+      dependency = job_proposal.reload.job.dependencies.first
+      expect(dependency.depends_on_job).to eq(prerequisite)
+      expect(job_proposal.job.reload).to be_queued
+    end
+
     it "attaches created Jobs to the originating chat session" do
       job_proposal = proposal(slug: "job-attachment", title: "Attached job")
 
@@ -132,6 +171,24 @@ RSpec.describe ChatProposalFiler do
       expect(JobDependency.count).to eq(2)
       expect(left.reload.job.dependencies.first.depends_on_job).to eq(root.reload.job)
       expect(right.reload.job.dependencies.first.depends_on_job).to eq(root.job)
+    end
+
+    it "rejects proposal slug dependencies that resolve to closed unsuccessful Jobs" do
+      upstream = proposal(slug: "upstream", title: "Upstream")
+      described_class.new(user: user, repository: repository).file!([ upstream ])
+      upstream.reload.job.update_columns(state: "closed", closure_reason: "cancelled", finished_at: Time.current)
+      dependent = proposal(slug: "dependent", title: "Dependent")
+      depends_on(dependent, upstream)
+
+      expect {
+        expect {
+          described_class.new(user: user, repository: repository).file!([ dependent ])
+        }.to raise_error(
+          ArgumentError,
+          "Cannot depend on #{upstream.job.slug} because it is closed as cancelled and will not satisfy dependencies."
+        )
+      }.to change(JobDependency, :count).by(0).and change(Job, :count).by(0)
+      expect(dependent.reload).to be_proposed
     end
 
     it "warns for mixed Syrus and GitHub proposals and only wires Syrus Job dependencies" do
@@ -202,6 +259,29 @@ RSpec.describe ChatProposalFiler do
 
       expect(dependent.reload.epic_depends_on_tokens).to eq(JSON.generate([ "epic:#{upstream_result.epics.first.id}" ]))
       expect(dependent_result.epics.first.reload.depends_on_epics).to contain_exactly(upstream_result.epics.first)
+    end
+
+    it "rejects Epic proposal slug dependencies that resolve to archived Epics" do
+      upstream = proposal(slug: "upstream-epic", title: "Upstream Epic", kind: "epic")
+      dependent = proposal(
+        slug: "dependent-epic",
+        title: "Dependent Epic",
+        kind: "epic",
+        epic_depends_on_tokens: JSON.generate([ upstream.slug ])
+      )
+      filer = described_class.new(user: user, repository: repository)
+      upstream_result = filer.file!([ upstream ])
+      upstream_result.epics.first.update_columns(state: "archived", archived_at: Time.current)
+
+      expect {
+        expect {
+          filer.file!([ dependent ])
+        }.to raise_error(
+          ArgumentError,
+          "Cannot depend on #{upstream_result.epics.first.slug} because it is archived and will not satisfy dependencies."
+        )
+      }.to change(EpicDependency, :count).by(0).and change(Epic, :count).by(0)
+      expect(dependent.reload).to be_proposed
     end
 
     it "attaches created Epics to the originating chat session" do

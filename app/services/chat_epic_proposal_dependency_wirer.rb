@@ -63,6 +63,7 @@ class ChatEpicProposalDependencyWirer
   def create_dependency!(epic, depends_on_epic)
     return if epic.id == depends_on_epic.id
 
+    ProposalDependencyValidator.validate!(depends_on_epic)
     EpicDependency.find_or_create_by!(
       epic: epic,
       depends_on_epic: depends_on_epic,

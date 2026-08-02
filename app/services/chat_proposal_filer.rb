@@ -233,6 +233,7 @@ class ChatProposalFiler
         next
       end
 
+      validate_dependency_target!(depends_on_job)
       JobDependency.find_or_create_by!(
         job: job,
         depends_on_job: depends_on_job
@@ -246,6 +247,7 @@ class ChatProposalFiler
       epic = user.epics.find_by(id: epic_id)
       next unless epic
 
+      validate_dependency_target!(epic)
       JobDependency.create!(
         job: job,
         depends_on_epic: epic,
@@ -258,6 +260,7 @@ class ChatProposalFiler
       depends_on_job = user.jobs.find_by(id: job_id)
       next unless depends_on_job
 
+      validate_dependency_target!(depends_on_job)
       JobDependency.create!(
         job: job,
         depends_on_job: depends_on_job,
@@ -283,6 +286,7 @@ class ChatProposalFiler
     JobDependency.pending.where(unresolved_chat_proposal: proposal).find_each do |dependency|
       next unless dependency.job.user_id == user.id
 
+      validate_dependency_target!(job)
       dependency.resolve!(depends_on_job: job)
       Rails.logger.info(
         "[JobDependency] resolved pending proposal dep on #{::App::Presentation.job_slug(dependency.job_id)}: " \
@@ -300,6 +304,7 @@ class ChatProposalFiler
       depends_on_epic = dependency.epic
       next unless depends_on_epic
 
+      validate_dependency_target!(depends_on_epic)
       EpicDependency.find_or_create_by!(
         epic: epic,
         depends_on_epic: depends_on_epic,
@@ -311,6 +316,7 @@ class ChatProposalFiler
       dep_job = user.jobs.find_by(id: job_id)
       next unless dep_job
 
+      validate_dependency_target!(dep_job)
       EpicDependency.create!(
         epic: epic,
         depends_on_job: dep_job,
@@ -319,5 +325,9 @@ class ChatProposalFiler
     end
 
     ChatEpicProposalDependencyWirer.new(user: user).wire_for!(proposal)
+  end
+
+  def validate_dependency_target!(target)
+    ProposalDependencyValidator.validate!(target)
   end
 end

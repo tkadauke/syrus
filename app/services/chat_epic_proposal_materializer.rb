@@ -122,6 +122,7 @@ class ChatEpicProposalMaterializer
           next
         end
 
+        validate_dependency_target!(depends_on_job)
         JobDependency.find_or_create_by!(
           job: job,
           depends_on_job: depends_on_job
@@ -149,6 +150,7 @@ class ChatEpicProposalMaterializer
     JobDependency.pending.where(unresolved_chat_proposal: proposal).find_each do |dependency|
       next unless dependency.job.user_id == user.id
 
+      validate_dependency_target!(job)
       dependency.resolve!(depends_on_job: job)
       Rails.logger.info(
         "[JobDependency] resolved pending proposal dep on #{::App::Presentation.job_slug(dependency.job_id)}: " \
@@ -175,6 +177,7 @@ class ChatEpicProposalMaterializer
       dep_job = user.jobs.find_by(id: job_id)
       next unless dep_job
 
+      validate_dependency_target!(dep_job)
       EpicDependency.create!(
         epic: epic,
         depends_on_job: dep_job,
@@ -192,8 +195,13 @@ class ChatEpicProposalMaterializer
         epic = user.epics.find_by(id: epic_id)
         next unless epic
 
+        validate_dependency_target!(epic)
         create_job_epic_dependency!(job, epic)
       end
     end
+  end
+
+  def validate_dependency_target!(target)
+    ProposalDependencyValidator.validate!(target)
   end
 end
