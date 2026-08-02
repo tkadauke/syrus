@@ -16,6 +16,10 @@ order (`approved_at`, falling back to `updated_at`, then `id`) within the
 same priority. Dependency prerequisites still sort before their dependents,
 and Epic merge-train members stay grouped as one atomic landing unit.
 
+When repository approval propagation is enabled, Syrus mirrors eligible Job
+approvals as GitHub PR reviews. Jobs created with PAT credentials are skipped
+because those PRs were opened as the user, and GitHub rejects self-approval.
+
 Jobs wait in `approved` when:
 - A same-repo Job is already landing (serialized per repo by default).
 - The Job is part of an Epic with `merge_train_enabled` and siblings aren't yet approved.

@@ -29,6 +29,7 @@ class Job::ApprovalPropagator
   def approve
     return skipped unless job.repository.approval_propagates_to_github
     return skipped if job.pr_number.blank?
+    return skipped if pat_authored_pull_request?
     return skipped if app_authored_pull_request?
 
     review = client.create_pr_review(
@@ -74,6 +75,10 @@ class Job::ApprovalPropagator
 
     pull_request = client.pull_request(job.repository.slug, job.pr_number, bypass_cache: true)
     pull_request.user&.login == "#{app_slug}[bot]"
+  end
+
+  def pat_authored_pull_request?
+    job.credential_mode == "pat"
   end
 
   def skipped

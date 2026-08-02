@@ -7,9 +7,15 @@ RSpec.describe Job::ApprovalPropagator do
   let(:client) { instance_double(GithubClient) }
 
   describe ".approve" do
-    it "files an APPROVE review and records the review id" do
+    it "files an APPROVE review for a non-self-authored PR and records the review id" do
+      AppSetting.current.update!(github_app_id: 123, github_app_slug: "operator-syrus")
+      installation = Factories.installation(user: user, account_login: "acme")
+      repository.update!(installation: installation)
       job.update!(pr_number: 123)
       allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
+      allow(client).to receive(:pull_request)
+        .with("acme/widgets", 123, bypass_cache: true)
+        .and_return(Struct.new(:user).new(Struct.new(:login).new("human-author")))
       expect(client).to receive(:create_pr_review)
         .with("acme/widgets", 123, event: "APPROVE", body: "Approved by @operator@example.com via Syrus.")
         .and_return(Struct.new(:id).new(987))
@@ -19,6 +25,17 @@ RSpec.describe Job::ApprovalPropagator do
       expect(result).to be_success
       expect(result.message).to eq("GitHub review left.")
       expect(job.reload.approval_evidence).to include("github_review_id" => 987)
+    end
+
+    it "skips PAT-authored PRs because GitHub does not allow self-approval" do
+      job.update!(pr_number: 123, credential_mode: "pat")
+      expect(GithubClient).not_to receive(:for)
+
+      result = described_class.approve(job, user: user)
+
+      expect(result).to be_skipped
+      expect(result.message).to be_nil
+      expect(job.reload.approval_evidence).to eq({})
     end
 
     it "skips when the repository opts out" do
@@ -59,8 +76,14 @@ RSpec.describe Job::ApprovalPropagator do
     end
 
     it "swallows Octokit errors and returns an operator-facing note" do
+      AppSetting.current.update!(github_app_id: 123, github_app_slug: "operator-syrus")
+      installation = Factories.installation(user: user, account_login: "acme")
+      repository.update!(installation: installation)
       job.update!(pr_number: 123)
       allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
+      allow(client).to receive(:pull_request)
+        .with("acme/widgets", 123, bypass_cache: true)
+        .and_return(Struct.new(:user).new(Struct.new(:login).new("human-author")))
       allow(client).to receive(:create_pr_review)
         .and_raise(Octokit::UnprocessableEntity.new(body: { message: "Pull request author can't approve their own pull request" }))
 

@@ -746,6 +746,9 @@ provider override, prepare behavior, PR cost footer, auto-merge settings,
 and approval behavior. The repository issues panel can list GitHub issues
 and delegate work by adding the trigger label through the same credential
 path Syrus uses for polling.
+When approval propagation is enabled, Syrus mirrors eligible Job approvals
+as GitHub PR reviews, but skips PAT-created PRs because GitHub treats them
+as user-authored and rejects self-approval.
 
 If a labeled GitHub issue was created by a Syrus user whose GitHub handle
 maps to a `product_owner` account, polling creates the Job in
