@@ -11,6 +11,8 @@ export type InstallationRepository = {
     admin: boolean
   }
   app_credential_active: boolean
+  app_credential_inactive_reason: string | null
+  recommended_next_action: string | null
   credential_mode: "app" | "pat" | string
   account_login: string
   installation_removed_at: string | null
@@ -27,6 +29,14 @@ export type PatOwnerGroup = {
 export type AdminInstallationsPayload = {
   github_app_registered: boolean
   github_app_slug: string | null
+  latest_sync: {
+    last_attempted_at: string | null
+    last_successful_at: string | null
+    duration_ms: number | null
+    records_seen: number | null
+    error_class: string | null
+    error_message: string | null
+  }
   pat_owner_groups: PatOwnerGroup[]
   repositories: InstallationRepository[]
   ok?: boolean

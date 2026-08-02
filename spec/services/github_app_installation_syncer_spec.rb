@@ -20,6 +20,25 @@ RSpec.describe GithubAppInstallationSyncer do
     expect(installation.account_login).to eq("acme")
     expect(installation.removed_at).to be_nil
     expect(repo.reload.installation).to eq(installation)
+    expect(AppSetting.current).to have_attributes(
+      github_app_installation_sync_succeeded_at: be_present,
+      github_app_installation_sync_records_seen: 1,
+      github_app_installation_sync_error_class: nil,
+      github_app_installation_sync_error_message: nil
+    )
+  end
+
+  it "records failed sync diagnostics before reraising" do
+    allow(client).to receive(:installations).and_raise(Octokit::Unauthorized.new)
+
+    expect {
+      described_class.new(client: client, default_user: admin).sync
+    }.to raise_error(Octokit::Unauthorized)
+
+    expect(AppSetting.current).to have_attributes(
+      github_app_installation_sync_started_at: be_present,
+      github_app_installation_sync_error_class: "Octokit::Unauthorized"
+    )
   end
 
   it "marks missing installations removed and unlinks repositories" do

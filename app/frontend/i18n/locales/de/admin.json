@@ -290,6 +290,12 @@
     "credential_modes": "Anmeldedaten-Modi",
     "refresh": "Installationsliste aktualisieren",
     "refreshing": "Wird aktualisiert...",
+    "sync_status": "Letzte Installationssynchronisierung",
+    "sync_never": "nie",
+    "sync_attempted": "versucht {{value}}",
+    "sync_successful": "erfolgreich {{value}}",
+    "sync_records": "{{count}} Einträge",
+    "sync_duration": "{{value}} ms",
     "col_pat": "Nur PAT",
     "col_app": "App installiert",
     "install_on_pat_repos": "App auf PAT-only-Repositories installieren",
@@ -317,7 +323,17 @@
     "compare_pat_4": "Teilt Ihr persönliches API-Rate-Limit",
     "compare_app_4": "Unabhängiges App-Rate-Limit",
     "compare_pat_5": "Als Fallback für PAT-only-Repos erforderlich",
-    "compare_app_5": "Ersetzt nicht den PAT-Fallback für Repos ohne Installation"
+    "compare_app_5": "Ersetzt nicht den PAT-Fallback für Repos ohne Installation",
+    "reasons": {
+      "github_app_not_registered": "GitHub-App ist nicht registriert.",
+      "github_app_private_key_missing": "Der private Schlüssel der GitHub-App fehlt.",
+      "github_repository_ids_missing": "GitHub-Eigentümer- oder Repository-IDs fehlen.",
+      "repository_installation_link_missing": "Eine aktive Installation für den Eigentümer existiert, aber dieses Repository ist nicht verknüpft.",
+      "linked_installation_removed": "Die verknüpfte Installation wurde entfernt.",
+      "removed_installation_for_owner": "Für den Eigentümer existiert ein entfernter Installationseintrag.",
+      "owner_mismatch_or_not_installed": "Keine aktive Installation passt zu diesem Repository-Eigentümer.",
+      "no_installations_synced": "Es wurden keine Installationen synchronisiert."
+    }
   },
   "stuck": {
     "heading": "Hängende Elemente",

@@ -290,6 +290,12 @@
     "credential_modes": "Modi Testimoniorum",
     "refresh": "Album installationum renovare",
     "refreshing": "Renovans...",
+    "sync_status": "Novissima synchronizatio installationum",
+    "sync_never": "numquam",
+    "sync_attempted": "temptata {{value}}",
+    "sync_successful": "successit {{value}}",
+    "sync_records": "{{count}} acta",
+    "sync_duration": "{{value}} ms",
     "col_pat": "PAT tantum",
     "col_app": "Applicamentum installatum",
     "install_on_pat_repos": "Applicamentum in receptacula PAT-tantum installa",
@@ -317,7 +323,17 @@
     "compare_pat_4": "Limitem API personalem tuum participat",
     "compare_app_4": "Limes API applicamenti independens",
     "compare_pat_5": "Ut subsidiarium pro receptaculis PAT-tantum necessarium",
-    "compare_app_5": "Subsidium PAT pro receptaculis sine installatione non reponit"
+    "compare_app_5": "Subsidium PAT pro receptaculis sine installatione non reponit",
+    "reasons": {
+      "github_app_not_registered": "Applicamentum GitHub non inscriptum est.",
+      "github_app_private_key_missing": "Clavis privata applicamenti GitHub deest.",
+      "github_repository_ids_missing": "Identitates domini vel receptaculi GitHub desunt.",
+      "repository_installation_link_missing": "Installatio activa domini adest, sed hoc receptaculum non conexum est.",
+      "linked_installation_removed": "Installatio conexa remota est.",
+      "removed_installation_for_owner": "Dominus actum installationis remotae habet.",
+      "owner_mismatch_or_not_installed": "Nulla installatio activa huic domino receptaculi convenit.",
+      "no_installations_synced": "Nullae installationes synchronizatae sunt."
+    }
   },
   "stuck": {
     "heading": "Res Haerentes",

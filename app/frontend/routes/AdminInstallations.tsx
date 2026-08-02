@@ -56,6 +56,7 @@ function InstallationsView({ payload, prefix }: { payload: AdminInstallationsPay
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t("installations.credential_modes")}</h2>
           <RefreshButton />
         </div>
+        <SyncStatus payload={payload} />
         <CredentialModeComparison />
       </section>
 
@@ -65,6 +66,27 @@ function InstallationsView({ payload, prefix }: { payload: AdminInstallationsPay
 
       <RepositoriesTable repositories={payload.repositories} />
     </>
+  )
+}
+
+function SyncStatus({ payload }: { payload: AdminInstallationsPayload }) {
+  const { t } = useT("admin")
+  const sync = payload.latest_sync
+  const attempted = sync.last_attempted_at ? new Date(sync.last_attempted_at).toLocaleString() : t("installations.sync_never")
+  const successful = sync.last_successful_at ? new Date(sync.last_successful_at).toLocaleString() : t("installations.sync_never")
+  const details = [
+    t("installations.sync_attempted", { value: attempted }),
+    t("installations.sync_successful", { value: successful }),
+    sync.records_seen == null ? null : t("installations.sync_records", { count: sync.records_seen }),
+    sync.duration_ms == null ? null : t("installations.sync_duration", { value: sync.duration_ms })
+  ].filter(Boolean).join(" · ")
+
+  return (
+    <div className={`rounded border px-4 py-3 text-sm ${sync.error_class ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100" : "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"}`}>
+      <div className="font-medium text-gray-900 dark:text-gray-100">{t("installations.sync_status")}</div>
+      <div className="mt-1">{details}</div>
+      {sync.error_class ? <div className="mt-1 font-mono text-xs">{sync.error_class}: {sync.error_message}</div> : null}
+    </div>
   )
 }
 
@@ -173,7 +195,16 @@ function RepositoriesTable({ repositories }: { repositories: InstallationReposit
               <tr key={repository.id}>
                 <td className="px-4 py-3 font-mono">{repository.slug}</td>
                 <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{repository.owner_user.email_address}</td>
-                <td className="px-4 py-3">{repository.app_credential_active ? <span className="font-medium text-emerald-700 dark:text-emerald-300">{t("installations.app_active")}</span> : <span className="text-gray-400">{t("installations.no_active_installation")}</span>}</td>
+                <td className="px-4 py-3">
+                  {repository.app_credential_active ? (
+                    <span className="font-medium text-emerald-700 dark:text-emerald-300">{t("installations.app_active")}</span>
+                  ) : (
+                    <div>
+                      <span className="text-gray-700 dark:text-gray-200">{t("installations.no_active_installation")}</span>
+                      {repository.app_credential_inactive_reason ? <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{fallbackReasonLabel(repository.app_credential_inactive_reason, t)}</div> : null}
+                    </div>
+                  )}
+                </td>
                 <td className="px-4 py-3">{repository.app_credential_active ? <span className="text-gray-400">{t("installations.not_used")}</span> : <span className="font-medium text-amber-800 dark:text-amber-200">{t("installations.used_as_fallback")}</span>}</td>
                 <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
                   {repository.account_login}
@@ -195,7 +226,20 @@ function InstallationsError({ error }: { error: Error }) {
   return <PanelMessage tone="error">{message}</PanelMessage>
 }
 
+function fallbackReasonLabel(reason: string, t: (key: string) => string) {
+  const keys = new Set([
+    "github_app_not_registered",
+    "github_app_private_key_missing",
+    "github_repository_ids_missing",
+    "repository_installation_link_missing",
+    "linked_installation_removed",
+    "removed_installation_for_owner",
+    "owner_mismatch_or_not_installed",
+    "no_installations_synced"
+  ])
+  return keys.has(reason) ? t(`installations.reasons.${reason}`) : reason
+}
+
 function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
   return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}>{children}</div>
 }
-

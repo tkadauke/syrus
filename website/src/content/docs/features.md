@@ -607,6 +607,13 @@ falls back to the user's PAT. Jobs persist the selected `credential_mode`
 as `app` or `pat` so operators can tell which credential path was used for
 that run.
 
+The admin **Installations** page includes a lightweight GitHub App
+diagnostic. It shows recent installation sync status, repository-to-
+installation link state, removed installation rows, missing GitHub IDs,
+and the concrete reason a repository is falling back to PAT. Admin chat
+agents can read the same diagnostic through
+`admin_github_app_installation_diagnostic`.
+
 Clone remotes use anonymous GitHub URLs. Token-bearing push URLs are
 constructed for the individual push command and are not written into
 `.git/config`.

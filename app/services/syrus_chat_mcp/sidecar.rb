@@ -73,6 +73,7 @@ module SyrusChatMcp
       AdminRetryStepTool,
       AdminCleanupWorkspaceTool,
       AdminRefreshInstallationsTool,
+      AdminGithubAppInstallationDiagnosticTool,
       ForceFailJobTool
     ].freeze
 

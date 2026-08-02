@@ -298,6 +298,7 @@ Rails.application.routes.draw do
           post "console/disable_merge_train", to: "console#disable_merge_train"
           post "console/clear_github_cache", to: "console#clear_github_cache"
           get "installations", to: "installations#index"
+          get "installations/diagnostic", to: "installations#diagnostic"
           post "installations/refresh", to: "installations#refresh"
           get "supervisor_chat", to: "supervisor_chats#show"
           resources :invitations, only: %i[ index create destroy ]

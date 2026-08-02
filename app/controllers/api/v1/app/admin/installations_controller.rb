@@ -7,6 +7,10 @@ module Api
             render json: ::Admin::Installations::Payload.new.show
           end
 
+          def diagnostic
+            render json: GithubAppInstallationDiagnostic.new(slug: params[:repository]).show
+          end
+
           def refresh
             SyncInstallationsJob.perform_later(Current.user.id)
             render json: ::Admin::Installations::Payload.new.show.merge(ok: true, message: "Installation sync queued.")

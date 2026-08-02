@@ -290,6 +290,12 @@
     "credential_modes": "Credential modes",
     "refresh": "Refresh installation list",
     "refreshing": "Refreshing...",
+    "sync_status": "Latest installation sync",
+    "sync_never": "never",
+    "sync_attempted": "attempted {{value}}",
+    "sync_successful": "successful {{value}}",
+    "sync_records": "{{count}} records",
+    "sync_duration": "{{value}} ms",
     "col_pat": "PAT-only",
     "col_app": "App-installed",
     "install_on_pat_repos": "Install App on PAT-only repositories",
@@ -317,7 +323,17 @@
     "compare_pat_4": "Shares your personal API rate limit",
     "compare_app_4": "Independent App rate limit",
     "compare_pat_5": "Required as fallback for PAT-only repos",
-    "compare_app_5": "Does not replace PAT fallback for repos without an installation"
+    "compare_app_5": "Does not replace PAT fallback for repos without an installation",
+    "reasons": {
+      "github_app_not_registered": "GitHub App is not registered.",
+      "github_app_private_key_missing": "GitHub App private key is missing.",
+      "github_repository_ids_missing": "GitHub owner or repository IDs are missing.",
+      "repository_installation_link_missing": "An active owner installation exists, but this repository is not linked.",
+      "linked_installation_removed": "The linked installation was removed.",
+      "removed_installation_for_owner": "The owner has a removed installation row.",
+      "owner_mismatch_or_not_installed": "No active installation matches this repository owner.",
+      "no_installations_synced": "No installations have been synced."
+    }
   },
   "stuck": {
     "heading": "Stuck Things",

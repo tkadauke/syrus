@@ -34,6 +34,7 @@ RSpec.describe "SyrusChatMcp admin tools" do
     "admin_retry_step" => { workflow_id: 1, step_slug: "implement" },
     "admin_cleanup_workspace" => { workflow_id: 1 },
     "admin_refresh_installations" => {},
+    "admin_github_app_installation_diagnostic" => {},
     "force_fail_job" => { job_id: 1 }
   }.freeze
 
@@ -195,6 +196,21 @@ RSpec.describe "SyrusChatMcp admin tools" do
       run_id: run.id
     )
     expect(payload.fetch(:items).first.fetch(:repair_plan)).to include(action: "mark_worker_died")
+  end
+
+  it "returns the GitHub App installation diagnostic for admins" do
+    AppSetting.current.update!(
+      github_app_id: 42,
+      github_app_slug: "operator-syrus",
+      github_app_private_key_pem: OpenSSL::PKey::RSA.generate(2048).to_pem
+    )
+
+    response = call_tool(admin_session, "admin_github_app_installation_diagnostic", { repository: repository.slug })
+    payload = payload_for(response)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(payload.fetch(:global)).to include(jwt_usable: true)
+    expect(payload.fetch(:repositories).first).to include(slug: repository.slug)
   end
 
   it "returns queue detail for a valid tab and an error for invalid tabs" do

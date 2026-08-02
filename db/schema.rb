@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_02_023000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_02_024500) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -55,6 +55,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_023000) do
     t.integer "chat_coding_workspace_budget_mb", default: 0, null: false
     t.datetime "created_at", null: false
     t.bigint "github_app_id"
+    t.string "github_app_installation_sync_error_class"
+    t.text "github_app_installation_sync_error_message"
+    t.integer "github_app_installation_sync_duration_ms"
+    t.integer "github_app_installation_sync_records_seen"
+    t.datetime "github_app_installation_sync_started_at"
+    t.datetime "github_app_installation_sync_succeeded_at"
     t.text "github_app_private_key_pem"
     t.datetime "github_app_registered_at"
     t.string "github_app_slug"

@@ -7,20 +7,46 @@ class GithubAppInstallationSyncer
   def sync
     return [] unless AppSetting.github_app_registered?
 
-    seen_ids = []
-    records = @client.installations.map do |payload|
-      attrs = normalize(payload)
-      seen_ids << attrs[:github_installation_id]
-      installation = Installation.find_or_initialize_by(github_installation_id: attrs[:github_installation_id])
-      installation.assign_attributes(attrs.merge(user: user_for(attrs[:account_login]), removed_at: nil))
-      installation.save!
-      InstallationLinker.link_repositories_for(installation)
-      installation
-    end
+    started_at = Time.current
+    AppSetting.current.update!(
+      github_app_installation_sync_started_at: started_at,
+      github_app_installation_sync_error_class: nil,
+      github_app_installation_sync_error_message: nil
+    )
 
-    Installation.where.not(github_installation_id: seen_ids).where(removed_at: nil).find_each do |installation|
-      installation.update!(removed_at: Time.current)
-      InstallationLinker.unlink_repositories_for(installation)
+    records = nil
+    begin
+      seen_ids = []
+      records = @client.installations.map do |payload|
+        attrs = normalize(payload)
+        seen_ids << attrs[:github_installation_id]
+        installation = Installation.find_or_initialize_by(github_installation_id: attrs[:github_installation_id])
+        installation.assign_attributes(attrs.merge(user: user_for(attrs[:account_login]), removed_at: nil))
+        installation.save!
+        InstallationLinker.link_repositories_for(installation)
+        installation
+      end
+
+      Installation.where.not(github_installation_id: seen_ids).where(removed_at: nil).find_each do |installation|
+        installation.update!(removed_at: Time.current)
+        InstallationLinker.unlink_repositories_for(installation)
+      end
+
+      AppSetting.current.update!(
+        github_app_installation_sync_succeeded_at: Time.current,
+        github_app_installation_sync_duration_ms: ((Time.current - started_at) * 1000).round,
+        github_app_installation_sync_records_seen: records.size,
+        github_app_installation_sync_error_class: nil,
+        github_app_installation_sync_error_message: nil
+      )
+    rescue => e
+      AppSetting.current.update!(
+        github_app_installation_sync_duration_ms: ((Time.current - started_at) * 1000).round,
+        github_app_installation_sync_records_seen: records&.size,
+        github_app_installation_sync_error_class: e.class.name,
+        github_app_installation_sync_error_message: e.message
+      )
+      raise
     end
 
     records

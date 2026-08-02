@@ -26,7 +26,11 @@ RSpec.describe "API: /api/v1/app/admin/installations", type: :request do
 
   it "returns repository credential status and PAT owner install links" do
     sign_in_as(admin)
-    AppSetting.current.update!(github_app_id: 123, github_app_slug: "operator-syrus")
+    AppSetting.current.update!(
+      github_app_id: 123,
+      github_app_slug: "operator-syrus",
+      github_app_private_key_pem: OpenSSL::PKey::RSA.generate(2048).to_pem
+    )
     installation = Factories.installation(user: admin, account_login: "acme")
     app_repo = Factories.repository(
       user: admin,
@@ -69,12 +73,14 @@ RSpec.describe "API: /api/v1/app/admin/installations", type: :request do
       "slug" => app_repo.slug,
       "owner_user" => include("id" => admin.id, "email_address" => admin.email_address),
       "app_credential_active" => true,
+      "app_credential_inactive_reason" => nil,
       "credential_mode" => "app"
     )
     expect(pat_row).to include(
       "slug" => pat_repo.slug,
       "owner_user" => include("id" => admin.id, "email_address" => admin.email_address),
       "app_credential_active" => false,
+      "app_credential_inactive_reason" => "owner_mismatch_or_not_installed",
       "credential_mode" => "pat"
     )
     expect(other_row).to include(
@@ -85,6 +91,29 @@ RSpec.describe "API: /api/v1/app/admin/installations", type: :request do
       "owner" => "globex",
       "repository_count" => 2,
       "install_url" => "https://github.com/apps/operator-syrus/installations/new/permissions?target_id=101&repository_ids[]=202&repository_ids[]=201"
+    )
+    expect(body["latest_sync"]).to include(
+      "last_attempted_at" => nil,
+      "records_seen" => nil
+    )
+  end
+
+  it "returns a targeted installation diagnostic" do
+    sign_in_as(admin)
+    AppSetting.current.update!(
+      github_app_id: 123,
+      github_app_slug: "operator-syrus",
+      github_app_private_key_pem: OpenSSL::PKey::RSA.generate(2048).to_pem
+    )
+    repo = Factories.repository(user: admin, owner: "acme", name: "widgets", github_owner_id: 100, github_repository_id: nil)
+
+    get "/api/v1/app/admin/installations/diagnostic", params: { repository: repo.slug }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("repositories", 0)).to include(
+      "slug" => "acme/widgets",
+      "install_url_missing_reason" => "github_repository_id_missing",
+      "recommended_next_action" => "reselect_repository_to_capture_github_ids"
     )
   end
 

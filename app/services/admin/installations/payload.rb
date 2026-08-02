@@ -5,11 +5,14 @@ module Admin
 
       def show
         repositories = Repository.includes(:user, :installation).order(:owner, :name).to_a
+        diagnostic = GithubAppInstallationDiagnostic.new.show
+        diagnostic_by_id = diagnostic.fetch(:repositories).index_by { |repository| repository.fetch(:id) }
         {
           github_app_registered: AppSetting.github_app_registered?,
           github_app_slug: AppSetting.current.github_app_slug,
+          latest_sync: diagnostic.fetch(:latest_sync),
           pat_owner_groups: pat_owner_groups(repositories),
-          repositories: repositories.map { |repository| serialize_repository(repository) }
+          repositories: repositories.map { |repository| serialize_repository(repository, diagnostic_by_id.fetch(repository.id, {})) }
         }
       end
 
@@ -28,7 +31,7 @@ module Admin
           end
       end
 
-      def serialize_repository(repository)
+      def serialize_repository(repository, diagnostic)
         {
           id: repository.id,
           slug: repository.slug,
@@ -40,6 +43,8 @@ module Admin
             admin: repository.user.admin?
           },
           app_credential_active: !!repository.app_credential_active?,
+          app_credential_inactive_reason: diagnostic[:app_credential_inactive_reason],
+          recommended_next_action: diagnostic[:recommended_next_action],
           credential_mode: repository.credential_mode,
           account_login: repository.installation&.account_login || repository.owner,
           installation_removed_at: repository.installation&.removed_at,

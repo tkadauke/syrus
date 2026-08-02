@@ -117,6 +117,42 @@ The URL slug of the GitHub App (appears in `https://github.com/apps/<slug>`).
 
 When the GitHub App was registered. Informational; does not affect runtime behavior.
 
+### github_app_installation_sync_started_at
+
+**Type:** datetime
+
+When the latest GitHub App installation sync attempt started. Used by the admin installation diagnostic and chat MCP diagnostic tool to distinguish a stale or never-run sync from a missing App installation.
+
+### github_app_installation_sync_succeeded_at
+
+**Type:** datetime
+
+When the latest GitHub App installation sync completed successfully.
+
+### github_app_installation_sync_duration_ms
+
+**Type:** integer
+
+Duration of the latest GitHub App installation sync attempt in milliseconds.
+
+### github_app_installation_sync_records_seen
+
+**Type:** integer
+
+Number of installation records returned by GitHub during the latest successful sync attempt.
+
+### github_app_installation_sync_error_class
+
+**Type:** string
+
+Ruby exception class from the latest failed installation sync attempt, cleared after a successful sync.
+
+### github_app_installation_sync_error_message
+
+**Type:** text
+
+Exception message from the latest failed installation sync attempt, cleared after a successful sync.
+
 ## Video walkthroughs
 
 ### video_retention_days
