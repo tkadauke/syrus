@@ -589,6 +589,13 @@ pre-deploy timings do not hide whether a new deploy helped; admins can switch
 to all revisions when investigating rolling-deploy overlap. The in-app
 diagnostics buffer is cache-backed, capped at 200 events, and expires after 6
 hours; structured log retention follows the deployment's log sink policy.
+Implementation workflow agents working on `tkadauke/syrus` or a registered
+fork of that repository also receive the read-only
+`read_performance_diagnostics` MCP tool. Scheduled prompts that target Syrus
+performance work can ask the agent to call it before editing code. The tool
+uses the same current-revision/all-revisions filtering as the admin payload,
+returns bounded grouped summaries, and only includes sanitized raw recent
+events when explicitly requested.
 
 ## Direct Jobs
 

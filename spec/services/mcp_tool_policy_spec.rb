@@ -64,6 +64,40 @@ RSpec.describe McpToolPolicy do
       expect(tools).to include(SyrusMcp::ReportMainConcernTool)
     end
 
+    it "includes performance diagnostics for tkadauke/syrus implementation runs" do
+      syrus_repository = Factories.repository(user: user, owner: "tkadauke", name: "syrus")
+      syrus_run = Factories.job(repository: syrus_repository, user: user).initial_run
+      context = McpToolContext.from_run(syrus_run)
+
+      expect(described_class.for(context)).to include(SyrusMcp::ReadPerformanceDiagnosticsTool)
+    end
+
+    it "includes performance diagnostics for registered Syrus forks" do
+      syrus_fork = Factories.repository(user: user, owner: "acme", name: "syrus-fork", upstream_owner: "tkadauke", upstream_name: "syrus")
+      syrus_run = Factories.job(repository: syrus_fork, user: user).initial_run
+      context = McpToolContext.from_run(syrus_run)
+
+      expect(described_class.for(context)).to include(SyrusMcp::ReadPerformanceDiagnosticsTool)
+    end
+
+    it "excludes performance diagnostics for normal non-Syrus repositories" do
+      context = McpToolContext.from_run(run)
+
+      expect(described_class.for(context)).not_to include(SyrusMcp::ReadPerformanceDiagnosticsTool)
+    end
+
+    it "excludes performance diagnostics from non-implementation workflow roles" do
+      syrus_repository = Factories.repository(user: user, owner: "tkadauke", name: "syrus")
+      context = McpToolContext.new(
+        surface: :run,
+        role: AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER,
+        user: user,
+        repository: syrus_repository
+      )
+
+      expect(described_class.for(context)).not_to include(SyrusMcp::ReadPerformanceDiagnosticsTool)
+    end
+
     it "returns submit_summary, submit_test_plan, and submit_reconciliation_feedback for the reconciliation_feedback role" do
       context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_RECONCILIATION_FEEDBACK, user: user)
       tools   = described_class.for(context)

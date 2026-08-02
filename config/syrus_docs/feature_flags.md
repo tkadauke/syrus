@@ -83,6 +83,8 @@ Request phase instrumentation covers complex app/admin payloads that are likely 
 
 The admin performance endpoint returns the raw recent events plus grouped summaries for slow requests, slow phases, and SQL fingerprints. Each event is stamped with `app_revision` from `SyrusVersion.current` / `GIT_SHA`; the admin payload defaults to the current revision so stale pre-deploy timings do not dominate post-deploy analysis, with an all-revisions mode available for rolling-deploy overlap debugging. The diagnostics buffer is kept in a per-process memory ring capped at 200 events and flushed opportunistically to `Rails.cache` under `syrus:performance_logging:events:v1` at most once every 10 seconds, with a 6-hour cache expiry. In production that cache flush uses the configured cache store (`solid_cache_store`), but slow-event emission does not write Solid Cache for every event. Events are also written to structured application logs, so external log retention follows the deployment's log sink policy.
 
+Implementation workflow agents working on `tkadauke/syrus` or a registered fork whose upstream is `tkadauke/syrus` receive the read-only `read_performance_diagnostics` MCP tool. Scheduled prompts that ask agents to improve Syrus performance can tell the agent to call this tool before changing code. It returns the same current-revision/all-revisions filtering semantics as the admin performance payload, plus bounded grouped slow-request, slow-phase, and SQL fingerprint summaries. Raw recent events are omitted unless `include_events` is true, still capped by `limit`, and sanitized to omit SQL samples, query strings, and obvious secret-bearing metadata.
+
 ## unified_work_engine_reconciler
 
 **Category:** Operations
