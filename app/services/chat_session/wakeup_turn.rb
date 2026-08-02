@@ -9,13 +9,15 @@ class ChatSession::WakeupTurn
 
     ApplicationRecord.transaction do
       locked_chat = ChatSession.lock.find(@chat_session.id)
+      content = {
+        "text" => @wakeup.prompt,
+        "requested_by" => "wakeup",
+        "wakeup_id" => @wakeup.id
+      }.merge(@wakeup.metadata.presence || {})
+
       message = locked_chat.messages.create!(
         role: "user",
-        content: {
-          "text" => @wakeup.prompt,
-          "requested_by" => "wakeup",
-          "wakeup_id" => @wakeup.id
-        }
+        content: content
       )
       locked_chat.update!(
         last_message_at: Time.current,

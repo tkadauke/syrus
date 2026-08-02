@@ -175,19 +175,28 @@ module ChatIndexPayload
   end
 
   def supervisor_unread_summary(chat_session)
-    unread_messages = chat_session.messages.where(role: "system")
-    unread_messages = unread_messages.where("created_at > ?", chat_session.last_read_at) if chat_session.last_read_at.present?
+    unread_events = chat_session.scoped_events
+    unread_events = unread_events.where("created_at > ?", chat_session.last_read_at) if chat_session.last_read_at.present?
+
+    legacy_unread_messages = chat_session.messages.where(role: "system")
+    legacy_unread_messages = legacy_unread_messages.where("created_at > ?", chat_session.last_read_at) if chat_session.last_read_at.present?
 
     severity_rank = { "info" => 0, "warning" => 1, "critical" => 2 }
-    severities = unread_messages.limit(200).filter_map do |message|
+    event_severities = unread_events.limit(200).filter_map do |event|
+      severity = event.payload["severity"].to_s
+      severity if severity_rank.key?(severity)
+    end
+    legacy_severities = legacy_unread_messages.limit(200).filter_map do |message|
       content = message.content
       next unless content.is_a?(Hash)
+      next if content.dig("supervisor_event", "scoped_event_id").present?
 
       severity = content.dig("supervisor_event", "severity").to_s
       severity if severity_rank.key?(severity)
     end
 
-    unread_count = unread_messages.count
+    unread_count = unread_events.count + legacy_severities.size
+    severities = event_severities + legacy_severities
     {
       unread: unread_count.positive? || (chat_unread?(chat_session) && chat_session.messages.exists?),
       supervisor_unread_count: unread_count,

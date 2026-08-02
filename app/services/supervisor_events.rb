@@ -26,8 +26,8 @@ class SupervisorEvents
     def publish_for_admin!(admin, event, repository:, job:, epic:, proposal:)
       chat = SupervisorChat.ensure_for!(admin)
 
-      message = nil
-      delivered = false
+      scoped_event = nil
+      created = false
       now = Time.current
       ChatSession.transaction(requires_new: true) do
         scoped_event = ChatScopedEvent.record!(
@@ -40,21 +40,10 @@ class SupervisorEvents
           proposal: proposal,
           dedupe_key: event["dedupe_key"]
         )
-        scoped_event.lock!
-        delivered = scoped_event.delivered?
-        next if delivered
-
-        message = chat.messages.create!(
-          role: "system",
-          content: {
-            "text" => message_text(event),
-            "supervisor_event" => scoped_event.payload.merge("scoped_event_id" => scoped_event.id)
-          }
-        )
-        scoped_event.mark_delivered!(chat_message: message)
-        chat.update!(last_message_at: now, last_read_at: nil)
+        created = scoped_event.previously_new_record?
+        chat.update!(last_message_at: now, last_read_at: nil) if created
       end
-      return if delivered
+      return unless created
 
       AppEvents.broadcast(
         user: admin,
@@ -63,8 +52,9 @@ class SupervisorEvents
         id: chat.id,
         changed: [ "last_message_at", "last_read_at", "supervisor_event" ]
       )
+      ChatScopedEventEvaluatorJob.perform_later(scoped_event.id, chat.id)
 
-      message
+      scoped_event
     end
 
     def normalize_event(kind:, severity:, subject:, repository:, actor:, summary:, details:, dedupe_key:)

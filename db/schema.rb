@@ -399,6 +399,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_180000) do
     t.integer "chat_session_id", null: false
     t.datetime "created_at", null: false
     t.datetime "fire_at", null: false
+    t.json "metadata"
     t.text "prompt", null: false
     t.string "state", default: "pending", null: false
     t.datetime "updated_at", null: false

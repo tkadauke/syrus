@@ -32,6 +32,10 @@ messages and trims oversized content/tool outputs to a byte budget. Evaluators
 see only read-only MCP tools and persist a structured decision (`no_op`,
 `respond`, or `act`) on the `ChatScopedEvent`; temporary provider transcript
 artifacts are removed and the live chat provider session is left untouched.
+`no_op` decisions do not create visible chat messages. `respond` and `act`
+decisions create an immediate `ChatWakeup` containing the scoped event,
+evaluator decision, and handoff prompt; the live chat turn is instructed to
+refresh current Syrus state before relying on event data.
 
 The chat composer recognizes leading slash commands. Typing `/` opens the
 command palette.

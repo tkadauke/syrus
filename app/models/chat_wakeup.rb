@@ -9,6 +9,8 @@ class ChatWakeup < ApplicationRecord
   validates :prompt, presence: true
   validates :fire_at, presence: true
 
+  attribute :metadata, default: -> { {} }
+
   def enqueue_fire_job
     ChatWakeupFireJob.set(wait_until: fire_at).perform_later(id)
   end

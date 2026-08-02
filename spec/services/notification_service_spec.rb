@@ -65,17 +65,19 @@ RSpec.describe NotificationService do
         body: "JOB-1 failed after repeated retries"
       )
 
-      message = admin.chat_sessions.find_by!(system_kind: "supervisor").messages.last
-      expect(message.content["supervisor_event"]).to include(
+      chat = admin.chat_sessions.find_by!(system_kind: "supervisor")
+      event = chat.scoped_events.last
+      expect(event.payload).to include(
         "kind" => "job_failed",
         "severity" => "critical",
         "summary" => "JOB-1 failed after repeated retries"
       )
-      expect(message.content.dig("supervisor_event", "details")).to include(
+      expect(event.payload["details"]).to include(
         "notification_kind" => "job_failed",
         "job_id" => job.id,
         "pr_url" => "https://github.com/acme/widgets/pull/1"
       )
+      expect(chat.messages).to be_empty
     end
 
     it "rejects unknown notification kinds" do

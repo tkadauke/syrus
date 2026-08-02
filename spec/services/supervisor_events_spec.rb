@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe SupervisorEvents, type: :service do
+  include ActiveJob::TestHelper
+
   let!(:feature) do
     Feature.find_or_create_by!(slug: "admin_supervisor_chat") do |record|
       record.category = "Operations"
@@ -44,11 +46,11 @@ RSpec.describe SupervisorEvents, type: :service do
     expect(ChatSession.where(system_kind: "supervisor")).to be_empty
   end
 
-  it "creates scoped delivery records and structured system messages for every admin supervisor chat" do
+  it "creates scoped events and evaluator jobs for every admin supervisor chat" do
     enable_supervisor_chat!
     job = Factories.job_record(user: admin, repository: repository, issue_number: 12, issue_title: "Repair main")
 
-    messages = described_class.publish!(
+    events = described_class.publish!(
       kind: "main_broken",
       severity: "critical",
       subject: "Main branch broken",
@@ -60,41 +62,32 @@ RSpec.describe SupervisorEvents, type: :service do
       dedupe_key: "main_broken:#{repository.id}:abc123"
     )
 
-    expect(messages.size).to eq(2)
+    expect(events.size).to eq(2)
     expect(ChatScopedEvent.count).to eq(2)
     expect(non_admin.chat_sessions.where(system_kind: "supervisor")).to be_empty
 
-    message = admin.chat_sessions.find_by!(system_kind: "supervisor").messages.last
-    scoped_event = ChatScopedEvent.find_by!(chat_session: message.chat_session)
+    chat = admin.chat_sessions.find_by!(system_kind: "supervisor")
+    scoped_event = ChatScopedEvent.find_by!(chat_session: chat)
     expect(scoped_event).to have_attributes(
       source_kind: "main_broken",
-      delivery_state: "delivered",
+      delivery_state: "pending",
       dedupe_key: "main_broken:#{repository.id}:abc123",
       repository_id: repository.id,
       job_id: job.id,
-      chat_message_id: message.id
+      chat_message_id: nil
     )
-    expect(scoped_event.delivered_at).to be_present
+    expect(scoped_event.delivered_at).to be_nil
     expect(scoped_event.payload).to include(
       "kind" => "main_broken",
       "severity" => "critical",
       "summary" => "CI failed at abc123"
     )
-
-    expect(message.role).to eq("system")
-    expect(message.content["text"]).to include("[CRITICAL] Main branch broken")
-    expect(message.content["supervisor_event"]).to include(
-      "kind" => "main_broken",
-      "severity" => "critical",
-      "subject" => "Main branch broken",
-      "summary" => "CI failed at abc123",
-      "dedupe_key" => "main_broken:#{repository.id}:abc123",
-      "scoped_event_id" => scoped_event.id
-    )
-    expect(message.content.dig("supervisor_event", "repository")).to include(
+    expect(scoped_event.payload["repository"]).to include(
       "id" => repository.id,
       "slug" => repository.slug
     )
+    expect(chat.messages).to be_empty
+    expect(ChatScopedEventEvaluatorJob).to have_been_enqueued.with(scoped_event.id, chat.id)
   end
 
   it "dedupes repeated events with the same key in recent supervisor history" do
@@ -112,13 +105,13 @@ RSpec.describe SupervisorEvents, type: :service do
       )
     end
 
-    expect(admin.chat_sessions.find_by!(system_kind: "supervisor").messages.count).to eq(1)
-    expect(other_admin.chat_sessions.find_by!(system_kind: "supervisor").messages.count).to eq(1)
+    expect(admin.chat_sessions.find_by!(system_kind: "supervisor").messages.count).to eq(0)
+    expect(other_admin.chat_sessions.find_by!(system_kind: "supervisor").messages.count).to eq(0)
     expect(admin.chat_sessions.find_by!(system_kind: "supervisor").scoped_events.count).to eq(1)
     expect(other_admin.chat_sessions.find_by!(system_kind: "supervisor").scoped_events.count).to eq(1)
   end
 
-  it "does not enqueue chat turns for scoped supervisor event delivery" do
+  it "enqueues evaluator jobs instead of chat turns for scoped supervisor event delivery" do
     enable_supervisor_chat!
 
     expect {
@@ -132,6 +125,7 @@ RSpec.describe SupervisorEvents, type: :service do
         dedupe_key: "job_failed:1"
       )
     }.not_to have_enqueued_job(ChatTurnJob)
+    expect(ChatScopedEventEvaluatorJob).to have_been_enqueued.exactly(2).times
   end
 
   it "marks supervisor chats unread and broadcasts a chat sidebar update" do

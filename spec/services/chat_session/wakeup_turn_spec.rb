@@ -10,7 +10,11 @@ RSpec.describe ChatSession::WakeupTurn do
       chat_session: chat_session,
       user: user,
       prompt: "Check JOB-123 and reschedule if it is not done.",
-      fire_at: 5.minutes.from_now
+      fire_at: 5.minutes.from_now,
+      metadata: {
+        "scoped_event_wakeup" => true,
+        "scoped_event_id" => 123
+      }
     )
   end
 
@@ -25,7 +29,9 @@ RSpec.describe ChatSession::WakeupTurn do
     expect(message.content).to include(
       "text" => "Check JOB-123 and reschedule if it is not done.",
       "requested_by" => "wakeup",
-      "wakeup_id" => wakeup.id
+      "wakeup_id" => wakeup.id,
+      "scoped_event_wakeup" => true,
+      "scoped_event_id" => 123
     )
     expect(chat_session.reload.last_message_at).to be_present
     expect(ChatTurnJob).to have_been_enqueued.with(chat_session.id, message.id).on_queue("chat")

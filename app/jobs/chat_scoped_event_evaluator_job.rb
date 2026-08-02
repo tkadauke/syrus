@@ -10,6 +10,7 @@ class ChatScopedEventEvaluatorJob < ApplicationJob
     return unless event
     return if chat_session_id.present? && event.chat_session_id != chat_session_id.to_i
 
-    ChatEventEvaluator.new(event: event, chat_session: event.chat_session).call
+    result = ChatEventEvaluator.new(event: event, chat_session: event.chat_session).call
+    ChatScopedEventWakeup.new(event: event.reload, evaluator_result: result).call
   end
 end
