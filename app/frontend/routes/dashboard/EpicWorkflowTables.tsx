@@ -157,14 +157,14 @@ function MobileEpicsList({ items, selectedIds, onToggleOne, prefix }: { items: D
 
 function MobileEpicRow({ epic, selected, onToggleOne, prefix }: { epic: DashboardEpicItem; selected: boolean; onToggleOne: (id: number) => void; prefix: string }) {
   const { t } = useT("dashboard")
+  const showProgress = epicProgressVisible(epic)
   return (
-    <article aria-label={`${epic.display_number} ${epic.title}`} className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 px-4 py-3 text-gray-700 dark:text-gray-200">
+    <article aria-label={`${epic.display_number} ${epic.title}`} className={`grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 overflow-hidden px-4 pt-3 text-gray-700 dark:text-gray-200 ${showProgress ? "" : "pb-3"}`}>
       <input aria-label={t("select_item", { title: epic.title })} checked={selected} className="mt-1" onChange={() => onToggleOne(epic.id)} type="checkbox" />
-      <div className="min-w-0">
+      <div className="min-w-0 pb-3">
         <div className="mb-1 flex flex-wrap gap-1">
           <NeutralStatePill state={epic.state} />
           <EpicStuckBadge stuck={epic.stuck} />
-          <EpicProgressBar epic={epic} />
           <EpicCommitsBehindBadge commits={epic.max_commits_behind_base} />
         </div>
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -179,6 +179,11 @@ function MobileEpicRow({ epic, selected, onToggleOne, prefix }: { epic: Dashboar
           <OwnerBadge badge={epic.owner_badge} />
         </div>
       </div>
+      {showProgress ? (
+        <div className="col-span-2 -mx-4">
+          <EpicProgressBar epic={epic} fullWidth />
+        </div>
+      ) : null}
     </article>
   )
 }
@@ -199,14 +204,19 @@ function EpicCell({ epic, column, selected, onToggleOne, prefix }: { epic: Dashb
     )
   }
   if (column === "state") {
+    const showProgress = epicProgressVisible(epic)
     return (
-      <td className="px-4 py-3">
+      <td className={showProgress ? "relative px-4 py-3 pb-5 align-top" : "px-4 py-3 align-top"}>
         <div className="flex flex-wrap gap-1">
           <NeutralStatePill state={epic.state} />
           <EpicStuckBadge stuck={epic.stuck} />
-          <EpicProgressBar epic={epic} />
           <EpicCommitsBehindBadge commits={epic.max_commits_behind_base} />
         </div>
+        {showProgress ? (
+          <div className="absolute inset-x-0 bottom-0">
+            <EpicProgressBar epic={epic} fullWidth />
+          </div>
+        ) : null}
       </td>
     )
   }
@@ -217,6 +227,10 @@ function EpicCell({ epic, column, selected, onToggleOne, prefix }: { epic: Dashb
   if (column === "updated") return <TimestampCell value={epic.updated_at} />
 
   return <TimestampCell value={epicDateValue(epic, column)} />
+}
+
+function epicProgressVisible(epic: DashboardEpicItem) {
+  return epic.state === "in_progress" && epic.jobs_count > 0
 }
 
 export function WorkflowsTable({ items, columns, prefix, sortState }: { items: DashboardWorkflowItem[]; columns: string[]; prefix: string; sortState: DashboardSortState }) {

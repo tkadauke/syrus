@@ -1,7 +1,13 @@
 import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { MemoryRouter } from "react-router-dom"
+import { afterEach, describe, expect, it } from "vitest"
 import type { DashboardEpicItem } from "../api/dashboard"
 import { EpicProgressBar } from "./dashboard/components"
+import { EpicsTable } from "./dashboard/EpicWorkflowTables"
+import type { DashboardSortState } from "./dashboard/helpers"
+
+const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
 
 function epicItem(overrides: Partial<DashboardEpicItem> = {}): DashboardEpicItem {
   return {
@@ -96,3 +102,75 @@ describe("EpicProgressBar", () => {
     expect(segment.style.width).toBe("50%")
   })
 })
+
+describe("EpicsTable progress placement", () => {
+  afterEach(() => {
+    if (originalMatchMedia) {
+      Object.defineProperty(window, "matchMedia", originalMatchMedia)
+    } else {
+      Reflect.deleteProperty(window, "matchMedia")
+    }
+  })
+
+  it("places the mobile progress bar after the epic content", () => {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({
+        matches: false,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined
+      })
+    })
+
+    renderEpicsTable()
+
+    const title = screen.getByRole("link", { name: "EPIC-1 Test Epic" })
+    const progress = screen.getByRole("progressbar")
+    expect(title.compareDocumentPosition(progress) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(progress.parentElement).toHaveClass("col-span-2")
+  })
+
+  it("places the desktop state-cell progress bar after the badges", () => {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => ({
+        matches: true,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined
+      })
+    })
+
+    renderEpicsTable()
+
+    const badge = screen.getByText("9 commits behind")
+    const progress = screen.getByRole("progressbar")
+    expect(badge.compareDocumentPosition(progress) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(progress).toHaveClass("w-full")
+  })
+})
+
+function renderEpicsTable() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <EpicsTable
+          columns={["checkbox", "state", "epic"]}
+          items={[epicItem({ max_commits_behind_base: 9, job_state_counts: { implemented: 1 } })]}
+          prefix=""
+          sortState={sortState()}
+        />
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+function sortState(): DashboardSortState {
+  return {
+    column: "updated_at",
+    direction: "desc",
+    onSort: () => undefined,
+    pending: false,
+    sortableColumns: []
+  }
+}
