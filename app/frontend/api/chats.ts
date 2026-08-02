@@ -897,6 +897,14 @@ export type ChatJobStatusBlocker = {
   description: string
 }
 
+export type ChatJobStatusActiveWorkflow = {
+  id: number
+  slug: string
+  state: "queued" | "running" | string
+  trigger_kind: string
+  step: string | null
+}
+
 export type ChatJobStatusJobItem = {
   kind: "job"
   job_id: number
@@ -904,6 +912,7 @@ export type ChatJobStatusJobItem = {
   title: string | null
   state: string
   workflow_step: string | null
+  active_workflow: ChatJobStatusActiveWorkflow | null
   pr_number: number | null
   pr_url: string | null
   blocker: ChatJobStatusBlocker | null

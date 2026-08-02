@@ -70,6 +70,7 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
         expect(item["title"]).to eq("Refactor auth")
         expect(item["state"]).to eq("running")
         expect(item["workflow_step"]).to be_nil
+        expect(item["active_workflow"]).to be_nil
         expect(item["pr_number"]).to be_nil
         expect(item["pr_url"]).to be_nil
         expect(item["blocker"]).to be_nil
@@ -110,6 +111,13 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
         get "/api/v1/app/chats/#{chat_session.id}/job_status"
 
         expect(parse_body.first["workflow_step"]).to eq("implement")
+        expect(parse_body.first["active_workflow"]).to include(
+          "id" => workflow.id,
+          "slug" => workflow.slug,
+          "state" => "running",
+          "trigger_kind" => "initial",
+          "step" => "implement"
+        )
       end
 
       it "falls back to trigger_kind as workflow_step when no current step is found" do
@@ -127,6 +135,38 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
         get "/api/v1/app/chats/#{chat_session.id}/job_status"
 
         expect(parse_body.first["workflow_step"]).to eq("retry")
+        expect(parse_body.first["active_workflow"]).to include(
+          "state" => "running",
+          "trigger_kind" => "retry",
+          "step" => "retry"
+        )
+      end
+
+      it "returns active workflow metadata for a queued feedback workflow" do
+        job = Factories.job_record(
+          user: user, repository: repository, state: "implemented", issue_title: "Needs changes",
+          pr_number: 42
+        )
+        workflow = Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "queued")
+
+        ChatProposal.create!(
+          chat_session: chat_session, slug: "needs-changes", kind: "job",
+          title: "Needs changes", body: "Revise it.", state: "confirmed",
+          job: job, repository: repository
+        )
+
+        get "/api/v1/app/chats/#{chat_session.id}/job_status"
+
+        item = parse_body.first
+        expect(item["state"]).to eq("implemented")
+        expect(item["workflow_step"]).to eq("chat_feedback")
+        expect(item["active_workflow"]).to include(
+          "id" => workflow.id,
+          "slug" => workflow.slug,
+          "state" => "queued",
+          "trigger_kind" => "chat_feedback",
+          "step" => "chat_feedback"
+        )
       end
     end
 
@@ -145,6 +185,22 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
 
         blocker = parse_body.first["blocker"]
         expect(blocker["reason"]).to eq("awaiting_review")
+      end
+
+      it "does not return awaiting_review when implemented with a queued chat feedback workflow" do
+        job = Factories.job_record(
+          user: user, repository: repository, state: "implemented", issue_title: "Feedback running"
+        )
+        Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "queued")
+        ChatProposal.create!(
+          chat_session: chat_session, slug: "feedback-running", kind: "job",
+          title: "Feedback running", body: "Review me.", state: "confirmed",
+          job: job, repository: repository
+        )
+
+        get "/api/v1/app/chats/#{chat_session.id}/job_status"
+
+        expect(parse_body.first["blocker"]).to be_nil
       end
 
       it "returns no blocker when implemented and already approved" do

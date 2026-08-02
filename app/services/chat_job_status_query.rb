@@ -78,9 +78,9 @@ class ChatJobStatusQuery
     jobs = jobs.compact.uniq(&:id)
     job_ids = jobs.map(&:id)
 
-    @running_workflows_by_job_id = latest_workflows_by_job_id(job_ids, state: "running")
+    @active_workflows_by_job_id = latest_workflows_by_job_id(job_ids, state: %w[ queued running ])
 
-    workflow_ids = @running_workflows_by_job_id.values.map(&:id)
+    workflow_ids = @active_workflows_by_job_id.values.map(&:id)
     @current_steps_by_workflow_id = current_steps_by_workflow_id(workflow_ids)
 
     landing_job_ids = jobs.select { |job| job.approved? || job.landing? }.map(&:id)
@@ -105,6 +105,7 @@ class ChatJobStatusQuery
       title:         job.title,
       state:         job.state,
       workflow_step: current_workflow_step(job),
+      active_workflow: active_workflow_hash(job),
       pr_number:     job.pr_number,
       pr_url:        job_pr_url(job),
       blocker:       blocker_for(job),
@@ -113,11 +114,28 @@ class ChatJobStatusQuery
   end
 
   def current_workflow_step(job)
-    workflow = @running_workflows_by_job_id&.fetch(job.id, nil)
+    workflow = active_workflow_for(job)
     return nil unless workflow
 
     step = @current_steps_by_workflow_id&.fetch(workflow.id, nil)
     step ? step.kind : workflow.trigger_kind
+  end
+
+  def active_workflow_hash(job)
+    workflow = active_workflow_for(job)
+    return nil unless workflow
+
+    {
+      id: workflow.id,
+      slug: workflow.slug,
+      state: workflow.state,
+      trigger_kind: workflow.trigger_kind,
+      step: current_workflow_step(job)
+    }
+  end
+
+  def active_workflow_for(job)
+    @active_workflows_by_job_id&.fetch(job.id, nil)
   end
 
   def job_pr_url(job)
@@ -127,7 +145,7 @@ class ChatJobStatusQuery
   end
 
   def blocker_for(job)
-    if job.implemented? && job.approved_at.nil?
+    if job.implemented? && job.approved_at.nil? && active_workflow_for(job).nil?
       { reason: "awaiting_review", description: "Waiting for PR review and approval" }
     elsif (job.approved? || job.landing?) && latest_auto_merge_failed?(job)
       { reason: "landing_failed", description: "Auto-merge failed; check the landing queue" }

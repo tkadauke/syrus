@@ -11,10 +11,10 @@ import { StatusPill } from "../components/StatusPill"
 function jobBorderClass(job: ChatJobStatusJobItem): string {
   if (job.blocker) return "border-l-red-500"
 
-  const s = job.state
+  const s = job.active_workflow?.state || job.state
   if (s === "pr_merged" || s === "external_pr_merged" || s === "no_changes") return "border-l-emerald-500"
   if (s === "implemented" || s === "approved" || s === "landing") return "border-l-amber-400"
-  if (s === "open" || s === "coding") return "border-l-blue-500"
+  if (s === "open" || s === "coding" || s === "queued" || s === "running") return "border-l-blue-500"
   return "border-l-gray-300"
 }
 
@@ -37,6 +37,7 @@ function BlockerBanner({ blocker }: { blocker: ChatJobStatusBlocker }) {
 
 function JobStatusCard({ job, onClick }: { job: ChatJobStatusJobItem; onClick: () => void }) {
   const { t } = useT("chat")
+  const workflowStep = job.active_workflow?.step || job.workflow_step
 
   return (
     <button
@@ -55,9 +56,9 @@ function JobStatusCard({ job, onClick }: { job: ChatJobStatusJobItem; onClick: (
                 <CopyableSlug slug={job.slug} className="text-xs" />
               </SlugHoverCard>
             </span>
-            {job.workflow_step ? (
+            {workflowStep ? (
               <span className="truncate text-xs text-gray-500 dark:text-gray-400">
-                {t("job_status_step", { step: job.workflow_step.replaceAll("_", " ") })}
+                {t("job_status_step", { step: workflowStep.replaceAll("_", " ") })}
               </span>
             ) : null}
             {job.pr_number && job.pr_url ? (
@@ -74,7 +75,7 @@ function JobStatusCard({ job, onClick }: { job: ChatJobStatusJobItem; onClick: (
           </div>
           {job.blocker ? <BlockerBanner blocker={job.blocker} /> : null}
         </div>
-        <StatusPill state={job.state} />
+        <StatusPill state={job.active_workflow?.state || job.state} />
       </div>
     </button>
   )

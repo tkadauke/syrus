@@ -151,6 +151,35 @@ RSpec.describe ChatJobStatusQuery do
       result = described_class.call(session)
 
       expect(result.first[:workflow_step]).to eq("implement")
+      expect(result.first[:active_workflow]).to include(
+        id: workflow.id,
+        slug: workflow.slug,
+        state: "running",
+        trigger_kind: "initial",
+        step: "implement"
+      )
+    end
+
+    it "includes active queued workflows and suppresses awaiting review blockers" do
+      _, job = confirmed_job_proposal(title: "Feedback Job", state: "implemented")
+      workflow = Workflow.create!(
+        job: job,
+        user: user,
+        trigger_kind: "chat_feedback",
+        agent_provider: "claude",
+        state: "queued"
+      )
+
+      result = described_class.call(session)
+
+      expect(result.first[:workflow_step]).to eq("chat_feedback")
+      expect(result.first[:active_workflow]).to include(
+        id: workflow.id,
+        state: "queued",
+        trigger_kind: "chat_feedback",
+        step: "chat_feedback"
+      )
+      expect(result.first[:blocker]).to be_nil
     end
 
     it "preloads workflow state for many jobs without per-job workflow queries" do

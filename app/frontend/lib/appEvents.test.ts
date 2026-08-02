@@ -662,7 +662,7 @@ describe("applyAppEvent", () => {
 
   it("does not corrupt job_status cache when update_controls arrives", () => {
     const queryClient = new QueryClient()
-    const jobStatusData = [{ kind: "job", job_id: 1, slug: "JOB-1", title: "Test", state: "open", workflow_step: null, pr_number: null, pr_url: null, blocker: null }]
+    const jobStatusData = [{ kind: "job", job_id: 1, slug: "JOB-1", title: "Test", state: "open", workflow_step: null, active_workflow: null, pr_number: null, pr_url: null, blocker: null }]
     queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "hello")]))
     queryClient.setQueryData(["chats", "9", "job_status"], jobStatusData)
 
@@ -681,7 +681,7 @@ describe("applyAppEvent", () => {
 
   it("does not corrupt job_status cache when update_header arrives", () => {
     const queryClient = new QueryClient()
-    const jobStatusData = [{ kind: "job", job_id: 1, slug: "JOB-1", title: "Test", state: "open", workflow_step: null, pr_number: null, pr_url: null, blocker: null }]
+    const jobStatusData = [{ kind: "job", job_id: 1, slug: "JOB-1", title: "Test", state: "open", workflow_step: null, active_workflow: null, pr_number: null, pr_url: null, blocker: null }]
     queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "hello")]))
     queryClient.setQueryData(["chats", "9", "job_status"], jobStatusData)
 

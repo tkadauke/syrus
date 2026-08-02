@@ -122,6 +122,22 @@ RSpec.describe BroadcastsJobProgress do
       )
     end
 
+    it "broadcasts a chat.updated event when a direct job is linked to the chat session" do
+      job.update!(kind: "direct", issue_number: nil, linked_chat_id: chat_session.id)
+
+      Workflow.create!(job: job, trigger_kind: "chat_feedback")
+
+      expect(AppUserChannel).to have_received(:broadcast_to).with(
+        user,
+        hash_including(
+          "type" => "chat.updated",
+          "resource" => "chat",
+          "id" => chat_session.id,
+          "payload" => { "action" => "job_status_changed", "job_id" => job.id }
+        )
+      )
+    end
+
     it "broadcasts to each distinct chat session exactly once when multiple proposals link the same session" do
       2.times do |i|
         ChatProposal.create!(

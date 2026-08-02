@@ -36,6 +36,7 @@ function jobItem(overrides: Partial<ChatJobStatusItem & { kind: "job" }> = {}): 
     title: "Inspect the aqueduct",
     state: "open",
     workflow_step: null,
+    active_workflow: null,
     pr_number: null,
     pr_url: null,
     blocker: null,
@@ -61,6 +62,7 @@ function epicItem(overrides: Partial<ChatJobStatusItem & { kind: "epic" }> = {})
         title: "Survey route",
         state: "open",
         workflow_step: null,
+        active_workflow: null,
         pr_number: null,
         pr_url: null,
         blocker: null,
@@ -115,6 +117,30 @@ describe("ChatJobStatusPanel job cards", () => {
     renderPanel()
 
     expect(await screen.findByText("Step: implement")).toBeInTheDocument()
+  })
+
+  it("renders an active queued feedback workflow instead of plain implemented review state", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
+      jobItem({
+        state: "implemented",
+        workflow_step: "chat_feedback",
+        active_workflow: {
+          id: 15652,
+          slug: "WF-15652",
+          state: "queued",
+          trigger_kind: "chat_feedback",
+          step: "chat_feedback"
+        },
+        blocker: null
+      })
+    ]))
+
+    renderPanel()
+
+    expect(await screen.findByText("Step: chat feedback")).toBeInTheDocument()
+    expect(screen.getByText("queued")).toBeInTheDocument()
+    expect(screen.queryByText("Implemented")).not.toBeInTheDocument()
+    expect(screen.queryByText("Awaiting review")).not.toBeInTheDocument()
   })
 
   it("shows a PR link when pr_number and pr_url are set", async () => {
@@ -335,8 +361,8 @@ describe("ChatJobStatusPanel hide closed", () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
       epicItem({
         children: [
-          { kind: "job", job_id: 10, slug: "JOB-10", title: "Open child", state: "running", workflow_step: null, pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T12:00:00Z" },
-          { kind: "job", job_id: 11, slug: "JOB-11", title: "Closed child", state: "closed", workflow_step: null, pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T11:00:00Z" }
+          { kind: "job", job_id: 10, slug: "JOB-10", title: "Open child", state: "running", workflow_step: null, active_workflow: null, pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T12:00:00Z" },
+          { kind: "job", job_id: 11, slug: "JOB-11", title: "Closed child", state: "closed", workflow_step: null, active_workflow: null, pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T11:00:00Z" }
         ]
       })
     ]))
@@ -357,7 +383,7 @@ describe("ChatJobStatusPanel hide closed", () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
       epicItem({
         children: [
-          { kind: "job", job_id: 10, slug: "JOB-10", title: "Done child", state: "closed", workflow_step: null, pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T12:00:00Z" }
+          { kind: "job", job_id: 10, slug: "JOB-10", title: "Done child", state: "closed", workflow_step: null, active_workflow: null, pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T12:00:00Z" }
         ]
       })
     ]))
@@ -375,7 +401,7 @@ describe("ChatJobStatusPanel hide closed", () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([
       epicItem({
         children: [
-          { kind: "job", job_id: 10, slug: "JOB-10", title: "Closed child", state: "closed", workflow_step: null, pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T12:00:00Z" }
+          { kind: "job", job_id: 10, slug: "JOB-10", title: "Closed child", state: "closed", workflow_step: null, active_workflow: null, pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T12:00:00Z" }
         ]
       })
     ]))

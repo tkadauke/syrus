@@ -30,7 +30,7 @@ module BroadcastsJobProgress
 
     AppUserChannel.broadcast_to(owner_job.user, event.as_json)
 
-    ChatProposal.confirmed.where(job: owner_job).distinct.pluck(:chat_session_id).each do |session_id|
+    chat_session_ids_for(owner_job).each do |session_id|
       AppEvents.broadcast(
         user: owner_job.user,
         type: "chat.updated",
@@ -39,6 +39,12 @@ module BroadcastsJobProgress
         payload: { action: "job_status_changed", job_id: owner_job.id }
       )
     end
+  end
+
+  def chat_session_ids_for(job)
+    session_ids = ChatProposal.confirmed.where(job: job).distinct.pluck(:chat_session_id)
+    session_ids << job.linked_chat_id if job.linked_chat_id.present?
+    session_ids.uniq
   end
 
   def saved_changes_for_job_progress?
