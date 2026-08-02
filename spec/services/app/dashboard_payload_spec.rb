@@ -331,17 +331,20 @@ RSpec.describe App::DashboardPayload do
       result = call(subject: "job", smart_folder_id: blocked_folder.id)
       item = result[:items].find { |i| i[:id] == job.id }
 
-      expect(item[:blocked_reason]).to eq("pr_not_mergeable")
+      expect(item[:blocked_reason]).to eq({ key: "pr_not_mergeable" })
     end
 
     it "prefers landing_queue_blocked_reason over pr_not_mergeable" do
       job = Factories.job_record(user: user, repository: repo, state: "running")
-      job.update_columns(pr_mergeable: false, landing_queue_blocked_reason: "PR checks failing on JOB-99")
+      job.update_columns(
+        pr_mergeable: false,
+        landing_queue_blocked_reason: { key: "pr_checks_failing", params: { slug: "JOB-99" } }
+      )
 
       result = call(subject: "job", smart_folder_id: blocked_folder.id)
       item = result[:items].find { |i| i[:id] == job.id }
 
-      expect(item[:blocked_reason]).to eq("PR checks failing on JOB-99")
+      expect(item[:blocked_reason]).to eq({ "key" => "pr_checks_failing", "params" => { "slug" => "JOB-99" } })
     end
 
     it "shows waiting-for-job reason for dependency-blocked jobs" do
@@ -352,7 +355,7 @@ RSpec.describe App::DashboardPayload do
       result = call(subject: "job", smart_folder_id: blocked_folder.id)
       item = result[:items].find { |i| i[:id] == blocked_job.id }
 
-      expect(item[:blocked_reason]).to eq("waiting for JOB-#{blocker.id} to merge")
+      expect(item[:blocked_reason]).to eq({ key: "waiting_to_merge", params: { slug: "JOB-#{blocker.id}" } })
     end
 
     it "does not show dep reason when the only dependency is already satisfied" do
@@ -366,7 +369,7 @@ RSpec.describe App::DashboardPayload do
       item = result[:items].find { |i| i[:id] == blocked_job.id }
 
       # satisfied dep should not be shown; pr_not_mergeable takes effect instead
-      expect(item[:blocked_reason]).to eq("pr_not_mergeable")
+      expect(item[:blocked_reason]).to eq({ key: "pr_not_mergeable" })
     end
   end
 
