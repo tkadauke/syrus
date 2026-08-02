@@ -1,6 +1,7 @@
 require "rails_helper"
 
 RSpec.describe SyrusMcp::ListInsightsTool do
+  let!(:bootstrap_admin) { Factories.user(admin: true) }
   let(:user)       { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:run)        { insight_run(user: user, repository: repository) }
@@ -158,6 +159,70 @@ RSpec.describe SyrusMcp::ListInsightsTool do
       response = call
       titles = parsed_response(response)[:insights].map { |i| i[:title] }
       expect(titles).to eq([ own_insight.title ])
+    end
+  end
+
+  describe "chat context authorization" do
+    let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
+
+    def chat_call(session: chat_session, **params)
+      described_class.call(**params, server_context: { chat_session: session })
+    end
+
+    it "lists insights for a non-admin chat user's attached repository" do
+      create_insight(title: "Visible finding")
+
+      response = chat_call(repository_id: repository.id)
+
+      titles = parsed_response(response)[:insights].map { |i| i[:title] }
+      expect(titles).to eq([ "Visible finding" ])
+    end
+
+    it "does not list insights from repositories outside a non-admin chat scope" do
+      create_insight(title: "Visible finding")
+      other_user = Factories.user
+      other_repo = Factories.repository(user: other_user)
+      other_job = Job.create!(user: other_user, repository: other_repo, kind: "agent_insight", priority: "low")
+      InsightSuggestion.create!(
+        job: other_job,
+        repository: other_repo,
+        title: "Hidden finding",
+        category: "config",
+        severity: "low",
+        confidence: 0.5
+      )
+
+      unfiltered = parsed_response(chat_call)[:insights].map { |i| i[:title] }
+      forbidden = chat_call(repository_id: other_repo.id)
+
+      expect(unfiltered).to eq([ "Visible finding" ])
+      expect(forbidden).to be_error
+      expect(forbidden.content.first[:text]).to include("repository not found or not accessible")
+      expect(forbidden.content.first[:text]).not_to include("Hidden finding")
+    end
+
+    it "lets admin chat users list insights across repositories and filter by repository" do
+      admin = Factories.user(admin: true)
+      admin_repo = Factories.repository(user: admin)
+      admin_session = ChatSession.create!(user: admin, repository: admin_repo)
+      create_insight(title: "First finding")
+
+      other_repo = Factories.repository(user: Factories.user)
+      other_job = Job.create!(user: other_repo.user, repository: other_repo, kind: "agent_insight", priority: "low")
+      InsightSuggestion.create!(
+        job: other_job,
+        repository: other_repo,
+        title: "Second finding",
+        category: "config",
+        severity: "high",
+        confidence: 0.7
+      )
+
+      all_titles = parsed_response(chat_call(session: admin_session))[:insights].map { |i| i[:title] }
+      filtered_titles = parsed_response(chat_call(session: admin_session, repository_id: other_repo.id))[:insights].map { |i| i[:title] }
+
+      expect(all_titles).to include("First finding", "Second finding")
+      expect(filtered_titles).to eq([ "Second finding" ])
     end
   end
 

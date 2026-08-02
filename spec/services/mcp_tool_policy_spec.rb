@@ -112,6 +112,12 @@ RSpec.describe McpToolPolicy do
   end
 
   describe "chat planner role" do
+    before do
+      Feature.find_or_create_by!(slug: "agent_insights") { |f| f.category = "Labs"; f.name = "Agent Insights" }
+             .update!(enabled: false)
+      Feature.clear_enabled_cache!("agent_insights")
+    end
+
     it "includes essential memory tools" do
       context = context_for(chat_session)
       tools = described_class.for(context)
@@ -144,6 +150,24 @@ RSpec.describe McpToolPolicy do
       tools = described_class.for(context)
 
       expect(tools).to include(*SyrusChatMcp::Sidecar::ADMIN_TOOLS)
+    end
+
+    it "includes insight read tools when agent_insights is enabled" do
+      Feature.find_by!(slug: "agent_insights").update!(enabled: true)
+      Feature.clear_enabled_cache!("agent_insights")
+
+      context = context_for(chat_session)
+      tools = described_class.for(context)
+
+      expect(tools).to include(SyrusMcp::ListInsightsTool, SyrusMcp::ReadInsightTool)
+      expect(tools).not_to include(SyrusMcp::SubmitInsightTool)
+    end
+
+    it "excludes insight read tools when agent_insights is disabled" do
+      context = context_for(chat_session)
+      tools = described_class.for(context)
+
+      expect(tools).not_to include(SyrusMcp::ListInsightsTool, SyrusMcp::ReadInsightTool, SyrusMcp::SubmitInsightTool)
     end
 
     it "excludes coding tools" do

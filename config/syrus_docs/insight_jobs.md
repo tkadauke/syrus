@@ -30,6 +30,7 @@ Once enabled, the following become active:
 - `GET /api/v1/app/admin/insights` API endpoint (admin only)
 - `POST /api/v1/app/admin/insights/:id/promote_memory` API endpoint (admin only)
 - The `submit_insight` MCP tool is available to agents running in insight workflows
+- The `list_insights` and `read_insight` MCP tools are available to regular chat agents through the deferred chat sidecar
 - The `read_run_worker_health` MCP tool is available so insight agents can use
   retained worker host pressure as evidence for Run and Step patterns
 
@@ -63,6 +64,15 @@ Each `InsightSuggestion` captures:
 ## Reviewing Suggestions
 
 Navigate to `/repositories/:id/insights` to see all suggestions for a repository, ordered by severity (high → low) then confidence (high → low). Filter by state: Pending, Accepted, Dismissed, or All.
+
+Regular chat agents can inspect the same suggestions with `list_insights` and
+`read_insight`. Non-admin chat agents can only list/read suggestions for the
+chat's attached repositories; inaccessible insight ids return a generic
+not-found/not-accessible error. Admin chat agents can inspect all suggestions and
+can narrow broad reads with `repository_id`, `state`, `limit`, and `page`.
+Chat agents do not receive `submit_insight`; suggestion creation remains tied to
+agent insight workflows because that tool records against the anchor insight Job
+and its workflow artifacts.
 
 Each suggestion shows:
 - Title, category tag, severity pill, confidence percentage

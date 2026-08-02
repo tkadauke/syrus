@@ -51,7 +51,9 @@ Each `submit_insight` call creates one `InsightSuggestion` row:
 | `state`           | string  | `pending` → `accepted` or `dismissed`.                           |
 | `created_job`     | FK      | Populated when the operator promotes the suggestion into a Job.  |
 
-## MCP tools (agent_insight_run role)
+## MCP tools
+
+### Agent insight runs
 
 The insight agent receives:
 
@@ -61,3 +63,16 @@ The insight agent receives:
 - `submit_insight` — record a finding (only present when `agent_insights` flag is on).
 
 **Scope enforcement:** the `submit_insight` tool validates that `evidence.job_id` values belong to repositories accessible to the running user. Non-admin users cannot reference jobs from repositories they do not own. Admin users may reference any job.
+
+### Regular chat agents
+
+When `agent_insights` is enabled, regular chat agents can discover and call
+`list_insights` and `read_insight` from the deferred chat sidecar. Non-admin
+chat agents are limited to the current chat's attached repositories. Admin chat
+agents can list/read suggestions across repositories, and should use the
+`repository_id`, `state`, `limit`, and `page` filters to keep broad reads
+deliberate.
+
+`submit_insight` stays limited to `agent_insight_run` workflows. It creates
+suggestions on the current anchor insight Job and updates workflow artifacts, so
+chat-originated insight creation is not a supported product behavior.

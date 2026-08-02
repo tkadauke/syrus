@@ -1,6 +1,7 @@
 require "rails_helper"
 
 RSpec.describe SyrusMcp::ReadInsightTool do
+  let!(:bootstrap_admin) { Factories.user(admin: true) }
   let(:user)       { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:run)        { insight_run(user: user, repository: repository) }
@@ -108,6 +109,67 @@ RSpec.describe SyrusMcp::ReadInsightTool do
       response = call(id: foreign_insight.id)
       expect(response).to be_error
       expect(response.content.first[:text]).to include("insight not found or not accessible")
+    end
+  end
+
+  describe "chat context authorization" do
+    let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
+
+    def chat_call(id:, session: chat_session)
+      described_class.call(id: id, server_context: { chat_session: session })
+    end
+
+    it "reads an insight for a non-admin chat user's attached repository" do
+      insight = create_insight(title: "Chat-visible finding")
+
+      response = chat_call(id: insight.id)
+
+      expect(response).not_to be_error
+      expect(parsed_insight(response)[:title]).to eq("Chat-visible finding")
+    end
+
+    it "rejects an inaccessible insight id without exposing private fields" do
+      other_user = Factories.user
+      other_repo = Factories.repository(user: other_user)
+      other_job = Job.create!(user: other_user, repository: other_repo, kind: "agent_insight", priority: "low")
+      foreign_insight = InsightSuggestion.create!(
+        job: other_job,
+        repository: other_repo,
+        title: "Private finding title",
+        category: "secret-category",
+        severity: "low",
+        confidence: 0.5,
+        suggested_prompt: "Private prompt body",
+        memory_suggestion: "Private memory body"
+      )
+
+      response = chat_call(id: foreign_insight.id)
+      text = response.content.first[:text]
+
+      expect(response).to be_error
+      expect(text).to include("insight not found or not accessible")
+      expect(text).not_to include("Private finding title", "secret-category", "Private prompt body", "Private memory body")
+    end
+
+    it "lets admin chat users read insights across repositories" do
+      other_user = Factories.user
+      other_repo = Factories.repository(user: other_user)
+      other_job = Job.create!(user: other_user, repository: other_repo, kind: "agent_insight", priority: "low")
+      foreign_insight = InsightSuggestion.create!(
+        job: other_job,
+        repository: other_repo,
+        title: "Admin-visible finding",
+        category: "config",
+        severity: "medium",
+        confidence: 0.6
+      )
+      admin = Factories.user(admin: true)
+      admin_session = ChatSession.create!(user: admin, repository: Factories.repository(user: admin))
+
+      response = chat_call(id: foreign_insight.id, session: admin_session)
+
+      expect(response).not_to be_error
+      expect(parsed_insight(response)[:title]).to eq("Admin-visible finding")
     end
   end
 

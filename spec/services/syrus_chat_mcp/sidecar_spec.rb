@@ -7,6 +7,9 @@ RSpec.describe SyrusChatMcp::Sidecar do
       record.name = "Walkthrough videos"
     end
     feature.update!(enabled: true)
+    Feature.find_or_create_by!(slug: "agent_insights") { |record| record.category = "Labs"; record.name = "Agent Insights" }
+           .update!(enabled: false)
+    Feature.clear_enabled_cache!("agent_insights")
   end
 
   let!(:bootstrap_admin) { Factories.user(admin: true) }
@@ -203,6 +206,21 @@ RSpec.describe SyrusChatMcp::Sidecar do
       expect(tool_names).not_to include("repo_info", "propose_job", "read_job", "write_memory", "read_memory", "rename_chat", "ask_user_question")
     end
 
+    it "advertises insight read tools via the deferred tools/list when agent_insights is enabled" do
+      Feature.find_or_create_by!(slug: "agent_insights") { |f| f.category = "Labs"; f.name = "Agent Insights" }
+             .update!(enabled: true)
+      Feature.clear_enabled_cache!("agent_insights")
+
+      server = server_for(chat_session, tier: :deferred)
+      _ = jsonrpc(server, "initialize", id: 0)
+
+      response = jsonrpc(server, "tools/list", id: 1)
+      tool_names = response[:result][:tools].map { |tool| tool[:name] }
+
+      expect(tool_names).to include("list_insights", "read_insight")
+      expect(tool_names).not_to include("submit_insight")
+    end
+
     it "assigns every chat MCP tool file to exactly one tier" do
       # Gather tool file basenames from the sidecar-specific directories AND the
       # shared mcp/tools/ namespace (memory tools migrated there in this refactor).
@@ -210,7 +228,8 @@ RSpec.describe SyrusChatMcp::Sidecar do
         .map { |path| File.basename(path, ".rb").sub(/_tool\z/, "") }
       shared_tool_names = Dir[Rails.root.join("app/services/mcp/tools/*_tool.rb")]
         .map { |path| File.basename(path, ".rb").sub(/_tool\z/, "") }
-      file_tool_names = (sidecar_tool_names + shared_tool_names).sort
+      chat_exposed_syrus_mcp_tool_names = %w[list_insights read_insight]
+      file_tool_names = (sidecar_tool_names + shared_tool_names + chat_exposed_syrus_mcp_tool_names).sort
 
       essential_names = described_class.tool_names(tier: :essential)
       deferred_names  = described_class.tool_names(tier: :deferred)

@@ -627,6 +627,20 @@ The view respects the same ownership model as the rest of the app:
 non-admin users see only their own Run and chat costs, while admins see
 global totals across the instance.
 
+## Agent Insights
+
+Agent insight runs inspect recent repository automation history and create
+structured suggestions the operator can accept, dismiss, or promote into
+follow-up work. Repository pages show per-repository suggestions, while admins
+can use the admin insights view to inspect suggestions across the instance.
+
+When the `agent_insights` feature is enabled, regular chat agents can discover
+and call `list_insights` and `read_insight` to inspect suggestions for the
+chat's attached repositories. Admin chat agents can inspect all repositories and
+can narrow broad reads with repository, state, page, and limit filters.
+Suggestion creation remains limited to insight workflow agents through
+`submit_insight`, so chat access is read-only.
+
 ## Repository Throughput Metrics
 
 Repository throughput metrics use a versioned contract derived from

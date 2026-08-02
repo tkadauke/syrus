@@ -93,6 +93,7 @@ class McpToolPolicy
   def chat_tools
     tools = chat_base_tools
     tools = apply_admin_filter(tools)
+    tools = apply_agent_insights_filter(tools)
     tools = apply_walkthrough_filter(tools)
     tools = apply_coding_filter(tools)
     tools = apply_local_mode_filter(tools)
@@ -108,6 +109,12 @@ class McpToolPolicy
     return tools if @context.user.admin?
 
     tools.reject { |tool| SyrusChatMcp::Sidecar::ADMIN_TOOLS.include?(tool) }
+  end
+
+  def apply_agent_insights_filter(tools)
+    return tools if Feature.agent_insights_enabled?
+
+    tools.reject { |tool| insight_read_tools.include?(tool) }
   end
 
   def apply_walkthrough_filter(tools)
@@ -146,5 +153,12 @@ class McpToolPolicy
       tools << SyrusMcp::ReadInsightTool
     end
     tools
+  end
+
+  def insight_read_tools
+    [
+      SyrusMcp::ListInsightsTool,
+      SyrusMcp::ReadInsightTool
+    ]
   end
 end
