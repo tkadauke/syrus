@@ -79,11 +79,27 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("## Supervisor Mode")
     expect(out.index("## Supervisor Mode")).to be < out.index("Repository context:")
     expect(out).to include("Treat system messages with `supervisor_event` payloads")
+    expect(out).to include("inspect live Syrus state")
+    expect(out).to include("blocked Jobs, Workflows,\nRuns, queues")
     expect(out).to include("summarize incidents")
+    expect(out).to include("Do not ask for repository attachment by default")
+    expect(out).to include("only when the operator explicitly requests code inspection")
     expect(out).to include("Ask clarifying questions sparingly")
     expect(out).to include("For risky or state-changing operations such as retries, cancellations,")
     expect(out).to include("pending action first")
     expect(out).to include("Keep audit clarity in the chat")
+  end
+
+  it "does not frame missing repository attachment as a supervisor blocker" do
+    admin = Factories.user(admin: true)
+    chat = ChatSession.create!(user: admin, system_kind: "supervisor")
+
+    out = described_class.new(repository: nil, chat_session: chat).to_s
+
+    expect(out).to include("No repository attachment is required for Supervisor operations triage.")
+    expect(out).not_to include("No repository is attached yet.")
+    expect(out).not_to include("No repository is currently attached. If the operator's request requires code context")
+    expect(out).not_to include("ask them to attach one via the + menu")
   end
 
   it "frames chat as planning and proposal drafting, not editing" do

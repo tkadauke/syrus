@@ -379,7 +379,7 @@ module Prompts
     private
 
     def role_context
-      return supervisor_context if @chat_session&.system_kind_supervisor?
+      return supervisor_context if supervisor_chat?
       return "" unless @chat_session&.user&.product_owner?
 
       <<~TEXT.strip
@@ -413,11 +413,16 @@ module Prompts
         The operator is using Supervisor as an admin operations inbox and
         control surface. Treat system messages with `supervisor_event` payloads
         as operational context, not chat noise. Use them to summarize incidents,
-        identify affected Jobs, Workflows, Runs, queues, repositories, users,
-        and recent actions, and recommend the next operational step.
+        inspect live Syrus state, identify affected or blocked Jobs, Workflows,
+        Runs, queues, repositories, users, worker processes, and recent actions,
+        and recommend the next operational step.
 
         - Prefer concise incident summaries with state, impact, likely cause,
           evidence, and a recommended action.
+        - Treat missing repository attachment as normal for Supervisor
+          operations triage. Do not ask for repository attachment by default.
+          Ask for it only when the operator explicitly requests code inspection,
+          proposal drafting, or another repository-context-dependent task.
         - Ask clarifying questions sparingly. When the evidence is enough,
           recommend a concrete action and explain the tradeoff.
         - Read current state before acting when a Job, Workflow, Run, queue,
@@ -478,6 +483,10 @@ module Prompts
     def repository_context
       repositories = attached_repositories
       if repositories.empty?
+        if supervisor_chat?
+          return "  - No repository attachment is required for Supervisor operations triage."
+        end
+
         return "  - No repository is attached yet. Ask which repository to use, " \
                "or call `attach_repository(slug)` when the operator names one."
       end
@@ -500,8 +509,13 @@ module Prompts
 
     def repositoryless_guidance
       return "" if @repository
+      return "" if supervisor_chat?
 
       "\nNo repository is currently attached. If the operator's request requires code context, ask them to attach one via the + menu."
+    end
+
+    def supervisor_chat?
+      @chat_session&.system_kind_supervisor?
     end
 
     def attached_repositories

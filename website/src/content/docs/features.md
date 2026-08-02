@@ -327,7 +327,10 @@ turn is still running. When the `admin_supervisor_chat` operations flag is
 enabled, admins also get one durable **Supervisor** chat. Syrus provisions it on
 demand, exposes it on the chat index payload, renders it as a distinct admin row
 above normal chat groups, keeps it pinned and visible, and blocks ordinary rename,
-hide, unpin, or delete actions for that chat while the flag remains enabled. Major operational
+hide, unpin, or delete actions for that chat while the flag remains enabled. Provisioning
+also seeds one canned operations-triage kickoff and starts the initial chat turn
+automatically; repeated provisioning or opening reuses the same kickoff instead
+of adding duplicate messages or turns. Major operational
 events, including Job notifications, Epic completion, main-branch health changes,
 and new Agent Insight suggestions, are first stored as scoped chat event records.
 Scoped events can run through an isolated disposable evaluator before waking the
@@ -349,9 +352,12 @@ counts, evaluator state counts, and recent failure reasons. Failed evaluator
 events can be retried without duplicating already delivered visible wakeups.
 When an admin chats in Supervisor, the agent uses admin-oriented guidance:
 system event messages are treated as operational context, incident summaries
-favor evidence and recommended next steps, and risky actions such as retries,
-cancellations, rebases, pause/unpause, cleanup, or follow-up Jobs stay behind
-proposal or pending-action confirmation flows. Supervisor event messages and
+favor evidence and recommended next steps, live Syrus state is checked before
+acting, and risky actions such as retries, cancellations, rebases, pause/unpause,
+cleanup, or follow-up Jobs stay behind proposal or pending-action confirmation
+flows. Missing repository attachment is not treated as a blocker for Supervisor;
+the agent asks for one only when the operator explicitly requests code inspection
+or repository-dependent proposal drafting. Supervisor event messages and
 pending-action outcome notices are retained in compact history fallback so the
 chat remains auditable even when provider resume needs fallback context.
 In the V2 layout, the
