@@ -67,7 +67,9 @@ module Steps
         head_sha: sha,
         base_sha: base_sha
       )
-      if decision.reusable?
+      if decision.reusable? && decision.match_type == "exact_head"
+        log_cached_validation_reuse(sha, decision)
+      elsif decision.reusable?
         skip_revalidated_grade_steps!(sha, decision)
       else
         log("merge_train: landing graders will run - #{decision.reason}", kind: "system")
@@ -193,9 +195,10 @@ module Steps
     end
 
     def skip_revalidated_grade_steps!(sha, decision)
-      log("merge_train: reusing cached grading validation (#{decision.match_type}) for #{sha.first(7)} - #{decision.reason}", kind: "system")
+      log_cached_validation_reuse(sha, decision)
       Step.suppress_cancel_cascade do
         cursor = step.next_step
+        cursor = cursor.next_step if cursor&.kind == "merge_train_reconcile"
         while cursor && cursor.kind != "merge_train_land"
           if cursor.may_cancel?
             cursor.cancellation_reason = "landing_validation_cached"
@@ -205,6 +208,10 @@ module Steps
           cursor = cursor.next_step
         end
       end
+    end
+
+    def log_cached_validation_reuse(sha, decision)
+      log("merge_train: reusing cached grading validation (#{decision.match_type}) for #{sha.first(7)} - #{decision.reason}", kind: "system")
     end
   end
 end

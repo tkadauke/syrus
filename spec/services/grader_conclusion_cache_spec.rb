@@ -6,6 +6,7 @@ RSpec.describe GraderConclusionCache do
       name: name,
       command: command,
       fast_command: nil,
+      ci_command: nil,
       description: nil,
       required: required,
       timeout_minutes: timeout_minutes,
