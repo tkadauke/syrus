@@ -369,25 +369,6 @@ module Api
           render json: { message: "Daemon connection state updated." }
         end
 
-        def switch_provider
-          chat_session = find_chat_session
-          provider = params[:provider].to_s.strip
-
-          unless User::CHAT_PROVIDERS.include?(provider)
-            render_error("validation_failed", "Invalid provider. Must be one of: #{User::CHAT_PROVIDERS.join(", ")}.", status: :unprocessable_content)
-            return
-          end
-
-          if chat_session.turn_in_flight? || chat_session.agent_busy?
-            render_error("turn_in_flight", "Cannot switch provider while a turn is in progress.", status: :unprocessable_content)
-            return
-          end
-
-          SwitchChatProviderJob.perform_later(chat_session.id, provider)
-
-          render json: { message: "Switching to #{provider}." }
-        end
-
         def rename
           chat_session = find_chat_session
           name = chat_name

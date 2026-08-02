@@ -12016,16 +12016,12 @@ describe("App", () => {
     expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8/message", expect.objectContaining({ method: "POST" }))
   })
 
-  it("offers chat provider switching from chat settings", async () => {
+  it("shows the pinned chat provider without offering chat provider switching", async () => {
     const providerOptions = [
       { value: "claude", label: "Claude", configured: true, effective_provider: "claude", effective_label: "Claude" },
       { value: "codex", label: "Codex", configured: true, effective_provider: "codex", effective_label: "Codex" }
     ]
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-      const path = String(input)
-      if (path === "/api/v1/app/chats/8/switch_provider" && init?.method === "POST") {
-        return Promise.resolve(new Response(JSON.stringify({ message: "Switching to codex." }), { status: 200, headers: { "Content-Type": "application/json" } }))
-      }
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() => {
       return Promise.resolve(new Response(JSON.stringify(chatPayload({
         chatProvider: "claude",
         effectiveChatProvider: "claude",
@@ -12046,15 +12042,9 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send message" }))
 
     await screen.findByText("Provider")
-    fireEvent.change(screen.getByLabelText("Chat provider"), { target: { value: "codex" } })
-
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/chats/8/switch_provider",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ provider: "codex" })
-      })
-    ))
+    expect(screen.getByText("Claude")).toBeInTheDocument()
+    expect(screen.queryByLabelText("Chat provider")).not.toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8/switch_provider", expect.anything())
   })
 
   it("opens the bug report dialog from the /report slash command with transcript opt-in", async () => {
@@ -16178,7 +16168,6 @@ function chatPayload(overrides: {
       app_share_path: "/api/v1/app/chats/8/share",
       app_enqueue_message_path: "/api/v1/app/chats/8/queued_messages",
       app_stop_path: "/api/v1/app/chats/8/stop",
-      app_switch_provider_path: "/api/v1/app/chats/8/switch_provider",
       app_bookmarks_path: "/api/v1/app/chats/8/bookmarks",
       app_attachments_path: "/api/v1/app/chats/8/attachments",
       app_whiteboard_path: "/api/v1/app/chats/8/whiteboard"

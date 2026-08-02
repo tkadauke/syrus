@@ -77,9 +77,9 @@ PRs like you would review work from a human contributor.
 ## Can I use a model other than Claude?
 
 Yes. Syrus has provider abstractions and supports Codex in addition to
-Claude. Users choose a default provider for Jobs and can use Claude or
-Codex for chat; repositories can override Job provider selection, and retry
-actions can switch provider when the user has that provider configured.
+Claude. Users choose a default provider for Jobs and future chats; repositories
+can override Job provider selection, and retry actions can use any provider the
+user has configured.
 
 Community providers are possible as long as they can fit the same shape:
 run in a workspace, stream logs, return a result, and let Syrus capture

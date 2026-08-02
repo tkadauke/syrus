@@ -8,7 +8,7 @@ import "@excalidraw/excalidraw/index.css"
 import { ApiError } from "../../api/client"
 import { formatClock } from "../../components/WalkthroughRecorder"
 import { updateRecentChatCache } from "../../lib/chatCache"
-import { createWhiteboardSnapshot, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, fetchCodingFileTree, fetchCodingCommits, fetchCodingFileContent, fetchCodingDiff, updateChatMode, switchChatProvider, type ChatMode, type ChatPayload, type ChatRenderItem, type ChatWhiteboardElement, type ChatWhiteboardScene, type WhiteboardSnapshot } from "../../api/chats"
+import { createWhiteboardSnapshot, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, fetchCodingFileTree, fetchCodingCommits, fetchCodingFileContent, fetchCodingDiff, updateChatMode, type ChatMode, type ChatPayload, type ChatRenderItem, type ChatWhiteboardElement, type ChatWhiteboardScene, type WhiteboardSnapshot } from "../../api/chats"
 import { CloseIcon } from "../../components/CloseIcon"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
 import { createConsumer, type Subscription } from "@rails/actioncable"
@@ -409,15 +409,6 @@ function MediaGallery({ messages, payload, queryKey, onNotice }: { messages: Cha
 export function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onClose: () => void }) {
   const queryClient = useQueryClient()
   const { t } = useT("chat")
-  const providerOptions = payload.chat.chat_provider_options || []
-  const configuredExplicitOptions = providerOptions.filter((option) => option.configured)
-  const showProviderSelector = configuredExplicitOptions.length > 1
-  const provider = useMutation({
-    mutationFn: (value: string) => switchChatProvider(payload.paths.app_switch_provider_path, value),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey })
-    }
-  })
 
   const modeOptions: Array<{ value: ChatMode; label: string }> = [
     { value: "planning", label: t("mode_planning") },
@@ -445,37 +436,13 @@ export function ChatSettingsDialog({ payload, prefix, queryKey, onClose }: { pay
           </button>
         </div>
         <div className="space-y-3 text-sm">
-          {showProviderSelector ? (
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("provider")}</span>
-              <select
-                aria-label={t("aria_chat_provider")}
-                className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:disabled:bg-gray-800"
-                disabled={provider.isPending}
-                onChange={(event) => provider.mutate(event.target.value)}
-                value={payload.chat.chat_provider || payload.chat.effective_chat_provider || ""}
-              >
-                {providerOptions.map((option) => (
-                  <option disabled={!option.configured} key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <span className="mt-1 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                <span>{t("chat_settings_effective_provider", { label: payload.chat.effective_chat_provider_label || t("chat_settings_effective_default") })}</span>
-                <ProviderAvailabilityWarning availability={payload.chat.provider_availability} />
-              </span>
-            </label>
-          ) : (
-            <div>
-              <span className="mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("provider")}</span>
-              <span className="flex items-center gap-1 text-sm text-gray-700 dark:text-gray-200">
-                <span>{payload.chat.effective_chat_provider_label || payload.chat.effective_chat_provider}</span>
-                <ProviderAvailabilityWarning availability={payload.chat.provider_availability} />
-              </span>
-            </div>
-          )}
-          {provider.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(provider.error, t("provider_update_error"))}</div> : null}
+          <div>
+            <span className="mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("provider")}</span>
+            <span className="flex items-center gap-1 text-sm text-gray-700 dark:text-gray-200">
+              <span>{payload.chat.effective_chat_provider_label || payload.chat.effective_chat_provider}</span>
+              <ProviderAvailabilityWarning availability={payload.chat.provider_availability} />
+            </span>
+          </div>
           <label className="block">
             <span className="mb-1 block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("mode_label")}</span>
             <div className="flex rounded border border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-950" role="group" aria-label={t("mode_label")}>

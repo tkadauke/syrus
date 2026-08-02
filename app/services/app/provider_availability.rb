@@ -217,7 +217,7 @@ module App
     def usage_limit_message(signal, retry_after)
       model_text = signal.model.present? ? " for #{signal.model}" : ""
       reset_text = retry_after ? " Usage is expected to reset after #{retry_after.to_fs(:db)}." : ""
-      "#{provider_label} usage limit reached#{model_text}. This item uses #{provider_label} until usage resets or you switch providers.#{reset_text}"
+      "#{provider_label} usage limit reached#{model_text}. This item uses #{provider_label} until usage resets.#{reset_text}"
     end
 
     def transient_message(circuit)
