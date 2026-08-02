@@ -142,6 +142,7 @@ module SyrusMcp
           severity: severity_s == "high" ? "warning" : "info",
           subject: "Agent Insight available",
           repository: suggestion.repository,
+          job: run.job,
           actor: run,
           summary: "#{suggestion.title} (#{suggestion.severity}, #{(suggestion.confidence * 100).round}% confidence)",
           details: {

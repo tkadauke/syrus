@@ -88,6 +88,7 @@ RSpec.describe SyrusMcp::SubmitInsightTool do
         severity: "warning",
         subject: "Agent Insight available",
         repository: repository,
+        job: run.job,
         actor: run,
         summary: "High-value finding (high, 91% confidence)",
         details: {

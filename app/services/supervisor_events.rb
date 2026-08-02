@@ -1,9 +1,8 @@
 class SupervisorEvents
   SEVERITIES = %w[info warning critical].freeze
-  DEDUPE_LOOKBACK = 24.hours
 
   class << self
-    def publish!(kind:, severity:, subject:, repository: nil, actor: nil, summary:, details: nil, dedupe_key: nil)
+    def publish!(kind:, severity:, subject:, repository: nil, job: nil, epic: nil, proposal: nil, actor: nil, summary:, details: nil, dedupe_key: nil)
       return [] unless Feature.admin_supervisor_chat_enabled?
 
       event = normalize_event(
@@ -18,28 +17,44 @@ class SupervisorEvents
       )
 
       User.where(admin: true).find_each.filter_map do |admin|
-        publish_for_admin!(admin, event)
+        publish_for_admin!(admin, event, repository: repository, job: job, epic: epic, proposal: proposal)
       end
     end
 
     private
 
-    def publish_for_admin!(admin, event)
+    def publish_for_admin!(admin, event, repository:, job:, epic:, proposal:)
       chat = SupervisorChat.ensure_for!(admin)
-      return if duplicate?(chat, event["dedupe_key"])
 
       message = nil
+      delivered = false
       now = Time.current
       ChatSession.transaction(requires_new: true) do
+        scoped_event = ChatScopedEvent.record!(
+          chat_session: chat,
+          source_kind: event.fetch("kind"),
+          payload: event.merge("occurred_at" => now.iso8601),
+          repository: repository || job&.repository,
+          job: job,
+          epic: epic,
+          proposal: proposal,
+          dedupe_key: event["dedupe_key"]
+        )
+        scoped_event.lock!
+        delivered = scoped_event.delivered?
+        next if delivered
+
         message = chat.messages.create!(
           role: "system",
           content: {
             "text" => message_text(event),
-            "supervisor_event" => event.merge("occurred_at" => now.iso8601)
+            "supervisor_event" => scoped_event.payload.merge("scoped_event_id" => scoped_event.id)
           }
         )
+        scoped_event.mark_delivered!(chat_message: message)
         chat.update!(last_message_at: now, last_read_at: nil)
       end
+      return if delivered
 
       AppEvents.broadcast(
         user: admin,
@@ -50,21 +65,6 @@ class SupervisorEvents
       )
 
       message
-    end
-
-    def duplicate?(chat, dedupe_key)
-      return false if dedupe_key.blank?
-
-      chat.messages
-        .where(role: "system")
-        .where("created_at >= ?", DEDUPE_LOOKBACK.ago)
-        .order(created_at: :desc, id: :desc)
-        .limit(200)
-        .any? do |message|
-          content = message.content
-          content.is_a?(Hash) &&
-            content.dig("supervisor_event", "dedupe_key").to_s == dedupe_key.to_s
-        end
     end
 
     def normalize_event(kind:, severity:, subject:, repository:, actor:, summary:, details:, dedupe_key:)

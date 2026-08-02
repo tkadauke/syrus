@@ -68,6 +68,7 @@ class NotificationService
       severity: severity_for(kind),
       subject: subject_for(kind, job),
       repository: repository || job&.repository,
+      job: job,
       actor: actor || user,
       summary: body,
       details: { "notification_kind" => kind, "job_id" => job&.id, "pr_url" => pr_url }.compact,

@@ -7,6 +7,7 @@ class ChatMessage < ApplicationRecord
   belongs_to :pending_action, class_name: "ChatPendingAction", optional: true
 
   has_many :bookmarks, class_name: "ChatBookmark", dependent: :destroy, inverse_of: :chat_message
+  has_many :scoped_events, class_name: "ChatScopedEvent", dependent: :nullify
 
   after_create :record_chat_turn_state
   after_create_commit :broadcast_app_event

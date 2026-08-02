@@ -25,6 +25,7 @@ RSpec.describe SupervisorEvents, type: :service do
   end
 
   it "no-ops while admin_supervisor_chat is disabled" do
+    result = nil
     expect {
       result = described_class.publish!(
         kind: "job_failed",
@@ -36,20 +37,23 @@ RSpec.describe SupervisorEvents, type: :service do
         details: { "job_id" => 1 },
         dedupe_key: "job_failed:1"
       )
-      expect(result).to eq([])
     }.not_to change(ChatMessage, :count)
+    expect(result).to eq([])
+    expect(ChatScopedEvent.count).to eq(0)
 
     expect(ChatSession.where(system_kind: "supervisor")).to be_empty
   end
 
-  it "creates durable structured system messages for every admin supervisor chat" do
+  it "creates scoped delivery records and structured system messages for every admin supervisor chat" do
     enable_supervisor_chat!
+    job = Factories.job_record(user: admin, repository: repository, issue_number: 12, issue_title: "Repair main")
 
     messages = described_class.publish!(
       kind: "main_broken",
       severity: "critical",
       subject: "Main branch broken",
       repository: repository,
+      job: job,
       actor: admin,
       summary: "CI failed at abc123",
       details: { "sha" => "abc123" },
@@ -57,9 +61,26 @@ RSpec.describe SupervisorEvents, type: :service do
     )
 
     expect(messages.size).to eq(2)
+    expect(ChatScopedEvent.count).to eq(2)
     expect(non_admin.chat_sessions.where(system_kind: "supervisor")).to be_empty
 
     message = admin.chat_sessions.find_by!(system_kind: "supervisor").messages.last
+    scoped_event = ChatScopedEvent.find_by!(chat_session: message.chat_session)
+    expect(scoped_event).to have_attributes(
+      source_kind: "main_broken",
+      delivery_state: "delivered",
+      dedupe_key: "main_broken:#{repository.id}:abc123",
+      repository_id: repository.id,
+      job_id: job.id,
+      chat_message_id: message.id
+    )
+    expect(scoped_event.delivered_at).to be_present
+    expect(scoped_event.payload).to include(
+      "kind" => "main_broken",
+      "severity" => "critical",
+      "summary" => "CI failed at abc123"
+    )
+
     expect(message.role).to eq("system")
     expect(message.content["text"]).to include("[CRITICAL] Main branch broken")
     expect(message.content["supervisor_event"]).to include(
@@ -67,7 +88,8 @@ RSpec.describe SupervisorEvents, type: :service do
       "severity" => "critical",
       "subject" => "Main branch broken",
       "summary" => "CI failed at abc123",
-      "dedupe_key" => "main_broken:#{repository.id}:abc123"
+      "dedupe_key" => "main_broken:#{repository.id}:abc123",
+      "scoped_event_id" => scoped_event.id
     )
     expect(message.content.dig("supervisor_event", "repository")).to include(
       "id" => repository.id,
@@ -92,6 +114,24 @@ RSpec.describe SupervisorEvents, type: :service do
 
     expect(admin.chat_sessions.find_by!(system_kind: "supervisor").messages.count).to eq(1)
     expect(other_admin.chat_sessions.find_by!(system_kind: "supervisor").messages.count).to eq(1)
+    expect(admin.chat_sessions.find_by!(system_kind: "supervisor").scoped_events.count).to eq(1)
+    expect(other_admin.chat_sessions.find_by!(system_kind: "supervisor").scoped_events.count).to eq(1)
+  end
+
+  it "does not enqueue chat turns for scoped supervisor event delivery" do
+    enable_supervisor_chat!
+
+    expect {
+      described_class.publish!(
+        kind: "job_failed",
+        severity: "critical",
+        subject: "Job failed",
+        repository: repository,
+        actor: admin,
+        summary: "The workflow failed.",
+        dedupe_key: "job_failed:1"
+      )
+    }.not_to have_enqueued_job(ChatTurnJob)
   end
 
   it "marks supervisor chats unread and broadcasts a chat sidebar update" do
