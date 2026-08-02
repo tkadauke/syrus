@@ -3912,7 +3912,8 @@ describe("App", () => {
 
   it("renders expandable landing queue blocker rows in dependency order", async () => {
     const restoreMedia = mockMediaQuery(true)
-    mockDashboardFetch(dashboardPayload({
+    const clipboardWrite = mockClipboardWrite()
+    const payload = dashboardPayload({
       subject: "job",
       view: "list",
       active_smart_folder_id: 7,
@@ -3975,7 +3976,25 @@ describe("App", () => {
           approved_at: "2026-06-01T10:00:00Z"
         })
       ]
-    }))
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = String(input)
+      if (url.includes("/api/v1/app/jobs/2")) {
+        return Promise.resolve(jsonResponse({
+          job: {
+            id: 2,
+            state: "open",
+            issue_body: "Blocker hover preview body.",
+            issue_title: "Prepare data layer",
+            title_pending: false,
+            start_blocked_reason: null,
+            start_blocked_details: null
+          }
+        }))
+      }
+
+      return Promise.resolve(dashboardResponse(payload, input))
+    })
 
     try {
       render(
@@ -3999,6 +4018,13 @@ describe("App", () => {
       expect(screen.getByRole("link", { name: "Prepare data layer" })).toHaveAttribute("href", "/app-shell/jobs/2")
       expect(screen.getByRole("link", { name: "Prepare data layer" }).closest("tr")).toHaveClass("bg-gray-50/70")
       expect(screen.getByText("Prepare data layer").closest("tr")?.textContent).not.toContain("#1")
+      const blockerSlugButton = screen.getByRole("button", { name: "Copy JOB-2 to clipboard" })
+      expect(blockerSlugButton).toHaveTextContent("JOB-2")
+      expect(blockerSlugButton.parentElement?.tagName).toBe("SPAN")
+      fireEvent.click(blockerSlugButton)
+      await waitFor(() => expect(clipboardWrite).toHaveBeenCalledWith("JOB-2"))
+      fireEvent.mouseEnter(blockerSlugButton.parentElement!)
+      expect(await screen.findByText("Blocker hover preview body.")).toBeInTheDocument()
 
       const rowText = Array.from(document.querySelectorAll("tbody tr")).map((row) => row.textContent || "")
       expect(rowText.findIndex((text) => text.includes("Prepare data layer"))).toBeLessThan(rowText.findIndex((text) => text.includes("Land API surface")))

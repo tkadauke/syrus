@@ -325,7 +325,9 @@ function LandingQueueBlockerCell({ job, column, attribution, prefix }: { job: La
       <td className="max-w-md px-4 py-3">
         <Link className="font-medium text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(job.job_path, prefix)}>{job.title}</Link>
         <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-          <span>JOB-{job.id}</span>
+          <SlugHoverCard id={job.id} kind="job">
+            <CopyableSlug slug={`JOB-${job.id}`} />
+          </SlugHoverCard>
           {job.pr_number && job.pr_path ? (
               <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_path}>
                 <ExternalMetadataLink href={job.pr_path}>PR #{job.pr_number}</ExternalMetadataLink>
