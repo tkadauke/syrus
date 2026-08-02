@@ -1107,6 +1107,7 @@ module WorkEngine
 
     def stale_dependency_start_block?(workflow)
       workflow.artifact("start_blocked_reason") == StepDispatcher::STACK_BLOCK_REASON &&
+        !start_blocked_check_due?(workflow) &&
         workflow.job.unsatisfied_dependencies.empty?
     end
 
