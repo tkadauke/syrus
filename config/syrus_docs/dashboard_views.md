@@ -18,7 +18,7 @@ Queued Job cards can carry a start-blocked badge when Syrus has deferred the fir
 
 Topological dependency graph showing jobs (or epics) as nodes and their `Depends-on` / `Blocked-by` relationships as directed edges. Nodes are placed in columns by dependency depth: Layer 0 has no blockers, Layer N is blocked by Layer N-1 work. Clicking a node navigates to the job or epic detail page.
 
-Not available on the Workflows dashboard.
+Not available on the Workflows dashboard. The Dependencies tab is also hidden on mobile dashboards because the graph view is desktop-only; if a persisted mobile URL still requests `view=dependencies`, the page shows an unavailable message instead of loading the graph.
 
 ## Bulk retry
 

@@ -72,7 +72,7 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
     <main aria-label={t("title")} className="mx-auto max-w-[96rem] space-y-5 px-0 py-4 sm:p-6">
       <header className="flex flex-wrap items-center gap-3 px-4 sm:px-0">
         <h1 className="flex-1 text-3xl font-semibold text-gray-900 dark:text-white">{payload.simple_mode ? t("simple_title") : t("title")}</h1>
-        {isDesktop && !payload.simple_mode ? <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={true} /> : null}
+        {isDesktop && !payload.simple_mode ? <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={true} isDesktop={isDesktop} /> : null}
         <DashboardCreateActions payload={payload} prefix={prefix} />
       </header>
       <ReadinessPanel className="mx-4 sm:mx-0" prefix={prefix} readiness={readiness} />
@@ -281,7 +281,7 @@ function MobileDashboardControls({ payload, pathname, prefix, search }: { payloa
         <div className="min-w-0 flex-1 overflow-x-auto">
           <SubjectTabs className="inline-flex w-max flex-nowrap overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900" payload={payload} prefix={prefix} />
         </div>
-        <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={false} />
+        <DashboardToolbar pathname={pathname} search={search} payload={payload} showConfiguration={false} isDesktop={false} />
       </div>
       <details className="group rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200">
@@ -410,7 +410,7 @@ function SubjectTabs({ payload, prefix, className = "inline-flex w-max overflow-
   )
 }
 
-export function DashboardToolbar({ payload, pathname, search, showConfiguration = true }: { payload: DashboardPayload; pathname: string; search: string; showConfiguration?: boolean }) {
+export function DashboardToolbar({ payload, pathname, search, showConfiguration = true, isDesktop = true }: { payload: DashboardPayload; pathname: string; search: string; showConfiguration?: boolean; isDesktop?: boolean }) {
   const { t } = useT("dashboard")
   const queryClient = useQueryClient()
   const [columnsOpen, setColumnsOpen] = useState(false)
@@ -444,6 +444,7 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
       visible_columns: next
     })
   }
+  const viewTabs = isDesktop ? payload.controls.views : payload.controls.views.filter((view) => view !== "dependencies")
 
   return (
     <div className="shrink-0">
@@ -515,7 +516,7 @@ export function DashboardToolbar({ payload, pathname, search, showConfiguration 
           </div>
         ) : null}
         <nav aria-label={t("view_label")} className="inline-flex overflow-hidden rounded border border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900">
-          {payload.controls.views.map((view) => (
+          {viewTabs.map((view) => (
             <Link
               className={`px-3 py-1.5 capitalize ${payload.view === view ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-950" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
               key={view}

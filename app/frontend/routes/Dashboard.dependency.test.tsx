@@ -286,12 +286,12 @@ function buildToolbarPayload(view: DashboardPayload["view"] = "list"): Dashboard
   }
 }
 
-function renderToolbar(payload: DashboardPayload) {
+function renderToolbar(payload: DashboardPayload, options: { isDesktop?: boolean } = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
-        <DashboardToolbar payload={payload} pathname="/dashboard/jobs" search="" />
+        <DashboardToolbar payload={payload} pathname="/dashboard/jobs" search="" isDesktop={options.isDesktop} />
       </MemoryRouter>
     </QueryClientProvider>
   )
@@ -330,6 +330,20 @@ describe("DashboardToolbar", () => {
     expect(container.querySelector("nav[aria-label]")).toBeTruthy()
     expect(container.querySelector("button[aria-label='Columns']")).toBeNull()
     expect(container.querySelector("button[aria-label='Kanban lanes']")).toBeNull()
+  })
+
+  it("renders dependencies tab on desktop", () => {
+    renderToolbar(buildToolbarPayload("list"), { isDesktop: true })
+
+    expect(screen.getByRole("link", { name: "dependencies" })).toBeInTheDocument()
+  })
+
+  it("hides dependencies tab on mobile", () => {
+    renderToolbar(buildToolbarPayload("list"), { isDesktop: false })
+
+    expect(screen.getByRole("link", { name: "list" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "kanban" })).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "dependencies" })).not.toBeInTheDocument()
   })
 })
 
