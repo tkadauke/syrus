@@ -286,11 +286,7 @@ module Api
             clearable_credentials: User::CLEARABLE_CREDENTIALS.map do |value, label|
               { value: value, label: label }
             end,
-            auto_approve_modes: [
-              { value: "never", label: "Never", preview: "No direct rule; Jobs can still inherit a repository or user default." },
-              { value: "if_graders_pass", label: "If graders pass", preview: "Jobs using this rule enter landing after repo-committed graders pass." },
-              { value: "if_graders_pass_and_tagged_safe", label: "If graders pass and tagged safe", preview: "Jobs using this rule also need the safe tag before landing." }
-            ]
+            auto_approve_modes: AutoApproveModes.options
           }
         end
 

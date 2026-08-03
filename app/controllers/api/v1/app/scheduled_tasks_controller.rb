@@ -260,11 +260,7 @@ module Api
           {
             kinds: ScheduledTask::KINDS,
             pr_pileup_policies: ScheduledTask::PR_PILEUP_POLICIES,
-            auto_approve_modes: [
-              { value: "never", label: "Never", preview: "No direct rule; Jobs can still inherit a repository or user default." },
-              { value: "if_graders_pass", label: "If graders pass", preview: "Jobs using this rule enter landing after repo-committed graders pass." },
-              { value: "if_graders_pass_and_tagged_safe", label: "If graders pass and tagged safe", preview: "Jobs using this rule also need the safe tag before landing." }
-            ]
+            auto_approve_modes: AutoApproveModes.options
           }
         end
 
@@ -277,14 +273,7 @@ module Api
         end
 
         def auto_approve_preview(task)
-          case task.auto_approve_mode
-          when "if_graders_pass"
-            "Jobs using this rule enter landing after repo-committed graders pass."
-          when "if_graders_pass_and_tagged_safe"
-            "Jobs using this rule also need the safe tag before landing."
-          else
-            "No direct rule; Jobs can still inherit a repository or user default."
-          end
+          AutoApproveModes.option_for(task.auto_approve_mode)&.fetch(:preview)
         end
 
         def assign_from_template(task, template)

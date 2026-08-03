@@ -898,23 +898,7 @@ module Api
         end
 
         def auto_approve_modes_json
-          [
-            {
-              value: "never",
-              label: "Never",
-              preview: "No direct rule; Jobs can still inherit a repository or user default."
-            },
-            {
-              value: "if_graders_pass",
-              label: "If graders pass",
-              preview: "Jobs using this rule enter landing after repo-committed graders pass."
-            },
-            {
-              value: "if_graders_pass_and_tagged_safe",
-              label: "If graders pass and tagged safe",
-              preview: "Jobs using this rule also need the safe tag before landing."
-            }
-          ]
+          AutoApproveModes.options
         end
 
         def health_history_json(repository)

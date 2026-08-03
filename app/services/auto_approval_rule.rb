@@ -5,6 +5,52 @@ class AutoApprovalRule
 
   GRADER_FILES = [ ".syrus.yml", ".syrus/graders" ].freeze
 
+  class Mode
+    def self.for(name, rule:, source:)
+      {
+        "never" => Never,
+        "if_graders_pass" => IfGradersPass,
+        "if_graders_pass_and_tagged_safe" => IfGradersPassAndTaggedSafe
+      }.fetch(name).new(name: name, rule: rule, source: source)
+    end
+
+    def initialize(name:, rule:, source:)
+      @name = name
+      @rule = rule
+      @source = source
+    end
+
+    private
+
+    attr_reader :name, :rule, :source
+
+    def reject(reason)
+      Result.new(approved: false, reason: reason, mode: name, source: source)
+    end
+  end
+
+  class Never < Mode
+    def apply_after_grader_success!(_grader_step)
+      Result.new(approved: false, reason: "no_matching_rule", mode: "never", source: nil)
+    end
+  end
+
+  class IfGradersPass < Mode
+    def apply_after_grader_success!(grader_step)
+      return reject("grader_not_repo_committed") unless rule.repo_committed_grader?(grader_step)
+
+      rule.approve_after_grader_success!(mode: name, source: source, grader_step: grader_step)
+    end
+  end
+
+  class IfGradersPassAndTaggedSafe < IfGradersPass
+    def apply_after_grader_success!(grader_step)
+      return reject("safe_tag_missing") unless rule.safe_tagged?
+
+      super
+    end
+  end
+
   def self.for(job)
     new(job)
   end
@@ -15,10 +61,11 @@ class AutoApprovalRule
 
   def apply_after_grader_success!(grader_step)
     mode, source = resolved_mode
-    return Result.new(approved: false, reason: "no_matching_rule", mode: "never", source: nil) if mode == "never"
-    return Result.new(approved: false, reason: "safe_tag_missing", mode: mode, source: source) if mode == "if_graders_pass_and_tagged_safe" && !safe_tagged?
-    return Result.new(approved: false, reason: "grader_not_repo_committed", mode: mode, source: source) unless repo_committed_grader?(grader_step)
 
+    Mode.for(mode, rule: self, source: source).apply_after_grader_success!(grader_step)
+  end
+
+  def approve_after_grader_success!(mode:, source:, grader_step:)
     @job.with_lock do
       @job.reload
       @job.mark_implemented! if @job.may_mark_implemented?
@@ -64,8 +111,6 @@ class AutoApprovalRule
     [ "never", nil ]
   end
 
-  private
-
   def safe_tagged?
     @job.tags.where("LOWER(tags.name) = ?", "safe").exists?
   end
@@ -76,6 +121,8 @@ class AutoApprovalRule
       workflow.artifact("grade_plan_source") != "none" &&
       workflow.artifact("grade_plan_repo_committed") == true
   end
+
+  private
 
   def audit!(message)
     run = @job.current_run
