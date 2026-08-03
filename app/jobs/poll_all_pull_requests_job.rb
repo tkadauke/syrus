@@ -7,9 +7,12 @@ class PollAllPullRequestsJob < ApplicationJob
   # PR through PollPullRequestJob, which does the actual comment fetching
   # and follow-up Run dispatch.
   #
-  # Also fans out to PollExternalPrJob for open Jobs whose issue was
-  # preempted by a human-authored PR (external_pr_number set, no pr_number)
-  # so the Job closes when that external PR is merged.
+  # Also fans out to PollExternalPrJob for:
+  #   - Open Jobs whose issue was preempted by a human-authored PR
+  #     (external_pr_number set, no pr_number)
+  #   - Open external_pr kind Jobs — including those that also have a
+  #     pr_number once the auto-merge workflow creates one
+  # so the Job closes when the external PR is merged or closed.
   def perform
     return if AppSetting.polling_paused?
     Job.joins(:repository)
@@ -21,7 +24,8 @@ class PollAllPullRequestsJob < ApplicationJob
 
     Job.joins(:repository)
        .merge(Repository.active)
-       .open_threads.where(pr_number: nil).where.not(external_pr_number: nil)
+       .open_threads.where.not(external_pr_number: nil)
+       .where("jobs.pr_number IS NULL OR jobs.kind = ?", "external_pr")
        .find_each do |job|
       PollExternalPrJob.perform_later(job.id)
     end

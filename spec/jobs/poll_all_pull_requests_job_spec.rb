@@ -27,7 +27,7 @@ RSpec.describe PollAllPullRequestsJob do
     open_external_only = Factories.job(repository: repo, issue_number: 4).tap do |j|
       j.update!(external_pr_number: 10)
     end
-    # Has both — PollPullRequestJob owns it, not PollExternalPrJob
+    # Non-external_pr kind with both — PollPullRequestJob owns it, PollExternalPrJob skips it
     open_both = Factories.job(repository: repo, issue_number: 5).tap do |j|
       j.update!(pr_number: 5, external_pr_number: 11)
     end
@@ -48,6 +48,22 @@ RSpec.describe PollAllPullRequestsJob do
     expect {
       described_class.perform_now
     }.not_to have_enqueued_job(PollExternalPrJob).with(closed_external.id)
+  end
+
+  it "fans out to PollExternalPrJob for external_pr kind Jobs even when pr_number is also set" do
+    # external_pr kind — polled by PollExternalPrJob regardless of pr_number
+    external_pr_no_syrus_pr = Job.create!(user: user, repository: repo,
+                                          kind: "external_pr", state: "implemented",
+                                          external_pr_number: 40)
+    external_pr_with_syrus_pr = Job.create!(user: user, repository: repo,
+                                            kind: "external_pr", state: "implemented",
+                                            external_pr_number: 41)
+    external_pr_with_syrus_pr.update_columns(pr_number: 55)
+
+    expect {
+      described_class.perform_now
+    }.to have_enqueued_job(PollExternalPrJob).with(external_pr_no_syrus_pr.id).once
+      .and have_enqueued_job(PollExternalPrJob).with(external_pr_with_syrus_pr.id).once
   end
 
   it "fans out to PollForkReviewPrJob for open Jobs in fork review mode (fork_review_pr_number set, no pr_number)" do
