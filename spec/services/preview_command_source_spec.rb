@@ -80,6 +80,31 @@ RSpec.describe PreviewCommandSource do
         end
       end
 
+      it "uses the first matching plugin and does not call detect? on later ones" do
+        non_matching = instance_double("NonMatchingProvider", detect?: false)
+        matching     = instance_double(
+          "MatchingProvider",
+          detect?: true,
+          start_command: "bin/rails server",
+          seed_command: nil,
+          health_check_path: "/up",
+          log_paths: []
+        )
+        allow(matching).to receive(:start_command).with(port: 4000).and_return("bin/rails server")
+        skipped = instance_double("SkippedProvider", detect?: true)
+
+        original_registry = Syrus::Plugin::PreviewProvider.registry.dup
+        begin
+          Syrus::Plugin::PreviewProvider.registry.replace([ non_matching, matching, skipped ])
+          result = described_class.new(workspace).resolve
+          expect(result.start_command_for.call(port: 4000)).to eq("bin/rails server")
+          expect(result.health_check_path).to eq("/up")
+          expect(skipped).not_to have_received(:detect?)
+        ensure
+          Syrus::Plugin::PreviewProvider.instance_variable_set(:@registry, original_registry)
+        end
+      end
+
       it "returns nil when no plugin detects the repo" do
         result = described_class.new(workspace).resolve
         expect(result).to be_nil

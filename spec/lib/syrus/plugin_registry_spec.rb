@@ -23,6 +23,20 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     Class.new { include Syrus::Plugin::TestResultParser }
   end
 
+  let(:preview_provider_class) do
+    Class.new { include Syrus::Plugin::PreviewProvider }
+  end
+
+  describe "EXTENSION_POINTS" do
+    it "includes :preview_provider" do
+      expect(described_class::EXTENSION_POINTS).to include(:preview_provider)
+    end
+
+    it "is frozen" do
+      expect(described_class::EXTENSION_POINTS).to be_frozen
+    end
+  end
+
   describe ".register" do
     it "stores the plugin manifest" do
       described_class.register(name: "test_plugin", version: "1.0.0")
@@ -65,7 +79,8 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
             agent_provider:     agent_provider_class,
             mcp_tool_set:       mcp_tool_set_class,
             input_source:       input_source_class,
-            test_result_parser: test_result_parser_class
+            test_result_parser: test_result_parser_class,
+            preview_provider:   preview_provider_class
           }
         )
       }.not_to raise_error
@@ -122,6 +137,17 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
           provides: { test_result_parser: plain_class }
         )
       }.to raise_error(described_class::RegistrationError, /must include Syrus::Plugin::TestResultParser/)
+    end
+
+    it "raises RegistrationError when preview_provider class lacks the interface module" do
+      plain_class = Class.new
+
+      expect {
+        described_class.register(
+          name: "bad_plugin", version: "1.0.0",
+          provides: { preview_provider: plain_class }
+        )
+      }.to raise_error(described_class::RegistrationError, /must include Syrus::Plugin::PreviewProvider/)
     end
 
     it "allows the same extension point to be provided by multiple plugins" do
@@ -230,6 +256,15 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       )
 
       expect(described_class.providers_for(:test_result_parser)).to eq([ test_result_parser_class ])
+    end
+
+    it "returns preview providers" do
+      described_class.register(
+        name: "preview_plugin", version: "1.0.0",
+        provides: { preview_provider: preview_provider_class }
+      )
+
+      expect(described_class.providers_for(:preview_provider)).to eq([ preview_provider_class ])
     end
 
     it "returns an empty array when no plugin provides the requested extension point" do

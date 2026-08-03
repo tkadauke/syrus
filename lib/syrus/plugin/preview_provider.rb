@@ -17,13 +17,7 @@ module Syrus
     #
     #   Syrus::Plugin::PreviewProvider.register(MyPlugin::PreviewProvider.new)
     module PreviewProvider
-      REGISTRY = [].freeze
-
       def self.register(provider)
-        # Replace the frozen empty array with a mutable copy on first registration.
-        unless REGISTRY.is_a?(Array) && !REGISTRY.frozen?
-          Object.const_set(:REGISTRY_MUTABLE, []) unless defined?(REGISTRY_MUTABLE)
-        end
         registry << provider
       end
 
