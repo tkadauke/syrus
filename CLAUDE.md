@@ -90,8 +90,8 @@ Current chains:
 
 ```
 initial:     prepare → [loop(implement → adversarial_review)] → retry_until(implement → graders) → coverage_analyze → summarize → test_plan → pr_open
-pr_comment:  prepare → [loop(respond → adversarial_review)] → retry_until(respond → graders) → coverage_analyze → coverage_pr_comment → summarize_amend → try(push)
-chat_feedback: prepare → [loop(respond → adversarial_review)] → retry_until(respond → graders) → coverage_analyze → coverage_pr_comment → summarize_amend → try(push)
+pr_comment:  prepare → [loop(respond → adversarial_review)] → retry_until(respond → graders) → coverage_analyze → coverage_pr_comment → summarize_amend → refresh_job_metadata → try(push)
+chat_feedback: prepare → [loop(respond → adversarial_review)] → retry_until(respond → graders) → coverage_analyze → coverage_pr_comment → summarize_amend → refresh_job_metadata → try(push)
 ci_failure:  prepare → analyze_and_fix → summarize_amend → try(push)
 retry:       prepare → [loop(implement → adversarial_review)] → retry_until(implement → graders) → coverage_analyze → summarize → test_plan → pr_open
 rebase:      auto_rebase → agent_rebase → force_push
@@ -148,7 +148,10 @@ Key steps:
   Graders support an optional `when_files_changed` array of glob patterns; at
   fanout time Syrus computes changed files via `git diff --name-only <base>...HEAD`
   and skips any grader whose patterns don't match — useful for expensive checks
-  like website builds that only matter when relevant files changed.
+  like website builds that only matter when relevant files changed. Landing
+  workflows may dispatch multiple grader Runs from the fanout in parallel,
+  capped within the landing unit; `grader_collect` waits for every required
+  result before deciding whether repair is needed.
 - **`landing_fix`** — Agentic repair step inside auto-merge. It runs only
   after final graders fail on the exact PR branch Syrus is about to land;
   successful repairs are pushed before the merge API call.
@@ -199,6 +202,12 @@ Key steps:
   If the `implement` step already called `submit_test_plan` (the
   `test_plan` workflow artifact is already populated), the step skips
   the agent call entirely.
+- **`refresh_job_metadata`** — Agentic step after successful `pr_comment` and
+  `chat_feedback` workflows. It asks the agent to call `submit_job_metadata`
+  only when feedback changed the Job's effective intent; otherwise the agent
+  reports `changed=false`. The following `push` step applies changed metadata
+  to direct Job titles, managed PR title/body, Job detail copy, and search
+  indexing.
 - **`pr_open`** —
   Non-agentic: run service code (`PullRequestOpener`) to push the branch and
   open the PR if needed.
@@ -210,9 +219,17 @@ via a per-step `mcp.json` tempfile. Tools available to workflow agents:
 `list_memories` — repository-scoped `ChatMemory` access (writes stamp
 `author: agent`, `source_type: run`);
 `get_coverage_report` — coverage summary for the current run;
+`read_run_worker_health(run_id:)` — retained worker CPU/memory/disk/pressure
+samples correlated with a Run, including grader command spans when recorded;
+treat process command details from this tool as potentially sensitive and
+summarize rather than pasting raw tokens or auth-bearing commands;
+`read_performance_diagnostics` — sanitized current/all-revision performance
+summaries, available only to implement agents working on `tkadauke/syrus` or a
+registered fork;
 `submit_summary(pr_title, pr_body, summary)` and
 `submit_test_plan(steps, notes)` — write to Workflow `artifacts` and append
 `JobLog` audit lines;
+`submit_job_metadata(changed:, ...)` — used only by `refresh_job_metadata`;
 `submit_adversarial_review(verdict, critique)` — used by the `adversarial_review` step;
 `report_main_concern(failing_tests, reason)` — flag broken-main suspicion.
 The config key and binary basename must match (`syrus-mcp-sidecar`) so the
@@ -327,6 +344,21 @@ state); the operator can Close it (work already done) or Give Feedback
 (agent may have missed something). Retry actions are suppressed for this
 state.
 
+### Instance mode
+
+`AppSetting#mode` is `"advanced"` by default and can be switched to
+`"simple"` from Admin Settings. Simple mode is a non-technical operator
+experience: Coding Mode and Local Mode are force-disabled, developer surfaces
+like Jobs/Workflows/scheduled tasks/GitHub Issues are hidden from the UI,
+Epics are presented as features, and child Jobs under Epics are expected to
+form a strict linear chain. Simple-mode Epic child Jobs auto-land after
+passing graders, then the Epic becomes feature-reviewable; feedback appends a
+new direct Job at the end of the chain. Implement, PR-feedback, and CI-repair
+prompts include `Prompts::SimpleModeAgentContext`, so agents should make
+technical defaults, ask at most one focused clarifying question only for
+genuine ambiguity, write tests, and finish the scoped task without TODO
+handoffs.
+
 ### Live UI
 
 Authenticated operator pages are React routes rendered by
@@ -343,7 +375,11 @@ Epics, or issues. In **Coding Mode** (labs feature `coding_mode`), the
 chat workspace gets a writable full clone on a dedicated branch so the
 agent can implement directly. `ChatWorkspacePrepareJob` auto-installs
 dependencies after every coding checkout (`:chat` queue, same soft-fail
-semantics as the workflow `prepare` step). After committing, the agent
+semantics as the workflow `prepare` step), and agents can inspect the checkout
+prep state before assuming dependencies are ready. Chat has a
+`reset_workspace` MCP tool that is status-only by default and requires
+`confirm_discard: true` before it discards dirty or ahead-of-default Coding
+Mode work and prepares a fresh branch. After committing, the agent
 calls `complete_implement_step` (to hand off an existing Job) or
 `submit_coding_changes` (to create a new direct Job from the branch) —
 both create a pending action that requires operator confirmation before
@@ -351,12 +387,24 @@ the `coding_handoff` Workflow is dispatched. While a chat turn is busy,
 follow-up user messages are stored as `ChatQueuedMessage`s and delivered
 sequentially after the current turn finishes.
 
+Supervisor chat is a feature-gated admin control room
+(`admin_supervisor_chat`). It is one pinned, durable chat per admin with no
+repository attachment by default. `SupervisorEvents.publish!` records scoped
+operational events for Supervisor chats and for ordinary chats that originated
+the referenced work; a disposable `ChatScopedEventEvaluatorJob` reviews each
+event with read-only tools and either records `no_op` or creates a real
+`ChatWakeup` (`respond`/`act`). Supervisor prompts tell agents to read current
+Syrus state before acting on event payloads and to keep risky side effects
+behind proposals or pending-action confirmation.
+
 Chat proposal tools can express runtime dependencies when drafting work:
 `depends_on` for Job proposal slugs in the same chat, `depends_on_job_ids` for
 existing Jobs, `depends_on_epic_ids` for existing Epics, and
 `depends_on_proposal_slugs` for Epic proposal ordering. Chat also has
 `add_job_dependency` / `remove_job_dependency` MCP tools to adjust manual Job
-dependencies after Jobs exist.
+dependencies after Jobs exist. Proposal materialization validates dependency
+targets up front; invalid same-chat slugs or inaccessible existing IDs should
+be fixed in the proposal instead of relying on filing order.
 
 Dev and prod use `solid_cable` (NOT `async`) so browser app events work
 across web/worker processes.
