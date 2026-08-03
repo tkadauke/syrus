@@ -330,7 +330,9 @@ above normal chat groups, keeps it pinned and visible, and blocks ordinary renam
 hide, unpin, or delete actions for that chat while the flag remains enabled. Provisioning
 also seeds one canned operations-triage kickoff and starts the initial chat turn
 automatically; repeated provisioning or opening reuses the same kickoff instead
-of adding duplicate messages or turns. Major operational
+of adding duplicate messages or turns. Its composer is oriented around incidents,
+stuck Jobs, Workflows, Runs, queues, PRs, and operational state, and it does not
+show ordinary repository-attachment hints or coding/local mode controls. Major operational
 events, including Job notifications, Epic completion, main-branch health changes,
 and new Agent Insight suggestions, are first stored as scoped chat event records.
 Scoped events can run through an isolated disposable evaluator before waking the

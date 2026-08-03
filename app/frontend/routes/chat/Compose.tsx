@@ -22,7 +22,7 @@ import { chatTranscriptBugReportAttachment } from "../../lib/chatBugReportAttach
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { type ChatQueryKey, CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TOTAL_MAX_BYTES, CHAT_COMPOSE_MAX_ROWS, CHAT_DRAFT_KEY_PREFIX, GHOST_SUGGESTION_TAB_GRACE_MS } from "./constants"
-import { appendSearch, chatDisplayTitle, currentRecentChat, isDesktopChatViewport, primaryButton, secondaryButton, numericArg, parsePixelValue, providerLabel, withRoutePrefix } from "./utils"
+import { appendSearch, chatDisplayTitle, currentRecentChat, isDesktopChatViewport, isSupervisorChat, primaryButton, secondaryButton, numericArg, parsePixelValue, providerLabel, withRoutePrefix } from "./utils"
 import { ScratchpadPanel } from "./ScratchpadPanel"
 import { AddAttachment, Attachments } from "./Attachments"
 import { lastAssistantRenderedMessage } from "./streamBuilders"
@@ -1505,7 +1505,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           }}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
-          placeholder={ghostSuggestion ? "" : payload.switching_provider ? t("switching_to_provider", { provider: providerLabel(payload.chat.chat_provider ?? "") }) : agentActive ? t("queue_followup") : payload.chat.repository ? t("ask_repository") : t("ask_anything")}
+          placeholder={ghostSuggestion ? "" : payload.switching_provider ? t("switching_to_provider", { provider: providerLabel(payload.chat.chat_provider ?? "") }) : agentActive ? t("queue_followup") : isSupervisorChat(payload) ? t("ask_supervisor") : payload.chat.repository ? t("ask_repository") : t("ask_anything")}
           ref={textareaRef}
           required={attachments.length === 0 && walkthrough?.status !== "ready"}
           rows={1}
@@ -1664,7 +1664,7 @@ function ChatModeSelector({ chatId, payload, queryKey }: { chatId: string; paylo
     return () => document.removeEventListener("pointerdown", handlePointerDown)
   }, [dropdownOpen])
 
-  if (modeOptions.length <= 1) return null
+  if (isSupervisorChat(payload) || modeOptions.length <= 1) return null
 
   const currentMode = payload.chat.mode || "planning"
   const currentLabel = modeOptions.find((opt) => opt.value === currentMode)?.label ?? t("mode_planning")

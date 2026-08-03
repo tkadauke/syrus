@@ -1807,6 +1807,27 @@ describe("repositoryless chat compose", () => {
 
     expect(screen.getByRole("button", { name: "Send message" })).toBeEnabled()
   })
+
+  it("uses Supervisor operations wording without the repository attachment hint", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        chat: { repository: null, system_kind: "supervisor", title: "Supervisor" },
+        messages: []
+      })))
+    })
+
+    renderRoute()
+
+    expect(await screen.findByText("Ask about incidents, stuck Jobs, Workflows, Runs, queues, PRs, or operational state.")).toBeInTheDocument()
+    expect(screen.queryByText("Ask anything, or attach a repository for code context.")).not.toBeInTheDocument()
+    expect(await screen.findByPlaceholderText("Ask about incidents, stuck Jobs, Workflows, Runs, queues, PRs, or operational state...")).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText("Ask anything — or attach a repository to give the agent context...")).not.toBeInTheDocument()
+  })
 })
 
 describe("chat settings gear button", () => {
@@ -3200,6 +3221,23 @@ describe("chat mode selector in toolbar", () => {
 
     await screen.findByPlaceholderText("Ask about this repository...")
     expect(screen.getByRole("button", { name: "Change mode" })).toBeInTheDocument()
+  })
+
+  it("does not render the mode selector for Supervisor chats when coding mode is available", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      return Promise.resolve(jsonResponse({
+        ...chatPayload({ chat: { repository: null, system_kind: "supervisor", title: "Supervisor" } }),
+        coding_mode_enabled: true,
+        local_mode_enabled: true
+      }))
+    })
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about incidents, stuck Jobs, Workflows, Runs, queues, PRs, or operational state...")
+    expect(screen.queryByRole("button", { name: "Change mode" })).not.toBeInTheDocument()
   })
 
   it("renders the mode selector when local mode is available", async () => {
