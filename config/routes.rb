@@ -250,6 +250,7 @@ Rails.application.routes.draw do
           get "insights", to: "insights#index"
           post "insights/:id/promote_memory", to: "insights#promote_memory"
           get "overview", to: "overview#show"
+          get "plugins", to: "plugins#index"
           get "queue/:tab", to: "queue#show", as: :queue, constraints: { tab: /active|pending|failed|recurring|workers/ }
           post "queue/reap_stale_runs", to: "queue#reap_stale_runs"
           get "stuck", to: "stuck#index"
@@ -332,6 +333,7 @@ Rails.application.routes.draw do
         # Overview + stuck list (mirror F).
         get "overview", to: "overview#show"
         get "stuck",    to: "overview#stuck"
+        get "plugins",  to: "plugins#index"
         get "performance", to: "performance#show"
 
         # Operator console kill switches.
@@ -457,6 +459,7 @@ Rails.application.routes.draw do
   get "admin/users", to: "spa#show", as: :admin_users
   get "admin/users/:id", to: "spa#show", as: :admin_user, constraints: { id: /\d+/ }
   get "admin/features", to: "spa#show", as: :admin_features
+  get "admin/plugins", to: "spa#show", as: :admin_plugins
   get "admin/insights", to: "spa#show", as: :admin_insights
   get "admin/console", to: "spa#show", as: :admin_console
   get "admin/installations", to: "spa#show", as: :admin_installations

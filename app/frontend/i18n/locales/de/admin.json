@@ -5,6 +5,7 @@
   "page_title_processes": "Prozesse — Administration",
   "page_title_users": "Benutzer — Administration",
   "page_title_features": "Funktionen — Administration",
+  "page_title_plugins": "Plugins — Administration",
   "nav_overview": "Übersicht",
   "nav_queue": "Warteschlange",
   "nav_stuck": "Blockiert",
@@ -16,6 +17,7 @@
   "nav_invitations": "Einladungen",
   "nav_settings": "Einstellungen",
   "nav_features": "Funktionen",
+  "nav_plugins": "Plugins",
   "section_label": "Administration",
   "overview": {
     "heading": "Übersicht",
@@ -142,6 +144,30 @@
         "name": "Agenten-Einblicke",
         "description": "Aktiviert Agenten-Einblick-Analysejobs, die aktuelle Workflow-Ausführungen untersuchen und Verbesserungsvorschläge aufzeigen."
       }
+    }
+  },
+  "plugins": {
+    "heading": "Plugins",
+    "loading": "Plugins werden geladen...",
+    "error_load": "Plugins konnten nicht geladen werden.",
+    "no_plugins_heading": "Keine Plugins registriert",
+    "no_plugins_body": "Registrierte Plugin-Manifeste erscheinen hier, nachdem Plugin-Engines geladen wurden.",
+    "enabled": "Aktiviert",
+    "disabled": "Deaktiviert",
+    "author": "Autor",
+    "homepage": "Homepage",
+    "source": "Quelle",
+    "col_extension_point": "Erweiterungspunkt",
+    "col_class": "Klasse",
+    "col_availability": "Verfügbarkeit",
+    "configured_repos": "{{count}} Repositorys",
+    "no_extension_points": "Keine Erweiterungspunkte registriert.",
+    "aria_plugins": "Admin-Plugins",
+    "list_aria": "Registrierte Plugins",
+    "extension_points": {
+      "agent_provider": "agent_provider",
+      "mcp_tool_set": "mcp_tool_set",
+      "input_source": "input_source"
     }
   },
   "invitations": {

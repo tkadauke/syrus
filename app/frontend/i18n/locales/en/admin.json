@@ -5,6 +5,7 @@
   "page_title_processes": "Processes — Admin",
   "page_title_users": "Users — Admin",
   "page_title_features": "Features — Admin",
+  "page_title_plugins": "Plugins — Admin",
   "nav_overview": "Overview",
   "nav_queue": "Queue",
   "nav_stuck": "Stuck",
@@ -16,6 +17,7 @@
   "nav_invitations": "Invitations",
   "nav_settings": "Settings",
   "nav_features": "Features",
+  "nav_plugins": "Plugins",
   "section_label": "Admin",
   "overview": {
     "heading": "Overview",
@@ -142,6 +144,30 @@
         "name": "Agent Insights",
         "description": "Enables agent insight analysis jobs that inspect recent workflow runs and surface improvement suggestions."
       }
+    }
+  },
+  "plugins": {
+    "heading": "Plugins",
+    "loading": "Loading plugins...",
+    "error_load": "Unable to load plugins.",
+    "no_plugins_heading": "No plugins registered",
+    "no_plugins_body": "Registered plugin manifests will appear here after plugin engines load.",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "author": "Author",
+    "homepage": "Homepage",
+    "source": "Source",
+    "col_extension_point": "Extension point",
+    "col_class": "Class",
+    "col_availability": "Availability",
+    "configured_repos": "{{count}} repositories",
+    "no_extension_points": "No extension points registered.",
+    "aria_plugins": "Admin plugins",
+    "list_aria": "Registered plugins",
+    "extension_points": {
+      "agent_provider": "agent_provider",
+      "mcp_tool_set": "mcp_tool_set",
+      "input_source": "input_source"
     }
   },
   "invitations": {

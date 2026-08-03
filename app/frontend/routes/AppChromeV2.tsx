@@ -363,6 +363,7 @@ function AdminSubnav({ featureFlags, normalizedPath, prefix }: { featureFlags: R
     { label: t("admin:nav_installations"), to: "/admin/installations", paths: ["/admin/installations"] },
     { label: t("admin:nav_github_app"), to: "/admin/github_app/register", paths: ["/admin/github_app"] },
     { label: t("admin:nav_invitations"), to: "/invitations", paths: ["/invitations"] },
+    { label: t("admin:nav_plugins"), to: "/admin/plugins", paths: ["/admin/plugins"] },
     { label: t("admin:nav_settings"), to: "/settings/edit", paths: ["/settings/edit"] }
   ]
   const items = [
@@ -741,4 +742,3 @@ export function useTerminalSessionCount(enabled: boolean) {
   if (!enabled) return 0
   return terminalSessions.data?.sessions.filter((session) => !session.finished_at).length ?? 0
 }
-

@@ -365,6 +365,14 @@ provides its own settings schema so the repository form can render fields
 without hardcoded per-source templates. GitHub keeps the standard trigger-label
 flow, while Linear can poll a team and optional label filter.
 
+## Plugin Visibility
+
+Admins can open **Admin → Plugins** to inspect the plugin registry without
+checking the Gemfile. The page lists each registered plugin's version,
+enabled state, extension point classes, and basic author/source metadata when
+available. It is informational only; installing or removing plugins still
+requires changing the Gemfile and restarting Syrus.
+
 ## GitHub App And PAT Behavior
 
 Repositories prefer an active GitHub App installation when one is linked
