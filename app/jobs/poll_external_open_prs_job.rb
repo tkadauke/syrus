@@ -1,4 +1,6 @@
 class PollExternalOpenPrsJob < ApplicationJob
+  include GithubPrPollHelpers
+
   queue_as :default
 
   limits_concurrency to: 1, key: ->(repository_id, *) { "external_open_prs_poll:#{repository_id}" }
@@ -28,16 +30,26 @@ class PollExternalOpenPrsJob < ApplicationJob
   private
 
   def ingest_pr!(pr)
-    Job.create!(
-      user: @repository.user,
-      repository: @repository,
-      kind: "external_pr",
-      state: "implemented",
-      external_pr_number: pr.number,
-      external_pr_author: pr.user&.login,
-      issue_title: pr.title
-    )
-    Rails.logger.info("[PollExternalOpenPrsJob] ingested external PR ##{pr.number} for #{@slug}")
+    fork_pr = !we_control_head?(pr)
+    head_branch = pr.head&.ref.to_s
+
+    Job.transaction do
+      job = Job.create!(
+        user: @repository.user,
+        repository: @repository,
+        kind: "external_pr",
+        state: "implemented",
+        external_pr_number: pr.number,
+        external_pr_author: pr.user&.login,
+        external_pr_fork: fork_pr,
+        branch_name: head_branch.presence,
+        issue_title: pr.title
+      )
+
+      workflow = Workflows::ExternalPrIngest.instantiate(job: job)
+      StepDispatcher.start_workflow(workflow)
+      Rails.logger.info("[PollExternalOpenPrsJob] ingested external PR ##{pr.number} for #{@slug} (fork=#{fork_pr})")
+    end
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => e
     Rails.logger.warn("[PollExternalOpenPrsJob] skipped PR ##{pr.number} for #{@slug}: #{e.message}")
   end

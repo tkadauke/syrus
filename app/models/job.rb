@@ -237,6 +237,11 @@ class Job < ApplicationRecord
       )
     elsif direct?
       Struct.new(:title, :body).new(issue_title.to_s, issue_body.to_s)
+    elsif external_pr?
+      Struct.new(:title, :body).new(
+        issue_title.to_s,
+        "External PR ##{external_pr_number} submitted by #{external_pr_author}"
+      )
     end
   end
 

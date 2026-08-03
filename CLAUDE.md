@@ -99,6 +99,8 @@ stack_rebase: stack_auto_rebase → stack_agent_rebase → stack_force_push
 auto_merge:  mergeability_preflight → prepare → retry_until(graders, repair: landing_fix) → push → auto_merge
 merge_train: merge_train_assemble → merge_train_build → prepare → retry_until(graders, repair: landing_fix) → merge_train_land
 coding_handoff: prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open
+external_pr_ingest (same-repo): prepare → retry_until(graders, repair: landing_fix) → push
+external_pr_ingest (fork):      prepare → grader_fanout → grader_collect
 ```
 
 `[loop(...)]` steps are conditional: the `adversarial_review` loop only appears when `adversarial_review_rounds > 0` (per `.syrus.yml` or `AppSetting`); `coverage_analyze` only appears when a coverage plan is configured for the repository.

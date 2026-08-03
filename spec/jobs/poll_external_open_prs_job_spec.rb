@@ -9,11 +9,18 @@ RSpec.describe PollExternalOpenPrsJob do
   end
   let(:slug) { "acme/widgets" }
 
-  def pr(number:, head_ref: "feature/cool-thing", author: "contributor", title: "Some feature")
+  def pr(number:, head_ref: "feature/cool-thing", head_repo: "acme/widgets",
+         base_repo: "acme/widgets", author: "contributor", title: "Some feature")
     OpenStruct.new(
       number: number,
       title: title,
-      head: OpenStruct.new(ref: head_ref),
+      head: OpenStruct.new(
+        ref: head_ref,
+        repo: OpenStruct.new(full_name: head_repo)
+      ),
+      base: OpenStruct.new(
+        repo: OpenStruct.new(full_name: base_repo)
+      ),
       user: OpenStruct.new(login: author)
     )
   end
@@ -37,6 +44,52 @@ RSpec.describe PollExternalOpenPrsJob do
       expect(job.state).to eq("implemented")
       expect(job.external_pr_author).to eq("alice")
       expect(job.issue_title).to eq("Add widget")
+    end
+
+    it "stores the PR head branch as branch_name" do
+      allow_any_instance_of(GithubClient).to receive(:list_open_pull_requests).and_return([
+        pr(number: 10, head_ref: "feature/add-widget")
+      ])
+
+      described_class.perform_now(repository.id)
+
+      job = Job.find_by!(repository: repository, external_pr_number: 10)
+      expect(job.branch_name).to eq("feature/add-widget")
+    end
+
+    it "marks same-repo PRs as not a fork" do
+      allow_any_instance_of(GithubClient).to receive(:list_open_pull_requests).and_return([
+        pr(number: 10, head_repo: "acme/widgets", base_repo: "acme/widgets")
+      ])
+
+      described_class.perform_now(repository.id)
+
+      job = Job.find_by!(repository: repository, external_pr_number: 10)
+      expect(job.external_pr_fork).to eq(false)
+    end
+
+    it "marks fork PRs as a fork" do
+      allow_any_instance_of(GithubClient).to receive(:list_open_pull_requests).and_return([
+        pr(number: 10, head_repo: "contributor/widgets", base_repo: "acme/widgets")
+      ])
+
+      described_class.perform_now(repository.id)
+
+      job = Job.find_by!(repository: repository, external_pr_number: 10)
+      expect(job.external_pr_fork).to eq(true)
+    end
+
+    it "dispatches an external_pr_ingest workflow on ingestion" do
+      allow_any_instance_of(GithubClient).to receive(:list_open_pull_requests).and_return([
+        pr(number: 10)
+      ])
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.to change(Workflow, :count).by(1)
+
+      workflow = Workflow.last
+      expect(workflow.trigger_kind).to eq("external_pr_ingest")
     end
 
     it "ingests multiple PRs in one pass" do
@@ -89,6 +142,7 @@ RSpec.describe PollExternalOpenPrsJob do
         described_class.perform_now(repository.id)
       }.not_to change(Job, :count)
     end
+
   end
 
   describe "guards" do

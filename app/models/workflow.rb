@@ -204,6 +204,7 @@ class Workflow < ApplicationRecord
     return if landing_workflow?
     return if coding_handoff_workflow?
     return if local_mode_handoff_workflow?
+    return if external_pr_ingest_workflow?
     return if infrastructure_workflow?
 
     if no_changes_produced_failure?
@@ -448,6 +449,10 @@ class Workflow < ApplicationRecord
 
   def local_mode_handoff_workflow?
     trigger_kind == "local_mode_handoff"
+  end
+
+  def external_pr_ingest_workflow?
+    trigger_kind == "external_pr_ingest"
   end
 
 

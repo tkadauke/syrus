@@ -19,7 +19,7 @@ module Steps
       issue = job.issue? ? fetch_issue : job.synthetic_issue
       prompt = Prompts::LandingFix.new(
         issue: issue,
-        pr_number: job.pr_number,
+        pr_number: job.pr_number || job.external_pr_number,
         repo_slug: repository.slug,
         branch_name: job.branch_name,
         recent_commits: recent_branch_commits,

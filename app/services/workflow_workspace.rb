@@ -225,6 +225,8 @@ class WorkflowWorkspace
       "syrus/direct-#{@job.id}"
     elsif @job.main_grader?
       @repository.default_branch
+    elsif @job.external_pr?
+      "external-pr-#{@job.external_pr_number}-#{@job.id}"
     else
       "syrus/issue-#{@job.issue_number}-#{@job.id}"
     end
@@ -261,6 +263,11 @@ class WorkflowWorkspace
 
     if @job.main_grader?
       checkout_main_sha!
+      return
+    end
+
+    if @job.external_pr?
+      checkout_external_pr!
       return
     end
 
@@ -306,6 +313,24 @@ class WorkflowWorkspace
     return if sha.blank?
 
     @git.run("checkout", sha, chdir: path.to_s)
+  end
+
+  # For external_pr jobs: fetch the exact PR commit via GitHub's
+  # refs/pull/<number>/head ref. Works for both same-repo PRs and fork PRs
+  # without needing to know the fork's remote URL.
+  #
+  # Same-repo PRs: fetches to a local branch named @branch_name so the push
+  # step can later push fixes back to the PR's head branch on origin.
+  # Fork PRs: checks out in detached HEAD — graders run read-only and no push
+  # is attempted; the workflow posts a review comment instead.
+  def checkout_external_pr!
+    pr_number = @job.external_pr_number
+    @git.run(
+      "fetch", authenticated_url,
+      "refs/pull/#{pr_number}/head:refs/heads/#{@branch_name}",
+      chdir: path.to_s, env: @env
+    )
+    @git.run("checkout", @branch_name, chdir: path.to_s)
   end
 
   def base_branch
