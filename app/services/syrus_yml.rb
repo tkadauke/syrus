@@ -210,9 +210,8 @@ class SyrusYml
     name = raw["name"].to_s.strip
     raise ParseError, "#{label}.name: is required" if name.empty?
     raise ParseError, "#{label}.name: must match #{GRADE_NAME_PATTERN.inspect}" unless name.match?(GRADE_NAME_PATTERN)
-    raise ParseError, "#{label}.name: #{name.inspect} is duplicated" if seen.include?(name)
+    remember_unique_name!(seen, name, label)
 
-    seen << name
     run = raw["run"].to_s.strip
     raise ParseError, "#{label}.run: is required" if run.empty?
     fast = raw["fast"].to_s.strip.presence
@@ -361,8 +360,7 @@ class SyrusYml
     unless name.match?(DEPLOYMENT_STAGE_NAME_PATTERN)
       raise ParseError, "#{label}.name: must contain only alphanumeric characters and underscores"
     end
-    raise ParseError, "#{label}.name: #{name.inspect} is duplicated" if seen.include?(name)
-    seen << name
+    remember_unique_name!(seen, name, label)
 
     tag = raw["tag"].to_s.strip.presence
     tag_pattern = raw["tag_pattern"].to_s.strip.presence
@@ -377,5 +375,11 @@ class SyrusYml
     display_label = raw["label"].to_s.strip.presence || name.tr("_", " ").split.map(&:capitalize).join(" ")
 
     DeploymentStage.new(name: name, label: display_label, tag: tag, tag_pattern: tag_pattern)
+  end
+
+  def remember_unique_name!(seen, name, label)
+    raise ParseError, "#{label}.name: #{name.inspect} is duplicated" if seen.include?(name)
+
+    seen << name
   end
 end
