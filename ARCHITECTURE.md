@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-07-27._
+_Last reviewed: 2026-08-03._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -116,7 +116,7 @@ state.
 
 | Column | Meaning |
 |---|---|
-| `kind` | `"issue"` (created from a labeled issue), `"cron"` (created from a `ScheduledTask` fire), or `"direct"` (created from an operator prompt) |
+| `kind` | `"issue"` (created from a labeled issue), `"cron"` (created from a `ScheduledTask` fire), `"direct"` (created from an operator prompt), `"main_grader"` (infrastructure health check), or `"agent_insight"` (read-only analysis that files `InsightSuggestion`s) |
 | `state` | AASM lifecycle: triage/dependency states, execution states, approval/landing states, and `closed` |
 | `repository_id`, `user_id`, `owner_user_id` | scope and durable assignee |
 | `epic_id`, `epic_title` | optional Epic membership plus a denormalized title snapshot for dashboard/filter payloads; kept in sync when the Epic title changes |
@@ -132,7 +132,7 @@ state.
 | `last_seen_comment_at`, `last_feedback_addressed_at` | PR-feedback watermarks; the poller uses the later timestamp so handled feedback is not re-enqueued |
 | `last_ci_handled_sha` | watermark for CI-failure follow-ups |
 | `scheduled_task_id` | nullable; set on cron Jobs |
-| `priority` | `high` / `medium` / `low`, mapped to Solid Queue priorities 0 / 10 / 20 |
+| `priority` | `urgent` / `high` / `medium` / `low`, mapped to Solid Queue priorities -10 / 0 / 10 / 20 |
 | `agent_provider` | provider captured for the Job; Workflows/Runs denormalize the selected provider |
 | `slug` | auto-generated short name (kebab-case from title, max 50 chars, collision-suffixed); accepted by CLI and API in place of numeric id or `JOB-<n>` prefix |
 | `branch_deleted_at` | set when the Syrus-managed branch is deleted after merge/close |
@@ -171,6 +171,8 @@ determining whether the Job is ready to merge.
 | `external_pr_closed` | tracked preempting PR closed without merge |
 | `pr_approved` | operator accepted an approved PR as successful without auto-merge |
 | `epic_archived` | the parent Epic was archived, cascading to close all non-closed child Jobs with their active workflows cancelled first |
+| `main_grader` | infrastructure main-branch grader Job closed after updating repository health |
+| `agent_insight` | infrastructure insight Job closed after recording read-only suggestions |
 
 States and transitions:
 
@@ -299,6 +301,7 @@ period case ends in `failed` via `ReapStaleRunsJob`, not `cancelled`.
 | `coding_handoff` | Coding Mode: chat agent commits implementation and operator confirms | skips the agent implement step; runs graders → summarize → PR open (or summarize_amend → push for an existing PR); reverts Job to `coding` on grader failure |
 | `local_mode_handoff` | Local Mode daemon completes implementation via `complete_implement_step` | skips agent implement; runs graders, then opens a new PR or updates the existing one depending on whether `pr_number` is set |
 | `main_grader` | `PollAllMainBranchHealthJob` detects a new default-branch HEAD SHA | runs graders against the repository's default branch; updates `repository.grader_health` and calls `MainHealthChangedService` on health transitions; excluded from the operator dashboard; routes to the `:runs` queue (subject to `AppSetting.max_concurrent_agent_runs` cap) |
+| `agent_insight` | operator or adaptive insight scheduler requests repository analysis | read-only repository inspection; creates `InsightSuggestion` rows through `submit_insight`; auto-closes the anchor Job and does not open a PR |
 
 State changes reach the browser through app events; see
 [UI surface](#ui-surface) for how updates land in React.
@@ -486,23 +489,31 @@ deliberately includes preempted Jobs.
 | Job | Cadence | What it does |
 |---|---|---|
 | `PollAllRepositoriesJob` | every 5 min | Fans out to `PollRepositoryJob` per active repo |
+| `PollAllMainBranchHealthJob` | every 5 min | Fans out to per-repo default-branch health polling; triggers `main_grader` Workflows on new HEAD SHAs |
 | `PollAllPullRequestsJob` | every 5 min | Fans out to `PollPullRequestJob` per Job-with-PR |
 | `PollAllMergeStatesJob` | every 5 min | Fans out to `PollMergeStateJob` per Job-with-PR |
+| `PollAllDeploymentStagesJob` | every 5 min | Fans out to repositories with `.syrus.yml` `deployment_stages`; records which landed merge commits have reached configured git tags |
 | `LandingQueueProcessorJob` | every 30 sec | Picks approved Jobs/Epics for landing workflows |
 | `PollScheduledTasksJob` | every 1 min | Finds due `ScheduledTask`s; fires via `ScheduledTaskFire` |
+| `PollScheduledChatMessagesJob` | every 1 min | Resilience sweep for due unsent chat `/schedule` messages |
+| `SyncEnabledForksJob` | every 15 min | Refreshes enabled fork metadata and upstream links |
 | `ReapStaleRunsJob` | every 1 min | Recovers RunJob crashes: fails orphaned/stale `running` Runs, re-enqueues orphaned `queued` Runs, and finishes terminal Workflows |
 | `DataRootDiskUsageRefreshJob` | every 1 min | Refreshes `$SYRUS_DATA_ROOT` disk usage for operator visibility |
 | `ReapClassifierPendingJob` | every 5 min | Re-enqueues classifier work for Jobs stuck in classifier-pending triage |
 | `ReapOrphanedSpawnedProcessesJob` | every 1 min | Finalizes subprocess rows owned by dead hosts |
 | `ReapStaleInstanceVersionsJob` | every 1 min | Finalizes stale web/worker instance rows |
+| `WorkerHostHealthSamplePruneJob` | daily 3:15am | Deletes old worker host health samples |
+| `ReapStaleBranchesJob` | daily 3:40am | Deletes old Syrus-managed branches after terminal cleanup rules allow it |
 | `SpawnedProcessPruneJob` | daily 3:20am | Deletes old finished subprocess rows |
 | `ClaudeSessionPruneJob` | daily 3:00am | Deletes expired retained provider sessions |
 | `RunDiagnosticPruneJob` | daily 3:10am | Deletes old run diagnostics |
 | `PruneOldNotificationsJob` | daily 3:30am | Deletes app notifications older than 30 days |
 | `WorkflowWorkspacePruneJob` | every 2 hours | Removes old terminal Workflow workspaces |
+| `VideoWalkthroughPruneJob` | daily 3:40am | Enforces walkthrough video blob retention and storage budget |
+| `CoverageHitMapTtlPruneJob` | daily 3:50am | Deletes expired coverage hit-map blobs |
+| `InsightSweepJob` | every 6 hours | Fires adaptive `agent_insight` Jobs for repositories with enough closed work since the last insight run |
 | `SyncAgentSkillsJob` | every hour | Synchronizes agent skill metadata |
 | `SyncInstallationsJob` | every 5 min | Refreshes GitHub App installation links |
-| `PollAllMainBranchHealthJob` | every 5 min | Fans out to per-repo default-branch health polling; triggers `MainGrader` workflows on new HEAD SHAs |
 | `ReconcileJobStatesJob` | every 5 min | Repairs drift between Job state and terminal evidence |
 Plus one Solid Queue housekeeping entry, `clear_solid_queue_finished_jobs`,
 which is production-only because dev wipes the Solid Queue tables
@@ -653,6 +664,30 @@ fire at most once per hour, but Syrus honors the entered minute exactly
 and records the evaluated window so repeated poller ticks do not double
 fire the same hour.
 
+### Scheduled chat messages
+
+The chat `/schedule` slash command stores a `ScheduledChatMessage`
+instead of waking the agent immediately. The browser resolves the
+requested time to an absolute UTC `fire_at` and posts it to the chat
+scheduled-message endpoint. The row enqueues `ScheduledChatMessageFireJob`
+for that timestamp, and `PollScheduledChatMessagesJob` sweeps due unsent
+rows every minute as a resilience path. Firing is idempotent through
+`sent_at`: it appends a normal visible user chat message tagged with
+`requested_by: "scheduled_message"` and enqueues `ChatTurnJob` on the
+same chat queue.
+
+### Agent insights
+
+`agent_insight` Jobs are repository analysis runs, not implementation
+runs. They can be started manually from the repository insights UI/API or
+adaptively by `InsightSweepJob` when a repository's insight schedule
+configuration has enough closed work since the last insight run. The
+Workflow uses the normal prepare step, invokes an agent with a read-only
+prompt over recent Job history and known insights, and records findings
+as `InsightSuggestion` rows through the `submit_insight` MCP tool. The
+anchor Job then closes with `closure_reason="agent_insight"` on success
+or failure so insight Jobs do not clutter ordinary work dashboards.
+
 ### Stale Run reaping
 
 ```
@@ -705,10 +740,11 @@ Current Workflow chains:
 | `rebase` | `auto_rebase → agent_rebase → force_push` |
 | `stack_rebase` | `stack_auto_rebase → stack_agent_rebase → stack_force_push` |
 | `auto_merge` | `mergeability_preflight → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → push → auto_merge` |
-| `merge_train` | `merge_train_assemble → merge_train_build → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → merge_train_land` |
+| `merge_train` | `merge_train_assemble → merge_train_build → merge_train_reconcile → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → merge_train_land` |
 | `coding_handoff` | `prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open` (no existing PR) or `prepare → grader_fanout → grader_collect → summarize_amend → push` (PR already open) |
 | `local_mode_handoff` | `prepare → grader_fanout → grader_collect → summarize_amend → push` (PR already open) or `prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open` (no PR yet) |
 | `main_grader` | `grader_fanout → grader_collect` (no retry loop; result drives `repository.grader_health`; anchor Job is closed and excluded from dashboard; routes to `:runs` queue) |
+| `agent_insight` | `prepare → agent_insight_run → auto_close` (read-only analysis; creates `InsightSuggestion` records; anchor Job auto-closes and is excluded from ordinary work queues) |
 
 `prepare` reads `.syrus.yml` or auto-detects setup commands from
 lockfiles. Explicit `.syrus.yml` commands are operator intent and
@@ -778,10 +814,12 @@ context. Both commit to the existing branch and hand revision copy to
    or marks the Workflow succeeded. On failure, graders aggregate and may
    trigger another retry iteration; ordinary failures fail the Workflow.
 
-Terminal Workflow transitions own workspace lifecycle. `commit_agent_changes`
-is called by file-editing agentic handlers before downstream diff/push
-steps. Diff capture uses `git diff <default_branch>...HEAD` so PR views
-match GitHub's "Files changed" tab.
+Terminal Workflow transitions own workspace lifecycle. Infrastructure
+Workflows (`main_grader` and `agent_insight`) use shorter cleanup
+retention and do not participate in the normal failed-workspace retry
+affordance. `commit_agent_changes` is called by file-editing agentic
+handlers before downstream diff/push steps. Diff capture uses `git diff
+<default_branch>...HEAD` so PR views match GitHub's "Files changed" tab.
 
 ### Cleanup and error handling
 
@@ -871,7 +909,9 @@ Core (the agent loop):
 | `ClaudeInvocation` / `CodexInvocation` | Subprocess adapters that parse provider output, thread chunks into `JobLog`, capture final result metadata, and enforce the wall-clock timeout. |
 | `SyrusMcp::Sidecar` | MCP server the agent talks to over stdio. Exposes `read_live_state`, `submit_summary`, `submit_test_plan`, and `submit_adversarial_review`. See [MCP sidecar](#mcp-sidecar). |
 | `SyrusChatMcp::Sidecar` | MCP server for chat turns. Exposes repository/job/PR inspection, proposal, scheduling, bookmark, note, and whiteboard tools scoped to the active `ChatSession`. See [Chat sidecar and workspaces](#chat-sidecar-and-workspaces). |
-| `Prompts::*` | One class per prompt surface: `Initial`, `AdversarialReview`, `PrFeedback`, `ChatFeedback`, `CiFailure`, `Rebase`, `ScheduledTask`, `DirectJob`, `TestPlan`, plus `EpicContext` mixed into Epic-owned Job prompts, `PullRequestSummary` for `PrSummarizer`, and `SubmitSummaryInstructions` mixed into prompts that should expose the MCP tool. |
+| `Prompts::*` | One class per prompt surface: `Initial`, `AdversarialReview`, `PrFeedback`, `ChatFeedback`, `CiFailure`, `Rebase`, `ScheduledTask`, `DirectJob`, `AgentInsight`, `TestPlan`, plus `EpicContext` mixed into Epic-owned Job prompts, `PullRequestSummary` for `PrSummarizer`, and `SubmitSummaryInstructions` mixed into prompts that should expose the MCP tool. |
+| `InsightScheduler` | Creates `agent_insight` Jobs when no active insight Job already exists for the repository. Used by manual repository actions and adaptive scheduling. |
+| `WorkEngine::Reconciler` | Read-only consistency classifier and feature-gated repair planner/executor for stuck Jobs, Workflows, Steps, Runs, queue claims, worker evidence, dependency blocks, rate limits, and workspace risks. |
 
 Git and GitHub:
 
@@ -882,6 +922,7 @@ Git and GitHub:
 | `PullRequestOpener` | Octokit `create_pull_request` with retry on transient failures. |
 | `LandingQueueProcessor` | Orders the approved/landing queue, groups Epic children as one landing unit for queue display and merge-train dispatch, exposes dependency and unapproved-sibling blockers for each unit, moves eligible Jobs/Epics into `auto_merge` or `merge_train` Workflows, and applies landing state transitions. |
 | `LandingValidationCache` | Records prior green landing checks; optionally lets clean rebases carry validation forward for repositories that trust it. |
+| `DeploymentStageDetector` | Compares landed merge commits (`Job#landed_sha`) against `.syrus.yml` `deployment_stages` tags and records `JobDeploymentStageStatus` rows. |
 | `ClosedPullRequestResolution` / `BranchPatchPresence` | Classifies closed Syrus PRs as merged, no-change, or closed-with-unique-patches. The patch-presence check clones the base branch under `$SYRUS_DATA_ROOT/closed-pr-checks`, fetches the Syrus branch, and uses `git cherry` to detect whether any patch remains unique to the PR branch. |
 
 Policy and pipeline glue:
@@ -980,6 +1021,12 @@ agent at it over stdio. Today's tool surface:
   `MainConcernAggregator` applies crowd-quorum logic and triggers the
   shared broken-main response once enough agents report within the
   rolling window.
+- `read_run_worker_health(run_id:)` — returns retained worker host
+  health samples and grader command spans correlated to a Run window,
+  used mainly by insight and diagnostics agents.
+- `submit_insight(...)` — available only to `agent_insight_run` roles
+  while the `agent_insights` feature is enabled; creates one structured
+  `InsightSuggestion` for operator review.
 
 The sidecar lives in-process with Rails, so tool handlers are plain
 ActiveRecord calls scoped to the active Run. No network, no auth
@@ -1039,6 +1086,19 @@ thread. The chat agent exposes `/branch`, `/pin`, `/copy`, `/search`,
 and `/report` slash commands; `/report` files a GitHub issue to the
 repository configured in `AppSetting.report_issue_repo_slug`.
 
+Admins can also have one durable Supervisor chat when the
+`admin_supervisor_chat` feature flag is enabled. It is identified by
+`chat_sessions.system_kind = "supervisor"`, pinned above ordinary chats,
+and protected from hide/rename/delete paths while the flag is on.
+`SupervisorEvents.publish!` records operational events as
+`ChatScopedEvent` rows for every Supervisor chat and, when lineage can be
+resolved, for ordinary chats that originated the affected Job, Epic,
+Workflow, Run, or PR. Each scoped event is evaluated in a disposable
+read-only provider session by `ChatScopedEventEvaluatorJob`; `no_op`
+decisions stay audit-only, while `respond` and `act` create a real
+`ChatWakeup` message that wakes the live chat agent with the structured
+event context.
+
 Each chat turn writes a temporary MCP config for `bin/syrus-chat-sidecar`
 with `SYRUS_CHAT_SESSION_ID` in the environment and `alwaysLoad: true`.
 `SyrusChatMcp::Sidecar` boots Rails over stdio and scopes every tool to
@@ -1049,7 +1109,8 @@ that chat session. Its tools cover:
   Epic, or PR details.
 - Operator actions: propose GitHub issues, Syrus Jobs, Epics, or an
   Epic with child Jobs; delete proposals; schedule recurring work;
-  schedule/list/cancel one-shot chat wakeups; update Job
+  schedule/list/cancel one-shot chat wakeups; schedule one-shot chat
+  messages through `/schedule`; update Job
   title/description copy; submit chat feedback, retry, rebase, or
   cancel Jobs visible to the session; `submit_coding_changes` to
   create a Job from committed branch work (Coding Mode); and
@@ -1143,7 +1204,19 @@ Several layers, each catching different failure modes:
    `queued` successor Runs that were created for inline execution before
    their worker died, and finishes terminal Workflows left active by a
    crash.
-4. **`RunJob` execution guards** — two distinct safety rails inside
+4. **Work-engine reconciler** — `WorkEngine::Reconciler` is the shared
+   read-only classifier and feature-gated repair planner used by admin
+   stuck surfaces, the structured stuck explainer, and the
+   `unified_work_engine_reconciler` operations flag. It snapshots Job,
+   Workflow, Step, Run, Solid Queue, spawned-process, worker-health,
+   workspace, dependency, main-health, and rate-limit evidence, then
+   emits structured issue records and side-effect-free repair plans.
+   When the feature flag is enabled, legacy disconnected fixers
+   (`ReapStaleRunsJob`, `AutoRetryScheduler`, `ReconcileJobStatesJob`,
+   and manual admin reap) delegate mutation to `WorkEngine::ReconcileJob`
+   / `RepairExecutor`, which executes only plans marked
+   `auto_executable` after re-checking preconditions.
+5. **`RunJob` execution guards** — two distinct safety rails inside
    `RunJob#perform`. The *re-entrancy guard* bails silently if the Run
    is already `terminal?` (idempotent retry), or calls `fail!` and skips
    execution if the Run is already `running` — which only happens when
@@ -1154,7 +1227,7 @@ Several layers, each catching different failure modes:
    `:queued`). On shutdown it breaks cleanly; `ReapStaleRunsJob`
    re-enqueues the queued successor with no wasted retry budget. The prior
    trap is always restored in `ensure`.
-5. **Failure classification + auto-retry** — failed Runs persist a
+6. **Failure classification + auto-retry** — failed Runs persist a
    `RunFailureClassification` from diagnostics, logs, spawned process
    outcomes, and agent outcome. `AutoRetryScheduler` splits `worker_died`
    (deploy kills, OOM, pod eviction) from real agent failures: worker-death
@@ -1162,12 +1235,12 @@ Several layers, each catching different failure modes:
    flat, so a rolling deploy cannot exhaust the 3-attempt budget used for
    actual failures. `ProviderCircuitBreaker` suppresses automatic retries
    during provider-wide outages.
-6. **Subprocess inventory** — `ProcessRunner` registers agent, grader,
+7. **Subprocess inventory** — `ProcessRunner` registers agent, grader,
    git, and prepare subprocesses as `SpawnedProcess` rows with
    heartbeats, host metrics, and a cross-pod kill switch. An in-process
    supervisor catches local dead pids; `ReapOrphanedSpawnedProcessesJob`
    catches dead worker hosts.
-7. **`failure_count` and auto-close** — `Job#record_run_failure!` is
+8. **`failure_count` and auto-close** — `Job#record_run_failure!` is
    called by `RunJob` after a non-rebase Run fails. It increments
    `failure_count`; if the result hits `AppSetting.max_job_failures`,
    the Job auto-closes with `closure_reason="too_many_failures"`.
@@ -1190,7 +1263,11 @@ Several layers, each catching different failure modes:
   polling, per-repo trigger label, prepare/trust-rebase settings,
   agent provider, manual poll, scheduled tasks.
 - **`/repositories/:id`** — show page: metadata, recent jobs,
-  GitHub link, retry failed Jobs with alternate providers.
+  GitHub link, retry failed Jobs with alternate providers, repository
+  throughput metrics, and Agent Insights entry points when enabled.
+- **`/repositories/:id/insights`** — per-repository
+  `InsightSuggestion` review surface, gated by the `agent_insights`
+  feature flag.
 - **`/jobs/:id`** — the operational hub for a single thread:
   live-streaming transcript per Run, agent diff, PR + branch links,
   action buttons (`run_again`, `restart`, `cancel`, `reopen`,
@@ -1224,6 +1301,8 @@ Several layers, each catching different failure modes:
   desktop-native alert toggles for implemented/failed Jobs.
 - **`/insights/spending`** — Run and chat spend by window, Epic, user,
   repository, trigger kind, provider, trend, and top Runs.
+- **`/admin/insights`** — cross-repository Agent Insights review and
+  memory-promotion/removal controls, gated by `agent_insights`.
 - **`/credentials/edit`** — GitHub, Claude, Codex, scheduling pause, and
   default provider settings.
 - **Theme toggle** — rendered in the React app shell for authenticated
@@ -1233,7 +1312,9 @@ Several layers, each catching different failure modes:
 - **Feature flags** — declared in `config/features.yml`, synchronized
   into `Feature` rows, serialized through the bootstrap
   `feature_flags` payload, and toggled by admins at `/admin/features`.
-  `terminal` gates the interactive terminal experience.
+  Notable operational/labs flags include `terminal`,
+  `agent_insights`, `admin_supervisor_chat`, and
+  `unified_work_engine_reconciler`.
 - **`/settings/edit`** — admin settings toggles (signups open, max job
   failures, merge-train enablement, etc.); redirects non-admins to
   credentials.
@@ -1248,6 +1329,13 @@ Several layers, each catching different failure modes:
   crashing the page.
 - **`/admin/processes`** — subprocess inventory with host metrics and
   kill controls.
+- **`/admin/performance`** and worker health panels — operational
+  diagnostics for request/SQL/phase timings and retained worker host
+  pressure samples.
+- **Admin stuck surfaces** — the overview health tile, stuck list, token
+  admin stuck API, and chat `explain_stuck_job` tool share reconciler
+  issue/repair-plan evidence so operators see the same wait/repair/action
+  status that automated recovery uses.
 - **`/api/v1/admin/*`** — bearer-token admin API for overview, jobs,
   workflows, runs, queues, processes, and version/instance status.
 
