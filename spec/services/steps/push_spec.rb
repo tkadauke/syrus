@@ -52,6 +52,22 @@ RSpec.describe Steps::Push do
     handler.call
   end
 
+  it "skips publication for manual agentic runs with push disabled" do
+    workflow.update!(trigger_kind: "manual_agentic_run")
+    workflow.set_artifact!("manual_agentic_run_push", false)
+    handler = described_class.new(run)
+
+    allow(handler).to receive(:workspace).and_return(instance_double(
+      WorkflowWorkspace,
+      setup: nil,
+      branch_name: "syrus/issue-42",
+      path: Pathname.new("/tmp/workspace")
+    ))
+
+    expect(handler).not_to receive(:streaming_git)
+    handler.call
+  end
+
   it "rebases onto the remote branch and retries when a follow-up push is not a fast-forward" do
     job.update!(branch_name: "syrus/issue-42")
     handler = described_class.new(run)

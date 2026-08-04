@@ -9,6 +9,11 @@ module Steps
 
     def call
       workspace.setup
+      if workflow.trigger_kind == "manual_agentic_run" && workflow.artifact("manual_agentic_run_push") == false
+        log("push: skipped because manual_agentic_run requested push=false")
+        return
+      end
+
       log("push: pushing branch #{workspace.branch_name} (#{workflow.slug})")
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
       authenticated_git(git, "git_push") { |push_url| push_branch(git, push_url) }

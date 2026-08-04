@@ -39,7 +39,7 @@ module Steps
     private
 
     def upstream_run_with_summary
-      workflow.steps.where(kind: %w[respond analyze_and_fix])
+      workflow.steps.where(kind: %w[respond analyze_and_fix manual_agentic_run])
         .order(:position)
         .flat_map { |step| step.runs.select(&:succeeded?) }
         .max_by(&:created_at)

@@ -43,6 +43,7 @@ RSpec.describe "SyrusChatMcp admin tools" do
     "force_rebase" => { job_id: 1, reason: "Bypass the landing queue proximity guard." },
     "restack_epic" => { epic_id: 1, reason: "Repair stale stack topology." },
     "force_landing_recheck" => { job_id: 1, reason: "Refresh stale landing metadata." },
+    "manual_agentic_run" => { job_id: 1, base: "current_pr_branch", instructions: "Inspect one failing check.", reason: "Run focused manual repair." },
     "refresh_pr_checks" => { job_id: 1 },
     "rerun_ci_repair" => { job_id: 1, reason: "Rerun stale CI repair." },
     "mark_ci_repair_noop" => { job_id: 1, workflow_id: 1, reason: "No branch or check progress." },
@@ -118,6 +119,7 @@ RSpec.describe "SyrusChatMcp admin tools" do
       "force_rebase" => [ { job_id: workflow.job.id, reason: "Bypass the landing queue proximity guard." }, { "job_id" => workflow.job.id, "bypass_front_of_queue" => true } ],
       "restack_epic" => [ { epic_id: epic.id, reason: "Repair stale stack topology." }, { "epic_id" => epic.id, "strategy" => "dependency_topology" } ],
       "force_landing_recheck" => [ { job_id: workflow.job.id, reason: "Refresh stale landing metadata." }, { "job_id" => workflow.job.id } ],
+      "manual_agentic_run" => [ { job_id: workflow.job.id, base: "current_pr_branch", instructions: "Inspect one failing check.", reason: "Run focused manual repair." }, { "job_id" => workflow.job.id, "base" => "current_pr_branch", "instructions" => "Inspect one failing check.", "push" => true } ],
       "override_landing_blocker_once" => [ { job_id: workflow.job.id, blocker_key: "active_workflow", reason: "Verified blocker is stale." }, { "job_id" => workflow.job.id, "blocker_key" => "active_workflow" } ],
       "wake_landing_queue" => [ { reason: "Repair completed." }, { "reason" => "Repair completed." } ]
     }
@@ -137,7 +139,7 @@ RSpec.describe "SyrusChatMcp admin tools" do
         requested_by: "agent"
       )
       expect(action.payload).to include(expected_payload)
-      expect(action.reason).to be_present if name.in?(%w[admin_retry_step admin_cleanup_workspace force_fail_job reconcile_job_state force_state_transition cancel_stale_work reenqueue_work force_rebase restack_epic force_landing_recheck override_landing_blocker_once wake_landing_queue])
+      expect(action.reason).to be_present if name.in?(%w[admin_retry_step admin_cleanup_workspace force_fail_job reconcile_job_state force_state_transition cancel_stale_work reenqueue_work force_rebase restack_epic force_landing_recheck manual_agentic_run override_landing_blocker_once wake_landing_queue])
     end
   end
 

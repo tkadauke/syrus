@@ -119,6 +119,7 @@ class Step
                 repair_semantics: :publication,
                 reconcile_strategy: :merge_train_land),
       Entry.new(kind: "manual",             handler: "Manual",             label: "Manual",                     style: "bg-gray-100 text-gray-700",   agentic: true),
+      Entry.new(kind: "manual_agentic_run", handler: "ManualAgenticRun",   label: "Manual agentic run",         style: "bg-fuchsia-100 text-fuchsia-700", agentic: true),
       Entry.new(kind: "coverage_analyze",   handler: "CoverageAnalyze",    label: "Analyze coverage",           style: "bg-yellow-100 text-yellow-700", agentic: false,
                 repair_semantics: :deterministic_idempotent),
       Entry.new(kind: "coverage_pr_comment", handler: "CoveragePrComment", label: "Post coverage comment",     style: "bg-yellow-100 text-yellow-700", agentic: false,

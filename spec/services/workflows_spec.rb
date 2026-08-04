@@ -15,6 +15,7 @@ RSpec.describe Workflows do
       expect(described_class.for(trigger_kind: "auto_merge")).to eq(Workflows::AutoMerge)
       expect(described_class.for(trigger_kind: "retry")).to      eq(Workflows::Retry)
       expect(described_class.for(trigger_kind: "manual")).to     eq(Workflows::Manual)
+      expect(described_class.for(trigger_kind: "manual_agentic_run")).to eq(Workflows::ManualAgenticRun)
       expect(described_class.for(trigger_kind: "coding_handoff")).to eq(Workflows::CodingHandoff)
     end
 
@@ -188,6 +189,23 @@ RSpec.describe Workflows do
         [ "prepare", 0 ], [ "implement", 1 ], [ "grader_fanout", 2 ], [ "grader_collect", 3 ],
         [ "coverage_analyze", 4 ], [ "summarize", 5 ], [ "test_plan", 6 ], [ "pr_open", 7 ]
       ])
+    end
+
+    it "creates the workflow + chain for a manual agentic run" do
+      wf = Workflows::ManualAgenticRun.instantiate(
+        job: job,
+        artifacts: {
+          "manual_agentic_run_base" => "current_pr_branch",
+          "manual_agentic_run_instructions" => "Repair one failing check.",
+          "manual_agentic_run_reason" => "Operator requested repair.",
+          "manual_agentic_run_push" => true
+        }
+      )
+
+      expect(wf.trigger_kind).to eq("manual_agentic_run")
+      expect(wf.steps.pluck(:kind)).to eq(%w[prepare manual_agentic_run grader_fanout grader_collect summarize_amend push])
+      push_node = wf.chain_template.find { |node| node["type"] == "try" && node["step"] == "push" }
+      expect(push_node.fetch("on_failure")).to include("remote_branch_advanced_rebase_conflict")
     end
 
     it "omits prepare from Initial when the Job has opted out" do

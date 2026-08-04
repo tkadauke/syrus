@@ -82,6 +82,7 @@ module SyrusChatMcp
       ForceRebaseTool,
       RestackEpicTool,
       ForceLandingRecheckTool,
+      ManualAgenticRunTool,
       RefreshPrChecksTool,
       RerunCiRepairTool,
       MarkCiRepairNoopTool,

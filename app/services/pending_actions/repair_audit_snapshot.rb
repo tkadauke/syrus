@@ -9,6 +9,9 @@ module PendingActions
       branch_divergence
       rebase_result
       grader_results
+      manual_agentic_run_base
+      manual_agentic_run_push
+      manual_agentic_run_no_changes
     ].freeze
 
     def self.capture(jobs)

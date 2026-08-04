@@ -271,17 +271,20 @@ class WorkflowWorkspace
     # work branch bases off (and diffs against) the upstream, not the fork.
     fetch_upstream_base! if base_on_upstream_default?
 
-    # Check whether the target branch already exists on origin
-    # (follow-up Workflows on a Job that already has a branch from
-    # a prior Initial). Use the authenticated URL — ls-remote
-    # against origin's name would fall back to anonymous after
-    # the scrub below.
-    remote_ref = authenticated_git("git_workflow_ls_remote") do |url|
-      @git.run(
-        "ls-remote", "--heads", url,
-        "refs/heads/#{@branch_name}",
-        chdir: path.to_s, env: @env
-      )
+    remote_ref = ""
+    unless skip_existing_branch_checkout?
+      # Check whether the target branch already exists on origin
+      # (follow-up Workflows on a Job that already has a branch from
+      # a prior Initial). Use the authenticated URL — ls-remote
+      # against origin's name would fall back to anonymous after
+      # the scrub below.
+      remote_ref = authenticated_git("git_workflow_ls_remote") do |url|
+        @git.run(
+          "ls-remote", "--heads", url,
+          "refs/heads/#{@branch_name}",
+          chdir: path.to_s, env: @env
+        )
+      end
     end
 
     if remote_ref.strip.present?
@@ -355,14 +358,23 @@ class WorkflowWorkspace
   def clone_local_source
     source = Pathname.new(local_source_path).expand_path
     raise "local source path does not exist: #{source}" unless source.exist?
+    source_branch = @workflow.artifact("local_source_branch").presence || @repository.default_branch
 
     @git.run(
       "clone",
-      "--branch", @repository.default_branch,
+      "--branch", source_branch,
       "--no-tags", source.to_s, path.to_s,
       env: @env
     )
-    @git.run("checkout", "-b", @branch_name, chdir: path.to_s)
+    if source_branch == @branch_name
+      @git.run("checkout", @branch_name, chdir: path.to_s)
+    else
+      @git.run("checkout", "-b", @branch_name, chdir: path.to_s)
+    end
+  end
+
+  def skip_existing_branch_checkout?
+    @workflow.artifact("skip_existing_branch_checkout") == true
   end
 
   # Workspace exists from a prior Run, typically a retry-within-step
