@@ -83,7 +83,7 @@ jobs:
       dry_run: ${{ steps.compute.outputs.dry_run }}
       review_notes: ${{ steps.compute.outputs.review_notes }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # need the full tag history to compute the next version
 
@@ -187,7 +187,7 @@ jobs:
     if: needs.prepare.outputs.dry_run == 'false'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 

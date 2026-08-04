@@ -117,7 +117,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # The fat image (mise ruby/node/python/go toolchain), its mode=max build
       # cache, and the integration Compose stack overflow the runner's ~14GB
@@ -246,7 +246,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Log in to GHCR
         uses: docker/login-action@v4
@@ -294,7 +294,7 @@ jobs:
   build-cli:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v6
         with:
           go-version-file: cli/go.mod
@@ -333,7 +333,7 @@ jobs:
       APP_ID: ${{ inputs.channel == 'test' && 'app.syrus.desktop.test' || 'app.syrus.desktop' }}
       MAC_ICON: ${{ inputs.channel == 'test' && 'build/icon-test.png' || 'build/icon.png' }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # Signing runs on dry runs and test builds too — it's the fragile part
       # worth rehearsing. push_image never gates the build/sign.
@@ -605,7 +605,7 @@ jobs:
       WIN_ICON: ${{ inputs.channel == 'test' && 'build/icon-test.ico' || 'build/icon.ico' }}
       PKG_NAME: ${{ inputs.channel == 'test' && 'syrus-test-desktop' || 'syrus-desktop' }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # Azure signing runs on dry runs and test builds too (it's the fragile
       # part worth rehearsing); push_image only gates the image push.
