@@ -13,6 +13,7 @@ export type AdminSettingsPayload = {
     video_storage_budget_mb: number
     max_concurrent_agent_runs: number
     proactive_rebase_commit_threshold: number
+    rebase_failure_cooldown_minutes: number
     mode: "advanced" | "simple"
     clearable_secrets: ClearableSecret[]
   }
@@ -25,6 +26,7 @@ export type AdminSettingsUpdate = {
   video_storage_budget_mb?: number
   max_concurrent_agent_runs?: number
   proactive_rebase_commit_threshold?: number
+  rebase_failure_cooldown_minutes?: number
   mode?: "advanced" | "simple"
 }
 

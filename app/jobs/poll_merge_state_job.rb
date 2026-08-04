@@ -148,6 +148,7 @@ class PollMergeStateJob < ApplicationJob
     end
 
     return if attempt_cap_reached?
+    return if rebase_failure_cooling_down?
     return if repo_rebase_concurrency_reached?
     return if start_blocked?
     return if stack_rebase_blocked_by_unchanged_deps?
@@ -177,6 +178,14 @@ class PollMergeStateJob < ApplicationJob
 
   def attempt_cap_reached?
     RebaseAttemptGuard.cap_reached?(@job, pr: @pr)
+  end
+
+  def rebase_failure_cooling_down?
+    return false unless RebaseAttemptGuard.cooling_down?(@job, pr: @pr)
+
+    audit("auto_merge: PR ##{@job.pr_number} has a recent failed rebase for the same head/base; waiting for PR changes or cooldown expiry")
+    Rails.logger.info("[PollMergeStateJob] #{@job.slug} PR ##{@job.pr_number} rebase failure cooldown active; skipping dispatch")
+    true
   end
 
   def repo_rebase_concurrency_reached?

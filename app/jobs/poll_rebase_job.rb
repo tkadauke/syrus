@@ -73,6 +73,7 @@ class PollRebaseJob < ApplicationJob
     return if noop_rebase_already_covers?(pr)
     return if pending_rebase?
     return if attempt_cap_reached?(pr)
+    return if rebase_failure_cooling_down?(pr)
     return if repo_rebase_concurrency_reached?
 
     Rails.logger.info("[PollRebaseJob] #{@job.slug} PR ##{pr_number} unmergeable; instantiating rebase workflow")
@@ -129,6 +130,13 @@ class PollRebaseJob < ApplicationJob
     return false unless RebaseAttemptGuard.cap_reached?(@job, pr: pr)
 
     Rails.logger.info("[PollRebaseJob] #{@job.slug} hit rebase cap (#{REBASE_ATTEMPT_CAP} consecutive failures); skipping")
+    true
+  end
+
+  def rebase_failure_cooling_down?(pr)
+    return false unless RebaseAttemptGuard.cooling_down?(@job, pr: pr)
+
+    Rails.logger.info("[PollRebaseJob] #{@job.slug} recent rebase failure matches current PR head/base; deferring")
     true
   end
 

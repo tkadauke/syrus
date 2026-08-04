@@ -255,6 +255,8 @@
     "max_concurrent_agent_runs_help": "Finis per totum cluster quot cursus agentis simul currant, per omnes vasa operaria. Hoc pone cum plures operarii current, ne tota agentis simultas (et sumptus / limes velocitatis) cum numero vasorum crescat. 0 = infinitum (solum per JOB_CONCURRENCY cuiusque vasis finitum). Cursus collocationis et examinatoris rami principalis non numerantur.",
     "proactive_rebase_commit_threshold_label": "Limen rebasificationis proactivae (per commissa)",
     "proactive_rebase_commit_threshold_help": "Numerus commissionum quibus petitio tractionis post basim suam manere debet antequam Syrus eam proactive rebasificat, etiam cum mergeable_state GitHub mundus est. Utile cum protectio rami non postulat ramos recentes esse. Minimum 1 esse debet.",
+    "rebase_failure_cooldown_label": "Mora post rebase defectum (minuta)",
+    "rebase_failure_cooldown_help": "Quamdiu scrutinium automaticum status fusionis exspectet antequam eundem conflictum rebase defectum iterum temptet, capite et basi petitionis tractus non mutatis. Rebase ab operatore petitum et mutationes capitis/basis hoc praetereunt. 0 moram exstinguit.",
     "mode_label": "Modus instantiae",
     "mode_help": "Provectus: plena experientia programmatoris cum approbationibus manualibus et omnibus moderamentis. Simplex: approbatio et fusio automatica, sine modo scribendi, sine modo locali, sine officiis temporatis.",
     "mode_advanced": "Provectus (programmator)",

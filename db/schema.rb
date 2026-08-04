@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_04_153000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_04_162000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -74,6 +74,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_04_153000) do
     t.datetime "mode_configured_at"
     t.boolean "polling_paused", default: false, null: false
     t.integer "proactive_rebase_commit_threshold", default: 20, null: false
+    t.integer "rebase_failure_cooldown_minutes", default: 60, null: false
     t.string "report_issue_repo_slug", default: "tkadauke/syrus", null: false
     t.boolean "runs_paused", default: false, null: false
     t.boolean "signups_open", default: false, null: false

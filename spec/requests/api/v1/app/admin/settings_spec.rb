@@ -111,6 +111,20 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
     expect(AppSetting.current.reload.proactive_rebase_commit_threshold).to eq(50)
   end
 
+  it "exposes and updates the rebase failure cooldown" do
+    sign_in_as(admin)
+
+    get "/api/v1/app/admin/settings"
+    expect(parse_body.dig("settings", "rebase_failure_cooldown_minutes")).to eq(60)
+
+    patch "/api/v1/app/admin/settings", params: {
+      app_setting: { signups_open: false, rebase_failure_cooldown_minutes: 15 }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(AppSetting.current.reload.rebase_failure_cooldown_minutes).to eq(15)
+  end
+
   it "rejects a proactive_rebase_commit_threshold below 1" do
     sign_in_as(admin)
     AppSetting.current.update!(proactive_rebase_commit_threshold: 20)
@@ -122,6 +136,19 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "code")).to eq("validation_failed")
     expect(AppSetting.current.reload.proactive_rebase_commit_threshold).to eq(20)
+  end
+
+  it "rejects a negative rebase_failure_cooldown_minutes" do
+    sign_in_as(admin)
+    AppSetting.current.update!(rebase_failure_cooldown_minutes: 60)
+
+    patch "/api/v1/app/admin/settings", params: {
+      app_setting: { signups_open: false, rebase_failure_cooldown_minutes: -1 }
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    expect(AppSetting.current.reload.rebase_failure_cooldown_minutes).to eq(60)
   end
 
   it "rejects unknown app secret names" do

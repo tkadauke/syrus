@@ -1,4 +1,5 @@
 class RebaseTarget
+  BRANCH_ARTIFACT = "rebase_branch"
   BASE_BRANCH_ARTIFACT = "rebase_base_branch"
   BASE_SHA_ARTIFACT = "rebase_base_sha"
 
@@ -15,11 +16,12 @@ class RebaseTarget
   end
   private_class_method :open_parent_branch
 
-  def self.artifacts(artifacts: nil, pr: nil, base_branch: nil)
+  def self.artifacts(artifacts: nil, pr: nil, base_branch: nil, branch_name: nil)
     merged = (artifacts || {}).dup
     branch = base_branch.presence || pr&.base&.ref.to_s.presence
     sha = pr&.base&.sha.to_s.presence
 
+    merged[BRANCH_ARTIFACT] = branch_name if branch_name.present?
     merged[BASE_BRANCH_ARTIFACT] = branch if branch.present?
     merged[BASE_SHA_ARTIFACT] = sha if sha.present?
     merged.presence

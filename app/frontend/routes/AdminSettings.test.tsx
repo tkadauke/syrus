@@ -19,6 +19,7 @@ function adminPayload(overrides: Record<string, unknown> = {}) {
       signups_open: false,
       max_concurrent_agent_runs: 0,
       proactive_rebase_commit_threshold: 1,
+      rebase_failure_cooldown_minutes: 60,
       video_retention_days: 7,
       video_storage_budget_mb: 2048,
       video_storage_budget_bytes: 2147483648,

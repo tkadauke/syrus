@@ -236,6 +236,57 @@ RSpec.describe PollMergeStateJob, :ci_only do
     }.to change { job.workflows.where(trigger_kind: "rebase").count }.by(1)
   end
 
+  describe "failed rebase cooldown" do
+    before do
+      AppSetting.current.update!(rebase_failure_cooldown_minutes: 60)
+      allow_any_instance_of(GithubClient).to receive(:pull_request).and_return(
+        pr(mergeable_state: "dirty", mergeable: false, head_sha: "abc", base_sha: "base")
+      )
+      allow_any_instance_of(GithubClient).to receive(:pr_reviews).and_return([])
+    end
+
+    def failed_agent_rebase!(finished_at:, pre_sha: "abc", base_sha: "base")
+      workflow = Workflows::Rebase.instantiate(
+        job: job,
+        artifacts: {
+          "auto_rebase_result" => {
+            "succeeded" => false,
+            "reason" => "conflict",
+            "pre_sha" => pre_sha,
+            "base_sha" => base_sha
+          }
+        }
+      )
+      workflow.steps.find_by!(kind: "agent_rebase").update!(state: "failed", finished_at: finished_at)
+      workflow.update!(state: "failed", finished_at: finished_at)
+      workflow
+    end
+
+    it "does not redispatch an unchanged recently failed agent rebase" do
+      failed_agent_rebase!(finished_at: 10.minutes.ago)
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { job.workflows.where(trigger_kind: "rebase").count }
+    end
+
+    it "redispatches when the PR head changes" do
+      failed_agent_rebase!(finished_at: 10.minutes.ago, pre_sha: "old-head")
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.workflows.where(trigger_kind: "rebase").count }.by(1)
+    end
+
+    it "redispatches after the cooldown expires" do
+      failed_agent_rebase!(finished_at: 61.minutes.ago)
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.workflows.where(trigger_kind: "rebase").count }.by(1)
+    end
+  end
+
   it "waits on failing checks instead of rebasing" do
     allow_any_instance_of(GithubClient).to receive(:pull_request).and_return(pr(mergeable_state: "blocked", mergeable: false))
 
@@ -373,6 +424,31 @@ RSpec.describe PollMergeStateJob, :ci_only do
       expect {
         described_class.perform_now(job.id)
       }.to change { job.workflows.where(trigger_kind: "stack_rebase").count }.by(1)
+    end
+
+    it "skips stack rebase dispatch after an unchanged recent stack_agent_rebase failure" do
+      workflow = Workflows::StackRebase.instantiate(
+        job: job,
+        artifacts: {
+          StackRebasePlan::RESULTS_ARTIFACT => [
+            {
+              "job_id" => job.id,
+              "result" => {
+                "succeeded" => false,
+                "reason" => "conflict",
+                "pre_sha" => "abc",
+                "base_sha" => "base"
+              }
+            }
+          ]
+        }
+      )
+      workflow.steps.find_by!(kind: "stack_agent_rebase").update!(state: "failed", finished_at: 10.minutes.ago)
+      workflow.update!(state: "failed", finished_at: 10.minutes.ago)
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { job.workflows.where(trigger_kind: "stack_rebase").count }
     end
   end
 

@@ -23,7 +23,7 @@ module Workflows
     def self.instantiate(job:, artifacts: nil, agent_provider: nil, pr: nil, base_branch: nil)
       super(
         job: job,
-        artifacts: RebaseTarget.artifacts(artifacts: artifacts, pr: pr, base_branch: base_branch),
+        artifacts: RebaseTarget.artifacts(artifacts: artifacts, pr: pr, base_branch: base_branch, branch_name: job.branch_name),
         agent_provider: agent_provider
       )
     end

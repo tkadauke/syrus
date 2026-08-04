@@ -43,6 +43,7 @@ module Api
                 # 0 = unlimited (bounded only by per-pod JOB_CONCURRENCY).
                 max_concurrent_agent_runs: setting.max_concurrent_agent_runs,
                 proactive_rebase_commit_threshold: setting.proactive_rebase_commit_threshold,
+                rebase_failure_cooldown_minutes: setting.rebase_failure_cooldown_minutes,
                 mode: setting.mode,
                 clearable_secrets: AppSetting.clearable_secrets.map do |key, label|
                   {
@@ -56,7 +57,7 @@ module Api
           end
 
           def settings_params
-            permitted_settings = [ :signups_open, :video_retention_days, :video_storage_budget_mb, :max_concurrent_agent_runs, :proactive_rebase_commit_threshold, :mode ] +
+            permitted_settings = [ :signups_open, :video_retention_days, :video_storage_budget_mb, :max_concurrent_agent_runs, :proactive_rebase_commit_threshold, :rebase_failure_cooldown_minutes, :mode ] +
                                  AppSetting.clearable_secrets.keys.map(&:to_sym)
 
             params

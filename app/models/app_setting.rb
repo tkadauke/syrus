@@ -54,6 +54,10 @@ class AppSetting < ApplicationRecord
     only_integer: true,
     greater_than_or_equal_to: 1
   }
+  validates :rebase_failure_cooldown_minutes, numericality: {
+    only_integer: true,
+    greater_than_or_equal_to: 0
+  }
   validates :mode, inclusion: { in: MODES }
 
   encrypts :github_app_private_key_pem
@@ -114,6 +118,10 @@ class AppSetting < ApplicationRecord
 
   def self.proactive_rebase_commit_threshold
     current.proactive_rebase_commit_threshold
+  end
+
+  def self.rebase_failure_cooldown_minutes
+    current.rebase_failure_cooldown_minutes
   end
 
   def self.max_job_failures

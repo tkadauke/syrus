@@ -31,7 +31,7 @@ class StackRebasePlan
     first_base = base_branch.presence || pr&.base&.ref.to_s.presence
     base_overrides[job.id] = first_base if first_base.present?
 
-    merged = RebaseTarget.artifacts(artifacts: artifacts, pr: pr, base_branch: base_branch) || {}
+    merged = RebaseTarget.artifacts(artifacts: artifacts, pr: pr, base_branch: base_branch, branch_name: job.branch_name) || {}
     merged[STACK_ARTIFACT] = jobs.map do |stack_job|
       {
         "job_id" => stack_job.id,

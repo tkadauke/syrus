@@ -255,6 +255,8 @@
     "max_concurrent_agent_runs_help": "Cluster-wide cap on how many agent Runs execute at once, across all worker pods. Set this when running multiple workers so total agent concurrency (and cost / rate-limit exposure) doesn't scale with pod count. 0 = unlimited (bounded only by each pod's JOB_CONCURRENCY). Landing and main-branch grader runs are not counted.",
     "proactive_rebase_commit_threshold_label": "Proactive rebase commit threshold",
     "proactive_rebase_commit_threshold_help": "Number of commits a PR must be behind its base before Syrus proactively rebases it, even when GitHub's mergeable_state is clean. Useful when branch-protection does not require branches to be up to date. Must be at least 1.",
+    "rebase_failure_cooldown_label": "Rebase failure cooldown (minutes)",
+    "rebase_failure_cooldown_help": "How long autonomous merge-state polling waits before retrying the same failed rebase conflict for an unchanged PR head and base. Operator-requested rebases and PR head/base changes bypass this. 0 disables the cooldown.",
     "mode_label": "Instance mode",
     "mode_help": "Advanced: full developer experience with manual approvals, coding mode, and all controls. Simple: auto-approve and auto-merge, no coding mode, no local mode, no scheduled tasks.",
     "mode_advanced": "Advanced (developer)",

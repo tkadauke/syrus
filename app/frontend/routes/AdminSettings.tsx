@@ -105,6 +105,7 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
   const [videoBudgetMb, setVideoBudgetMb] = useState(String(payload.settings.video_storage_budget_mb))
   const [maxConcurrentAgentRuns, setMaxConcurrentAgentRuns] = useState(String(payload.settings.max_concurrent_agent_runs))
   const [proactiveRebaseThreshold, setProactiveRebaseThreshold] = useState(String(payload.settings.proactive_rebase_commit_threshold))
+  const [rebaseFailureCooldown, setRebaseFailureCooldown] = useState(String(payload.settings.rebase_failure_cooldown_minutes))
   const [mode, setMode] = useState<"advanced" | "simple">(payload.settings.mode)
   const update = useMutation({
     mutationFn: () => updateAdminSettings({
@@ -113,6 +114,7 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
       video_storage_budget_mb: Number(videoBudgetMb),
       max_concurrent_agent_runs: Number(maxConcurrentAgentRuns),
       proactive_rebase_commit_threshold: Number(proactiveRebaseThreshold),
+      rebase_failure_cooldown_minutes: Number(rebaseFailureCooldown),
       mode
     }),
     onSuccess: (updated) => {
@@ -128,8 +130,9 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
     setVideoBudgetMb(String(payload.settings.video_storage_budget_mb))
     setMaxConcurrentAgentRuns(String(payload.settings.max_concurrent_agent_runs))
     setProactiveRebaseThreshold(String(payload.settings.proactive_rebase_commit_threshold))
+    setRebaseFailureCooldown(String(payload.settings.rebase_failure_cooldown_minutes))
     setMode(payload.settings.mode)
-  }, [payload.settings.signups_open, payload.settings.video_retention_days, payload.settings.video_storage_budget_mb, payload.settings.max_concurrent_agent_runs, payload.settings.proactive_rebase_commit_threshold, payload.settings.mode])
+  }, [payload.settings.signups_open, payload.settings.video_retention_days, payload.settings.video_storage_budget_mb, payload.settings.max_concurrent_agent_runs, payload.settings.proactive_rebase_commit_threshold, payload.settings.rebase_failure_cooldown_minutes, payload.settings.mode])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -211,6 +214,19 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
           onChange={(event) => setProactiveRebaseThreshold(event.target.value)}
           type="number"
           value={proactiveRebaseThreshold}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="admin-settings-rebase-failure-cooldown">{t("settings.rebase_failure_cooldown_label")}</label>
+        <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{t("settings.rebase_failure_cooldown_help")}</span>
+        <input
+          id="admin-settings-rebase-failure-cooldown"
+          className="mt-1 w-32 rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 px-2 py-1 text-sm"
+          min={0}
+          onChange={(event) => setRebaseFailureCooldown(event.target.value)}
+          type="number"
+          value={rebaseFailureCooldown}
         />
       </div>
 

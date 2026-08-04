@@ -84,6 +84,12 @@ RSpec.describe RebaseTarget do
       expect(result).to include(RebaseTarget::BASE_BRANCH_ARTIFACT => "release/v1")
     end
 
+    it "sets BRANCH_ARTIFACT from the source branch name" do
+      result = described_class.artifacts(branch_name: "syrus/issue-42")
+
+      expect(result).to include(RebaseTarget::BRANCH_ARTIFACT => "syrus/issue-42")
+    end
+
     it "sets BASE_BRANCH_ARTIFACT from the PR's base ref when base_branch is blank" do
       pr = double("pr", base: double(ref: "feature/shared", sha: "abc123"))
 
