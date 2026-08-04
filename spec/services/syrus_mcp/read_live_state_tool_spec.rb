@@ -11,6 +11,22 @@ RSpec.describe SyrusMcp::ReadLiveStateTool do
     JSON.parse(response.content.first[:text])
   end
 
+  def captured_sql
+    queries = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      next if payload[:name] == "SCHEMA"
+      next if payload[:cached]
+
+      queries << payload[:sql].to_s
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      yield
+    end
+
+    queries
+  end
+
   describe ".call" do
     it "serializes compact live state for the active run context" do
       response = call
@@ -43,6 +59,58 @@ RSpec.describe SyrusMcp::ReadLiveStateTool do
       expect(session["id"]).to eq(chat.id)
       expect(session["message_count"]).to eq(2)
       expect(session["recent_messages"].map { |message| message["role"] }).to eq(%w[user assistant])
+    end
+
+    it "batches related chat counts while keeping recent messages bounded" do
+      high_count_chat = ChatSession.create!(user: run.job.user, repository: run.job.repository, title: "Long planning")
+      job_chat = ChatSession.create!(user: run.job.user, repository: run.job.repository, title: "Job feedback")
+      job_chat.chat_attachments.create!(attachable: run.job)
+      quiet_chat = ChatSession.create!(user: run.job.user, repository: run.job.repository, title: "Quiet chat")
+
+      now = Time.current
+      ChatMessage.insert_all!(
+        125.times.map do |index|
+          {
+            chat_session_id: high_count_chat.id,
+            role: index.even? ? "user" : "assistant",
+            content: { "text" => "Message #{index}" },
+            created_at: now + index.seconds,
+            updated_at: now + index.seconds
+          }
+        end
+      )
+      2.times do |index|
+        job_chat.messages.create!(role: "user", content: { "text" => "Job note #{index}" })
+      end
+      high_count_chat.update_columns(last_message_at: now + 125.seconds)
+      job_chat.update_columns(last_message_at: now + 124.seconds)
+      quiet_chat.update_columns(last_message_at: now + 123.seconds)
+      high_count_chat.pending_actions.create!(action: "cancel_job", payload: { "job_id" => run.job.id })
+      job_chat.pending_actions.create!(action: "retry_job", payload: { "job_id" => run.job.id })
+      job_chat.pending_actions.create!(action: "cancel_job", payload: { "job_id" => run.job.id }, state: "confirmed")
+
+      response = nil
+      queries = captured_sql { response = call(detail: "full") }
+      payload = payload_from(response)
+      sessions = payload.dig("chat", "sessions").index_by { |session| session["id"] }
+
+      expect(sessions.fetch(high_count_chat.id)["message_count"]).to eq(125)
+      expect(sessions.fetch(high_count_chat.id)["pending_actions_count"]).to eq(1)
+      expect(sessions.fetch(high_count_chat.id)["recent_messages"].size).to eq(3)
+      expect(sessions.fetch(job_chat.id)["message_count"]).to eq(2)
+      expect(sessions.fetch(job_chat.id)["pending_actions_count"]).to eq(1)
+      expect(sessions.fetch(quiet_chat.id)["message_count"]).to eq(0)
+      expect(sessions.fetch(quiet_chat.id)["pending_actions_count"]).to eq(0)
+
+      message_count_queries = queries.grep(/SELECT COUNT\(\*\).*FROM "?chat_messages"?/i)
+      pending_action_count_queries = queries.grep(/SELECT COUNT\(\*\).*FROM "?chat_pending_actions"?/i)
+      recent_message_queries = queries.grep(/FROM "?chat_messages"?/i) - message_count_queries
+      attachment_queries = queries.grep(/FROM "?chat_attachments"?/i)
+
+      expect(message_count_queries.size).to eq(1)
+      expect(pending_action_count_queries.size).to eq(1)
+      expect(recent_message_queries.size).to be <= SyrusMcp::LiveState::RELATED_CHAT_LIMIT
+      expect(attachment_queries.size).to be <= 2
     end
 
     it "includes Solid Queue entries for the current run when queue tables are available" do

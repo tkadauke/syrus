@@ -218,10 +218,11 @@ module SyrusMcp
     end
 
     def chat_payload(compact:)
-      chats = related_chats
+      chats = related_chats.to_a
+      stats = related_chat_stats(chats)
       {
         related_count: chats.size,
-        sessions: chats.map { |chat| chat_session_payload(chat, compact: compact) },
+        sessions: chats.map { |chat| chat_session_payload(chat, compact: compact, stats: stats) },
         note: chats.empty? ? "No chat sessions are attached to this job or repository." : nil
       }.compact
     end
@@ -239,19 +240,38 @@ module SyrusMcp
           repository_id: job.repository_id
         )
         .distinct
+        .includes(repository_attachments: :attachable)
         .order(Arel.sql("COALESCE(chat_sessions.last_message_at, chat_sessions.updated_at, chat_sessions.created_at) DESC"))
         .limit(RELATED_CHAT_LIMIT)
     end
 
-    def chat_session_payload(chat, compact:)
+    def related_chat_stats(chats)
+      chat_ids = chats.map(&:id)
+      return { message_counts: {}, pending_action_counts: {}, busy_chat_ids: Set.new } if chat_ids.empty?
+
+      workdirs_by_chat_id = chats.to_h { |chat| [ chat.id, chat.workspace_root.to_s ] }
+      busy_workdirs = SpawnedProcess.running
+                                  .where(kind: "agent", workdir: workdirs_by_chat_id.values)
+                                  .distinct
+                                  .pluck(:workdir)
+                                  .to_set
+
+      {
+        message_counts: ChatMessage.where(chat_session_id: chat_ids).group(:chat_session_id).count,
+        pending_action_counts: ChatPendingAction.pending.where(chat_session_id: chat_ids).group(:chat_session_id).count,
+        busy_chat_ids: workdirs_by_chat_id.filter_map { |chat_id, workdir| chat_id if busy_workdirs.include?(workdir) }.to_set
+      }
+    end
+
+    def chat_session_payload(chat, compact:, stats:)
       payload = {
         id: chat.id,
         title: chat.title,
         repository: chat.repository&.slug,
-        message_count: chat.messages.count,
-        pending_actions_count: chat.pending_actions.pending.count,
+        message_count: stats.fetch(:message_counts).fetch(chat.id, 0),
+        pending_actions_count: stats.fetch(:pending_action_counts).fetch(chat.id, 0),
         turn_in_flight: chat.turn_in_flight?,
-        agent_busy: chat.agent_busy?,
+        agent_busy: stats.fetch(:busy_chat_ids).include?(chat.id),
         stop_requested_at: timestamp(chat.stop_requested_at),
         last_message_at: timestamp(chat.last_message_at),
         updated_at: timestamp(chat.updated_at),
