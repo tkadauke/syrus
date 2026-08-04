@@ -102,7 +102,8 @@ RSpec.describe SupervisorEvents, type: :service do
       "id" => repository.id,
       "slug" => repository.slug
     )
-    expect(chat.messages).to be_empty
+    kickoff = chat.messages.sole
+    expect(kickoff.content).to include("source" => "supervisor_kickoff")
     expect(ChatScopedEventEvaluatorJob).to have_been_enqueued.with(scoped_event.id, chat.id)
   end
 
@@ -121,14 +122,19 @@ RSpec.describe SupervisorEvents, type: :service do
       )
     end
 
-    expect(admin.chat_sessions.find_by!(system_kind: "supervisor").messages.count).to eq(0)
-    expect(other_admin.chat_sessions.find_by!(system_kind: "supervisor").messages.count).to eq(0)
+    expect(admin.chat_sessions.find_by!(system_kind: "supervisor").messages.where(role: "user").sole.content)
+      .to include("source" => "supervisor_kickoff")
+    expect(other_admin.chat_sessions.find_by!(system_kind: "supervisor").messages.where(role: "user").sole.content)
+      .to include("source" => "supervisor_kickoff")
     expect(admin.chat_sessions.find_by!(system_kind: "supervisor").scoped_events.count).to eq(1)
     expect(other_admin.chat_sessions.find_by!(system_kind: "supervisor").scoped_events.count).to eq(1)
   end
 
   it "enqueues evaluator jobs instead of chat turns for scoped supervisor event delivery" do
     enable_supervisor_chat!
+    SupervisorChat.ensure_for!(admin)
+    SupervisorChat.ensure_for!(other_admin)
+    ActiveJob::Base.queue_adapter.enqueued_jobs.clear
 
     expect {
       described_class.publish!(
