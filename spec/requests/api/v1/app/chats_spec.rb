@@ -1839,6 +1839,143 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     end
   end
 
+  describe "GET /api/v1/app/chats/:id/source_file" do
+    it "returns file content proxied from the relay for a planning chat with an attached repository" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository,
+        coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
+      stub_request(:get, "http://127.0.0.1:9283/workspace/file")
+        .with(query: hash_including("session_id" => chat.id.to_s, "path" => "app/models/widget.rb"),
+              headers: { "Authorization" => "Bearer test-relay-token" })
+        .to_return(status: 200, body: { content: "class Widget\nend\n", binary: false, too_large: false, path: "app/models/widget.rb" }.to_json)
+
+      get "/api/v1/app/chats/#{chat.id}/source_file", params: { path: "app/models/widget.rb" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to include(
+        "content" => "class Widget\nend\n",
+        "binary" => false,
+        "too_large" => false,
+        "path" => "app/models/widget.rb"
+      )
+    end
+
+    it "does not require Coding Mode or a coding checkout branch" do
+      sign_in_as(user)
+      Feature.find_or_create_by!(slug: "coding_mode") { |feature| feature.category = "Labs"; feature.name = "Coding Mode" }.update!(enabled: false)
+      chat = ChatSession.create!(user: user, repository: repository,
+        coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
+      stub_request(:get, "http://127.0.0.1:9283/workspace/file")
+        .with(query: hash_including("session_id" => chat.id.to_s, "path" => "README.md"),
+              headers: { "Authorization" => "Bearer test-relay-token" })
+        .to_return(status: 200, body: { content: "# Readme\n", binary: false, too_large: false, path: "README.md" }.to_json)
+
+      get "/api/v1/app/chats/#{chat.id}/source_file", params: { path: "README.md" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["content"]).to eq("# Readme\n")
+    end
+
+    it "rejects another user's chat" do
+      sign_in_as(Factories.user)
+      chat = ChatSession.create!(user: user, repository: repository,
+        coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
+
+      get "/api/v1/app/chats/#{chat.id}/source_file", params: { path: "README.md" }
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "returns 422 when path traversal is rejected by the relay" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository,
+        coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
+      stub_request(:get, "http://127.0.0.1:9283/workspace/file")
+        .with(query: hash_including("session_id" => chat.id.to_s, "path" => "../../../etc/passwd"),
+              headers: { "Authorization" => "Bearer test-relay-token" })
+        .to_return(status: 422, body: { error: "Unprocessable Entity" }.to_json)
+
+      get "/api/v1/app/chats/#{chat.id}/source_file", params: { path: "../../../etc/passwd" }
+
+      expect(response).to have_http_status(:unprocessable_content)
+    end
+
+    it "surfaces binary and too-large relay responses without failing navigation" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository,
+        coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
+      stub_request(:get, "http://127.0.0.1:9283/workspace/file")
+        .with(query: hash_including("session_id" => chat.id.to_s, "path" => "logo.png"),
+              headers: { "Authorization" => "Bearer test-relay-token" })
+        .to_return(status: 200, body: { content: nil, binary: true, too_large: false, path: "logo.png" }.to_json)
+
+      get "/api/v1/app/chats/#{chat.id}/source_file", params: { path: "logo.png" }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["binary"]).to eq(true)
+    end
+
+    it "returns 404 for missing files and 503 when the relay is unavailable" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository,
+        coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
+      stub_request(:get, "http://127.0.0.1:9283/workspace/file")
+        .with(query: hash_including("session_id" => chat.id.to_s, "path" => "missing.rb"),
+              headers: { "Authorization" => "Bearer test-relay-token" })
+        .to_return(status: 404, body: { error: "Not Found" }.to_json)
+
+      get "/api/v1/app/chats/#{chat.id}/source_file", params: { path: "missing.rb" }
+      expect(response).to have_http_status(:not_found)
+
+      stub_request(:get, "http://127.0.0.1:9283/workspace/file")
+        .with(query: hash_including("session_id" => chat.id.to_s, "path" => "README.md"),
+              headers: { "Authorization" => "Bearer test-relay-token" })
+        .to_raise(Errno::ECONNREFUSED)
+      get "/api/v1/app/chats/#{chat.id}/source_file", params: { path: "README.md" }
+      expect(response).to have_http_status(:service_unavailable)
+    end
+
+    it "401s when unauthenticated" do
+      chat = ChatSession.create!(user: user, repository: repository)
+
+      get "/api/v1/app/chats/#{chat.id}/source_file", params: { path: "README.md" }
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
+  describe "GET /api/v1/app/chats/:id/source_file/raw" do
+    it "streams text content from the relay as a raw response" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository,
+        coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
+      stub_request(:get, "http://127.0.0.1:9283/workspace/file")
+        .with(query: hash_including("session_id" => chat.id.to_s, "path" => "README.md"))
+        .to_return(status: 200, body: { content: "# Widgets\n", binary: false, too_large: false, path: "README.md" }.to_json)
+
+      get "/api/v1/app/chats/#{chat.id}/source_file/raw", params: { path: "README.md" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.media_type).to eq("text/plain")
+      expect(response.body).to eq("# Widgets\n")
+    end
+
+    it "does not inline binary or too-large files" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository,
+        coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
+      stub_request(:get, "http://127.0.0.1:9283/workspace/file")
+        .with(query: hash_including("session_id" => chat.id.to_s, "path" => "big.log"),
+              headers: { "Authorization" => "Bearer test-relay-token" })
+        .to_return(status: 200, body: { content: nil, binary: false, too_large: true, size: 999_999, path: "big.log" }.to_json)
+
+      get "/api/v1/app/chats/#{chat.id}/source_file/raw", params: { path: "big.log" }
+
+      expect(response).to have_http_status(:content_too_large)
+      expect(response.body).to include("too large")
+    end
+  end
+
   describe "GET /api/v1/app/chats/:id/coding_commits" do
     def enable_coding_mode!(enabled: true)
       feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|

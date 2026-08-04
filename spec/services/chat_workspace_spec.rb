@@ -207,6 +207,22 @@ RSpec.describe ChatWorkspace, :ci_only do
     end
   end
 
+  describe ".attach_repository!" do
+    context "relay credentials" do
+      before { ChatWorkspaceRelay.relay_address = "127.0.0.1:9283" }
+      after  { ChatWorkspaceRelay.relay_address = nil }
+
+      it "writes relay credentials for read-only attached repository previews" do
+        described_class.attach_repository!(chat_session, repository)
+
+        chat_session.reload
+        expect(chat_session.coding_relay_address).to eq("127.0.0.1:9283")
+        expect(chat_session.coding_relay_token).to be_present
+        expect(chat_session.coding_checkout_branch).to be_nil
+      end
+    end
+  end
+
   describe ".ensure_job_branch_checkout!" do
     let(:job_branch) { "syrus/fix-login-42" }
 

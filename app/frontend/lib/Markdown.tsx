@@ -1,20 +1,22 @@
-import { Fragment, type ReactNode } from "react"
+import { Fragment, type MouseEvent, type ReactNode } from "react"
 import { containsSlug, linkifySlugs } from "./linkifySlugs"
 
 type InlineToken = string | ReactNode
-type RenderInlineOptions = { linkifySlugs?: boolean }
+export type MarkdownLinkHandler = (href: string, event: MouseEvent<HTMLAnchorElement>) => void
+type RenderInlineOptions = { linkifySlugs?: boolean; onLinkClick?: MarkdownLinkHandler }
 type ListMarker = { indent: number; ordered: boolean; value?: number; content: string }
 type ListItem = { content: string; nested: ReactNode[]; value?: number }
+type MarkdownProps = { className?: string; text: string; onLinkClick?: MarkdownLinkHandler }
 
-export function Markdown({ className, text }: { className?: string; text: string }) {
-  return <div className={["chat-prose", className].filter(Boolean).join(" ")}>{renderBlocks(text)}</div>
+export function Markdown({ className, text, onLinkClick }: MarkdownProps) {
+  return <div className={["chat-prose", className].filter(Boolean).join(" ")}>{renderBlocks(text, { onLinkClick })}</div>
 }
 
 export function PlainText({ className, text }: { className?: string; text: string }) {
   return <div className={className}>{text}</div>
 }
 
-function renderBlocks(text: string): ReactNode[] {
+function renderBlocks(text: string, options: RenderInlineOptions = {}): ReactNode[] {
   const lines = text.replace(/\r\n?/g, "\n").split("\n")
   const blocks: ReactNode[] = []
   let index = 0
@@ -54,7 +56,7 @@ function renderBlocks(text: string): ReactNode[] {
 
     const heading = line.match(/^(#{1,4})\s+(.+)$/)
     if (heading) {
-      blocks.push(renderHeading(heading[1].length, heading[2], key++))
+      blocks.push(renderHeading(heading[1].length, heading[2], key++, options))
       index += 1
       continue
     }
@@ -65,19 +67,19 @@ function renderBlocks(text: string): ReactNode[] {
         quoteLines.push(lines[index].replace(/^\s*>\s?/, ""))
         index += 1
       }
-      blocks.push(<blockquote key={`block-${key++}`}>{renderBlocks(quoteLines.join("\n"))}</blockquote>)
+      blocks.push(<blockquote key={`block-${key++}`}>{renderBlocks(quoteLines.join("\n"), options)}</blockquote>)
       continue
     }
 
     if (isTableStart(lines, index)) {
-      const { node, nextIndex } = renderTable(lines, index, key++)
+      const { node, nextIndex } = renderTable(lines, index, key++, options)
       blocks.push(node)
       index = nextIndex
       continue
     }
 
     if (listMarker(line)) {
-      const { node, nextIndex } = renderList(lines, index, key++)
+      const { node, nextIndex } = renderList(lines, index, key++, options)
       blocks.push(node)
       index = nextIndex
       continue
@@ -88,13 +90,13 @@ function renderBlocks(text: string): ReactNode[] {
       paragraph.push(lines[index].trim())
       index += 1
     }
-    blocks.push(<p key={`block-${key++}`}>{renderInline(paragraph.join(" "))}</p>)
+    blocks.push(<p key={`block-${key++}`}>{renderInline(paragraph.join(" "), options)}</p>)
   }
 
   return blocks
 }
 
-function renderList(lines: string[], index: number, key: number) {
+function renderList(lines: string[], index: number, key: number, options: RenderInlineOptions = {}) {
   const firstMarker = listMarker(lines[index])
   if (!firstMarker) return { node: null, nextIndex: index }
 
@@ -120,7 +122,7 @@ function renderList(lines: string[], index: number, key: number) {
       const nextMarker = listMarker(lines[index])
       if (nextMarker) {
         if (nextMarker.indent > indent) {
-          const nested = renderList(lines, index, key + items.length + item.nested.length + 1)
+          const nested = renderList(lines, index, key + items.length + item.nested.length + 1, options)
           if (nested.node) item.nested.push(nested.node)
           index = nested.nextIndex
           continue
@@ -144,7 +146,7 @@ function renderList(lines: string[], index: number, key: number) {
     <ol key={`block-${key}`} start={firstMarker.value}>
       {items.map((item, itemIndex) => (
         <li key={itemIndex} value={item.value}>
-          {renderInline(item.content)}
+          {renderInline(item.content, options)}
           {item.nested}
         </li>
       ))}
@@ -153,7 +155,7 @@ function renderList(lines: string[], index: number, key: number) {
     <ul key={`block-${key}`}>
       {items.map((item, itemIndex) => (
         <li key={itemIndex}>
-          {renderInline(item.content)}
+          {renderInline(item.content, options)}
           {item.nested}
         </li>
       ))}
@@ -206,8 +208,8 @@ function startsBlock(lines: string[], index: number) {
   )
 }
 
-function renderHeading(level: number, text: string, key: number) {
-  const children = renderInline(text)
+function renderHeading(level: number, text: string, key: number, options: RenderInlineOptions = {}) {
+  const children = renderInline(text, options)
   switch (level) {
     case 1:
       return <h1 key={`block-${key}`}>{children}</h1>
@@ -224,7 +226,7 @@ function isTableStart(lines: string[], index: number) {
   return index + 1 < lines.length && lines[index].includes("|") && /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(lines[index + 1])
 }
 
-function renderTable(lines: string[], index: number, key: number) {
+function renderTable(lines: string[], index: number, key: number, options: RenderInlineOptions = {}) {
   const headers = splitTableRow(lines[index])
   index += 2
   const rows: string[][] = []
@@ -239,12 +241,12 @@ function renderTable(lines: string[], index: number, key: number) {
     node: (
       <div key={`block-${key}`} className="overflow-x-auto"><table>
         <thead>
-          <tr>{headers.map((header, cellIndex) => <th key={cellIndex}>{renderInline(header)}</th>)}</tr>
+          <tr>{headers.map((header, cellIndex) => <th key={cellIndex}>{renderInline(header, options)}</th>)}</tr>
         </thead>
         <tbody>
           {rows.map((row, rowIndex) => (
             <tr key={rowIndex}>
-              {headers.map((_header, cellIndex) => <td key={cellIndex}>{renderInline(row[cellIndex] || "")}</td>)}
+              {headers.map((_header, cellIndex) => <td key={cellIndex}>{renderInline(row[cellIndex] || "", options)}</td>)}
             </tr>
           ))}
         </tbody>
@@ -298,7 +300,7 @@ function renderInlineToken(token: string, key: number, options: RenderInlineOpti
     const href = safeHref(link[2])
     if (href) {
       return (
-        <a href={href} key={key} rel="noreferrer" target={externalHref(href) ? "_blank" : undefined}>
+        <a href={href} key={key} onClick={options.onLinkClick ? (event) => options.onLinkClick?.(href, event) : undefined} rel="noreferrer" target={externalHref(href) ? "_blank" : undefined}>
           {renderInline(link[1], { ...options, linkifySlugs: false })}
         </a>
       )

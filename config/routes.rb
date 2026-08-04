@@ -216,6 +216,8 @@ Rails.application.routes.draw do
         get "chats/:id/coding_commits", to: "chats#coding_commits", constraints: { id: /\d+/ }
         get "chats/:id/coding_file", to: "chats#coding_file", constraints: { id: /\d+/ }
         get "chats/:id/coding_diff", to: "chats#coding_diff", constraints: { id: /\d+/ }
+        get "chats/:id/source_file", to: "chats#source_file", constraints: { id: /\d+/ }
+        get "chats/:id/source_file/raw", to: "chats#source_file_raw", constraints: { id: /\d+/ }
         get "repositories/new", to: "repositories#new"
         get "repositories/:id/edit", to: "repositories#edit", constraints: { id: /\d+/ }
         get "repositories/owners", to: "repositories#owners"

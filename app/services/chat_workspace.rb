@@ -350,6 +350,7 @@ class ChatWorkspace
     path = self.class.path_for(@chat_session)
     FileUtils.mkdir_p(path.to_s)
     persist_workspace_path!(path)
+    write_relay_credentials!
     path
   end
 
@@ -364,6 +365,7 @@ class ChatWorkspace
     end
 
     @chat_session.chat_attachments.find_or_create_by!(attachable: repository)
+    write_relay_credentials!
     path
   end
 

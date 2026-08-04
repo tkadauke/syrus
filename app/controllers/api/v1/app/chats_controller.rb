@@ -1035,6 +1035,54 @@ module Api
           end
         end
 
+        def source_file
+          chat_session = find_chat_session
+          return unless validate_source_preview_request!(chat_session)
+
+          file_path = params[:path].to_s.strip
+          if file_path.blank?
+            render_error("validation_failed", "path parameter is required.", status: :unprocessable_content)
+            return
+          end
+
+          response = proxy_to_coding_relay_response(chat_session, "file", params: { path: file_path })
+          render_source_file_response(response, missing_message: "File not found in attached repository.")
+        end
+
+        def source_file_raw
+          chat_session = find_chat_session
+          return unless validate_source_preview_request!(chat_session)
+
+          file_path = params[:path].to_s.strip
+          if file_path.blank?
+            render_error("validation_failed", "path parameter is required.", status: :unprocessable_content)
+            return
+          end
+
+          relay_response = proxy_to_coding_relay_response(chat_session, "file", params: { path: file_path })
+          if relay_response.nil?
+            render_error("relay_unavailable", "Source preview relay is unavailable.", status: :service_unavailable)
+            return
+          end
+
+          status, result = relay_response
+          unless status == 200 && result
+            render_error("not_found", "File not found in attached repository.", status: :not_found)
+            return
+          end
+
+          if result["binary"]
+            render plain: "Binary file preview is not available.", status: :unprocessable_content, content_type: "text/plain"
+          elsif result["too_large"]
+            render plain: "File is too large to preview.", status: :content_too_large, content_type: "text/plain"
+          else
+            send_data result["content"].to_s,
+              type: "text/plain; charset=utf-8",
+              disposition: "inline",
+              filename: File.basename(file_path)
+          end
+        end
+
         def search_proposals
           chat_session = find_chat_session
           query = params[:q].to_s.strip
@@ -1052,7 +1100,47 @@ module Api
 
         private
 
+        def validate_source_preview_request!(chat_session)
+          unless chat_session.repository
+            render_error("not_found", "No repository attached to this chat.", status: :not_found)
+            return false
+          end
+
+          if chat_session.coding_relay_address.blank? || chat_session.coding_relay_token.blank?
+            render_error("relay_unavailable", "Source preview relay is unavailable.", status: :service_unavailable)
+            return false
+          end
+
+          true
+        end
+
+        def render_source_file_response(relay_response, missing_message:)
+          if relay_response.nil?
+            render_error("relay_unavailable", "Source preview relay is unavailable.", status: :service_unavailable)
+            return
+          end
+
+          status, result = relay_response
+          case status
+          when 200
+            render json: result
+          when 422
+            render_error("validation_failed", "Invalid source file path.", status: :unprocessable_content)
+          when 401
+            render_error("relay_unavailable", "Source preview relay rejected the request.", status: :service_unavailable)
+          else
+            render_error("not_found", missing_message, status: :not_found)
+          end
+        end
+
         def proxy_to_coding_relay(chat_session, path, params: {})
+          status, body = proxy_to_coding_relay_response(chat_session, path, params: params)
+          return nil unless status == 200
+
+          body
+        end
+
+        def proxy_to_coding_relay_response(chat_session, path, params: {})
           relay_address = chat_session.coding_relay_address
           return nil if relay_address.blank?
 
@@ -1067,9 +1155,8 @@ module Api
           request["Authorization"] = "Bearer #{chat_session.coding_relay_token}"
 
           response = http.request(request)
-          return nil unless response.is_a?(Net::HTTPSuccess)
-
-          JSON.parse(response.body)
+          body = JSON.parse(response.body)
+          [ response.code.to_i, body ]
         rescue StandardError
           nil
         end

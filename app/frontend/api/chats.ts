@@ -515,6 +515,8 @@ export type ChatPayload = {
     app_coding_commits_path?: string
     app_coding_file_path?: string
     app_coding_diff_path?: string
+    app_source_file_path?: string
+    app_source_file_raw_path?: string
   }
   gemini_configured: boolean
   walkthroughs_enabled: boolean
@@ -881,6 +883,14 @@ export function fetchCodingFileContent(basePath: string, filePath: string, ref?:
   const params = new URLSearchParams({ path: filePath })
   if (ref) params.set("ref", ref)
   return getJson<CodingFileContentPayload>(`${basePath}?${params}`)
+}
+
+export function sourceFileUrl(basePath: string, filePath: string) {
+  return `${basePath}?${new URLSearchParams({ path: filePath })}`
+}
+
+export function fetchSourceFileContent(basePath: string, filePath: string) {
+  return getJson<CodingFileContentPayload>(sourceFileUrl(basePath, filePath))
 }
 
 export function fetchCodingDiff(path: string, mode: "cumulative" | "turn" = "cumulative", ref?: string | null) {

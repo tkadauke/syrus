@@ -85,7 +85,9 @@ module ChatSerialization
           app_coding_files_path: "/api/v1/app/chats/#{chat_session.id}/coding_files",
           app_coding_commits_path: "/api/v1/app/chats/#{chat_session.id}/coding_commits",
           app_coding_file_path: "/api/v1/app/chats/#{chat_session.id}/coding_file",
-          app_coding_diff_path: "/api/v1/app/chats/#{chat_session.id}/coding_diff"
+          app_coding_diff_path: "/api/v1/app/chats/#{chat_session.id}/coding_diff",
+          app_source_file_path: "/api/v1/app/chats/#{chat_session.id}/source_file",
+          app_source_file_raw_path: "/api/v1/app/chats/#{chat_session.id}/source_file/raw"
         },
         gemini_configured: Current.user.gemini_configured?,
         # Labs flag: gates the composer's record/drag/upload intake. The
