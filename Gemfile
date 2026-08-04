@@ -24,6 +24,11 @@ gem "octokit", "~> 10.0"
 # from cache and don't count against the GH rate limit.
 gem "faraday-http-cache"
 
+# Octokit's default Faraday stack includes retry middleware. Keep this
+# available in runtime bundles so sidecar processes do not boot with
+# Octokit's Faraday v2 missing-middleware warning.
+gem "faraday-retry"
+
 # Model Context Protocol SDK — used for the per-run sidecar that lets
 # the agent submit PR copy back to Syrus during its run.
 gem "mcp"
@@ -100,7 +105,6 @@ end
 group :test do
   # Use system testing [https://guides.rubyonrails.org/testing.html#system-testing]
   gem "capybara"
-  gem "faraday-retry"
   gem "selenium-webdriver"
 
   # Stub HTTP and replay GitHub responses [https://github.com/vcr/vcr, https://github.com/bblimke/webmock]
