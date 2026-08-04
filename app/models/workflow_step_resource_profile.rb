@@ -125,7 +125,7 @@ class WorkflowStepResourceProfile < ApplicationRecord
   end
 
   def prediction_sample_count
-    [ process_attributed_sample_count.to_i, host_prediction_sample_count ].max
+    [ attributed_sample_count.to_i, process_attributed_sample_count.to_i, host_prediction_sample_count ].max
   end
 
   def host_prediction_sample_count
