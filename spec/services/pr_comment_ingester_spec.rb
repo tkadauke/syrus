@@ -103,6 +103,22 @@ RSpec.describe PrCommentIngester do
     expect(result.non_qualifying_records).not_to be_empty
   end
 
+  it "classifies coverage report comments as non-actionable without calling the provider classifier" do
+    comment = make_comment(
+      id: 109,
+      login: "alice",
+      body: "#{CoverageReport::PrCommentFormatter::MARKER}\n## Test Coverage Report"
+    )
+
+    result = call([ comment ])
+
+    expect(PrCommentClassifier).not_to have_received(:call)
+    expect(result.qualifying_records).to be_empty
+    record = PrReviewComment.find_by(github_comment_id: 109)
+    expect(record.actionable).to be false
+    expect(result.non_qualifying_records).to contain_exactly(record)
+  end
+
   it "defaults actionable to true when classifier fails" do
     allow(PrCommentClassifier).to receive(:call).and_return(
       PrCommentClassifier::Result.new(actionable: true, reason: nil, error: "timeout")

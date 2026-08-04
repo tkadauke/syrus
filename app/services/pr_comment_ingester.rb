@@ -70,6 +70,7 @@ class PrCommentIngester
 
   def classify_actionable(body)
     return true if body.blank?
+    return false if coverage_report_comment?(body)
 
     result = PrCommentClassifier.call(
       body: body,
@@ -83,6 +84,10 @@ class PrCommentIngester
     end
 
     result.actionable
+  end
+
+  def coverage_report_comment?(body)
+    body.include?(CoverageReport::PrCommentFormatter::MARKER)
   end
 
   def qualifies_for_workflow?(record)

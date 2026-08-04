@@ -525,6 +525,28 @@ RSpec.describe PollPullRequestJob, :ci_only do
       }.not_to change { job.workflows.where(trigger_kind: "pr_comment").count }
     end
 
+    it "does not call the provider classifier or enqueue feedback for Syrus coverage report comments" do
+      stub_issue_comments([
+        { id: 1,
+          body: "#{CoverageReport::PrCommentFormatter::MARKER}\n## Test Coverage Report\n\nLines: 91%",
+          user: { login: "operator" },
+          created_at: t1.iso8601 }
+      ])
+      stub_review_comments([])
+
+      workflow_count = job.workflows.where(trigger_kind: "pr_comment").count
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { PrReviewComment.count }.by(1)
+
+      expect(job.workflows.where(trigger_kind: "pr_comment").count).to eq(workflow_count)
+      expect(PrCommentClassifier).not_to have_received(:call)
+      record = PrReviewComment.last
+      expect(record.actionable).to be false
+      expect(record.body).to include(CoverageReport::PrCommentFormatter::MARKER)
+      expect(job.reload.last_seen_comment_at).to be_nil
+    end
+
     it "still stores a PrReviewComment record for non-actionable comments" do
       allow(PrCommentClassifier).to receive(:call).and_return(
         PrCommentClassifier::Result.new(actionable: false, reason: "praise", error: nil)
