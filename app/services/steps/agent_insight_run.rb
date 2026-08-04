@@ -7,6 +7,9 @@ module Steps
   # Unlike Implement, this step does NOT commit changes — the insight agent
   # is read-only. No diff is captured; `auto_close` follows on success.
   class AgentInsightRun < Base
+    KNOWN_PENDING_INSIGHT_LIMIT = 50
+    KNOWN_RESOLVED_INSIGHT_LIMIT = 25
+
     def call
       workspace.setup
       persist_prompt_if_needed
@@ -35,11 +38,7 @@ module Steps
                              .order(created_at: :desc)
                              .first
 
-      known_insights = [
-        *repository.insight_suggestions.pending.order(updated_at: :desc).limit(25),
-        *repository.insight_suggestions.accepted.order(updated_at: :desc).limit(25),
-        *repository.insight_suggestions.dismissed.order(updated_at: :desc).limit(25)
-      ]
+      known_insights = known_insights_for_prompt
 
       Prompts::AgentInsight.new(
         repository: repository,
@@ -48,6 +47,14 @@ module Steps
         known_insights: known_insights,
         user: job.user
       ).to_s
+    end
+
+    def known_insights_for_prompt
+      [
+        *repository.insight_suggestions.pending.order(updated_at: :desc).limit(KNOWN_PENDING_INSIGHT_LIMIT),
+        *repository.insight_suggestions.accepted.order(updated_at: :desc).limit(KNOWN_RESOLVED_INSIGHT_LIMIT),
+        *repository.insight_suggestions.dismissed.order(updated_at: :desc).limit(KNOWN_RESOLVED_INSIGHT_LIMIT)
+      ].sort_by(&:updated_at).reverse
     end
   end
 end

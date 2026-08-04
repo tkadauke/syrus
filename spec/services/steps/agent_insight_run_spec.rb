@@ -148,23 +148,44 @@ RSpec.describe Steps::AgentInsightRun do
         end
       end
 
-      it "lists pending insights before accepted and dismissed insights" do
-        InsightSuggestion.create!(
+      it "lists known insights newest-first across pending, accepted, and dismissed states" do
+        accepted_insight.update!(updated_at: 3.hours.ago)
+        dismissed_insight.update!(updated_at: 2.hours.ago)
+        pending_insight = InsightSuggestion.create!(
           job: job,
           repository: repository,
           title: "Pending finding nobody acted on",
           category: "inefficiency",
           severity: "low",
           confidence: 0.5,
-          state: "pending"
+          state: "pending",
+          updated_at: 1.hour.ago
         )
         handler.call
         prompt = run.reload.prompt
-        pending_pos = prompt.index("Pending finding nobody acted on")
+        pending_pos = prompt.index("#{pending_insight.title} (pending, informational)")
         accepted_pos  = prompt.index("Agent repeatedly fails at rebase step")
         dismissed_pos = prompt.index("Memory gap for test runner config")
         expect(pending_pos).to be < accepted_pos
-        expect(accepted_pos).to be < dismissed_pos
+        expect(dismissed_pos).to be < accepted_pos
+      end
+
+      it "budgets enough room to include more than twenty-five pending insights" do
+        26.times do |index|
+          InsightSuggestion.create!(
+            job: job,
+            repository: repository,
+            title: "Pending insight #{index}",
+            category: "inefficiency",
+            severity: "low",
+            confidence: 0.5,
+            state: "pending"
+          )
+        end
+
+        handler.call
+
+        expect(run.reload.prompt).to include("Pending insight 25 (pending, informational)")
       end
     end
 
