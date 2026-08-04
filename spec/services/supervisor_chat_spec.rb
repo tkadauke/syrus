@@ -36,7 +36,8 @@ RSpec.describe SupervisorChat, type: :service do
     expect(kickoff.content["text"]).to include("blocked work")
     expect(kickoff.content["text"]).to include("Jobs, Workflows, Runs, queues")
     expect(kickoff.content["text"]).to include("Do not treat missing repository attachment as a blocker")
-    expect(kickoff.content["text"]).to include("ask for repository attachment only if I explicitly request code inspection")
+    expect(kickoff.content["text"]).to include("recommend repository-specific code inspection only as a next step")
+    expect(kickoff.content["text"]).not_to include("proposal")
     expect(chat.last_read_at).to eq(kickoff.created_at)
   end
 

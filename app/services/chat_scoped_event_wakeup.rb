@@ -50,7 +50,7 @@ class ChatScopedEventWakeup
   end
 
   def default_handoff(event)
-    "Review the event, verify current state, and provide the appropriate update or proposed action."
+    "Review the event, verify current state, and provide the appropriate update or recommended action."
   end
 
   def metadata_for(event)

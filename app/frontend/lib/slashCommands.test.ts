@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { findSlashCommand, slashCommandDescription, slashCommandPrompt, slashCommandSignature, slashCommands, type SlashCommand } from "./slashCommands"
+import { filterSlashCommands, findSlashCommand, slashCommandDescription, slashCommandPrompt, slashCommandSignature, slashCommands, type SlashCommand } from "./slashCommands"
 
 function promptFor(commandName: string, args = "") {
   const command: SlashCommand | undefined = slashCommands.find((item) => item.name === commandName)
@@ -136,6 +136,34 @@ describe("slashCommands", () => {
     expect(prompt).toContain("Job description")
     expect(prompt).toContain("Optional Epic")
     expect(prompt).toContain("call the propose_job tool")
+  })
+
+  it("hides proposal and repository attachment commands for supervisor chats", () => {
+    const context = { chat: { system_kind: "supervisor" } }
+
+    expect(filterSlashCommands("", context).map((command) => command.name)).not.toEqual(expect.arrayContaining([
+      "/attach",
+      "/proposals",
+      "/discard",
+      "/feedback",
+      "/propose"
+    ]))
+    expect(findSlashCommand("/propose", context)).toBeNull()
+    expect(slashCommandPrompt("/propose", context)).toBe("/propose")
+  })
+
+  it("keeps proposal and repository attachment commands for ordinary chats", () => {
+    const context = { chat: { system_kind: null } }
+
+    expect(filterSlashCommands("", context).map((command) => command.name)).toEqual(expect.arrayContaining([
+      "/attach",
+      "/proposals",
+      "/discard",
+      "/feedback",
+      "/propose"
+    ]))
+    expect(findSlashCommand("/propose", context)?.command.name).toBe("/propose")
+    expect(slashCommandPrompt("/propose", context)).toContain("call the propose_job tool")
   })
 
   it("preserves optional context after /propose", () => {

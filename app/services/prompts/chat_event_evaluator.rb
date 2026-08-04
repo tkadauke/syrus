@@ -30,7 +30,7 @@ module Prompts
         Rules:
         - Use "no_op" when the event is informational, duplicate, already handled, or not relevant to the chat.
         - Use "respond" when the operator should see a concise update.
-        - Use "act" only when the live chat agent should inspect, plan, or propose follow-up work.
+        - Use "act" only when the live chat agent should inspect state, plan a response, or recommend an operational next step.
         - "urgency" and "confidence" must be numbers from 0.0 to 1.0.
         - Include "handoff_prompt" only for respond or act.
 

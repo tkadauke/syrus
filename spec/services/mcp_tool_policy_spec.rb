@@ -276,6 +276,37 @@ RSpec.describe McpToolPolicy do
       expect(tools).to include(*SyrusChatMcp::Sidecar::ADMIN_TOOLS)
     end
 
+    it "excludes repository attachment and work-creation tools for supervisor chats" do
+      admin = Factories.user(admin: true)
+      admin_session = ChatSession.create!(user: admin, repository: Factories.repository(user: admin), system_kind: "supervisor")
+      tools = described_class.for(context_for(admin_session))
+
+      expect(tools & described_class::SUPERVISOR_EXCLUDED_TOOLS).to be_empty
+      expect(tools).to include(
+        SyrusChatMcp::AdminOverviewTool,
+        SyrusChatMcp::ReadQueueTool,
+        SyrusChatMcp::SearchJobsTool,
+        SyrusChatMcp::ReadJobTool,
+        SyrusChatMcp::ListJobWorkflowsTool,
+        SyrusChatMcp::ReadWorkflowTool,
+        SyrusChatMcp::ReadRunTranscriptTool
+      )
+    end
+
+    it "keeps repository attachment and proposal tools for ordinary admin planning chats" do
+      admin = Factories.user(admin: true)
+      admin_session = ChatSession.create!(user: admin, repository: Factories.repository(user: admin))
+      tools = described_class.for(context_for(admin_session))
+
+      expect(tools).to include(
+        SyrusChatMcp::AttachRepositoryTool,
+        SyrusChatMcp::ProposeEpicTool,
+        SyrusChatMcp::ProposeJobTool,
+        SyrusChatMcp::ProposeEpicWithJobsTool,
+        SyrusChatMcp::SubmitChatFeedbackTool
+      )
+    end
+
     it "still excludes admin tools when a non-admin has a supervisor-kind session" do
       supervisor_session = chat_session(system_kind: "supervisor")
       tools = described_class.for(context_for(supervisor_session))

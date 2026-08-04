@@ -221,6 +221,43 @@ RSpec.describe SyrusChatMcp::Sidecar do
       expect(tool_names).not_to include("submit_insight")
     end
 
+    it "does not advertise attachment or work-creation tools to supervisor chats" do
+      admin = Factories.user(admin: true)
+      supervisor_session = ChatSession.create!(user: admin, repository: Factories.repository(user: admin), system_kind: "supervisor")
+      essential_server = server_for(supervisor_session, tier: :essential)
+      deferred_server = server_for(supervisor_session, tier: :deferred)
+      _ = jsonrpc(essential_server, "initialize", id: 0)
+      _ = jsonrpc(deferred_server, "initialize", id: 0)
+
+      essential_response = jsonrpc(essential_server, "tools/list", id: 1)
+      deferred_response = jsonrpc(deferred_server, "tools/list", id: 2)
+      tool_names = essential_response[:result][:tools].map { |tool| tool[:name] } +
+        deferred_response[:result][:tools].map { |tool| tool[:name] }
+
+      expect(tool_names).not_to include(
+        "attach_repository",
+        "propose_epic",
+        "propose_job",
+        "propose_epic_with_jobs",
+        "list_proposals",
+        "delete_proposal",
+        "submit_chat_feedback",
+        "delegate_issue",
+        "list_chat_media",
+        "schedule_recurring",
+        "fire_scheduled_task_now"
+      )
+      expect(tool_names).to include(
+        "admin_overview",
+        "read_queue",
+        "search_jobs",
+        "read_job",
+        "list_job_workflows",
+        "read_workflow",
+        "read_run_transcript"
+      )
+    end
+
     it "assigns every chat MCP tool file to exactly one tier" do
       # Gather tool file basenames from the sidecar-specific directories AND the
       # shared mcp/tools/ namespace (memory tools migrated there in this refactor).

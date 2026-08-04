@@ -356,10 +356,12 @@ When an admin chats in Supervisor, the agent uses admin-oriented guidance:
 system event messages are treated as operational context, incident summaries
 favor evidence and recommended next steps, live Syrus state is checked before
 acting, and risky actions such as retries, cancellations, rebases, pause/unpause,
-cleanup, or follow-up Jobs stay behind proposal or pending-action confirmation
-flows. Missing repository attachment is not treated as a blocker for Supervisor;
-the agent asks for one only when the operator explicitly requests code inspection
-or repository-dependent proposal drafting. Supervisor event messages and
+or cleanup stay behind pending-action confirmation flows. Supervisor does not
+receive repository attachment, new-work drafting, work-delegation, recurring-work
+creation, or feedback-submission tools. Missing repository attachment is not
+treated as a blocker for Supervisor; when code inspection or new implementation
+work is needed, it recommends the next step in prose for an ordinary planning
+surface instead of initiating it. Supervisor event messages and
 pending-action outcome notices are retained in compact history fallback so the
 chat remains auditable even when provider resume needs fallback context.
 In the V2 layout, the
@@ -550,11 +552,12 @@ chat bookmark. Job action commands such as `/cancel [id]`, `/retry [id]`,
 `/approve [id]`, `/discard`, and `/clear-canvas` show an inline confirmation
 before they mutate anything. `/approve` accepts `JOB-123`, `job-123`, or `123`,
 opens a picker of implemented Jobs when no ID is provided, and approves the
-selected Job for landing after confirmation. Skill commands such as `/canvas`
-and `/feedback` are sent through the normal chat message path for the agent to
-interpret. The `/propose` skill command starts a guided wizard: the agent asks
-for a Job title, description, and optional Epic, then creates a proposal card
-for operator confirmation.
+selected Job for landing after confirmation. Skill commands such as `/canvas`,
+`/feedback`, and `/propose` are sent through the normal chat message path for
+the agent to interpret. `/feedback` and `/propose` are hidden in Supervisor
+chats. In ordinary chats, `/propose` starts a guided wizard: the agent asks for
+a Job title, description, and optional Epic, then creates a proposal card for
+operator confirmation.
 
 Chat transcripts also surface MCP sidecar health. Syrus distinguishes
 available, pending, and unavailable chat tools so operators can tell when

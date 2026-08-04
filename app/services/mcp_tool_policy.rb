@@ -35,6 +35,20 @@ class McpToolPolicy
     ].freeze
   }.freeze
 
+  SUPERVISOR_EXCLUDED_TOOLS = [
+    SyrusChatMcp::AttachRepositoryTool,
+    SyrusChatMcp::ProposeEpicTool,
+    SyrusChatMcp::ProposeJobTool,
+    SyrusChatMcp::ProposeEpicWithJobsTool,
+    SyrusChatMcp::ListProposalsTool,
+    SyrusChatMcp::DeleteProposalTool,
+    SyrusChatMcp::SubmitChatFeedbackTool,
+    SyrusChatMcp::DelegateIssueTool,
+    SyrusChatMcp::ListChatMediaTool,
+    SyrusChatMcp::ScheduleRecurringTool,
+    SyrusChatMcp::FireScheduledTaskNowTool
+  ].freeze
+
   def self.for(context)
     new(context).allowed_tools
   end
@@ -117,6 +131,7 @@ class McpToolPolicy
     tools = apply_walkthrough_filter(tools)
     tools = apply_coding_filter(tools)
     tools = apply_local_mode_filter(tools)
+    tools = apply_supervisor_filter(tools)
     tools
   end
 
@@ -195,6 +210,12 @@ class McpToolPolicy
     return tools if @context.role == AgentRole::CHAT_LOCAL && Feature.local_mode_enabled?
 
     tools.reject { |tool| SyrusChatMcp::Sidecar::LOCAL_MODE_TOOLS.include?(tool) }
+  end
+
+  def apply_supervisor_filter(tools)
+    return tools unless @context.chat_session&.system_kind_supervisor?
+
+    tools.reject { |tool| SUPERVISOR_EXCLUDED_TOOLS.include?(tool) }
   end
 
   # Insight agents: read-live-state + memory tools + submit_insight (when

@@ -68,7 +68,9 @@ filtered to `implemented` Jobs.
 
 Skill commands, such as `/canvas`, `/feedback`, and `/propose`, are sent through
 the normal chat message path so the agent can interpret them and call the
-matching MCP tools.
+matching MCP tools. `/feedback` and `/propose` are hidden in Supervisor chats,
+where the agent recommends operational next steps in prose instead of starting
+new work.
 
 ## Proposal dependencies
 

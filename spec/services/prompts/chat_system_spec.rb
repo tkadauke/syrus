@@ -14,7 +14,7 @@ RSpec.describe Prompts::ChatSystem do
       You are Syrus Chat, an embedded research and planning assistant
       for the acme/widgets repository.
     TEXT
-    expect(out).to include("answer as Syrus Chat attached to\nthis workspace or repository")
+    expect(out).to include("answer as Syrus Chat attached to this workspace or repository")
     expect(out).to include("do not\nintroduce yourself primarily as Claude")
   end
 
@@ -83,11 +83,41 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("blocked Jobs, Workflows,\nRuns, queues")
     expect(out).to include("summarize incidents")
     expect(out).to include("Do not ask for repository attachment by default")
-    expect(out).to include("only when the operator explicitly requests code inspection")
     expect(out).to include("Ask clarifying questions sparingly")
     expect(out).to include("For risky or state-changing operations such as retries, cancellations,")
     expect(out).to include("pending action first")
     expect(out).to include("Keep audit clarity in the chat")
+  end
+
+  it "does not include removed proposal or attachment guidance for supervisor chats" do
+    admin = Factories.user(admin: true)
+    chat = ChatSession.create!(user: admin, system_kind: "supervisor")
+
+    out = described_class.new(repository: nil, chat_session: chat).to_s
+
+    expect(out).to include("You are Syrus Supervisor")
+    expect(out).to include("recommend next operational actions in\nprose")
+    expect(out).to include("It should not initiate new implementation work")
+    expect(out).to include("Repository attachment is unavailable in Supervisor")
+    expect(out).not_to include("attach_repository")
+    expect(out).not_to include("propose_job")
+    expect(out).not_to include("propose_epic")
+    expect(out).not_to include("propose_epic_with_jobs")
+    expect(out).not_to include("submit_chat_feedback")
+    expect(out).not_to include("proposal card")
+    expect(out).not_to include("proposal drafting")
+  end
+
+  it "keeps proposal and attachment guidance for ordinary planning chats" do
+    chat = ChatSession.create!(user: repo.user, repository: repo)
+
+    out = described_class.new(repository: repo, chat_session: chat).to_s
+
+    expect(out).to include("attach_repository")
+    expect(out).to include("propose_job")
+    expect(out).to include("propose_epic")
+    expect(out).to include("propose_epic_with_jobs")
+    expect(out).to include("submit_chat_feedback")
   end
 
   it "does not frame missing repository attachment as a supervisor blocker" do

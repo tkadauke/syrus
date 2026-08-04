@@ -17,6 +17,7 @@ export type SlashCommand = {
 export type SlashCommandContext = {
   chat?: {
     pinned?: boolean
+    system_kind?: "supervisor" | string | null
   }
 }
 
@@ -147,12 +148,12 @@ export function slashCommandDescription(command: SlashCommand, context: SlashCom
   return typeof command.description === "function" ? command.description(context) : command.description
 }
 
-export function findSlashCommand(text: string): SlashCommandMatch | null {
+export function findSlashCommand(text: string, context: SlashCommandContext = {}): SlashCommandMatch | null {
   const match = text.match(slashCommandPattern)
   if (!match) return null
 
   const token = match[1].toLowerCase()
-  const command = slashCommands.find((item) => item.name === token)
+  const command = commandsForContext(context).find((item) => item.name === token)
   if (!command) return null
 
   return {
@@ -167,20 +168,34 @@ export function slashCommandQuery(text: string) {
   return match ? match[1].toLowerCase() : null
 }
 
-export function filterSlashCommands(query: string) {
-  return slashCommands
+export function filterSlashCommands(query: string, context: SlashCommandContext = {}) {
+  return commandsForContext(context)
     .map((command, index) => ({ command, index, key: command.name.slice(1) }))
     .filter((item) => item.key.includes(query))
     .sort((left, right) => commandMatchRank(left.key, query) - commandMatchRank(right.key, query) || left.index - right.index)
     .map((item) => item.command)
 }
 
-export function slashCommandPrompt(text: string) {
-  const match = findSlashCommand(text)
+export function slashCommandPrompt(text: string, context: SlashCommandContext = {}) {
+  const match = findSlashCommand(text, context)
   if (!match || match.command.kind !== "skill" || !match.command.toPrompt) return text
 
   return match.command.toPrompt(match.argsText)
 }
+
+function commandsForContext(context: SlashCommandContext) {
+  if (context.chat?.system_kind !== "supervisor") return slashCommands
+
+  return slashCommands.filter((command) => !supervisorHiddenCommands.has(command.name))
+}
+
+const supervisorHiddenCommands = new Set<SlashCommand["name"]>([
+  "/attach",
+  "/proposals",
+  "/discard",
+  "/feedback",
+  "/propose"
+])
 
 function commandMatchRank(commandName: string, query: string) {
   if (commandName === query) return 0

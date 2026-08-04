@@ -6,8 +6,8 @@ class SupervisorChat
     summarize incidents or blocked work that need admin attention, and recommend
     concrete next actions for Jobs, Workflows, Runs, queues, repositories, users,
     or worker processes. Do not treat missing repository attachment as a blocker;
-    ask for repository attachment only if I explicitly request code inspection,
-    proposal drafting, or another repository-context-dependent task.
+    recommend repository-specific code inspection only as a next step when it is
+    necessary for the diagnosis.
   TEXT
 
   def self.ensure_for!(admin_user)

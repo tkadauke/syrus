@@ -101,8 +101,9 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const textareaPr = inlineButtonCount >= 3 ? "pr-32" : inlineButtonCount === 2 ? "pr-24" : "pr-12"
   const [dismissedSuggestion, setDismissedSuggestion] = useState<string | null>(null)
   const suggestionShownAtRef = useRef(0)
+  const slashCommandContext = useMemo(() => ({ chat: { pinned: payload.chat.pinned, system_kind: payload.chat.system_kind } }), [payload.chat.pinned, payload.chat.system_kind])
   const commandQuery = slashCommandQuery(text)
-  const matchingCommands = useMemo(() => commandQuery == null ? [] : filterSlashCommands(commandQuery), [commandQuery])
+  const matchingCommands = useMemo(() => commandQuery == null ? [] : filterSlashCommands(commandQuery, slashCommandContext), [commandQuery, slashCommandContext])
   const pendingProposals = useMemo(() => {
     const seenIds = new Set<number>()
     return payload.messages.filter(
@@ -332,7 +333,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       setAttachmentError(attachmentValidationError)
       return
     }
-    const commandMatch = findSlashCommand(text)
+    const commandMatch = findSlashCommand(text, slashCommandContext)
 
     // If the command takes a job/epic ID but none was provided, open the picker.
     const pickerKind = commandMatch ? pickerKindForCommand(commandMatch.command.name) : null
@@ -366,7 +367,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
 
     onNotice(null)
     setPendingConfirmation(null)
-    send.mutate(slashCommandPrompt(text))
+    send.mutate(slashCommandPrompt(text, slashCommandContext))
   }
 
   function pickerKindForCommand(commandName: SlashCommand["name"]): "job" | "epic" | null {
@@ -423,7 +424,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       return
     }
     if (command.name === "/diff") {
-      send.mutate(slashCommandPrompt(`/diff ${id}`))
+      send.mutate(slashCommandPrompt(`/diff ${id}`, slashCommandContext))
     }
   }
 
@@ -692,7 +693,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     if (!pendingConfirmation || send.isPending || systemCommandAction.isPending) return
 
     onNotice(null)
-    const commandMatch = findSlashCommand(pendingConfirmation.text)
+    const commandMatch = findSlashCommand(pendingConfirmation.text, slashCommandContext)
     if (commandMatch?.command.kind === "system") {
       handleSystemSlashCommand(commandMatch)
       return
