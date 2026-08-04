@@ -9,6 +9,8 @@ Rails.application.config.to_prepare do
     "pending_actions/close_job_successfully",
     "pending_actions/retry_job",
     "pending_actions/rebase_job",
+    "pending_actions/force_rebase",
+    "pending_actions/restack_epic",
     "pending_actions/reopen_job",
     "pending_actions/force_fail_job",
     "pending_actions/fire_scheduled_task_now",

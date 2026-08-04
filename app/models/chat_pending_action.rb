@@ -4,6 +4,8 @@ class ChatPendingAction < ApplicationRecord
     close_job_successfully
     retry_job
     rebase_job
+    force_rebase
+    restack_epic
     reopen_job
     force_fail_job
     fire_scheduled_task_now

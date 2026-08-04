@@ -40,6 +40,8 @@ RSpec.describe "SyrusChatMcp admin tools" do
     "force_state_transition" => { job_id: 1, event: "force_fail", reason: "Repair state drift." },
     "cancel_stale_work" => { job_id: 1, reason: "Cancel stale work." },
     "reenqueue_work" => { job_id: 1, reason: "Re-enqueue queued work." },
+    "force_rebase" => { job_id: 1, reason: "Bypass the landing queue proximity guard." },
+    "restack_epic" => { epic_id: 1, reason: "Repair stale stack topology." },
     "force_landing_recheck" => { job_id: 1, reason: "Refresh stale landing metadata." },
     "override_landing_blocker_once" => { job_id: 1, blocker_key: "active_workflow", reason: "Verified blocker is stale." },
     "wake_landing_queue" => { reason: "Repair completed." }
@@ -88,6 +90,9 @@ RSpec.describe "SyrusChatMcp admin tools" do
     target_user = Factories.user(email_address: "target@example.com")
     workflow = Factories.job(user: admin, repository: repository).initial_run.step.workflow
     workflow.job.update_columns(state: "approved", pr_number: 99, auto_merge_enabled: true, approved_at: 1.minute.ago)
+    workflow.job.update_columns(branch_name: "syrus/direct-#{workflow.job.id}")
+    epic = Factories.epic(user: admin, repository: repository)
+    Factories.job_record(user: admin, repository: repository, epic: epic, state: "approved", branch_name: "syrus/epic-#{epic.id}-child", pr_number: 77)
 
     cases = {
       "admin_kill_process" => [ { process_id: process.id }, { "process_id" => process.id } ],
@@ -107,6 +112,8 @@ RSpec.describe "SyrusChatMcp admin tools" do
       "force_state_transition" => [ { job_id: workflow.job.id, event: "force_fail", reason: "Apply a constrained state transition." }, { "job_id" => workflow.job.id, "event" => "force_fail" } ],
       "cancel_stale_work" => [ { job_id: workflow.job.id, workflow_ids: [ workflow.id ], run_ids: [ workflow.runs.first.id ], reason: "Cancel stale work." }, { "job_id" => workflow.job.id, "workflow_ids" => [ workflow.id ], "run_ids" => [ workflow.runs.first.id ], "reconcile" => true } ],
       "reenqueue_work" => [ { job_id: workflow.job.id, run_id: workflow.runs.first.id, reason: "Re-enqueue queued work." }, { "job_id" => workflow.job.id, "workflow_id" => nil, "run_id" => workflow.runs.first.id } ],
+      "force_rebase" => [ { job_id: workflow.job.id, reason: "Bypass the landing queue proximity guard." }, { "job_id" => workflow.job.id, "bypass_front_of_queue" => true } ],
+      "restack_epic" => [ { epic_id: epic.id, reason: "Repair stale stack topology." }, { "epic_id" => epic.id, "strategy" => "dependency_topology" } ],
       "force_landing_recheck" => [ { job_id: workflow.job.id, reason: "Refresh stale landing metadata." }, { "job_id" => workflow.job.id } ],
       "override_landing_blocker_once" => [ { job_id: workflow.job.id, blocker_key: "active_workflow", reason: "Verified blocker is stale." }, { "job_id" => workflow.job.id, "blocker_key" => "active_workflow" } ],
       "wake_landing_queue" => [ { reason: "Repair completed." }, { "reason" => "Repair completed." } ]
@@ -127,7 +134,7 @@ RSpec.describe "SyrusChatMcp admin tools" do
         requested_by: "agent"
       )
       expect(action.payload).to include(expected_payload)
-      expect(action.reason).to be_present if name.in?(%w[admin_retry_step admin_cleanup_workspace force_fail_job reconcile_job_state force_state_transition cancel_stale_work reenqueue_work force_landing_recheck override_landing_blocker_once wake_landing_queue])
+      expect(action.reason).to be_present if name.in?(%w[admin_retry_step admin_cleanup_workspace force_fail_job reconcile_job_state force_state_transition cancel_stale_work reenqueue_work force_rebase restack_epic force_landing_recheck override_landing_blocker_once wake_landing_queue])
     end
   end
 
@@ -159,6 +166,92 @@ RSpec.describe "SyrusChatMcp admin tools" do
     expect {
       expect(action.confirm!).to be true
     }.to have_enqueued_job(LandingQueueProcessorJob)
+  end
+
+  it "returns force_rebase dry-run output without creating a pending action" do
+    job = Factories.job_record(
+      user: admin,
+      repository: repository,
+      state: "approved",
+      branch_name: "syrus/direct-2265",
+      pr_number: 2265,
+      commits_behind_base: 2,
+      pr_checks_state: "failure",
+      github_mergeable_state: "dirty",
+      landing_queue_position: 4
+    )
+
+    response = call_tool(admin_session, "force_rebase", { job_id: job.id, dry_run: true })
+    plan = payload_for(response).fetch(:plan)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(plan).to include(
+      job_id: job.id,
+      pr_number: 2265,
+      commits_behind: 2,
+      workflow_trigger_kind: "rebase",
+      expected_landing_impact: "successful rebase will retry landing immediately"
+    )
+    expect(plan.fetch(:warnings)).to include("failing_or_pending_checks", "dirty_mergeability", "behind_base", "not_front_of_queue")
+    expect(admin_session.pending_actions.where(action: "force_rebase")).to be_empty
+  end
+
+  it "confirms force_rebase by dispatching a rebase workflow with audit snapshots" do
+    job = Factories.job_record(user: admin, repository: repository, state: "approved", branch_name: "syrus/direct-2265", pr_number: 2265)
+    allow(StepDispatcher).to receive(:start_workflow)
+
+    response = call_tool(admin_session, "force_rebase", { job_id: job.id, reason: "Bypass queue position." })
+    action = ChatPendingAction.find(payload_for(response).fetch(:pending_confirmation_id))
+
+    expect {
+      expect(action.confirm!).to be true
+    }.to change { job.workflows.where(trigger_kind: "rebase").count }.by(1)
+
+    workflow = action.reload.result
+    expect(workflow).to have_attributes(job: job, trigger_kind: "rebase")
+    expect(workflow.artifact("repair_action")).to eq("force_rebase")
+    expect(StepDispatcher).to have_received(:start_workflow).with(workflow)
+    expect(action.before_snapshot).to include("jobs")
+    expect(action.after_snapshot).to include("jobs")
+  end
+
+  it "returns restack_epic dry-run output with planned order and skipped nodes" do
+    epic = Factories.epic(user: admin, repository: repository)
+    root = Factories.job_record(user: admin, repository: repository, epic: epic, issue_number: 31, state: "approved", branch_name: "syrus/root", pr_number: 31)
+    child = Factories.job_record(user: admin, repository: repository, epic: epic, issue_number: 32, state: "approved", branch_name: "syrus/child", pr_number: 32)
+    closed = Factories.job_record(user: admin, repository: repository, epic: epic, issue_number: 33, state: "closed", branch_name: "syrus/closed", pr_number: 33)
+    JobDependency.create!(job: child, depends_on_job: root, source: "manual")
+
+    response = call_tool(admin_session, "restack_epic", { epic_id: epic.id, dry_run: true })
+    plan = payload_for(response).fetch(:plan)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(plan.fetch(:branch_order).map { |entry| entry.fetch(:job_id) }).to eq([ root.id, child.id ])
+    expect(plan.fetch(:branch_order).map { |entry| entry.fetch(:target_base) }).to eq([ repository.default_branch, root.branch_name ])
+    expect(plan.fetch(:skipped_nodes)).to include(hash_including(job_id: closed.id, reason: "closed"))
+    expect(admin_session.pending_actions.where(action: "restack_epic")).to be_empty
+  end
+
+  it "confirms restack_epic by updating stack parents and dispatching stack rebase" do
+    epic = Factories.epic(user: admin, repository: repository)
+    root = Factories.job_record(user: admin, repository: repository, epic: epic, issue_number: 41, state: "approved", branch_name: "syrus/root", pr_number: 41)
+    child = Factories.job_record(user: admin, repository: repository, epic: epic, issue_number: 42, state: "approved", branch_name: "syrus/child", pr_number: 42)
+    JobDependency.create!(job: child, depends_on_job: root, source: "manual")
+    allow(StepDispatcher).to receive(:start_workflow)
+
+    response = call_tool(admin_session, "restack_epic", { epic_id: epic.id, reason: "Repair stale stack topology." })
+    action = ChatPendingAction.find(payload_for(response).fetch(:pending_confirmation_id))
+
+    expect {
+      expect(action.confirm!).to be true
+    }.to change { root.workflows.where(trigger_kind: "stack_rebase").count }.by(1)
+
+    expect(child.reload.parent_job).to eq(root)
+    workflow = action.reload.result
+    expect(workflow).to have_attributes(job: root, trigger_kind: "stack_rebase")
+    expect(workflow.artifact("repair_action")).to eq("restack_epic")
+    expect(workflow.artifact(StackRebasePlan::STACK_ARTIFACT).map { |entry| entry["job_id"] }).to eq([ root.id, child.id ])
+    expect(StepDispatcher).to have_received(:start_workflow).with(workflow)
   end
 
   it "confirms force_landing_recheck through the recheck service" do

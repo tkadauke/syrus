@@ -136,6 +136,30 @@ RSpec.describe App::ChatMessagePayload do
     )
   end
 
+  it "includes restack_epic pending action details without an attached repository" do
+    admin = Factories.user(admin: true)
+    epic = Factories.epic(user: admin, repository: Factories.repository(user: admin), title: "Repair topology")
+    supervisor_chat = ChatSession.create!(user: admin)
+    action = supervisor_chat.pending_actions.create!(
+      action: "restack_epic",
+      requested_by: "agent",
+      reason: "Repair stale stack topology.",
+      payload: { "epic_id" => epic.id, "strategy" => "dependency_topology" }
+    )
+    message = supervisor_chat.messages.create!(role: "assistant", pending_action: action, content: { "text" => "Restack it?" })
+
+    payload = described_class.messages([ message ], repository: nil).first.fetch(:pending_action)
+
+    expect(payload).to include(
+      id: action.id,
+      action: "restack_epic",
+      label: "Restack Epic ##{epic.id}",
+      reason: "Repair stale stack topology.",
+      resource_title: "Repair topology",
+      resource_url: "/epics/#{epic.id}"
+    )
+  end
+
   it "omits pending action resource fields when the referenced job is gone" do
     action = chat.pending_actions.create!(
       action: "cancel_job",

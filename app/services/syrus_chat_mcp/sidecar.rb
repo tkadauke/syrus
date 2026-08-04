@@ -79,6 +79,8 @@ module SyrusChatMcp
       ForceStateTransitionTool,
       CancelStaleWorkTool,
       ReenqueueWorkTool,
+      ForceRebaseTool,
+      RestackEpicTool,
       ForceLandingRecheckTool,
       OverrideLandingBlockerOnceTool,
       WakeLandingQueueTool
