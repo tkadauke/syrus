@@ -4,7 +4,7 @@ class AddLandingBlockerOverrideToJobs < ActiveRecord::Migration[8.1]
     add_column :jobs, :landing_blocker_override_reason, :text unless column_exists?(:jobs, :landing_blocker_override_reason)
     add_column :jobs, :landing_blocker_override_requested_at, :datetime unless column_exists?(:jobs, :landing_blocker_override_requested_at)
     unless column_exists?(:jobs, :landing_blocker_override_requested_by_user_id)
-      add_column :jobs, :landing_blocker_override_requested_by_user_id, :integer
+      add_column :jobs, :landing_blocker_override_requested_by_user_id, :bigint
     end
     add_column :jobs, :landing_blocker_override_used_at, :datetime unless column_exists?(:jobs, :landing_blocker_override_used_at)
 

@@ -867,7 +867,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_04_113000) do
     t.string "landing_blocker_override_key"
     t.text "landing_blocker_override_reason"
     t.datetime "landing_blocker_override_requested_at"
-    t.integer "landing_blocker_override_requested_by_user_id"
+    t.bigint "landing_blocker_override_requested_by_user_id"
     t.datetime "landing_blocker_override_used_at"
     t.text "landing_failure_reason"
     t.json "landing_queue_blocked_reason"
