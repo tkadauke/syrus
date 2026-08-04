@@ -75,6 +75,9 @@ class MergeTrainDispatcher
     readiness = MergeTrainAssembler.call(@epic)
     return readiness.reason unless readiness.ready?
 
+    blockers = landing_unit_blockers_for(readiness.members)
+    return "stack dependencies not ready: #{blockers.map(&:slug).join(", ")}" if blockers.any?
+
     nil
   end
 
@@ -100,6 +103,13 @@ class MergeTrainDispatcher
       .where("finished_at > ?", RETRY_COOLDOWN.ago)
       .order(finished_at: :desc)
       .first
+  end
+
+  def landing_unit_blockers_for(members)
+    unit = LandingQueueProcessor.landing_units(Job.where(id: members.map(&:id))).first
+    return [] unless unit
+
+    unit.blocker_jobs
   end
 
   def cooldown_reason(failed_train)

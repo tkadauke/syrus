@@ -1113,8 +1113,6 @@ RSpec.describe WorkEngine::Reconciler do
         landing_failure_reason: "landing start blocked: stack dependencies not ready"
       )
     end
-    landing = Factories.job_record(user: job.user, repository: job.repository, state: "landing", issue_number: 99, pr_number: 199)
-
     result = reconcile_and_execute(job_id: primary.id)
     issue = kind(result, :approved_job_landing_start_blocked)
 
@@ -1123,15 +1121,49 @@ RSpec.describe WorkEngine::Reconciler do
       recommended_repair_action: "clear_landing_start_blocker_and_wake_queue"
     )
     expect(issue.evidence).to include(
-      "active_repository_landing_job_id" => landing.id,
+      "active_repository_landing_job_id" => nil,
       "landing_failure_reason" => "landing start blocked: stack dependencies not ready"
     )
     expect(plan(result, :clear_landing_start_blocker_and_wake_queue)).to have_attributes(auto_executable: true, target_id: primary.id)
     expect(result.repair_executions.map(&:message)).to include("cleared landing-start blocker for 2 Job(s) and woke the landing queue")
     expect(blocked.map { |member| member.reload.landing_failure_reason }).to all(be_nil)
     expect(blocked.map { |member| member.reload.state }).to all(eq("approved"))
-    expect(landing.reload).to be_landing
     expect(enqueued_jobs.map { |entry| entry[:job] }).to include(LandingQueueProcessorJob)
+  end
+
+  it "does not clear an Epic landing-start stack blocker while dependencies remain unresolved" do
+    AppSetting.current.update!(merge_train_enabled: true)
+    epic = Factories.epic(user: job.user, repository: job.repository, state: "in_progress")
+    blocker = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      state: "implemented",
+      issue_number: 9,
+      pr_number: 109,
+      branch_name: "syrus/issue-9"
+    )
+    primary = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      epic: epic,
+      state: "approved",
+      issue_number: 1,
+      pr_number: 101,
+      branch_name: "syrus/issue-1",
+      landing_failure_reason: "landing start blocked: stack dependencies not ready"
+    )
+    JobDependency.create!(job: primary, depends_on_job: blocker, source: "manual", created_by_user: job.user)
+
+    result = reconcile_and_execute(job_id: primary.id)
+    issue = kind(result, :approved_job_landing_start_blocked)
+
+    expect(issue).to have_attributes(
+      safe_to_auto_repair: true,
+      recommended_repair_action: "clear_landing_start_blocker_and_wake_queue"
+    )
+    expect(result.repair_executions.map(&:message)).to include("Landing-start blocker is still active")
+    expect(primary.reload.landing_failure_reason).to eq("landing start blocked: stack dependencies not ready")
+    expect(enqueued_jobs.map { |entry| entry[:job] }).not_to include(LandingQueueProcessorJob)
   end
 
   it "treats a failed Job with a newer queued retry workflow as auto-repairable state drift" do

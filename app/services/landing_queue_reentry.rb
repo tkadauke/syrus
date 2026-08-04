@@ -13,11 +13,11 @@ class LandingQueueReentry
   end
 
   def call
-    ids = clearable_jobs.pluck(:id)
+    ids = clearable_jobs.map(&:id)
     if ids.any?
       Job.where(id: ids).update_all(landing_failure_reason: nil, updated_at: Time.current)
+      LandingQueueProcessorJob.perform_later
     end
-    LandingQueueProcessorJob.perform_later
     Result.new(cleared_job_ids: ids)
   end
 
@@ -26,12 +26,28 @@ class LandingQueueReentry
   attr_reader :job
 
   def clearable_jobs
-    scope = if AppSetting.merge_train_enabled? && job.epic_id.present?
+    candidates = if AppSetting.merge_train_enabled? && job.epic_id.present?
       job.epic.jobs.where(state: "approved")
     else
       Job.where(id: job.id, state: "approved")
     end
 
-    scope.where("landing_failure_reason LIKE ?", "#{START_BLOCKER_PREFIX}%")
+    candidates
+      .where("landing_failure_reason LIKE ?", "#{START_BLOCKER_PREFIX}%")
+      .select { |candidate| ready_to_reenter?(candidate) }
+  end
+
+  def ready_to_reenter?(candidate)
+    return merge_train_ready_to_reenter?(candidate) if AppSetting.merge_train_enabled? && candidate.epic_id.present?
+
+    return false if candidate.dependencies_failed_for_execution?
+    return false unless candidate.dependencies_satisfied_for_execution?
+    return false unless JobStackResolver.new(candidate).resolve!(apply: false).ready?
+
+    candidate.ready_for_execution?
+  end
+
+  def merge_train_ready_to_reenter?(candidate)
+    MergeTrainDispatcher.blocker_reason(candidate.epic).blank?
   end
 end

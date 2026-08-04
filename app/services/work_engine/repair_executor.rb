@@ -441,6 +441,8 @@ module WorkEngine
           return skipped("Job no longer has a landing-start blocker") unless LandingQueueReentry.landing_start_blocker?(job.landing_failure_reason)
 
           result = LandingQueueReentry.call(job)
+          return skipped("Landing-start blocker is still active") unless result.any?
+
           success("cleared landing-start blocker for #{result.cleared_job_ids.size} Job(s) and woke the landing queue")
         end
       end

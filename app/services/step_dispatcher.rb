@@ -47,19 +47,21 @@ class StepDispatcher
     end
     clear_start_blocked!(workflow, DEPENDENCY_FAILED_BLOCK_REASON)
 
-    stack_resolution = JobStackResolver.new(workflow.job, workflow: workflow).resolve!
-    unless stack_resolution.ready?
-      return fail_unstartable_landing_workflow!(workflow, "landing start blocked: stack dependencies not ready") if workflow.landing_workflow?
+    unless merge_train_workflow?(workflow)
+      stack_resolution = JobStackResolver.new(workflow.job, workflow: workflow).resolve!
+      unless stack_resolution.ready?
+        return fail_unstartable_landing_workflow!(workflow, "landing start blocked: stack dependencies not ready") if workflow.landing_workflow?
 
-      reason = stack_resolution.reason || STACK_BLOCK_REASON
-      cancel_unstartable_rebase_workflow!(workflow, reason)
-      unless RebaseWorkflowSelector::TRIGGER_KINDS.include?(workflow.trigger_kind)
-        record_start_blocked!(workflow, reason, backoff: START_BLOCKED_BACKOFF, details: stack_resolution.blocker) unless start_blocked_backoff_active?(workflow, reason)
+        reason = stack_resolution.reason || STACK_BLOCK_REASON
+        cancel_unstartable_rebase_workflow!(workflow, reason)
+        unless RebaseWorkflowSelector::TRIGGER_KINDS.include?(workflow.trigger_kind)
+          record_start_blocked!(workflow, reason, backoff: START_BLOCKED_BACKOFF, details: stack_resolution.blocker) unless start_blocked_backoff_active?(workflow, reason)
+        end
+        warn_if_stuck_queued(workflow, reason)
+        return
       end
-      warn_if_stuck_queued(workflow, reason)
-      return
+      record_stack_resolution_artifacts!(workflow, stack_resolution)
     end
-    record_stack_resolution_artifacts!(workflow, stack_resolution)
     clear_start_blocked!(workflow, STACK_BLOCK_REASON)
     clear_start_blocked!(workflow, FAN_IN_BLOCK_REASON)
 
@@ -129,6 +131,10 @@ class StepDispatcher
     return false unless repository.main_branch_health_enabled?
 
     repository.landing_paused? && repository.main_health_broken?
+  end
+
+  def self.merge_train_workflow?(workflow)
+    workflow.trigger_kind == "merge_train" && workflow.artifact("merge_train_id").present?
   end
 
   def self.urgent_blocking?(workflow)

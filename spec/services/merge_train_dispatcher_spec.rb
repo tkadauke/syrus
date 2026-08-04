@@ -136,6 +136,24 @@ RSpec.describe MergeTrainDispatcher do
     expect(StepDispatcher).not_to have_received(:start_workflow)
   end
 
+  it "does not create a train when an approved Epic stack has unresolved external blockers" do
+    blocker = Factories.job_record(
+      user: user,
+      repository: repository,
+      issue_number: 9,
+      state: "implemented",
+      pr_number: 509,
+      branch_name: "syrus/issue-9"
+    )
+    child = approved_child(1)
+    JobDependency.create!(job: child, depends_on_job: blocker, source: "manual")
+
+    expect(described_class.blocker_reason(epic)).to eq("stack dependencies not ready: #{blocker.slug}")
+    expect(described_class.try_dispatch!(epic)).to be_nil
+    expect(MergeTrain.count).to eq(0)
+    expect(StepDispatcher).not_to have_received(:start_workflow)
+  end
+
   it "does not re-dispatch during the cooldown after a failed train" do
     approved_child(1)
     MergeTrain.create!(epic: epic, repository: repository, base_branch: "master",
