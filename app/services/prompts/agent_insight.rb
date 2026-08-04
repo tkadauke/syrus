@@ -89,8 +89,9 @@ module Prompts
         ## Your Task
 
         Inspect the repository's recent workflow runs and agent transcripts using the
-        tools available to you (`read_live_state`, `read_run_worker_health`, memory
-        tools, `list_insights`, `read_insight`). Look for:
+        tools available to you (`read_live_state`, `list_recent_workflows`,
+        `read_run_transcript`, `read_run_worker_health`, memory tools,
+        `list_insights`, `read_insight`). Look for:
 
         - Repeated failures or struggle patterns across multiple Jobs
         - Inefficient agent behaviors (excessive tool calls, wrong approaches)

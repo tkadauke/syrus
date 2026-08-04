@@ -25,7 +25,7 @@ prepare → agent_insight_run → auto_close
 
 **`prepare`** — installs repository dependencies as usual (respects `.syrus.yml` and all standard skip conditions).
 
-**`agent_insight_run`** — agentic step. Invokes the insight prompt against the workspace (read-only). The agent inspects recent Job runs via `read_live_state` and memory tools, then calls `submit_insight` for each finding.
+**`agent_insight_run`** — agentic step. Invokes the insight prompt against the workspace (read-only). The agent discovers recent completed Workflows with `list_recent_workflows`, reads paginated Run JobLog transcripts with `read_run_transcript`, inspects host pressure with `read_run_worker_health` when relevant, checks memory/insight context, then calls `submit_insight` for each finding.
 
 **`auto_close`** — non-agentic step. Closes the anchor Job with reason `agent_insight` so it does not accumulate in the operator dashboard.
 
@@ -63,11 +63,14 @@ Each `submit_insight` call creates one `InsightSuggestion` row:
 The insight agent receives:
 
 - `read_live_state` — inspect the current run/workflow/job/queue state.
+- `list_recent_workflows` — list completed Workflows for the current repository after the previous insight cutoff (or an explicit ISO8601 `since`).
+- `read_run_transcript` — read paginated JobLog transcript chunks plus agent summary/diff for a Run in the current repository, with secret-shaped values redacted.
+- `read_run_worker_health` — inspect worker host health correlated with a Run in the current repository.
 - `read_memory`, `search_memories`, `list_memories` — read repository-scoped memories.
 - `write_memory` — store durable facts discovered during analysis.
 - `submit_insight` — record a finding (only present when `agent_insights` flag is on), including structured removal/revision proposals.
 
-**Scope enforcement:** the `submit_insight` tool validates that `evidence.job_id` values belong to repositories accessible to the running user. Non-admin users cannot reference jobs from repositories they do not own. Admin users may reference any job.
+**Scope enforcement:** workflow evidence tools are constrained to the current insight run's repository. `submit_insight` also validates that `evidence.job_id` values belong to repositories accessible to the running user. Non-admin users cannot reference jobs from repositories they do not own. Admin users may reference any job.
 
 Insight runs must review pending, accepted, and dismissed insights for freshness
 before filing new ones. They should call `list_memories` / `read_memory` for

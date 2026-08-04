@@ -234,6 +234,8 @@ class McpToolPolicy
       tools << SyrusMcp::SubmitInsightTool
       tools << SyrusMcp::ListInsightsTool
       tools << SyrusMcp::ReadInsightTool
+      tools << SyrusMcp::ListRecentWorkflowsTool
+      tools << SyrusMcp::ReadInsightRunTranscriptTool
     end
     tools
   end

@@ -172,6 +172,34 @@ RSpec.describe McpToolPolicy do
     end
   end
 
+  describe "agent insight role" do
+    before do
+      Feature.find_or_create_by!(slug: "agent_insights") { |f| f.category = "Labs"; f.name = "Agent Insights" }
+             .update!(enabled: true)
+      Feature.clear_enabled_cache!("agent_insights")
+    end
+
+    it "includes repository-scoped workflow evidence tools" do
+      job = Job.create!(user: user, repository: repository, kind: "agent_insight", priority: "low")
+      workflow = Workflow.create!(
+        job: job,
+        trigger_kind: "agent_insight",
+        agent_provider: user.agent_provider,
+        chain_template: []
+      )
+      step = Step.create!(workflow: workflow, kind: "agent_insight_run", position: 0)
+      run = step.runs.create!(job: job, trigger_kind: "agent_insight", agent_provider: user.agent_provider)
+      context = McpToolContext.from_run(run)
+
+      expect(described_class.for(context)).to include(
+        SyrusMcp::ListRecentWorkflowsTool,
+        SyrusMcp::ReadInsightRunTranscriptTool,
+        SyrusMcp::SubmitInsightTool
+      )
+      expect(described_class.for(context)).not_to include(SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool)
+    end
+  end
+
   describe "chat planner role" do
     before do
       Feature.find_or_create_by!(slug: "agent_insights") { |f| f.category = "Labs"; f.name = "Agent Insights" }
