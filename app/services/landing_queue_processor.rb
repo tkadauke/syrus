@@ -241,7 +241,7 @@ class LandingQueueProcessor
   end
 
   def merge_train_unit?(entry)
-    AppSetting.merge_train_enabled? && entry.job.epic_id.present?
+    merge_train_for_epic_child?(entry.job)
   end
 
   def epic_grouped_dependency_order(jobs)
@@ -262,7 +262,7 @@ class LandingQueueProcessor
   end
 
   def landing_unit_key(job)
-    job.epic_id.present? ? "epic:#{job.epic_id}" : "job:#{job.id}"
+    job.epic_id.present? && !epic_reconciliation_job?(job) ? "epic:#{job.epic_id}" : "job:#{job.id}"
   end
 
   def ordered_landing_units(units, jobs)
@@ -446,7 +446,31 @@ class LandingQueueProcessor
   end
 
   def merge_train_for_epic_child?(job)
-    AppSetting.merge_train_enabled? && job.epic_id.present? && job.epic&.reconciliation_job_id != job.id
+    AppSetting.merge_train_enabled? &&
+      job.epic_id.present? &&
+      !epic_reconciliation_job?(job) &&
+      !open_epic_reconciliation_for_sibling?(job)
+  end
+
+  def epic_reconciliation_job?(job)
+    epic_reconciliation_job_id(job) == job.id
+  end
+
+  def open_epic_reconciliation_for_sibling?(job)
+    recon_job_id = epic_reconciliation_job_id(job)
+    return false unless recon_job_id.present?
+    return false if recon_job_id == job.id
+
+    Job.where(id: recon_job_id).where.not(state: "closed").exists?
+  end
+
+  def epic_reconciliation_job_id(job)
+    return unless job.epic_id.present?
+
+    @epic_reconciliation_job_ids ||= {}
+    return @epic_reconciliation_job_ids[job.epic_id] if @epic_reconciliation_job_ids.key?(job.epic_id)
+
+    @epic_reconciliation_job_ids[job.epic_id] = Epic.where(id: job.epic_id).pick(:reconciliation_job_id)
   end
 
   def blockage_for(job, consume_override: false)
@@ -497,14 +521,11 @@ class LandingQueueProcessor
     return override_or_block(job, MERGEABILITY_WAIT_REASON, consume: consume_override) if waiting_for_github_mergeability?(job)
     return override_or_block(job, { key: "waiting_github_mergeability_noop" }, consume: consume_override) if RebaseLoopGuard.waiting_after_noop?(job)
     return override_or_block(job, { key: "rebase_cap_reached" }, consume: consume_override) if RebaseAttemptGuard.blocking_landing?(job)
-    if job.epic
-      epic = job.epic
-      if epic.reconciliation_job_id.present? &&
-         job.id != epic.reconciliation_job_id &&
-         !epic.reconciliation_job.closed?
-        return override_or_block(job, { key: "epic_reconciliation_pending" }, consume: consume_override)
-      end
+    if open_epic_reconciliation_for_sibling?(job)
+      return override_or_block(job, { key: "epic_reconciliation_pending" }, consume: consume_override)
+    end
 
+    if job.epic
       unapproved_siblings = unapproved_epic_siblings(job)
       return override_or_block(job, { key: "waiting_epic_siblings" }, waiting_for_jobs: unapproved_siblings, consume: consume_override) if unapproved_siblings.any?
 

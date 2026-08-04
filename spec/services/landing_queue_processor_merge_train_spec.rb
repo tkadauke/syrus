@@ -3,13 +3,33 @@ require "rails_helper"
 RSpec.describe LandingQueueProcessor, "merge-train integration" do
   let(:user) { Factories.user(github_token: "ghp_test") }
   let(:repository) { Factories.repository(user: user, auto_merge_enabled: true) }
-  let(:epic) { Factories.epic(user: user, repository: repository) }
+  let(:epic) { Factories.epic(user: user, repository: repository, state: "in_progress") }
 
   def approved_child(issue_number)
     Factories.job_record(
       user: user, repository: repository, epic: epic,
       issue_number: issue_number, state: "approved",
       pr_number: 500 + issue_number, branch_name: "syrus/issue-#{issue_number}"
+    )
+  end
+
+  def approved_reconciliation_job
+    Factories.job_record(
+      user: user,
+      repository: repository,
+      epic: epic,
+      kind: "direct",
+      issue_number: nil,
+      issue_title: "Reconciliation: Test Epic",
+      state: "approved",
+      pr_number: 2166,
+      branch_name: "syrus/direct-reconciliation",
+      pr_checks_state: "passing",
+      github_mergeable_state: "clean",
+      github_mergeable: true,
+      local_mergeable: true,
+      local_mergeable_state: "clean",
+      approved_at: 1.minute.ago
     )
   end
 
@@ -39,6 +59,29 @@ RSpec.describe LandingQueueProcessor, "merge-train integration" do
 
       entry = described_class.entries(Job.where(id: child.id)).first
       expect(entry.blocked_reason).not_to eq({ key: "waiting_epic_merge_train" })
+    end
+
+    it "does not treat the historical reconciliation Job itself as a merge-train child" do
+      AppSetting.current.update!(merge_train_enabled: true)
+      reconciliation = approved_reconciliation_job
+      epic.update!(reconciliation_job_id: reconciliation.id)
+
+      entry = described_class.entries(Job.where(id: reconciliation.id)).first
+
+      expect(entry.blocked_reason).to be_nil
+      expect(entry.landing_unit_key).to eq("job:#{reconciliation.id}")
+    end
+
+    it "keeps non-reconciliation siblings blocked on the open reconciliation Job" do
+      AppSetting.current.update!(merge_train_enabled: true)
+      reconciliation = approved_reconciliation_job
+      epic.update!(reconciliation_job_id: reconciliation.id)
+      child = approved_child(1)
+
+      entry = described_class.entries(Job.where(id: child.id)).first
+
+      expect(entry.blocked_reason).to eq({ key: "epic_reconciliation_pending" })
+      expect(entry.landing_unit_key).to eq("epic:#{epic.id}")
     end
   end
 
@@ -114,6 +157,22 @@ RSpec.describe LandingQueueProcessor, "merge-train integration" do
       described_class.new.try_land!(child)
 
       expect(MergeTrainDispatcher).to have_received(:try_dispatch!).with(epic)
+    end
+
+    it "lands the reconciliation Job through the per-Job path while merge trains are enabled" do
+      AppSetting.current.update!(merge_train_enabled: true)
+      reconciliation = approved_reconciliation_job
+      epic.update!(reconciliation_job_id: reconciliation.id)
+      allow(MergeTrainDispatcher).to receive(:try_dispatch!)
+
+      processor = described_class.new
+
+      workflow = processor.try_land!(reconciliation)
+
+      expect(workflow).to be_present
+      expect(workflow).to have_attributes(job: reconciliation, trigger_kind: "auto_merge")
+      expect(reconciliation.reload).to be_landing
+      expect(MergeTrainDispatcher).not_to have_received(:try_dispatch!)
     end
   end
 
