@@ -374,6 +374,7 @@ module Admin
           base_ref: job.mergeability_base_ref
         },
         landing_failure_reason: job.landing_failure_reason,
+        no_effective_ci_repair: no_effective_ci_repair?,
         stale_merge_train_validation: LandingFailureHandler.stale_merge_train_base?(job.landing_failure_reason)
       }
     end
@@ -452,6 +453,16 @@ module Admin
       return action("close_successfully_no_changes", "Branch has no effective changes.", closure_reason: "no_changes") if payload.dig(:empty_reconciliation, :evidence)&.any?
       return action("inspect_logs", "A running Run has a stale heartbeat.", run_id: stale_heartbeat_run_id(payload)) if stale_heartbeat_run_id(payload)
       return action("inspect_logs", "Latest failure evidence points at grader logs.", run_id: grader_failure_run_id(payload)) if grader_failure_run_id(payload)
+      if no_effective_ci_repair?
+        if rebase_recommended?(payload)
+          return action(
+            "confirm_rebase",
+            "CI repair made no effective change and checks are still failing; update or rebase the PR branch to retrigger checks.",
+            pr_number: job.pr_number
+          )
+        end
+        return action("manual_intervention", "CI repair made no effective change and checks are still failing.", pr_number: job.pr_number)
+      end
       return action("confirm_rebase", "The Job is behind base or GitHub reports an unclean mergeability state.") if rebase_recommended?(payload)
       return action("inspect_logs", "PR checks are failing.", pr_number: job.pr_number) if job.pr_checks_state == "failing"
       return action("wait", "PR checks are still pending.", pr_number: job.pr_number) if job.pr_checks_state == "pending"
@@ -489,6 +500,10 @@ module Admin
 
     def action(kind, reason, **extra)
       { action: kind, reason: reason }.merge(extra)
+    end
+
+    def no_effective_ci_repair?
+      job.landing_failure_reason.to_s.start_with?(PollPullRequestJob::NO_EFFECTIVE_CI_REPAIR_REASON)
     end
 
     def human_summary(payload)

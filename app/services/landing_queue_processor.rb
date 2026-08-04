@@ -484,6 +484,9 @@ class LandingQueueProcessor
     return blocked({ key: "active_workflow" }) if job.workflows.active.exists?
     # Block on failing or pending PR check-run state cached by PollPullRequestJob.
     # nil / "unknown" / "passing" allow landing; only "failing" and "pending" hold.
+    if no_effective_ci_repair?(job) && job.pr_checks_state.in?(%w[failing pending])
+      return blocked({ key: "ci_repair_no_effective_change", params: { slug: job.slug } })
+    end
     case job.pr_checks_state
     when "failing"
       return blocked({ key: "pr_checks_failing", params: { slug: job.slug } })
@@ -508,7 +511,8 @@ class LandingQueueProcessor
         return blocked({ key: "ci_failure_in_progress", params: { slug: blocker.slug } }, waiting_for_jobs: [blocker])
       end
       if (check_issue = pr_checks_unclean_epic_sibling(job))
-        check_key = check_issue[:label] == "failing" ? "pr_checks_failing" : "pr_checks_pending"
+        check_key = no_effective_ci_repair?(check_issue[:sibling]) ? "ci_repair_no_effective_change" :
+          (check_issue[:label] == "failing" ? "pr_checks_failing" : "pr_checks_pending")
         return blocked({ key: check_key, params: { slug: check_issue[:sibling].slug } }, waiting_for_jobs: [check_issue[:sibling]])
       end
     end
@@ -578,6 +582,10 @@ class LandingQueueProcessor
     return { sibling: pending_sibling, label: "pending" } if pending_sibling
 
     nil
+  end
+
+  def no_effective_ci_repair?(job)
+    job.landing_failure_reason.to_s.start_with?(PollPullRequestJob::NO_EFFECTIVE_CI_REPAIR_REASON)
   end
 
   def merged?(job)

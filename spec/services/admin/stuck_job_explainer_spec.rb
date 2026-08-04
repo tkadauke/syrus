@@ -92,6 +92,51 @@ RSpec.describe Admin::StuckJobExplainer do
     expect(payload.dig(:recommended_action)).to include(action: "inspect_logs", run_id: run.id)
   end
 
+  it "surfaces no-effective CI repair state instead of generic failing-check diagnostics" do
+    repository.update!(auto_merge_enabled: true)
+    job = Factories.job_record(
+      user: user,
+      repository: repository,
+      state: "approved",
+      issue_title: "Fix stuck CI repair",
+      branch_name: "syrus/stuck-ci",
+      pr_number: 2059,
+      last_ci_handled_sha: nil,
+      pr_checks_sha: "21379e9",
+      pr_checks_state: "failing",
+      pr_checks_checked_at: Time.current,
+      landing_failure_reason: "#{PollPullRequestJob::NO_EFFECTIVE_CI_REPAIR_REASON} on 21379e9"
+    )
+    workflow = Workflow.create!(
+      job: job,
+      trigger_kind: "ci_failure",
+      state: "succeeded",
+      artifacts: {
+        "head_sha" => "21379e9",
+        "no_effective_ci_repair" => {
+          "head_sha" => "21379e9",
+          "checks_state" => "failing",
+          "failed_checks" => [ { "name" => "rspec", "html_url" => "https://github.com/acme/widgets/runs/100" } ]
+        }
+      },
+      finished_at: 1.minute.ago
+    )
+
+    payload = described_class.call(job.reload, github_client: no_github_client)
+
+    expect(payload.dig(:workflows, :latest)).to include(id: workflow.id, trigger_kind: "ci_failure", state: "succeeded")
+    expect(payload.dig(:landing, :queue, :blocked_reason)).to eq(
+      { key: "ci_repair_no_effective_change", params: { slug: job.slug } }
+    )
+    expect(payload.dig(:landing, :no_effective_ci_repair)).to be(true)
+    expect(payload.dig(:recommended_action)).to include(
+      action: "manual_intervention",
+      reason: "CI repair made no effective change and checks are still failing.",
+      pr_number: 2059
+    )
+    expect(payload.dig(:human_summary)).to include("CI repair made no effective change and checks are still failing.")
+  end
+
   it "uses the stack resolver result for fan-in so it does not invent a selected parent" do
     epic = Factories.epic(user: user, repository: repository, state: "in_progress", epic_dependency_policy: "nonlinear")
     job = Factories.job_record(user: user, repository: repository, epic: epic, state: "queued", issue_title: "Fan-in")

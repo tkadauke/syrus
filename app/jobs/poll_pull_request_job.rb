@@ -12,6 +12,7 @@ class PollPullRequestJob < ApplicationJob
   # recovery forever, which was wrong.
   CI_FAILURE_WINDOW = 24.hours
   CI_FAILURE_CAP = 3
+  NO_EFFECTIVE_CI_REPAIR_REASON = "CI repair made no effective change and checks are still failing"
 
   # One concurrent poll per Job — same Job's poll fanout shouldn't race
   # the watermark or stack two pr_comment Runs at once.
@@ -397,6 +398,7 @@ class PollPullRequestJob < ApplicationJob
     # (pr_checks_state) AND collects failure details for ci_failure workflows.
     detail = @client.check_runs_detail_for(@slug, head_sha)
     cache_pr_checks_state(head_sha, detail)
+    record_no_effective_ci_repair!(head_sha, detail) if no_effective_ci_repair?(head_sha, detail)
 
     return if @job.last_ci_handled_sha == head_sha   # already reacted to this commit
     return if ci_failure_cap_reached?
@@ -423,7 +425,12 @@ class PollPullRequestJob < ApplicationJob
              elsif detail[:all_passed?] then "passing"
              else "unknown"
              end
-    @job.update_columns(pr_checks_sha: head_sha, pr_checks_state: state, pr_checks_checked_at: Time.current)
+    attrs = { pr_checks_sha: head_sha, pr_checks_state: state, pr_checks_checked_at: Time.current }
+    if no_effective_ci_repair_landing_reason? &&
+       (!state.in?(%w[failing pending]) || (@job.pr_checks_sha.present? && @job.pr_checks_sha != head_sha))
+      attrs[:landing_failure_reason] = nil
+    end
+    @job.update_columns(attrs)
   end
 
   # Octokit error messages are shaped:
@@ -486,6 +493,55 @@ class PollPullRequestJob < ApplicationJob
 
     @job.update!(last_ci_handled_sha: head_sha)
     Rails.logger.info("[PollPullRequestJob] #{@job.slug}: enqueued CiFailure workflow ##{workflow.id} for #{head_sha[0..6]} (#{failed_checks.size} failing)")
+  end
+
+  def no_effective_ci_repair?(head_sha, detail)
+    @job.last_ci_handled_sha == head_sha &&
+      (detail[:any_failed?] || detail[:pending?]) &&
+      latest_succeeded_ci_failure_for(head_sha).present?
+  end
+
+  def latest_succeeded_ci_failure_for(head_sha)
+    @latest_succeeded_ci_failure_for ||= {}
+    @latest_succeeded_ci_failure_for[head_sha] ||= @job.workflows
+      .where(trigger_kind: "ci_failure", state: "succeeded")
+      .order(finished_at: :desc, id: :desc)
+      .detect { |workflow| workflow.artifact("head_sha") == head_sha }
+  end
+
+  def record_no_effective_ci_repair!(head_sha, detail)
+    workflow = latest_succeeded_ci_failure_for(head_sha)
+    checks_state = detail[:any_failed?] ? "failing" : "pending"
+    failed_checks = (detail[:failed_checks] || []).map do |check|
+      check = check.to_h
+      {
+        "name" => check[:name] || check["name"],
+        "conclusion" => check[:conclusion] || check["conclusion"],
+        "html_url" => check[:html_url] || check["html_url"]
+      }.compact
+    end
+
+    workflow.set_artifact!(
+      "no_effective_ci_repair",
+      {
+        "head_sha" => head_sha,
+        "checks_state" => checks_state,
+        "failed_checks" => failed_checks,
+        "detected_at" => Time.current.iso8601
+      }
+    )
+    @job.update!(
+      last_ci_handled_sha: nil,
+      landing_failure_reason: "#{NO_EFFECTIVE_CI_REPAIR_REASON} on #{head_sha[0, 7]}"
+    )
+    Rails.logger.warn(
+      "[PollPullRequestJob] #{@job.slug}: CI repair WF-#{workflow.id} made no effective change " \
+      "for #{head_sha[0, 7]}; clearing last_ci_handled_sha"
+    )
+  end
+
+  def no_effective_ci_repair_landing_reason?
+    @job.landing_failure_reason.to_s.start_with?(NO_EFFECTIVE_CI_REPAIR_REASON)
   end
 
   def enrich_failed_check(check)

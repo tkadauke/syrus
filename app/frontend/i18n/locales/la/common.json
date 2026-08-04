@@ -306,6 +306,7 @@
     "epic_reconciliation_pending": "Reconciliatio Epici exspectatur",
     "rebase_cap_reached": "Limes rebasandi attactus; rebase manuale aut renovatio PR necessaria est",
     "ci_failure_in_progress": "Cursus defectus CI in {{slug}} procedit",
+    "ci_repair_no_effective_change": "Reparatio CI nihil efficax mutavit et examina adhuc deficiunt in {{slug}}",
     "pr_checks_failing": "Examina PR in {{slug}} deficiunt",
     "pr_checks_pending": "Examina PR in {{slug}} exspectantur",
     "waiting_to_merge": "Exspectatur {{slug}} coniungi",

@@ -522,6 +522,21 @@ RSpec.describe LandingQueueProcessor do
       expect(entry.blocked_reason).to eq({ key: "pr_checks_failing", params: { slug: job.slug } })
     end
 
+    it "surfaces no-effective CI repairs instead of the generic failing checks reason" do
+      job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+      job.update_columns(
+        pr_checks_sha: "abc123",
+        pr_checks_state: "failing",
+        pr_checks_checked_at: Time.current,
+        landing_failure_reason: "#{PollPullRequestJob::NO_EFFECTIVE_CI_REPAIR_REASON} on abc123"
+      )
+
+      expect(described_class.call).to be_nil
+      expect(job.reload).to be_approved
+      entry = described_class.entries(Job.where(id: job.id)).first
+      expect(entry.blocked_reason).to eq({ key: "ci_repair_no_effective_change", params: { slug: job.slug } })
+    end
+
     it "blocks a job whose PR checks are cached as pending" do
       job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
       job.update_columns(pr_checks_sha: "abc123", pr_checks_state: "pending", pr_checks_checked_at: Time.current)

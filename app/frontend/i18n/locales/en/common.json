@@ -306,6 +306,7 @@
     "epic_reconciliation_pending": "Epic reconciliation pending",
     "rebase_cap_reached": "Rebase cap reached; manual rebase or PR update required",
     "ci_failure_in_progress": "CI failure workflow in progress on {{slug}}",
+    "ci_repair_no_effective_change": "CI repair made no effective change and checks are still failing on {{slug}}",
     "pr_checks_failing": "PR checks failing on {{slug}}",
     "pr_checks_pending": "PR checks pending on {{slug}}",
     "waiting_to_merge": "Waiting for {{slug}} to merge",

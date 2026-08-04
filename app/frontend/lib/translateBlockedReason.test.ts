@@ -38,6 +38,8 @@ describe("translateBlockedReason", () => {
   it("translates structured reasons with params", () => {
     expect(translateBlockedReason({ key: "ci_failure_in_progress", params: { slug: "JOB-123" } }, mockT))
       .toBe("common:blocked_reasons.ci_failure_in_progress(slug=JOB-123)")
+    expect(translateBlockedReason({ key: "ci_repair_no_effective_change", params: { slug: "JOB-123" } }, mockT))
+      .toBe("common:blocked_reasons.ci_repair_no_effective_change(slug=JOB-123)")
     expect(translateBlockedReason({ key: "pr_checks_failing", params: { slug: "JOB-456" } }, mockT))
       .toBe("common:blocked_reasons.pr_checks_failing(slug=JOB-456)")
     expect(translateBlockedReason({ key: "pr_checks_pending", params: { slug: "JOB-789" } }, mockT))

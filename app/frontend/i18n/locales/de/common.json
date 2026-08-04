@@ -306,6 +306,7 @@
     "epic_reconciliation_pending": "Epic-Abstimmung ausstehend",
     "rebase_cap_reached": "Rebase-Limit erreicht; manueller Rebase oder PR-Update erforderlich",
     "ci_failure_in_progress": "CI-Fehler-Workflow läuft auf {{slug}}",
+    "ci_repair_no_effective_change": "CI-Reparatur hat keine wirksame Änderung vorgenommen und Prüfungen schlagen weiterhin fehl auf {{slug}}",
     "pr_checks_failing": "PR-Prüfungen schlagen fehl auf {{slug}}",
     "pr_checks_pending": "PR-Prüfungen ausstehend auf {{slug}}",
     "waiting_to_merge": "Warte auf Merge von {{slug}}",

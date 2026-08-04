@@ -726,6 +726,60 @@ RSpec.describe PollPullRequestJob, :ci_only do
       expect { described_class.perform_now(job.id) }.not_to change { job.workflows.where(trigger_kind: "ci_failure").count }
     end
 
+    it "detects a successful no-op ci_failure workflow and dispatches a fresh repair for the still-failing SHA" do
+      prior = Workflow.create!(
+        job: job,
+        trigger_kind: "ci_failure",
+        state: "succeeded",
+        artifacts: { "head_sha" => sha },
+        finished_at: 5.minutes.ago
+      )
+      job.update!(last_ci_handled_sha: sha)
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "failure",
+          html_url: "https://github.com/acme/widgets/runs/100", output: { summary: "still failing" } }
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.workflows.where(trigger_kind: "ci_failure").count }.by(1)
+
+      prior.reload
+      expect(prior.artifact("no_effective_ci_repair")).to include(
+        "head_sha" => sha,
+        "checks_state" => "failing",
+        "failed_checks" => [ include("name" => "test", "html_url" => "https://github.com/acme/widgets/runs/100") ]
+      )
+      expect(job.reload.landing_failure_reason).to start_with(PollPullRequestJob::NO_EFFECTIVE_CI_REPAIR_REASON)
+      expect(job.last_ci_handled_sha).to eq(sha)
+      expect(job.workflows.where(trigger_kind: "ci_failure").last.id).not_to eq(prior.id)
+    end
+
+    it "clears the handled SHA and records operator-visible state when a no-op ci_failure repair cannot be re-dispatched" do
+      prior = Workflow.create!(
+        job: job,
+        trigger_kind: "ci_failure",
+        state: "succeeded",
+        artifacts: { "head_sha" => sha },
+        created_at: 30.minutes.ago,
+        finished_at: 25.minutes.ago
+      )
+      2.times { Workflow.create!(job: job, trigger_kind: "ci_failure", state: "succeeded", created_at: 20.minutes.ago) }
+      job.update!(last_ci_handled_sha: sha)
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "failure",
+          html_url: "https://github.com/acme/widgets/runs/100", output: { summary: "still failing" } }
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
+      }.not_to change { job.workflows.where(trigger_kind: "ci_failure").count }
+
+      expect(prior.reload.artifact("no_effective_ci_repair")).to include("head_sha" => sha, "checks_state" => "failing")
+      expect(job.reload.last_ci_handled_sha).to be_nil
+      expect(job.landing_failure_reason).to start_with(PollPullRequestJob::NO_EFFECTIVE_CI_REPAIR_REASON)
+    end
+
     it "skips when an active ci_failure Workflow is already pending" do
       Workflow.create!(job: job, trigger_kind: "ci_failure", state: "queued")
       stub_check_runs(sha, [
@@ -926,6 +980,24 @@ RSpec.describe PollPullRequestJob, :ci_only do
       described_class.perform_now(job.id)
 
       expect(job.reload.pr_checks_sha).to eq(sha)
+    end
+
+    it "clears a stale no-effective repair marker when the PR head advances" do
+      previous_sha = "bbb1234567890000000000000000000000000000"
+      job.update!(
+        pr_checks_sha: previous_sha,
+        pr_checks_state: "failing",
+        landing_failure_reason: "#{PollPullRequestJob::NO_EFFECTIVE_CI_REPAIR_REASON} on #{previous_sha[0, 7]}"
+      )
+      stub_check_runs(sha, [
+        { name: "test", status: "in_progress", conclusion: nil, html_url: "u", output: { summary: nil } }
+      ])
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload.pr_checks_sha).to eq(sha)
+      expect(job.pr_checks_state).to eq("pending")
+      expect(job.landing_failure_reason).to be_nil
     end
   end
 
