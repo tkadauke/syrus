@@ -57,6 +57,8 @@ RSpec.describe ChatScopedEventEvaluatorJob do
     expect(wakeup.prompt).to include("Before acting, read current Syrus state")
     expect(wakeup.prompt).to include("Inspect the failed workflow")
     expect(wakeup.metadata).to include(
+      "source" => "scoped_event_wakeup",
+      "kind" => "scoped_event_evaluator_handoff",
       "scoped_event_wakeup" => true,
       "scoped_event_id" => event.id,
       "evaluator_decision" => result

@@ -55,6 +55,8 @@ class ChatScopedEventWakeup
 
   def metadata_for(event)
     {
+      "source" => "scoped_event_wakeup",
+      "kind" => "scoped_event_evaluator_handoff",
       "scoped_event_wakeup" => true,
       "scoped_event_id" => event.id,
       "scoped_event" => event.payload.merge("scoped_event_id" => event.id),

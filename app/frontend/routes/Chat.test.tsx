@@ -688,6 +688,38 @@ describe("proposal outcome system events", () => {
   })
 })
 
+describe("scoped event evaluator handoffs", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("hides evaluator handoff context while rendering the assistant result", async () => {
+    const handoffText = "A scoped Syrus event evaluator decided this event needs a live chat turn."
+    mockChatPayload(chatPayload({
+      messages: [
+        {
+          ...chatMessage(9, "system", `${handoffText}\n\nEvaluator decision: {"decision":"respond"}`, localDateAt(9, 0)),
+          content: {
+            text: `${handoffText}\n\nEvaluator decision: {"decision":"respond"}`,
+            source: "scoped_event_wakeup",
+            kind: "scoped_event_evaluator_handoff",
+            scoped_event_wakeup: true
+          },
+          bookmarkable: false
+        },
+        chatMessage(10, "assistant", "JOB-2552 comments were addressed on PR #2253.", localDateAt(9, 1))
+      ]
+    }))
+
+    renderRoute()
+
+    expect(await screen.findByText(/comments were addressed on PR #2253/)).toBeInTheDocument()
+    expect(screen.queryByText(/A scoped Syrus event evaluator decided/)).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Show 1 hidden system message" })).toBeInTheDocument()
+  })
+})
+
 describe("chat bookmark picker command", () => {
   beforeEach(() => {
     window.localStorage.clear()

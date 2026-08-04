@@ -16,16 +16,23 @@ class ChatSession::WakeupTurn
       }.merge(@wakeup.metadata.presence || {})
 
       message = locked_chat.messages.create!(
-        role: "user",
+        role: message_role(content),
         content: content
       )
       locked_chat.update!(
         last_message_at: Time.current,
-        title: locked_chat.title.presence
+        title: locked_chat.title.presence,
+        turn_in_flight: true
       )
     end
 
     ChatTurnJob.perform_later(@chat_session.id, message.id)
     message
+  end
+
+  private
+
+  def message_role(content)
+    content["scoped_event_wakeup"] == true ? "system" : "user"
   end
 end
