@@ -18,12 +18,13 @@ module SyrusChatMcp
       SyrusChatMcp.unauthorized("Admin access required")
     end
 
-    def create_pending_admin_action(server_context:, chat_session:, action:, payload:, message:)
+    def create_pending_admin_action(server_context:, chat_session:, action:, payload:, message:, reason: nil)
       pending_action = create_pending_action_for_current_message!(
         server_context,
         chat_session,
         action: action,
         payload: payload,
+        reason: reason,
         requested_by: "agent"
       )
 
@@ -31,6 +32,7 @@ module SyrusChatMcp
         pending_confirmation_id: pending_action.id,
         pending_action_id: pending_action.id,
         state: pending_action.state,
+        reason: pending_action.reason,
         message: message
       )
     rescue ActiveRecord::RecordInvalid => e

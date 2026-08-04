@@ -15,18 +15,21 @@ module SyrusChatMcp
 
     input_schema(
       properties: {
-        job_id: { type: "integer", description: "Syrus Job id to force into failed state." }
+        job_id: { type: "integer", description: "Syrus Job id to force into failed state." },
+        reason: { type: "string", description: "Operator-facing reason for force-failing this Job." }
       },
-      required: %w[job_id]
+      required: %w[job_id reason]
     )
 
     class << self
-      def call(job_id:, server_context:)
+      def call(job_id:, reason:, server_context:)
         return SyrusChatMcp.unauthorized("Admin access required") unless admin?
 
         chat_session = server_context.fetch(:chat_session)
         job_id = Integer(job_id, exception: false)
         return SyrusChatMcp.invalid("job_id is required") unless job_id
+        reason = reason.to_s.strip
+        return SyrusChatMcp.invalid("reason is required") if reason.empty?
 
         job = find_job!(job_id)
         return SyrusChatMcp.invalid("#{job.slug} is #{job.state} and cannot be force-failed.") unless job.may_force_fail?
@@ -36,6 +39,7 @@ module SyrusChatMcp
           chat_session,
           action: "force_fail_job",
           payload: { "job_id" => job.id, "previous_state" => job.state },
+          reason: reason,
           requested_by: "agent"
         )
 
@@ -46,6 +50,7 @@ module SyrusChatMcp
           job_id: job.id,
           previous_state: job.state,
           new_state: "failed",
+          reason: pending_action.reason,
           message: "Force fail #{job.slug}?"
         )
       rescue ActiveRecord::RecordInvalid => e

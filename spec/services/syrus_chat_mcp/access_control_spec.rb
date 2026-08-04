@@ -139,7 +139,7 @@ RSpec.describe "SyrusChatMcp access control" do
   end
 
   it "cannot request rebase for another user's job" do
-    response = call_tool(SyrusChatMcp::RebaseJobTool, "rebase_job", job_id: other_user_job.id)
+    response = call_tool(SyrusChatMcp::RebaseJobTool, "rebase_job", job_id: other_user_job.id, reason: "Check access denial.")
 
     expect_not_authorized(response)
     expect(chat_session.pending_actions).to be_empty

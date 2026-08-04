@@ -306,7 +306,8 @@ RSpec.describe ChatPendingAction do
     job = direct_job(pr_number: 17)
     action = chat_session.pending_actions.create!(
       action: "rebase_job",
-      payload: { "job_id" => job.id }
+      payload: { "job_id" => job.id },
+      reason: "Bring the PR branch up to date."
     )
 
     expect {
@@ -532,6 +533,7 @@ RSpec.describe ChatPendingAction do
     retry_action = admin_session.pending_actions.create!(
       action: "admin_retry_step",
       payload: { "workflow_id" => workflow.id, "step_slug" => step.kind },
+      reason: "Retry the failed step.",
       requested_by: "agent"
     )
 
@@ -541,11 +543,14 @@ RSpec.describe ChatPendingAction do
     expect(workflow.reload).to be_running
     expect(step.reload).to be_queued
     expect(retry_action.reload.result).to be_a(Run)
+    expect(retry_action.before_snapshot.dig("jobs", 0, "workflow", "state")).to eq("failed")
+    expect(retry_action.after_snapshot.dig("jobs", 0, "workflow", "state")).to eq("running")
 
     allow_any_instance_of(Workflow).to receive(:cleanup_workspace!).and_return(true)
     cleanup_action = admin_session.pending_actions.create!(
       action: "admin_cleanup_workspace",
       payload: { "workflow_id" => workflow.id },
+      reason: "Delete an unused workspace.",
       requested_by: "agent"
     )
 

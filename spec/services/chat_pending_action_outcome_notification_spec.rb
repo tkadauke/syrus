@@ -46,10 +46,10 @@ RSpec.describe ChatPendingActionOutcomeNotification do
   end
 
   it "builds a cancelled message for a job-scoped action" do
-    action = build_action(action: "rebase_job", payload: { "job_id" => 5 })
+    action = build_action(action: "rebase_job", payload: { "job_id" => 5 }, reason: "Refresh mergeability.")
 
     expect(described_class.new(action).acknowledgment(outcome: :cancelled)).to eq(
-      "Pending action dismissed: rebase_job (job_id: 5). The action was not applied."
+      "Pending action dismissed: rebase_job (job_id: 5, reason: Refresh mergeability.). The action was not applied."
     )
   end
 
@@ -98,13 +98,13 @@ RSpec.describe ChatPendingActionOutcomeNotification do
   end
 
   it "includes workflow_id and step_slug for admin_retry_step" do
-    action = build_action(action: "admin_retry_step", payload: { "workflow_id" => 100, "step_slug" => "implement" }, requested_by: "agent")
+    action = build_action(action: "admin_retry_step", payload: { "workflow_id" => 100, "step_slug" => "implement" }, reason: "Retry failed step.", requested_by: "agent")
 
     expect(described_class.new(action).acknowledgment(outcome: :confirmed)).to include("workflow_id: 100, step_slug: implement")
   end
 
   it "includes workflow_id for admin_cleanup_workspace" do
-    action = build_action(action: "admin_cleanup_workspace", payload: { "workflow_id" => 200 }, requested_by: "agent")
+    action = build_action(action: "admin_cleanup_workspace", payload: { "workflow_id" => 200 }, reason: "Remove abandoned workspace.", requested_by: "agent")
 
     expect(described_class.new(action).acknowledgment(outcome: :confirmed)).to include("workflow_id: 200")
   end

@@ -10,13 +10,14 @@ module SyrusChatMcp
     input_schema(
       properties: {
         workflow_id: { type: "integer", description: "Workflow id that owns the failed Step." },
-        step_slug: { type: "string", description: "Step kind to retry, for example implement or graders." }
+        step_slug: { type: "string", description: "Step kind to retry, for example implement or graders." },
+        reason: { type: "string", description: "Operator-facing reason for retrying this failed Step." }
       },
-      required: %w[workflow_id step_slug]
+      required: %w[workflow_id step_slug reason]
     )
 
     class << self
-      def call(workflow_id:, step_slug:, server_context:)
+      def call(workflow_id:, step_slug:, reason:, server_context:)
         chat_session = require_admin(server_context)
         return chat_session if chat_session.is_a?(MCP::Tool::Response)
 
@@ -25,6 +26,8 @@ module SyrusChatMcp
 
         step_slug = step_slug.to_s.strip
         return SyrusChatMcp.invalid("step_slug is required") if step_slug.empty?
+        reason = reason.to_s.strip
+        return SyrusChatMcp.invalid("reason is required") if reason.empty?
 
         workflow = Workflow.find_by(id: workflow_id)
         return SyrusChatMcp.invalid("workflow not found: #{workflow_id}") unless workflow
@@ -37,6 +40,7 @@ module SyrusChatMcp
           chat_session: chat_session,
           action: "admin_retry_step",
           payload: { "workflow_id" => workflow.id, "step_slug" => step_slug },
+          reason: reason,
           message: "Retry step '#{step_slug}' on workflow ##{workflow.id}?"
         )
       end

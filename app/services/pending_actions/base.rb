@@ -27,12 +27,24 @@ module PendingActions
       "id: #{@action.id}"
     end
 
+    def repair_action?
+      false
+    end
+
+    def repair_snapshot_targets
+      []
+    end
+
     private
 
     attr_reader :action
 
     def payload
       @action.payload.to_h
+    end
+
+    def reason
+      @action.reason.to_s.strip
     end
 
     def user
@@ -48,8 +60,17 @@ module PendingActions
     end
 
     def action_job
-      scope = chat_session.repository&.jobs || user.jobs
+      user.jobs.find(payload.fetch("job_id"))
+    end
+
+    def repair_action_job
+      scope = user.admin? ? Job.all : user.jobs
       scope.find(payload.fetch("job_id"))
+    end
+
+    def repair_action_job_or_nil
+      scope = user.admin? ? Job.all : user.jobs
+      scope.find_by(id: payload["job_id"])
     end
 
     def action_user_job

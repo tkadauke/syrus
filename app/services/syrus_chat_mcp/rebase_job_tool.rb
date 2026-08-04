@@ -15,16 +15,19 @@ module SyrusChatMcp
 
     input_schema(
       properties: {
-        job_id: { type: "integer", description: "Syrus Job id to rebase." }
+        job_id: { type: "integer", description: "Syrus Job id to rebase." },
+        reason: { type: "string", description: "Operator-facing reason for rebasing this Job." }
       },
-      required: %w[job_id]
+      required: %w[job_id reason]
     )
 
     class << self
-      def call(job_id:, server_context:)
+      def call(job_id:, reason:, server_context:)
         chat_session = server_context.fetch(:chat_session)
         job_id = Integer(job_id, exception: false)
         return SyrusChatMcp.invalid("job_id is required") unless job_id
+        reason = reason.to_s.strip
+        return SyrusChatMcp.invalid("reason is required") if reason.empty?
 
         job = find_job!(job_id)
 
@@ -33,6 +36,7 @@ module SyrusChatMcp
           chat_session,
           action: "rebase_job",
           payload: { "job_id" => job.id },
+          reason: reason,
           requested_by: "agent"
         )
 
@@ -40,6 +44,7 @@ module SyrusChatMcp
           pending_confirmation_id: pending_action.id,
           pending_action_id: pending_action.id,
           state: pending_action.state,
+          reason: pending_action.reason,
           message: "Job rebase requires operator confirmation."
         )
       rescue ActiveRecord::RecordInvalid => e

@@ -152,7 +152,11 @@ module ChatSerialization
         app_confirm_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/confirm",
         app_reject_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/reject",
         app_cancel_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}"
-      }
+      }.tap do |payload|
+        payload[:reason] = action.reason if action.reason.present?
+        payload[:before_snapshot] = action.before_snapshot if action.before_snapshot.present?
+        payload[:after_snapshot] = action.after_snapshot if action.after_snapshot.present?
+      end
     end
   end
 

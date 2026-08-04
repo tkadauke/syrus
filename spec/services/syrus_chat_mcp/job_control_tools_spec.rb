@@ -309,7 +309,7 @@ RSpec.describe "SyrusChatMcp job control tools" do
   it "requires admin access for force_fail_job" do
     job = Factories.job_record(repository: repository, state: "running")
 
-    response = call_tool("force_fail_job", job_id: job.id)
+    response = call_tool("force_fail_job", job_id: job.id, reason: "Testing non-admin denial.")
 
     expect(response.dig(:result, :isError)).to be true
     expect(response.dig(:result, :content, 0, :text)).to include("Admin access required")
@@ -322,6 +322,7 @@ RSpec.describe "SyrusChatMcp job control tools" do
     pending_action = chat_session.pending_actions.create!(
       action: "force_fail_job",
       payload: { "job_id" => job.id },
+      reason: "Testing crafted action denial.",
       requested_by: "agent"
     )
 
@@ -332,7 +333,7 @@ RSpec.describe "SyrusChatMcp job control tools" do
   it "creates a pending rebase_job confirmation without executing it" do
     job = Factories.job(repository: repository, pr_number: 12)
 
-    response = call_tool("rebase_job", job_id: job.id)
+    response = call_tool("rebase_job", job_id: job.id, reason: "Bring the branch current.")
     pending_action = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
 
     expect(pending_action).to be_pending
@@ -465,7 +466,7 @@ RSpec.describe "SyrusChatMcp job control tools" do
     it "creates and confirms a force_fail_job action for another user's job" do
       job = Factories.job_record(repository: other_repository, state: "running")
 
-      response = admin_call("force_fail_job", job_id: job.id)
+      response = admin_call("force_fail_job", job_id: job.id, reason: "Operator determined it is stuck.")
 
       expect(response.dig(:result, :isError)).to be_falsey
       response_payload = payload(response)
@@ -473,23 +474,26 @@ RSpec.describe "SyrusChatMcp job control tools" do
       pending_action = admin_chat_session.pending_actions.find(response_payload[:pending_confirmation_id])
       expect(pending_action).to have_attributes(
         action: "force_fail_job",
-        payload: { "job_id" => job.id, "previous_state" => "running" }
+        payload: { "job_id" => job.id, "previous_state" => "running" },
+        reason: "Operator determined it is stuck."
       )
       expect(job.reload).to be_running
 
       expect(pending_action.confirm!(user: admin)).to be(true)
       expect(job.reload).to be_failed
       expect(pending_action.reload.result).to eq(job)
+      expect(pending_action.before_snapshot.dig("jobs", 0, "state")).to eq("running")
+      expect(pending_action.after_snapshot.dig("jobs", 0, "state")).to eq("failed")
     end
 
     it "allows an admin to rebase another user's job" do
       job = Factories.job_record(repository: other_repository, state: "queued", pr_number: 5)
 
-      response = admin_call("rebase_job", job_id: job.id)
+      response = admin_call("rebase_job", job_id: job.id, reason: "Refresh mergeability.")
 
       expect(response.dig(:result, :isError)).to be_falsey
       pending_action = admin_chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])
-      expect(pending_action).to have_attributes(action: "rebase_job", payload: { "job_id" => job.id })
+      expect(pending_action).to have_attributes(action: "rebase_job", payload: { "job_id" => job.id }, reason: "Refresh mergeability.")
     end
   end
 end

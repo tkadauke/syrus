@@ -31,11 +31,11 @@ RSpec.describe "SyrusChatMcp admin tools" do
     "admin_clear_github_cache" => {},
     "admin_pause_user_scheduling" => { user_id: 1 },
     "admin_unpause_user_scheduling" => { user_id: 1 },
-    "admin_retry_step" => { workflow_id: 1, step_slug: "implement" },
-    "admin_cleanup_workspace" => { workflow_id: 1 },
+    "admin_retry_step" => { workflow_id: 1, step_slug: "implement", reason: "Retry the failed implement step." },
+    "admin_cleanup_workspace" => { workflow_id: 1, reason: "Free an abandoned workspace." },
     "admin_refresh_installations" => {},
     "admin_github_app_installation_diagnostic" => {},
-    "force_fail_job" => { job_id: 1 }
+    "force_fail_job" => { job_id: 1, reason: "Mark a stuck running job failed." }
   }.freeze
 
   def server_for(chat_session)
@@ -91,10 +91,10 @@ RSpec.describe "SyrusChatMcp admin tools" do
       "admin_clear_github_cache" => [ {}, {} ],
       "admin_pause_user_scheduling" => [ { user_id: target_user.id }, { "user_id" => target_user.id } ],
       "admin_unpause_user_scheduling" => [ { user_id: target_user.id }, { "user_id" => target_user.id } ],
-      "admin_retry_step" => [ { workflow_id: workflow.id, step_slug: "implement" }, { "workflow_id" => workflow.id, "step_slug" => "implement" } ],
-      "admin_cleanup_workspace" => [ { workflow_id: workflow.id }, { "workflow_id" => workflow.id } ],
+      "admin_retry_step" => [ { workflow_id: workflow.id, step_slug: "implement", reason: "Retry the failed step." }, { "workflow_id" => workflow.id, "step_slug" => "implement" } ],
+      "admin_cleanup_workspace" => [ { workflow_id: workflow.id, reason: "Remove stale workspace files." }, { "workflow_id" => workflow.id } ],
       "admin_refresh_installations" => [ {}, {} ],
-      "force_fail_job" => [ { job_id: workflow.job.id }, { "job_id" => workflow.job.id, "previous_state" => workflow.job.state } ]
+      "force_fail_job" => [ { job_id: workflow.job.id, reason: "Operator determined it is stuck." }, { "job_id" => workflow.job.id, "previous_state" => workflow.job.state } ]
     }
 
     cases.each do |name, (arguments, expected_payload)|
@@ -112,6 +112,7 @@ RSpec.describe "SyrusChatMcp admin tools" do
         payload: expected_payload,
         requested_by: "agent"
       )
+      expect(action.reason).to be_present if name.in?(%w[admin_retry_step admin_cleanup_workspace force_fail_job])
     end
   end
 

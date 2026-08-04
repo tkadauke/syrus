@@ -19,10 +19,20 @@ module PendingActions
     def validate_payload(errors)
       errors.add(:payload, "workflow_id is required") unless payload["workflow_id"].present?
       errors.add(:payload, "step_slug is required") if payload["step_slug"].to_s.strip.blank?
+      errors.add(:reason, "is required") if reason.blank?
     end
 
     def action_detail
       "workflow_id: #{payload["workflow_id"]}, step_slug: #{payload["step_slug"]}"
+    end
+
+    def repair_action?
+      true
+    end
+
+    def repair_snapshot_targets
+      workflow = Workflow.find_by(id: payload["workflow_id"])
+      [ workflow&.job ]
     end
   end
 end

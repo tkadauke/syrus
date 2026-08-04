@@ -47,6 +47,8 @@ class ChatPendingAction < ApplicationRecord
   REQUESTED_BY = %w[ agent operator ].freeze
 
   attribute :payload, :json, default: -> { {} }
+  attribute :before_snapshot, :json, default: -> { {} }
+  attribute :after_snapshot, :json, default: -> { {} }
 
   belongs_to :chat_session
   belongs_to :repository, optional: true
@@ -83,7 +85,13 @@ class ChatPendingAction < ApplicationRecord
       return false unless pending?
 
       ApplicationRecord.transaction do
-        record = apply!
+        raise ActiveRecord::RecordInvalid, self unless valid?
+
+        command = PendingActions.for(action_key).new(self)
+        repair_targets = command.repair_snapshot_targets
+        self.before_snapshot = PendingActions::RepairAuditSnapshot.capture(repair_targets) if command.repair_action?
+        record = command.execute
+        self.after_snapshot = PendingActions::RepairAuditSnapshot.capture(repair_targets) if command.repair_action?
         updates = { state: "confirmed", confirmed_at: Time.current }
         updates[:result] = record if record
         update!(updates)

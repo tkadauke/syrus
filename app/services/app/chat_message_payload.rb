@@ -92,6 +92,9 @@ module App
         app_confirm_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/confirm",
         app_reject_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/reject"
       }
+      base[:reason] = action.reason if action.reason.present?
+      base[:before_snapshot] = action.before_snapshot if action.before_snapshot.present?
+      base[:after_snapshot] = action.after_snapshot if action.after_snapshot.present?
 
       case action.action.presence || action.action_type
       when "cancel_job", "close_job_successfully", "retry_job", "force_fail_job", "rebase_job", "reopen_job", "poll_job_feedback", "check_job_mergeability", "submit_chat_feedback"
