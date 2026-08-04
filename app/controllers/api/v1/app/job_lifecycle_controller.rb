@@ -158,9 +158,7 @@ module Api
             return
           end
 
-          review_id = job.approval_evidence&.dig("github_review_id")
-          job.unapprove!
-          github_note = Job::ApprovalPropagator.dismiss(job, review_id, user: Current.user).message
+          github_note = Job::ApprovalUnapprover.call(job: job, user: Current.user).message
           render_job(job.reload, message: [ "Job unapproved.", github_note ].compact.join(" "), changed: [ "state", "approval" ])
         end
 
@@ -207,9 +205,7 @@ module Api
 
           ApplicationRecord.transaction do
             if job.approved?
-              review_id = job.approval_evidence&.dig("github_review_id")
-              job.unapprove!
-              Job::ApprovalPropagator.dismiss(job, review_id, user: Current.user)
+              Job::ApprovalUnapprover.call(job: job, user: Current.user)
             end
             job.linked_chat_id = chat.id
             job.enter_local_mode!

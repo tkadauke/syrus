@@ -344,7 +344,7 @@ class PollPullRequestJob < ApplicationJob
   def clear_stale_approval!
     return unless @job.may_unapprove?
 
-    @job.unapprove!
+    Job::ApprovalUnapprover.call(job: @job, user: @job.user)
   end
 
   def ingest_comment_images(new_comments)

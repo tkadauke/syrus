@@ -39,9 +39,7 @@ module SyrusChatMcp
 
         ApplicationRecord.transaction do
           if job.approved?
-            review_id = job.approval_evidence&.dig("github_review_id")
-            job.unapprove!
-            Job::ApprovalPropagator.dismiss(job, review_id, user: chat_session.user)
+            Job::ApprovalUnapprover.call(job: job, user: chat_session.user)
           end
           job.linked_chat_id = chat_session.id
           job.enter_local_mode!

@@ -15,7 +15,7 @@ module JobCodingMode
     return false unless Feature.coding_mode_enabled?
     return false if linked_chat_id.present?
 
-    unapprove! if may_unapprove?
+    Job::ApprovalUnapprover.call(job: self, user: chat_session.user) if may_unapprove?
     return false unless may_claim_for_coding?
 
     self.linked_chat_id = chat_session.id

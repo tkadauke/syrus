@@ -1,4 +1,5 @@
 require "rails_helper"
+require "ostruct"
 
 RSpec.describe "SyrusChatMcp job control tools" do
   let!(:_bootstrap_admin) { Factories.user(admin: true) }
@@ -132,6 +133,73 @@ RSpec.describe "SyrusChatMcp job control tools" do
     response = call_tool("unapprove_job", job_id: job.id)
 
     expect(payload(response)).to include(job_id: job.id, previous_state: "approved", new_state: "implemented")
+    expect(job.reload).to be_implemented
+    expect(job.approved_at).to be_nil
+  end
+
+  it "dismisses a propagated GitHub review with the review id captured before unapproving" do
+    job = Factories.job_record(repository: repository, state: "implemented")
+    job.approve!(
+      via: "operator",
+      by_user: user,
+      evidence: { "github_review_id" => 999 }
+    )
+
+    expect(Job::ApprovalPropagator)
+      .to receive(:dismiss)
+      .with(job, 999, user: user)
+      .and_return(Job::ApprovalPropagator::Result.new(message: "GitHub review dismissed.", status: :success))
+
+    response = call_tool("unapprove_job", job_id: job.id)
+
+    expect(payload(response)).to include(job_id: job.id, previous_state: "approved", new_state: "implemented")
+    expect(job.reload.approval_evidence).to eq({})
+  end
+
+  it "keeps chat-unapproved GitHub-backed jobs from being restored by the next merge-state poll" do
+    repository.update!(auto_merge_enabled: true, approval_propagates_to_github: true)
+    job = Factories.job_record(
+      user: user,
+      repository: repository,
+      state: "implemented",
+      pr_number: 17,
+      branch_name: "syrus/direct-2599"
+    )
+    job.approve!(
+      via: "operator",
+      by_user: user,
+      evidence: { "github_review_id" => 999 }
+    )
+    job.workflows.update_all(state: "succeeded")
+
+    pr = OpenStruct.new(
+      merged: false,
+      state: "open",
+      mergeable: true,
+      mergeable_state: "clean",
+      labels: [],
+      head: OpenStruct.new(repo: OpenStruct.new(full_name: repository.slug), sha: "head-sha"),
+      base: OpenStruct.new(repo: OpenStruct.new(full_name: repository.slug), ref: "main", sha: "base-sha")
+    )
+    review = OpenStruct.new(state: "APPROVED")
+    client = instance_double(GithubClient)
+    clone = instance_double(RepositoryBareClone, sync!: true, commits_behind: 0)
+
+    allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
+    allow(client).to receive(:pull_request).with(repository.slug, 17, bypass_cache: false).and_return(pr)
+    allow(client).to receive(:pr_reviews).with(repository.slug, 17).and_return([ review ])
+    allow(client).to receive(:pr_issue_comments).with(repository.slug, 17).and_return([])
+    allow(client).to receive(:pr_commits).with(repository.slug, 17).and_return([])
+    allow(RepositoryBareClone).to receive(:new).with(repository).and_return(clone)
+    expect(client)
+      .to receive(:dismiss_pr_review)
+      .with(repository.slug, 17, 999, message: "Dismissed via Syrus.") do
+        review.state = "DISMISSED"
+      end
+
+    call_tool("unapprove_job", job_id: job.id)
+    PollMergeStateJob.perform_now(job.id)
+
     expect(job.reload).to be_implemented
     expect(job.approved_at).to be_nil
   end

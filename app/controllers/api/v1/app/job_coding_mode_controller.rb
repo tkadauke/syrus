@@ -27,9 +27,7 @@ module Api
             chat_session = find_or_create_linked_chat!(job, repository)
 
             if job.approved? && job.may_unapprove?
-              review_id = job.approval_evidence&.dig("github_review_id")
-              job.unapprove!
-              Job::ApprovalPropagator.dismiss(job, review_id, user: Current.user)
+              Job::ApprovalUnapprover.call(job: job, user: Current.user)
             end
 
             job.update!(linked_chat_id: chat_session.id)

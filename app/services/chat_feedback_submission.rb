@@ -30,9 +30,7 @@ class ChatFeedbackSubmission
       artifacts: artifacts
     )
     if job.may_unapprove?
-      review_id = job.approval_evidence&.dig("github_review_id")
-      job.reload.unapprove!
-      Job::ApprovalPropagator.dismiss(job, review_id, user: job.user)
+      Job::ApprovalUnapprover.call(job: job.reload, user: job.user)
     end
     StepDispatcher.start_workflow(workflow)
 

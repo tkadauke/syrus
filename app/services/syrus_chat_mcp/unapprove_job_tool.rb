@@ -23,7 +23,7 @@ module SyrusChatMcp
         return SyrusChatMcp.invalid("job must be in approved state") unless job.approved?
 
         previous_state = job.state
-        job.unapprove!
+        Job::ApprovalUnapprover.call(job: job, user: chat_session.user)
 
         SyrusChatMcp.success(
           job_id: job.id,
