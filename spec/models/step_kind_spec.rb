@@ -126,6 +126,27 @@ RSpec.describe Step::Kind do
     end
   end
 
+  describe "resource profile metadata" do
+    it "expands fanout steps to the dynamic grader profiles they create" do
+      expect(described_class.fetch("grader_fanout").resource_profile_keys_for).to eq([
+        [ "grader_fanout", "" ],
+        [ "grader", nil ]
+      ])
+      expect(described_class.fetch("preflight_grader_fanout").resource_profile_keys_for).to eq([
+        [ "preflight_grader_fanout", "" ],
+        [ "preflight_grader", nil ]
+      ])
+    end
+
+    it "uses the grader name from step details for individual grader profiles" do
+      step = Step.new(kind: "grader", details: { "name" => "rspec" })
+
+      expect(described_class.fetch("grader").resource_profile_keys_for(step)).to eq([
+        [ "grader", "rspec" ]
+      ])
+    end
+  end
+
   describe "repair_semantics" do
     it "marks deterministic idempotent steps as safe in-place retry candidates" do
       %w[prepare grader grader_collect grade coverage_analyze preflight_grader].each do |kind|

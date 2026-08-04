@@ -20,15 +20,21 @@ class Step
     # required_mcp_tools: MCP tools the agent MUST call during this step.
     Entry = Data.define(:kind, :handler, :label, :style, :agentic,
                         :required_mcp_tools, :fail_policy, :reconcile_strategy,
-                        :skip_if_artifact, :triggers_auto_approval, :repair_semantics) do
+                        :skip_if_artifact, :triggers_auto_approval, :repair_semantics,
+                        :resource_profile_step_kinds, :resource_profile_grader_name_key,
+                        :resource_profile_default_overrides) do
       def initialize(kind:, handler:, label:, style:, agentic:,
                      required_mcp_tools: [],
                      fail_policy: :default,
                      reconcile_strategy: nil,
                      skip_if_artifact: nil,
                      triggers_auto_approval: false,
-                     repair_semantics: nil)
+                     repair_semantics: nil,
+                     resource_profile_step_kinds: nil,
+                     resource_profile_grader_name_key: nil,
+                     resource_profile_default_overrides: nil)
         repair_semantics ||= agentic ? :agentic : :operator_review
+        resource_profile_step_kinds ||= [ kind ]
         super
       end
 
@@ -46,6 +52,26 @@ class Step
 
       def rebuild_repair?
         repair_semantics == :rebuild
+      end
+
+      def resource_profile_keys_for(step = nil)
+        resource_profile_step_kinds.map do |profile_step_kind|
+          grader_name =
+            if profile_step_kind == kind && resource_profile_grader_name_key.present?
+              step&.details.to_h[resource_profile_grader_name_key].to_s
+            elsif profile_step_kind == kind
+              ""
+            else
+              nil
+            end
+          [ profile_step_kind, grader_name ]
+        end
+      end
+
+      def resource_profile_defaults
+        return nil if resource_profile_default_overrides.blank?
+
+        WorkflowStepResourceProfile::CONSERVATIVE_DEFAULTS.merge(resource_profile_default_overrides)
       end
     end
 
@@ -92,9 +118,21 @@ class Step
                 triggers_auto_approval: true),
       Entry.new(kind: "grader",             handler: "Grader",             label: "Grader",                     style: "bg-violet-100 text-violet-700", agentic: false,
                 fail_policy: :advance,
-                repair_semantics: :deterministic_idempotent),
+                repair_semantics: :deterministic_idempotent,
+                resource_profile_grader_name_key: "name"),
       Entry.new(kind: "grader_fanout",      handler: "GraderFanout",       label: "Plan graders",               style: "bg-violet-100 text-violet-700", agentic: false,
-                repair_semantics: :deterministic_idempotent),
+                repair_semantics: :deterministic_idempotent,
+                resource_profile_step_kinds: %w[grader_fanout grader],
+                resource_profile_default_overrides: {
+                  duration_seconds: 60,
+                  process_attributed_duration_seconds: 60,
+                  process_attributed_cpu_percent: 5.0,
+                  cpu_pressure: 5.0,
+                  io_pressure: 5.0,
+                  memory_used_percent: 20.0,
+                  timeout_rate: 0.0,
+                  failure_rate: 0.0
+                }),
       Entry.new(kind: "grader_collect",     handler: "GraderCollect",      label: "Aggregate graders",          style: "bg-violet-100 text-violet-700", agentic: false,
                 fail_policy: :loop_iteration,
                 repair_semantics: :deterministic_idempotent,
@@ -128,9 +166,21 @@ class Step
                 repair_semantics: :publication),
       Entry.new(kind: "preflight_grader",         handler: "PreflightGrader",         label: "Preflight grader",         style: "bg-gray-100 text-gray-500",     agentic: false,
                 fail_policy: :advance,
-                repair_semantics: :deterministic_idempotent),
+                repair_semantics: :deterministic_idempotent,
+                resource_profile_grader_name_key: "name"),
       Entry.new(kind: "preflight_grader_fanout",  handler: "PreflightGraderFanout",  label: "Plan preflight graders",   style: "bg-violet-100 text-violet-700", agentic: false,
-                repair_semantics: :deterministic_idempotent),
+                repair_semantics: :deterministic_idempotent,
+                resource_profile_step_kinds: %w[preflight_grader_fanout preflight_grader],
+                resource_profile_default_overrides: {
+                  duration_seconds: 60,
+                  process_attributed_duration_seconds: 60,
+                  process_attributed_cpu_percent: 5.0,
+                  cpu_pressure: 5.0,
+                  io_pressure: 5.0,
+                  memory_used_percent: 20.0,
+                  timeout_rate: 0.0,
+                  failure_rate: 0.0
+                }),
       Entry.new(kind: "preflight_grader_collect", handler: "PreflightGraderCollect", label: "Preflight grader check",   style: "bg-violet-100 text-violet-700", agentic: false,
                 repair_semantics: :deterministic_idempotent)
     ].freeze

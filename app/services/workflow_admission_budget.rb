@@ -132,6 +132,8 @@ class WorkflowAdmissionBudget
     process_memory_bytes = process_predictions.filter_map { |prediction| prediction.fetch(:process_attributed_memory_bytes) }.max
     process_io_bytes = process_predictions.filter_map { |prediction| prediction.fetch(:process_attributed_io_bytes) }.sum
     prediction_sources = predictions.map { |prediction| prediction.fetch(:prediction_source) }.tally
+    source_contributions = prediction_source_contributions(predictions)
+    primary_source = primary_prediction_source(prediction_sources, source_contributions)
     fallback_reasons = predictions.filter_map { |prediction| prediction.fetch(:fallback_reason) }.uniq
     attribution_confidence_levels = predictions.map { |prediction| prediction.fetch(:attribution_confidence_level) }.uniq
 
@@ -145,8 +147,8 @@ class WorkflowAdmissionBudget
         "cpu_pressure" => cpu.round(1),
         "io_pressure" => io.round(1),
         "memory_used_percent" => memory.round(1),
-        "source" => primary_prediction_source(prediction_sources),
-        "confidence" => prediction_confidence(prediction_sources)
+        "source" => primary_source,
+        "confidence" => prediction_confidence(primary_source)
       },
       "process_attributed_cost" => {
         "duration_seconds" => process_duration.round,
@@ -155,7 +157,8 @@ class WorkflowAdmissionBudget
         "io_bytes" => process_io_bytes.positive? ? process_io_bytes : nil
       }.compact,
       "prediction_sources" => prediction_sources,
-      "primary_prediction_source" => primary_prediction_source(prediction_sources),
+      "prediction_source_contributions" => source_contributions,
+      "primary_prediction_source" => primary_source,
       "attribution_confidence_levels" => attribution_confidence_levels,
       "fallback_reasons" => fallback_reasons,
       "confidence_levels" => predictions.map { |prediction| prediction.fetch(:confidence_level) }.uniq,
@@ -167,15 +170,46 @@ class WorkflowAdmissionBudget
     }
   end
 
-  def primary_prediction_source(sources)
+  def prediction_source_contributions(predictions)
+    predictions.group_by { |prediction| prediction.fetch(:prediction_source) }.transform_values do |items|
+      {
+        "duration_seconds" => items.sum { |prediction| prediction.fetch(:duration_seconds).to_f }.round,
+        "cpu_pressure" => items.sum { |prediction| prediction.fetch(:cpu_pressure).to_f }.round(1),
+        "io_pressure" => items.sum { |prediction| prediction.fetch(:io_pressure).to_f }.round(1),
+        "memory_used_percent" => (items.map { |prediction| prediction.fetch(:memory_used_percent).to_f }.max || 0.0).round(1),
+        "step_count" => items.size
+      }
+    end
+  end
+
+  def primary_prediction_source(sources, source_contributions = nil)
+    driver_source = source_contributions && prediction_driver_source(source_contributions)
+    return driver_source if driver_source
     return "command_attributed" if sources.key?("command_attributed")
     return "host_correlated" if sources.key?("host_correlated")
 
     "defaults_only"
   end
 
-  def prediction_confidence(sources)
-    case primary_prediction_source(sources)
+  def prediction_driver_source(source_contributions)
+    ranked = source_contributions.max_by do |_source, totals|
+      [
+        totals.fetch("cpu_pressure").to_f >= CPU_BUDGET ? 1 : 0,
+        totals.fetch("io_pressure").to_f >= IO_BUDGET ? 1 : 0,
+        totals.fetch("memory_used_percent").to_f >= MEMORY_BUDGET ? 1 : 0,
+        totals.fetch("duration_seconds").to_f >= HIGH_COST_SECONDS ? 1 : 0,
+        totals.fetch("cpu_pressure").to_f,
+        totals.fetch("io_pressure").to_f,
+        totals.fetch("memory_used_percent").to_f,
+        totals.fetch("duration_seconds").to_f
+      ]
+    end
+
+    ranked&.first
+  end
+
+  def prediction_confidence(source)
+    case source
     when "command_attributed"
       "process_attributed"
     when "host_correlated"
@@ -199,29 +233,34 @@ class WorkflowAdmissionBudget
 
   def profiles_for(candidate_workflow, step_kinds:)
     base = profile_scope_for(candidate_workflow)
-    selected = base.where(step_kind: step_kinds, grader_name: "").to_a
-    if step_kinds.include?("grader_fanout")
-      selected.concat(base.where(step_kind: "grader").to_a)
-    end
-    if step_kinds.include?("preflight_grader_fanout")
-      selected.concat(base.where(step_kind: "preflight_grader").to_a)
-    end
-
-    selected
+    profile_keys = step_kinds.flat_map { |step_kind| resource_profile_keys_for_kind(step_kind) }
+    profiles_matching_keys(base, profile_keys)
   end
 
   def profiles_for_step(candidate_step)
     base = profile_scope_for(workflow)
-    case candidate_step.kind
-    when "grader"
-      base.where(step_kind: "grader", grader_name: candidate_step.details.to_h["name"].to_s).to_a
-    when "grader_fanout"
-      base.where(step_kind: "grader_fanout", grader_name: "").to_a + base.where(step_kind: "grader").to_a
-    when "preflight_grader_fanout"
-      base.where(step_kind: "preflight_grader_fanout", grader_name: "").to_a + base.where(step_kind: "preflight_grader").to_a
-    else
-      base.where(step_kind: candidate_step.kind, grader_name: "").to_a
+    profiles_matching_keys(base, resource_profile_keys_for_step(candidate_step))
+  end
+
+  def profiles_matching_keys(base, profile_keys)
+    step_kinds = profile_keys.map(&:first).uniq
+    base.where(step_kind: step_kinds).to_a.select do |profile|
+      profile_keys.any? do |step_kind, grader_name|
+        profile.step_kind == step_kind && (grader_name.nil? || profile.grader_name.to_s == grader_name)
+      end
     end
+  end
+
+  def resource_profile_keys_for_kind(step_kind)
+    Step::Kind.fetch(step_kind).resource_profile_keys_for
+  rescue ArgumentError
+    [ [ step_kind, "" ] ]
+  end
+
+  def resource_profile_keys_for_step(candidate_step)
+    Step::Kind.fetch(candidate_step.kind).resource_profile_keys_for(candidate_step)
+  rescue ArgumentError
+    [ [ candidate_step.kind, "" ] ]
   end
 
   def profile_scope_for(candidate_workflow)
@@ -249,23 +288,7 @@ class WorkflowAdmissionBudget
   end
 
   def missing_profile_prediction(step_kind)
-    defaults = if step_kind.in?(%w[grader_fanout preflight_grader_fanout])
-      {
-        duration_seconds: 60,
-        process_attributed_duration_seconds: 60,
-        process_attributed_cpu_seconds: 0.0,
-        process_attributed_cpu_percent: 5.0,
-        process_attributed_memory_bytes: nil,
-        process_attributed_io_bytes: nil,
-        cpu_pressure: 5.0,
-        io_pressure: 5.0,
-        memory_used_percent: 20.0,
-        timeout_rate: 0.0,
-        failure_rate: 0.0
-      }
-    else
-      WorkflowStepResourceProfile::CONSERVATIVE_DEFAULTS
-    end
+    defaults = resource_profile_defaults_for(step_kind)
 
     defaults.merge(
       prediction_source: "defaults_only",
@@ -276,6 +299,13 @@ class WorkflowAdmissionBudget
       attributed_sample_count: 0,
       step_kind: step_kind
     )
+  end
+
+  def resource_profile_defaults_for(step_kind)
+    Step::Kind.fetch(step_kind).resource_profile_defaults ||
+      WorkflowStepResourceProfile::CONSERVATIVE_DEFAULTS
+  rescue ArgumentError
+    WorkflowStepResourceProfile::CONSERVATIVE_DEFAULTS
   end
 
   def active_workflow_pressure

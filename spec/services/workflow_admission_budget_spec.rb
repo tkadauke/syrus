@@ -248,4 +248,33 @@ RSpec.describe WorkflowAdmissionBudget do
     expect(decision.details.fetch("fallback_reasons")).to include("command_attributed_profile_unavailable")
     expect(decision.pressure.dig("candidate", "attribution_confidence_levels")).to eq([ "defaults_only" ])
   end
+
+  it "labels mixed-source pressure by the source that drives the budget decision" do
+    WorkflowStepResourceProfile.delete_all
+    seed_low_cost_profiles(except: %w[prepare implement], attributed: true)
+    profile(
+      step_kind: "prepare",
+      duration: 60,
+      cpu: 90.0,
+      attributed_samples: 30,
+      attributed_duration: 20,
+      attributed_cpu: 2.0
+    )
+    profile(step_kind: "implement", duration: 1_800, cpu: 120.0, io: 10.0, memory: 30.0)
+    workflow = workflow_for
+
+    decision = described_class.call(workflow: workflow)
+
+    expect(decision.action).to eq("delay_until")
+    expect(decision.reason).to eq("predicted_budget_pressure_high")
+    expect(decision.details).to include(
+      "decision_basis" => "fallback_host_correlated_profile",
+      "prediction_source" => "host_correlated"
+    )
+    expect(decision.pressure.dig("candidate", "prediction_sources")).to include(
+      "command_attributed" => 7,
+      "host_correlated" => 1
+    )
+    expect(decision.pressure.dig("candidate", "prediction_source_contributions", "host_correlated", "cpu_pressure")).to eq(120.0)
+  end
 end
