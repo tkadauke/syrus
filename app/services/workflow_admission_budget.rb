@@ -64,11 +64,15 @@ class WorkflowAdmissionBudget
       return low_risk_or_delay("worker_host_pressure_high", candidate, active, pressure, decision_basis: "ambient_pressure")
     end
 
+    if bootstrap_missing_profiles?(candidate)
+      return admit("bootstrap_missing_profiles", pressure)
+    end
+
     if over_budget?(pressure) && !urgent?
       return low_risk_or_delay("predicted_budget_pressure_high", candidate, active, pressure, decision_basis: "predicted_command_cost")
     end
 
-    if pending_high_cost_work?(active) && high_cost?(candidate) && medium_or_lower?
+    if pending_high_cost_work?(active) && high_cost?(candidate) && medium_or_lower? && !urgent?
       return delay("pending_high_cost_work", pressure, details: details_payload(candidate, active, decision_basis: "predicted_command_cost"))
     end
 
@@ -104,7 +108,7 @@ class WorkflowAdmissionBudget
   def predicted_pressure_for(candidate_workflow, remaining_only: false)
     step_kinds = step_kinds_for(candidate_workflow, remaining_only:)
     profiles = profiles_for(candidate_workflow, step_kinds:)
-    predictions = profiles.map(&:conservative_prediction)
+    predictions = predictions_for(step_kinds, profiles)
     duration = predictions.sum { |prediction| prediction.fetch(:duration_seconds).to_f }
     cpu = predictions.sum { |prediction| prediction.fetch(:cpu_pressure).to_f }
     io = predictions.sum { |prediction| prediction.fetch(:io_pressure).to_f }
@@ -130,6 +134,7 @@ class WorkflowAdmissionBudget
       "fallback_reasons" => fallback_reasons,
       "confidence_levels" => predictions.map { |prediction| prediction.fetch(:confidence_level) }.uniq,
       "profile_count" => profiles.size,
+      "missing_profile_count" => missing_profile_count(predictions),
       "attributed_profile_count" => predictions.count { |prediction| prediction.fetch(:prediction_source) == "command_attributed" },
       "step_kinds" => step_kinds.uniq,
       "high_cost" => duration >= HIGH_COST_SECONDS || cpu >= CPU_BUDGET || io >= IO_BUDGET || memory >= MEMORY_BUDGET
@@ -141,6 +146,12 @@ class WorkflowAdmissionBudget
     return "host_correlated" if sources.key?("host_correlated")
 
     "defaults_only"
+  end
+
+  def missing_profile_count(predictions)
+    predictions.count do |prediction|
+      prediction.fetch(:prediction_source) == "defaults_only" && prediction.fetch(:sample_count).zero?
+    end
   end
 
   def step_kinds_for(candidate_workflow, remaining_only:)
@@ -169,14 +180,43 @@ class WorkflowAdmissionBudget
     selected
   end
 
-  def active_workflow_pressure
-    workflows = Workflow.active
-      .where.not(id: workflow.id)
-      .where(created_at: (now - ACTIVE_WORKFLOW_WINDOW)..)
-      .includes(:job)
-      .select { |candidate| admission_controlled_active_workflow?(candidate) }
+  def predictions_for(step_kinds, profiles)
+    grouped_profiles = profiles.group_by(&:step_kind)
+    step_predictions = step_kinds.flat_map do |step_kind|
+      matching = grouped_profiles.fetch(step_kind, [])
+      matching = [ missing_profile_prediction(step_kind) ] if matching.empty?
+      matching.map { |profile| profile.respond_to?(:conservative_prediction) ? profile.conservative_prediction : profile }
+    end
+    extra_dynamic_predictions = profiles
+      .reject { |profile| step_kinds.include?(profile.step_kind) }
+      .map(&:conservative_prediction)
 
-    aggregate_pressure(workflows.map { |candidate| predicted_pressure_for(candidate, remaining_only: true) })
+    step_predictions + extra_dynamic_predictions
+  end
+
+  def missing_profile_prediction(step_kind)
+    WorkflowStepResourceProfile::CONSERVATIVE_DEFAULTS.merge(
+      prediction_source: "defaults_only",
+      fallback_reason: "missing_workflow_step_resource_profile",
+      confidence_level: "defaults_only",
+      attribution_confidence_level: "defaults_only",
+      sample_count: 0,
+      attributed_sample_count: 0,
+      step_kind: step_kind
+    )
+  end
+
+  def active_workflow_pressure
+    @active_workflow_pressure ||= begin
+      workflows = active_workflows_with_runs
+        .where.not(id: workflow.id)
+        .where.not(job_id: job.id)
+        .where(created_at: (now - ACTIVE_WORKFLOW_WINDOW)..)
+        .includes(:job)
+        .select { |candidate| admission_controlled_active_workflow?(candidate) }
+
+      aggregate_pressure(workflows.map { |candidate| predicted_pressure_for(candidate, remaining_only: true) })
+    end
   end
 
   def admission_controlled_active_workflow?(candidate)
@@ -194,6 +234,7 @@ class WorkflowAdmissionBudget
       "memory_used_percent" => (items.map { |item| item.fetch("memory_used_percent").to_f }.max || 0.0).round(1),
       "high_cost_count" => items.count { |item| item.fetch("high_cost") },
       "workflow_count" => items.size,
+      "profile_count" => items.sum { |item| item.fetch("profile_count").to_i },
       "prediction_sources" => items.flat_map { |item| item.fetch("prediction_sources", {}).to_a }
         .each_with_object(Hash.new(0)) { |(source, count), totals| totals[source] += count }
         .to_h
@@ -219,10 +260,18 @@ class WorkflowAdmissionBudget
   end
 
   def repository_active_workflow_count
-    @repository_active_workflow_count ||= Workflow.active.joins(:job)
+    @repository_active_workflow_count ||= active_workflows_with_runs.joins(:job)
       .where(jobs: { repository_id: repository.id })
       .where.not(id: workflow.id)
+      .where.not(job_id: job.id)
       .count
+  end
+
+  def active_workflows_with_runs
+    Workflow.active
+      .left_outer_joins(steps: :runs)
+      .where("workflows.state = ? OR runs.state IN (?)", "running", %w[ queued running ])
+      .distinct
   end
 
   def host_pressure
@@ -282,6 +331,12 @@ class WorkflowAdmissionBudget
 
   def high_cost?(candidate)
     candidate.fetch("high_cost")
+  end
+
+  def bootstrap_missing_profiles?(candidate)
+    candidate.fetch("profile_count").zero? &&
+      active_workflow_pressure.fetch("profile_count").zero? &&
+      !urgent?
   end
 
   def low_risk?(candidate)

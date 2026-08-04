@@ -7,7 +7,7 @@ RSpec.describe WorkflowAdmissionBudget do
   def workflow_for(priority: "medium", state: "queued", trigger_kind: "initial")
     job = Factories.job_record(user: user, repository: repository, priority: priority, state: "queued")
     workflow = Workflows::Initial.instantiate(job: job, agent_provider: "codex")
-    workflow.update!(state: state)
+    workflow.update!(state: state, trigger_kind: trigger_kind)
     workflow
   end
 
@@ -36,15 +36,31 @@ RSpec.describe WorkflowAdmissionBudget do
     )
   end
 
+  def seed_low_cost_profiles(except: [], attributed: false)
+    %w[prepare implement grader_fanout grader_collect coverage_analyze summarize test_plan pr_open].each do |step_kind|
+      next if except.include?(step_kind)
+
+      if attributed
+        profile(
+          step_kind: step_kind,
+          duration: 10,
+          cpu: 1.0,
+          io: 1.0,
+          memory: 10.0,
+          attributed_samples: 30,
+          attributed_duration: 10,
+          attributed_cpu: 1.0,
+          attributed_io: 1.0,
+          attributed_memory: 10.0
+        )
+      else
+        profile(step_kind: step_kind, duration: 10, cpu: 1.0, io: 1.0, memory: 10.0)
+      end
+    end
+  end
+
   before do
-    profile(step_kind: "prepare", duration: 60, cpu: 5.0)
-    profile(step_kind: "implement", duration: 180, cpu: 15.0)
-    profile(step_kind: "grader_fanout", duration: 10, cpu: 2.0)
-    profile(step_kind: "grader_collect", duration: 10, cpu: 2.0)
-    profile(step_kind: "coverage_analyze", duration: 30, cpu: 5.0)
-    profile(step_kind: "summarize", duration: 30, cpu: 5.0)
-    profile(step_kind: "test_plan", duration: 30, cpu: 5.0)
-    profile(step_kind: "pr_open", duration: 10, cpu: 2.0)
+    seed_low_cost_profiles
   end
 
   it "admits a workflow when projected pressure is within budget" do
@@ -65,6 +81,44 @@ RSpec.describe WorkflowAdmissionBudget do
 
     expect(decision.pressure.dig("candidate", "duration_seconds")).to be >= 2_400
     expect(decision.pressure.dig("candidate", "high_cost")).to be(true)
+  end
+
+  it "records conservative defaults while bootstrapping steps with no matching profile" do
+    WorkflowStepResourceProfile.delete_all
+    workflow = workflow_for
+
+    decision = described_class.call(workflow: workflow)
+
+    expect(decision.action).to eq("admit_now")
+    expect(decision.reason).to eq("bootstrap_missing_profiles")
+    expect(decision.pressure.dig("candidate", "profile_count")).to eq(0)
+    expect(decision.pressure.dig("candidate", "missing_profile_count")).to be >= 1
+    expect(decision.pressure.dig("candidate", "fallback_reasons")).to include("missing_workflow_step_resource_profile")
+    expect(decision.pressure.dig("candidate", "predicted_command_cost", "cpu_pressure")).to be >= WorkflowStepResourceProfile::CONSERVATIVE_DEFAULTS.fetch(:cpu_pressure)
+  end
+
+  it "delays missing-profile work when another running workflow is already consuming the bootstrap budget" do
+    workflow_for(state: "running")
+    candidate = workflow_for(trigger_kind: "retry")
+
+    decision = described_class.call(workflow: candidate)
+
+    expect(decision.action).to eq("delay_until")
+    expect(decision.reason).to eq("predicted_budget_pressure_high")
+    expect(decision.pressure.dig("active", "workflow_count")).to eq(1)
+  end
+
+  it "does not count queued workflows as active predicted pressure" do
+    profile(step_kind: "grader", grader_name: "production-build-boot", duration: 2_400, cpu: 20.0, io: 10.0, memory: 40.0)
+    queued_peer = workflow_for(state: "queued")
+    candidate = workflow_for(state: "queued")
+
+    decision = described_class.call(workflow: candidate)
+
+    expect(queued_peer.reload).to be_queued
+    expect(decision.action).to eq("admit_now")
+    expect(decision.reason).to eq("within_budget")
+    expect(decision.pressure.dig("active", "workflow_count")).to eq(0)
   end
 
   it "delays a medium-priority workflow when active predicted work already consumes the budget" do
@@ -131,6 +185,7 @@ RSpec.describe WorkflowAdmissionBudget do
 
   it "uses attributed command profile cost ahead of host-correlated pressure when confident" do
     WorkflowStepResourceProfile.delete_all
+    seed_low_cost_profiles(except: [ "prepare" ], attributed: true)
     profile(
       step_kind: "prepare",
       duration: 1_800,
@@ -148,14 +203,15 @@ RSpec.describe WorkflowAdmissionBudget do
     expect(decision.action).to eq("admit_now")
     expect(decision.pressure.dig("candidate", "primary_prediction_source")).to eq("command_attributed")
     expect(decision.pressure.dig("candidate", "predicted_command_cost")).to include(
-      "duration_seconds" => 60,
-      "cpu_pressure" => 5.0
+      "duration_seconds" => 130,
+      "cpu_pressure" => 12.0
     )
     expect(decision.pressure.dig("candidate", "fallback_reasons")).to eq([])
   end
 
   it "explains host-correlated fallback when command attribution is unavailable" do
     WorkflowStepResourceProfile.delete_all
+    seed_low_cost_profiles(except: [ "prepare" ])
     profile(step_kind: "prepare", duration: 1_800, cpu: 100.0, attributed_samples: 9, attributed_cpu: 5.0)
     workflow = workflow_for
 
