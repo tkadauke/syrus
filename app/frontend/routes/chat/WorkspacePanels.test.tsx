@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
@@ -182,6 +182,35 @@ describe("ChatSettingsDialog", () => {
     fireEvent.change(screen.getByLabelText("Chat provider"), { target: { value: "codex" } })
 
     await waitFor(() => expect(switchChatProvider).toHaveBeenCalledWith("/api/v1/app/chats/1/switch_provider", "codex"))
+  })
+})
+
+describe("ChatWorkspacePanel context attachments", () => {
+  it("renders repository, epic, and job attachment groups for ordinary chats", () => {
+    renderWorkspacePanel(makePayload(), { activeTab: "context" })
+
+    const workspace = screen.getByRole("complementary", { name: "Chat workspace" })
+    expect(within(workspace).getByText("Repos")).toBeInTheDocument()
+    expect(within(workspace).getByText("Epics")).toBeInTheDocument()
+    expect(within(workspace).getByText("Jobs")).toBeInTheDocument()
+    expect(within(workspace).getByText("Documents")).toBeInTheDocument()
+    expect(within(workspace).getAllByText("None")).toHaveLength(4)
+  })
+
+  it("hides repository, epic, and job attachment groups for Supervisor chats", () => {
+    renderWorkspacePanel(makePayload({
+      repository: null,
+      system_kind: "supervisor",
+      title: "Supervisor"
+    }), { activeTab: "context" })
+
+    const workspace = screen.getByRole("complementary", { name: "Chat workspace" })
+    expect(within(workspace).queryByText("Repos")).not.toBeInTheDocument()
+    expect(within(workspace).queryByText("Epics")).not.toBeInTheDocument()
+    expect(within(workspace).queryByText("Jobs")).not.toBeInTheDocument()
+    expect(within(workspace).getByText("Documents")).toBeInTheDocument()
+    expect(within(workspace).getByText("In-scope documents")).toBeInTheDocument()
+    expect(within(workspace).getAllByText("None")).toHaveLength(1)
   })
 })
 

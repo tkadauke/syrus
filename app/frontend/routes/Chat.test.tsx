@@ -327,6 +327,32 @@ describe("chat attachment popup", () => {
     })
   })
 
+  it("only offers document attachment search for Supervisor chats", async () => {
+    mockChatRouteFetch(chatPayload({
+      chat: { repository: null, system_kind: "supervisor", title: "Supervisor" },
+      attachment_results: [
+        { type: "Repository", id: 4, label: "acme/tools" },
+        { type: "Epic", id: 2, label: "Release planning" },
+        { type: "Job", id: 3, label: "JOB-3" },
+        { type: "Document", id: 5, label: "Runbook.md" }
+      ]
+    }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about incidents, stuck Jobs, Workflows, Runs, queues, PRs, or operational state...")
+    fireEvent.click(screen.getByRole("button", { name: "Add attachment" }))
+
+    const dialog = screen.getByRole("dialog", { name: "Add attachment" })
+    expect(within(dialog).getByRole("button", { name: "Doc" })).toBeInTheDocument()
+    expect(within(dialog).queryByRole("button", { name: "Repo" })).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole("button", { name: "Epic" })).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole("button", { name: "Job" })).not.toBeInTheDocument()
+    expect(within(dialog).getByRole("button", { name: "Runbook.md" })).toBeInTheDocument()
+    expect(within(dialog).queryByRole("button", { name: "acme/tools" })).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole("button", { name: "Release planning" })).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole("button", { name: "JOB-3" })).not.toBeInTheDocument()
+  })
+
   it("updates the attachment search URL from tabs and debounced input", async () => {
     mockChatRouteFetch()
     renderRouteWithLocation()

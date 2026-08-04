@@ -6,7 +6,7 @@ import { addChatAttachment, deleteChatAttachment, type ChatAttachmentResult, typ
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { type ChatQueryKey } from "./constants"
-import { appendSearch, withRoutePrefix } from "./utils"
+import { appendSearch, isSupervisorChat, withRoutePrefix } from "./utils"
 
 
 
@@ -17,17 +17,25 @@ import { appendSearch, withRoutePrefix } from "./utils"
 // AddAttachment by the composer. Depends only on leaf modules and shared UI
 // imports; unused header imports were pruned after the move.
 
+const DEFAULT_ATTACHMENT_TYPES = ["Repository", "Epic", "Job", "Document"] as const
+const SUPERVISOR_ATTACHMENT_TYPES = ["Document"] as const
+
 export function Attachments({ payload, queryKey, onNotice }: { payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
   const { t } = useT("chat")
+  const supervisorChat = isSupervisorChat(payload)
   return (
     <>
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("attachments")}</h2>
       </div>
       <div className="space-y-4">
-        <AttachmentGroup label="Repos" rows={payload.attachment_groups.repositories} queryKey={queryKey} onNotice={onNotice} />
-        <AttachmentGroup label="Epics" rows={payload.attachment_groups.epics} queryKey={queryKey} onNotice={onNotice} />
-        <AttachmentGroup label="Jobs" rows={payload.attachment_groups.jobs} queryKey={queryKey} onNotice={onNotice} />
+        {supervisorChat ? null : (
+          <>
+            <AttachmentGroup label="Repos" rows={payload.attachment_groups.repositories} queryKey={queryKey} onNotice={onNotice} />
+            <AttachmentGroup label="Epics" rows={payload.attachment_groups.epics} queryKey={queryKey} onNotice={onNotice} />
+            <AttachmentGroup label="Jobs" rows={payload.attachment_groups.jobs} queryKey={queryKey} onNotice={onNotice} />
+          </>
+        )}
         <AttachmentGroup label="Documents" rows={payload.attachment_groups.documents} queryKey={queryKey} onNotice={onNotice} />
       </div>
       <section>
@@ -111,7 +119,11 @@ export function AddAttachment({ payload, prefix, queryKey, onAttached, onNotice 
   const location = useLocation()
   const navigate = useNavigate()
   const params = new URLSearchParams(location.search)
-  const [type, setType] = useState(params.get("attachment_type") || "Repository")
+  const attachmentTypes = isSupervisorChat(payload) ? SUPERVISOR_ATTACHMENT_TYPES : DEFAULT_ATTACHMENT_TYPES
+  type AttachmentType = typeof attachmentTypes[number]
+  const initialType = normalizeAttachmentType(params.get("attachment_type"), attachmentTypes)
+  const attachmentResults = (payload.attachment_results ?? []).filter((record) => attachmentTypes.some((attachmentType) => attachmentType === record.type))
+  const [type, setType] = useState<AttachmentType>(initialType)
   const [query, setQuery] = useState(params.get("attachment_query") || "")
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const submitTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -126,9 +138,9 @@ export function AddAttachment({ payload, prefix, queryKey, onAttached, onNotice 
 
   useEffect(() => {
     const next = new URLSearchParams(location.search)
-    setType(next.get("attachment_type") || "Repository")
+    setType(normalizeAttachmentType(next.get("attachment_type"), attachmentTypes))
     setQuery(next.get("attachment_query") || "")
-  }, [location.search])
+  }, [attachmentTypes, location.search])
 
   useEffect(() => {
     return () => {
@@ -151,7 +163,7 @@ export function AddAttachment({ payload, prefix, queryKey, onAttached, onNotice 
     }, 200)
   }
 
-  function submitWithType(nextType: string) {
+  function submitWithType(nextType: AttachmentType) {
     if (submitTimer.current) clearTimeout(submitTimer.current)
     navigateToSearch(nextType, query)
   }
@@ -167,7 +179,7 @@ export function AddAttachment({ payload, prefix, queryKey, onAttached, onNotice 
     <div>
       <div>
         <div className="flex gap-1 p-2">
-          {(["Repository", "Epic", "Job", "Document"] as const).map((nextType) => (
+          {attachmentTypes.map((nextType) => (
             <button
               className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
                 type === nextType
@@ -209,7 +221,7 @@ export function AddAttachment({ payload, prefix, queryKey, onAttached, onNotice 
         </div>
       </div>
       <div className="space-y-0 border-t border-gray-100 dark:border-gray-800">
-        {(payload.attachment_results ?? []).length > 0 ? (payload.attachment_results ?? []).map((record) => (
+        {attachmentResults.length > 0 ? attachmentResults.map((record) => (
           <button
             className="block w-full px-3 py-1.5 text-left text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 disabled:text-gray-300 dark:text-gray-300 dark:hover:bg-blue-950 dark:hover:text-blue-200 dark:disabled:text-gray-600"
             disabled={add.isPending}
@@ -224,4 +236,8 @@ export function AddAttachment({ payload, prefix, queryKey, onAttached, onNotice 
       </div>
     </div>
   )
+}
+
+function normalizeAttachmentType<T extends readonly string[]>(candidate: string | null, allowed: T): T[number] {
+  return allowed.includes(candidate || "") ? candidate as T[number] : allowed[0]
 }
