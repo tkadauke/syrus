@@ -13,10 +13,13 @@ module Api
 
           page     = page_param
           per_page = per_page_param
+          state    = state_param
 
-          relation = repository.insight_suggestions
+          base_relation = repository.insight_suggestions
             .includes(:job, :created_job)
             .order(Arel.sql("CASE severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, confidence DESC"))
+
+          relation = state == "all" ? base_relation : base_relation.where(state: state)
 
           total       = relation.count
           total_pages = [ (total.to_f / per_page).ceil, 1 ].max
@@ -25,6 +28,7 @@ module Api
           render json: {
             repository: repository_summary_json(repository),
             tabs: repository_tabs_json(repository),
+            counts: suggestion_counts(repository),
             suggestions: suggestions.map { |s| suggestion_json(s) },
             meta: {
               total:       total,
@@ -64,6 +68,19 @@ module Api
           per_page = params[:per_page].to_i
           return PER_PAGE unless per_page.positive?
           [ per_page, 100 ].min
+        end
+
+        def state_param
+          state = params[:state].to_s
+          return state if InsightSuggestion::STATES.include?(state) || state == "all"
+
+          "all"
+        end
+
+        def suggestion_counts(repository)
+          grouped = repository.insight_suggestions.group(:state).count
+          counts = InsightSuggestion::STATES.index_with { |state| grouped[state] || 0 }
+          counts.merge("all" => counts.values.sum)
         end
 
         def require_agent_insights_feature

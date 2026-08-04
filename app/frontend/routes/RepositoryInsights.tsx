@@ -27,10 +27,11 @@ export function RepositoryInsightsRoute() {
   const repositoryId = params.id || ""
   const prefix = routePrefix(location.pathname)
   const [page, setPage] = useState(1)
+  const [stateFilter, setStateFilter] = useState<StateFilter>("pending")
 
   const query = useQuery({
-    queryKey: ["repositories", repositoryId, "insight_suggestions", page],
-    queryFn: () => fetchInsightSuggestions(repositoryId, page),
+    queryKey: ["repositories", repositoryId, "insight_suggestions", stateFilter, page],
+    queryFn: () => fetchInsightSuggestions(repositoryId, page, 20, stateFilter),
     enabled: repositoryId.length > 0
   })
 
@@ -50,7 +51,12 @@ export function RepositoryInsightsRoute() {
     )
   }
 
-  const { repository, tabs, suggestions, meta } = query.data
+  const { repository, tabs, counts, suggestions, meta } = query.data
+
+  function handleFilterChange(filter: StateFilter) {
+    setStateFilter(filter)
+    setPage(1)
+  }
 
   return (
     <main aria-label={t("aria_insights")} className="mx-auto max-w-[96rem] space-y-6 p-6">
@@ -66,11 +72,13 @@ export function RepositoryInsightsRoute() {
 
       <InsightSuggestionsList
         repositoryId={repositoryId}
+        counts={counts}
         suggestions={suggestions}
         meta={meta}
         page={page}
         onPageChange={setPage}
-        prefix={prefix}
+        stateFilter={stateFilter}
+        onFilterChange={handleFilterChange}
       />
     </main>
   )
@@ -78,39 +86,30 @@ export function RepositoryInsightsRoute() {
 
 function InsightSuggestionsList({
   repositoryId,
+  counts,
   suggestions,
   meta,
   page,
   onPageChange,
-  prefix
+  stateFilter,
+  onFilterChange
 }: {
   repositoryId: string
+  counts: Record<StateFilter, number>
   suggestions: InsightSuggestion[]
   meta: PaginationMeta
   page: number
   onPageChange: (page: number) => void
-  prefix: string
+  stateFilter: StateFilter
+  onFilterChange: (filter: StateFilter) => void
 }) {
   const { t } = useT("insights")
-  const [stateFilter, setStateFilter] = useState<StateFilter>("pending")
-
-  function handleFilterChange(filter: StateFilter) {
-    setStateFilter(filter)
-    onPageChange(1)
-  }
-
-  const filtered = suggestions.filter((s) => stateFilter === "all" || s.state === stateFilter)
-  const counts = {
-    pending: suggestions.filter((s) => s.state === "pending").length,
-    accepted: suggestions.filter((s) => s.state === "accepted").length,
-    dismissed: suggestions.filter((s) => s.state === "dismissed").length
-  }
 
   const filterTabs: Array<{ key: StateFilter; label: string; count: number }> = [
     { key: "pending", label: t("filter_pending"), count: counts.pending },
     { key: "accepted", label: t("filter_accepted"), count: counts.accepted },
     { key: "dismissed", label: t("filter_dismissed"), count: counts.dismissed },
-    { key: "all", label: t("filter_all"), count: suggestions.length }
+    { key: "all", label: t("filter_all"), count: counts.all }
   ]
 
   const firstItem = meta.total === 0 ? 0 : (page - 1) * meta.per_page + 1
@@ -125,7 +124,7 @@ function InsightSuggestionsList({
             <button
               className={`rounded px-3 py-1 text-sm font-medium transition-colors ${stateFilter === tab.key ? "bg-terracotta-600 text-white" : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"}`}
               key={tab.key}
-              onClick={() => handleFilterChange(tab.key)}
+              onClick={() => onFilterChange(tab.key)}
               type="button"
             >
               {tab.label}
@@ -137,13 +136,13 @@ function InsightSuggestionsList({
         </nav>
       </div>
 
-      {filtered.length === 0 ? (
+      {suggestions.length === 0 ? (
         <div className="rounded border border-gray-200 bg-white p-8 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
           {t("empty")}
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map((suggestion) => (
+          {suggestions.map((suggestion) => (
             <SuggestionCard
               key={suggestion.id}
               repositoryId={repositoryId}

@@ -150,6 +150,38 @@ RSpec.describe "App API insight suggestions", type: :request do
       )
     end
 
+    it "paginates within the requested state and returns counts for every tab" do
+      3.times { |i| create_suggestion(title: "Pending #{i}") }
+      2.times do |i|
+        suggestion = create_suggestion(title: "Dismissed #{i}")
+        suggestion.dismiss!
+      end
+      25.times do |i|
+        suggestion = create_suggestion(title: "Accepted #{i}", confidence: (25 - i).to_f / 25)
+        suggestion.accept!
+      end
+
+      get "/api/v1/app/repositories/#{repository.id}/insight_suggestions",
+          params: { state: "accepted", page: 2, per_page: 20 }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["suggestions"].length).to eq(5)
+      expect(body["suggestions"].pluck("state").uniq).to eq([ "accepted" ])
+      expect(body["counts"]).to include(
+        "pending"   => 3,
+        "accepted"  => 25,
+        "dismissed" => 2,
+        "all"       => 30
+      )
+      expect(body["meta"]).to include(
+        "total"       => 25,
+        "page"        => 2,
+        "per_page"    => 20,
+        "total_pages" => 2
+      )
+    end
+
     it "returns the expected fields for each suggestion" do
       create_suggestion(
         title:             "Cache misses",

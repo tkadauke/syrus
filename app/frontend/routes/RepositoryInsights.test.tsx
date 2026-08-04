@@ -39,10 +39,20 @@ function makeMeta(overrides: Record<string, unknown> = {}) {
   return { total: 1, page: 1, per_page: 20, total_pages: 1, ...overrides }
 }
 
-function payload(suggestions: unknown[] = [makeSuggestion()], meta = makeMeta({ total: suggestions.length })) {
+function makeCounts(suggestions: unknown[]) {
+  const counts = { pending: 0, accepted: 0, dismissed: 0, all: suggestions.length }
+  suggestions.forEach((suggestion) => {
+    const state = (suggestion as { state?: string }).state
+    if (state === "pending" || state === "accepted" || state === "dismissed") counts[state] += 1
+  })
+  return counts
+}
+
+function payload(suggestions: unknown[] = [makeSuggestion()], meta = makeMeta({ total: suggestions.length }), counts = makeCounts(suggestions)) {
   return {
     repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", insights_path: "/repositories/1/insights" },
     tabs: [],
+    counts,
     suggestions,
     meta
   }
@@ -50,6 +60,24 @@ function payload(suggestions: unknown[] = [makeSuggestion()], meta = makeMeta({ 
 
 function renderRoute(suggestions?: unknown[], meta?: Record<string, unknown>) {
   vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload(suggestions, meta ? makeMeta(meta) : undefined)))
+  renderRepositoryInsightsRoute()
+}
+
+function renderRouteByState(responses: Partial<Record<StateFilter, { suggestions: unknown[]; meta?: Record<string, unknown>; counts?: Record<StateFilter, number> }>>) {
+  vi.spyOn(window, "fetch").mockImplementation((input) => {
+    const url = new URL(String(input), "http://example.test")
+    const state = (url.searchParams.get("state") || "all") as StateFilter
+    const response = responses[state] || responses.all || responses.pending || { suggestions: [] }
+    return Promise.resolve(jsonResponse(payload(
+      response.suggestions,
+      response.meta ? makeMeta(response.meta) : makeMeta({ total: response.suggestions.length }),
+      response.counts || makeCounts(response.suggestions)
+    )))
+  })
+  renderRepositoryInsightsRoute()
+}
+
+function renderRepositoryInsightsRoute() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <I18nextProvider i18n={i18n}>
@@ -63,6 +91,8 @@ function renderRoute(suggestions?: unknown[], meta?: Record<string, unknown>) {
     </I18nextProvider>
   )
 }
+
+type StateFilter = "pending" | "accepted" | "dismissed" | "all"
 
 describe("RepositoryInsightsRoute", () => {
   afterEach(async () => {
@@ -203,7 +233,10 @@ describe("RepositoryInsightsRoute", () => {
         state: "accepted",
         created_job: { id: 42, slug: "JOB-42", title: "Fix thing", state: "open", job_path: "/jobs/42" }
       })
-      renderRoute([accepted])
+      renderRouteByState({
+        pending: { suggestions: [] },
+        accepted: { suggestions: [accepted] }
+      })
 
       // switch to Accepted tab
       const acceptedTab = await screen.findByRole("button", { name: /Accepted/ })
@@ -220,7 +253,10 @@ describe("RepositoryInsightsRoute", () => {
         state: "accepted",
         has_memory_suggestion: true
       })
-      renderRoute([accepted])
+      renderRouteByState({
+        pending: { suggestions: [] },
+        accepted: { suggestions: [accepted] }
+      })
 
       const acceptedTab = await screen.findByRole("button", { name: /Accepted/ })
       fireEvent.click(acceptedTab)
@@ -234,7 +270,10 @@ describe("RepositoryInsightsRoute", () => {
         has_memory_suggestion: false,
         memory_suggestion: null
       })
-      renderRoute([accepted])
+      renderRouteByState({
+        pending: { suggestions: [] },
+        accepted: { suggestions: [accepted] }
+      })
 
       const acceptedTab = await screen.findByRole("button", { name: /Accepted/ })
       fireEvent.click(acceptedTab)
@@ -340,7 +379,10 @@ describe("RepositoryInsightsRoute", () => {
   describe("undismiss action", () => {
     it("shows Undismiss button on dismissed cards", async () => {
       const dismissed = makeSuggestion({ state: "dismissed" })
-      renderRoute([dismissed])
+      renderRouteByState({
+        pending: { suggestions: [] },
+        dismissed: { suggestions: [dismissed] }
+      })
 
       const dismissedTab = await screen.findByRole("button", { name: /Dismissed/ })
       fireEvent.click(dismissedTab)
@@ -351,14 +393,17 @@ describe("RepositoryInsightsRoute", () => {
     it("fires the undismiss API when Undismiss is clicked", async () => {
       const dismissed = makeSuggestion({ state: "dismissed" })
       const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
-        const url = String(input)
-        if (url.includes("/insight_suggestions/1") && init?.method === "PATCH") {
+        const request = typeof Request !== "undefined" && input instanceof Request ? input : null
+        const url = request?.url || String(input)
+        const method = init?.method || request?.method
+        if (url.includes("/insight_suggestions/1") && method === "PATCH") {
           return Promise.resolve(jsonResponse({ message: "Suggestion restored to pending.", suggestion: makeSuggestion({ state: "pending" }) }))
         }
-        return Promise.resolve(jsonResponse(payload([dismissed])))
+        const state = new URL(url, "http://example.test").searchParams.get("state")
+        return Promise.resolve(jsonResponse(payload(state === "dismissed" ? [dismissed] : [])))
       })
 
-      renderRoute([dismissed])
+      renderRepositoryInsightsRoute()
 
       const dismissedTab = await screen.findByRole("button", { name: /Dismissed/ })
       fireEvent.click(dismissedTab)
@@ -445,6 +490,50 @@ describe("RepositoryInsightsRoute", () => {
           expect.anything()
         )
       })
+    })
+
+    it("fetches and paginates the selected state tab", async () => {
+      const pendingSuggestions = Array.from({ length: 20 }, (_, i) =>
+        makeSuggestion({ id: i + 1, title: `Pending ${i + 1}`, state: "pending" })
+      )
+      const acceptedSuggestions = Array.from({ length: 20 }, (_, i) =>
+        makeSuggestion({ id: i + 101, title: `Accepted ${i + 1}`, state: "accepted" })
+      )
+      const counts = { pending: 20, accepted: 25, dismissed: 2, all: 47 }
+
+      const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+        const url = String(input)
+        if (url.includes("state=accepted")) {
+          return Promise.resolve(jsonResponse(payload(acceptedSuggestions, makeMeta({ total: 25, page: 1, per_page: 20, total_pages: 2 }), counts)))
+        }
+        return Promise.resolve(jsonResponse(payload(pendingSuggestions, makeMeta({ total: 20, page: 1, per_page: 20, total_pages: 1 }), counts)))
+      })
+
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      render(
+        <I18nextProvider i18n={i18n}>
+          <QueryClientProvider client={client}>
+            <MemoryRouter initialEntries={["/app-shell/repositories/1/insights"]}>
+              <Routes>
+                <Route element={<RepositoryInsightsRoute />} path="/app-shell/repositories/:id/insights" />
+              </Routes>
+            </MemoryRouter>
+          </QueryClientProvider>
+        </I18nextProvider>
+      )
+
+      await screen.findByText("Pending 1")
+      expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: /Accepted/ }))
+
+      await screen.findByText("Accepted 1")
+      expect(screen.getByText("Showing 1–20 of 25")).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Next" })).toBeInTheDocument()
+      expect(fetchSpy).toHaveBeenCalledWith(
+        expect.stringContaining("state=accepted"),
+        expect.anything()
+      )
     })
   })
 })

@@ -48,6 +48,13 @@ export type PaginationMeta = {
   total_pages: number
 }
 
+export type InsightSuggestionCounts = {
+  pending: number
+  accepted: number
+  dismissed: number
+  all: number
+}
+
 export type InsightSuggestionsPayload = {
   repository: {
     id: number
@@ -56,6 +63,7 @@ export type InsightSuggestionsPayload = {
     insights_path: string
   }
   tabs: RepositoryTab[]
+  counts: InsightSuggestionCounts
   suggestions: InsightSuggestion[]
   meta: PaginationMeta
 }
@@ -85,9 +93,9 @@ export type AdminInsightsPayload = {
   meta: PaginationMeta
 }
 
-export function fetchInsightSuggestions(repositoryId: string | number, page = 1, perPage = 20) {
+export function fetchInsightSuggestions(repositoryId: string | number, page = 1, perPage = 20, state = "all") {
   return getJson<InsightSuggestionsPayload>(
-    `/api/v1/app/repositories/${repositoryId}/insight_suggestions?page=${page}&per_page=${perPage}`
+    `/api/v1/app/repositories/${repositoryId}/insight_suggestions?page=${page}&per_page=${perPage}&state=${encodeURIComponent(state)}`
   )
 }
 
