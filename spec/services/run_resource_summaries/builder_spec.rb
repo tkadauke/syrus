@@ -138,6 +138,36 @@ RSpec.describe RunResourceSummaries::Builder do
     )
   end
 
+  it "does not count duration-only command spans as process resource attribution" do
+    wf = workflow
+    step = step_for(wf)
+    run = run_for(step)
+    CommandSpan.create!(
+      job: job,
+      workflow: wf,
+      step: step,
+      run: run,
+      sequence: 1,
+      name: "rspec",
+      command_excerpt: "bin/rspec",
+      hostname: "worker-a",
+      started_at: now - 2.minutes,
+      finished_at: now - 1.minute,
+      duration_ms: 60_000,
+      outcome: "succeeded",
+      metadata: { "instrumentation" => "bash_marker" }
+    )
+    sample(observed_at: now - 90.seconds, cpu_used_percent: 25.0)
+
+    summary = described_class.new(run: run, now: now).refresh!
+
+    expect(summary.process_attributed_duration_seconds).to eq(60.0)
+    expect(summary.process_attributed_sample_count).to eq(0)
+    expect(summary.process_attributed_cpu_seconds).to be_nil
+    expect(summary.process_attributed_memory_bytes).to be_nil
+    expect(summary.process_attributed_io_bytes).to be_nil
+  end
+
   it "marks one or two samples as low confidence for runs under 60 seconds" do
     wf = workflow
     step = step_for(wf, kind: "implement", details: {})

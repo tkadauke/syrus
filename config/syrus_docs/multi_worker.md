@@ -202,3 +202,35 @@ command-owned CPU, RSS, or IO usage.
 Raw `worker_host_health_samples` keep their short retention window. Durable
 `run_resource_summaries` are detailed operational telemetry and are pruned after
 30 days by `RunResourceSummaryPruneJob`.
+
+## Workflow Step Resource Profiles
+
+Completed Runs persist one `run_resource_summary` row with the Run timing
+window, retained host-pressure correlation, command-span counts, and any
+process-owned command metrics captured on spans. Detailed summaries are pruned
+after 30 days.
+
+`WorkflowStepResourceProfileRefreshJob` rebuilds
+`workflow_step_resource_profiles` hourly from non-retention-limited summaries
+observed in the last 180 days. Profiles are keyed by repository, agent
+provider, trigger kind, step kind, grader name when the step is a grader, and
+job kind. Aggregates store p50/p90/p99 duration, timeout/failure rates, and two
+resource families:
+
+- `process_attributed_*` values come only from command-span metadata that is
+  owned by the process, such as CPU seconds, CPU percent, RSS/memory bytes, or
+  IO bytes. Command duration alone is retained as timing evidence but does not
+  make CPU, memory, or IO attribution process-backed.
+- `host_pressure_*` values come from worker host health samples correlated to
+  the Run window. They are useful fallback evidence but remain host-correlated,
+  not proof that the step itself consumed those resources.
+
+Prediction confidence follows the sample thresholds on the best available
+resource basis: fewer than 10 samples uses conservative defaults, 10-29 permits
+soft prediction, 30+ permits normal admission decisions, and 100+ permits tight
+confidence. Resource-fit prediction prefers process-attributed metrics once
+they have enough samples; otherwise it falls back to host-correlated pressure
+when available, then conservative defaults. `attribution_quality` records
+whether a profile is process-attributed, host-correlated, mixed, or defaults
+only so Admin and Supervisor surfaces can audit top command consumers without
+conflating host pressure with process-owned cost.

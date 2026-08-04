@@ -26,7 +26,7 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
     Factories.job_record(**attrs)
   end
 
-  def resource_summary(repository:, duration:, cpu: 10.0, io: 2.0, memory: 30.0, kind: "issue", step_kind: "implement", grader_name: nil, state: "succeeded", retention_limited: false, finished_at: now, process_duration: nil, process_cpu_seconds: nil, process_memory_bytes: nil)
+  def resource_summary(repository:, duration:, cpu: 10.0, io: 2.0, memory: 30.0, kind: "issue", step_kind: "implement", grader_name: nil, state: "succeeded", retention_limited: false, finished_at: now, process_duration: nil, process_cpu_seconds: nil, process_memory_bytes: nil, process_io_bytes: nil)
     job = job_for(repository: repository, kind: kind)
     workflow = workflow_for(job)
     step = step_for(workflow, kind: step_kind, details: grader_name ? { "name" => grader_name } : {})
@@ -59,10 +59,11 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
       max_cpu_pressure: cpu,
       max_io_pressure: io,
       max_memory_used_percent: memory,
-      process_attributed_sample_count: process_duration.present? || process_cpu_seconds.present? || process_memory_bytes.present? ? 1 : 0,
+      process_attributed_sample_count: process_cpu_seconds.present? || process_memory_bytes.present? || process_io_bytes.present? ? 1 : 0,
       process_attributed_duration_seconds: process_duration,
       process_attributed_cpu_seconds: process_cpu_seconds,
       process_attributed_memory_bytes: process_memory_bytes,
+      process_attributed_io_bytes: process_io_bytes,
       resource_pressure_level: "ok",
       resource_pressure_reasons: [],
       retention_limited: retention_limited,
@@ -117,6 +118,30 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
       process_attributed_cpu_seconds: 13.0,
       host_pressure_cpu: 90.0,
       confidence_level: "soft"
+    )
+  end
+
+  it "falls back to host pressure when command spans only have duration attribution" do
+    10.times do |index|
+      resource_summary(
+        repository: repository,
+        duration: 60 + index,
+        cpu: 40.0 + index,
+        process_duration: 20 + index
+      )
+    end
+
+    described_class.new(now: now).refresh_all!
+
+    profile = WorkflowStepResourceProfile.first
+    expect(profile.process_attributed_sample_count).to eq(0)
+    expect(profile.host_pressure_sample_count).to eq(10)
+    expect(profile.attribution_quality).to eq("host_correlated")
+    expect(profile.p90_process_attributed_duration_seconds).to be_nil
+    expect(profile.conservative_prediction).to include(
+      prediction_basis: "host_correlated",
+      process_attributed_duration_seconds: WorkflowStepResourceProfile::CONSERVATIVE_DEFAULTS.fetch(:process_attributed_duration_seconds),
+      host_pressure_cpu: 48.0
     )
   end
 

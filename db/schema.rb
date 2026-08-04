@@ -1679,23 +1679,50 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_04_160000) do
 
   create_table "workflow_step_resource_profiles", force: :cascade do |t|
     t.string "agent_provider", limit: 64, null: false
+    t.string "attribution_quality", limit: 32, default: "host_correlated", null: false
     t.datetime "created_at", null: false
     t.float "failure_rate", default: 0.0, null: false
     t.string "grader_name", limit: 128, default: "", null: false
+    t.integer "host_pressure_sample_count", default: 0, null: false
     t.string "job_kind", limit: 64, default: "", null: false
     t.datetime "last_observed_at"
     t.float "p50_cpu_pressure"
     t.float "p50_duration_seconds"
+    t.float "p50_host_pressure_cpu"
+    t.float "p50_host_pressure_io"
+    t.float "p50_host_pressure_memory_used_percent"
     t.float "p50_io_pressure"
     t.float "p50_memory_used_percent"
+    t.float "p50_process_attributed_cpu_percent"
+    t.float "p50_process_attributed_cpu_seconds"
+    t.float "p50_process_attributed_duration_seconds"
+    t.bigint "p50_process_attributed_io_bytes"
+    t.bigint "p50_process_attributed_memory_bytes"
     t.float "p90_cpu_pressure"
     t.float "p90_duration_seconds"
+    t.float "p90_host_pressure_cpu"
+    t.float "p90_host_pressure_io"
+    t.float "p90_host_pressure_memory_used_percent"
     t.float "p90_io_pressure"
     t.float "p90_memory_used_percent"
+    t.float "p90_process_attributed_cpu_percent"
+    t.float "p90_process_attributed_cpu_seconds"
+    t.float "p90_process_attributed_duration_seconds"
+    t.bigint "p90_process_attributed_io_bytes"
+    t.bigint "p90_process_attributed_memory_bytes"
     t.float "p99_cpu_pressure"
     t.float "p99_duration_seconds"
+    t.float "p99_host_pressure_cpu"
+    t.float "p99_host_pressure_io"
+    t.float "p99_host_pressure_memory_used_percent"
     t.float "p99_io_pressure"
     t.float "p99_memory_used_percent"
+    t.float "p99_process_attributed_cpu_percent"
+    t.float "p99_process_attributed_cpu_seconds"
+    t.float "p99_process_attributed_duration_seconds"
+    t.bigint "p99_process_attributed_io_bytes"
+    t.bigint "p99_process_attributed_memory_bytes"
+    t.integer "process_attributed_sample_count", default: 0, null: false
     t.integer "profile_version", null: false
     t.integer "repository_id", null: false
     t.integer "sample_count", default: 0, null: false
