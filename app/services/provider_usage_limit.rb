@@ -3,6 +3,7 @@ class ProviderUsageLimit
   CLASSIFICATION = "provider_usage_limit".freeze
 
   LIMIT_PATTERNS = [
+    /\byou(?:'|’)re\s+out\s+of\s+extra\s+usage\b/i,
     /\busage(?:\s|-)?limit(?:s)?\b/i,
     /\binsufficient[_ -]?quota\b/i,
     /\b(?:monthly|weekly|daily|hourly)\s+(?:usage\s+)?limit(?:s)?\b/i,
