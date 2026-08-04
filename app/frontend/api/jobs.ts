@@ -389,7 +389,7 @@ export type LandingQueueDependencyEdge = {
 }
 
 export type JobLandingQueueEntry = {
-  position: number
+  position: number | null
   blocked_reason: BlockedReason | null
   waiting_for_jobs: Array<{
     id: number

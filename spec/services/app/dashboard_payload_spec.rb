@@ -338,7 +338,7 @@ RSpec.describe App::DashboardPayload do
       result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
 
       expect(result[:items].map { |item| item[:id] }).to eq([ older.id, epic_child.id, newer.id ])
-      expect(result[:items].map { |item| item[:landing_queue_position] }).to eq([ 1, 2, 3 ])
+      expect(result[:items].map { |item| item[:landing_queue_position] }).to eq([ 1, nil, 2 ])
       expect(result[:items].map { |item| item[:landing_queue_entry_key] }).to eq([ "job:#{older.id}", "epic:#{epic.id}", "job:#{newer.id}" ])
       expect(epic_child.reload.landing_queue_position).to be_nil
       expect(epic_child.landing_queue_entry_position).to eq(2)

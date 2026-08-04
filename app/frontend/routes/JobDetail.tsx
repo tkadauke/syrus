@@ -303,7 +303,7 @@ function SummaryTab({ payload, command, prefix, queryKey }: { payload: JobDetail
       {payload.merge_train_status ? <JobMergeTrainPanel payload={payload} /> : null}
       {payload.landing_queue_entry ? (
         <PanelMessage>
-          {t("landing_queue_position", { position: payload.landing_queue_entry.position })}
+          {payload.landing_queue_entry.position ? t("landing_queue_position", { position: payload.landing_queue_entry.position }) : t("landing_queue")}
           {payload.landing_queue_entry.blocked_reason ? ` (${translateBlockedReason(payload.landing_queue_entry.blocked_reason, t)})` : ""}
           {payload.landing_queue_entry.waiting_for_jobs.length > 0 ? (
             <>

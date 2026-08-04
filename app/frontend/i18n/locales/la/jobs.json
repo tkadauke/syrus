@@ -142,6 +142,7 @@
   "owner_release": "Dimitte",
   "owner_you": "Tu",
   "stack_base_update": "Renova",
+  "landing_queue": "In ordine imponendi",
   "landing_queue_position": "In ordine imponendi: locus #{{position}}",
   "landing_queue_waiting_for": "Exspectatur:",
   "landing_failed": "Impositio defecit: {{reason}}",

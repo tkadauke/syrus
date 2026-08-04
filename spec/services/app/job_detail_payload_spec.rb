@@ -1004,6 +1004,17 @@ RSpec.describe App::JobDetailPayload do
 
       expect(blocker[:latest_workflow_id]).to be_nil
     end
+
+    it "omits the queue position for blocked landing queue entries" do
+      blocker_job = Factories.job_record(user: user, repository: blocker_repo, state: "implemented", issue_number: 10)
+      approved_job = Factories.job_record(user: user, repository: repo, state: "implemented")
+      approved_job.approve!(via: "github_review")
+
+      JobDependency.create!(job: approved_job, depends_on_job: blocker_job, source: "manual", created_by_user: user)
+      LandingQueueProcessor.refresh_snapshot!(user.jobs)
+
+      expect(payload_for(approved_job.reload).dig(:landing_queue_entry, :position)).to be_nil
+    end
   end
 
   describe "start_blocked_reason" do

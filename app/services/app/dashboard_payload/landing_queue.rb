@@ -45,7 +45,7 @@ module App
       end
 
       def landing_queue_position_for(job)
-        job.landing_queue_entry_position if landing_queue_visible?
+        job.landing_queue_position if landing_queue_visible?
       end
 
       def landing_queue_blocked_reason_for(job)

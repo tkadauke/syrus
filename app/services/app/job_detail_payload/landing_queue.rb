@@ -12,7 +12,7 @@ module App
         return if @job.landing_queue_cached_at.blank?
 
         {
-          position: @job.landing_queue_entry_position,
+          position: @job.landing_queue_position,
           blocked_reason: @job.landing_queue_blocked_reason,
           waiting_for_jobs: landing_queue_waiting_jobs.map { |job| landing_queue_waiting_job_json(job) },
           blocker_jobs: landing_queue_blocker_jobs.map { |job| landing_queue_blocker_job_json(job, @job.landing_queue_entry_key) },

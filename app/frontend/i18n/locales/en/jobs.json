@@ -145,6 +145,7 @@
   "owner_release": "Release",
   "owner_you": "You",
   "stack_base_update": "Update",
+  "landing_queue": "In landing queue",
   "landing_queue_position": "In landing queue: position #{{position}}",
   "landing_queue_waiting_for": "Waiting for:",
   "landing_failed": "Landing failed: {{reason}}",

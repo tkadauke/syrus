@@ -144,6 +144,7 @@
   "owner_release": "Freigeben",
   "owner_you": "Du",
   "stack_base_update": "Aktualisieren",
+  "landing_queue": "In der Landing-Warteschlange",
   "landing_queue_position": "In der Landing-Warteschlange: Position #{{position}}",
   "landing_queue_waiting_for": "Wartet auf:",
   "landing_failed": "Landing fehlgeschlagen: {{reason}}",
