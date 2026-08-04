@@ -104,6 +104,7 @@ RSpec.describe Steps::AdversarialReview do
             rounds: 1,
             criteria: [ "Verify endpoints enforce authentication", "No internal state in errors" ]
           ),
+          agent_insight: nil,
           coverage: nil,
           formatters: [],
           generated: [],

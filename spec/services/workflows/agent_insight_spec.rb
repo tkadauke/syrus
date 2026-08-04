@@ -19,20 +19,41 @@ RSpec.describe Workflows::AgentInsight do
   end
 
   describe "chain" do
-    it "materializes prepare → agent_insight_run → auto_close" do
+    it "materializes a checkout-only chain by default" do
+      workflow = described_class.instantiate(job: job)
+
+      expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[agent_insight_run auto_close])
+      expect(workflow.trigger_kind).to eq("agent_insight")
+    end
+
+    it "includes prepare when .syrus.yml opts agent_insight into setup" do
+      allow(RepoAgentInsightPlan).to receive(:for_job)
+        .with(job)
+        .and_return(RepoAgentInsightPlan::Result.new(prepare: true, source: ".syrus.yml", note: nil))
+
       workflow = described_class.instantiate(job: job)
 
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[prepare agent_insight_run auto_close])
-      expect(workflow.trigger_kind).to eq("agent_insight")
     end
 
     it "honors repository-level prepare disablement" do
       repository.update!(prepare_enabled: false)
+      allow(RepoAgentInsightPlan).to receive(:for_job)
+        .with(job)
+        .and_return(RepoAgentInsightPlan::Result.new(prepare: true, source: ".syrus.yml", note: nil))
 
       workflow = described_class.instantiate(job: job)
 
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(%w[agent_insight_run auto_close])
       expect(workflow.artifact("prepare_skipped_reason")).to eq("repository_configuration")
+    end
+
+    it "does not change normal initial workflows" do
+      normal_job = Factories.job_record(user: user, repository: repository, state: "open", kind: "direct", issue_number: nil)
+
+      workflow = Workflows::Initial.instantiate(job: normal_job)
+
+      expect(workflow.steps.order(:position).first.kind).to eq("prepare")
     end
 
     it "uses the runs queue" do

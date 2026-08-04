@@ -672,6 +672,28 @@ RSpec.describe SyrusYml do
     end
   end
 
+  describe "agent_insight" do
+    it "returns nil when absent" do
+      config = parse("prepare: []\n")
+
+      expect(config.agent_insight).to be_nil
+    end
+
+    it "parses prepare opt-in through Rails boolean semantics" do
+      config = parse(<<~YAML)
+        agent_insight:
+          prepare: "yes"
+      YAML
+
+      expect(config.agent_insight.prepare).to be(true)
+    end
+
+    it "rejects a non-mapping value" do
+      expect { parse("agent_insight: true\n") }
+        .to raise_error(described_class::ParseError, /agent_insight: must be a mapping/)
+    end
+  end
+
   describe "deployment_stages: key" do
     it "parses stages with a fixed tag" do
       config = parse(<<~YAML)

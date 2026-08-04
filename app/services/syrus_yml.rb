@@ -25,7 +25,7 @@ class SyrusYml
 
   DEPLOYMENT_STAGE_NAME_PATTERN = /\A[A-Za-z0-9_]+\z/
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :coverage, :formatters, :generated, :reconciliation_mode, :deployment_stages)
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :reconciliation_mode, :deployment_stages)
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern)
   GradeConfig = Data.define(:max_iterations, :steps)
   GradeStep = Data.define(:name, :run, :fast, :ci, :description, :required, :timeout_minutes, :when_files_changed, :junit_output)
@@ -40,6 +40,7 @@ class SyrusYml
   GeneratedStep = Data.define(:command, :sources, :generates, :codegen_ignore)
   HooksConfig = Data.define(:post_checkout)
   AdversarialReviewConfig = Data.define(:rounds, :criteria)
+  AgentInsightConfig = Data.define(:prepare)
   # Backward-compat aliases — point to the canonical RepoCoveragePlan types so
   # existing code and specs that reference SyrusYml::CoverageConfig etc. still work.
   CoverageSource    = RepoCoveragePlan::Source
@@ -69,6 +70,7 @@ class SyrusYml
       grade: parse_grade(raw["grade"]),
       hooks: parse_hooks(raw["hooks"]),
       adversarial_review: parse_adversarial_review(raw["adversarial_review"]),
+      agent_insight: parse_agent_insight(raw["agent_insight"]),
       coverage: parse_coverage(raw["coverage"]),
       formatters: parse_formatters(raw["formatters"]),
       generated: parse_generated(raw["generated"]),
@@ -80,6 +82,15 @@ class SyrusYml
   end
 
   private
+
+  def parse_agent_insight(raw)
+    return nil if raw.nil?
+    raise ParseError, "agent_insight: must be a mapping" unless raw.is_a?(Hash)
+
+    AgentInsightConfig.new(
+      prepare: ActiveModel::Type::Boolean.new.cast(raw["prepare"])
+    )
+  end
 
   def parse_reconciliation_mode(raw)
     return nil if raw.nil?
