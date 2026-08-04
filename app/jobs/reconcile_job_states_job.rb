@@ -213,7 +213,42 @@ class ReconcileJobStatesJob < ApplicationJob
         new(job, target_state: "implemented",
                   reason: "latest workflow :succeeded but Job stuck at :queued",
                   steps: %i[ start_running! mark_implemented! ])
+
+      when [ "queued", "cancelled" ]
+        # A stale auto-retry can be cancelled after a previous retry
+        # already published a current, passing PR. In that shape the
+        # latest Workflow is no longer the source of truth; the ready
+        # PR plus earlier successful publication is.
+        return nil unless ready_pr_with_successful_publication?(job, latest_wf)
+        return nil if job.any_active_run?
+        return nil if job.workflows.where(state: %w[ queued running ]).exists?
+
+        new(job, target_state: "implemented",
+                  reason: "latest workflow :cancelled but ready PR publication shows Job should be :implemented",
+                  steps: %i[ start_running! mark_implemented! ])
       end
+    end
+
+    def self.ready_pr_with_successful_publication?(job, latest_wf)
+      return false unless job.pr_number.present?
+      return false unless job.branch_name.present?
+      return false unless job.pr_checks_state == "passing"
+      return false unless job.commits_behind_base.to_i.zero?
+      return false unless job.github_mergeable_state == "clean"
+
+      successful_publication_for_branch?(job, latest_wf)
+    end
+
+    def self.successful_publication_for_branch?(job, latest_wf)
+      branch_name = job.branch_name.presence
+      return false unless branch_name
+
+      job.workflows
+         .where(state: "succeeded")
+         .where("id < ?", latest_wf.id)
+         .any? do |workflow|
+           workflow.artifact("publication_branch").presence == branch_name
+         end
     end
 
     def initialize(job, target_state:, reason:, steps:)

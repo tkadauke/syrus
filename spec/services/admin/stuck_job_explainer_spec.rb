@@ -137,6 +137,52 @@ RSpec.describe Admin::StuckJobExplainer do
     expect(payload.dig(:human_summary)).to include("CI repair made no effective change and checks are still failing.")
   end
 
+  it "recommends state reconciliation over stale failed-run logs when a queued Job has a ready PR" do
+    job = Factories.job_record(
+      user: user,
+      repository: repository,
+      state: "queued",
+      issue_title: "Ready PR drift",
+      branch_name: "syrus/direct-2415",
+      pr_number: 2174,
+      pr_checks_state: "passing",
+      commits_behind_base: 0,
+      github_mergeable_state: "clean"
+    )
+    published = Workflow.create!(
+      job: job,
+      trigger_kind: "retry",
+      state: "succeeded",
+      started_at: 30.minutes.ago,
+      finished_at: 25.minutes.ago,
+      artifacts: { "publication_branch" => "syrus/direct-2415" }
+    )
+    published.steps.create!(kind: "pr_open", position: 0, state: "succeeded")
+    failed = Workflow.create!(job: job, trigger_kind: "retry", state: "failed", finished_at: 10.minutes.ago)
+    failed_step = failed.steps.create!(kind: "grader", position: 0, state: "failed")
+    failed_run = failed_step.runs.create!(job: job, trigger_kind: "retry", state: "failed", finished_at: 10.minutes.ago)
+    failed_run.create_run_diagnostic!(error_class: "Steps::Base::StepFailed", error_message: "grader rspec failed")
+    failed_run.job_logs.create!(sequence: 0, kind: "grade_log", chunk: "RSpec failed")
+    latest = Workflow.create!(
+      job: job,
+      trigger_kind: "retry",
+      state: "cancelled",
+      started_at: 5.minutes.ago,
+      finished_at: 1.minute.ago,
+      artifacts: { "retry_cancelled_reason" => "stale_auto_retry" }
+    )
+    latest.steps.create!(kind: "prepare", position: 0, state: "cancelled")
+
+    payload = described_class.call(job.reload, github_client: no_github_client)
+
+    expect(payload.dig(:workflows, :latest)).to include(id: latest.id, state: "cancelled")
+    expect(payload.dig(:recommended_action)).to include(
+      action: "reconcile_job_state",
+      target_state: "implemented",
+      workflow_id: latest.id
+    )
+  end
+
   it "uses the stack resolver result for fan-in so it does not invent a selected parent" do
     epic = Factories.epic(user: user, repository: repository, state: "in_progress", epic_dependency_policy: "nonlinear")
     job = Factories.job_record(user: user, repository: repository, epic: epic, state: "queued", issue_title: "Fan-in")

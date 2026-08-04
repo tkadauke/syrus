@@ -283,6 +283,7 @@ module WorkEngine
             workflow.save!
             attempt.update!(skipped_reason: "source workflow was already superseded") if attempt.skipped_reason.blank?
           end
+          WorkEngine::Reconciler.request(source: self.class.name, job: workflow.job)
           success("cancelled stale auto-retry Workflow ##{workflow.id}")
         end
 

@@ -84,6 +84,40 @@ RSpec.describe ReconcileJobStatesJob do
     end
   end
 
+  describe "Job :queued with latest workflow :cancelled and a ready PR" do
+    it "lifts the Job to :implemented when an older workflow published the current passing PR" do
+      build_workflow(
+        state: "succeeded",
+        trigger_kind: "retry",
+        started_at: 30.minutes.ago,
+        finished_at: 25.minutes.ago
+      ).set_artifact!("publication_branch", "syrus/direct-2415")
+      build_workflow(
+        state: "failed",
+        trigger_kind: "retry",
+        started_at: 20.minutes.ago,
+        finished_at: 15.minutes.ago
+      )
+      build_workflow(
+        state: "cancelled",
+        trigger_kind: "retry",
+        started_at: 5.minutes.ago,
+        finished_at: 1.minute.ago
+      )
+      job.update!(
+        state: "queued",
+        pr_number: 2174,
+        branch_name: "syrus/direct-2415",
+        pr_checks_state: "passing",
+        commits_behind_base: 0,
+        github_mergeable_state: "clean"
+      )
+
+      expect { described_class.new.perform }
+        .to change { job.reload.state }.from("queued").to("implemented")
+    end
+  end
+
   describe "Job :implemented with latest workflow :running" do
     it "lifts the Job back to :running (workflow reopened post-success)" do
       build_workflow(state: "running", finished_at: nil)

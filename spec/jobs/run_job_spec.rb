@@ -93,6 +93,37 @@ RSpec.describe RunJob, :ci_only do
       expect(retry_workflow.artifact("retry_cancelled_reason")).to eq("approved")
       expect(retry_run.reload).to be_cancelled
     end
+
+    it "enqueues Job-state reconciliation after cancelling a retry for a ready PR" do
+      initial_run = job.initial_run
+      initial_run.start!
+      initial_run.succeed!
+      initial_run.save!
+
+      retry_workflow = Workflows::Retry.instantiate(job: job, agent_provider: job.agent_provider)
+      retry_step = retry_workflow.first_step
+      retry_run = retry_step.runs.create!(
+        job: job,
+        trigger_kind: "retry",
+        agent_provider: job.agent_provider
+      )
+      job.update_columns(
+        state: "queued",
+        pr_number: 2174,
+        branch_name: "syrus/direct-2415",
+        commits_behind_base: 0,
+        pr_checks_state: "passing",
+        updated_at: Time.current
+      )
+
+      expect {
+        RunJob.perform_now(retry_run.id)
+      }.to have_enqueued_job(ReconcileJobStatesJob)
+
+      expect(retry_workflow.reload).to be_cancelled
+      expect(retry_workflow.artifact("retry_cancelled_reason")).to eq("pr_ready")
+      expect(retry_run.reload).to be_cancelled
+    end
   end
 
   # ----- Initial workflow ----------------------------------------

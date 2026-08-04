@@ -272,7 +272,15 @@ RSpec.describe WorkEngine::Reconciler do
     stale.reload
     stale.first_step.runs.first.update_columns(created_at: 9.minutes.ago, updated_at: 9.minutes.ago)
 
-    result = reconcile_and_execute(job_id: job.id)
+    result = nil
+    expect {
+      result = reconcile_and_execute(job_id: job.id)
+    }.to have_enqueued_job(WorkEngine::ReconcileJob).with(
+      source: "WorkEngine::RepairExecutor::Policies::CancelStaleAutoRetryWorkflow",
+      job_id: job.id,
+      workflow_id: nil,
+      run_id: nil
+    )
     issue = kind(result, :stale_auto_retry_workflow)
 
     expect(issue).to be_present
@@ -387,6 +395,55 @@ RSpec.describe WorkEngine::Reconciler do
     expect(stale.reload).to be_cancelled
     expect(stale.first_step.runs.first.reload).to be_cancelled
     expect(attempt.reload.skipped_reason).to eq("source workflow was already superseded")
+  end
+
+  it "reconciles a queued Job with a cancelled latest retry once the PR is current, passing, and clean" do
+    published = workflow
+    published.update!(
+      state: "succeeded",
+      trigger_kind: "retry",
+      started_at: 30.minutes.ago,
+      finished_at: 25.minutes.ago,
+      artifacts: { "publication_branch" => "syrus/direct-2415" }
+    )
+    step.update_columns(state: "succeeded", started_at: 30.minutes.ago, finished_at: 25.minutes.ago)
+    run.update_columns(state: "succeeded", started_at: 30.minutes.ago, finished_at: 25.minutes.ago)
+    failed = Workflow.create!(
+      job: job,
+      trigger_kind: "retry",
+      state: "failed",
+      started_at: 20.minutes.ago,
+      finished_at: 15.minutes.ago
+    )
+    failed_step = failed.steps.create!(kind: "pr_open", position: 0, state: "failed")
+    failed_step.runs.create!(job: job, trigger_kind: "retry", agent_provider: "claude", state: "failed", finished_at: 15.minutes.ago)
+    cancelled = Workflow.create!(
+      job: job,
+      trigger_kind: "retry",
+      state: "cancelled",
+      started_at: 5.minutes.ago,
+      finished_at: 1.minute.ago,
+      artifacts: { "retry_cancelled_reason" => "stale_auto_retry" }
+    )
+    cancelled.steps.create!(kind: "prepare", position: 0, state: "cancelled")
+    job.update!(
+      state: "queued",
+      pr_number: 2174,
+      branch_name: "syrus/direct-2415",
+      pr_checks_state: "passing",
+      commits_behind_base: 0,
+      github_mergeable_state: "clean"
+    )
+
+    result = reconcile_and_execute(job_id: job.id)
+
+    expect(kind(result, :unambiguous_job_state_drift)).to have_attributes(
+      recommended_repair_action: "reconcile_job_state",
+      safe_to_auto_repair: true
+    )
+    expect(plan(result, :reconcile_job_state)).to have_attributes(target_id: job.id)
+    expect(job.reload).to be_implemented
+    expect(job.latest_workflow).to eq(cancelled)
   end
 
   it "discards stale branch-diverged workflow output when the current PR head matches the protected remote SHA" do

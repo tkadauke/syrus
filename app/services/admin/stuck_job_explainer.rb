@@ -451,6 +451,14 @@ module Admin
 
     def recommended_action(payload)
       return action("close_successfully_no_changes", "Branch has no effective changes.", closure_reason: "no_changes") if payload.dig(:empty_reconciliation, :evidence)&.any?
+      if (state_plan = ReconcileJobStatesJob::Plan.for(job))
+        return action(
+          "reconcile_job_state",
+          state_plan.reason,
+          target_state: state_plan.target_state,
+          workflow_id: job.latest_workflow&.id
+        )
+      end
       return action("inspect_logs", "A running Run has a stale heartbeat.", run_id: stale_heartbeat_run_id(payload)) if stale_heartbeat_run_id(payload)
       return action("inspect_logs", "Latest failure evidence points at grader logs.", run_id: grader_failure_run_id(payload)) if grader_failure_run_id(payload)
       if no_effective_ci_repair?

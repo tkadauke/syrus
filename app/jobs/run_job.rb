@@ -261,6 +261,7 @@ class RunJob < ApplicationJob
     )
     @workflow.cancel! if @workflow.may_cancel?
     @workflow.save!
+    ReconcileJobStatesJob.perform_later if eligibility.code.in?(%w[ pr_ready superseded ])
     true
   end
 
