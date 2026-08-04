@@ -3,7 +3,8 @@ module PendingActions
     action_key "reopen_epic_and_attach_job"
 
     def execute
-      epic = repository.epics.where(user: user).find(payload.fetch("epic_id"))
+      epic_scope = repository&.epics || user.epics
+      epic = epic_scope.where(user: user).find(payload.fetch("epic_id"))
       job = action_job
 
       epic.in_progress! if epic.done?

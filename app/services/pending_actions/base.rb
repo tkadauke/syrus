@@ -48,7 +48,8 @@ module PendingActions
     end
 
     def action_job
-      chat_session.repository.jobs.find(payload.fetch("job_id"))
+      scope = chat_session.repository&.jobs || user.jobs
+      scope.find(payload.fetch("job_id"))
     end
 
     def action_user_job

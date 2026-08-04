@@ -3446,6 +3446,77 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(job_to_keep.reload).to be_open
   end
 
+  it "confirms supervisor retry_job pending actions for user-owned Jobs through the app API" do
+    admin = Factories.user(admin: true, claude_oauth_token: "oat-admin")
+    admin_repository = Factories.repository(user: admin, owner: "acme", name: "supervised")
+    chat = ChatSession.create!(user: admin, system_kind: "supervisor", title: "Supervisor", pinned: true, last_message_at: Time.current)
+    job = Job.create!(
+      user: admin,
+      repository: admin_repository,
+      kind: "direct",
+      issue_number: nil,
+      issue_title: "Manual job",
+      issue_body: "Do the thing."
+    )
+    Workflows::Initial.instantiate(job: job).update!(state: "succeeded")
+    action = chat.pending_actions.create!(
+      action: "retry_job",
+      payload: { "job_id" => job.id }
+    )
+
+    sign_in_as(admin)
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}/confirm"
+    }.to have_enqueued_job(RunJob)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Pending action confirmed.")
+    expect(action.reload).to be_confirmed
+    expect(job.workflows.where(trigger_kind: "retry").count).to eq(1)
+  end
+
+  it "returns not found when confirming supervisor retry_job pending actions for inaccessible Jobs" do
+    admin = Factories.user(admin: true, claude_oauth_token: "oat-admin")
+    other_user = Factories.user
+    other_repository = Factories.repository(user: other_user, owner: "acme", name: "other")
+    other_job = Factories.job_record(user: other_user, repository: other_repository)
+    chat = ChatSession.create!(user: admin, system_kind: "supervisor", title: "Supervisor", pinned: true, last_message_at: Time.current)
+    action = chat.pending_actions.create!(
+      action: "retry_job",
+      payload: { "job_id" => other_job.id }
+    )
+
+    sign_in_as(admin)
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}/confirm"
+    }.not_to have_enqueued_job(RunJob)
+
+    expect(response).to have_http_status(:not_found)
+    expect(parse_body.dig("error", "code")).to eq("not_found")
+    expect(action.reload).to be_pending
+  end
+
+  it "returns not found when confirming supervisor retry_job pending actions for missing Jobs" do
+    admin = Factories.user(admin: true, claude_oauth_token: "oat-admin")
+    chat = ChatSession.create!(user: admin, system_kind: "supervisor", title: "Supervisor", pinned: true, last_message_at: Time.current)
+    action = chat.pending_actions.create!(
+      action: "retry_job",
+      payload: { "job_id" => Job.maximum(:id).to_i + 1000 }
+    )
+
+    sign_in_as(admin)
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}/confirm"
+    }.not_to have_enqueued_job(RunJob)
+
+    expect(response).to have_http_status(:not_found)
+    expect(parse_body.dig("error", "code")).to eq("not_found")
+    expect(action.reload).to be_pending
+  end
+
   it "confirms chat feedback pending actions through the app API" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
