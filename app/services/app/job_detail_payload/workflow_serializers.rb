@@ -186,7 +186,7 @@ module App
         {
           id: process.id,
           kind: process.kind,
-          command: process.command,
+          command: process.redacted_command,
           workdir: process.workdir,
           hostname: process.hostname,
           pid: process.pid,

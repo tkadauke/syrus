@@ -314,7 +314,7 @@ class ProcessRunner
   end
 
   def command_string
-    (@display_command.presence || @command.compact.map(&:to_s).join(" ")).safe_byteslice(0, 4096)
+    CommandRedactor.redact(@display_command.presence || @command.compact.map(&:to_s).join(" ")).safe_byteslice(0, 4096)
   end
 
   # Feed the child's stdin. When there is a payload, write it on a separate

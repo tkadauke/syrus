@@ -69,6 +69,46 @@ RSpec.describe WorkerHealthRunCorrelation do
     expect(payload[:processes].first).to include(kind: "grader", command: "bin/rspec")
   end
 
+  it "redacts GitHub credentials from process and command span telemetry" do
+    wf = workflow
+    step = step_for(wf)
+    run = run_for(step)
+    SpawnedProcess.create!(
+      run: run,
+      workflow: wf,
+      kind: "git",
+      command: "git fetch https://x-access-token:ghp_workerhealth@github.com/acme/widgets.git",
+      hostname: "worker-a",
+      started_at: now - 9.minutes,
+      finished_at: now - 3.minutes,
+      outcome: "succeeded"
+    )
+    CommandSpan.create!(
+      job: job,
+      workflow: wf,
+      step: step,
+      run: run,
+      sequence: 1,
+      name: "git fetch",
+      command_excerpt: "git fetch https://x-access-token:github_pat_spansecret@github.com/acme/widgets.git",
+      hostname: "worker-a",
+      started_at: now - 7.minutes,
+      finished_at: now - 6.minutes,
+      duration_ms: 60_000,
+      outcome: "succeeded",
+      exit_status: 0
+    )
+
+    payload = described_class.for_run(run, now: now)
+    serialized = JSON.generate(payload)
+
+    expect(serialized).to include("https://x-access-token:[REDACTED]@github.com/acme/widgets.git")
+    expect(serialized).not_to include("ghp_workerhealth")
+    expect(serialized).not_to include("github_pat_spansecret")
+    expect(serialized).not_to include("x-access-token:ghp_")
+    expect(serialized).not_to include("x-access-token:github_pat_")
+  end
+
   it "correlates command spans with host samples for each span window" do
     wf = workflow
     step = step_for(wf)

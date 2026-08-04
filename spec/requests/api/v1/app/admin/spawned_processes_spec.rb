@@ -56,6 +56,19 @@ RSpec.describe "API: /api/v1/app/admin/processes", type: :request do
     )
   end
 
+  it "redacts GitHub credentials from process inventory commands" do
+    sign_in_as(admin)
+    fixture(command: "git clone https://x-access-token:ghp_adminsecret@github.com/acme/widgets.git")
+
+    get "/api/v1/app/admin/processes"
+
+    expect(response).to have_http_status(:ok)
+    serialized = response.body
+    expect(serialized).to include("https://x-access-token:[REDACTED]@github.com/acme/widgets.git")
+    expect(serialized).not_to include("ghp_adminsecret")
+    expect(serialized).not_to include("x-access-token:ghp_")
+  end
+
   it "filters the process inventory" do
     sign_in_as(admin)
     fixture(kind: "agent")

@@ -9,7 +9,6 @@ class GitRunner
   #   - every line streamed to log_sink + captured into `output`
   #     (git prints the full URL in some network-error messages,
   #     e.g. "fatal: unable to access 'https://x-access-token:T@…'")
-  AUTH_URL_PATTERN = %r{(https://x-access-token:)[^@\s]+(@)}.freeze
   DARWIN_TEMP_DIR_WARNING_PATTERN =
     /\Agit: warning: confstr\(\) failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using \/tmp instead\s*\z/.freeze
 
@@ -20,16 +19,11 @@ class GitRunner
   DEFAULT_TIMEOUT = 10.minutes
 
   def self.redact(text)
-    utf8(text).gsub(AUTH_URL_PATTERN, '\1[REDACTED]\2')
+    CommandRedactor.redact(text)
   end
 
   def self.utf8(text)
-    string = text.to_s
-    if string.encoding == Encoding::ASCII_8BIT
-      string.dup.force_encoding(Encoding::UTF_8).scrub("")
-    else
-      string.encode(Encoding::UTF_8, invalid: :replace, undef: :replace, replace: "")
-    end
+    CommandRedactor.utf8(text)
   end
 
   def self.ignorable_output_line?(line)

@@ -185,6 +185,22 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(process.command).to be_valid_encoding
   end
 
+  it "redacts GitHub credentials before storing spawned process commands" do
+    result = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "exit 0" ],
+      chdir: @dir,
+      timeout: 5,
+      kind: "git",
+      display_command: "git clone https://x-access-token:ghp_storesecret@github.com/acme/widgets.git"
+    ).run
+
+    process = SpawnedProcess.find(result.spawned_process_id)
+    expect(process.command).to eq("git clone https://x-access-token:[REDACTED]@github.com/acme/widgets.git")
+    expect(process.command).not_to include("ghp_storesecret")
+    expect(process.command).not_to include("x-access-token:ghp_")
+  end
+
   it "kills the subprocess when silent_timeout elapses with no output" do
     # The subprocess prints once and then sleeps — past silent_timeout
     # with no further output, ProcessRunner must terminate it and

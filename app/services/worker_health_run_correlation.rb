@@ -121,7 +121,7 @@ class WorkerHealthRunCorrelation
         started_at: process.started_at&.iso8601,
         finished_at: process.finished_at&.iso8601,
         last_chunk_at: process.last_chunk_at&.iso8601,
-        command: process.command
+        command: process.redacted_command
       }
     end
   end
@@ -211,7 +211,7 @@ class WorkerHealthRunCorrelation
         spawned_process_id: span.spawned_process_id,
         sequence: span.sequence,
         name: span.name,
-        command_excerpt: span.command_excerpt,
+        command_excerpt: CommandRedactor.redact(span.command_excerpt),
         started_at: span.started_at&.iso8601,
         finished_at: span.finished_at&.iso8601,
         duration_ms: span.duration_ms,

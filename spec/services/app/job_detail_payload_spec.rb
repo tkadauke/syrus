@@ -495,6 +495,40 @@ RSpec.describe App::JobDetailPayload do
       expect(active_process[:id]).not_to eq(finished.id)
     end
 
+    it "redacts GitHub credentials from active process and worker health process payloads" do
+      job = Factories.job_record(repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      step = Step.create!(workflow: workflow, kind: "prepare", position: 0, state: "running")
+      run = Run.create!(
+        job: job,
+        step: step,
+        trigger_kind: "initial",
+        agent_provider: "claude",
+        state: "running",
+        started_at: 2.minutes.ago
+      )
+      SpawnedProcess.create!(
+        kind: "git",
+        command: "git fetch https://x-access-token:ghp_jobdetail@github.com/acme/widgets.git",
+        workdir: "/tmp/repo",
+        hostname: "worker-2",
+        pid: 1234,
+        started_at: 1.minute.ago,
+        run: run,
+        workflow: workflow
+      )
+
+      payload = payload_for(job)
+      serialized = JSON.generate(payload)
+      active_process = payload.dig(:workflows, 0, :steps, 0, :runs, 0, :active_process)
+      health_process = payload.dig(:workflows, 0, :steps, 0, :runs, 0, :worker_health_correlation, :processes, 0)
+
+      expect(active_process[:command]).to eq("git fetch https://x-access-token:[REDACTED]@github.com/acme/widgets.git")
+      expect(health_process[:command]).to eq("git fetch https://x-access-token:[REDACTED]@github.com/acme/widgets.git")
+      expect(serialized).not_to include("ghp_jobdetail")
+      expect(serialized).not_to include("x-access-token:ghp_")
+    end
+
     it "includes compact worker health correlation on each run payload" do
       job = Factories.job_record(repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "succeeded", worker_hostname: "worker-1")

@@ -43,6 +43,27 @@ RSpec.describe SyrusMcp::ReadRunWorkerHealthTool do
     expect(payload.dig("command_spans", 0, "name")).to eq("bundle check")
   end
 
+  it "does not expose GitHub credentials in read_run_worker_health output" do
+    SpawnedProcess.create!(
+      run: run,
+      workflow: run.workflow,
+      kind: "git",
+      command: "git fetch https://x-access-token:ghp_mcpsecret@github.com/acme/widgets.git",
+      hostname: "worker-a",
+      started_at: 6.minutes.ago,
+      finished_at: 4.minutes.ago,
+      outcome: "succeeded"
+    )
+
+    response = described_class.call(server_context: { run_id: run.id })
+    text = response.content.first[:text]
+
+    expect(response).not_to be_error
+    expect(text).to include("https://x-access-token:[REDACTED]@github.com/acme/widgets.git")
+    expect(text).not_to include("ghp_mcpsecret")
+    expect(text).not_to include("x-access-token:ghp_")
+  end
+
   it "allows same-repository run lookup for insight comparisons" do
     other_run = Run.create!(
       job: run.job,

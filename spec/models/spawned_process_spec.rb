@@ -57,6 +57,20 @@ RSpec.describe SpawnedProcess do
     expect(sp.kill_requested_by_user).to eq(user)
   end
 
+  it "redacts GitHub credentials from command display text" do
+    sp = described_class.create!(
+      base_attrs.merge(
+        command: "git fetch https://x-access-token:ghp_secret@github.com/acme/widgets.git github_pat_11ABC"
+      )
+    )
+
+    expect(sp.redacted_command).to eq(
+      "git fetch https://x-access-token:[REDACTED]@github.com/acme/widgets.git [REDACTED]"
+    )
+    expect(sp.redacted_command).not_to include("ghp_secret")
+    expect(sp.redacted_command).not_to include("github_pat_11ABC")
+  end
+
   describe ".stale" do
     it "scopes to running rows whose heartbeat is older than the threshold" do
       fresh = described_class.create!(base_attrs.merge(last_chunk_at: 1.minute.ago))

@@ -55,6 +55,10 @@ class SpawnedProcess < ApplicationRecord
     kill_requested_at.present?
   end
 
+  def redacted_command
+    CommandRedactor.redact(command)
+  end
+
   # Operator pressed the kill button. The worker pod's ProcessRunner
   # polls this flag once per second; when it flips, the local stream
   # loop terminates the process group. We do NOT send signals from
