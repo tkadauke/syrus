@@ -157,9 +157,18 @@ module WorkEngine
           text = "#{text}: #{message}" if message.present?
           Rails.logger.info("[WorkEngine::RepairExecutor] #{text} target=#{plan.target_type}##{plan.target_id}")
           run = audit_run
-          JobLog.append!(run: run, chunk: text, kind: "system") if run
+          append_audit_once!(run, text) if run
         rescue StandardError => e
           Rails.logger.warn("[WorkEngine::RepairExecutor] audit failed for #{plan.action}: #{e.class}: #{e.message}")
+        end
+
+        def append_audit_once!(run, text)
+          JobLog.transaction do
+            locked_run = Run.lock.find(run.id)
+            next if JobLog.where(run_id: locked_run.id, kind: "system", chunk: text).exists?
+
+            JobLog.append!(run: locked_run, chunk: text, kind: "system")
+          end
         end
 
         def schedule_auto_retry!(retry_kind:, source_run: nil, workflow: nil, job: nil, respect_provider_circuit: true)

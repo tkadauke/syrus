@@ -80,6 +80,13 @@ RSpec.describe WorkEngine::Reconciler do
     queue_job
   end
 
+  def enable_unified_work_engine_reconciler!
+    Feature.find_or_create_by!(slug: WorkEngine::Gate::FEATURE_SLUG) do |feature|
+      feature.category = "Operations"
+      feature.name = "Unified work-engine reconciler"
+    end.update!(enabled: true)
+  end
+
   before do
     clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
   end
@@ -1408,6 +1415,43 @@ RSpec.describe WorkEngine::Reconciler do
 
     expect(plan(result, :retry_failed_step)).to have_attributes(auto_executable: true)
     expect(result.repair_executions.map(&:message)).to include(match(/provider circuit is open for claude/))
+  end
+
+  it "coalesces repeated no-op retry repair audit logs for an unchanged stuck run" do
+    enable_unified_work_engine_reconciler!
+    step.update_columns(kind: "grader", state: "failed", finished_at: Time.current)
+    workflow.update_columns(state: "failed", finished_at: Time.current, cleaned_up_at: nil)
+    run.update_columns(state: "failed", finished_at: Time.current)
+    RunFailureClassification.create!(
+      run: run,
+      classification: "timeout",
+      retryable: true,
+      confidence: 0.85,
+      reason: "grader timed out",
+      classified_at: Time.current
+    )
+    AutoRetryAttempt.create!(
+      job: job,
+      workflow: workflow,
+      run: run,
+      agent_provider: run.agent_provider,
+      failure_classification: "timeout",
+      retry_kind: "failed_step",
+      attempt_number: 1,
+      scheduled_at: 1.minute.from_now
+    )
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
+
+    3.times do
+      perform_enqueued_jobs do
+        described_class.request(source: "spec", run: run)
+      end
+    end
+
+    audit_chunks = JobLog.where(run: run, kind: "system").pluck(:chunk)
+    expect(audit_chunks.grep(/\[work-engine reconciler\] applying retry_failed_step/).size).to eq(1)
+    expect(audit_chunks.grep(/\[work-engine reconciler\] skipped retry_failed_step: retry already pending/).size).to eq(1)
   end
 
   it "executes unambiguous Job state drift repairs" do
