@@ -90,10 +90,16 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
       process_max_rss_bytes: process_memory_bytes,
       process_read_io_bytes: process_io_bytes,
       process_write_io_bytes: nil,
-      process_attribution_method: "test",
-      process_attribution_confidence: "medium",
+      process_attributed_sample_count: process_cpu_seconds.present? || process_memory_bytes.present? || process_io_bytes.present? ? 1 : 0,
+      process_attributed_duration_seconds: process_duration,
+      process_attributed_cpu_seconds: process_cpu_seconds,
+      process_attributed_memory_bytes: process_memory_bytes,
+      process_attributed_io_bytes: process_io_bytes,
       host_pressure_level: "ok",
       host_pressure_reasons: [],
+      process_attribution_method: "test",
+      process_attribution_version: 1,
+      process_attribution_confidence: "medium",
       retention_limited: retention_limited,
       summary_version: RunResourceSummary::SUMMARY_VERSION
     )

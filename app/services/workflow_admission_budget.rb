@@ -225,7 +225,25 @@ class WorkflowAdmissionBudget
   end
 
   def missing_profile_prediction(step_kind)
-    WorkflowStepResourceProfile::CONSERVATIVE_DEFAULTS.merge(
+    defaults = if step_kind.in?(%w[grader_fanout preflight_grader_fanout])
+      {
+        duration_seconds: 60,
+        process_attributed_duration_seconds: 60,
+        process_attributed_cpu_seconds: 0.0,
+        process_attributed_cpu_percent: 5.0,
+        process_attributed_memory_bytes: nil,
+        process_attributed_io_bytes: nil,
+        cpu_pressure: 5.0,
+        io_pressure: 5.0,
+        memory_used_percent: 20.0,
+        timeout_rate: 0.0,
+        failure_rate: 0.0
+      }
+    else
+      WorkflowStepResourceProfile::CONSERVATIVE_DEFAULTS
+    end
+
+    defaults.merge(
       prediction_source: "defaults_only",
       fallback_reason: "missing_workflow_step_resource_profile",
       confidence_level: "defaults_only",
