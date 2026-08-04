@@ -30,6 +30,10 @@ class ChatPendingAction < ApplicationRecord
     admin_retry_step
     admin_cleanup_workspace
     admin_refresh_installations
+    reconcile_job_state
+    force_state_transition
+    cancel_stale_work
+    reenqueue_work
   ].freeze
   ACTION_TYPES = %w[ schedule_recurring ].freeze
   EMPTY_PAYLOAD_ACTIONS = %w[

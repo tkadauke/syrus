@@ -557,6 +557,87 @@ RSpec.describe ChatPendingAction do
     expect(cleanup_action.confirm!).to be true
   end
 
+  it "reconciles JOB-2415-style queued ready PR drift to implemented" do
+    admin = Factories.user(admin: true)
+    repository = Factories.repository(user: admin)
+    admin_session = ChatSession.create!(user: admin, repository: repository)
+    job = Factories.job(user: admin, repository: repository)
+    initial_workflow = job.latest_workflow
+
+    initial_workflow.runs.update_all(state: "cancelled", finished_at: 10.minutes.ago)
+    initial_workflow.steps.update_all(state: "cancelled")
+    initial_workflow.update_columns(state: "succeeded", finished_at: 10.minutes.ago)
+    retry_workflow = Workflow.create!(job: job, trigger_kind: "retry", agent_provider: job.agent_provider)
+    retry_workflow.update_columns(state: "cancelled", finished_at: 1.minute.ago)
+    job.update_columns(state: "queued", pr_number: 2415)
+
+    action = admin_session.pending_actions.create!(
+      action: "reconcile_job_state",
+      payload: { "job_id" => job.id, "mode" => "mark_implemented_from_ready_pr" },
+      reason: "Ready PR has no active work; latest retry is stale and cancelled.",
+      requested_by: "agent"
+    )
+
+    expect(action.confirm!).to be true
+    expect(job.reload).to be_implemented
+    expect(action.before_snapshot.dig("jobs", 0, "state")).to eq("queued")
+    expect(action.after_snapshot.dig("jobs", 0, "state")).to eq("implemented")
+  end
+
+  it "confirms allowed force state transitions without raw state writes" do
+    admin = Factories.user(admin: true)
+    repository = Factories.repository(user: admin)
+    admin_session = ChatSession.create!(user: admin, repository: repository)
+    job = Factories.job(user: admin, repository: repository)
+
+    action = admin_session.pending_actions.create!(
+      action: "force_state_transition",
+      payload: { "job_id" => job.id, "event" => "force_fail" },
+      reason: "Operator diagnosed unrecoverable state drift.",
+      requested_by: "agent"
+    )
+
+    expect(action.confirm!).to be true
+    expect(job.reload).to be_failed
+    expect(action.after_snapshot.dig("jobs", 0, "state")).to eq("failed")
+  end
+
+  it "cancels stale work and re-enqueues queued runs through confirmed repair actions" do
+    admin = Factories.user(admin: true)
+    repository = Factories.repository(user: admin)
+    admin_session = ChatSession.create!(user: admin, repository: repository)
+    job = Factories.job(user: admin, repository: repository)
+    workflow = job.latest_workflow
+    run = workflow.runs.first
+
+    cancel_action = admin_session.pending_actions.create!(
+      action: "cancel_stale_work",
+      payload: { "job_id" => job.id, "workflow_ids" => [ workflow.id ], "run_ids" => [ run.id ], "reconcile" => false },
+      reason: "Queued work is stale after worker ownership drift.",
+      requested_by: "agent"
+    )
+
+    expect(cancel_action.confirm!).to be true
+    expect(workflow.reload).to be_cancelled
+    expect(run.reload).to be_cancelled
+
+    retry_workflow = Workflow.create!(job: job, trigger_kind: "retry", agent_provider: job.agent_provider)
+    retry_step = retry_workflow.steps.create!(kind: "implement", position: 1, iteration: 1)
+    retry_run = retry_step.runs.create!(job: job, user: admin, trigger_kind: retry_workflow.trigger_kind, agent_provider: job.agent_provider)
+
+    reenqueue_action = admin_session.pending_actions.create!(
+      action: "reenqueue_work",
+      payload: { "job_id" => job.id, "run_id" => retry_run.id },
+      reason: "Run is queued but its queue claim disappeared.",
+      requested_by: "agent"
+    )
+
+    expect {
+      reenqueue_action.confirm!
+    }.to have_enqueued_job(RunJob)
+    expect(reenqueue_action.reload.result).to eq(retry_run)
+  end
+
   it "rejects mismatched repository and chat session" do
     other_repo = Factories.repository(user: user)
     action = described_class.new(

@@ -74,7 +74,11 @@ module SyrusChatMcp
       AdminCleanupWorkspaceTool,
       AdminRefreshInstallationsTool,
       AdminGithubAppInstallationDiagnosticTool,
-      ForceFailJobTool
+      ForceFailJobTool,
+      ReconcileJobStateTool,
+      ForceStateTransitionTool,
+      CancelStaleWorkTool,
+      ReenqueueWorkTool
     ].freeze
 
     # Gated by the `video_walkthroughs` labs Feature (see tools_for_session).

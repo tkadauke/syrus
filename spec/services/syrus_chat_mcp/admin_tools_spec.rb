@@ -35,7 +35,11 @@ RSpec.describe "SyrusChatMcp admin tools" do
     "admin_cleanup_workspace" => { workflow_id: 1, reason: "Free an abandoned workspace." },
     "admin_refresh_installations" => {},
     "admin_github_app_installation_diagnostic" => {},
-    "force_fail_job" => { job_id: 1, reason: "Mark a stuck running job failed." }
+    "force_fail_job" => { job_id: 1, reason: "Mark a stuck running job failed." },
+    "reconcile_job_state" => { job_id: 1, mode: "auto", reason: "Repair state drift." },
+    "force_state_transition" => { job_id: 1, event: "force_fail", reason: "Repair state drift." },
+    "cancel_stale_work" => { job_id: 1, reason: "Cancel stale work." },
+    "reenqueue_work" => { job_id: 1, reason: "Re-enqueue queued work." }
   }.freeze
 
   def server_for(chat_session)
@@ -94,7 +98,11 @@ RSpec.describe "SyrusChatMcp admin tools" do
       "admin_retry_step" => [ { workflow_id: workflow.id, step_slug: "implement", reason: "Retry the failed step." }, { "workflow_id" => workflow.id, "step_slug" => "implement" } ],
       "admin_cleanup_workspace" => [ { workflow_id: workflow.id, reason: "Remove stale workspace files." }, { "workflow_id" => workflow.id } ],
       "admin_refresh_installations" => [ {}, {} ],
-      "force_fail_job" => [ { job_id: workflow.job.id, reason: "Operator determined it is stuck." }, { "job_id" => workflow.job.id, "previous_state" => workflow.job.state } ]
+      "force_fail_job" => [ { job_id: workflow.job.id, reason: "Operator determined it is stuck." }, { "job_id" => workflow.job.id, "previous_state" => workflow.job.state } ],
+      "reconcile_job_state" => [ { job_id: workflow.job.id, mode: "auto", reason: "Run targeted state repair." }, { "job_id" => workflow.job.id, "mode" => "auto" } ],
+      "force_state_transition" => [ { job_id: workflow.job.id, event: "force_fail", reason: "Apply a constrained state transition." }, { "job_id" => workflow.job.id, "event" => "force_fail" } ],
+      "cancel_stale_work" => [ { job_id: workflow.job.id, workflow_ids: [ workflow.id ], run_ids: [ workflow.runs.first.id ], reason: "Cancel stale work." }, { "job_id" => workflow.job.id, "workflow_ids" => [ workflow.id ], "run_ids" => [ workflow.runs.first.id ], "reconcile" => true } ],
+      "reenqueue_work" => [ { job_id: workflow.job.id, run_id: workflow.runs.first.id, reason: "Re-enqueue queued work." }, { "job_id" => workflow.job.id, "workflow_id" => nil, "run_id" => workflow.runs.first.id } ]
     }
 
     cases.each do |name, (arguments, expected_payload)|
@@ -112,7 +120,7 @@ RSpec.describe "SyrusChatMcp admin tools" do
         payload: expected_payload,
         requested_by: "agent"
       )
-      expect(action.reason).to be_present if name.in?(%w[admin_retry_step admin_cleanup_workspace force_fail_job])
+      expect(action.reason).to be_present if name.in?(%w[admin_retry_step admin_cleanup_workspace force_fail_job reconcile_job_state force_state_transition cancel_stale_work reenqueue_work])
     end
   end
 
