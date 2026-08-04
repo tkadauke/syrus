@@ -77,8 +77,11 @@ RSpec.describe NotificationService do
         "job_id" => job.id,
         "pr_url" => "https://github.com/acme/widgets/pull/1"
       )
-      kickoff = chat.messages.sole
-      expect(kickoff.content).to include("source" => "supervisor_kickoff")
+      expect(chat.messages.pluck(:role)).to eq([ "user" ])
+      expect(chat.messages.first.content).to include(
+        "source" => "supervisor_kickoff",
+        "text" => include("Supervisor operations triage")
+      )
     end
 
     it "rejects unknown notification kinds" do

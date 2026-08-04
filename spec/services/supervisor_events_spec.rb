@@ -18,6 +18,7 @@ RSpec.describe SupervisorEvents, type: :service do
   before do
     feature.update!(enabled: false)
     Feature.clear_enabled_cache!("admin_supervisor_chat")
+    clear_enqueued_jobs
     allow(AppEvents).to receive(:broadcast)
   end
 
@@ -102,8 +103,11 @@ RSpec.describe SupervisorEvents, type: :service do
       "id" => repository.id,
       "slug" => repository.slug
     )
-    kickoff = chat.messages.sole
-    expect(kickoff.content).to include("source" => "supervisor_kickoff")
+    expect(chat.messages.pluck(:role)).to eq([ "user" ])
+    expect(chat.messages.first.content).to include(
+      "source" => "supervisor_kickoff",
+      "text" => include("Supervisor operations triage")
+    )
     expect(ChatScopedEventEvaluatorJob).to have_been_enqueued.with(scoped_event.id, chat.id)
   end
 
@@ -122,10 +126,8 @@ RSpec.describe SupervisorEvents, type: :service do
       )
     end
 
-    expect(admin.chat_sessions.find_by!(system_kind: "supervisor").messages.where(role: "user").sole.content)
-      .to include("source" => "supervisor_kickoff")
-    expect(other_admin.chat_sessions.find_by!(system_kind: "supervisor").messages.where(role: "user").sole.content)
-      .to include("source" => "supervisor_kickoff")
+    expect(admin.chat_sessions.find_by!(system_kind: "supervisor").messages.count).to eq(1)
+    expect(other_admin.chat_sessions.find_by!(system_kind: "supervisor").messages.count).to eq(1)
     expect(admin.chat_sessions.find_by!(system_kind: "supervisor").scoped_events.count).to eq(1)
     expect(other_admin.chat_sessions.find_by!(system_kind: "supervisor").scoped_events.count).to eq(1)
   end
@@ -134,7 +136,7 @@ RSpec.describe SupervisorEvents, type: :service do
     enable_supervisor_chat!
     SupervisorChat.ensure_for!(admin)
     SupervisorChat.ensure_for!(other_admin)
-    ActiveJob::Base.queue_adapter.enqueued_jobs.clear
+    clear_enqueued_jobs
 
     expect {
       described_class.publish!(
