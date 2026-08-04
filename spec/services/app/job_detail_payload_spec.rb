@@ -1052,6 +1052,32 @@ RSpec.describe App::JobDetailPayload do
         "dependencies" => [ { "slug" => "JOB-1574" } ]
       )
     end
+
+    it "returns the block reason from a running workflow deferred at a phase boundary" do
+      job = Factories.job_record(user: user, repository: repo, state: "running")
+      Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "running",
+        artifacts: {
+          "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
+          "start_blocked_at" => "2026-08-04T12:00:00Z",
+          "start_blocked_details" => {
+            "action" => "delay_until",
+            "reason" => "worker_host_pressure_high",
+            "phase_step_kind" => "grader_fanout"
+          }
+        }
+      )
+
+      result = payload_for(job)
+      expect(result.dig(:job, :start_blocked_reason)).to eq("workflow_admission_budget")
+      expect(result.dig(:job, :start_blocked_at)).to eq("2026-08-04T12:00:00Z")
+      expect(result.dig(:job, :start_blocked_details)).to include(
+        "reason" => "worker_host_pressure_high",
+        "phase_step_kind" => "grader_fanout"
+      )
+    end
   end
 
   describe "dependencies" do

@@ -1029,6 +1029,115 @@ RSpec.describe StepDispatcher do
   end
 end
 
+RSpec.describe StepDispatcher, "phase admission gate" do
+  include ActiveJob::TestHelper
+
+  let(:job_model) { Factories.job_record(state: "queued") }
+  let!(:workflow) { Workflow.create!(job: job_model, trigger_kind: "initial") }
+  let!(:implement) { Step.create!(workflow: workflow, kind: "implement", position: 0) }
+  let!(:grader_fanout) { Step.create!(workflow: workflow, kind: "grader_fanout", position: 1) }
+
+  before do
+    clear_enqueued_jobs
+    implement.update!(next_step_id: grader_fanout.id)
+    workflow.update!(state: "running", started_at: 1.minute.ago)
+    implement.update_columns(state: "succeeded", started_at: 1.minute.ago, finished_at: Time.current)
+  end
+
+  def resource_profile(step_kind:, duration: 2_400, cpu: 90.0, io: 40.0, memory: 70.0, grader_name: "")
+    WorkflowStepResourceProfile.create!(
+      repository: job_model.repository,
+      agent_provider: workflow.agent_provider,
+      trigger_kind: workflow.trigger_kind,
+      step_kind: step_kind,
+      grader_name: grader_name,
+      job_kind: job_model.kind.to_s,
+      sample_count: 40,
+      p90_duration_seconds: duration,
+      p90_cpu_pressure: cpu,
+      p90_io_pressure: io,
+      p90_memory_used_percent: memory,
+      timeout_rate: 0.0,
+      failure_rate: 0.0,
+      last_observed_at: Time.current,
+      profile_version: WorkflowStepResourceProfile::PROFILE_VERSION
+    )
+  end
+
+  def worker_pressure!(cpu: 90.0, memory: 50.0)
+    WorkerHostHealthSample.create!(
+      hostname: "worker-1",
+      role: "worker",
+      version: "test",
+      observed_at: Time.current,
+      cpu_pressure_some: cpu,
+      memory_used_percent: memory,
+      raw_metrics: {}
+    )
+  end
+
+  it "defers a costly grader phase while worker pressure is high" do
+    worker_pressure!
+    resource_profile(step_kind: "grader", grader_name: "production-build-boot")
+
+    expect {
+      described_class.advance_from(implement)
+    }.not_to change { grader_fanout.runs.count }
+
+    expect(workflow.reload.artifact("start_blocked_reason")).to eq(StepDispatcher::ADMISSION_BLOCK_REASON)
+    expect(workflow.artifact("start_blocked_details")).to include(
+      "action" => "delay_until",
+      "reason" => "worker_host_pressure_high",
+      "phase_step_id" => grader_fanout.id,
+      "phase_step_kind" => "grader_fanout"
+    )
+    recheck_jobs = enqueued_jobs.select { |entry| entry[:job] == WorkflowPhaseAdmissionJob }
+    expect(recheck_jobs).to be_present
+    expect(recheck_jobs.last[:priority]).to eq(job_model.solid_queue_priority)
+  end
+
+  it "admits a deferred grader phase when pressure falls" do
+    worker_pressure!
+    resource_profile(step_kind: "grader", grader_name: "production-build-boot")
+    described_class.advance_from(implement)
+    WorkerHostHealthSample.delete_all
+
+    expect {
+      described_class.resume_deferred_phase(workflow.id, grader_fanout.id)
+    }.to change { grader_fanout.runs.count }.by(1)
+
+    expect(workflow.reload.artifact("start_blocked_reason")).to be_nil
+  end
+
+  it "preserves urgent priority semantics at phase boundaries" do
+    job_model.update_columns(priority: "urgent")
+    worker_pressure!
+    resource_profile(step_kind: "grader", grader_name: "production-build-boot")
+
+    expect {
+      described_class.advance_from(implement)
+    }.to change { grader_fanout.runs.count }.by(1)
+
+    expect(workflow.reload.artifact("workflow_admission_override")).to include(
+      "reason" => "urgent_priority_override",
+      "override" => true
+    )
+  end
+
+  it "does not deadlock a phase when no resource profile exists" do
+    worker_pressure!
+
+    expect {
+      described_class.advance_from(implement)
+    }.to change { grader_fanout.runs.count }.by(1)
+
+    expect(workflow.reload.artifact("workflow_admission_decision")).to include(
+      "action" => "admit_low_risk_only",
+      "reason" => "worker_host_pressure_high"
+    )
+  end
+end
+
 RSpec.describe StepDispatcher, "urgent_blocking gate" do
   include ActiveJob::TestHelper
 

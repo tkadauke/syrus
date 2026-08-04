@@ -41,8 +41,9 @@ class WorkflowAdmissionBudget
 
   def self.call(...) = new(...).call
 
-  def initialize(workflow:, now: Time.current)
+  def initialize(workflow:, step: nil, now: Time.current)
     @workflow = workflow
+    @step = step
     @job = workflow.job
     @repository = @job.repository
     @now = now
@@ -51,7 +52,7 @@ class WorkflowAdmissionBudget
   def call
     return admit("non_admitted_queue") unless admission_controlled_workflow?
 
-    candidate = predicted_pressure_for(workflow)
+    candidate = predicted_candidate_pressure
     active = active_workflow_pressure
     pressure = pressure_payload(candidate:, active:)
     hard_reason = hard_host_pressure_reason
@@ -85,7 +86,7 @@ class WorkflowAdmissionBudget
 
   private
 
-  attr_reader :workflow, :job, :repository, :now
+  attr_reader :workflow, :job, :repository, :now, :step
 
   def admission_controlled_workflow?
     queue_name.in?(%i[runs merges]) && !workflow.infrastructure_workflow?
@@ -105,9 +106,21 @@ class WorkflowAdmissionBudget
     %w[medium low].include?(job.priority.to_s)
   end
 
+  def predicted_candidate_pressure
+    step ? predicted_pressure_for_step(step) : predicted_pressure_for(workflow)
+  end
+
   def predicted_pressure_for(candidate_workflow, remaining_only: false)
     step_kinds = step_kinds_for(candidate_workflow, remaining_only:)
-    profiles = profiles_for(candidate_workflow, step_kinds:)
+    pressure_from_profiles(step_kinds, profiles_for(candidate_workflow, step_kinds:))
+  end
+
+  def predicted_pressure_for_step(candidate_step)
+    step_kinds = [ candidate_step.kind ]
+    pressure_from_profiles(step_kinds, profiles_for_step(candidate_step))
+  end
+
+  def pressure_from_profiles(step_kinds, profiles)
     predictions = predictions_for(step_kinds, profiles)
     duration = predictions.sum { |prediction| prediction.fetch(:duration_seconds).to_f }
     cpu = predictions.sum { |prediction| prediction.fetch(:cpu_pressure).to_f }
@@ -161,14 +174,7 @@ class WorkflowAdmissionBudget
   end
 
   def profiles_for(candidate_workflow, step_kinds:)
-    candidate_job = candidate_workflow.job
-    base = WorkflowStepResourceProfile.where(
-      repository: candidate_job.repository,
-      agent_provider: candidate_workflow.agent_provider,
-      trigger_kind: candidate_workflow.trigger_kind,
-      job_kind: candidate_job.kind.to_s
-    )
-
+    base = profile_scope_for(candidate_workflow)
     selected = base.where(step_kind: step_kinds, grader_name: "").to_a
     if step_kinds.include?("grader_fanout")
       selected.concat(base.where(step_kind: "grader").to_a)
@@ -178,6 +184,30 @@ class WorkflowAdmissionBudget
     end
 
     selected
+  end
+
+  def profiles_for_step(candidate_step)
+    base = profile_scope_for(workflow)
+    case candidate_step.kind
+    when "grader"
+      base.where(step_kind: "grader", grader_name: candidate_step.details.to_h["name"].to_s).to_a
+    when "grader_fanout"
+      base.where(step_kind: "grader_fanout", grader_name: "").to_a + base.where(step_kind: "grader").to_a
+    when "preflight_grader_fanout"
+      base.where(step_kind: "preflight_grader_fanout", grader_name: "").to_a + base.where(step_kind: "preflight_grader").to_a
+    else
+      base.where(step_kind: candidate_step.kind, grader_name: "").to_a
+    end
+  end
+
+  def profile_scope_for(candidate_workflow)
+    candidate_job = candidate_workflow.job
+    WorkflowStepResourceProfile.where(
+      repository: candidate_job.repository,
+      agent_provider: candidate_workflow.agent_provider,
+      trigger_kind: candidate_workflow.trigger_kind,
+      job_kind: candidate_job.kind.to_s
+    )
   end
 
   def predictions_for(step_kinds, profiles)
@@ -363,7 +393,7 @@ class WorkflowAdmissionBudget
   end
 
   def admit(reason, pressure = nil)
-    decision("admit_now", reason, pressure || pressure_payload(candidate: predicted_pressure_for(workflow), active: active_workflow_pressure))
+    decision("admit_now", reason, pressure || pressure_payload(candidate: predicted_candidate_pressure, active: active_workflow_pressure))
   end
 
   def delay(reason, pressure, details: {})

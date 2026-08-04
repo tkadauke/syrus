@@ -119,7 +119,8 @@ class StepDispatcher
 
     run = create_run_and_enqueue(first, workflow,
                                  parent_session_id: parent_session_id,
-                                 prompt: prompt)
+                                 prompt: prompt,
+                                 check_phase_admission: false)
     workflow.job.log_pending_dependency_warnings!
     log_prepare_skip(run, workflow)
     run
@@ -137,6 +138,7 @@ class StepDispatcher
   FAN_IN_BLOCK_REASON = JobStackResolver::FAN_IN_BLOCK_REASON
   JOB_BLOCK_REASON = "job_not_ready_for_execution"
   ADMISSION_BLOCK_REASON = "workflow_admission_budget"
+  PHASE_ADMISSION_RECHECK_DELAY = 10.minutes
   START_BLOCKED_BACKOFF = 5.minutes
 
   def self.main_health_blocking?(workflow)
@@ -275,7 +277,11 @@ class StepDispatcher
   # after_create_commit auto-enqueues RunJob, so we don't enqueue
   # explicitly. trigger_kind is denormalized from Workflow until
   # commit 9's cleanup migration drops Run.trigger_kind entirely.
-  def self.create_run_and_enqueue(step, workflow, parent_session_id: nil, prompt: nil)
+  def self.create_run_and_enqueue(step, workflow, parent_session_id: nil, prompt: nil, check_phase_admission: true)
+    if check_phase_admission && phase_admission_deferred?(step, workflow)
+      return nil
+    end
+
     step.runs.create!(
       job: workflow.job,
       trigger_kind: workflow.trigger_kind,
@@ -284,6 +290,59 @@ class StepDispatcher
       parent_session_id: parent_session_id,
       prompt: prompt
     )
+  end
+
+  def self.phase_admission_deferred?(step, workflow)
+    return false if step.runs.any?
+
+    admission = WorkflowAdmissionBudget.call(workflow: workflow, step: step)
+    if admission.admit?
+      record_admission_decision!(workflow, admission)
+      clear_start_blocked!(workflow, ADMISSION_BLOCK_REASON)
+      return false
+    end
+
+    backoff = admission.delay_until ? admission_backoff(admission) : PHASE_ADMISSION_RECHECK_DELAY
+    details = admission.artifact.merge(
+      "phase_step_id" => step.id,
+      "phase_step_kind" => step.kind,
+      "phase_step_position" => step.position
+    )
+    record_start_blocked!(workflow, ADMISSION_BLOCK_REASON, backoff: backoff, details: details)
+    append_phase_deferral_log!(workflow, step, admission)
+    WorkflowPhaseAdmissionJob.set(wait: backoff, priority: workflow.job.solid_queue_priority).perform_later(workflow.id, step.id)
+    true
+  end
+
+  def self.append_phase_deferral_log!(workflow, step, admission)
+    run = step.previous_step&.latest_run ||
+      Run.joins(:step).where(steps: { workflow_id: workflow.id }).order(:created_at).last
+    return unless run
+
+    JobLog.append!(
+      run: run,
+      kind: "system",
+      chunk: "workflow admission delayed before #{step.kind}: #{admission.reason}"
+    )
+  end
+
+  def self.resume_deferred_phase(workflow_id, step_id = nil)
+    workflow = Workflow.find_by(id: workflow_id)
+    return unless workflow&.queued? || workflow&.running?
+
+    step = step_id ? workflow.steps.find_by(id: step_id) : next_queued_step_without_run(workflow)
+    return unless step&.queued?
+    return if step.runs.any?
+
+    if step.id == workflow.first_step&.id
+      start_workflow(workflow)
+    elsif (previous = step.previous_step)&.succeeded?
+      advance_from(previous)
+    end
+  end
+
+  def self.next_queued_step_without_run(workflow)
+    workflow.steps.order(:position).detect { |candidate| candidate.queued? && candidate.runs.none? }
   end
 
   def self.fail_from(step)

@@ -576,19 +576,21 @@ module App
     end
 
     def job_start_blocked_reason
-      queued_workflow_for_start_blocked&.artifact("start_blocked_reason")
+      workflow_for_start_blocked&.artifact("start_blocked_reason")
     end
 
     def job_start_blocked_at
-      queued_workflow_for_start_blocked&.artifact("start_blocked_at")
+      workflow_for_start_blocked&.artifact("start_blocked_at")
     end
 
     def job_start_blocked_details
-      queued_workflow_for_start_blocked&.artifact("start_blocked_details")
+      workflow_for_start_blocked&.artifact("start_blocked_details")
     end
 
-    def queued_workflow_for_start_blocked
-      @queued_workflow_for_start_blocked ||= @job.workflows.find { |wf| wf.state == "queued" }
+    def workflow_for_start_blocked
+      @workflow_for_start_blocked ||= @job.workflows
+        .select { |wf| wf.state.in?(%w[queued running]) && wf.artifact("start_blocked_reason").present? }
+        .max_by(&:created_at)
     end
 
     def summary_state(job)
