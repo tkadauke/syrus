@@ -143,6 +143,42 @@ RSpec.describe "SyrusChatMcp admin tools" do
     end
   end
 
+  it "creates and confirms Job-scoped repair actions from repositoryless Supervisor chats" do
+    supervisor_session = ChatSession.create!(user: admin, system_kind: "supervisor")
+    job = Factories.job_record(user: user, repository: Factories.repository(user: user), state: "open")
+    repair_result = JobStateRepair::Result.new(job: job, message: "inspected")
+    allow(JobStateRepair).to receive(:reconcile!)
+      .with(job: job, mode: "auto", reason: "JOB-2415 has state drift.")
+      .and_return(repair_result)
+
+    response = call_tool(
+      supervisor_session,
+      "reconcile_job_state",
+      { job_id: job.id, mode: "auto", reason: "JOB-2415 has state drift." }
+    )
+    payload = payload_for(response)
+    action = ChatPendingAction.find(payload.fetch(:pending_confirmation_id))
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(action).to have_attributes(
+      chat_session: supervisor_session,
+      user: admin,
+      repository: nil,
+      action: "reconcile_job_state",
+      requested_by: "agent",
+      reason: "JOB-2415 has state drift."
+    )
+    expect(action.payload).to include("job_id" => job.id, "mode" => "auto")
+
+    expect(action.confirm!(user: admin)).to be true
+    expect(JobStateRepair).to have_received(:reconcile!)
+      .with(job: job, mode: "auto", reason: "JOB-2415 has state drift.")
+    expect(action.reload).to be_confirmed
+    expect(action.result).to eq(job)
+    expect(action.before_snapshot).to include("jobs")
+    expect(action.after_snapshot).to include("jobs")
+  end
+
   it "anchors admin pending actions to the current assistant message" do
     message = admin_session.messages.create!(role: "assistant", content: { "text" => "I can pause runs." })
 

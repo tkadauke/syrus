@@ -369,6 +369,46 @@ RSpec.describe SyrusChatMcp::Sidecar do
       expect(described_class.tool_names(tier: :essential)).to include(*admin_tool_names)
       expect(described_class.tool_names(tier: :deferred)).not_to include(*tool_names.grep(/\Aadmin_/))
     end
+
+    it "advertises the repair toolkit to repositoryless Supervisor chats owned by admins" do
+      admin = Factories.user(admin: true)
+      supervisor_session = ChatSession.create!(user: admin, system_kind: "supervisor")
+
+      tool_names = described_class.tool_names(supervisor_session, tier: :essential)
+
+      expect(tool_names).to include(
+        "reconcile_job_state",
+        "force_state_transition",
+        "cancel_stale_work",
+        "reenqueue_work",
+        "force_rebase",
+        "restack_epic",
+        "force_landing_recheck",
+        "manual_agentic_run",
+        "adopt_current_pr_head",
+        "replace_pr_branch_with_workflow_output",
+        "retry_from_current_pr_branch",
+        "refresh_pr_checks",
+        "rerun_ci_repair",
+        "mark_ci_repair_noop",
+        "override_landing_blocker_once",
+        "wake_landing_queue"
+      )
+    end
+
+    it "does not advertise the repair toolkit to non-admin Supervisor chats" do
+      supervisor_session = ChatSession.create!(user: user, system_kind: "supervisor")
+
+      tool_names = described_class.tool_names(supervisor_session, tier: :essential)
+
+      expect(tool_names).not_to include(
+        "reconcile_job_state",
+        "force_rebase",
+        "restack_epic",
+        "rerun_ci_repair",
+        "override_landing_blocker_once"
+      )
+    end
   end
 
   describe ".new" do

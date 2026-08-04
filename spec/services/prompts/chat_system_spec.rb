@@ -90,6 +90,39 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("Keep audit clarity in the chat")
   end
 
+  it "instructs admin chats to diagnose before requesting repair actions" do
+    admin = Factories.user(admin: true)
+    chat = ChatSession.create!(user: admin, system_kind: "supervisor")
+
+    out = described_class.new(repository: nil, chat_session: chat).to_s
+
+    expect(out).to include("## Admin Repair Toolkit")
+    expect(out).to include("These tools are available even when the chat has no\nattached repository")
+    expect(out).to include("Diagnose first: use read-only tools such as `read_job`")
+    expect(out).to include("`explain_stuck_job`, `admin_stuck_jobs`, `read_queue`")
+    expect(out).to include("Choose the smallest safe repair that matches the evidence")
+    expect(out).to include("`reconcile_job_state` for state drift")
+    expect(out).to include("`mark_ci_repair_noop` or")
+    expect(out).to include("`rerun_ci_repair` for CI repair loops")
+    expect(out).to include("`adopt_current_pr_head`,")
+    expect(out).to include("`retry_from_current_pr_branch`, or")
+    expect(out).to include("`replace_pr_branch_with_workflow_output` for branch divergence")
+    expect(out).to include("Treat the tool response as")
+    expect(out).to include("a pending action: tell the operator exactly what would be confirmed")
+    expect(out).to include("Keep repair results operator-facing")
+  end
+
+  it "does not expose admin repair prompting to non-admin chats" do
+    Factories.user(admin: true)
+    user = Factories.user(admin: false)
+    chat = ChatSession.create!(user: user)
+
+    out = described_class.new(repository: nil, chat_session: chat).to_s
+
+    expect(out).not_to include("## Admin Repair Toolkit")
+    expect(out).not_to include("`reconcile_job_state` for state drift")
+  end
+
   it "does not frame missing repository attachment as a supervisor blocker" do
     admin = Factories.user(admin: true)
     chat = ChatSession.create!(user: admin, system_kind: "supervisor")

@@ -193,6 +193,197 @@ RSpec.describe ChatSessionRehydrator::Codex do
     expect(result.data[:error]).to be false
   end
 
+  describe "admin repair transcript sequences" do
+    def record_tool_call!(tool_name, tool_use_id, input:, result:)
+      full_name = "syrus-chat-sidecar.#{tool_name}"
+      create_message!(
+        role: "tool_use",
+        tool_name: full_name,
+        tool_use_id: tool_use_id,
+        content: {
+          "type" => "tool_use",
+          "id" => tool_use_id,
+          "name" => full_name,
+          "input" => input
+        }
+      )
+      create_message!(
+        role: "tool_result",
+        tool_name: full_name,
+        tool_use_id: tool_use_id,
+        content: {
+          "type" => "tool_result",
+          "tool_use_id" => tool_use_id,
+          "content" => JSON.generate(result),
+          "is_error" => false
+        }
+      )
+    end
+
+    def rehydrated_mcp_items
+      parsed_lines(described_class.new(session, session_id: "repair-thread").call)
+        .select { |line| line["type"] == "item.completed" && line.dig("item", "type") == "mcp_tool_call" }
+        .map { |line| line.fetch("item") }
+    end
+
+    shared_examples "a diagnostic-first repair transcript" do |params|
+      incident = params.fetch(:incident)
+      calls = params.fetch(:calls)
+      repair_tool = params.fetch(:repair_tool)
+
+      it "preserves diagnostic-first tool order for #{incident}" do
+        calls.each_with_index do |call, index|
+          record_tool_call!(
+            call.fetch(:tool),
+            "repair-#{index}",
+            input: call.fetch(:input),
+            result: call.fetch(:result)
+          )
+        end
+
+        items = rehydrated_mcp_items
+        tool_names = items.map { |item| item.fetch("tool") }
+
+        expect(tool_names).to eq(calls.map { |call| call.fetch(:tool) })
+        expect(tool_names.last).to eq(repair_tool)
+        expect(tool_names[0...-1]).not_to include(repair_tool)
+
+        repair_result = JSON.parse(items.last.fetch("result"))
+        expect(repair_result).to include(
+          "pending_action_id" => kind_of(Integer),
+          "state" => "pending",
+          "message" => a_string_including("JOB-")
+        )
+        expect(repair_result.keys).not_to include("before_snapshot", "after_snapshot")
+      end
+    end
+
+    include_examples(
+      "a diagnostic-first repair transcript",
+      {
+        incident: "JOB-2415 state drift",
+        repair_tool: "reconcile_job_state",
+        calls: [
+        {
+          tool: "read_job",
+          input: { "job_id" => 2415 },
+          result: { "job" => { "id" => 2415, "state" => "open" }, "links" => { "admin" => "/admin/jobs/2415" } }
+        },
+        {
+          tool: "list_job_workflows",
+          input: { "job_id" => 2415 },
+          result: { "job_id" => 2415, "workflows" => [ { "id" => 15952, "state" => "succeeded" } ] }
+        },
+        {
+          tool: "reconcile_job_state",
+          input: { "job_id" => 2415, "mode" => "auto", "reason" => "State drift after terminal workflow." },
+          result: { "pending_action_id" => 101, "state" => "pending", "message" => "Reconcile JOB-2415 using mode auto?" }
+        }
+        ]
+      }
+    )
+
+    include_examples(
+      "a diagnostic-first repair transcript",
+      {
+        incident: "JOB-2265 no-op CI repair",
+        repair_tool: "mark_ci_repair_noop",
+        calls: [
+        {
+          tool: "read_job",
+          input: { "job_id" => 2265 },
+          result: { "job" => { "id" => 2265, "pr_checks_state" => "failure" } }
+        },
+        {
+          tool: "read_workflow",
+          input: { "workflow_id" => 991 },
+          result: { "workflow" => { "id" => 991, "trigger_kind" => "ci_failure", "state" => "succeeded" } }
+        },
+        {
+          tool: "mark_ci_repair_noop",
+          input: { "job_id" => 2265, "workflow_id" => 991, "reason" => "Repair produced no branch or check progress." },
+          result: { "pending_action_id" => 102, "state" => "pending", "message" => "Mark CI repair no-op for JOB-2265?" }
+        }
+        ]
+      }
+    )
+
+    include_examples(
+      "a diagnostic-first repair transcript",
+      {
+        incident: "branch divergence",
+        repair_tool: "retry_from_current_pr_branch",
+        calls: [
+        {
+          tool: "read_workflow",
+          input: { "workflow_id" => 992 },
+          result: { "workflow" => { "id" => 992, "state" => "failed" }, "artifacts" => { "branch_divergence" => true } }
+        },
+        {
+          tool: "get_job_diff",
+          input: { "job_id" => 2301 },
+          result: { "job_id" => 2301, "diff" => { "truncated" => true, "files" => 4 } }
+        },
+        {
+          tool: "retry_from_current_pr_branch",
+          input: { "job_id" => 2301, "workflow_id" => 992, "reason" => "Remote PR head supersedes stale workflow output." },
+          result: { "pending_action_id" => 103, "state" => "pending", "message" => "Retry JOB-2301 from the current PR branch?" }
+        }
+        ]
+      }
+    )
+
+    include_examples(
+      "a diagnostic-first repair transcript",
+      {
+        incident: "stale active workflow",
+        repair_tool: "cancel_stale_work",
+        calls: [
+        {
+          tool: "admin_stuck_jobs",
+          input: {},
+          result: { "items" => [ { "id" => 2330, "workflow_id" => 993, "run_id" => 994, "attention_state" => "auto_repairable" } ] }
+        },
+        {
+          tool: "explain_stuck_job",
+          input: { "job_id" => 2330 },
+          result: { "job_id" => 2330, "issues" => [ { "kind" => "running_run_without_live_worker_evidence" } ] }
+        },
+        {
+          tool: "cancel_stale_work",
+          input: { "job_id" => 2330, "workflow_ids" => [ 993 ], "run_ids" => [ 994 ], "reason" => "No live worker evidence for active run." },
+          result: { "pending_action_id" => 104, "state" => "pending", "message" => "Cancel stale work for JOB-2330?" }
+        }
+        ]
+      }
+    )
+
+    include_examples(
+      "a diagnostic-first repair transcript",
+      {
+        incident: "wrong landing blocker",
+        repair_tool: "force_landing_recheck",
+        calls: [
+        {
+          tool: "read_job",
+          input: { "job_id" => 2402 },
+          result: { "job" => { "id" => 2402, "state" => "approved", "landing_queue_blocked_reason" => { "key" => "active_workflow" } } }
+        },
+        {
+          tool: "read_queue",
+          input: { "scope" => "landing" },
+          result: { "landing" => [ { "job_id" => 2402, "blocked_reason" => "active_workflow" } ] }
+        },
+        {
+          tool: "force_landing_recheck",
+          input: { "job_id" => 2402, "reason" => "Refresh stale landing blocker before override." },
+          result: { "pending_action_id" => 105, "state" => "pending", "message" => "Force landing recheck for JOB-2402? Current blocker: active_workflow." }
+        }
+        ]
+      }
+    )
+  end
+
   # ---------------------------------------------------------------------------
   # Unit: bash tool_use → command_execution
   # ---------------------------------------------------------------------------

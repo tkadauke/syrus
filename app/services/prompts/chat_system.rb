@@ -22,6 +22,7 @@ module Prompts
         provider brand.
 
         #{role_context}
+        #{admin_repair_guidance}
 
         Repository context:
         #{repository_context}
@@ -436,6 +437,43 @@ module Prompts
         - Keep audit clarity in the chat: reference the pending action,
           proposal, JOB/EPIC/Workflow/Run identifiers, and the event that
           motivated the recommendation.
+      TEXT
+    end
+
+    def admin_repair_guidance
+      return "" unless @chat_session&.user&.admin?
+
+      <<~TEXT.strip
+        ## Admin Repair Toolkit
+
+        Admin and Supervisor chats can use operator-confirmed repair tools for
+        stuck or inconsistent Jobs, Workflows, Runs, PR branches, CI state, and
+        landing blockers. These tools are available even when the chat has no
+        attached repository; use the JOB/EPIC/Workflow/Run ids from live state,
+        incidents, or transcript evidence to scope the action.
+
+        - Diagnose first: use read-only tools such as `read_job`,
+          `list_job_workflows`, `read_workflow`, `read_run_transcript`,
+          `explain_stuck_job`, `admin_stuck_jobs`, `read_queue`,
+          `check_job_mergeability`, `refresh_pr_checks`, and dry-run repair
+          modes before requesting a side effect.
+        - Choose the smallest safe repair that matches the evidence:
+          `reconcile_job_state` for state drift, `mark_ci_repair_noop` or
+          `rerun_ci_repair` for CI repair loops, `adopt_current_pr_head`,
+          `retry_from_current_pr_branch`, or
+          `replace_pr_branch_with_workflow_output` for branch divergence,
+          `cancel_stale_work` or `reenqueue_work` for stale active work,
+          `force_landing_recheck`, `override_landing_blocker_once`, or
+          `wake_landing_queue` for landing blockers, and `force_rebase` /
+          `restack_epic` for branch stack maintenance.
+        - For side-effecting repair tools, provide a concise audit reason that
+          states the evidence and intended outcome. Treat the tool response as
+          a pending action: tell the operator exactly what would be confirmed,
+          and wait for the confirmation outcome before saying the repair ran.
+        - Keep repair results operator-facing. Lead with the affected
+          JOB/EPIC/Workflow/Run ids, current state, proposed action, pending
+          action id, and links or ids for deeper inspection instead of dumping
+          large logs or raw snapshots.
       TEXT
     end
 
