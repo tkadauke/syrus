@@ -18,19 +18,19 @@ class SplitRunResourceSummaryAttribution < ActiveRecord::Migration[8.1]
     RENAMES.each do |old_name, new_name|
       rename_column :run_resource_summaries, old_name, new_name if column_exists?(:run_resource_summaries, old_name)
     end
-    add_column :run_resource_summaries, :process_attribution_method, :string, null: false, limit: 64, default: "unknown"
-    add_column :run_resource_summaries, :process_attribution_version, :integer, null: false, default: 1
-    add_column :run_resource_summaries, :process_attribution_confidence, :string, null: false, limit: 32, default: "unknown"
-    add_column :run_resource_summaries, :process_sample_count, :integer, null: false, default: 0
-    add_column :run_resource_summaries, :process_cpu_time_seconds, :float
-    add_column :run_resource_summaries, :process_wall_time_seconds, :float
-    add_column :run_resource_summaries, :process_max_rss_bytes, :bigint
-    add_column :run_resource_summaries, :process_read_io_bytes, :bigint
-    add_column :run_resource_summaries, :process_write_io_bytes, :bigint
-    add_column :run_resource_summaries, :process_descendant_process_count, :integer, null: false, default: 0
-    add_column :run_resource_summaries, :process_exit_statuses, :json
-    add_column :run_resource_summaries, :process_attribution_unavailable_reason, :string, limit: 255
-    add_column :run_resource_summaries, :process_resource_fallback, :boolean, null: false, default: false
+    add_column :run_resource_summaries, :process_attribution_method, :string, null: false, limit: 64, default: "unknown" unless column_exists?(:run_resource_summaries, :process_attribution_method)
+    add_column :run_resource_summaries, :process_attribution_version, :integer, null: false, default: 1 unless column_exists?(:run_resource_summaries, :process_attribution_version)
+    add_column :run_resource_summaries, :process_attribution_confidence, :string, null: false, limit: 32, default: "unknown" unless column_exists?(:run_resource_summaries, :process_attribution_confidence)
+    add_column :run_resource_summaries, :process_sample_count, :integer, null: false, default: 0 unless column_exists?(:run_resource_summaries, :process_sample_count)
+    add_column :run_resource_summaries, :process_cpu_time_seconds, :float unless column_exists?(:run_resource_summaries, :process_cpu_time_seconds)
+    add_column :run_resource_summaries, :process_wall_time_seconds, :float unless column_exists?(:run_resource_summaries, :process_wall_time_seconds)
+    add_column :run_resource_summaries, :process_max_rss_bytes, :bigint unless column_exists?(:run_resource_summaries, :process_max_rss_bytes)
+    add_column :run_resource_summaries, :process_read_io_bytes, :bigint unless column_exists?(:run_resource_summaries, :process_read_io_bytes)
+    add_column :run_resource_summaries, :process_write_io_bytes, :bigint unless column_exists?(:run_resource_summaries, :process_write_io_bytes)
+    add_column :run_resource_summaries, :process_descendant_process_count, :integer, null: false, default: 0 unless column_exists?(:run_resource_summaries, :process_descendant_process_count)
+    add_column :run_resource_summaries, :process_exit_statuses, :json unless column_exists?(:run_resource_summaries, :process_exit_statuses)
+    add_column :run_resource_summaries, :process_attribution_unavailable_reason, :string, limit: 255 unless column_exists?(:run_resource_summaries, :process_attribution_unavailable_reason)
+    add_column :run_resource_summaries, :process_resource_fallback, :boolean, null: false, default: false unless column_exists?(:run_resource_summaries, :process_resource_fallback)
 
     add_column :spawned_processes, :resource_attribution, :json unless column_exists?(:spawned_processes, :resource_attribution)
     add_column :command_spans, :resource_attribution, :json unless column_exists?(:command_spans, :resource_attribution)

@@ -256,6 +256,7 @@ class ProcessRunner
     @spawned_process.update!(pid: pid, pgid: pgid)
     @resource_sampler = ProcessResourceSampler.new(pid: pid, pgid: pgid)
     sample_resource_attribution!
+    @spawned_process.update_column(:resource_attribution, current_resource_attribution)
   rescue StandardError => e
     Rails.logger.warn("[ProcessRunner] failed to record pid #{pid}: #{e.class}: #{e.message}")
   end
@@ -267,8 +268,11 @@ class ProcessRunner
     last = @spawned_process.last_chunk_at
     return if last && (now - last) < HEARTBEAT_INTERVAL_SECONDS
 
-    @spawned_process.update_column(:last_chunk_at, now)
     sample_resource_attribution!
+    @spawned_process.update_columns(
+      last_chunk_at: now,
+      resource_attribution: current_resource_attribution
+    )
     heartbeat_run!(now)
   rescue StandardError => e
     Rails.logger.warn("[ProcessRunner] heartbeat failed: #{e.class}: #{e.message}")
@@ -291,7 +295,7 @@ class ProcessRunner
     return unless @spawned_process
 
     sample_resource_attribution!
-    resource_attribution = @resource_sampler&.payload || {}
+    resource_attribution = current_resource_attribution
     finished_at = Time.current
     rows = SpawnedProcess.where(id: @spawned_process.id, finished_at: nil)
                          .update_all(
@@ -304,7 +308,7 @@ class ProcessRunner
       Rails.logger.info("[ProcessRunner] SpawnedProcess ##{@spawned_process.id} already finalized (supervisor beat us)")
     else
       CommandSpan.where(spawned_process_id: @spawned_process.id).find_each do |span|
-        span.update_column(:resource_attribution, resource_attribution)
+        span.update_column(:resource_attribution, command_span_process_owned_payload)
       end
       ChatStopReconciler.reconcile_spawned_process!(@spawned_process, finished_at: finished_at)
     end
@@ -314,6 +318,20 @@ class ProcessRunner
 
   def sample_resource_attribution!
     @resource_sampler&.sample!
+  end
+
+  def current_resource_attribution
+    @resource_sampler&.payload || {}
+  end
+
+  def command_span_process_owned_payload
+    {
+      "method" => "spawned_process_owned",
+      "version" => ProcessResourceSampler::VERSION,
+      "confidence" => "low",
+      "sample_count" => 0,
+      "unavailable_reason" => "process-group resource attribution is owned by the spawned process"
+    }
   end
 
   def outcome_for(result)

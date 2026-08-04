@@ -197,6 +197,41 @@ RSpec.describe RunResourceSummaries::Builder do
     expect(second.host_pressure_level).to eq("critical")
   end
 
+  it "uses persisted process-attributed samples when refreshing an active run" do
+    wf = workflow
+    step = step_for(wf, kind: "implement", details: {})
+    run = run_for(step, state: "running", started_at: now - 2.minutes, finished_at: nil)
+    SpawnedProcess.create!(
+      run: run,
+      workflow: wf,
+      kind: "agent",
+      command: "codex exec",
+      hostname: "worker-a",
+      started_at: now - 90.seconds,
+      resource_attribution: {
+        "method" => "linux_proc_process_group",
+        "confidence" => "low",
+        "sample_count" => 1,
+        "cpu_time_seconds" => 12.25,
+        "max_rss_bytes" => 128.megabytes,
+        "read_io_bytes" => 4_096,
+        "write_io_bytes" => 8_192,
+        "descendant_process_count" => 2
+      }
+    )
+    sample(observed_at: now - 1.minute, memory_used_percent: 40.0)
+
+    summary = described_class.new(run: run, now: now).refresh!
+
+    expect(summary.process_attribution_method).to eq("linux_proc_process_group")
+    expect(summary.process_attribution_confidence).to eq("low")
+    expect(summary.process_sample_count).to eq(1)
+    expect(summary.process_cpu_time_seconds).to eq(12.25)
+    expect(summary.process_wall_time_seconds).to eq(90.0)
+    expect(summary.process_max_rss_bytes).to eq(128.megabytes)
+    expect(summary.process_resource_fallback).to be(false)
+  end
+
   it "marks summaries retention-limited when the run starts before retained host history" do
     wf = workflow
     step = step_for(wf)

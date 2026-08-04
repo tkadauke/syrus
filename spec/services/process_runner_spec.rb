@@ -119,6 +119,53 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(spawned_processes.first.resource_attribution).to include("method" => "linux_proc_process_group")
   end
 
+  it "keeps command span attribution distinct from spawned process attribution" do
+    job = Factories.job_record
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+    step = Step.create!(workflow: workflow, kind: "grader", position: 0, state: "running")
+    run = Run.create!(
+      job: job,
+      step: step,
+      trigger_kind: "initial",
+      agent_provider: "claude",
+      state: "running",
+      started_at: Time.current
+    )
+    span = nil
+
+    result = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "exit 0" ],
+      chdir: @dir,
+      timeout: 5,
+      kind: "grader",
+      run: run,
+      workflow: workflow,
+      on_spawned_process: ->(process) do
+        span = CommandSpan.create!(
+          job: job,
+          workflow: workflow,
+          step: step,
+          run: run,
+          spawned_process: process,
+          sequence: 1,
+          name: "rspec",
+          command_excerpt: "bin/rspec",
+          hostname: process.hostname,
+          started_at: Time.current
+        )
+      end
+    ).run
+
+    process = SpawnedProcess.find(result.spawned_process_id)
+    expect(process.resource_attribution).to include("method" => "linux_proc_process_group")
+    expect(span.reload.resource_attribution).to include(
+      "method" => "spawned_process_owned",
+      "sample_count" => 0,
+      "unavailable_reason" => "process-group resource attribution is owned by the spawned process"
+    )
+  end
+
   it "heartbeats a run while a silent spawned process is still alive" do
     job = Factories.job_record
     workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")

@@ -187,3 +187,18 @@ serialized Run includes its own compact correlation. Runs or spans older than
 `WorkerHostHealthSample::RETAIN_AFTER` are marked `retention_limited`; missing
 hostnames or samples return `pressure.level: "unknown"` rather than treating
 the interval as healthy.
+
+Run completion also writes one durable `run_resource_summary` row per Run. The
+summary intentionally separates host-correlated metrics from command-attributed
+metrics: `host_usage_*` and `host_pressure_*` fields describe ambient worker
+conditions during the Run window, while `process_*` fields describe resource
+usage attributed to spawned workflow commands when process-group accounting is
+available. Active Runs can refresh the row best-effort from the latest persisted
+spawned-process attribution payloads. When process attribution is unavailable,
+the row keeps `process_resource_fallback: true`, low confidence, and an explicit
+unavailable reason so profilers and schedulers do not confuse host pressure with
+command-owned CPU, RSS, or IO usage.
+
+Raw `worker_host_health_samples` keep their short retention window. Durable
+`run_resource_summaries` are detailed operational telemetry and are pruned after
+30 days by `RunResourceSummaryPruneJob`.
