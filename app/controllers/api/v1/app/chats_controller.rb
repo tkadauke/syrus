@@ -851,6 +851,7 @@ module Api
 
         def media
           chat_session = find_chat_session
+          ChatMediaLibrary.materialize_inline_images!(chat_session)
           whiteboard = chat_session.whiteboard
           whiteboard_elements = whiteboard ? Array(whiteboard.scene_json&.dig("elements")).reject { |el| el["isDeleted"] } : []
           latest_manual_snapshot = chat_session.whiteboard_snapshots

@@ -2642,6 +2642,32 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       )
     end
 
+    it "includes inline chat image attachments in chat_images" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+      chat.messages.create!(
+        role: "user",
+        content: {
+          "text" => "Screenshot attached.",
+          "attachments" => [
+            {
+              "name" => "bug-report-viewport.png",
+              "mime_type" => "image/png",
+              "data" => Base64.strict_encode64("png-bytes")
+            }
+          ]
+        }
+      )
+
+      get "/api/v1/app/chats/#{chat.id}/media"
+
+      expect(response).to have_http_status(:ok)
+      doc = chat.reload.attached_repository_documents.sole
+      expect(parse_body["chat_images"]).to contain_exactly(
+        include("id" => doc.id, "filename" => "bug-report-viewport.png", "content_type" => "image/png")
+      )
+    end
+
     it "excludes non-image documents from chat_images" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)

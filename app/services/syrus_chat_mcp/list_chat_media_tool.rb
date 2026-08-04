@@ -11,6 +11,7 @@ module SyrusChatMcp
     class << self
       def call(server_context:)
         chat_session = server_context.fetch(:chat_session)
+        ChatMediaLibrary.materialize_inline_images!(chat_session)
 
         snapshots = chat_session.whiteboard_snapshots.limit(10).map { |s| snapshot_payload(s) }
 

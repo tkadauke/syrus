@@ -79,6 +79,52 @@ RSpec.describe SyrusChatMcp::ListChatMediaTool do
     expect(img[:content_type]).to eq("image/png")
   end
 
+  it "materializes inline chat image attachments and returns them as chat_image refs" do
+    chat_session.messages.create!(
+      role: "user",
+      content: {
+        "text" => "Here is the media.",
+        "attachments" => [
+          {
+            "name" => "viewport.png",
+            "mime_type" => "image/png",
+            "data" => Base64.strict_encode64("png-bytes")
+          }
+        ]
+      }
+    )
+
+    result = payload(call_tool)
+
+    doc = chat_session.attached_repository_documents.sole
+    expect(doc.filename).to eq("viewport.png")
+    expect(doc.content_type).to eq("image/png")
+    expect(doc.file.download).to eq("png-bytes")
+    expect(result[:chat_images]).to contain_exactly(
+      include(id: "chat_image:#{doc.id}", kind: "chat_image", filename: "viewport.png", content_type: "image/png")
+    )
+  end
+
+  it "does not duplicate materialized inline image documents across calls" do
+    chat_session.messages.create!(
+      role: "user",
+      content: {
+        "text" => "",
+        "attachments" => [
+          {
+            "name" => "capture.png",
+            "mime_type" => "image/png",
+            "data" => Base64.strict_encode64("pixels")
+          }
+        ]
+      }
+    )
+
+    expect { call_tool }.to change(Document, :count).by(1)
+    expect { call_tool }.not_to change(Document, :count)
+    expect(chat_session.reload.attached_repository_documents.count).to eq(1)
+  end
+
   it "does not return media from other chat sessions" do
     other_session = ChatSession.create!(user: user, repository: repository)
     create_snapshot(chat_session: other_session)
