@@ -61,8 +61,39 @@ export type ChatGroupedMatch = {
   created_at: string | null
 }
 
-export function fetchSearch(search: string, signal?: AbortSignal) {
+export async function fetchSearch(search: string, signal?: AbortSignal) {
   const params = new URLSearchParams(search)
 
-  return getJson<SearchPayload>(`/api/v1/app/search?${params.toString()}`, { signal })
+  const payload = await getJson<SearchPayload | SearchResult[] | unknown>(`/api/v1/app/search?${params.toString()}`, { signal })
+  return normalizeSearchPayload(payload)
+}
+
+function normalizeSearchPayload(payload: SearchPayload | SearchResult[] | unknown): SearchPayload {
+  if (Array.isArray(payload)) {
+    return searchPayload(payload)
+  }
+
+  if (payload && typeof payload === "object") {
+    const record = payload as Partial<SearchPayload>
+
+    return {
+      results: Array.isArray(record.results) ? record.results : [],
+      filter: record.filter ?? null,
+      controls: {
+        filter_schema: Array.isArray(record.controls?.filter_schema) ? record.controls.filter_schema : []
+      }
+    }
+  }
+
+  return searchPayload([])
+}
+
+function searchPayload(results: SearchResult[]): SearchPayload {
+  return {
+    results,
+    filter: null,
+    controls: {
+      filter_schema: []
+    }
+  }
 }
