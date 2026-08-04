@@ -3,8 +3,7 @@ require "mcp"
 module SyrusMcp
   # MCP tool for insight agents to record a discovered pattern or improvement
   # suggestion as an InsightSuggestion record. Scope-enforced: evidence
-  # job_ids must belong to repositories accessible to the run's user.
-  # Admin users may reference jobs across any repository they control.
+  # job_ids and run_ids must belong to the current run's repository.
   class SubmitInsightTool < MCP::Tool
     SEVERITIES = InsightSuggestion::SEVERITIES.freeze
     PROPOSAL_TYPES = InsightSuggestion::PROPOSAL_TYPES.freeze
@@ -14,7 +13,7 @@ module SyrusMcp
     description <<~DESC
       Records a discovered improvement suggestion on the current insight Job.
       Call once per distinct finding. Evidence job_ids must belong to
-      repositories accessible to the running user.
+      the current run's repository.
     DESC
 
     input_schema(
@@ -105,6 +104,8 @@ module SyrusMcp
         return SyrusMcp.invalid("proposal_type must be one of: #{PROPOSAL_TYPES.join(', ')}") unless PROPOSAL_TYPES.include?(proposal_type_s)
 
         normalized_evidence = normalize_evidence(evidence)
+        return SyrusMcp.invalid("evidence must include at least one non-empty item or be omitted") if evidence_supplied?(evidence) && normalized_evidence.empty?
+
         scope_error = validate_evidence_scope(normalized_evidence, run)
         return SyrusMcp.invalid(scope_error) if scope_error
 
@@ -177,15 +178,30 @@ module SyrusMcp
       def normalize_evidence(evidence)
         return [] unless evidence.is_a?(Array)
 
-        evidence.map do |entry|
+        evidence.filter_map do |entry|
           next unless entry.is_a?(Hash)
 
-          {
-            "job_id" => entry["job_id"]&.to_i,
-            "run_id" => entry["run_id"]&.to_i,
-            "kind"   => entry["kind"].to_s.presence
+          normalized = {
+            "job_id" => integer_value(entry, "job_id"),
+            "run_id" => integer_value(entry, "run_id"),
+            "kind"   => string_value(entry, "kind").presence
           }.compact
-        end.compact
+
+          normalized.presence
+        end
+      end
+
+      def evidence_supplied?(evidence)
+        !evidence.nil?
+      end
+
+      def integer_value(hash, key)
+        Integer(hash[key] || hash[key.to_sym], exception: false)
+      end
+
+      def string_value(hash, key)
+        value = hash[key] || hash[key.to_sym]
+        value.to_s
       end
 
       def normalize_proposal_type(value, suggested_prompt:, memory_suggestion:)
@@ -197,20 +213,43 @@ module SyrusMcp
         "informational"
       end
 
-      # Returns an error string if any evidence job_id is not accessible to
-      # the run's user, nil otherwise. Admins bypass the check.
+      # Returns an error string if evidence references jobs or runs outside
+      # the current repository scope, or if a run_id is paired with the wrong
+      # job_id. Run-sidecar insight reads are repository-scoped, so writes use
+      # the same boundary even for admin users.
       def validate_evidence_scope(evidence, run)
         job_ids = evidence.filter_map { |e| e["job_id"] }.uniq
-        return nil if job_ids.empty?
+        run_ids = evidence.filter_map { |e| e["run_id"] }.uniq
+        return nil if job_ids.empty? && run_ids.empty?
 
-        user = run.job.user
-        return nil if user.admin?
+        repository_id = run.job.repository_id
 
-        accessible_ids = user.jobs.where(id: job_ids).pluck(:id)
-        foreign_ids    = job_ids - accessible_ids
-        return nil if foreign_ids.empty?
+        jobs_by_id = Job.where(id: job_ids, repository_id: repository_id).index_by(&:id)
+        inaccessible_job_ids = job_ids - jobs_by_id.keys
+        if inaccessible_job_ids.any?
+          return "evidence references jobs outside the current repository scope: #{inaccessible_job_ids.join(', ')}"
+        end
 
-        "evidence references jobs not accessible to this user: #{foreign_ids.join(', ')}"
+        runs_by_id = Run
+          .includes(:job)
+          .where(id: run_ids, jobs: { repository_id: repository_id })
+          .references(:job)
+          .index_by(&:id)
+        inaccessible_run_ids = run_ids - runs_by_id.keys
+        if inaccessible_run_ids.any?
+          return "evidence references runs outside the current repository scope: #{inaccessible_run_ids.join(', ')}"
+        end
+
+        evidence.each do |entry|
+          next unless entry["job_id"] && entry["run_id"]
+
+          evidence_run = runs_by_id[entry["run_id"]]
+          next if evidence_run&.job_id == entry["job_id"]
+
+          return "evidence run_id #{entry['run_id']} does not belong to job_id #{entry['job_id']}"
+        end
+
+        nil
       end
 
       def validate_target_memory(memory_id, run)

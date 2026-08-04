@@ -86,6 +86,19 @@ RSpec.describe SyrusMcp::ReadInsightTool do
       result = parsed_insight(call(id: insight.id))
       expect(result[:evidence]).to be_nil
     end
+
+    it "returns persisted evidence entries in the full payload" do
+      evidence_run = Factories.job(user: user, repository: repository).initial_run
+      insight.update!(evidence: [
+        { "job_id" => evidence_run.job_id, "run_id" => evidence_run.id, "kind" => "grader" }
+      ])
+
+      result = parsed_insight(call(id: insight.id))
+
+      expect(result[:evidence]).to eq([
+        { job_id: evidence_run.job_id, run_id: evidence_run.id, kind: "grader" }
+      ])
+    end
   end
 
   describe "not found" do

@@ -129,6 +129,28 @@ RSpec.describe SyrusMcp::SubmitInsightTool do
       expect(response).not_to be_error
       expect(InsightSuggestion.last.evidence).to be_an(Array)
     end
+
+    it "stores valid job-only evidence" do
+      other_job = Factories.job(user: user, repository: repository)
+
+      response = call(evidence: [ { "job_id" => other_job.id, "kind" => "issue" } ])
+
+      expect(response).not_to be_error
+      expect(InsightSuggestion.last.evidence).to eq([
+        { "job_id" => other_job.id, "kind" => "issue" }
+      ])
+    end
+
+    it "stores valid run-backed evidence" do
+      evidence_run = Factories.job(user: user, repository: repository).initial_run
+
+      response = call(evidence: [ { "job_id" => evidence_run.job_id, "run_id" => evidence_run.id, "kind" => "grader" } ])
+
+      expect(response).not_to be_error
+      expect(InsightSuggestion.last.evidence).to eq([
+        { "job_id" => evidence_run.job_id, "run_id" => evidence_run.id, "kind" => "grader" }
+      ])
+    end
   end
 
   describe "validation failures" do
@@ -173,9 +195,30 @@ RSpec.describe SyrusMcp::SubmitInsightTool do
       expect(response).to be_error
       expect(response.content.first[:text]).to include("confidence must be between 0.0 and 1.0")
     end
+
+    it "rejects evidence arrays that only contain blank objects" do
+      response = call(evidence: [ {} ])
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("evidence must include at least one non-empty item or be omitted")
+    end
+
+    it "rejects empty evidence arrays" do
+      response = call(evidence: [])
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("evidence must include at least one non-empty item or be omitted")
+    end
+
+    it "rejects create_job submissions whose supplied evidence normalizes to empty" do
+      response = call(suggested_prompt: "Fix the recurring failure", evidence: [ { "job_id" => nil, "run_id" => nil, "kind" => "" } ])
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("evidence must include at least one non-empty item or be omitted")
+    end
   end
 
-  describe "scope enforcement — cross-repo reads rejected for non-admin" do
+  describe "scope enforcement — cross-repo evidence rejected" do
     let(:other_user)       { Factories.user }
     let(:other_repository) { Factories.repository(user: other_user) }
 
@@ -188,10 +231,10 @@ RSpec.describe SyrusMcp::SubmitInsightTool do
       )
 
       expect(response).to be_error
-      expect(response.content.first[:text]).to include("evidence references jobs not accessible to this user")
+      expect(response.content.first[:text]).to include("evidence references jobs outside the current repository scope")
     end
 
-    it "allows evidence referencing foreign jobs when user is admin" do
+    it "rejects evidence referencing foreign jobs when user is admin" do
       user.update!(admin: true)
       foreign_job = Factories.job(user: other_user, repository: other_repository)
 
@@ -199,12 +242,31 @@ RSpec.describe SyrusMcp::SubmitInsightTool do
         evidence: [ { "job_id" => foreign_job.id, "kind" => "issue" } ]
       )
 
-      expect(response).not_to be_error
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("evidence references jobs outside the current repository scope")
     end
 
-    it "allows nil or empty evidence without scope error" do
+    it "allows nil evidence without scope error" do
       expect(call(evidence: nil)).not_to be_error
-      expect(call(evidence: [])).not_to be_error
+    end
+
+    it "rejects evidence when run_id belongs to a different job than job_id" do
+      evidence_job = Factories.job(user: user, repository: repository)
+      evidence_run = Factories.job(user: user, repository: repository).initial_run
+
+      response = call(evidence: [ { "job_id" => evidence_job.id, "run_id" => evidence_run.id, "kind" => "grader" } ])
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("does not belong to job_id")
+    end
+
+    it "rejects evidence when run_id belongs to another repository" do
+      foreign_run = Factories.job(user: other_user, repository: other_repository).initial_run
+
+      response = call(evidence: [ { "run_id" => foreign_run.id, "kind" => "grader" } ])
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("evidence references runs outside the current repository scope")
     end
   end
 
@@ -322,6 +384,26 @@ RSpec.describe SyrusMcp::SubmitInsightTool do
 
       expect(response).to be_error
       expect(response.content.first[:text]).to include("target_memory_id")
+    end
+
+    it "rejects revise_existing_insight submissions whose supplied evidence normalizes to empty" do
+      target = InsightSuggestion.create!(
+        job: run.job,
+        repository: repository,
+        title: "Old insight",
+        category: "configuration",
+        severity: "low",
+        confidence: 0.5
+      )
+
+      response = call(
+        proposal_type: "revise_existing_insight",
+        target_insight_id: target.id,
+        evidence: [ {} ]
+      )
+
+      expect(response).to be_error
+      expect(response.content.first[:text]).to include("evidence must include at least one non-empty item or be omitted")
     end
   end
 
