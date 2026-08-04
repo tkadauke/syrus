@@ -1278,6 +1278,47 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_04_153000) do
     t.index ["run_id"], name: "index_run_health_snapshots_on_run_id"
   end
 
+  create_table "run_resource_summaries", force: :cascade do |t|
+    t.string "agent_provider", limit: 64, null: false
+    t.float "avg_cpu_pressure"
+    t.float "avg_cpu_used_percent"
+    t.float "avg_io_pressure"
+    t.float "avg_memory_used_percent"
+    t.integer "command_span_count", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.float "duration_seconds"
+    t.datetime "finished_at"
+    t.string "grader_name", limit: 128
+    t.integer "host_sample_count", default: 0, null: false
+    t.string "hostname", limit: 255
+    t.bigint "job_id", null: false
+    t.float "max_cpu_pressure"
+    t.float "max_cpu_used_percent"
+    t.float "max_data_root_used_percent"
+    t.float "max_io_pressure"
+    t.float "max_memory_used_percent"
+    t.bigint "repository_id"
+    t.string "resource_pressure_level", limit: 32, null: false
+    t.json "resource_pressure_reasons", null: false
+    t.boolean "retention_limited", default: false, null: false
+    t.bigint "run_id", null: false
+    t.string "sample_confidence", limit: 32, null: false
+    t.integer "spawned_process_count", default: 0, null: false
+    t.datetime "started_at"
+    t.bigint "step_id"
+    t.string "step_kind", limit: 64
+    t.integer "summary_version", null: false
+    t.string "trigger_kind", limit: 64, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.bigint "workflow_id"
+    t.index ["hostname", "started_at"], name: "idx_run_resource_summaries_host_started"
+    t.index ["job_id"], name: "index_run_resource_summaries_on_job_id"
+    t.index ["repository_id", "step_kind", "created_at"], name: "idx_run_resource_summaries_repo_step_created"
+    t.index ["run_id"], name: "index_run_resource_summaries_on_run_id", unique: true
+    t.index ["workflow_id"], name: "index_run_resource_summaries_on_workflow_id"
+  end
+
   create_table "runs", force: :cascade do |t|
     t.text "agent_diff", limit: 16777215
     t.string "agent_outcome"
@@ -1788,6 +1829,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_04_153000) do
   add_foreign_key "run_diagnostics", "runs"
   add_foreign_key "run_failure_classifications", "runs"
   add_foreign_key "run_health_snapshots", "runs"
+  add_foreign_key "run_resource_summaries", "jobs"
+  add_foreign_key "run_resource_summaries", "repositories"
+  add_foreign_key "run_resource_summaries", "runs"
+  add_foreign_key "run_resource_summaries", "steps"
+  add_foreign_key "run_resource_summaries", "users"
+  add_foreign_key "run_resource_summaries", "workflows"
   add_foreign_key "runs", "jobs"
   add_foreign_key "runs", "steps"
   add_foreign_key "runs", "users"

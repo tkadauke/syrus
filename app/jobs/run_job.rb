@@ -322,6 +322,7 @@ class RunJob < ApplicationJob
       finished_at: Time.current,
       updated_at: Time.current
     )
+    RunResourceSummary.refresh_for(@run.reload)
   end
 
   # A failure is "workflow-controlled" when the dispatcher's per-kind

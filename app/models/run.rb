@@ -27,6 +27,7 @@ class Run < ApplicationRecord
           class_name: "ClaudeSession"
   has_one :run_diagnostic, dependent: :destroy
   has_one :run_failure_classification, dependent: :destroy
+  has_one :run_resource_summary, dependent: :destroy
 
   # Convenience walk up to Workflow when step is set.
   def workflow
@@ -116,6 +117,8 @@ class Run < ApplicationRecord
                        if: :saved_change_to_state_to_succeeded?
   after_update_commit :broadcast_provider_availability_after_success!,
                        if: :saved_change_to_state_to_succeeded?
+  after_update_commit :refresh_resource_summary_after_completion!,
+                       if: :saved_change_to_state_to_terminal?
 
   def saved_change_to_state_to_cancelled?
     saved_change_to_state? && state == "cancelled"
@@ -127,6 +130,10 @@ class Run < ApplicationRecord
 
   def saved_change_to_state_to_succeeded?
     saved_change_to_state? && state == "succeeded"
+  end
+
+  def saved_change_to_state_to_terminal?
+    saved_change_to_state? && terminal?
   end
 
   def cascade_cancel_to_workflow!
@@ -295,6 +302,10 @@ class Run < ApplicationRecord
   rescue StandardError => e
     Rails.logger.warn("[ProviderAvailability] failed to broadcast success for Run ##{id}: #{e.class}: #{e.message}")
     nil
+  end
+
+  def refresh_resource_summary_after_completion!
+    RunResourceSummary.refresh_for(self)
   end
 
   def enqueue_run_job

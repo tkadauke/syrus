@@ -55,6 +55,9 @@ default: &default
   prune_worker_host_health_samples:
     class: WorkerHostHealthSamplePruneJob
     schedule: every day at 3:15am
+  prune_run_resource_summaries:
+    class: RunResourceSummaryPruneJob
+    schedule: every day at 3:18am
   reap_stale_branches:
     class: ReapStaleBranchesJob
     schedule: every day at 3:40am

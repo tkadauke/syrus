@@ -340,6 +340,19 @@ RSpec.describe Run do
     end
   end
 
+  describe "resource summary refresh" do
+    it "refreshes the durable resource summary when the Run completes" do
+      run = job.initial_run
+      run.start!
+      run.save!
+
+      expect(RunResourceSummary).to receive(:refresh_for).with(run)
+
+      run.succeed!
+      run.save!
+    end
+  end
+
   describe "failure dispatch" do
     it "routes failed Runs through StepDispatcher.fail_from" do
       workflow = Workflow.create!(job: job, trigger_kind: "initial")

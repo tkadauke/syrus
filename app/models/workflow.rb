@@ -8,6 +8,7 @@ class Workflow < ApplicationRecord
   belongs_to :job
   belongs_to :user
   has_many :steps, -> { order(:position) }, dependent: :destroy
+  has_many :run_resource_summaries, dependent: :destroy
   has_many :mcp_tool_usages, dependent: :nullify
   has_many :auto_retry_attempts, dependent: :destroy
   has_one_attached :coverage_hit_map
@@ -324,6 +325,7 @@ class Workflow < ApplicationRecord
   def cancel_orphan_active_runs!
     Run.where(step_id: steps.select(:id)).active.find_each do |run|
       run.update_columns(state: "cancelled", finished_at: Time.current)
+      RunResourceSummary.refresh_for(run.reload)
     end
   end
 

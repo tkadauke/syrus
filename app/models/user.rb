@@ -9,6 +9,7 @@ class User < ApplicationRecord
   has_many :epics, dependent: :destroy
   has_many :owned_epics, class_name: "Epic", foreign_key: :owner_id, dependent: :nullify, inverse_of: :owner
   has_many :jobs, dependent: :destroy
+  has_many :run_resource_summaries, dependent: :destroy
   has_many :dashboard_owned_epics, class_name: "Epic", foreign_key: :owner_user_id, dependent: :nullify, inverse_of: :owner_user
   has_many :owned_jobs, class_name: "Job", foreign_key: :owner_user_id, dependent: :nullify, inverse_of: :owner_user
   has_many :workflows, through: :jobs
