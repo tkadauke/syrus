@@ -17,6 +17,12 @@ module SolidQueueTestTables
       end
     end
 
+    unless connection.index_exists?(:solid_queue_jobs, [ :class_name, :finished_at, :created_at ], name: "index_solid_queue_jobs_on_class_finished_created_at")
+      connection.add_index :solid_queue_jobs,
+        [ :class_name, :finished_at, :created_at ],
+        name: "index_solid_queue_jobs_on_class_finished_created_at"
+    end
+
     unless connection.table_exists?(:solid_queue_claimed_executions)
       connection.create_table :solid_queue_claimed_executions do |t|
         t.datetime :created_at, null: false

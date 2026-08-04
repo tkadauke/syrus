@@ -186,12 +186,12 @@ module SyrusMcp
     def solid_queue_payload
       return unavailable_queue_payload("SolidQueue is not loaded") unless defined?(SolidQueue::Job)
 
-      jobs = SolidQueue::Job.where(class_name: "RunJob").order(created_at: :desc).limit(100).to_a
+      jobs = SolidQueue::Job.where(class_name: "RunJob", finished_at: nil).order(created_at: :desc).limit(100).to_a
       matching = jobs.select { |queue_job| queue_job_run_id(queue_job) == run.id }
       {
         run_job_entries: matching.map { |queue_job| solid_queue_job_payload(queue_job) },
         sampled_run_job_count: jobs.size,
-        note: "Scans the latest 100 RunJob rows for the current run id."
+        note: "Scans the latest 100 unfinished RunJob rows for the current run id."
       }
     rescue ActiveRecord::StatementInvalid, ActiveRecord::ConnectionNotEstablished => e
       unavailable_queue_payload("#{e.class}: #{e.message}")

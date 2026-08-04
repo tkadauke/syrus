@@ -73,6 +73,42 @@ RSpec.describe SyrusMcp::ReadLiveStateTool do
       clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
     end
 
+    it "samples unfinished RunJob rows before applying the live-state limit" do
+      ensure_solid_queue_test_tables!
+      101.times do |index|
+        SolidQueue::Job.create!(
+          active_job_id: "finished-run-job-#{index}",
+          class_name: "RunJob",
+          queue_name: "runs",
+          priority: 10,
+          created_at: (index + 1).minutes.ago,
+          updated_at: (index + 1).minutes.ago,
+          scheduled_at: (index + 1).minutes.ago,
+          finished_at: index.seconds.ago,
+          arguments: { "arguments" => [ run.id + index + 1000 ] }
+        )
+      end
+      SolidQueue::Job.create!(
+        active_job_id: "active-run-job-#{run.id}",
+        class_name: "RunJob",
+        queue_name: "runs",
+        priority: 10,
+        created_at: 2.days.ago,
+        updated_at: 2.days.ago,
+        scheduled_at: 2.days.ago,
+        arguments: { "arguments" => [ run.id ] }
+      )
+
+      payload = payload_from(call)
+
+      entries = payload.dig("queue", "solid_queue", "run_job_entries")
+      expect(entries.size).to eq(1)
+      expect(payload.dig("queue", "solid_queue", "sampled_run_job_count")).to eq(1)
+      expect(payload.dig("queue", "solid_queue", "note")).to include("unfinished RunJob")
+    ensure
+      clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
+    end
+
     it "returns a tool error for an invalid run context" do
       response = call(context: { run_id: 0 })
 
@@ -87,6 +123,18 @@ RSpec.describe SyrusMcp::ReadLiveStateTool do
       schema = described_class.input_schema_value.to_h
       expect(schema[:required]).to be_blank
       expect(schema[:properties].keys).to eq([ :detail ])
+    end
+
+    it "has an index for the unfinished RunJob live-state lookup" do
+      ensure_solid_queue_test_tables!
+
+      expect(ActiveRecord::Base.connection.index_exists?(
+        :solid_queue_jobs,
+        [ :class_name, :finished_at, :created_at ],
+        name: "index_solid_queue_jobs_on_class_finished_created_at"
+      )).to be(true)
+    ensure
+      clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
     end
   end
 end
