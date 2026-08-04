@@ -374,6 +374,31 @@ RSpec.describe CodexInvocation do
         expect(result).to be_success
       end
     end
+
+    it "surfaces non-JSON Codex startup failures in the result summary" do
+      Dir.mktmpdir do |home|
+        events = []
+        invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test", codex_home: home,
+                                         log_sink: ->(chunk, **kwargs) { events << [ chunk, kwargs ] })
+
+        _, result = capture_popen(
+          invocation,
+          lines: [
+            "error: failed to refresh model metadata: unknown variant `max`, expected one of `low`, `medium`, `high`, `xhigh`"
+          ],
+          exitstatus: 1
+        )
+
+        expect(result).not_to be_success
+        expect(result.is_error).to be true
+        expect(result.outcome).to eq("error")
+        expect(result.final_text).to include("unknown variant `max`")
+        expect(events).to include([
+          "error: failed to refresh model metadata: unknown variant `max`, expected one of `low`, `medium`, `high`, `xhigh`",
+          {}
+        ])
+      end
+    end
   end
 
   describe "provider cleanup timeout handling" do

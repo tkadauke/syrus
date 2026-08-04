@@ -109,6 +109,7 @@ class CodexInvocation
       outcome: nil,
       final_text: nil,
       session_id: nil,
+      startup_output: nil,
       input_tokens: nil,
       output_tokens: nil,
       cache_creation_input_tokens: nil,
@@ -156,6 +157,11 @@ class CodexInvocation
         metadata.merge!(update.compact) if update
       end
     ).run
+    if !runner_result.success? && metadata[:outcome].blank? && metadata[:startup_output].present?
+      metadata[:is_error] = true
+      metadata[:outcome] = "error"
+      metadata[:final_text] = metadata[:startup_output]
+    end
     log_codex_resume_failure(resume_session_id, runner_result, metadata, log_sink)
 
     # Same cleanup-timeout guard as ClaudeInvocation: if the provider
@@ -319,8 +325,9 @@ class CodexInvocation
       nil
     end
   rescue JSON::ParserError
-    log_sink.call(line.chomp)
-    nil
+    detail = line.chomp
+    log_sink.call(detail)
+    detail.present? ? { startup_output: detail } : nil
   end
 
   def codex_error_detail(message)

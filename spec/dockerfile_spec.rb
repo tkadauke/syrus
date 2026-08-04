@@ -43,6 +43,11 @@ RSpec.describe "Dockerfile" do
     expect(stage).to include("PATH=\"/opt/mise/installs/go/${MISE_GO_VERSION}/bin:/opt/python-tools/bin:/opt/mise/shims:${PATH}\"")
   end
 
+  it "pins a Codex CLI version with current model metadata support" do
+    expect(dockerfile).to include("ARG CODEX_CLI_VERSION=0.146.0")
+    expect(dockerfile).to include("@openai/codex@${CODEX_CLI_VERSION}")
+  end
+
   it "keeps Ruby runtimes in their own exact-pinned cache stage, installed prebuilt" do
     ruby_stage = stage("runtime-ruby-cache")
     node_stage = stage("runtime-node-cache")

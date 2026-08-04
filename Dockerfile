@@ -33,7 +33,7 @@ WORKDIR /rails
 #     issue (VideoWalkthroughFrameExtractor).
 ARG NODE_MAJOR=22
 ARG CLAUDE_CODE_VERSION=2.1.126
-ARG CODEX_CLI_VERSION=0.129.0
+ARG CODEX_CLI_VERSION=0.146.0
 RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y \
       ca-certificates curl default-mysql-client ffmpeg git gnupg libjemalloc2 libvips && \
