@@ -75,8 +75,9 @@ module Steps
       workspace.setup
       chdir = workspace.path.to_s
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
-      push_url = repository.authenticated_push_url(client.access_token)
-      git.run("fetch", push_url, "refs/heads/#{train.base_branch}", chdir: chdir)
+      GithubAuthenticatedGit.run(repository: repository, user: job.user, git: git, operation_type: "git_merge_train_base_fetch", log: method(:log)) do |url|
+        git.run("fetch", url, "refs/heads/#{train.base_branch}", chdir: chdir)
+      end
       git.run("rev-parse", "FETCH_HEAD", chdir: chdir).strip
     end
 
@@ -109,8 +110,9 @@ module Steps
       workspace.setup
       chdir = workspace.path.to_s
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
-      push_url = repository.authenticated_push_url(client.access_token)
-      git.run("push", "--force-with-lease", push_url, "HEAD:refs/heads/#{train.integration_branch}", chdir: chdir)
+      GithubAuthenticatedGit.run(repository: repository, user: job.user, git: git, operation_type: "git_merge_train_push", log: method(:log)) do |push_url|
+        git.run("push", "--force-with-lease", push_url, "HEAD:refs/heads/#{train.integration_branch}", chdir: chdir)
+      end
       git.run("rev-parse", "HEAD", chdir: chdir).strip
     end
 

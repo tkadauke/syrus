@@ -88,12 +88,14 @@ module Steps
       return workspace.base_ref if job.base_on_upstream_default? && base_branch == job.base_default_branch
 
       ref = "refs/remotes/origin/#{base_branch}"
-      git.run(
-        "fetch",
-        repository.authenticated_url(user: job.user),
-        "+refs/heads/#{base_branch}:#{ref}",
-        chdir: workspace.path.to_s
-      )
+      authenticated_git(git, "git_reconciliation_fetch") do |url|
+        git.run(
+          "fetch",
+          url,
+          "+refs/heads/#{base_branch}:#{ref}",
+          chdir: workspace.path.to_s
+        )
+      end
       ref
     end
 
@@ -256,10 +258,11 @@ module Steps
 
     def push_branch
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
-      push_url = repository.authenticated_push_url(GithubClient.for(repository: repository, user: job.user).access_token)
-      return :superseded if job.pr_number.present? && verify_existing_pr_branch_not_diverged!(git, push_url) == :superseded
-      git.run("push", push_url, "HEAD:refs/heads/#{workspace.branch_name}",
-              chdir: workspace.path.to_s)
+      authenticated_git(git, "git_pr_open_push") do |push_url|
+        return :superseded if job.pr_number.present? && verify_existing_pr_branch_not_diverged!(git, push_url) == :superseded
+        git.run("push", push_url, "HEAD:refs/heads/#{workspace.branch_name}",
+                chdir: workspace.path.to_s)
+      end
       :pushed
     rescue GitRunner::GitError => e
       raise unless job.pr_number.present? && push_rejected?(e)
@@ -268,6 +271,17 @@ module Steps
 
       record_branch_divergence!(git, e.message)
       raise BranchDiverged, branch_divergence_message
+    end
+
+    def authenticated_git(git, operation_type, &block)
+      GithubAuthenticatedGit.run(
+        repository: repository,
+        user: job.user,
+        git: git,
+        operation_type: operation_type,
+        log: method(:log),
+        &block
+      )
     end
 
     def pr_base_branch

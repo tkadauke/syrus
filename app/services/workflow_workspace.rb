@@ -276,18 +276,22 @@ class WorkflowWorkspace
     # a prior Initial). Use the authenticated URL — ls-remote
     # against origin's name would fall back to anonymous after
     # the scrub below.
-    remote_ref = @git.run(
-      "ls-remote", "--heads", authenticated_url,
-      "refs/heads/#{@branch_name}",
-      chdir: path.to_s, env: @env
-    )
-
-    if remote_ref.strip.present?
+    remote_ref = authenticated_git("git_workflow_ls_remote") do |url|
       @git.run(
-        "fetch", authenticated_url,
-        "refs/heads/#{@branch_name}:refs/heads/#{@branch_name}",
+        "ls-remote", "--heads", url,
+        "refs/heads/#{@branch_name}",
         chdir: path.to_s, env: @env
       )
+    end
+
+    if remote_ref.strip.present?
+      authenticated_git("git_workflow_fetch_branch") do |url|
+        @git.run(
+          "fetch", url,
+          "refs/heads/#{@branch_name}:refs/heads/#{@branch_name}",
+          chdir: path.to_s, env: @env
+        )
+      end
       @git.run("checkout", @branch_name, chdir: path.to_s)
     elsif base_on_upstream_default?
       # New branch based on the upstream's default tip, not the fork's default.
@@ -297,6 +301,10 @@ class WorkflowWorkspace
     end
 
     checkout_main_sha!
+  end
+
+  def authenticated_git(operation_type, &block)
+    GithubAuthenticatedGit.run(repository: @repository, user: @job.user, git: @git, operation_type: operation_type, &block)
   end
 
   # For main_grader workflows: detach HEAD at the exact SHA that was

@@ -58,24 +58,25 @@ class RepositoryBareClone
 
   def clone!(user:)
     FileUtils.mkdir_p(path.dirname)
-    @git.run(
-      "clone", "--bare", "--no-tags",
-      authenticated_url(user: user), path.to_s,
-      env: @env
-    )
+    GithubAuthenticatedGit.run(repository: @repository, user: user, git: @git, operation_type: "git_bare_clone") do |url|
+      @git.run(
+        "clone", "--bare", "--no-tags",
+        url, path.to_s,
+        env: @env
+      )
+    end
   end
 
   def fetch!(user:)
-    @git.run(
-      "fetch", "--prune",
-      authenticated_url(user: user),
-      "+refs/heads/*:refs/heads/*",
-      chdir: path.to_s,
-      env: @env
-    )
+    GithubAuthenticatedGit.run(repository: @repository, user: user, git: @git, operation_type: "git_bare_fetch") do |url|
+      @git.run(
+        "fetch", "--prune",
+        url,
+        "+refs/heads/*:refs/heads/*",
+        chdir: path.to_s,
+        env: @env
+      )
+    end
   end
 
-  def authenticated_url(user:)
-    @repository.authenticated_url(user: user)
-  end
 end

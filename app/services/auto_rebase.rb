@@ -112,7 +112,7 @@ class AutoRebase
   end
 
   def authenticated_url
-    @job.repository.authenticated_url(user: @job.user)
+    @authenticated_url ||= @job.repository.authenticated_url(user: @job.user)
   end
 
   def base_branch
@@ -124,20 +124,24 @@ class AutoRebase
   # merge-base computation works across any history depth.
   def clone_base_branch
     FileUtils.mkdir_p(clone_path.dirname)
-    @git.run(
-      "clone", "--branch", base_branch,
-      "--no-tags", authenticated_url, clone_path.to_s,
-      env: @env
-    )
+    authenticated_git("git_auto_rebase_clone") do |url|
+      @git.run(
+        "clone", "--branch", base_branch,
+        "--no-tags", url, clone_path.to_s,
+        env: @env
+      )
+    end
   end
 
   # Fetch the feature branch from origin and check it out locally.
   def fetch_and_checkout_feature_branch
-    @git.run(
-      "fetch", authenticated_url,
-      "refs/heads/#{@job.branch_name}:refs/heads/#{@job.branch_name}",
-      chdir: clone_path.to_s, env: @env
-    )
+    authenticated_git("git_auto_rebase_fetch") do |url|
+      @git.run(
+        "fetch", url,
+        "refs/heads/#{@job.branch_name}:refs/heads/#{@job.branch_name}",
+        chdir: clone_path.to_s, env: @env
+      )
+    end
     @git.run("checkout", @job.branch_name, chdir: clone_path.to_s)
   end
 
@@ -195,9 +199,11 @@ class AutoRebase
   end
 
   def force_push(expected_sha: @expected_remote_sha)
-    @git.run("push", force_with_lease_arg(expected_sha), authenticated_url,
-             "HEAD:refs/heads/#{@job.branch_name}",
-             chdir: clone_path.to_s, env: @env)
+    authenticated_git("git_auto_rebase_force_push") do |url|
+      @git.run("push", force_with_lease_arg(expected_sha), url,
+               "HEAD:refs/heads/#{@job.branch_name}",
+               chdir: clone_path.to_s, env: @env)
+    end
   rescue GitRunner::GitError => e
     raise e unless lease_rejected?(e)
 
@@ -216,6 +222,11 @@ class AutoRebase
 
   def head_sha
     @git.run("rev-parse", "HEAD", chdir: clone_path.to_s).strip
+  end
+
+  def authenticated_git(operation_type, &block)
+    @authenticated_url = nil
+    GithubAuthenticatedGit.run(repository: @job.repository, user: @job.user, git: @git, operation_type: operation_type, &block)
   end
 
   def base_head_sha

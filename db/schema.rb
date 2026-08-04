@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_02_180000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_03_000100) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -597,6 +597,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_180000) do
     t.index ["user_id", "surface", "subject", "fingerprint"], name: "index_filter_usages_on_user_surface_subject_fingerprint", unique: true
     t.index ["user_id", "surface", "subject", "last_used_at"], name: "index_filter_usages_on_user_surface_subject_recent"
     t.index ["user_id"], name: "index_filter_usages_on_user_id"
+  end
+
+  create_table "github_auth_fallback_diagnostics", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "error_class", null: false
+    t.text "error_message"
+    t.integer "error_status"
+    t.bigint "github_installation_id"
+    t.integer "installation_id"
+    t.string "operation_type", null: false
+    t.boolean "refresh_attempted", default: false, null: false
+    t.boolean "refresh_succeeded", default: false, null: false
+    t.integer "repository_id", null: false
+    t.integer "run_id"
+    t.datetime "updated_at", null: false
+    t.index ["installation_id", "created_at"], name: "index_github_auth_fallbacks_on_installation_and_created_at"
+    t.index ["installation_id"], name: "index_github_auth_fallback_diagnostics_on_installation_id"
+    t.index ["repository_id", "created_at"], name: "index_github_auth_fallbacks_on_repository_and_created_at"
+    t.index ["repository_id"], name: "index_github_auth_fallback_diagnostics_on_repository_id"
+    t.index ["run_id"], name: "index_github_auth_fallback_diagnostics_on_run_id"
   end
 
   create_table "grader_conclusions", force: :cascade do |t|
@@ -1687,6 +1707,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_02_180000) do
   add_foreign_key "epics", "users", column: "owner_id"
   add_foreign_key "epics", "users", column: "owner_user_id"
   add_foreign_key "filter_usages", "users"
+  add_foreign_key "github_auth_fallback_diagnostics", "installations"
+  add_foreign_key "github_auth_fallback_diagnostics", "repositories"
+  add_foreign_key "github_auth_fallback_diagnostics", "runs"
   add_foreign_key "grader_conclusions", "jobs"
   add_foreign_key "grader_conclusions", "repositories"
   add_foreign_key "grader_conclusions", "runs"

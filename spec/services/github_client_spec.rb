@@ -182,10 +182,92 @@ RSpec.describe GithubClient do
     end
   end
 
-  describe "removed installation fallback" do
-    it "marks an installation removed and falls back to PAT when refresh returns 404" do
+  describe "installation-auth API fallback" do
+    before do
       AppSetting.current.update!(github_app_id: 123, github_app_private_key_pem: "stub-pem")
       allow(GithubAppClient).to receive(:app_jwt).and_return("app-jwt")
+    end
+
+    def stub_installation_token(token:, expires_at: 1.hour.from_now)
+      stub_request(:post, "https://api.github.com/app/installations/987/access_tokens")
+        .with(headers: { "Authorization" => "Bearer app-jwt" })
+        .to_return(status: 201, headers: { "Content-Type" => "application/json" },
+                   body: { token: token, expires_at: expires_at.iso8601 }.to_json)
+    end
+
+    it "refreshes a rejected cached installation token and retries once with App auth" do
+      installation = Factories.installation(
+        user: user,
+        github_installation_id: 987,
+        cached_token: "install-token",
+        cached_token_expires_at: 1.hour.from_now
+      )
+      repository.update!(installation: installation)
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/42")
+        .with(headers: { "Authorization" => "token install-token" })
+        .to_return(status: 401, headers: { "Content-Type" => "application/json" },
+                   body: { message: "Bad credentials" }.to_json)
+      stub_installation_token(token: "fresh-token")
+      fresh_stub = stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/42")
+        .with(headers: { "Authorization" => "token fresh-token" })
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" },
+                   body: { number: 42, title: "Fresh App" }.to_json)
+
+      issue = GithubClient.for(repository: repository, user: user).fetch_issue(repository.slug, 42)
+
+      expect(issue.title).to eq("Fresh App")
+      expect(fresh_stub).to have_been_requested
+      expect(installation.reload.cached_token).to eq("fresh-token")
+      expect(GithubAuthFallbackDiagnostic.count).to eq(0)
+    end
+
+    it "falls back to PAT with diagnostics when the refreshed installation token still cannot access the repo" do
+      installation = Factories.installation(
+        user: user,
+        github_installation_id: 987,
+        cached_token: "install-token",
+        cached_token_expires_at: 1.hour.from_now
+      )
+      repository.update!(installation: installation)
+      run = Factories.job(repository: repository, issue_number: 77).initial_run
+      Thread.current[:syrus_current_run] = run
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/42")
+        .with(headers: { "Authorization" => "token install-token" })
+        .to_return(status: 401, headers: { "Content-Type" => "application/json" },
+                   body: { message: "Bad credentials" }.to_json)
+      stub_installation_token(token: "fresh-token")
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/42")
+        .with(headers: { "Authorization" => "token fresh-token" })
+        .to_return(status: 404, headers: { "Content-Type" => "application/json" },
+                   body: { message: "Not Found" }.to_json)
+      pat_stub = stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/42")
+        .with(headers: { "Authorization" => "token ghp_test_token" })
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" },
+                   body: { number: 42, title: "PAT fallback" }.to_json)
+
+      issue = GithubClient.for(repository: repository, user: user).fetch_issue(repository.slug, 42)
+
+      expect(issue.title).to eq("PAT fallback")
+      expect(pat_stub).to have_been_requested
+      expect(installation.reload.removed_at).to be_nil
+      diagnostic = GithubAuthFallbackDiagnostic.last
+      expect(diagnostic).to have_attributes(
+        repository_id: repository.id,
+        installation_id: installation.id,
+        github_installation_id: 987,
+        operation_type: "api",
+        error_class: "Octokit::NotFound",
+        error_status: 404,
+        refresh_attempted: true,
+        refresh_succeeded: true,
+        run_id: run.id
+      )
+      expect(run.job_logs.last).to have_attributes(kind: "github_auth_fallback")
+    ensure
+      Thread.current[:syrus_current_run] = nil
+    end
+
+    it "falls back to PAT when initial token minting fails" do
       installation = Factories.installation(user: user, github_installation_id: 987)
       repository.update!(installation: installation)
       stub_request(:post, "https://api.github.com/app/installations/987/access_tokens")
@@ -199,31 +281,17 @@ RSpec.describe GithubClient do
       issue = GithubClient.for(repository: repository, user: user).fetch_issue(repository.slug, 42)
 
       expect(issue.number).to eq(42)
-      expect(installation.reload.removed_at).to be_present
       expect(pat_stub).to have_been_requested
-    end
-
-    it "marks an installation removed and retries the API call with PAT on 401" do
-      installation = Factories.installation(
-        user: user,
-        cached_token: "install-token",
-        cached_token_expires_at: 1.hour.from_now
+      expect(installation.reload.removed_at).to be_nil
+      expect(GithubAuthFallbackDiagnostic.last).to have_attributes(
+        repository_id: repository.id,
+        installation_id: installation.id,
+        operation_type: "api_token_mint",
+        error_class: "Octokit::NotFound",
+        error_status: 404,
+        refresh_attempted: true,
+        refresh_succeeded: false
       )
-      repository.update!(installation: installation)
-      stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/42")
-        .with(headers: { "Authorization" => "token install-token" })
-        .to_return(status: 401, headers: { "Content-Type" => "application/json" },
-                   body: { message: "Bad credentials" }.to_json)
-      pat_stub = stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/42")
-        .with(headers: { "Authorization" => "token ghp_test_token" })
-        .to_return(status: 200, headers: { "Content-Type" => "application/json" },
-                   body: { number: 42, title: "Fallback" }.to_json)
-
-      issue = GithubClient.for(repository: repository, user: user).fetch_issue(repository.slug, 42)
-
-      expect(issue.title).to eq("Fallback")
-      expect(installation.reload.removed_at).to be_present
-      expect(pat_stub).to have_been_requested
     end
   end
 

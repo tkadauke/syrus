@@ -22,13 +22,15 @@ class BranchDivergenceRecovery
     return failure("Cannot safely force-push without the observed remote branch SHA.") if remote_sha.blank?
     return failure(workspace_unavailable_message) unless workspace_path.directory?
 
-    git.run(
-      "push",
-      "--force-with-lease=refs/heads/#{branch}:#{remote_sha}",
-      push_url,
-      "HEAD:refs/heads/#{branch}",
-      chdir: workspace_path.to_s
-    )
+    GithubAuthenticatedGit.run(repository: job.repository, user: job.user, git: git, operation_type: "git_branch_divergence_force_push") do |url|
+      git.run(
+        "push",
+        "--force-with-lease=refs/heads/#{branch}:#{remote_sha}",
+        url,
+        "HEAD:refs/heads/#{branch}",
+        chdir: workspace_path.to_s
+      )
+    end
     record_recovery!("force_pushed")
     restore_job_to_implemented_if_possible!
     Result.new(error: nil)
@@ -112,11 +114,6 @@ class BranchDivergenceRecovery
 
   def workspace_path
     WorkflowWorkspace.path_for(workflow)
-  end
-
-  def push_url
-    token = GithubClient.for(repository: job.repository, user: job.user).access_token
-    job.repository.authenticated_push_url(token)
   end
 
   def git

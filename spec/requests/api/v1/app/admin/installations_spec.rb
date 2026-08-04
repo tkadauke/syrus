@@ -57,6 +57,17 @@ RSpec.describe "API: /api/v1/app/admin/installations", type: :request do
       github_owner_id: 101,
       github_repository_id: 202
     )
+    fallback = GithubAuthFallbackDiagnostic.create!(
+      repository: app_repo,
+      installation: installation,
+      github_installation_id: installation.github_installation_id,
+      operation_type: "git_pr_open_push",
+      error_class: "GitRunner::GitError",
+      error_status: nil,
+      error_message: "Authentication failed",
+      refresh_attempted: true,
+      refresh_succeeded: false
+    )
 
     get "/api/v1/app/admin/installations"
 
@@ -75,6 +86,14 @@ RSpec.describe "API: /api/v1/app/admin/installations", type: :request do
       "app_credential_active" => true,
       "app_credential_inactive_reason" => nil,
       "credential_mode" => "app"
+    )
+    expect(app_row["recent_auth_fallbacks"].first).to include(
+      "id" => fallback.id,
+      "operation_type" => "git_pr_open_push",
+      "error_class" => "GitRunner::GitError",
+      "error_message" => "Authentication failed",
+      "refresh_attempted" => true,
+      "refresh_succeeded" => false
     )
     expect(pat_row).to include(
       "slug" => pat_repo.slug,

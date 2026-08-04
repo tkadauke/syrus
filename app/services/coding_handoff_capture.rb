@@ -55,13 +55,15 @@ class CodingHandoffCapture
   end
 
   def fetch_default_branch!
-    git.run(
-      "fetch",
-      authenticated_url,
-      "+refs/heads/#{repository.default_branch}:refs/remotes/origin/#{repository.default_branch}",
-      "--prune",
-      chdir: checkout_path.to_s
-    )
+    authenticated_git("git_coding_handoff_fetch") do |url|
+      git.run(
+        "fetch",
+        url,
+        "+refs/heads/#{repository.default_branch}:refs/remotes/origin/#{repository.default_branch}",
+        "--prune",
+        chdir: checkout_path.to_s
+      )
+    end
   end
 
   def default_ref
@@ -87,18 +89,27 @@ class CodingHandoffCapture
       return
     end
 
-    git.run("push", authenticated_url, "HEAD:refs/heads/#{handoff_branch}", chdir: checkout_path.to_s)
+    authenticated_git("git_coding_handoff_push") do |url|
+      git.run("push", url, "HEAD:refs/heads/#{handoff_branch}", chdir: checkout_path.to_s)
+    end
     actual_sha = remote_branch_sha
     raise CaptureError, "coding handoff branch #{handoff_branch} was not published" if actual_sha.blank?
     raise CaptureError, "coding handoff branch #{handoff_branch} published #{actual_sha}, expected #{head_sha}" unless actual_sha == head_sha
   end
 
   def remote_branch_sha
-    output = git.run("ls-remote", "--heads", authenticated_url, "refs/heads/#{handoff_branch}", chdir: checkout_path.to_s).strip
+    output = authenticated_git("git_coding_handoff_ls_remote") do |url|
+      git.run("ls-remote", "--heads", url, "refs/heads/#{handoff_branch}", chdir: checkout_path.to_s)
+    end.strip
     output.split(/\s+/).first.presence
   end
 
   def authenticated_url
     @authenticated_url ||= repository.authenticated_url(user: user)
+  end
+
+  def authenticated_git(operation_type, &block)
+    @authenticated_url = nil
+    GithubAuthenticatedGit.run(repository: repository, user: user, git: git, operation_type: operation_type, &block)
   end
 end

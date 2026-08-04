@@ -30,20 +30,21 @@ module Steps
 
     def fetch_pending_branches
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
-      push_url = repository.authenticated_push_url(GithubClient.for(repository: repository, user: job.user).access_token)
       current_branch = current_branch_name(git)
       fetched_branches = {}
 
-      pending_entries.each do |entry|
-        branch = entry.fetch("branch_name")
-        base = entry.fetch("base_branch")
-        fetch_remote_branch_once(git, push_url, branch, fetched_branches)
-        if branch == current_branch
-          git.run("reset", "--hard", "refs/remotes/origin/#{branch}", chdir: workspace.path.to_s)
-        else
-          git.run("branch", "-f", branch, "refs/remotes/origin/#{branch}", chdir: workspace.path.to_s)
+      GithubAuthenticatedGit.run(repository: repository, user: job.user, git: git, operation_type: "git_stack_rebase_fetch", log: method(:log)) do |push_url|
+        pending_entries.each do |entry|
+          branch = entry.fetch("branch_name")
+          base = entry.fetch("base_branch")
+          fetch_remote_branch_once(git, push_url, branch, fetched_branches)
+          if branch == current_branch
+            git.run("reset", "--hard", "refs/remotes/origin/#{branch}", chdir: workspace.path.to_s)
+          else
+            git.run("branch", "-f", branch, "refs/remotes/origin/#{branch}", chdir: workspace.path.to_s)
+          end
+          fetch_remote_branch_once(git, push_url, base, fetched_branches)
         end
-        fetch_remote_branch_once(git, push_url, base, fetched_branches)
       end
       git.run("checkout", pending_entries.first.fetch("branch_name"), chdir: workspace.path.to_s) if pending_entries.any?
     end

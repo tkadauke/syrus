@@ -39,7 +39,14 @@ class GithubClient
       begin
         return new(repository: repository, user: actor, installation: installation, access_token: installation.fresh_token, auth_source: :installation)
       rescue Octokit::Unauthorized, Octokit::NotFound => e
-        mark_installation_removed!(installation, e)
+        GithubAuthFallbackRecorder.record!(
+          repository: repository,
+          installation: installation,
+          operation_type: "api_token_mint",
+          error: e,
+          refresh_attempted: true,
+          refresh_succeeded: false
+        )
       end
     end
 
@@ -77,7 +84,11 @@ class GithubClient
     @installation = installation
     @auth_source = auth_source || :pat
     @access_token = access_token
-    @client = Octokit::Client.new(
+    @client = build_octokit_client
+  end
+
+  def build_octokit_client
+    Octokit::Client.new(
       access_token: access_token,
       user_agent: USER_AGENT,
       auto_paginate: true,
@@ -811,8 +822,8 @@ class GithubClient
     result
   rescue Octokit::Unauthorized, Octokit::NotFound => e
     raise unless installation_auth?
-    handle_removed_installation!(e)
-    result = yield
+
+    result = retry_with_refreshed_installation_or_fallback!(e) { yield }
     persist_rate_limit_headers!(response_client.call.last_response&.headers)
     result
   rescue Octokit::TooManyRequests => e
@@ -825,8 +836,59 @@ class GithubClient
     @auth_source == :installation && @installation.present?
   end
 
-  def handle_removed_installation!(error)
-    self.class.mark_installation_removed!(@installation, error)
+  def retry_with_refreshed_installation_or_fallback!(original_error)
+    original_installation = @installation
+
+    begin
+      original_installation.invalidate_cached_token!
+      refresh_installation_client!(original_installation)
+      return yield
+    rescue Octokit::Unauthorized, Octokit::NotFound => retry_error
+      fallback_to_pat_after_installation_failure!(
+        original_installation,
+        retry_error,
+        refresh_attempted: true,
+        refresh_succeeded: true
+      )
+      yield
+    rescue Octokit::Error, ArgumentError => refresh_error
+      fallback_to_pat_after_installation_failure!(
+        original_installation,
+        refresh_error,
+        refresh_attempted: true,
+        refresh_succeeded: false
+      )
+      yield
+    end
+  rescue Octokit::Unauthorized, Octokit::NotFound => fallback_error
+    GithubAuthFallbackRecorder.record!(
+      repository: @repository,
+      installation: original_installation,
+      operation_type: "api",
+      error: fallback_error,
+      refresh_attempted: true,
+      refresh_succeeded: true
+    )
+    raise
+  end
+
+  def refresh_installation_client!(installation)
+    @installation = installation
+    @auth_source = :installation
+    @access_token = installation.fresh_token
+    @client = build_octokit_client
+    @uncached_client = nil
+  end
+
+  def fallback_to_pat_after_installation_failure!(installation, error, refresh_attempted:, refresh_succeeded:)
+    GithubAuthFallbackRecorder.record!(
+      repository: @repository,
+      installation: installation,
+      operation_type: "api",
+      error: error,
+      refresh_attempted: refresh_attempted,
+      refresh_succeeded: refresh_succeeded
+    )
     fallback_user = @user || @repository&.user
     raise ArgumentError, "GitHub App installation was removed and no fallback github_token is available" if fallback_user.blank? || fallback_user.github_token.blank?
 
@@ -834,13 +896,7 @@ class GithubClient
     @installation = nil
     @user = fallback_user
     @access_token = fallback_user.github_token
-    @client = Octokit::Client.new(
-      access_token: @access_token,
-      user_agent: USER_AGENT,
-      auto_paginate: true,
-      connection_options: self.class.connection_options,
-      middleware: self.class.middleware_stack(cache_namespace)
-    )
+    @client = build_octokit_client
     @uncached_client = nil
   end
 

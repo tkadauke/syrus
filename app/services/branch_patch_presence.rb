@@ -50,21 +50,25 @@ class BranchPatchPresence
 
   def clone_base_branch
     FileUtils.mkdir_p(clone_path.dirname)
-    @git.run(
-      "clone",
-      "--branch", base_ref,
-      "--no-tags", authenticated_url, clone_path.to_s,
-      env: @env
-    )
+    authenticated_git("git_closed_pr_clone") do |url|
+      @git.run(
+        "clone",
+        "--branch", base_ref,
+        "--no-tags", url, clone_path.to_s,
+        env: @env
+      )
+    end
   end
 
   def fetch_branch_head
-    @git.run(
-      "fetch", authenticated_url,
-      "refs/heads/#{branch_name}:#{feature_ref}",
-      chdir: clone_path.to_s,
-      env: @env
-    )
+    authenticated_git("git_closed_pr_fetch") do |url|
+      @git.run(
+        "fetch", url,
+        "refs/heads/#{branch_name}:#{feature_ref}",
+        chdir: clone_path.to_s,
+        env: @env
+      )
+    end
   end
 
   def no_unique_patches?
@@ -78,5 +82,9 @@ class BranchPatchPresence
 
   def cleanup_clone
     FileUtils.rm_rf(clone_path) if clone_path&.exist?
+  end
+
+  def authenticated_git(operation_type, &block)
+    GithubAuthenticatedGit.run(repository: @job.repository, user: @job.user, git: @git, operation_type: operation_type, &block)
   end
 end

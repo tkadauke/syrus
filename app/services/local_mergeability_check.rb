@@ -83,7 +83,7 @@ class LocalMergeabilityCheck
   end
 
   def authenticated_url
-    @job.repository.authenticated_url(user: @job.user)
+    @authenticated_url ||= @job.repository.authenticated_url(user: @job.user)
   end
 
   def base_ref
@@ -100,22 +100,31 @@ class LocalMergeabilityCheck
 
   def clone_base_branch
     FileUtils.mkdir_p(clone_path.dirname)
-    @git.run(
-      "clone",
-      "--branch", base_ref,
-      "--no-tags", authenticated_url, clone_path.to_s,
-      env: @env
-    )
+    authenticated_git("git_mergeability_clone") do |url|
+      @git.run(
+        "clone",
+        "--branch", base_ref,
+        "--no-tags", url, clone_path.to_s,
+        env: @env
+      )
+    end
   end
 
   def fetch_and_checkout_feature_branch
-    @git.run(
-      "fetch", authenticated_url,
-      "refs/heads/#{@job.branch_name}:refs/heads/#{@job.branch_name}",
-      chdir: clone_path.to_s,
-      env: @env
-    )
+    authenticated_git("git_mergeability_fetch") do |url|
+      @git.run(
+        "fetch", url,
+        "refs/heads/#{@job.branch_name}:refs/heads/#{@job.branch_name}",
+        chdir: clone_path.to_s,
+        env: @env
+      )
+    end
     @git.run("checkout", @job.branch_name, chdir: clone_path.to_s)
+  end
+
+  def authenticated_git(operation_type, &block)
+    @authenticated_url = nil
+    GithubAuthenticatedGit.run(repository: @job.repository, user: @job.user, git: @git, operation_type: operation_type, &block)
   end
 
   def configure_git_author

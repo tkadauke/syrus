@@ -61,11 +61,11 @@ class JobStackPreparedBaseBuilder
   end
 
   def authenticated_url
-    repository.authenticated_url(user: job.user)
+    @authenticated_url ||= repository.authenticated_url(user: job.user)
   end
 
   def push_url
-    repository.authenticated_push_url(GithubClient.for(repository: repository, user: job.user).access_token)
+    authenticated_url
   end
 
   def prepared_branch
@@ -74,7 +74,9 @@ class JobStackPreparedBaseBuilder
 
   def clone_base_branch
     FileUtils.mkdir_p(clone_path.dirname)
-    @git.run("clone", "--branch", job.base_default_branch, "--no-tags", authenticated_url, clone_path.to_s, env: @env)
+    authenticated_git("git_prepared_base_clone") do |url|
+      @git.run("clone", "--branch", job.base_default_branch, "--no-tags", url, clone_path.to_s, env: @env)
+    end
     @git.run("remote", "set-url", "origin", repository.remote_url, chdir: clone_path.to_s)
     @git.run("checkout", "-B", prepared_branch, chdir: clone_path.to_s)
   end
@@ -86,13 +88,15 @@ class JobStackPreparedBaseBuilder
   def fetch_and_validate_dependencies
     dependency_jobs.each do |dependency|
       ref = remote_ref_for(dependency)
-      @git.run(
-        "fetch",
-        authenticated_url,
-        "+refs/heads/#{dependency.branch_name}:#{ref}",
-        chdir: clone_path.to_s,
-        env: @env
-      )
+      authenticated_git("git_prepared_base_fetch") do |url|
+        @git.run(
+          "fetch",
+          url,
+          "+refs/heads/#{dependency.branch_name}:#{ref}",
+          chdir: clone_path.to_s,
+          env: @env
+        )
+      end
       fetched_sha = @git.run("rev-parse", ref, chdir: clone_path.to_s).strip
       expected_sha = expected_head_sha_for(dependency)
       next if expected_sha.blank? || fetched_sha == expected_sha
@@ -115,7 +119,9 @@ class JobStackPreparedBaseBuilder
   end
 
   def push_prepared_branch
-    @git.run("push", push_url, "HEAD:refs/heads/#{prepared_branch}", chdir: clone_path.to_s, env: @env)
+    authenticated_git("git_prepared_base_push") do |url|
+      @git.run("push", url, "HEAD:refs/heads/#{prepared_branch}", chdir: clone_path.to_s, env: @env)
+    end
   end
 
   def abort_merge
@@ -136,6 +142,11 @@ class JobStackPreparedBaseBuilder
 
   def remote_ref_for(dependency)
     "refs/remotes/origin/#{dependency.branch_name}"
+  end
+
+  def authenticated_git(operation_type, &block)
+    @authenticated_url = nil
+    GithubAuthenticatedGit.run(repository: repository, user: job.user, git: @git, operation_type: operation_type, &block)
   end
 
   def topological_order(jobs)

@@ -13,7 +13,6 @@ class PushPendingCommitsJob < ApplicationJob
     return unless path.exist?
 
     job       = workflow.job
-    push_url  = job.repository.authenticated_push_url(GithubClient.for(repository: job.repository, user: job.user).access_token)
     git       = GitRunner.new
     push_env  = { "GIT_TERMINAL_PROMPT" => "0" }
     identity  = BotIdentity.for(job)
@@ -34,8 +33,10 @@ class PushPendingCommitsJob < ApplicationJob
     end
 
     branch_name = git.run("rev-parse", "--abbrev-ref", "HEAD", chdir: path.to_s).strip
-    git.run("push", push_url, "HEAD:refs/heads/#{branch_name}",
-            chdir: path.to_s, env: push_env)
+    GithubAuthenticatedGit.run(repository: job.repository, user: job.user, git: git, operation_type: "git_pending_commits_push") do |push_url|
+      git.run("push", push_url, "HEAD:refs/heads/#{branch_name}",
+              chdir: path.to_s, env: push_env)
+    end
 
     workflow.set_artifact!("commits_pushed_at",     Time.current.iso8601)
     workflow.set_artifact!("commits_pushed_branch", branch_name)

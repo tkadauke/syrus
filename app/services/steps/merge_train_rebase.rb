@@ -15,15 +15,15 @@ module Steps
 
     def call
       train = merge_train
-      client = GithubClient.for(repository: repository, user: job.user)
-      push_url = repository.authenticated_push_url(client.access_token)
 
       workspace.setup
       chdir = workspace.path.to_s
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
 
       log("merge_train_rebase: fetching #{train.base_branch} to find new base tip")
-      git.run("fetch", push_url, "refs/heads/#{train.base_branch}", chdir: chdir)
+      GithubAuthenticatedGit.run(repository: repository, user: job.user, git: git, operation_type: "git_merge_train_rebase_fetch", log: method(:log)) do |url|
+        git.run("fetch", url, "refs/heads/#{train.base_branch}", chdir: chdir)
+      end
       new_base_sha = git.run("rev-parse", "FETCH_HEAD", chdir: chdir).strip
 
       old_base_sha = workflow.artifact(MergeTrainLand::BASE_SHA_ARTIFACT).to_s

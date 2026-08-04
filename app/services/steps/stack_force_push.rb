@@ -22,12 +22,13 @@ module Steps
 
     def push_agent_rebased_branches(pushes)
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
-      push_url = repository.authenticated_push_url(GithubClient.for(repository: repository, user: job.user).access_token)
 
       pushes.each do |entry|
         branch = entry.fetch("branch_name")
         log("stack_force_push: pushing rebased #{branch} (#{workflow.slug})")
-        git.run("push", force_with_lease_arg(entry), push_url, "#{branch}:refs/heads/#{branch}", chdir: workspace.path.to_s)
+        GithubAuthenticatedGit.run(repository: repository, user: job.user, git: git, operation_type: "git_stack_force_push", log: method(:log)) do |push_url|
+          git.run("push", force_with_lease_arg(entry), push_url, "#{branch}:refs/heads/#{branch}", chdir: workspace.path.to_s)
+        end
       rescue GitRunner::GitError => e
         raise unless push_rejected?(e)
 

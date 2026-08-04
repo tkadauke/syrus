@@ -191,20 +191,24 @@ RSpec.describe "Steps::MergeTrain*" do
     end
 
     it "refreshes the installation token and retries when GitHub rejects an authenticated fetch" do
+      AppSetting.current.update!(github_app_id: 123, github_app_private_key_pem: "stub-pem")
+      allow(GithubAppClient).to receive(:app_jwt).and_return("app-jwt")
       installation = Factories.installation(
         user: user,
+        github_installation_id: 987,
         cached_token: "ghs_expired",
         cached_token_expires_at: 30.minutes.from_now
       )
       repository.update!(installation: installation)
-      expired_client = instance_double(GithubClient, access_token: "ghs_expired")
-      fresh_client = instance_double(GithubClient, access_token: "ghs_fresh")
       expired_url = "https://x-access-token:expired@github.com/acme/widgets.git"
       fresh_url = "https://x-access-token:fresh@github.com/acme/widgets.git"
-      allow(GithubClient).to receive(:for).and_return(expired_client, fresh_client, fresh_client)
       allow(GithubClient).to receive(:active_installation_for)
         .with(repository: repository, user: user)
         .and_return(installation)
+      stub_request(:post, "https://api.github.com/app/installations/987/access_tokens")
+        .with(headers: { "Authorization" => "Bearer app-jwt" })
+        .to_return(status: 201, headers: { "Content-Type" => "application/json" },
+                   body: { token: "ghs_fresh", expires_at: 1.hour.from_now.iso8601 }.to_json)
       allow_any_instance_of(Repository).to receive(:authenticated_push_url)
         .with("ghs_expired")
         .and_return(expired_url)
@@ -228,7 +232,7 @@ RSpec.describe "Steps::MergeTrain*" do
 
       handler.call
 
-      expect(installation.reload.cached_token).to be_nil
+      expect(installation.reload.cached_token).to eq("ghs_fresh")
       expect(git).to have_received(:run).with("fetch", expired_url, "refs/heads/master", chdir: "/tmp/ws").once
       expect(git).to have_received(:run).with("fetch", fresh_url, "refs/heads/master", chdir: "/tmp/ws").once
       expect(git).to have_received(:run).with("fetch", fresh_url, "refs/heads/syrus/issue-1", chdir: "/tmp/ws").once
@@ -258,7 +262,7 @@ RSpec.describe "Steps::MergeTrain*" do
         .and_raise(fetch_error)
 
       expect { handler.call }.to raise_error(GitRunner::GitError, /couldn't find remote ref/)
-      expect(GithubClient).not_to have_received(:active_installation_for)
+      expect(GithubClient).to have_received(:active_installation_for).once
     end
 
     it "leaves reconciliation queued when the built integration SHA already passed grading" do

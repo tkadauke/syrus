@@ -9,8 +9,9 @@ module Steps
       workspace.setup
 
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
-      push_url = repository.authenticated_push_url(GithubClient.for(repository: repository, user: job.user).access_token)
-      remote_ref = fetch_remote_branch!(git, push_url)
+      remote_ref = GithubAuthenticatedGit.run(repository: repository, user: job.user, git: git, operation_type: "git_push_rebase_fetch", log: method(:log)) do |push_url|
+        fetch_remote_branch!(git, push_url)
+      end
       pre_sha = head_sha
 
       if deterministic_rebase_succeeded?(git, remote_ref)

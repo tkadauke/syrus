@@ -7,12 +7,13 @@ module Admin
         repositories = Repository.includes(:user, :installation).order(:owner, :name).to_a
         diagnostic = GithubAppInstallationDiagnostic.new.show
         diagnostic_by_id = diagnostic.fetch(:repositories).index_by { |repository| repository.fetch(:id) }
+        recent_fallbacks_by_repository_id = recent_fallbacks_by_repository_id(repositories)
         {
           github_app_registered: AppSetting.github_app_registered?,
           github_app_slug: AppSetting.current.github_app_slug,
           latest_sync: diagnostic.fetch(:latest_sync),
           pat_owner_groups: pat_owner_groups(repositories),
-          repositories: repositories.map { |repository| serialize_repository(repository, diagnostic_by_id.fetch(repository.id, {})) }
+          repositories: repositories.map { |repository| serialize_repository(repository, diagnostic_by_id.fetch(repository.id, {}), recent_fallbacks_by_repository_id.fetch(repository.id, [])) }
         }
       end
 
@@ -31,7 +32,7 @@ module Admin
           end
       end
 
-      def serialize_repository(repository, diagnostic)
+      def serialize_repository(repository, diagnostic, recent_fallbacks)
         {
           id: repository.id,
           slug: repository.slug,
@@ -49,7 +50,38 @@ module Admin
           account_login: repository.installation&.account_login || repository.owner,
           installation_removed_at: repository.installation&.removed_at,
           github_owner_id: repository.github_owner_id,
-          github_repository_id: repository.github_repository_id
+          github_repository_id: repository.github_repository_id,
+          recent_auth_fallbacks: recent_fallbacks
+        }
+      end
+
+      def recent_fallbacks_by_repository_id(repositories)
+        ids = repositories.map(&:id)
+        return {} if ids.empty?
+
+        GithubAuthFallbackDiagnostic
+          .where(repository_id: ids)
+          .includes(:run)
+          .recent
+          .limit(100)
+          .group_by(&:repository_id)
+          .transform_values { |diagnostics| diagnostics.first(5).map { |diagnostic| serialize_fallback(diagnostic) } }
+      end
+
+      def serialize_fallback(diagnostic)
+        {
+          id: diagnostic.id,
+          created_at: diagnostic.created_at&.iso8601,
+          installation_id: diagnostic.installation_id,
+          github_installation_id: diagnostic.github_installation_id,
+          operation_type: diagnostic.operation_type,
+          error_class: diagnostic.error_class,
+          error_status: diagnostic.error_status,
+          error_message: diagnostic.error_message,
+          refresh_attempted: diagnostic.refresh_attempted,
+          refresh_succeeded: diagnostic.refresh_succeeded,
+          run_id: diagnostic.run_id,
+          job_id: diagnostic.run&.job_id
         }
       end
 

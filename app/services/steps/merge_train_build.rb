@@ -19,9 +19,6 @@ module Steps
   class MergeTrainBuild < Base
     include MergeTrainStep
 
-    AUTHENTICATED_GIT_FAILURE_PATTERN =
-      /Invalid username or token|Authentication failed/i.freeze
-
     def call
       train = merge_train
       members = train.member_jobs
@@ -79,31 +76,9 @@ module Steps
     private
 
     def fetch_branch!(branch)
-      @git.run("fetch", authenticated_url, "refs/heads/#{branch}", chdir: @chdir)
-    rescue GitRunner::GitError => e
-      raise unless refresh_installation_token_after_auth_failure(e)
-
-      log("merge_train: GitHub rejected the installation token while fetching #{branch}; refreshed token and retrying", kind: "system")
-      @git.run("fetch", authenticated_url, "refs/heads/#{branch}", chdir: @chdir)
-    end
-
-    def authenticated_url
-      repository.authenticated_url(user: job.user)
-    end
-
-    def refresh_installation_token_after_auth_failure(error)
-      return false unless git_auth_failure?(error)
-
-      installation = GithubClient.active_installation_for(repository: repository, user: job.user)
-      return false unless installation
-
-      installation.invalidate_cached_token!
-      true
-    end
-
-    def git_auth_failure?(error)
-      text = "#{error.message}\n#{error.output}"
-      text.match?(AUTHENTICATED_GIT_FAILURE_PATTERN)
+      GithubAuthenticatedGit.run(repository: repository, user: job.user, git: @git, operation_type: "git_merge_train_fetch", log: method(:log)) do |url|
+        @git.run("fetch", url, "refs/heads/#{branch}", chdir: @chdir)
+      end
     end
 
     # Replay the member's commits onto the integration tip on a scratch
