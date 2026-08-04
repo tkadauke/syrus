@@ -1341,6 +1341,42 @@ RSpec.describe WorkEngine::Reconciler do
     expect(result.repair_executions.map(&:message)).to include(match(/scheduled failed_step auto-retry/))
   end
 
+  it "does not count skipped retry attempts against WorkEngine retry budget" do
+    step.update_columns(kind: "grader", state: "failed", finished_at: Time.current)
+    workflow.update_columns(state: "failed", finished_at: Time.current, cleaned_up_at: nil)
+    run.update_columns(state: "failed", finished_at: Time.current)
+    RunFailureClassification.create!(
+      run: run,
+      classification: "timeout",
+      retryable: true,
+      confidence: 0.85,
+      reason: "grader timed out",
+      classified_at: Time.current
+    )
+    3.times do |i|
+      AutoRetryAttempt.create!(
+        job: job,
+        workflow: workflow,
+        run: run,
+        agent_provider: "claude",
+        failure_classification: "timeout",
+        retry_kind: "failed_step",
+        attempt_number: i + 1,
+        scheduled_at: Time.current,
+        skipped_reason: "Claude appears degraded; automatic retries are paused."
+      )
+    end
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
+
+    expect {
+      reconcile_and_execute(run_id: run.id)
+    }.to change { AutoRetryAttempt.where(retry_kind: "failed_step", skipped_reason: nil).count }.by(1)
+      .and have_enqueued_job(AutoRetryJob)
+
+    expect(AutoRetryAttempt.last.attempt_number).to eq(1)
+  end
+
   it "executes provider quota plans by creating a delayed auto-retry attempt" do
     reset_at = Time.find_zone("America/New_York").parse("2026-08-01 07:05:00")
     run.update_columns(

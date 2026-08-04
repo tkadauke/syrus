@@ -177,4 +177,44 @@ RSpec.describe AutoRetryJob do
     expect(attempt.performed_at).to be_nil
     expect(job.workflows.count).to eq(1)
   end
+
+  it "reschedules the same attempt when RetryWorkflowEnqueuer returns a circuit-open result" do
+    attempt = failed_attempt!(retry_kind: "retry_workflow")
+    retry_after = 10.minutes.from_now
+    open_circuit = ProviderCircuitBreaker::Decision.new(
+      provider: "claude",
+      open: true,
+      reason: "provider transient failures",
+      retry_after: retry_after,
+      failure_count: 5,
+      job_count: 3,
+      signature: nil
+    )
+    closed_circuit = ProviderCircuitBreaker::Decision.new(
+      provider: "claude",
+      open: false,
+      reason: "provider healthy",
+      retry_after: nil,
+      failure_count: 0,
+      job_count: 0,
+      signature: nil
+    )
+    allow(ProviderCircuitBreaker).to receive(:call).and_return(closed_circuit)
+    allow(RetryWorkflowEnqueuer).to receive(:call).and_return(
+      RetryWorkflowEnqueuer::Result.new(
+        workflow: nil,
+        error: "Claude appears degraded until #{retry_after.to_fs(:db)}; automatic retries are paused.",
+        circuit: open_circuit
+      )
+    )
+
+    expect {
+      described_class.perform_now(attempt.id)
+    }.to have_enqueued_job(described_class).with(attempt.id)
+
+    expect(attempt.reload.scheduled_at.to_i).to eq(retry_after.to_i)
+    expect(attempt.skipped_reason).to be_nil
+    expect(attempt.performed_at).to be_nil
+    expect(job.workflows.count).to eq(1)
+  end
 end

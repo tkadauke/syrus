@@ -20,6 +20,8 @@ class AutoRetryJob < ApplicationJob
     if result.success?
       attempt.update!(performed_at: Time.current)
       log(attempt, "auto-retry started via #{attempt.retry_kind}")
+    elsif result.circuit&.open?
+      reschedule_for_circuit(attempt, result.circuit)
     else
       attempt.update!(skipped_reason: result.error.presence || "retry could not be started")
       log(attempt, "auto-retry skipped: #{attempt.skipped_reason}")
@@ -38,13 +40,17 @@ class AutoRetryJob < ApplicationJob
     circuit = ProviderCircuitBreaker.call(attempt.agent_provider)
     return false unless circuit.open?
 
+    reschedule_for_circuit(attempt, circuit)
+    true
+  end
+
+  def reschedule_for_circuit(attempt, circuit)
     retry_after = circuit.retry_after
     retry_after = Time.current + ProviderCircuitBreaker::OPEN_FOR unless retry_after && retry_after > Time.current
 
     attempt.update!(scheduled_at: retry_after)
     AutoRetryJob.set(wait_until: retry_after, priority: attempt.job.solid_queue_priority).perform_later(attempt.id)
     log(attempt, "auto-retry delayed until #{retry_after.iso8601}: #{circuit.reason}")
-    true
   end
 
   def perform_retry(attempt)

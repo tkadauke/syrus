@@ -85,5 +85,17 @@ RSpec.describe AutoRetryAttempt, type: :model do
       expect(scope).to include(attempt)
       expect(scope.count).to eq(1)
     end
+
+    it "excludes skipped attempts from retry budget accounting" do
+      described_class.create!(valid_attrs(skipped_reason: "That agent is not available for retry."))
+
+      scope = described_class.budget_scope_for(
+        job: job,
+        agent_provider: "claude",
+        failure_classification: "worker_died"
+      )
+
+      expect(scope).to be_empty
+    end
   end
 end

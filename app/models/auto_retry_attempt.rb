@@ -16,6 +16,6 @@ class AutoRetryAttempt < ApplicationRecord
       job: job,
       agent_provider: agent_provider,
       failure_classification: failure_classification
-    )
+    ).where(skipped_reason: nil)
   }
 end
