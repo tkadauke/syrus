@@ -74,23 +74,76 @@ module WorkflowStepResourceProfiles
     def profile_attributes(inputs)
       {
         sample_count: inputs.size,
+        process_attributed_sample_count: process_attributed_inputs(inputs).size,
+        host_pressure_sample_count: host_pressure_inputs(inputs).size,
+        attribution_quality: attribution_quality(inputs),
         p50_duration_seconds: percentile(inputs.filter_map(&:duration_seconds), 50),
         p90_duration_seconds: percentile(inputs.filter_map(&:duration_seconds), 90),
         p99_duration_seconds: percentile(inputs.filter_map(&:duration_seconds), 99),
-        p50_cpu_pressure: percentile(inputs.filter_map(&:max_cpu_pressure), 50),
-        p90_cpu_pressure: percentile(inputs.filter_map(&:max_cpu_pressure), 90),
-        p99_cpu_pressure: percentile(inputs.filter_map(&:max_cpu_pressure), 99),
-        p50_io_pressure: percentile(inputs.filter_map(&:max_io_pressure), 50),
-        p90_io_pressure: percentile(inputs.filter_map(&:max_io_pressure), 90),
-        p99_io_pressure: percentile(inputs.filter_map(&:max_io_pressure), 99),
-        p50_memory_used_percent: percentile(inputs.filter_map(&:max_memory_used_percent), 50),
-        p90_memory_used_percent: percentile(inputs.filter_map(&:max_memory_used_percent), 90),
-        p99_memory_used_percent: percentile(inputs.filter_map(&:max_memory_used_percent), 99),
+        p50_process_attributed_duration_seconds: percentile(process_values(inputs, :process_attributed_duration_seconds), 50),
+        p90_process_attributed_duration_seconds: percentile(process_values(inputs, :process_attributed_duration_seconds), 90),
+        p99_process_attributed_duration_seconds: percentile(process_values(inputs, :process_attributed_duration_seconds), 99),
+        p50_process_attributed_cpu_seconds: percentile(process_values(inputs, :process_attributed_cpu_seconds), 50),
+        p90_process_attributed_cpu_seconds: percentile(process_values(inputs, :process_attributed_cpu_seconds), 90),
+        p99_process_attributed_cpu_seconds: percentile(process_values(inputs, :process_attributed_cpu_seconds), 99),
+        p50_process_attributed_cpu_percent: percentile(process_values(inputs, :process_attributed_cpu_percent), 50),
+        p90_process_attributed_cpu_percent: percentile(process_values(inputs, :process_attributed_cpu_percent), 90),
+        p99_process_attributed_cpu_percent: percentile(process_values(inputs, :process_attributed_cpu_percent), 99),
+        p50_process_attributed_memory_bytes: percentile(process_values(inputs, :process_attributed_memory_bytes), 50),
+        p90_process_attributed_memory_bytes: percentile(process_values(inputs, :process_attributed_memory_bytes), 90),
+        p99_process_attributed_memory_bytes: percentile(process_values(inputs, :process_attributed_memory_bytes), 99),
+        p50_process_attributed_io_bytes: percentile(process_values(inputs, :process_attributed_io_bytes), 50),
+        p90_process_attributed_io_bytes: percentile(process_values(inputs, :process_attributed_io_bytes), 90),
+        p99_process_attributed_io_bytes: percentile(process_values(inputs, :process_attributed_io_bytes), 99),
+        p50_cpu_pressure: percentile(host_values(inputs, :max_cpu_pressure), 50),
+        p90_cpu_pressure: percentile(host_values(inputs, :max_cpu_pressure), 90),
+        p99_cpu_pressure: percentile(host_values(inputs, :max_cpu_pressure), 99),
+        p50_io_pressure: percentile(host_values(inputs, :max_io_pressure), 50),
+        p90_io_pressure: percentile(host_values(inputs, :max_io_pressure), 90),
+        p99_io_pressure: percentile(host_values(inputs, :max_io_pressure), 99),
+        p50_memory_used_percent: percentile(host_values(inputs, :max_memory_used_percent), 50),
+        p90_memory_used_percent: percentile(host_values(inputs, :max_memory_used_percent), 90),
+        p99_memory_used_percent: percentile(host_values(inputs, :max_memory_used_percent), 99),
+        p50_host_pressure_cpu: percentile(host_values(inputs, :max_cpu_pressure), 50),
+        p90_host_pressure_cpu: percentile(host_values(inputs, :max_cpu_pressure), 90),
+        p99_host_pressure_cpu: percentile(host_values(inputs, :max_cpu_pressure), 99),
+        p50_host_pressure_io: percentile(host_values(inputs, :max_io_pressure), 50),
+        p90_host_pressure_io: percentile(host_values(inputs, :max_io_pressure), 90),
+        p99_host_pressure_io: percentile(host_values(inputs, :max_io_pressure), 99),
+        p50_host_pressure_memory_used_percent: percentile(host_values(inputs, :max_memory_used_percent), 50),
+        p90_host_pressure_memory_used_percent: percentile(host_values(inputs, :max_memory_used_percent), 90),
+        p99_host_pressure_memory_used_percent: percentile(host_values(inputs, :max_memory_used_percent), 99),
         timeout_rate: rate(inputs) { |summary| timeout?(summary) },
         failure_rate: rate(inputs) { |summary| summary.run&.failed? },
         last_observed_at: inputs.filter_map { |summary| summary.finished_at || summary.created_at }.max,
         profile_version: WorkflowStepResourceProfile::PROFILE_VERSION
       }
+    end
+
+    def process_values(inputs, metric)
+      process_attributed_inputs(inputs).filter_map { |summary| summary.public_send(metric) }
+    end
+
+    def host_values(inputs, metric)
+      host_pressure_inputs(inputs).filter_map { |summary| summary.public_send(metric) }
+    end
+
+    def process_attributed_inputs(inputs)
+      inputs.select { |summary| summary.process_attributed_sample_count.to_i.positive? }
+    end
+
+    def host_pressure_inputs(inputs)
+      inputs.select { |summary| summary.host_sample_count.to_i.positive? }
+    end
+
+    def attribution_quality(inputs)
+      process_count = process_attributed_inputs(inputs).size
+      host_count = host_pressure_inputs(inputs).size
+      return "defaults_only" if process_count.zero? && host_count.zero?
+      return "process_attributed" if process_count == inputs.size
+      return "host_correlated" if process_count.zero?
+
+      "mixed"
     end
 
     def normalized_grader_name(summary)

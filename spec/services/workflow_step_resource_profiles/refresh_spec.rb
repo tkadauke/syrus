@@ -26,7 +26,7 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
     Factories.job_record(**attrs)
   end
 
-  def resource_summary(repository:, duration:, cpu: 10.0, io: 2.0, memory: 30.0, kind: "issue", step_kind: "implement", grader_name: nil, state: "succeeded", retention_limited: false, finished_at: now)
+  def resource_summary(repository:, duration:, cpu: 10.0, io: 2.0, memory: 30.0, kind: "issue", step_kind: "implement", grader_name: nil, state: "succeeded", retention_limited: false, finished_at: now, process_duration: nil, process_cpu_seconds: nil, process_memory_bytes: nil)
     job = job_for(repository: repository, kind: kind)
     workflow = workflow_for(job)
     step = step_for(workflow, kind: step_kind, details: grader_name ? { "name" => grader_name } : {})
@@ -59,6 +59,10 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
       max_cpu_pressure: cpu,
       max_io_pressure: io,
       max_memory_used_percent: memory,
+      process_attributed_sample_count: process_duration.present? || process_cpu_seconds.present? || process_memory_bytes.present? ? 1 : 0,
+      process_attributed_duration_seconds: process_duration,
+      process_attributed_cpu_seconds: process_cpu_seconds,
+      process_attributed_memory_bytes: process_memory_bytes,
       resource_pressure_level: "ok",
       resource_pressure_reasons: [],
       retention_limited: retention_limited,
@@ -75,6 +79,8 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
 
     profile = WorkflowStepResourceProfile.first
     expect(profile.sample_count).to eq(9)
+    expect(profile.host_pressure_sample_count).to eq(9)
+    expect(profile.attribution_quality).to eq("host_correlated")
     expect(profile.p90_duration_seconds).to eq(68.0)
     expect(profile.confidence_level).to eq("defaults_only")
     expect(profile).not_to be_permits_soft_prediction
@@ -82,6 +88,53 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
       duration_seconds: WorkflowStepResourceProfile::CONSERVATIVE_DEFAULTS.fetch(:duration_seconds),
       cpu_pressure: WorkflowStepResourceProfile::CONSERVATIVE_DEFAULTS.fetch(:cpu_pressure),
       confidence_level: "defaults_only"
+    )
+  end
+
+  it "prefers process-attributed metrics when enough attributed samples exist" do
+    10.times do |index|
+      resource_summary(
+        repository: repository,
+        duration: 60 + index,
+        cpu: 90.0,
+        process_duration: 20 + index,
+        process_cpu_seconds: 5.0 + index,
+        process_memory_bytes: (100 + index).megabytes
+      )
+    end
+
+    described_class.new(now: now).refresh_all!
+
+    profile = WorkflowStepResourceProfile.first
+    expect(profile.process_attributed_sample_count).to eq(10)
+    expect(profile.host_pressure_sample_count).to eq(10)
+    expect(profile.attribution_quality).to eq("process_attributed")
+    expect(profile.p90_process_attributed_duration_seconds).to eq(28.0)
+    expect(profile.p90_host_pressure_cpu).to eq(90.0)
+    expect(profile.conservative_prediction).to include(
+      prediction_basis: "process_attributed",
+      process_attributed_duration_seconds: 28.0,
+      process_attributed_cpu_seconds: 13.0,
+      host_pressure_cpu: 90.0,
+      confidence_level: "soft"
+    )
+  end
+
+  it "marks many host-correlated-only samples differently from process-attributed profiles" do
+    30.times do |index|
+      resource_summary(repository: repository, duration: 100 + index, cpu: 20.0 + index)
+    end
+
+    described_class.new(now: now).refresh_all!
+
+    profile = WorkflowStepResourceProfile.first
+    expect(profile.process_attributed_sample_count).to eq(0)
+    expect(profile.host_pressure_sample_count).to eq(30)
+    expect(profile.attribution_quality).to eq("host_correlated")
+    expect(profile.confidence_level).to eq("normal")
+    expect(profile.conservative_prediction).to include(
+      prediction_basis: "host_correlated",
+      host_pressure_cpu: 46.0
     )
   end
 

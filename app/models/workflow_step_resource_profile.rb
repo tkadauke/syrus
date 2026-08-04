@@ -8,8 +8,14 @@ class WorkflowStepResourceProfile < ApplicationRecord
   TIGHT_CONFIDENCE_SAMPLE_COUNT = 100
 
   CONFIDENCE_LEVELS = %w[ defaults_only soft normal tight ].freeze
+  ATTRIBUTION_QUALITIES = %w[ defaults_only host_correlated mixed process_attributed ].freeze
   CONSERVATIVE_DEFAULTS = {
     duration_seconds: 30.minutes.to_i,
+    process_attributed_duration_seconds: 30.minutes.to_i,
+    process_attributed_cpu_seconds: 0.0,
+    process_attributed_cpu_percent: 100.0,
+    process_attributed_memory_bytes: nil,
+    process_attributed_io_bytes: nil,
     cpu_pressure: 100.0,
     io_pressure: 100.0,
     memory_used_percent: 100.0,
@@ -22,7 +28,9 @@ class WorkflowStepResourceProfile < ApplicationRecord
   validates :agent_provider, :trigger_kind, :step_kind, :profile_version, presence: true
   validates :grader_name, length: { maximum: 128 }, allow_blank: true
   validates :job_kind, length: { maximum: 64 }, allow_blank: true
-  validates :sample_count, numericality: { greater_than_or_equal_to: 0, only_integer: true }
+  validates :sample_count, :process_attributed_sample_count, :host_pressure_sample_count,
+            numericality: { greater_than_or_equal_to: 0, only_integer: true }
+  validates :attribution_quality, inclusion: { in: ATTRIBUTION_QUALITIES }
   validates :timeout_rate, :failure_rate, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 1 }
   validates :profile_version, numericality: { only_integer: true, greater_than: 0 }
   validates :repository_id, uniqueness: {
@@ -42,38 +50,64 @@ class WorkflowStepResourceProfile < ApplicationRecord
   end
 
   def confidence_level
-    return "tight" if sample_count >= TIGHT_CONFIDENCE_SAMPLE_COUNT
-    return "normal" if sample_count >= NORMAL_ADMISSION_SAMPLE_COUNT
-    return "soft" if sample_count >= SOFT_PREDICTION_SAMPLE_COUNT
+    count = prediction_sample_count
+    return "tight" if count >= TIGHT_CONFIDENCE_SAMPLE_COUNT
+    return "normal" if count >= NORMAL_ADMISSION_SAMPLE_COUNT
+    return "soft" if count >= SOFT_PREDICTION_SAMPLE_COUNT
 
     "defaults_only"
   end
 
   def permits_soft_prediction?
-    sample_count >= SOFT_PREDICTION_SAMPLE_COUNT
+    prediction_sample_count >= SOFT_PREDICTION_SAMPLE_COUNT
   end
 
   def permits_normal_admission?
-    sample_count >= NORMAL_ADMISSION_SAMPLE_COUNT
+    prediction_sample_count >= NORMAL_ADMISSION_SAMPLE_COUNT
   end
 
   def permits_tight_confidence?
-    sample_count >= TIGHT_CONFIDENCE_SAMPLE_COUNT
+    prediction_sample_count >= TIGHT_CONFIDENCE_SAMPLE_COUNT
+  end
+
+  def prefers_process_attribution?
+    process_attributed_sample_count >= SOFT_PREDICTION_SAMPLE_COUNT
+  end
+
+  def prediction_basis
+    return "process_attributed" if prefers_process_attribution?
+    return "host_correlated" if host_pressure_sample_count >= SOFT_PREDICTION_SAMPLE_COUNT
+
+    "conservative_defaults"
   end
 
   def conservative_prediction
     {
       duration_seconds: prediction_value(:duration_seconds, p90_duration_seconds),
-      cpu_pressure: prediction_value(:cpu_pressure, p90_cpu_pressure),
-      io_pressure: prediction_value(:io_pressure, p90_io_pressure),
-      memory_used_percent: prediction_value(:memory_used_percent, p90_memory_used_percent),
+      process_attributed_duration_seconds: prediction_value(:process_attributed_duration_seconds, p90_process_attributed_duration_seconds),
+      process_attributed_cpu_seconds: prediction_value(:process_attributed_cpu_seconds, p90_process_attributed_cpu_seconds),
+      process_attributed_cpu_percent: prediction_value(:process_attributed_cpu_percent, p90_process_attributed_cpu_percent),
+      process_attributed_memory_bytes: prediction_value(:process_attributed_memory_bytes, p90_process_attributed_memory_bytes),
+      process_attributed_io_bytes: prediction_value(:process_attributed_io_bytes, p90_process_attributed_io_bytes),
+      host_pressure_cpu: prediction_value(:cpu_pressure, p90_host_pressure_cpu || p90_cpu_pressure),
+      host_pressure_io: prediction_value(:io_pressure, p90_host_pressure_io || p90_io_pressure),
+      host_pressure_memory_used_percent: prediction_value(:memory_used_percent, p90_host_pressure_memory_used_percent || p90_memory_used_percent),
+      cpu_pressure: prediction_value(:cpu_pressure, p90_host_pressure_cpu || p90_cpu_pressure),
+      io_pressure: prediction_value(:io_pressure, p90_host_pressure_io || p90_io_pressure),
+      memory_used_percent: prediction_value(:memory_used_percent, p90_host_pressure_memory_used_percent || p90_memory_used_percent),
       timeout_rate: prediction_value(:timeout_rate, timeout_rate),
       failure_rate: prediction_value(:failure_rate, failure_rate),
-      confidence_level: confidence_level
+      confidence_level: confidence_level,
+      attribution_quality: attribution_quality,
+      prediction_basis: prediction_basis
     }
   end
 
   private
+
+  def prediction_sample_count
+    [ process_attributed_sample_count.to_i, host_pressure_sample_count.to_i ].max
+  end
 
   def prediction_value(key, observed)
     return CONSERVATIVE_DEFAULTS.fetch(key) unless permits_soft_prediction?
