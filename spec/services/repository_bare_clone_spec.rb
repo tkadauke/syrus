@@ -11,7 +11,7 @@ RSpec.describe RepositoryBareClone, :ci_only do
   before do
     ENV["SYRUS_DATA_ROOT"] = syrus_data_root.to_s
     init_origin(origin_dir)
-    allow_any_instance_of(Repository).to receive(:authenticated_url).and_return("file://#{origin_dir}")
+    allow_any_instance_of(Repository).to receive(:authenticated_push_url).and_return("file://#{origin_dir}")
   end
 
   after do
