@@ -479,11 +479,26 @@ RSpec.describe "SyrusChatMcp job control tools" do
       )
       expect(job.reload).to be_running
 
-      expect(pending_action.confirm!(user: admin)).to be(true)
+      expect {
+        expect(pending_action.confirm!(user: admin)).to be(true)
+      }.to change { AdminAction.where(action: "repair_force_fail_job").count }.by(1)
+
       expect(job.reload).to be_failed
       expect(pending_action.reload.result).to eq(job)
       expect(pending_action.before_snapshot.dig("jobs", 0, "state")).to eq("running")
       expect(pending_action.after_snapshot.dig("jobs", 0, "state")).to eq("failed")
+      expect(AdminAction.where(action: "repair_force_fail_job").last.params).to include(
+        "pending_action_id" => pending_action.id,
+        "chat_session_id" => admin_chat_session.id,
+        "repository_id" => nil,
+        "action" => "force_fail_job",
+        "reason" => "Operator determined it is stuck.",
+        "requested_by" => "agent",
+        "payload" => { "job_id" => job.id, "previous_state" => "running" },
+        "result" => { "type" => "Job", "id" => job.id },
+        "before_snapshot" => hash_including("jobs" => [ hash_including("state" => "running") ]),
+        "after_snapshot" => hash_including("jobs" => [ hash_including("state" => "failed") ])
+      )
     end
 
     it "allows an admin to rebase another user's job" do

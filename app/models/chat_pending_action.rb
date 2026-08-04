@@ -92,6 +92,7 @@ class ChatPendingAction < ApplicationRecord
         self.before_snapshot = PendingActions::RepairAuditSnapshot.capture(repair_targets) if command.repair_action?
         record = command.execute
         self.after_snapshot = PendingActions::RepairAuditSnapshot.capture(repair_targets) if command.repair_action?
+        record_repair_admin_action!(record) if command.repair_action?
         updates = { state: "confirmed", confirmed_at: Time.current }
         updates[:result] = record if record
         update!(updates)
@@ -257,6 +258,34 @@ class ChatPendingAction < ApplicationRecord
     PendingActions.for(action_key).new(self).validate_payload(errors)
   rescue PendingActions::UnknownAction
     # unknown actions are caught by known_action validation
+  end
+
+  def record_repair_admin_action!(record)
+    AdminAction.log!(
+      user: user,
+      action: "repair_#{action_key}",
+      params: {
+        pending_action_id: id,
+        chat_session_id: chat_session_id,
+        repository_id: repository_id,
+        action: action_key,
+        reason: reason,
+        requested_by: requested_by,
+        payload: payload,
+        result: repair_result_payload(record),
+        before_snapshot: before_snapshot,
+        after_snapshot: after_snapshot
+      }
+    )
+  end
+
+  def repair_result_payload(record)
+    return nil unless record
+
+    {
+      type: record.class.name,
+      id: record.id
+    }
   end
 
   def queued_actions_are_job_scoped
