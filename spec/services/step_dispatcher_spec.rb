@@ -236,6 +236,64 @@ RSpec.describe StepDispatcher do
       expect(auto_merge.failure_reason).to be_nil
       expect(landing_job.reload.parent_job).to eq(middle)
     end
+
+    it "staggers medium-priority workflows when predicted grader pressure would overlap" do
+      repository = job.repository
+      existing = Workflows::Initial.instantiate(job: Factories.job_record(user: job.user, repository: repository, priority: "medium"))
+      candidate = Workflows::Initial.instantiate(job: Factories.job_record(user: job.user, repository: repository, priority: "medium"))
+      candidate_first = candidate.first_step
+
+      %w[prepare implement grader_fanout grader_collect coverage_analyze summarize test_plan pr_open].each do |step_kind|
+        WorkflowStepResourceProfile.create!(
+          repository: repository,
+          agent_provider: "claude",
+          trigger_kind: "initial",
+          step_kind: step_kind,
+          grader_name: "",
+          job_kind: "issue",
+          sample_count: 40,
+          p90_duration_seconds: 30,
+          p90_cpu_pressure: 2.0,
+          p90_io_pressure: 2.0,
+          p90_memory_used_percent: 20.0,
+          timeout_rate: 0.0,
+          failure_rate: 0.0,
+          last_observed_at: Time.current,
+          profile_version: WorkflowStepResourceProfile::PROFILE_VERSION
+        )
+      end
+      WorkflowStepResourceProfile.create!(
+        repository: repository,
+        agent_provider: "claude",
+        trigger_kind: "initial",
+        step_kind: "grader",
+        grader_name: "production-build-boot",
+        job_kind: "issue",
+        sample_count: 40,
+        p90_duration_seconds: 2_400,
+        p90_cpu_pressure: 70.0,
+        p90_io_pressure: 40.0,
+        p90_memory_used_percent: 70.0,
+        timeout_rate: 0.0,
+        failure_rate: 0.0,
+        last_observed_at: Time.current,
+        profile_version: WorkflowStepResourceProfile::PROFILE_VERSION
+      )
+
+      described_class.start_workflow(existing)
+
+      expect {
+        described_class.start_workflow(candidate)
+      }.not_to change { candidate_first.runs.count }
+
+      expect(candidate.reload).to be_queued
+      expect(candidate.artifact("start_blocked_reason")).to eq(StepDispatcher::ADMISSION_BLOCK_REASON)
+      expect(candidate.artifact("start_blocked_details")).to include(
+        "action" => "delay_until",
+        "reason" => "predicted_budget_pressure_high"
+      )
+      expect(candidate.artifact("start_blocked_details").dig("pressure", "projected", "cpu_pressure")).to be >= 100.0
+    end
   end
 
   describe ".advance_from" do

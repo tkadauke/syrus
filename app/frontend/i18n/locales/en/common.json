@@ -278,7 +278,8 @@
     "stack_fan_in_base_unavailable": "Fan-in base unavailable",
     "job_not_ready_for_execution": "Not ready",
     "main_branch_broken": "Main branch broken",
-    "urgent_job_active": "Urgent job in progress"
+    "urgent_job_active": "Urgent job in progress",
+    "workflow_admission_budget": "Workflow admission delayed"
   },
   "start_blocked_reason_tooltips": {
     "dependency_failed": "A required job or Epic dependency ended without a successful resolution. Override or remove the dependency to continue.",
@@ -286,7 +287,8 @@
     "stack_fan_in_base_unavailable": "Multiple dependency PR branches are ready, but Syrus could not prepare a combined execution base.",
     "job_not_ready_for_execution": "The job is not valid for execution yet or its Epic has not released it.",
     "main_branch_broken": "Repository landing is paused because the main branch is unhealthy.",
-    "urgent_job_active": "A non-urgent job is waiting while an urgent job in this repository remains active."
+    "urgent_job_active": "A non-urgent job is waiting while an urgent job in this repository remains active.",
+    "workflow_admission_budget": "Syrus predicted that starting this workflow now would put too much pressure on the worker pool."
   },
   "blocked_reasons": {
     "landing_paused": "Landing paused",

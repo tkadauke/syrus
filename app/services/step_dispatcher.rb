@@ -100,6 +100,23 @@ class StepDispatcher
     end
     clear_start_blocked!(workflow, URGENT_BLOCK_REASON)
 
+    admission = WorkflowAdmissionBudget.call(workflow: workflow)
+    unless admission.admit?
+      reason = ADMISSION_BLOCK_REASON
+      return if start_blocked_backoff_active?(workflow, reason)
+
+      record_start_blocked!(
+        workflow,
+        reason,
+        backoff: admission.delay_until ? admission_backoff(admission) : START_BLOCKED_BACKOFF,
+        details: admission.artifact
+      )
+      warn_if_stuck_queued(workflow, "#{reason}: #{admission.reason}")
+      return
+    end
+    record_admission_decision!(workflow, admission)
+    clear_start_blocked!(workflow, ADMISSION_BLOCK_REASON)
+
     run = create_run_and_enqueue(first, workflow,
                                  parent_session_id: parent_session_id,
                                  prompt: prompt)
@@ -119,6 +136,7 @@ class StepDispatcher
   STACK_BLOCK_REASON = "stack_dependencies_not_ready"
   FAN_IN_BLOCK_REASON = JobStackResolver::FAN_IN_BLOCK_REASON
   JOB_BLOCK_REASON = "job_not_ready_for_execution"
+  ADMISSION_BLOCK_REASON = "workflow_admission_budget"
   START_BLOCKED_BACKOFF = 5.minutes
 
   def self.main_health_blocking?(workflow)
@@ -163,6 +181,19 @@ class StepDispatcher
       artifacts.delete("start_blocked_details")
     end
     workflow.update!(artifacts: artifacts)
+  end
+
+  def self.record_admission_decision!(workflow, decision)
+    artifacts = workflow.artifacts.to_h.merge(
+      "workflow_admission_decision" => decision.artifact,
+      "workflow_admission_decided_at" => Time.current.iso8601
+    )
+    artifacts["workflow_admission_override"] = decision.artifact if decision.override
+    workflow.update!(artifacts: artifacts)
+  end
+
+  def self.admission_backoff(admission)
+    [ admission.delay_until - Time.current, START_BLOCKED_BACKOFF.to_i ].max.seconds
   end
 
   def self.record_stack_resolution_artifacts!(workflow, resolution)

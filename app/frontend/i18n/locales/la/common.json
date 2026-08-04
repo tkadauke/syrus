@@ -278,7 +278,8 @@
     "stack_fan_in_base_unavailable": "Basis confluens deest",
     "job_not_ready_for_execution": "Nondum paratum",
     "main_branch_broken": "Ramus principalis fractus",
-    "urgent_job_active": "Opus urgens agitur"
+    "urgent_job_active": "Opus urgens agitur",
+    "workflow_admission_budget": "Admissio cursus dilata"
   },
   "start_blocked_reason_tooltips": {
     "dependency_failed": "Opus vel Epicum necessarium sine exitu felici finitum est. Dependentiam remove vel praeteri ut pergas.",
@@ -286,7 +287,8 @@
     "stack_fan_in_base_unavailable": "Plures rami dependentiarum parati sunt, sed Syrus basim coniunctam exsecutionis parare non potuit.",
     "job_not_ready_for_execution": "Opus nondum ad exsecutionem valet aut Epicum suum id nondum dimisit.",
     "main_branch_broken": "Descensus suspensus est quod ramus principalis receptaculi non sanus est.",
-    "urgent_job_active": "Opus non urgens exspectat dum opus urgens in hoc repositorio activum est."
+    "urgent_job_active": "Opus non urgens exspectat dum opus urgens in hoc repositorio activum est.",
+    "workflow_admission_budget": "Syrus praedixit hunc cursum nunc nimiam vim operariis impositurum esse."
   },
   "blocked_reasons": {
     "landing_paused": "Landing suspensa",

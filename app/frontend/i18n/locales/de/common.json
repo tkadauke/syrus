@@ -278,7 +278,8 @@
     "stack_fan_in_base_unavailable": "Fan-in-Basis nicht verfügbar",
     "job_not_ready_for_execution": "Noch nicht bereit",
     "main_branch_broken": "Hauptbranch defekt",
-    "urgent_job_active": "Dringende Aufgabe läuft"
+    "urgent_job_active": "Dringende Aufgabe läuft",
+    "workflow_admission_budget": "Workflow-Zulassung verzögert"
   },
   "start_blocked_reason_tooltips": {
     "dependency_failed": "Eine erforderliche Job- oder Epic-Abhängigkeit endete ohne erfolgreiche Auflösung. Überschreibe oder entferne die Abhängigkeit, um fortzufahren.",
@@ -286,7 +287,8 @@
     "stack_fan_in_base_unavailable": "Mehrere Abhängigkeits-PR-Branches sind bereit, aber Syrus konnte keine kombinierte Ausführungsbasis vorbereiten.",
     "job_not_ready_for_execution": "Der Job ist noch nicht gültig für die Ausführung oder sein Epic hat ihn nicht freigegeben.",
     "main_branch_broken": "Landing ist pausiert, weil der Hauptbranch des Repositorys nicht gesund ist.",
-    "urgent_job_active": "Ein nicht dringender Job wartet, solange in diesem Repository ein dringender Job aktiv ist."
+    "urgent_job_active": "Ein nicht dringender Job wartet, solange in diesem Repository ein dringender Job aktiv ist.",
+    "workflow_admission_budget": "Syrus hat vorhergesagt, dass dieser Workflow die Worker jetzt zu stark belasten würde."
   },
   "blocked_reasons": {
     "landing_paused": "Landing pausiert",
