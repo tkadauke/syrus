@@ -172,9 +172,20 @@ RSpec.describe Prompts::AgentInsight do
         job = Factories.job(user: user, repository: repository)
         job.update!(issue_title: "Fix the thing")
         out = prompt(recent_jobs: [job])
-        expect(out).to include("## Recent Jobs (last 14 days)")
+        expect(out).to include("## Recent Completed Jobs")
         expect(out).to include("JOB-#{job.id}")
         expect(out).to include("Fix the thing")
+      end
+
+      it "includes workflow and run identifiers when available" do
+        job = Factories.job(user: user, repository: repository)
+        workflow = job.latest_workflow
+        run = workflow.steps.first.runs.first
+
+        out = prompt(recent_jobs: [job])
+
+        expect(out).to include("WF-#{workflow.id} initial")
+        expect(out).to include("RUN-#{run.id}")
       end
     end
 

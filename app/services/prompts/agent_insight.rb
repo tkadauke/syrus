@@ -50,13 +50,32 @@ module Prompts
       return if @recent_jobs.empty?
 
       lines = @recent_jobs.map do |job|
-        state = job.state
-        kind  = job.kind
         title = job.issue_title.to_s.truncate(80)
-        "- JOB-#{job.id} (#{kind}, #{state}): #{title}"
+        "- JOB-#{job.id} (#{job.kind}, #{job.state}; #{workflow_summary(job)}; #{run_summary(job)}): #{title}"
       end
 
-      "## Recent Jobs (last 14 days)\n\n#{lines.join("\n")}"
+      "## Recent Completed Jobs\n\n#{lines.join("\n")}"
+    end
+
+    def workflow_summary(job)
+      workflow = job.latest_workflow
+      return "workflow: none" unless workflow
+
+      finished_at = workflow.finished_at&.iso8601 || "unfinished"
+      "workflow: WF-#{workflow.id} #{workflow.trigger_kind}/#{workflow.state} finished_at=#{finished_at}"
+    end
+
+    def run_summary(job)
+      workflow = job.latest_workflow
+      runs = workflow&.steps&.flat_map(&:runs).to_a.last(6)
+      return "runs: none" if runs.blank?
+
+      "runs: #{runs.map { |run| run_lineage(run) }.join(", ")}"
+    end
+
+    def run_lineage(run)
+      step_kind = run.step&.kind || "unknown_step"
+      "RUN-#{run.id} #{step_kind}/#{run.state}"
     end
 
     def known_insights_section

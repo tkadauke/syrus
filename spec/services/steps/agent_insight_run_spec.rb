@@ -194,5 +194,122 @@ RSpec.describe Steps::AgentInsightRun do
       handler.call
       expect(run.reload.prompt).to eq("pre-existing prompt")
     end
+
+    context "recent jobs context" do
+      let!(:prior_job) do
+        prior = Job.create!(user: user, repository: repository, kind: "agent_insight", priority: "low")
+        prior.update_columns(
+          state: "closed",
+          finished_at: Time.utc(2026, 7, 20, 12, 0, 0),
+          closure_reason: "agent_insight"
+        )
+        prior
+      end
+
+      it "includes closed direct and cron jobs completed after the analysis window" do
+        direct = completed_job(
+          kind: "direct",
+          issue_number: nil,
+          issue_title: "Operator asked for terminal polish",
+          completed_at: Time.utc(2026, 7, 22, 9, 0, 0)
+        )
+        cron = completed_job(
+          kind: "cron",
+          issue_number: nil,
+          scheduled_task: scheduled_task,
+          issue_title: "Scheduled dependency sweep",
+          completed_at: Time.utc(2026, 7, 23, 9, 0, 0)
+        )
+
+        handler.call
+
+        prompt = run.reload.prompt
+        expect(prompt).to include("JOB-#{direct.id} (direct, closed")
+        expect(prompt).to include("Operator asked for terminal polish")
+        expect(prompt).to include("JOB-#{cron.id} (cron, closed")
+        expect(prompt).to include("Scheduled dependency sweep")
+      end
+
+      it "includes workflow and run identifiers for evidence lookup" do
+        direct = completed_job(
+          kind: "direct",
+          issue_number: nil,
+          issue_title: "Investigate failed handoff",
+          completed_at: Time.utc(2026, 7, 22, 9, 0, 0),
+          trigger_kind: "coding_handoff",
+          step_kind: "grader"
+        )
+        workflow = direct.latest_workflow
+        evidence_run = workflow.steps.first.runs.first
+
+        handler.call
+
+        prompt = run.reload.prompt
+        expect(prompt).to include("WF-#{workflow.id} coding_handoff/succeeded")
+        expect(prompt).to include("RUN-#{evidence_run.id} grader/succeeded")
+      end
+
+      it "does not rely only on issue jobs created during the analysis window" do
+        old_issue = completed_job(
+          kind: "issue",
+          issue_number: 72,
+          issue_title: "Old issue with new workflow",
+          created_at: Time.utc(2026, 7, 1, 9, 0, 0),
+          completed_at: Time.utc(2026, 7, 21, 9, 0, 0)
+        )
+        direct = completed_job(
+          kind: "direct",
+          issue_number: nil,
+          issue_title: "Fresh direct context",
+          completed_at: Time.utc(2026, 7, 22, 9, 0, 0)
+        )
+        too_old = completed_job(
+          kind: "issue",
+          issue_number: 73,
+          issue_title: "Completed before the insight window",
+          created_at: Time.utc(2026, 7, 1, 9, 0, 0),
+          completed_at: Time.utc(2026, 7, 19, 9, 0, 0)
+        )
+
+        handler.call
+
+        prompt = run.reload.prompt
+        expect(prompt).to include("JOB-#{old_issue.id} (issue, closed")
+        expect(prompt).to include("JOB-#{direct.id} (direct, closed")
+        expect(prompt).not_to include("JOB-#{too_old.id}")
+      end
+    end
+  end
+
+  def scheduled_task
+    ScheduledTask.create!(
+      user: user,
+      repository: repository,
+      name: "Nightly dependency sweep",
+      prompt: "Check dependency drift.",
+      kind: "cron",
+      cron_expression: "0 * * * *"
+    )
+  end
+
+  def completed_job(kind:, issue_number:, issue_title:, completed_at:, created_at: completed_at, scheduled_task: nil, trigger_kind: "initial", step_kind: "implement")
+    created = Factories.job_record(
+      user: user,
+      repository: repository,
+      kind: kind,
+      issue_number: issue_number,
+      issue_title: issue_title,
+      scheduled_task: scheduled_task,
+      state: "queued",
+      created_at: created_at
+    )
+    workflow = Workflow.create!(job: created, trigger_kind: trigger_kind)
+    step = Step.create!(workflow: workflow, kind: step_kind, position: 0)
+    run = Run.create!(job: created, step: step, trigger_kind: trigger_kind)
+    run.update_columns(state: "succeeded", finished_at: completed_at)
+    step.update_columns(state: "succeeded", finished_at: completed_at)
+    workflow.update_columns(state: "succeeded", finished_at: completed_at)
+    created.update_columns(state: "closed", finished_at: completed_at, closure_reason: "pr_merged")
+    created.reload
   end
 end
