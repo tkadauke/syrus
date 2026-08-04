@@ -277,6 +277,13 @@ describe("JobDetailView", () => {
     expect(within(pipeline).getByText("Released to Public")).toBeInTheDocument()
     expect(pipeline.querySelector(`time[datetime="${reachedAt}"]`)).toBeInTheDocument()
     expect(within(pipeline).getAllByText("Pending")).toHaveLength(2)
+    expect(pipeline).toHaveClass("w-full")
+    expect(pipeline).not.toHaveClass("min-w-max")
+    expect(screen.getByLabelText("Deployment stages")).not.toHaveClass("overflow-x-auto")
+    expect(screen.getByText("Released to Public")).toHaveClass("w-full")
+    pipeline.querySelectorAll("li[data-reached]").forEach((stageItem) => {
+      expect(stageItem).toHaveClass("min-w-0", "flex-1")
+    })
 
     const details = screen.getByRole("heading", { name: "Details" }).closest("section")
     expect(details).toContainElement(pipeline)
