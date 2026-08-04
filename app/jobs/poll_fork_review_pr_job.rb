@@ -1,7 +1,7 @@
 class PollForkReviewPrJob < ApplicationJob
   include GithubPrPollHelpers
 
-  queue_as :default
+  queue_as :polling
 
   # One concurrent poll per Job — prevents concurrent approval handling.
   limits_concurrency to: 1, key: ->(job_id) { "fork_review_poll:#{job_id}" }

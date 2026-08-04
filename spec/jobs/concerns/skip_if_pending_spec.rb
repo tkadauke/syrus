@@ -4,7 +4,7 @@ require "rails_helper"
 # discover the constant by name when serializing the enqueued job.
 class SkipIfPendingTestJob < ApplicationJob
   include SkipIfPending
-  queue_as :default
+  queue_as :control_plane
   def perform(*); end
 end
 

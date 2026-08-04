@@ -1,7 +1,7 @@
 class RunDiagnosticPruneJob < ApplicationJob
   include SkipIfPending
 
-  queue_as :default
+  queue_as :cleanup
 
   # Daily sweep of stale RunDiagnostic rows. Each one carries an
   # exception backtrace + git snapshot + env snapshot for an

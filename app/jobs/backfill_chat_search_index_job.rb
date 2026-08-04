@@ -2,7 +2,7 @@ class BackfillChatSearchIndexJob < ApplicationJob
   BATCH_SIZE = 500
   LAST_BACKFILLED_ID_KEY = "last_backfilled_id".freeze
 
-  queue_as :default
+  queue_as :indexing
 
   def perform
     loop do

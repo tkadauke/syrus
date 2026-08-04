@@ -225,7 +225,7 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
 
   it "returns recurring task status" do
     sign_in_as(admin)
-    recurring_job = solid_queue_job(class_name: "PollAllRepositoriesJob", queue_name: "default", finished_at: Time.current)
+    recurring_job = solid_queue_job(class_name: "PollAllRepositoriesJob", queue_name: "polling", finished_at: Time.current)
     SolidQueue::RecurringTask.create!(
       key: "poll_repositories",
       class_name: "PollAllRepositoriesJob",

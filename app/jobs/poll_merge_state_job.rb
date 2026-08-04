@@ -1,7 +1,7 @@
 class PollMergeStateJob < ApplicationJob
   include GithubPrPollHelpers
 
-  queue_as :default
+  queue_as :polling
   REBASE_MERGEABLE_STATES = %w[behind dirty].freeze
 
   limits_concurrency to: 1, key: ->(job_id) { "merge_state_poll:#{job_id}" }

@@ -1,7 +1,7 @@
 class PollPullRequestJob < ApplicationJob
   include GithubPrPollHelpers
 
-  queue_as :default
+  queue_as :polling
 
   # Max ci_failure workflows on a Job in any rolling 24h window. CI
   # failures CAN runaway loop (agent's fix introduces new failures →

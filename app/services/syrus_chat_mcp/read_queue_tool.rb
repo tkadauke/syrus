@@ -2,7 +2,17 @@ require "mcp"
 
 module SyrusChatMcp
   class ReadQueueTool < MCP::Tool
-    QUEUES = %w[runs chat default merges].freeze
+    QUEUES = %w[
+      runs
+      merges
+      chat
+      videos
+      control_plane
+      polling
+      indexing
+      cleanup
+      low_priority_maintenance
+    ].freeze
     PROCESS_STALE_THRESHOLD = InstanceVersion::HEARTBEAT_STALE_THRESHOLD
 
     tool_name "read_queue"

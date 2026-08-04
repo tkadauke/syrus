@@ -1,5 +1,5 @@
 class PollRepositoryDeploymentStagesJob < ApplicationJob
-  queue_as :default
+  queue_as :polling
 
   limits_concurrency to: 1, key: ->(repo_id) { "deployment_stage_poll:#{repo_id}" }
 

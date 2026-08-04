@@ -1,7 +1,7 @@
 class ClaudeSessionPruneJob < ApplicationJob
   include SkipIfPending
 
-  queue_as :default
+  queue_as :cleanup
 
   # Daily housekeeping.
   # 1. Clear transcript_jsonl for any succeeded Runs that still have one

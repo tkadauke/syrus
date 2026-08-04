@@ -47,15 +47,39 @@ default: &default
       threads: <%= ENV.fetch("VIDEO_CONCURRENCY", 2) %>
       processes: 1
       polling_interval: 0.5
-    # Everything else — recurring reapers / pollers, app-event
-    # broadcasts, prune jobs. All short-lived; sharing a small
-    # thread pool is fine. Critically, this worker is independent
-    # of the RunJob worker, so a saturated agent pool can't make
-    # the UI feel frozen by holding back broadcast deliveries.
-    - queues: "default"
-      threads: 3
+    # Latency-sensitive control-plane work: recurring schedulers, landing
+    # admission, stale-run reconciliation, retry dispatch, and chat wakeups.
+    # Keep this queue isolated from bulk poll/index/prune backlogs.
+    - queues: "control_plane"
+      threads: <%= ENV.fetch("CONTROL_PLANE_CONCURRENCY", 3) %>
       processes: 1
       polling_interval: 0.1
+    # External polling fans out into per-repository / per-PR checks. These jobs
+    # can burst when many repositories are active, so they do not share threads
+    # with the scheduler/control-plane queue.
+    - queues: "polling"
+      threads: <%= ENV.fetch("POLLING_CONCURRENCY", 2) %>
+      processes: 1
+      polling_interval: 0.2
+    # Search index writes are bound to the home/search node in multi-node
+    # deployments. Keep them separate from pollers and control-plane decisions.
+    - queues: "indexing"
+      threads: <%= ENV.fetch("INDEXING_CONCURRENCY", 2) %>
+      processes: 1
+      polling_interval: 0.2
+    # Cleanup/pruning can be bulky and IO-heavy. It gets a small pool so it
+    # keeps making progress without delaying scheduling or indexing.
+    - queues: "cleanup"
+      threads: <%= ENV.fetch("CLEANUP_CONCURRENCY", 1) %>
+      processes: 1
+      polling_interval: 0.5
+    # Low-priority maintenance and enrichment: title generation, insight sweeps,
+    # fork sync, resource profile refreshes, and other non-urgent background
+    # work. This is deliberately last and slowest.
+    - queues: "low_priority_maintenance"
+      threads: <%= ENV.fetch("LOW_PRIORITY_MAINTENANCE_CONCURRENCY", 1) %>
+      processes: 1
+      polling_interval: 1
 
 development:
   dispatchers:
@@ -84,8 +108,24 @@ development:
       threads: <%= ENV.fetch("DEV_VIDEO_CONCURRENCY", 1) %>
       processes: 1
       polling_interval: 0.5
-    - queues: "default"
-      threads: <%= ENV.fetch("DEV_DEFAULT_CONCURRENCY", 1) %>
+    - queues: "control_plane"
+      threads: <%= ENV.fetch("DEV_CONTROL_PLANE_CONCURRENCY", 1) %>
+      processes: 1
+      polling_interval: 0.5
+    - queues: "polling"
+      threads: <%= ENV.fetch("DEV_POLLING_CONCURRENCY", 1) %>
+      processes: 1
+      polling_interval: 0.5
+    - queues: "indexing"
+      threads: <%= ENV.fetch("DEV_INDEXING_CONCURRENCY", 1) %>
+      processes: 1
+      polling_interval: 0.5
+    - queues: "cleanup"
+      threads: <%= ENV.fetch("DEV_CLEANUP_CONCURRENCY", 1) %>
+      processes: 1
+      polling_interval: 0.5
+    - queues: "low_priority_maintenance"
+      threads: <%= ENV.fetch("DEV_LOW_PRIORITY_MAINTENANCE_CONCURRENCY", 1) %>
       processes: 1
       polling_interval: 0.5
 

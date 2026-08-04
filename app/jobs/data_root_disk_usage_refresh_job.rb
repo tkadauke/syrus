@@ -1,5 +1,5 @@
 class DataRootDiskUsageRefreshJob < ApplicationJob
-  queue_as :default
+  queue_as :cleanup
 
   def perform
     DataRootDiskUsage.refresh!

@@ -111,9 +111,14 @@
       "failed_today": "Hodie Defecit",
       "failed_this_hour": "Hac Hora Defecit",
       "admin_queue_runs": "Cursus",
-      "admin_queue_chat": "Colloquia",
-      "admin_queue_default": "Ordinarium",
-      "admin_queue_merges": "Unitiones"
+      "admin_queue_chat": "Colloquium",
+      "admin_queue_merges": "Uniones",
+      "admin_queue_videos": "Video",
+      "admin_queue_control_plane": "Gubernatio",
+      "admin_queue_polling": "Scrutatio",
+      "admin_queue_indexing": "Indexatio",
+      "admin_queue_cleanup": "Purgatio",
+      "admin_queue_low_priority_maintenance": "Cura humilis"
     }
   },
   "filters_layout": {
@@ -218,9 +223,14 @@
     "failed_today": "Hodie defecta",
     "failed_this_hour": "Hac hora defecta",
     "admin_queue_runs": "Cursus",
-    "admin_queue_chat": "Colloquia",
-    "admin_queue_default": "Defalta",
-    "admin_queue_merges": "Fusiones"
+    "admin_queue_chat": "Colloquium",
+    "admin_queue_merges": "Uniones",
+    "admin_queue_videos": "Video",
+    "admin_queue_control_plane": "Gubernatio",
+    "admin_queue_polling": "Scrutatio",
+    "admin_queue_indexing": "Indexatio",
+    "admin_queue_cleanup": "Purgatio",
+    "admin_queue_low_priority_maintenance": "Cura humilis"
   },
   "notifications": {
     "title": "Nuntii",

@@ -1,7 +1,7 @@
 class PollAllMergeStatesJob < ApplicationJob
   include SkipIfPending
 
-  queue_as :default
+  queue_as :polling
 
   # Fan-out for the unified rebase + auto-merge loop. Iterates every
   # Job that has a PR — Syrus-authored (pr_number) OR external

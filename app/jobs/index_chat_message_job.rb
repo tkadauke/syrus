@@ -1,5 +1,5 @@
 class IndexChatMessageJob < ApplicationJob
-  queue_as :default
+  queue_as :indexing
 
   def perform(message_id)
     message = ChatMessage.find_by(id: message_id)

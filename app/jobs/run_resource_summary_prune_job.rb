@@ -1,7 +1,7 @@
 class RunResourceSummaryPruneJob < ApplicationJob
   include SkipIfPending
 
-  queue_as :default
+  queue_as :cleanup
 
   def perform
     deleted = RunResourceSummary.prunable.delete_all

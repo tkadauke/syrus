@@ -1,5 +1,5 @@
 class PollScheduledChatMessagesJob < ApplicationJob
-  queue_as :default
+  queue_as :control_plane
 
   def perform
     ScheduledChatMessage.due.find_each do |scheduled_message|

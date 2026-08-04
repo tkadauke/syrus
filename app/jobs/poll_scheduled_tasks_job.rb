@@ -1,7 +1,7 @@
 class PollScheduledTasksJob < ApplicationJob
   include SkipIfPending
 
-  queue_as :default
+  queue_as :control_plane
 
   # Recurring scheduler for ScheduledTask. Runs every minute, scans
   # alive+active tasks, hands the ones whose next scheduled time has

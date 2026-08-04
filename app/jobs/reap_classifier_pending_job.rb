@@ -16,7 +16,7 @@
 # been stuck longer than STUCK_THRESHOLD. ClassifyIssueJob's
 # concurrency lock keeps duplicate runs from racing.
 class ReapClassifierPendingJob < ApplicationJob
-  queue_as :default
+  queue_as :low_priority_maintenance
 
   # 10 minutes balances "give a fresh classify enough time to
   # actually complete" against "don't leave the operator staring at

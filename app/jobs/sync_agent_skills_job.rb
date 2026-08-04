@@ -1,7 +1,7 @@
 class SyncAgentSkillsJob < ApplicationJob
   include SkipIfPending
 
-  queue_as :default
+  queue_as :low_priority_maintenance
 
   def perform
     AgentSkillsSyncer.sync

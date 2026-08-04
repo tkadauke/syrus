@@ -1,7 +1,7 @@
 class PollAllPullRequestsJob < ApplicationJob
   include SkipIfPending
 
-  queue_as :default
+  queue_as :polling
 
   # Fan-out for the PR feedback loop — fires each open thread that has a
   # PR through PollPullRequestJob, which does the actual comment fetching

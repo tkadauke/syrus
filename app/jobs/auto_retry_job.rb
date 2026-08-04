@@ -1,5 +1,5 @@
 class AutoRetryJob < ApplicationJob
-  queue_as :default
+  queue_as :control_plane
 
   discard_on ActiveRecord::RecordNotFound
 

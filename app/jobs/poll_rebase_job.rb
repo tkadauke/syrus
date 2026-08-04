@@ -1,7 +1,7 @@
 class PollRebaseJob < ApplicationJob
   include GithubPrPollHelpers
 
-  queue_as :default
+  queue_as :polling
 
   # Cap how many consecutive failed rebase attempts we make per Job
   # before giving up. The second attempt usually succeeds when the

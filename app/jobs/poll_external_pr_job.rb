@@ -1,5 +1,5 @@
 class PollExternalPrJob < ApplicationJob
-  queue_as :default
+  queue_as :polling
 
   # One concurrent poll per Job — prevents races on the closure write.
   limits_concurrency to: 1, key: ->(job_id, *) { "external_pr_poll:#{job_id}" }

@@ -18,7 +18,7 @@ require "tempfile"
 # Runs on the dedicated low-concurrency `videos` queue (config/queue.yml):
 # a single analysis can pin a thread for many minutes (500MB streamed upload,
 # ACTIVE polling, long generateContent), which would starve the pollers,
-# reapers, and app-event broadcasts on `default`.
+# reapers, and app-event broadcasts if it shared their lanes.
 #
 # Failure contract: NOTHING may strand a walkthrough in "analyzing" — every
 # exit path either marks it analyzed or failed (the retry endpoint only

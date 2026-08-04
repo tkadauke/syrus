@@ -1,5 +1,5 @@
 class SyncInstallationsJob < ApplicationJob
-  queue_as :default
+  queue_as :polling
 
   def perform(default_user_id = nil)
     return unless AppSetting.github_app_registered?

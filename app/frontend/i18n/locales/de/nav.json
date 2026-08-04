@@ -112,8 +112,13 @@
       "failed_this_hour": "In dieser Stunde fehlgeschlagen",
       "admin_queue_runs": "Ausführungen",
       "admin_queue_chat": "Chat",
-      "admin_queue_default": "Standard",
-      "admin_queue_merges": "Merges"
+      "admin_queue_merges": "Merges",
+      "admin_queue_videos": "Videos",
+      "admin_queue_control_plane": "Control Plane",
+      "admin_queue_polling": "Polling",
+      "admin_queue_indexing": "Indexierung",
+      "admin_queue_cleanup": "Cleanup",
+      "admin_queue_low_priority_maintenance": "Niedrige Prioritaet"
     }
   },
   "filters_layout": {
@@ -217,10 +222,15 @@
   "smart_folder_names": {
     "failed_today": "Heute fehlgeschlagen",
     "failed_this_hour": "In dieser Stunde fehlgeschlagen",
-    "admin_queue_runs": "Läufe",
+    "admin_queue_runs": "Laeufe",
     "admin_queue_chat": "Chat",
-    "admin_queue_default": "Standard",
-    "admin_queue_merges": "Zusammenführungen"
+    "admin_queue_merges": "Merges",
+    "admin_queue_videos": "Videos",
+    "admin_queue_control_plane": "Control Plane",
+    "admin_queue_polling": "Polling",
+    "admin_queue_indexing": "Indexierung",
+    "admin_queue_cleanup": "Cleanup",
+    "admin_queue_low_priority_maintenance": "Niedrige Prioritaet"
   },
   "notifications": {
     "title": "Benachrichtigungen",

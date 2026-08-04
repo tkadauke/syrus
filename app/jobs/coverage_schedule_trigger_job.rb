@@ -2,7 +2,7 @@
 # below the configured threshold. Creates a direct Job with the operator's
 # schedule_prompt so the agent can improve coverage in a separate run.
 class CoverageScheduleTriggerJob < ApplicationJob
-  queue_as :default
+  queue_as :low_priority_maintenance
 
   def perform(workflow_id)
     workflow = Workflow.find_by(id: workflow_id)

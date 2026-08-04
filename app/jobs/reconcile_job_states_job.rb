@@ -1,5 +1,5 @@
 class ReconcileJobStatesJob < ApplicationJob
-  queue_as :default
+  queue_as :control_plane
 
   # Runs every few minutes to detect Jobs whose state has drifted out
   # of sync with their latest Workflow's state. This is the safety

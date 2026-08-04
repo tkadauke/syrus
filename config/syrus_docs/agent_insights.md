@@ -31,7 +31,7 @@ prepare → agent_insight_run → auto_close
 
 ## Queue
 
-Insight workflows run on the `default` queue (not `runs`) so they do not consume agent-concurrency budget normally reserved for implementation work. Create insight jobs with `priority: "low"` to avoid starving pollers.
+Insight workflows run on the `runs` queue because their agentic steps are still `RunJob` executions. Create insight jobs with `priority: "low"` so implementation work stays ahead of periodic analysis.
 
 ## InsightSuggestion records
 

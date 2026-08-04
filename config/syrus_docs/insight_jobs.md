@@ -194,4 +194,4 @@ Both the sweep and the immediate trigger call `InsightScheduler.enqueue_if_idle!
 - **Branch:** Insight jobs do not create a branch — they operate on a shallow clone of the default branch read-only.
 - **Auto-close:** The anchor Job is automatically closed once the insight workflow finishes (success or failure), so insight jobs do not accumulate in the dashboard.
 - **Retries:** Insight jobs do not retry automatically. Trigger a new run manually if needed.
-- **Queue:** Insight workflows use the `:default` queue.
+- **Queue:** Insight workflows use the `:runs` queue with low Job priority.

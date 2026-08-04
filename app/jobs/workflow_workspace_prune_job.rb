@@ -1,7 +1,7 @@
 class WorkflowWorkspacePruneJob < ApplicationJob
   include SkipIfPending
 
-  queue_as :default
+  queue_as :cleanup
 
   # Succeeded/cancelled workflows: their AASM callbacks should have
   # already cleaned the workspace. This backstop catches the rare

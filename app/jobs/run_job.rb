@@ -1,8 +1,8 @@
 class RunJob < ApplicationJob
   # Dedicated `runs` queue with its own SQ worker — see
   # config/queue.yml. RunJobs are minutes-long agent invocations;
-  # putting them on the shared `default` queue starves app events
-  # and the recurring reaper/pollers, which makes the
+  # putting them on a shared background queue starves control-plane
+  # jobs, app events, and recurring reapers/pollers, which makes the
   # UI feel frozen during heavy load and (in the worst case)
   # leaves zombie Runs stuck "running" because ReapStaleRunsJob
   # can't get a thread. Splitting queues keeps short jobs fast.

@@ -28,6 +28,6 @@ RSpec.describe ChatWakeup, type: :model do
         prompt: "Check JOB-123 and reschedule if it is still running.",
         fire_at: fire_at
       )
-    }.to have_enqueued_job(ChatWakeupFireJob).at(be_within(1.second).of(fire_at)).on_queue("default")
+    }.to have_enqueued_job(ChatWakeupFireJob).at(be_within(1.second).of(fire_at)).on_queue("control_plane")
   end
 end

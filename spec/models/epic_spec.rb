@@ -16,7 +16,7 @@ RSpec.describe Epic do
 
       expect {
         Factories.epic(user: repository.user, repository: repository, title: "Search me")
-      }.to have_enqueued_job(IndexEpicSearchJob).with(kind_of(Integer)).on_queue("default")
+      }.to have_enqueued_job(IndexEpicSearchJob).with(kind_of(Integer)).on_queue("indexing")
     end
 
     it "enqueues indexing when updated" do
@@ -25,7 +25,7 @@ RSpec.describe Epic do
 
       expect {
         epic.update!(title: "Search me again")
-      }.to have_enqueued_job(IndexEpicSearchJob).with(epic.id).on_queue("default")
+      }.to have_enqueued_job(IndexEpicSearchJob).with(epic.id).on_queue("indexing")
     end
   end
 

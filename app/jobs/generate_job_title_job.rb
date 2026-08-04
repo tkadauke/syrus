@@ -4,7 +4,7 @@ class GenerateJobTitleJob < ApplicationJob
   PENDING_TITLE = "Generating title..."
   FALLBACK_TITLE = "Untitled job"
 
-  queue_as :default
+  queue_as :low_priority_maintenance
 
   def perform(job)
     return unless job.title_pending?

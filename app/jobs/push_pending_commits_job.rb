@@ -1,5 +1,5 @@
 class PushPendingCommitsJob < ApplicationJob
-  queue_as :default
+  queue_as :control_plane
 
   # Push any committed changes from a failed Workflow's workspace to
   # GitHub, staging and committing any remaining uncommitted edits

@@ -7,8 +7,12 @@
     The home worker runs the queues that are bound to the single-node search
     index (SQLite FTS5, an RWO PVC) or that must stay co-located with the web
     pods and the search volume:
-      - `default`  — pollers, reapers, app-event broadcasts, and Index*Job
-                     (search WRITES).
+      - `control_plane` — schedulers, landing admission, reconciliation,
+                          retries, and chat wakeups.
+      - `polling`       — GitHub/repository/main-branch/deployment pollers.
+      - `indexing`      — search index writes and issue-image ingestion.
+      - `cleanup`       — pruning and filesystem/data-root cleanup.
+      - `low_priority_maintenance` — enrichment, sync, and insight sweeps.
       - `chat`     — ChatTurnJob / chat workspace maintenance (search READS via
                      the search_chats MCP tool).
       - `videos`   — walkthrough-video analysis (local disk + Active Storage).
@@ -27,19 +31,40 @@ default: &default
     - polling_interval: 1
       batch_size: 500
   workers:
-    # Maintenance + search-write + broadcast pool. Listed first with this pod's
-    # per-pod `resume-<hostname>` queue so an operator resume that landed here
-    # is picked up ahead of routine default work.
+    # Control-plane pool. Listed first with this pod's per-pod
+    # `resume-<hostname>` queue so an operator resume that landed here is picked
+    # up ahead of routine background work.
     # Multi-queue workers MUST be a YAML array: Solid Queue 1.4 does NOT split a
-    # space-joined string (`Array("resume-x default")` is one literal queue), so
+    # space-joined string (`Array("resume-x control_plane")` is one literal queue), so
     # a string here would claim zero jobs and back up the recurring scheduler.
     - queues:
         - "resume-<%= Socket.gethostname %>"
-        - "default"
-      threads: <%= ENV.fetch("DEFAULT_CONCURRENCY", 3) %>
+        - "control_plane"
+      threads: <%= ENV.fetch("CONTROL_PLANE_CONCURRENCY", 3) %>
       processes: 1
       polling_interval: 0.1
-    # User-facing chat turns + chat workspace maintenance. Kept off the default
+    # Bulk polling is bursty and GitHub/API-bound; keep it off control-plane
+    # threads so scheduling, landing, and reconciliation keep moving.
+    - queues: "polling"
+      threads: <%= ENV.fetch("POLLING_CONCURRENCY", 2) %>
+      processes: 1
+      polling_interval: 0.2
+    # Search writes stay on the home node with the search volume.
+    - queues: "indexing"
+      threads: <%= ENV.fetch("INDEXING_CONCURRENCY", 2) %>
+      processes: 1
+      polling_interval: 0.2
+    # Cleanup/pruning can be IO-heavy; keep a narrow lane for it.
+    - queues: "cleanup"
+      threads: <%= ENV.fetch("CLEANUP_CONCURRENCY", 1) %>
+      processes: 1
+      polling_interval: 0.5
+    # Non-urgent enrichment and maintenance runs last.
+    - queues: "low_priority_maintenance"
+      threads: <%= ENV.fetch("LOW_PRIORITY_MAINTENANCE_CONCURRENCY", 1) %>
+      processes: 1
+      polling_interval: 1
+    # User-facing chat turns + chat workspace maintenance. Kept off the shared
     # pool so an app-event broadcast storm can't delay a chat reply, and vice
     # versa. Reads the search index via the search_chats MCP tool.
     - queues: "chat"

@@ -2,7 +2,7 @@
 # ForkSyncService. Enqueued by SyncEnabledForksJob (scheduled auto-sync) and
 # by the repository "Sync now" action.
 class SyncForkJob < ApplicationJob
-  queue_as :default
+  queue_as :low_priority_maintenance
 
   # One concurrent sync per repository — overlapping merge-upstream calls on
   # the same fork are pointless and can race.

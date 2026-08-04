@@ -5,7 +5,7 @@
 class SpawnedProcessPruneJob < ApplicationJob
   include SkipIfPending
 
-  queue_as :default
+  queue_as :cleanup
 
   RETAIN_AFTER_FINISHED = 7.days
 

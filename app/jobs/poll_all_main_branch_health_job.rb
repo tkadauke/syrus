@@ -1,7 +1,7 @@
 class PollAllMainBranchHealthJob < ApplicationJob
   include SkipIfPending
 
-  queue_as :default
+  queue_as :polling
 
   def perform
     return if AppSetting.polling_paused?

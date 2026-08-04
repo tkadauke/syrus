@@ -110,9 +110,14 @@ class SmartFolder < ApplicationRecord
     { key: "failed_today",     name: "Failed today",     visibility: :always,       filter: { "and" => [ { "field" => "failed_since", "op" => "within_last", "value" => { "n" => 1, "unit" => "days" } } ] } },
     { key: "failed_this_hour", name: "Failed this hour", visibility: :when_present, filter: { "and" => [ { "field" => "failed_since", "op" => "within_last", "value" => { "n" => 1, "unit" => "hours" } } ] } },
     { key: "admin_queue_runs",    name: "Runs",    visibility: :always, filter: { "and" => [ { "field" => "queue_name", "op" => "is", "value" => "runs" } ] } },
+    { key: "admin_queue_merges",  name: "Merges",  visibility: :always, filter: { "and" => [ { "field" => "queue_name", "op" => "is", "value" => "merges" } ] } },
     { key: "admin_queue_chat",    name: "Chat",    visibility: :always, filter: { "and" => [ { "field" => "queue_name", "op" => "is", "value" => "chat" } ] } },
-    { key: "admin_queue_default", name: "Default", visibility: :always, filter: { "and" => [ { "field" => "queue_name", "op" => "is", "value" => "default" } ] } },
-    { key: "admin_queue_merges",  name: "Merges",  visibility: :always, filter: { "and" => [ { "field" => "queue_name", "op" => "is", "value" => "merges" } ] } }
+    { key: "admin_queue_videos",  name: "Videos",  visibility: :always, filter: { "and" => [ { "field" => "queue_name", "op" => "is", "value" => "videos" } ] } },
+    { key: "admin_queue_control_plane", name: "Control plane", visibility: :always, filter: { "and" => [ { "field" => "queue_name", "op" => "is", "value" => "control_plane" } ] } },
+    { key: "admin_queue_polling", name: "Polling", visibility: :always, filter: { "and" => [ { "field" => "queue_name", "op" => "is", "value" => "polling" } ] } },
+    { key: "admin_queue_indexing", name: "Indexing", visibility: :always, filter: { "and" => [ { "field" => "queue_name", "op" => "is", "value" => "indexing" } ] } },
+    { key: "admin_queue_cleanup", name: "Cleanup", visibility: :always, filter: { "and" => [ { "field" => "queue_name", "op" => "is", "value" => "cleanup" } ] } },
+    { key: "admin_queue_low_priority_maintenance", name: "Low-priority maintenance", visibility: :always, filter: { "and" => [ { "field" => "queue_name", "op" => "is", "value" => "low_priority_maintenance" } ] } }
   ].freeze
 
   BUILTINS_BY_SUBJECT = {

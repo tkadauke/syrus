@@ -1,6 +1,6 @@
 module WorkEngine
   class ReconcileJob < ApplicationJob
-    queue_as :default
+    queue_as :control_plane
     limits_concurrency(
       to: 1,
       key: ->(source:, job_id: nil, workflow_id: nil, run_id: nil) {

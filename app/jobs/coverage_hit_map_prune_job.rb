@@ -1,5 +1,5 @@
 class CoverageHitMapPruneJob < ApplicationJob
-  queue_as :default
+  queue_as :cleanup
 
   def perform(workflow_id)
     wf = Workflow.find_by(id: workflow_id)

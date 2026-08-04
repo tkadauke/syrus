@@ -1,5 +1,5 @@
 class IndexEpicSearchJob < ApplicationJob
-  queue_as :default
+  queue_as :indexing
 
   def perform(epic_id)
     epic = Epic.find_by(id: epic_id)

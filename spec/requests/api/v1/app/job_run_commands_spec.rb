@@ -282,14 +282,14 @@ RSpec.describe "App API job run commands", type: :request do
     expect(response).to have_http_status(:ok)
   end
 
-  it "falls back to the :default queue for DiagnoseRunJob when the owning worker is not live" do
+  it "falls back to the control-plane queue for DiagnoseRunJob when the owning worker is not live" do
     run = job.initial_run
     run.workflow.update_column(:worker_hostname, "syrus-worker-dead")
     # No InstanceVersion created → InstanceVersion.worker_live? returns false
 
     expect {
       post app_job_path("/runs/#{run.id}/diagnose"), as: :json
-    }.to have_enqueued_job(DiagnoseRunJob).with(run.id).on_queue("default")
+    }.to have_enqueued_job(DiagnoseRunJob).with(run.id).on_queue("control_plane")
 
     expect(response).to have_http_status(:ok)
   end

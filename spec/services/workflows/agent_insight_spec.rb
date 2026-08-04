@@ -35,8 +35,8 @@ RSpec.describe Workflows::AgentInsight do
       expect(workflow.artifact("prepare_skipped_reason")).to eq("repository_configuration")
     end
 
-    it "uses the default queue" do
-      expect(described_class.queue_name).to eq(:default)
+    it "uses the runs queue" do
+      expect(described_class.queue_name).to eq(:runs)
     end
   end
 

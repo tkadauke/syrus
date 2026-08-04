@@ -9,7 +9,7 @@ require "open3"
 # the relevant fields stay nil and the view renders them as "unavailable."
 # A failed capture never crashes the job — it just produces a partial snapshot.
 class DiagnoseRunJob < ApplicationJob
-  queue_as :default
+  queue_as :control_plane
 
   # One diagnostic at a time per Run so rapid button-clicks don't pile up.
   limits_concurrency to: 1, key: ->(run_id) { "diagnose:#{run_id}" }

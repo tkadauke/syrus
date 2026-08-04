@@ -18,12 +18,30 @@ RSpec.describe "queue partitioning" do
   ROOT = Rails.root
 
   # The app's full queue vocabulary. Sources of truth:
-  #   :runs / :merges / :default  — Workflows::*.queue_name (workflow templates)
-  #   :chat / :videos / :default  — queue_as on ChatTurnJob / video jobs / etc.
-  APP_QUEUES = %w[runs merges chat default videos].freeze
+  #   :runs / :merges             — Workflows::*.queue_name (workflow templates)
+  #   :chat / :videos / etc.      — queue_as on non-workflow ActiveJob classes.
+  APP_QUEUES = %w[
+    runs
+    merges
+    chat
+    videos
+    control_plane
+    polling
+    indexing
+    cleanup
+    low_priority_maintenance
+  ].freeze
 
   # Where each non-resume queue must run in the multi-node split.
-  HOME_QUEUES    = %w[chat default videos].freeze
+  HOME_QUEUES = %w[
+    chat
+    videos
+    control_plane
+    polling
+    indexing
+    cleanup
+    low_priority_maintenance
+  ].freeze
   COMPUTE_QUEUES = %w[runs merges].freeze
 
   def load_config(relative)

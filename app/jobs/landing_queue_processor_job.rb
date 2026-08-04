@@ -1,5 +1,5 @@
 class LandingQueueProcessorJob < ApplicationJob
-  queue_as :default
+  queue_as :control_plane
 
   limits_concurrency to: 1, key: -> { "landing_queue_processor" }
 

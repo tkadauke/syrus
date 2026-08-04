@@ -1,5 +1,5 @@
 class InsightSweepJob < ApplicationJob
-  queue_as :default
+  queue_as :low_priority_maintenance
 
   def perform
     return unless Feature.agent_insights_enabled?

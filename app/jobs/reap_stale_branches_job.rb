@@ -1,7 +1,7 @@
 class ReapStaleBranchesJob < ApplicationJob
   include SkipIfPending
 
-  queue_as :default
+  queue_as :cleanup
 
   CLOSED_GRACE_PERIOD = 23.hours
 

@@ -13,7 +13,7 @@ module Workflows
 
     def self.trigger_kind = "agent_insight"
 
-    def self.queue_name = :default
+    def self.queue_name = :runs
 
     def self.after_success(workflow)
       close_anchor_job!(workflow)

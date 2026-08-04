@@ -119,7 +119,7 @@ RSpec.describe Job do
 
       expect {
         Factories.job_record(user: repo.user, repository: repo, issue_title: "Search me")
-      }.to have_enqueued_job(IndexJobSearchJob).with(kind_of(Integer)).on_queue("default")
+      }.to have_enqueued_job(IndexJobSearchJob).with(kind_of(Integer)).on_queue("indexing")
     end
 
     it "enqueues indexing when updated" do
@@ -128,7 +128,7 @@ RSpec.describe Job do
 
       expect {
         job.update!(issue_title: "Search me again")
-      }.to have_enqueued_job(IndexJobSearchJob).with(job.id).on_queue("default")
+      }.to have_enqueued_job(IndexJobSearchJob).with(job.id).on_queue("indexing")
     end
   end
 

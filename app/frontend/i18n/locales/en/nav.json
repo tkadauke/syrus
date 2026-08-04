@@ -112,8 +112,13 @@
       "failed_this_hour": "Failed this hour",
       "admin_queue_runs": "Runs",
       "admin_queue_chat": "Chat",
-      "admin_queue_default": "Default",
-      "admin_queue_merges": "Merges"
+      "admin_queue_merges": "Merges",
+      "admin_queue_videos": "Videos",
+      "admin_queue_control_plane": "Control plane",
+      "admin_queue_polling": "Polling",
+      "admin_queue_indexing": "Indexing",
+      "admin_queue_cleanup": "Cleanup",
+      "admin_queue_low_priority_maintenance": "Low-priority maintenance"
     }
   },
   "filters_layout": {
@@ -219,8 +224,13 @@
     "failed_this_hour": "Failed this hour",
     "admin_queue_runs": "Runs",
     "admin_queue_chat": "Chat",
-    "admin_queue_default": "Default",
-    "admin_queue_merges": "Merges"
+    "admin_queue_merges": "Merges",
+    "admin_queue_videos": "Videos",
+    "admin_queue_control_plane": "Control plane",
+    "admin_queue_polling": "Polling",
+    "admin_queue_indexing": "Indexing",
+    "admin_queue_cleanup": "Cleanup",
+    "admin_queue_low_priority_maintenance": "Low-priority maintenance"
   },
   "notifications": {
     "title": "Notifications",

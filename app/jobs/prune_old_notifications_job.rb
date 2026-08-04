@@ -1,7 +1,7 @@
 class PruneOldNotificationsJob < ApplicationJob
   include SkipIfPending
 
-  queue_as :default
+  queue_as :cleanup
 
   RETAIN_FOR = 30.days
 

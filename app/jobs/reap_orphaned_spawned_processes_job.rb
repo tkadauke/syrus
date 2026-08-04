@@ -14,7 +14,7 @@
 class ReapOrphanedSpawnedProcessesJob < ApplicationJob
   include SkipIfPending
 
-  queue_as :default
+  queue_as :cleanup
 
   def perform
     live_hosts = live_solid_queue_hostnames

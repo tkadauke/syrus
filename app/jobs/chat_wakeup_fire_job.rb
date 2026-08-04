@@ -1,5 +1,5 @@
 class ChatWakeupFireJob < ApplicationJob
-  queue_as :default
+  queue_as :control_plane
 
   def perform(wakeup_id)
     ChatWakeup.transaction do

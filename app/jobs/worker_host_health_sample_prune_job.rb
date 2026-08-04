@@ -1,7 +1,7 @@
 class WorkerHostHealthSamplePruneJob < ApplicationJob
   include SkipIfPending
 
-  queue_as :default
+  queue_as :cleanup
 
   def perform
     deleted = WorkerHostHealthSample.prunable.delete_all

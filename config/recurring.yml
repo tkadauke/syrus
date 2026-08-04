@@ -12,90 +12,119 @@
 default: &default
   poll_repositories:
     class: PollAllRepositoriesJob
+    queue: polling
     schedule: every 5 minutes
   poll_main_branch_health:
     class: PollAllMainBranchHealthJob
+    queue: polling
     schedule: every 5 minutes
   poll_pull_requests:
     class: PollAllPullRequestsJob
+    queue: polling
     schedule: every 5 minutes
   poll_merge_states:
     class: PollAllMergeStatesJob
+    queue: polling
     schedule: every 5 minutes
   poll_deployment_stages:
     class: PollAllDeploymentStagesJob
+    queue: polling
     schedule: every 5 minutes
   process_landing_queue:
     class: LandingQueueProcessorJob
+    queue: control_plane
     schedule: every 30 seconds
   poll_scheduled_tasks:
     class: PollScheduledTasksJob
+    queue: control_plane
     schedule: every minute
   poll_scheduled_chat_messages:
     class: PollScheduledChatMessagesJob
+    queue: control_plane
     schedule: every minute
   sync_enabled_forks:
     class: SyncEnabledForksJob
+    queue: low_priority_maintenance
     schedule: every 15 minutes
   reap_stale_runs:
     class: ReapStaleRunsJob
+    queue: control_plane
     schedule: every minute
   refresh_data_root_disk_usage:
     class: DataRootDiskUsageRefreshJob
+    queue: cleanup
     schedule: every minute
   reap_classifier_pending:
     class: ReapClassifierPendingJob
+    queue: low_priority_maintenance
     schedule: every 5 minutes
   reap_orphaned_spawned_processes:
     class: ReapOrphanedSpawnedProcessesJob
+    queue: cleanup
     schedule: every minute
   reap_stale_instance_versions:
     class: ReapStaleInstanceVersionsJob
+    queue: cleanup
     schedule: every minute
   prune_worker_host_health_samples:
     class: WorkerHostHealthSamplePruneJob
+    queue: cleanup
     schedule: every day at 3:15am
   prune_run_resource_summaries:
     class: RunResourceSummaryPruneJob
+    queue: cleanup
     schedule: every day at 3:18am
   refresh_workflow_step_resource_profiles:
     class: WorkflowStepResourceProfileRefreshJob
+    queue: low_priority_maintenance
     schedule: every hour
   reap_stale_branches:
     class: ReapStaleBranchesJob
+    queue: cleanup
     schedule: every day at 3:40am
   prune_spawned_processes:
     class: SpawnedProcessPruneJob
+    queue: cleanup
     schedule: every day at 3:20am
   prune_claude_sessions:
     class: ClaudeSessionPruneJob
+    queue: cleanup
     schedule: every day at 3:00am
   prune_run_diagnostics:
     class: RunDiagnosticPruneJob
+    queue: cleanup
     schedule: every day at 3:10am
   prune_old_notifications:
     class: PruneOldNotificationsJob
+    queue: cleanup
     schedule: every day at 3:30am
   prune_workflow_workspaces:
     class: WorkflowWorkspacePruneJob
+    queue: cleanup
     schedule: every 2 hours
   prune_video_walkthroughs:
     class: VideoWalkthroughPruneJob
+    queue: cleanup
     schedule: every day at 3:40am
   prune_coverage_hit_map_ttl:
     class: CoverageHitMapTtlPruneJob
+    queue: cleanup
     schedule: every day at 3:50am
   insight_sweep:
     class: InsightSweepJob
+    queue: low_priority_maintenance
     schedule: every 6 hours
   sync_agent_skills:
     class: SyncAgentSkillsJob
+    queue: low_priority_maintenance
     schedule: every hour
   sync_installations:
     class: SyncInstallationsJob
+    queue: polling
     schedule: every 5 minutes
   reconcile_job_states:
     class: ReconcileJobStatesJob
+    queue: control_plane
     schedule: every 5 minutes
 
 development:
@@ -105,4 +134,5 @@ production:
   <<: *default
   clear_solid_queue_finished_jobs:
     class: SolidQueueCleanupJob
+    queue: cleanup
     schedule: every hour at minute 12

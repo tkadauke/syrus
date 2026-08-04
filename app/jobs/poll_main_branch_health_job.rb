@@ -1,5 +1,5 @@
 class PollMainBranchHealthJob < ApplicationJob
-  queue_as :default
+  queue_as :polling
 
   limits_concurrency to: 1, key: ->(repo_id, *) { "poll_main_health:#{repo_id}" }
 

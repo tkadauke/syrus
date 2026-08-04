@@ -3,7 +3,7 @@ require "tempfile"
 require "uri"
 
 class IngestIssueImagesJob < ApplicationJob
-  queue_as :default
+  queue_as :indexing
 
   MAX_BYTES = 20.megabytes
   MAX_REDIRECTS = 5

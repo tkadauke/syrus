@@ -163,7 +163,7 @@ RSpec.describe ChatMessage do
 
       expect {
         described_class.create!(chat_session: session, role: "user", content: { "text" => "Find me." })
-      }.to have_enqueued_job(IndexChatMessageJob).with(kind_of(Integer)).on_queue("default")
+      }.to have_enqueued_job(IndexChatMessageJob).with(kind_of(Integer)).on_queue("indexing")
     end
 
     it "does not enqueue search indexing for tool-only messages" do

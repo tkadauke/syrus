@@ -1,5 +1,5 @@
 class GracePeriodExpiryJob < ApplicationJob
-  queue_as :default
+  queue_as :control_plane
 
   def perform(job_id)
     job = Job.find_by(id: job_id)

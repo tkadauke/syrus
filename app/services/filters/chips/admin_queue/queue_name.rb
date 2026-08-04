@@ -6,7 +6,15 @@ module Filters
         label "Queue"
         bucket :enum
         operators :is, :is_one_of
-        values "runs", "merges", "chat", "default"
+        values "runs",
+          "merges",
+          "chat",
+          "videos",
+          "control_plane",
+          "polling",
+          "indexing",
+          "cleanup",
+          "low_priority_maintenance"
 
         def apply
           case op

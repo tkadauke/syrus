@@ -1,7 +1,7 @@
 class ReapStaleRunsJob < ApplicationJob
   include SkipIfPending
 
-  queue_as :default
+  queue_as :control_plane
   limits_concurrency to: 1, key: "reap_stale_runs", duration: 10.minutes, on_conflict: :discard
 
   # Three reaping signals, in order of confidence/speed:

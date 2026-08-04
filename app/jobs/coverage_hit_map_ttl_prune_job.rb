@@ -1,7 +1,7 @@
 class CoverageHitMapTtlPruneJob < ApplicationJob
   include SkipIfPending
 
-  queue_as :default
+  queue_as :cleanup
 
   TTL_DAYS = 7
 

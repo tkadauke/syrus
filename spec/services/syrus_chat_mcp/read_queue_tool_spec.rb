@@ -50,7 +50,7 @@ RSpec.describe SyrusChatMcp::ReadQueueTool do
         }
       ]
     )
-    SolidQueue::Pause.create!(queue_name: "default", created_at: Time.current)
+    SolidQueue::Pause.create!(queue_name: "control_plane", created_at: Time.current)
 
     response = call_tool
     payload = response_payload(response)
@@ -58,11 +58,11 @@ RSpec.describe SyrusChatMcp::ReadQueueTool do
     expect(response[:result][:isError]).to be_falsey
     expect(payload.fetch(:active_workers)).to include(count: 1, queues: %w[chat runs])
     expect(payload.dig(:active_workers, :workers).first).to include(hostname: "worker-a", pid: 101, queues: %w[runs chat], threads: 2, stale: false)
-    expect(payload.fetch(:pending_jobs)).to include(runs: 1, chat: 1, default: 0, merges: 0)
+    expect(payload.fetch(:pending_jobs)).to include(runs: 1, chat: 1, merges: 0, videos: 0, control_plane: 0, polling: 0, indexing: 0, cleanup: 0, low_priority_maintenance: 0)
     expect(payload.fetch(:failed_jobs)).to eq(count: 1)
     expect(payload.fetch(:recurring_tasks)).to eq(count: 1)
     expect(payload.fetch(:blocked_queues)).to eq([ "merges" ])
-    expect(payload.fetch(:paused_queues)).to eq([ "default" ])
+    expect(payload.fetch(:paused_queues)).to eq([ "control_plane" ])
   end
 
   def solid_queue_job(class_name:, queue_name:)

@@ -15,14 +15,14 @@
 # slipped through the cracks anyway — anything still
 # triaging/classifier_pending after a few minutes gets re-enqueued.
 class ClassifyIssueJob < ApplicationJob
-  queue_as :default
+  queue_as :control_plane
 
   # Same `runs` queue isn't right — the runs queue is reserved for
   # multi-minute agent invocations and is concurrency-limited so the
   # poller / reaper / app-event broadcasts don't starve. Classifier
   # invocations are short (10-60s typically) and shouldn't compete
-  # with the dashboard's refresh cadence; default queue is the right
-  # home.
+  # with the dashboard's refresh cadence; control_plane is the right
+  # lane because classifier completion gates initial workflow dispatch.
 
   # Don't pile up retries on a Job that's been deleted, closed, or
   # already advanced. RecordNotFound is the only retry-pointless
