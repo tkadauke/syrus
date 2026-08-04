@@ -3,7 +3,7 @@ module McpToolPayloads
   # Extend this module into a class's singleton to get all helpers as class methods.
   module JobPayload
     # Full job detail payload for read_job — includes dependencies and split PR numbers.
-    def job_detail_payload(job)
+    def job_detail_payload(job, deployment_stages_plan: nil)
       {
         id: job.id,
         kind: job.kind,
@@ -19,11 +19,12 @@ module McpToolPayloads
         priority: job.priority,
         issue_title: job.issue_title,
         scheduled_task_id: job.scheduled_task_id,
+        landed_sha: job.landed_sha,
         commits_behind_base: job.commits_behind_base,
         dependencies: job.dependencies.order(:id).filter_map { |dep| dependency_payload(dep) },
         created_at: job.created_at&.iso8601,
         updated_at: job.updated_at&.iso8601
-      }
+      }.merge(deployment_stages_payload(job, plan: deployment_stages_plan))
     end
 
     # Compact payload for list_jobs — includes repository_slug but not dependencies.
@@ -97,6 +98,13 @@ module McpToolPayloads
         title: epic.title,
         state: epic.state
       }
+    end
+
+    def deployment_stages_payload(job, plan: nil)
+      return {} unless job.landed_sha.present?
+
+      stages = App::DeploymentStagesPayload.for_job(job, plan: plan)
+      stages ? { deployment_stages: stages } : {}
     end
   end
 end

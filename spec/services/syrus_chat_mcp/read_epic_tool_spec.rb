@@ -22,6 +22,18 @@ RSpec.describe SyrusChatMcp::ReadEpicTool do
     JSON.parse(response.dig(:result, :content, 0, :text), symbolize_names: true)
   end
 
+  def count_deployment_stage_status_queries
+    count = 0
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      next if payload[:name] == "SCHEMA" || payload[:cached]
+
+      count += 1 if payload[:sql].to_s.include?("job_deployment_stage_statuses")
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+    count
+  end
+
   it "reads a readable Epic and its child Jobs without requiring a chat attachment" do
     epic = Factories.epic(
       user: user,
@@ -100,6 +112,62 @@ RSpec.describe SyrusChatMcp::ReadEpicTool do
       include(id: furthest.id, commits_behind_base: 15),
       include(id: unknown.id, commits_behind_base: nil)
     )
+  end
+
+  it "includes landed_sha and configured deployment stages on landed child jobs" do
+    staging = SyrusYml::DeploymentStage.new(name: "staging", label: "Staging", tag: "staging", tag_pattern: nil)
+    production = SyrusYml::DeploymentStage.new(name: "production", label: "Production", tag: "production", tag_pattern: nil)
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repository).and_return(
+      RepoDeploymentStagesReader::Result.new(stages: [ staging, production ], source: ".syrus.yml", note: nil)
+    )
+    epic = Factories.epic(user: user, repository: repository, title: "Build the Via Appia")
+    landed = Factories.job_record(user: user, repository: repository, epic: epic, landed_sha: "merge-sha", issue_title: "Lay stones")
+    pending = Factories.job_record(user: user, repository: repository, epic: epic, landed_sha: nil, issue_title: "Inspect drainage")
+    reached_at = Time.zone.parse("2026-07-30T12:00:00Z")
+    landed.deployment_stage_statuses.create!(stage_name: "staging", reached_at: reached_at, tag_sha: "tag-sha")
+
+    payload = tool_payload(call_tool(id: epic.id))
+
+    landed_payload = payload[:child_jobs].find { |job| job[:id] == landed.id }
+    pending_payload = payload[:child_jobs].find { |job| job[:id] == pending.id }
+    expect(landed_payload).to include(landed_sha: "merge-sha")
+    expect(landed_payload[:deployment_stages]).to eq([
+      { name: "staging", label: "Staging", reached: true, reached_at: reached_at.iso8601, tag_sha: "tag-sha" },
+      { name: "production", label: "Production", reached: false, reached_at: nil, tag_sha: nil }
+    ])
+    expect(pending_payload).to include(landed_sha: nil)
+    expect(pending_payload).not_to have_key(:deployment_stages)
+  end
+
+  it "omits child job deployment stages when the repository has none configured" do
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repository).and_return(
+      RepoDeploymentStagesReader::Result.new(stages: [], source: "none", note: "no deployment_stages configured")
+    )
+    epic = Factories.epic(user: user, repository: repository, title: "Build the Via Appia")
+    child = Factories.job_record(user: user, repository: repository, epic: epic, landed_sha: "merge-sha")
+
+    payload = tool_payload(call_tool(id: epic.id))
+
+    expect(payload[:child_jobs].sole).to include(id: child.id, landed_sha: "merge-sha")
+    expect(payload[:child_jobs].sole).not_to have_key(:deployment_stages)
+  end
+
+  it "preloads child job deployment stage statuses" do
+    staging = SyrusYml::DeploymentStage.new(name: "staging", label: "Staging", tag: "staging", tag_pattern: nil)
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repository).and_return(
+      RepoDeploymentStagesReader::Result.new(stages: [ staging ], source: ".syrus.yml", note: nil)
+    )
+    epic = Factories.epic(user: user, repository: repository, title: "Build the Via Appia")
+    first = Factories.job_record(user: user, repository: repository, epic: epic, landed_sha: "first-sha")
+    second = Factories.job_record(user: user, repository: repository, epic: epic, landed_sha: "second-sha")
+    first.deployment_stage_statuses.create!(stage_name: "staging", reached_at: Time.current)
+    second.deployment_stage_statuses.create!(stage_name: "staging", reached_at: Time.current)
+
+    queries = count_deployment_stage_status_queries do
+      tool_payload(call_tool(id: epic.id))
+    end
+
+    expect(queries).to eq(1)
   end
 
   it "rejects Epics that are not readable by the chat user" do

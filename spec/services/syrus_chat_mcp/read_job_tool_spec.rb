@@ -68,6 +68,53 @@ RSpec.describe SyrusChatMcp::ReadJobTool do
     expect(payload[:job]).to include(commits_behind_base: 7)
   end
 
+  it "includes landed_sha and configured deployment stages for landed jobs" do
+    staging = SyrusYml::DeploymentStage.new(name: "staging", label: "Staging", tag: "staging", tag_pattern: nil)
+    production = SyrusYml::DeploymentStage.new(name: "production", label: "Production", tag: "production", tag_pattern: nil)
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repository).and_return(
+      RepoDeploymentStagesReader::Result.new(stages: [ staging, production ], source: ".syrus.yml", note: nil)
+    )
+    job = Factories.job(repository: repository, landed_sha: "merge-sha", state: "closed")
+    reached_at = Time.zone.parse("2026-07-30T12:00:00Z")
+    job.deployment_stage_statuses.create!(stage_name: "staging", reached_at: reached_at, tag_sha: "tag-sha")
+
+    response = call_tool(job_id: job.id)
+    payload = response_payload(response)
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(payload[:job]).to include(landed_sha: "merge-sha")
+    expect(payload[:job][:deployment_stages]).to eq([
+      { name: "staging", label: "Staging", reached: true, reached_at: reached_at.iso8601, tag_sha: "tag-sha" },
+      { name: "production", label: "Production", reached: false, reached_at: nil, tag_sha: nil }
+    ])
+  end
+
+  it "omits deployment stages for jobs that have not landed" do
+    expect(RepoDeploymentStagesReader).not_to receive(:for_repository)
+    job = Factories.job(repository: repository, landed_sha: nil)
+
+    response = call_tool(job_id: job.id)
+    payload = response_payload(response)
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(payload[:job]).to include(landed_sha: nil)
+    expect(payload[:job]).not_to have_key(:deployment_stages)
+  end
+
+  it "omits deployment stages when the repository has none configured" do
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repository).and_return(
+      RepoDeploymentStagesReader::Result.new(stages: [], source: "none", note: "no deployment_stages configured")
+    )
+    job = Factories.job(repository: repository, landed_sha: "merge-sha", state: "closed")
+
+    response = call_tool(job_id: job.id)
+    payload = response_payload(response)
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(payload[:job]).to include(landed_sha: "merge-sha")
+    expect(payload[:job]).not_to have_key(:deployment_stages)
+  end
+
   it "reads jobs outside the chat repository when they belong to the chat user" do
     other = Factories.job(repository: Factories.repository(user: user))
 

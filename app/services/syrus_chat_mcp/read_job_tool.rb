@@ -27,6 +27,8 @@ module SyrusChatMcp
         job = find_job!(
           job_id,
           includes: [
+            :repository,
+            :deployment_stage_statuses,
             { dependencies: [ { depends_on_job: :repository }, :depends_on_epic ] },
             { workflows: { steps: { runs: :job_logs } } }
           ]

@@ -20,6 +20,8 @@ module SyrusChatMcp
     )
 
     class << self
+      include McpToolPayloads::JobPayload
+
       def call(id:, server_context:)
         epic = find_epic!(
           id,
@@ -27,13 +29,15 @@ module SyrusChatMcp
             :repository,
             { depends_on_epics: :repository },
             { dependent_epics: :repository },
-            { jobs: [ :repository, { dependencies: { depends_on_job: :repository } } ] }
+            { jobs: [ :repository, :deployment_stage_statuses, { dependencies: { depends_on_job: :repository } } ] }
           ]
         )
+        child_jobs = epic.jobs.to_a.sort_by { |job| [ job.created_at, job.id ] }
+        deployment_stages_plan = RepoDeploymentStagesReader.for_repository(epic.repository) if child_jobs.any? { |job| job.landed_sha.present? }
 
         SyrusChatMcp.success(
           epic: epic_payload(epic),
-          child_jobs: epic.jobs.order(:created_at, :id).map { |job| job_payload(job) }
+          child_jobs: child_jobs.map { |job| job_payload(job, deployment_stages_plan: deployment_stages_plan) }
         )
       end
 
@@ -72,7 +76,7 @@ module SyrusChatMcp
         }
       end
 
-      def job_payload(job)
+      def job_payload(job, deployment_stages_plan: nil)
         {
           id: job.id,
           kind: job.kind,
@@ -89,11 +93,12 @@ module SyrusChatMcp
           issue_title: job.issue_title,
           issue_body: SyrusChatMcp.truncate_text(job.issue_body, 16.kilobytes),
           repository: job.repository.slug,
+          landed_sha: job.landed_sha,
           commits_behind_base: job.commits_behind_base,
           depends_on_jobs: job.dependencies.order(:id).filter_map { |dependency| dependency_reference(dependency) },
           created_at: job.created_at&.iso8601,
           updated_at: job.updated_at&.iso8601
-        }
+        }.merge(deployment_stages_payload(job, plan: deployment_stages_plan))
       end
 
       def dependency_reference(dependency)
