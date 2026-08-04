@@ -2518,6 +2518,15 @@ describe("App", () => {
           provider_circuits: [],
           agent_session_capture_rate: { total: 3, captured: 3, rate: 1.0 },
           data_root_disk_usage: { path: "/syrus-home/.syrus", filesystem: "/dev/pvc", total_bytes: 100, used_bytes: 90, available_bytes: 10, used_percent: 90, mounted_on: "/syrus-home", observed_at: "2026-06-05T12:00:00Z", level: "warning" },
+          resource_admission: {
+            generated_at: "2026-06-05T12:00:00Z",
+            windows: { recent_hours: 24, delayed_hours: 6 },
+            active_consumers: [],
+            recent_top_consumers: [],
+            delayed_work: [],
+            low_confidence_profiles: [],
+            admission_overrides: []
+          },
           chat_scoped_events: {
             window_hours: 24,
             total: 3,
@@ -2636,6 +2645,15 @@ describe("App", () => {
           provider_circuits: [],
           agent_session_capture_rate: { total: 0, captured: 0, rate: null },
           data_root_disk_usage: null,
+          resource_admission: {
+            generated_at: "2026-06-05T12:00:00Z",
+            windows: { recent_hours: 24, delayed_hours: 6 },
+            active_consumers: [],
+            recent_top_consumers: [],
+            delayed_work: [],
+            low_confidence_profiles: [],
+            admission_overrides: []
+          },
           chat_scoped_events: {
             window_hours: 24,
             total: 0,

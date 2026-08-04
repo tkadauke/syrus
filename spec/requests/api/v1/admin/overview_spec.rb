@@ -31,6 +31,7 @@ RSpec.describe "API: /api/v1/admin/overview", type: :request do
       expect(body).to have_key("agent_session_capture_rate")
       expect(body).to have_key("data_root_disk_usage")
       expect(body).to have_key("worker_health")
+      expect(body).to have_key("resource_admission")
       expect(body).not_to have_key("claude_session_capture_rate")
       expect(body).to have_key("workers")
       expect(body).to have_key("recurring")
@@ -210,6 +211,42 @@ RSpec.describe "API: /api/v1/admin/overview", type: :request do
       expect(health.dig("hosts", 0, "windows", "1h")).to include(
         "sample_count" => 1,
         "warning_count" => 1
+      )
+    end
+
+    it "includes resource admission diagnostics" do
+      job = Factories.job_record(user: admin, state: "queued", issue_title: "Admission wait")
+      workflow = Workflow.create!(job: job, user: admin, trigger_kind: "initial", agent_provider: "codex", state: "queued")
+      workflow.update!(artifacts: {
+        "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
+        "start_blocked_at" => 1.minute.ago.iso8601,
+        "start_blocked_next_check_at" => 9.minutes.from_now.iso8601,
+        "start_blocked_details" => {
+          "action" => "delay_until",
+          "reason" => "predicted_budget_pressure_high",
+          "pressure" => {
+            "candidate" => {
+              "predicted_command_cost" => {
+                "duration_seconds" => 900,
+                "cpu_pressure" => 70.0
+              }
+            }
+          }
+        }
+      })
+
+      get "/api/v1/admin/overview", headers: auth
+
+      diagnostics = parse_body.fetch("resource_admission")
+      expect(diagnostics.fetch("delayed_work").first).to include(
+        "workflow_id" => workflow.id,
+        "job_id" => job.id,
+        "reason" => "predicted_budget_pressure_high",
+        "action" => "delay_until"
+      )
+      expect(diagnostics.fetch("delayed_work").first.fetch("estimated_remaining_cost")).to include(
+        "duration_seconds" => 900,
+        "cpu_pressure" => 70.0
       )
     end
   end

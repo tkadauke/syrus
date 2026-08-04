@@ -2,9 +2,22 @@ import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useQuery } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { Link, useLocation } from "react-router-dom"
-import { fetchAdminOverview, type AdminOverviewPayload } from "../api/adminOverview"
+import { fetchAdminOverview, type AdminOverviewPayload, type ResourceAdmissionDiagnosticsPayload } from "../api/adminOverview"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
+
+const emptyResourceAdmission: ResourceAdmissionDiagnosticsPayload = {
+  generated_at: "",
+  windows: {
+    recent_hours: 24,
+    delayed_hours: 6
+  },
+  active_consumers: [],
+  recent_top_consumers: [],
+  delayed_work: [],
+  low_confidence_profiles: [],
+  admission_overrides: []
+}
 
 export function AdminOverview() {
   const { t } = useT("admin")
@@ -29,6 +42,7 @@ export function AdminOverview() {
   }
 
   const data = overview.data
+  const resourceAdmission = data.resource_admission ?? emptyResourceAdmission
   const captureRate = data.agent_session_capture_rate.rate
   const overdueRecurring = data.recurring.overdue || []
   const dataRoot = data.data_root_disk_usage
@@ -54,6 +68,8 @@ export function AdminOverview() {
         <Metric title={t("overview.stuck_things")} value={data.stuck_pagination.total} context={data.stuck_snapshot?.stale ? t("overview.stuck_snapshot_stale") : data.stuck_pagination.total > 0 ? t("overview.needs_attention") : t("overview.nothing_flagged")} href={withRoutePrefix("/admin/stuck", prefix)} tone={data.stuck_snapshot?.stale ? "idle" : data.stuck.some((item) => item.severity === "alarm") ? "alarm" : data.stuck_pagination.total > 0 ? "warn" : "ok"} />
       </section>
 
+      <ResourceAdmissionSection data={resourceAdmission} prefix={prefix} />
+
       {data.stuck.length > 0 ? (
         <section aria-label={t("overview.aria_stuck")} className="overflow-hidden rounded border border-amber-200 dark:border-amber-800 bg-white dark:bg-gray-900">
           <div className="bg-amber-50 dark:bg-amber-950/40 px-4 py-2 text-xs font-medium uppercase text-amber-700 dark:text-amber-300">{t("overview.stuck_section")}</div>
@@ -71,6 +87,132 @@ export function AdminOverview() {
       <ChatScopedEventsSection data={data.chat_scoped_events} prefix={prefix} />
     </main>
   )
+}
+
+function ResourceAdmissionSection({ data, prefix }: { data: ResourceAdmissionDiagnosticsPayload; prefix: string }) {
+  const { t } = useT("admin")
+  const delayed = data.delayed_work || []
+  const active = data.active_consumers || []
+  const recent = data.recent_top_consumers || []
+  const profiles = data.low_confidence_profiles || []
+  const overrides = data.admission_overrides || []
+
+  return (
+    <section aria-label={t("overview.aria_resource_admission")} className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+      <div className="flex flex-col gap-2 border-b border-gray-100 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-800 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("overview.resource_admission_section")}</h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{t("overview.resource_admission_window", { recent: data.windows.recent_hours, delayed: data.windows.delayed_hours })}</p>
+        </div>
+        <div className="flex flex-wrap gap-2 text-xs">
+          <DecisionPill label={t("overview.resource_delayed")} value={delayed.length} tone={delayed.length > 0 ? "alarm" : "idle"} />
+          <DecisionPill label={t("overview.resource_active")} value={active.length} />
+          <DecisionPill label={t("overview.resource_low_confidence")} value={profiles.length} tone={profiles.length > 0 ? "alarm" : "idle"} />
+          <DecisionPill label={t("overview.resource_overrides")} value={overrides.length} tone={overrides.length > 0 ? "alarm" : "idle"} />
+        </div>
+      </div>
+
+      <div className="grid gap-0 lg:grid-cols-2">
+        <ResourceList title={t("overview.resource_delayed_work")} empty={t("overview.resource_no_delayed")}>
+          {delayed.map((item) => (
+            <ResourceAdmissionRow
+              key={`delayed-${item.workflow_id}`}
+              primary={item.job?.slug || `WF-${item.workflow_id}`}
+              secondary={[item.reason, item.action, item.next_check_at ? t("overview.resource_next_check", { time: formatShortDate(item.next_check_at) }) : null].filter(Boolean).join(" · ")}
+              href={item.workflow_path || item.job?.path}
+              prefix={prefix}
+              metric={formatCost(item.estimated_remaining_cost)}
+            />
+          ))}
+        </ResourceList>
+
+        <ResourceList title={t("overview.resource_active_consumers")} empty={t("overview.resource_no_active")}>
+          {active.map((item) => (
+            <ResourceAdmissionRow
+              key={`active-${item.run_id}`}
+              primary={`${item.job?.slug || `Run ${item.run_id}`} · ${item.step_kind || "run"}`}
+              secondary={[`Run ${item.run_id}`, item.workflow_id ? `WF-${item.workflow_id}` : null, item.repository, item.host, item.wall_time_seconds == null ? null : t("overview.resource_wall", { time: formatDuration(item.wall_time_seconds) })].filter(Boolean).join(" · ")}
+              href={item.workflow_path || item.job?.path}
+              prefix={prefix}
+              metric={formatPressure(item.pressure) || formatCost(item.estimated_remaining_cost)}
+            />
+          ))}
+        </ResourceList>
+
+        <ResourceList title={t("overview.resource_recent_top")} empty={t("overview.resource_no_recent")}>
+          {recent.map((item) => (
+            <ResourceAdmissionRow
+              key={`recent-${item.run_id}`}
+              primary={`${item.job?.slug || `Run ${item.run_id}`} · ${item.grader_name || item.step_kind || "run"}`}
+              secondary={[`Run ${item.run_id}`, item.workflow_id ? `WF-${item.workflow_id}` : null, item.repository, item.host, item.prediction?.confidence_level ? t("overview.resource_confidence", { level: item.prediction.confidence_level }) : null].filter(Boolean).join(" · ")}
+              href={item.workflow_path || item.job?.path}
+              prefix={prefix}
+              metric={formatPressure(item.pressure) || (item.wall_time_seconds == null ? undefined : formatDuration(item.wall_time_seconds))}
+            />
+          ))}
+        </ResourceList>
+
+        <ResourceList title={t("overview.resource_low_confidence_profiles")} empty={t("overview.resource_no_low_confidence")}>
+          {profiles.map((profile) => (
+            <ResourceAdmissionRow
+              key={`profile-${profile.id}`}
+              primary={`${profile.repository || "repository"} · ${profile.grader_name || profile.step_kind}`}
+              secondary={[
+                t("overview.resource_samples", { count: profile.sample_count }),
+                t("overview.resource_attributed_samples", { count: profile.attributed_sample_count }),
+                profile.fallback_reason
+              ].filter(Boolean).join(" · ")}
+              metric={t("overview.resource_confidence", { level: profile.confidence_level })}
+            />
+          ))}
+        </ResourceList>
+      </div>
+
+      {overrides.length > 0 ? (
+        <div className="border-t border-amber-100 bg-amber-50/60 px-4 py-3 dark:border-amber-900 dark:bg-amber-950/20">
+          <div className="mb-2 text-xs font-medium uppercase text-amber-700 dark:text-amber-300">{t("overview.resource_override_audit")}</div>
+          <ul className="space-y-2">
+            {overrides.map((item) => (
+              <li className="text-xs text-amber-900 dark:text-amber-100" key={`override-${item.workflow_id}`}>
+                <ResourceLink href={item.workflow_path || item.job?.path} prefix={prefix}>{item.job?.slug || `WF-${item.workflow_id}`}</ResourceLink>
+                <span className="ml-2">{[item.reason, item.details?.job_priority ? t("overview.resource_priority", { priority: String(item.details.job_priority) }) : null, item.decided_at ? formatShortDate(item.decided_at) : null].filter(Boolean).join(" · ")}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
+function ResourceList({ title, empty, children }: { title: string; empty: string; children: ReactNode }) {
+  const rows = Array.isArray(children) ? children.filter(Boolean) : children
+  const hasRows = Array.isArray(rows) ? rows.length > 0 : Boolean(rows)
+
+  return (
+    <div className="border-b border-gray-100 p-4 dark:border-gray-800 lg:border-r">
+      <h3 className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{title}</h3>
+      {hasRows ? <ul className="mt-3 space-y-3">{rows}</ul> : <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">{empty}</p>}
+    </div>
+  )
+}
+
+function ResourceAdmissionRow({ primary, secondary, metric, href, prefix }: { primary: string; secondary?: string; metric?: string; href?: string; prefix?: string }) {
+  return (
+    <li className="grid gap-2 text-sm sm:grid-cols-[minmax(0,1fr)_auto]">
+      <div className="min-w-0">
+        <ResourceLink href={href} prefix={prefix}>{primary}</ResourceLink>
+        {secondary ? <p className="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">{secondary}</p> : null}
+      </div>
+      {metric ? <span className="self-start rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{metric}</span> : null}
+    </li>
+  )
+}
+
+function ResourceLink({ href, prefix = "", children }: { href?: string; prefix?: string; children: ReactNode }) {
+  if (!href) return <span className="font-medium text-gray-900 dark:text-gray-100">{children}</span>
+
+  return <Link className="font-medium text-blue-600 underline hover:no-underline dark:text-blue-300" to={withRoutePrefix(href, prefix)}>{children}</Link>
 }
 
 function StuckDetail({ item, prefix }: { item: AdminOverviewPayload["stuck"][number]; prefix: string }) {
@@ -249,4 +391,38 @@ function formatBytes(bytes: number) {
   const value = bytes / factor
 
   return `${value >= 10 ? Math.round(value) : Math.round(value * 10) / 10}${suffix}`
+}
+
+function formatDuration(seconds: number) {
+  if (seconds < 60) return `${Math.round(seconds)}s`
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m`
+  return `${Math.round(seconds / 360) / 10}h`
+}
+
+function formatCost(cost?: { duration_seconds?: number | null; cpu_pressure?: number | null; io_pressure?: number | null; memory_used_percent?: number | null } | null) {
+  if (!cost) return undefined
+  const parts = [
+    cost.duration_seconds == null ? null : formatDuration(cost.duration_seconds),
+    cost.cpu_pressure == null ? null : `CPU ${cost.cpu_pressure}`,
+    cost.io_pressure == null ? null : `IO ${cost.io_pressure}`,
+    cost.memory_used_percent == null ? null : `Mem ${cost.memory_used_percent}%`
+  ].filter(Boolean)
+
+  return parts.length > 0 ? parts.join(" · ") : undefined
+}
+
+function formatPressure(pressure?: { cpu_pressure?: number | null; io_pressure?: number | null; memory_used_percent?: number | null } | null) {
+  if (!pressure) return undefined
+  return formatCost({
+    cpu_pressure: pressure.cpu_pressure,
+    io_pressure: pressure.io_pressure,
+    memory_used_percent: pressure.memory_used_percent
+  })
+}
+
+function formatShortDate(value: string) {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+
+  return parsed.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
 }

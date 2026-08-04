@@ -59,6 +59,7 @@ export type AdminOverviewPayload = {
     observed_at: string
   }[]
   worker_health?: WorkerHealthPayload
+  resource_admission?: ResourceAdmissionDiagnosticsPayload
   chat_scoped_events: {
     window_hours: number
     total: number
@@ -118,6 +119,127 @@ export type AdminOverviewPayload = {
     captured_at: string | null
     stale: boolean
   }
+}
+
+export type ResourceAdmissionCost = {
+  duration_seconds?: number | null
+  cpu_pressure?: number | null
+  io_pressure?: number | null
+  memory_used_percent?: number | null
+}
+
+export type ResourceAdmissionJobRef = {
+  id: number
+  slug: string
+  title: string | null
+  state: string
+  priority: string | null
+  path: string
+}
+
+export type ResourceAdmissionPressure = {
+  cpu_pressure?: number | null
+  io_pressure?: number | null
+  memory_used_percent?: number | null
+  host_pressure_level?: string | null
+  host_pressure_reasons?: string[]
+  host_sample_count?: number
+  host_sample_confidence?: string
+  process_attribution_confidence?: string
+  process_attribution_method?: string
+  process_sample_count?: number
+  process_attributed_sample_count?: number
+  process_cpu_seconds?: number | null
+  process_io_bytes?: number | null
+  process_memory_bytes?: number | null
+}
+
+export type ResourceAdmissionConsumer = {
+  run_id: number
+  job_id: number
+  workflow_id?: number | null
+  step_kind?: string | null
+  grader_name?: string | null
+  repository?: string | null
+  host?: string | null
+  state?: string
+  started_at?: string | null
+  finished_at?: string | null
+  wall_time_seconds?: number | null
+  heartbeat_age_seconds?: number | null
+  job?: ResourceAdmissionJobRef | null
+  workflow_path?: string | null
+  pressure?: ResourceAdmissionPressure | null
+  estimated_remaining_cost?: ResourceAdmissionCost | null
+  prediction?: {
+    confidence_level?: string
+    attribution_confidence_level?: string
+    sample_count?: number
+    attributed_sample_count?: number
+    prediction_source?: string
+    fallback_reason?: string | null
+  } | null
+}
+
+export type ResourceAdmissionDelayedWork = {
+  workflow_id: number
+  job_id: number
+  trigger_kind: string
+  reason?: string | null
+  action?: string | null
+  delay_until?: string | null
+  delayed_at?: string | null
+  next_check_at?: string | null
+  job?: ResourceAdmissionJobRef | null
+  workflow_path?: string | null
+  decision?: Record<string, unknown>
+  pressure?: {
+    candidate?: ResourceAdmissionCost & Record<string, unknown>
+    active?: Record<string, unknown>
+    projected?: ResourceAdmissionCost & Record<string, unknown>
+    host?: Record<string, unknown>
+  } | null
+  estimated_remaining_cost?: ResourceAdmissionCost | null
+  details?: Record<string, unknown>
+}
+
+export type ResourceAdmissionProfile = {
+  id: number
+  repository?: string | null
+  agent_provider: string
+  trigger_kind: string
+  job_kind?: string | null
+  step_kind: string
+  grader_name?: string | null
+  confidence_level: string
+  attribution_confidence_level: string
+  attribution_quality: string
+  sample_count: number
+  attributed_sample_count: number
+  process_attributed_sample_count: number
+  host_pressure_sample_count: number
+  prediction_source: string
+  fallback_reason?: string | null
+  predicted_command_cost: ResourceAdmissionCost
+  last_observed_at?: string | null
+}
+
+export type ResourceAdmissionOverride = ResourceAdmissionDelayedWork & {
+  override?: boolean
+  decided_at?: string | null
+}
+
+export type ResourceAdmissionDiagnosticsPayload = {
+  generated_at: string
+  windows: {
+    recent_hours: number
+    delayed_hours: number
+  }
+  active_consumers: ResourceAdmissionConsumer[]
+  recent_top_consumers: ResourceAdmissionConsumer[]
+  delayed_work: ResourceAdmissionDelayedWork[]
+  low_confidence_profiles: ResourceAdmissionProfile[]
+  admission_overrides: ResourceAdmissionOverride[]
 }
 
 export type ChatScopedEventObservation = {
