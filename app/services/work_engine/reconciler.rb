@@ -719,7 +719,7 @@ module WorkEngine
     def classify_workspace_availability
       workflows.select { |workflow| workflow.running? || workflow.retry_available? }.filter_map do |workflow|
         next if workflow.job&.closed?
-        next if remote_live_worker_workspace?(workflow)
+        next if WorkflowWorkspace.remote_live_worker_workspace?(workflow)
         next if workflow.worker_hostname.present? && !InstanceVersion.worker_live?(workflow.worker_hostname)
 
         path = WorkflowWorkspace.path_for(workflow)
@@ -1034,14 +1034,9 @@ module WorkEngine
       !InstanceVersion.worker_live?(queue_name.delete_prefix("resume-"))
     end
 
-    def remote_live_worker_workspace?(workflow)
-      host = workflow.worker_hostname
-      host.present? && host != SyrusVersion.hostname && InstanceVersion.worker_live?(host)
-    end
-
     def workspace_snapshot_for(workflow)
       path = WorkflowWorkspace.path_for(workflow)
-      if remote_live_worker_workspace?(workflow)
+      if WorkflowWorkspace.remote_live_worker_workspace?(workflow)
         return {
           path: path.to_s,
           exists: true,

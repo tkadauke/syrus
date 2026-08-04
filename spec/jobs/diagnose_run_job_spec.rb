@@ -125,6 +125,28 @@ RSpec.describe DiagnoseRunJob do
         run
       end
 
+      it "leaves workspace and process signals unavailable when a different live worker owns the workflow" do
+        allow(SyrusVersion).to receive(:hostname).and_return("syrus-worker-local")
+        run = running_run_with_workflow(worker_hostname: "syrus-worker-remote")
+        InstanceVersion.create!(
+          hostname: "syrus-worker-remote",
+          role: "worker",
+          version: "test-sha",
+          started_at: Time.current,
+          last_heartbeat_at: Time.current
+        )
+
+        job = build_job
+        stub_sq_state(job, "claimed")
+        job.perform(run.id)
+
+        snapshot = run.run_health_snapshots.last
+        expect(snapshot.worktree_exists).to be_nil
+        expect(snapshot.claude_process_running).to be_nil
+        expect(snapshot.health_status).not_to eq("critical")
+        expect(snapshot.hint).not_to include("Workspace")
+      end
+
       it "leaves worktree_exists and claude_process_running nil when the owning host is dead" do
         run = running_run_with_workflow(worker_hostname: "syrus-worker-dead")
         # No InstanceVersion row → InstanceVersion.worker_live? returns false

@@ -41,6 +41,11 @@ class WorkflowWorkspace
     data_root.join("agent_homes", "jobs", workflow.job_id.to_s, provider.to_s)
   end
 
+  def self.remote_live_worker_workspace?(workflow)
+    host = workflow.worker_hostname
+    host.present? && host != SyrusVersion.hostname && InstanceVersion.worker_live?(host)
+  end
+
   # Read the committed-but-not-pushed diff (three-dot vs default
   # branch) and list of uncommitted files from the workflow's
   # workspace. Returns nil when: workspace doesn't exist, workflow
@@ -113,10 +118,7 @@ class WorkflowWorkspace
   #     container was recreated with a new hostname but the shared volume — and
   #     the workspace — persist; or a dead pod whose disk is already gone).
   def self.cleanable_here?(workflow)
-    host = workflow.worker_hostname
-    return true if host.blank? || host == SyrusVersion.hostname
-
-    !InstanceVersion.worker_live?(host)
+    !remote_live_worker_workspace?(workflow)
   end
 
   def self.cleanup_for(workflow)
