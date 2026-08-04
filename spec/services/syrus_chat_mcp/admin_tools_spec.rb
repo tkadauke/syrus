@@ -43,6 +43,9 @@ RSpec.describe "SyrusChatMcp admin tools" do
     "force_rebase" => { job_id: 1, reason: "Bypass the landing queue proximity guard." },
     "restack_epic" => { epic_id: 1, reason: "Repair stale stack topology." },
     "force_landing_recheck" => { job_id: 1, reason: "Refresh stale landing metadata." },
+    "refresh_pr_checks" => { job_id: 1 },
+    "rerun_ci_repair" => { job_id: 1, reason: "Rerun stale CI repair." },
+    "mark_ci_repair_noop" => { job_id: 1, workflow_id: 1, reason: "No branch or check progress." },
     "override_landing_blocker_once" => { job_id: 1, blocker_key: "active_workflow", reason: "Verified blocker is stale." },
     "wake_landing_queue" => { reason: "Repair completed." }
   }.freeze

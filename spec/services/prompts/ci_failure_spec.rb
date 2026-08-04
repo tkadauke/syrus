@@ -36,6 +36,14 @@ RSpec.describe Prompts::CiFailure do
     expect(out).to match(/submit_summary/)
   end
 
+  it "includes operator instructions when provided" do
+    out = build(instructions: "Inspect why JOB-2265's prior repair left the branch unchanged.").to_s
+
+    expect(out).to include("# Operator instructions")
+    expect(out).to include("Inspect why JOB-2265's prior repair left the branch unchanged.")
+    expect(out.index("# Operator instructions")).to be < out.index("# How to act")
+  end
+
   it "includes Epic context before the failing checks when supplied" do
     epic = instance_double(
       Epic,

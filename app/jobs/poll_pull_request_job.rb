@@ -489,20 +489,7 @@ class PollPullRequestJob < ApplicationJob
   end
 
   def enrich_failed_check(check)
-    check = check.to_h
-    name = check[:name] || check["name"]
-    summary = check[:summary] || check["summary"]
-    log = check.delete(:log) || check.delete("log")
-    full_log_url = check[:html_url] || check["html_url"]
-    parser_input = log.presence || summary.to_s
-
-    check.merge(
-      error_context: CiLogParser.new(
-        parser_input,
-        step_name: name,
-        full_log_url: full_log_url
-      ).parse
-    )
+    CiRepair::CheckEnricher.call(check)
   end
 
 end

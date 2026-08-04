@@ -41,6 +41,8 @@ Rails.application.config.to_prepare do
     "pending_actions/cancel_stale_work",
     "pending_actions/reenqueue_work",
     "pending_actions/force_landing_recheck",
+    "pending_actions/rerun_ci_repair",
+    "pending_actions/mark_ci_repair_noop",
     "pending_actions/override_landing_blocker_once",
     "pending_actions/wake_landing_queue",
     "pending_actions/schedule_recurring",

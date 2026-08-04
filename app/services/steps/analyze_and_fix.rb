@@ -27,6 +27,7 @@ module Steps
         branch_name: job.branch_name,
         head_sha: head_sha,
         failed_checks: failed,
+        instructions: workflow.artifact("manual_ci_repair").to_h["instructions"],
         epic: job.epic,
         job: job
       ).to_s

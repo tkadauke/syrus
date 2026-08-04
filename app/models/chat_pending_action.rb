@@ -37,6 +37,8 @@ class ChatPendingAction < ApplicationRecord
     cancel_stale_work
     reenqueue_work
     force_landing_recheck
+    rerun_ci_repair
+    mark_ci_repair_noop
     override_landing_blocker_once
     wake_landing_queue
   ].freeze

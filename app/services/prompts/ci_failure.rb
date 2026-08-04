@@ -10,13 +10,14 @@ module Prompts
     MAX_SUMMARY_BYTES = 2_000
     MAX_ERROR_BLOCK_BYTES = 6_000
 
-    def initialize(issue:, pr_number:, repo_slug:, branch_name:, head_sha:, failed_checks:, epic: nil, job: nil)
+    def initialize(issue:, pr_number:, repo_slug:, branch_name:, head_sha:, failed_checks:, instructions: nil, epic: nil, job: nil)
       @issue        = issue
       @pr_number    = pr_number
       @repo_slug    = repo_slug
       @branch_name  = branch_name
       @head_sha     = head_sha
       @failed_checks = failed_checks
+      @instructions = instructions.to_s.strip.presence
       @epic = epic
       @job = job
     end
@@ -37,6 +38,8 @@ module Prompts
 
         # Failing checks (#{@failed_checks.size} total, showing up to #{MAX_CHECKS})
         #{render_checks}
+
+        #{operator_instructions}
 
         # How to act
 
@@ -72,6 +75,15 @@ module Prompts
 
     def render_checks
       @failed_checks.first(MAX_CHECKS).map { |c| render_check(c) }.join("\n\n")
+    end
+
+    def operator_instructions
+      return nil unless @instructions
+
+      <<~BLOCK.strip
+        # Operator instructions
+        #{@instructions}
+      BLOCK
     end
 
     def render_check(check)

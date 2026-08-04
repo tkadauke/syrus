@@ -82,6 +82,9 @@ module SyrusChatMcp
       ForceRebaseTool,
       RestackEpicTool,
       ForceLandingRecheckTool,
+      RefreshPrChecksTool,
+      RerunCiRepairTool,
+      MarkCiRepairNoopTool,
       OverrideLandingBlockerOnceTool,
       WakeLandingQueueTool
     ].freeze
