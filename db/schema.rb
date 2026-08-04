@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_04_153000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_04_160000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -445,6 +445,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_04_153000) do
     t.json "metadata", null: false
     t.string "name", limit: 128, null: false
     t.string "outcome", limit: 32
+    t.json "resource_attribution"
     t.bigint "run_id", null: false
     t.integer "sequence", null: false
     t.bigint "spawned_process_id"
@@ -1280,29 +1281,42 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_04_153000) do
 
   create_table "run_resource_summaries", force: :cascade do |t|
     t.string "agent_provider", limit: 64, null: false
-    t.float "avg_cpu_pressure"
-    t.float "avg_cpu_used_percent"
-    t.float "avg_io_pressure"
-    t.float "avg_memory_used_percent"
     t.integer "command_span_count", default: 0, null: false
     t.datetime "created_at", null: false
     t.float "duration_seconds"
     t.datetime "finished_at"
     t.string "grader_name", limit: 128
+    t.float "host_pressure_avg_cpu_some_percent"
+    t.float "host_pressure_avg_io_some_percent"
+    t.string "host_pressure_level", limit: 32, null: false
+    t.float "host_pressure_max_cpu_some_percent"
+    t.float "host_pressure_max_io_some_percent"
+    t.json "host_pressure_reasons", null: false
+    t.string "host_sample_confidence", limit: 32, null: false
     t.integer "host_sample_count", default: 0, null: false
+    t.float "host_usage_avg_cpu_used_percent"
+    t.float "host_usage_avg_memory_used_percent"
+    t.float "host_usage_max_cpu_used_percent"
+    t.float "host_usage_max_data_root_used_percent"
+    t.float "host_usage_max_memory_used_percent"
     t.string "hostname", limit: 255
     t.bigint "job_id", null: false
-    t.float "max_cpu_pressure"
-    t.float "max_cpu_used_percent"
-    t.float "max_data_root_used_percent"
-    t.float "max_io_pressure"
-    t.float "max_memory_used_percent"
+    t.string "process_attribution_confidence", limit: 32, default: "unknown", null: false
+    t.string "process_attribution_method", limit: 64, default: "unknown", null: false
+    t.string "process_attribution_unavailable_reason", limit: 255
+    t.integer "process_attribution_version", default: 1, null: false
+    t.float "process_cpu_time_seconds"
+    t.integer "process_descendant_process_count", default: 0, null: false
+    t.json "process_exit_statuses"
+    t.bigint "process_max_rss_bytes"
+    t.bigint "process_read_io_bytes"
+    t.boolean "process_resource_fallback", default: false, null: false
+    t.integer "process_sample_count", default: 0, null: false
+    t.float "process_wall_time_seconds"
+    t.bigint "process_write_io_bytes"
     t.bigint "repository_id"
-    t.string "resource_pressure_level", limit: 32, null: false
-    t.json "resource_pressure_reasons", null: false
     t.boolean "retention_limited", default: false, null: false
     t.bigint "run_id", null: false
-    t.string "sample_confidence", limit: 32, null: false
     t.integer "spawned_process_count", default: 0, null: false
     t.datetime "started_at"
     t.bigint "step_id"
@@ -1444,6 +1458,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_04_153000) do
     t.string "outcome", limit: 32
     t.integer "pgid"
     t.integer "pid"
+    t.json "resource_attribution"
     t.integer "run_id"
     t.integer "silent_timeout_s"
     t.datetime "started_at", null: false

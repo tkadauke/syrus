@@ -116,6 +116,7 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(spawned_processes.first).to have_attributes(kind: "agent", workdir: @dir)
     expect(spawned_processes.first.finished_at).to be_nil
     expect(spawned_processes.first.reload).to be_finished
+    expect(spawned_processes.first.resource_attribution).to include("method" => "linux_proc_process_group")
   end
 
   it "heartbeats a run while a silent spawned process is still alive" do

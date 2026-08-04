@@ -25,5 +25,6 @@ class CommandSpan < ApplicationRecord
 
   def default_metadata
     self.metadata ||= {}
+    self.resource_attribution ||= {}
   end
 end

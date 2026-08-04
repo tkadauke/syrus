@@ -31,6 +31,7 @@ class SpawnedProcess < ApplicationRecord
             message: ->(_, value) { "#{value[:value].inspect} is not in SpawnedProcess::KINDS — register it explicitly before spawning" } }
   validates :command, :hostname, :started_at, presence: true
   validates :outcome, inclusion: { in: OUTCOMES, allow_nil: true }
+  before_validation :default_resource_attribution
 
   scope :stale, ->(threshold = STALE_THRESHOLD) {
     running.where("(last_chunk_at IS NULL AND started_at < :t) OR last_chunk_at < :t", t: threshold.ago)
@@ -137,5 +138,9 @@ class SpawnedProcess < ApplicationRecord
     rescue StandardError
       nil
     end
+  end
+
+  def default_resource_attribution
+    self.resource_attribution ||= {}
   end
 end

@@ -193,6 +193,7 @@ class ProcessRunner
 
         @stdin_writer&.join
         killer.kill
+        sample_resource_attribution!
         status = wait_thread.value
         process_exit_status = status.exitstatus || 1
         clean_exit_after_aliveness =
@@ -253,6 +254,8 @@ class ProcessRunner
       end
     end
     @spawned_process.update!(pid: pid, pgid: pgid)
+    @resource_sampler = ProcessResourceSampler.new(pid: pid, pgid: pgid)
+    sample_resource_attribution!
   rescue StandardError => e
     Rails.logger.warn("[ProcessRunner] failed to record pid #{pid}: #{e.class}: #{e.message}")
   end
@@ -265,6 +268,7 @@ class ProcessRunner
     return if last && (now - last) < HEARTBEAT_INTERVAL_SECONDS
 
     @spawned_process.update_column(:last_chunk_at, now)
+    sample_resource_attribution!
     heartbeat_run!(now)
   rescue StandardError => e
     Rails.logger.warn("[ProcessRunner] heartbeat failed: #{e.class}: #{e.message}")
@@ -286,20 +290,30 @@ class ProcessRunner
   def finalize_spawned_process!(outcome:, exit_status:)
     return unless @spawned_process
 
+    sample_resource_attribution!
+    resource_attribution = @resource_sampler&.payload || {}
     finished_at = Time.current
     rows = SpawnedProcess.where(id: @spawned_process.id, finished_at: nil)
                          .update_all(
                            finished_at: finished_at,
                            outcome: outcome,
-                           exit_status: exit_status
+                           exit_status: exit_status,
+                           resource_attribution: resource_attribution
                          )
     if rows.zero?
       Rails.logger.info("[ProcessRunner] SpawnedProcess ##{@spawned_process.id} already finalized (supervisor beat us)")
     else
+      CommandSpan.where(spawned_process_id: @spawned_process.id).find_each do |span|
+        span.update_column(:resource_attribution, resource_attribution)
+      end
       ChatStopReconciler.reconcile_spawned_process!(@spawned_process, finished_at: finished_at)
     end
   rescue StandardError => e
     Rails.logger.warn("[ProcessRunner] finalize failed: #{e.class}: #{e.message}")
+  end
+
+  def sample_resource_attribution!
+    @resource_sampler&.sample!
   end
 
   def outcome_for(result)

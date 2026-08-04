@@ -1,7 +1,8 @@
 class RunResourceSummary < ApplicationRecord
   RETAIN_AFTER = 30.days
-  SUMMARY_VERSION = 1
-  SAMPLE_CONFIDENCES = %w[ unknown low insufficient sufficient ].freeze
+  SUMMARY_VERSION = 2
+  HOST_SAMPLE_CONFIDENCES = %w[ unknown low insufficient sufficient ].freeze
+  PROCESS_ATTRIBUTION_CONFIDENCES = %w[ unknown low medium high ].freeze
   PRESSURE_LEVELS = WorkerHealthSampleAnalysis::LEVEL_ORDER.keys.freeze
 
   belongs_to :run
@@ -11,12 +12,15 @@ class RunResourceSummary < ApplicationRecord
   belongs_to :repository, optional: true
   belongs_to :user
 
-  before_validation :default_resource_pressure_reasons
+  before_validation :default_json_fields
 
   validates :run_id, uniqueness: true
-  validates :agent_provider, :trigger_kind, :sample_confidence, :resource_pressure_level, :summary_version, presence: true
-  validates :sample_confidence, inclusion: { in: SAMPLE_CONFIDENCES }
-  validates :resource_pressure_level, inclusion: { in: PRESSURE_LEVELS }
+  validates :agent_provider, :trigger_kind, :host_sample_confidence, :host_pressure_level,
+            :process_attribution_method, :process_attribution_version,
+            :process_attribution_confidence, :summary_version, presence: true
+  validates :host_sample_confidence, inclusion: { in: HOST_SAMPLE_CONFIDENCES }
+  validates :host_pressure_level, inclusion: { in: PRESSURE_LEVELS }
+  validates :process_attribution_confidence, inclusion: { in: PROCESS_ATTRIBUTION_CONFIDENCES }
 
   scope :prunable, -> { where("created_at < ?", RETAIN_AFTER.ago) }
 
@@ -33,7 +37,8 @@ class RunResourceSummary < ApplicationRecord
 
   private
 
-  def default_resource_pressure_reasons
-    self.resource_pressure_reasons ||= []
+  def default_json_fields
+    self.host_pressure_reasons ||= []
+    self.process_exit_statuses ||= []
   end
 end

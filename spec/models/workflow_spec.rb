@@ -521,8 +521,8 @@ RSpec.describe Workflow do
       expect(orphan_run.reload.state).to eq("cancelled")
       expect(orphan_run.finished_at).to be_present
       expect(orphan_run.run_resource_summary).to have_attributes(
-        resource_pressure_level: "unknown",
-        sample_confidence: "unknown"
+        host_pressure_level: "unknown",
+        host_sample_confidence: "unknown"
       )
 
       # Queued tail Steps stay queued so Retry-from-failed-step can

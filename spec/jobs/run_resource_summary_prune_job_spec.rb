@@ -33,9 +33,12 @@ RSpec.describe RunResourceSummaryPruneJob do
       started_at: run.started_at,
       finished_at: run.finished_at,
       duration_seconds: 60.0,
-      sample_confidence: "unknown",
-      resource_pressure_level: "unknown",
-      resource_pressure_reasons: [],
+      host_sample_confidence: "unknown",
+      host_pressure_level: "unknown",
+      host_pressure_reasons: [],
+      process_attribution_method: "none",
+      process_attribution_confidence: "unknown",
+      process_exit_statuses: [],
       summary_version: RunResourceSummary::SUMMARY_VERSION
     )
     summary.update_columns(created_at: created_at, updated_at: created_at)
