@@ -21,14 +21,17 @@ RSpec.describe WorkflowAdmissionBudget do
       job_kind: "issue",
       sample_count: 40,
       attributed_sample_count: attributed_samples,
+      process_attributed_sample_count: attributed_samples,
+      host_pressure_sample_count: 40,
+      attribution_quality: attributed_samples.positive? ? "mixed" : "host_correlated",
       p90_duration_seconds: duration,
       p90_cpu_pressure: cpu,
       p90_io_pressure: io,
       p90_memory_used_percent: memory,
-      p90_attributed_duration_seconds: attributed_duration,
-      p90_attributed_cpu_pressure: attributed_cpu,
-      p90_attributed_io_pressure: attributed_io,
-      p90_attributed_memory_used_percent: attributed_memory,
+      p90_process_attributed_duration_seconds: attributed_duration,
+      p90_process_attributed_cpu_percent: attributed_cpu,
+      p90_process_attributed_io_bytes: attributed_io,
+      p90_process_attributed_memory_bytes: attributed_memory,
       timeout_rate: 0.0,
       failure_rate: 0.0,
       last_observed_at: Time.current,
@@ -70,6 +73,10 @@ RSpec.describe WorkflowAdmissionBudget do
 
     expect(decision.action).to eq("admit_now")
     expect(decision.reason).to eq("within_budget")
+    expect(decision.details).to include(
+      "decision_basis" => "fallback_host_correlated_profile",
+      "prediction_source" => "host_correlated"
+    )
     expect(decision.pressure.dig("candidate", "profile_count")).to be >= 8
   end
 
@@ -145,6 +152,10 @@ RSpec.describe WorkflowAdmissionBudget do
     expect(decision.action).to eq("admit_now")
     expect(decision.override).to be(true)
     expect(decision.reason).to eq("urgent_priority_override")
+    expect(decision.details).to include(
+      "decision_basis" => "urgent_priority_override",
+      "prediction_source" => "host_correlated"
+    )
   end
 
   it "requires an override when current worker health shows hard memory pressure" do
@@ -204,7 +215,17 @@ RSpec.describe WorkflowAdmissionBudget do
     expect(decision.pressure.dig("candidate", "primary_prediction_source")).to eq("command_attributed")
     expect(decision.pressure.dig("candidate", "predicted_command_cost")).to include(
       "duration_seconds" => 130,
-      "cpu_pressure" => 12.0
+      "cpu_pressure" => 12.0,
+      "io_pressure" => 0.0,
+      "memory_used_percent" => 0.0,
+      "source" => "command_attributed",
+      "confidence" => "process_attributed"
+    )
+    expect(decision.pressure.dig("candidate", "process_attributed_cost")).to include(
+      "duration_seconds" => 130,
+      "cpu_percent" => 12.0,
+      "memory_bytes" => 25,
+      "io_bytes" => 10
     )
     expect(decision.pressure.dig("candidate", "fallback_reasons")).to eq([])
   end
@@ -220,8 +241,9 @@ RSpec.describe WorkflowAdmissionBudget do
     expect(decision.action).to eq("delay_until")
     expect(decision.reason).to eq("predicted_budget_pressure_high")
     expect(decision.details).to include(
-      "decision_basis" => "predicted_command_cost",
-      "prediction_source" => "host_correlated"
+      "decision_basis" => "fallback_host_correlated_profile",
+      "prediction_source" => "host_correlated",
+      "fallback_reasons" => [ "command_attributed_profile_unavailable" ]
     )
     expect(decision.details.fetch("fallback_reasons")).to include("command_attributed_profile_unavailable")
     expect(decision.pressure.dig("candidate", "attribution_confidence_levels")).to eq([ "defaults_only" ])

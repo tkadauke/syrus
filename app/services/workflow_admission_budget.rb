@@ -70,15 +70,15 @@ class WorkflowAdmissionBudget
     end
 
     if over_budget?(pressure) && !urgent?
-      return low_risk_or_delay("predicted_budget_pressure_high", candidate, active, pressure, decision_basis: "predicted_command_cost")
+      return low_risk_or_delay("predicted_budget_pressure_high", candidate, active, pressure, decision_basis: prediction_decision_basis(candidate))
     end
 
     if pending_high_cost_work?(active) && high_cost?(candidate) && medium_or_lower? && !urgent?
-      return delay("pending_high_cost_work", pressure, details: details_payload(candidate, active, decision_basis: "predicted_command_cost"))
+      return delay("pending_high_cost_work", pressure, details: details_payload(candidate, active, decision_basis: prediction_decision_basis(candidate)))
     end
 
     if repository_active_workflow_count >= MAX_REPOSITORY_ACTIVE_WORKFLOWS && pending_high_cost_work?(active) && !urgent?
-      return low_risk_or_delay("repository_concurrency_budget_exhausted", candidate, active, pressure, decision_basis: "predicted_command_cost")
+      return low_risk_or_delay("repository_concurrency_budget_exhausted", candidate, active, pressure, decision_basis: prediction_decision_basis(candidate))
     end
 
     urgent? && pressure_detected?(pressure) ? urgent_override("urgent_priority_override", pressure) : admit("within_budget", pressure)
@@ -126,6 +126,11 @@ class WorkflowAdmissionBudget
     cpu = predictions.sum { |prediction| prediction.fetch(:cpu_pressure).to_f }
     io = predictions.sum { |prediction| prediction.fetch(:io_pressure).to_f }
     memory = predictions.map { |prediction| prediction.fetch(:memory_used_percent).to_f }.max || 0.0
+    process_predictions = predictions.select { |prediction| prediction.fetch(:prediction_source) == "command_attributed" }
+    process_duration = process_predictions.sum { |prediction| prediction.fetch(:process_attributed_duration_seconds).to_f }
+    process_cpu_percent = process_predictions.sum { |prediction| prediction.fetch(:process_attributed_cpu_percent).to_f }
+    process_memory_bytes = process_predictions.filter_map { |prediction| prediction.fetch(:process_attributed_memory_bytes) }.max
+    process_io_bytes = process_predictions.filter_map { |prediction| prediction.fetch(:process_attributed_io_bytes) }.sum
     prediction_sources = predictions.map { |prediction| prediction.fetch(:prediction_source) }.tally
     fallback_reasons = predictions.filter_map { |prediction| prediction.fetch(:fallback_reason) }.uniq
     attribution_confidence_levels = predictions.map { |prediction| prediction.fetch(:attribution_confidence_level) }.uniq
@@ -139,8 +144,16 @@ class WorkflowAdmissionBudget
         "duration_seconds" => duration.round,
         "cpu_pressure" => cpu.round(1),
         "io_pressure" => io.round(1),
-        "memory_used_percent" => memory.round(1)
+        "memory_used_percent" => memory.round(1),
+        "source" => primary_prediction_source(prediction_sources),
+        "confidence" => prediction_confidence(prediction_sources)
       },
+      "process_attributed_cost" => {
+        "duration_seconds" => process_duration.round,
+        "cpu_percent" => process_cpu_percent.round(1),
+        "memory_bytes" => process_memory_bytes,
+        "io_bytes" => process_io_bytes.positive? ? process_io_bytes : nil
+      }.compact,
       "prediction_sources" => prediction_sources,
       "primary_prediction_source" => primary_prediction_source(prediction_sources),
       "attribution_confidence_levels" => attribution_confidence_levels,
@@ -159,6 +172,17 @@ class WorkflowAdmissionBudget
     return "host_correlated" if sources.key?("host_correlated")
 
     "defaults_only"
+  end
+
+  def prediction_confidence(sources)
+    case primary_prediction_source(sources)
+    when "command_attributed"
+      "process_attributed"
+    when "host_correlated"
+      "lower_confidence_fallback"
+    else
+      "conservative_defaults"
+    end
   end
 
   def missing_profile_count(predictions)
@@ -402,16 +426,56 @@ class WorkflowAdmissionBudget
     end
   end
 
+  def prediction_decision_basis(candidate)
+    case candidate.fetch("primary_prediction_source")
+    when "command_attributed"
+      "predicted_process_attributed_phase_cost"
+    when "host_correlated"
+      "fallback_host_correlated_profile"
+    else
+      "conservative_defaults"
+    end
+  end
+
+  def admit_decision_basis(reason, candidate)
+    case reason
+    when "within_budget"
+      prediction_decision_basis(candidate)
+    when "bootstrap_missing_profiles"
+      "conservative_defaults"
+    else
+      reason
+    end
+  end
+
   def pressure_detected?(pressure)
     pressure.fetch("active").fetch("workflow_count").positive? || soft_host_pressure? || over_budget?(pressure)
   end
 
   def urgent_override(reason, pressure)
-    decision("admit_now", reason, pressure, override: true, details: { "priority" => job.priority })
+    decision(
+      "admit_now",
+      reason,
+      pressure,
+      override: true,
+      details: details_payload(
+        pressure.fetch("candidate"),
+        pressure.fetch("active"),
+        decision_basis: "urgent_priority_override"
+      )
+    )
   end
 
   def admit(reason, pressure = nil)
-    decision("admit_now", reason, pressure || pressure_payload(candidate: predicted_candidate_pressure, active: active_workflow_pressure))
+    candidate = predicted_candidate_pressure
+    active = active_workflow_pressure
+    pressure ||= pressure_payload(candidate: candidate, active: active)
+    decision(
+      "admit_now",
+      reason,
+      pressure,
+      details: details_payload(candidate, active, decision_basis: admit_decision_basis(reason, candidate))
+    )
   end
 
   def delay(reason, pressure, details: {})

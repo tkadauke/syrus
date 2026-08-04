@@ -26,7 +26,7 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
     Factories.job_record(**attrs)
   end
 
-  def resource_summary(repository:, duration:, cpu: 10.0, io: 2.0, memory: 30.0, kind: "issue", step_kind: "implement", grader_name: nil, state: "succeeded", retention_limited: false, finished_at: now, process_duration: nil, process_cpu_seconds: nil, process_memory_bytes: nil, process_io_bytes: nil, command_span: false, command_cpu: 4.0, command_io: 1.0, command_memory: 25.0)
+  def resource_summary(repository:, duration:, cpu: 10.0, io: 2.0, memory: 30.0, kind: "issue", step_kind: "implement", grader_name: nil, state: "succeeded", retention_limited: false, finished_at: now, process_duration: nil, process_cpu_seconds: nil, process_cpu_percent: nil, process_memory_bytes: nil, process_io_bytes: nil, command_span: false, command_cpu: 4.0, command_io: 1.0, command_memory: 25.0)
     job = job_for(repository: repository, kind: kind)
     workflow = workflow_for(job)
     step = step_for(workflow, kind: step_kind, details: grader_name ? { "name" => grader_name } : {})
@@ -93,6 +93,7 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
       process_attributed_sample_count: process_cpu_seconds.present? || process_memory_bytes.present? || process_io_bytes.present? ? 1 : 0,
       process_attributed_duration_seconds: process_duration,
       process_attributed_cpu_seconds: process_cpu_seconds,
+      process_attributed_cpu_percent: process_cpu_percent || (process_cpu_seconds && process_duration.to_f.positive? ? ((process_cpu_seconds.to_f / process_duration.to_f) * 100.0).round(3) : nil),
       process_attributed_memory_bytes: process_memory_bytes,
       process_attributed_io_bytes: process_io_bytes,
       host_pressure_level: "ok",
@@ -145,9 +146,14 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
     expect(profile.host_pressure_sample_count).to eq(10)
     expect(profile.attribution_quality).to eq("process_attributed")
     expect(profile.p90_process_attributed_duration_seconds).to eq(28.0)
+    expect(profile.p90_process_attributed_cpu_percent).to eq(46.429)
     expect(profile.p90_host_pressure_cpu).to eq(90.0)
     expect(profile.conservative_prediction).to include(
       prediction_basis: "process_attributed",
+      duration_seconds: 28.0,
+      cpu_pressure: 46.429,
+      io_pressure: 0.0,
+      memory_used_percent: 0.0,
       process_attributed_duration_seconds: 28.0,
       process_attributed_cpu_seconds: 13.0,
       host_pressure_cpu: 90.0,
@@ -220,7 +226,7 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
     )
   end
 
-  it "stores attributed command metrics separately from host-correlated fallback metrics" do
+  it "keeps command-span host pressure out of process-attributed command metrics" do
     10.times do |index|
       resource_summary(
         repository: repository,
@@ -240,13 +246,14 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
 
     profile = WorkflowStepResourceProfile.first
     expect(profile.sample_count).to eq(10)
-    expect(profile.attributed_sample_count).to eq(10)
+    expect(profile.attributed_sample_count).to eq(0)
+    expect(profile.process_attributed_sample_count).to eq(0)
     expect(profile.p90_cpu_pressure).to eq(88.0)
-    expect(profile.p90_attributed_cpu_pressure).to eq(18.0)
+    expect(profile.p90_attributed_cpu_pressure).to be_nil
     expect(profile.conservative_prediction).to include(
-      cpu_pressure: 18.0,
-      prediction_source: "command_attributed",
-      fallback_reason: nil
+      cpu_pressure: 88.0,
+      prediction_source: "host_correlated",
+      fallback_reason: "command_attributed_profile_unavailable"
     )
   end
 

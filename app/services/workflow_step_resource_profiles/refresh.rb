@@ -72,7 +72,7 @@ module WorkflowStepResourceProfiles
     end
 
     def profile_attributes(inputs)
-      attributed_inputs = attributed_metric_inputs(inputs)
+      attributed_inputs = process_attributed_metric_inputs(inputs)
 
       {
         sample_count: inputs.size,
@@ -204,34 +204,20 @@ module WorkflowStepResourceProfiles
       "mixed"
     end
 
-    def attributed_metric_inputs(inputs)
+    def process_attributed_metric_inputs(inputs)
       inputs.filter_map do |summary|
-        attributed_metrics_for(summary)
+        process_attributed_metrics_for(summary)
       end
     end
 
-    def attributed_metrics_for(summary)
-      spans = summary.run&.command_spans&.to_a || []
-      span_metrics = spans.filter_map { |span| attributed_span_metrics(span) }
-      return if span_metrics.empty?
+    def process_attributed_metrics_for(summary)
+      return unless summary.process_attributed_sample_count.to_i.positive?
 
       {
-        duration_seconds: span_metrics.sum { |metrics| metrics.fetch(:duration_seconds).to_f },
-        cpu_pressure: span_metrics.sum { |metrics| metrics.fetch(:cpu_pressure).to_f },
-        io_pressure: span_metrics.sum { |metrics| metrics.fetch(:io_pressure).to_f },
-        memory_used_percent: span_metrics.map { |metrics| metrics.fetch(:memory_used_percent).to_f }.max
-      }
-    end
-
-    def attributed_span_metrics(span)
-      correlation = WorkerHealthRunCorrelation.for_span(span, sample_limit: 0, now: now)
-      return if correlation.fetch(:sample_count).zero? || correlation.fetch(:retention_limited)
-
-      {
-        duration_seconds: span.duration_s,
-        cpu_pressure: correlation.dig(:summary, :cpu_pressure_some, :max),
-        io_pressure: correlation.dig(:summary, :io_pressure_some, :max),
-        memory_used_percent: correlation.dig(:summary, :memory_used_percent, :max)
+        duration_seconds: summary.process_attributed_duration_seconds,
+        cpu_pressure: summary.process_attributed_cpu_percent,
+        io_pressure: nil,
+        memory_used_percent: nil
       }
     end
 

@@ -45,18 +45,20 @@ RSpec.describe WorkflowStepResourceProfile do
   it "prefers attributed command predictions when they are sufficiently sampled" do
     profile = profile(sample_count: 40)
     profile.assign_attributes(
-      attributed_sample_count: 10,
+      process_attributed_sample_count: 10,
       p90_duration_seconds: 900,
       p90_cpu_pressure: 80.0,
-      p90_attributed_duration_seconds: 120,
-      p90_attributed_cpu_pressure: 20.0,
-      p90_attributed_io_pressure: 10.0,
-      p90_attributed_memory_used_percent: 45.0
+      p90_process_attributed_duration_seconds: 120,
+      p90_process_attributed_cpu_percent: 20.0,
+      p90_process_attributed_io_bytes: 10.megabytes,
+      p90_process_attributed_memory_bytes: 45.megabytes
     )
 
     expect(profile.conservative_prediction).to include(
       duration_seconds: 120,
       cpu_pressure: 20.0,
+      io_pressure: 0.0,
+      memory_used_percent: 0.0,
       prediction_source: "command_attributed",
       attribution_confidence_level: "soft",
       fallback_reason: nil
@@ -66,7 +68,7 @@ RSpec.describe WorkflowStepResourceProfile do
   it "falls back to host-correlated profile data when command attribution is not confident" do
     profile = profile(sample_count: 40)
     profile.assign_attributes(
-      attributed_sample_count: 9,
+      process_attributed_sample_count: 9,
       p90_duration_seconds: 900,
       p90_cpu_pressure: 80.0,
       p90_io_pressure: 25.0,
