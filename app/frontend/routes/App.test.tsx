@@ -4084,6 +4084,92 @@ describe("App", () => {
     }
   })
 
+  it("renders expandable mobile landing queue blockers in dependency order", async () => {
+    const restoreMedia = mockMediaQuery(false)
+    mockDashboardFetch(dashboardPayload({
+      subject: "job",
+      view: "list",
+      active_smart_folder_id: 7,
+      smart_folders: [
+        {
+          id: 7,
+          name: "Landing queue",
+          kind: "builtin",
+          subject_type: "job",
+          visibility: "when_present",
+          count: 1,
+          active: true,
+          attention_preset: "landing_queue",
+          path: "/dashboard/jobs?smart_folder_id=7"
+        }
+      ],
+      preferences: {
+        ...dashboardPayload().preferences,
+        sort: { column: "landing_queue_position", direction: "asc" }
+      },
+      landing_queue: {
+        visible: true,
+        paused: false,
+        toggle_path: "/api/v1/app/dashboard/landing_pause",
+        entries: [
+          {
+            key: "epic:10",
+            position: 1,
+            job_ids: [1],
+            blocker_jobs: [
+              { id: 2, title: "Prepare data layer", job_path: "/jobs/2", state: "open", pr_number: 22, pr_path: "https://github.com/acme/widgets/pull/22", epic_id: 20, epic_title: "Data Layer", repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" }, latest_workflow_state: "running", latest_workflow_trigger_kind: "initial", latest_workflow_id: 101, started_at: "2026-06-01T09:00:00Z", created_at: "2026-06-01T08:00:00Z" },
+              { id: 3, title: "Document rollout", job_path: "/jobs/3", state: "open", pr_number: null, pr_path: null, epic_id: null, epic_title: null, repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" }, latest_workflow_state: null, latest_workflow_trigger_kind: null, latest_workflow_id: null, started_at: null, created_at: "2026-06-01T07:00:00Z" }
+            ],
+            dependency_edges: [
+              { from_job_id: 2, to_job_id: 1 },
+              { from_job_id: 1, to_job_id: 3 }
+            ]
+          }
+        ]
+      },
+      items: [
+        dashboardJobItem({
+          id: 1,
+          title: "Land API surface",
+          landing_queue_position: 1,
+          landing_queue_entry_key: "epic:10",
+          epic: { id: 10, number: 10, display_number: "EPIC-10", path: "/epics/10" },
+          approved_at: "2026-06-01T10:00:00Z"
+        })
+      ]
+    }))
+
+    try {
+      render(
+        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+          <MemoryRouter initialEntries={["/app-shell/dashboard/jobs?view=list&smart_folder_id=7"]}>
+            <App />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+
+      const expander = await screen.findByRole("button", { name: /2 blockers/ })
+      expect(expander).toHaveAttribute("aria-expanded", "false")
+      expect(screen.queryByText("Prepare data layer")).not.toBeInTheDocument()
+      expect(screen.getByRole("article", { name: "Land API surface" })).toBeInTheDocument()
+
+      fireEvent.click(expander)
+
+      expect(expander).toHaveAttribute("aria-expanded", "true")
+      expect(screen.getByText("Epic: Data Layer")).toBeInTheDocument()
+      expect(screen.getByText("standalone")).toBeInTheDocument()
+      expect(screen.getByRole("link", { name: "Prepare data layer" })).toHaveAttribute("href", "/app-shell/jobs/2")
+      expect(screen.getByRole("link", { name: "PR #22" })).toHaveAttribute("href", "https://github.com/acme/widgets/pull/22")
+
+      const rowText = Array.from(document.querySelectorAll("article")).map((row) => row.textContent || "")
+      expect(rowText.findIndex((text) => text.includes("Prepare data layer"))).toBeLessThan(rowText.findIndex((text) => text.includes("Land API surface")))
+      expect(rowText.findIndex((text) => text.includes("Document rollout"))).toBeGreaterThan(rowText.findIndex((text) => text.includes("Land API surface")))
+      expect(screen.queryByRole("table")).not.toBeInTheDocument()
+    } finally {
+      restoreMedia()
+    }
+  })
+
   it("hides landing queue blocker expanders when not sorted by queue position", async () => {
     const restoreMedia = mockMediaQuery(true)
     mockDashboardFetch(dashboardPayload({

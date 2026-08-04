@@ -187,7 +187,20 @@ function JobsTable({
     })
   }
 
-  if (!isDesktop) return <MobileJobsList groupByEpic={groupByEpic} items={items} onToggleOne={onToggleOne} prefix={prefix} selectedIds={selectedIds} />
+  if (!isDesktop) {
+    return (
+      <MobileJobsList
+        expandedBlockerGroups={expandedBlockerGroups}
+        groupByEpic={groupByEpic}
+        items={items}
+        landingQueueGroups={landingQueueGroups}
+        onToggleBlockers={toggleBlockerGroup}
+        onToggleOne={onToggleOne}
+        prefix={prefix}
+        selectedIds={selectedIds}
+      />
+    )
+  }
 
   return (
     <div className="overflow-x-auto rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
@@ -450,13 +463,105 @@ function blockerAttribution(job: LandingQueueBlockerJob, groupKey: string, t: (k
   return null
 }
 
-function MobileJobsList({ items, selectedIds, onToggleOne, prefix, groupByEpic }: { items: DashboardJobItem[]; selectedIds: Set<number>; onToggleOne: (id: number) => void; prefix: string; groupByEpic: boolean }) {
+function MobileJobsList({
+  expandedBlockerGroups,
+  groupByEpic,
+  items,
+  landingQueueGroups,
+  onToggleBlockers,
+  onToggleOne,
+  prefix,
+  selectedIds
+}: {
+  expandedBlockerGroups: Set<string>
+  groupByEpic: boolean
+  items: DashboardJobItem[]
+  landingQueueGroups: LandingQueueDisplayGroup[]
+  onToggleBlockers: (key: string) => void
+  onToggleOne: (id: number) => void
+  prefix: string
+  selectedIds: Set<number>
+}) {
   return (
     <div className="border-y border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900 sm:rounded sm:border">
       <div className="divide-y divide-gray-100 dark:divide-gray-800">
-        {items.map((job, index) => <MobileJobRow job={job} key={job.id} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(job.id)} topSeparator={startsNewEpicGroup(items, index, groupByEpic)} />)}
+        {groupByEpic ? (
+          landingQueueGroups.map((group, index) => (
+            <MobileLandingQueueJobGroup
+              expanded={expandedBlockerGroups.has(group.key)}
+              group={group}
+              key={group.key}
+              onToggleBlockers={onToggleBlockers}
+              onToggleOne={onToggleOne}
+              prefix={prefix}
+              selectedIds={selectedIds}
+              topSeparator={index > 0 && (group.key.startsWith("epic:") || landingQueueGroups[index - 1].key.startsWith("epic:"))}
+            />
+          ))
+        ) : (
+          items.map((job, index) => <MobileJobRow job={job} key={job.id} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(job.id)} topSeparator={startsNewEpicGroup(items, index, groupByEpic)} />)
+        )}
       </div>
     </div>
+  )
+}
+
+function MobileLandingQueueJobGroup({ expanded, group, onToggleBlockers, onToggleOne, prefix, selectedIds, topSeparator }: { expanded: boolean; group: LandingQueueDisplayGroup; onToggleBlockers: (key: string) => void; onToggleOne: (id: number) => void; prefix: string; selectedIds: Set<number>; topSeparator: boolean }) {
+  const { t } = useT("dashboard")
+  const blockerCount = group.blockerJobs.length
+  const rows = expanded ? group.rows : group.rows.filter((row) => row.kind === "approved")
+
+  return (
+    <div className={topSeparator ? "border-t-4 border-gray-300 dark:border-gray-600" : undefined}>
+      {blockerCount > 0 ? (
+        <div className="bg-gray-50 px-4 py-2 dark:bg-gray-950/40">
+          <button
+            aria-expanded={expanded}
+            className="inline-flex min-h-8 items-center gap-2 rounded px-1 py-0.5 text-xs font-semibold text-gray-600 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-gray-300 dark:hover:text-gray-100"
+            onClick={() => onToggleBlockers(group.key)}
+            type="button"
+          >
+            <span aria-hidden="true">{expanded ? "▼" : "▶"}</span>
+            <span>{t(blockerCount === 1 ? "blocker_one" : "blocker_other", { count: blockerCount })}</span>
+          </button>
+        </div>
+      ) : null}
+      {rows.map((row) => row.kind === "blocker" ? (
+        <MobileLandingQueueBlockerRow attribution={row.attribution} job={row.job} key={`blocker-${group.key}-${row.id}`} prefix={prefix} />
+      ) : (
+        <MobileJobRow job={row.job} key={row.job.id} onToggleOne={onToggleOne} prefix={prefix} selected={selectedIds.has(row.job.id)} />
+      ))}
+    </div>
+  )
+}
+
+function MobileLandingQueueBlockerRow({ attribution, job, prefix }: { attribution: string | null; job: LandingQueueBlockerJob; prefix: string }) {
+  return (
+    <article aria-label={job.title} className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 bg-gray-50/70 px-4 py-3 text-gray-500 dark:bg-gray-950/30 dark:text-gray-400">
+      <div aria-hidden="true" className="mt-1 h-4 w-4 rounded border border-dashed border-gray-300 dark:border-gray-700" />
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <NeutralStatePill state={job.state} />
+          <RepositorySlugLink className="font-mono text-xs text-gray-600 hover:text-blue-700 hover:underline dark:text-gray-300 dark:hover:text-blue-300" prefix={prefix} repository={job.repository} />
+        </div>
+        <div className="mt-1">
+          <Link className="rounded-sm text-sm font-semibold leading-snug text-blue-600 underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-300" to={withRoutePrefix(job.job_path, prefix)}>{job.title}</Link>
+        </div>
+        <MetadataLine className="mt-1 flex flex-wrap gap-x-1.5 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+          <SlugHoverCard id={job.id} kind="job">
+            <CopyableSlug slug={`JOB-${job.id}`} />
+          </SlugHoverCard>
+          {job.pr_number && job.pr_path ? (
+            <PrHoverCard jobId={job.id} prNumber={job.pr_number} prUrl={job.pr_path}>
+              <ExternalMetadataLink href={job.pr_path}>PR #{job.pr_number}</ExternalMetadataLink>
+            </PrHoverCard>
+          ) : null}
+          {attribution ? <span>{attribution}</span> : null}
+          {job.latest_workflow_id == null ? null : <WorkflowBadges state={job.latest_workflow_state ?? ""} triggerAriaPrefix="Latest workflow trigger" triggerKind={job.latest_workflow_trigger_kind} />}
+          <span><RelativeTimestamp value={job.started_at || job.created_at} /></span>
+        </MetadataLine>
+      </div>
+    </article>
   )
 }
 
