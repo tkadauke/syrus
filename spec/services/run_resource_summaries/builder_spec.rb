@@ -161,11 +161,12 @@ RSpec.describe RunResourceSummaries::Builder do
 
     summary = described_class.new(run: run, now: now).refresh!
 
-    expect(summary.process_attributed_duration_seconds).to eq(60.0)
-    expect(summary.process_attributed_sample_count).to eq(0)
-    expect(summary.process_attributed_cpu_seconds).to be_nil
-    expect(summary.process_attributed_memory_bytes).to be_nil
-    expect(summary.process_attributed_io_bytes).to be_nil
+    expect(summary.process_wall_time_seconds).to eq(60.0)
+    expect(summary.process_sample_count).to eq(0)
+    expect(summary.process_cpu_time_seconds).to be_nil
+    expect(summary.process_max_rss_bytes).to be_nil
+    expect(summary.process_read_io_bytes).to be_nil
+    expect(summary.process_write_io_bytes).to be_nil
   end
 
   it "marks one or two samples as low confidence for runs under 60 seconds" do

@@ -80,6 +80,7 @@ class WorkflowStepResourceProfile < ApplicationRecord
   def prediction_basis
     return "process_attributed" if prefers_process_attribution?
     return "host_correlated" if host_pressure_sample_count >= SOFT_PREDICTION_SAMPLE_COUNT
+    return "host_correlated" if legacy_host_correlated_sample_count >= SOFT_PREDICTION_SAMPLE_COUNT
 
     "conservative_defaults"
   end
@@ -125,7 +126,14 @@ class WorkflowStepResourceProfile < ApplicationRecord
   end
 
   def prediction_sample_count
-    [ attributed_sample_count.to_i, process_attributed_sample_count.to_i, host_pressure_sample_count.to_i ].max
+    family_count = [ attributed_sample_count.to_i, process_attributed_sample_count.to_i, host_pressure_sample_count.to_i ].max
+    return family_count if family_count.positive?
+
+    legacy_host_correlated_sample_count
+  end
+
+  def legacy_host_correlated_sample_count
+    sample_count.to_i
   end
 
   def attributed_prediction_values

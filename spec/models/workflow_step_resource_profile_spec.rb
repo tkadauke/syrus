@@ -80,4 +80,21 @@ RSpec.describe WorkflowStepResourceProfile do
       fallback_reason: "command_attributed_profile_unavailable"
     )
   end
+
+  it "treats legacy sample-only profiles as host-correlated predictions" do
+    profile = profile(sample_count: 40)
+    profile.assign_attributes(
+      host_pressure_sample_count: 0,
+      p90_duration_seconds: 600,
+      p90_cpu_pressure: 35.0
+    )
+
+    expect(profile.confidence_level).to eq("normal")
+    expect(profile.prediction_basis).to eq("host_correlated")
+    expect(profile.conservative_prediction).to include(
+      duration_seconds: 600,
+      cpu_pressure: 35.0,
+      prediction_source: "host_correlated"
+    )
+  end
 end

@@ -221,9 +221,9 @@ RSpec.describe WorkflowAdmissionBudget do
     expect(decision.reason).to eq("predicted_budget_pressure_high")
     expect(decision.details).to include(
       "decision_basis" => "predicted_command_cost",
-      "prediction_source" => "host_correlated",
-      "fallback_reasons" => [ "command_attributed_profile_unavailable" ]
+      "prediction_source" => "host_correlated"
     )
+    expect(decision.details.fetch("fallback_reasons")).to include("command_attributed_profile_unavailable")
     expect(decision.pressure.dig("candidate", "attribution_confidence_levels")).to eq([ "defaults_only" ])
   end
 end

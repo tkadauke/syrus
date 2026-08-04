@@ -136,19 +136,62 @@ module WorkflowStepResourceProfiles
     end
 
     def process_values(inputs, metric)
-      process_attributed_inputs(inputs).filter_map { |summary| summary.public_send(metric) }
+      process_attributed_inputs(inputs).filter_map { |summary| process_metric(summary, metric) }
     end
 
     def host_values(inputs, metric)
-      host_pressure_inputs(inputs).filter_map { |summary| summary.public_send(metric) }
+      host_pressure_inputs(inputs).filter_map { |summary| host_metric(summary, metric) }
     end
 
     def process_attributed_inputs(inputs)
-      inputs.select { |summary| summary.process_attributed_sample_count.to_i.positive? }
+      inputs.select { |summary| summary.process_sample_count.to_i.positive? }
     end
 
     def host_pressure_inputs(inputs)
       inputs.select { |summary| summary.host_sample_count.to_i.positive? }
+    end
+
+    def process_metric(summary, metric)
+      case metric
+      when :process_attributed_duration_seconds
+        summary.process_wall_time_seconds
+      when :process_attributed_cpu_seconds
+        summary.process_cpu_time_seconds
+      when :process_attributed_cpu_percent
+        process_cpu_percent(summary)
+      when :process_attributed_memory_bytes
+        summary.process_max_rss_bytes
+      when :process_attributed_io_bytes
+        process_io_bytes(summary)
+      else
+        summary.public_send(metric)
+      end
+    end
+
+    def process_io_bytes(summary)
+      values = [ summary.process_read_io_bytes, summary.process_write_io_bytes ].compact
+      return if values.empty?
+
+      values.sum
+    end
+
+    def process_cpu_percent(summary)
+      return unless summary.process_cpu_time_seconds && summary.process_wall_time_seconds.to_f.positive?
+
+      (summary.process_cpu_time_seconds.to_f / summary.process_wall_time_seconds.to_f * 100.0).round(1)
+    end
+
+    def host_metric(summary, metric)
+      case metric
+      when :max_cpu_pressure
+        summary.host_pressure_max_cpu_some_percent
+      when :max_io_pressure
+        summary.host_pressure_max_io_some_percent
+      when :max_memory_used_percent
+        summary.host_usage_max_memory_used_percent
+      else
+        summary.public_send(metric)
+      end
     end
 
     def attribution_quality(inputs)
