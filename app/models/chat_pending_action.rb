@@ -38,6 +38,9 @@ class ChatPendingAction < ApplicationRecord
     reenqueue_work
     force_landing_recheck
     manual_agentic_run
+    adopt_current_pr_head
+    replace_pr_branch_with_workflow_output
+    retry_from_current_pr_branch
     rerun_ci_repair
     mark_ci_repair_noop
     override_landing_blocker_once

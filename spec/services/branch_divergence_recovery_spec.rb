@@ -48,6 +48,20 @@ RSpec.describe BranchDivergenceRecovery do
     expect(workflow.reload.artifact("branch_divergence_recovery")).to be_nil
   end
 
+  it "lets an operator adopt the current PR head even when it moved past the recorded remote SHA" do
+    job.update!(mergeability_head_sha: "newer-remote-sha")
+
+    result = described_class.adopt_current_pr_head!(workflow: workflow, user: user)
+
+    expect(result).to be_success
+    expect(workflow.reload.artifact("branch_divergence_recovery")).to include(
+      "action" => "adopted_current_pr_head",
+      "current_pr_head_sha" => "newer-remote-sha",
+      "user_id" => user.id
+    )
+    expect(job.reload).to be_implemented
+  end
+
   it "force-pushes with a lease against the observed remote SHA" do
     Dir.mktmpdir("syrus-branch-divergence-recovery") do |dir|
       git = instance_double(GitRunner)

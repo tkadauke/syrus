@@ -75,6 +75,14 @@ module ChatPendingActions
       "Refresh GitHub App installations"
     when "force_landing_recheck"
       "Force landing recheck for #{::App::Presentation.job_slug(payload['job_id'])}"
+    when "manual_agentic_run"
+      "Manual agentic run for #{::App::Presentation.job_slug(payload['job_id'])}"
+    when "adopt_current_pr_head"
+      "Adopt current PR head for #{::App::Presentation.job_slug(payload['job_id'])}"
+    when "replace_pr_branch_with_workflow_output"
+      "Replace PR branch for #{::App::Presentation.job_slug(payload['job_id'])}"
+    when "retry_from_current_pr_branch"
+      "Retry from current PR branch for #{::App::Presentation.job_slug(payload['job_id'])}"
     when "override_landing_blocker_once"
       "Override #{payload['blocker_key']} once for #{::App::Presentation.job_slug(payload['job_id'])}"
     when "wake_landing_queue"
@@ -91,6 +99,14 @@ module ChatPendingActions
       payload["comment"].presence
     when "submit_chat_feedback"
       payload["feedback"].presence
+    when "adopt_current_pr_head", "replace_pr_branch_with_workflow_output", "retry_from_current_pr_branch"
+      evidence = payload["evidence"].to_h
+      [
+        "Remote SHA: #{evidence['remote_sha'].presence || 'unknown'}",
+        "Workflow local SHA: #{evidence['workflow_local_sha'].presence || 'unknown'}",
+        "Base SHA: #{evidence['base_sha'].presence || 'unknown'}",
+        Array(evidence.dig("diff_summary", "files")).presence&.then { |files| "Changed files: #{files.first(10).join(', ')}" }
+      ].compact.join("\n")
     when "schedule_recurring"
       [
         [ payload["label"], payload["cron_expression"] ].compact_blank.join(" — ").presence,

@@ -8,6 +8,7 @@ class BranchDivergenceRecovery
   def self.record_failure!(workflow:, user:, message:) = new(workflow: workflow, user: user).record_failure!(message: message)
   def self.discard!(...) = new(...).discard!
   def self.discard_superseded!(workflow:) = new(workflow: workflow, user: nil).discard_superseded!
+  def self.adopt_current_pr_head!(...) = new(...).adopt_current_pr_head!
 
   def initialize(workflow:, user:)
     @workflow = workflow
@@ -86,6 +87,15 @@ class BranchDivergenceRecovery
     Result.new(error: nil)
   end
 
+  def adopt_current_pr_head!
+    return failure("No branch divergence was recorded for this workflow.") unless divergence
+    return failure("Current PR head SHA is unavailable.") if current_pr_head_sha.blank?
+
+    record_recovery!("adopted_current_pr_head", "current_pr_head_sha" => current_pr_head_sha)
+    restore_job_to_implemented_if_possible!
+    Result.new(error: nil)
+  end
+
   private
 
   attr_reader :workflow, :job, :user
@@ -107,7 +117,7 @@ class BranchDivergenceRecovery
   end
 
   def current_pr_head_sha
-    return job[:head_sha].presence if job.has_attribute?(:head_sha)
+    return job[:head_sha].presence if job.has_attribute?(:head_sha) && job[:head_sha].present?
 
     job.mergeability_head_sha.presence || job.pr_checks_sha.presence
   end
@@ -120,11 +130,11 @@ class BranchDivergenceRecovery
     @git ||= GitRunner.new
   end
 
-  def record_recovery!(action)
+  def record_recovery!(action, extra = {})
     payload = {
       "action" => action,
       "at" => Time.current.iso8601
-    }
+    }.merge(extra)
     payload["user_id"] = user.id if user
 
     write_artifacts!(
