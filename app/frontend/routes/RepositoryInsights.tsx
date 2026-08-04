@@ -10,6 +10,7 @@ import {
   acceptInsightSuggestion,
   acceptRemoveMemoryInsight,
   dismissInsightSuggestion,
+  discussInsightSuggestion,
   undismissInsightSuggestion,
   fetchInsightSuggestions,
   saveInsightMemory,
@@ -245,6 +246,15 @@ function SuggestionCard({
     onError: (err) => setError(errorMessage(err, t("remove_memory_error")))
   })
 
+  const discussMutation = useMutation({
+    mutationFn: () => discussInsightSuggestion(suggestion.id),
+    onSuccess: (data) => {
+      setError(null)
+      window.open(data.redirect_to, "_blank")
+    },
+    onError: (err) => setError(errorMessage(err, t("discuss_error")))
+  })
+
   async function handleDismiss() {
     const confirmed = await confirm({
       message: t("dismiss_confirm_message"),
@@ -409,6 +419,14 @@ function SuggestionCard({
             )}
             <button
               className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+              disabled={discussMutation.isPending}
+              onClick={() => discussMutation.mutate()}
+              type="button"
+            >
+              {discussMutation.isPending ? t("discussing") : t("discuss_in_new_chat")}
+            </button>
+            <button
+              className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
               disabled={dismissMutation.isPending}
               onClick={handleDismiss}
               type="button"
@@ -428,21 +446,39 @@ function SuggestionCard({
           </div>
         )}
 
-        {suggestion.state === "accepted" && suggestion.has_memory_suggestion && (
+        {suggestion.state === "accepted" && (
           <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
             <button
               className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
-              disabled={saveMemoryMutation.isPending}
-              onClick={() => saveMemoryMutation.mutate()}
+              disabled={discussMutation.isPending}
+              onClick={() => discussMutation.mutate()}
               type="button"
             >
-              {saveMemoryMutation.isPending ? t("saving_memory") : t("save_as_memory")}
+              {discussMutation.isPending ? t("discussing") : t("discuss_in_new_chat")}
             </button>
+            {suggestion.has_memory_suggestion && (
+              <button
+                className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+                disabled={saveMemoryMutation.isPending}
+                onClick={() => saveMemoryMutation.mutate()}
+                type="button"
+              >
+                {saveMemoryMutation.isPending ? t("saving_memory") : t("save_as_memory")}
+              </button>
+            )}
           </div>
         )}
 
         {suggestion.state === "dismissed" && (
           <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
+            <button
+              className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+              disabled={discussMutation.isPending}
+              onClick={() => discussMutation.mutate()}
+              type="button"
+            >
+              {discussMutation.isPending ? t("discussing") : t("discuss_in_new_chat")}
+            </button>
             <button
               className="rounded border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
               disabled={undismissMutation.isPending}

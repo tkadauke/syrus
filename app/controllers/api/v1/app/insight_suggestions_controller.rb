@@ -3,6 +3,8 @@ module Api
     module App
       class InsightSuggestionsController < BaseController
         include RepositoryTabsSerialization
+        include ChatSessionLifecycle
+        include ChatLockErrors
         prepend_before_action :require_agent_insights_feature
 
         PER_PAGE = 20
@@ -57,6 +59,37 @@ module Api
           end
         end
 
+        def discuss
+          suggestion = find_suggestion_for_discussion
+          return unless suggestion
+
+          chat_session = nil
+          user_message = nil
+
+          ApplicationRecord.transaction do
+            chat_session = ChatSession.create!(
+              user: Current.user,
+              repository: suggestion.repository,
+              title: nil,
+              last_message_at: Time.current
+            )
+            user_message = chat_session.messages.create!(
+              role: "user",
+              content: { "text" => insight_discussion_message(suggestion) }
+            )
+            chat_session.pin_chat_provider!
+          end
+
+          enqueue_chat_title(chat_session, user_message)
+          enqueue_chat_turn(chat_session, user_message)
+
+          render json: { redirect_to: chat_path(chat_session) }, status: :created
+        rescue ActiveRecord::LockWaitTimeout, ActiveRecord::Deadlocked, ActiveRecord::StatementTimeout, SolidQueue::Job::EnqueueError => e
+          raise unless transient_chat_lock_error?(e)
+
+          render_temporary_chat_lock_error
+        end
+
         private
 
         def page_param
@@ -98,13 +131,26 @@ module Api
 
         def find_suggestion
           suggestion = if Current.user.admin?
-                         InsightSuggestion.find_by(id: params[:id])
-                       else
-                         InsightSuggestion
-                           .joins(:repository)
-                           .where(repositories: { id: Current.user.repositories.select(:id) })
-                           .find_by(id: params[:id])
-                       end
+            InsightSuggestion.find_by(id: params[:id])
+          else
+            InsightSuggestion
+              .joins(:repository)
+              .where(repositories: { id: Current.user.repositories.select(:id) })
+              .find_by(id: params[:id])
+          end
+
+          unless suggestion
+            render_error("not_found", "Insight suggestion not found.", status: :not_found)
+            return nil
+          end
+          suggestion
+        end
+
+        def find_suggestion_for_discussion
+          suggestion = InsightSuggestion
+            .joins(:repository)
+            .where(repositories: { id: Current.user.repositories.select(:id) })
+            .find_by(id: params[:id])
 
           unless suggestion
             render_error("not_found", "Insight suggestion not found.", status: :not_found)
@@ -223,6 +269,41 @@ module Api
               run_transcript_path: run_id ? "/admin/runs/#{run_id}/transcript" : nil
             }
           end.compact
+        end
+
+        def insight_discussion_message(suggestion)
+          details = [
+            "I want to discuss this repository insight before deciding whether to accept or dismiss it.",
+            "",
+            "Title: #{suggestion.title}",
+            "Severity: #{suggestion.severity}",
+            "Category: #{suggestion.category}",
+            "Confidence: #{suggestion.confidence}",
+            "Proposal type: #{suggestion.effective_proposal_type}"
+          ]
+
+          if suggestion.suggested_prompt.present?
+            details.concat([ "", "Suggested prompt:", suggestion.suggested_prompt ])
+          end
+          if suggestion.memory_suggestion.present?
+            details.concat([ "", "Memory suggestion:", suggestion.memory_suggestion ])
+          end
+
+          evidence_lines = insight_evidence_lines(suggestion)
+          details.concat([ "", "Evidence:", *evidence_lines ]) if evidence_lines.any?
+
+          details.join("\n")
+        end
+
+        def insight_evidence_lines(suggestion)
+          evidence_json(suggestion.evidence).filter_map do |entry|
+            links = []
+            links << "job #{entry[:job_id]}: #{entry[:job_path]}" if entry[:job_path]
+            links << "run transcript #{entry[:run_id]}: #{entry[:run_transcript_path]}" if entry[:run_transcript_path]
+            next if links.empty?
+
+            "- #{[ entry[:kind], *links ].compact.join(" - ")}"
+          end
         end
 
         def repository_summary_json(repository)

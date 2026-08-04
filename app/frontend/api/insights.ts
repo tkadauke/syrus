@@ -75,6 +75,10 @@ export type InsightSuggestionUpdatePayload = {
   memory_id?: number
 }
 
+export type InsightSuggestionDiscussPayload = {
+  redirect_to: string
+}
+
 export type AdminInsightSuggestion = InsightSuggestion & {
   repository: {
     id: number
@@ -133,6 +137,10 @@ export function acceptRemoveMemoryInsight(id: number) {
   return patchJson<InsightSuggestionUpdatePayload>(`/api/v1/app/insight_suggestions/${id}`, {
     action_type: "accept"
   })
+}
+
+export function discussInsightSuggestion(id: number) {
+  return postJson<InsightSuggestionDiscussPayload>(`/api/v1/app/insight_suggestions/${id}/discuss`, {})
 }
 
 export function fetchAdminInsights(page = 1, perPage = 20) {

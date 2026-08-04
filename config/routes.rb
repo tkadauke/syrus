@@ -246,6 +246,7 @@ Rails.application.routes.draw do
         get "repositories/:repository_id/flaky_tests", to: "repository_flaky_tests#index"
         get "repositories/:repository_id/insight_suggestions", to: "insight_suggestions#index"
         patch "insight_suggestions/:id", to: "insight_suggestions#update"
+        post "insight_suggestions/:id/discuss", to: "insight_suggestions#discuss"
         get "repositories/:id/insight_schedule_config", to: "insight_schedule_configs#show", constraints: { id: /\d+/ }
         patch "repositories/:id/insight_schedule_config", to: "insight_schedule_configs#update", constraints: { id: /\d+/ }
         get "workflows/:workflow_id/coverage_hit_map", to: "workflows#coverage_hit_map", constraints: { workflow_id: /\d+/ }

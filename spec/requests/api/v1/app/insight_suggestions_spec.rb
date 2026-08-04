@@ -472,6 +472,64 @@ RSpec.describe "App API insight suggestions", type: :request do
     end
   end
 
+  describe "POST /api/v1/app/insight_suggestions/:id/discuss" do
+    before do
+      enable_feature
+      sign_in_as(user)
+    end
+
+    it "creates a repository-scoped chat seeded with the insight context" do
+      suggestion = create_suggestion(
+        title: "Prepare failures need triage",
+        category: "repeated_failure",
+        severity: "high",
+        confidence: 0.91,
+        proposal_type: "create_job",
+        suggested_prompt: "Fix repeated bundle install failures.",
+        evidence: [
+          { "kind" => "failure", "job_id" => job.id, "run_id" => 73616 }
+        ]
+      )
+
+      expect {
+        post "/api/v1/app/insight_suggestions/#{suggestion.id}/discuss", as: :json
+      }.to change(ChatSession, :count).by(1)
+        .and change(ChatMessage.where(role: "user"), :count).by(1)
+
+      expect(response).to have_http_status(:created)
+      chat = ChatSession.order(:id).last
+      message_text = chat.messages.order(:id).last.content["text"]
+      expect(parse_body["redirect_to"]).to eq("/chats/#{chat.id}")
+      expect(chat.repository).to eq(repository)
+      expect(message_text).to include("Title: Prepare failures need triage")
+      expect(message_text).to include("Severity: high")
+      expect(message_text).to include("Category: repeated_failure")
+      expect(message_text).to include("Confidence: 0.91")
+      expect(message_text).to include("Proposal type: create_job")
+      expect(message_text).to include("Fix repeated bundle install failures.")
+      expect(message_text).to include("/jobs/#{job.id}")
+      expect(message_text).to include("/admin/runs/73616/transcript")
+    end
+
+    it "returns 404 for a suggestion belonging to another user's repository" do
+      other_user = Factories.user
+      other_repo = Factories.repository(user: other_user)
+      other_job = Factories.job(user: other_user, repository: other_repo, kind: "agent_insight", issue_number: nil)
+      other_suggestion = InsightSuggestion.create!(
+        job: other_job,
+        repository: other_repo,
+        title: "Other",
+        category: "c",
+        severity: "low",
+        confidence: 0.5
+      )
+
+      post "/api/v1/app/insight_suggestions/#{other_suggestion.id}/discuss", as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   describe "PATCH /api/v1/app/insight_suggestions/:id — unknown action" do
     before { enable_feature; sign_in_as(user) }
 

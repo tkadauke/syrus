@@ -59,7 +59,9 @@ function payload(suggestions: unknown[] = [makeSuggestion()], meta = makeMeta({ 
 }
 
 function renderRoute(suggestions?: unknown[], meta?: Record<string, unknown>) {
-  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload(suggestions, meta ? makeMeta(meta) : undefined)))
+  if (!vi.isMockFunction(window.fetch)) {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload(suggestions, meta ? makeMeta(meta) : undefined)))
+  }
   renderRepositoryInsightsRoute()
 }
 
@@ -319,6 +321,47 @@ describe("RepositoryInsightsRoute", () => {
           expect.objectContaining({ method: "PATCH" })
         )
       })
+    })
+  })
+
+  describe("discussion chat", () => {
+    beforeEach(() => {
+      vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: vi.fn() as any, dialog: <></> })
+    })
+
+    it("renders a Discuss in new chat button for every proposal type", async () => {
+      renderRoute([
+        makeSuggestion({ id: 1, title: "Create job", proposal_type: "create_job" }),
+        makeSuggestion({ id: 2, title: "Save memory", proposal_type: "save_memory" }),
+        makeSuggestion({ id: 3, title: "Remove memory", proposal_type: "remove_memory" }),
+        makeSuggestion({ id: 4, title: "Revise insight", proposal_type: "revise_existing_insight" }),
+        makeSuggestion({ id: 5, title: "Informational", proposal_type: "informational" })
+      ])
+
+      expect(await screen.findByText("Create job")).toBeInTheDocument()
+      expect(screen.getAllByRole("button", { name: "Discuss in new chat" })).toHaveLength(5)
+    })
+
+    it("opens the returned chat path in a new tab after creating the discussion chat", async () => {
+      const openSpy = vi.spyOn(window, "open").mockReturnValue(null)
+      const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+        const url = String(input)
+        if (url.endsWith("/api/v1/app/insight_suggestions/1/discuss") && init?.method === "POST") {
+          return Promise.resolve(jsonResponse({ redirect_to: "/chats/42" }))
+        }
+        return Promise.resolve(jsonResponse(payload()))
+      })
+
+      renderRoute()
+      fireEvent.click(await screen.findByRole("button", { name: "Discuss in new chat" }))
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          "/api/v1/app/insight_suggestions/1/discuss",
+          expect.objectContaining({ method: "POST" })
+        )
+      })
+      expect(openSpy).toHaveBeenCalledWith("/chats/42", "_blank")
     })
   })
 
