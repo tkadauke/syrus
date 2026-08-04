@@ -1305,6 +1305,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_04_160000) do
     t.string "process_attribution_method", limit: 64, default: "unknown", null: false
     t.string "process_attribution_unavailable_reason", limit: 255
     t.integer "process_attribution_version", default: 1, null: false
+    t.float "process_attributed_cpu_percent"
+    t.float "process_attributed_cpu_seconds"
+    t.float "process_attributed_duration_seconds"
+    t.bigint "process_attributed_io_bytes"
+    t.bigint "process_attributed_memory_bytes"
+    t.integer "process_attributed_sample_count", default: 0, null: false
     t.float "process_cpu_time_seconds"
     t.integer "process_descendant_process_count", default: 0, null: false
     t.json "process_exit_statuses"

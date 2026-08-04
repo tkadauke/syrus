@@ -59,9 +59,31 @@ module RunResourceSummaries
         process_exit_statuses: process_summary.fetch(:exit_statuses),
         process_attribution_unavailable_reason: process_summary.fetch(:unavailable_reason),
         process_resource_fallback: process_summary.fetch(:fallback),
+        process_attributed_sample_count: process_summary.fetch(:sample_count),
+        process_attributed_duration_seconds: process_summary.fetch(:wall_time_seconds),
+        process_attributed_cpu_seconds: process_summary.fetch(:cpu_time_seconds),
+        process_attributed_cpu_percent: process_attributed_cpu_percent,
+        process_attributed_memory_bytes: process_summary.fetch(:max_rss_bytes),
+        process_attributed_io_bytes: process_attributed_io_bytes,
         retention_limited: correlation.fetch(:retention_limited),
         summary_version: RunResourceSummary::SUMMARY_VERSION
       }
+    end
+
+    def process_attributed_cpu_percent
+      cpu_seconds = process_summary.fetch(:cpu_time_seconds)
+      wall_seconds = process_summary.fetch(:wall_time_seconds)
+      return if cpu_seconds.blank? || wall_seconds.blank? || wall_seconds <= 0
+
+      ((cpu_seconds / wall_seconds) * 100.0).round(2)
+    end
+
+    def process_attributed_io_bytes
+      read_bytes = process_summary.fetch(:read_io_bytes)
+      write_bytes = process_summary.fetch(:write_io_bytes)
+      return if read_bytes.blank? && write_bytes.blank?
+
+      read_bytes.to_i + write_bytes.to_i
     end
 
     def host_metric(name, part)
