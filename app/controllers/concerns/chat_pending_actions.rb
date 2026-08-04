@@ -69,6 +69,12 @@ module ChatPendingActions
       "Delete workspace for workflow ##{payload['workflow_id']}"
     when "admin_refresh_installations"
       "Refresh GitHub App installations"
+    when "force_landing_recheck"
+      "Force landing recheck for #{::App::Presentation.job_slug(payload['job_id'])}"
+    when "override_landing_blocker_once"
+      "Override #{payload['blocker_key']} once for #{::App::Presentation.job_slug(payload['job_id'])}"
+    when "wake_landing_queue"
+      "Wake landing queue"
     else
       payload["label"].presence || action.action_type.to_s.humanize
     end

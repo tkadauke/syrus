@@ -39,7 +39,10 @@ RSpec.describe "SyrusChatMcp admin tools" do
     "reconcile_job_state" => { job_id: 1, mode: "auto", reason: "Repair state drift." },
     "force_state_transition" => { job_id: 1, event: "force_fail", reason: "Repair state drift." },
     "cancel_stale_work" => { job_id: 1, reason: "Cancel stale work." },
-    "reenqueue_work" => { job_id: 1, reason: "Re-enqueue queued work." }
+    "reenqueue_work" => { job_id: 1, reason: "Re-enqueue queued work." },
+    "force_landing_recheck" => { job_id: 1, reason: "Refresh stale landing metadata." },
+    "override_landing_blocker_once" => { job_id: 1, blocker_key: "active_workflow", reason: "Verified blocker is stale." },
+    "wake_landing_queue" => { reason: "Repair completed." }
   }.freeze
 
   def server_for(chat_session)
@@ -84,6 +87,7 @@ RSpec.describe "SyrusChatMcp admin tools" do
     )
     target_user = Factories.user(email_address: "target@example.com")
     workflow = Factories.job(user: admin, repository: repository).initial_run.step.workflow
+    workflow.job.update_columns(state: "approved", pr_number: 99, auto_merge_enabled: true, approved_at: 1.minute.ago)
 
     cases = {
       "admin_kill_process" => [ { process_id: process.id }, { "process_id" => process.id } ],
@@ -102,7 +106,10 @@ RSpec.describe "SyrusChatMcp admin tools" do
       "reconcile_job_state" => [ { job_id: workflow.job.id, mode: "auto", reason: "Run targeted state repair." }, { "job_id" => workflow.job.id, "mode" => "auto" } ],
       "force_state_transition" => [ { job_id: workflow.job.id, event: "force_fail", reason: "Apply a constrained state transition." }, { "job_id" => workflow.job.id, "event" => "force_fail" } ],
       "cancel_stale_work" => [ { job_id: workflow.job.id, workflow_ids: [ workflow.id ], run_ids: [ workflow.runs.first.id ], reason: "Cancel stale work." }, { "job_id" => workflow.job.id, "workflow_ids" => [ workflow.id ], "run_ids" => [ workflow.runs.first.id ], "reconcile" => true } ],
-      "reenqueue_work" => [ { job_id: workflow.job.id, run_id: workflow.runs.first.id, reason: "Re-enqueue queued work." }, { "job_id" => workflow.job.id, "workflow_id" => nil, "run_id" => workflow.runs.first.id } ]
+      "reenqueue_work" => [ { job_id: workflow.job.id, run_id: workflow.runs.first.id, reason: "Re-enqueue queued work." }, { "job_id" => workflow.job.id, "workflow_id" => nil, "run_id" => workflow.runs.first.id } ],
+      "force_landing_recheck" => [ { job_id: workflow.job.id, reason: "Refresh stale landing metadata." }, { "job_id" => workflow.job.id } ],
+      "override_landing_blocker_once" => [ { job_id: workflow.job.id, blocker_key: "active_workflow", reason: "Verified blocker is stale." }, { "job_id" => workflow.job.id, "blocker_key" => "active_workflow" } ],
+      "wake_landing_queue" => [ { reason: "Repair completed." }, { "reason" => "Repair completed." } ]
     }
 
     cases.each do |name, (arguments, expected_payload)|
@@ -117,10 +124,10 @@ RSpec.describe "SyrusChatMcp admin tools" do
         user: admin,
         repository: repository,
         action: name,
-        payload: expected_payload,
         requested_by: "agent"
       )
-      expect(action.reason).to be_present if name.in?(%w[admin_retry_step admin_cleanup_workspace force_fail_job reconcile_job_state force_state_transition cancel_stale_work reenqueue_work])
+      expect(action.payload).to include(expected_payload)
+      expect(action.reason).to be_present if name.in?(%w[admin_retry_step admin_cleanup_workspace force_fail_job reconcile_job_state force_state_transition cancel_stale_work reenqueue_work force_landing_recheck override_landing_blocker_once wake_landing_queue])
     end
   end
 
@@ -143,6 +150,83 @@ RSpec.describe "SyrusChatMcp admin tools" do
     expect(response).to be_a(MCP::Tool::Response)
     expect(message.reload.pending_action).to eq(admin_session.pending_actions.last)
     expect(message.pending_action).to have_attributes(action: "admin_pause_runs", state: "pending")
+  end
+
+  it "confirms wake_landing_queue by enqueueing the processor" do
+    response = call_tool(admin_session, "wake_landing_queue", { reason: "Retry after metadata repair." })
+    action = ChatPendingAction.find(payload_for(response).fetch(:pending_confirmation_id))
+
+    expect {
+      expect(action.confirm!).to be true
+    }.to have_enqueued_job(LandingQueueProcessorJob)
+  end
+
+  it "confirms force_landing_recheck through the recheck service" do
+    job = Factories.job_record(user: admin, repository: repository, state: "approved", pr_number: 42)
+    result = LandingQueueRecheck::Result.new(
+      job: job,
+      pr_refreshed: true,
+      checks_refreshed: true,
+      commits_behind_refreshed: true,
+      queue_entry: nil,
+      warnings: []
+    )
+    allow(LandingQueueRecheck).to receive(:call).with(job).and_return(result)
+
+    response = call_tool(admin_session, "force_landing_recheck", { job_id: job.id, reason: "Refresh stale metadata." })
+    action = ChatPendingAction.find(payload_for(response).fetch(:pending_confirmation_id))
+
+    expect(action.confirm!).to be true
+    expect(LandingQueueRecheck).to have_received(:call).with(job)
+    expect(action.reload.before_snapshot).to include("jobs")
+    expect(action.after_snapshot).to include("jobs")
+  end
+
+  it "confirms override_landing_blocker_once only for the observed blocker" do
+    job = Factories.job_record(user: admin, repository: repository, state: "implemented", pr_number: 42)
+    job.approve!(via: "operator")
+    job.update!(auto_merge_enabled: true)
+    admin.update!(landing_paused: true)
+
+    response = call_tool(
+      admin_session,
+      "override_landing_blocker_once",
+      { job_id: job.id, blocker_key: "landing_paused", reason: "Verified queue pause was stale." }
+    )
+    action = ChatPendingAction.find(payload_for(response).fetch(:pending_confirmation_id))
+
+    expect {
+      expect(action.confirm!).to be true
+    }.to have_enqueued_job(LandingQueueProcessorJob)
+
+    expect(job.reload).to have_attributes(
+      landing_blocker_override_key: "landing_paused",
+      landing_blocker_override_reason: "Verified queue pause was stale.",
+      landing_blocker_override_requested_by_user_id: admin.id,
+      landing_blocker_override_used_at: nil
+    )
+  end
+
+  it "rejects override_landing_blocker_once when the current blocker changed before confirmation" do
+    job = Factories.job_record(user: admin, repository: repository, state: "implemented", pr_number: 42)
+    job.approve!(via: "operator")
+    job.update!(auto_merge_enabled: true)
+    admin.update!(landing_paused: true)
+
+    action = ChatPendingAction.create!(
+      chat_session: admin_session,
+      user: admin,
+      repository: repository,
+      action: "override_landing_blocker_once",
+      payload: { "job_id" => job.id, "blocker_key" => "landing_paused" },
+      reason: "Verified queue pause was stale.",
+      requested_by: "agent",
+      state: "pending"
+    )
+    admin.update!(landing_paused: false)
+
+    expect { action.confirm! }.to raise_error(ArgumentError, /Current blocker is none/)
+    expect(job.reload.landing_blocker_override_key).to be_nil
   end
 
   it "rejects missing process and user targets gracefully" do

@@ -34,6 +34,13 @@ Rails.application.config.to_prepare do
     "pending_actions/admin_retry_step",
     "pending_actions/admin_cleanup_workspace",
     "pending_actions/admin_refresh_installations",
+    "pending_actions/reconcile_job_state",
+    "pending_actions/force_state_transition",
+    "pending_actions/cancel_stale_work",
+    "pending_actions/reenqueue_work",
+    "pending_actions/force_landing_recheck",
+    "pending_actions/override_landing_blocker_once",
+    "pending_actions/wake_landing_queue",
     "pending_actions/schedule_recurring",
   ].each { |path| require_dependency path }
 end

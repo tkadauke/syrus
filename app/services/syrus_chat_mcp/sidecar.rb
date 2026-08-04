@@ -78,7 +78,10 @@ module SyrusChatMcp
       ReconcileJobStateTool,
       ForceStateTransitionTool,
       CancelStaleWorkTool,
-      ReenqueueWorkTool
+      ReenqueueWorkTool,
+      ForceLandingRecheckTool,
+      OverrideLandingBlockerOnceTool,
+      WakeLandingQueueTool
     ].freeze
 
     # Gated by the `video_walkthroughs` labs Feature (see tools_for_session).

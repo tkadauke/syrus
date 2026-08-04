@@ -501,6 +501,53 @@ RSpec.describe LandingQueueProcessor do
     expect(entry.blocked_reason).to eq({ key: "auto_merge_not_enabled" })
   end
 
+  it "uses a matching landing blocker override exactly once" do
+    blocked = queue_job(issue_number: 1, approved_at: 2.minutes.ago)
+    ready = queue_job(issue_number: 2, approved_at: 1.minute.ago)
+    user.update!(landing_paused: true)
+    blocked.update!(
+      landing_blocker_override_key: "landing_paused",
+      landing_blocker_override_reason: "operator verified pause metadata is stale",
+      landing_blocker_override_requested_at: Time.current,
+      landing_blocker_override_requested_by_user_id: user.id
+    )
+
+    workflow = described_class.call
+
+    expect(workflow.job).to eq(blocked)
+    expect(blocked.reload).to be_landing
+    expect(blocked.landing_blocker_override_used_at).to be_present
+    expect(ready.reload).to be_approved
+  end
+
+  it "does not bypass non-overridable PR check blockers" do
+    job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
+    job.update!(
+      pr_checks_sha: "abc123",
+      pr_checks_state: "failing",
+      pr_checks_checked_at: Time.current,
+      landing_blocker_override_key: "pr_checks_failing",
+      landing_blocker_override_reason: "incorrect check cache",
+      landing_blocker_override_requested_at: Time.current,
+      landing_blocker_override_requested_by_user_id: user.id
+    )
+
+    expect(described_class.call).to be_nil
+    expect(job.reload).to be_approved
+    expect(job.landing_blocker_override_used_at).to be_nil
+  end
+
+  it "does not classify Epic reconciliation jobs as waiting for the merge train" do
+    AppSetting.current.update!(merge_train_enabled: true)
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    reconciliation = queue_job(issue_number: 1, approved_at: 1.minute.ago, epic: epic)
+    epic.update!(reconciliation_job: reconciliation)
+
+    entry = described_class.entries(Job.where(id: reconciliation.id)).first
+
+    expect(entry.blocked_reason).not_to eq({ key: "waiting_epic_merge_train" })
+  end
+
   describe "CI cleanliness gate" do
     it "blocks a job with an active ci_failure workflow with a specific message" do
       job = queue_job(issue_number: 1, approved_at: 1.minute.ago)

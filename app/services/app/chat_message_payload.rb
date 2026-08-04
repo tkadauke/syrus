@@ -97,7 +97,7 @@ module App
       base[:after_snapshot] = action.after_snapshot if action.after_snapshot.present?
 
       case action.action.presence || action.action_type
-      when "cancel_job", "close_job_successfully", "retry_job", "force_fail_job", "rebase_job", "reopen_job", "poll_job_feedback", "check_job_mergeability", "submit_chat_feedback"
+      when "cancel_job", "close_job_successfully", "retry_job", "force_fail_job", "rebase_job", "reopen_job", "poll_job_feedback", "check_job_mergeability", "submit_chat_feedback", "force_landing_recheck", "override_landing_blocker_once"
         if (job = cached_action_job(action, payload["job_id"]))
           base.merge(resource_title: job.issue_title, resource_url: job_path(job))
         else
@@ -428,6 +428,12 @@ module App
         "Poll PR feedback for #{::App::Presentation.job_slug(payload['job_id'])}"
       when "check_job_mergeability"
         "Check mergeability for #{::App::Presentation.job_slug(payload['job_id'])}"
+      when "force_landing_recheck"
+        "Force landing recheck for #{::App::Presentation.job_slug(payload['job_id'])}"
+      when "override_landing_blocker_once"
+        "Override #{payload['blocker_key']} once for #{::App::Presentation.job_slug(payload['job_id'])}"
+      when "wake_landing_queue"
+        "Wake landing queue"
       when "delegate_issue"
         "Delegate issue ##{payload['issue_number']}"
       when "pause_landing_queue"

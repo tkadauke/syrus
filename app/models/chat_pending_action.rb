@@ -34,6 +34,9 @@ class ChatPendingAction < ApplicationRecord
     force_state_transition
     cancel_stale_work
     reenqueue_work
+    force_landing_recheck
+    override_landing_blocker_once
+    wake_landing_queue
   ].freeze
   ACTION_TYPES = %w[ schedule_recurring ].freeze
   EMPTY_PAYLOAD_ACTIONS = %w[
