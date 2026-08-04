@@ -4492,7 +4492,7 @@ describe("App", () => {
     }
   })
 
-  it("saves an applied dashboard filter from the v2 sidebar folders", async () => {
+  it("hides dashboard filter save controls from the v2 sidebar folders", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
     script.type = "application/json"
@@ -4566,39 +4566,16 @@ describe("App", () => {
 
       const smartFoldersPanel = await screen.findByLabelText("Dashboard smart folders panel")
       expect(within(smartFoldersPanel).queryByRole("heading", { name: "Smart folders" })).not.toBeInTheDocument()
-      const folderNameInput = within(smartFoldersPanel).getByLabelText("Folder name")
-      expect(within(smartFoldersPanel).getByRole("button", { name: "Update My work" })).toBeInTheDocument()
-      expect(within(smartFoldersPanel).getByRole("heading", { name: "Saved" }).compareDocumentPosition(folderNameInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-      fireEvent.change(folderNameInput, { target: { value: "Open work" } })
-      fireEvent.click(within(smartFoldersPanel).getByRole("button", { name: "Save folder" }))
-
-      await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/smart_folders",
-          expect.objectContaining({
-            method: "POST",
-            credentials: "same-origin",
-            headers: expect.objectContaining({
-              Accept: "application/json",
-              "Content-Type": "application/json"
-            }),
-            body: JSON.stringify({
-              filter: JSON.stringify(appliedFilter),
-              subject_type: "job",
-              smart_folder: { name: "Open work" }
-            })
-          })
-        )
-      })
-      await waitFor(() => {
-        expectDashboardFetch(fetchSpy, "/api/v1/app/dashboard?smart_folder_id=11&subject=job", expect.objectContaining({ credentials: "same-origin" }))
-      })
+      expect(within(smartFoldersPanel).queryByLabelText("Folder name")).not.toBeInTheDocument()
+      expect(within(smartFoldersPanel).queryByRole("button", { name: "Update My work" })).not.toBeInTheDocument()
+      expect(within(smartFoldersPanel).queryByRole("button", { name: "Save folder" })).not.toBeInTheDocument()
+      expect(fetchSpy.mock.calls.some(([input, init]) => String(input) === "/api/v1/app/smart_folders" && init?.method === "POST")).toBe(false)
     } finally {
       script.remove()
     }
   })
 
-  it("shows update and save actions when the active saved dashboard folder filter differs", async () => {
+  it("hides update and save actions in the sidebar when the active saved dashboard folder filter differs", async () => {
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
     script.type = "application/json"
@@ -4652,8 +4629,8 @@ describe("App", () => {
       )
 
       const smartFoldersPanel = await screen.findByLabelText("Dashboard smart folders panel")
-      expect(within(smartFoldersPanel).getByRole("button", { name: "Update My work" })).toBeInTheDocument()
-      expect(within(smartFoldersPanel).getByRole("button", { name: "Save folder" })).toBeInTheDocument()
+      expect(within(smartFoldersPanel).queryByRole("button", { name: "Update My work" })).not.toBeInTheDocument()
+      expect(within(smartFoldersPanel).queryByRole("button", { name: "Save folder" })).not.toBeInTheDocument()
     } finally {
       script.remove()
     }
@@ -4797,7 +4774,7 @@ describe("App", () => {
           return url.searchParams.get("smart_folder_id") === "7" && url.searchParams.has("q")
         })).toBe(true)
       })
-      expect(await within(smartFoldersPanel).findByRole("button", { name: "Update My work" })).toBeInTheDocument()
+      expect(within(smartFoldersPanel).queryByRole("button", { name: "Update My work" })).not.toBeInTheDocument()
 
       fireEvent.click(screen.getByRole("button", { name: "+ Add filter" }))
       fireEvent.click(screen.getByRole("button", { name: "Has parent yes/no" }))
@@ -4973,32 +4950,9 @@ describe("App", () => {
       )
 
       const smartFoldersPanel = await screen.findByLabelText("Dashboard smart folders panel")
-      expect(within(smartFoldersPanel).getByRole("button", { name: "Save folder" })).toBeInTheDocument()
-      fireEvent.click(within(smartFoldersPanel).getByRole("button", { name: "Update My work" }))
-
-      await waitFor(() => {
-        expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/smart_folders/7",
-          expect.objectContaining({
-            method: "PATCH",
-            credentials: "same-origin",
-            headers: expect.objectContaining({
-              Accept: "application/json",
-              "Content-Type": "application/json"
-            }),
-            body: JSON.stringify({
-              filter: JSON.stringify(appliedFilter),
-              smart_folder: {
-                name: "My work",
-                position: 2
-              }
-            })
-          })
-        )
-      })
-      await waitFor(() => {
-        expectDashboardFetch(fetchSpy, "/api/v1/app/dashboard?view=list&smart_folder_id=7&subject=job", expect.objectContaining({ credentials: "same-origin" }))
-      })
+      expect(within(smartFoldersPanel).queryByRole("button", { name: "Save folder" })).not.toBeInTheDocument()
+      expect(within(smartFoldersPanel).queryByRole("button", { name: "Update My work" })).not.toBeInTheDocument()
+      expect(fetchSpy.mock.calls.some(([input, init]) => String(input) === "/api/v1/app/smart_folders/7" && init?.method === "PATCH")).toBe(false)
     } finally {
       script.remove()
     }

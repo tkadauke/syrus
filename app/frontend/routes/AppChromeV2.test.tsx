@@ -93,6 +93,93 @@ describe("AppChromeV2", () => {
     expect(screen.queryByRole("link", { name: "Workflows" })).not.toBeInTheDocument()
   })
 
+  it("hides smart folder save controls in the chrome sidebar when row context is absent", async () => {
+    const savedFilter = { and: [{ field: "state", op: "is", value: "open" }] }
+    const chromeFilter = { and: [{ field: "kind", op: "is", value: "issue" }] }
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats") {
+        return Promise.resolve(jsonResponse(chatsIndexPayload()))
+      }
+
+      const url = new URL(path, "http://example.test")
+      if (url.pathname === "/api/v1/app/dashboard" && url.searchParams.get("section") === "chrome") {
+        expect(url.searchParams.has("smart_folder_id")).toBe(false)
+        return Promise.resolve(jsonResponse({
+          subject: "job",
+          view: "list",
+          page: 1,
+          per_page: 25,
+          counts: { jobs: 1, epics: 0, workflows: 0 },
+          preferences: {
+            sort: { column: "created_at", direction: "desc" },
+            visible_columns: [],
+            kanban_lanes: [],
+            ownership_scope: "team",
+            owner_user_id: null,
+            owner_id: null,
+            raw: {}
+          },
+          controls: {
+            views: ["list"],
+            ownership_scopes: [],
+            owners: [],
+            sort_columns: [],
+            sort_directions: [],
+            columns: { required: [], optional: [] },
+            kanban_lanes: [],
+            filter_schema: [],
+            filter_suggestions: []
+          },
+          filter: chromeFilter,
+          landing_queue: { visible: false, paused: false, toggle_path: "/api/v1/app/dashboard/landing_pause" },
+          ownership_scope: { scope: "team", owner_user_id: null, owner_user: null },
+          ownership: { scope: "team", owner_id: null, team_user_count: 1, badges_visible: false },
+          smart_folders: [
+            {
+              id: 7,
+              name: "My work",
+              key: null,
+              kind: "user_defined",
+              subject_type: "job",
+              visibility: "user_defined",
+              position: 2,
+              count: 1,
+              active: false,
+              filter: savedFilter,
+              path: "/dashboard/jobs?smart_folder_id=7"
+            }
+          ],
+          active_smart_folder_id: null,
+          setup: null,
+          paths: {
+            dashboard_path: "/dashboard",
+            dashboard_jobs_path: "/dashboard/jobs",
+            dashboard_epics_path: "/dashboard/epics",
+            dashboard_workflows_path: "/dashboard/workflows",
+            new_epic_path: "/epics/new",
+            new_job_path: "/jobs/new",
+            app_dashboard_path: "/api/v1/app/dashboard"
+          }
+        }))
+      }
+
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+
+    renderAppChrome(<div>Dashboard</div>, {
+      initialEntries: ["/app-shell/dashboard/jobs?view=list&smart_folder_id=7"],
+      bootstrap: bootstrapPayload({ feature_flags: { v2_sidebar_subject_selector: true } })
+    })
+
+    const foldersPanel = await screen.findByLabelText("Dashboard smart folders panel")
+    expect(within(foldersPanel).getByRole("link", { name: "My work 1" })).toBeInTheDocument()
+    expect(within(foldersPanel).queryByLabelText("Folder name")).not.toBeInTheDocument()
+    expect(within(foldersPanel).queryByRole("button", { name: "Update My work" })).not.toBeInTheDocument()
+    expect(within(foldersPanel).queryByRole("button", { name: "Save folder" })).not.toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalled()
+  })
+
   it("reuses an existing unstarted chat without creating a chat", async () => {
     const createEmptyChat = vi.spyOn(chatsApi, "createEmptyChat")
     const fetchNewChat = vi.spyOn(chatsApi, "fetchNewChat")

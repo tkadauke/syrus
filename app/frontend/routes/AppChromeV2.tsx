@@ -651,7 +651,7 @@ function SidebarDashboardNav({ expanded, onCloseDrawer, prefix, showSubjects }: 
       <div className={`min-h-0 overflow-hidden transition-opacity duration-150 ease-out ${expanded ? "opacity-100 delay-75" : "opacity-0"}`}>
         <div className="space-y-3 pl-7 pt-1">
           {showSubjects ? <SidebarDashboardSubjects onCloseDrawer={onCloseDrawer} payload={payload} prefix={prefix} /> : null}
-          <DashboardSmartFolderNav payload={payload} prefix={prefix} search={location.search} />
+          <DashboardSmartFolderNav payload={{ ...payload, rows_current_for_search: false }} prefix={prefix} search={location.search} />
         </div>
       </div>
     </div>
