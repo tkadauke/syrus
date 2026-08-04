@@ -15,7 +15,7 @@ class CreateGithubAuthFallbackDiagnostics < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :github_auth_fallback_diagnostics, [ :repository_id, :created_at ], name: "index_github_auth_fallbacks_on_repository_and_created_at"
-    add_index :github_auth_fallback_diagnostics, [ :installation_id, :created_at ], name: "index_github_auth_fallbacks_on_installation_and_created_at"
+    add_index :github_auth_fallback_diagnostics, [ :repository_id, :created_at ], name: "index_github_auth_fallbacks_on_repository_and_created_at" unless index_exists?(:github_auth_fallback_diagnostics, [ :repository_id, :created_at ], name: "index_github_auth_fallbacks_on_repository_and_created_at")
+    add_index :github_auth_fallback_diagnostics, [ :installation_id, :created_at ], name: "index_github_auth_fallbacks_on_installation_and_created_at" unless index_exists?(:github_auth_fallback_diagnostics, [ :installation_id, :created_at ], name: "index_github_auth_fallbacks_on_installation_and_created_at")
   end
 end
