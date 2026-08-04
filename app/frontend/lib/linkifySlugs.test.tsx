@@ -50,6 +50,13 @@ describe("linkifySlugs", () => {
     expect(screen.getByRole("link", { name: "EPIC-7" })).toHaveAttribute("href", "/epics/7")
   })
 
+  it("can render JOB slugs as copyable hover-card references", () => {
+    render(<MemoryRouter>{linkifySlugs("Filed as JOB-42", { jobStyle: "copyable" })}</MemoryRouter>)
+
+    expect(screen.getByRole("button", { name: "Copy JOB-42 to clipboard" })).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "JOB-42" })).not.toBeInTheDocument()
+  })
+
   it("renders one SlugHoverCard per slug with correct kind and id attributes", () => {
     render(<MemoryRouter>{linkifySlugs("See JOB-42 and EPIC-7")}</MemoryRouter>)
 

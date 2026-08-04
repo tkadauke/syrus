@@ -659,31 +659,76 @@ describe("chat temporal markers", () => {
 describe("proposal outcome system events", () => {
   beforeEach(() => {
     window.localStorage.clear()
-    mockDesktopViewport()
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      writable: true,
+      value: vi.fn((query: string) => ({
+        matches: query.includes("min-width: 1024px") || query.includes("pointer: fine"),
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn()
+      }))
+    })
   })
 
-  it("shows proposal confirmations as system events instead of operator bubbles", async () => {
-    mockChatPayload(chatPayload({
-      messages: [
-        {
-          ...chatMessage(9, "system", 'Proposal confirmed. JOB-88 "Map auth" was created.', localDateAt(9, 0)),
-          content: {
-            text: 'Proposal confirmed. JOB-88 "Map auth" was created.',
-            source: "proposal_notification",
-            outcome: "confirmed",
-            acknowledgment: "Confirmed JOB-88."
+  afterEach(() => {
+    restoreClipboardMock?.()
+    restoreClipboardMock = null
+    vi.restoreAllMocks()
+  })
+
+  it("shows proposal confirmations as system events with copyable job hover-card references", async () => {
+    const clipboard = mockClipboardWrite()
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/jobs/88") {
+        return Promise.resolve(jsonResponse({
+          job: {
+            id: 88,
+            state: "open",
+            issue_title: "Map auth",
+            issue_body: "Add the auth route map.",
+            title_pending: false,
+            start_blocked_reason: null,
+            start_blocked_details: null
           },
-          bookmarkable: false
-        }
-      ]
-    }))
+        }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [
+          {
+            ...chatMessage(9, "system", 'Proposal confirmed. JOB-88 "Map auth" was created.', localDateAt(9, 0)),
+            content: {
+              text: 'Proposal confirmed. JOB-88 "Map auth" was created.',
+              source: "proposal_notification",
+              outcome: "confirmed",
+              acknowledgment: "Confirmed JOB-88."
+            },
+            bookmarkable: false
+          }
+        ]
+      })))
+    })
 
     renderRoute()
 
-    const notice = await screen.findByText('Proposal confirmed. JOB-88 "Map auth" was created.')
+    const notice = await screen.findByText((_, element) => element?.textContent === 'Proposal confirmed. JOB-88 "Map auth" was created.')
     expect(notice).toBeInTheDocument()
     expect(notice.closest(".bg-blue-600")).toBeNull()
     expect(notice.closest(".flex.justify-center")).toBeInTheDocument()
+    const slug = screen.getByRole("button", { name: "Copy JOB-88 to clipboard" })
+    fireEvent.click(slug)
+    await waitFor(() => expect(clipboard).toHaveBeenCalledWith("JOB-88"))
+    fireEvent.mouseEnter(slug.parentElement!)
+    expect(await screen.findByText("Add the auth route map.")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Show 1 hidden system message" })).not.toBeInTheDocument()
   })
 })
@@ -2952,6 +2997,28 @@ function mockChatRouteFetch(payload = chatPayload()) {
 
     return Promise.resolve(jsonResponse(payload))
   })
+}
+
+let restoreClipboardMock: (() => void) | null = null
+
+function mockClipboardWrite() {
+  const originalClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard")
+  const writeText = vi.fn().mockResolvedValue(undefined)
+
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { writeText }
+  })
+
+  restoreClipboardMock = () => {
+    if (originalClipboard) {
+      Object.defineProperty(navigator, "clipboard", originalClipboard)
+    } else {
+      Reflect.deleteProperty(navigator, "clipboard")
+    }
+  }
+
+  return writeText
 }
 
 function mockChatPayload(payload: unknown) {

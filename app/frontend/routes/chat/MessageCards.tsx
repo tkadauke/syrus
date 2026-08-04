@@ -7,6 +7,7 @@ import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
 import { createChatBookmark, type ChatMessageItem, type ChatPayload, type ChatRenderItem, type ChatStructuredTool, type ChatSystemMessage, type ChatToolGroupItem } from "../../api/chats"
 import { CloseIcon } from "../../components/CloseIcon"
 import { Markdown, PlainText } from "../../lib/Markdown"
+import { linkifySlugs } from "../../lib/linkifySlugs"
 import { highlightCode, inferToolResultLanguage } from "../../lib/syntaxHighlight"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
@@ -308,7 +309,7 @@ function SystemMessage({ item, prefix }: { item: ChatSystemMessage; prefix: stri
       <div className="flex justify-center">
         <div className={`w-full max-w-3xl rounded border px-4 py-3 text-sm shadow-sm ${colors[item.tone]}`} role={item.tone === "error" ? "alert" : "status"}>
           <div className="mb-1 text-xs font-semibold uppercase">{item.label}</div>
-          <div className="break-words leading-relaxed">{item.body}</div>
+          <div className="break-words leading-relaxed">{linkifySlugs(item.body, { jobStyle: "copyable" })}</div>
           {item.cta ? (
             <Link className="mt-2 inline-block font-medium underline hover:no-underline" to={withRoutePrefix(item.cta.path, prefix)}>
               {item.cta.label}
@@ -323,7 +324,7 @@ function SystemMessage({ item, prefix }: { item: ChatSystemMessage; prefix: stri
     <div className="flex justify-center">
       <div className={`inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1 text-xs ${colors[item.tone]}`}>
         <span className="shrink-0 rounded bg-white/70 px-1.5 py-0.5 font-medium uppercase tracking-wide dark:bg-black/25">{item.label}</span>
-        <span className="min-w-0 break-words">{item.body}</span>
+        <span className="min-w-0 break-words">{linkifySlugs(item.body, { jobStyle: "copyable" })}</span>
         {item.cta ? (
           <Link className="shrink-0 font-medium underline hover:no-underline" to={withRoutePrefix(item.cta.path, prefix)}>
             {item.cta.label}
