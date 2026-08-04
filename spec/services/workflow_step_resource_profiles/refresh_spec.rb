@@ -26,7 +26,7 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
     Factories.job_record(**attrs)
   end
 
-  def resource_summary(repository:, duration:, cpu: 10.0, io: 2.0, memory: 30.0, kind: "issue", step_kind: "implement", grader_name: nil, state: "succeeded", retention_limited: false, finished_at: now, process_duration: nil, process_cpu_seconds: nil, process_memory_bytes: nil, process_io_bytes: nil)
+  def resource_summary(repository:, duration:, cpu: 10.0, io: 2.0, memory: 30.0, kind: "issue", step_kind: "implement", grader_name: nil, state: "succeeded", retention_limited: false, finished_at: now, process_duration: nil, process_cpu_seconds: nil, process_memory_bytes: nil, process_io_bytes: nil, command_span: false, command_cpu: 4.0, command_io: 1.0, command_memory: 25.0)
     job = job_for(repository: repository, kind: kind)
     workflow = workflow_for(job)
     step = step_for(workflow, kind: step_kind, details: grader_name ? { "name" => grader_name } : {})
@@ -39,6 +39,31 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
       started_at: finished_at - duration.seconds,
       finished_at: finished_at
     )
+    if command_span
+      span = run.command_spans.create!(
+        job: job,
+        workflow: workflow,
+        step: step,
+        sequence: 1,
+        name: "rspec",
+        command_excerpt: "bin/rspec",
+        hostname: "worker-a",
+        started_at: finished_at - 45.seconds,
+        finished_at: finished_at - 15.seconds,
+        duration_ms: 30_000,
+        outcome: "succeeded",
+        exit_status: 0
+      )
+      WorkerHostHealthSample.create!(
+        hostname: span.hostname,
+        role: "worker",
+        version: "test",
+        observed_at: span.started_at + 10.seconds,
+        cpu_pressure_some: command_cpu,
+        io_pressure_some: command_io,
+        memory_used_percent: command_memory
+      )
+    end
 
     RunResourceSummary.create!(
       run: run,
@@ -186,6 +211,36 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
     )
   end
 
+  it "stores attributed command metrics separately from host-correlated fallback metrics" do
+    10.times do |index|
+      resource_summary(
+        repository: repository,
+        duration: 900 + index,
+        cpu: 80.0 + index,
+        io: 60.0,
+        memory: 75.0,
+        finished_at: now - index.minutes,
+        command_span: true,
+        command_cpu: 10.0 + index,
+        command_io: 5.0,
+        command_memory: 40.0
+      )
+    end
+
+    described_class.new(now: now).refresh_all!
+
+    profile = WorkflowStepResourceProfile.first
+    expect(profile.sample_count).to eq(10)
+    expect(profile.attributed_sample_count).to eq(10)
+    expect(profile.p90_cpu_pressure).to eq(88.0)
+    expect(profile.p90_attributed_cpu_pressure).to eq(18.0)
+    expect(profile.conservative_prediction).to include(
+      cpu_pressure: 18.0,
+      prediction_source: "command_attributed",
+      fallback_reason: nil
+    )
+  end
+
   it "excludes retention-limited summaries from aggregate inputs" do
     resource_summary(repository: repository, duration: 100, cpu: 10.0)
     resource_summary(repository: repository, duration: 1_000, cpu: 99.0, retention_limited: true)
@@ -208,6 +263,10 @@ RSpec.describe WorkflowStepResourceProfiles::Refresh do
       grader_name: "",
       job_kind: "issue",
       sample_count: 40,
+      attributed_sample_count: 0,
+      process_attributed_sample_count: 0,
+      host_pressure_sample_count: 40,
+      attribution_quality: "host_correlated",
       timeout_rate: 0.0,
       failure_rate: 0.0,
       last_observed_at: stale_observed_at,

@@ -72,14 +72,38 @@ module WorkflowStepResourceProfiles
     end
 
     def profile_attributes(inputs)
+      attributed_inputs = attributed_metric_inputs(inputs)
+
       {
         sample_count: inputs.size,
+        attributed_sample_count: attributed_inputs.size,
         process_attributed_sample_count: process_attributed_inputs(inputs).size,
         host_pressure_sample_count: host_pressure_inputs(inputs).size,
         attribution_quality: attribution_quality(inputs),
         p50_duration_seconds: percentile(inputs.filter_map(&:duration_seconds), 50),
         p90_duration_seconds: percentile(inputs.filter_map(&:duration_seconds), 90),
         p99_duration_seconds: percentile(inputs.filter_map(&:duration_seconds), 99),
+        p50_cpu_pressure: percentile(host_values(inputs, :max_cpu_pressure), 50),
+        p90_cpu_pressure: percentile(host_values(inputs, :max_cpu_pressure), 90),
+        p99_cpu_pressure: percentile(host_values(inputs, :max_cpu_pressure), 99),
+        p50_io_pressure: percentile(host_values(inputs, :max_io_pressure), 50),
+        p90_io_pressure: percentile(host_values(inputs, :max_io_pressure), 90),
+        p99_io_pressure: percentile(host_values(inputs, :max_io_pressure), 99),
+        p50_memory_used_percent: percentile(host_values(inputs, :max_memory_used_percent), 50),
+        p90_memory_used_percent: percentile(host_values(inputs, :max_memory_used_percent), 90),
+        p99_memory_used_percent: percentile(host_values(inputs, :max_memory_used_percent), 99),
+        p50_attributed_duration_seconds: percentile(attributed_inputs.filter_map { |input| input.fetch(:duration_seconds) }, 50),
+        p90_attributed_duration_seconds: percentile(attributed_inputs.filter_map { |input| input.fetch(:duration_seconds) }, 90),
+        p99_attributed_duration_seconds: percentile(attributed_inputs.filter_map { |input| input.fetch(:duration_seconds) }, 99),
+        p50_attributed_cpu_pressure: percentile(attributed_inputs.filter_map { |input| input.fetch(:cpu_pressure) }, 50),
+        p90_attributed_cpu_pressure: percentile(attributed_inputs.filter_map { |input| input.fetch(:cpu_pressure) }, 90),
+        p99_attributed_cpu_pressure: percentile(attributed_inputs.filter_map { |input| input.fetch(:cpu_pressure) }, 99),
+        p50_attributed_io_pressure: percentile(attributed_inputs.filter_map { |input| input.fetch(:io_pressure) }, 50),
+        p90_attributed_io_pressure: percentile(attributed_inputs.filter_map { |input| input.fetch(:io_pressure) }, 90),
+        p99_attributed_io_pressure: percentile(attributed_inputs.filter_map { |input| input.fetch(:io_pressure) }, 99),
+        p50_attributed_memory_used_percent: percentile(attributed_inputs.filter_map { |input| input.fetch(:memory_used_percent) }, 50),
+        p90_attributed_memory_used_percent: percentile(attributed_inputs.filter_map { |input| input.fetch(:memory_used_percent) }, 90),
+        p99_attributed_memory_used_percent: percentile(attributed_inputs.filter_map { |input| input.fetch(:memory_used_percent) }, 99),
         p50_process_attributed_duration_seconds: percentile(process_values(inputs, :process_attributed_duration_seconds), 50),
         p90_process_attributed_duration_seconds: percentile(process_values(inputs, :process_attributed_duration_seconds), 90),
         p99_process_attributed_duration_seconds: percentile(process_values(inputs, :process_attributed_duration_seconds), 99),
@@ -95,15 +119,6 @@ module WorkflowStepResourceProfiles
         p50_process_attributed_io_bytes: percentile(process_values(inputs, :process_attributed_io_bytes), 50),
         p90_process_attributed_io_bytes: percentile(process_values(inputs, :process_attributed_io_bytes), 90),
         p99_process_attributed_io_bytes: percentile(process_values(inputs, :process_attributed_io_bytes), 99),
-        p50_cpu_pressure: percentile(host_values(inputs, :max_cpu_pressure), 50),
-        p90_cpu_pressure: percentile(host_values(inputs, :max_cpu_pressure), 90),
-        p99_cpu_pressure: percentile(host_values(inputs, :max_cpu_pressure), 99),
-        p50_io_pressure: percentile(host_values(inputs, :max_io_pressure), 50),
-        p90_io_pressure: percentile(host_values(inputs, :max_io_pressure), 90),
-        p99_io_pressure: percentile(host_values(inputs, :max_io_pressure), 99),
-        p50_memory_used_percent: percentile(host_values(inputs, :max_memory_used_percent), 50),
-        p90_memory_used_percent: percentile(host_values(inputs, :max_memory_used_percent), 90),
-        p99_memory_used_percent: percentile(host_values(inputs, :max_memory_used_percent), 99),
         p50_host_pressure_cpu: percentile(host_values(inputs, :max_cpu_pressure), 50),
         p90_host_pressure_cpu: percentile(host_values(inputs, :max_cpu_pressure), 90),
         p99_host_pressure_cpu: percentile(host_values(inputs, :max_cpu_pressure), 99),
@@ -144,6 +159,37 @@ module WorkflowStepResourceProfiles
       return "host_correlated" if process_count.zero?
 
       "mixed"
+    end
+
+    def attributed_metric_inputs(inputs)
+      inputs.filter_map do |summary|
+        attributed_metrics_for(summary)
+      end
+    end
+
+    def attributed_metrics_for(summary)
+      spans = summary.run&.command_spans&.to_a || []
+      span_metrics = spans.filter_map { |span| attributed_span_metrics(span) }
+      return if span_metrics.empty?
+
+      {
+        duration_seconds: span_metrics.sum { |metrics| metrics.fetch(:duration_seconds).to_f },
+        cpu_pressure: span_metrics.sum { |metrics| metrics.fetch(:cpu_pressure).to_f },
+        io_pressure: span_metrics.sum { |metrics| metrics.fetch(:io_pressure).to_f },
+        memory_used_percent: span_metrics.map { |metrics| metrics.fetch(:memory_used_percent).to_f }.max
+      }
+    end
+
+    def attributed_span_metrics(span)
+      correlation = WorkerHealthRunCorrelation.for_span(span, sample_limit: 0, now: now)
+      return if correlation.fetch(:sample_count).zero? || correlation.fetch(:retention_limited)
+
+      {
+        duration_seconds: span.duration_s,
+        cpu_pressure: correlation.dig(:summary, :cpu_pressure_some, :max),
+        io_pressure: correlation.dig(:summary, :io_pressure_some, :max),
+        memory_used_percent: correlation.dig(:summary, :memory_used_percent, :max)
+      }
     end
 
     def normalized_grader_name(summary)

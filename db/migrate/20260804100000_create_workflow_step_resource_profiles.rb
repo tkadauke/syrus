@@ -8,6 +8,7 @@ class CreateWorkflowStepResourceProfiles < ActiveRecord::Migration[8.1]
       t.string :grader_name, limit: 128, null: false, default: ""
       t.string :job_kind, limit: 64, null: false, default: ""
       t.integer :sample_count, null: false, default: 0
+      t.integer :attributed_sample_count, null: false, default: 0
       t.float :p50_duration_seconds
       t.float :p90_duration_seconds
       t.float :p99_duration_seconds
@@ -20,6 +21,18 @@ class CreateWorkflowStepResourceProfiles < ActiveRecord::Migration[8.1]
       t.float :p50_memory_used_percent
       t.float :p90_memory_used_percent
       t.float :p99_memory_used_percent
+      t.float :p50_attributed_duration_seconds
+      t.float :p90_attributed_duration_seconds
+      t.float :p99_attributed_duration_seconds
+      t.float :p50_attributed_cpu_pressure
+      t.float :p90_attributed_cpu_pressure
+      t.float :p99_attributed_cpu_pressure
+      t.float :p50_attributed_io_pressure
+      t.float :p90_attributed_io_pressure
+      t.float :p99_attributed_io_pressure
+      t.float :p50_attributed_memory_used_percent
+      t.float :p90_attributed_memory_used_percent
+      t.float :p99_attributed_memory_used_percent
       t.float :timeout_rate, null: false, default: 0.0
       t.float :failure_rate, null: false, default: 0.0
       t.datetime :last_observed_at

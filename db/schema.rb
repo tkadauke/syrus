@@ -1686,6 +1686,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_04_160000) do
     t.integer "host_pressure_sample_count", default: 0, null: false
     t.string "job_kind", limit: 64, default: "", null: false
     t.datetime "last_observed_at"
+    t.integer "attributed_sample_count", default: 0, null: false
+    t.float "p50_attributed_cpu_pressure"
+    t.float "p50_attributed_duration_seconds"
+    t.float "p50_attributed_io_pressure"
+    t.float "p50_attributed_memory_used_percent"
     t.float "p50_cpu_pressure"
     t.float "p50_duration_seconds"
     t.float "p50_host_pressure_cpu"
@@ -1698,6 +1703,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_04_160000) do
     t.float "p50_process_attributed_duration_seconds"
     t.bigint "p50_process_attributed_io_bytes"
     t.bigint "p50_process_attributed_memory_bytes"
+    t.float "p90_attributed_cpu_pressure"
+    t.float "p90_attributed_duration_seconds"
+    t.float "p90_attributed_io_pressure"
+    t.float "p90_attributed_memory_used_percent"
     t.float "p90_cpu_pressure"
     t.float "p90_duration_seconds"
     t.float "p90_host_pressure_cpu"
@@ -1710,6 +1719,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_04_160000) do
     t.float "p90_process_attributed_duration_seconds"
     t.bigint "p90_process_attributed_io_bytes"
     t.bigint "p90_process_attributed_memory_bytes"
+    t.float "p99_attributed_cpu_pressure"
+    t.float "p99_attributed_duration_seconds"
+    t.float "p99_attributed_io_pressure"
+    t.float "p99_attributed_memory_used_percent"
     t.float "p99_cpu_pressure"
     t.float "p99_duration_seconds"
     t.float "p99_host_pressure_cpu"

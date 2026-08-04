@@ -57,23 +57,23 @@ class WorkflowAdmissionBudget
     hard_reason = hard_host_pressure_reason
 
     if hard_reason
-      return decision("requires_override", hard_reason, pressure, details: details_payload(candidate, active))
+      return decision("requires_override", hard_reason, pressure, details: details_payload(candidate, active, decision_basis: "ambient_pressure"))
     end
 
     if soft_host_pressure? && !urgent?
-      return low_risk_or_delay("worker_host_pressure_high", candidate, active, pressure)
+      return low_risk_or_delay("worker_host_pressure_high", candidate, active, pressure, decision_basis: "ambient_pressure")
     end
 
     if over_budget?(pressure) && !urgent?
-      return low_risk_or_delay("predicted_budget_pressure_high", candidate, active, pressure)
+      return low_risk_or_delay("predicted_budget_pressure_high", candidate, active, pressure, decision_basis: "predicted_command_cost")
     end
 
     if pending_high_cost_work?(active) && high_cost?(candidate) && medium_or_lower?
-      return delay("pending_high_cost_work", pressure, details: details_payload(candidate, active))
+      return delay("pending_high_cost_work", pressure, details: details_payload(candidate, active, decision_basis: "predicted_command_cost"))
     end
 
     if repository_active_workflow_count >= MAX_REPOSITORY_ACTIVE_WORKFLOWS && pending_high_cost_work?(active) && !urgent?
-      return low_risk_or_delay("repository_concurrency_budget_exhausted", candidate, active, pressure)
+      return low_risk_or_delay("repository_concurrency_budget_exhausted", candidate, active, pressure, decision_basis: "predicted_command_cost")
     end
 
     urgent? && pressure_detected?(pressure) ? urgent_override("urgent_priority_override", pressure) : admit("within_budget", pressure)
@@ -109,17 +109,38 @@ class WorkflowAdmissionBudget
     cpu = predictions.sum { |prediction| prediction.fetch(:cpu_pressure).to_f }
     io = predictions.sum { |prediction| prediction.fetch(:io_pressure).to_f }
     memory = predictions.map { |prediction| prediction.fetch(:memory_used_percent).to_f }.max || 0.0
+    prediction_sources = predictions.map { |prediction| prediction.fetch(:prediction_source) }.tally
+    fallback_reasons = predictions.filter_map { |prediction| prediction.fetch(:fallback_reason) }.uniq
+    attribution_confidence_levels = predictions.map { |prediction| prediction.fetch(:attribution_confidence_level) }.uniq
 
     {
       "duration_seconds" => duration.round,
       "cpu_pressure" => cpu.round(1),
       "io_pressure" => io.round(1),
       "memory_used_percent" => memory.round(1),
+      "predicted_command_cost" => {
+        "duration_seconds" => duration.round,
+        "cpu_pressure" => cpu.round(1),
+        "io_pressure" => io.round(1),
+        "memory_used_percent" => memory.round(1)
+      },
+      "prediction_sources" => prediction_sources,
+      "primary_prediction_source" => primary_prediction_source(prediction_sources),
+      "attribution_confidence_levels" => attribution_confidence_levels,
+      "fallback_reasons" => fallback_reasons,
       "confidence_levels" => predictions.map { |prediction| prediction.fetch(:confidence_level) }.uniq,
       "profile_count" => profiles.size,
+      "attributed_profile_count" => predictions.count { |prediction| prediction.fetch(:prediction_source) == "command_attributed" },
       "step_kinds" => step_kinds.uniq,
       "high_cost" => duration >= HIGH_COST_SECONDS || cpu >= CPU_BUDGET || io >= IO_BUDGET || memory >= MEMORY_BUDGET
     }
+  end
+
+  def primary_prediction_source(sources)
+    return "command_attributed" if sources.key?("command_attributed")
+    return "host_correlated" if sources.key?("host_correlated")
+
+    "defaults_only"
   end
 
   def step_kinds_for(candidate_workflow, remaining_only:)
@@ -172,7 +193,10 @@ class WorkflowAdmissionBudget
       "io_pressure" => items.sum { |item| item.fetch("io_pressure").to_f }.round(1),
       "memory_used_percent" => (items.map { |item| item.fetch("memory_used_percent").to_f }.max || 0.0).round(1),
       "high_cost_count" => items.count { |item| item.fetch("high_cost") },
-      "workflow_count" => items.size
+      "workflow_count" => items.size,
+      "prediction_sources" => items.flat_map { |item| item.fetch("prediction_sources", {}).to_a }
+        .each_with_object(Hash.new(0)) { |(source, count), totals| totals[source] += count }
+        .to_h
     }
   end
 
@@ -210,6 +234,12 @@ class WorkflowAdmissionBudget
         "max_io_pressure" => samples.map { |sample| [ sample.io_pressure_some, sample.io_pressure_full ].compact.max.to_f }.max.to_f.round(1),
         "max_memory_used_percent" => samples.map { |sample| sample.memory_used_percent.to_f }.max.to_f.round(1),
         "max_data_root_used_percent" => samples.map { |sample| sample.data_root_used_percent.to_f }.max.to_f.round(1),
+        "headroom" => {
+          "cpu_pressure" => [ CPU_BUDGET - samples.map { |sample| [ sample.cpu_pressure_some, sample.cpu_pressure_full ].compact.max.to_f }.max.to_f, 0.0 ].max.round(1),
+          "io_pressure" => [ IO_BUDGET - samples.map { |sample| [ sample.io_pressure_some, sample.io_pressure_full ].compact.max.to_f }.max.to_f, 0.0 ].max.round(1),
+          "memory_used_percent" => [ MEMORY_BUDGET - samples.map { |sample| sample.memory_used_percent.to_f }.max.to_f, 0.0 ].max.round(1),
+          "data_root_used_percent" => [ HARD_DATA_ROOT_USED_PERCENT - samples.map { |sample| sample.data_root_used_percent.to_f }.max.to_f, 0.0 ].max.round(1)
+        },
         "observed_since" => (now - HOST_SAMPLE_WINDOW).iso8601
       }
     end
@@ -261,11 +291,11 @@ class WorkflowAdmissionBudget
       candidate.fetch("memory_used_percent") <= LOW_RISK_PRESSURE
   end
 
-  def low_risk_or_delay(reason, candidate, active, pressure)
+  def low_risk_or_delay(reason, candidate, active, pressure, decision_basis:)
     if low_risk?(candidate)
-      decision("admit_low_risk_only", reason, pressure, details: details_payload(candidate, active))
+      decision("admit_low_risk_only", reason, pressure, details: details_payload(candidate, active, decision_basis: decision_basis))
     else
-      delay(reason, pressure, details: details_payload(candidate, active))
+      delay(reason, pressure, details: details_payload(candidate, active, decision_basis: decision_basis))
     end
   end
 
@@ -298,14 +328,18 @@ class WorkflowAdmissionBudget
     )
   end
 
-  def details_payload(candidate, active)
+  def details_payload(candidate, active, decision_basis: nil)
     {
       "candidate_high_cost" => candidate.fetch("high_cost"),
       "active_high_cost_count" => active.fetch("high_cost_count"),
       "repository_active_workflow_count" => repository_active_workflow_count,
       "active_run_count" => active_run_count,
       "job_priority" => job.priority,
-      "trigger_kind" => workflow.trigger_kind
-    }
+      "trigger_kind" => workflow.trigger_kind,
+      "decision_basis" => decision_basis,
+      "prediction_source" => candidate.fetch("primary_prediction_source"),
+      "attribution_confidence_levels" => candidate.fetch("attribution_confidence_levels"),
+      "fallback_reasons" => candidate.fetch("fallback_reasons")
+    }.compact
   end
 end

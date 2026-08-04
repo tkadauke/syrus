@@ -12,6 +12,7 @@ RSpec.describe WorkflowStepResourceProfile do
       grader_name: "",
       job_kind: "issue",
       sample_count: sample_count,
+      attributed_sample_count: 0,
       host_pressure_sample_count: sample_count,
       process_attributed_sample_count: 0,
       attribution_quality: sample_count.positive? ? "host_correlated" : "defaults_only",
@@ -39,5 +40,44 @@ RSpec.describe WorkflowStepResourceProfile do
     expect(host_only.prediction_basis).to eq("host_correlated")
     expect(process_backed.prediction_basis).to eq("process_attributed")
     expect(process_backed).to be_prefers_process_attribution
+  end
+
+  it "prefers attributed command predictions when they are sufficiently sampled" do
+    profile = profile(sample_count: 40)
+    profile.assign_attributes(
+      attributed_sample_count: 10,
+      p90_duration_seconds: 900,
+      p90_cpu_pressure: 80.0,
+      p90_attributed_duration_seconds: 120,
+      p90_attributed_cpu_pressure: 20.0,
+      p90_attributed_io_pressure: 10.0,
+      p90_attributed_memory_used_percent: 45.0
+    )
+
+    expect(profile.conservative_prediction).to include(
+      duration_seconds: 120,
+      cpu_pressure: 20.0,
+      prediction_source: "command_attributed",
+      attribution_confidence_level: "soft",
+      fallback_reason: nil
+    )
+  end
+
+  it "falls back to host-correlated profile data when command attribution is not confident" do
+    profile = profile(sample_count: 40)
+    profile.assign_attributes(
+      attributed_sample_count: 9,
+      p90_duration_seconds: 900,
+      p90_cpu_pressure: 80.0,
+      p90_io_pressure: 25.0,
+      p90_memory_used_percent: 55.0
+    )
+
+    expect(profile.conservative_prediction).to include(
+      duration_seconds: 900,
+      cpu_pressure: 80.0,
+      prediction_source: "host_correlated",
+      fallback_reason: "command_attributed_profile_unavailable"
+    )
   end
 end
