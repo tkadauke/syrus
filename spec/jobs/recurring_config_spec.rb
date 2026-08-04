@@ -30,4 +30,13 @@ RSpec.describe "recurring job configuration" do
       "schedule" => "every day at 3:30am"
     )
   end
+
+  it "refreshes workflow step resource profiles hourly" do
+    config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
+
+    expect(config.fetch("default").fetch("refresh_workflow_step_resource_profiles")).to include(
+      "class" => "WorkflowStepResourceProfileRefreshJob",
+      "schedule" => "every hour"
+    )
+  end
 end
