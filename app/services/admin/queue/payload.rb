@@ -52,13 +52,13 @@ module Admin
           since = failed_since
           active_folder = active_smart_folder
           base = SolidQueue::FailedExecution
-            .includes(:job)
-            .references(:job)
+            .joins(:job)
             .where(SolidQueue::FailedExecution.arel_table[:created_at].gteq(since))
           filter = display_filter(:failed, active_folder)
           failures = PerformanceLogging.phase("admin_queue.failed.query") {
             filter
               .apply(base)
+              .preload(:job)
               .order(created_at: :desc)
               .limit(@per_page)
               .to_a

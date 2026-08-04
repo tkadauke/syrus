@@ -44,6 +44,20 @@ RSpec.describe Filters::Compiler do
     expect(result).to contain_exactly(queued_job, closed_job)
   end
 
+  it "compiles OR groups as SQL subqueries instead of materialized ID lists" do
+    Factories.job(repository: repo, issue_number: 1)
+    closed_job = Factories.job(repository: repo, issue_number: 2)
+    closed_job.close!; closed_job.save!
+
+    result = compile("or" => [
+      { "field" => "state", "op" => "is", "value" => "queued" },
+      { "field" => "state", "op" => "is", "value" => "closed" }
+    ])
+
+    expect(result.to_sql).to include("SELECT")
+    expect(result.to_sql).not_to match(/\bIN\s*\(\s*\d/i)
+  end
+
   it "NOT chip excludes matched jobs" do
     open_job = Factories.job(repository: repo, issue_number: 1)
     closed_job = Factories.job(repository: repo, issue_number: 2)
@@ -52,6 +66,17 @@ RSpec.describe Filters::Compiler do
     result = compile("not" => { "field" => "state", "op" => "is", "value" => "closed" })
 
     expect(result).to contain_exactly(open_job)
+  end
+
+  it "compiles NOT groups as SQL subqueries instead of materialized ID lists" do
+    Factories.job(repository: repo, issue_number: 1)
+    closed_job = Factories.job(repository: repo, issue_number: 2)
+    closed_job.close!; closed_job.save!
+
+    result = compile("not" => { "field" => "state", "op" => "is", "value" => "closed" })
+
+    expect(result.to_sql).to include("SELECT")
+    expect(result.to_sql).not_to match(/\bNOT IN\s*\(\s*\d/i)
   end
 
   it "NOT around an OR-group excludes the union (NAND)" do

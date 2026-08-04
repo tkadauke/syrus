@@ -36,23 +36,37 @@ module Filters
     def compile_or(node)
       return @scope if node.children.empty?
 
-      primary_key = @scope.model.primary_key
-      matched_ids = node.children.flat_map do |child|
-        self.class.new(scope: @scope, user: @user, subject: @subject.name).compile(child).pluck(primary_key)
-      end.uniq
+      primary_key = primary_key_attribute
+      predicates = node.children.map do |child|
+        child_scope = self.class.new(scope: @scope, user: @user, subject: @subject.name).compile(child)
+        primary_key_column.in(primary_key_subquery(child_scope, primary_key))
+      end
 
-      @scope.where(primary_key => matched_ids)
+      @scope.where(predicates.reduce { |left, right| left.or(right) })
     end
 
     def compile_not(node)
-      primary_key = @scope.model.primary_key
-      matched_ids = self.class.new(scope: @scope, user: @user, subject: @subject.name).compile(node.child).pluck(primary_key)
-      @scope.where.not(primary_key => matched_ids)
+      primary_key = primary_key_attribute
+      child_scope = self.class.new(scope: @scope, user: @user, subject: @subject.name).compile(node.child)
+
+      @scope.where(primary_key_column.not_in(primary_key_subquery(child_scope, primary_key)))
     end
 
     def compile_chip(node)
       chip_class = @subject.find_chip(node.field)
       chip_class.new(scope: @scope, op: node.op, value: node.value, user: @user).apply
+    end
+
+    def primary_key_attribute
+      @scope.model.primary_key or raise ArgumentError, "#{@scope.model.name} has no primary key"
+    end
+
+    def primary_key_column
+      @scope.arel_table[primary_key_attribute]
+    end
+
+    def primary_key_subquery(scope, primary_key)
+      scope.except(:select, :order).select(primary_key).arel
     end
   end
 end

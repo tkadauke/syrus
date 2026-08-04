@@ -213,6 +213,26 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     )
   end
 
+  it "does not scan failed executions through a materialized job-id allowlist" do
+    sign_in_as(admin)
+    3.times do |i|
+      failed_job = solid_queue_job(class_name: "RunJob", queue_name: "runs", arguments: { "arguments" => [ i ] })
+      SolidQueue::FailedExecution.create!(job: failed_job, created_at: i.minutes.ago, error: { "message" => "boom #{i}" })
+    end
+    tree = {
+      "or" => [
+        { "field" => "queue_name", "op" => "is", "value" => "runs" },
+        { "field" => "job_class", "op" => "is", "value" => "RunJob" }
+      ]
+    }
+
+    queries = capture_sql { get "/api/v1/app/admin/queue/failed", params: { q: Filters::QueryParam.encode(tree) } }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["failures"].size).to eq(3)
+    expect(queries).not_to include_failed_execution_job_id_in_query
+  end
+
   it "handles malformed failed_since filter durations" do
     sign_in_as(admin)
     tree = { "and" => [ { "field" => "failed_since", "op" => "within_last", "value" => { "n" => 1, "unit" => "" } } ] }
@@ -426,5 +446,26 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
       created_at: Time.current,
       metadata: metadata
     )
+  end
+
+  def capture_sql
+    queries = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      queries << payload[:sql] unless payload[:name].to_s.match?(/\ASCHEMA|TRANSACTION\z/)
+    end
+    yield
+    queries
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+  end
+
+  RSpec::Matchers.define :include_failed_execution_job_id_in_query do
+    match do |queries|
+      queries.any? do |sql|
+        normalized = sql.squish.downcase
+        normalized.include?("from \"solid_queue_failed_executions\"") &&
+          normalized.match?(/\bjob_id\b.*\bin\s*\(\s*(?:\?|\d|'|")/)
+      end
+    end
   end
 end

@@ -231,6 +231,21 @@ RSpec.describe "SyrusChatMcp admin tools" do
     expect(error_text(invalid)).to include("tab must be one of active, pending, failed, recurring, workers")
   end
 
+  it "returns failed queue detail without loading failures through job-id allowlists" do
+    3.times do |i|
+      failed_job = solid_queue_job(class_name: "RunJob", queue_name: "runs")
+      SolidQueue::FailedExecution.create!(job: failed_job, created_at: i.minutes.ago, error: { "message" => "boom #{i}" })
+    end
+
+    response = nil
+    queries = capture_sql { response = call_tool(admin_session, "admin_queue_detail", { tab: "failed" }) }
+    payload = payload_for(response)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(payload.fetch(:failures).size).to eq(3)
+    expect(queries).not_to include_failed_execution_job_id_in_query
+  end
+
   it "returns SpawnedProcess rows with operational fields" do
     process = SpawnedProcess.create!(
       kind: "agent",
@@ -411,5 +426,26 @@ RSpec.describe "SyrusChatMcp admin tools" do
       created_at: Time.current,
       updated_at: Time.current
     )
+  end
+
+  def capture_sql
+    queries = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      queries << payload[:sql] unless payload[:name].to_s.match?(/\ASCHEMA|TRANSACTION\z/)
+    end
+    yield
+    queries
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+  end
+
+  RSpec::Matchers.define :include_failed_execution_job_id_in_query do
+    match do |queries|
+      queries.any? do |sql|
+        normalized = sql.squish.downcase
+        normalized.include?("from \"solid_queue_failed_executions\"") &&
+          normalized.match?(/\bjob_id\b.*\bin\s*\(\s*(?:\?|\d|'|")/)
+      end
+    end
   end
 end
