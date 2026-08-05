@@ -40,7 +40,7 @@ RSpec.describe OperationalLogging do
     }.not_to change(OperationalLogEvent, :count)
   end
 
-  it "redacts secrets, truncates large payloads, and enqueues default-queue indexing" do
+  it "redacts secrets, truncates large payloads, and enqueues home-worker indexing" do
     event = nil
 
     expect {
@@ -62,7 +62,7 @@ RSpec.describe OperationalLogging do
     expect(event.context.to_json.bytesize).to be <= described_class::MAX_CONTEXT_BYTES
     expect(event.context.to_json).not_to include("secret-value")
     expect(enqueued_jobs.map { |job| job[:job] }).to include(IndexOperationalLogEventJob)
-    expect(enqueued_jobs.find { |job| job[:job] == IndexOperationalLogEventJob }[:queue]).to eq("default")
+    expect(enqueued_jobs.find { |job| job[:job] == IndexOperationalLogEventJob }[:queue]).to eq("indexing")
   end
 
   it "ingests request and active job notification payloads with structured identifiers" do

@@ -1,5 +1,5 @@
 class PruneOperationalLogsJob < ApplicationJob
-  queue_as :default
+  queue_as :cleanup
 
   def perform(cutoff = OperationalLogEvent::RETENTION.ago)
     return unless OperationalLogging.configured_for_instance?

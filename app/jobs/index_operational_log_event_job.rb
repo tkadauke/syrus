@@ -1,5 +1,5 @@
 class IndexOperationalLogEventJob < ApplicationJob
-  queue_as :default
+  queue_as :indexing
 
   def perform(operational_log_event_id)
     return unless OperationalLogging.configured_for_instance?
