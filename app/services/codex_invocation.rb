@@ -6,6 +6,7 @@ class CodexInvocation
   DEFAULT_MODEL = "gpt-5.5"
   MCP_STARTUP_TIMEOUT_SECONDS = 60
   MCP_TOOL_TIMEOUT_SECONDS = 60
+  STARTUP_ERROR_MAX_BYTES = 4.kilobytes
 
   def self.configured_model
     ENV.fetch("SYRUS_CODEX_MODEL", DEFAULT_MODEL).presence
@@ -329,13 +330,31 @@ class CodexInvocation
       nil
     end
   rescue JSON::ParserError
-    detail = line.chomp
+    detail = sanitize_startup_output(line.chomp)
     log_sink.call(detail)
     detail.present? ? { startup_output: detail } : nil
   end
 
   def codex_error_detail(message)
     [ "model #{@model}", message.to_s ].compact.join(": ")
+  end
+
+  def sanitize_startup_output(line)
+    text = line.to_s
+    sanitized = redact_model_metadata_body(text)
+    return sanitized if sanitized != text
+
+    text.safe_byteslice(0, STARTUP_ERROR_MAX_BYTES)
+  end
+
+  def redact_model_metadata_body(text)
+    marker = /body:\s*/i.match(text)
+    return text unless marker
+
+    before_body = text.byteslice(0, marker.end(0))
+    body = text.byteslice(marker.end(0)..)
+    body_bytes = body&.bytesize || 0
+    "#{before_body}[model metadata body omitted, #{body_bytes} bytes]"
   end
 
   def process_item_event(event, log_sink)

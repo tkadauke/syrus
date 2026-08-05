@@ -399,6 +399,35 @@ RSpec.describe CodexInvocation do
         ])
       end
     end
+
+    it "redacts large Codex model metadata bodies from startup failures" do
+      Dir.mktmpdir do |home|
+        events = []
+        invocation = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test", codex_home: home,
+                                         log_sink: ->(chunk, **kwargs) { events << [ chunk, kwargs ] })
+        model_catalog = {
+          models: [
+            {
+              id: "gpt-5.5",
+              supported_reasoning_effort: %w[low medium high max],
+              prompt_template: "Do not store this provider prompt template." * 200
+            }
+          ]
+        }.to_json
+        stderr = "error: failed to refresh available models: unknown variant `max`; body: #{model_catalog}"
+
+        _, result = capture_popen(invocation, lines: [ stderr ], exitstatus: 1)
+
+        expected =
+          "error: failed to refresh available models: unknown variant `max`; " \
+          "body: [model metadata body omitted, #{model_catalog.bytesize} bytes]"
+        expect(result).not_to be_success
+        expect(result.final_text).to eq(expected)
+        expect(events).to include([ expected, {} ])
+        expect(result.final_text).not_to include("prompt_template")
+        expect(events.join("\n")).not_to include("Do not store this provider prompt template")
+      end
+    end
   end
 
   describe "provider cleanup timeout handling" do
