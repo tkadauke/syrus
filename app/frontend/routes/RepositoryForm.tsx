@@ -27,6 +27,7 @@ import {
   updateInsightScheduleConfig,
   updateRepository
 } from "../api/repositories"
+import { ApiError } from "../api/client"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import { PanelMessage } from "../components/PanelMessage"
