@@ -79,6 +79,7 @@ class ProviderAvailabilityEvidence < ApplicationRecord
 
   def self.record_codex_invocation_failure!(run:, status: "exhausted", model: nil, message: nil, observed_at: Time.current)
     return unless run&.user
+    status = "probe_inconclusive" if false_positive_codex_usage_limit?(message, model: model)
 
     create!(
       user: run.user,
@@ -96,6 +97,10 @@ class ProviderAvailabilityEvidence < ApplicationRecord
         message: message
       )
     )
+  end
+
+  def self.false_positive_codex_usage_limit?(message, model: nil)
+    ProviderUsageLimit.inconclusive?(message) || (model.present? && ProviderUsageLimit.suspicious_model?(model))
   end
 
   def self.latest_for_scope(user:, provider:, account_id: nil, model: nil)

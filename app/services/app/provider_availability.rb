@@ -274,6 +274,7 @@ module App
         .where("observed_at >= ?", now - ProviderCircuitBreaker::USAGE_LIMIT_WINDOW)
         .recent
         .detect do |evidence|
+          next false if false_positive_codex_evidence?(evidence)
           next false if codex_evidence_reset_at(evidence)&.<= now
 
           !ProviderAvailabilityEvidence.suppressed_by_positive_after?(
@@ -284,6 +285,13 @@ module App
             observed_at: evidence.observed_at
           )
         end
+    end
+
+    def false_positive_codex_evidence?(evidence)
+      ProviderAvailabilityEvidence.false_positive_codex_usage_limit?(
+        evidence.details&.dig("message"),
+        model: evidence.model
+      )
     end
 
     def usage_limit_reason_for_evidence(evidence)
@@ -408,7 +416,7 @@ module App
     end
 
     def latest_codex_evidence
-      @latest_codex_evidence ||= ProviderAvailabilityEvidence.where(user: user, provider: "codex").recent.first
+      @latest_codex_evidence ||= latest_displayable_codex_evidence(ProviderAvailabilityEvidence.where(user: user, provider: "codex"))
     end
 
     def latest_codex_positive_evidence
@@ -416,7 +424,11 @@ module App
     end
 
     def latest_codex_negative_evidence
-      @latest_codex_negative_evidence ||= ProviderAvailabilityEvidence.where(user: user, provider: "codex").negative.recent.first
+      @latest_codex_negative_evidence ||= latest_displayable_codex_evidence(ProviderAvailabilityEvidence.where(user: user, provider: "codex").negative)
+    end
+
+    def latest_displayable_codex_evidence(scope)
+      scope.recent.detect { |evidence| !false_positive_codex_evidence?(evidence) }
     end
 
     def retry_after_for_usage_signal(signal)

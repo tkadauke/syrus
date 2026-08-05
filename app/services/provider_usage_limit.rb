@@ -18,6 +18,8 @@ class ProviderUsageLimit
 
   INCONCLUSIVE_PATTERNS = [
     /failed to refresh available models/i,
+    /failed to refresh model metadata/i,
+    /stream disconnected before completion/i,
     /failed to decode models response/i,
     /unknown variant [`'"]?max[`'"]?/i,
     /model(?:s)? metadata decode/i,

@@ -28,6 +28,7 @@ module Admin
       wait_for_main_health
       wait_for_main_recovery
       wait_for_queue_resume
+      wait_for_resource_admission
       wait_for_start_block_to_clear
       retry_or_archive_before_workspace_prune
     ].freeze
@@ -138,6 +139,8 @@ module Admin
         dependency_detail(issue, job)
       when "landing_start_blocked"
         "Landing start blocked: #{issue.explanation} The reconciler can release the landing slot and let the queue retry after the recorded backoff."
+      when "resource_admission_start_block"
+        "Resource admission delayed: #{issue.explanation}"
       when "main_health_start_block"
         "Main health blocked: #{issue.explanation}"
       when "retryable_run_failure"

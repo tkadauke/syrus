@@ -207,6 +207,8 @@ class ProviderCircuitBreaker
       .where("observed_at >= ?", now - USAGE_LIMIT_WINDOW)
       .recent
       .detect do |evidence|
+        next false if false_positive_codex_evidence?(evidence)
+
         !ProviderAvailabilityEvidence.suppressed_by_positive_after?(
           user: evidence.user,
           provider: provider,
@@ -215,6 +217,13 @@ class ProviderCircuitBreaker
           observed_at: evidence.observed_at
         )
       end
+  end
+
+  def false_positive_codex_evidence?(evidence)
+    ProviderAvailabilityEvidence.false_positive_codex_usage_limit?(
+      evidence.details&.dig("message"),
+      model: evidence.model
+    )
   end
 
   def usage_limit_failed_runs

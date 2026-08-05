@@ -1035,6 +1035,27 @@ RSpec.describe WorkEngine::Reconciler do
     expect(plan(result, :wait_for_main_health).auto_executable).to eq(false)
   end
 
+  it "classifies workflow admission budget start blocks as resource admission, not main health" do
+    run.destroy!
+    workflow.update_columns(
+      state: "queued",
+      artifacts: {
+        "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
+        "start_blocked_next_check_at" => 3.minutes.from_now.iso8601,
+        "start_blocked_details" => { "reason" => "predicted_budget_pressure_high" }
+      }
+    )
+
+    result = reconcile(workflow_id: workflow.id)
+    issue = kind(result, :resource_admission_start_block)
+
+    expect(issue.severity).to eq("info")
+    expect(issue.safe_to_auto_repair).to eq(false)
+    expect(issue.recommended_repair_action).to eq("wait_for_resource_admission")
+    expect(kind(result, :main_health_start_block)).to be_nil
+    expect(plan(result, :wait_for_resource_admission).auto_executable).to eq(false)
+  end
+
   it "ignores stale main-health start blocks after repository health recovers" do
     run.destroy!
     job.repository.update!(ci_health: "healthy", grader_health: "healthy", landing_paused: false)

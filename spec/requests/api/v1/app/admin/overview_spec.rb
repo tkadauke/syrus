@@ -109,4 +109,36 @@ RSpec.describe "API: /api/v1/app/admin/overview", type: :request do
       "job_path" => "/jobs/#{job.id}"
     )
   end
+
+  it "does not show stale false Codex model-list decode failures as provider usage circuits" do
+    admin = Factories.user
+    job = Factories.job(user: admin, agent_provider: "codex")
+    run = job.initial_run
+    message = "failed to refresh available models: stream disconnected before completion: failed to decode models response: unknown variant `max`, expected none/minimal/low/medium/high/xhigh"
+    run.update_columns(
+      state: "failed",
+      agent_provider: "codex",
+      agent_outcome: "provider_usage_limit",
+      finished_at: 1.minute.ago
+    )
+    ProviderAvailabilityEvidence.create!(
+      user: admin,
+      run: run,
+      provider: "codex",
+      account_id: CodexAccountScope.for_user(admin),
+      model: "for",
+      status: "exhausted",
+      source: "codex_invocation_failure",
+      observed_at: 1.minute.ago,
+      details: { message: message }
+    )
+    allow(Admin::StuckItemsCache).to receive(:read).and_return(cached_stuck_snapshot([]))
+    sign_in_as(admin)
+
+    get api_v1_app_admin_overview_path
+
+    expect(response).to have_http_status(:ok)
+    reasons = parse_body.fetch("provider_circuits").map { |circuit| circuit["reason"] }
+    expect(reasons).not_to include("provider usage limit exhausted for model for")
+  end
 end

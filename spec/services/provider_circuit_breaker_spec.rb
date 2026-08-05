@@ -3,6 +3,9 @@ require "rails_helper"
 RSpec.describe ProviderCircuitBreaker do
   let(:user) { Factories.user }
   let(:now) { Time.zone.parse("2026-06-02 12:00:00 UTC") }
+  let(:codex_model_decode_failure) do
+    "failed to refresh available models: stream disconnected before completion: failed to decode models response: unknown variant `max`, expected none/minimal/low/medium/high/xhigh"
+  end
 
   def failed_agent_run(provider: "codex", job: nil, outcome: "provider_transient", message: "upstream 503 overloaded")
     job ||= Factories.job(repository: Factories.repository(user: user))
@@ -191,6 +194,35 @@ RSpec.describe ProviderCircuitBreaker do
 
     expect(decision).not_to be_open
     expect(decision).not_to be_usage_limit
+  end
+
+  it "does not open from stale exhausted evidence for Codex model-list decode failures" do
+    run = failed_agent_run(
+      outcome: "provider_usage_limit",
+      message: codex_model_decode_failure
+    )
+    ProviderAvailabilityEvidence.create!(
+      user: user,
+      run: run,
+      provider: "codex",
+      account_id: CodexAccountScope.for_user(user),
+      model: "for",
+      status: "exhausted",
+      source: "codex_invocation_failure",
+      observed_at: now - 1.minute,
+      details: {
+        run_id: run.id,
+        agent_outcome: "provider_usage_limit",
+        failure_classification: "provider_usage_limit",
+        message: codex_model_decode_failure
+      }
+    )
+
+    decision = described_class.call("codex", now: now)
+
+    expect(decision).not_to be_open
+    expect(decision).not_to be_usage_limit
+    expect(decision.reason).not_to eq("provider usage limit exhausted for model for")
   end
 
   it "lets later Codex success suppress bogus model-scoped usage evidence" do

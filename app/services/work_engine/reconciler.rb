@@ -675,12 +675,13 @@ module WorkEngine
 
         reason = workflow.artifact("start_blocked_reason")
         dependency_block = dependency_block_reason?(reason)
+        admission_block = reason.to_s == StepDispatcher::ADMISSION_BLOCK_REASON
         issue(
-          kind: dependency_block ? :dependency_stack_start_block : :main_health_start_block,
+          kind: start_block_issue_kind(dependency_block: dependency_block, admission_block: admission_block),
           severity: :info,
           affected_ids: ids_for(workflow),
           safe_to_auto_repair: false,
-          recommended_repair_action: dependency_block ? "wait_for_dependency_or_stack_readiness" : "wait_for_main_health",
+          recommended_repair_action: start_block_repair_action(dependency_block: dependency_block, admission_block: admission_block),
           check_after: parse_time(workflow.artifact("start_blocked_next_check_at")),
           evidence: workflow_evidence(workflow).merge(
             start_blocked_reason: reason,
@@ -689,6 +690,20 @@ module WorkEngine
           explanation: "Workflow ##{workflow.id} is intentionally blocked before start: #{reason}."
         )
       end
+    end
+
+    def start_block_issue_kind(dependency_block:, admission_block:)
+      return :dependency_stack_start_block if dependency_block
+      return :resource_admission_start_block if admission_block
+
+      :main_health_start_block
+    end
+
+    def start_block_repair_action(dependency_block:, admission_block:)
+      return "wait_for_dependency_or_stack_readiness" if dependency_block
+      return "wait_for_resource_admission" if admission_block
+
+      "wait_for_main_health"
     end
 
     def classify_main_broken_workflows

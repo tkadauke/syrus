@@ -607,6 +607,15 @@ module WorkEngine
         end
       end
 
+      class ResourceAdmissionStartBlock < Base
+        def plan
+          waiting_plan(
+            "wait_for_resource_admission",
+            "The workflow is intentionally delayed by resource admission control."
+          )
+        end
+      end
+
       class StaleDependencyStartBlock < Base
         def plan
           automatic_plan(

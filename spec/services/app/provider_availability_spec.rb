@@ -3,6 +3,9 @@ require "rails_helper"
 RSpec.describe App::ProviderAvailability do
   let(:now) { Time.zone.parse("2026-07-31 12:00:00 UTC") }
   let(:user) { Factories.user }
+  let(:codex_model_decode_failure) do
+    "failed to refresh available models: stream disconnected before completion: failed to decode models response: unknown variant `max`, expected none/minimal/low/medium/high/xhigh"
+  end
 
   before do
     Rails.cache.clear
@@ -166,6 +169,67 @@ RSpec.describe App::ProviderAvailability do
     status = described_class.for_user(user, "codex", now: now, cached: false)
 
     expect(status).to be_nil
+  end
+
+  it "does not show exhausted Codex availability for stale exhausted evidence from model-list decode failures" do
+    run = failed_run(
+      provider: "codex",
+      outcome: "provider_usage_limit",
+      message: codex_model_decode_failure
+    )
+    ProviderAvailabilityEvidence.create!(
+      user: user,
+      run: run,
+      provider: "codex",
+      account_id: CodexAccountScope.for_user(user),
+      model: "for",
+      status: "exhausted",
+      source: "codex_invocation_failure",
+      observed_at: now - 1.minute,
+      details: {
+        run_id: run.id,
+        agent_outcome: "provider_usage_limit",
+        failure_classification: "provider_usage_limit",
+        message: codex_model_decode_failure
+      }
+    )
+
+    status = described_class.for_user(user, "codex", now: now, cached: false)
+
+    expect(status).to be_nil
+  end
+
+  it "allows an otherwise admissible queued Codex workflow to create its first Run despite stale false evidence" do
+    job = Factories.job_record(
+      user: user,
+      repository: Factories.repository(user: user),
+      state: "open",
+      agent_provider: "codex"
+    )
+    workflow = Workflows::Initial.instantiate(job: job, agent_provider: "codex")
+    run = failed_run(
+      provider: "codex",
+      outcome: "provider_usage_limit",
+      message: codex_model_decode_failure
+    )
+    ProviderAvailabilityEvidence.create!(
+      user: user,
+      run: run,
+      provider: "codex",
+      account_id: CodexAccountScope.for_user(user),
+      model: "for",
+      status: "exhausted",
+      source: "codex_invocation_failure",
+      observed_at: now - 1.minute,
+      details: { message: codex_model_decode_failure }
+    )
+
+    created = StepDispatcher.start_workflow(workflow)
+
+    expect(created).to be_present
+    expect(created).to be_queued
+    expect(created.agent_provider).to eq("codex")
+    expect(workflow.reload.artifact("start_blocked_reason")).to be_nil
   end
 
   it "lets later Codex success suppress bogus model-scoped exhausted evidence" do
