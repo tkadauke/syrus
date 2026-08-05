@@ -6,6 +6,7 @@
   "page_title_users": "Users — Admin",
   "page_title_features": "Features — Admin",
   "page_title_performance": "Performance — Admin",
+  "page_title_operational_logs": "Operational Logs — Admin",
   "nav_overview": "Overview",
   "nav_queue": "Queue",
   "nav_stuck": "Stuck",
@@ -18,6 +19,7 @@
   "nav_settings": "Settings",
   "nav_features": "Features",
   "nav_performance": "Performance",
+  "nav_operational_logs": "Logs",
   "section_label": "Admin",
   "overview": {
     "heading": "Overview",
@@ -166,6 +168,10 @@
         "name": "Performance logging",
         "description": "Records structured slow request, SQL, and phase events to logs and a short-lived admin diagnostics buffer."
       },
+      "operational_log_indexing": {
+        "name": "Operational log indexing",
+        "description": "Indexes recent structured application logs so admins and Syrus agents can search operational incidents."
+      },
       "local_mode": {
         "name": "Local Mode",
         "description": "Enables the Local chat mode and the `syrus local` daemon command. The agent connects to a daemon running on the user's local machine via a reverse WebSocket tunnel to read/write files and run commands locally."
@@ -228,6 +234,43 @@
     "col_context": "Context",
     "aria": "Admin performance logs",
     "aria_summary": "Performance summary"
+  },
+  "operational_logs": {
+    "heading": "Operational Logs",
+    "loading": "Loading operational logs...",
+    "error_load": "Unable to load operational logs.",
+    "disabled": "Operational log indexing is disabled for this instance.",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing...",
+    "search": "Search",
+    "clear": "Clear",
+    "query": "Search",
+    "query_placeholder": "Message or context...",
+    "since": "Since",
+    "until": "Until",
+    "until_placeholder": "now",
+    "level": "Level",
+    "role": "Role",
+    "hostname": "Hostname",
+    "revision_scope": "Revision",
+    "revision_current": "Current SHA",
+    "revision_all": "All SHAs",
+    "all_revisions": "all revisions",
+    "per_page": "Per page",
+    "all_levels": "All levels",
+    "all_roles": "all roles",
+    "showing": "{{count}} rows on page {{page}}",
+    "retention": "{{hours}}h retention · {{revision}}",
+    "empty": "No operational logs match these filters.",
+    "previous": "Previous",
+    "next": "Next",
+    "page": "Page {{page}}",
+    "col_time": "Time",
+    "col_level": "Level",
+    "col_process": "Process",
+    "col_refs": "Refs",
+    "col_message": "Message",
+    "aria": "Admin operational logs"
   },
   "invitations": {
     "heading": "Invitations",

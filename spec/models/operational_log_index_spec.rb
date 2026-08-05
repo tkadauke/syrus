@@ -32,6 +32,23 @@ RSpec.describe OperationalLogIndex do
     expect(described_class.search(since: 3.hours.ago).map { |row| row[:operational_log_event_id] }).to eq([ newer.id, older.id ])
   end
 
+  it "filters by upper time bound, app revision, limit, and offset" do
+    old_revision = event(message: "old revision", occurred_at: 40.minutes.ago, app_revision: "old-sha")
+    older = event(message: "older current", occurred_at: 30.minutes.ago, app_revision: "current-sha")
+    newer = event(message: "newer current", occurred_at: 10.minutes.ago, app_revision: "current-sha")
+    [ old_revision, older, newer ].each { |record| described_class.upsert(record) }
+
+    results = described_class.search(
+      since: 1.hour.ago,
+      until_time: 5.minutes.ago,
+      app_revision: "current-sha",
+      limit: 1,
+      offset: 1
+    )
+
+    expect(results.map { |row| row[:operational_log_event_id] }).to eq([ older.id ])
+  end
+
   def event(**attrs)
     OperationalLogEvent.create!({
       occurred_at: Time.current,

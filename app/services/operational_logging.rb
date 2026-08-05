@@ -134,7 +134,11 @@ module OperationalLogging
 
   def ignored_request?(payload)
     path = payload[:path].to_s
-    path.start_with?("/api/v1/admin/performance", "/api/v1/app/admin/performance")
+    path.start_with?(
+      "/api/v1/admin/performance",
+      "/api/v1/app/admin/performance",
+      "/api/v1/app/admin/operational_logs"
+    )
   end
 
   def ignored_job?(job, payload)

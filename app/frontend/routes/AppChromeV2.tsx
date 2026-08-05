@@ -366,6 +366,7 @@ function AdminSubnav({ featureFlags, normalizedPath, prefix }: { featureFlags: R
     { label: t("admin:nav_queue"), to: "/admin/queue", paths: ["/admin/queue"] },
     { label: t("admin:nav_stuck"), to: "/admin/stuck", paths: ["/admin/stuck"] },
     { label: t("admin:nav_performance"), to: "/admin/performance", paths: ["/admin/performance"] },
+    { label: t("admin:nav_operational_logs"), to: "/admin/operational_logs", paths: ["/admin/operational_logs"] },
     { label: t("admin:nav_processes"), to: "/admin/processes", paths: ["/admin/processes"] },
     { label: t("admin:nav_users"), to: "/admin/users", paths: ["/admin/users"] },
     { label: t("admin:nav_console"), to: "/admin/console", paths: ["/admin/console"] },

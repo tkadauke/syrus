@@ -66,11 +66,15 @@ class OperationalLogIndex < SearchRecord
       )
     end
 
-    def search(query: nil, since: OperationalLogEvent::RETENTION.ago, level: nil, role: nil, hostname: nil, limit: 50)
+    def search(query: nil, since: OperationalLogEvent::RETENTION.ago, until_time: nil, level: nil, role: nil, hostname: nil, app_revision: nil, limit: 50, offset: 0)
       binds = []
       wheres = [ "occurred_at >= ?" ]
       binds << bind(since.iso8601(6))
 
+      if until_time.present?
+        wheres << "occurred_at <= ?"
+        binds << bind(until_time.iso8601(6))
+      end
       if query.present?
         wheres << "operational_log_fts MATCH ?"
         binds << bind(parse_fts_query(query))
@@ -87,8 +91,13 @@ class OperationalLogIndex < SearchRecord
         wheres << "hostname = ?"
         binds << bind(hostname)
       end
+      if app_revision.present?
+        wheres << "app_revision = ?"
+        binds << bind(app_revision)
+      end
 
       binds << bind([[limit.to_i, 1].max, MAX_LIMIT].min)
+      binds << bind([offset.to_i, 0].max)
       rows = connection.exec_query(
         <<~SQL.squish,
           SELECT
@@ -111,7 +120,7 @@ class OperationalLogIndex < SearchRecord
           FROM operational_log_fts
           WHERE #{wheres.join(" AND ")}
           ORDER BY occurred_at DESC, operational_log_event_id DESC
-          LIMIT ?
+          LIMIT ? OFFSET ?
         SQL
         "OperationalLogIndex Search",
         binds

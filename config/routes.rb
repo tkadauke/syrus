@@ -309,6 +309,7 @@ Rails.application.routes.draw do
           resources :invitations, only: %i[ index create destroy ]
           resources :features, only: %i[ index update ], param: :slug
           get "performance", to: "performance#show"
+          get "operational_logs", to: "operational_logs#index"
           get "settings", to: "settings#show"
           patch "settings", to: "settings#update"
           post "settings/clear_secret", to: "settings#clear_secret"
