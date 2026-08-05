@@ -238,8 +238,8 @@ function DeploymentStagePipeline({ stages }: { stages: JobDeploymentStage[] }) {
   const { t } = useT("jobs")
 
   return (
-    <div aria-label={t("deployment_stages_label")} className="mt-3 overflow-x-auto pb-1">
-      <ol className="flex min-w-max items-start" data-testid="deployment-stage-pipeline">
+    <div aria-label={t("deployment_stages_label")} className="mt-3 pb-1">
+      <ol className="flex w-full items-start" data-testid="deployment-stage-pipeline">
         {stages.map((stage, index) => {
           const reached = Boolean(stage.reached_at)
           const nextReached = Boolean(stages[index + 1]?.reached_at)
