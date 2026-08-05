@@ -94,6 +94,7 @@
     "title": "Titulus",
     "landing_queue_position": "Ordo",
     "landing_queue_blocked_reason": "Causa impedimenti",
+    "landing_queue_wait_reason": "Status ordinis",
     "latest": "Recentissimum",
     "deployment": "Deployatio",
     "workflows_count": "Numerus cursuum",

@@ -37,6 +37,7 @@ module App
           latest_workflow_state: App::Presentation.workflow_dashboard_state(job.latest_workflow_state, job.latest_workflow_trigger_kind),
           landing_queue_position: landing_queue_position_for(job),
           landing_queue_blocked_reason: landing_queue_blocked_reason_for(job),
+          landing_queue_wait_reason: landing_queue_wait_reason_for(job),
           landing_queue_entry_key: landing_queue_entry_key_for(job),
           blocked_reason: blocked_reason_for(job),
           start_blocked_reason: job_start_blocked_reason(job),

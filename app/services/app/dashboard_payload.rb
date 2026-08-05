@@ -55,6 +55,7 @@ module App
         "state" => "State",
         "landing_queue_position" => "Queue",
         "landing_queue_blocked_reason" => "Blocked reason",
+        "landing_queue_wait_reason" => "Queue status",
         "blocked_reason" => "Blocked reason",
         "repository" => "Repository",
         "owner" => "Owner",

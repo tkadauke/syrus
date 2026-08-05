@@ -575,9 +575,11 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(positions).to include(blocked.id => nil, eligible.id => 1)
       blocked_reasons = body.fetch("items").index_by { |item| item.fetch("id") }.transform_values { |item| item.fetch("landing_queue_blocked_reason") }
       expect(blocked_reasons).to include(eligible.id => nil, blocked.id => { "key" => "missing_pull_request" })
+      wait_reasons = body.fetch("items").index_by { |item| item.fetch("id") }.transform_values { |item| item.fetch("landing_queue_wait_reason") }
+      expect(wait_reasons).to include(eligible.id => nil, blocked.id => nil)
     end
 
-    it "includes landing_queue_blocked_reason in landing queue required columns" do
+    it "includes landing_queue_wait_reason in landing queue required columns" do
       repo.update!(auto_merge_enabled: true)
       folder = SmartFolder.create!(
         user: user,
@@ -591,7 +593,7 @@ RSpec.describe "App API dashboard commands", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(parse_body.dig("controls", "columns", "required")).to include(
-        { "key" => "landing_queue_blocked_reason", "title" => "Blocked reason" }
+        { "key" => "landing_queue_wait_reason", "title" => "Queue status" }
       )
     end
 

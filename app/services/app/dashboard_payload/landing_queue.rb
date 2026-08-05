@@ -51,13 +51,28 @@ module App
       def landing_queue_blocked_reason_for(job)
         return unless landing_queue_visible?
 
-        job.landing_queue_blocked_reason.presence || landing_queue_status_reason_for(job)
+        reason = job.landing_queue_blocked_reason.presence
+        return nil if normal_landing_queue_wait_reason?(reason)
+
+        reason || merge_train_start_blocked_reason_text_for(job) || landing_state_drift_reason_for(job)
+      end
+
+      def landing_queue_wait_reason_for(job)
+        return unless landing_queue_visible?
+
+        reason = job.landing_queue_blocked_reason.presence
+        return reason if normal_landing_queue_wait_reason?(reason)
+        return nil if merge_train_start_blocked_reason_for(job)
+
+        merge_train_wait_reason_for(job)
       end
 
       def blocked_reason_for(job)
         return unless blocked_folder_visible?
 
-        return job.landing_queue_blocked_reason if job.landing_queue_blocked_reason.present?
+        if job.landing_queue_blocked_reason.present? && !normal_landing_queue_wait_reason?(job.landing_queue_blocked_reason)
+          return job.landing_queue_blocked_reason
+        end
         return { key: "pr_not_mergeable" } if job.pr_mergeable == false
 
         dep = preloaded_blocked_deps_by_job_id[job.id]
@@ -97,17 +112,21 @@ module App
         end
       end
 
-      def landing_queue_status_reason_for(job)
-        merge_train_status_reason_for(job) || landing_state_drift_reason_for(job)
+      def normal_landing_queue_wait_reason?(reason)
+        return false unless reason.respond_to?(:to_h)
+
+        hash = reason.to_h
+        (hash["key"] || hash[:key]).to_s == "waiting_epic_merge_train"
       end
 
-      def merge_train_status_reason_for(job)
+      def merge_train_start_blocked_reason_text_for(job)
+        reason = merge_train_start_blocked_reason_for(job)
+        "Merge train queued: #{display_start_blocked_reason(reason)}" if reason
+      end
+
+      def merge_train_wait_reason_for(job)
         return unless AppSetting.merge_train_enabled?
         return unless job.epic_id.present?
-
-        if (reason = merge_train_start_blocked_reason_for(job))
-          return "Merge train queued: #{display_start_blocked_reason(reason)}"
-        end
 
         return "Merge train already active" if merge_train_active_for?(job)
 

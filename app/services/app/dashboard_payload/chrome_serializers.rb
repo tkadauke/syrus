@@ -237,7 +237,7 @@ module App
       end
 
       def required_columns_for(table)
-        return %w[checkbox landing_queue_position landing_queue_blocked_reason issue] if table == "jobs" && landing_queue_visible?
+        return %w[checkbox landing_queue_position landing_queue_wait_reason issue] if table == "jobs" && landing_queue_visible?
         return %w[checkbox blocked_reason issue] if table == "jobs" && blocked_folder_visible?
 
         User::DASHBOARD_REQUIRED_COLUMNS.fetch(table)

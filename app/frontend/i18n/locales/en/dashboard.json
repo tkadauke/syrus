@@ -94,6 +94,7 @@
     "title": "Title",
     "landing_queue_position": "Queue",
     "landing_queue_blocked_reason": "Blocked reason",
+    "landing_queue_wait_reason": "Queue status",
     "latest": "Latest",
     "deployment": "Deployment",
     "workflows_count": "Workflows count",

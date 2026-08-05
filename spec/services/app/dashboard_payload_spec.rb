@@ -296,7 +296,7 @@ RSpec.describe App::DashboardPayload do
       )
     end
 
-    it "falls back to a merge-train start blocker when a landing row has no per-job blocked reason" do
+    it "reports a merge-train start blocker as a blocked reason" do
       AppSetting.current.update!(merge_train_enabled: true)
       epic = Factories.epic(user: user, repository: repo, state: "in_progress")
       first = Factories.job_record(user: user, repository: repo, epic: epic, state: "landing", pr_number: 101)
@@ -315,7 +315,25 @@ RSpec.describe App::DashboardPayload do
       items = result[:items].index_by { |item| item[:id] }
 
       expect(items.fetch(first.id)[:landing_queue_blocked_reason]).to eq("Merge train queued: urgent job active")
+      expect(items.fetch(first.id)[:landing_queue_wait_reason]).to be_nil
       expect(items.fetch(tip.id)[:landing_queue_blocked_reason]).to eq("Merge train queued: urgent job active")
+      expect(items.fetch(tip.id)[:landing_queue_wait_reason]).to be_nil
+    end
+
+    it "reports ordinary Epic merge-train participation as neutral queue status" do
+      AppSetting.current.update!(merge_train_enabled: true)
+      repo.update!(auto_merge_enabled: true)
+      epic = Factories.epic(user: user, repository: repo, state: "in_progress")
+      child = Factories.job_record(user: user, repository: repo, epic: epic, state: "implemented", pr_number: 101)
+      child.approve!(via: "github_review")
+      LandingQueueProcessor.refresh_snapshot!(user.jobs)
+
+      result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
+      item = result[:items].find { |row| row[:id] == child.id }
+
+      expect(item[:landing_queue_blocked_reason]).to be_nil
+      expect(item[:landing_queue_wait_reason]).to eq({ "key" => "waiting_epic_merge_train" })
+      expect(child.reload.landing_queue_blocked_reason).to eq({ "key" => "waiting_epic_merge_train" })
     end
 
     it "sorts blocked Epic merge-train units by their landing queue entry position" do
@@ -352,6 +370,16 @@ RSpec.describe App::DashboardPayload do
       item = result[:items].find { |row| row[:id] == job.id }
 
       expect(item[:landing_queue_blocked_reason]).to eq("Landing state drift: no active workflow")
+      expect(item[:landing_queue_wait_reason]).to be_nil
+    end
+
+    it "shows required landing queue columns with neutral queue status copy" do
+      result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
+      required = result[:controls][:columns][:required]
+
+      expect(required.map { |column| column[:key] }).to include("landing_queue_wait_reason")
+      expect(required.find { |column| column[:key] == "landing_queue_wait_reason" }[:title]).to eq("Queue status")
+      expect(required.map { |column| column[:key] }).not_to include("landing_queue_blocked_reason")
     end
   end
 
@@ -397,6 +425,20 @@ RSpec.describe App::DashboardPayload do
 
       expect(required_keys).to include("blocked_reason")
       expect(required_keys).not_to include("landing_queue_position")
+    end
+
+    it "does not count ordinary Epic merge-train waits as blocked" do
+      AppSetting.current.update!(merge_train_enabled: true)
+      repo.update!(auto_merge_enabled: true)
+      epic = Factories.epic(user: user, repository: repo, state: "in_progress")
+      child = Factories.job_record(user: user, repository: repo, epic: epic, state: "implemented", pr_number: 101)
+      child.approve!(via: "github_review")
+      LandingQueueProcessor.refresh_snapshot!(user.jobs)
+
+      result = call(subject: "job", smart_folder_id: blocked_folder.id)
+
+      expect(result[:total]).to eq(0)
+      expect(result[:items]).to be_empty
     end
 
     it "reports pr_not_mergeable for jobs with pr_mergeable false" do

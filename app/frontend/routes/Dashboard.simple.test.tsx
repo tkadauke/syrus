@@ -92,6 +92,7 @@ function simpleDashboardPayload(): DashboardPayload {
         latest_workflow_state: "queued",
         landing_queue_position: null,
         landing_queue_blocked_reason: null,
+        landing_queue_wait_reason: null,
         landing_queue_entry_key: null,
         blocked_reason: null,
         created_at: null,

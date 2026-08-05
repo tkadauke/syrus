@@ -333,6 +333,7 @@ function LandingQueueBlockerCell({ job, column, attribution, prefix }: { job: La
   if (column === "checkbox") return <td className="px-4 py-3 align-top" />
   if (column === "landing_queue_position") return <td className="px-4 py-3" />
   if (column === "landing_queue_blocked_reason") return <td className="px-4 py-3" />
+  if (column === "landing_queue_wait_reason") return <td className="px-4 py-3" />
   if (column === "issue" || column === "title") {
     return (
       <td className="max-w-md px-4 py-3">
@@ -664,7 +665,10 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
     )
   }
   if (column === "landing_queue_blocked_reason") {
-    return <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{job.landing_queue_blocked_reason ? translateBlockedReason(job.landing_queue_blocked_reason, t) : "-"}</td>
+    return <LandingQueueStatusCell job={job} />
+  }
+  if (column === "landing_queue_wait_reason") {
+    return <LandingQueueStatusCell job={job} />
   }
   if (column === "blocked_reason") {
     return <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{job.blocked_reason ? translateBlockedReason(job.blocked_reason, t) : "-"}</td>
@@ -680,6 +684,31 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
   if (column === "commits_behind_base") return <td className="px-4 py-3"><CommitsBehindBadge count={job.commits_behind_base} /></td>
 
   return <TimestampCell value={jobDateValue(job, column)} />
+}
+
+function LandingQueueStatusCell({ job }: { job: DashboardJobItem }) {
+  const { t } = useT("dashboard")
+  if (job.landing_queue_blocked_reason) {
+    return (
+      <td className="px-4 py-3">
+        <span className="inline-flex rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 ring-1 ring-red-200 dark:bg-red-950/50 dark:text-red-200 dark:ring-red-800">
+          {translateBlockedReason(job.landing_queue_blocked_reason, t)}
+        </span>
+      </td>
+    )
+  }
+
+  if (job.landing_queue_wait_reason) {
+    return (
+      <td className="px-4 py-3">
+        <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700">
+          {translateBlockedReason(job.landing_queue_wait_reason, t)}
+        </span>
+      </td>
+    )
+  }
+
+  return <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">-</td>
 }
 
 export function CommitsBehindBadge({ count }: { count: number | null | undefined }) {

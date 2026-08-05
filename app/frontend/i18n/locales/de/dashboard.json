@@ -94,6 +94,7 @@
     "title": "Titel",
     "landing_queue_position": "Warteschlange",
     "landing_queue_blocked_reason": "Blockierungsgrund",
+    "landing_queue_wait_reason": "Wartestatus",
     "latest": "Neueste",
     "deployment": "Deployment",
     "workflows_count": "Anzahl Arbeitsabläufe",
