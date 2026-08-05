@@ -534,9 +534,13 @@ export type ChatPayload = {
 
 export type ChatSpeechToTextCapability = {
   enabled: boolean
+  backend?: {
+    configured: boolean
+    unavailable_reason?: string
+  }
   modes: {
-    backend_streaming: { available: boolean }
-    backend_batch: { available: boolean }
+    backend_streaming: { available: boolean; unavailable_reason?: string }
+    backend_batch: { available: boolean; unavailable_reason?: string }
     browser: { available: boolean }
   }
 }

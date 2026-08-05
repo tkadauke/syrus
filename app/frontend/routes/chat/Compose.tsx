@@ -23,6 +23,7 @@ import { useBugReportTrigger } from "../../lib/bugReportContext"
 import { chatTranscriptBugReportAttachment } from "../../lib/chatBugReportAttachments"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
+import { syrusShellBridge } from "../../lib/desktopShell"
 import { type ChatQueryKey, CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TOTAL_MAX_BYTES, CHAT_COMPOSE_MAX_ROWS, CHAT_DRAFT_KEY_PREFIX, GHOST_SUGGESTION_TAB_GRACE_MS } from "./constants"
 import { appendSearch, chatDisplayTitle, currentRecentChat, isDesktopChatViewport, isSupervisorChat, primaryButton, secondaryButton, numericArg, parsePixelValue, providerLabel, withRoutePrefix } from "./utils"
 import { ScratchpadPanel } from "./ScratchpadPanel"
@@ -1723,6 +1724,7 @@ function useChatDictation({
   const streamingSequenceRef = useRef(0)
   const stoppingRef = useRef(false)
   const fallbackAfterStopRef = useRef(false)
+  const discardOnStopRef = useRef(false)
 
   const browserRecognitionAvailable = () => Boolean(speechRecognitionConstructor())
   const available = capability.enabled && (
@@ -1738,12 +1740,19 @@ function useChatDictation({
   useEffect(() => () => cleanup(), [])
 
   function cleanup() {
-    recorderRef.current?.state === "recording" && recorderRef.current.stop()
+    if (recorderRef.current?.state === "recording") {
+      discardOnStopRef.current = true
+      recorderRef.current.stop()
+    }
     recorderRef.current = null
+    browserRecognitionRef.current?.stop()
+    browserRecognitionRef.current = null
     streamRef.current?.getTracks().forEach((track) => track.stop())
     streamRef.current = null
     subscriptionRef.current?.unsubscribe()
     subscriptionRef.current = null
+    chunksRef.current = []
+    startedAtRef.current = null
   }
 
   async function start() {
@@ -1876,6 +1885,7 @@ function useChatDictation({
   function startRecorder(mediaStream: MediaStream, options: { mode: "streaming" | "batch"; onChunk?: (chunk: Blob) => void }) {
     streamRef.current = mediaStream
     chunksRef.current = []
+    discardOnStopRef.current = false
     startedAtRef.current = Date.now()
     const recorder = new MediaRecorder(mediaStream, { mimeType: recorderMimeType() })
     recorderRef.current = recorder
@@ -1892,6 +1902,11 @@ function useChatDictation({
     recorder.onstop = () => {
       streamRef.current?.getTracks().forEach((track) => track.stop())
       streamRef.current = null
+      if (discardOnStopRef.current) {
+        chunksRef.current = []
+        discardOnStopRef.current = false
+        return
+      }
       if (options.mode === "streaming" && stoppingRef.current) {
         subscriptionRef.current?.perform("receive", { type: "stop" })
         setPhase("transcribing")
@@ -2060,7 +2075,8 @@ function recorderMimeType() {
     : "audio/ogg"
 }
 
-function requestAudioStream() {
+async function requestAudioStream() {
+  await syrusShellBridge()?.dictation?.prewarmMicrophone?.()
   return navigator.mediaDevices.getUserMedia({
     audio: {
       echoCancellation: true,

@@ -330,6 +330,10 @@ describe("chat composer dictation", () => {
     mockDesktopViewport()
   })
 
+  afterEach(() => {
+    delete window.syrusShell
+  })
+
   it("renders the microphone only when dictation is capability-enabled", async () => {
     mockChatRouteFetch(chatPayload())
     renderRoute()
@@ -362,6 +366,26 @@ describe("chat composer dictation", () => {
     await waitFor(() => {
       expect(fetchMock.mock.calls.some((call) => String(call[0]) === "/api/v1/app/chats/8/message" && (call[1] as RequestInit | undefined)?.method === "POST")).toBe(true)
     })
+  })
+
+  it("prewarms desktop microphone permission before backend recording", async () => {
+    installMediaRecorderMock()
+    const prewarmMicrophone = vi.fn(() => Promise.resolve({ granted: true }))
+    window.syrusShell = {
+      dictation: { prewarmMicrophone }
+    } as unknown as typeof window.syrusShell
+    mockAudioPermission()
+    mockDictationFetch(chatPayloadWithDictation({ batch: true }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
+
+    await waitFor(() => expect(prewarmMicrophone).toHaveBeenCalled())
+    expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalled()
+    const prewarmOrder = prewarmMicrophone.mock.invocationCallOrder[0]
+    const getUserMediaOrder = vi.mocked(navigator.mediaDevices.getUserMedia).mock.invocationCallOrder[0]
+    expect(prewarmOrder).toBeLessThan(getUserMediaOrder)
   })
 
   it("falls back from streaming failure to backend batch transcription", async () => {

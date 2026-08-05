@@ -110,12 +110,17 @@ export type SyrusAnnotationBridge = {
   onModeChanged(callback: (drawing: boolean) => void): () => void
 }
 
+export type SyrusDictationBridge = {
+  prewarmMicrophone(): Promise<{ granted: boolean }>
+}
+
 export type SyrusShellBridge = {
   getState(): Promise<SyrusShellState>
   onStateChanged(callback: (state: SyrusShellState) => void): () => void
   relaunchToUpdate(): void
   installSkill(): Promise<{ ok: boolean; message: string }>
   dismissSkillOffer(): void
+  dictation?: SyrusDictationBridge
   // Absent on older shells and in plain browsers — always feature-detect via
   // annotationBridge().
   annotation?: SyrusAnnotationBridge

@@ -13,6 +13,13 @@ module Api
           capability = ChatSpeechToText::Capability.for(user: Current.user)
           provider = capability.backend_provider
           unless capability.backend_batch_available? && provider
+            ChatSpeechToText::Telemetry.log(
+              "fallback",
+              chat_id: params[:chat_id].to_i,
+              requested_mode: "backend_batch",
+              fallback_mode: capability.browser_fallback_available? ? "browser" : "none",
+              reason: capability.as_json.dig(:modes, :backend_batch, :unavailable_reason)
+            )
             render_error("speech_to_text_backend_unavailable", "Backend batch transcription is not configured.", status: :unprocessable_content)
             return
           end
@@ -24,6 +31,15 @@ module Api
           end
           return unless validate_audio_file(file)
 
+          started_at = ChatSpeechToText::Telemetry.monotonic_time
+          ChatSpeechToText::Telemetry.log(
+            "mode_selected",
+            chat_id: params[:chat_id].to_i,
+            mode: "backend_batch",
+            provider: ChatSpeechToText::Telemetry.provider_name(provider),
+            content_type: normalized_content_type(file.content_type),
+            duration_seconds: duration_param
+          )
           result = provider.transcribe_batch(
             ChatSpeechToText::Providers::TranscriptionRequest.new(
               audio: file.tempfile,
@@ -40,7 +56,21 @@ module Api
               confidence: result.confidence
             }
           }
+          ChatSpeechToText::Telemetry.log(
+            "transcribed",
+            chat_id: params[:chat_id].to_i,
+            mode: "backend_batch",
+            provider: ChatSpeechToText::Telemetry.provider_name(provider),
+            duration_ms: ChatSpeechToText::Telemetry.duration_ms(started_at)
+          )
         rescue ChatSpeechToText::Providers::TranscriptionError => e
+          ChatSpeechToText::Telemetry.log(
+            "error",
+            chat_id: params[:chat_id].to_i,
+            mode: "backend_batch",
+            duration_ms: started_at ? ChatSpeechToText::Telemetry.duration_ms(started_at) : nil,
+            **ChatSpeechToText::Telemetry.safe_error(e)
+          )
           render_error("speech_to_text_transcription_failed", e.message.presence || "Backend transcription failed.", status: :bad_gateway)
         end
 
@@ -48,10 +78,23 @@ module Api
           chat = Current.user.chat_sessions.find(params[:chat_id])
           capability = ChatSpeechToText::Capability.for(user: Current.user)
           unless capability.backend_streaming_available?
+            ChatSpeechToText::Telemetry.log(
+              "fallback",
+              chat_id: chat.id,
+              requested_mode: "backend_streaming",
+              fallback_mode: capability.backend_batch_available? ? "backend_batch" : (capability.browser_fallback_available? ? "browser" : "none"),
+              reason: capability.as_json.dig(:modes, :backend_streaming, :unavailable_reason)
+            )
             render_error("speech_to_text_backend_unavailable", "Backend streaming transcription is not configured.", status: :unprocessable_content)
             return
           end
 
+          ChatSpeechToText::Telemetry.log(
+            "mode_selected",
+            chat_id: chat.id,
+            mode: "backend_streaming",
+            provider: ChatSpeechToText::Telemetry.provider_name(capability.backend_provider)
+          )
           render json: {
             stream: {
               transport: "action_cable",

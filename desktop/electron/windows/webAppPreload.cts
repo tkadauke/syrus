@@ -56,6 +56,10 @@ contextBridge.exposeInMainWorld("syrusShell", {
   dismissSkillOffer: () => {
     void ipcRenderer.invoke("shell:dismiss-skill-offer")
   },
+  dictation: {
+    prewarmMicrophone: () =>
+      ipcRenderer.invoke("dictation:prewarm-microphone") as Promise<{ granted: boolean }>
+  },
   // Red-pen screen annotation for the walkthrough recorder. Present only in
   // the desktop shell, so `available` (true here) is the web UI's STATIC
   // feature gate — a plain browser has no window.syrusShell.annotation at all

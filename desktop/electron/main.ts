@@ -24,7 +24,7 @@ import * as backendLifecycle from "./installer/backendLifecycle.js"
 import { readBackendManifest, uninstallScriptPath } from "./installer/installPaths.js"
 import { uninstallCommand } from "./installer/uninstallCommand.js"
 import { OnboardingDriver } from "./installer/installerDriver.js"
-import { registerMediaPermissionHandlers, registerScreenCaptureHandler } from "./screenCapture.js"
+import { prewarmMicrophonePermission, registerMediaPermissionHandlers, registerScreenCaptureHandler } from "./screenCapture.js"
 import { decideOnSecondInstance, takeoverPrompt, type InstanceIdentity } from "./instanceTakeover.js"
 import {
   bundlePathFromExecPath,
@@ -2867,6 +2867,14 @@ ipcMain.handle("annotation:disable", (event) => {
   }
 
   annotationController?.disable()
+})
+
+ipcMain.handle("dictation:prewarm-microphone", async (event) => {
+  if (!shellSenderAllowed(event, "dictation:prewarm-microphone")) {
+    return { granted: false }
+  }
+
+  return { granted: await prewarmMicrophonePermission() }
 })
 
 // The floating recording HUD bridge (webAppPreload.cts / window.syrusShell.

@@ -1395,9 +1395,13 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
     expect(parse_body["speech_to_text"]).to eq(
       "enabled" => false,
+      "backend" => {
+        "configured" => false,
+        "unavailable_reason" => "feature_disabled"
+      },
       "modes" => {
-        "backend_streaming" => { "available" => false },
-        "backend_batch" => { "available" => false },
+        "backend_streaming" => { "available" => false, "unavailable_reason" => "feature_disabled" },
+        "backend_batch" => { "available" => false, "unavailable_reason" => "feature_disabled" },
         "browser" => { "available" => false }
       }
     )
@@ -1415,9 +1419,13 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
     expect(parse_body["speech_to_text"]).to eq(
       "enabled" => true,
+      "backend" => {
+        "configured" => false,
+        "unavailable_reason" => "provider_unset"
+      },
       "modes" => {
-        "backend_streaming" => { "available" => false },
-        "backend_batch" => { "available" => false },
+        "backend_streaming" => { "available" => false, "unavailable_reason" => "provider_unset" },
+        "backend_batch" => { "available" => false, "unavailable_reason" => "provider_unset" },
         "browser" => { "available" => true }
       }
     )
@@ -1443,6 +1451,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       "backend_batch" => { "available" => true },
       "browser" => { "available" => true }
     )
+    expect(parse_body.dig("speech_to_text", "backend")).to eq("configured" => true)
     expect(response.body).not_to include("/opt/private/whisper-cli", "/models/private/ggml.bin")
   end
 

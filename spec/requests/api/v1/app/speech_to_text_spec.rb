@@ -113,6 +113,40 @@ RSpec.describe "API: /api/v1/app speech-to-text", type: :request do
     )
   end
 
+  it "logs mode and latency without transcript text or audio content" do
+    sign_in_as(user)
+    enable_speech_to_text!
+    result = ChatSpeechToText::Providers::TranscriptionResult.new(
+      text: "private dictated content",
+      segments: [],
+      provider: "test",
+      confidence: nil
+    )
+    allow(ChatSpeechToText::Providers).to receive(:configured).and_return(provider)
+    allow(provider).to receive(:transcribe_batch).and_return(result)
+    messages = []
+    allow(Rails.logger).to receive(:info) { |message| messages << message }
+    notifications = []
+    subscriber = ActiveSupport::Notifications.subscribe(/chat_speech_to_text/) do |event|
+      notifications << event
+    end
+
+    begin
+      post "/api/v1/app/chats/#{chat.id}/speech_to_text", params: {
+        file: upload_file(content: "raw audio bytes"),
+        duration_seconds: "3"
+      }
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+    end
+
+    expect(response).to have_http_status(:ok)
+    expect(messages.join("\n")).to include("chat_speech_to_text.mode_selected", "chat_speech_to_text.transcribed", "backend_batch", "duration_ms")
+    expect(messages.join("\n")).not_to include("private dictated content", "raw audio bytes")
+    expect(notifications.map(&:name)).to include("chat_speech_to_text.mode_selected", "chat_speech_to_text.transcribed")
+    expect(notifications.map(&:payload).to_json).not_to include("private dictated content", "raw audio bytes")
+  end
+
   it "returns a structured fallback-safe error when backend transcription fails" do
     sign_in_as(user)
     enable_speech_to_text!
@@ -125,6 +159,18 @@ RSpec.describe "API: /api/v1/app speech-to-text", type: :request do
     expect(parse_body.dig("error", "code")).to eq("speech_to_text_transcription_failed")
     expect(parse_body.dig("error", "message")).to eq("model unavailable")
     expect(ChatMessage.count).to eq(0)
+  end
+
+  it "logs backend fallback reasons without runtime config values" do
+    sign_in_as(user)
+    enable_speech_to_text!
+    messages = []
+    allow(Rails.logger).to receive(:info) { |message| messages << message }
+
+    post "/api/v1/app/chats/#{chat.id}/speech_to_text"
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(messages.join("\n")).to include("chat_speech_to_text.fallback", "provider_unset", "browser")
   end
 
   it "rejects a missing file" do

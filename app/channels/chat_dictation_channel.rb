@@ -12,6 +12,7 @@ class ChatDictationChannel < ApplicationCable::Channel
 
     @provider = @capability.backend_provider
     @sequence = 0
+    @started_at = nil
     start_timeout_thread
   end
 
@@ -51,10 +52,27 @@ class ChatDictationChannel < ApplicationCable::Channel
       language: data["language"].presence,
       prompt: data["prompt"].presence
     )
+    @started_at = ChatSpeechToText::Telemetry.monotonic_time
     @session.start(
       on_delta: ->(delta) { transmit_delta(delta) },
       on_error: ->(error) { transmit_failure("speech_to_text_stream_failed", error.message.presence || "Backend streaming transcription failed.") },
-      on_complete: ->(payload = {}) { transmit_event("done", payload) }
+      on_complete: ->(payload = {}) {
+        ChatSpeechToText::Telemetry.log(
+          "transcribed",
+          chat_id: @chat_session.id,
+          mode: "backend_streaming",
+          provider: ChatSpeechToText::Telemetry.provider_name(@provider),
+          duration_ms: @started_at ? ChatSpeechToText::Telemetry.duration_ms(@started_at) : nil
+        )
+        transmit_event("done", payload)
+      }
+    )
+    ChatSpeechToText::Telemetry.log(
+      "mode_selected",
+      chat_id: @chat_session.id,
+      mode: "backend_streaming",
+      provider: ChatSpeechToText::Telemetry.provider_name(@provider),
+      content_type: content_type
     )
     transmit_event("started", {
       session_id: @session.id,
@@ -62,6 +80,12 @@ class ChatDictationChannel < ApplicationCable::Channel
       fallback: fallback_payload
     })
   rescue ChatSpeechToText::Providers::TranscriptionError => e
+    ChatSpeechToText::Telemetry.log(
+      "error",
+      chat_id: @chat_session.id,
+      mode: "backend_streaming",
+      **ChatSpeechToText::Telemetry.safe_error(e)
+    )
     transmit_failure("speech_to_text_stream_failed", e.message)
   end
 
@@ -99,6 +123,13 @@ class ChatDictationChannel < ApplicationCable::Channel
   end
 
   def transmit_failure(code, message)
+    ChatSpeechToText::Telemetry.log(
+      "fallback",
+      chat_id: @chat_session.id,
+      requested_mode: "backend_streaming",
+      fallback_mode: "backend_batch",
+      reason: code
+    )
     transmit_event("error", {
       code: code,
       message: message,

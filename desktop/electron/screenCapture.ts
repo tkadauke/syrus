@@ -23,6 +23,16 @@ export const registerMediaPermissionHandlers = () => {
   activeSession.setPermissionCheckHandler(() => true)
 }
 
+export const prewarmMicrophonePermission = async (): Promise<boolean> => {
+  if (process.platform !== "darwin") return true
+
+  try {
+    return await systemPreferences.askForMediaAccess("microphone")
+  } catch {
+    return false
+  }
+}
+
 // The screen the user is actively working on (the cursor's display), so a
 // multi-monitor walkthrough records the monitor they're demonstrating on;
 // fall back to the first source if the match can't be resolved.
@@ -43,13 +53,7 @@ export const registerScreenCaptureHandler = () => {
       // Pre-warm the microphone TCC prompt HERE (recording is starting), so the
       // renderer's getUserMedia(audio) fired right after captures real narration
       // instead of a silent track. Best-effort + macOS-only.
-      if (process.platform === "darwin") {
-        try {
-          await systemPreferences.askForMediaAccess("microphone")
-        } catch {
-          // permission dance failed — record without narration rather than abort
-        }
-      }
+      await prewarmMicrophonePermission()
 
       try {
         const sources = await desktopCapturer.getSources({ types: ["screen"] })
