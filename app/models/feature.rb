@@ -34,6 +34,10 @@ class Feature < ApplicationRecord
     enabled?(:video_walkthroughs)
   end
 
+  def self.chat_speech_to_text_enabled?
+    enabled?(:chat_speech_to_text)
+  end
+
   def self.coding_mode_enabled?
     return false if AppSetting.simple?
 

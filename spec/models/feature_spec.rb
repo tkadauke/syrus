@@ -77,6 +77,19 @@ RSpec.describe Feature, type: :model do
     end
   end
 
+  describe ".chat_speech_to_text_enabled?" do
+    it "is false when the row is absent and follows the row when present" do
+      Feature.where(slug: "chat_speech_to_text").delete_all
+      expect(Feature.chat_speech_to_text_enabled?).to eq(false)
+
+      feature = Feature.create!(slug: "chat_speech_to_text", category: "Labs", name: "Chat speech-to-text", enabled: true)
+      expect(Feature.chat_speech_to_text_enabled?).to eq(true)
+
+      feature.update!(enabled: false)
+      expect(Feature.chat_speech_to_text_enabled?).to eq(false)
+    end
+  end
+
   describe ".coding_mode_enabled?" do
     it "returns the flag value in advanced mode" do
       Feature.create!(slug: "coding_mode", category: "Labs", name: "Coding Mode", enabled: true)
@@ -115,6 +128,12 @@ RSpec.describe Feature, type: :model do
     it "declares the video_walkthroughs labs flag default-off in config/features.yml" do
       declaration = YAML.load_file(Rails.root.join("config/features.yml")).fetch("features")
                         .find { |f| f["slug"] == "video_walkthroughs" }
+      expect(declaration).to include("category" => "Labs", "default" => false)
+    end
+
+    it "declares the chat_speech_to_text labs flag default-off in config/features.yml" do
+      declaration = YAML.load_file(Rails.root.join("config/features.yml")).fetch("features")
+                        .find { |f| f["slug"] == "chat_speech_to_text" }
       expect(declaration).to include("category" => "Labs", "default" => false)
     end
 

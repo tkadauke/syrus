@@ -1381,8 +1381,69 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(body.dig("paths", "app_attachments_path")).to eq("/api/v1/app/chats/#{chat.id}/attachments")
     expect(body.dig("paths", "app_whiteboard_path")).to eq("/api/v1/app/chats/#{chat.id}/whiteboard")
     expect(body.dig("paths", "app_scratchpad_reorder_path")).to eq("/api/v1/app/chats/#{chat.id}/scratchpad_items/reorder")
+    expect(body.dig("paths", "app_speech_to_text_batch_path")).to eq("/api/v1/app/chats/#{chat.id}/speech_to_text")
+    expect(body.dig("paths", "app_speech_to_text_stream_path")).to eq("/api/v1/app/chats/#{chat.id}/speech_to_text/stream")
     expect(body["queued_messages"]).to eq([])
     expect(body["paths"].keys).not_to include("chat_messages_path", "chat_attachments_path", "chat_whiteboard_path")
+  end
+
+  it "reports speech-to-text disabled by default" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(parse_body["speech_to_text"]).to eq(
+      "enabled" => false,
+      "modes" => {
+        "backend_streaming" => { "available" => false },
+        "backend_batch" => { "available" => false },
+        "browser" => { "available" => false }
+      }
+    )
+  end
+
+  it "reports browser speech-to-text fallback when the labs flag is on without backend config" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user)
+    Feature.find_or_create_by!(slug: "chat_speech_to_text") do |feature|
+      feature.category = "Labs"
+      feature.name = "Chat speech-to-text"
+    end.update!(enabled: true)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(parse_body["speech_to_text"]).to eq(
+      "enabled" => true,
+      "modes" => {
+        "backend_streaming" => { "available" => false },
+        "backend_batch" => { "available" => false },
+        "browser" => { "available" => true }
+      }
+    )
+  end
+
+  it "reports backend speech-to-text modes without leaking runtime config values" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user)
+    Feature.find_or_create_by!(slug: "chat_speech_to_text") do |feature|
+      feature.category = "Labs"
+      feature.name = "Chat speech-to-text"
+    end.update!(enabled: true)
+    allow(ENV).to receive(:[]).and_call_original
+    allow(ENV).to receive(:[]).with("SYRUS_STT_PROVIDER").and_return("whisper_cpp")
+    allow(ENV).to receive(:[]).with("SYRUS_STT_WHISPER_CPP_EXECUTABLE").and_return("/opt/private/whisper-cli")
+    allow(ENV).to receive(:[]).with("SYRUS_STT_WHISPER_CPP_MODEL").and_return("/models/private/ggml.bin")
+    allow(ENV).to receive(:[]).with("SYRUS_STT_BACKEND_STREAMING").and_return("true")
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(parse_body.dig("speech_to_text", "modes")).to eq(
+      "backend_streaming" => { "available" => true },
+      "backend_batch" => { "available" => true },
+      "browser" => { "available" => true }
+    )
+    expect(response.body).not_to include("/opt/private/whisper-cli", "/models/private/ggml.bin")
   end
 
   it "includes walkthrough videos in the payload for the media panel" do

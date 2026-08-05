@@ -20,6 +20,13 @@ features:
     description: "Record or drag a narrated screen recording into a chat; Gemini analyzes it and the chat agent works it toward an Epic. Requires a Gemini API key."
     description_i18n_key: "features.slugs.video_walkthroughs.description"
     default: false
+  - slug: chat_speech_to_text
+    category: "Labs"
+    name: "Chat speech-to-text"
+    name_i18n_key: "features.slugs.chat_speech_to_text.name"
+    description: "Enables microphone dictation in Syrus Chat with capability-based backend transcription and browser fallback."
+    description_i18n_key: "features.slugs.chat_speech_to_text.description"
+    default: false
   - slug: coding_mode
     category: "Labs"
     name: "Coding Mode"

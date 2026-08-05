@@ -34,6 +34,9 @@ module ChatSerialization
       end
       whiteboard = chat_session.whiteboard
       whiteboard_scene = PerformanceLogging.phase("chat_payload.whiteboard", chat_id: chat_session.id) { whiteboard ? whiteboard.current_state : Whiteboard.default_state }
+      speech_to_text = PerformanceLogging.phase("chat_payload.speech_to_text", chat_id: chat_session.id) do
+        ChatSpeechToText::Capability.for(user: Current.user).as_json
+      end
 
       {
         message: message,
@@ -81,6 +84,8 @@ module ChatSerialization
           app_whiteboard_path: "/api/v1/app/chats/#{chat_session.id}/whiteboard",
           app_scratchpad_reorder_path: "/api/v1/app/chats/#{chat_session.id}/scratchpad_items/reorder",
           app_video_walkthroughs_path: "/api/v1/app/chats/#{chat_session.id}/video_walkthroughs",
+          app_speech_to_text_batch_path: "/api/v1/app/chats/#{chat_session.id}/speech_to_text",
+          app_speech_to_text_stream_path: "/api/v1/app/chats/#{chat_session.id}/speech_to_text/stream",
           app_cancel_coding_checkout_path: "/api/v1/app/chats/#{chat_session.id}/coding_checkout",
           app_coding_files_path: "/api/v1/app/chats/#{chat_session.id}/coding_files",
           app_coding_commits_path: "/api/v1/app/chats/#{chat_session.id}/coding_commits",
@@ -88,6 +93,7 @@ module ChatSerialization
           app_coding_diff_path: "/api/v1/app/chats/#{chat_session.id}/coding_diff"
         },
         gemini_configured: Current.user.gemini_configured?,
+        speech_to_text: speech_to_text,
         # Labs flag: gates the composer's record/drag/upload intake. The
         # video_walkthroughs media list stays in the payload regardless so
         # already-analyzed threads keep their history when the flag is off.
