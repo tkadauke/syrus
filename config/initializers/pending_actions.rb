@@ -49,6 +49,9 @@ Rails.application.config.to_prepare do
     "pending_actions/mark_ci_repair_noop",
     "pending_actions/override_landing_blocker_once",
     "pending_actions/wake_landing_queue",
-    "pending_actions/schedule_recurring",
+    "pending_actions/repair_provider_circuit_evidence",
+    "pending_actions/clear_provider_circuit",
+    "pending_actions/wake_provider_admission",
+    "pending_actions/schedule_recurring"
   ].each { |path| require_dependency path }
 end

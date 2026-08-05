@@ -31,6 +31,10 @@ export type AdminOverviewPayload = {
     failure_count: number
     job_count: number
     signature: string | null
+    decision?: Record<string, unknown>
+    runs?: Array<Record<string, unknown>>
+    evidence_records?: Array<Record<string, unknown>>
+    consumers?: Record<string, unknown>
   }>
   agent_session_capture_rate: {
     total: number

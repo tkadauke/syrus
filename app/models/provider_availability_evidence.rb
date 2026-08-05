@@ -1,4 +1,6 @@
 class ProviderAvailabilityEvidence < ApplicationRecord
+  CIRCUIT_REPAIR_STATUSES = %w[false_positive inconclusive transient].freeze
+
   STATUSES = %w[
     available
     exhausted
@@ -17,17 +19,20 @@ class ProviderAvailabilityEvidence < ApplicationRecord
   belongs_to :run, optional: true
   belongs_to :chat_session, optional: true
   belongs_to :chat_message, optional: true
+  belongs_to :repaired_by_user, class_name: "User", optional: true
 
   validates :provider, presence: true
   validates :status, presence: true, inclusion: { in: STATUSES }
   validates :source, presence: true
   validates :observed_at, presence: true
+  validates :repair_status, inclusion: { in: CIRCUIT_REPAIR_STATUSES }, allow_nil: true
 
   normalizes :provider, :account_id, :model, :status, :source, with: ->(value) { value.to_s.strip.presence }
 
   scope :recent, -> { order(observed_at: :desc, id: :desc) }
   scope :positive, -> { where(status: POSITIVE_STATUSES) }
   scope :negative, -> { where(status: NEGATIVE_STATUSES) }
+  scope :unrepaired_for_circuit, -> { where(repair_status: nil) }
   scope :for_scope, ->(user:, provider:, account_id: nil, model: nil) {
     scope = where(user: user, provider: provider.to_s)
     scope = account_id.present? ? scope.where(account_id: [ account_id.to_s, nil ]) : scope
@@ -152,12 +157,35 @@ class ProviderAvailabilityEvidence < ApplicationRecord
       chat_session_id: chat_session_id,
       chat_message_id: chat_message_id,
       http_status: http_status,
-      details: details
+      details: details,
+      repair: repair_summary
     }.compact
   end
 
   def positive? = POSITIVE_STATUSES.include?(status)
   def negative? = NEGATIVE_STATUSES.include?(status)
+  def repaired_for_circuit? = repair_status.present?
+
+  def mark_circuit_repair!(status:, reason:, user:)
+    update!(
+      repair_status: status.to_s,
+      repair_reason: reason.to_s,
+      repaired_at: Time.current,
+      repaired_by_user: user
+    )
+    App::ProviderAvailability.clear_cache!(user: self.user, provider: provider)
+  end
+
+  def repair_summary
+    return unless repaired_for_circuit?
+
+    {
+      status: repair_status,
+      reason: repair_reason,
+      repaired_at: repaired_at&.iso8601,
+      repaired_by_user_id: repaired_by_user_id
+    }.compact
+  end
 
   def self.evidence_status_for_probe(status)
     case status.to_s

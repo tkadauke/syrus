@@ -45,6 +45,9 @@ class ChatPendingAction < ApplicationRecord
     mark_ci_repair_noop
     override_landing_blocker_once
     wake_landing_queue
+    repair_provider_circuit_evidence
+    clear_provider_circuit
+    wake_provider_admission
   ].freeze
   ACTION_TYPES = %w[ schedule_recurring ].freeze
   EMPTY_PAYLOAD_ACTIONS = %w[

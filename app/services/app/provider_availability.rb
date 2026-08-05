@@ -240,6 +240,8 @@ module App
       end
 
       usage_limit_failed_runs.filter_map do |run|
+        next if run.run_failure_classification&.repaired_for_circuit?
+
         text = diagnostic_text(run)
         next unless usage_limit?(run, text)
         retry_after = ProviderQuotaReset.retry_after_for_run(run, now: now)
@@ -268,6 +270,7 @@ module App
 
       ProviderAvailabilityEvidence
         .where(user: user, provider: provider, status: "exhausted")
+        .unrepaired_for_circuit
         .where("observed_at >= ?", now - ProviderCircuitBreaker::USAGE_LIMIT_WINDOW)
         .recent
         .detect do |evidence|
@@ -291,6 +294,7 @@ module App
     def latest_provider_run_signal
       run = latest_terminal_provider_run
       return unless run&.failed?
+      return if run.run_failure_classification&.repaired_for_circuit?
 
       text = diagnostic_text(run)
       return unless rate_limited?(run, text)
@@ -317,6 +321,7 @@ module App
     end
 
     def usage_limit?(run, text)
+      return false if run.run_failure_classification&.repaired_for_circuit?
       return false if ProviderUsageLimit.inconclusive?(text)
       return true if run.agent_outcome.to_s == ProviderUsageLimit::OUTCOME
       return false unless ProviderUsageLimit.run_can_exhaust_provider?(run)
@@ -397,7 +402,8 @@ module App
         details: {
           agent_outcome: signal.run.agent_outcome,
           failure_classification: signal.run.run_failure_classification&.classification
-        }.compact
+        }.compact,
+        repair: signal.run.run_failure_classification&.repair_summary
       }.compact
     end
 

@@ -1208,6 +1208,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_05_170000) do
     t.string "model", limit: 100
     t.datetime "observed_at", null: false
     t.string "provider", limit: 32, null: false
+    t.text "repair_reason"
+    t.string "repair_status", limit: 32
+    t.datetime "repaired_at"
+    t.integer "repaired_by_user_id"
     t.integer "run_id"
     t.string "source", limit: 64, null: false
     t.string "status", limit: 64, null: false
@@ -1216,6 +1220,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_05_170000) do
     t.index ["chat_message_id"], name: "index_provider_availability_evidences_on_chat_message_id"
     t.index ["chat_session_id"], name: "index_provider_availability_evidences_on_chat_session_id"
     t.index ["provider", "status", "observed_at"], name: "idx_provider_evidence_status_observed"
+    t.index ["provider", "status", "repair_status", "observed_at"], name: "idx_provider_evidence_circuit_repair"
+    t.index ["repaired_by_user_id"], name: "index_provider_availability_evidences_on_repaired_by_user_id"
     t.index ["run_id"], name: "index_provider_availability_evidences_on_run_id"
     t.index ["user_id", "provider", "account_id", "model", "observed_at"], name: "idx_provider_evidence_scope_observed"
     t.index ["user_id"], name: "index_provider_availability_evidences_on_user_id"
@@ -1321,11 +1327,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_05_170000) do
     t.datetime "created_at", null: false
     t.text "diagnostic_summary"
     t.text "reason"
+    t.text "repair_reason"
+    t.string "repair_status", limit: 32
+    t.datetime "repaired_at"
+    t.integer "repaired_by_user_id"
     t.boolean "retryable", null: false
     t.integer "run_id", null: false
     t.datetime "updated_at", null: false
+    t.index ["classification", "repair_status", "classified_at"], name: "idx_run_failure_circuit_repair"
     t.index ["classification"], name: "index_run_failure_classifications_on_classification"
     t.index ["classified_at"], name: "index_run_failure_classifications_on_classified_at"
+    t.index ["repaired_by_user_id"], name: "index_run_failure_classifications_on_repaired_by_user_id"
     t.index ["retryable"], name: "index_run_failure_classifications_on_retryable"
     t.index ["run_id"], name: "index_run_failure_classifications_on_run_id", unique: true
   end
@@ -2002,6 +2014,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_05_170000) do
   add_foreign_key "provider_availability_evidences", "chat_sessions"
   add_foreign_key "provider_availability_evidences", "runs"
   add_foreign_key "provider_availability_evidences", "users"
+  add_foreign_key "provider_availability_evidences", "users", column: "repaired_by_user_id"
   add_foreign_key "repositories", "installations"
   add_foreign_key "repositories", "repositories", column: "upstream_repository_id"
   add_foreign_key "repositories", "users"
@@ -2012,6 +2025,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_05_170000) do
   add_foreign_key "repository_memberships", "users"
   add_foreign_key "run_diagnostics", "runs"
   add_foreign_key "run_failure_classifications", "runs"
+  add_foreign_key "run_failure_classifications", "users", column: "repaired_by_user_id"
   add_foreign_key "run_health_snapshots", "runs"
   add_foreign_key "run_resource_summaries", "jobs"
   add_foreign_key "run_resource_summaries", "repositories"

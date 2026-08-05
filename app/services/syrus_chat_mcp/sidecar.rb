@@ -90,7 +90,11 @@ module SyrusChatMcp
       RerunCiRepairTool,
       MarkCiRepairNoopTool,
       OverrideLandingBlockerOnceTool,
-      WakeLandingQueueTool
+      WakeLandingQueueTool,
+      InspectProviderCircuitTool,
+      RepairProviderCircuitEvidenceTool,
+      ClearProviderCircuitTool,
+      WakeProviderAdmissionTool
     ].freeze
 
     # Gated by the `video_walkthroughs` labs Feature (see tools_for_session).

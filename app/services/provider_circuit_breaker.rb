@@ -146,6 +146,9 @@ class ProviderCircuitBreaker
 
   def failure_signals
     recent_failed_runs.filter_map do |run|
+      next if run.run_failure_classification&.repaired_for_circuit?
+      next if positive_provider_evidence_after?(run)
+
       signal = FailureSignal.new(run: run, signature: signature_for(run), retryable: retryable?(run))
       signal if signal.retryable
     end
@@ -171,6 +174,8 @@ class ProviderCircuitBreaker
     end
 
     usage_limit_failed_runs.filter_map do |run|
+      next if run.run_failure_classification&.repaired_for_circuit?
+
       text = diagnostic_text(run)
       next unless usage_limit?(run, text)
       retry_after = ProviderQuotaReset.retry_after_for_run(run, now: now)
@@ -198,6 +203,7 @@ class ProviderCircuitBreaker
 
     ProviderAvailabilityEvidence
       .where(provider: provider, status: "exhausted")
+      .unrepaired_for_circuit
       .where("observed_at >= ?", now - USAGE_LIMIT_WINDOW)
       .recent
       .detect do |evidence|
@@ -220,6 +226,7 @@ class ProviderCircuitBreaker
   end
 
   def usage_limit?(run, text)
+    return false if run.run_failure_classification&.repaired_for_circuit?
     return false if ProviderUsageLimit.inconclusive?(text)
     return true if run.agent_outcome.to_s == ProviderUsageLimit::OUTCOME
     return false unless ProviderUsageLimit.run_can_exhaust_provider?(run)
@@ -231,6 +238,9 @@ class ProviderCircuitBreaker
   end
 
   def retryable?(run)
+    return false if run.run_failure_classification&.repaired_for_circuit?
+    return false if positive_provider_evidence_after?(run)
+
     return true if RETRYABLE_OUTCOMES.include?(run.agent_outcome.to_s)
     return true if run.run_failure_classification&.classification == "provider_transient"
     if run.run_failure_classification&.classification == "rate_limited"
@@ -285,6 +295,17 @@ class ProviderCircuitBreaker
     run.job_logs.order(sequence: :desc).limit(5).pluck(:chunk).join(" ")
   end
 
+  def positive_provider_evidence_after?(run)
+    observed_at = run.finished_at || run.updated_at
+    return false unless observed_at
+
+    ProviderAvailabilityEvidence
+      .where(provider: provider)
+      .positive
+      .where("observed_at > ?", observed_at)
+      .exists?
+  end
+
   def include_logs?
     @include_logs
   end
@@ -307,6 +328,8 @@ class ProviderCircuitBreaker
       account_id: CodexAccountScope.for_user(signal.run.user),
       model: signal.model,
       run_id: signal.run.id
-    }.compact
+    }.tap do |payload|
+      payload[:repair] = signal.run.run_failure_classification&.repair_summary
+    end.compact
   end
 end

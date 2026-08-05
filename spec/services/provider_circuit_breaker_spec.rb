@@ -86,6 +86,53 @@ RSpec.describe ProviderCircuitBreaker do
     expect(decision.retry_after).to be_within(1.second).of(now + 23.hours + 59.minutes)
   end
 
+  it "excludes operator-repaired usage-limit classifications from circuit decisions" do
+    run = failed_agent_run(
+      outcome: "provider_usage_limit",
+      message: "Codex API error: model gpt-5.5 weekly usage limit exhausted"
+    )
+    classification = run.create_run_failure_classification!(
+      classification: "provider_usage_limit",
+      confidence: 0.95,
+      retryable: false,
+      reason: "usage exhausted",
+      classified_at: now
+    )
+
+    expect(described_class.call("codex", now: now)).to be_open
+
+    classification.mark_circuit_repair!(
+      status: "false_positive",
+      reason: "Codex model-list decode failure was misclassified as quota.",
+      user: Factories.user(admin: true)
+    )
+
+    decision = described_class.call("codex", now: now)
+
+    expect(decision).not_to be_open
+    expect(decision).not_to be_usage_limit
+  end
+
+  it "excludes operator-repaired provider availability evidence from usage-limit decisions" do
+    run = failed_agent_run(outcome: "turn_failed", message: "invoking agent for direct job failed")
+    evidence = ProviderAvailabilityEvidence.record_codex_invocation_failure!(
+      run: run,
+      model: "gpt-5.5",
+      message: "provider usage limit exhausted for model gpt-5.5",
+      observed_at: now - 1.minute
+    )
+
+    expect(described_class.call("codex", now: now)).to be_open
+
+    evidence.mark_circuit_repair!(
+      status: "false_positive",
+      reason: "Failure came from a bad model-list decode response.",
+      user: Factories.user(admin: true)
+    )
+
+    expect(described_class.call("codex", now: now)).not_to be_open
+  end
+
   it "closes Codex usage-limit circuit when newer matching success evidence exists" do
     run = failed_agent_run(
       outcome: "provider_usage_limit",
@@ -109,6 +156,22 @@ RSpec.describe ProviderCircuitBreaker do
 
     expect(decision).not_to be_open
     expect(decision).not_to be_usage_limit
+  end
+
+  it "closes transient circuits when newer positive provider evidence exists" do
+    5.times do |index|
+      failed_agent_run(job: Factories.job(repository: Factories.repository(user: user), issue_number: index + 1))
+    end
+
+    expect(described_class.call("codex", now: now)).to be_open
+
+    ProviderAvailabilityEvidence.record_codex_success!(
+      user: user,
+      source: "operator_circuit_repair",
+      observed_at: now
+    )
+
+    expect(described_class.call("codex", now: now)).not_to be_open
   end
 
   it "suppresses stale Codex usage-limit runs with inconclusive model metadata decode errors" do

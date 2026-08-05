@@ -48,7 +48,11 @@ RSpec.describe "SyrusChatMcp admin tools" do
     "rerun_ci_repair" => { job_id: 1, reason: "Rerun stale CI repair." },
     "mark_ci_repair_noop" => { job_id: 1, workflow_id: 1, reason: "No branch or check progress." },
     "override_landing_blocker_once" => { job_id: 1, blocker_key: "active_workflow", reason: "Verified blocker is stale." },
-    "wake_landing_queue" => { reason: "Repair completed." }
+    "wake_landing_queue" => { reason: "Repair completed." },
+    "inspect_provider_circuit" => { provider: "codex" },
+    "repair_provider_circuit_evidence" => { evidence_type: "run_failure_classification", evidence_id: 1, repair_status: "false_positive", reason: "Bad evidence." },
+    "clear_provider_circuit" => { provider: "codex", user_id: 1, positive_evidence: "Newer Codex run succeeded.", reason: "Circuit is stale." },
+    "wake_provider_admission" => { provider: "codex", reason: "Evidence repaired." }
   }.freeze
 
   def server_for(chat_session)
@@ -95,6 +99,13 @@ RSpec.describe "SyrusChatMcp admin tools" do
     workflow = Factories.job(user: admin, repository: repository).initial_run.step.workflow
     workflow.job.update_columns(state: "approved", pr_number: 99, auto_merge_enabled: true, approved_at: 1.minute.ago)
     workflow.job.update_columns(branch_name: "syrus/direct-#{workflow.job.id}")
+    provider_classification = workflow.runs.first.create_run_failure_classification!(
+      classification: "provider_usage_limit",
+      confidence: 0.95,
+      retryable: false,
+      reason: "bad provider-circuit evidence",
+      classified_at: Time.current
+    )
     epic = Factories.epic(user: admin, repository: repository)
     Factories.job_record(user: admin, repository: repository, epic: epic, state: "approved", branch_name: "syrus/epic-#{epic.id}-child", pr_number: 77)
 
@@ -121,7 +132,10 @@ RSpec.describe "SyrusChatMcp admin tools" do
       "force_landing_recheck" => [ { job_id: workflow.job.id, reason: "Refresh stale landing metadata." }, { "job_id" => workflow.job.id } ],
       "manual_agentic_run" => [ { job_id: workflow.job.id, base: "current_pr_branch", instructions: "Inspect one failing check.", reason: "Run focused manual repair." }, { "job_id" => workflow.job.id, "base" => "current_pr_branch", "instructions" => "Inspect one failing check.", "push" => true } ],
       "override_landing_blocker_once" => [ { job_id: workflow.job.id, blocker_key: "active_workflow", reason: "Verified blocker is stale." }, { "job_id" => workflow.job.id, "blocker_key" => "active_workflow" } ],
-      "wake_landing_queue" => [ { reason: "Repair completed." }, { "reason" => "Repair completed." } ]
+      "wake_landing_queue" => [ { reason: "Repair completed." }, { "reason" => "Repair completed." } ],
+      "repair_provider_circuit_evidence" => [ { evidence_type: "run_failure_classification", evidence_id: provider_classification.id, repair_status: "false_positive", reason: "Bad evidence." }, { "evidence_type" => "run_failure_classification", "evidence_id" => provider_classification.id, "repair_status" => "false_positive" } ],
+      "clear_provider_circuit" => [ { provider: "codex", user_id: admin.id, positive_evidence: "Newer Codex run succeeded.", reason: "Circuit is stale." }, { "provider" => "codex", "user_id" => admin.id, "positive_evidence" => "Newer Codex run succeeded." } ],
+      "wake_provider_admission" => [ { provider: "codex", reason: "Evidence repaired." }, { "provider" => "codex" } ]
     }
 
     cases.each do |name, (arguments, expected_payload)|
@@ -139,7 +153,7 @@ RSpec.describe "SyrusChatMcp admin tools" do
         requested_by: "agent"
       )
       expect(action.payload).to include(expected_payload)
-      expect(action.reason).to be_present if name.in?(%w[admin_retry_step admin_cleanup_workspace force_fail_job reconcile_job_state force_state_transition cancel_stale_work reenqueue_work force_rebase restack_epic force_landing_recheck manual_agentic_run override_landing_blocker_once wake_landing_queue])
+      expect(action.reason).to be_present if name.in?(%w[admin_retry_step admin_cleanup_workspace force_fail_job reconcile_job_state force_state_transition cancel_stale_work reenqueue_work force_rebase restack_epic force_landing_recheck manual_agentic_run override_landing_blocker_once wake_landing_queue repair_provider_circuit_evidence clear_provider_circuit wake_provider_admission])
     end
   end
 
@@ -211,6 +225,75 @@ RSpec.describe "SyrusChatMcp admin tools" do
 
     expect(action.reload.before_snapshot).to include("jobs" => [])
     expect(action.after_snapshot).to include("jobs" => [])
+  end
+
+  it "repairs false provider-usage evidence and wakes queued zero-run workflows" do
+    failed_job = Factories.job(user: admin, repository: repository, agent_provider: "codex")
+    failed_step = failed_job.latest_workflow.steps.find_by(kind: "implement") || failed_job.latest_workflow.first_step
+    failed_run = Run.create!(
+      job: failed_job,
+      user: admin,
+      step: failed_step,
+      trigger_kind: "initial",
+      state: "failed",
+      agent_provider: "codex",
+      agent_outcome: "turn_failed",
+      finished_at: 1.minute.ago
+    )
+    RunDiagnostic.create!(
+      run: failed_run,
+      error_class: "CodexInvocation::Error",
+      error_message: "Codex API error: model gpt-5.5 weekly usage limit exhausted"
+    )
+    classification = failed_run.reload.run_failure_classification || failed_run.build_run_failure_classification
+    classification.update!(
+      classification: "provider_usage_limit",
+      confidence: 0.95,
+      retryable: false,
+      reason: "misclassified model-list decode failure",
+      classified_at: 1.minute.ago
+    )
+    queued_job = Factories.job_record(user: admin, repository: repository, state: "queued", agent_provider: "codex")
+    queued_workflow = Workflows::Initial.instantiate(job: queued_job, agent_provider: "codex")
+    queued_workflow.update!(
+      artifacts: {
+        "start_blocked_reason" => "provider_circuit",
+        "start_blocked_details" => { "provider" => "codex", "classification_id" => classification.id }
+      }
+    )
+
+    expect(ProviderCircuitBreaker.call("codex")).to be_usage_limit
+
+    repair_response = call_tool(
+      admin_session,
+      "repair_provider_circuit_evidence",
+      {
+        evidence_type: "run_failure_classification",
+        evidence_id: classification.id,
+        repair_status: "false_positive",
+        reason: "JOB feedback was blocked by a bad provider_usage_limit classification."
+      }
+    )
+    repair_action = ChatPendingAction.find(payload_for(repair_response).fetch(:pending_confirmation_id))
+
+    expect(repair_action.confirm!(user: admin)).to be true
+    expect(ProviderCircuitBreaker.call("codex")).not_to be_open
+    expect(classification.reload.repair_status).to eq("false_positive")
+
+    wake_response = call_tool(
+      admin_session,
+      "wake_provider_admission",
+      { provider: "codex", reason: "Provider evidence repaired." }
+    )
+    wake_action = ChatPendingAction.find(payload_for(wake_response).fetch(:pending_confirmation_id))
+
+    expect {
+      expect(wake_action.confirm!(user: admin)).to be true
+    }.to change { queued_workflow.runs.count }.from(0).to(1)
+
+    expect(queued_workflow.reload.artifact("start_blocked_reason")).to be_nil
+    expect(AdminAction.where(action: "repair_repair_provider_circuit_evidence")).to exist
+    expect(AdminAction.where(action: "repair_wake_provider_admission")).to exist
   end
 
   it "returns force_rebase dry-run output without creating a pending action" do
