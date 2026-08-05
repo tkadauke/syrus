@@ -34,6 +34,8 @@ def rails_env_for(data_root)
   {
     "BUNDLE_GEMFILE" => File.join(ROOT, "Gemfile"),
     "RAILS_ENV" => "production",
+    "BUNDLE_PATH" => File.join(ROOT, "vendor", "bundle"),
+    "BUNDLE_APP_CONFIG" => File.join(ROOT, ".bundle"),
     "SECRET_KEY_BASE_DUMMY" => "1",
     "SYRUS_APP_HOST" => "syrus.example.test",
     "SYRUS_ASSUME_SSL" => "false",

@@ -10,7 +10,7 @@ import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-d
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
 import { createEmptyChat, fetchNewChat, type ChatsIndexPayload } from "../api/chats"
 import { patchJson } from "../api/client"
-import { dashboardChromeSearch, fetchDashboardChrome, type DashboardChromePayload, type DashboardSubject } from "../api/dashboard"
+import { dashboardApiSearch, dashboardChromeSearch, fetchDashboardChrome, mergeDashboardPayload, type DashboardChromePayload, type DashboardRowsPayload, type DashboardSubject } from "../api/dashboard"
 import { fetchTerminalSessions } from "../api/terminal"
 import { BugReportButton, type BugReportButtonHandle } from "../components/BugReportButton"
 import { BugReportContext } from "../lib/bugReportContext"
@@ -623,9 +623,13 @@ function legacySearchQuery(value: string) {
 
 function SidebarDashboardNav({ expanded, onCloseDrawer, prefix, showSubjects }: { expanded: boolean; onCloseDrawer: () => void; prefix: string; showSubjects: boolean }) {
   const location = useLocation()
+  const queryClient = useQueryClient()
   const isDashboard = location.pathname.includes("/dashboard")
+  const rowsSearch = dashboardApiSearch(location.pathname, location.search)
+  const rowsQueryKey = useMemo(() => ["dashboard", "rows", rowsSearch] as const, [rowsSearch])
   const search = dashboardChromeSearch(location.pathname, location.search)
   const [renderedPayload, setRenderedPayload] = useState<DashboardChromePayload | null>(null)
+  const [rowsPayload, setRowsPayload] = useState<DashboardRowsPayload | undefined>(() => queryClient.getQueryData<DashboardRowsPayload>(rowsQueryKey))
   const dashboard = useQuery({
     queryKey: ["dashboard", "chrome", search],
     queryFn: ({ signal }) => fetchDashboardChrome(search, { signal }),
@@ -637,9 +641,22 @@ function SidebarDashboardNav({ expanded, onCloseDrawer, prefix, showSubjects }: 
     if (dashboard.data) setRenderedPayload(dashboard.data)
   }, [dashboard.data])
 
+  useEffect(() => {
+    setRowsPayload(queryClient.getQueryData<DashboardRowsPayload>(rowsQueryKey))
+
+    return queryClient.getQueryCache().subscribe((event) => {
+      if (event.query.queryKey[0] !== rowsQueryKey[0] || event.query.queryKey[1] !== rowsQueryKey[1] || event.query.queryKey[2] !== rowsQueryKey[2]) return
+
+      setRowsPayload(queryClient.getQueryData<DashboardRowsPayload>(rowsQueryKey))
+    })
+  }, [queryClient, rowsQueryKey])
+
   const payload = dashboard.data ?? renderedPayload
   if (!payload) return null
 
+  const smartFolderPayload = rowsPayload
+    ? mergeDashboardPayload(payload, rowsPayload, { rowsCurrentForSearch: true })
+    : { ...payload, rows_current_for_search: false }
   const inertAttributes = expanded ? {} : { inert: "" }
 
   return (
@@ -651,7 +668,7 @@ function SidebarDashboardNav({ expanded, onCloseDrawer, prefix, showSubjects }: 
       <div className={`min-h-0 overflow-hidden transition-opacity duration-150 ease-out ${expanded ? "opacity-100 delay-75" : "opacity-0"}`}>
         <div className="space-y-3 pl-7 pt-1">
           {showSubjects ? <SidebarDashboardSubjects onCloseDrawer={onCloseDrawer} payload={payload} prefix={prefix} /> : null}
-          <DashboardSmartFolderNav payload={{ ...payload, rows_current_for_search: false }} prefix={prefix} search={location.search} />
+          <DashboardSmartFolderNav payload={smartFolderPayload} prefix={prefix} search={location.search} />
         </div>
       </div>
     </div>

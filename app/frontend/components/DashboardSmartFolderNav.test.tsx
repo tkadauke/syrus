@@ -340,7 +340,7 @@ describe("DashboardSmartFolderNav", () => {
     expect(screen.queryByRole("button", { name: "Save folder" })).not.toBeInTheDocument()
   })
 
-  it("hides save controls when filters remain but no folder is selected", () => {
+  it("shows save controls when filters are applied without a selected folder", () => {
     renderNav([
       folder({ filter: savedFilter })
     ], {
@@ -348,7 +348,8 @@ describe("DashboardSmartFolderNav", () => {
       search: "?q=changed"
     })
 
-    expect(screen.queryByRole("button", { name: "Save folder" })).not.toBeInTheDocument()
+    expect(screen.getByLabelText("Folder name")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Save folder" })).toBeInTheDocument()
   })
 
   it("compares selected folder filters independent of object key order", () => {

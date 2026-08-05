@@ -49,7 +49,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
   const rowsCurrentForSearch = payload.rows_current_for_search ?? true
   const filterChangedFromSelectedFolder = rowsCurrentForSearch && selectedFolder?.filter != null && !filterTreesEqual(appliedTree, filterTreeFromPayload(selectedFolder.filter))
   const canUpdateFilter = activeFolder != null && filterChangedFromSelectedFolder
-  const canSaveFilter = selectedFolder != null && hasAppliedFilter && filterChangedFromSelectedFolder
+  const canSaveFilter = hasAppliedFilter && (selectedFolder == null || filterChangedFromSelectedFolder)
   const landingPause = useMutation({
     mutationFn: () => toggleDashboardLandingPause(payload.landing_queue.toggle_path),
     onSuccess: () => {
