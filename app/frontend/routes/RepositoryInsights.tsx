@@ -201,6 +201,7 @@ function SuggestionCard({
   const [showAcceptForm, setShowAcceptForm] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const legacyRevision = suggestion.proposal_type === "revise_existing_insight"
 
   const queryKey = ["repositories", repositoryId, "insight_suggestions"]
 
@@ -371,9 +372,14 @@ function SuggestionCard({
               </div>
             )}
             {suggestion.proposal_type === "revise_existing_insight" && suggestion.target_insight_id && (
-              <p className="text-xs text-gray-600 dark:text-gray-400">
-                {t("target_insight_label", { id: suggestion.target_insight_id })}
-              </p>
+              <div className="rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                <p className="font-medium text-gray-700 dark:text-gray-200">
+                  {t("legacy_revision_heading")}
+                </p>
+                <p className="mt-1">
+                  {t("legacy_revision_body", { id: suggestion.target_insight_id })}
+                </p>
+              </div>
             )}
             {suggestion.created_job && (
               <div className="text-xs text-gray-600 dark:text-gray-400">
@@ -404,7 +410,7 @@ function SuggestionCard({
               >
                 {acceptRemoveMemoryMutation.isPending ? t("removing_memory") : t("accept_remove_memory")}
               </button>
-            ) : (
+            ) : legacyRevision ? null : (
               <button
                 className="rounded bg-terracotta-600 px-3 py-1 text-xs font-medium text-white hover:bg-terracotta-700 disabled:opacity-50"
                 disabled={showAcceptForm}

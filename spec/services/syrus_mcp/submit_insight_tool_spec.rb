@@ -386,7 +386,7 @@ RSpec.describe SyrusMcp::SubmitInsightTool do
       expect(response.content.first[:text]).to include("target_memory_id")
     end
 
-    it "rejects revise_existing_insight submissions whose supplied evidence normalizes to empty" do
+    it "rejects revise_existing_insight submissions with update guidance" do
       target = InsightSuggestion.create!(
         job: run.job,
         repository: repository,
@@ -398,12 +398,12 @@ RSpec.describe SyrusMcp::SubmitInsightTool do
 
       response = call(
         proposal_type: "revise_existing_insight",
-        target_insight_id: target.id,
-        evidence: [ {} ]
+        target_insight_id: target.id
       )
 
       expect(response).to be_error
-      expect(response.content.first[:text]).to include("evidence must include at least one non-empty item or be omitted")
+      expect(response.content.first[:text]).to include("revise_existing_insight is no longer accepted")
+      expect(response.content.first[:text]).to include("Call update_insight")
     end
   end
 

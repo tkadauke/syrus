@@ -373,6 +373,35 @@ describe("RepositoryInsightsRoute", () => {
     })
   })
 
+  describe("legacy revise-insight proposals", () => {
+    beforeEach(() => {
+      vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: vi.fn() as any, dialog: <></> })
+    })
+
+    it("renders legacy revise rows as context without a normal accept action", async () => {
+      const legacy = makeSuggestion({
+        title: "Revise old insight",
+        proposal_type: "revise_existing_insight",
+        target_insight_id: 55,
+        suggested_prompt: null,
+        memory_suggestion: null,
+        has_memory_suggestion: false
+      })
+
+      renderRoute([legacy])
+
+      expect(await screen.findByText("Revise old insight")).toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Discuss in new chat" })).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Dismiss" })).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "Expand" }))
+
+      expect(screen.getByText("Legacy revision suggestion")).toBeInTheDocument()
+      expect(screen.getByText(/insight #55/)).toBeInTheDocument()
+    })
+  })
+
   describe("card body expansion", () => {
     beforeEach(() => {
       vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: vi.fn() as any, dialog: <></> })

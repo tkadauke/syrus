@@ -65,6 +65,7 @@ class McpToolUsageRecorder
       SyrusMcp::SubmitAdversarialReviewTool,
       SyrusMcp::SubmitReconciliationFeedbackTool,
       SyrusMcp::SubmitInsightTool,
+      SyrusMcp::UpdateInsightTool,
       SyrusMcp::ListInsightsTool,
       SyrusMcp::ReadInsightTool
     ].map { |tool| tool.tool_name.to_s }.uniq.sort

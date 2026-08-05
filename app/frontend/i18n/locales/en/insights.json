@@ -55,6 +55,8 @@
   "memory_suggestion_label": "Memory suggestion",
   "remove_memory_label": "Remove memory #{{id}}",
   "target_insight_label": "Targets insight #{{id}}",
+  "legacy_revision_heading": "Legacy revision suggestion",
+  "legacy_revision_body": "This older insight suggested revising insight #{{id}}. New insight runs update unaccepted insights in place instead, so this card is preserved as context only.",
   "created_job_label": "Created job",
   "evidence_job": "job",
   "evidence_transcript": "transcript",

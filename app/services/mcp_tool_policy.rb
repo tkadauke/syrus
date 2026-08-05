@@ -233,6 +233,7 @@ class McpToolPolicy
     ]
     if Feature.agent_insights_enabled?
       tools << SyrusMcp::SubmitInsightTool
+      tools << SyrusMcp::UpdateInsightTool
       tools << SyrusMcp::ListInsightsTool
       tools << SyrusMcp::ReadInsightTool
       tools << SyrusMcp::ListRecentWorkflowsTool
@@ -249,7 +250,8 @@ class McpToolPolicy
   def insight_read_tools
     [
       SyrusMcp::ListInsightsTool,
-      SyrusMcp::ReadInsightTool
+      SyrusMcp::ReadInsightTool,
+      SyrusMcp::UpdateInsightTool
     ]
   end
 end

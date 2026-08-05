@@ -46,13 +46,13 @@ Each `submit_insight` call creates one `InsightSuggestion` row:
 | `severity`        | string  | `low`, `medium`, or `high`.                                       |
 | `confidence`      | float   | Agent's confidence (0.0–1.0).                                     |
 | `evidence`        | json    | Array of `{job_id, run_id, kind}` objects.                        |
-| `proposal_type`   | string  | `create_job`, `save_memory`, `remove_memory`, `revise_existing_insight`, or `informational`. Legacy rows infer this from prompt/memory fields. |
+| `proposal_type`   | string  | `create_job`, `save_memory`, `remove_memory`, or `informational`. Legacy `revise_existing_insight` rows may still exist but new insight runs should not create them. |
 | `suggested_prompt`| text    | Optional prompt for a follow-up Job or ScheduledTask.            |
 | `memory_suggestion`| text   | Optional text to store as a memory.                               |
 | `target_memory`   | FK      | Memory proposed for audited removal on `remove_memory` suggestions. |
 | `stale_memory_text` | text  | Snapshot of stale/wrong memory text.                              |
 | `stale_memory_evidence` | text | Explanation of why the memory no longer matches current reality. |
-| `target_insight`  | FK      | Existing insight referenced by `revise_existing_insight`.        |
+| `target_insight`  | FK      | Legacy revision reference retained for old rows.                 |
 | `state`           | string  | `pending` → `accepted` or `dismissed`; dismissed suggestions can return to `pending`. |
 | `created_job`     | FK      | Populated when the operator promotes the suggestion into a Job.  |
 
@@ -69,7 +69,8 @@ The insight agent receives:
 - `read_syrus_logs` — search recent indexed Rails application logs for repeated exceptions, recurring warnings, slow behavior, retry storms, queue/worker anomalies, failed background jobs, and noisy code paths. This tool is present only when `operational_log_indexing` is enabled and the current repository is `tkadauke/syrus` or a registered fork/upstream.
 - `read_memory`, `search_memories`, `list_memories` — read repository-scoped memories.
 - `write_memory` — store durable facts discovered during analysis.
-- `submit_insight` — record a finding (only present when `agent_insights` flag is on), including structured removal/revision proposals.
+- `submit_insight` — record a new finding (only present when `agent_insights` flag is on), including structured memory-removal proposals.
+- `update_insight` — revise a pending or dismissed existing insight in place with an audit event. Accepted insights are rejected and should be handled by filing a new standalone insight that cites the accepted prior insight as context.
 
 **Scope enforcement:** workflow evidence tools are constrained to the current insight run's repository. `submit_insight` also validates that `evidence.job_id` values belong to repositories accessible to the running user. Non-admin users cannot reference jobs from repositories they do not own. Admin users may reference any job.
 
@@ -80,7 +81,10 @@ worker health, code paths, or repeated occurrences across the log window. Avoid
 filing insights from one-off benign log lines or isolated noise.
 
 Insight runs must review pending, accepted, and dismissed insights for freshness
-before filing new ones. They should call `list_memories` / `read_memory` for
+before filing new ones. When an unaccepted insight is stale, duplicated, or
+incomplete, call `update_insight` instead of filing a new revision card. When an
+accepted insight is changed by a novel realization, create a new insight. They
+should call `list_memories` / `read_memory` for
 repository-relevant memories and compare them with current code, docs, recent
 jobs, and accepted implementation state. If a memory is stale or wrong, the
 agent files a `remove_memory` insight with `target_memory_id`,

@@ -95,9 +95,11 @@ module Prompts
         Do not refile known insights unless you have new evidence.
         Call `read_insight(id:)` to get the full details of any entry. Call `list_insights`
         to page through more insights beyond those listed here. If an existing insight is
-        stale, duplicated, or superseded, file a structured `revise_existing_insight`
-        suggestion that references `target_insight_id` and explains the replacement or
-        retirement path:
+        stale, duplicated, or superseded, use state-aware handling: call
+        `update_insight(target_insight_id:, reason:, ...)` for pending or dismissed
+        insights so the existing row is corrected in place. If the existing insight
+        is accepted, do not update it; submit a new standalone insight and cite the
+        accepted insight in evidence or context if useful.
 
         #{lines.join("\n")}
       TEXT
@@ -126,7 +128,7 @@ module Prompts
           (for example, rspec Runs lining up with CPU starvation)
         - Patterns that suggest a recurring task would be valuable
 
-        For each concrete finding, call `submit_insight` with:
+        For each concrete new finding, call `submit_insight` with:
         - A concise `title` summarizing the issue
         - A `category` (e.g. "repeated_failure", "inefficiency", "configuration", "memory_gap", "recurring_task")
         - A `severity` ("low", "medium", or "high")
@@ -141,14 +143,13 @@ module Prompts
           lines or isolated noise without supporting context.
         - A `suggested_prompt` for a Job or ScheduledTask that would address it (optional)
         - A `memory_suggestion` with the exact text to store if this is a durable fact (optional)
-        - A `proposal_type` (`create_job`, `save_memory`, `remove_memory`,
-          `revise_existing_insight`, or `informational`). Existing legacy behavior is still
-          supported, but use the explicit field for new suggestions.
+        - A `proposal_type` (`create_job`, `save_memory`, `remove_memory`, or
+          `informational`). Use the explicit field for new suggestions.
         - For `remove_memory`: include `target_memory_id`, the stale or wrong
           `stale_memory_text`, and `stale_memory_evidence` explaining why the memory no
           longer matches current code, docs, recent jobs, or accepted implementation state.
-        - For `revise_existing_insight`: include `target_insight_id` and explain what is
-          stale, duplicated, or superseded.
+        - Do not submit `revise_existing_insight`; that legacy proposal type is not
+          an operator action. Use `update_insight` for unaccepted insight revisions.
 
         ## When to use each suggestion type
 
@@ -170,9 +171,16 @@ module Prompts
         `stale_memory_text`, and `stale_memory_evidence`. Do NOT call `delete_memory`
         during an insight run; operators accept removals through audited application code.
 
-        **File an existing-insight revision (`proposal_type: "revise_existing_insight"`)**
-        when a pending, accepted, or dismissed insight is stale, duplicated, or superseded.
-        Include `target_insight_id` and concrete evidence for the revision or retirement.
+        **Update an existing unaccepted insight (`update_insight`)** when a pending or
+        dismissed insight is stale, duplicated, incomplete, or superseded. Include
+        `target_insight_id`, the revised fields, and a concise `reason` for the audit
+        trail. This updates the target row in place instead of creating a new review card.
+
+        **File a new standalone insight for accepted prior insights** when a novel
+        realization changes an already accepted insight. Accepted insights are operator
+        history and should not be edited in place. Call `submit_insight` for the new
+        realization and cite the accepted prior insight in the title, evidence kind, or
+        text fields if it helps the operator understand the lineage.
 
         **File both** when there is a code fix that should be filed as a Job AND there is
         interim context agents need to carry while that fix has not yet landed (e.g.,

@@ -51,7 +51,7 @@ Returns the standard repository detail payload with a notice that the job was st
 
 ## What the Agent Analyzes
 
-The agent receives a read-only view of the repository's workspace and recent job history (last 14 days, up to 50 `issue`-kind jobs). It uses the `submit_insight` MCP tool to record findings — one call per distinct pattern. It can also call `read_run_worker_health(run_id:)` to inspect retained CPU, memory, disk, CPU pressure, and IO pressure samples for a specific Run window, including whether the Run's history was clipped by the worker-health retention window. Grader and preflight grader Runs may include `command_spans`, which let the agent attribute pressure or latency to phases like dependency checks, installs, database preparation, backend tests, or frontend builds instead of only the full Run window. Durable `run_resource_summaries` retain this Run-level view for 30 days and keep host-correlated pressure fields separate from process-attributed command metrics, with explicit low-confidence fallback markers when command attribution is unavailable.
+The agent receives a read-only view of the repository's workspace and recent job history (last 14 days, up to 50 `issue`-kind jobs). It uses the `submit_insight` MCP tool to record new findings — one call per distinct pattern. It uses `update_insight` to revise pending or dismissed existing insights in place; accepted insights are preserved as operator history, so new realizations about them become new standalone insights. It can also call `read_run_worker_health(run_id:)` to inspect retained CPU, memory, disk, CPU pressure, and IO pressure samples for a specific Run window, including whether the Run's history was clipped by the worker-health retention window. Grader and preflight grader Runs may include `command_spans`, which let the agent attribute pressure or latency to phases like dependency checks, installs, database preparation, backend tests, or frontend builds instead of only the full Run window. Durable `run_resource_summaries` retain this Run-level view for 30 days and keep host-correlated pressure fields separate from process-attributed command metrics, with explicit low-confidence fallback markers when command attribution is unavailable.
 
 Each `InsightSuggestion` captures:
 - **title** — concise description of the finding (≤ 200 chars)
@@ -59,11 +59,11 @@ Each `InsightSuggestion` captures:
 - **severity** — `low`, `medium`, or `high`
 - **confidence** — 0.0–1.0 score
 - **evidence** — array of `{job_id, run_id, kind}` supporting evidence
-- **proposal_type** — explicit action: `create_job`, `save_memory`, `remove_memory`, `revise_existing_insight`, or `informational`; existing rows that only have prompt/memory fields infer their legacy type
+- **proposal_type** — explicit action: `create_job`, `save_memory`, `remove_memory`, or `informational`; legacy `revise_existing_insight` rows may still exist but new insight runs should not create them
 - **suggested_prompt** — optional prompt text for a Job or ScheduledTask that would address the finding
 - **memory_suggestion** — optional text to store as an agent memory for future runs
 - **target_memory_id**, **stale_memory_text**, **stale_memory_evidence** — structured stale-memory removal proposal fields
-- **target_insight_id** — existing insight referenced by a revision/retirement proposal
+- **target_insight_id** — legacy revision reference retained for old rows
 
 ## Reviewing Suggestions
 

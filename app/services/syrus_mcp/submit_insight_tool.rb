@@ -6,7 +6,7 @@ module SyrusMcp
   # job_ids and run_ids must belong to the current run's repository.
   class SubmitInsightTool < MCP::Tool
     SEVERITIES = InsightSuggestion::SEVERITIES.freeze
-    PROPOSAL_TYPES = InsightSuggestion::PROPOSAL_TYPES.freeze
+    PROPOSAL_TYPES = (InsightSuggestion::PROPOSAL_TYPES - %w[revise_existing_insight]).freeze
 
     tool_name "submit_insight"
 
@@ -58,7 +58,7 @@ module SyrusMcp
         proposal_type: {
           type: "string",
           enum: PROPOSAL_TYPES,
-          description: "Action proposed by this insight: create_job, save_memory, remove_memory, revise_existing_insight, or informational."
+          description: "Action proposed by this insight: create_job, save_memory, remove_memory, or informational."
         },
         target_memory_id: {
           type: "integer",
@@ -74,7 +74,7 @@ module SyrusMcp
         },
         target_insight_id: {
           type: "integer",
-          description: "For revise_existing_insight proposals, the existing InsightSuggestion id that is stale, duplicated, or superseded."
+          description: "Legacy compatibility only. Do not use for new insights; call update_insight for unaccepted insight revisions, or submit a new standalone insight when an accepted insight changed."
         }
       },
       required: %w[title category severity confidence]
@@ -101,6 +101,9 @@ module SyrusMcp
         return SyrusMcp.invalid("confidence must be between 0.0 and 1.0")         unless confidence_f.between?(0.0, 1.0)
 
         proposal_type_s = normalize_proposal_type(proposal_type, suggested_prompt: suggested_prompt, memory_suggestion: memory_suggestion)
+        if proposal_type.to_s == "revise_existing_insight"
+          return SyrusMcp.invalid("revise_existing_insight is no longer accepted. Call update_insight for pending/dismissed insights; submit a new insight when an accepted insight changed.")
+        end
         return SyrusMcp.invalid("proposal_type must be one of: #{PROPOSAL_TYPES.join(', ')}") unless PROPOSAL_TYPES.include?(proposal_type_s)
 
         normalized_evidence = normalize_evidence(evidence)
@@ -116,12 +119,6 @@ module SyrusMcp
           return SyrusMcp.invalid("stale_memory_evidence is required for remove_memory proposals") if stale_memory_evidence.to_s.strip.blank?
         end
 
-        target_insight = nil
-        if proposal_type_s == "revise_existing_insight"
-          target_insight = validate_target_insight(target_insight_id, run)
-          return SyrusMcp.invalid("target_insight_id must reference an accessible insight") unless target_insight
-        end
-
         suggestion = InsightSuggestion.create!(
           job:               run.job,
           repository:        run.job.repository,
@@ -135,8 +132,7 @@ module SyrusMcp
           memory_suggestion: memory_suggestion.presence,
           target_memory:     memory,
           stale_memory_text: stale_memory_text.presence || memory&.content,
-          stale_memory_evidence: stale_memory_evidence.presence,
-          target_insight:    target_insight
+          stale_memory_evidence: stale_memory_evidence.presence
         )
         SupervisorEvents.publish!(
           kind: "agent_insight_available",
@@ -262,15 +258,6 @@ module SyrusMcp
         scope.find_by(user_id: run.job.user_id, scope: "repository", scope_id: run.job.repository_id)
       end
 
-      def validate_target_insight(insight_id, run)
-        id = Integer(insight_id, exception: false)
-        return unless id
-
-        scope = InsightSuggestion.where(id: id)
-        return scope.first if run.job.user.admin?
-
-        scope.find_by(repository_id: run.job.repository_id)
-      end
     end
   end
 end

@@ -136,11 +136,24 @@ RSpec.describe Prompts::AgentInsight do
       expect(out).to include("read_insight")
     end
 
-    it "instructs the agent to review stale existing insights and reference target_insight_id" do
+    it "instructs the agent to update unaccepted stale insights in place" do
       out = described_class.new(repository: repository).to_s
-      expect(out).to include("revise_existing_insight")
+      expect(out).to include("update_insight")
       expect(out).to include("target_insight_id")
       expect(out).to match(/stale, duplicated, or superseded/i)
+      expect(out).to match(/pending or\s+dismissed/)
+    end
+
+    it "instructs the agent to submit a new insight when an accepted insight changes" do
+      out = described_class.new(repository: repository).to_s
+      expect(out).to include("Accepted insights are operator")
+      expect(out).to include("submit_insight")
+      expect(out).to include("new standalone insight")
+    end
+
+    it "does not instruct agents to submit revise_existing_insight proposals" do
+      out = described_class.new(repository: repository).to_s
+      expect(out).not_to include('proposal_type: "revise_existing_insight"')
     end
 
     it "mentions worker health correlation evidence" do

@@ -679,6 +679,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_05_170000) do
     t.index ["repository_id"], name: "index_insight_schedule_configs_on_repository_id", unique: true
   end
 
+  create_table "insight_suggestion_audit_events", force: :cascade do |t|
+    t.string "actor_kind", null: false
+    t.integer "actor_run_id"
+    t.integer "actor_user_id"
+    t.datetime "created_at", null: false
+    t.string "event_type", null: false
+    t.integer "insight_suggestion_id", null: false
+    t.json "new_values"
+    t.json "previous_values"
+    t.text "reason"
+    t.index ["actor_run_id"], name: "index_insight_suggestion_audit_events_on_actor_run_id"
+    t.index ["actor_user_id"], name: "index_insight_suggestion_audit_events_on_actor_user_id"
+    t.index ["insight_suggestion_id"], name: "index_insight_suggestion_audit_events_on_insight_suggestion_id"
+  end
+
   create_table "insight_suggestions", force: :cascade do |t|
     t.datetime "accepted_at"
     t.string "category", null: false
@@ -1938,6 +1953,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_05_170000) do
   add_foreign_key "input_sources", "repositories"
   add_foreign_key "input_sources", "users"
   add_foreign_key "insight_schedule_configs", "repositories"
+  add_foreign_key "insight_suggestion_audit_events", "insight_suggestions"
+  add_foreign_key "insight_suggestion_audit_events", "runs", column: "actor_run_id"
+  add_foreign_key "insight_suggestion_audit_events", "users", column: "actor_user_id"
   add_foreign_key "insight_suggestions", "chat_memories", column: "target_memory_id"
   add_foreign_key "insight_suggestions", "insight_suggestions", column: "target_insight_id"
   add_foreign_key "insight_suggestions", "jobs"

@@ -55,6 +55,8 @@
   "memory_suggestion_label": "Erinnerungsvorschlag",
   "remove_memory_label": "Erinnerung #{{id}} entfernen",
   "target_insight_label": "Zielt auf Einblick #{{id}}",
+  "legacy_revision_heading": "Alter Überarbeitungsvorschlag",
+  "legacy_revision_body": "Dieser ältere Einblick schlug vor, Einblick #{{id}} zu überarbeiten. Neue Einblicksläufe aktualisieren nicht akzeptierte Einblicke direkt, daher bleibt diese Karte nur als Kontext erhalten.",
   "created_job_label": "Erstellter Job",
   "evidence_job": "Job",
   "evidence_transcript": "Protokoll",

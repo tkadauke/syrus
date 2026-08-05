@@ -8,6 +8,7 @@ class InsightSuggestion < ApplicationRecord
   belongs_to :created_job, class_name: "Job", optional: true
   belongs_to :target_memory, class_name: "ChatMemory", optional: true
   belongs_to :target_insight, class_name: "InsightSuggestion", optional: true
+  has_many :audit_events, class_name: "InsightSuggestionAuditEvent", dependent: :destroy
 
   validates :title,      presence: true
   validates :category,   presence: true
