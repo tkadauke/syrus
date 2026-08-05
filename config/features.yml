@@ -34,6 +34,13 @@ features:
     description: "Records structured slow request, SQL, and phase events to logs and a short-lived admin diagnostics buffer."
     description_i18n_key: "features.slugs.performance_logging.description"
     default: false
+  - slug: operational_log_indexing
+    category: "Operations"
+    name: "Operational log indexing"
+    name_i18n_key: "features.slugs.operational_log_indexing.name"
+    description: "Indexes short-lived structured Rails application log events for Syrus implementation agents working on Syrus itself."
+    description_i18n_key: "features.slugs.operational_log_indexing.description"
+    default: false
   - slug: local_mode
     category: "Labs"
     name: "Local Mode"

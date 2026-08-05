@@ -50,6 +50,10 @@ class Feature < ApplicationRecord
     enabled?(:agent_insights)
   end
 
+  def self.operational_log_indexing_enabled?
+    enabled?(:operational_log_indexing)
+  end
+
   def self.admin_supervisor_chat_enabled?
     enabled?(:admin_supervisor_chat)
   end
@@ -63,5 +67,6 @@ class Feature < ApplicationRecord
   def clear_request_enabled_cache
     self.class.clear_enabled_cache!(slug)
     Current.performance_logging_enabled = nil if slug == "performance_logging"
+    Current.operational_log_indexing_enabled = nil if slug == "operational_log_indexing"
   end
 end

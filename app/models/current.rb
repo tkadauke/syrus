@@ -3,6 +3,7 @@ class Current < ActiveSupport::CurrentAttributes
             :api_user,
             :feature_enabled_cache,
             :provider_availability_cache,
+            :operational_log_indexing_enabled,
             :performance_logging_enabled,
             :performance_request_context,
             :performance_sql_count,

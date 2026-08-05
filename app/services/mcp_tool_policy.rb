@@ -107,6 +107,7 @@ class McpToolPolicy
     ]
     if @context.role == AgentRole::WORKFLOW_IMPLEMENT && self.class.syrus_repository?(@context.repository)
       base << SyrusMcp::ReadPerformanceDiagnosticsTool
+      base << SyrusMcp::ReadSyrusLogsTool
     end
 
     if @context.role == AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER

@@ -1130,6 +1130,32 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_05_103000) do
     t.index ["user_id"], name: "index_notifications_on_user_id"
   end
 
+  create_table "operational_log_events", force: :cascade do |t|
+    t.string "app_revision"
+    t.json "context", null: false
+    t.datetime "created_at", null: false
+    t.string "hostname", null: false
+    t.integer "job_id"
+    t.string "level", null: false
+    t.text "message", null: false
+    t.datetime "occurred_at", null: false
+    t.integer "pid"
+    t.string "request_id"
+    t.string "role", null: false
+    t.integer "run_id"
+    t.string "source", null: false
+    t.datetime "updated_at", null: false
+    t.integer "workflow_id"
+    t.index ["hostname"], name: "index_operational_log_events_on_hostname"
+    t.index ["job_id"], name: "index_operational_log_events_on_job_id"
+    t.index ["level"], name: "index_operational_log_events_on_level"
+    t.index ["occurred_at"], name: "index_operational_log_events_on_occurred_at"
+    t.index ["request_id"], name: "index_operational_log_events_on_request_id"
+    t.index ["role"], name: "index_operational_log_events_on_role"
+    t.index ["run_id"], name: "index_operational_log_events_on_run_id"
+    t.index ["workflow_id"], name: "index_operational_log_events_on_workflow_id"
+  end
+
   create_table "plugin_records", force: :cascade do |t|
     t.json "config", null: false
     t.datetime "created_at", null: false
@@ -1961,6 +1987,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_05_103000) do
   add_foreign_key "merge_trains", "repositories"
   add_foreign_key "notifications", "jobs"
   add_foreign_key "notifications", "users"
+  add_foreign_key "operational_log_events", "jobs"
+  add_foreign_key "operational_log_events", "runs"
+  add_foreign_key "operational_log_events", "workflows"
   add_foreign_key "pr_review_comments", "jobs"
   add_foreign_key "pr_review_comments", "workflows", column: "handling_workflow_id"
   add_foreign_key "provider_availability_evidences", "chat_messages"
