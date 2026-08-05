@@ -514,6 +514,8 @@ export type ChatPayload = {
     app_bookmarks_path: string
     app_attachments_path: string
     app_video_walkthroughs_path: string
+    app_speech_to_text_batch_path?: string
+    app_speech_to_text_stream_path?: string
     app_whiteboard_path: string
     app_scratchpad_reorder_path: string
     app_cancel_coding_checkout_path?: string
