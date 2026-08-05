@@ -52,6 +52,32 @@ RSpec.describe "API: /api/v1/app speech-to-text", type: :request do
     expect(parse_body.dig("error", "code")).to eq("speech_to_text_backend_unavailable")
   end
 
+  it "describes the ActionCable streaming contract when backend streaming is configured" do
+    sign_in_as(user)
+    enable_speech_to_text!
+    streaming_provider = instance_double(
+      ChatSpeechToText::Providers::Base,
+      batch?: true,
+      streaming?: true
+    )
+    allow(ChatSpeechToText::Providers).to receive(:configured).and_return(streaming_provider)
+
+    post "/api/v1/app/chats/#{chat.id}/speech_to_text/stream"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["stream"]).to eq(
+      "transport" => "action_cable",
+      "channel" => "ChatDictationChannel",
+      "chat_session_id" => chat.id,
+      "events" => %w[started ack transcript_delta done cancelled error],
+      "fallback" => {
+        "mode" => "backend_batch",
+        "buffered_audio_required" => true,
+        "endpoint" => "/api/v1/app/chats/#{chat.id}/speech_to_text"
+      }
+    )
+  end
+
   it "transcribes a valid short audio upload without starting a chat turn" do
     sign_in_as(user)
     enable_speech_to_text!

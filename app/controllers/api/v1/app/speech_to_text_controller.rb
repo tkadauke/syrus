@@ -2,16 +2,9 @@ module Api
   module V1
     module App
       class SpeechToTextController < BaseController
-        ALLOWED_AUDIO_CONTENT_TYPES = %w[
-          audio/webm
-          audio/mp4
-          audio/mpeg
-          audio/wav
-          audio/x-wav
-          audio/ogg
-        ].freeze
-        MAX_AUDIO_BYTES = 10.megabytes
-        MAX_AUDIO_DURATION_SECONDS = 120
+        ALLOWED_AUDIO_CONTENT_TYPES = ChatSpeechToText::AudioConstraints::ALLOWED_CONTENT_TYPES
+        MAX_AUDIO_BYTES = ChatSpeechToText::AudioConstraints::MAX_BYTES
+        MAX_AUDIO_DURATION_SECONDS = ChatSpeechToText::AudioConstraints::MAX_DURATION_SECONDS
 
         before_action :require_speech_to_text_feature
 
@@ -52,14 +45,26 @@ module Api
         end
 
         def stream
-          Current.user.chat_sessions.find(params[:chat_id])
+          chat = Current.user.chat_sessions.find(params[:chat_id])
           capability = ChatSpeechToText::Capability.for(user: Current.user)
           unless capability.backend_streaming_available?
             render_error("speech_to_text_backend_unavailable", "Backend streaming transcription is not configured.", status: :unprocessable_content)
             return
           end
 
-          render_error("not_implemented", "Backend streaming transcription is not implemented yet.", status: :not_implemented)
+          render json: {
+            stream: {
+              transport: "action_cable",
+              channel: "ChatDictationChannel",
+              chat_session_id: chat.id,
+              events: %w[started ack transcript_delta done cancelled error],
+              fallback: {
+                mode: "backend_batch",
+                buffered_audio_required: true,
+                endpoint: "/api/v1/app/chats/#{chat.id}/speech_to_text"
+              }
+            }
+          }
         end
 
         private
