@@ -68,6 +68,35 @@ RSpec.describe AgentProviders::Codex do
       )
     end
 
+    it "configures agent insight runs to launch the sidecar that advertises workflow evidence tools" do
+      Feature.find_or_create_by!(slug: "agent_insights") { |f| f.category = "Labs"; f.name = "Agent Insights" }
+             .update!(enabled: true)
+      Feature.clear_enabled_cache!("agent_insights")
+      insight_job = Job.create!(user: user, repository: job.repository, kind: "agent_insight", priority: "low")
+      insight_workflow = Workflows::AgentInsight.instantiate(job: insight_job)
+      insight_step = insight_workflow.steps.find_by!(kind: "agent_insight_run")
+      insight_run = insight_step.runs.first || insight_step.runs.create!(job: insight_job, trigger_kind: insight_workflow.trigger_kind)
+      insight_adapter = described_class.new(run: insight_run, workspace: workspace, parent_session_id: nil)
+      received = nil
+      RunJob.agent_runner = ->(**kwargs) {
+        received = kwargs
+        AgentInvocation::Result.new(turns: 1, exit_status: 0, timed_out: false,
+                                    is_error: false, outcome: "success",
+                                    final_text: nil, session_id: "new-thread")
+      }
+
+      result = insight_adapter.run(prompt: "inspect recent runs", log_sink: ->(*, **) { })
+
+      expect(result).to be_success
+      expect(received[:mcp_server]).to include(
+        command: a_string_ending_with("/bin/syrus-mcp-sidecar"),
+        args: [ "--run-id", insight_run.id.to_s ]
+      )
+      context = McpToolContext.from_run(Run.includes(:step, job: :repository).find(insight_run.id))
+      tool_names = McpToolPolicy.for(context).map(&:tool_name)
+      expect(tool_names).to include("list_recent_workflows", "read_run_transcript")
+    end
+
     it "writes ChatGPT auth.json and invokes Codex without CODEX_API_KEY" do
       user.update!(codex_auth_mode: "chatgpt_login",
                    codex_auth_json: Factories.codex_auth_json(access_token: "access-token"))
