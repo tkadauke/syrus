@@ -1,9 +1,23 @@
-import { ApiError } from "./client"
+import { ApiError, postJson } from "./client"
 
 export type SpeechToTextTranscript = {
   text: string
   source: "backend_batch"
   confidence: number | null
+}
+
+export type SpeechToTextStreamConfig = {
+  stream: {
+    transport: "action_cable"
+    channel: "ChatDictationChannel"
+    chat_session_id: number
+    events: string[]
+    fallback?: {
+      mode: "backend_batch"
+      buffered_audio_required: boolean
+      endpoint: string
+    }
+  }
 }
 
 export const MAX_TRANSCRIPTION_DURATION_SECONDS = 120
@@ -62,4 +76,8 @@ export function transcribeChatAudio(input: {
 
     xhr.send(form)
   })
+}
+
+export function startChatAudioStream(path: string): Promise<SpeechToTextStreamConfig> {
+  return postJson<SpeechToTextStreamConfig>(path)
 }

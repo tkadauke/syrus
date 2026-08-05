@@ -1,6 +1,6 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { ChatRoute } from "./Chat"
@@ -10,6 +10,27 @@ import { numericArg } from "./chat/utils"
 import { storedWorkspaceCollapsed, workspaceTabLabel, mobileChatTabLabel } from "./chat/workspaceTabs"
 import { buildMessageStreamItems, renderChatMessages } from "./chat/streamBuilders"
 import { asExcalidrawElements, VALID_EXCALIDRAW_TYPES } from "./chat/whiteboardScene"
+
+const actionCableSubscriptions: Array<{ params: Record<string, string | number>; mixin: { connected?: () => void; received: (data: unknown) => void } }> = []
+
+vi.mock("@rails/actioncable", () => ({
+  createConsumer: () => ({
+    subscriptions: {
+      create: (params: Record<string, string | number>, mixin: { connected?: () => void; received: (data: unknown) => void }) => {
+        actionCableSubscriptions.push({ params, mixin })
+        return {
+          perform: vi.fn(),
+          unsubscribe: vi.fn()
+        }
+      }
+    }
+  })
+}))
+
+afterEach(() => {
+  actionCableSubscriptions.length = 0
+  vi.unstubAllGlobals()
+})
 
 describe("storedWorkspaceCollapsed", () => {
   beforeEach(() => {
@@ -300,6 +321,96 @@ describe("chat compose drafts", () => {
     await waitFor(() => {
       expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("Follow the operator chat draft.")
     })
+  })
+})
+
+describe("chat composer dictation", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  it("renders the microphone only when dictation is capability-enabled", async () => {
+    mockChatRouteFetch(chatPayload())
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    expect(screen.getByRole("button", { name: "Dictation is unavailable" })).toBeDisabled()
+  })
+
+  it("uses streaming dictation first and does not auto-send", async () => {
+    installMediaRecorderMock()
+    mockAudioPermission()
+    const fetchMock = mockDictationFetch(chatPayloadWithDictation({ streaming: true, batch: true, browser: true }))
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "Review" } })
+    fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
+
+    await waitFor(() => expect(actionCableSubscriptions).toHaveLength(1))
+    await act(async () => {
+      actionCableSubscriptions[0].mixin.connected?.()
+      actionCableSubscriptions[0].mixin.received({ type: "transcript_delta", text: "the failing grader", final: true })
+      actionCableSubscriptions[0].mixin.received({ type: "done" })
+    })
+
+    await waitFor(() => expect(textarea).toHaveValue("Review the failing grader"))
+    expect(fetchMock.mock.calls.some((call) => String(call[0]) === "/api/v1/app/chats/8/message")).toBe(false)
+
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((call) => String(call[0]) === "/api/v1/app/chats/8/message" && (call[1] as RequestInit | undefined)?.method === "POST")).toBe(true)
+    })
+  })
+
+  it("falls back from streaming failure to backend batch transcription", async () => {
+    installMediaRecorderMock()
+    mockAudioPermission()
+    mockDictationFetch(chatPayloadWithDictation({ streaming: true, batch: true, browser: true }), { batchText: "batch fallback text" })
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
+
+    await waitFor(() => expect(actionCableSubscriptions).toHaveLength(1))
+    await act(async () => {
+      actionCableSubscriptions[0].mixin.connected?.()
+      actionCableSubscriptions[0].mixin.received({ type: "error", message: "stream unavailable" })
+    })
+
+    await waitFor(() => expect(textarea).toHaveValue("batch fallback text"))
+  })
+
+  it("falls back to browser speech recognition when backend modes are absent", async () => {
+    const recognition = installSpeechRecognitionMock()
+    mockDictationFetch(chatPayloadWithDictation({ browser: true }))
+    renderRoute()
+
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "Please" } })
+    fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
+
+    await act(async () => {
+      recognition.lastInstance?.onresult?.({
+        resultIndex: 0,
+        results: [{ isFinal: true, 0: { transcript: "summarize this" } }]
+      })
+    })
+
+    await waitFor(() => expect(textarea).toHaveValue("Please summarize this"))
+  })
+
+  it("shows a permission-denied error when microphone access is rejected", async () => {
+    installMediaRecorderMock()
+    mockAudioPermission(() => Promise.reject(new DOMException("denied", "NotAllowedError")))
+    mockDictationFetch(chatPayloadWithDictation({ batch: true }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
+
+    expect(await screen.findByText("Microphone permission was denied.")).toBeInTheDocument()
   })
 })
 
@@ -3057,6 +3168,183 @@ function mockChatRouteFetch(payload = chatPayload()) {
   })
 }
 
+function mockDictationFetch(payload = chatPayload(), options: { batchText?: string } = {}) {
+  vi.stubGlobal("XMLHttpRequest", fakeDictationXMLHttpRequestClass(options.batchText || "backend batch transcript"))
+  return vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+    const path = String(input)
+    if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+      return Promise.resolve(new Response(null, { status: 204 }))
+    }
+    if (path === "/api/v1/app/chats/8/speech_to_text/stream" && init?.method === "POST") {
+      return Promise.resolve(jsonResponse({
+        stream: {
+          transport: "action_cable",
+          channel: "ChatDictationChannel",
+          chat_session_id: 8,
+          events: ["started", "ack", "transcript_delta", "done", "cancelled", "error"],
+          fallback: {
+            mode: "backend_batch",
+            buffered_audio_required: true,
+            endpoint: "/api/v1/app/chats/8/speech_to_text"
+          }
+        }
+      }))
+    }
+    if (path === "/api/v1/app/chats/8/speech_to_text" && init?.method === "POST") {
+      return Promise.resolve(jsonResponse({
+        transcript: {
+          text: options.batchText || "backend batch transcript",
+          source: "backend_batch",
+          confidence: null
+        }
+      }))
+    }
+    if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") {
+      return Promise.resolve(jsonResponse(payload))
+    }
+
+    return Promise.resolve(jsonResponse(payload))
+  })
+}
+
+class FakeDictationXMLHttpRequest {
+  method = ""
+  url = ""
+  responseType = ""
+  response: unknown = null
+  status = 0
+  headers: Record<string, string> = {}
+  onload: (() => void) | null = null
+  onerror: (() => void) | null = null
+  onabort: (() => void) | null = null
+
+  constructor(private readonly transcriptText: string) {}
+
+  open(method: string, url: string) {
+    this.method = method
+    this.url = url
+  }
+
+  setRequestHeader(name: string, value: string) {
+    this.headers[name] = value
+  }
+
+  send(_body: XMLHttpRequestBodyInit | null) {
+    this.status = 200
+    this.response = {
+      transcript: {
+        text: this.transcriptText,
+        source: "backend_batch",
+        confidence: null
+      }
+    }
+    window.setTimeout(() => this.onload?.(), 0)
+  }
+
+  abort() {
+    this.onabort?.()
+  }
+}
+
+function fakeDictationXMLHttpRequestClass(transcriptText: string) {
+  return class extends FakeDictationXMLHttpRequest {
+    constructor() {
+      super(transcriptText)
+    }
+  }
+}
+
+function chatPayloadWithDictation(options: { streaming?: boolean; batch?: boolean; browser?: boolean }) {
+  const payload = chatPayload({}, { speech_to_text: speechCapability(options) })
+  return {
+    ...payload,
+    paths: {
+      ...payload.paths,
+      ...speechPaths()
+    }
+  }
+}
+
+function speechCapability(options: { streaming?: boolean; batch?: boolean; browser?: boolean }) {
+  return {
+    enabled: Boolean(options.streaming || options.batch || options.browser),
+    modes: {
+      backend_streaming: { available: Boolean(options.streaming) },
+      backend_batch: { available: Boolean(options.batch) },
+      browser: { available: Boolean(options.browser) }
+    }
+  }
+}
+
+function speechPaths() {
+  return {
+    app_speech_to_text_batch_path: "/api/v1/app/chats/8/speech_to_text",
+    app_speech_to_text_stream_path: "/api/v1/app/chats/8/speech_to_text/stream"
+  }
+}
+
+function mockAudioPermission(result: Promise<MediaStream> | (() => Promise<MediaStream>) = () => Promise.resolve(fakeMediaStream())) {
+  Object.defineProperty(navigator, "mediaDevices", {
+    configurable: true,
+    value: {
+      getUserMedia: vi.fn(() => typeof result === "function" ? result() : result)
+    }
+  })
+}
+
+function fakeMediaStream() {
+  return {
+    getTracks: () => [{ stop: vi.fn() }]
+  } as unknown as MediaStream
+}
+
+function installMediaRecorderMock() {
+  class FakeMediaRecorder {
+    static isTypeSupported() {
+      return true
+    }
+
+    state: "inactive" | "recording" = "inactive"
+    ondataavailable: ((event: BlobEvent) => void) | null = null
+    onstop: (() => void) | null = null
+
+    constructor(_stream: MediaStream, _options?: MediaRecorderOptions) {}
+
+    start() {
+      this.state = "recording"
+    }
+
+    stop() {
+      this.state = "inactive"
+      this.ondataavailable?.({ data: new Blob(["audio"], { type: "audio/webm" }) } as BlobEvent)
+      this.onstop?.()
+    }
+  }
+
+  vi.stubGlobal("MediaRecorder", FakeMediaRecorder)
+}
+
+function installSpeechRecognitionMock() {
+  const holder: { lastInstance: SpeechRecognitionMock | null } = { lastInstance: null }
+
+  class SpeechRecognitionMock {
+    continuous = false
+    interimResults = false
+    onresult: ((event: { resultIndex: number; results: Array<{ isFinal: boolean; 0: { transcript: string } }> }) => void) | null = null
+    onerror: ((event: { error?: string }) => void) | null = null
+    onend: (() => void) | null = null
+    start = vi.fn()
+    stop = vi.fn(() => this.onend?.())
+
+    constructor() {
+      holder.lastInstance = this
+    }
+  }
+
+  vi.stubGlobal("SpeechRecognition", SpeechRecognitionMock)
+  return holder
+}
+
 let restoreClipboardMock: (() => void) | null = null
 
 function mockClipboardWrite() {
@@ -3295,6 +3583,14 @@ function chatPayload(overrides: { chat?: Record<string, unknown>; messages?: Arr
     documents_in_scope: [],
     attachment_results: overrides.attachment_results || [],
     local_mode_enabled: false,
+    speech_to_text: {
+      enabled: false,
+      modes: {
+        backend_streaming: { available: false },
+        backend_batch: { available: false },
+        browser: { available: false }
+      }
+    },
     whiteboard: {
       version: 1,
       elements: [],

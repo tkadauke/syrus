@@ -1,4 +1,5 @@
 import type { ChatComposeAttachment, ChatSystemAction, ChatSystemCommandAction, ChatSystemCommandHandlers, PendingSlashCommandConfirmation, WalkthroughDraft } from "./composeTypes"
+import { createConsumer, type Subscription } from "@rails/actioncable"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import type { ClipboardEvent as ReactClipboardEvent, DragEvent, FormEvent, KeyboardEvent } from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -7,6 +8,7 @@ import "@excalidraw/excalidraw/index.css"
 import { GeminiSetupSheet } from "../../components/GeminiSetupSheet"
 import { AnalyzingHint, annotationHoldLabel, annotationIdleHintKind, annotationShortcutLabel, formatClock, RECORDER_WARNING_SECONDS, shouldShowAnnotationSurfaceNote, useNativeRecorderHud, useWalkthroughRecorder, WalkthroughRecorderHUD } from "../../components/WalkthroughRecorder"
 import { isWalkthroughVideoFile, MAX_WALKTHROUGH_BYTES, MAX_WALKTHROUGH_DURATION_SECONDS, measureVideoDuration, retryVideoWalkthrough, uploadVideoWalkthrough } from "../../api/videoWalkthroughs"
+import { MAX_TRANSCRIPTION_BYTES, startChatAudioStream, transcribeChatAudio } from "../../api/speechToText"
 import { refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
 import { attachChatRepository, branchChat, clearChatHistory, createChat, createChatTopicBookmark, createScratchpadItem, deleteQueuedChatMessage, deleteChatAttachment, enqueueChatMessage, fetchChatWhiteboard, patchChatWhiteboard, rejectChatProposal, renameChat, scheduleChatMessage, sendChatMessage, shareChat, stopChat, updateChatEffort, updateChatMode, updateChatModel, updateChatPinned, updateQueuedChatMessage, type ChatBranchPayload, type ChatCreatedPayload, type ChatMode, type ChatPayload, type ChatProposal, type ChatQueuedMessage, type ShareChatPayload } from "../../api/chats"
 import { fetchJobDetail, postJobCommand } from "../../api/jobs"
@@ -118,6 +120,15 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const pendingProposalCount = payload.pending_proposal_count ?? pendingProposals.length
   const [jumpIndex, setJumpIndex] = useState(0)
   const attachedRepositories = payload.attachment_groups.repositories
+  const dictation = useChatDictation({
+    chatId: payload.chat.id,
+    capability: payload.speech_to_text ?? UNAVAILABLE_SPEECH_TO_TEXT,
+    paths: {
+      batch: payload.paths.app_speech_to_text_batch_path,
+      stream: payload.paths.app_speech_to_text_stream_path
+    },
+    onTranscript: insertDictationTranscript
+  })
 
   useEffect(() => {
     if (text.length > 0) {
@@ -1135,6 +1146,35 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
     }
   }
 
+  function insertDictationTranscript(spokenText: string) {
+    const transcript = spokenText.trim()
+    if (transcript.length === 0) return
+
+    const textarea = textareaRef.current
+    const selectionStart = textarea?.selectionStart
+    const selectionEnd = textarea?.selectionEnd
+    let nextCursor: number | null = null
+
+    setText((current) => {
+      const start = selectionStart ?? current.length
+      const end = selectionEnd ?? start
+      const before = current.slice(0, start)
+      const after = current.slice(end)
+      const prefix = before.length > 0 && !/\s$/.test(before) ? " " : ""
+      const suffix = after.length > 0 && !/^\s/.test(after) ? " " : ""
+      const inserted = `${prefix}${transcript}${suffix}`
+      nextCursor = before.length + inserted.length
+
+      return `${before}${inserted}${after}`
+    })
+    if (pendingConfirmation) setPendingConfirmation(null)
+
+    window.requestAnimationFrame(() => {
+      textarea?.focus()
+      if (nextCursor != null) textarea?.setSelectionRange(nextCursor, nextCursor)
+    })
+  }
+
   useEffect(() => {
     setActiveCommandIndex(0)
   }, [commandQuery])
@@ -1320,6 +1360,11 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
         {send.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(send.error, "Message failed.")}</div> : null}
         {systemAction.isError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{errorMessage(systemAction.error, "Command failed.")}</div> : null}
         {attachmentError ? <div className="mb-2 text-sm text-red-700 dark:text-red-300">{attachmentError}</div> : null}
+        {dictation.message ? (
+          <div className={`mb-2 text-sm ${dictation.messageTone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}>
+            {dictation.message}
+          </div>
+        ) : null}
         {clearConfirmationOpen ? (
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
             <span>{t("clear_confirm")}</span>
@@ -1568,6 +1613,18 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           >
             +
           </button>
+          <DictationButton
+            disabled={send.isPending || systemAction.isPending || !dictation.available}
+            labels={{
+              idle: t("dictation_start"),
+              requesting: t("dictation_requesting"),
+              recording: t("dictation_stop"),
+              transcribing: t("dictation_transcribing"),
+              unavailable: t("dictation_unavailable")
+            }}
+            phase={dictation.phase}
+            onClick={dictation.phase === "recording" ? dictation.stop : dictation.start}
+          />
           <ChatModeSelector chatId={chatId} payload={payload} queryKey={queryKey} />
           <ChatModelSelector chatId={chatId} payload={payload} queryKey={queryKey} />
         </div>
@@ -1629,6 +1686,401 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
       </form>
     </>
   )
+}
+
+const UNAVAILABLE_SPEECH_TO_TEXT: NonNullable<ChatPayload["speech_to_text"]> = {
+  enabled: false,
+  modes: {
+    backend_streaming: { available: false },
+    backend_batch: { available: false },
+    browser: { available: false }
+  }
+}
+
+type DictationPhase = "idle" | "requesting" | "recording" | "transcribing" | "unavailable" | "error"
+type DictationMessageTone = "status" | "error"
+
+function useChatDictation({
+  capability,
+  chatId,
+  onTranscript,
+  paths
+}: {
+  capability: NonNullable<ChatPayload["speech_to_text"]>
+  chatId: number
+  onTranscript: (text: string) => void
+  paths: { batch?: string; stream?: string }
+}) {
+  const { t } = useT("chat")
+  const [phase, setPhase] = useState<DictationPhase>(() => capability.enabled ? "idle" : "unavailable")
+  const [message, setMessage] = useState<string | null>(null)
+  const [messageTone, setMessageTone] = useState<DictationMessageTone>("status")
+  const recorderRef = useRef<MediaRecorder | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+  const startedAtRef = useRef<number | null>(null)
+  const subscriptionRef = useRef<Subscription | null>(null)
+  const streamingSequenceRef = useRef(0)
+  const stoppingRef = useRef(false)
+  const fallbackAfterStopRef = useRef(false)
+
+  const browserRecognitionAvailable = () => Boolean(speechRecognitionConstructor())
+  const available = capability.enabled && (
+    capability.modes.backend_streaming.available ||
+    capability.modes.backend_batch.available ||
+    (capability.modes.browser.available && browserRecognitionAvailable())
+  )
+
+  useEffect(() => {
+    if (!capability.enabled) setPhase("unavailable")
+  }, [capability.enabled])
+
+  useEffect(() => () => cleanup(), [])
+
+  function cleanup() {
+    recorderRef.current?.state === "recording" && recorderRef.current.stop()
+    recorderRef.current = null
+    streamRef.current?.getTracks().forEach((track) => track.stop())
+    streamRef.current = null
+    subscriptionRef.current?.unsubscribe()
+    subscriptionRef.current = null
+  }
+
+  async function start() {
+    if (!available || phase === "requesting" || phase === "recording" || phase === "transcribing") return
+    setMessage(null)
+    setMessageTone("status")
+    stoppingRef.current = false
+    fallbackAfterStopRef.current = false
+
+    if (capability.modes.backend_streaming.available && paths.stream) {
+      await startBackendStream()
+      return
+    }
+
+    if (capability.modes.backend_batch.available && paths.batch) {
+      await startBackendBatchRecorder()
+      return
+    }
+
+    await startBrowserRecognition()
+  }
+
+  async function startBackendStream() {
+    try {
+      setPhase("requesting")
+      const [mediaStream, streamConfig] = await Promise.all([
+        requestAudioStream(),
+        startChatAudioStream(paths.stream!)
+      ])
+      startRecorder(mediaStream, {
+        mode: "streaming",
+        onChunk: (chunk) => sendStreamingChunk(chunk)
+      })
+      const subscription = createConsumer().subscriptions.create(
+        { channel: streamConfig.stream.channel, chat_session_id: streamConfig.stream.chat_session_id || chatId },
+        {
+          connected() {
+            subscription.perform("receive", { type: "start", content_type: recorderMimeType() })
+          },
+          received(data: unknown) {
+            handleStreamEvent(data as DictationStreamEvent)
+          }
+        }
+      )
+      subscriptionRef.current = subscription
+      setPhase("recording")
+      setMessage(t("dictation_streaming"))
+    } catch (error) {
+      cleanup()
+      if (capability.modes.backend_batch.available && paths.batch) {
+        setMessage(t("dictation_stream_fallback"))
+        await startBackendBatchRecorder()
+        return
+      }
+      if (capability.modes.browser.available && browserRecognitionAvailable()) {
+        setMessage(t("dictation_browser_fallback"))
+        await startBrowserRecognition()
+        return
+      }
+      showError(error, t("dictation_error"))
+    }
+  }
+
+  async function startBackendBatchRecorder() {
+    try {
+      setPhase("requesting")
+      const mediaStream = await requestAudioStream()
+      startRecorder(mediaStream, { mode: "batch" })
+      setPhase("recording")
+      setMessage(t("dictation_recording_batch"))
+    } catch (error) {
+      cleanup()
+      if (capability.modes.browser.available && browserRecognitionAvailable()) {
+        setMessage(t("dictation_browser_fallback"))
+        await startBrowserRecognition()
+        return
+      }
+      showError(error, t("dictation_error"))
+    }
+  }
+
+  async function startBrowserRecognition() {
+    const Recognition = speechRecognitionConstructor()
+    if (!Recognition) {
+      showError(new Error(t("dictation_unavailable")), t("dictation_unavailable"))
+      return
+    }
+
+    setPhase("recording")
+    setMessage(t("dictation_browser_active"))
+    const recognition = new Recognition()
+    recognition.continuous = true
+    recognition.interimResults = true
+    recognition.onresult = (event: SpeechRecognitionEventLike) => {
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const result = event.results[index]
+        if (result?.isFinal) onTranscript(result[0]?.transcript || "")
+      }
+    }
+    recognition.onerror = (event: { error?: string }) => {
+      setPhase("error")
+      setMessageTone("error")
+      setMessage(event.error === "not-allowed" ? t("dictation_permission_denied") : t("dictation_error"))
+    }
+    recognition.onend = () => {
+      if (phase !== "error") setPhase("idle")
+    }
+    recognition.start()
+    browserRecognitionRef.current = recognition
+  }
+
+  const browserRecognitionRef = useRef<SpeechRecognitionLike | null>(null)
+
+  function stop() {
+    stoppingRef.current = true
+    browserRecognitionRef.current?.stop()
+    browserRecognitionRef.current = null
+
+    if (recorderRef.current?.state === "recording") {
+      recorderRef.current.stop()
+      return
+    }
+
+    subscriptionRef.current?.perform("receive", { type: "stop" })
+    cleanup()
+    setPhase("idle")
+    setMessage(null)
+  }
+
+  function startRecorder(mediaStream: MediaStream, options: { mode: "streaming" | "batch"; onChunk?: (chunk: Blob) => void }) {
+    streamRef.current = mediaStream
+    chunksRef.current = []
+    startedAtRef.current = Date.now()
+    const recorder = new MediaRecorder(mediaStream, { mimeType: recorderMimeType() })
+    recorderRef.current = recorder
+    recorder.ondataavailable = (event: BlobEvent) => {
+      if (!event.data || event.data.size === 0) return
+      chunksRef.current.push(event.data)
+      if (totalBlobBytes(chunksRef.current) > MAX_TRANSCRIPTION_BYTES) {
+        showError(new Error(t("dictation_too_large")), t("dictation_too_large"))
+        cleanup()
+        return
+      }
+      options.onChunk?.(event.data)
+    }
+    recorder.onstop = () => {
+      streamRef.current?.getTracks().forEach((track) => track.stop())
+      streamRef.current = null
+      if (options.mode === "streaming" && stoppingRef.current) {
+        subscriptionRef.current?.perform("receive", { type: "stop" })
+        setPhase("transcribing")
+        setMessage(t("dictation_transcribing"))
+      } else if (options.mode === "streaming" && fallbackAfterStopRef.current) {
+        fallbackAfterStopRef.current = false
+        void transcribeBufferedAudio()
+      } else if (options.mode === "batch") {
+        void transcribeBufferedAudio()
+      }
+    }
+    recorder.start(options.mode === "streaming" ? 1000 : undefined)
+  }
+
+  async function sendStreamingChunk(chunk: Blob) {
+    const audio = await blobToBase64(chunk)
+    subscriptionRef.current?.perform("receive", {
+      type: "audio_chunk",
+      sequence: ++streamingSequenceRef.current,
+      audio
+    })
+  }
+
+  async function transcribeBufferedAudio() {
+    if (!paths.batch) return
+    const audio = new Blob(chunksRef.current, { type: recorderMimeType() })
+    chunksRef.current = []
+    setPhase("transcribing")
+    setMessage(t("dictation_transcribing"))
+    try {
+      const result = await transcribeChatAudio({
+        chatSessionId: chatId,
+        file: audio,
+        filename: "dictation.webm",
+        durationSeconds: durationSeconds(),
+        prompt: ""
+      })
+      onTranscript(result.transcript.text)
+      setPhase("idle")
+      setMessage(null)
+    } catch (error) {
+      if (capability.modes.browser.available && browserRecognitionAvailable()) {
+        setMessage(t("dictation_browser_fallback"))
+        await startBrowserRecognition()
+        return
+      }
+      showError(error, t("dictation_error"))
+    } finally {
+      cleanup()
+    }
+  }
+
+  function handleStreamEvent(data: DictationStreamEvent) {
+    if (data.type === "transcript_delta" && data.text && data.final) onTranscript(data.text)
+    if (data.type === "done") {
+      cleanup()
+      setPhase("idle")
+      setMessage(null)
+    }
+    if (data.type === "error") {
+      if (capability.modes.backend_batch.available && paths.batch) {
+        setMessage(t("dictation_stream_fallback"))
+        if (recorderRef.current?.state === "recording") {
+          fallbackAfterStopRef.current = true
+          recorderRef.current.stop()
+          return
+        }
+        void transcribeBufferedAudio()
+        return
+      }
+      showError(new Error(data.message || t("dictation_error")), t("dictation_error"))
+    }
+  }
+
+  function durationSeconds() {
+    return startedAtRef.current ? Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000)) : undefined
+  }
+
+  function showError(error: unknown, fallback: string) {
+    setPhase("error")
+    setMessageTone("error")
+    const message = error instanceof DOMException && error.name === "NotAllowedError"
+      ? t("dictation_permission_denied")
+      : errorMessage(error, fallback)
+    setMessage(message)
+  }
+
+  return { available, message, messageTone, phase, start, stop }
+}
+
+function DictationButton({
+  disabled,
+  labels,
+  onClick,
+  phase
+}: {
+  disabled: boolean
+  labels: Record<"idle" | "requesting" | "recording" | "transcribing" | "unavailable", string>
+  onClick: () => void
+  phase: DictationPhase
+}) {
+  const active = phase === "recording" || phase === "requesting" || phase === "transcribing"
+  const label = phase === "requesting" ? labels.requesting
+    : phase === "recording" ? labels.recording
+      : phase === "transcribing" ? labels.transcribing
+        : phase === "unavailable" ? labels.unavailable
+          : labels.idle
+
+  return (
+    <button
+      aria-label={label}
+      aria-pressed={phase === "recording"}
+      className={`flex h-6 min-h-11 w-6 min-w-11 shrink-0 items-center justify-center rounded border sm:min-h-0 sm:min-w-0 ${
+        active
+          ? "border-red-300 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-950 dark:text-red-300"
+          : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+      } disabled:text-gray-300 dark:disabled:text-gray-600`}
+      disabled={disabled || phase === "requesting" || phase === "transcribing"}
+      onClick={onClick}
+      title={label}
+      type="button"
+    >
+      <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+        <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" />
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+        <path d="M12 19v3" />
+        <path d="M8 22h8" />
+      </svg>
+    </button>
+  )
+}
+
+type DictationStreamEvent = {
+  type?: string
+  text?: string
+  final?: boolean
+  message?: string
+}
+
+type SpeechRecognitionEventLike = {
+  resultIndex: number
+  results: ArrayLike<{ isFinal: boolean; 0?: { transcript: string } }>
+}
+
+type SpeechRecognitionLike = {
+  continuous: boolean
+  interimResults: boolean
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null
+  onerror: ((event: { error?: string }) => void) | null
+  onend: (() => void) | null
+  start: () => void
+  stop: () => void
+}
+
+function speechRecognitionConstructor(): (new () => SpeechRecognitionLike) | null {
+  const speechWindow = window as Window & {
+    SpeechRecognition?: new () => SpeechRecognitionLike
+    webkitSpeechRecognition?: new () => SpeechRecognitionLike
+  }
+  return speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition || null
+}
+
+function recorderMimeType() {
+  return typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported?.("audio/webm")
+    ? "audio/webm"
+    : "audio/ogg"
+}
+
+function requestAudioStream() {
+  return navigator.mediaDevices.getUserMedia({
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true
+    }
+  })
+}
+
+function totalBlobBytes(chunks: Blob[]) {
+  return chunks.reduce((total, chunk) => total + chunk.size, 0)
+}
+
+function blobToBase64(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || "").split(",", 2)[1] || "")
+    reader.onerror = () => reject(reader.error || new Error("Could not read audio."))
+    reader.readAsDataURL(blob)
+  })
 }
 
 function ChatModeSelector({ chatId, payload, queryKey }: { chatId: string; payload: ChatPayload; queryKey: ChatQueryKey }) {
