@@ -121,7 +121,7 @@ class WorkerHealthRunCorrelation
         started_at: process.started_at&.iso8601,
         finished_at: process.finished_at&.iso8601,
         last_chunk_at: process.last_chunk_at&.iso8601,
-        command: process.redacted_command
+        command: CommandRedactor.redact(process.command)
       }
     end
   end
@@ -219,7 +219,7 @@ class WorkerHealthRunCorrelation
         exit_status: span.exit_status,
         outcome: span.outcome,
         hostname: span.hostname,
-        metadata: span.metadata,
+        metadata: CommandRedactor.redact_value(span.metadata),
         sample_count: samples.size,
         samples_missing: samples.empty?,
         retention_limited: retention_limited?,

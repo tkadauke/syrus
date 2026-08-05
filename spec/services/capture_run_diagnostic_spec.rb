@@ -133,6 +133,35 @@ RSpec.describe CaptureRunDiagnostic, :ci_only do
         "hostname" => "worker-a"
       )
     end
+
+    it "redacts GitHub credentials from command span diagnostic snapshots" do
+      run.command_spans.create!(
+        job: job,
+        workflow: run.workflow,
+        step: run.step,
+        sequence: 1,
+        name: "git clone",
+        command_excerpt: "git clone https://x-access-token:ghs_diagsecret@github.com/acme/widgets.git",
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago,
+        duration_ms: 60_000,
+        exit_status: 1,
+        outcome: "failed",
+        hostname: "worker-a",
+        metadata: {
+          "command_excerpt" => "git ls-remote https://x-access-token:github_pat_diagsecret@github.com/acme/widgets.git"
+        }
+      )
+
+      described_class.capture(run, exception)
+
+      serialized = JSON.generate(run.reload.run_diagnostic.repo_snapshot)
+      expect(serialized).to include("https://x-access-token:[REDACTED]@github.com/acme/widgets.git")
+      expect(serialized).not_to include("ghs_diagsecret")
+      expect(serialized).not_to include("github_pat_diagsecret")
+      expect(serialized).not_to include("x-access-token:ghs_")
+      expect(serialized).not_to include("x-access-token:github_pat_")
+    end
   end
 
   def sh(cmd)

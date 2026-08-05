@@ -1,13 +1,29 @@
 class CommandRedactor
   REDACTED = "[REDACTED]".freeze
 
-  AUTH_URL_PATTERN = %r{(https://x-access-token:)[^@\s]+(@)}.freeze
+  AUTH_URL_PATTERNS = [
+    %r{(https://x-access-token:)[^@\s]+(@)}i,
+    %r{(https://[^:/@\s]+:)[^@\s]+(@github\.com\b)}i
+  ].freeze
   GITHUB_TOKEN_PATTERN = /\b(?:ghp|github_pat|gho|ghu|ghs|ghr)_[A-Za-z0-9_]+\b/.freeze
 
   def self.redact(text)
-    utf8(text)
-      .gsub(AUTH_URL_PATTERN, "\\1#{REDACTED}\\2")
+    AUTH_URL_PATTERNS
+      .reduce(utf8(text)) { |redacted, pattern| redacted.gsub(pattern, "\\1#{REDACTED}\\2") }
       .gsub(GITHUB_TOKEN_PATTERN, REDACTED)
+  end
+
+  def self.redact_value(value)
+    case value
+    when String
+      redact(value)
+    when Array
+      value.map { |item| redact_value(item) }
+    when Hash
+      value.transform_values { |item| redact_value(item) }
+    else
+      value
+    end
   end
 
   def self.utf8(text)

@@ -83,20 +83,38 @@ RSpec.describe WorkerHealthRunCorrelation do
       finished_at: now - 3.minutes,
       outcome: "succeeded"
     )
+    SpawnedProcess.create!(
+      run: run,
+      workflow: wf,
+      kind: "git",
+      command: "git ls-remote --heads https://x-access-token:ghs_currentappsecret@github.com/acme/widgets.git refs/heads/main",
+      hostname: "worker-a",
+      started_at: now - 8.minutes,
+      finished_at: now - 7.minutes,
+      outcome: "succeeded"
+    )
     CommandSpan.create!(
       job: job,
       workflow: wf,
       step: step,
       run: run,
       sequence: 1,
-      name: "git fetch",
-      command_excerpt: "git fetch https://x-access-token:github_pat_spansecret@github.com/acme/widgets.git",
+      name: "git clone",
+      command_excerpt: "git clone --no-tags https://x-access-token:ghs_spansecret@github.com/acme/widgets.git /work/tree",
       hostname: "worker-a",
       started_at: now - 7.minutes,
       finished_at: now - 6.minutes,
       duration_ms: 60_000,
       outcome: "succeeded",
-      exit_status: 0
+      exit_status: 0,
+      metadata: {
+        "command_excerpt" => "git ls-remote https://x-access-token:ghs_metasecret@github.com/acme/widgets.git",
+        "nested" => {
+          "commands" => [
+            "git clone https://x-access-token:github_pat_spansecret@github.com/acme/widgets.git"
+          ]
+        }
+      }
     )
 
     payload = described_class.for_run(run, now: now)
@@ -104,8 +122,12 @@ RSpec.describe WorkerHealthRunCorrelation do
 
     expect(serialized).to include("https://x-access-token:[REDACTED]@github.com/acme/widgets.git")
     expect(serialized).not_to include("ghp_workerhealth")
+    expect(serialized).not_to include("ghs_currentappsecret")
+    expect(serialized).not_to include("ghs_spansecret")
+    expect(serialized).not_to include("ghs_metasecret")
     expect(serialized).not_to include("github_pat_spansecret")
     expect(serialized).not_to include("x-access-token:ghp_")
+    expect(serialized).not_to include("x-access-token:ghs_")
     expect(serialized).not_to include("x-access-token:github_pat_")
   end
 

@@ -43,6 +43,20 @@ RSpec.describe GitRunner do
       expect(described_class.redact(input)).not_to include("ghp_secret")
     end
 
+    it "redacts GitHub App installation tokens in authenticated URLs" do
+      input = "git ls-remote https://x-access-token:ghs_currentappsecret@github.com/o/r.git refs/heads/main"
+      expect(described_class.redact(input)).to eq(
+        "git ls-remote https://x-access-token:[REDACTED]@github.com/o/r.git refs/heads/main"
+      )
+    end
+
+    it "redacts nonstandard GitHub userinfo credentials" do
+      input = "git clone https://oauth2:secret-token-value@github.com/o/r.git"
+      expect(described_class.redact(input)).to eq(
+        "git clone https://oauth2:[REDACTED]@github.com/o/r.git"
+      )
+    end
+
     it "leaves non-auth URLs and other strings alone" do
       expect(described_class.redact("https://github.com/foo/bar.git")).to eq("https://github.com/foo/bar.git")
       expect(described_class.redact("nothing to see here")).to eq("nothing to see here")

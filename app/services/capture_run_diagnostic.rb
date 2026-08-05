@@ -162,14 +162,14 @@ class CaptureRunDiagnostic
         "id" => span.id,
         "sequence" => span.sequence,
         "name" => span.name,
-        "command_excerpt" => truncate(span.command_excerpt, 300),
+        "command_excerpt" => truncate(CommandRedactor.redact(span.command_excerpt), 300),
         "started_at" => span.started_at&.iso8601,
         "finished_at" => span.finished_at&.iso8601,
         "duration_ms" => span.duration_ms,
         "exit_status" => span.exit_status,
         "outcome" => span.outcome,
         "hostname" => span.hostname,
-        "metadata" => span.metadata
+        "metadata" => CommandRedactor.redact_value(span.metadata)
       }
     end
   end

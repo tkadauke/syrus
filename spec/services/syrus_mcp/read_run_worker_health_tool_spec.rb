@@ -64,6 +64,39 @@ RSpec.describe SyrusMcp::ReadRunWorkerHealthTool do
     expect(text).not_to include("x-access-token:ghp_")
   end
 
+  it "redacts structured command copies at the MCP serialization boundary" do
+    allow(WorkerHealthRunCorrelation).to receive(:for_run).with(run, sample_limit: 20).and_return(
+      {
+        run_id: run.id,
+        processes: [
+          {
+            command: "git clone https://x-access-token:ghs_boundarysecret@github.com/acme/widgets.git"
+          }
+        ],
+        command_spans: [
+          {
+            command_excerpt: "git ls-remote https://x-access-token:ghs_spanboundary@github.com/acme/widgets.git",
+            metadata: {
+              "command_excerpt" => "git clone https://x-access-token:github_pat_boundarysecret@github.com/acme/widgets.git"
+            }
+          }
+        ]
+      }
+    )
+
+    response = described_class.call(server_context: { run_id: run.id })
+    text = response.content.first[:text]
+
+    expect(response).not_to be_error
+    expect(text).to include("git clone https://x-access-token:[REDACTED]@github.com/acme/widgets.git")
+    expect(text).to include("git ls-remote https://x-access-token:[REDACTED]@github.com/acme/widgets.git")
+    expect(text).not_to include("ghs_boundarysecret")
+    expect(text).not_to include("ghs_spanboundary")
+    expect(text).not_to include("github_pat_boundarysecret")
+    expect(text).not_to include("x-access-token:ghs_")
+    expect(text).not_to include("x-access-token:github_pat_")
+  end
+
   it "allows same-repository run lookup for insight comparisons" do
     other_run = Run.create!(
       job: run.job,

@@ -32,7 +32,9 @@ module SyrusMcp
           return SyrusMcp.invalid("run_id is outside this repository scope")
         end
 
-        payload = WorkerHealthRunCorrelation.for_run(target_run, sample_limit: sample_limit)
+        payload = CommandRedactor.redact_value(
+          WorkerHealthRunCorrelation.for_run(target_run, sample_limit: sample_limit)
+        )
         MCP::Tool::Response.new([ { type: "text", text: JSON.generate(payload) } ])
       rescue StandardError => e
         Rails.logger.error("[SyrusMcp::ReadRunWorkerHealthTool] #{e.class}: #{e.message}")
