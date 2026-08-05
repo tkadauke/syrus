@@ -295,7 +295,6 @@ module App
     end
 
     def attachment_json(attachment)
-      file = attachment.file if attachment.file.attached?
       {
         id: attachment.id,
         kind: attachment.kind,
@@ -306,7 +305,7 @@ module App
         byte_size: attachment.byte_size,
         google_doc_url: attachment.google_doc_url,
         uploaded_file: attachment.uploaded_file?,
-        file_path: file ? rails_blob_path(file, only_path: true) : nil,
+        file_path: attachment.file.attached? ? "/api/v1/app/jobs/#{@job.id}/attachments/#{attachment.id}/file" : nil,
         created_at: iso8601(attachment.created_at),
         app_delete_path: "/api/v1/app/jobs/#{@job.id}/attachments/#{attachment.id}"
       }

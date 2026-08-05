@@ -2,6 +2,19 @@ module Api
   module V1
     module App
       class JobAttachmentsController < BaseController
+        def show
+          job = find_job
+          attachment = job.job_attachments.find(params[:id])
+          raise ActiveRecord::RecordNotFound, "Attachment file not found" unless attachment.file.attached?
+
+          send_data(
+            attachment.file.download,
+            filename: attachment.filename || "attachment",
+            type: attachment.content_type || "application/octet-stream",
+            disposition: "inline"
+          )
+        end
+
         def create
           job = find_job
           created, errors = create_attachments(job)
@@ -112,8 +125,14 @@ module Api
             content_type: attachment.content_type,
             byte_size: attachment.byte_size,
             google_doc_url: attachment.google_doc_url,
+            uploaded_file: attachment.uploaded_file?,
+            file_path: attachment.file.attached? ? app_file_path(job, attachment) : nil,
             app_delete_path: "/api/v1/app/jobs/#{job.id}/attachments/#{attachment.id}"
           }
+        end
+
+        def app_file_path(job, attachment)
+          "/api/v1/app/jobs/#{job.id}/attachments/#{attachment.id}/file"
         end
 
         def broadcast_attachment_change(job)

@@ -8,6 +8,27 @@ RSpec.describe App::JobDetailPayload do
     described_class.build(job: job, user: user)
   end
 
+  describe "#attachments" do
+    it "uses the authenticated app proxy URL for uploaded files" do
+      job = Factories.job_record(user: user, repository: repo)
+      attachment = job.job_attachments.build(attachment_type: "uploaded_file")
+      attachment.file.attach(
+        io: StringIO.new("notes"),
+        filename: "notes.txt",
+        content_type: "text/plain"
+      )
+      attachment.save!
+
+      expect(payload_for(job).fetch(:attachments)).to include(
+        include(
+          id: attachment.id,
+          file_path: "/api/v1/app/jobs/#{job.id}/attachments/#{attachment.id}/file",
+          app_delete_path: "/api/v1/app/jobs/#{job.id}/attachments/#{attachment.id}"
+        )
+      )
+    end
+  end
+
   describe "#job_json" do
     it "includes a compact worker health correlation summary" do
       job = Factories.job(repository: repo)
