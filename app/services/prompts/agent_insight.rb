@@ -109,10 +109,13 @@ module Prompts
 
         Inspect the repository's recent workflow runs and agent transcripts using the
         tools available to you (`read_live_state`, `list_recent_workflows`,
-        `read_run_transcript`, `read_run_worker_health`, memory tools,
+        `read_run_transcript`, `read_run_worker_health`, `read_syrus_logs`, memory tools,
         `list_insights`, `read_insight`). Look for:
 
         - Repeated failures or struggle patterns across multiple Jobs
+        - Operational log patterns from `read_syrus_logs`: repeated exceptions,
+          recurring warnings, slow or inefficient behavior, retry storms,
+          queue/worker anomalies, failed background jobs, and noisy code paths
         - Inefficient agent behaviors (excessive tool calls, wrong approaches)
         - Missed opportunities for memory or knowledge capture
         - Existing pending or accepted insights that are stale, duplicated, or superseded
@@ -131,6 +134,11 @@ module Prompts
         - `evidence` — an array of `{job_id, run_id, kind}` objects that support the finding.
           Use `read_run_worker_health` when host pressure, CPU starvation, memory,
           disk, or IO pressure may explain a Run or repeated step behavior.
+          Use `read_syrus_logs` to find recent operational log evidence when it
+          is available, and corroborate log hits with workflow evidence, run
+          transcripts, worker health, code inspection, or multiple occurrences
+          before filing a finding. Do not submit insights from one-off benign log
+          lines or isolated noise without supporting context.
         - A `suggested_prompt` for a Job or ScheduledTask that would address it (optional)
         - A `memory_suggestion` with the exact text to store if this is a durable fact (optional)
         - A `proposal_type` (`create_job`, `save_memory`, `remove_memory`,

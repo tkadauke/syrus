@@ -190,8 +190,15 @@ RSpec.describe McpToolPolicy do
       Feature.clear_enabled_cache!("agent_insights")
     end
 
-    it "includes repository-scoped workflow evidence tools" do
-      job = Job.create!(user: user, repository: repository, kind: "agent_insight", priority: "low")
+    def set_operational_log_indexing(enabled)
+      Feature.find_or_create_by!(slug: "operational_log_indexing") { |f| f.category = "Operations"; f.name = "Operational log indexing" }
+             .update!(enabled: enabled)
+      Feature.clear_enabled_cache!("operational_log_indexing")
+      Current.reset
+    end
+
+    def agent_insight_context(repo = repository)
+      job = Job.create!(user: user, repository: repo, kind: "agent_insight", priority: "low")
       workflow = Workflow.create!(
         job: job,
         trigger_kind: "agent_insight",
@@ -200,7 +207,11 @@ RSpec.describe McpToolPolicy do
       )
       step = Step.create!(workflow: workflow, kind: "agent_insight_run", position: 0)
       run = step.runs.create!(job: job, trigger_kind: "agent_insight", agent_provider: user.agent_provider)
-      context = McpToolContext.from_run(run)
+      McpToolContext.from_run(run)
+    end
+
+    it "includes repository-scoped workflow evidence tools" do
+      context = agent_insight_context
 
       expect(described_class.for(context)).to include(
         SyrusMcp::ListRecentWorkflowsTool,
@@ -208,6 +219,33 @@ RSpec.describe McpToolPolicy do
         SyrusMcp::SubmitInsightTool
       )
       expect(described_class.for(context)).not_to include(SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool)
+    end
+
+    it "includes Syrus log search for insight runs when operational logging is enabled on tkadauke/syrus" do
+      set_operational_log_indexing(true)
+      syrus_repository = Factories.repository(user: user, owner: "tkadauke", name: "syrus")
+
+      expect(described_class.for(agent_insight_context(syrus_repository))).to include(SyrusMcp::ReadSyrusLogsTool)
+    end
+
+    it "includes Syrus log search for insight runs on registered Syrus forks" do
+      set_operational_log_indexing(true)
+      syrus_fork = Factories.repository(user: user, owner: "acme", name: "syrus-fork", upstream_owner: "tkadauke", upstream_name: "syrus")
+
+      expect(described_class.for(agent_insight_context(syrus_fork))).to include(SyrusMcp::ReadSyrusLogsTool)
+    end
+
+    it "excludes Syrus log search for insight runs when operational logging is disabled" do
+      set_operational_log_indexing(false)
+      syrus_repository = Factories.repository(user: user, owner: "tkadauke", name: "syrus")
+
+      expect(described_class.for(agent_insight_context(syrus_repository))).not_to include(SyrusMcp::ReadSyrusLogsTool)
+    end
+
+    it "excludes Syrus log search for insight runs on non-Syrus repositories" do
+      set_operational_log_indexing(true)
+
+      expect(described_class.for(agent_insight_context(repository))).not_to include(SyrusMcp::ReadSyrusLogsTool)
     end
   end
 

@@ -148,6 +148,28 @@ RSpec.describe Prompts::AgentInsight do
       expect(out).to include("read_run_worker_health")
       expect(out).to include("CPU starvation")
     end
+
+    it "mentions operational log search guidance and target patterns" do
+      out = described_class.new(repository: repository).to_s
+
+      expect(out).to include("read_syrus_logs")
+      expect(out).to include("repeated exceptions")
+      expect(out).to include("recurring warnings")
+      expect(out).to include("retry storms")
+      expect(out).to include("queue/worker anomalies")
+      expect(out).to include("failed background jobs")
+      expect(out).to include("noisy code paths")
+    end
+
+    it "requires corroborating log hits before filing an insight" do
+      out = described_class.new(repository: repository).to_s
+
+      expect(out).to include("corroborate log hits")
+      expect(out).to include("workflow evidence")
+      expect(out).to match(/run\s+transcripts/)
+      expect(out).to include("multiple occurrences")
+      expect(out).to match(/one-off benign log\s+lines/)
+    end
   end
 
   describe "memory dedup guidance" do

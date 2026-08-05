@@ -8,7 +8,10 @@ RSpec.describe SyrusMcp::ReadSyrusLogsTool do
   before do
     Feature.where(slug: "operational_log_indexing").delete_all
     Feature.create!(slug: "operational_log_indexing", category: "Operations", name: "Operational log indexing", enabled: true)
+    Feature.find_or_create_by!(slug: "agent_insights") { |f| f.category = "Labs"; f.name = "Agent Insights" }
+           .update!(enabled: true)
     Feature.clear_enabled_cache!("operational_log_indexing")
+    Feature.clear_enabled_cache!("agent_insights")
     Current.reset
     prepare_search_tables
   end
@@ -82,6 +85,33 @@ RSpec.describe SyrusMcp::ReadSyrusLogsTool do
     expect(payload.to_json).not_to include("secret")
     expect(payload.dig("logs", 0, "message")).to include("[REDACTED]")
     expect(payload.dig("logs", 0, "context")).to include("path" => "/jobs", "api_key" => "api_key=[REDACTED]")
+  end
+
+  it "allows agent insight runs to search Syrus logs" do
+    insight_job = Job.create!(user: user, repository: repository, kind: "agent_insight", priority: "low")
+    insight_workflow = Workflow.create!(
+      job: insight_job,
+      trigger_kind: "agent_insight",
+      agent_provider: user.agent_provider,
+      chain_template: []
+    )
+    insight_step = Step.create!(workflow: insight_workflow, kind: "agent_insight_run", position: 0)
+    insight_run = insight_step.runs.create!(job: insight_job, trigger_kind: "agent_insight", agent_provider: user.agent_provider)
+    event = OperationalLogEvent.create!(
+      occurred_at: 1.minute.ago,
+      level: "warn",
+      role: "worker",
+      hostname: "host-a",
+      source: "spec",
+      message: "retry storm detected",
+      context: {}
+    )
+    OperationalLogIndex.upsert(event)
+
+    response = described_class.call(server_context: { run_id: insight_run.id }, query: "retry", level: "warn")
+
+    expect(response).not_to be_error
+    expect(payload_from(response)).to include("enabled" => true, "count" => 1)
   end
 
   it "rejects invalid parameters" do

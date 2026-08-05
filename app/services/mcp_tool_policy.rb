@@ -238,7 +238,12 @@ class McpToolPolicy
       tools << SyrusMcp::ListRecentWorkflowsTool
       tools << SyrusMcp::ReadInsightRunTranscriptTool
     end
+    tools << SyrusMcp::ReadSyrusLogsTool if insight_operational_log_search_available?
     tools
+  end
+
+  def insight_operational_log_search_available?
+    Feature.operational_log_indexing_enabled? && self.class.syrus_repository?(@context.repository)
   end
 
   def insight_read_tools

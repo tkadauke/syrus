@@ -6,8 +6,8 @@ module SyrusMcp
 
     DESCRIPTION = <<~DESC
       Search recent indexed Rails application logs for this Syrus instance.
-      Only available to workflow implementation agents working on tkadauke/syrus
-      or a registered fork of that repository.
+      Only available to workflow implementation and agent insight runs working on
+      tkadauke/syrus or a registered fork of that repository.
     DESC
 
     description DESCRIPTION
@@ -45,7 +45,7 @@ module SyrusMcp
     class << self
       def call(server_context:, query: nil, since: nil, level: nil, role: nil, hostname: nil, limit: 50)
         context = McpToolContext.from_server_context(server_context)
-        return SyrusMcp.not_authorized unless context.role == AgentRole::WORKFLOW_IMPLEMENT
+        return SyrusMcp.not_authorized unless authorized_role?(context.role)
         return SyrusMcp.invalid("Syrus logs are only available for Syrus repositories") unless McpToolPolicy.syrus_repository?(context.repository)
         return disabled_response unless OperationalLogging.enabled_for_instance?
 
@@ -75,6 +75,10 @@ module SyrusMcp
       end
 
       private
+
+      def authorized_role?(role)
+        role == AgentRole::WORKFLOW_IMPLEMENT || role == AgentRole::AGENT_INSIGHT
+      end
 
       def disabled_response
         MCP::Tool::Response.new([
