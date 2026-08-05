@@ -318,7 +318,7 @@ RSpec.describe App::DashboardPayload do
       expect(items.fetch(tip.id)[:landing_queue_blocked_reason]).to eq("Merge train queued: urgent job active")
     end
 
-    it "sorts blocked Epic merge-train units by their landing queue entry position" do
+    it "sorts eligible landing queue rows before blocked Epic merge-train rows when Queue is ascending" do
       AppSetting.current.update!(merge_train_enabled: true)
       repo.update!(auto_merge_enabled: true)
 
@@ -337,11 +337,55 @@ RSpec.describe App::DashboardPayload do
 
       result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
 
-      expect(result[:items].map { |item| item[:id] }).to eq([ older.id, epic_child.id, newer.id ])
-      expect(result[:items].map { |item| item[:landing_queue_position] }).to eq([ 1, nil, 2 ])
-      expect(result[:items].map { |item| item[:landing_queue_entry_key] }).to eq([ "job:#{older.id}", "epic:#{epic.id}", "job:#{newer.id}" ])
+      expect(result[:items].map { |item| item[:id] }).to eq([ older.id, newer.id, epic_child.id ])
+      expect(result[:items].map { |item| item[:landing_queue_position] }).to eq([ 1, 2, nil ])
+      expect(result[:items].map { |item| item[:landing_queue_entry_key] }).to eq([ "job:#{older.id}", "job:#{newer.id}", "epic:#{epic.id}" ])
       expect(epic_child.reload.landing_queue_position).to be_nil
       expect(epic_child.landing_queue_entry_position).to eq(2)
+    end
+
+    it "sorts blocked landing queue rows before eligible rows when Queue is descending" do
+      AppSetting.current.update!(merge_train_enabled: true)
+      repo.update!(auto_merge_enabled: true)
+
+      older = Factories.job_record(user: user, repository: repo, state: "implemented", pr_number: 101)
+      older.approve!(via: "github_review")
+      older.update!(approved_at: 30.minutes.ago)
+
+      epic = Factories.epic(user: user, repository: repo, state: "in_progress")
+      epic_child = Factories.job_record(user: user, repository: repo, epic: epic, state: "implemented", pr_number: 102)
+      epic_child.approve!(via: "github_review")
+      epic_child.update!(approved_at: 20.minutes.ago)
+
+      newer = Factories.job_record(user: user, repository: repo, state: "implemented", pr_number: 103)
+      newer.approve!(via: "github_review")
+      newer.update!(approved_at: 10.minutes.ago)
+
+      result = call(subject: "job", smart_folder_id: landing_queue_folder.id, sort_column: "landing_queue_position", sort_direction: "desc")
+
+      expect(result[:items].map { |item| item[:id] }).to eq([ epic_child.id, newer.id, older.id ])
+      expect(result[:items].map { |item| item[:landing_queue_position] }).to eq([ nil, 2, 1 ])
+      expect(result[:items].map { |item| item[:landing_queue_entry_key] }).to eq([ "epic:#{epic.id}", "job:#{newer.id}", "job:#{older.id}" ])
+    end
+
+    it "applies eligible-first Queue sorting before paginating" do
+      blocked_repo = Factories.repository(user: user, auto_merge_enabled: false)
+      repo.update!(auto_merge_enabled: true)
+      blocked_jobs = Array.new(described_class::PER_PAGE) do |index|
+        Factories.job_record(user: user, repository: blocked_repo, state: "implemented", pr_number: 200 + index).tap do |job|
+          job.approve!(via: "github_review")
+          job.update!(approved_at: (described_class::PER_PAGE - index + 1).minutes.ago)
+        end
+      end
+      visible_first = Factories.job_record(user: user, repository: repo, state: "implemented", pr_number: 300)
+      visible_first.approve!(via: "github_review")
+      visible_first.update!(approved_at: Time.current)
+
+      result = call(subject: "job", smart_folder_id: landing_queue_folder.id, sort_column: "landing_queue_position", sort_direction: "asc")
+
+      expect(result[:items].first[:id]).to eq(visible_first.id)
+      expect(result[:items].first[:landing_queue_position]).to eq(1)
+      expect(result[:items].map { |item| item[:id] }).to include(blocked_jobs.first.id)
     end
 
     it "falls back to landing state drift when a landing row has no active workflow or train" do

@@ -541,6 +541,7 @@ module App
     def landing_queue_sorted_jobs(scope)
       direction = sort_value(dashboard_sort(:job), "direction") == "asc" ? :asc : :desc
       sorted = scope.reorder(
+        Arel.sql("CASE WHEN jobs.landing_queue_position IS NULL THEN 1 ELSE 0 END #{direction.to_s.upcase}"),
         Arel.sql("CASE WHEN jobs.landing_queue_entry_position IS NULL THEN 1 ELSE 0 END ASC"),
         Job.arel_table[:landing_queue_entry_position].public_send(direction),
         Job.arel_table[:id].public_send(direction)

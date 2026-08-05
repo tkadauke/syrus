@@ -537,7 +537,7 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(positions).to include(first.id => 1, second.id => 2)
     end
 
-    it "sorts blocked jobs by landing queue entry position without numbering them" do
+    it "sorts numbered landing queue rows before blocked unnumbered rows" do
       repo.update!(auto_merge_enabled: true)
       blocked = Factories.job_record(
         repository: repo,
@@ -570,7 +570,7 @@ RSpec.describe "App API dashboard commands", type: :request do
 
       expect(response).to have_http_status(:ok)
       body = parse_body
-      expect(body.fetch("items").map { |item| item.fetch("id") }).to eq([ blocked.id, eligible.id ])
+      expect(body.fetch("items").map { |item| item.fetch("id") }).to eq([ eligible.id, blocked.id ])
       positions = body.fetch("items").index_by { |item| item.fetch("id") }.transform_values { |item| item.fetch("landing_queue_position") }
       expect(positions).to include(blocked.id => nil, eligible.id => 1)
       blocked_reasons = body.fetch("items").index_by { |item| item.fetch("id") }.transform_values { |item| item.fetch("landing_queue_blocked_reason") }
@@ -776,7 +776,7 @@ RSpec.describe "App API dashboard commands", type: :request do
 
       expect(response).to have_http_status(:ok)
       body = parse_body
-      expect(body.fetch("items").map { |item| item.fetch("id") }).to eq([ epic_parent.id, epic_child.id, loose.id ])
+      expect(body.fetch("items").map { |item| item.fetch("id") }).to eq([ epic_parent.id, loose.id, epic_child.id ])
       positions = body.fetch("items").index_by { |item| item.fetch("id") }.transform_values { |item| item.fetch("landing_queue_position") }
       expect(positions).to include(epic_parent.id => 1, epic_child.id => nil, loose.id => 2)
     end
