@@ -3878,11 +3878,50 @@ describe("renderChatMessages tool_result content key", () => {
     }
   })
 
-  it("also handles legacy 'result' key for backwards compatibility", () => {
+  it("renders canonical object result_body as pretty JSON", () => {
     const messages = [
       {
         type: "message" as const,
         id: 3,
+        role: "tool_use" as const,
+        tool_name: "syrus-chat-sidecar.read_job",
+        content: { type: "tool_use", id: "tu_2", name: "syrus-chat-sidecar.read_job", input: { job_id: 2654 } },
+        text: "",
+        bookmarkable: false
+      },
+      {
+        type: "message" as const,
+        id: 4,
+        role: "tool_result" as const,
+        tool_name: "syrus-chat-sidecar.read_job",
+        content: {
+          type: "tool_result",
+          tool_use_id: "tu_2",
+          content: { affected_job: "JOB-2654", state: "open" },
+          is_error: false
+        },
+        text: "",
+        bookmarkable: false
+      }
+    ]
+
+    const items = renderChatMessages(messages)
+    expect(items).toHaveLength(1)
+    const group = items[0]
+    expect(group.type).toBe("tool_group")
+    if (group.type === "tool_group") {
+      expect(group.calls).toHaveLength(1)
+      expect(group.calls[0].result_body).toContain('"affected_job": "JOB-2654"')
+      expect(group.calls[0].result_body).toContain('"state": "open"')
+      expect(group.calls[0].result_body).not.toContain("[object Object]")
+    }
+  })
+
+  it("also handles legacy 'result' key for backwards compatibility", () => {
+    const messages = [
+      {
+        type: "message" as const,
+        id: 5,
         role: "tool_use" as const,
         tool_name: "Bash",
         content: { type: "tool_use", id: "tu_2", name: "Bash", input: { command: "echo hi" } },
@@ -3891,7 +3930,7 @@ describe("renderChatMessages tool_result content key", () => {
       },
       {
         type: "message" as const,
-        id: 4,
+        id: 6,
         role: "tool_result" as const,
         tool_name: "Bash",
         content: {

@@ -10,6 +10,19 @@ const WORKSPACE_ROOT_PATTERN = /(?:\/[^\s'"`,:;\])}]+)+\/\.syrus\/(?:chat-worksp
 const COUNTED_RESULT_TOOLS = new Set(["Read", "Glob", "Grep"])
 const RESULT_SUMMARY_LINE_THRESHOLD = 8
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Object.prototype.toString.call(value) === "[object Object]"
+}
+
+function stableJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stableJsonValue)
+  if (!isPlainObject(value)) return value
+
+  return Object.fromEntries(
+    Object.keys(value).sort().map((key) => [key, stableJsonValue(value[key])])
+  )
+}
+
 export function toolLabel(name: string) {
   return name.startsWith("mcp__") ? name.split("__", 3).at(-1) || name : name
 }
@@ -102,6 +115,7 @@ export function fullResultBody(content: unknown): string {
     }).filter(Boolean).join("\n")
   }
   if (content == null) return "(empty)"
+  if (isPlainObject(content)) return shortenWorkspacePaths(JSON.stringify(stableJsonValue(content), null, 2))
 
   return String(content)
 }
