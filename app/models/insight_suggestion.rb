@@ -26,6 +26,15 @@ class InsightSuggestion < ApplicationRecord
   scope :accepted,  -> { where(state: "accepted") }
   scope :dismissed, -> { where(state: "dismissed") }
   scope :for_repository, ->(repository) { where(repository: repository) }
+  scope :pending_remove_memory, -> { pending.where(proposal_type: "remove_memory") }
+
+  def self.resolve_obsolete_remove_memory!(relation = all)
+    relation
+      .pending_remove_memory
+      .left_joins(:target_memory)
+      .where("chat_memories.id IS NULL OR chat_memories.deleted_at IS NOT NULL")
+      .find_each(&:accept_obsolete_remove_memory!)
+  end
 
   # Operator accepted the suggestion — optionally records the Job it promoted into.
   def accept!(created_job: nil)
@@ -58,6 +67,18 @@ class InsightSuggestion < ApplicationRecord
   def pending?    = state == "pending"
   def accepted?   = state == "accepted"
   def dismissed?  = state == "dismissed"
+
+  def accept_obsolete_remove_memory!
+    with_lock do
+      return false unless pending? && remove_memory?
+
+      memory = target_memory
+      return false if memory && !memory.deleted?
+
+      update!(state: "accepted", accepted_at: Time.current)
+      true
+    end
+  end
 
   def effective_proposal_type
     return proposal_type if proposal_type.present? && proposal_type != "informational"

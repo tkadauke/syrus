@@ -14,6 +14,8 @@ module Api
           repository = find_repository
           return unless repository
 
+          InsightSuggestion.resolve_obsolete_remove_memory!(repository.insight_suggestions)
+
           page     = page_param
           per_page = per_page_param
           state    = state_param

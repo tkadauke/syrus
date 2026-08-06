@@ -154,6 +154,35 @@ RSpec.describe "App API insight suggestions", type: :request do
       )
     end
 
+    it "auto-accepts stale remove_memory suggestions whose target memory was already deleted" do
+      memory = ChatMemory.create!(
+        user: user,
+        kind: "project_fact",
+        scope: "repository",
+        scope_id: repository.id,
+        content: "Old memory."
+      )
+      suggestion = create_suggestion(
+        proposal_type: "remove_memory",
+        target_memory: memory,
+        stale_memory_text: memory.content,
+        stale_memory_evidence: "The memory is obsolete."
+      )
+      memory.soft_delete_by!(user)
+
+      get "/api/v1/app/repositories/#{repository.id}/insight_suggestions", params: { state: "pending" }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["suggestions"].map { |s| s["id"] }).not_to include(suggestion.id)
+      expect(body.dig("meta", "counts")).to include(
+        "pending"  => 0,
+        "accepted" => 1,
+        "all"      => 1
+      )
+      expect(suggestion.reload.accepted?).to be true
+    end
+
     it "paginates suggestions and returns the correct subset on page 2" do
       suggestions = 25.times.map { |i| create_suggestion(title: "Suggestion #{i}", confidence: (25 - i).to_f / 25) }
 
@@ -370,6 +399,34 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect(parse_body["memory_id"]).to eq(memory.id)
       expect(memory.reload.deleted_at).to be_present
       expect(memory.deleted_by_user).to eq(user)
+    end
+
+    it "accepts a remove_memory suggestion when the target memory was already deleted" do
+      memory = ChatMemory.create!(
+        user: user,
+        kind: "project_fact",
+        scope: "repository",
+        scope_id: repository.id,
+        content: "Already gone."
+      )
+      suggestion = create_suggestion(
+        proposal_type: "remove_memory",
+        target_memory: memory,
+        stale_memory_text: memory.content,
+        stale_memory_evidence: "Current code disagrees with this memory."
+      )
+      memory.soft_delete_by!(user)
+
+      expect {
+        patch "/api/v1/app/insight_suggestions/#{suggestion.id}",
+              params: { action_type: "accept" }, as: :json
+      }.not_to change(ChatMemoryAuditEvent.where(chat_memory: memory, event_type: "deleted"), :count)
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["message"]).to include("already removed")
+      expect(parse_body["suggestion"]["state"]).to eq("accepted")
+      expect(parse_body["memory_id"]).to eq(memory.id)
+      expect(suggestion.reload.accepted?).to be true
     end
 
     it "rejects remove_memory acceptance for a memory the user cannot delete" do

@@ -132,6 +132,35 @@ RSpec.describe "Admin API insight suggestions", type: :request do
       )
     end
 
+    it "auto-accepts stale remove_memory suggestions before listing admin insights" do
+      memory = ChatMemory.create!(
+        user: other_user,
+        kind: "project_fact",
+        scope: "repository",
+        scope_id: repository.id,
+        content: "Stale admin-visible memory."
+      )
+      suggestion = create_suggestion(
+        proposal_type: "remove_memory",
+        target_memory: memory,
+        stale_memory_text: memory.content,
+        stale_memory_evidence: "The memory is obsolete."
+      )
+      memory.soft_delete_by!(other_user)
+
+      get "/api/v1/app/admin/insights", params: { state: "pending" }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["suggestions"].map { |s| s["id"] }).not_to include(suggestion.id)
+      expect(body.dig("meta", "counts")).to include(
+        "pending"  => 0,
+        "accepted" => 1,
+        "all"      => 1
+      )
+      expect(suggestion.reload.accepted?).to be true
+    end
+
     it "paginates suggestions and returns the correct subset on page 2" do
       25.times { |i| create_suggestion(title: "Suggestion #{i}", confidence: (25 - i).to_f / 25) }
 

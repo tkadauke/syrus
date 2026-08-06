@@ -10,6 +10,8 @@ module Api
           STATES = %w[pending accepted dismissed all].freeze
 
           def index
+            InsightSuggestion.resolve_obsolete_remove_memory!
+
             page     = page_param
             per_page = per_page_param
             state    = state_param

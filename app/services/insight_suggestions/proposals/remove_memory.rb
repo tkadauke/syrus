@@ -3,6 +3,7 @@ module InsightSuggestions
     class RemoveMemory < Base
       def accept!(actor:, params: {})
         memory = deletable_memory_for(actor)
+        return accept_already_removed_memory if target_memory_already_removed?
         return Result.error("Target memory not found or not accessible.") unless memory
 
         ActiveRecord::Base.transaction do
@@ -19,6 +20,23 @@ module InsightSuggestions
       end
 
       private
+
+      def accept_already_removed_memory
+        if suggestion.accept_obsolete_remove_memory! || suggestion.accepted?
+          return Result.ok(
+            message: "Memory was already removed and suggestion accepted.",
+            suggestion: suggestion.reload,
+            memory: suggestion.target_memory
+          )
+        end
+
+        Result.error("Suggestion cannot be accepted (already dismissed).")
+      end
+
+      def target_memory_already_removed?
+        memory = suggestion.target_memory
+        memory.nil? || memory.deleted?
+      end
 
       def deletable_memory_for(actor)
         scope = ChatMemory.active.where(id: suggestion.target_memory_id)
