@@ -466,6 +466,10 @@ module WorkEngine
             )
           end
 
+          if provider_resume_unavailable?
+            without_resume_plan = retry_without_provider_resume
+            return without_resume_plan if without_resume_plan
+          end
           return resume_failed_step if primary_step&.agentic? && primary_run&.claude_session_metadata.present?
           return retry_failed_step if workspace_available? && safe_step_retry?
           return retry_workflow if retry_whole_workflow_safe?
@@ -480,6 +484,35 @@ module WorkEngine
 
         def delayed_provider_retry?
           classification&.classification.in?([ "rate_limited", ProviderUsageLimit::CLASSIFICATION ])
+        end
+
+        def provider_resume_unavailable?
+          classification&.agent_resume_unavailable? ||
+            primary_run&.agent_outcome == RunFailureClassifier::AGENT_RESUME_UNAVAILABLE_CLASSIFICATION
+        end
+
+        def retry_without_provider_resume
+          return retry_failed_step_without_provider_resume if workspace_available? && primary_workflow&.retry_available?
+          return retry_workflow if retry_whole_workflow_safe?
+
+          nil
+        end
+
+        def retry_failed_step_without_provider_resume
+          return retry_budget_exhausted_plan unless retry_budget_available?
+
+          automatic_plan(
+            "retry_failed_step",
+            primary_workflow,
+            "The provider resume session is unavailable, so retry the failed step without passing a parent session.",
+            execution_steps: [ "RetryFailedStepEnqueuer.call" ],
+            preconditions: {
+              workflow_retry_available: primary_workflow&.retry_available?,
+              workspace_available: true,
+              provider_resume_unavailable: true,
+              retry_budget_available: true
+            }
+          )
         end
 
         def resume_failed_step

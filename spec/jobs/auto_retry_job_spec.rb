@@ -114,6 +114,25 @@ RSpec.describe AutoRetryJob do
     expect(resumed_run.workflow_id).to eq(workflow.id)
   end
 
+  it "executes resume attempts without provider resume when resume state is unavailable" do
+    attempt, agent_step, agent_run = failed_agentic_attempt!(retry_kind: "resume_failed_step")
+    agent_run.create_run_failure_classification!(
+      classification: RunFailureClassifier::AGENT_RESUME_UNAVAILABLE_CLASSIFICATION,
+      retryable: true,
+      confidence: 0.9,
+      reason: "The provider resume session was unavailable; retry without provider resume.",
+      classified_at: Time.current
+    )
+
+    described_class.perform_now(attempt.id)
+
+    retry_run = agent_step.runs.order(:created_at).last
+    expect(retry_run.parent_session_id).to be_nil
+    expect(retry_run.prompt).to be_nil
+    expect(retry_run.agent_provider).to eq("claude")
+    expect(attempt.reload.performed_at).to be_present
+  end
+
   it "falls back to a retry workflow when a failed-step retry lost its workspace" do
     attempt = failed_attempt!(retry_kind: "failed_step")
     workflow.update!(cleaned_up_at: Time.current)

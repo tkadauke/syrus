@@ -135,6 +135,7 @@ class SmartRetryEnqueuer
     return unless latest_workflow&.retry_available?
     return unless failed_step&.agentic?
     return unless session
+    return if provider_resume_unavailable?
 
     result = RetryFailedStepEnqueuer.call(
       workflow: latest_workflow,
@@ -225,6 +226,11 @@ class SmartRetryEnqueuer
 
     failed_run.run_failure_classification&.classification ||
       RunFailureClassifier.classify(failed_run).classification
+  end
+
+  def provider_resume_unavailable?
+    failed_run_classification == RunFailureClassifier::AGENT_RESUME_UNAVAILABLE_CLASSIFICATION ||
+      failed_run&.agent_outcome == RunFailureClassifier::AGENT_RESUME_UNAVAILABLE_CLASSIFICATION
   end
 
   def succeeded(action, result = nil, workflow: nil)

@@ -135,6 +135,39 @@ RSpec.describe Admin::StuckJobExplainer do
     expect(payload.dig(:recommended_action)).to include(action: "inspect_logs", run_id: run.id)
   end
 
+  it "recommends retrying without provider resume for missing Codex rollout failures" do
+    job = Factories.job_record(
+      user: user,
+      repository: repository,
+      state: "failed",
+      issue_title: "Recover missing Codex rollout",
+      branch_name: "syrus/missing-rollout"
+    )
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "failed", finished_at: 1.minute.ago)
+    step = workflow.steps.create!(kind: "test_plan", position: 0, state: "failed")
+    run = step.runs.create!(job: job, trigger_kind: "initial", state: "failed", agent_provider: "codex", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+    run.create_run_failure_classification!(
+      classification: RunFailureClassifier::AGENT_RESUME_UNAVAILABLE_CLASSIFICATION,
+      retryable: true,
+      confidence: 0.9,
+      reason: "The provider resume session was unavailable; retry without provider resume.",
+      classified_at: Time.current
+    )
+    run.job_logs.create!(
+      sequence: 0,
+      kind: "system",
+      chunk: "[codex resume] resume for session 019f-missing did not complete successfully: thread/resume failed: no rollout found for thread id 019f-missing"
+    )
+
+    payload = described_class.call(job.reload, github_client: no_github_client)
+
+    expect(payload.dig(:recommended_action)).to include(
+      action: "retry_failed_step",
+      run_id: run.id
+    )
+    expect(payload.dig(:recommended_action, :reason)).to include("without provider resume")
+  end
+
   it "surfaces no-effective CI repair state instead of generic failing-check diagnostics" do
     repository.update!(auto_merge_enabled: true)
     job = Factories.job_record(

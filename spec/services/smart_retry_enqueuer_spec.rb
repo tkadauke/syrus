@@ -156,6 +156,27 @@ RSpec.describe SmartRetryEnqueuer do
     expect(workflow.reload).to be_running
   end
 
+  it "does not resume a captured session when provider resume state is unavailable" do
+    job, workflow, step, run = failed_job(step_kind: "test_plan", provider: "codex")
+    ClaudeSession.create!(resumable: run, session_id: "019f-missing", provider: "codex")
+    run.create_run_failure_classification!(
+      classification: RunFailureClassifier::AGENT_RESUME_UNAVAILABLE_CLASSIFICATION,
+      confidence: 0.9,
+      retryable: true,
+      reason: "The provider resume session was unavailable; retry without provider resume.",
+      classified_at: Time.current
+    )
+
+    result = described_class.call(job: job, automatic: true)
+
+    expect(result).to be_success
+    expect(result.action).to eq(:failed_step)
+    retry_run = step.runs.reorder(:created_at, :id).last
+    expect(retry_run.parent_session_id).to be_nil
+    expect(retry_run.prompt).to be_nil
+    expect(workflow.reload).to be_running
+  end
+
   it "starts a fresh retry workflow for branch-diverged pr_open failures" do
     job, workflow, step, run = failed_job(step_kind: "pr_open")
     run.create_run_failure_classification!(

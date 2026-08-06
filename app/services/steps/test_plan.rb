@@ -32,9 +32,9 @@ module Steps
       rescue StepFailed
         raise unless codex_resume_unavailable_failure?
 
-        log("test_plan Codex resume state was unavailable; retrying without --resume")
+        log("test_plan Codex resume state was unavailable; retrying test plan without --resume")
         run_agent(
-          prompt: fresh_prompt,
+          prompt: fallback_prompt,
           max_turns: TEST_PLAN_TURN_BUDGET,
           resume_session_id: nil,
           required_mcp_tools: %w[submit_test_plan]
@@ -79,7 +79,15 @@ module Steps
       workflow.steps.exists?(kind: "implement") && successful_implement_run.blank?
     end
 
-    def fresh_prompt
+    def codex_resume_unavailable_failure?
+      run.job_logs
+        .order(sequence: :desc)
+        .limit(25)
+        .pluck(:chunk)
+        .any? { |chunk| RunFailureClassifier.agent_resume_unavailable_text?(chunk) }
+    end
+
+    def fallback_prompt
       Prompts::TestPlanFallback.new(
         issue: fallback_issue,
         summary: workflow.artifact("summary").presence || workflow.artifact("pr_body").to_s,

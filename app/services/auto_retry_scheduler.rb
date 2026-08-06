@@ -95,7 +95,7 @@ class AutoRetryScheduler
 
   def retry_kind_for(run, classification)
     return "failed_step" if classification.classification == "agent_resume_unavailable" && workflow.retry_available?
-    return "resume_failed_step" if workflow.retry_available? && resumable_agent_run?(run)
+    return "resume_failed_step" if workflow.retry_available? && resumable_agent_run?(run) && !provider_resume_unavailable?(run)
     return "failed_step" if workflow.retry_available?
     return "retry_workflow" if retry_workflow_safe?
 
@@ -104,6 +104,11 @@ class AutoRetryScheduler
 
   def resumable_agent_run?(run)
     run&.step&.agentic? && run.claude_session.present?
+  end
+
+  def provider_resume_unavailable?(run)
+    run&.run_failure_classification&.agent_resume_unavailable? ||
+      run&.agent_outcome == RunFailureClassifier::AGENT_RESUME_UNAVAILABLE_CLASSIFICATION
   end
 
   def log(message)

@@ -16,6 +16,7 @@ class RunFailureClassification < ApplicationRecord
   scope :unrepaired_for_circuit, -> { where(repair_status: nil) }
 
   def repaired_for_circuit? = repair_status.present?
+  def agent_resume_unavailable? = classification == RunFailureClassifier::AGENT_RESUME_UNAVAILABLE_CLASSIFICATION
 
   def mark_circuit_repair!(status:, reason:, user:)
     update!(

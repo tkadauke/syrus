@@ -97,6 +97,7 @@ class AutoRetryJob < ApplicationJob
 
   def resume_failed_step(attempt)
     session = attempt.run&.claude_session
+    return retry_without_provider_resume(attempt) if provider_resume_unavailable?(attempt.run)
     return retry_workflow(attempt) unless session && attempt.workflow.retry_available? && attempt.run.step&.agentic?
 
     RetryFailedStepEnqueuer.call(
@@ -105,6 +106,19 @@ class AutoRetryJob < ApplicationJob
       prompt: Prompts::Resume.new.to_s,
       agent_provider: session.provider.presence || attempt.agent_provider
     )
+  end
+
+  def retry_without_provider_resume(attempt)
+    if attempt.workflow.retry_available?
+      RetryFailedStepEnqueuer.call(workflow: attempt.workflow, agent_provider: attempt.agent_provider)
+    else
+      retry_workflow(attempt)
+    end
+  end
+
+  def provider_resume_unavailable?(run)
+    run&.run_failure_classification&.agent_resume_unavailable? ||
+      run&.agent_outcome == RunFailureClassifier::AGENT_RESUME_UNAVAILABLE_CLASSIFICATION
   end
 
   def log(attempt, message)

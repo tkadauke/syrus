@@ -463,6 +463,9 @@ module Admin
         )
       end
       return action("inspect_logs", "A running Run has a stale heartbeat.", run_id: stale_heartbeat_run_id(payload)) if stale_heartbeat_run_id(payload)
+      if (run_id = agent_resume_unavailable_run_id(payload))
+        return action("retry_failed_step", "Provider resume state is unavailable; retry the failed step without provider resume.", run_id: run_id)
+      end
       return action("inspect_logs", "Latest failure evidence points at grader logs.", run_id: grader_failure_run_id(payload)) if grader_failure_run_id(payload)
       if no_effective_ci_repair?
         if rebase_recommended?(payload)
@@ -500,6 +503,14 @@ module Admin
     def grader_failure_run_id(payload)
       failed = payload.dig(:runs, :failed)&.reverse&.find do |run|
         run[:step_kind] == "grader" || run[:recent_log].to_s.include?("grade") || run.dig(:diagnostic, :error_message).to_s.match?(/grader|rspec|test/i)
+      end
+      failed&.fetch(:id)
+    end
+
+    def agent_resume_unavailable_run_id(payload)
+      failed = payload.dig(:runs, :failed)&.reverse&.find do |run|
+        run[:failure_classification] == RunFailureClassifier::AGENT_RESUME_UNAVAILABLE_CLASSIFICATION ||
+          RunFailureClassifier.agent_resume_unavailable_text?(run[:recent_log])
       end
       failed&.fetch(:id)
     end

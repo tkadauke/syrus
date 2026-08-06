@@ -1439,6 +1439,31 @@ RSpec.describe WorkEngine::Reconciler do
     expect(repair_plan.preconditions["step_repair_semantics"]).to eq("deterministic_idempotent")
   end
 
+  it "plans agent resume-unavailable failures as failed-step retry without provider resume" do
+    step.update_columns(kind: "test_plan", state: "failed", finished_at: Time.current)
+    workflow.update_columns(state: "failed", finished_at: Time.current, cleaned_up_at: nil)
+    run.update_columns(state: "failed", agent_provider: "codex", finished_at: Time.current)
+    ClaudeSession.create!(resumable: run, provider: "codex", session_id: "019f-missing")
+    RunFailureClassification.create!(
+      run: run,
+      classification: RunFailureClassifier::AGENT_RESUME_UNAVAILABLE_CLASSIFICATION,
+      retryable: true,
+      confidence: 0.9,
+      reason: "The provider resume session was unavailable; retry without provider resume.",
+      classified_at: Time.current
+    )
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(true)
+
+    result = reconcile(run_id: run.id)
+    repair_plan = plan(result, :retry_failed_step)
+
+    expect(repair_plan).to have_attributes(auto_executable: true, target_type: "Workflow", target_id: workflow.id)
+    expect(repair_plan.reason).to include("without passing a parent session")
+    expect(repair_plan.preconditions["provider_resume_unavailable"]).to eq(true)
+    expect(plan(result, :resume_failed_step)).to be_nil
+  end
+
   it "executes safe retry plans through AutoRetryAttempt and AutoRetryJob" do
     step.update_columns(kind: "grader", state: "failed", finished_at: Time.current)
     workflow.update_columns(state: "failed", finished_at: Time.current, cleaned_up_at: nil)

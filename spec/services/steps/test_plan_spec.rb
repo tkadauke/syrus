@@ -48,6 +48,37 @@ RSpec.describe Steps::TestPlan do
     expect(run.reload.prompt).to include("submit_test_plan")
   end
 
+  it "retries without --resume when Codex resume rollout is unavailable" do
+    workflow.update!(agent_provider: "codex", artifacts: { "summary" => "Added a greeting helper." })
+    implement_run.update!(agent_diff: "diff --git a/feature.rb b/feature.rb\n+def greet = 'hi'\n")
+    ClaudeSession.create!(resumable: implement_run, session_id: "019f-missing", provider: "codex")
+
+    calls = []
+    allow(handler).to receive(:run_agent) do |prompt:, **kwargs|
+      calls << { prompt: prompt, kwargs: kwargs }
+      if calls.size == 1
+        JobLog.append!(
+          run: run,
+          chunk: "[codex resume] resume for session 019f-missing did not complete successfully: thread/resume failed: no rollout found for thread id 019f-missing",
+          kind: "system"
+        )
+        raise Steps::Base::StepFailed, "agent exited 1"
+      end
+
+      expect(kwargs[:resume_session_id]).to be_nil
+      expect(prompt).to include("original agent session is not available to resume")
+      expect(prompt).to include("Added a greeting helper.")
+      expect(prompt).to include("+def greet = 'hi'")
+      workflow.set_artifact!("test_plan", { steps: [ "Run bin/rspec" ], notes: "Fallback context." })
+    end
+
+    handler.call
+
+    expect(calls.size).to eq(2)
+    expect(workflow.reload.artifact("test_plan")["steps"]).to eq([ "Run bin/rspec" ])
+    expect(run.job_logs.pluck(:chunk).join("\n")).to include("retrying test plan without --resume")
+  end
+
   it "raises StepFailed when the agent does not call submit_test_plan" do
     allow(handler).to receive(:run_agent)
 

@@ -112,26 +112,26 @@ RSpec.describe AutoRetryScheduler do
     end
   end
 
-  it "does not schedule a resume attempt for missing provider resume state" do
-    agent_step = workflow.steps.find_by!(kind: "implement")
+  it "schedules a non-resume failed-step retry when provider resume state is unavailable" do
+    agent_step = workflow.steps.find_by!(kind: "test_plan")
     agent_run = agent_step.runs.create!(
       job: job,
       trigger_kind: workflow.trigger_kind,
       agent_provider: "codex",
       state: "failed",
-      agent_outcome: "turn_failed",
+      agent_outcome: "error_during_execution",
       finished_at: Time.current
     )
     ClaudeSession.create!(
       resumable: agent_run,
       provider: "codex",
-      session_id: "codex-session-1",
-      transcript_jsonl: ""
+      session_id: "019f-missing",
+      transcript_jsonl: nil
     )
     agent_run.create_run_failure_classification!(
-      classification: "agent_resume_unavailable",
-      confidence: 0.9,
+      classification: RunFailureClassifier::AGENT_RESUME_UNAVAILABLE_CLASSIFICATION,
       retryable: true,
+      confidence: 0.9,
       reason: "The provider resume session was unavailable; retry without provider resume.",
       classified_at: Time.current
     )
@@ -143,7 +143,8 @@ RSpec.describe AutoRetryScheduler do
 
     attempt = AutoRetryAttempt.last
     expect(attempt.run_id).to eq(agent_run.id)
-    expect(attempt.failure_classification).to eq("agent_resume_unavailable")
+    expect(attempt.agent_provider).to eq("codex")
+    expect(attempt.failure_classification).to eq(RunFailureClassifier::AGENT_RESUME_UNAVAILABLE_CLASSIFICATION)
     expect(attempt.retry_kind).to eq("failed_step")
   end
 

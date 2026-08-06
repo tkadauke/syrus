@@ -86,6 +86,14 @@ class AutoRetryFailureClassifier
       return retryable("agent_resume_unavailable", run.run_failure_classification.reason)
     end
 
+    if (classification = resume_unavailable_classification(run))
+      return Result.new(
+        classification: classification.classification,
+        retryable: classification.retryable,
+        reason: classification.reason
+      )
+    end
+
     outcome = run.agent_outcome.to_s.presence
     return non_retryable(outcome, NON_RETRYABLE_AGENT_OUTCOMES.fetch(outcome)) if NON_RETRYABLE_AGENT_OUTCOMES.key?(outcome)
     return retryable(outcome, RETRYABLE_AGENT_OUTCOMES.fetch(outcome)) if RETRYABLE_AGENT_OUTCOMES.key?(outcome)
@@ -106,7 +114,14 @@ class AutoRetryFailureClassifier
   attr_reader :workflow
 
   def latest_failed_run
-    workflow.runs.where(state: "failed").includes(:run_diagnostic).order(created_at: :desc).first
+    workflow.runs.where(state: "failed").includes(:run_diagnostic, :run_failure_classification).order(created_at: :desc).first
+  end
+
+  def resume_unavailable_classification(run)
+    classification = run.run_failure_classification
+    return unless classification&.agent_resume_unavailable?
+
+    classification
   end
 
   def retryable_error_class?(error_class)
