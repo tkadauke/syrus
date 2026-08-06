@@ -67,10 +67,22 @@ class InsightSuggestion < ApplicationRecord
     "informational"
   end
 
+  def redacted_title = redact_nullable(title)
+  def redacted_category = redact_nullable(category)
+  def redacted_suggested_prompt = redact_nullable(suggested_prompt)
+  def redacted_memory_suggestion = redact_nullable(memory_suggestion)
+  def redacted_stale_memory_text = redact_nullable(stale_memory_text)
+  def redacted_stale_memory_evidence = redact_nullable(stale_memory_evidence)
+  def redacted_evidence = CommandRedactor.redact_value(evidence)
+
   def remove_memory? = effective_proposal_type == "remove_memory"
   def revise_existing_insight? = effective_proposal_type == "revise_existing_insight"
 
   private
+
+  def redact_nullable(value)
+    value.nil? ? nil : CommandRedactor.redact(value)
+  end
 
   def remove_memory_targets_memory
     return unless remove_memory?

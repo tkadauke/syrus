@@ -250,6 +250,19 @@ RSpec.describe "Admin API insight suggestions", type: :request do
       expect(memory.content).to eq("Always check the logs first")
     end
 
+    it "redacts GitHub credentials before promoting a memory from a suggestion" do
+      suggestion = create_suggestion(
+        memory_suggestion: "Avoid copying https://x-access-token:ghs_adminmemorysecret@github.com/acme/widgets.git"
+      )
+
+      post "/api/v1/app/admin/insights/#{suggestion.id}/promote_memory"
+
+      expect(response).to have_http_status(:ok)
+      expect(ChatMemory.last.content).to eq(
+        "Avoid copying https://x-access-token:[REDACTED]@github.com/acme/widgets.git"
+      )
+    end
+
     it "returns 404 when the suggestion does not exist" do
       post "/api/v1/app/admin/insights/999999/promote_memory"
       expect(response).to have_http_status(:not_found)

@@ -99,6 +99,33 @@ RSpec.describe SyrusMcp::ReadInsightTool do
         { job_id: evidence_run.job_id, run_id: evidence_run.id, kind: "grader" }
       ])
     end
+
+    it "redacts GitHub credentials from persisted insight copy on readback" do
+      insight.update!(
+        title: "Worker health leak https://x-access-token:ghs_titlesecret@github.com/acme/widgets.git",
+        category: "leak https://x-access-token:ghs_categorysecret@github.com/acme/widgets.git",
+        suggested_prompt: "Fix git clone https://x-access-token:ghs_promptsecret@github.com/acme/widgets.git",
+        memory_suggestion: "Do not quote git ls-remote https://x-access-token:github_pat_memorysecret@github.com/acme/widgets.git",
+        stale_memory_text: "old https://x-access-token:ghp_stalesecret@github.com/acme/widgets.git",
+        stale_memory_evidence: "new https://x-access-token:ghs_evidencesecret@github.com/acme/widgets.git",
+        evidence: [
+          { "job_id" => run.job_id, "run_id" => run.id, "kind" => "git clone https://x-access-token:ghs_kindsecret@github.com/acme/widgets.git" }
+        ]
+      )
+
+      text = call(id: insight.id).content.first[:text]
+
+      expect(text).to include("https://x-access-token:[REDACTED]@github.com/acme/widgets.git")
+      expect(text).not_to include("ghs_titlesecret")
+      expect(text).not_to include("ghs_categorysecret")
+      expect(text).not_to include("ghs_promptsecret")
+      expect(text).not_to include("github_pat_memorysecret")
+      expect(text).not_to include("ghp_stalesecret")
+      expect(text).not_to include("ghs_evidencesecret")
+      expect(text).not_to include("ghs_kindsecret")
+      expect(text).not_to include("x-access-token:ghs_")
+      expect(text).not_to include("x-access-token:github_pat_")
+    end
   end
 
   describe "not found" do

@@ -224,6 +224,26 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect(suggestion["has_memory_suggestion"]).to be true
       expect(suggestion["suggested_prompt"]).to eq("Fix the caching")
     end
+
+    it "redacts GitHub credentials from suggestion copy before rendering" do
+      create_suggestion(
+        title: "Leak https://x-access-token:ghs_titlesecret@github.com/acme/widgets.git",
+        category: "leak https://x-access-token:ghs_categorysecret@github.com/acme/widgets.git",
+        suggested_prompt: "Fix git clone https://x-access-token:ghs_promptsecret@github.com/acme/widgets.git",
+        memory_suggestion: "Avoid git ls-remote https://x-access-token:github_pat_memorysecret@github.com/acme/widgets.git"
+      )
+
+      get "/api/v1/app/repositories/#{repository.id}/insight_suggestions"
+
+      text = response.body
+      expect(text).to include("https://x-access-token:[REDACTED]@github.com/acme/widgets.git")
+      expect(text).not_to include("ghs_titlesecret")
+      expect(text).not_to include("ghs_categorysecret")
+      expect(text).not_to include("ghs_promptsecret")
+      expect(text).not_to include("github_pat_memorysecret")
+      expect(text).not_to include("x-access-token:ghs_")
+      expect(text).not_to include("x-access-token:github_pat_")
+    end
   end
 
   describe "PATCH /api/v1/app/insight_suggestions/:id — dismiss" do
@@ -401,6 +421,20 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect(memory.source_type).to eq("insight")
       expect(memory.source_id).to eq(suggestion.id)
       expect(memory.content).to eq("Always check the logs first")
+    end
+
+    it "redacts GitHub credentials before saving a memory from a suggestion" do
+      suggestion = create_suggestion(
+        memory_suggestion: "Avoid copying https://x-access-token:ghs_memorysecret@github.com/acme/widgets.git"
+      )
+
+      patch "/api/v1/app/insight_suggestions/#{suggestion.id}",
+            params: { action_type: "save_memory" }, as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(ChatMemory.last.content).to eq(
+        "Avoid copying https://x-access-token:[REDACTED]@github.com/acme/widgets.git"
+      )
     end
 
     it "returns 422 when the suggestion has no memory_suggestion" do

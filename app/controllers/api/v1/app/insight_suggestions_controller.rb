@@ -222,7 +222,7 @@ module Api
             kind: "project_fact",
             scope: "repository",
             scope_id: repository.id,
-            content: suggestion.memory_suggestion,
+            content: suggestion.redacted_memory_suggestion,
             source_type: "insight",
             source_id: suggestion.id,
             author: "agent",
@@ -239,20 +239,20 @@ module Api
         def suggestion_json(suggestion)
           {
             id: suggestion.id,
-            title: suggestion.title,
-            category: suggestion.category,
+            title: suggestion.redacted_title,
+            category: suggestion.redacted_category,
             severity: suggestion.severity,
             confidence: suggestion.confidence,
             state: suggestion.state,
             proposal_type: suggestion.effective_proposal_type,
-            suggested_prompt: suggestion.suggested_prompt,
-            memory_suggestion: suggestion.memory_suggestion,
+            suggested_prompt: suggestion.redacted_suggested_prompt,
+            memory_suggestion: suggestion.redacted_memory_suggestion,
             has_memory_suggestion: suggestion.memory_suggestion.present?,
             target_memory_id: suggestion.target_memory_id,
-            stale_memory_text: suggestion.stale_memory_text,
-            stale_memory_evidence: suggestion.stale_memory_evidence,
+            stale_memory_text: suggestion.redacted_stale_memory_text,
+            stale_memory_evidence: suggestion.redacted_stale_memory_evidence,
             target_insight_id: suggestion.target_insight_id,
-            evidence: evidence_json(suggestion.evidence),
+            evidence: evidence_json(suggestion.redacted_evidence),
             job_slug: suggestion.job.slug,
             job_path: job_path(suggestion.job),
             accepted_at: suggestion.accepted_at,
@@ -283,18 +283,18 @@ module Api
           details = [
             "I want to discuss this repository insight before deciding whether to accept or dismiss it.",
             "",
-            "Title: #{suggestion.title}",
+            "Title: #{suggestion.redacted_title}",
             "Severity: #{suggestion.severity}",
-            "Category: #{suggestion.category}",
+            "Category: #{suggestion.redacted_category}",
             "Confidence: #{suggestion.confidence}",
             "Proposal type: #{suggestion.effective_proposal_type}"
           ]
 
           if suggestion.suggested_prompt.present?
-            details.concat([ "", "Suggested prompt:", suggestion.suggested_prompt ])
+            details.concat([ "", "Suggested prompt:", suggestion.redacted_suggested_prompt ])
           end
           if suggestion.memory_suggestion.present?
-            details.concat([ "", "Memory suggestion:", suggestion.memory_suggestion ])
+            details.concat([ "", "Memory suggestion:", suggestion.redacted_memory_suggestion ])
           end
 
           evidence_lines = insight_evidence_lines(suggestion)

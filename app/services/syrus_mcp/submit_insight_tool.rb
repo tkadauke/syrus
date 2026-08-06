@@ -89,10 +89,14 @@ module SyrusMcp
                stale_memory_evidence: nil, target_insight_id: nil)
         run = SyrusMcp.run_from_context(server_context)
 
-        title_s     = SyrusMcp.utf8(title).strip
-        category_s  = SyrusMcp.utf8(category).strip
+        title_s     = CommandRedactor.redact(SyrusMcp.utf8(title)).strip
+        category_s  = CommandRedactor.redact(SyrusMcp.utf8(category)).strip
         severity_s  = SyrusMcp.utf8(severity).strip
         confidence_f = confidence.to_f
+        suggested_prompt_s = redact_optional(suggested_prompt)
+        memory_suggestion_s = redact_optional(memory_suggestion)
+        stale_memory_text_s = redact_optional(stale_memory_text)
+        stale_memory_evidence_s = redact_optional(stale_memory_evidence)
 
         return SyrusMcp.invalid("title is required")                              if title_s.empty?
         return SyrusMcp.invalid("title too long (#{title_s.length} chars)")       if title_s.length > MAX_TITLE_LENGTH
@@ -100,7 +104,7 @@ module SyrusMcp
         return SyrusMcp.invalid("severity must be one of: #{SEVERITIES.join(', ')}") unless SEVERITIES.include?(severity_s)
         return SyrusMcp.invalid("confidence must be between 0.0 and 1.0")         unless confidence_f.between?(0.0, 1.0)
 
-        proposal_type_s = normalize_proposal_type(proposal_type, suggested_prompt: suggested_prompt, memory_suggestion: memory_suggestion)
+        proposal_type_s = normalize_proposal_type(proposal_type, suggested_prompt: suggested_prompt_s, memory_suggestion: memory_suggestion_s)
         if proposal_type.to_s == "revise_existing_insight"
           return SyrusMcp.invalid("revise_existing_insight is no longer accepted. Call update_insight for pending/dismissed insights; submit a new insight when an accepted insight changed.")
         end
@@ -116,7 +120,7 @@ module SyrusMcp
         if proposal_type_s == "remove_memory"
           memory = validate_target_memory(target_memory_id, run)
           return SyrusMcp.invalid("target_memory_id must reference an active accessible repository memory") unless memory
-          return SyrusMcp.invalid("stale_memory_evidence is required for remove_memory proposals") if stale_memory_evidence.to_s.strip.blank?
+          return SyrusMcp.invalid("stale_memory_evidence is required for remove_memory proposals") if stale_memory_evidence_s.to_s.strip.blank?
         end
 
         suggestion = InsightSuggestion.create!(
@@ -128,11 +132,11 @@ module SyrusMcp
           confidence:        confidence_f,
           proposal_type:     proposal_type_s,
           evidence:          normalized_evidence.presence,
-          suggested_prompt:  suggested_prompt.presence,
-          memory_suggestion: memory_suggestion.presence,
+          suggested_prompt:  suggested_prompt_s.presence,
+          memory_suggestion: memory_suggestion_s.presence,
           target_memory:     memory,
-          stale_memory_text: stale_memory_text.presence || memory&.content,
-          stale_memory_evidence: stale_memory_evidence.presence
+          stale_memory_text: stale_memory_text_s.presence || CommandRedactor.redact(memory&.content),
+          stale_memory_evidence: stale_memory_evidence_s.presence
         )
         SupervisorEvents.publish!(
           kind: "agent_insight_available",
@@ -171,6 +175,11 @@ module SyrusMcp
 
       private
 
+      def redact_optional(value)
+        text = SyrusMcp.utf8(value).strip
+        text.present? ? CommandRedactor.redact(text) : nil
+      end
+
       def normalize_evidence(evidence)
         return [] unless evidence.is_a?(Array)
 
@@ -180,7 +189,7 @@ module SyrusMcp
           normalized = {
             "job_id" => integer_value(entry, "job_id"),
             "run_id" => integer_value(entry, "run_id"),
-            "kind"   => string_value(entry, "kind").presence
+            "kind"   => CommandRedactor.redact(string_value(entry, "kind")).presence
           }.compact
 
           normalized.presence

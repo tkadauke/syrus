@@ -63,6 +63,27 @@ RSpec.describe SyrusMcp::SubmitInsightTool do
       expect(suggestion.repository).to eq(repository)
     end
 
+    it "redacts GitHub credentials before persisting operator-facing insight copy" do
+      call(
+        title: "Worker health leaked https://x-access-token:ghs_titlesecret@github.com/acme/widgets.git",
+        category: "leak https://x-access-token:ghs_categorysecret@github.com/acme/widgets.git",
+        suggested_prompt: "Fix git clone https://x-access-token:ghs_promptsecret@github.com/acme/widgets.git",
+        memory_suggestion: "RUN showed git ls-remote https://x-access-token:github_pat_memorysecret@github.com/acme/widgets.git",
+        evidence: [ { "job_id" => run.job_id, "run_id" => run.id, "kind" => "git fetch https://x-access-token:ghs_evidencekindsecret@github.com/acme/widgets.git" } ],
+        proposal_type: "create_job"
+      )
+
+      serialized = JSON.generate(InsightSuggestion.last.attributes)
+      expect(serialized).to include("https://x-access-token:[REDACTED]@github.com/acme/widgets.git")
+      expect(serialized).not_to include("ghs_titlesecret")
+      expect(serialized).not_to include("ghs_categorysecret")
+      expect(serialized).not_to include("ghs_promptsecret")
+      expect(serialized).not_to include("ghs_evidencekindsecret")
+      expect(serialized).not_to include("github_pat_memorysecret")
+      expect(serialized).not_to include("x-access-token:ghs_")
+      expect(serialized).not_to include("x-access-token:github_pat_")
+    end
+
     it "appends a summary to the workflow insights artifact" do
       call(title: "My finding", category: "inefficiency", severity: "low", confidence: 0.6)
 

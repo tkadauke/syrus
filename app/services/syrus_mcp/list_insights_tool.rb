@@ -129,7 +129,7 @@ module SyrusMcp
       def list_payload(insight, include_repository:)
         payload = {
           id:         insight.id,
-          title:      insight.title,
+          title:      insight.redacted_title,
           state:      insight.state,
           proposal_type: insight.effective_proposal_type,
           severity:   insight.severity,
