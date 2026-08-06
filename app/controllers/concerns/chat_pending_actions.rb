@@ -109,7 +109,7 @@ module ChatPendingActions
       ].compact.join("\n")
     when "schedule_recurring"
       [
-        [ payload["label"], payload["cron_expression"] ].compact_blank.join(" — ").presence,
+        [ payload["label"], payload["schedule_explanation"] || payload["schedule_input"] || payload["cron_expression"] ].compact_blank.join(" — ").presence,
         payload["prompt"].presence
       ].compact.join("\n\n").presence
     end

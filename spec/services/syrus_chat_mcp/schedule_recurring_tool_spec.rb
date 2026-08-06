@@ -63,9 +63,9 @@ RSpec.describe SyrusChatMcp::ScheduleRecurringTool do
 
   it "describes cron minutes as honored" do
     schema = described_class.input_schema.instance_variable_get(:@schema)
-    cron_description = schema.fetch(:properties).fetch(:cron_expression).fetch(:description)
+    cron_description = schema.fetch(:properties).fetch(:schedule_input).fetch(:description)
 
-    expect(cron_description).to include("minute field is honored")
+    expect(cron_description).to include("five-field cron")
     expect(cron_description).not_to include("minute field is ignored")
   end
 

@@ -5,6 +5,13 @@ export type CronTemplateRow = {
   name: string
   description: string | null
   cron_expression: string
+  schedule_input: string | null
+  schedule_format: string | null
+  schedule_expression: string | null
+  schedule_explanation: string | null
+  schedule_timezone: string | null
+  next_fire_at: string | null
+  legacy_cron_expression: string | null
   pr_pileup_policy: string
   enabled: boolean
   applied_tasks_count: number
@@ -51,9 +58,25 @@ export type CronTemplateInput = {
   name: string
   description: string
   cron_expression: string
+  schedule_input: string
+  schedule_expression: string
+  schedule_explanation?: string | null
+  schedule_timezone: string
   pr_pileup_policy: string
   prompt: string
   enabled: boolean
+}
+
+export type SchedulePreview = {
+  valid: boolean
+  schedule_input: string
+  schedule_format: string
+  schedule_expression: string | null
+  schedule_timezone: string
+  schedule_explanation: string | null
+  next_fire_at: string | null
+  cron_expression: string | null
+  errors: string[]
 }
 
 export function fetchCronTemplates() {
@@ -73,6 +96,12 @@ export function createCronTemplate(values: CronTemplateInput) {
 export function updateCronTemplate(id: number, values: CronTemplateInput) {
   return patchJson<CronTemplateDetailPayload>(`/api/v1/app/cron_templates/${id}`, {
     cron_template: values
+  })
+}
+
+export function previewCronTemplateSchedule(scheduleInput: string) {
+  return postJson<SchedulePreview>("/api/v1/app/cron_templates/preview_schedule", {
+    schedule_input: scheduleInput
   })
 }
 

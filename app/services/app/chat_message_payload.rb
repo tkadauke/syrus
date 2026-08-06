@@ -482,7 +482,7 @@ module App
         payload["feedback"].presence
       when "schedule_recurring"
         [
-          [ payload["label"], payload["cron_expression"] ].compact_blank.join(" — ").presence,
+          [ payload["label"], payload["schedule_explanation"] || payload["schedule_input"] || payload["cron_expression"] ].compact_blank.join(" — ").presence,
           payload["prompt"].presence
         ].compact.join("\n\n").presence
       when "submit_coding_changes"

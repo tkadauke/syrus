@@ -34,6 +34,15 @@ module Api
           render json: repository_scheduled_tasks_payload(repository)
         end
 
+        def preview_schedule
+          result = Schedules::RecurringSchedule.preview(
+            input: params[:schedule_input].presence || params[:cron_expression],
+            structured_intent: params[:structured_intent]
+          )
+
+          render json: schedule_preview_json(result)
+        end
+
         def create
           repository = find_repository
           task = repository.scheduled_tasks.build(scheduled_task_params)
@@ -174,6 +183,9 @@ module Api
             state: task.state,
             repository: repository_json(task.repository),
             schedule_label: schedule_label(task),
+            schedule_explanation: task.schedule_explanation,
+            schedule_timezone: task.schedule_timezone,
+            schedule_expression: task.schedule_expression,
             next_fire_at: task.next_fire_at&.iso8601,
             last_fired_at: task.last_fired_at&.iso8601,
             archived_at: task.archived_at&.iso8601,
@@ -187,6 +199,12 @@ module Api
             prompt: task.prompt,
             cron_expression: task.cron_expression,
             hourly_cron_expression: task.hourly_cron_expression,
+            schedule_input: task.schedule_input,
+            schedule_format: task.schedule_format,
+            schedule_expression: task.schedule_expression,
+            schedule_explanation: task.schedule_explanation,
+            schedule_timezone: task.schedule_timezone,
+            legacy_cron_expression: task.legacy_cron_expression,
             fire_at: task.fire_at&.iso8601,
             next_fire_at: task.next_fire_at&.iso8601,
             pr_pileup_policy: task.pr_pileup_policy,
@@ -211,6 +229,11 @@ module Api
             name: task.name,
             kind: task.kind,
             cron_expression: task.cron_expression,
+            schedule_input: task.schedule_input || task.cron_expression,
+            schedule_format: task.schedule_format || "rrule",
+            schedule_expression: task.schedule_expression,
+            schedule_explanation: task.schedule_explanation,
+            schedule_timezone: task.schedule_timezone || "UTC",
             fire_at: task.fire_at&.iso8601,
             pr_pileup_policy: task.pr_pileup_policy,
             auto_approve_mode: task.auto_approve_mode,
@@ -231,6 +254,10 @@ module Api
           {
             id: template.id,
             name: template.name,
+            schedule_input: template.schedule_input,
+            schedule_expression: template.schedule_expression,
+            schedule_explanation: template.schedule_explanation,
+            schedule_timezone: template.schedule_timezone,
             cron_template_path: cron_template_path(template)
           }
         end
@@ -256,6 +283,20 @@ module Api
           }
         end
 
+        def schedule_preview_json(result)
+          {
+            valid: result.valid?,
+            schedule_input: result.input,
+            schedule_format: result.format,
+            schedule_expression: result.expression,
+            schedule_timezone: result.timezone,
+            schedule_explanation: result.explanation,
+            next_fire_at: result.next_fire_at,
+            cron_expression: result.cron_expression,
+            errors: result.errors
+          }
+        end
+
         def scheduled_task_options
           {
             kinds: ScheduledTask::KINDS,
@@ -266,7 +307,7 @@ module Api
 
         def schedule_label(task)
           if task.cron?
-            task.display_cron_expression
+            task.schedule_explanation || task.display_cron_expression
           else
             task.fire_at&.utc&.strftime("%Y-%m-%d %H:%M UTC")
           end
@@ -281,6 +322,9 @@ module Api
             name: template.name,
             prompt: template.prompt,
             cron_expression: template.cron_expression,
+            schedule_input: template.schedule_input || template.cron_expression,
+            schedule_expression: template.schedule_expression,
+            schedule_timezone: template.schedule_timezone,
             pr_pileup_policy: template.pr_pileup_policy,
             cron_template: template
           )
@@ -299,7 +343,7 @@ module Api
         end
 
         def scheduled_task_params
-          params.expect(scheduled_task: %i[ name prompt kind cron_expression fire_at pr_pileup_policy auto_approve_mode ])
+          params.expect(scheduled_task: %i[ name prompt kind cron_expression schedule_input schedule_expression schedule_timezone fire_at pr_pileup_policy auto_approve_mode ])
         end
       end
     end

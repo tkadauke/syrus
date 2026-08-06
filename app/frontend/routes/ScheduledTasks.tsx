@@ -20,6 +20,7 @@ import {
   fetchScheduledTasks,
   fireScheduledTask,
   pauseScheduledTask,
+  previewScheduledTaskSchedule,
   resumeScheduledTask,
   updateScheduledTask,
   type ScheduledTaskDetail,
@@ -175,7 +176,7 @@ function TaskSection({ title, tasks, empty, basePath, prefix }: { title: string;
                   <td className="px-4 py-3 font-mono text-xs">
                     <Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={withRoutePrefix(task.repository.repository_path, prefix)}>{task.repository.slug}</Link>
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs">{task.schedule_label || t("scheduled_tasks.none")}</td>
+                  <td className="px-4 py-3 text-xs">{task.schedule_label || t("scheduled_tasks.none")}</td>
                   <td className="px-4 py-3"><StatePill state={task.state} /></td>
                   <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400"><RelativeTimestamp fallback={t("scheduled_tasks.never")} value={task.last_fired_at} /></td>
                   <td className="px-4 py-3 text-right">
@@ -241,8 +242,10 @@ function TaskDetail({ payload, basePath, prefix }: { payload: ScheduledTaskDetai
         <dl className="grid gap-y-2 text-sm sm:grid-cols-2">
           <dt className="text-gray-500 dark:text-gray-400">{t("scheduled_tasks.field_kind")}</dt>
           <dd>{payload.task.kind}</dd>
-          <dt className="text-gray-500 dark:text-gray-400">{t("scheduled_tasks.field_cron")}</dt>
-          <dd className="font-mono">{payload.task.cron_expression || t("scheduled_tasks.none")}</dd>
+          <dt className="text-gray-500 dark:text-gray-400">{t("scheduled_tasks.field_schedule")}</dt>
+          <dd>{payload.task.schedule_explanation || payload.task.cron_expression || t("scheduled_tasks.none")}</dd>
+          <dt className="text-gray-500 dark:text-gray-400">{t("scheduled_tasks.cron_expression_label")}</dt>
+          <dd className="font-mono text-xs">{payload.task.schedule_expression || payload.task.cron_expression || t("scheduled_tasks.none")}</dd>
           <dt className="text-gray-500 dark:text-gray-400">{t("scheduled_tasks.field_fire_at")}</dt>
           <dd><RelativeTimestamp fallback={t("scheduled_tasks.none")} value={payload.task.fire_at} /></dd>
           <dt className="text-gray-500 dark:text-gray-400">{t("scheduled_tasks.field_next_fire")}</dt>
@@ -370,10 +373,20 @@ function ScheduledTaskForm({
       navigate(`${basePath}/${payload.task.id}`)
     }
   })
+  const preview = useMutation({
+    mutationFn: previewScheduledTaskSchedule
+  })
 
   useEffect(() => {
     setValues(initial)
   }, [initial])
+
+  useEffect(() => {
+    if (values.kind !== "cron" || !values.schedule_input.trim()) return
+
+    const timer = window.setTimeout(() => preview.mutate(values.schedule_input), 300)
+    return () => window.clearTimeout(timer)
+  }, [values.kind, values.schedule_input])
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -398,9 +411,10 @@ function ScheduledTaskForm({
           <input className={inputClass()} onChange={(event) => setValues({ ...values, fire_at: event.target.value })} type="datetime-local" value={values.fire_at} />
         </Field>
       ) : (
-        <Field label={t("scheduled_tasks.field_cron")}>
-          <input className={`${inputClass()} font-mono`} onChange={(event) => setValues({ ...values, cron_expression: event.target.value })} placeholder="0 9 * * 1" type="text" value={values.cron_expression} />
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("scheduled_tasks.cron_help")}</p>
+        <Field label={t("scheduled_tasks.field_schedule")}>
+          <input className={inputClass()} onChange={(event) => setValues({ ...values, schedule_input: event.target.value, cron_expression: event.target.value })} placeholder={t("scheduled_tasks.schedule_placeholder")} type="text" value={values.schedule_input} />
+          <SchedulePreviewState errors={preview.data?.errors || []} explanation={preview.data?.schedule_explanation || values.schedule_explanation} loading={preview.isPending} />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("scheduled_tasks.schedule_help")}</p>
         </Field>
       )}
       <Field label={t("scheduled_tasks.field_pileup")}>
@@ -436,6 +450,14 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
+function SchedulePreviewState({ explanation, errors, loading }: { explanation?: string | null; errors: string[]; loading: boolean }) {
+  const { t } = useT("settings")
+  if (loading) return <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("scheduled_tasks.preview_loading")}</p>
+  if (errors.length > 0) return <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.join(", ")}</p>
+  if (explanation) return <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">{explanation}</p>
+  return null
+}
+
 function StatePill({ state }: { state: string }) {
   const styles: Record<string, string> = {
     scheduled: "bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300",
@@ -462,6 +484,9 @@ function formInput(input: ScheduledTaskInput): ScheduledTaskInput {
     prompt: input.prompt || "",
     kind: input.kind || "cron",
     cron_expression: input.cron_expression || "0 9 * * 1",
+    schedule_input: input.schedule_input || input.cron_expression || "Every Monday at 9:00 AM",
+    schedule_expression: input.schedule_expression || "",
+    schedule_timezone: input.schedule_timezone || "UTC",
     fire_at: toDatetimeLocal(input.fire_at),
     pr_pileup_policy: input.pr_pileup_policy || "skip",
     auto_approve_mode: input.auto_approve_mode || "never"
@@ -474,6 +499,9 @@ function detailInput(task: ScheduledTaskDetail): ScheduledTaskInput {
     prompt: task.prompt,
     kind: task.kind,
     cron_expression: task.cron_expression || "",
+    schedule_input: task.schedule_input || task.cron_expression || "",
+    schedule_expression: task.schedule_expression || "",
+    schedule_timezone: task.schedule_timezone || "UTC",
     fire_at: task.fire_at || "",
     pr_pileup_policy: task.pr_pileup_policy,
     auto_approve_mode: task.auto_approve_mode
@@ -484,6 +512,7 @@ function submitInput(values: ScheduledTaskInput): ScheduledTaskInput {
   return {
     ...values,
     cron_expression: values.kind === "cron" ? values.cron_expression : "",
+    schedule_input: values.kind === "cron" ? values.schedule_input : "",
     fire_at: values.kind === "one_shot" ? values.fire_at : ""
   }
 }
@@ -495,4 +524,3 @@ function toDatetimeLocal(value: string | null) {
   const pad = (number: number) => String(number).padStart(2, "0")
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
-

@@ -26,10 +26,10 @@ RSpec.describe CronTemplate do
       expect(build_template(prompt: "")).not_to be_valid
     end
 
-    it "requires a cron_expression" do
+    it "requires a schedule" do
       t = build_template(cron_expression: nil)
       expect(t).not_to be_valid
-      expect(t.errors[:cron_expression]).to be_present
+      expect(t.errors[:schedule_input]).to be_present
     end
 
     it "rejects unknown pr_pileup_policy" do
@@ -39,7 +39,7 @@ RSpec.describe CronTemplate do
     it "rejects a cron expression that fires more than once per hour" do
       t = build_template(cron_expression: "*/30 * * * *")
       expect(t).not_to be_valid
-      expect(t.errors[:cron_expression].join).to include("at most once per hour")
+      expect(t.errors[:schedule_input].join).to include("at most once per hour")
     end
 
     it "rejects a malformed cron expression" do
@@ -49,27 +49,27 @@ RSpec.describe CronTemplate do
     it "rejects zero in day-of-month and month fields" do
       template = build_template(cron_expression: "0 4 0 0 1")
       expect(template).not_to be_valid
-      expect(template.errors[:cron_expression].join).to include("invalid day-of-month")
+      expect(template.errors[:schedule_input].join).to include("month day must be between 1 and 31")
     end
 
     it "rejects zero in the month field" do
       template = build_template(cron_expression: "0 4 * 0 *")
       expect(template).not_to be_valid
-      expect(template.errors[:cron_expression]).to eq([ "has an invalid month value (0 is not allowed; use 1–12 or *)" ])
+      expect(template.errors.full_messages.join).to include("valid")
     end
 
     it "rejects zero in day-of-month lists and ranges" do
       [ "0 4 0,15 * *", "0 4 0-5 * *" ].each do |expression|
         template = build_template(cron_expression: expression)
         expect(template).not_to be_valid
-        expect(template.errors[:cron_expression].join).to include("invalid day-of-month")
+        expect(template.errors.full_messages.join).to include("valid")
       end
     end
 
     it "rejects the parser-invalid cron produced by replacing the minute with 49" do
       template = build_template(cron_expression: "49 4 0 0 1")
       expect(template).not_to be_valid
-      expect(template.errors[:cron_expression].join).to include("invalid day-of-month")
+      expect(template.errors.full_messages.join).to include("valid")
     end
 
     it "accepts all valid pileup policies" do

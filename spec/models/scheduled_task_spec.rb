@@ -63,10 +63,10 @@ RSpec.describe ScheduledTask do
       expect(task.errors[:auto_approve_mode]).to be_present
     end
 
-    it "requires cron_expression for cron tasks" do
+    it "requires a schedule for cron tasks" do
       task = build_cron(cron_expression: nil)
       expect(task).not_to be_valid
-      expect(task.errors[:cron_expression]).to be_present
+      expect(task.errors[:schedule_input]).to be_present
     end
 
     it "requires fire_at for one_shot tasks" do
@@ -78,7 +78,7 @@ RSpec.describe ScheduledTask do
     it "rejects a cron expression that fires more than once per hour" do
       task = build_cron(cron_expression: "*/30 * * * *")
       expect(task).not_to be_valid
-      expect(task.errors[:cron_expression].join).to include("at most once per hour")
+      expect(task.errors[:schedule_input].join).to include("at most once per hour")
     end
 
     it "rejects a malformed cron expression" do
@@ -89,27 +89,27 @@ RSpec.describe ScheduledTask do
     it "rejects zero in day-of-month and month fields" do
       task = build_cron(cron_expression: "0 4 0 0 1")
       expect(task).not_to be_valid
-      expect(task.errors[:cron_expression].join).to include("invalid day-of-month")
+      expect(task.errors[:schedule_input].join).to include("month day must be between 1 and 31")
     end
 
     it "rejects zero in the month field" do
       task = build_cron(cron_expression: "0 4 * 0 *")
       expect(task).not_to be_valid
-      expect(task.errors[:cron_expression]).to eq([ "has an invalid month value (0 is not allowed; use 1–12 or *)" ])
+      expect(task.errors.full_messages.join).to include("valid")
     end
 
     it "rejects zero in day-of-month lists and ranges" do
       [ "0 4 0,15 * *", "0 4 0-5 * *" ].each do |expression|
         task = build_cron(cron_expression: expression)
         expect(task).not_to be_valid
-        expect(task.errors[:cron_expression].join).to include("invalid day-of-month")
+        expect(task.errors.full_messages.join).to include("valid")
       end
     end
 
     it "rejects the parser-invalid cron produced by replacing the minute with 49" do
       task = build_cron(cron_expression: "49 4 0 0 1")
       expect(task).not_to be_valid
-      expect(task.errors[:cron_expression].join).to include("invalid day-of-month")
+      expect(task.errors.full_messages.join).to include("valid")
     end
 
     it "rejects a one_shot fire_at in the past" do

@@ -6,14 +6,14 @@
 
 ### cron
 
-Fires on a recurring schedule defined by a 5-field cron expression (minute hour day-of-month month day-of-week). Cron tasks fire at most once per hour — expressions that would fire more frequently are rejected.
+Fires on a recurring schedule stored canonically as an RRULE in UTC. Operators enter natural cadence text such as `Every Monday at 9:00 AM`; five-field cron input (minute hour day-of-month month day-of-week) is also accepted and preserved in `legacy_cron_expression` for audit/compatibility. Recurring tasks fire at most once per hour — expressions that would fire more frequently are rejected.
 
 ```
-# Fire at 9:00 AM UTC every weekday
-0 9 * * 1-5
+# Fire at 9:00 AM UTC every Monday
+Every Monday at 9:00 AM
 ```
 
-The minute field is honored exactly. Syrus evaluates due tasks in UTC hourly windows so repeated poller ticks within the same hour do not double-fire.
+The minute is honored exactly. Syrus evaluates due tasks in UTC hourly windows so repeated poller ticks within the same hour do not double-fire. Fire-time scheduling is deterministic and does not call an AI provider.
 
 ### one_shot
 
@@ -48,7 +48,7 @@ Cron tasks should be written so the agent can succeed even if there's nothing to
 
 ## CronTemplate
 
-`CronTemplate` is a per-user reusable schedule + prompt configuration that multiple `ScheduledTask` rows can reference. Applying a template copies its `cron_expression`, `prompt`, and `pr_pileup_policy` into the task at creation time. Later edits to the template do not retroactively update existing tasks.
+`CronTemplate` is a per-user reusable schedule + prompt configuration that multiple `ScheduledTask` rows can reference. Applying a template copies its canonical schedule, prompt, and `pr_pileup_policy` into the task at creation time. Later edits to the template do not retroactively update existing tasks.
 
 Templates are managed from the user's settings page. Useful when the same survey or maintenance prompt runs across many repositories.
 

@@ -10,6 +10,7 @@ import {
   deleteCronTemplate,
   fetchCronTemplate,
   fetchCronTemplates,
+  previewCronTemplateSchedule,
   updateCronTemplate,
   type CronTemplateDetail,
   type CronTemplateInput,
@@ -25,6 +26,9 @@ const emptyTemplate: CronTemplateInput = {
   name: "",
   description: "",
   cron_expression: "0 9 * * 1",
+  schedule_input: "Every Monday at 9:00 AM",
+  schedule_expression: "",
+  schedule_timezone: "UTC",
   pr_pileup_policy: "skip",
   prompt: "",
   enabled: true
@@ -156,7 +160,7 @@ function TemplatesTable({ templates, basePath }: { templates: CronTemplateRow[];
                 <Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={`${basePath}/${template.id}`}>{template.name}</Link>
                 {template.description ? <p className="mt-0.5 text-xs font-normal text-gray-500 dark:text-gray-400">{template.description}</p> : null}
               </td>
-              <td className="px-4 py-3 font-mono text-xs">{template.cron_expression}</td>
+              <td className="px-4 py-3 text-xs">{template.schedule_explanation || template.cron_expression}</td>
               <td className="px-4 py-3 text-xs">{template.pr_pileup_policy}</td>
               <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">{t("cron_templates.repos", { count: template.applied_tasks_count })}</td>
               <td className="px-4 py-3"><StatusPill enabled={template.enabled} /></td>
@@ -215,9 +219,9 @@ function TemplateDetail({ payload, basePath, prefix }: { payload: Awaited<Return
         <h2 className="mb-2 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">{t("cron_templates.section_schedule")}</h2>
         <dl className="grid grid-cols-2 gap-y-2 text-sm">
           <dt className="text-gray-500 dark:text-gray-400">{t("cron_templates.cron_expression_label")}</dt>
-          <dd className="font-mono">{payload.template.cron_expression}</dd>
+          <dd>{payload.template.schedule_explanation || payload.template.cron_expression}</dd>
           <dt className="text-gray-500 dark:text-gray-400">{t("cron_templates.semantics_label")}</dt>
-          <dd>{t("cron_templates.semantics_value")}</dd>
+          <dd className="font-mono text-xs">{payload.template.schedule_expression}</dd>
           <dt className="text-gray-500 dark:text-gray-400">{t("cron_templates.pr_pileup_policy_label")}</dt>
           <dd>{payload.template.pr_pileup_policy}</dd>
         </dl>
@@ -260,10 +264,20 @@ function CronTemplateForm({
       navigate(`${basePath}/${payload.template.id}`)
     }
   })
+  const preview = useMutation({
+    mutationFn: previewCronTemplateSchedule
+  })
 
   useEffect(() => {
     setValues(initial)
   }, [initial])
+
+  useEffect(() => {
+    if (!values.schedule_input.trim()) return
+
+    const timer = window.setTimeout(() => preview.mutate(values.schedule_input), 300)
+    return () => window.clearTimeout(timer)
+  }, [values.schedule_input])
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -279,9 +293,10 @@ function CronTemplateForm({
       <Field label={t("cron_templates.field_description")}>
         <input className={inputClass()} onChange={(event) => setValues({ ...values, description: event.target.value })} type="text" value={values.description} />
       </Field>
-      <Field label={t("cron_templates.field_cron")}>
-        <input className={`${inputClass()} font-mono`} onChange={(event) => setValues({ ...values, cron_expression: event.target.value })} placeholder="0 9 * * 1" type="text" value={values.cron_expression} />
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("cron_templates.cron_help")}</p>
+      <Field label={t("cron_templates.field_schedule")}>
+        <input className={inputClass()} onChange={(event) => setValues({ ...values, schedule_input: event.target.value, cron_expression: event.target.value })} placeholder={t("cron_templates.schedule_placeholder")} type="text" value={values.schedule_input} />
+        <SchedulePreviewState errors={preview.data?.errors || []} explanation={preview.data?.schedule_explanation || values.schedule_explanation} loading={preview.isPending} />
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("cron_templates.schedule_help")}</p>
       </Field>
       <Field label={t("cron_templates.field_pileup")}>
         <select className={inputClass()} onChange={(event) => setValues({ ...values, pr_pileup_policy: event.target.value })} value={values.pr_pileup_policy}>
@@ -363,6 +378,14 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
+function SchedulePreviewState({ explanation, errors, loading }: { explanation?: string | null; errors: string[]; loading: boolean }) {
+  const { t } = useT("settings")
+  if (loading) return <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("cron_templates.preview_loading")}</p>
+  if (errors.length > 0) return <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.join(", ")}</p>
+  if (explanation) return <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">{explanation}</p>
+  return null
+}
+
 function StatusPill({ enabled }: { enabled: boolean }) {
   const { t } = useT("settings")
   return enabled ? (
@@ -400,9 +423,11 @@ function inputFromTemplate(template: CronTemplateDetail): CronTemplateInput {
     name: template.name,
     description: template.description || "",
     cron_expression: template.cron_expression,
+    schedule_input: template.schedule_input || template.cron_expression,
+    schedule_expression: template.schedule_expression || "",
+    schedule_timezone: template.schedule_timezone || "UTC",
     pr_pileup_policy: template.pr_pileup_policy,
     prompt: template.prompt,
     enabled: template.enabled
   }
 }
-

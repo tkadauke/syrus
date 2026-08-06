@@ -14,21 +14,22 @@ module SyrusChatMcp
 
     input_schema(
       properties: {
-        cron_expression: { type: "string", description: "Five-field cron expression, interpreted in UTC. The minute field is honored; schedules fire at most once per matching hourly window." },
+        schedule_input: { type: "string", description: "Natural cadence text such as 'Every Monday at 9:00 AM' or a five-field cron expression. Interpreted in UTC." },
+        cron_expression: { type: "string", description: "Compatibility alias for schedule_input when providing a five-field cron expression." },
         label: { type: "string", description: "Short operator-facing label for this recurring task." },
         prompt: { type: "string", description: "Prompt to run as a scheduled cron Job each time the schedule fires." }
       },
-      required: %w[cron_expression label prompt]
+      required: %w[label prompt]
     )
 
     class << self
-      def call(cron_expression:, label:, prompt:, server_context:)
+      def call(label:, prompt:, server_context:, schedule_input: nil, cron_expression: nil)
         chat_session = server_context.fetch(:chat_session)
-        cron_expression = cron_expression.to_s.strip
+        schedule_input = schedule_input.to_s.strip.presence || cron_expression.to_s.strip
         label = label.to_s.strip
         prompt = prompt.to_s.strip
 
-        return SyrusChatMcp.invalid("cron_expression is required") if cron_expression.empty?
+        return SyrusChatMcp.invalid("schedule_input is required") if schedule_input.empty?
         return SyrusChatMcp.invalid("label is required") if label.empty?
         return SyrusChatMcp.invalid("prompt is required") if prompt.empty?
 
@@ -37,6 +38,7 @@ module SyrusChatMcp
           repository: chat_session.repository,
           kind: "cron",
           name: label,
+          schedule_input: schedule_input,
           cron_expression: cron_expression,
           prompt: prompt
         )
@@ -50,7 +52,11 @@ module SyrusChatMcp
           repository: chat_session.repository,
           action_type: "schedule_recurring",
           payload: {
-            "cron_expression" => cron_expression,
+            "schedule_input" => schedule_input,
+            "cron_expression" => preview.cron_expression,
+            "schedule_expression" => preview.schedule_expression,
+            "schedule_explanation" => preview.schedule_explanation,
+            "schedule_timezone" => preview.schedule_timezone,
             "label" => label,
             "prompt" => prompt,
             "next_fire_at" => next_fire_at&.iso8601
@@ -59,6 +65,7 @@ module SyrusChatMcp
 
         SyrusChatMcp.success(
           pending_confirmation_id: action.id,
+          schedule_explanation: preview.schedule_explanation,
           next_fire_at: next_fire_at&.iso8601
         )
       rescue ActiveRecord::RecordInvalid => e

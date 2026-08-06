@@ -37,6 +37,15 @@ module Api
           end
         end
 
+        def preview_schedule
+          result = Schedules::RecurringSchedule.preview(
+            input: params[:schedule_input].presence || params[:cron_expression],
+            structured_intent: params[:structured_intent]
+          )
+
+          render json: schedule_preview_json(result)
+        end
+
         def destroy
           template = find_template
           template.destroy!
@@ -70,6 +79,13 @@ module Api
             name: template.name,
             description: template.description,
             cron_expression: template.cron_expression,
+            schedule_input: template.schedule_input,
+            schedule_format: template.schedule_format,
+            schedule_expression: template.schedule_expression,
+            schedule_explanation: template.schedule_explanation,
+            schedule_timezone: template.schedule_timezone,
+            next_fire_at: template.next_fire_at&.iso8601,
+            legacy_cron_expression: template.legacy_cron_expression,
             pr_pileup_policy: template.pr_pileup_policy,
             enabled: template.enabled?,
             applied_tasks_count: template.scheduled_tasks.alive.count,
@@ -106,7 +122,21 @@ module Api
         end
 
         def cron_template_params
-          params.expect(cron_template: %i[ name description prompt cron_expression pr_pileup_policy enabled ])
+          params.expect(cron_template: %i[ name description prompt cron_expression schedule_input schedule_expression schedule_timezone pr_pileup_policy enabled ])
+        end
+
+        def schedule_preview_json(result)
+          {
+            valid: result.valid?,
+            schedule_input: result.input,
+            schedule_format: result.format,
+            schedule_expression: result.expression,
+            schedule_timezone: result.timezone,
+            schedule_explanation: result.explanation,
+            next_fire_at: result.next_fire_at,
+            cron_expression: result.cron_expression,
+            errors: result.errors
+          }
         end
       end
     end

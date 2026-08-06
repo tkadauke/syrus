@@ -39,7 +39,11 @@ Rails.application.routes.draw do
         end
         resources :profiles, only: %i[ index show ]
         resources :smart_folders, only: %i[ create update destroy ]
-        resources :cron_templates, only: %i[ index show create update destroy ]
+        resources :cron_templates, only: %i[ index show create update destroy ] do
+          collection do
+            post :preview_schedule
+          end
+        end
         get "notifications", to: "notifications#index"
         post "notifications/mark_all_read", to: "notifications#mark_all_read"
         patch "notifications/:id/mark_read", to: "notifications#mark_read", constraints: { id: /\d+/ }
@@ -266,6 +270,9 @@ Rails.application.routes.draw do
         patch "repositories/:repository_id/scheduled_tasks/:id", to: "scheduled_tasks#repository_update"
         delete "repositories/:repository_id/scheduled_tasks/:id", to: "scheduled_tasks#repository_destroy"
         resources :scheduled_tasks, only: %i[ index show update destroy ] do
+          collection do
+            post :preview_schedule
+          end
           member do
             post :pause
             post :resume

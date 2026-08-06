@@ -26,6 +26,19 @@ RSpec.describe "API: /api/v1/app/cron_templates", type: :request do
     expect(parse_body.dig("error", "code")).to eq("unauthorized")
   end
 
+  it "previews cron input as a canonical RRULE schedule" do
+    sign_in_as(user)
+
+    post "/api/v1/app/cron_templates/preview_schedule", params: { schedule_input: "0 9 14 8 *" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include(
+      "valid" => true,
+      "schedule_expression" => "FREQ=YEARLY;BYMONTH=8;BYMONTHDAY=14;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
+      "schedule_explanation" => "Every August 14 at 9:00 AM UTC"
+    )
+  end
+
   it "lists only the current user's cron templates" do
     sign_in_as(user)
     template = user.cron_templates.create!(valid_attrs)
@@ -115,7 +128,7 @@ RSpec.describe "API: /api/v1/app/cron_templates", type: :request do
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "code")).to eq("validation_failed")
-    expect(parse_body.dig("error", "message")).to include("valid cron expression")
+    expect(parse_body.dig("error", "message")).to include("five-field cron expression")
   end
 
   it "updates a template" do

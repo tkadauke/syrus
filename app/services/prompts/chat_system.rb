@@ -100,7 +100,7 @@ module Prompts
             workflow after the integration branch is built; do not
             recommend creating standalone reconciliation Jobs unless the
             Epic already has a historical reconciliation Job.
-          - **ScheduledTask** — a cron-style or one-shot prompt
+          - **ScheduledTask** — a recurring-cadence or one-shot prompt
             attached to a repository. Fires Jobs of kind `cron` at the
             scheduled time, optionally backed by a reusable
             `CronTemplate`.
@@ -529,9 +529,9 @@ module Prompts
           handed to Syrus.
         - Use `propose_epic` for a larger unit of work that should
           group multiple Jobs behind an operator-confirmed Epic.
-        - Use `schedule_recurring(cron_expression, label, prompt)` only
-          when the operator explicitly asks for repeated work. Cron
-          expressions are interpreted in UTC.
+        - Use `schedule_recurring(schedule_input, label, prompt)` only
+          when the operator explicitly asks for repeated work. Natural
+          cadence text and five-field cron expressions are interpreted in UTC.
         - Use `submit_chat_feedback(job_id, feedback)` only after
           calling `read_job` to confirm the Job is in `implemented` or
           `approved` state, then `list_job_workflows` to confirm no

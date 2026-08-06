@@ -14,6 +14,9 @@ export type ScheduledTaskRow = {
   state: string
   repository: ScheduledTaskRepository
   schedule_label: string | null
+  schedule_explanation: string | null
+  schedule_timezone: string | null
+  schedule_expression: string | null
   last_fired_at: string | null
   archived_at: string | null
   consecutive_failure_count: number
@@ -24,6 +27,9 @@ export type ScheduledTaskDetail = ScheduledTaskRow & {
   prompt: string
   cron_expression: string | null
   hourly_cron_expression: string | null
+  schedule_input: string | null
+  schedule_format: string | null
+  legacy_cron_expression: string | null
   fire_at: string | null
   next_fire_at: string | null
   pr_pileup_policy: string
@@ -42,6 +48,10 @@ export type ScheduledTaskInput = {
   prompt: string
   kind: string
   cron_expression: string
+  schedule_input: string
+  schedule_expression: string
+  schedule_explanation?: string | null
+  schedule_timezone: string
   fire_at: string
   pr_pileup_policy: string
   auto_approve_mode: string
@@ -108,6 +118,18 @@ export type ScheduledTaskFormPayload = {
   options: ScheduledTaskOptions
 }
 
+export type SchedulePreview = {
+  valid: boolean
+  schedule_input: string
+  schedule_format: string
+  schedule_expression: string | null
+  schedule_timezone: string
+  schedule_explanation: string | null
+  next_fire_at: string | null
+  cron_expression: string | null
+  errors: string[]
+}
+
 export function fetchScheduledTasks() {
   return getJson<ScheduledTasksIndexPayload>("/api/v1/app/scheduled_tasks")
 }
@@ -135,6 +157,12 @@ export function createScheduledTask(repositoryId: string, values: ScheduledTaskI
 export function updateScheduledTask(id: number, values: ScheduledTaskInput) {
   return patchJson<ScheduledTaskDetailPayload>(`/api/v1/app/scheduled_tasks/${id}`, {
     scheduled_task: values
+  })
+}
+
+export function previewScheduledTaskSchedule(scheduleInput: string) {
+  return postJson<SchedulePreview>("/api/v1/app/scheduled_tasks/preview_schedule", {
+    schedule_input: scheduleInput
   })
 }
 

@@ -26,6 +26,29 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(parse_body.dig("error", "code")).to eq("unauthorized")
   end
 
+  it "previews natural cadence text before save" do
+    sign_in_as(user)
+
+    post "/api/v1/app/scheduled_tasks/preview_schedule", params: { schedule_input: "Every Monday at 9am" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include(
+      "valid" => true,
+      "schedule_expression" => "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
+      "schedule_explanation" => "Every Monday at 9:00 AM UTC"
+    )
+  end
+
+  it "returns deterministic preview errors without saving" do
+    sign_in_as(user)
+
+    post "/api/v1/app/scheduled_tasks/preview_schedule", params: { schedule_input: "modays at 9" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("valid" => false)
+    expect(parse_body["errors"]).to include("Schedule input is not a supported cadence or five-field cron expression")
+  end
+
   it "lists current user's active, fired, and archived tasks" do
     sign_in_as(user)
     active = repository.scheduled_tasks.create!(user: user, **valid_cron_attrs)
@@ -200,7 +223,7 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "code")).to eq("validation_failed")
-    expect(parse_body.dig("error", "message")).to include("valid cron expression")
+    expect(parse_body.dig("error", "message")).to include("five-field cron expression")
   end
 
   it "returns validation errors for parser-invalid cron schedules" do
@@ -214,7 +237,7 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "code")).to eq("validation_failed")
-    expect(parse_body.dig("error", "message")).to include("invalid day-of-month")
+    expect(parse_body.dig("error", "message")).to include("five-field cron expression")
   end
 
   it "updates a task" do

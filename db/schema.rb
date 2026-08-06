@@ -492,12 +492,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_06_000000) do
 
   create_table "cron_templates", force: :cascade do |t|
     t.datetime "created_at", null: false
-    t.string "cron_expression", null: false
+    t.string "cron_expression"
     t.text "description"
     t.boolean "enabled", default: true, null: false
+    t.string "legacy_cron_expression"
     t.string "name", null: false
     t.string "pr_pileup_policy", default: "skip", null: false
     t.text "prompt", null: false
+    t.text "schedule_expression"
+    t.string "schedule_format", default: "rrule", null: false
+    t.string "schedule_input"
+    t.string "schedule_timezone", default: "UTC", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.index ["user_id"], name: "index_cron_templates_on_user_id"
@@ -1521,11 +1526,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_06_000000) do
     t.string "kind", null: false
     t.datetime "last_fired_at"
     t.datetime "last_successful_fire_at"
+    t.string "legacy_cron_expression"
     t.integer "minute_offset", default: 0, null: false
     t.string "name", null: false
     t.string "pr_pileup_policy", default: "skip", null: false
     t.text "prompt", null: false
     t.integer "repository_id", null: false
+    t.text "schedule_expression"
+    t.string "schedule_format", default: "rrule", null: false
+    t.string "schedule_input"
+    t.string "schedule_timezone", default: "UTC", null: false
     t.string "state", default: "scheduled", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false

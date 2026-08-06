@@ -1,5 +1,3 @@
-require "fugit"
-
 class ScheduledTask < ApplicationRecord
   include AutoApproveModes
 
@@ -28,12 +26,12 @@ class ScheduledTask < ApplicationRecord
   validates :consecutive_failure_count,
             presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
 
-  validates :cron_expression, presence: true, if: :cron?
+  validates :schedule_expression, presence: true, if: :cron?
   validates :fire_at,         presence: true, if: :one_shot?
-  validate  :cron_expression_is_parseable_and_hourly, if: :cron?
-  validate  :cron_dom_and_month_are_valid,             if: :cron?
+  validate  :schedule_expression_is_parseable_and_hourly, if: :cron?
   validate  :fire_at_is_in_the_future_at_create,      if: -> { one_shot? && new_record? }
 
+  before_validation :canonicalize_recurring_schedule
   before_validation :seed_minute_offset_for_cron, on: :create
 
   def cron?
@@ -64,15 +62,23 @@ class ScheduledTask < ApplicationRecord
     state == "fired"
   end
 
-  # Cron expression used for scheduling. Kept under the historical
-  # hourly_cron_expression name for API compatibility.
+  # Compatibility alias for API consumers that still read the historical
+  # hourly_cron_expression field. Scheduling itself uses schedule_expression.
   def hourly_cron_expression
-    return nil unless cron? && cron_expression.present?
-    cron_expression
+    return nil unless cron?
+    legacy_cron_expression.presence || cron_expression
   end
 
   def display_cron_expression
-    cron? ? cron_expression : nil
+    cron? ? hourly_cron_expression : nil
+  end
+
+  def schedule_explanation
+    return nil unless cron? && schedule_expression.present?
+
+    Schedules::RecurringSchedule.explain(schedule_expression, timezone: schedule_timezone)
+  rescue ArgumentError
+    nil
   end
 
   # When does this task fire next, after `from`? Returns nil if it
@@ -88,9 +94,10 @@ class ScheduledTask < ApplicationRecord
       current_window = scheduled_fire_window_start(now: from)
       return current_window if current_window.present? && !fired_in_window?(current_window)
 
-      cron = parsed_hourly_cron
-      cron && cron.next_time(from).to_t
+      Schedules::RecurringSchedule.next_fire_at(schedule_expression, timezone: schedule_timezone, from: from)
     end
+  rescue ArgumentError
+    nil
   end
 
   # Has this task's current fire window arrived? Cron windows are one
@@ -175,25 +182,9 @@ class ScheduledTask < ApplicationRecord
   private
 
   def scheduled_fire_window_start(now: Time.current)
-    cron = parsed_hourly_cron
-    return nil unless cron
-
-    window_start = now.utc.change(min: 0, sec: 0, usec: 0)
-    scheduled_tick = cron.next_time(window_start - 1.second).to_t
-    return nil unless scheduled_tick >= window_start && scheduled_tick < window_start + 1.hour
-    return nil if scheduled_tick > now
-
-    window_start
-  end
-
-  # Always interpret cron expressions in UTC. v1 is UTC-only by design;
-  # without an explicit zone Fugit uses the host's local TZ, which makes
-  # behavior depend on where the worker happens to run. Force the zone
-  # by appending "UTC" before parsing.
-  def parsed_hourly_cron
-    expr = hourly_cron_expression
-    return nil if expr.blank?
-    Fugit.parse("#{expr} UTC")
+    Schedules::RecurringSchedule.due_window_start(schedule_expression, timezone: schedule_timezone, now: now)
+  rescue ArgumentError
+    nil
   end
 
   def seed_minute_offset_for_cron
@@ -203,82 +194,31 @@ class ScheduledTask < ApplicationRecord
     self.minute_offset = SecureRandom.random_number(60)
   end
 
-  # Fugit accepts a wide range of cron syntaxes; we narrow to "fires at
-  # most once per hour" after normalizing the ignored minute slot. This
-  # lets users paste ordinary five-field cron while making the hourly
-  # window semantics explicit.
-  def cron_expression_is_parseable_and_hourly
-    cron = Fugit.parse(cron_expression)
-    if cron.nil? || !cron.is_a?(Fugit::Cron)
-      return if cron_dom_or_month_contains_invalid_position_value?
+  def canonicalize_recurring_schedule
+    return unless cron?
 
-      errors.add(:cron_expression, "is not a valid cron expression")
-      return
+    input = schedule_input.presence || cron_expression.presence || legacy_cron_expression.presence || schedule_expression
+    result = Schedules::RecurringSchedule.preview(input: input)
+    if result.valid?
+      self.schedule_input = input
+      self.schedule_format = result.format
+      self.schedule_expression = result.expression
+      self.schedule_timezone = result.timezone
+      self.cron_expression = result.cron_expression
+      self.legacy_cron_expression ||= result.cron_expression if result.cron_expression.present?
+    else
+      self.schedule_expression = nil
+      errors.add(:schedule_input, result.errors.to_sentence)
     end
+  end
 
-    hourly_cron = Fugit.parse(hourly_cron_expression)
-    if hourly_cron.nil? || !hourly_cron.is_a?(Fugit::Cron) || next_cron_time(hourly_cron).nil?
-      return if cron_dom_or_month_contains_invalid_position_value?
+  def schedule_expression_is_parseable_and_hourly
+    return if schedule_expression.blank?
 
-      errors.add(:cron_expression, "does not produce a future scheduled time")
-      return
-    end
-
-    min_gap = min_consecutive_gap(hourly_cron)
-    if min_gap < MIN_CRON_INTERVAL.to_i
-      errors.add(:cron_expression, "must fire at most once per hour (smallest interval seen: #{min_gap / 60} minutes)")
-    end
+    schedule = Schedules::RecurringSchedule.from_expression(schedule_expression, timezone: schedule_timezone)
+    schedule.validation_errors.each { |message| errors.add(:schedule_input, message) }
   rescue ArgumentError => e
-    errors.add(:cron_expression, "is not parseable: #{e.message}")
-  end
-
-  def cron_dom_and_month_are_valid
-    return if cron_expression.blank?
-
-    fields = cron_expression.to_s.split(/\s+/)
-    return unless fields.length == 5
-
-    if cron_position_values(fields[2]).any? { |value| value < 1 }
-      errors.add(:cron_expression, "has an invalid day-of-month value (0 is not allowed; use 1–31 or *)")
-    end
-
-    if cron_position_values(fields[3]).any? { |value| value < 1 }
-      errors.add(:cron_expression, "has an invalid month value (0 is not allowed; use 1–12 or *)")
-    end
-  end
-
-  def cron_dom_or_month_contains_invalid_position_value?
-    fields = cron_expression.to_s.split(/\s+/)
-    return false unless fields.length == 5
-
-    [ fields[2], fields[3] ].any? do |field|
-      cron_position_values(field).any? { |value| value < 1 }
-    end
-  end
-
-  def cron_position_values(field)
-    field.to_s.split(",").flat_map do |element|
-      value = element.strip.split("/", 2).first
-      next [] if value.blank? || value == "*"
-
-      value.split("-", 2).filter_map { |part| Integer(part, exception: false) }
-    end
-  end
-
-  def min_consecutive_gap(cron, samples: 60, from: Time.utc(2026, 1, 1, 0, 0, 0))
-    times = []
-    cursor = from
-    samples.times do
-      cursor = next_cron_time(cron, from: cursor)
-      return 0 if cursor.nil?
-
-      times << cursor
-    end
-    times.each_cons(2).map { |a, b| (b - a).to_i }.min
-  end
-
-  def next_cron_time(cron, from: Time.utc(2026, 1, 1, 0, 0, 0))
-    cron.next_time(from)&.to_t
+    errors.add(:schedule_input, e.message)
   end
 
   def fire_at_is_in_the_future_at_create

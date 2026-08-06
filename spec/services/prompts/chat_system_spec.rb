@@ -675,7 +675,7 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to match(/Never write `JOB-\{proposal_id\}`\s+or `EPIC-\{proposal_id\}` using a proposal response's `id`\s+field\./)
     expect(out).to include("Express dependencies between proposals when they exist")
     expect(out).to include("Use `propose_job` for direct Syrus Job creation")
-    expect(out).to include("Use `schedule_recurring(cron_expression, label, prompt)` only")
+    expect(out).to include("Use `schedule_recurring(schedule_input, label, prompt)` only")
   end
 
   it "explains the Syrus domain model so the agent can reason about Epics, Jobs, and the lifecycle" do
