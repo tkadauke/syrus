@@ -4,6 +4,9 @@ import { describe, expect, it, vi } from "vitest"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { jsonResponse } from "../testSupport"
 import { AdminQueueRoute } from "./AdminQueue"
+import type { WorkerHealthPayload, WorkersQueuePayload } from "../api/adminQueue"
+
+type WorkersQueuePayloadWithHealth = WorkersQueuePayload & { worker_health: WorkerHealthPayload }
 
 function renderAdminQueue(initialEntry = "/admin/queue/workers") {
   return render(
@@ -90,12 +93,38 @@ describe("AdminQueue worker health charts", () => {
     renderAdminQueue()
 
     expect(await screen.findByTestId("worker-health-charts-worker-a")).toBeInTheDocument()
+    expect(screen.getByText("Historical workers (1)")).toBeInTheDocument()
     expect(screen.getByText("historical")).toBeInTheDocument()
     expect(screen.getByText("Historical samples in this range; host is not currently heartbeating.")).toBeInTheDocument()
   })
+
+  it("shows active health hosts before collapsed historical hosts", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(workerQueuePayloadWithCurrentAndHistoricalHosts()))
+
+    renderAdminQueue()
+
+    const currentHost = await screen.findByText("worker-current")
+    const historicalSummary = screen.getByText("Historical workers (1)")
+    const historicalDetails = historicalSummary.closest("details")
+
+    expect(currentHost.compareDocumentPosition(historicalSummary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(historicalDetails).not.toHaveAttribute("open")
+    expect(screen.getByText("worker-historical")).not.toBeVisible()
+  })
+
+  it("hides the historical worker section when there are no historical hosts", async () => {
+    const payload = workerQueuePayloadWithCurrentAndHistoricalHosts()
+    payload.worker_health.hosts = payload.worker_health.hosts.filter((host) => host.status === "current")
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
+
+    renderAdminQueue()
+
+    expect(await screen.findByText("worker-current")).toBeInTheDocument()
+    expect(screen.queryByText(/Historical workers/)).not.toBeInTheDocument()
+  })
 })
 
-function workerQueuePayload() {
+function workerQueuePayload(): WorkersQueuePayloadWithHealth {
   return {
     workers: [
       {
@@ -161,6 +190,38 @@ function workerQueuePayload() {
       ]
     }
   }
+}
+
+function workerQueuePayloadWithCurrentAndHistoricalHosts() {
+  const payload = workerQueuePayload()
+  const currentWorker = payload.worker_health.current[0]
+  const currentSample = workerSample("2026-05-30T12:01:00Z", 18, 0.8, 35, 45, 1, 2)
+
+  payload.worker_health.current = [
+    {
+      ...currentWorker,
+      hostname: "worker-current",
+      sample: currentSample
+    }
+  ]
+  payload.worker_health.hosts = [
+    {
+      ...payload.worker_health.hosts[0],
+      hostname: "worker-historical",
+      status: "historical",
+      current: null,
+      recent_samples: [workerSample("2026-05-30T11:30:00Z", 25, 1.2, 45, 55, 3, 4)]
+    },
+    {
+      ...payload.worker_health.hosts[0],
+      hostname: "worker-current",
+      status: "current",
+      current: payload.worker_health.current[0],
+      recent_samples: [currentSample]
+    }
+  ]
+
+  return payload
 }
 
 function workerSample(observedAt: string, cpu: number, load: number, memory: number, disk: number, cpuPressure: number, ioPressure: number) {

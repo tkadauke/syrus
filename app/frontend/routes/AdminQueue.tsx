@@ -59,6 +59,7 @@ const workerHealthChartMetrics: WorkerHealthChartMetric[] = [
 ]
 
 type WorkerHealthBucket = WorkerHealthPayload["hosts"][number]["minute_buckets"][number]
+type WorkerHealthHost = WorkerHealthPayload["hosts"][number]
 
 export function AdminQueueRoute() {
   const params = useParams()
@@ -332,6 +333,8 @@ function WorkerHealthPanel({ health }: { health: WorkerHealthPayload }) {
   const location = useLocation()
   const navigate = useNavigate()
   const hosts = health.hosts ?? []
+  const activeHosts = hosts.filter((host) => workerHealthHostIsCurrent(host))
+  const historicalHosts = hosts.filter((host) => !workerHealthHostIsCurrent(host))
   const params = new URLSearchParams(location.search)
   const startValue = toDateTimeLocalValue(params.get("since") || health.range.since)
   const endValue = toDateTimeLocalValue(params.get("until") || health.range.until)
@@ -394,14 +397,32 @@ function WorkerHealthPanel({ health }: { health: WorkerHealthPayload }) {
           <button className="rounded border border-gray-900 bg-gray-900 px-3 py-1.5 font-medium text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900" type="submit">{t("queue.worker_health_apply")}</button>
         </form>
       </div>
-      <div className="grid gap-3 lg:grid-cols-2">
-        {hosts.map((host) => <WorkerHealthHostPanel host={host} key={host.hostname} />)}
-      </div>
+      {activeHosts.length > 0 ? <WorkerHealthHostGrid hosts={activeHosts} /> : null}
+      {historicalHosts.length > 0 ? (
+        <details className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-gray-900 dark:text-gray-100">{t("queue.worker_health_historical_workers", { count: historicalHosts.length })}</summary>
+          <div className="border-t border-gray-100 p-3 dark:border-gray-800">
+            <WorkerHealthHostGrid hosts={historicalHosts} />
+          </div>
+        </details>
+      ) : null}
     </div>
   )
 }
 
-function WorkerHealthHostPanel({ host }: { host: WorkerHealthPayload["hosts"][number] }) {
+function WorkerHealthHostGrid({ hosts }: { hosts: WorkerHealthHost[] }) {
+  return (
+    <div className="grid gap-3 lg:grid-cols-2">
+      {hosts.map((host) => <WorkerHealthHostPanel host={host} key={host.hostname} />)}
+    </div>
+  )
+}
+
+function workerHealthHostIsCurrent(host: WorkerHealthHost) {
+  return host.status === "current" || Boolean(host.current)
+}
+
+function WorkerHealthHostPanel({ host }: { host: WorkerHealthHost }) {
   const { t } = useT("admin")
   const current = host.current
   const sample = current?.sample || host.recent_samples[0]

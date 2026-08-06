@@ -497,6 +497,7 @@
     "worker_health_exact_values": "Valores exacti",
     "worker_health_ok": "Nullae monitiones praesentes",
     "worker_health_historical": "Exempla historica in hoc spatio; hospes nunc pulsum non mittit.",
+    "worker_health_historical_workers": "Operatores historici ({{count}})",
     "no_worker_health": "Nulla exempla salutis hostium operatorum servata.",
     "no_worker_health_buckets": "Nullae situlae minutales huic spatio.",
     "worker_warning": "monitio",

@@ -497,6 +497,7 @@
     "worker_health_exact_values": "Exact values",
     "worker_health_ok": "No current warnings",
     "worker_health_historical": "Historical samples in this range; host is not currently heartbeating.",
+    "worker_health_historical_workers": "Historical workers ({{count}})",
     "no_worker_health": "No worker host health samples recorded.",
     "no_worker_health_buckets": "No minute buckets for this range.",
     "worker_warning": "warning",
