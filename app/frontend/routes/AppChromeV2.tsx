@@ -28,6 +28,7 @@ import { updateRecentChatCache } from "../lib/chatCache"
 import { firstUnstartedChat } from "../lib/unstartedChat"
 
 export const PUBLILIUS_SYRUS_WIKIPEDIA_URL = "https://en.wikipedia.org/wiki/Publilius_Syrus"
+const SYSTEM_ALERT_DISMISSALS_KEY = "syrus.system_alert_dismissals"
 
 function randomPubliliusSyrusQuote() {
   return PUBLILIUS_SYRUS_QUOTES[Math.floor(Math.random() * PUBLILIUS_SYRUS_QUOTES.length)]
@@ -318,17 +319,28 @@ function FlashBanner({ flash }: { flash?: BootstrapPayload["flash"] }) {
 
 function SystemAlertsBanner({ alerts, prefix }: { alerts?: BootstrapPayload["system_alerts"]; prefix: string }) {
   const { t } = useTranslation("nav")
-  const active = alerts || []
+  const [dismissed, setDismissed] = useState<Set<string>>(() => readDismissedSystemAlerts())
+  const active = (alerts || []).filter((alert) => !dismissed.has(alert.dismissal_key))
   if (active.length === 0) return null
+
+  function dismiss(alert: NonNullable<BootstrapPayload["system_alerts"]>[number]) {
+    setDismissed((current) => {
+      const next = new Set(current)
+      next.add(alert.dismissal_key)
+      writeDismissedSystemAlerts(next, alerts || [])
+      return next
+    })
+  }
 
   return (
     <section aria-label={t("nav:system_alerts_aria")} className="mx-auto max-w-[96rem] space-y-3 px-6 pt-4">
-      {active.map((alert) => <SystemAlertItem alert={alert} key={alert.id} prefix={prefix} />)}
+      {active.map((alert) => <SystemAlertItem alert={alert} key={alert.id} prefix={prefix} onDismiss={() => dismiss(alert)} />)}
     </section>
   )
 }
 
-function SystemAlertItem({ alert, prefix }: { alert: NonNullable<BootstrapPayload["system_alerts"]>[number]; prefix: string }) {
+function SystemAlertItem({ alert, prefix, onDismiss }: { alert: NonNullable<BootstrapPayload["system_alerts"]>[number]; prefix: string; onDismiss: () => void }) {
+  const { t } = useTranslation("nav")
   const queryClient = useQueryClient()
   const action = useMutation({
     mutationFn: (payload: NonNullable<typeof alert.actions>[number]) => postJson(payload.path, payload.params || {}),
@@ -346,16 +358,28 @@ function SystemAlertItem({ alert, prefix }: { alert: NonNullable<BootstrapPayloa
 
   return (
     <article className={`rounded border px-4 py-3 text-sm ${tone}`}>
-      <div className="min-w-0 space-y-2">
-        <h2 className="font-semibold">{alert.title}</h2>
-        <p dangerouslySetInnerHTML={{ __html: alert.message }} />
-        {alert.action_steps.length > 0 ? (
-          <ul className="list-disc space-y-1 pl-5">
-            {alert.action_steps.map((step) => (
-              <li dangerouslySetInnerHTML={{ __html: step }} key={step} />
-            ))}
-          </ul>
-        ) : null}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 space-y-2">
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="font-semibold">{alert.title}</h2>
+            <button
+              aria-label={t("nav:system_alert_dismiss")}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-transparent hover:border-current hover:bg-white/60"
+              onClick={onDismiss}
+              type="button"
+            >
+              <CloseIcon className="h-4 w-4" />
+            </button>
+          </div>
+          <p dangerouslySetInnerHTML={{ __html: alert.message }} />
+          {alert.action_steps.length > 0 ? (
+            <ul className="list-disc space-y-1 pl-5">
+              {alert.action_steps.map((step) => (
+                <li dangerouslySetInnerHTML={{ __html: step }} key={step} />
+              ))}
+            </ul>
+          ) : null}
+        </div>
       </div>
       {alert.cta || alert.actions?.length ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -380,6 +404,26 @@ function SystemAlertItem({ alert, prefix }: { alert: NonNullable<BootstrapPayloa
       {action.isError ? <p className="mt-2 text-xs font-medium">Action failed.</p> : null}
     </article>
   )
+}
+
+function readDismissedSystemAlerts(): Set<string> {
+  try {
+    const raw = window.localStorage.getItem(SYSTEM_ALERT_DISMISSALS_KEY)
+    const values = raw ? JSON.parse(raw) : []
+    return new Set(Array.isArray(values) ? values.filter((value): value is string => typeof value === "string") : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function writeDismissedSystemAlerts(dismissed: Set<string>, alerts: BootstrapPayload["system_alerts"]) {
+  try {
+    const liveKeys = new Set((alerts || []).map((alert) => alert.dismissal_key))
+    const values = [...dismissed].filter((key) => liveKeys.has(key))
+    window.localStorage.setItem(SYSTEM_ALERT_DISMISSALS_KEY, JSON.stringify(values))
+  } catch {
+    // localStorage can be unavailable in private or restricted browser contexts.
+  }
 }
 
 function AdminSubnav({ featureFlags, normalizedPath, prefix }: { featureFlags: Record<string, boolean>; normalizedPath: string; prefix: string }) {

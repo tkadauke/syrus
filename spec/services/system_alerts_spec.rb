@@ -60,18 +60,23 @@ RSpec.describe SystemAlerts do
       )
       allow(DataRootDiskUsage).to receive(:current).and_return(nil)
 
-      alert = described_class.active_for(user: user).first
+      travel_to Time.zone.parse("2026-08-03T13:00:00Z") do
+        alert = described_class.active_for(user: user).first
 
-      expect(alert.id).to eq("codex_usage:#{user.id}")
-      expect(alert.severity).to eq(:warn)
-      expect(alert.title).to include("low")
-      expect(alert.message).to include("5h 12% remaining")
-      expect(alert.message).to include("weekly 88% remaining")
-      expect(alert.cta).to eq(text: "Open agent settings", path: "/settings/agent")
-      expect(alert.actions).to contain_exactly(
-        include(text: "Recheck Codex", path: "/api/v1/app/credentials/recheck_provider_availability")
-      )
-      expect(alert.action_steps.join(" ")).not_to include("Override only")
+        expect(alert.id).to eq("codex_usage:#{user.id}")
+        expect(alert.dismissal_key).to include("2026-07-30T18:00:00Z")
+        expect(alert.severity).to eq(:warn)
+        expect(alert.title).to include("low")
+        expect(alert.message).to include("5h 12% remaining")
+        expect(alert.message).to include("weekly 88% remaining")
+        expect(alert.message).to include("Usage resets in less than a minute.")
+        expect(alert.message).not_to include("The next reset is around")
+        expect(alert.cta).to eq(text: "Open agent settings", path: "/settings/agent")
+        expect(alert.actions).to contain_exactly(
+          include(text: "Recheck Codex", path: "/api/v1/app/credentials/recheck_provider_availability")
+        )
+        expect(alert.action_steps.join(" ")).not_to include("Override only")
+      end
     end
 
     it "surfaces resume override on low Codex usage only when the pause threshold is crossed" do
@@ -92,6 +97,23 @@ RSpec.describe SystemAlerts do
         include(text: "Resume Codex anyway", path: "/api/v1/app/credentials/override_provider_availability", destructive: false)
       )
       expect(alert.action_steps.join(" ")).to include("Override only")
+    end
+
+    it "renders the Codex reset timestamp as a relative duration" do
+      user = Factories.user(
+        codex_usage_status: "warning",
+        codex_usage_snapshot: {
+          "secondary" => { "label" => "weekly", "remaining_percent" => 19.0, "reset_at" => "2026-08-08T18:00:00Z" }
+        }
+      )
+      allow(DataRootDiskUsage).to receive(:current).and_return(nil)
+
+      travel_to Time.zone.parse("2026-08-06T13:00:00Z") do
+        alert = described_class.active_for(user: user).first
+
+        expect(alert.message).to include("Usage resets in 2 days, 5 hours.")
+        expect(alert.message).not_to include("2026-08-08T18:00:00Z")
+      end
     end
 
     it "keeps low Codex usage banner after later successful Codex evidence" do

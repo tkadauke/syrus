@@ -117,6 +117,7 @@ module AppApi
       SystemAlerts.active_for(user: user).map do |alert|
         {
           id: alert.id,
+          dismissal_key: alert.dismissal_key,
           severity: alert.severity.to_s,
           title: alert.title,
           message: alert.message,

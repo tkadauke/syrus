@@ -187,6 +187,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     alert = parse_body.fetch("system_alerts").find { |row| row["id"] == "github_token_scope:#{user.id}" }
     expect(alert).to include(
       "severity" => "alarm",
+      "dismissal_key" => "github_token_scope:#{user.id}",
       "title" => a_string_matching(/GitHub API access/i),
       "cta" => { "text" => "Update token", "path" => "/credentials" }
     )

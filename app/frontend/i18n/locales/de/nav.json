@@ -248,6 +248,7 @@
   },
   "account_aria": "Konto",
   "system_alerts_aria": "Systemwarnungen",
+  "system_alert_dismiss": "Systemwarnung ausblenden",
   "admin_nav_aria": "Admin",
   "primary_nav_aria": "Primär",
   "dashboard_sections_aria": "Dashboard-Bereiche",

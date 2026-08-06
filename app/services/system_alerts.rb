@@ -18,9 +18,9 @@ module SystemAlerts
   #   :info  — blue, "you should know about this"
   SEVERITIES = %i[ alarm warn info ].freeze
 
-  Alert = Data.define(:id, :severity, :title, :message, :action_steps, :cta, :actions) do
-    def initialize(id:, severity:, title:, message:, action_steps:, cta: nil, actions: [])
-      super(id: id, severity: severity, title: title, message: message, action_steps: action_steps, cta: cta, actions: actions)
+  Alert = Data.define(:id, :dismissal_key, :severity, :title, :message, :action_steps, :cta, :actions) do
+    def initialize(id:, severity:, title:, message:, action_steps:, dismissal_key: id, cta: nil, actions: [])
+      super(id: id, dismissal_key: dismissal_key, severity: severity, title: title, message: message, action_steps: action_steps, cta: cta, actions: actions)
     end
   end
 
@@ -42,6 +42,7 @@ module SystemAlerts
     reason = ERB::Util.html_escape(user.gh_api_blocked_reason.to_s)
     Alert.new(
       id: "github_token_scope:#{user.id}",
+      dismissal_key: "github_token_scope:#{user.id}",
       severity: :alarm,
       title: "GitHub API access is blocked for this account.",
       message: "Syrus tried to read GitHub on your behalf and got back: " \
@@ -74,14 +75,14 @@ module SystemAlerts
     snapshot = user.codex_usage_snapshot || {}
     remaining = snapshot["remaining_percent"]
     limit_label = codex_usage_breakdown(snapshot).presence || (remaining.present? ? "#{remaining.round}% remaining" : status)
-    reset_at = [ snapshot.dig("primary", "reset_at"), snapshot.dig("secondary", "reset_at") ].compact.min
+    reset_at = codex_usage_reset_at(snapshot, status: status)
     exhausted = availability&.dig(:usage_exhausted) || status == "exhausted"
     title = exhausted ? "Codex usage limit has been reached." : "Codex usage is low."
     message = "Codex reports #{ERB::Util.html_escape(limit_label)} for this account."
     if (evidence = availability&.dig(:evidence, :current))
       message += " Latest evidence: <code>#{ERB::Util.html_escape(evidence[:status])}</code> from <code>#{ERB::Util.html_escape(evidence[:source])}</code>."
     end
-    message += " The next reset is around <code>#{ERB::Util.html_escape(reset_at)}</code>." if reset_at.present?
+    message += " Usage resets in #{ERB::Util.html_escape(relative_reset_label(reset_at))}." if reset_at.present?
 
     pause_active = codex_provider_pause_active?(user, availability: availability, remaining: remaining, exhausted: exhausted)
     action_steps = [
@@ -109,6 +110,7 @@ module SystemAlerts
 
     Alert.new(
       id: "codex_usage:#{user.id}",
+      dismissal_key: codex_usage_dismissal_key(user, snapshot, status: status, reset_at: reset_at),
       severity: exhausted ? :alarm : :warn,
       title: title,
       message: message,
@@ -128,6 +130,52 @@ module SystemAlerts
     remaining.to_f < user.provider_availability_pause_threshold_for("codex")
   end
   private_class_method :codex_provider_pause_active?
+
+  def self.codex_usage_dismissal_key(user, snapshot, status:, reset_at:)
+    windows = [ snapshot["primary"], snapshot["secondary"] ].compact.map do |window|
+      [
+        window["label"],
+        window["reset_at"],
+        window["remaining_percent"].present? ? window["remaining_percent"].to_f.round : nil
+      ].compact.join("=")
+    end
+    "codex_usage:#{user.id}:#{status}:#{reset_at&.iso8601}:#{windows.join("|")}"
+  end
+  private_class_method :codex_usage_dismissal_key
+
+  def self.codex_usage_reset_at(snapshot, status:)
+    candidates = [ snapshot["primary"], snapshot["secondary"] ].compact
+    candidates = candidates.select { |window| window["remaining_percent"].present? && window["remaining_percent"].to_f <= CodexUsageProbe::WARNING_REMAINING_PERCENT } if status == "warning"
+    candidates = [ snapshot["primary"], snapshot["secondary"] ].compact if candidates.blank?
+    reset_values = candidates.filter_map { |window| parse_time(window["reset_at"]) }
+    reset_values.min
+  end
+  private_class_method :codex_usage_reset_at
+
+  def self.parse_time(value)
+    Time.zone.parse(value.to_s) if value.present?
+  rescue ArgumentError, TypeError
+    nil
+  end
+  private_class_method :parse_time
+
+  def self.relative_reset_label(reset_at, now: Time.current)
+    seconds = [ reset_at - now, 0 ].max
+    days = (seconds / 1.day).floor
+    hours = ((seconds % 1.day) / 1.hour).floor
+    minutes = ((seconds % 1.hour) / 1.minute).ceil
+    parts = []
+    parts << pluralize_unit(days, "day") if days.positive?
+    parts << pluralize_unit(hours, "hour") if hours.positive?
+    parts << pluralize_unit(minutes, "minute") if parts.empty? && minutes.positive?
+    parts.presence&.join(", ") || "less than a minute"
+  end
+  private_class_method :relative_reset_label
+
+  def self.pluralize_unit(value, unit)
+    "#{value} #{unit.pluralize(value)}"
+  end
+  private_class_method :pluralize_unit
 
   def self.codex_usage_breakdown(snapshot)
     [ snapshot["primary"], snapshot["secondary"] ].compact.filter_map do |window|
@@ -201,6 +249,7 @@ module SystemAlerts
       end
     Alert.new(
       id: "data_root_disk_usage",
+      dismissal_key: "data_root_disk_usage:#{hostname}:#{level}:#{path}:#{used_percent}",
       severity: severity,
       title: title,
       message: message,

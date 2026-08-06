@@ -99,6 +99,7 @@ export type BootstrapPayload = {
   }
   system_alerts?: Array<{
     id: string
+    dismissal_key: string
     severity: "alarm" | "warn" | "info" | string
     title: string
     message: string

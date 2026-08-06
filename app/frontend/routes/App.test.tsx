@@ -206,6 +206,7 @@ describe("App", () => {
       system_alerts: [
         {
           id: "data_root_disk_usage",
+          dismissal_key: "data_root_disk_usage:critical:96",
           severity: "alarm",
           title: "Worker data volume usage is critical.",
           message: "SYRUS_DATA_ROOT is 96% full with <code>3.5GB</code> available. On single-host Docker installs this volume shares a disk with Docker's own image store.",
@@ -235,6 +236,65 @@ describe("App", () => {
     expect(within(alerts).getByText("docker image prune -a")).toBeInTheDocument()
     expect(within(alerts).getByText("/syrus/workflows")).toBeInTheDocument()
     expect(within(alerts).getByRole("link", { name: "Open admin overview" })).toHaveAttribute("href", "/app-shell/admin")
+  })
+
+  it("dismisses system alert banners only for the current warning fingerprint", async () => {
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload({
+      system_alerts: [
+        {
+          id: "codex_usage:1",
+          dismissal_key: "codex_usage:1:warning:2026-08-08T03:46:43Z:weekly=2026-08-08T03:46:43Z=19",
+          severity: "warn",
+          title: "Codex usage is low.",
+          message: "Codex reports weekly 19% remaining for this account. Usage resets in 2 days, 5 hours.",
+          action_steps: ["Pause or move Codex-backed automation to another provider before starting more work."],
+          cta: { text: "Open credentials", path: "/credentials" }
+        }
+      ]
+    }))
+    document.body.appendChild(script)
+
+    const view = render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("heading", { name: "Codex usage is low." })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss system alert" }))
+    expect(screen.queryByRole("heading", { name: "Codex usage is low." })).not.toBeInTheDocument()
+    expect(window.localStorage.getItem("syrus.system_alert_dismissals")).toContain("2026-08-08T03:46:43Z")
+
+    view.unmount()
+    script.textContent = JSON.stringify(bootstrapPayload({
+      system_alerts: [
+        {
+          id: "codex_usage:1",
+          dismissal_key: "codex_usage:1:warning:2026-08-15T03:46:43Z:weekly=2026-08-15T03:46:43Z=19",
+          severity: "warn",
+          title: "Codex usage is low.",
+          message: "Codex reports weekly 19% remaining for this account. Usage resets in 1 week.",
+          action_steps: ["Pause or move Codex-backed automation to another provider before starting more work."],
+          cta: { text: "Open credentials", path: "/credentials" }
+        }
+      ]
+    }))
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/dashboard"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("heading", { name: "Codex usage is low." })).toBeInTheDocument()
+    script.remove()
   })
 
   it("renders a minimal first-run welcome for a new instance", async () => {

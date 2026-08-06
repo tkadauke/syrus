@@ -248,6 +248,7 @@
   },
   "account_aria": "Ratio",
   "system_alerts_aria": "Monita systematis",
+  "system_alert_dismiss": "Monitum systematis dimitte",
   "admin_nav_aria": "Administrator",
   "primary_nav_aria": "Primaria",
   "dashboard_sections_aria": "Sectiones tabulae",

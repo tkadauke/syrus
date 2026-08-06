@@ -248,6 +248,7 @@
   },
   "account_aria": "Account",
   "system_alerts_aria": "System alerts",
+  "system_alert_dismiss": "Dismiss system alert",
   "admin_nav_aria": "Admin",
   "primary_nav_aria": "Primary",
   "dashboard_sections_aria": "Dashboard sections",
