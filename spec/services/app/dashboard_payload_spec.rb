@@ -714,7 +714,7 @@ RSpec.describe App::DashboardPayload do
       stable_counted_ids = SmartFolder.for_subject("job")
                                       .where("user_id IS NULL OR user_id = ?", user.id)
                                       .where.not(id: volatile_ids)
-                                      .select { |folder| folder.visibility.in?([ :always, :when_present ]) || folder.id == active_folder_id }
+                                      .select { |folder| !folder.builtin? || folder.visibility.in?([ :always, :when_present ]) || folder.id == active_folder_id }
                                       .map(&:id)
       stable_uncounted_ids = SmartFolder.for_subject("job")
                                         .where("user_id IS NULL OR user_id = ?", user.id)
