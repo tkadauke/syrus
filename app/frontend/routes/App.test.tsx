@@ -236,6 +236,17 @@ describe("App", () => {
     expect(within(alerts).getByText("docker image prune -a")).toBeInTheDocument()
     expect(within(alerts).getByText("/syrus/workflows")).toBeInTheDocument()
     expect(within(alerts).getByRole("link", { name: "Open admin overview" })).toHaveAttribute("href", "/app-shell/admin")
+
+    const dismissButton = within(alerts).getByRole("button", { name: "Dismiss system alert" })
+    const article = dismissButton.closest("article")
+    expect(article).not.toBeNull()
+    if (!article) throw new Error("Expected system alert dismiss button to be inside an alert article")
+
+    const content = article.querySelector("[data-testid='system-alert-content']")
+    const dismissContainer = article.querySelector("[data-testid='system-alert-dismiss-container']")
+    expect(content).toContainElement(within(alerts).getByRole("heading", { name: "Worker data volume usage is critical." }))
+    expect(content).not.toContainElement(dismissButton)
+    expect(dismissContainer).toContainElement(dismissButton)
   })
 
   it("dismisses system alert banners only for the current warning fingerprint", async () => {

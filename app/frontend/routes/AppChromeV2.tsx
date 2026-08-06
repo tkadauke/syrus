@@ -357,29 +357,27 @@ function SystemAlertItem({ alert, prefix, onDismiss }: { alert: NonNullable<Boot
   }[alert.severity] || "border-gray-200 bg-gray-50 text-gray-900"
 
   return (
-    <article className={`rounded border px-4 py-3 text-sm ${tone}`}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 space-y-2">
-          <div className="flex items-start justify-between gap-3">
-            <h2 className="font-semibold">{alert.title}</h2>
-            <button
-              aria-label={t("nav:system_alert_dismiss")}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-transparent hover:border-current hover:bg-white/60"
-              onClick={onDismiss}
-              type="button"
-            >
-              <CloseIcon className="h-4 w-4" />
-            </button>
-          </div>
-          <p dangerouslySetInnerHTML={{ __html: alert.message }} />
-          {alert.action_steps.length > 0 ? (
-            <ul className="list-disc space-y-1 pl-5">
-              {alert.action_steps.map((step) => (
-                <li dangerouslySetInnerHTML={{ __html: step }} key={step} />
-              ))}
-            </ul>
-          ) : null}
-        </div>
+    <article className={`relative rounded border px-4 py-3 pr-14 text-sm ${tone}`}>
+      <div className="absolute right-3 top-3" data-testid="system-alert-dismiss-container">
+        <button
+          aria-label={t("nav:system_alert_dismiss")}
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded border border-transparent hover:border-current hover:bg-white/60"
+          onClick={onDismiss}
+          type="button"
+        >
+          <CloseIcon className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="min-w-0 space-y-2" data-testid="system-alert-content">
+        <h2 className="font-semibold">{alert.title}</h2>
+        <p dangerouslySetInnerHTML={{ __html: alert.message }} />
+        {alert.action_steps.length > 0 ? (
+          <ul className="list-disc space-y-1 pl-5">
+            {alert.action_steps.map((step) => (
+              <li dangerouslySetInnerHTML={{ __html: step }} key={step} />
+            ))}
+          </ul>
+        ) : null}
       </div>
       {alert.cta || alert.actions?.length ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">
