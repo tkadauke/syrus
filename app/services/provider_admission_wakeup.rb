@@ -65,13 +65,15 @@ class ProviderAdmissionWakeup
 
   def wake_auto_retries
     attempts.map do |attempt|
-      AutoRetryJob.perform_later(attempt.id)
+      attempt.update!(skipped_reason: "provider circuit reopened; reconciler will retry immediately")
+      WorkEngine::Reconciler.request(source: self.class.name, job: attempt.job)
       attempt.id
     end
   end
 
   def attempts
     scope = AutoRetryAttempt
+      .includes(:job)
       .where(agent_provider: provider, performed_at: nil, skipped_reason: nil)
       .where("scheduled_at > ?", Time.current)
       .order(:scheduled_at, :id)
