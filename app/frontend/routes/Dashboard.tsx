@@ -172,17 +172,41 @@ export function ReadinessPanel({ className = "", prefix, readiness }: { classNam
   )
 }
 
-function RepositoryHealthBanners({ className = "", prefix, repositories }: { className?: string; prefix: string; repositories: DashboardHealthBlockedRepository[] }) {
+const HEALTH_BANNER_DISMISSALS_KEY = "syrus.health_banner_dismissals"
+
+function healthBannerEvidenceToken(repo: DashboardHealthBlockedRepository): string {
+  return `${repo.ci_health}:${repo.grader_health}`
+}
+
+function readHealthBannerDismissals(): Record<string, string> {
+  try {
+    const raw = window.localStorage.getItem(HEALTH_BANNER_DISMISSALS_KEY)
+    const value = raw ? JSON.parse(raw) : {}
+    return typeof value === "object" && value !== null && !Array.isArray(value) ? value : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeHealthBannerDismissals(dismissals: Record<string, string>): void {
+  try {
+    window.localStorage.setItem(HEALTH_BANNER_DISMISSALS_KEY, JSON.stringify(dismissals))
+  } catch {
+    // localStorage can be unavailable in private or restricted browser contexts.
+  }
+}
+
+export function RepositoryHealthBanners({ className = "", prefix, repositories }: { className?: string; prefix: string; repositories: DashboardHealthBlockedRepository[] }) {
   const { t } = useT("dashboard")
   const queryClient = useQueryClient()
-  const [dismissed, setDismissed] = useState<Set<number>>(() => new Set())
+  const [dismissals, setDismissals] = useState<Record<string, string>>(() => readHealthBannerDismissals())
   const requestRepair = useMutation({
     mutationFn: requestDashboardMainBranchRepair,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
     }
   })
-  const visible = repositories.filter((repo) => !dismissed.has(repo.id))
+  const visible = repositories.filter((repo) => dismissals[repo.id] !== healthBannerEvidenceToken(repo))
 
   if (visible.length === 0) return null
 
@@ -256,7 +280,11 @@ function RepositoryHealthBanners({ className = "", prefix, repositories }: { cla
               <button
                 aria-label={t("broken_main_dismiss")}
                 className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-200"
-                onClick={() => setDismissed((prev) => new Set([...prev, repo.id]))}
+                onClick={() => setDismissals((prev) => {
+                  const next = { ...prev, [repo.id]: healthBannerEvidenceToken(repo) }
+                  writeHealthBannerDismissals(next)
+                  return next
+                })}
                 type="button"
               >
                 <CloseIcon />
