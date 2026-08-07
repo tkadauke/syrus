@@ -31,6 +31,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     Class.new { include Syrus::Plugin::PreviewProvider }
   end
 
+  let(:artifact_renderer_class) do
+    Class.new { include Syrus::Plugin::ArtifactRenderer }
+  end
+
   describe "EXTENSION_POINTS" do
     it "includes :coverage_analyzer" do
       expect(described_class::EXTENSION_POINTS).to include(:coverage_analyzer)
@@ -38,6 +42,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "includes :preview_provider" do
       expect(described_class::EXTENSION_POINTS).to include(:preview_provider)
+    end
+
+    it "includes :artifact_renderer" do
+      expect(described_class::EXTENSION_POINTS).to include(:artifact_renderer)
     end
 
     it "is frozen" do
@@ -52,6 +60,21 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "maps :preview_provider to Syrus::Plugin::PreviewProvider" do
       expect(described_class::INTERFACE_FOR[:preview_provider].call).to eq(Syrus::Plugin::PreviewProvider)
+    end
+
+    it "maps :artifact_renderer to Syrus::Plugin::ArtifactRenderer" do
+      expect(described_class::INTERFACE_FOR[:artifact_renderer].call).to eq(Syrus::Plugin::ArtifactRenderer)
+    end
+
+    it "gives artifact renderer providers the class contract used by the registry" do
+      provider = Class.new { include Syrus::Plugin::ArtifactRenderer }
+
+      expect(provider).to respond_to(:artifact_type)
+      expect(provider).to respond_to(:renderer_type)
+      expect(provider).to respond_to(:payload_schema)
+      expect { provider.artifact_type }.to raise_error(NotImplementedError, /must implement \.artifact_type/)
+      expect { provider.renderer_type }.to raise_error(NotImplementedError, /must implement \.renderer_type/)
+      expect(provider.payload_schema).to be_nil
     end
 
     it "gives coverage analyzer providers the class call contract used by the registry" do
@@ -108,10 +131,36 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
             input_source:       input_source_class,
             test_result_parser: test_result_parser_class,
             coverage_analyzer:  coverage_analyzer_class,
-            preview_provider:   preview_provider_class
+            preview_provider:   preview_provider_class,
+            artifact_renderer:  artifact_renderer_class
           }
         )
       }.not_to raise_error
+    end
+
+    it "accepts an array of artifact_renderer classes (multiple renderers per plugin)" do
+      second_renderer = Class.new { include Syrus::Plugin::ArtifactRenderer }
+
+      expect {
+        described_class.register(
+          name: "multi_renderer_plugin", version: "1.0.0",
+          provides: { artifact_renderer: [ artifact_renderer_class, second_renderer ] }
+        )
+      }.not_to raise_error
+
+      expect(described_class.providers_for(:artifact_renderer))
+        .to contain_exactly(artifact_renderer_class, second_renderer)
+    end
+
+    it "raises RegistrationError when artifact_renderer class lacks the interface module" do
+      plain_class = Class.new
+
+      expect {
+        described_class.register(
+          name: "bad_plugin", version: "1.0.0",
+          provides: { artifact_renderer: plain_class }
+        )
+      }.to raise_error(described_class::RegistrationError, /must include Syrus::Plugin::ArtifactRenderer/)
     end
 
     it "raises RegistrationError for unknown extension point keys" do
@@ -313,6 +362,18 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       )
 
       expect(described_class.providers_for(:preview_provider)).to eq([ preview_provider_class ])
+    end
+
+    it "returns artifact renderer providers" do
+      second_renderer = Class.new { include Syrus::Plugin::ArtifactRenderer }
+
+      described_class.register(
+        name: "renderer_plugin", version: "1.0.0",
+        provides: { artifact_renderer: [ artifact_renderer_class, second_renderer ] }
+      )
+
+      expect(described_class.providers_for(:artifact_renderer))
+        .to contain_exactly(artifact_renderer_class, second_renderer)
     end
 
     it "returns an empty array when no plugin provides the requested extension point" do

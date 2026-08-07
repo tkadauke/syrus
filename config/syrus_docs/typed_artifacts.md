@@ -41,4 +41,18 @@ To make a typed artifact renderable in the Syrus job detail UI, a plugin must:
 1. Register an `:artifact_renderer` extension that maps the artifact `type` to one of the core renderer types (`erd_diagram`, `migration_diff`, `data_table`, `before_after_diff`).
 2. Optionally register a `:prompt_injector` to instruct the implementing agent when to call `submit_artifact`.
 
-See `config/syrus_docs/` for the plugin extension point documentation (forthcoming in EPIC-193).
+See `config/syrus_docs/plugins.md` for the full `:artifact_renderer` extension point API.
+
+## Artifacts panel in job detail
+
+The job detail page shows an **Artifacts** tab listing all typed artifacts for the job. Each artifact is rendered based on its `renderer_type`:
+
+| `renderer_type` | Display |
+|---|---|
+| `erd_diagram` | Table boxes with column lists and foreign key arrows |
+| `migration_diff` | Two-column before/after table schema diff (added columns highlighted) |
+| `data_table` | HTML table from `headers` and `rows` arrays in the payload |
+| `before_after_diff` | Side-by-side before/after `<pre>` blocks |
+| `null` (no registered renderer) | Raw JSON display |
+
+Artifacts are deduplicated by `type` across all workflows on the job; the most recently produced entry for each type wins. The tab count reflects the number of unique artifact types present.

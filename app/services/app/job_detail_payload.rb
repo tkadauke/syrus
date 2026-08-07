@@ -48,6 +48,7 @@ module App
           dependency_target_options: [],
           epic_dependency_target_options: [],
           attachments: PerformanceLogging.phase("job_detail.attachments", job_id: @job.id) { @job.job_attachments.includes(file_attachment: :blob).map { |attachment| attachment_json(attachment) } },
+          typed_artifacts: PerformanceLogging.phase("job_detail.typed_artifacts", job_id: @job.id) { typed_artifacts_json },
           summary: PerformanceLogging.phase("job_detail.summary", job_id: @job.id) { summary_json },
           test_plan: PerformanceLogging.phase("job_detail.test_plan", job_id: @job.id) { test_plan_json },
           has_test_results: PerformanceLogging.phase("job_detail.has_test_results", job_id: @job.id) { has_test_results? },
@@ -312,6 +313,37 @@ module App
         created_at: iso8601(attachment.created_at),
         app_delete_path: "/api/v1/app/jobs/#{@job.id}/attachments/#{attachment.id}"
       }
+    end
+
+    def typed_artifacts_json
+      renderer_map = Syrus::PluginRegistry
+        .providers_for(:artifact_renderer)
+        .each_with_object({}) { |klass, hash| hash[klass.artifact_type] = klass.renderer_type.to_s }
+
+      # Collect typed artifacts from all workflows, deduplicating by type and
+      # keeping the most recent entry (by workflow created_at) for each type.
+      latest_by_type = {}
+      @job.workflows
+        .sort_by { |wf| wf.created_at || Time.at(0) }
+        .each do |wf|
+          next unless wf.artifacts.is_a?(Hash)
+
+          Array(wf.artifact("typed_artifacts")).each do |entry|
+            next unless entry.is_a?(Hash) && entry["type"].present?
+
+            latest_by_type[entry["type"]] = entry
+          end
+        end
+
+      latest_by_type.values.map do |entry|
+        {
+          type: entry["type"],
+          title: entry["title"],
+          payload: entry["payload"],
+          created_at: entry["created_at"],
+          renderer_type: renderer_map[entry["type"]]
+        }
+      end
     end
 
     def summary_json

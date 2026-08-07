@@ -659,6 +659,14 @@ export type PreviewActionPayload = {
   message: string
 }
 
+export type TypedArtifact = {
+  type: string
+  title: string
+  payload: Record<string, unknown>
+  created_at: string
+  renderer_type: "erd_diagram" | "migration_diff" | "data_table" | "before_after_diff" | null
+}
+
 export type JobDetailPayload = {
   message?: string | null
   job: JobRecord
@@ -675,6 +683,7 @@ export type JobDetailPayload = {
   dependency_target_options: JobOption[]
   epic_dependency_target_options: Array<{ label: string; value: number }>
   attachments: JobAttachment[]
+  typed_artifacts: TypedArtifact[]
   summary: JobSummary | null
   test_plan: JobTestPlan | null
   has_test_results: boolean

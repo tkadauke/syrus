@@ -8,7 +8,7 @@
 // JobDetail components that take them move out of the 3k-line file.
 import type { JobDetailPayload, JobWorkflowsPayload } from "../../api/jobs"
 
-export type JobTab = "summary" | "workflows" | "attachments" | "source" | "tests"
+export type JobTab = "summary" | "workflows" | "attachments" | "source" | "tests" | "artifacts"
 export type JobDetailQueryKey = readonly ["jobs", string, "detail", string]
 export type JobWorkflowsQueryKey = readonly ["jobs", string, "workflows", string]
 
@@ -47,5 +47,5 @@ export function tabFromLocation(pathname: string, search: string): JobTab {
   if (pathname.endsWith("/source")) return "source"
 
   const value = new URLSearchParams(search).get("tab")
-  return value === "workflows" || value === "attachments" || value === "source" || value === "tests" ? value : "summary"
+  return value === "workflows" || value === "attachments" || value === "source" || value === "tests" || value === "artifacts" ? value : "summary"
 }

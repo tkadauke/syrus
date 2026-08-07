@@ -7,6 +7,7 @@ module Syrus
       test_result_parser
       coverage_analyzer
       preview_provider
+      artifact_renderer
     ].freeze
 
     # Lambdas defer constant resolution until call time (autoload-friendly).
@@ -16,7 +17,8 @@ module Syrus
       input_source:       -> { Syrus::Plugin::InputSource },
       test_result_parser: -> { Syrus::Plugin::TestResultParser },
       coverage_analyzer:  -> { Syrus::Plugin::CoverageAnalyzer },
-      preview_provider:   -> { Syrus::Plugin::PreviewProvider }
+      preview_provider:   -> { Syrus::Plugin::PreviewProvider },
+      artifact_renderer:  -> { Syrus::Plugin::ArtifactRenderer }
     }.freeze
 
     RegistrationError = Class.new(StandardError)

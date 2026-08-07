@@ -13,7 +13,7 @@ import { Markdown } from "../lib/Markdown"
 import { translateBlockedReason } from "../lib/translateBlockedReason"
 import { workflowSlug } from "../lib/slugs"
 import { buttonClass } from "../lib/buttonClasses"
-import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobDependencyOptions, fetchJobDetail, fetchJobTestResults, fetchJobWorkflows, ignorePendingFeedback, replacePendingFeedback, retryPendingFeedback, stopJobPreview, submitJobFeedback, updateJobPriority, updateJobProviderSetting, type JobApprovalRecord, type JobApprovalStatus, type JobDeploymentStage, type JobDetailPayload, type JobTestCase, type JobTestPlan, type JobTestRun, type JobTestSuite, type JobWorkflow, type PendingFeedbackComment } from "../api/jobs"
+import { applyPendingFeedback, createJobAttachments, deleteJobCommand, fetchJobDependencyOptions, fetchJobDetail, fetchJobTestResults, fetchJobWorkflows, ignorePendingFeedback, replacePendingFeedback, retryPendingFeedback, stopJobPreview, submitJobFeedback, updateJobPriority, updateJobProviderSetting, type JobApprovalRecord, type JobApprovalStatus, type JobDeploymentStage, type JobDetailPayload, type JobTestCase, type JobTestPlan, type JobTestRun, type JobTestSuite, type JobWorkflow, type PendingFeedbackComment, type TypedArtifact } from "../api/jobs"
 import { CoverageCard } from "../components/CoverageCard"
 import { ProviderAvailabilityWarning } from "../components/ProviderAvailabilityWarning"
 import { SyrusTour } from "../components/SyrusTour"
@@ -253,11 +253,12 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, activeTab,
         />
       ) : null}
 
-      <TabNav active={activeTab} attachmentsCount={(payload.attachments ?? []).length} workflowsCount={payload.job.workflows_count} hasTestResults={payload.has_test_results} onSelect={onSelectTab} />
+      <TabNav active={activeTab} artifactsCount={(payload.typed_artifacts ?? []).length} attachmentsCount={(payload.attachments ?? []).length} workflowsCount={payload.job.workflows_count} hasTestResults={payload.has_test_results} onSelect={onSelectTab} />
 
       {activeTab === "summary" ? <SummaryTab command={command} payload={payload} prefix={prefix} queryKey={queryKey} withPreviewStop={withPreviewStop} /> : null}
       {activeTab === "workflows" ? <WorkflowsTab command={command} payload={payload} prefix={prefix} /> : null}
       {activeTab === "attachments" ? <AttachmentsTab payload={payload} queryKey={queryKey} onNotice={setNotice} /> : null}
+      {activeTab === "artifacts" ? <ArtifactsTab artifacts={payload.typed_artifacts ?? []} /> : null}
       {activeTab === "source" ? <SourceTab jobId={String(payload.job.id)} coverageInfo={latestWorkflowCoverage(payload.workflows)} /> : null}
       {activeTab === "tests" ? <TestsTab payload={payload} /> : null}
     </>
@@ -297,12 +298,13 @@ function DeploymentStagePipeline({ stages }: { stages: JobDeploymentStage[] }) {
   )
 }
 
-function TabNav({ active, workflowsCount, attachmentsCount, hasTestResults, onSelect }: { active: JobTab; workflowsCount: number; attachmentsCount: number; hasTestResults: boolean; onSelect: (tab: JobTab) => void }) {
+function TabNav({ active, workflowsCount, attachmentsCount, artifactsCount, hasTestResults, onSelect }: { active: JobTab; workflowsCount: number; attachmentsCount: number; artifactsCount: number; hasTestResults: boolean; onSelect: (tab: JobTab) => void }) {
   const { t } = useT("jobs")
   const tabs: Array<{ id: JobTab; label: string }> = [
     { id: "summary", label: t("tab_summary") },
     { id: "workflows", label: t("tab_workflows", { count: workflowsCount }) },
     { id: "attachments", label: t("tab_attachments", { count: attachmentsCount }) },
+    { id: "artifacts", label: t("tab_artifacts", { count: artifactsCount }) },
     { id: "source", label: t("tab_source") }
   ]
 
@@ -1361,6 +1363,204 @@ function TestsTab({ payload }: { payload: JobDetailPayload }) {
     <div className="space-y-4">
       {data.test_runs.map((testRun) => <TestRunSection key={testRun.id} testRun={testRun} />)}
     </div>
+  )
+}
+
+export function ArtifactsTab({ artifacts }: { artifacts: TypedArtifact[] }) {
+  const { t } = useT("jobs")
+
+  if (artifacts.length === 0) {
+    return <PanelMessage>{t("section_no_artifacts")}</PanelMessage>
+  }
+
+  return (
+    <section className="space-y-4">
+      {artifacts.map((artifact) => (
+        <div className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900" key={artifact.type}>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{artifact.title}</h2>
+          <div className="mt-3">
+            <ArtifactRenderer artifact={artifact} />
+          </div>
+        </div>
+      ))}
+    </section>
+  )
+}
+
+function ArtifactRenderer({ artifact }: { artifact: TypedArtifact }) {
+  switch (artifact.renderer_type) {
+    case "erd_diagram":
+      return <ErdDiagramRenderer payload={artifact.payload} />
+    case "migration_diff":
+      return <MigrationDiffRenderer payload={artifact.payload} />
+    case "data_table":
+      return <DataTableRenderer payload={artifact.payload} />
+    case "before_after_diff":
+      return <BeforeAfterDiffRenderer payload={artifact.payload} />
+    default:
+      return <RawArtifactRenderer payload={artifact.payload} />
+  }
+}
+
+function ErdDiagramRenderer({ payload }: { payload: Record<string, unknown> }) {
+  const { t } = useT("jobs")
+  const tables = Array.isArray(payload.tables) ? payload.tables as Array<{ name: string; columns: Array<{ name: string; type: string; primary_key?: boolean; nullable?: boolean }> }> : []
+  const foreignKeys = Array.isArray(payload.foreign_keys) ? payload.foreign_keys as Array<{ from_table: string; from_column: string; to_table: string; to_column: string }> : []
+
+  if (tables.length === 0) {
+    return <RawArtifactRenderer payload={payload} />
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-3">
+        {tables.map((table) => (
+          <div className="min-w-48 rounded border border-gray-300 bg-gray-50 dark:border-gray-600 dark:bg-gray-800" key={table.name}>
+            <div className="rounded-t border-b border-gray-300 bg-gray-200 px-3 py-1.5 text-xs font-bold text-gray-800 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100">
+              {table.name}
+            </div>
+            <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+              {(table.columns ?? []).map((col) => (
+                <li className="flex items-center gap-2 px-3 py-1 text-xs" key={col.name}>
+                  {col.primary_key ? <span className="shrink-0 font-bold text-terracotta-600 dark:text-terracotta-400">{t("artifact_erd_primary_key")}</span> : null}
+                  <span className="font-mono text-gray-900 dark:text-gray-100">{col.name}</span>
+                  <span className="ml-auto shrink-0 text-gray-400 dark:text-gray-500">{col.type}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+      {foreignKeys.length > 0 ? (
+        <div>
+          <p className="mb-1.5 text-xs font-medium text-gray-600 dark:text-gray-400">{t("artifact_erd_foreign_keys")}</p>
+          <ul className="space-y-1">
+            {foreignKeys.map((fk, i) => (
+              <li className="font-mono text-xs text-gray-700 dark:text-gray-300" key={i}>
+                {fk.from_table}.{fk.from_column} → {fk.to_table}.{fk.to_column}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function MigrationDiffRenderer({ payload }: { payload: Record<string, unknown> }) {
+  const { t } = useT("jobs")
+  const changes = Array.isArray(payload.changes) ? payload.changes as Array<{ table: string; before?: { columns?: Array<{ name: string; type: string }> }; after?: { columns?: Array<{ name: string; type: string }> } }> : []
+
+  if (changes.length === 0) {
+    return <RawArtifactRenderer payload={payload} />
+  }
+
+  return (
+    <div className="space-y-4">
+      {changes.map((change) => {
+        const beforeCols = change.before?.columns ?? []
+        const afterCols = change.after?.columns ?? []
+        return (
+          <div key={change.table}>
+            <p className="mb-2 text-xs font-bold text-gray-800 dark:text-gray-100">{change.table}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">{t("artifact_migration_before")}</p>
+                <ul className="rounded border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
+                  {beforeCols.length === 0
+                    ? <li className="px-2 py-1 text-xs italic text-gray-400">(none)</li>
+                    : beforeCols.map((col) => (
+                      <li className="flex justify-between border-b border-gray-200 px-2 py-1 text-xs last:border-b-0 dark:border-gray-700" key={col.name}>
+                        <span className="font-mono text-gray-900 dark:text-gray-100">{col.name}</span>
+                        <span className="text-gray-400 dark:text-gray-500">{col.type}</span>
+                      </li>
+                    ))}
+                </ul>
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">{t("artifact_migration_after")}</p>
+                <ul className="rounded border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
+                  {afterCols.length === 0
+                    ? <li className="px-2 py-1 text-xs italic text-gray-400">(none)</li>
+                    : afterCols.map((col) => {
+                      const isNew = !beforeCols.some((b) => b.name === col.name)
+                      return (
+                        <li className={`flex justify-between border-b border-gray-200 px-2 py-1 text-xs last:border-b-0 dark:border-gray-700 ${isNew ? "bg-emerald-50 dark:bg-emerald-950/30" : ""}`} key={col.name}>
+                          <span className={`font-mono ${isNew ? "font-semibold text-emerald-800 dark:text-emerald-300" : "text-gray-900 dark:text-gray-100"}`}>{col.name}</span>
+                          <span className="text-gray-400 dark:text-gray-500">{col.type}</span>
+                        </li>
+                      )
+                    })}
+                </ul>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function DataTableRenderer({ payload }: { payload: Record<string, unknown> }) {
+  const headers = Array.isArray(payload.headers) ? payload.headers as string[] : []
+  const rows = Array.isArray(payload.rows) ? payload.rows as unknown[][] : []
+
+  if (headers.length === 0 && rows.length === 0) {
+    return <RawArtifactRenderer payload={payload} />
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse text-xs">
+        {headers.length > 0 ? (
+          <thead>
+            <tr>
+              {headers.map((h, i) => (
+                <th className="border border-gray-200 bg-gray-100 px-2 py-1.5 text-left font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200" key={i}>{String(h)}</th>
+              ))}
+            </tr>
+          </thead>
+        ) : null}
+        <tbody>
+          {rows.map((row, ri) => (
+            <tr className="even:bg-gray-50 dark:even:bg-gray-800/50" key={ri}>
+              {(Array.isArray(row) ? row : [row]).map((cell, ci) => (
+                <td className="border border-gray-200 px-2 py-1 text-gray-800 dark:border-gray-700 dark:text-gray-200" key={ci}>{String(cell ?? "")}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function BeforeAfterDiffRenderer({ payload }: { payload: Record<string, unknown> }) {
+  const { t } = useT("jobs")
+  const before = typeof payload.before === "string" ? payload.before : null
+  const after = typeof payload.after === "string" ? payload.after : null
+
+  if (before === null && after === null) {
+    return <RawArtifactRenderer payload={payload} />
+  }
+
+  return (
+    <div className="grid gap-3 lg:grid-cols-2">
+      <div>
+        <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">{t("artifact_diff_before")}</p>
+        <pre className="overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">{before ?? "(empty)"}</pre>
+      </div>
+      <div>
+        <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">{t("artifact_diff_after")}</p>
+        <pre className="overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">{after ?? "(empty)"}</pre>
+      </div>
+    </div>
+  )
+}
+
+function RawArtifactRenderer({ payload }: { payload: Record<string, unknown> }) {
+  return (
+    <pre className="overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">{JSON.stringify(payload, null, 2)}</pre>
   )
 }
 

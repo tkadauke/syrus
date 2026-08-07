@@ -5,10 +5,10 @@ import { MemoryRouter, useLocation } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { BootstrapPayload } from "../api/bootstrap"
 import * as useTourModule from "../hooks/useTour"
-import type { JobDetailPayload, JobRun, JobSourcePayload, JobStep, JobTestResultsPayload, JobWorkflow } from "../api/jobs"
+import type { JobDetailPayload, JobRun, JobSourcePayload, JobStep, JobTestResultsPayload, JobWorkflow, TypedArtifact } from "../api/jobs"
 import { BugReportContext } from "../lib/bugReportContext"
 import type { BugReportOptionalAttachment } from "../lib/bugReportOptionalAttachments"
-import { FeedbackHistoryPanel, JobDetailView, TestPlanPanel } from "./JobDetail"
+import { ArtifactsTab, FeedbackHistoryPanel, JobDetailView, TestPlanPanel } from "./JobDetail"
 import { StepAdversarialReviewPanel } from "./jobDetail/WorkflowGraph"
 
 function buildBootstrap(seenTours: string[] = []): BootstrapPayload {
@@ -984,6 +984,143 @@ describe("FeedbackHistoryPanel", () => {
   })
 })
 
+describe("ArtifactsTab", () => {
+  function renderArtifactsTab(artifacts: TypedArtifact[]) {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <ArtifactsTab artifacts={artifacts} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+  }
+
+  it("shows a placeholder when there are no artifacts", () => {
+    renderArtifactsTab([])
+    expect(screen.getByText("No artifacts.")).toBeInTheDocument()
+  })
+
+  it("shows the artifact title as a section header", () => {
+    renderArtifactsTab([
+      { type: "rails_schema_erd", title: "Schema ERD", payload: {}, created_at: "2026-08-06T10:00:00Z", renderer_type: "erd_diagram" }
+    ])
+    expect(screen.getByRole("heading", { name: "Schema ERD" })).toBeInTheDocument()
+  })
+
+  it("renders erd_diagram: table names and column lists", () => {
+    renderArtifactsTab([{
+      type: "rails_schema_erd",
+      title: "Schema ERD",
+      created_at: "2026-08-06T10:00:00Z",
+      renderer_type: "erd_diagram",
+      payload: {
+        tables: [
+          { name: "users", columns: [{ name: "id", type: "bigint", primary_key: true }, { name: "email", type: "string" }] },
+          { name: "posts", columns: [{ name: "id", type: "bigint", primary_key: true }, { name: "user_id", type: "bigint" }] }
+        ],
+        foreign_keys: [{ from_table: "posts", from_column: "user_id", to_table: "users", to_column: "id" }]
+      }
+    }])
+
+    expect(screen.getByText("users")).toBeInTheDocument()
+    expect(screen.getByText("posts")).toBeInTheDocument()
+    expect(screen.getByText("email")).toBeInTheDocument()
+    expect(screen.getByText("Foreign keys")).toBeInTheDocument()
+    expect(screen.getByText("posts.user_id → users.id")).toBeInTheDocument()
+    expect(screen.getAllByText("PK")).toHaveLength(2)
+  })
+
+  it("renders migration_diff: before and after column lists", () => {
+    renderArtifactsTab([{
+      type: "rails_migration_diff",
+      title: "Migration Diff",
+      created_at: "2026-08-06T10:00:00Z",
+      renderer_type: "migration_diff",
+      payload: {
+        changes: [{
+          table: "users",
+          before: { columns: [{ name: "id", type: "bigint" }] },
+          after: { columns: [{ name: "id", type: "bigint" }, { name: "admin", type: "boolean" }] }
+        }]
+      }
+    }])
+
+    expect(screen.getByText("users")).toBeInTheDocument()
+    expect(screen.getByText("Before")).toBeInTheDocument()
+    expect(screen.getByText("After")).toBeInTheDocument()
+    expect(screen.getAllByText("admin")).toHaveLength(1)
+  })
+
+  it("renders data_table: headers and rows", () => {
+    renderArtifactsTab([{
+      type: "coverage_summary",
+      title: "Coverage Summary",
+      created_at: "2026-08-06T10:00:00Z",
+      renderer_type: "data_table",
+      payload: {
+        headers: ["File", "Lines", "Covered"],
+        rows: [["app/models/user.rb", "120", "95"], ["app/models/job.rb", "80", "72"]]
+      }
+    }])
+
+    expect(screen.getByRole("columnheader", { name: "File" })).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Lines" })).toBeInTheDocument()
+    expect(screen.getByRole("cell", { name: "app/models/user.rb" })).toBeInTheDocument()
+    expect(screen.getByRole("cell", { name: "95" })).toBeInTheDocument()
+  })
+
+  it("renders before_after_diff: before and after text blocks", () => {
+    renderArtifactsTab([{
+      type: "config_diff",
+      title: "Config Change",
+      created_at: "2026-08-06T10:00:00Z",
+      renderer_type: "before_after_diff",
+      payload: {
+        before: "adapter: sqlite3\ndatabase: dev.db",
+        after: "adapter: postgresql\ndatabase: production_db"
+      }
+    }])
+
+    expect(screen.getByText("Before")).toBeInTheDocument()
+    expect(screen.getByText("After")).toBeInTheDocument()
+    expect(screen.getByText(/adapter: sqlite3/)).toBeInTheDocument()
+    expect(screen.getByText(/adapter: postgresql/)).toBeInTheDocument()
+  })
+
+  it("falls back to raw JSON for unknown renderer_type", () => {
+    renderArtifactsTab([{
+      type: "unknown_type",
+      title: "Unknown Artifact",
+      created_at: "2026-08-06T10:00:00Z",
+      renderer_type: null,
+      payload: { custom_key: "custom_value" }
+    }])
+
+    expect(screen.getByText(/custom_key/)).toBeInTheDocument()
+    expect(screen.getByText(/custom_value/)).toBeInTheDocument()
+  })
+
+  it("shows the Artifacts tab in the TabNav with count", () => {
+    renderJobDetail(jobPayload({
+      typed_artifacts: [
+        { type: "rails_schema_erd", title: "Schema ERD", payload: {}, created_at: "2026-08-06T10:00:00Z", renderer_type: "erd_diagram" }
+      ]
+    }))
+    expect(screen.getByRole("button", { name: "Artifacts (1)" })).toBeInTheDocument()
+  })
+
+  it("renders the ArtifactsTab when the artifacts tab is active", () => {
+    renderJobDetail(jobPayload({
+      typed_artifacts: [
+        { type: "rails_schema_erd", title: "Schema ERD", payload: { tables: [] }, created_at: "2026-08-06T10:00:00Z", renderer_type: "erd_diagram" }
+      ]
+    }), { activeTab: "artifacts" })
+    expect(screen.getByRole("heading", { name: "Schema ERD" })).toBeInTheDocument()
+  })
+})
+
 describe("PrioritySelector", () => {
   it("renders a select with the current priority selected", () => {
     renderJobDetail(jobPayload({ job: { ...baseJob(), priority: "high" } }))
@@ -1200,7 +1337,7 @@ function renderFeedbackHistory(workflows: JobWorkflow[]) {
   )
 }
 
-function renderJobDetail(payload: JobDetailPayload, options: { activeTab?: "summary" | "workflows" | "attachments" | "source" | "tests"; showLocation?: boolean } = {}) {
+function renderJobDetail(payload: JobDetailPayload, options: { activeTab?: "summary" | "workflows" | "attachments" | "source" | "tests" | "artifacts"; showLocation?: boolean } = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
   queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
 
@@ -1286,6 +1423,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
     dependency_target_options: [],
     epic_dependency_target_options: [],
     attachments: [],
+    typed_artifacts: [],
     summary: null,
     test_plan: null,
     has_test_results: false,
