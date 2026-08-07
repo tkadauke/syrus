@@ -494,37 +494,18 @@ RSpec.describe "Work engine resilience regression matrix" do
     end
   end
 
-  describe "feature-gated switchover" do
-    def enable_unified_work_engine_reconciler!
-      Feature.find_or_create_by!(slug: WorkEngine::Gate::FEATURE_SLUG) do |feature|
-        feature.category = "Operations"
-        feature.name = "Unified work-engine reconciler"
-      end.update!(enabled: true)
-    end
+  it "always delegates disconnected fixers to the unified reconciler" do
+    _job, workflow, _step, run = matrix_graph
+    fail_run!(workflow, workflow.first_step, run, classification: "worker_died", retryable: true, agent_outcome: "worker_died")
 
-    it "keeps legacy disconnected fixers active while the gate is off" do
-      _job, workflow, _step, run = matrix_graph
-      fail_run!(workflow, workflow.first_step, run, classification: "worker_died", retryable: true, agent_outcome: "worker_died")
-
-      expect {
-        AutoRetryScheduler.schedule_for_workflow(workflow: workflow)
-      }.to change { AutoRetryAttempt.count }.by(1)
-    end
-
-    it "delegates disconnected fixers to the unified reconciler while the gate is on" do
-      enable_unified_work_engine_reconciler!
-      _job, workflow, _step, run = matrix_graph
-      fail_run!(workflow, workflow.first_step, run, classification: "worker_died", retryable: true, agent_outcome: "worker_died")
-
-      expect {
-        AutoRetryScheduler.schedule_for_workflow(workflow: workflow)
-      }.to have_enqueued_job(WorkEngine::ReconcileJob).with(
-        source: "AutoRetryScheduler",
-        job_id: workflow.job_id,
-        workflow_id: workflow.id,
-        run_id: nil
-      )
-      expect(AutoRetryAttempt.count).to eq(0)
-    end
+    expect {
+      AutoRetryScheduler.schedule_for_workflow(workflow: workflow)
+    }.to have_enqueued_job(WorkEngine::ReconcileJob).with(
+      source: "AutoRetryScheduler",
+      job_id: workflow.job_id,
+      workflow_id: workflow.id,
+      run_id: nil
+    )
+    expect(AutoRetryAttempt.count).to eq(0)
   end
 end

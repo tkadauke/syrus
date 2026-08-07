@@ -273,10 +273,8 @@ When a worker process is killed mid-step (deploy rolling restart, OOM, node evic
 
 If Codex resume state is unavailable (`thread/resume failed`, missing rollout JSONL, or equivalent), Syrus classifies the failure as `agent_resume_unavailable`. Automatic failed-step retries carry an explicit no-resume marker so step-specific session fallbacks cannot keep selecting the same stale provider thread. Short synthesis steps such as `test_plan` may retry once in a fresh provider session using bounded durable context from the Job, PR summary, and implementation diff before falling back to deterministic artifacts.
 
-When the `unified_work_engine_reconciler` feature flag is enabled,
 `AutoRetryScheduler` does not create `AutoRetryAttempt` rows itself. It defers
 to `WorkEngine::Reconciler` so retry classification and remediation stay under
-the unified work-engine authority. With the flag off, auto-retry behavior is
-unchanged.
+the unified work-engine authority.
 
 The in-place retry count is per-step per-workflow, not per-job. Each step failure classification is persisted as a `RunFailureClassification` row so the reaper and `RunJob` can accurately count prior retries.

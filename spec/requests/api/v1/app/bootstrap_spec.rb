@@ -130,7 +130,6 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "operational_log_indexing" => false,
       "performance_logging" => false,
       "terminal" => false,
-      "unified_work_engine_reconciler" => false,
       "video_walkthroughs" => false
     )
   end

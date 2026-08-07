@@ -143,12 +143,6 @@ RSpec.describe Feature, type: :model do
       expect(declaration).to include("category" => "Operations", "default" => false)
     end
 
-    it "declares the unified work-engine reconciler operations flag default-off in config/features.yml" do
-      declaration = YAML.load_file(Rails.root.join("config/features.yml")).fetch("features")
-                        .find { |f| f["slug"] == WorkEngine::Gate::FEATURE_SLUG }
-      expect(declaration).to include("category" => "Operations", "default" => false)
-    end
-
     it "declares the admin supervisor chat operations flag default-off in config/features.yml" do
       declaration = YAML.load_file(Rails.root.join("config/features.yml")).fetch("features")
                         .find { |f| f["slug"] == "admin_supervisor_chat" }

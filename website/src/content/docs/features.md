@@ -89,37 +89,6 @@ Workflow workspaces or a scratch directory, and keeps the PTY alive while
 the browser navigates away. Returning to the page reconnects the xterm.js
 pane to the existing session; killing a tab ends that session.
 
-## Unified Work-Engine Reconciler
-
-The `unified_work_engine_reconciler` feature flag is an operations rollout
-switch for work-state recovery. It defaults off, so existing stale-run reaping,
-auto-retry scheduling, Job-state reconciliation, and stuck detection continue
-to behave as they do today.
-
-When enabled, disconnected legacy fixers stop mutating work state on their own
-and defer to the unified work-engine reconciler. This makes the unified
-reconciler the single authority for classifying and repairing split-brain state
-across Jobs, Workflows, Steps, Runs, queue records, and worker processes.
-
-Diagnostic reconciler calls remain read-only. The feature-gated recurring
-repair path executes only plans marked safe for automatic repair, re-checks
-preconditions before mutating, and audits each action to system logs and the Job
-timeline when a Run is available. Safe repairs include re-enqueueing orphaned
-queued Runs, starting queued Workflows whose first Run was never created,
-marking dead running Runs as `worker_died`, scheduling retry or resume recovery,
-finishing terminal orphan Workflows, and repairing unambiguous Job/Workflow
-state drift. Detached running Runs with no active queue job and no live spawned
-process can use a short worker-evidence grace before the worker-died repair
-path; ambiguous running Runs still use the normal stale-heartbeat threshold.
-
-The same classifications power stuck visibility. Admin overview health, the
-dedicated stuck list, and chat explanations distinguish stale queue claims,
-failed queue executions, paused queues, queue starvation, dependency blocks,
-stale dependency start blocks whose dependencies now resolve as satisfied,
-unsuccessful closed dependencies, retryable failed steps, main-health blocks,
-terminal workflows whose cleanup is blocked by active descendants, and semantic
-operator-needed failures from the same reconciler evidence and repair plan.
-
 ## Coding Mode
 
 When the `coding_mode` feature flag is enabled and a chat session is in coding

@@ -93,13 +93,6 @@ RSpec.describe WorkEngine::Reconciler do
     )
   end
 
-  def enable_unified_work_engine_reconciler!
-    Feature.find_or_create_by!(slug: WorkEngine::Gate::FEATURE_SLUG) do |feature|
-      feature.category = "Operations"
-      feature.name = "Unified work-engine reconciler"
-    end.update!(enabled: true)
-  end
-
   before do
     clear_solid_queue_test_tables! if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
   end
@@ -1609,7 +1602,6 @@ RSpec.describe WorkEngine::Reconciler do
   end
 
   it "coalesces repeated no-op retry repair audit logs for an unchanged stuck run" do
-    enable_unified_work_engine_reconciler!
     step.update_columns(kind: "grader", state: "failed", finished_at: Time.current)
     workflow.update_columns(state: "failed", finished_at: Time.current, cleaned_up_at: nil)
     run.update_columns(state: "failed", finished_at: Time.current)

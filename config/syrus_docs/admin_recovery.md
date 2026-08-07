@@ -58,14 +58,10 @@ require the separate pending-confirmation tools.
 
 ## Stale Run Reap
 
-The admin-only stale-run reap action normally enqueues `ReapStaleRunsJob`,
-which runs the legacy recovery paths for stale Runs, orphaned queued Runs,
-queued Workflows with no first Run, terminal orphan Workflows, and missed
-worker-death auto-retries.
-
-When the `unified_work_engine_reconciler` feature flag is enabled, the same
-admin action defers to the unified work-engine reconciler instead of enqueueing
-the legacy mutation path.
+The admin-only stale-run reap action defers to the unified work-engine
+reconciler, which handles stale Runs, orphaned queued Runs, queued Workflows
+with no first Run, terminal orphan Workflows, and missed worker-death
+auto-retries.
 
 The reconciler also cancels queued automatic retry Workflows when the failed
 source Workflow has already been superseded by a newer successful Workflow. In

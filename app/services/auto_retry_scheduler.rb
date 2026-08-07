@@ -14,11 +14,9 @@ class AutoRetryScheduler
 
   def schedule_for_workflow
     return unless workflow.failed?
-    if Feature.unified_work_engine_reconciler_enabled?
-      WorkEngine::Reconciler.request(source: self.class.name, job: workflow.job, workflow: workflow)
-      log("auto-retry skipped: unified work-engine reconciler is enabled")
-      return
-    end
+    WorkEngine::Reconciler.request(source: self.class.name, job: workflow.job, workflow: workflow)
+    log("auto-retry skipped: unified work-engine reconciler handles retry scheduling")
+    return
 
     return if pending_attempt_exists?
 

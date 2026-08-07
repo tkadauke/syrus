@@ -69,10 +69,3 @@ features:
     description: "Enables one durable pinned Supervisor chat per admin user."
     description_i18n_key: "features.slugs.admin_supervisor_chat.description"
     default: false
-  - slug: unified_work_engine_reconciler
-    category: "Operations"
-    name: "Unified work-engine reconciler"
-    name_i18n_key: "features.slugs.unified_work_engine_reconciler.name"
-    description: "Makes the unified work-engine reconciler authoritative for work-state recovery. When enabled, legacy reapers and auto-retry fixers defer instead of mutating state independently."
-    description_i18n_key: "features.slugs.unified_work_engine_reconciler.description"
-    default: false

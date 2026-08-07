@@ -1,19 +1,15 @@
 # Work-Engine Reconciler
 
 `WorkEngine::Reconciler` is the unified work-state consistency classifier and
-repair planner used by the `unified_work_engine_reconciler` operations feature
-flag. Diagnostic calls are read-only by default: they snapshot evidence and
-return structured issue records plus repair plans. The feature-gated recurring
-repair path invokes the same reconciler with repair execution enabled, and it
-executes only plans marked `auto_executable`.
+repair planner. Diagnostic calls are read-only by default: they snapshot evidence
+and return structured issue records plus repair plans. The recurring repair path
+invokes the same reconciler with repair execution enabled, and it executes only
+plans marked `auto_executable`.
 
 Recurring/global reconcile jobs are concurrency-limited by scope. Only one
 global reconcile runs at a time, and duplicate global requests are discarded
 while one is already pending or executing. Scoped reconciles for a specific Job,
 Workflow, or Run use a separate key for that record scope.
-The legacy stale-run reaper entrypoint is also limited to one execution at a
-time so a feature-flag transition or scheduler burst cannot run multiple broad
-repair scans concurrently.
 
 ## Result shape
 
@@ -180,8 +176,8 @@ reconciler issue and repair-plan pair.
 
 ## Repair execution
 
-`WorkEngine::ReconcileJob` calls the reconciler with `execute_repairs: true`
-when the feature flag is enabled and legacy fixers defer to it. The executor:
+`WorkEngine::ReconcileJob` calls the reconciler with `execute_repairs: true`.
+The executor:
 
 - skips every plan that is not marked `auto_executable`
 - re-checks local preconditions immediately before mutating

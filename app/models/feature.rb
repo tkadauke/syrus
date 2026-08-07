@@ -62,10 +62,6 @@ class Feature < ApplicationRecord
     enabled?(:admin_supervisor_chat)
   end
 
-  def self.unified_work_engine_reconciler_enabled?
-    enabled?(WorkEngine::Gate::FEATURE_SLUG)
-  end
-
   private
 
   def clear_request_enabled_cache

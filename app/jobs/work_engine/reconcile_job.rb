@@ -24,7 +24,7 @@ module WorkEngine
         job_id: job_id,
         workflow_id: workflow_id,
         run_id: run_id,
-        execute_repairs: Feature.unified_work_engine_reconciler_enabled?
+        execute_repairs: true
       )
       Admin::StuckItemsCache.write_from_result(result: result) if job_id.blank? && workflow_id.blank? && run_id.blank?
       result

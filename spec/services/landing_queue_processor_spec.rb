@@ -852,16 +852,21 @@ RSpec.describe LandingQueueProcessor do
       expect(calls).to eq(2)
     end
 
-    it "queues a landing processor retry instead of raising when landing lock conflicts persist" do
+    it "queues a landing processor retry and requests reconciliation when landing lock conflicts persist" do
       job = queue_job(issue_number: 1, approved_at: 1.minute.ago)
       processor = instance_double(described_class)
       allow(described_class).to receive(:new).and_return(processor)
       allow(processor).to receive(:try_land!).with(job).and_raise(ActiveRecord::Deadlocked, "deadlock")
-      allow(Feature).to receive(:unified_work_engine_reconciler_enabled?).and_return(false)
 
       expect {
         expect(described_class.try_land!(job)).to be_nil
       }.to have_enqueued_job(LandingQueueProcessorJob)
+        .and have_enqueued_job(WorkEngine::ReconcileJob).with(
+          source: "LandingQueueProcessor.try_land_lock_conflict",
+          job_id: job.id,
+          workflow_id: nil,
+          run_id: nil
+        )
     end
 
     it "no-ops when the Job is not approved" do

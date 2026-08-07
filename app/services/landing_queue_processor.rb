@@ -97,9 +97,7 @@ class LandingQueueProcessor
         "queueing landing processor retry"
       )
       LandingQueueProcessorJob.perform_later
-      if Feature.unified_work_engine_reconciler_enabled?
-        WorkEngine::Reconciler.request(source: "#{name}.try_land_lock_conflict", job: job)
-      end
+      WorkEngine::Reconciler.request(source: "#{name}.try_land_lock_conflict", job: job)
       nil
     end
   end

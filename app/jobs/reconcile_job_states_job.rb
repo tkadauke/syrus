@@ -23,17 +23,8 @@ class ReconcileJobStatesJob < ApplicationJob
   RECONCILABLE_STATES = %w[ queued running implemented failed ].freeze
 
   def perform
-    if Feature.unified_work_engine_reconciler_enabled?
-      WorkEngine::Reconciler.request(source: self.class.name)
-      Rails.logger.info("[ReconcileJobStatesJob] skipped legacy mutations; unified work-engine reconciler is enabled")
-      return
-    end
-
-    close_completed_main_grader_jobs
-
-    Job.where(state: RECONCILABLE_STATES).find_each do |job|
-      reconcile_one(job)
-    end
+    WorkEngine::Reconciler.request(source: self.class.name)
+    Rails.logger.info("[ReconcileJobStatesJob] delegated to unified work-engine reconciler")
   end
 
   def close_completed_main_grader_jobs

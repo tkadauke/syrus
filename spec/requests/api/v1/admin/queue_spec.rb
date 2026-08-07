@@ -25,21 +25,7 @@ RSpec.describe "API: /api/v1/admin/queue/*", type: :request do
   end
 
   describe "POST /api/v1/admin/queue/reap_stale_runs" do
-    it "runs ReapStaleRunsJob inline and returns ok" do
-      expect(ReapStaleRunsJob).to receive(:perform_now)
-      post "/api/v1/admin/queue/reap_stale_runs", headers: auth
-      expect(response).to be_successful
-      expect(parse_body["ok"]).to be true
-    end
-
-    it "runs the unified reconciler inline with repairs when enabled" do
-      Feature.find_or_initialize_by(slug: "unified_work_engine_reconciler").tap do |feature|
-        feature.name = "Unified work-engine reconciler"
-        feature.category = "operations"
-        feature.default_enabled = false
-        feature.enabled = true
-        feature.save!
-      end
+    it "always runs the unified reconciler inline with repairs and returns ok" do
       result = WorkEngine::Reconciler::Result.new(
         "spec",
         Time.current,

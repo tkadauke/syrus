@@ -499,14 +499,10 @@ RSpec.describe ChatPendingAction do
     }.to have_enqueued_job(SyncInstallationsJob).with(admin.id)
   end
 
-  it "confirms admin reaper action through the unified work-engine reconciler when enabled" do
+  it "always routes admin reaper action through the unified work-engine reconciler" do
     admin = Factories.user(admin: true)
     admin_repository = Factories.repository(user: admin)
     admin_session = ChatSession.create!(user: admin, repository: admin_repository)
-    Feature.find_or_create_by!(slug: WorkEngine::Gate::FEATURE_SLUG) do |feature|
-      feature.category = "Operations"
-      feature.name = "Unified work-engine reconciler"
-    end.update!(enabled: true)
 
     expect(ReapStaleRunsJob).not_to receive(:perform_later)
     expect {

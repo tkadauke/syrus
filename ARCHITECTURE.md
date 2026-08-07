@@ -1205,17 +1205,15 @@ Several layers, each catching different failure modes:
    their worker died, and finishes terminal Workflows left active by a
    crash.
 4. **Work-engine reconciler** — `WorkEngine::Reconciler` is the shared
-   read-only classifier and feature-gated repair planner used by admin
-   stuck surfaces, the structured stuck explainer, and the
-   `unified_work_engine_reconciler` operations flag. It snapshots Job,
-   Workflow, Step, Run, Solid Queue, spawned-process, worker-health,
-   workspace, dependency, main-health, and rate-limit evidence, then
-   emits structured issue records and side-effect-free repair plans.
-   When the feature flag is enabled, legacy disconnected fixers
+   classifier and repair planner used by admin stuck surfaces and the
+   structured stuck explainer. It snapshots Job, Workflow, Step, Run,
+   Solid Queue, spawned-process, worker-health, workspace, dependency,
+   main-health, and rate-limit evidence, then emits structured issue
+   records and side-effect-free repair plans. Legacy disconnected fixers
    (`ReapStaleRunsJob`, `AutoRetryScheduler`, `ReconcileJobStatesJob`,
    and manual admin reap) delegate mutation to `WorkEngine::ReconcileJob`
-   / `RepairExecutor`, which executes only plans marked
-   `auto_executable` after re-checking preconditions.
+   / `RepairExecutor`, which executes only plans marked `auto_executable`
+   after re-checking preconditions.
 5. **`RunJob` execution guards** — two distinct safety rails inside
    `RunJob#perform`. The *re-entrancy guard* bails silently if the Run
    is already `terminal?` (idempotent retry), or calls `fail!` and skips
@@ -1313,8 +1311,7 @@ Several layers, each catching different failure modes:
   into `Feature` rows, serialized through the bootstrap
   `feature_flags` payload, and toggled by admins at `/admin/features`.
   Notable operational/labs flags include `terminal`,
-  `agent_insights`, `admin_supervisor_chat`, and
-  `unified_work_engine_reconciler`.
+  `agent_insights`, and `admin_supervisor_chat`.
 - **`/settings/edit`** — admin settings toggles (signups open, max job
   failures, merge-train enablement, etc.); redirects non-admins to
   credentials.

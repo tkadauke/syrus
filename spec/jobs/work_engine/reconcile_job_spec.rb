@@ -1,30 +1,7 @@
 require "rails_helper"
 
 RSpec.describe WorkEngine::ReconcileJob do
-  def enable_unified_work_engine_reconciler!
-    Feature.find_or_initialize_by(slug: "unified_work_engine_reconciler").tap do |feature|
-      feature.name = "Unified work-engine reconciler"
-      feature.category = "operations"
-      feature.enabled = true
-      feature.save!
-    end
-  end
-
-  it "runs the reconciler read-only while the feature gate is off" do
-    expect(WorkEngine::Reconciler).to receive(:call).with(
-      source: "spec",
-      job_id: 1,
-      workflow_id: nil,
-      run_id: nil,
-      execute_repairs: false
-    )
-
-    described_class.perform_now(source: "spec", job_id: 1)
-  end
-
-  it "executes safe repairs only when the feature gate is on" do
-    enable_unified_work_engine_reconciler!
-
+  it "always executes safe repairs" do
     expect(WorkEngine::Reconciler).to receive(:call).with(
       source: "spec",
       job_id: nil,
@@ -34,5 +11,20 @@ RSpec.describe WorkEngine::ReconcileJob do
     )
 
     described_class.perform_now(source: "spec", workflow_id: 2)
+  end
+
+  it "writes Admin::StuckItemsCache for global reconciler runs" do
+    result = instance_double(WorkEngine::Reconciler::Result)
+    allow(WorkEngine::Reconciler).to receive(:call).and_return(result)
+    expect(Admin::StuckItemsCache).to receive(:write_from_result).with(result: result)
+
+    described_class.perform_now(source: "spec")
+  end
+
+  it "does not write Admin::StuckItemsCache for scoped reconciler runs" do
+    allow(WorkEngine::Reconciler).to receive(:call).and_return(instance_double(WorkEngine::Reconciler::Result))
+    expect(Admin::StuckItemsCache).not_to receive(:write_from_result)
+
+    described_class.perform_now(source: "spec", job_id: 1)
   end
 end
