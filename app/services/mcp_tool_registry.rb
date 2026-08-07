@@ -164,7 +164,7 @@ class McpToolRegistry
         chat(Mcp::Tools::AdoptCurrentPrHeadTool, admin_only: true, mutation: true),
         chat(Mcp::Tools::ReplacePrBranchWithWorkflowOutputTool, admin_only: true, mutation: true),
         chat(Mcp::Tools::RetryFromCurrentPrBranchTool, admin_only: true, mutation: true),
-        chat(Mcp::Tools::RefreshPrChecksTool, admin_only: true),
+        chat(Mcp::Tools::RefreshPrChecksTool, admin_only: true, mutation: true),
         chat(Mcp::Tools::RerunCiRepairTool, admin_only: true, mutation: true),
         chat(Mcp::Tools::MarkCiRepairNoopTool, admin_only: true, mutation: true),
         chat(Mcp::Tools::OverrideLandingBlockerOnceTool, admin_only: true, mutation: true),

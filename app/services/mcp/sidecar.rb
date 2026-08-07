@@ -40,6 +40,10 @@ module Mcp
       chat_tools(chat_session, tier: tier).map { |tool| tool.name.demodulize.sub(/Tool\z/, "").underscore }
     end
 
+    def self.tool_names(chat_session = nil, tier: :essential)
+      chat_tool_names(chat_session, tier: tier)
+    end
+
     def self.chat_tools(chat_session = nil, tier: :essential)
       return McpToolRegistry.tools(surface: :chat, tier: tier) unless chat_session
 
@@ -54,6 +58,9 @@ module Mcp
       else
         registry_tier = tier.to_s == "all" ? :essential : tier
         allowed = McpToolRegistry.tools_for_context(context, surface: :chat, tier: registry_tier)
+        if context.chat_session&.system_kind_supervisor?
+          allowed -= McpToolPolicy::SUPERVISOR_EXCLUDED_TOOLS
+        end
         tools = allowed.map { |tool| authorize_tool(tool) }
         tools << authorize_tool(Tools::ExplainStuckJobTool) if tier.to_s == "all" && !tools.include?(Tools::ExplainStuckJobTool)
         tools
