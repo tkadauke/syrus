@@ -1,6 +1,6 @@
 require "mcp"
 
-module SyrusChatMcp
+module Mcp::Tools
   class RetryFromCurrentPrBranchTool < MCP::Tool
     extend BranchDivergenceToolSupport
 
@@ -25,7 +25,7 @@ module SyrusChatMcp
 
         job, _workflow, evidence, error = divergence_records(job_id, workflow_id)
         return error if error
-        return SyrusChatMcp.success(action: "retry_from_current_pr_branch", job_id: job.id, evidence: evidence) if dry_run
+        return Mcp::Tools.success(action: "retry_from_current_pr_branch", job_id: job.id, evidence: evidence) if dry_run
 
         reason = reason.to_s.strip
         return structured_error("missing_reason", "reason is required") if reason.blank?

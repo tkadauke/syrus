@@ -47,12 +47,17 @@ module Mcp
     end
 
     def self.chat_tools_for(chat_session, tier:)
-      context = McpToolContext.from_chat_session(chat_session)
-      registry_tier = tier.to_s == "all" ? :essential : tier
-      allowed = McpToolRegistry.tools_for_context(context, surface: :chat, tier: registry_tier)
-      tools = allowed.map { |tool| authorize_tool(tool) }
-      tools << authorize_tool(Tools::ExplainStuckJobTool) if tier.to_s == "all" && !tools.include?(Tools::ExplainStuckJobTool)
-      tools
+      evaluator = tier.to_s == "evaluator"
+      context = McpToolContext.from_chat_session(chat_session, evaluator: evaluator)
+      if evaluator
+        McpToolPolicy.for(context).map { |tool| authorize_tool(tool) }
+      else
+        registry_tier = tier.to_s == "all" ? :essential : tier
+        allowed = McpToolRegistry.tools_for_context(context, surface: :chat, tier: registry_tier)
+        tools = allowed.map { |tool| authorize_tool(tool) }
+        tools << authorize_tool(Tools::ExplainStuckJobTool) if tier.to_s == "all" && !tools.include?(Tools::ExplainStuckJobTool)
+        tools
+      end
     end
 
     def self.authorize_tool(tool)

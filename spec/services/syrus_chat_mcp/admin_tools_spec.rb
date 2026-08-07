@@ -205,7 +205,7 @@ RSpec.describe "Mcp::Tools admin tools" do
       )
     end
 
-    response = SyrusChatMcp::AdminPauseRunsTool.call(
+    response = Mcp::Tools::AdminPauseRunsTool.call(
       server_context: { chat_session: admin_session, current_message: message }
     )
 

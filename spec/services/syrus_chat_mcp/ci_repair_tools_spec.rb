@@ -21,9 +21,9 @@ RSpec.describe "SyrusChatMcp CI repair tools" do
     MCP::Server.new(
       name: "syrus-chat-sidecar",
       tools: [
-        SyrusChatMcp::RefreshPrChecksTool,
-        SyrusChatMcp::RerunCiRepairTool,
-        SyrusChatMcp::MarkCiRepairNoopTool
+        Mcp::Tools::RefreshPrChecksTool,
+        Mcp::Tools::RerunCiRepairTool,
+        Mcp::Tools::MarkCiRepairNoopTool
       ],
       server_context: { chat_session: chat_session }
     )

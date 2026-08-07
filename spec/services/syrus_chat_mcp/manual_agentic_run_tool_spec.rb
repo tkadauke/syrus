@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusChatMcp::ManualAgenticRunTool do
+RSpec.describe Mcp::Tools::ManualAgenticRunTool do
   let(:admin) { Factories.user(admin: true, email_address: "admin@example.com") }
   let(:repository) { Factories.repository(user: admin) }
   let(:chat_session) { ChatSession.create!(user: admin) }

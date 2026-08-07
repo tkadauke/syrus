@@ -1,6 +1,6 @@
 require "mcp"
 
-module SyrusChatMcp
+module Mcp::Tools
   class RerunCiRepairTool < MCP::Tool
     extend AdminPendingActionToolSupport
 
@@ -28,10 +28,10 @@ module SyrusChatMcp
         return job if job.is_a?(MCP::Tool::Response)
 
         reason = reason.to_s.strip
-        return SyrusChatMcp.invalid("reason is required") if reason.empty?
+        return Mcp::Tools.invalid("reason is required") if reason.empty?
 
         refresh = CiRepair::CheckRefresh.call(job)
-        return SyrusChatMcp.invalid("Current PR checks are #{refresh.state}; no failing checks are available for a CI repair rerun.") unless refresh.state == "failing"
+        return Mcp::Tools.invalid("Current PR checks are #{refresh.state}; no failing checks are available for a CI repair rerun.") unless refresh.state == "failing"
 
         create_pending_admin_action(
           server_context: server_context,
@@ -50,7 +50,7 @@ module SyrusChatMcp
           message: "Rerun CI repair for #{job.slug} at #{refresh.head_sha[0, 12]}? Failing checks: #{check_labels(refresh)}."
         )
       rescue ArgumentError => e
-        SyrusChatMcp.invalid(e.message)
+        Mcp::Tools.invalid(e.message)
       end
 
       private
@@ -59,7 +59,7 @@ module SyrusChatMcp
         integer = integer_param(job_id, "job_id")
         return integer if integer.is_a?(MCP::Tool::Response)
 
-        Job.find_by(id: integer) || SyrusChatMcp.invalid("job not found: #{integer}")
+        Job.find_by(id: integer) || Mcp::Tools.invalid("job not found: #{integer}")
       end
 
       def check_labels(refresh)

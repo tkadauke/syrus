@@ -1,6 +1,6 @@
 require "mcp"
 
-module SyrusChatMcp
+module Mcp::Tools
   class WakeProviderAdmissionTool < MCP::Tool
     extend AdminPendingActionToolSupport
 
@@ -24,7 +24,7 @@ module SyrusChatMcp
         parsed_user_id = user_id.present? ? integer_param(user_id, "user_id") : nil
         return parsed_user_id if parsed_user_id.is_a?(MCP::Tool::Response)
         target_user = parsed_user_id.present? ? User.find_by(id: parsed_user_id) : nil
-        return SyrusChatMcp.invalid("user not found: #{user_id}") if parsed_user_id.present? && !target_user
+        return Mcp::Tools.invalid("user not found: #{user_id}") if parsed_user_id.present? && !target_user
 
         preview = ProviderAdmissionWakeup.preview(provider: provider, user: target_user)
         create_pending_admin_action(

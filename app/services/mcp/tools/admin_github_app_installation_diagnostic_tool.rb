@@ -1,6 +1,6 @@
 require "mcp"
 
-module SyrusChatMcp
+module Mcp::Tools
   class AdminGithubAppInstallationDiagnosticTool < MCP::Tool
     tool_name "admin_github_app_installation_diagnostic"
 
@@ -20,9 +20,9 @@ module SyrusChatMcp
 
     class << self
       def call(server_context:, repository: nil)
-        return SyrusChatMcp.unauthorized("Admin access required") unless server_context.fetch(:chat_session).user.admin?
+        return Mcp::Tools.unauthorized("Admin access required") unless server_context.fetch(:chat_session).user.admin?
 
-        SyrusChatMcp.success(GithubAppInstallationDiagnostic.new(slug: repository).show)
+        Mcp::Tools.success(GithubAppInstallationDiagnostic.new(slug: repository).show)
       end
     end
   end

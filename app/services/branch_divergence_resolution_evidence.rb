@@ -112,6 +112,6 @@ class BranchDivergenceResolutionEvidence
   end
 
   def truncated(text)
-    SyrusChatMcp.truncate_text(text.to_s, 4.kilobytes)
+    Mcp::Tools.truncate_text(text.to_s, 4.kilobytes)
   end
 end

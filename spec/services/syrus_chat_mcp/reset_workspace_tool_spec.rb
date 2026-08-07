@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusChatMcp::ResetWorkspaceTool do
+RSpec.describe Mcp::Tools::ResetWorkspaceTool do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user, default_branch: "main") }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository, mode: "coding") }

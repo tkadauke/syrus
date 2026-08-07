@@ -132,7 +132,7 @@ class ChatEventEvaluator
     raw = JSON.generate(message.content)
     return message.content if raw.bytesize <= limit
 
-    truncated = SyrusChatMcp.truncate_text(raw, [ limit, 128 ].max)
+    truncated = Mcp::Tools.truncate_text(raw, [ limit, 128 ].max)
     {
       "text" => "[truncated for disposable evaluator context]",
       "truncated_json" => truncated.fetch(:text),

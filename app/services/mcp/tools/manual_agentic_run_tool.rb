@@ -1,6 +1,6 @@
 require "mcp"
 
-module SyrusChatMcp
+module Mcp::Tools
   class ManualAgenticRunTool < MCP::Tool
     extend AdminPendingActionToolSupport
 

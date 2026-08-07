@@ -1,6 +1,6 @@
 require "mcp"
 
-module SyrusChatMcp
+module Mcp::Tools
   class ForceRebaseTool < MCP::Tool
     extend AdminPendingActionToolSupport
 
@@ -25,13 +25,13 @@ module SyrusChatMcp
         job_id = integer_param(job_id, "job_id")
         return job_id if job_id.is_a?(MCP::Tool::Response)
         job = Job.find_by(id: job_id)
-        return SyrusChatMcp.invalid("job not found: #{job_id}") unless job
+        return Mcp::Tools.invalid("job not found: #{job_id}") unless job
 
         plan = JobRebasePlan.for(job, bypass_front_of_queue: bypass_front_of_queue)
-        return SyrusChatMcp.success(plan: plan) if dry_run
+        return Mcp::Tools.success(plan: plan) if dry_run
 
         reason = reason.to_s.strip
-        return SyrusChatMcp.invalid("reason is required") if reason.empty?
+        return Mcp::Tools.invalid("reason is required") if reason.empty?
 
         create_pending_admin_action(
           server_context: server_context,

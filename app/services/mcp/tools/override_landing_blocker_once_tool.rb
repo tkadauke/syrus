@@ -1,6 +1,6 @@
 require "mcp"
 
-module SyrusChatMcp
+module Mcp::Tools
   class OverrideLandingBlockerOnceTool < MCP::Tool
     extend AdminPendingActionToolSupport
 
@@ -24,13 +24,13 @@ module SyrusChatMcp
         job_id = integer_param(job_id, "job_id")
         return job_id if job_id.is_a?(MCP::Tool::Response)
         job = Job.find_by(id: job_id)
-        return SyrusChatMcp.invalid("job not found: #{job_id}") unless job
+        return Mcp::Tools.invalid("job not found: #{job_id}") unless job
 
         LandingQueueProcessor.refresh_snapshot!(Job.where(id: job.id))
         job.reload
         current_key = job.landing_queue_blocked_reason.to_h["key"].to_s
-        return SyrusChatMcp.invalid("current blocker is #{current_key.presence || 'none'}, not #{blocker_key}") unless current_key == blocker_key.to_s
-        return SyrusChatMcp.invalid("#{blocker_key} cannot be bypassed by this tool") unless LandingBlockerOverride.overridable?(blocker_key)
+        return Mcp::Tools.invalid("current blocker is #{current_key.presence || 'none'}, not #{blocker_key}") unless current_key == blocker_key.to_s
+        return Mcp::Tools.invalid("#{blocker_key} cannot be bypassed by this tool") unless LandingBlockerOverride.overridable?(blocker_key)
 
         create_pending_admin_action(
           server_context: server_context,

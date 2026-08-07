@@ -1,6 +1,6 @@
 require "mcp"
 
-module SyrusChatMcp
+module Mcp::Tools
   class ClearProviderCircuitTool < MCP::Tool
     extend AdminPendingActionToolSupport
 
@@ -27,8 +27,8 @@ module SyrusChatMcp
         user_id = integer_param(user_id, "user_id")
         return user_id if user_id.is_a?(MCP::Tool::Response)
         target_user = User.find_by(id: user_id)
-        return SyrusChatMcp.invalid("user not found: #{user_id}") unless target_user
-        return SyrusChatMcp.invalid("structured quota evidence is still open for #{provider}") if structured_quota_evidence?(target_user, provider)
+        return Mcp::Tools.invalid("user not found: #{user_id}") unless target_user
+        return Mcp::Tools.invalid("structured quota evidence is still open for #{provider}") if structured_quota_evidence?(target_user, provider)
 
         create_pending_admin_action(
           server_context: server_context,

@@ -1,4 +1,4 @@
-module SyrusChatMcp
+module Mcp::Tools
   module BranchDivergenceToolSupport
     include AdminPendingActionToolSupport
 

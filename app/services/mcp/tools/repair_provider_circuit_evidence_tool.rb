@@ -1,6 +1,6 @@
 require "mcp"
 
-module SyrusChatMcp
+module Mcp::Tools
   class RepairProviderCircuitEvidenceTool < MCP::Tool
     extend AdminPendingActionToolSupport
 
@@ -25,8 +25,8 @@ module SyrusChatMcp
         evidence_id = integer_param(evidence_id, "evidence_id")
         return evidence_id if evidence_id.is_a?(MCP::Tool::Response)
         record = find_record(evidence_type, evidence_id)
-        return SyrusChatMcp.invalid("evidence not found: #{evidence_type} #{evidence_id}") unless record
-        return SyrusChatMcp.invalid("structured quota evidence cannot be repaired through this tool") if structured_quota_evidence?(record)
+        return Mcp::Tools.invalid("evidence not found: #{evidence_type} #{evidence_id}") unless record
+        return Mcp::Tools.invalid("structured quota evidence cannot be repaired through this tool") if structured_quota_evidence?(record)
 
         create_pending_admin_action(
           server_context: server_context,

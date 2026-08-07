@@ -1,6 +1,6 @@
 require "mcp"
 
-module SyrusChatMcp
+module Mcp::Tools
   class MarkCiRepairNoopTool < MCP::Tool
     extend AdminPendingActionToolSupport
 
@@ -26,11 +26,11 @@ module SyrusChatMcp
         workflow_id = integer_param(workflow_id, "workflow_id")
         return workflow_id if workflow_id.is_a?(MCP::Tool::Response)
         workflow = job.workflows.find_by(id: workflow_id)
-        return SyrusChatMcp.invalid("workflow not found for job: #{workflow_id}") unless workflow
-        return SyrusChatMcp.invalid("workflow is not a ci_failure repair") unless workflow.trigger_kind == "ci_failure"
+        return Mcp::Tools.invalid("workflow not found for job: #{workflow_id}") unless workflow
+        return Mcp::Tools.invalid("workflow is not a ci_failure repair") unless workflow.trigger_kind == "ci_failure"
 
         reason = reason.to_s.strip
-        return SyrusChatMcp.invalid("reason is required") if reason.empty?
+        return Mcp::Tools.invalid("reason is required") if reason.empty?
 
         refresh = CiRepair::CheckRefresh.call(job)
         create_pending_admin_action(
@@ -48,7 +48,7 @@ module SyrusChatMcp
           message: "Mark #{workflow.slug} as CI repair no-op for #{job.slug}? Current checks: #{refresh.state}; failing checks: #{check_labels(refresh)}."
         )
       rescue ArgumentError => e
-        SyrusChatMcp.invalid(e.message)
+        Mcp::Tools.invalid(e.message)
       end
 
       private
@@ -57,7 +57,7 @@ module SyrusChatMcp
         integer = integer_param(job_id, "job_id")
         return integer if integer.is_a?(MCP::Tool::Response)
 
-        Job.find_by(id: integer) || SyrusChatMcp.invalid("job not found: #{integer}")
+        Job.find_by(id: integer) || Mcp::Tools.invalid("job not found: #{integer}")
       end
 
       def check_labels(refresh)

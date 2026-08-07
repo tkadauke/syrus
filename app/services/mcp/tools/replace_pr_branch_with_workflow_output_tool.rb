@@ -1,6 +1,6 @@
 require "mcp"
 
-module SyrusChatMcp
+module Mcp::Tools
   class ReplacePrBranchWithWorkflowOutputTool < MCP::Tool
     extend BranchDivergenceToolSupport
 
@@ -25,7 +25,7 @@ module SyrusChatMcp
 
         job, _workflow, evidence, error = divergence_records(job_id, workflow_id)
         return error if error
-        return SyrusChatMcp.success(action: "replace_pr_branch_with_workflow_output", job_id: job.id, evidence: evidence, destructive_confirmation: "REPLACE PR BRANCH") if dry_run
+        return Mcp::Tools.success(action: "replace_pr_branch_with_workflow_output", job_id: job.id, evidence: evidence, destructive_confirmation: "REPLACE PR BRANCH") if dry_run
 
         reason = reason.to_s.strip
         return structured_error("missing_reason", "reason is required") if reason.blank?

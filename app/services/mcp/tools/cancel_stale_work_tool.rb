@@ -1,6 +1,6 @@
 require "mcp"
 
-module SyrusChatMcp
+module Mcp::Tools
   class CancelStaleWorkTool < MCP::Tool
     extend AdminPendingActionToolSupport
 
@@ -26,7 +26,7 @@ module SyrusChatMcp
         job_id = integer_param(job_id, "job_id")
         return job_id if job_id.is_a?(MCP::Tool::Response)
         job = Job.find_by(id: job_id)
-        return SyrusChatMcp.invalid("job not found: #{job_id}") unless job
+        return Mcp::Tools.invalid("job not found: #{job_id}") unless job
 
         create_pending_admin_action(
           server_context: server_context,

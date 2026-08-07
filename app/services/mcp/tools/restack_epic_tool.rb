@@ -1,6 +1,6 @@
 require "mcp"
 
-module SyrusChatMcp
+module Mcp::Tools
   class RestackEpicTool < MCP::Tool
     extend AdminPendingActionToolSupport
 
@@ -21,18 +21,18 @@ module SyrusChatMcp
       def call(epic_id:, reason: nil, strategy: "dependency_topology", dry_run: false, server_context:)
         chat_session = require_admin(server_context)
         return chat_session if chat_session.is_a?(MCP::Tool::Response)
-        return SyrusChatMcp.invalid("strategy must be dependency_topology") unless strategy.to_s == "dependency_topology"
+        return Mcp::Tools.invalid("strategy must be dependency_topology") unless strategy.to_s == "dependency_topology"
 
         epic_id = integer_param(epic_id, "epic_id")
         return epic_id if epic_id.is_a?(MCP::Tool::Response)
         epic = Epic.find_by(id: epic_id)
-        return SyrusChatMcp.invalid("epic not found: #{epic_id}") unless epic
+        return Mcp::Tools.invalid("epic not found: #{epic_id}") unless epic
 
         plan = EpicRestackPlan.for(epic)
-        return SyrusChatMcp.success(plan: plan) if dry_run
+        return Mcp::Tools.success(plan: plan) if dry_run
 
         reason = reason.to_s.strip
-        return SyrusChatMcp.invalid("reason is required") if reason.empty?
+        return Mcp::Tools.invalid("reason is required") if reason.empty?
 
         create_pending_admin_action(
           server_context: server_context,

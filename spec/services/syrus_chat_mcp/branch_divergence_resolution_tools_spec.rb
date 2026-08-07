@@ -33,7 +33,7 @@ RSpec.describe "SyrusChatMcp branch divergence resolution tools" do
   end
 
   it "returns guardrail evidence in dry-run mode" do
-    response = SyrusChatMcp::AdoptCurrentPrHeadTool.call(
+    response = Mcp::Tools::AdoptCurrentPrHeadTool.call(
       job_id: job.id,
       workflow_id: workflow.id,
       dry_run: true,
@@ -49,7 +49,7 @@ RSpec.describe "SyrusChatMcp branch divergence resolution tools" do
   end
 
   it "creates a pending adoption action with the evidence snapshot" do
-    response = SyrusChatMcp::AdoptCurrentPrHeadTool.call(
+    response = Mcp::Tools::AdoptCurrentPrHeadTool.call(
       job_id: job.id,
       workflow_id: workflow.id,
       reason: "The current PR head already includes the requested repair.",
@@ -66,7 +66,7 @@ RSpec.describe "SyrusChatMcp branch divergence resolution tools" do
   end
 
   it "requires exact destructive confirmation before creating a replacement action" do
-    response = SyrusChatMcp::ReplacePrBranchWithWorkflowOutputTool.call(
+    response = Mcp::Tools::ReplacePrBranchWithWorkflowOutputTool.call(
       job_id: job.id,
       workflow_id: workflow.id,
       reason: "Workflow output is the desired branch state.",
@@ -82,7 +82,7 @@ RSpec.describe "SyrusChatMcp branch divergence resolution tools" do
   end
 
   it "confirms replacement by queueing the lease-guarded force-push job" do
-    response = SyrusChatMcp::ReplacePrBranchWithWorkflowOutputTool.call(
+    response = Mcp::Tools::ReplacePrBranchWithWorkflowOutputTool.call(
       job_id: job.id,
       workflow_id: workflow.id,
       reason: "Workflow output is the desired branch state.",
@@ -109,7 +109,7 @@ RSpec.describe "SyrusChatMcp branch divergence resolution tools" do
         agent_provider: new_workflow.agent_provider
       )
     end
-    response = SyrusChatMcp::RetryFromCurrentPrBranchTool.call(
+    response = Mcp::Tools::RetryFromCurrentPrBranchTool.call(
       job_id: job.id,
       workflow_id: workflow.id,
       instructions: "Reconcile only the migration change.",

@@ -1,6 +1,6 @@
 require "mcp"
 
-module SyrusChatMcp
+module Mcp::Tools
   class ResetWorkspaceTool < MCP::Tool
     extend AuthorizationSupport
     singleton_class.prepend(AuthorizationSupport::ToolDispatch)
@@ -33,14 +33,14 @@ module SyrusChatMcp
       def call(confirm_discard: false, repository_id: nil, server_context:)
         chat_session = server_context.fetch(:chat_session)
 
-        return SyrusChatMcp.invalid("Coding Mode is not enabled") unless Feature.coding_mode_enabled?
+        return Mcp::Tools.invalid("Coding Mode is not enabled") unless Feature.coding_mode_enabled?
 
         repository = resolve_repository(chat_session, repository_id)
-        return SyrusChatMcp.invalid("repository not found or not accessible") unless repository
+        return Mcp::Tools.invalid("repository not found or not accessible") unless repository
 
         if ActiveModel::Type::Boolean.new.cast(confirm_discard)
           reset = ChatWorkspace.reset_coding_workspace!(chat_session, repository, confirm_discard: true)
-          return SyrusChatMcp.success(
+          return Mcp::Tools.success(
             reset.merge(
               message: "Coding workspace reset to #{repository.default_branch}; preparation was queued again."
             )
@@ -52,7 +52,7 @@ module SyrusChatMcp
           return refused(status)
         end
 
-        SyrusChatMcp.success(
+        Mcp::Tools.success(
           reset: false,
           status: status,
           message: "Workspace status only; no reset was performed."
@@ -60,7 +60,7 @@ module SyrusChatMcp
       rescue ChatWorkspace::ResetRefused => e
         refused(e.status, message: e.message)
       rescue ActiveRecord::RecordInvalid => e
-        SyrusChatMcp.invalid(e.record.errors.full_messages.to_sentence)
+        Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
       end
 
       private

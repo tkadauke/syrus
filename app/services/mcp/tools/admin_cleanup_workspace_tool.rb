@@ -23,7 +23,7 @@ module Mcp::Tools
         workflow_id = integer_param(workflow_id, "workflow_id")
         return workflow_id if workflow_id.is_a?(MCP::Tool::Response)
         reason = reason.to_s.strip
-        return SyrusChatMcp.invalid("reason is required") if reason.empty?
+        return Mcp::Tools.invalid("reason is required") if reason.empty?
 
         workflow = Workflow.find_by(id: workflow_id)
         return Mcp::Tools.invalid("workflow not found: #{workflow_id}") unless workflow

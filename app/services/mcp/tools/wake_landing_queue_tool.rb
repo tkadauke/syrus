@@ -1,6 +1,6 @@
 require "mcp"
 
-module SyrusChatMcp
+module Mcp::Tools
   class WakeLandingQueueTool < MCP::Tool
     extend AdminPendingActionToolSupport
 
