@@ -465,6 +465,7 @@ class Job < ApplicationRecord
         self.closure_reason = nil
         self.finished_at = nil
         self.failure_count = 0
+        self.reopened_at = Time.current
         self.triaging_reason ||= "classifier_pending"
       }
     end
@@ -721,7 +722,7 @@ class Job < ApplicationRecord
   def enforce_workflow_runaway_limits!(created_workflow: nil, failed_workflow: nil)
     return if closed?
 
-    total = workflows.count
+    total = workflows_since_latest_reopen.count
     return close_for_workflow_runaway!("too_many_workflows", created_workflow || failed_workflow, total: total) if total >= MAX_TOTAL_WORKFLOWS
     return unless failed_workflow
 
@@ -732,11 +733,17 @@ class Job < ApplicationRecord
   end
 
   def consecutive_failed_workflows_count
-    workflows.reorder(created_at: :desc, id: :desc)
+    workflows_since_latest_reopen.reorder(created_at: :desc, id: :desc)
              .limit(MAX_CONSECUTIVE_FAILED_WORKFLOWS)
              .pluck(:state)
              .take_while { |state| state == "failed" }
              .count
+  end
+
+  def workflows_since_latest_reopen
+    return workflows unless reopened_at?
+
+    workflows.where(Workflow.arel_table[:created_at].gteq(reopened_at))
   end
 
   def close_for_workflow_runaway!(reason, workflow, total:, failed_streak: nil)

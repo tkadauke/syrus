@@ -439,6 +439,63 @@ RSpec.describe Workflow do
       expect(NotificationService).to have_received(:create_for).with(hash_including(job: guarded_job, kind: "job_failed"))
     end
 
+    it "does not count workflows created before the latest job reopen toward the total runaway limit" do
+      guarded_job = Factories.job_record(user: job.user, repository: job.repository, state: "implemented")
+      allow(NotificationService).to receive(:create_for)
+      (Job::MAX_TOTAL_WORKFLOWS - 1).times do
+        described_class.create!(
+          job: guarded_job,
+          trigger_kind: "retry",
+          state: "succeeded",
+          created_at: 2.days.ago,
+          finished_at: 2.days.ago
+        )
+      end
+      guarded_job.close_with_reason!("too_many_workflows")
+      travel_to 1.day.ago do
+        guarded_job.reopen!
+        guarded_job.save!
+      end
+
+      workflow = nil
+      expect {
+        workflow = described_class.create!(job: guarded_job.reload, trigger_kind: "retry")
+      }.to change { guarded_job.reload.workflows.count }.by(1)
+
+      expect(guarded_job.reload).not_to be_closed
+      expect(workflow.reload).to be_queued
+      expect(NotificationService).not_to have_received(:create_for)
+    end
+
+    it "closes a reopened job when post-reopen workflows hit the runaway limit" do
+      guarded_job = Factories.job_record(user: job.user, repository: job.repository, state: "implemented")
+      allow(NotificationService).to receive(:create_for)
+      (Job::MAX_TOTAL_WORKFLOWS - 1).times do
+        described_class.create!(
+          job: guarded_job,
+          trigger_kind: "retry",
+          state: "succeeded",
+          created_at: 2.days.ago,
+          finished_at: 2.days.ago
+        )
+      end
+      guarded_job.close_with_reason!("too_many_workflows")
+      travel_to 1.day.ago do
+        guarded_job.reopen!
+        guarded_job.save!
+      end
+      (Job::MAX_TOTAL_WORKFLOWS - 1).times do
+        described_class.create!(job: guarded_job.reload, trigger_kind: "retry", state: "succeeded")
+      end
+
+      workflow = described_class.create!(job: guarded_job.reload, trigger_kind: "retry")
+
+      expect(guarded_job.reload).to be_closed
+      expect(guarded_job.closure_reason).to eq("too_many_workflows")
+      expect(workflow.reload).to be_cancelled
+      expect(NotificationService).to have_received(:create_for).with(hash_including(job: guarded_job, kind: "job_failed"))
+    end
+
     it "closes a job after too many consecutive failed workflows" do
       guarded_job = Factories.job_record(user: job.user, repository: job.repository, state: "implemented")
       allow(NotificationService).to receive(:create_for)

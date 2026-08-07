@@ -962,7 +962,7 @@ describe "running / failed lifecycle (new in this commit)" do
     end
   end
 
-  describe "#reopen! resets failure_count" do
+  describe "#reopen!" do
     it "resets failure_count to 0 on reopen" do
       AppSetting.current.update!(max_job_failures: 3)
       job = Factories.job
@@ -974,6 +974,18 @@ describe "running / failed lifecycle (new in this commit)" do
 
       expect(job.reload.failure_count).to eq(0)
       expect(job).to be_open
+    end
+
+    it "records a reopened_at watermark" do
+      job = Factories.job
+      job.close_with_reason!("too_many_workflows")
+
+      freeze_time do
+        job.reopen!
+        job.save!
+
+        expect(job.reload.reopened_at).to eq(Time.current)
+      end
     end
   end
 
