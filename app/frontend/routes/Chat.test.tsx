@@ -1406,6 +1406,118 @@ describe("chat proposal cards", () => {
     expect(screen.queryByRole("button", { name: "Reject child Job" })).not.toBeInTheDocument()
   })
 
+  it("hides dependency slugs on child proposals of a linear epic", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [
+          messageWithProposal(9, proposal({
+            kind: "epic",
+            kind_label: "Epic",
+            title: "Plan onboarding",
+            slug: "EPIC-DRAFT-1",
+            epic_bundle: true,
+            active_children_count: 2,
+            children: [
+              {
+                id: 11,
+                title: "Build first step",
+                slug: "JOB-DRAFT-1",
+                body: "Create the first onboarding step.",
+                state: "proposed",
+                state_label: "Pending",
+                proposed: true,
+                repository_slug: "acme/widgets",
+                dependencies: ["job-build-second-step"],
+                app_update_path: "/api/v1/app/chats/8/proposals/11",
+                app_reject_path: "/api/v1/app/chats/8/proposals/11/reject"
+              },
+              {
+                id: 12,
+                title: "Build second step",
+                slug: "JOB-DRAFT-2",
+                body: "Create the second onboarding step.",
+                state: "proposed",
+                state_label: "Pending",
+                proposed: true,
+                repository_slug: "acme/widgets",
+                dependencies: [],
+                app_update_path: "/api/v1/app/chats/8/proposals/12",
+                app_reject_path: "/api/v1/app/chats/8/proposals/12/reject"
+              }
+            ]
+          }))
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    expect(await screen.findByText("Build first step")).toBeInTheDocument()
+    expect(screen.queryByText(/depends on/)).not.toBeInTheDocument()
+  })
+
+  it("shows dependency slugs on child proposals of a non-linear epic, hidden on mobile via CSS", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [
+          messageWithProposal(9, proposal({
+            kind: "epic",
+            kind_label: "Epic",
+            title: "Plan onboarding",
+            slug: "EPIC-DRAFT-1",
+            epic_bundle: true,
+            nonlinear_dependency_override: true,
+            active_children_count: 2,
+            children: [
+              {
+                id: 11,
+                title: "Build first step",
+                slug: "JOB-DRAFT-1",
+                body: "Create the first onboarding step.",
+                state: "proposed",
+                state_label: "Pending",
+                proposed: true,
+                repository_slug: "acme/widgets",
+                dependencies: ["job-build-second-step"],
+                app_update_path: "/api/v1/app/chats/8/proposals/11",
+                app_reject_path: "/api/v1/app/chats/8/proposals/11/reject"
+              },
+              {
+                id: 12,
+                title: "Build second step",
+                slug: "JOB-DRAFT-2",
+                body: "Create the second onboarding step.",
+                state: "proposed",
+                state_label: "Pending",
+                proposed: true,
+                repository_slug: "acme/widgets",
+                dependencies: [],
+                app_update_path: "/api/v1/app/chats/8/proposals/12",
+                app_reject_path: "/api/v1/app/chats/8/proposals/12/reject"
+              }
+            ]
+          }))
+        ]
+      })))
+    })
+
+    renderRoute()
+
+    const slugPill = await screen.findByText(/depends on job-build-second-step/)
+    expect(slugPill).toBeInTheDocument()
+    expect(slugPill.className).toContain("hidden sm:inline")
+  })
+
   it("shortens the visible Epic confirmation label while preserving the full accessible name", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)

@@ -355,7 +355,7 @@ export function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposa
               {t("nonlinear_override_notice")}
             </p>
           ) : null}
-          {proposal.epic_bundle ? <ProposalChildren children={proposal.children || []} parentProposed={proposal.proposed} mutation={proposalAction} prefix={prefix} onEdit={(child) => setEditingProposal(editableChildProposal(child))} /> : <ProposalMeta proposal={proposal} />}
+          {proposal.epic_bundle ? <ProposalChildren children={proposal.children || []} isLinear={!proposal.nonlinear_dependency_override} parentProposed={proposal.proposed} mutation={proposalAction} prefix={prefix} onEdit={(child) => setEditingProposal(editableChildProposal(child))} /> : <ProposalMeta proposal={proposal} />}
         </>
       }
       footer={
@@ -634,7 +634,7 @@ function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
   )
 }
 
-function ProposalChildren({ children, parentProposed, mutation, prefix, onEdit }: { children: ChatProposalChild[]; parentProposed: boolean; mutation: UseMutationResult<ChatPayload, Error, ProposalActionInput>; prefix: string; onEdit: (child: ChatProposalChild) => void }) {
+function ProposalChildren({ children, isLinear, parentProposed, mutation, prefix, onEdit }: { children: ChatProposalChild[]; isLinear: boolean; parentProposed: boolean; mutation: UseMutationResult<ChatPayload, Error, ProposalActionInput>; prefix: string; onEdit: (child: ChatProposalChild) => void }) {
   if (children.length === 0) return null
   return (
     <div className="mt-4 divide-y divide-gray-100 rounded border border-gray-200 dark:divide-gray-800 dark:border-gray-700">
@@ -643,7 +643,7 @@ function ProposalChildren({ children, parentProposed, mutation, prefix, onEdit }
           <summary className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800">
             <span className="text-gray-400 group-open:rotate-90 dark:text-gray-500">▸</span>
             <span className="min-w-0 flex-1 truncate font-medium text-gray-900 dark:text-gray-100">{child.title}</span>
-            {child.dependencies.length > 0 ? <ChildDependencySummary child={child} prefix={prefix} /> : null}
+            {child.dependencies.length > 0 ? <ChildDependencySummary child={child} isLinear={isLinear} prefix={prefix} /> : null}
             <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${child.proposed ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{child.state_label}</span>
             {child.proposed && parentProposed ? <ProposalEditButton label={`Edit ${child.slug}`} onClick={(event) => { event.stopPropagation(); onEdit(child) }} /> : null}
           </summary>
@@ -669,15 +669,17 @@ function ProposalChildren({ children, parentProposed, mutation, prefix, onEdit }
   )
 }
 
-function ChildDependencySummary({ child, prefix }: { child: ChatProposalChild; prefix: string }) {
+function ChildDependencySummary({ child, isLinear, prefix }: { child: ChatProposalChild; isLinear: boolean; prefix: string }) {
+  if (isLinear) return null
+
   const details = child.dependency_details || []
-  const collapsedPillClass = "shrink-0 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300"
+  const collapsedPillClass = "hidden sm:inline shrink-0 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300"
 
   if (details.length === 0) {
     if (child.dependencies.length >= 2) {
       return <span className={collapsedPillClass} title={child.dependencies.join(", ")}>{child.dependencies.length} dependencies</span>
     }
-    return <span className="shrink-0 rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">depends on {child.dependencies.join(", ")}</span>
+    return <span className="hidden sm:inline shrink-0 rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">depends on {child.dependencies.join(", ")}</span>
   }
 
   if (details.length >= 2) {
@@ -685,7 +687,7 @@ function ChildDependencySummary({ child, prefix }: { child: ChatProposalChild; p
   }
 
   return (
-    <span className="flex shrink-0 flex-wrap items-center justify-end gap-1 text-xs">
+    <span className="hidden sm:flex shrink-0 flex-wrap items-center justify-end gap-1 text-xs">
       <span className="text-gray-500 dark:text-gray-400">depends on</span>
       {details.map((dependency) => (
         <ChildDependencyPill dependency={dependency} key={dependency.slug} prefix={prefix} />
