@@ -47,7 +47,7 @@ module Api
           end
 
           edges = dependency_rows.map do |job_id, depends_on_job_id|
-            { from_id: "job_#{job_id}", to_id: "job_#{depends_on_job_id}" }
+            { from_id: "job_#{depends_on_job_id}", to_id: "job_#{job_id}" }
           end
 
           render json: { nodes: nodes, edges: edges }

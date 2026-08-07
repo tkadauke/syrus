@@ -1481,7 +1481,7 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       node_ids = body["nodes"].map { |n| n["id"] }
       expect(node_ids).to include("epic_#{epic_a.id}", "epic_#{epic_b.id}")
       expect(body["edges"]).to contain_exactly(
-        { "from_id" => "epic_#{epic_b.id}", "to_id" => "epic_#{epic_a.id}" }
+        { "from_id" => "epic_#{epic_a.id}", "to_id" => "epic_#{epic_b.id}" }
       )
     end
 
@@ -1520,7 +1520,7 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
 
       body = parse_body
       expect(body["edges"]).to contain_exactly(
-        { "from_id" => "epic_#{epic_b.id}", "to_id" => "epic_#{epic_a.id}" }
+        { "from_id" => "epic_#{epic_a.id}", "to_id" => "epic_#{epic_b.id}" }
       )
     end
 

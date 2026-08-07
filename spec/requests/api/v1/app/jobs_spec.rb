@@ -947,7 +947,7 @@ RSpec.describe "App API job detail", type: :request do
       node_ids = body["nodes"].map { |n| n["id"] }
       expect(node_ids).to include("job_#{job_a.id}", "job_#{job_b.id}")
       expect(body["edges"]).to contain_exactly(
-        { "from_id" => "job_#{job_b.id}", "to_id" => "job_#{job_a.id}" }
+        { "from_id" => "job_#{job_a.id}", "to_id" => "job_#{job_b.id}" }
       )
     end
 

@@ -45,7 +45,7 @@ module Api
           end
 
           edges = dependency_rows.map do |epic_id, depends_on_epic_id|
-            { from_id: "epic_#{epic_id}", to_id: "epic_#{depends_on_epic_id}" }
+            { from_id: "epic_#{depends_on_epic_id}", to_id: "epic_#{epic_id}" }
           end
 
           render json: { nodes: nodes, edges: edges }
