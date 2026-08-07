@@ -241,13 +241,13 @@ class Run < ApplicationRecord
     return false if step.agentic?
 
     classification = RunFailureClassifier.classify(self)
-    return false unless classification.classification == AutoRetryScheduler::WORKER_DIED_CLASSIFICATION
+    return false unless classification.classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
 
     prior_worker_died_count = step.runs
       .where.not(id: id)
       .where(state: "failed")
       .joins(:run_failure_classification)
-      .where(run_failure_classifications: { classification: AutoRetryScheduler::WORKER_DIED_CLASSIFICATION })
+      .where(run_failure_classifications: { classification: AutoRetryAttempt::WORKER_DIED_CLASSIFICATION })
       .count
 
     return false unless prior_worker_died_count < WORKER_DIED_STEP_MAX_RETRIES

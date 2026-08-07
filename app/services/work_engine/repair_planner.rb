@@ -1,6 +1,6 @@
 module WorkEngine
   class RepairPlanner
-    DEFAULT_RETRY_BACKOFF = AutoRetryScheduler::BACKOFFS.first
+    DEFAULT_RETRY_BACKOFF = AutoRetryAttempt::BACKOFFS.first
 
     Plan = Data.define(
       :issue_kind,
@@ -230,10 +230,10 @@ module WorkEngine
         end
 
         def retry_budget_limit(retry_classification)
-          if retry_classification == AutoRetryScheduler::WORKER_DIED_CLASSIFICATION
-            AutoRetryScheduler::MAX_WORKER_DIED_ATTEMPTS
+          if retry_classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
+            AutoRetryAttempt::MAX_WORKER_DIED_ATTEMPTS
           else
-            AutoRetryScheduler::MAX_ATTEMPTS
+            AutoRetryAttempt::MAX_ATTEMPTS
           end
         end
 
@@ -542,7 +542,7 @@ module WorkEngine
 
         def safe_step_retry?
           return false unless primary_workflow&.retry_available?
-          return true if classification&.classification == AutoRetryScheduler::WORKER_DIED_CLASSIFICATION
+          return true if classification&.classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
 
           step_kind&.deterministic_idempotent_repair?
         end

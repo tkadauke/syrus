@@ -818,8 +818,8 @@ module WorkEngine
         next if run.job&.closed?
         next if step_needs_terminal_run_reconciliation?(run.step)
 
-        retryable_worker_failure = run.agent_outcome == AutoRetryScheduler::WORKER_DIED_CLASSIFICATION ||
-          run.run_failure_classification&.classification == AutoRetryScheduler::WORKER_DIED_CLASSIFICATION
+        retryable_worker_failure = run.agent_outcome == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION ||
+          run.run_failure_classification&.classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
         next unless retryable_worker_failure
 
         if run.claude_session_metadata.present?

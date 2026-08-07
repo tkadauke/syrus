@@ -454,7 +454,9 @@ class Workflow < ApplicationRecord
   end
 
   def schedule_auto_retry!
-    AutoRetryScheduler.schedule_for_workflow(workflow: self)
+    return unless failed?
+
+    WorkEngine::Reconciler.request(source: "Workflow", job: job, workflow: self)
   end
 
   def first_step

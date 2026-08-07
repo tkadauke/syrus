@@ -1,6 +1,11 @@
 class AutoRetryAttempt < ApplicationRecord
   RETRY_KINDS = %w[ failed_step resume_failed_step retry_workflow ].freeze
 
+  WORKER_DIED_CLASSIFICATION = "worker_died"
+  MAX_ATTEMPTS = 3
+  MAX_WORKER_DIED_ATTEMPTS = 20
+  BACKOFFS = [ 5.minutes, 20.minutes, 1.hour ].freeze
+
   belongs_to :job
   belongs_to :workflow
   belongs_to :run, optional: true

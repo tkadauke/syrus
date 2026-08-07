@@ -1663,7 +1663,7 @@ RSpec.describe WorkEngine::Reconciler do
       reason: "grader timed out",
       classified_at: Time.current
     )
-    AutoRetryScheduler::MAX_ATTEMPTS.times do |index|
+    AutoRetryAttempt::MAX_ATTEMPTS.times do |index|
       AutoRetryAttempt.create!(
         job: job,
         workflow: workflow,

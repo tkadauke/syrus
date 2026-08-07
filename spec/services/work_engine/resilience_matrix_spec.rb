@@ -365,7 +365,7 @@ RSpec.describe "Work engine resilience regression matrix" do
       setup: lambda {
         job, workflow, step, run = matrix_graph
         fail_run!(workflow, step, run, classification: "timeout", retryable: true, step_kind: "grader")
-        AutoRetryScheduler::MAX_ATTEMPTS.times do |index|
+        AutoRetryAttempt::MAX_ATTEMPTS.times do |index|
           AutoRetryAttempt.create!(
             job: job,
             workflow: workflow,
@@ -494,14 +494,15 @@ RSpec.describe "Work engine resilience regression matrix" do
     end
   end
 
-  it "always delegates disconnected fixers to the unified reconciler" do
-    _job, workflow, _step, run = matrix_graph
-    fail_run!(workflow, workflow.first_step, run, classification: "worker_died", retryable: true, agent_outcome: "worker_died")
+  it "workflow failure triggers WorkEngine::ReconcileJob directly" do
+    _job, workflow, step, run = matrix_graph
+    fail_run!(workflow, step, run, classification: "worker_died", retryable: true, agent_outcome: "worker_died")
 
     expect {
-      AutoRetryScheduler.schedule_for_workflow(workflow: workflow)
+      workflow.update_columns(state: "failed", finished_at: Time.current)
+      workflow.reload.schedule_auto_retry!
     }.to have_enqueued_job(WorkEngine::ReconcileJob).with(
-      source: "AutoRetryScheduler",
+      source: "Workflow",
       job_id: workflow.job_id,
       workflow_id: workflow.id,
       run_id: nil

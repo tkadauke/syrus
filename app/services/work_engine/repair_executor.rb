@@ -211,7 +211,7 @@ module WorkEngine
         end
 
         def retry_budget_limit(classification)
-          classification == AutoRetryScheduler::WORKER_DIED_CLASSIFICATION ? AutoRetryScheduler::MAX_WORKER_DIED_ATTEMPTS : AutoRetryScheduler::MAX_ATTEMPTS
+          classification == AutoRetryAttempt::WORKER_DIED_CLASSIFICATION ? AutoRetryAttempt::MAX_WORKER_DIED_ATTEMPTS : AutoRetryAttempt::MAX_ATTEMPTS
         end
 
         def mark_worker_died!
@@ -221,7 +221,7 @@ module WorkEngine
           return skipped("Run cannot transition to failed") unless run.may_fail?
 
           StateTransition.with_source("reconciler") do
-            run.agent_outcome = AutoRetryScheduler::WORKER_DIED_CLASSIFICATION
+            run.agent_outcome = AutoRetryAttempt::WORKER_DIED_CLASSIFICATION
             run.fail!
             run.save!
           end

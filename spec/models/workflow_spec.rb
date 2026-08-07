@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe Workflow do
+  include ActiveJob::TestHelper
+
   let(:job) { Factories.job }
 
   def build_wf(**overrides)
@@ -1011,6 +1013,29 @@ RSpec.describe Workflow do
         wf.purge_coverage_hit_map!
         expect(wf.reload.coverage_hit_map).not_to be_attached
       end
+    end
+  end
+
+  describe "#schedule_auto_retry!" do
+    let(:workflow) { job.latest_workflow }
+
+    it "enqueues WorkEngine::ReconcileJob when the workflow is failed" do
+      workflow.update_columns(state: "failed", finished_at: Time.current)
+
+      expect {
+        workflow.schedule_auto_retry!
+      }.to have_enqueued_job(WorkEngine::ReconcileJob).with(
+        source: "Workflow",
+        job_id: job.id,
+        workflow_id: workflow.id,
+        run_id: nil
+      )
+    end
+
+    it "is a no-op when the workflow is not failed" do
+      expect {
+        workflow.schedule_auto_retry!
+      }.not_to have_enqueued_job(WorkEngine::ReconcileJob)
     end
   end
 end
