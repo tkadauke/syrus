@@ -20,7 +20,7 @@ Number of implement→adversarial-review iterations run before graders. `0` disa
 
 **Type:** integer · **Default:** 3 · **Min:** 0
 
-Consecutive failure threshold. When a ScheduledTask accumulates this many consecutive failures it auto-pauses (state `auto_paused`). Also used by `AutoRetryScheduler` as a signal for provider circuit-breaker suppression.
+Consecutive failure threshold. When a ScheduledTask accumulates this many consecutive failures it auto-pauses (state `auto_paused`). Also used as the retry budget ceiling for Job auto-close after repeated failures.
 
 ## Landing queue
 

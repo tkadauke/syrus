@@ -933,7 +933,7 @@ Policy and pipeline glue:
 | `IssueImageExtractor` / `IngestIssueImagesJob` / `JobImageAttachmentIngestor` | Pull image URLs from GitHub issue and PR feedback markdown, download supported images with GitHub credentials when needed, and store them as Job `Document` attachments so later agent prompts can inspect them from the workspace. |
 | `PrSummarizer` | Second-shot provider call that takes issue + diff and returns `{title, body}` JSON. Tier 2 fallback when the agent didn't call `submit_summary`. |
 | `ScheduledTaskFire` | Encapsulates the "fire a due ScheduledTask" decision: pile-up policy, prompt rendering, Job + Run creation, watermark bumping. |
-| `ProviderCircuitBreaker` / `AutoRetryScheduler` | Suppress automatic work during provider-wide outages and retry transient failures with bounded backoff. |
+| `ProviderCircuitBreaker` / `WorkEngine::RepairExecutor` | Suppress automatic work during provider-wide outages and schedule retry attempts with bounded backoff through `AutoRetryAttempt` + `AutoRetryJob`. |
 
 ### Rebase and landing
 
@@ -1209,11 +1209,11 @@ Several layers, each catching different failure modes:
    structured stuck explainer. It snapshots Job, Workflow, Step, Run,
    Solid Queue, spawned-process, worker-health, workspace, dependency,
    main-health, and rate-limit evidence, then emits structured issue
-   records and side-effect-free repair plans. Legacy disconnected fixers
-   (`ReapStaleRunsJob`, `AutoRetryScheduler`, `ReconcileJobStatesJob`,
-   and manual admin reap) delegate mutation to `WorkEngine::ReconcileJob`
-   / `RepairExecutor`, which executes only plans marked `auto_executable`
-   after re-checking preconditions.
+   records and side-effect-free repair plans. `ReapStaleRunsJob` and
+   `ReconcileJobStatesJob` are thin delegators that call
+   `WorkEngine::Reconciler.request`; all mutation is centralized in
+   `WorkEngine::ReconcileJob` / `RepairExecutor`, which executes only
+   plans marked `auto_executable` after re-checking preconditions.
 5. **`RunJob` execution guards** — two distinct safety rails inside
    `RunJob#perform`. The *re-entrancy guard* bails silently if the Run
    is already `terminal?` (idempotent retry), or calls `fail!` and skips
@@ -1227,12 +1227,12 @@ Several layers, each catching different failure modes:
    trap is always restored in `ensure`.
 6. **Failure classification + auto-retry** — failed Runs persist a
    `RunFailureClassification` from diagnostics, logs, spawned process
-   outcomes, and agent outcome. `AutoRetryScheduler` splits `worker_died`
-   (deploy kills, OOM, pod eviction) from real agent failures: worker-death
-   events draw from a separate 20-attempt budget and retry after 30 seconds
-   flat, so a rolling deploy cannot exhaust the 3-attempt budget used for
-   actual failures. `ProviderCircuitBreaker` suppresses automatic retries
-   during provider-wide outages.
+   outcomes, and agent outcome. `WorkEngine::RepairExecutor` schedules
+   retry attempts through `AutoRetryAttempt` and `AutoRetryJob`:
+   `worker_died` events (deploy kills, OOM, pod eviction) draw from a
+   separate 20-attempt budget, so a rolling deploy cannot exhaust the
+   3-attempt budget used for actual failures. `ProviderCircuitBreaker`
+   suppresses automatic retries during provider-wide outages.
 7. **Subprocess inventory** — `ProcessRunner` registers agent, grader,
    git, and prepare subprocesses as `SpawnedProcess` rows with
    heartbeats, host metrics, and a cross-pod kill switch. An in-process

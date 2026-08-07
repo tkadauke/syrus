@@ -269,12 +269,10 @@ Non-agentic. Applies structured code-suggestion patches (e.g., from review comme
 
 When a worker process is killed mid-step (deploy rolling restart, OOM, node eviction), the run is classified as `worker_died`. For **non-agentic** steps (e.g., `prepare`, `push`, `grade`, `auto_merge`), Syrus creates a new Run on the same Step instead of immediately failing it. This repeats up to `Run::WORKER_DIED_STEP_MAX_RETRIES` (3) times before the step fails normally and the operator sees the Retry button.
 
-**Agentic steps** (e.g., `implement`, `respond`) do not use in-place retry. They use `AutoRetryScheduler`'s session-resume path so the agent can pick up where it left off with prior conversation context intact. Successful provider session transcripts are retained until the normal `ClaudeSession::RETAIN_AFTER_TERMINAL` pruning window expires so later workflow steps can rehydrate resume state after worker movement or deploys.
+**Agentic steps** (e.g., `implement`, `respond`) do not use in-place retry. They use the work-engine reconciler's session-resume path so the agent can pick up where it left off with prior conversation context intact. Successful provider session transcripts are retained until the normal `ClaudeSession::RETAIN_AFTER_TERMINAL` pruning window expires so later workflow steps can rehydrate resume state after worker movement or deploys.
 
 If Codex resume state is unavailable (`thread/resume failed`, missing rollout JSONL, or equivalent), Syrus classifies the failure as `agent_resume_unavailable`. Automatic failed-step retries carry an explicit no-resume marker so step-specific session fallbacks cannot keep selecting the same stale provider thread. Short synthesis steps such as `test_plan` may retry once in a fresh provider session using bounded durable context from the Job, PR summary, and implementation diff before falling back to deterministic artifacts.
 
-`AutoRetryScheduler` does not create `AutoRetryAttempt` rows itself. It defers
-to `WorkEngine::Reconciler` so retry classification and remediation stay under
-the unified work-engine authority.
+Retry scheduling for agentic steps is handled by `WorkEngine::RepairExecutor`, which creates `AutoRetryAttempt` rows and enqueues `AutoRetryJob` so retry classification and remediation stay under unified work-engine authority.
 
 The in-place retry count is per-step per-workflow, not per-job. Each step failure classification is persisted as a `RunFailureClassification` row so the reaper and `RunJob` can accurately count prior retries.

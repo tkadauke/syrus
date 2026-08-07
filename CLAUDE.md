@@ -303,15 +303,16 @@ rebases, and landing queue wakeups.
 
 **Failure resilience** — failed Runs persist a `RunFailureClassification`
 from diagnostics, recent logs, spawned process outcomes, and agent outcome.
-`AutoRetryScheduler` may retry transient failures up to three times with
-5m/20m/1h backoff, either from the failed Step while the workspace remains
-or as a fresh retry Workflow. Failed agentic runs with captured sessions can
-resume from the failed Step instead of starting over. `ProviderCircuitBreaker`
-suppresses automatic retries/CI repair during provider-wide transient outages.
-`ReapStaleRunsJob` also repairs worker-death gaps: re-enqueues queued Runs
-whose inline driver disappeared, cancels impossible queued Steps whose Runs
-are all terminal, and finishes running Workflows once every Step/Run is
-terminal.
+`WorkEngine::RepairExecutor` schedules transient-failure retries through
+`AutoRetryAttempt` and `AutoRetryJob` — up to three attempts with 5m/20m/1h
+backoff, either from the failed Step while the workspace remains or as a fresh
+retry Workflow. Failed agentic runs with captured sessions can resume from the
+failed Step instead of starting over. `ProviderCircuitBreaker` suppresses
+automatic retries/CI repair during provider-wide transient outages.
+`ReapStaleRunsJob` and `ReconcileJobStatesJob` are thin delegators that call
+`WorkEngine::Reconciler.request`; the reconciler handles stale Runs, orphaned
+queued Runs, queued Workflows with no first Run, terminal orphan Workflows,
+and missed worker-death auto-retries.
 
 ### Scheduled tasks
 
