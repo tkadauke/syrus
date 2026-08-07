@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
 import { ChatSettingsDialog, ChatWorkspacePanel } from "./WorkspacePanels"
 import type { ChatPayload } from "../../api/chats"
-import { fetchCodingCommits, fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree, switchChatProvider } from "../../api/chats"
+import { fetchCodingCommits, fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree, fetchWhiteboardSnapshots, switchChatProvider } from "../../api/chats"
 
 vi.mock("../../api/chats", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/chats")>()
@@ -14,6 +14,7 @@ vi.mock("../../api/chats", async (importOriginal) => {
     fetchCodingDiff: vi.fn(),
     fetchCodingFileContent: vi.fn(),
     fetchCodingFileTree: vi.fn(),
+    fetchWhiteboardSnapshots: vi.fn(),
     switchChatProvider: vi.fn()
   }
 })
@@ -343,5 +344,35 @@ describe("ChatWorkspacePanel coding files", () => {
     )
 
     await waitFor(() => expect(onSelectTab).toHaveBeenCalledWith("context"))
+  })
+})
+
+describe("MediaGallery busy states", () => {
+  beforeEach(() => {
+    vi.mocked(fetchWhiteboardSnapshots).mockResolvedValue({ whiteboard_snapshots: [] })
+  })
+
+  it("does not show the canvas/drawing warning when agent_busy is true", () => {
+    const payload = { ...makePayload(), agent_busy: true }
+    renderWorkspacePanel(payload, { activeTab: "media" })
+
+    expect(screen.queryByText(/canvas is busy/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/wait for drawing to finish/i)).not.toBeInTheDocument()
+  })
+
+  it("shows a neutral chat-busy warning (not a canvas warning) when agent_busy is true", () => {
+    const payload = { ...makePayload(), agent_busy: true }
+    renderWorkspacePanel(payload, { activeTab: "media" })
+
+    expect(screen.getByText(/chat is busy/i)).toBeInTheDocument()
+    expect(screen.queryByText(/canvas is busy/i)).not.toBeInTheDocument()
+  })
+
+  it("shows no busy warning when agent_busy is false", () => {
+    const payload = { ...makePayload(), agent_busy: false }
+    renderWorkspacePanel(payload, { activeTab: "media" })
+
+    expect(screen.queryByText(/chat is busy/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/canvas is busy/i)).not.toBeInTheDocument()
   })
 })

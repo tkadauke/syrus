@@ -289,6 +289,7 @@
   "media_empty": "Nulla media communicata adhuc.",
   "snapshots_loading": "Imagines onerantur...",
   "canvas_busy": "Scaena occupata est. Exspecta dum pictura conficiatur antequam imaginem oneraveris.",
+  "chat_busy": "Colloquium occupatum est. Exspecta dum vices praesentes conficiantur antequam imaginem oneraveris.",
   "snapshot_load": "Onerare",
   "snapshot_loaded": "{{name}} in scaenam onerata",
   "snapshot_name_default": "imago",

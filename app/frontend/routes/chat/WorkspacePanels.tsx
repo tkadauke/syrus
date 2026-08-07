@@ -232,11 +232,12 @@ function MediaGallery({ messages, payload, queryKey, onNotice }: { messages: Cha
     queryFn: () => fetchWhiteboardSnapshots(payload.chat.id),
     enabled: payload.chat.id != null
   })
-  const whiteboardLocked = payload.agent_busy
+  const chatBusy = payload.agent_busy
+  const snapshotLoading = loadingSnapshotId != null
   const snapshotItems = snapshots.data?.whiteboard_snapshots || []
 
   async function loadSnapshot(snapshot: WhiteboardSnapshot) {
-    if (whiteboardLocked || loadingSnapshotId != null) return
+    if (chatBusy || snapshotLoading) return
 
     setSnapshotError(null)
     setLoadingSnapshotId(snapshot.id)
@@ -304,7 +305,7 @@ function MediaGallery({ messages, payload, queryKey, onNotice }: { messages: Cha
       {snapshots.isPending ? <PanelMessage>{t("snapshots_loading")}</PanelMessage> : null}
       {snapshots.isError ? <PanelMessage tone="error">{errorMessage(snapshots.error, "Unable to load snapshots.")}</PanelMessage> : null}
       {snapshotError ? <PanelMessage tone="error">{snapshotError}</PanelMessage> : null}
-      {whiteboardLocked ? <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">{t("canvas_busy")}</div> : null}
+      {chatBusy ? <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">{t("chat_busy")}</div> : null}
 
       {snapshotItems.length > 0 ? (
         <section className="space-y-2">
@@ -323,7 +324,7 @@ function MediaGallery({ messages, payload, queryKey, onNotice }: { messages: Cha
                   </div>
                   <button
                     className={`${secondaryButton()} shrink-0 px-2 py-1 text-xs`}
-                    disabled={whiteboardLocked || loadingSnapshotId != null}
+                    disabled={chatBusy || snapshotLoading}
                     onClick={() => void loadSnapshot(snapshot)}
                     type="button"
                   >

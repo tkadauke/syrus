@@ -289,6 +289,7 @@
   "media_empty": "Noch keine Medien geteilt.",
   "snapshots_loading": "Snapshots werden geladen...",
   "canvas_busy": "Canvas ist beschäftigt. Warte, bis das Zeichnen abgeschlossen ist, bevor du einen Snapshot lädst.",
+  "chat_busy": "Chat ist beschäftigt. Warte, bis der aktuelle Zug abgeschlossen ist, bevor du einen Snapshot lädst.",
   "snapshot_load": "Laden",
   "snapshot_loaded": "{{name}} auf Canvas geladen",
   "snapshot_name_default": "Snapshot",

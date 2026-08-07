@@ -289,6 +289,7 @@
   "media_empty": "No media shared yet.",
   "snapshots_loading": "Loading snapshots...",
   "canvas_busy": "Canvas is busy. Wait for drawing to finish before loading a snapshot.",
+  "chat_busy": "Chat is busy. Wait for the current turn to finish before loading a snapshot.",
   "snapshot_load": "Load",
   "snapshot_loaded": "Loaded {{name}} onto canvas",
   "snapshot_name_default": "snapshot",
