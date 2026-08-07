@@ -8,14 +8,27 @@ module ChatProposalOutcomeNotice
     chat_session = message.chat_session
     return unless chat_session
 
+    deferred = false
+
     ApplicationRecord.transaction do
-      chat_session.update!(
+      chat = ChatSession.lock.find(chat_session.id)
+
+      if chat.agent_busy?
+        # An agent is actively running — don't interrupt it. Enqueue a deferred
+        # notice that ChatQueuedMessagePromoter will deliver after the turn ends.
+        # The content carries the same proposal_outcome source/acknowledgment fields
+        # that ChatTurnJob uses to detect and render a lightweight acknowledgment.
+        chat.chat_queued_messages.create!(content: message.content)
+        deferred = true
+      end
+
+      chat.update!(
         last_message_at: Time.current,
-        title: chat_session.title.presence
+        title: chat.title.presence
       )
     end
 
-    enqueue_chat_turn(chat_session, message)
+    enqueue_chat_turn(chat_session, message) unless deferred
   end
 
   def proposal_outcome_control_content(proposal, text:, outcome:)

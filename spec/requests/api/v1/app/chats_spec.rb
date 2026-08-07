@@ -3621,7 +3621,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(proposal.epic).to be_nil
   end
 
-  it "enqueues proposal outcome control events while a chat turn is active" do
+  it "defers proposal outcome notice when an agent turn is active" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
     proposal = chat.proposals.create!(slug: "cleanup", title: "Clean up", body: "Sweep it.")
@@ -3637,15 +3637,37 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/reject"
     }.to change { chat.messages.reload.where(role: "system").count }.by(1)
       .and change { chat.messages.reload.where(role: "user").count }.by(0)
-      .and have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer))
+      .and change(ChatQueuedMessage, :count).by(1)
+
+    expect(ChatTurnJob).not_to have_been_enqueued
 
     expect(response).to have_http_status(:ok)
     control_event = chat.messages.where(role: "system").order(:created_at, :id).last
-    expect(control_event.content).to include(
+    expected_outcome_content = {
       "text" => %(Proposal rejected. "Clean up" was discarded.),
       "source" => "proposal_notification",
       "acknowledgment" => "Rejected proposal cleanup."
-    )
+    }
+    expect(control_event.content).to include(expected_outcome_content)
+
+    queued = chat.chat_queued_messages.pending.order(:created_at, :id).last
+    expect(queued).to be_present
+    expect(queued.content).to include(expected_outcome_content)
+  end
+
+  it "enqueues a proposal outcome ChatTurnJob immediately when no agent turn is active" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    proposal = chat.proposals.create!(slug: "cleanup", title: "Clean up", body: "Sweep it.")
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/reject"
+    }.to change { chat.messages.reload.where(role: "system").count }.by(1)
+      .and have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer))
+
+    expect(ChatQueuedMessage.count).to eq(0)
+    expect(response).to have_http_status(:ok)
+    control_event = chat.messages.where(role: "system").order(:created_at, :id).last
     expect(ChatTurnJob).to have_been_enqueued.with(chat.id, control_event.id)
   end
 
