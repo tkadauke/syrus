@@ -596,6 +596,14 @@ function SidebarContent({
   )
 }
 
+function isCoarsePointer() {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(pointer: coarse)").matches
+  )
+}
+
 function SidebarSearchForm({ onCloseDrawer, prefix }: { onCloseDrawer: () => void; prefix: string }) {
   const location = useLocation()
   const navigate = useNavigate()
@@ -621,7 +629,7 @@ function SidebarSearchForm({ onCloseDrawer, prefix }: { onCloseDrawer: () => voi
   }, [location.search, location.pathname])
 
   useEffect(() => {
-    if (!userEditedRef.current) return
+    if (!userEditedRef.current || isCoarsePointer()) return
 
     const timer = window.setTimeout(() => {
       navigateToSearch(query)

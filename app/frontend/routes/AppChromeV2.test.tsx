@@ -1,6 +1,6 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import type { ReactElement } from "react"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -715,6 +715,58 @@ describe("SidebarSearchForm", () => {
 
     expect(screen.getByLabelText("Search Syrus")).toHaveValue("")
   })
+
+  it("does not auto-navigate while typing on mobile (coarse pointer)", async () => {
+    vi.useFakeTimers()
+    const restoreMatchMedia = mockMatchMedia(true)
+
+    renderAppChrome(<LocationProbe />, { routeWrapper: true })
+
+    fireEvent.change(screen.getByLabelText("Search Syrus"), { target: { value: "Re" } })
+
+    await act(async () => {
+      vi.advanceTimersByTime(500)
+    })
+
+    expect(screen.getByTestId("location")).not.toHaveTextContent("/search")
+
+    restoreMatchMedia()
+    vi.useRealTimers()
+  })
+
+  it("navigates to search on form submit on mobile (coarse pointer)", async () => {
+    const restoreMatchMedia = mockMatchMedia(true)
+
+    renderAppChrome(<LocationProbe />, { routeWrapper: true })
+
+    const searchInput = screen.getByLabelText("Search Syrus")
+    fireEvent.change(searchInput, { target: { value: "Re" } })
+    fireEvent.submit(searchInput.closest("form")!)
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/search")
+    })
+
+    restoreMatchMedia()
+  })
+
+  it("auto-navigates to search after debounce while typing on desktop (fine pointer)", async () => {
+    vi.useFakeTimers()
+    const restoreMatchMedia = mockMatchMedia(false)
+
+    renderAppChrome(<LocationProbe />, { routeWrapper: true })
+
+    fireEvent.change(screen.getByLabelText("Search Syrus"), { target: { value: "Re" } })
+
+    await act(async () => {
+      vi.advanceTimersByTime(500)
+    })
+
+    expect(screen.getByTestId("location")).toHaveTextContent("/search")
+
+    restoreMatchMedia()
+    vi.useRealTimers()
+  })
 })
 
 describe("chat row mode icons", () => {
@@ -972,4 +1024,26 @@ function bootstrapPayload(overrides: Partial<BootstrapPayload> = {}): BootstrapP
     feature_flags: {},
     ...overrides
   } as unknown as BootstrapPayload
+}
+
+function mockMatchMedia(coarsePointer: boolean) {
+  const original = Object.getOwnPropertyDescriptor(window, "matchMedia")
+
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: coarsePointer ? query === "(pointer: coarse)" : query !== "(pointer: coarse)",
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn()
+    }))
+  })
+
+  return () => {
+    if (original) {
+      Object.defineProperty(window, "matchMedia", original)
+    } else {
+      Reflect.deleteProperty(window, "matchMedia")
+    }
+  }
 }
