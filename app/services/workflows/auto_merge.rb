@@ -18,10 +18,9 @@ module Workflows
         "mergeability_preflight",
         "prepare",
         landing_grader_retry_loop,
-        coverage_analyze_for(job),
         "push",
         "auto_merge"
-      ].compact
+      ]
       without_skipped_prepare(job, chain)
     end
 

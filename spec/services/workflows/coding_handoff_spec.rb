@@ -29,6 +29,7 @@ RSpec.describe Workflows::CodingHandoff do
     end
 
     it "materializes the representative chain template" do
+      allow(AppSetting).to receive(:grade_max_iterations).and_return(5)
       workflow = described_class.instantiate(job: job)
 
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
@@ -36,8 +37,8 @@ RSpec.describe Workflows::CodingHandoff do
       )
       expect(workflow.chain_template).to eq([
         { "type" => "step", "kind" => "prepare" },
-        { "type" => "step", "kind" => "grader_fanout" },
-        { "type" => "step", "kind" => "grader_collect" },
+        { "type" => "retry_until", "max_iterations" => 5, "repair_first" => false,
+          "repair" => [ "coding_handoff_fix" ], "check" => [ "grader_fanout", "grader_collect" ] },
         { "type" => "step", "kind" => "summarize" },
         { "type" => "step", "kind" => "test_plan" },
         { "type" => "step", "kind" => "pr_open" }
