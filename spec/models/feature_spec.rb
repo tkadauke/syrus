@@ -140,11 +140,6 @@ RSpec.describe Feature, type: :model do
       expect(declaration).to have_attributes(category: "Operations", default_enabled: false, type: :boolean)
     end
 
-    it "declares the unified work-engine reconciler operations flag default-off in config/features.yml" do
-      declaration = FeatureRegistry.declarations.find { |feature| feature.slug == WorkEngine::Gate::FEATURE_SLUG }
-      expect(declaration).to have_attributes(category: "Operations", default_enabled: false, type: :boolean)
-    end
-
     it "declares the admin supervisor chat operations flag default-off in config/features.yml" do
       declaration = YAML.load_file(Rails.root.join("config/features.yml")).fetch("features")
                         .find { |f| f["slug"] == "admin_supervisor_chat" }

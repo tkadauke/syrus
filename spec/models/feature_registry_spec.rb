@@ -10,8 +10,7 @@ RSpec.describe FeatureRegistry do
       "coding_mode",
       "video_walkthroughs",
       "local_mode",
-      "agent_insights",
-      WorkEngine::Gate::FEATURE_SLUG
+      "agent_insights"
     )
   end
 
@@ -25,8 +24,7 @@ RSpec.describe FeatureRegistry do
       "coding_mode" => false,
       "performance_logging" => false,
       "local_mode" => false,
-      "agent_insights" => false,
-      WorkEngine::Gate::FEATURE_SLUG => false
+      "agent_insights" => false
     )
   end
 
