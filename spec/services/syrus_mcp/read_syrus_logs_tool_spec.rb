@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusMcp::ReadSyrusLogsTool do
+RSpec.describe Mcp::Tools::ReadSyrusLogsTool do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user, owner: "tkadauke", name: "syrus") }
   let(:run) { Factories.job(repository: repository, user: user).initial_run }

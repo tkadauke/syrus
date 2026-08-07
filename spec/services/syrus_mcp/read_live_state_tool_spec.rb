@@ -109,7 +109,7 @@ RSpec.describe Mcp::Tools::ReadLiveStateTool do
 
       expect(message_count_queries.size).to eq(1)
       expect(pending_action_count_queries.size).to eq(1)
-      expect(recent_message_queries.size).to be <= SyrusMcp::LiveState::RELATED_CHAT_LIMIT
+      expect(recent_message_queries.size).to be <= Mcp::Tools::LiveState::RELATED_CHAT_LIMIT
       expect(attachment_queries.size).to be <= 2
     end
 

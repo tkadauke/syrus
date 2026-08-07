@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusMcp::ReadPerformanceDiagnosticsTool do
+RSpec.describe Mcp::Tools::ReadPerformanceDiagnosticsTool do
   let(:cache_store) { ActiveSupport::Cache::MemoryStore.new }
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user, owner: "tkadauke", name: "syrus") }

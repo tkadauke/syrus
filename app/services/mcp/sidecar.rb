@@ -77,12 +77,18 @@ module Mcp
       @server_context = server_context
     end
 
-    def run
-      server = MCP::Server.new(
+    def build_server
+      MCP::Server.new(
         name: @server_name,
         tools: @tools.call,
         server_context: @server_context.call
       )
+    end
+
+    def run
+      at_exit { Tools::AgentPreviewRegistry.kill_all }
+
+      server = build_server
       transport = MCP::Server::Transports::StdioTransport.new(server)
 
       Signal.trap("TERM") { transport.close; exit 0 }

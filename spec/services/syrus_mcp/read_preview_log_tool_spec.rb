@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusMcp::ReadPreviewLogTool do
+RSpec.describe Mcp::Tools::ReadPreviewLogTool do
   let(:run)            { Factories.job.initial_run }
   let(:workspace_path) { WorkflowWorkspace.path_for(run.step.workflow).to_s }
 
@@ -145,7 +145,7 @@ RSpec.describe SyrusMcp::ReadPreviewLogTool do
     it "clamps to MAX_LINES" do
       response = call(lines: 99_999)
       expect(response).not_to be_error
-      expect(response.content.first[:text]).to include("last #{SyrusMcp::ReadPreviewLogTool::MAX_LINES} lines")
+      expect(response.content.first[:text]).to include("last #{Mcp::Tools::ReadPreviewLogTool::MAX_LINES} lines")
     end
   end
 

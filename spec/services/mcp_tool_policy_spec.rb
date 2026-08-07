@@ -27,16 +27,16 @@ RSpec.describe McpToolPolicy do
         Mcp::Tools::DeleteMemoryTool,
         Mcp::Tools::SearchMemoriesTool,
         Mcp::Tools::ListMemoriesTool,
-        SyrusMcp::GetCoverageReportTool,
-        SyrusMcp::ReadRunWorkerHealthTool,
-        SyrusMcp::StartPreviewTool,
-        SyrusMcp::StopPreviewTool,
-        SyrusMcp::ReadPreviewLogTool,
-        SyrusMcp::SubmitSummaryTool,
-        SyrusMcp::SubmitTestPlanTool,
-        SyrusMcp::ReportMainConcernTool
+        Mcp::Tools::GetCoverageReportTool,
+        Mcp::Tools::ReadRunWorkerHealthTool,
+        Mcp::Tools::StartPreviewTool,
+        Mcp::Tools::StopPreviewTool,
+        Mcp::Tools::ReadPreviewLogTool,
+        Mcp::Tools::SubmitSummaryTool,
+        Mcp::Tools::SubmitTestPlanTool,
+        Mcp::Tools::ReportMainConcernTool
       )
-      expect(tools).not_to include(SyrusMcp::SubmitAdversarialReviewTool, SyrusMcp::SubmitJobMetadataTool)
+      expect(tools).not_to include(Mcp::Tools::SubmitAdversarialReviewTool, Mcp::Tools::SubmitJobMetadataTool)
       expect(tools.size).to eq(14)
     end
 
@@ -49,7 +49,7 @@ RSpec.describe McpToolPolicy do
         Mcp::Tools::ReadRunWorkerHealthTool,
         Mcp::Tools::SubmitAdversarialReviewTool
       )
-      expect(tools).not_to include(SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool)
+      expect(tools).not_to include(Mcp::Tools::SubmitSummaryTool, Mcp::Tools::SubmitTestPlanTool)
       expect(tools.size).to eq(12)
     end
 
@@ -57,14 +57,14 @@ RSpec.describe McpToolPolicy do
       context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER, user: user)
       tools   = described_class.for(context)
 
-      expect(tools).not_to include(SyrusMcp::ReportMainConcernTool)
+      expect(tools).not_to include(Mcp::Tools::ReportMainConcernTool)
     end
 
     it "includes report_main_concern for the implement role" do
       context = McpToolContext.from_run(run)
       tools   = described_class.for(context)
 
-      expect(tools).to include(SyrusMcp::ReportMainConcernTool)
+      expect(tools).to include(Mcp::Tools::ReportMainConcernTool)
     end
 
     it "includes performance diagnostics for tkadauke/syrus implementation runs" do
@@ -72,7 +72,7 @@ RSpec.describe McpToolPolicy do
       syrus_run = Factories.job(repository: syrus_repository, user: user).initial_run
       context = McpToolContext.from_run(syrus_run)
 
-      expect(described_class.for(context)).to include(SyrusMcp::ReadPerformanceDiagnosticsTool)
+      expect(described_class.for(context)).to include(Mcp::Tools::ReadPerformanceDiagnosticsTool)
     end
 
     it "includes Syrus log search for tkadauke/syrus implementation runs" do
@@ -80,7 +80,7 @@ RSpec.describe McpToolPolicy do
       syrus_run = Factories.job(repository: syrus_repository, user: user).initial_run
       context = McpToolContext.from_run(syrus_run)
 
-      expect(described_class.for(context)).to include(SyrusMcp::ReadSyrusLogsTool)
+      expect(described_class.for(context)).to include(Mcp::Tools::ReadSyrusLogsTool)
     end
 
     it "includes performance diagnostics for registered Syrus forks" do
@@ -88,15 +88,15 @@ RSpec.describe McpToolPolicy do
       syrus_run = Factories.job(repository: syrus_fork, user: user).initial_run
       context = McpToolContext.from_run(syrus_run)
 
-      expect(described_class.for(context)).to include(SyrusMcp::ReadPerformanceDiagnosticsTool)
-      expect(described_class.for(context)).to include(SyrusMcp::ReadSyrusLogsTool)
+      expect(described_class.for(context)).to include(Mcp::Tools::ReadPerformanceDiagnosticsTool)
+      expect(described_class.for(context)).to include(Mcp::Tools::ReadSyrusLogsTool)
     end
 
     it "excludes performance diagnostics for normal non-Syrus repositories" do
       context = McpToolContext.from_run(run)
 
-      expect(described_class.for(context)).not_to include(SyrusMcp::ReadPerformanceDiagnosticsTool)
-      expect(described_class.for(context)).not_to include(SyrusMcp::ReadSyrusLogsTool)
+      expect(described_class.for(context)).not_to include(Mcp::Tools::ReadPerformanceDiagnosticsTool)
+      expect(described_class.for(context)).not_to include(Mcp::Tools::ReadSyrusLogsTool)
     end
 
     it "excludes performance diagnostics from non-implementation workflow roles" do
@@ -108,8 +108,8 @@ RSpec.describe McpToolPolicy do
         repository: syrus_repository
       )
 
-      expect(described_class.for(context)).not_to include(SyrusMcp::ReadPerformanceDiagnosticsTool)
-      expect(described_class.for(context)).not_to include(SyrusMcp::ReadSyrusLogsTool)
+      expect(described_class.for(context)).not_to include(Mcp::Tools::ReadPerformanceDiagnosticsTool)
+      expect(described_class.for(context)).not_to include(Mcp::Tools::ReadSyrusLogsTool)
     end
 
     it "returns submit_summary, submit_test_plan, and submit_reconciliation_feedback for the reconciliation_feedback role" do
@@ -136,7 +136,7 @@ RSpec.describe McpToolPolicy do
       context = McpToolContext.from_run(run.reload)
       tools   = described_class.for(context)
 
-      expect(tools).to include(SyrusMcp::SubmitJobMetadataTool)
+      expect(tools).to include(Mcp::Tools::SubmitJobMetadataTool)
     end
 
     describe ".capability_permitted?" do
@@ -217,38 +217,38 @@ RSpec.describe McpToolPolicy do
       context = agent_insight_context
 
       expect(described_class.for(context)).to include(
-        SyrusMcp::ListRecentWorkflowsTool,
-        SyrusMcp::ReadInsightRunTranscriptTool,
-        SyrusMcp::SubmitInsightTool
+        Mcp::Tools::ListRecentWorkflowsTool,
+        Mcp::Tools::ReadInsightRunTranscriptTool,
+        Mcp::Tools::SubmitInsightTool
       )
-      expect(described_class.for(context)).not_to include(SyrusMcp::SubmitSummaryTool, SyrusMcp::SubmitTestPlanTool)
+      expect(described_class.for(context)).not_to include(Mcp::Tools::SubmitSummaryTool, Mcp::Tools::SubmitTestPlanTool)
     end
 
     it "includes Syrus log search for insight runs when operational logging is enabled on tkadauke/syrus" do
       set_operational_log_indexing(true)
       syrus_repository = Factories.repository(user: user, owner: "tkadauke", name: "syrus")
 
-      expect(described_class.for(agent_insight_context(syrus_repository))).to include(SyrusMcp::ReadSyrusLogsTool)
+      expect(described_class.for(agent_insight_context(syrus_repository))).to include(Mcp::Tools::ReadSyrusLogsTool)
     end
 
     it "includes Syrus log search for insight runs on registered Syrus forks" do
       set_operational_log_indexing(true)
       syrus_fork = Factories.repository(user: user, owner: "acme", name: "syrus-fork", upstream_owner: "tkadauke", upstream_name: "syrus")
 
-      expect(described_class.for(agent_insight_context(syrus_fork))).to include(SyrusMcp::ReadSyrusLogsTool)
+      expect(described_class.for(agent_insight_context(syrus_fork))).to include(Mcp::Tools::ReadSyrusLogsTool)
     end
 
     it "excludes Syrus log search for insight runs when operational logging is disabled" do
       set_operational_log_indexing(false)
       syrus_repository = Factories.repository(user: user, owner: "tkadauke", name: "syrus")
 
-      expect(described_class.for(agent_insight_context(syrus_repository))).not_to include(SyrusMcp::ReadSyrusLogsTool)
+      expect(described_class.for(agent_insight_context(syrus_repository))).not_to include(Mcp::Tools::ReadSyrusLogsTool)
     end
 
     it "excludes Syrus log search for insight runs on non-Syrus repositories" do
       set_operational_log_indexing(true)
 
-      expect(described_class.for(agent_insight_context(repository))).not_to include(SyrusMcp::ReadSyrusLogsTool)
+      expect(described_class.for(agent_insight_context(repository))).not_to include(Mcp::Tools::ReadSyrusLogsTool)
     end
   end
 
@@ -300,15 +300,15 @@ RSpec.describe McpToolPolicy do
       context = context_for(chat_session)
       tools = described_class.for(context)
 
-      expect(tools).to include(SyrusMcp::ListInsightsTool, SyrusMcp::ReadInsightTool)
-      expect(tools).not_to include(SyrusMcp::SubmitInsightTool)
+      expect(tools).to include(Mcp::Tools::ListInsightsTool, Mcp::Tools::ReadInsightTool)
+      expect(tools).not_to include(Mcp::Tools::SubmitInsightTool)
     end
 
     it "excludes insight read tools when agent_insights is disabled" do
       context = context_for(chat_session)
       tools = described_class.for(context)
 
-      expect(tools).not_to include(SyrusMcp::ListInsightsTool, SyrusMcp::ReadInsightTool, SyrusMcp::SubmitInsightTool)
+      expect(tools).not_to include(Mcp::Tools::ListInsightsTool, Mcp::Tools::ReadInsightTool, Mcp::Tools::SubmitInsightTool)
     end
 
     it "excludes coding tools" do
@@ -353,7 +353,7 @@ RSpec.describe McpToolPolicy do
       tools = described_class.for(context_for(admin_session))
 
       expect(McpToolContext.from_chat_session(admin_session).role).to eq(AgentRole::CHAT_ADMIN)
-      expect(tools).to include(*SyrusChatMcp::Sidecar::ADMIN_TOOLS)
+      expect(tools).to include(*Mcp::Sidecar::CHAT_ADMIN_TOOLS)
     end
 
     it "excludes repository attachment and work-creation tools for supervisor chats" do
@@ -363,13 +363,13 @@ RSpec.describe McpToolPolicy do
 
       expect(tools & described_class::SUPERVISOR_EXCLUDED_TOOLS).to be_empty
       expect(tools).to include(
-        SyrusChatMcp::AdminOverviewTool,
-        SyrusChatMcp::ReadQueueTool,
-        SyrusChatMcp::SearchJobsTool,
-        SyrusChatMcp::ReadJobTool,
-        SyrusChatMcp::ListJobWorkflowsTool,
-        SyrusChatMcp::ReadWorkflowTool,
-        SyrusChatMcp::ReadRunTranscriptTool
+        Mcp::Tools::AdminOverviewTool,
+        Mcp::Tools::ReadQueueTool,
+        Mcp::Tools::SearchJobsTool,
+        Mcp::Tools::ReadJobTool,
+        Mcp::Tools::ListJobWorkflowsTool,
+        Mcp::Tools::ReadWorkflowTool,
+        Mcp::Tools::ReadRunTranscriptTool
       )
     end
 
@@ -379,11 +379,11 @@ RSpec.describe McpToolPolicy do
       tools = described_class.for(context_for(admin_session))
 
       expect(tools).to include(
-        SyrusChatMcp::AttachRepositoryTool,
-        SyrusChatMcp::ProposeEpicTool,
-        SyrusChatMcp::ProposeJobTool,
-        SyrusChatMcp::ProposeEpicWithJobsTool,
-        SyrusChatMcp::SubmitChatFeedbackTool
+        Mcp::Tools::AttachRepositoryTool,
+        Mcp::Tools::ProposeEpicTool,
+        Mcp::Tools::ProposeJobTool,
+        Mcp::Tools::ProposeEpicWithJobsTool,
+        Mcp::Tools::SubmitChatFeedbackTool
       )
     end
 
@@ -392,7 +392,7 @@ RSpec.describe McpToolPolicy do
       tools = described_class.for(context_for(supervisor_session))
 
       expect(McpToolContext.from_chat_session(supervisor_session).role).to eq(AgentRole::CHAT_ADMIN)
-      expect(tools & SyrusChatMcp::Sidecar::ADMIN_TOOLS).to be_empty
+      expect(tools & Mcp::Sidecar::CHAT_ADMIN_TOOLS).to be_empty
     end
   end
 

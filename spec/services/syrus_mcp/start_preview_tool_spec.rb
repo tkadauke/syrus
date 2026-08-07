@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusMcp::StartPreviewTool do
+RSpec.describe Mcp::Tools::StartPreviewTool do
   let(:run)            { Factories.job.initial_run }
   let(:workspace_path) { WorkflowWorkspace.path_for(run.step.workflow).to_s }
 
@@ -18,11 +18,11 @@ RSpec.describe SyrusMcp::StartPreviewTool do
   end
 
   before do
-    SyrusMcp::AgentPreviewRegistry.reset!
+    Mcp::Tools::AgentPreviewRegistry.reset!
     allow(PreviewCommandSource).to receive(:new).with(workspace_path).and_return(double(resolve: preview_config))
   end
 
-  after { SyrusMcp::AgentPreviewRegistry.reset! }
+  after { Mcp::Tools::AgentPreviewRegistry.reset! }
 
   context "when health check passes immediately" do
     before do
@@ -39,7 +39,7 @@ RSpec.describe SyrusMcp::StartPreviewTool do
 
     it "registers the process in the registry" do
       call
-      expect(SyrusMcp::AgentPreviewRegistry.get(run.id)).to eq(pid: 12345, port: 3001)
+      expect(Mcp::Tools::AgentPreviewRegistry.get(run.id)).to eq(pid: 12345, port: 3001)
     end
 
     it "writes a JobLog audit line" do
@@ -70,7 +70,7 @@ RSpec.describe SyrusMcp::StartPreviewTool do
   end
 
   context "when a preview is already running for this run" do
-    before { SyrusMcp::AgentPreviewRegistry.register(run_id: run.id, pid: 9999, port: 3001) }
+    before { Mcp::Tools::AgentPreviewRegistry.register(run_id: run.id, pid: 9999, port: 3001) }
 
     it "returns the existing URL and PID without spawning again" do
       expect(Process).not_to receive(:spawn)
@@ -103,7 +103,7 @@ RSpec.describe SyrusMcp::StartPreviewTool do
 
   context "when the health check times out" do
     before do
-      stub_const("SyrusMcp::StartPreviewTool::HEALTH_CHECK_TIMEOUT_SECONDS", -1)
+      stub_const("Mcp::Tools::StartPreviewTool::HEALTH_CHECK_TIMEOUT_SECONDS", -1)
       allow(Process).to receive(:spawn).and_return(12345)
       allow(described_class).to receive(:http_ok?).and_return(false)
     end
@@ -116,11 +116,11 @@ RSpec.describe SyrusMcp::StartPreviewTool do
 
     it "removes the process from the registry after timeout" do
       call
-      expect(SyrusMcp::AgentPreviewRegistry.get(run.id)).to be_nil
+      expect(Mcp::Tools::AgentPreviewRegistry.get(run.id)).to be_nil
     end
 
     it "calls AgentPreviewRegistry.kill to stop the orphaned process" do
-      expect(SyrusMcp::AgentPreviewRegistry).to receive(:kill).with(run.id).and_call_original
+      expect(Mcp::Tools::AgentPreviewRegistry).to receive(:kill).with(run.id).and_call_original
       call
     end
   end

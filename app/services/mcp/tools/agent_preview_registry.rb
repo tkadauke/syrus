@@ -1,4 +1,4 @@
-module SyrusMcp
+module Mcp::Tools
   # In-process registry for background preview processes spawned by the
   # start_preview MCP tool. Lives entirely in sidecar process memory:
   # one registry per step execution, automatically cleared when the

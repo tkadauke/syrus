@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe SyrusMcp::SubmitJobMetadataTool do
+RSpec.describe Mcp::Tools::SubmitJobMetadataTool do
   let(:run) { Factories.job.initial_run }
 
   before do
