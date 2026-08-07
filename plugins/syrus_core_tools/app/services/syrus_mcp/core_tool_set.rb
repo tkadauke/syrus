@@ -27,6 +27,7 @@ module SyrusMcp
       ReportMainConcernTool,
       SubmitSummaryTool,
       SubmitTestPlanTool,
+      SubmitArtifactTool,
       SubmitJobMetadataTool,
       SubmitAdversarialReviewTool,
       SubmitReconciliationFeedbackTool,
