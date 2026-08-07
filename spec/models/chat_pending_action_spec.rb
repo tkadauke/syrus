@@ -474,7 +474,7 @@ RSpec.describe ChatPendingAction do
     target = Factories.user(scheduling_paused: false)
 
     allow(Rails.cache).to receive(:delete_matched).and_return(3)
-    expect(ReapStaleRunsJob).to receive(:perform_later)
+    expect(WorkEngine::ReconcileJob).to receive(:perform_later)
     admin_session.pending_actions.create!(action: "admin_reap_stale_runs", payload: {}, requested_by: "agent").confirm!
 
     admin_session.pending_actions.create!(action: "admin_clear_github_cache", payload: {}, requested_by: "agent").confirm!
