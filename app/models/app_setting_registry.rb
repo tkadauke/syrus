@@ -22,7 +22,7 @@ class AppSettingRegistry
     def numericality_options
       return unless integer?
 
-      { only_integer: true }.tap do |options|
+      { only_integer: true, allow_nil: true }.tap do |options|
         options[:greater_than_or_equal_to] = min unless min.nil?
         options[:less_than_or_equal_to] = max unless max.nil?
       end
@@ -78,6 +78,18 @@ class AppSettingRegistry
       category: "Workflow behavior",
       operational_meaning: "Consecutive failure threshold used by scheduled task auto-pause and provider retry suppression.",
       zero_means: "Auto-pause is disabled.",
+      admin_editable: false,
+      secret: false
+    ),
+    Definition.new(
+      key: :rebase_failure_cooldown_minutes,
+      type: :integer,
+      default: 60,
+      min: 0,
+      max: nil,
+      category: "Workflow behavior",
+      operational_meaning: "Cooldown period in minutes between consecutive rebase-Workflow failures for the same PR before a retry is allowed.",
+      zero_means: "No cooldown; rebase retries are never rate-limited.",
       admin_editable: false,
       secret: false
     ),
@@ -178,6 +190,78 @@ class AppSettingRegistry
       secret: false
     ),
     Definition.new(
+      key: :mode,
+      type: :string,
+      default: "advanced",
+      min: nil,
+      max: nil,
+      category: "Instance operations",
+      operational_meaning: "Instance UX mode: 'advanced' (full Syrus feature set) or 'simple' (non-technical operator experience with reduced surfaces).",
+      zero_means: nil,
+      admin_editable: false,
+      secret: false
+    ),
+    Definition.new(
+      key: :mode_configured_at,
+      type: :datetime,
+      default: nil,
+      min: nil,
+      max: nil,
+      category: "Instance operations",
+      operational_meaning: "Timestamp when the instance mode was last explicitly set; nil means the instance has never been configured.",
+      zero_means: nil,
+      admin_editable: false,
+      secret: false
+    ),
+    Definition.new(
+      key: :workflow_admission_control_enabled,
+      type: :boolean,
+      default: true,
+      min: nil,
+      max: nil,
+      category: "Instance operations",
+      operational_meaning: "When enabled, WorkflowAdmissionControl gates new Workflow runs against configured concurrency and resource policies.",
+      zero_means: nil,
+      admin_editable: false,
+      secret: false
+    ),
+    Definition.new(
+      key: :workflow_admission_policy,
+      type: :string,
+      default: "whole_workflow",
+      min: nil,
+      max: nil,
+      category: "Instance operations",
+      operational_meaning: "Admission control policy: 'whole_workflow' reserves capacity for an entire Workflow at once; 'phase_aware' admits one phase at a time.",
+      zero_means: nil,
+      admin_editable: false,
+      secret: false
+    ),
+    Definition.new(
+      key: :workflow_admission_control_changed_at,
+      type: :datetime,
+      default: nil,
+      min: nil,
+      max: nil,
+      category: "Instance operations",
+      operational_meaning: "Timestamp of the last change to workflow admission control settings; for audit purposes.",
+      zero_means: nil,
+      admin_editable: false,
+      secret: false
+    ),
+    Definition.new(
+      key: :workflow_admission_control_changed_by_user_id,
+      type: :integer,
+      default: nil,
+      min: nil,
+      max: nil,
+      category: "Instance operations",
+      operational_meaning: "ID of the user who last changed workflow admission control settings; for audit purposes.",
+      zero_means: nil,
+      admin_editable: false,
+      secret: false
+    ),
+    Definition.new(
       key: :github_app_id,
       type: :bigint,
       default: nil,
@@ -221,6 +305,78 @@ class AppSettingRegistry
       max: nil,
       category: "GitHub App",
       operational_meaning: "Timestamp for GitHub App registration; informational only.",
+      zero_means: nil,
+      admin_editable: false,
+      secret: false
+    ),
+    Definition.new(
+      key: :github_app_installation_sync_started_at,
+      type: :datetime,
+      default: nil,
+      min: nil,
+      max: nil,
+      category: "GitHub App",
+      operational_meaning: "Timestamp when the most recent GitHub App installation sync began.",
+      zero_means: nil,
+      admin_editable: false,
+      secret: false
+    ),
+    Definition.new(
+      key: :github_app_installation_sync_succeeded_at,
+      type: :datetime,
+      default: nil,
+      min: nil,
+      max: nil,
+      category: "GitHub App",
+      operational_meaning: "Timestamp when the most recent GitHub App installation sync completed successfully.",
+      zero_means: nil,
+      admin_editable: false,
+      secret: false
+    ),
+    Definition.new(
+      key: :github_app_installation_sync_duration_ms,
+      type: :integer,
+      default: nil,
+      min: nil,
+      max: nil,
+      category: "GitHub App",
+      operational_meaning: "Duration in milliseconds of the most recent GitHub App installation sync.",
+      zero_means: nil,
+      admin_editable: false,
+      secret: false
+    ),
+    Definition.new(
+      key: :github_app_installation_sync_records_seen,
+      type: :integer,
+      default: nil,
+      min: nil,
+      max: nil,
+      category: "GitHub App",
+      operational_meaning: "Number of installation records processed during the most recent GitHub App installation sync.",
+      zero_means: nil,
+      admin_editable: false,
+      secret: false
+    ),
+    Definition.new(
+      key: :github_app_installation_sync_error_class,
+      type: :string,
+      default: nil,
+      min: nil,
+      max: nil,
+      category: "GitHub App",
+      operational_meaning: "Exception class name from the most recent failed GitHub App installation sync; nil when the last sync succeeded.",
+      zero_means: nil,
+      admin_editable: false,
+      secret: false
+    ),
+    Definition.new(
+      key: :github_app_installation_sync_error_message,
+      type: :text,
+      default: nil,
+      min: nil,
+      max: nil,
+      category: "GitHub App",
+      operational_meaning: "Error message from the most recent failed GitHub App installation sync; nil when the last sync succeeded.",
       zero_means: nil,
       admin_editable: false,
       secret: false
