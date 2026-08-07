@@ -1,25 +1,7 @@
 class ReconcileJobStatesJob < ApplicationJob
   queue_as :control_plane
 
-  # Runs every few minutes to detect Jobs whose state has drifted out
-  # of sync with their latest Workflow's state. This is the safety
-  # net for the Workflow → Job propagation hooks: most of the time
-  # propagate_start / propagate_fail / propagate_succeed / propagate_reopen
-  # keep the two records in lockstep, but each new propagation gap
-  # (retry-from-failed-step was one such case) leaves Jobs stuck until
-  # someone notices and runs a manual lift. The reconciler closes
-  # that loop without adding new ad-hoc operator tooling.
-  #
-  # Conservative by design — only fixes divergences whose target
-  # state is unambiguous. Anything ambiguous (Job :running with no
-  # latest workflow, Job in a terminal-ish state like :closed) is
-  # left alone. The same AASM events the propagation hooks use are
-  # what runs here; no force_state, no column hacks.
-
-  # States the reconciler will TRY to fix. Anything else is treated
-  # as a stable steady state and skipped — :triaging is owned by the
-  # classifier loop, :approved / :landing / :closed are owned by the
-  # landing queue + closure paths.
+  # States the reconciler will TRY to fix. Referenced by WorkEngine::Reconciler.
   RECONCILABLE_STATES = %w[ queued running implemented failed ].freeze
 
   def perform
@@ -27,80 +9,14 @@ class ReconcileJobStatesJob < ApplicationJob
     Rails.logger.info("[ReconcileJobStatesJob] delegated to unified work-engine reconciler")
   end
 
-  def close_completed_main_grader_jobs
-    Job.where(kind: "main_grader").where.not(state: "closed").find_each do |job|
-      latest_workflow = job.latest_workflow
-      next unless job.implemented? || terminal_workflow?(latest_workflow)
-
-      Rails.logger.info(
-        "[ReconcileJobStates] closing completed main grader #{job.slug} " \
-        "(job=#{job.state}, workflow=#{latest_workflow&.state || 'none'})"
-      )
-
-      StateTransition.with_source("reconciler") do
-        job.close_with_reason!(Job::MAIN_GRADER_CLOSURE_REASON) if job.may_close?
-      end
-      audit_main_grader_close!(job, latest_workflow)
-    rescue StandardError => e
-      Rails.logger.warn(
-        "[ReconcileJobStates] #{job.slug} main_grader close failed: " \
-        "#{e.class}: #{e.message}"
-      )
-    end
-  end
-
+  # Called by WorkEngine::Reconciler#classify_completed_main_grader_jobs.
   def terminal_workflow?(workflow)
     workflow && %w[ succeeded failed cancelled ].include?(workflow.state)
   end
 
-  def reconcile_one(job)
-    plan = Plan.for(job)
-    return unless plan
-
-    Rails.logger.info(
-      "[ReconcileJobStates] #{job.slug} #{job.state} → #{plan.target_state} " \
-      "(reason: #{plan.reason})"
-    )
-
-    plan.apply!
-    audit!(job, plan)
-  rescue StandardError => e
-    # One Job's reconciliation failure must not poison the whole batch.
-    Rails.logger.warn(
-      "[ReconcileJobStates] #{job.slug} reconcile failed: " \
-      "#{e.class}: #{e.message}"
-    )
-  end
-
-  def audit!(job, plan)
-    run = job.runs.order(:created_at).last
-    return unless run
-
-    JobLog.append!(
-      run: run,
-      chunk: "[reconciler] Job state #{plan.from_state} → #{plan.target_state} (#{plan.reason})",
-      kind: "system"
-    )
-  rescue StandardError
-    # Audit logging is best-effort. A missing/locked JobLog row is
-    # not a reason to rethrow and skip the actual reconciliation.
-  end
-
-  def audit_main_grader_close!(job, latest_workflow)
-    run = job.runs.order(:created_at).last
-    return unless run
-
-    JobLog.append!(
-      run: run,
-      chunk: "[reconciler] Closed completed main grader Job (workflow=#{latest_workflow&.state || 'none'})",
-      kind: "system"
-    )
-  rescue StandardError
-    # Same contract as audit!: best-effort only.
-  end
-
   # Detection + transition plan for one Job. Returns nil when the
   # Job is already consistent with its latest workflow.
+  # Used by WorkEngine::Reconciler, WorkEngine::RepairExecutor, and Admin::StuckJobExplainer.
   class Plan
     attr_reader :job, :target_state, :from_state, :reason
 
