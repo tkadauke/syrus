@@ -1,7 +1,7 @@
 require "mcp"
 require "net/http"
 
-module SyrusMcp
+module Mcp::Tools
   # MCP tool for the implementing agent to start the target application as
   # a background process in the workflow runner container. Resolves the
   # preview start command from .syrus.yml or a registered plugin, runs any
@@ -38,10 +38,10 @@ module SyrusMcp
 
     class << self
       def call(port: 3001, server_context:)
-        run = SyrusMcp.run_from_context(server_context)
+        run = Mcp::Tools.run_from_context(server_context)
 
         workspace_path = workspace_path_for(run)
-        return SyrusMcp.invalid("no workflow workspace found") unless workspace_path
+        return Mcp::Tools.invalid("no workflow workspace found") unless workspace_path
 
         # Return the existing preview rather than double-spawning.
         existing = AgentPreviewRegistry.get(run.id)
@@ -53,7 +53,7 @@ module SyrusMcp
         end
 
         source = PreviewCommandSource.new(workspace_path).resolve
-        return SyrusMcp.invalid("no preview command configured — add a preview: section to .syrus.yml") unless source
+        return Mcp::Tools.invalid("no preview command configured — add a preview: section to .syrus.yml") unless source
 
         run_seed!(source, workspace_path) if source.seed_command
 
@@ -69,7 +69,7 @@ module SyrusMcp
           raise e
         end
 
-        SyrusMcp.write_log(run, "[mcp] start_preview: pid=#{pid} port=#{port}")
+        Mcp::Tools.write_log(run, "[mcp] start_preview: pid=#{pid} port=#{port}")
 
         MCP::Tool::Response.new([{
           type: "text",

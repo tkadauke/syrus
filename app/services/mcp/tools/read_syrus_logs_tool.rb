@@ -1,6 +1,6 @@
 require "mcp"
 
-module SyrusMcp
+module Mcp::Tools
   class ReadSyrusLogsTool < MCP::Tool
     tool_name "read_syrus_logs"
 
@@ -45,12 +45,12 @@ module SyrusMcp
     class << self
       def call(server_context:, query: nil, since: nil, level: nil, role: nil, hostname: nil, limit: 50)
         context = McpToolContext.from_server_context(server_context)
-        return SyrusMcp.not_authorized unless authorized_role?(context.role)
-        return SyrusMcp.invalid("Syrus logs are only available for Syrus repositories") unless McpToolPolicy.syrus_repository?(context.repository)
+        return Mcp::Tools.not_authorized unless authorized_role?(context.role)
+        return Mcp::Tools.invalid("Syrus logs are only available for Syrus repositories") unless McpToolPolicy.syrus_repository?(context.repository)
         return disabled_response unless OperationalLogging.enabled_for_instance?
 
         normalized = normalize_params(query:, since:, level:, role:, hostname:, limit:)
-        return SyrusMcp.invalid(normalized[:error]) if normalized[:error]
+        return Mcp::Tools.invalid(normalized[:error]) if normalized[:error]
 
         rows = OperationalLogging.suppress do
           OperationalLogIndex.search(**normalized.fetch(:params))
@@ -96,16 +96,16 @@ module SyrusMcp
       end
 
       def normalize_params(query:, since:, level:, role:, hostname:, limit:)
-        level_s = SyrusMcp.utf8(level).strip.downcase.presence
+        level_s = Mcp::Tools.utf8(level).strip.downcase.presence
         return { error: "level must be one of: #{OperationalLogEvent::LEVELS.join(', ')}" } if level_s && !OperationalLogEvent::LEVELS.include?(level_s)
 
         {
           params: {
-            query: SyrusMcp.utf8(query).strip.safe_byteslice(0, 500).presence,
+            query: Mcp::Tools.utf8(query).strip.safe_byteslice(0, 500).presence,
             since: parse_since(since),
             level: level_s,
-            role: SyrusMcp.utf8(role).strip.safe_byteslice(0, 100).presence,
-            hostname: SyrusMcp.utf8(hostname).strip.safe_byteslice(0, 255).presence,
+            role: Mcp::Tools.utf8(role).strip.safe_byteslice(0, 100).presence,
+            hostname: Mcp::Tools.utf8(hostname).strip.safe_byteslice(0, 255).presence,
             limit: [[limit.to_i, 1].max, OperationalLogIndex::MAX_LIMIT].min
           }
         }

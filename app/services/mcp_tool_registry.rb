@@ -260,18 +260,26 @@ class McpToolRegistry
         chat(Mcp::Tools::SearchSyrusDocsTool, tier: :deferred),
         chat(Mcp::Tools::GetWalkthroughAnalysisTool, tier: :deferred, feature_flag: :video_walkthroughs),
         chat(Mcp::Tools::AnalyzeWalkthroughSegmentTool, tier: :deferred, feature_flag: :video_walkthroughs),
-        chat(Mcp::Tools::ReadWalkthroughFrameTool, tier: :deferred, feature_flag: :video_walkthroughs)
+        chat(Mcp::Tools::ReadWalkthroughFrameTool, tier: :deferred, feature_flag: :video_walkthroughs),
+        chat(Mcp::Tools::ListInsightsTool, tier: :deferred, feature_flag: :agent_insights),
+        chat(Mcp::Tools::ReadInsightTool, tier: :deferred, feature_flag: :agent_insights)
       ]
     end
 
     def workflow_entries
       workflow_roles = AgentRole::WORKFLOW_ROLES
+      preview_roles = (workflow_roles - [AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER]).freeze
       summary_roles = [
         AgentRole::WORKFLOW_IMPLEMENT,
         AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
         AgentRole::WORKFLOW_REBASE_CONFLICT,
         AgentRole::WORKFLOW_MANUAL,
         AgentRole::WORKFLOW_RECONCILIATION_FEEDBACK
+      ]
+
+      metadata_roles = [
+        AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
+        AgentRole::WORKFLOW_MANUAL
       ]
 
       [
@@ -283,16 +291,13 @@ class McpToolRegistry
         workflow(Mcp::Tools::ListMemoriesTool, required_roles: workflow_roles),
         workflow(Mcp::Tools::GetCoverageReportTool, required_roles: workflow_roles),
         workflow(Mcp::Tools::ReadRunWorkerHealthTool, required_roles: workflow_roles),
-        workflow(Mcp::Tools::StartPreviewTool, required_roles: workflow_roles, mutation: true),
-        workflow(Mcp::Tools::StopPreviewTool, required_roles: workflow_roles, mutation: true),
-        workflow(Mcp::Tools::ReadPreviewLogTool, required_roles: workflow_roles),
+        workflow(Mcp::Tools::StartPreviewTool, required_roles: preview_roles, mutation: true),
+        workflow(Mcp::Tools::StopPreviewTool, required_roles: preview_roles, mutation: true),
+        workflow(Mcp::Tools::ReadPreviewLogTool, required_roles: preview_roles),
         workflow(Mcp::Tools::ReportMainConcernTool, required_roles: workflow_roles, mutation: true),
         workflow(Mcp::Tools::SubmitSummaryTool, capability: :submit_summary, required_roles: summary_roles, mutation: true),
         workflow(Mcp::Tools::SubmitTestPlanTool, capability: :submit_test_plan, required_roles: summary_roles, mutation: true),
-        workflow(Mcp::Tools::SubmitJobMetadataTool, capability: :submit_job_metadata, required_roles: [
-          AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
-          AgentRole::WORKFLOW_MANUAL
-        ], mutation: true),
+        workflow(Mcp::Tools::SubmitJobMetadataTool, capability: :submit_job_metadata, required_roles: metadata_roles, mutation: true),
         workflow(Mcp::Tools::SubmitAdversarialReviewTool, capability: :submit_adversarial_review, required_roles: [
           AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER,
           AgentRole::WORKFLOW_MANUAL

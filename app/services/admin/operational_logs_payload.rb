@@ -185,11 +185,11 @@ module Admin
     end
 
     def redacted_string(value, limit)
-      OperationalLogging.redact(SyrusMcp.utf8(value).gsub(/[[:space:]]+/, " ").strip).safe_byteslice(0, limit)
+      OperationalLogging.redact(Mcp::Tools.utf8(value).gsub(/[[:space:]]+/, " ").strip).safe_byteslice(0, limit)
     end
 
     def utf8_param(key)
-      SyrusMcp.utf8(params[key]).strip
+      Mcp::Tools.utf8(params[key]).strip
     end
   end
 end

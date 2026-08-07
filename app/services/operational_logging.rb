@@ -167,7 +167,7 @@ module OperationalLogging
   end
 
   def safe_string(value, limit)
-    redact(SyrusMcp.utf8(value).gsub(/[[:space:]]+/, " ").strip).safe_byteslice(0, limit)
+    redact(Mcp::Tools.utf8(value).gsub(/[[:space:]]+/, " ").strip).safe_byteslice(0, limit)
   end
 
   def integer_or_nil(value)

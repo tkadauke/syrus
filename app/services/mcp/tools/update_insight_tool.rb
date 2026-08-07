@@ -1,6 +1,6 @@
 require "mcp"
 
-module SyrusMcp
+module Mcp::Tools
   # MCP tool for insight agents to revise an existing unaccepted insight in
   # place. Accepted insights are treated as immutable operator history; agents
   # must submit a new insight when new evidence changes an accepted one.
@@ -96,15 +96,15 @@ module SyrusMcp
                suggested_prompt: NOT_PROVIDED, memory_suggestion: NOT_PROVIDED,
                proposal_type: NOT_PROVIDED, target_memory_id: NOT_PROVIDED,
                stale_memory_text: NOT_PROVIDED, stale_memory_evidence: NOT_PROVIDED)
-        run = SyrusMcp.run_from_context(server_context)
-        reason_s = SyrusMcp.utf8(reason).strip
-        return SyrusMcp.invalid("reason is required") if reason_s.empty?
+        run = Mcp::Tools.run_from_context(server_context)
+        reason_s = Mcp::Tools.utf8(reason).strip
+        return Mcp::Tools.invalid("reason is required") if reason_s.empty?
 
         insight = visible_insight(target_insight_id, run)
-        return SyrusMcp.invalid("target_insight_id must reference an accessible insight") unless insight
+        return Mcp::Tools.invalid("target_insight_id must reference an accessible insight") unless insight
 
         if insight.accepted?
-          return SyrusMcp.invalid(
+          return Mcp::Tools.invalid(
             "InsightSuggestion ##{insight.id} is accepted and cannot be updated. Submit a new insight instead and cite the accepted insight as context."
           )
         end
@@ -127,14 +127,14 @@ module SyrusMcp
         return attrs_or_response if attrs_or_response.is_a?(MCP::Tool::Response)
 
         if attrs_or_response.empty?
-          return SyrusMcp.invalid("at least one insight field must be provided to update")
+          return Mcp::Tools.invalid("at least one insight field must be provided to update")
         end
 
         previous_values = {}
         new_values = {}
         insight.with_lock do
           if insight.accepted?
-            return SyrusMcp.invalid(
+            return Mcp::Tools.invalid(
               "InsightSuggestion ##{insight.id} is accepted and cannot be updated. Submit a new insight instead and cite the accepted insight as context."
             )
           end
@@ -147,7 +147,7 @@ module SyrusMcp
             new_values[field] = value
           end
 
-          return SyrusMcp.invalid("provided values do not change the target insight") if new_values.empty?
+          return Mcp::Tools.invalid("provided values do not change the target insight") if new_values.empty?
 
           insight.update!(attrs_or_response)
           InsightSuggestionAuditEvent.record!(
@@ -161,7 +161,7 @@ module SyrusMcp
         end
 
         append_workflow_artifact(run, insight)
-        SyrusMcp.write_log(run, "[mcp] update_insight: ##{insight.id} #{insight.title.truncate(80)}")
+        Mcp::Tools.write_log(run, "[mcp] update_insight: ##{insight.id} #{insight.title.truncate(80)}")
 
         MCP::Tool::Response.new([
           { type: "text", text: "InsightSuggestion ##{insight.id} updated." }
@@ -177,35 +177,35 @@ module SyrusMcp
         attrs = {}
 
         if provided?(values[:title])
-          title_s = SyrusMcp.utf8(values[:title]).strip
-          return SyrusMcp.invalid("title is required") if title_s.empty?
-          return SyrusMcp.invalid("title too long (#{title_s.length} chars)") if title_s.length > MAX_TITLE_LENGTH
+          title_s = Mcp::Tools.utf8(values[:title]).strip
+          return Mcp::Tools.invalid("title is required") if title_s.empty?
+          return Mcp::Tools.invalid("title too long (#{title_s.length} chars)") if title_s.length > MAX_TITLE_LENGTH
           attrs["title"] = title_s
         end
 
         if provided?(values[:category])
-          category_s = SyrusMcp.utf8(values[:category]).strip
-          return SyrusMcp.invalid("category is required") if category_s.empty?
+          category_s = Mcp::Tools.utf8(values[:category]).strip
+          return Mcp::Tools.invalid("category is required") if category_s.empty?
           attrs["category"] = category_s
         end
 
         if provided?(values[:severity])
-          severity_s = SyrusMcp.utf8(values[:severity]).strip
-          return SyrusMcp.invalid("severity must be one of: #{SEVERITIES.join(', ')}") unless SEVERITIES.include?(severity_s)
+          severity_s = Mcp::Tools.utf8(values[:severity]).strip
+          return Mcp::Tools.invalid("severity must be one of: #{SEVERITIES.join(', ')}") unless SEVERITIES.include?(severity_s)
           attrs["severity"] = severity_s
         end
 
         if provided?(values[:confidence])
           confidence_f = values[:confidence].to_f
-          return SyrusMcp.invalid("confidence must be between 0.0 and 1.0") unless confidence_f.between?(0.0, 1.0)
+          return Mcp::Tools.invalid("confidence must be between 0.0 and 1.0") unless confidence_f.between?(0.0, 1.0)
           attrs["confidence"] = confidence_f
         end
 
         if provided?(values[:evidence])
           normalized_evidence = normalize_evidence(values[:evidence])
-          return SyrusMcp.invalid("evidence must include at least one non-empty item or be omitted") if normalized_evidence.empty?
+          return Mcp::Tools.invalid("evidence must include at least one non-empty item or be omitted") if normalized_evidence.empty?
           scope_error = validate_evidence_scope(normalized_evidence, run)
-          return SyrusMcp.invalid(scope_error) if scope_error
+          return Mcp::Tools.invalid(scope_error) if scope_error
           attrs["evidence"] = normalized_evidence
         end
 
@@ -217,15 +217,15 @@ module SyrusMcp
         end
 
         if provided?(values[:proposal_type])
-          proposal_type_s = SyrusMcp.utf8(values[:proposal_type]).strip
-          return SyrusMcp.invalid("proposal_type must be one of: #{PROPOSAL_TYPES.join(', ')}") unless PROPOSAL_TYPES.include?(proposal_type_s)
+          proposal_type_s = Mcp::Tools.utf8(values[:proposal_type]).strip
+          return Mcp::Tools.invalid("proposal_type must be one of: #{PROPOSAL_TYPES.join(', ')}") unless PROPOSAL_TYPES.include?(proposal_type_s)
           attrs["proposal_type"] = proposal_type_s
           attrs["target_insight_id"] = nil
         end
 
         if provided?(values[:target_memory_id])
           memory = validate_target_memory(values[:target_memory_id], run)
-          return SyrusMcp.invalid("target_memory_id must reference an active accessible repository memory") if values[:target_memory_id].present? && !memory
+          return Mcp::Tools.invalid("target_memory_id must reference an active accessible repository memory") if values[:target_memory_id].present? && !memory
           attrs["target_memory_id"] = memory&.id
         end
         attrs["stale_memory_text"] = string_or_nil(values[:stale_memory_text]) if provided?(values[:stale_memory_text])
@@ -235,8 +235,8 @@ module SyrusMcp
         if effective_type == "remove_memory"
           effective_memory_id = attrs.key?("target_memory_id") ? attrs["target_memory_id"] : current.target_memory_id
           effective_stale_evidence = attrs.key?("stale_memory_evidence") ? attrs["stale_memory_evidence"] : current.stale_memory_evidence
-          return SyrusMcp.invalid("target_memory_id must reference an active accessible repository memory") if effective_memory_id.blank?
-          return SyrusMcp.invalid("stale_memory_evidence is required for remove_memory proposals") if effective_stale_evidence.blank?
+          return Mcp::Tools.invalid("target_memory_id must reference an active accessible repository memory") if effective_memory_id.blank?
+          return Mcp::Tools.invalid("stale_memory_evidence is required for remove_memory proposals") if effective_stale_evidence.blank?
         end
 
         attrs
@@ -249,7 +249,7 @@ module SyrusMcp
       def string_or_nil(value)
         return nil if value.nil?
 
-        SyrusMcp.utf8(value).strip.presence
+        Mcp::Tools.utf8(value).strip.presence
       end
 
       def normalize_evidence(evidence)

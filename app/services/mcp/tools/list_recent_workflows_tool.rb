@@ -1,6 +1,6 @@
 require "mcp"
 
-module SyrusMcp
+module Mcp::Tools
   class ListRecentWorkflowsTool < MCP::Tool
     tool_name "list_recent_workflows"
 
@@ -34,7 +34,7 @@ module SyrusMcp
       MAX_LIMIT = 50
 
       def call(server_context:, since: nil, limit: nil, page: nil)
-        context_run = SyrusMcp.run_from_context(server_context)
+        context_run = Mcp::Tools.run_from_context(server_context)
         repository = context_run.job.repository
         cutoff = parse_since(since) || default_cutoff(context_run)
         per_page = normalized_limit(limit)
@@ -67,7 +67,7 @@ module SyrusMcp
           }
         ])
       rescue ArgumentError => e
-        SyrusMcp.invalid(e.message)
+        Mcp::Tools.invalid(e.message)
       rescue StandardError => e
         Rails.logger.error("[SyrusMcp::ListRecentWorkflowsTool] #{e.class}: #{e.message}")
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
@@ -146,7 +146,7 @@ module SyrusMcp
       end
 
       def redact(value)
-        SyrusMcp::EvidenceRedactor.call(value)
+        EvidenceRedactor.call(value)
       end
     end
   end

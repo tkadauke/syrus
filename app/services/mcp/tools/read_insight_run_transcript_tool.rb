@@ -1,6 +1,6 @@
 require "mcp"
 
-module SyrusMcp
+module Mcp::Tools
   class ReadInsightRunTranscriptTool < MCP::Tool
     tool_name "read_run_transcript"
 
@@ -35,14 +35,14 @@ module SyrusMcp
       MAX_PER = 200
 
       def call(run_id:, server_context:, page: nil, per: nil)
-        context_run = SyrusMcp.run_from_context(server_context)
+        context_run = Mcp::Tools.run_from_context(server_context)
         target_run = Run
           .joins(step: { workflow: :job })
           .includes(:job, :step)
           .where(jobs: { repository_id: context_run.job.repository_id, user_id: context_run.job.user_id })
           .find_by(id: run_id)
 
-        return SyrusMcp.invalid("run_id is outside this repository scope") unless target_run
+        return Mcp::Tools.invalid("run_id is outside this repository scope") unless target_run
 
         page_num = normalized_page(page)
         per_page = normalized_per(per)
@@ -96,7 +96,7 @@ module SyrusMcp
       end
 
       def redact(value)
-        SyrusMcp::EvidenceRedactor.call(value)
+        EvidenceRedactor.call(value)
       end
     end
   end

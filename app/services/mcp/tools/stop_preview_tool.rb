@@ -1,6 +1,6 @@
 require "mcp"
 
-module SyrusMcp
+module Mcp::Tools
   # MCP tool for the agent to stop the background preview process it
   # started with start_preview. Safe to call even when no preview is
   # running — the registry miss is a no-op. The process is also killed
@@ -14,9 +14,9 @@ module SyrusMcp
 
     class << self
       def call(server_context:)
-        run = SyrusMcp.run_from_context(server_context)
+        run = Mcp::Tools.run_from_context(server_context)
         AgentPreviewRegistry.kill(run.id)
-        SyrusMcp.write_log(run, "[mcp] stop_preview: requested")
+        Mcp::Tools.write_log(run, "[mcp] stop_preview: requested")
         MCP::Tool::Response.new([{ type: "text", text: "Preview stopped." }])
       rescue StandardError => e
         Rails.logger.error("[SyrusMcp::StopPreviewTool] #{e.class}: #{e.message}")

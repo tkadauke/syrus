@@ -1,6 +1,6 @@
 require "mcp"
 
-module SyrusMcp
+module Mcp::Tools
   # MCP tool for the agent to read the last N lines from the preview
   # application's log file. Useful when an HTTP response is unexpected
   # and the agent needs to see what the app emitted.
@@ -38,15 +38,15 @@ module SyrusMcp
 
     class << self
       def call(path: nil, lines: DEFAULT_LINES, server_context:)
-        run = SyrusMcp.run_from_context(server_context)
+        run = Mcp::Tools.run_from_context(server_context)
 
         workspace_path = workspace_path_for(run)
-        return SyrusMcp.invalid("no workflow workspace found") unless workspace_path
+        return Mcp::Tools.invalid("no workflow workspace found") unless workspace_path
 
         line_count = clamp_lines(lines)
         log_path   = resolve_log_path(path, workspace_path)
-        return SyrusMcp.invalid("no log path configured and none specified") unless log_path
-        return SyrusMcp.invalid("log file not found: #{log_path}") unless File.exist?(log_path)
+        return Mcp::Tools.invalid("no log path configured and none specified") unless log_path
+        return Mcp::Tools.invalid("log file not found: #{log_path}") unless File.exist?(log_path)
 
         content = tail_file(log_path, line_count)
 

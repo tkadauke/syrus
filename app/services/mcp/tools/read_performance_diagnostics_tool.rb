@@ -1,6 +1,6 @@
 require "mcp"
 
-module SyrusMcp
+module Mcp::Tools
   class ReadPerformanceDiagnosticsTool < MCP::Tool
     tool_name "read_performance_diagnostics"
 
@@ -33,8 +33,8 @@ module SyrusMcp
     class << self
       def call(server_context:, limit: Admin::PerformancePayload::DEFAULT_LIMIT, revision_scope: "current", include_events: false)
         context = McpToolContext.from_server_context(server_context)
-        return SyrusMcp.not_authorized unless context.role == AgentRole::WORKFLOW_IMPLEMENT
-        return SyrusMcp.invalid("performance diagnostics are only available for Syrus repositories") unless McpToolPolicy.syrus_repository?(context.repository)
+        return Mcp::Tools.not_authorized unless context.role == AgentRole::WORKFLOW_IMPLEMENT
+        return Mcp::Tools.invalid("performance diagnostics are only available for Syrus repositories") unless McpToolPolicy.syrus_repository?(context.repository)
 
         payload = PerformanceLogging.suppress do
           Admin::PerformancePayload.new(params: { limit: limit, revision_scope: revision_scope }).as_json

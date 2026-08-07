@@ -36,17 +36,17 @@ class McpToolPolicy
   }.freeze
 
   SUPERVISOR_EXCLUDED_TOOLS = [
-    SyrusChatMcp::AttachRepositoryTool,
-    SyrusChatMcp::ProposeEpicTool,
-    SyrusChatMcp::ProposeJobTool,
-    SyrusChatMcp::ProposeEpicWithJobsTool,
-    SyrusChatMcp::ListProposalsTool,
-    SyrusChatMcp::DeleteProposalTool,
-    SyrusChatMcp::SubmitChatFeedbackTool,
-    SyrusChatMcp::DelegateIssueTool,
-    SyrusChatMcp::ListChatMediaTool,
-    SyrusChatMcp::ScheduleRecurringTool,
-    SyrusChatMcp::FireScheduledTaskNowTool
+    Mcp::Tools::AttachRepositoryTool,
+    Mcp::Tools::ProposeEpicTool,
+    Mcp::Tools::ProposeJobTool,
+    Mcp::Tools::ProposeEpicWithJobsTool,
+    Mcp::Tools::ListProposalsTool,
+    Mcp::Tools::DeleteProposalTool,
+    Mcp::Tools::SubmitChatFeedbackTool,
+    Mcp::Tools::DelegateIssueTool,
+    Mcp::Tools::ListChatMediaTool,
+    Mcp::Tools::ScheduleRecurringTool,
+    Mcp::Tools::FireScheduledTaskNowTool
   ].freeze
 
 
@@ -104,13 +104,13 @@ class McpToolPolicy
       Mcp::Tools::ListMemoriesTool,
       Mcp::Tools::GetCoverageReportTool,
       Mcp::Tools::ReadRunWorkerHealthTool,
-      SyrusMcp::StartPreviewTool,
-      SyrusMcp::StopPreviewTool,
-      SyrusMcp::ReadPreviewLogTool
+      Mcp::Tools::StartPreviewTool,
+      Mcp::Tools::StopPreviewTool,
+      Mcp::Tools::ReadPreviewLogTool
     ]
     if @context.role == AgentRole::WORKFLOW_IMPLEMENT && self.class.syrus_repository?(@context.repository)
-      base << SyrusMcp::ReadPerformanceDiagnosticsTool
-      base << SyrusMcp::ReadSyrusLogsTool
+      base << Mcp::Tools::ReadPerformanceDiagnosticsTool
+      base << Mcp::Tools::ReadSyrusLogsTool
     end
 
     if @context.role == AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER
@@ -119,7 +119,7 @@ class McpToolPolicy
       base + [ Mcp::Tools::ReportMainConcernTool, Mcp::Tools::SubmitSummaryTool, Mcp::Tools::SubmitTestPlanTool, Mcp::Tools::SubmitReconciliationFeedbackTool ]
     else
       tools = base + [ Mcp::Tools::ReportMainConcernTool, Mcp::Tools::SubmitSummaryTool, Mcp::Tools::SubmitTestPlanTool ]
-      tools << SyrusMcp::SubmitJobMetadataTool if @context.run&.step&.kind == "refresh_job_metadata"
+      tools << Mcp::Tools::SubmitJobMetadataTool if @context.run&.step&.kind == "refresh_job_metadata"
       tools
     end
   end
@@ -141,34 +141,34 @@ class McpToolPolicy
 
   def chat_evaluator_tools
     tools = [
-      SyrusChatMcp::ListJobsTool,
-      SyrusChatMcp::SearchJobsTool,
-      SyrusChatMcp::ReadJobTool,
-      SyrusChatMcp::ListEpicsTool,
-      SyrusChatMcp::ReadEpicTool,
-      SyrusChatMcp::ListProposalsTool,
-      SyrusChatMcp::RepoInfoTool,
-      SyrusChatMcp::ListChatsTool,
-      SyrusChatMcp::SearchChatsTool,
-      SyrusChatMcp::ReadChatMessagesTool,
-      SyrusChatMcp::ListRepositoriesTool,
-      SyrusChatMcp::GetJobDiffTool,
-      SyrusChatMcp::ListJobWorkflowsTool,
-      SyrusChatMcp::ReadWorkflowTool,
-      SyrusChatMcp::ReadRunTranscriptTool,
-      SyrusChatMcp::ListOpenIssuesTool,
-      SyrusChatMcp::ListOpenPrsTool,
-      SyrusChatMcp::ReadPrTool,
-      SyrusChatMcp::CheckJobMergeabilityTool,
-      SyrusChatMcp::ListRepoDocumentsTool,
-      SyrusChatMcp::ReadRepoDocumentTool,
-      SyrusChatMcp::ListChatMediaTool,
-      SyrusChatMcp::ReadSceneTool,
-      SyrusChatMcp::ListWakeupsTool,
-      SyrusChatMcp::ListScheduledTasksTool,
-      SyrusChatMcp::ReadScheduledTaskTool,
-      SyrusChatMcp::ReadQueueTool,
-      SyrusChatMcp::SearchSyrusDocsTool,
+      Mcp::Tools::ListJobsTool,
+      Mcp::Tools::SearchJobsTool,
+      Mcp::Tools::ReadJobTool,
+      Mcp::Tools::ListEpicsTool,
+      Mcp::Tools::ReadEpicTool,
+      Mcp::Tools::ListProposalsTool,
+      Mcp::Tools::RepoInfoTool,
+      Mcp::Tools::ListChatsTool,
+      Mcp::Tools::SearchChatsTool,
+      Mcp::Tools::ReadChatMessagesTool,
+      Mcp::Tools::ListRepositoriesTool,
+      Mcp::Tools::GetJobDiffTool,
+      Mcp::Tools::ListJobWorkflowsTool,
+      Mcp::Tools::ReadWorkflowTool,
+      Mcp::Tools::ReadRunTranscriptTool,
+      Mcp::Tools::ListOpenIssuesTool,
+      Mcp::Tools::ListOpenPrsTool,
+      Mcp::Tools::ReadPrTool,
+      Mcp::Tools::CheckJobMergeabilityTool,
+      Mcp::Tools::ListRepoDocumentsTool,
+      Mcp::Tools::ReadRepoDocumentTool,
+      Mcp::Tools::ListChatMediaTool,
+      Mcp::Tools::ReadSceneTool,
+      Mcp::Tools::ListWakeupsTool,
+      Mcp::Tools::ListScheduledTasksTool,
+      Mcp::Tools::ReadScheduledTaskTool,
+      Mcp::Tools::ReadQueueTool,
+      Mcp::Tools::SearchSyrusDocsTool,
       Mcp::Tools::ListInsightsTool,
       Mcp::Tools::ReadInsightTool,
       Mcp::Tools::ReadMemoryTool,
@@ -182,14 +182,14 @@ class McpToolPolicy
   end
 
   def chat_base_tools
-    SyrusChatMcp::Sidecar::TOOLS +
-      SyrusChatMcp::DeferredSidecar::DEFERRED_TOOLS
+    Mcp::Sidecar::CHAT_ESSENTIAL_TOOLS +
+      Mcp::Sidecar::CHAT_DEFERRED_TOOLS
   end
 
   def apply_admin_filter(tools)
     return tools if @context.user.admin?
 
-    tools.reject { |tool| SyrusChatMcp::Sidecar::ADMIN_TOOLS.include?(tool) }
+    tools.reject { |tool| Mcp::Sidecar::CHAT_ADMIN_TOOLS.include?(tool) }
   end
 
   def apply_agent_insights_filter(tools)
@@ -201,19 +201,19 @@ class McpToolPolicy
   def apply_walkthrough_filter(tools)
     return tools if Feature.video_walkthroughs_enabled?
 
-    tools.reject { |tool| SyrusChatMcp::Sidecar::WALKTHROUGH_TOOLS.include?(tool) }
+    tools.reject { |tool| Mcp::Sidecar::CHAT_WALKTHROUGH_TOOLS.include?(tool) }
   end
 
   def apply_coding_filter(tools)
     return tools if @context.role == AgentRole::CHAT_CODING && Feature.coding_mode_enabled?
 
-    tools.reject { |tool| SyrusChatMcp::Sidecar::CODING_TOOLS.include?(tool) }
+    tools.reject { |tool| Mcp::Sidecar::CHAT_CODING_TOOLS.include?(tool) }
   end
 
   def apply_local_mode_filter(tools)
     return tools if @context.role == AgentRole::CHAT_LOCAL && Feature.local_mode_enabled?
 
-    tools.reject { |tool| SyrusChatMcp::Sidecar::LOCAL_MODE_TOOLS.include?(tool) }
+    tools.reject { |tool| Mcp::Sidecar::CHAT_LOCAL_MODE_TOOLS.include?(tool) }
   end
 
   def apply_supervisor_filter(tools)
@@ -236,13 +236,13 @@ class McpToolPolicy
     ]
     if Feature.agent_insights_enabled?
       tools << Mcp::Tools::SubmitInsightTool
-      tools << SyrusMcp::UpdateInsightTool
+      tools << Mcp::Tools::UpdateInsightTool
       tools << Mcp::Tools::ListInsightsTool
       tools << Mcp::Tools::ReadInsightTool
-      tools << SyrusMcp::ListRecentWorkflowsTool
-      tools << SyrusMcp::ReadInsightRunTranscriptTool
+      tools << Mcp::Tools::ListRecentWorkflowsTool
+      tools << Mcp::Tools::ReadInsightRunTranscriptTool
     end
-    tools << SyrusMcp::ReadSyrusLogsTool if insight_operational_log_search_available?
+    tools << Mcp::Tools::ReadSyrusLogsTool if insight_operational_log_search_available?
     tools
   end
 
@@ -254,7 +254,7 @@ class McpToolPolicy
     [
       Mcp::Tools::ListInsightsTool,
       Mcp::Tools::ReadInsightTool,
-      SyrusMcp::UpdateInsightTool
+      Mcp::Tools::UpdateInsightTool
     ]
   end
 end

@@ -1,4 +1,4 @@
-module SyrusMcp
+module Mcp::Tools
   class EvidenceRedactor
     REDACTED = "[redacted]".freeze
     SECRET_PATTERNS = [
@@ -16,7 +16,7 @@ module SyrusMcp
     def self.call(value)
       return if value.nil?
 
-      text = GitRunner.redact(SyrusMcp.utf8(value))
+      text = GitRunner.redact(Mcp::Tools.utf8(value))
       SECRET_PATTERNS.each do |pattern|
         text = text.gsub(pattern) do |match|
           if match.include?("x-access-token:")
