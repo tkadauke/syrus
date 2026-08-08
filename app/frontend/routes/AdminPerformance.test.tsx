@@ -7,6 +7,34 @@ import { jsonResponse } from "../testSupport"
 import { AdminPerformance } from "./AdminPerformance"
 
 describe("AdminPerformance", () => {
+  it("truncates long metadata in the slow phases table and exposes full value via title", async () => {
+    const longMetadata = { extension_point: "agent_provider", provider: "AgentProviders::Claude", op: "invoke_one_shot", extra: "x".repeat(80) }
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      ...performancePayload(),
+      summaries: {
+        ...performancePayload().summaries,
+        slow_phases: [
+          {
+            phase: "plugin.agent_provider.invoke_one_shot",
+            count: 1,
+            total_duration_ms: 4240,
+            average_duration_ms: 4240,
+            max_duration_ms: 4240,
+            last_seen_at: "2026-08-01T14:32:46Z",
+            recent_metadata: longMetadata
+          }
+        ]
+      }
+    }))
+
+    renderRoute(<AdminPerformance />)
+    await waitFor(() => expect(screen.queryByText("Loading performance logs...")).not.toBeInTheDocument())
+
+    const fullJson = JSON.stringify(longMetadata)
+    const metadataDiv = await screen.findByTitle(fullJson)
+    expect(metadataDiv).toHaveClass("truncate")
+  })
+
   it("renders performance summaries and recent events", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(performancePayload()))
 

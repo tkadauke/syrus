@@ -122,17 +122,22 @@ function SlowPhasesTable({ rows }: { rows: SlowPhaseSummary[] }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-          {rows.map((row) => (
-            <tr key={row.phase}>
-              <td className="px-4 py-2 font-mono text-xs text-gray-900 dark:text-gray-100">{row.phase}</td>
-              <NumberCell value={row.count} />
-              <NumberCell value={formatMs(row.total_duration_ms)} />
-              <NumberCell value={formatMs(row.average_duration_ms)} />
-              <NumberCell value={formatMs(row.max_duration_ms)} />
-              <td className="max-w-md px-4 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">{compactJson(row.recent_metadata)}</td>
-              <td className="px-4 py-2 text-xs text-gray-600 dark:text-gray-300">{formatDate(row.last_seen_at)}</td>
-            </tr>
-          ))}
+          {rows.map((row) => {
+            const metadata = compactJson(row.recent_metadata)
+            return (
+              <tr key={row.phase}>
+                <td className="px-4 py-2 font-mono text-xs text-gray-900 dark:text-gray-100">{row.phase}</td>
+                <NumberCell value={row.count} />
+                <NumberCell value={formatMs(row.total_duration_ms)} />
+                <NumberCell value={formatMs(row.average_duration_ms)} />
+                <NumberCell value={formatMs(row.max_duration_ms)} />
+                <td className="max-w-md overflow-hidden px-4 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">
+                  <div className="truncate" title={metadata !== "-" ? metadata : undefined}>{metadata}</div>
+                </td>
+                <td className="whitespace-nowrap px-4 py-2 text-xs text-gray-600 dark:text-gray-300">{formatDate(row.last_seen_at)}</td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </TableSection>
