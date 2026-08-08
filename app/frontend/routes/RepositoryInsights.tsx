@@ -198,6 +198,7 @@ function SuggestionCard({
   const queryClient = useQueryClient()
   const { confirm, dialog: confirmDialog } = useConfirm()
   const [expanded, setExpanded] = useState(false)
+  const [showEvidence, setShowEvidence] = useState(false)
   const [showAcceptForm, setShowAcceptForm] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -265,7 +266,10 @@ function SuggestionCard({
   function handleCardClick(event: MouseEvent<HTMLElement>) {
     if (isInteractiveClickTarget(event.target)) return
 
-    setExpanded((v) => !v)
+    setExpanded((v) => {
+      if (v) setShowEvidence(false)
+      return !v
+    })
   }
 
   return (
@@ -304,37 +308,12 @@ function SuggestionCard({
           </div>
           <button
             className="shrink-0 rounded px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
-            onClick={() => setExpanded((v) => !v)}
+            onClick={() => { if (expanded) setShowEvidence(false); setExpanded((v) => !v) }}
             type="button"
           >
             {expanded ? t("collapse") : t("expand")}
           </button>
         </div>
-
-        {suggestion.evidence.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-2">
-            {suggestion.evidence.map((ev, idx) => (
-              <span key={idx}>
-                {ev.job_path ? (
-                  <Link
-                    className="text-xs text-terracotta-700 underline hover:no-underline dark:text-terracotta-400"
-                    to={ev.job_path}
-                  >
-                    {ev.kind || t("evidence_job")} #{ev.job_id}
-                  </Link>
-                ) : null}
-                {ev.run_transcript_path ? (
-                  <Link
-                    className="ml-1 text-xs text-gray-500 underline hover:no-underline dark:text-gray-400"
-                    to={ev.run_transcript_path}
-                  >
-                    {t("evidence_transcript")}
-                  </Link>
-                ) : null}
-              </span>
-            ))}
-          </div>
-        )}
 
         {expanded && (
           <div className="mt-3 space-y-3 border-t border-gray-100 pt-3 dark:border-gray-800">
@@ -387,6 +366,67 @@ function SuggestionCard({
                 <Link className="underline hover:no-underline" to={suggestion.created_job.job_path}>
                   {suggestion.created_job.slug}
                 </Link>
+              </div>
+            )}
+            {suggestion.evidence.length > 0 && (
+              <div>
+                <button
+                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  onClick={() => setShowEvidence((v) => !v)}
+                  type="button"
+                >
+                  <svg
+                    className={`h-3 w-3 transition-transform ${showEvidence ? "rotate-90" : ""}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
+                  </svg>
+                  {t("evidence_heading", { count: suggestion.evidence.length })}
+                </button>
+                {showEvidence && (
+                  <div className="mt-2 overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-gray-200 text-left text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                          <th className="pb-1 pr-4 font-medium">{t("evidence_col_job")}</th>
+                          <th className="pb-1 pr-4 font-medium">{t("evidence_col_finding")}</th>
+                          <th className="pb-1 font-medium">{t("evidence_col_transcript")}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                        {suggestion.evidence.map((ev, idx) => (
+                          <tr key={idx}>
+                            <td className="py-1 pr-4 align-top">
+                              {ev.job_path ? (
+                                <Link
+                                  className="text-terracotta-700 underline hover:no-underline dark:text-terracotta-400"
+                                  to={ev.job_path}
+                                >
+                                  #{ev.job_id}
+                                </Link>
+                              ) : <span className="text-gray-400">—</span>}
+                            </td>
+                            <td className="py-1 pr-4 align-top text-gray-700 dark:text-gray-300">
+                              {ev.kind || <span className="text-gray-400">—</span>}
+                            </td>
+                            <td className="py-1 align-top">
+                              {ev.run_transcript_path ? (
+                                <Link
+                                  className="text-gray-500 underline hover:no-underline dark:text-gray-400"
+                                  to={ev.run_transcript_path}
+                                >
+                                  {t("evidence_transcript")}
+                                </Link>
+                              ) : <span className="text-gray-400">—</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
           </div>

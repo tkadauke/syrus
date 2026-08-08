@@ -402,6 +402,105 @@ describe("RepositoryInsightsRoute", () => {
     })
   })
 
+  describe("evidence table", () => {
+    beforeEach(() => {
+      vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: vi.fn() as any, dialog: <></> })
+    })
+
+    it("does not render evidence links in the card header", async () => {
+      renderRoute([
+        makeSuggestion({
+          evidence: [
+            { job_id: 42, run_id: 7, kind: "prepare_failure", job_path: "/jobs/42", run_transcript_path: "/admin/runs/7/transcript" }
+          ]
+        })
+      ])
+
+      await screen.findByText("Frequent prepare failures")
+      expect(screen.queryByRole("link", { name: "#42" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("link", { name: "transcript" })).not.toBeInTheDocument()
+    })
+
+    it("shows an Evidence toggle inside the expanded card but not the table yet", async () => {
+      renderRoute([
+        makeSuggestion({
+          evidence: [
+            { job_id: 42, run_id: 7, kind: "prepare_failure", job_path: "/jobs/42", run_transcript_path: "/admin/runs/7/transcript" }
+          ]
+        })
+      ])
+
+      await screen.findByText("Frequent prepare failures")
+      expect(screen.queryByRole("button", { name: /Evidence/ })).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "Expand" }))
+
+      expect(screen.getByRole("button", { name: "Evidence (1)" })).toBeInTheDocument()
+      expect(screen.queryByRole("columnheader", { name: "Job" })).not.toBeInTheDocument()
+    })
+
+    it("reveals the evidence table with job, finding, and transcript columns on second expand", async () => {
+      renderRoute([
+        makeSuggestion({
+          evidence: [
+            { job_id: 42, run_id: 7, kind: "prepare_failure", job_path: "/jobs/42", run_transcript_path: "/admin/runs/7/transcript" }
+          ]
+        })
+      ])
+
+      fireEvent.click(await screen.findByRole("button", { name: "Expand" }))
+      fireEvent.click(screen.getByRole("button", { name: "Evidence (1)" }))
+
+      expect(screen.getByRole("columnheader", { name: "Job" })).toBeInTheDocument()
+      expect(screen.getByRole("columnheader", { name: "Finding" })).toBeInTheDocument()
+      expect(screen.getByRole("columnheader", { name: "Transcript" })).toBeInTheDocument()
+
+      const jobLink = screen.getByRole("link", { name: "#42" })
+      expect(jobLink).toHaveAttribute("href", "/jobs/42")
+
+      expect(screen.getByText("prepare_failure")).toBeInTheDocument()
+
+      const transcriptLink = screen.getByRole("link", { name: "transcript" })
+      expect(transcriptLink).toHaveAttribute("href", "/admin/runs/7/transcript")
+    })
+
+    it("collapses the evidence table when the card is collapsed", async () => {
+      renderRoute([
+        makeSuggestion({
+          evidence: [
+            { job_id: 42, run_id: 7, kind: "prepare_failure", job_path: "/jobs/42", run_transcript_path: "/admin/runs/7/transcript" }
+          ]
+        })
+      ])
+
+      fireEvent.click(await screen.findByRole("button", { name: "Expand" }))
+      fireEvent.click(screen.getByRole("button", { name: "Evidence (1)" }))
+      expect(screen.getByRole("columnheader", { name: "Job" })).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "Collapse" }))
+      expect(screen.queryByRole("columnheader", { name: "Job" })).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "Expand" }))
+      expect(screen.queryByRole("columnheader", { name: "Job" })).not.toBeInTheDocument()
+    })
+
+    it("handles evidence items without a job or transcript gracefully", async () => {
+      renderRoute([
+        makeSuggestion({
+          evidence: [
+            { job_id: null, run_id: null, kind: "anomaly detected", job_path: null, run_transcript_path: null }
+          ]
+        })
+      ])
+
+      fireEvent.click(await screen.findByRole("button", { name: "Expand" }))
+      fireEvent.click(screen.getByRole("button", { name: "Evidence (1)" }))
+
+      expect(screen.getByText("anomaly detected")).toBeInTheDocument()
+      expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2)
+    })
+  })
+
   describe("card body expansion", () => {
     beforeEach(() => {
       vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: vi.fn() as any, dialog: <></> })
