@@ -28,7 +28,7 @@ RSpec.describe SmartRetryEnqueuer do
       user: user,
       repository: repository,
       state: state,
-      issue_number: SecureRandom.random_number(10_000),
+      issue_number: SecureRandom.random_number(9_999) + 1,
       agent_provider: provider,
       landing_failure_reason: landing_failure_reason
     )
