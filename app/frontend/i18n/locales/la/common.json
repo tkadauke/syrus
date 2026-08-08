@@ -78,6 +78,7 @@
     "context_browser": "Navigatrum",
     "context_viewport": "Porta",
     "context_chat": "Sessio colloquii",
+    "context_features": "Notae",
     "context_recent_errors": "Errores recentes",
     "context_no_recent_errors": "Nulli",
     "include_transcript": "Conloquii textum addere",

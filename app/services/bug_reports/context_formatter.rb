@@ -18,6 +18,15 @@ module BugReports
 
       lines << "- Chat session: #{context["chat_session_id"]}" if context["chat_session_id"].present?
 
+      enabled_features = context["enabled_features"]
+      if enabled_features.is_a?(Hash) && enabled_features.any?
+        lines << ""
+        lines << "**Feature flags**"
+        enabled_features.sort_by { |slug, _| slug }.each do |slug, enabled|
+          lines << "- #{slug}: #{enabled ? "enabled" : "disabled"}"
+        end
+      end
+
       recent_errors = Array(context["recent_errors"]).select { |e| e.is_a?(Hash) }
       if recent_errors.any?
         lines << ""

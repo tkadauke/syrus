@@ -78,6 +78,7 @@
     "context_browser": "Browser",
     "context_viewport": "Anzeigebereich",
     "context_chat": "Chat-Sitzung",
+    "context_features": "Features",
     "context_recent_errors": "Aktuelle JS-Fehler",
     "context_no_recent_errors": "Keine",
     "include_transcript": "Chat-Verlauf einschließen",

@@ -78,6 +78,7 @@
     "context_browser": "Browser",
     "context_viewport": "Viewport",
     "context_chat": "Chat session",
+    "context_features": "Features",
     "context_recent_errors": "Recent JS errors",
     "context_no_recent_errors": "None",
     "include_transcript": "Include chat transcript",

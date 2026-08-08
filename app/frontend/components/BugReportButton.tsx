@@ -26,6 +26,7 @@ type BugReportContext = {
   device_pixel_ratio: number
   recent_errors: RecentError[]
   chat_session_id?: number
+  enabled_features?: Record<string, boolean>
 }
 
 const MAX_FULL_PAGE_SCREENSHOT_PIXELS = 8_000_000
@@ -94,14 +95,15 @@ function defaultPos(hint: "bottom-left" | "bottom-right"): ButtonPos {
 
 
 
-function collectContext(chatId?: number | null): BugReportContext {
+function collectContext(chatId?: number | null, featureFlags?: Record<string, boolean>): BugReportContext {
   return {
     url: window.location.href,
     user_agent: navigator.userAgent,
     viewport: { width: window.innerWidth, height: window.innerHeight },
     device_pixel_ratio: window.devicePixelRatio,
     recent_errors: getRecentErrors(),
-    ...(chatId != null ? { chat_session_id: chatId } : {})
+    ...(chatId != null ? { chat_session_id: chatId } : {}),
+    ...(featureFlags != null ? { enabled_features: featureFlags } : {})
   }
 }
 
@@ -113,10 +115,11 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   bugReportMode?: "direct_job" | "github_issue" | null
   chatId?: number | null
   context: string
+  featureFlags?: Record<string, boolean>
   pageAttachments?: BugReportOptionalAttachment[]
   position?: "bottom-left" | "bottom-right"
   reportIssueRepoSlug?: string | null
-}>(function BugReportButton({ bugReportMode, chatId, context, pageAttachments = [], position = "bottom-right", reportIssueRepoSlug }, ref) {
+}>(function BugReportButton({ bugReportMode, chatId, context, featureFlags, pageAttachments = [], position = "bottom-right", reportIssueRepoSlug }, ref) {
   const { t } = useT("common")
   const [open, setOpen] = useState(false)
   const [capturing, setCapturing] = useState(false)
@@ -233,7 +236,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
     setOptionalAttachments(mergedOptionalAttachments)
     setSelectedOptionalAttachmentIds(new Set(mergedOptionalAttachments.filter((attachment) => attachment.defaultChecked).map((attachment) => attachment.id)))
     setNotice(null)
-    setBugContext(collectContext(chatId))
+    setBugContext(collectContext(chatId, featureFlags))
     setCapturing(true)
 
     try {
@@ -627,6 +630,23 @@ function WhatsIncluded({
             />
             {bugContext.chat_session_id != null ? (
               <ContextRow label={t("bug_report.context_chat")} value={String(bugContext.chat_session_id)} />
+            ) : null}
+            {bugContext.enabled_features != null && Object.keys(bugContext.enabled_features).length > 0 ? (
+              <div>
+                <dt className="font-medium text-gray-700 dark:text-gray-300">{t("bug_report.context_features")}</dt>
+                <dd className="mt-1">
+                  <ul className="space-y-0.5">
+                    {Object.entries(bugContext.enabled_features).sort(([a], [b]) => a.localeCompare(b)).map(([slug, enabled]) => (
+                      <li key={slug} className="font-mono text-xs">
+                        <code className="text-gray-800 dark:text-gray-200">{slug}</code>
+                        <span className={`ml-1.5 ${enabled ? "text-emerald-600 dark:text-emerald-400" : "text-gray-400 dark:text-gray-500"}`}>
+                          {enabled ? "enabled" : "disabled"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </dd>
+              </div>
             ) : null}
             <div>
               <dt className="font-medium text-gray-700 dark:text-gray-300">{t("bug_report.context_recent_errors")}</dt>

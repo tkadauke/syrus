@@ -44,6 +44,7 @@ function renderButton(props: {
   context?: string
   chatId?: number | null
   bugReportMode?: "direct_job" | "github_issue" | null
+  featureFlags?: Record<string, boolean>
   pageAttachments?: BugReportOptionalAttachment[]
 } = {}) {
   const ref = createRef<BugReportButtonHandle>()
@@ -359,6 +360,53 @@ describe("BugReportButton", () => {
     await openDialog()
 
     expect(screen.queryByText("Chat session:")).not.toBeInTheDocument()
+  })
+
+  it("shows feature flags in the preview when featureFlags are provided", async () => {
+    renderButton({
+      featureFlags: { coding_mode: true, terminal: false, video_walkthroughs: true }
+    })
+    await openDialog()
+
+    expect(screen.getByText("Features")).toBeInTheDocument()
+    expect(screen.getByText("coding_mode")).toBeInTheDocument()
+    expect(screen.getByText("terminal")).toBeInTheDocument()
+    expect(screen.getByText("video_walkthroughs")).toBeInTheDocument()
+  })
+
+  it("omits the features section when featureFlags are not provided", async () => {
+    renderButton()
+    await openDialog()
+
+    expect(screen.queryByText("Features")).not.toBeInTheDocument()
+  })
+
+  it("includes enabled_features in the submitted context JSON when featureFlags are provided", async () => {
+    mockCreateBugReport.mockResolvedValue({ message: "Bug report queued." } satisfies BugReportPayload)
+
+    renderButton({ featureFlags: { coding_mode: true, terminal: false } })
+    await openDialog()
+
+    fireEvent.submit(screen.getByRole("dialog").querySelector("form")!)
+
+    await waitFor(() => expect(mockCreateBugReport).toHaveBeenCalledOnce())
+
+    const ctx = JSON.parse(mockCreateBugReport.mock.calls[0][0].context as string)
+    expect(ctx.enabled_features).toEqual({ coding_mode: true, terminal: false })
+  })
+
+  it("omits enabled_features from context when featureFlags are not provided", async () => {
+    mockCreateBugReport.mockResolvedValue({ message: "Bug report queued." } satisfies BugReportPayload)
+
+    renderButton()
+    await openDialog()
+
+    fireEvent.submit(screen.getByRole("dialog").querySelector("form")!)
+
+    await waitFor(() => expect(mockCreateBugReport).toHaveBeenCalledOnce())
+
+    const ctx = JSON.parse(mockCreateBugReport.mock.calls[0][0].context as string)
+    expect(ctx.enabled_features).toBeUndefined()
   })
 
   it("sends context JSON with the bug report submission", async () => {
