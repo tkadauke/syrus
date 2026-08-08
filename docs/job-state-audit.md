@@ -12,12 +12,12 @@ states are listed only as `from:` and have no event that enters them.
 
 | State | Entry events | Exit events | Reachable in prod? |
 |---|---|---|---|
-| `triaging` (initial) | initial; `reopen` | `advance_after_triage`, `mark_classifier_uncertain` (self), `block_by_epic`, `close` | Yes — initial on every `Job.create!` |
+| `triaging` (initial) | initial; `reopen` | `advance_after_triage`, `mark_classifier_uncertain` (self), `block_by_epic`, `close`, `restore_after_cancelled_rebase` | Yes — initial on every `Job.create!` |
 | `blocked_by_epic` | `advance_after_triage`, `block_by_epic` | `release_epic_block`, `close` | Yes |
 | `queued` | `advance_after_triage`, `release_epic_block` | `mark_implemented`, `block_by_epic`, `close`, `claim_for_coding` | Yes |
 | `open` | **None** | `mark_implemented`, `approve`, `block_by_epic`, `close` | **No** (see Finding 1) |
 | `coding` | `claim_for_coding` | `release_from_coding`, `close` | Yes — when `coding_mode` feature flag is on and a chat session claims the implement step |
-| `implemented` | `mark_implemented`, `unapprove`, `fail_landing`, `release_from_coding` | `approve`, `close`, `claim_for_coding` | Yes |
+| `implemented` | `mark_implemented`, `unapprove`, `fail_landing`, `release_from_coding`, `restore_after_cancelled_rebase` | `approve`, `close`, `claim_for_coding` | Yes |
 | `approved` | `approve`, `defer_landing` | `unapprove`, `land`, `start_landing`, `close` | Yes |
 | `landing` | `land`, `start_landing` | `mark_merged`, `fail_landing`, `defer_landing`, `close` | Yes |
 | `merged` | `mark_merged` | `close` | **No** (see Finding 2) |
@@ -67,6 +67,7 @@ Three exit paths from `:coding`:
 | `fail_landing` | `landing → implemented` | after: clears `approved_at` | RunJob.record_landing_failure! |
 | `defer_landing` | `landing → approved` | none | Steps::AutoMerge.handle_needs_rebase! + the TRANSIENT_MERGE_ERRORS rescue |
 | `reopen` | `closed → triaging` | clears closure_reason, finished_at, failure_count, sets triaging_reason | JobsController#reopen |
+| `restore_after_cancelled_rebase` | `triaging → implemented` | none | `Workflow#propagate_cancel_to_job!` when a rebase/stack_rebase workflow is cancelled with 0 runs |
 
 ## Findings
 

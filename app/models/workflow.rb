@@ -256,6 +256,24 @@ class Workflow < ApplicationRecord
     return if coding_handoff_workflow?
     return if local_mode_handoff_workflow?
     return if infrastructure_workflow?
+
+    # A rebase (or stack_rebase) workflow cancelled before any run started
+    # should restore the job to :implemented when the job is stuck in
+    # :triaging. This state mismatch occurs after a close+reopen cycle
+    # from runaway workflow limits — the reopen event returns the job to
+    # :triaging even though it has an open PR. Without this rollback, the
+    # merge-state poller dispatches rebase workflows that are immediately
+    # cancelled, never advancing the job out of :triaging.
+    if %w[rebase stack_rebase].include?(trigger_kind) && runs.none? && job.triaging?
+      StateTransition.with_source("propagate") do
+        if job.may_restore_after_cancelled_rebase?
+          job.restore_after_cancelled_rebase!
+          job.save!
+        end
+      end
+      return
+    end
+
     return unless job.running? && job.may_mark_failed?
 
     StateTransition.with_source("propagate") do

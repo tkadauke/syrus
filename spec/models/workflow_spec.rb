@@ -276,6 +276,44 @@ RSpec.describe Workflow do
         .to change { job.reload.state }.from("running").to("failed")
     end
 
+    it "restores :triaging → :implemented when a rebase workflow is cancelled with 0 runs" do
+      job.update!(state: "triaging")
+      wf = described_class.create!(job: job, trigger_kind: "rebase")
+
+      expect { wf.cancel!; wf.save! }
+        .to change { job.reload.state }.from("triaging").to("implemented")
+    end
+
+    it "restores :triaging → :implemented when a stack_rebase workflow is cancelled with 0 runs" do
+      job.update!(state: "triaging")
+      wf = described_class.create!(job: job, trigger_kind: "stack_rebase")
+
+      expect { wf.cancel!; wf.save! }
+        .to change { job.reload.state }.from("triaging").to("implemented")
+    end
+
+    it "does not change job state when a rebase workflow with runs is cancelled" do
+      job.update!(state: "triaging")
+      wf = described_class.create!(job: job, trigger_kind: "rebase", state: "running", started_at: 1.minute.ago)
+      step = Step.create!(workflow: wf, kind: "auto_rebase", position: 0, state: "running", started_at: 1.minute.ago)
+      Run.create!(job: job, step: step, trigger_kind: "rebase", state: "running")
+
+      expect { wf.cancel!; wf.save! }
+        .not_to change { job.reload.state }
+
+      expect(job.reload.state).to eq("triaging")
+    end
+
+    it "does not change job state when a rebase workflow is cancelled and job is not in triaging" do
+      job.update!(state: "implemented")
+      wf = described_class.create!(job: job, trigger_kind: "rebase")
+
+      expect { wf.cancel!; wf.save! }
+        .not_to change { job.reload.state }
+
+      expect(job.reload.state).to eq("implemented")
+    end
+
     it "does not let an older failed rebase workflow clobber a newer queued retry workflow" do
       job.update!(state: "running")
       old_rebase = described_class.create!(

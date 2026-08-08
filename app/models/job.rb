@@ -341,6 +341,17 @@ class Job < ApplicationRecord
       transitions from: :running, to: :failed
     end
 
+    # When a rebase or stack-rebase workflow is cancelled before any run
+    # starts and the job is stuck in :triaging (e.g. after a close+reopen
+    # cycle from runaway workflow limits), restore it to :implemented.
+    # The job has an open PR (that's why a rebase was dispatched), so
+    # :implemented is the correct state. Without this rollback, the
+    # merge-state poller keeps dispatching cancelled rebases indefinitely
+    # because the job never advances out of :triaging.
+    event :restore_after_cancelled_rebase do
+      transitions from: :triaging, to: :implemented
+    end
+
     # Operator recovery path for Jobs whose workflow state no longer
     # propagated back to the Job. Leaves the Job open and retryable.
     event :force_fail do
