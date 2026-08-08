@@ -1609,18 +1609,20 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           >
             +
           </button>
-          <DictationButton
-            disabled={send.isPending || systemAction.isPending || !dictation.available}
-            labels={{
-              idle: t("dictation_start"),
-              requesting: t("dictation_requesting"),
-              recording: t("dictation_stop"),
-              transcribing: t("dictation_transcribing"),
-              unavailable: t("dictation_unavailable")
-            }}
-            phase={dictation.phase}
-            onClick={dictation.phase === "recording" ? dictation.stop : dictation.start}
-          />
+          {dictation.available ? (
+            <DictationButton
+              disabled={send.isPending || systemAction.isPending}
+              labels={{
+                idle: t("dictation_start"),
+                requesting: t("dictation_requesting"),
+                recording: t("dictation_stop"),
+                transcribing: t("dictation_transcribing"),
+                unavailable: t("dictation_unavailable")
+              }}
+              phase={dictation.phase}
+              onClick={dictation.phase === "recording" ? dictation.stop : dictation.start}
+            />
+          ) : null}
           <ChatModeSelector chatId={chatId} payload={payload} queryKey={queryKey} />
           <ChatModelSelector chatId={chatId} payload={payload} queryKey={queryKey} />
         </div>

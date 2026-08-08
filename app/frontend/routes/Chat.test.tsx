@@ -334,12 +334,12 @@ describe("chat composer dictation", () => {
     delete window.syrusShell
   })
 
-  it("renders the microphone only when dictation is capability-enabled", async () => {
+  it("hides the microphone button when speech-to-text is feature-disabled", async () => {
     mockChatRouteFetch(chatPayload())
     renderRoute()
 
     await screen.findByPlaceholderText("Ask about this repository...")
-    expect(screen.getByRole("button", { name: "Dictation is unavailable" })).toBeDisabled()
+    expect(screen.queryByRole("button", { name: /dictation/i })).not.toBeInTheDocument()
   })
 
   it("uses streaming dictation first and does not auto-send", async () => {
