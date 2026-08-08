@@ -479,6 +479,8 @@ class Job < ApplicationRecord
         self.failure_count = 0
         self.reopened_at = Time.current
         self.triaging_reason ||= "classifier_pending"
+        self.runaway_protection = nil
+        self.runaway_protection_at = nil
       }
     end
   end
@@ -737,6 +739,7 @@ class Job < ApplicationRecord
 
   def enforce_workflow_runaway_limits!(created_workflow: nil, failed_workflow: nil)
     return if closed?
+    return if runaway_protection.present?
 
     total = workflows_since_latest_reopen.count
     return close_for_workflow_runaway!("too_many_workflows", created_workflow || failed_workflow, total: total) if total >= MAX_TOTAL_WORKFLOWS
@@ -762,14 +765,35 @@ class Job < ApplicationRecord
     workflows.where(Workflow.arel_table[:created_at].gteq(reopened_at))
   end
 
+  def runaway_protected?
+    runaway_protection.present?
+  end
+
   def close_for_workflow_runaway!(reason, workflow, total:, failed_streak: nil)
     if workflow&.state.in?(%w[queued running]) && workflow.may_cancel?
       workflow.cancel!
       workflow.save!
     end
 
-    close_with_reason!(reason)
+    # Transition to :failed without closing, so the branch is preserved and
+    # ReapStaleBranchesJob does not delete it. Reload to pick up any state
+    # changes made by propagate_cancel_to_job! in the workflow's cancel callback.
+    reload unless new_record?
+    unless failed?
+      force_fail! if may_force_fail?
+      save!
+    end
+
     failed_streak ||= consecutive_failed_workflows_count
+    update!(
+      runaway_protection:    reason,
+      runaway_protection_at: Time.current
+    )
+
+    # For cron jobs record the failure toward the task's consecutive-failure cap
+    # (previously handled by the close event's record_outcome_to_scheduled_task!).
+    scheduled_task.record_failure! if cron? && scheduled_task
+
     NotificationService.create_for(
       user: user,
       kind: "job_failed",

@@ -177,6 +177,7 @@ module App
         last_feedback_addressed_at: iso8601(@job.last_feedback_addressed_at),
         last_ci_handled_sha: @job.last_ci_handled_sha,
         closure_reason: @job.closure_reason,
+        runaway_protection: @job.runaway_protection,
         failure_count: @job.failure_count,
         landing_failure_reason: @job.landing_failure_reason,
         retry_state: retry_state,

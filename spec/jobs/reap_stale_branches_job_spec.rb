@@ -93,5 +93,24 @@ RSpec.describe ReapStaleBranchesJob do
 
       expect(job.reload.branch_deleted_at).to be_nil
     end
+
+    it "does not delete branches of runaway-protected jobs (state=failed, not closed)" do
+      job = Factories.job_record(
+        user: user,
+        repository: repository,
+        branch_name: "syrus/issue-9",
+        state: "failed"
+      )
+      job.update_columns(
+        runaway_protection: "too_many_workflows",
+        runaway_protection_at: Time.current,
+        finished_at: nil
+      )
+
+      described_class.perform_now
+
+      expect(client).not_to have_received(:delete_branch)
+      expect(job.reload.branch_deleted_at).to be_nil
+    end
   end
 end

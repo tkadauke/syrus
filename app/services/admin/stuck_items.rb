@@ -149,6 +149,8 @@ module Admin
         "Operator action required: #{issue.explanation} #{repair_plan&.reason}"
       when "job_without_active_workflow"
         "Operator action required: #{issue.explanation}"
+      when "runaway_protection_active"
+        "Runaway protection: #{issue.explanation} Click Retry on the Job to clear the protection and resume."
       else
         [ issue.explanation, repair_plan&.reason ].compact.join(" ")
       end.squish

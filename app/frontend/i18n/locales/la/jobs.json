@@ -125,6 +125,8 @@
   "detail_cost": "Sumptus",
   "detail_started": "Inceptum",
   "detail_closed": "Clausum",
+  "detail_runaway_protection": "Tutela aberrantis",
+  "detail_runaway_protection_hint": "iterationes automaticae prohibitae — preme Retemptare ad removendum",
   "approval_policy": "Regula",
   "approval_status": "Status",
   "approval_satisfied": "Satisfactum",

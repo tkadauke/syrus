@@ -17,6 +17,8 @@ class RetryWorkflowEnqueuer
 
   def call
     validate_provider_validation!
+    return failure("Runaway protection active — clear by retrying manually.") if automatic? && job.runaway_protection.present?
+
     eligibility = RetryWorkflowEligibility.call(job: job)
     reconcile_ready_pr! if eligibility.code == "pr_ready"
     return failure(eligibility.message) unless eligibility.eligible?
@@ -95,6 +97,16 @@ class RetryWorkflowEnqueuer
   end
 
   def prepare_job_state_for_retry
+    # A manual retry clears runaway protection and resets the workflow-count
+    # watermark so the fresh attempt starts with a clean counter.
+    if job.runaway_protection.present? && !automatic?
+      job.update!(
+        runaway_protection:    nil,
+        runaway_protection_at: nil,
+        reopened_at:           Time.current
+      )
+    end
+
     # If the Job is :failed, or still stale-:running after a cancelled
     # workflow, transition back to :queued so the new workflow starts from
     # a coherent parent state before Workflow#start drives it active again.

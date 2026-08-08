@@ -83,6 +83,7 @@ export type JobRecord = {
   pr_mergeable: boolean | null
   pr_mergeable_checked_at: string | null
   closure_reason: string | null
+  runaway_protection: string | null
   landing_failure_reason: string | null
   retry_state?: JobRetryState
   approved_at: string | null

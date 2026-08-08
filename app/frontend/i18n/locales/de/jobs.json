@@ -127,6 +127,8 @@
   "detail_cost": "Kosten",
   "detail_started": "Gestartet",
   "detail_closed": "Geschlossen",
+  "detail_runaway_protection": "Runaway-Schutz",
+  "detail_runaway_protection_hint": "automatische Wiederholungen blockiert — Wiederholen klicken zum Aufheben",
   "approval_policy": "Regel",
   "approval_status": "Status",
   "approval_satisfied": "Erfüllt",

@@ -160,6 +160,7 @@ module WorkEngine
       issues.concat(classify_nonretryable_failures)
       issues.concat(classify_cleanup_blockers)
       issues.concat(classify_workspace_prune_risks)
+      issues.concat(classify_runaway_protected_jobs)
 
       result = Result.new(source: source, captured_at: now, snapshot: snapshot, issues: issues, repair_plans: [], repair_executions: [])
       repair_plans = WorkEngine::RepairPlanner.call(result: result, now: now)
@@ -1033,6 +1034,29 @@ module WorkEngine
             prune_after: (workflow.finished_at + WorkflowWorkspacePruneJob::RETAIN_AFTER_FAILURE).iso8601
           ),
           explanation: "Workflow ##{workflow.id} failed and its workspace is close to the retention cutoff."
+        )
+      end
+    end
+
+    def classify_runaway_protected_jobs
+      jobs.filter_map do |job|
+        next unless job.runaway_protection.present?
+
+        issue(
+          kind: :runaway_protection_active,
+          severity: :warning,
+          affected_ids: ids_for(job).merge(workflow_ids: [ job.latest_workflow&.id ]),
+          safe_to_auto_repair: false,
+          recommended_repair_action: "operator_clear_runaway_protection",
+          evidence: {
+            job_state: job.state,
+            runaway_protection: job.runaway_protection,
+            runaway_protection_at: job.runaway_protection_at&.iso8601,
+            total_workflows: job.workflows_since_latest_reopen.count,
+            latest_workflow_id: job.latest_workflow&.id,
+            latest_workflow_state: job.latest_workflow&.state
+          },
+          explanation: "Job ##{job.id} has runaway protection active (#{job.runaway_protection}); automatic retries are blocked until the operator manually retries."
         )
       end
     end

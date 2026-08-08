@@ -236,6 +236,7 @@ module Api
             parent_job_id: job.parent_job_id,
             effective_base_branch: job.effective_base_branch,
             closure_reason: job.closure_reason,
+            runaway_protection: job.runaway_protection,
             failure_count: job.failure_count,
             repository: {
               id: job.repository.id,

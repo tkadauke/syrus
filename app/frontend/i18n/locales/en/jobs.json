@@ -128,6 +128,8 @@
   "detail_cost": "Cost",
   "detail_started": "Started",
   "detail_closed": "Closed",
+  "detail_runaway_protection": "Runaway protection",
+  "detail_runaway_protection_hint": "automatic retries blocked — click Retry to clear",
   "approval_policy": "Policy",
   "approval_status": "Status",
   "approval_satisfied": "Satisfied",

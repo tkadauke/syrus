@@ -930,6 +930,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_09_015717) do
     t.string "priority", default: "medium", null: false
     t.datetime "reopened_at"
     t.integer "repository_id", null: false
+    t.string "runaway_protection"
+    t.datetime "runaway_protection_at"
     t.integer "scheduled_task_id"
     t.boolean "skip_prepare", default: false, null: false
     t.string "slug"
@@ -1273,6 +1275,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_09_015717) do
     t.index ["resumable_type", "resumable_id"], name: "index_provider_sessions_on_resumable", unique: true
     t.index ["run_id"], name: "index_provider_sessions_on_run_id", unique: true
   end
+
 
   create_table "repositories", force: :cascade do |t|
     t.string "agent_provider"

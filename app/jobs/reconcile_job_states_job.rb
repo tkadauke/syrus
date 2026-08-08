@@ -21,6 +21,8 @@ class ReconcileJobStatesJob < ApplicationJob
     attr_reader :job, :target_state, :from_state, :reason
 
     def self.for(job)
+      return nil if job.runaway_protection.present?
+
       latest_wf = job.latest_workflow
       return nil unless latest_wf
 

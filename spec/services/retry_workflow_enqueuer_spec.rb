@@ -290,4 +290,36 @@ RSpec.describe RetryWorkflowEnqueuer do
       expect(result.error).to include("Claude Code appears degraded")
     }.not_to change { job.workflows.where(trigger_kind: "retry").count }
   end
+
+  context "runaway protection" do
+    before do
+      finish_current_run!(state: "failed")
+      job.update!(state: "failed", runaway_protection: "too_many_workflows", runaway_protection_at: Time.current)
+    end
+
+    it "blocks automatic retries when runaway_protection is set" do
+      expect {
+        result = described_class.call(job: job, automatic: true)
+        expect(result).not_to be_success
+        expect(result.error).to include("Runaway protection active")
+      }.not_to change { job.workflows.where(trigger_kind: "retry").count }
+
+      expect(job.reload.runaway_protection).to eq("too_many_workflows")
+    end
+
+    it "allows and clears runaway_protection on a manual (non-automatic) retry" do
+      old_reopened_at = job.reopened_at
+
+      expect {
+        result = described_class.call(job: job, automatic: false)
+        expect(result).to be_success
+        expect(result.workflow.trigger_kind).to eq("retry")
+      }.to change { job.workflows.where(trigger_kind: "retry").count }.by(1)
+
+      job.reload
+      expect(job.runaway_protection).to be_nil
+      expect(job.runaway_protection_at).to be_nil
+      expect(job.reopened_at).to be > (old_reopened_at || 1.year.ago)
+    end
+  end
 end

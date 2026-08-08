@@ -397,6 +397,7 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
               <KeyValue label={t("detail_cost")}>{payload.job.total_cost_usd == null ? "-" : formatCurrency(payload.job.total_cost_usd)} <span className="text-xs text-gray-400 dark:text-gray-500">({payload.job.billed_runs_count} {t("detail_billed")})</span></KeyValue>
               <KeyValue label={t("detail_started")}><RelativeTimestamp value={payload.job.started_at} /></KeyValue>
               {payload.job.finished_at ? <KeyValue label={t("detail_closed")}><RelativeTimestamp value={payload.job.finished_at} /> ({payload.job.closure_reason || "unspecified"})</KeyValue> : null}
+              {payload.job.runaway_protection ? <KeyValue label={t("detail_runaway_protection")}><span className="text-amber-700 dark:text-amber-400">{payload.job.runaway_protection}</span> — {t("detail_runaway_protection_hint")}</KeyValue> : null}
             </div>
             <TagsPanel canManageTags={payload.actions.can_manage_tags} embedded command={command} payload={payload} />
           </section>
