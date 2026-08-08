@@ -268,7 +268,6 @@ class McpToolRegistry
 
     def workflow_entries
       workflow_roles = AgentRole::WORKFLOW_ROLES
-      preview_roles = (workflow_roles - [AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER]).freeze
       summary_roles = [
         AgentRole::WORKFLOW_IMPLEMENT,
         AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
@@ -291,9 +290,9 @@ class McpToolRegistry
         workflow(Mcp::Tools::ListMemoriesTool, required_roles: workflow_roles),
         workflow(Mcp::Tools::GetCoverageReportTool, required_roles: workflow_roles),
         workflow(Mcp::Tools::ReadRunWorkerHealthTool, required_roles: workflow_roles),
-        workflow(Mcp::Tools::StartPreviewTool, required_roles: preview_roles, mutation: true),
-        workflow(Mcp::Tools::StopPreviewTool, required_roles: preview_roles, mutation: true),
-        workflow(Mcp::Tools::ReadPreviewLogTool, required_roles: preview_roles),
+        workflow(Mcp::Tools::StartPreviewTool, required_roles: workflow_roles, mutation: true),
+        workflow(Mcp::Tools::StopPreviewTool, required_roles: workflow_roles, mutation: true),
+        workflow(Mcp::Tools::ReadPreviewLogTool, required_roles: workflow_roles),
         workflow(Mcp::Tools::ReportMainConcernTool, required_roles: workflow_roles, mutation: true),
         workflow(Mcp::Tools::SubmitSummaryTool, capability: :submit_summary, required_roles: summary_roles, mutation: true),
         workflow(Mcp::Tools::SubmitTestPlanTool, capability: :submit_test_plan, required_roles: summary_roles, mutation: true),
