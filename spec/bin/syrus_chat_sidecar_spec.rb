@@ -13,6 +13,8 @@ RSpec.describe "bin/syrus-chat-sidecar", :ci_only do
 
   after do
     FileUtils.rm_rf(data_root)
+    AppSetting.delete_all
+    ActiveRecord::Base.connection_handler.clear_all_connections!
   end
 
   it "boots both chat MCP sidecars from the generated config against a persisted chat session" do
