@@ -16,6 +16,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `prompt_injector`
 - `artifact_renderer`
 - `grader_augmentor`
+- `callbacks`
 
 Operators can inspect the registered plugins from **Admin → Plugins**
 (`/admin/plugins`). The page shows each plugin's name, version, enabled state,
@@ -92,6 +93,71 @@ long-lived child process. For the preview database to work without a companion
 Postgres container, the repo's `config/database.yml` must use
 `adapter: sqlite3` for the `development` environment. Postgres preview
 environments are not yet supported.
+
+## `callbacks`
+
+Plugins that include `Syrus::Plugin::Callbacks` participate in the lifecycle
+event system. Five nil-default methods can be overridden:
+
+| Method | When called |
+|---|---|
+| `on_boot` | Every process, after Rails `after_initialize` |
+| `on_shutdown` | Every process, via `at_exit` |
+| `on_enable` | When an operator enables the plugin at runtime (via `PluginLifecycleJob`) |
+| `on_disable` | When an operator disables the plugin at runtime (via `PluginLifecycleJob`) |
+| `on_tick` | On a recurring schedule declared by `tick_interval` (via `PluginTickJob`) |
+
+All five methods are available as class methods on the provider thanks to the
+module's `included` hook, which calls `base.extend(self)`. Plugins only need
+to override the methods they care about; the nil defaults make the others silent
+no-ops.
+
+Register a callbacks provider:
+
+```ruby
+class MyPlugin::LifecycleCallbacks
+  include Syrus::Plugin::Callbacks
+
+  def self.on_boot
+    Rails.logger.info("[MyPlugin] booted")
+  end
+
+  def self.on_enable
+    MyPlugin::Daemon.start!
+  end
+
+  def self.on_disable
+    MyPlugin::Daemon.stop!
+  end
+
+  def self.on_tick
+    MyPlugin::Daemon.heartbeat!
+  end
+end
+
+Syrus::PluginRegistry.register(
+  name:          "my_plugin",
+  version:       "1.0.0",
+  home_queue:    :control_plane,
+  tick_interval: 30.seconds,
+  provides:      { callbacks: MyPlugin::LifecycleCallbacks }
+)
+```
+
+`home_queue:` (default `:default`) is the Solid Queue queue used for
+`PluginLifecycleJob` and `PluginTickJob`. `:default` means the job's
+class-level `queue_as` declaration applies. Use a named queue such as
+`:control_plane` when the plugin owns long-running daemon processes that
+require queue isolation.
+
+`tick_interval:` (optional ActiveSupport duration) declares how often the
+plugin wants `on_tick` fired. Wiring the recurring Solid Queue task for a
+specific plugin is done via `config/recurring.yml` or the plugin engine's own
+initializer.
+
+`on_enable` and `on_disable` are enqueued asynchronously via `PluginLifecycleJob`
+from a `PluginRecord` `after_commit` callback whenever the operator toggles a
+plugin's enabled state through Admin → Plugins.
 
 ## `prompt_injector`
 
