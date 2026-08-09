@@ -180,7 +180,7 @@ describe("JobDetailView", () => {
     expect(text).toContain("Summary: Implemented the workflow context attachment.")
   })
 
-  it("shows why no pull request was opened for empty reconciliation work", () => {
+  it("shows why no pull request was opened", () => {
     renderJobDetail(jobPayload({
       job: {
         ...baseJob(),
@@ -189,14 +189,14 @@ describe("JobDetailView", () => {
         closure_reason: "no_changes",
         finished_at: "2026-07-31T06:00:00Z",
         no_pr_reason: {
-          kind: "empty_reconciliation",
-          message: "No PR was opened because reconciliation made no additional changes beyond syrus/direct-parent.",
+          kind: "no_effective_changes",
+          message: "No PR was opened because the workflow made no effective changes.",
           base_branch: "syrus/direct-parent"
         }
       }
     }))
 
-    expect(screen.getByText("No PR was opened because reconciliation made no additional changes beyond syrus/direct-parent.")).toBeInTheDocument()
+    expect(screen.getByText("No PR was opened because the workflow made no effective changes.")).toBeInTheDocument()
   })
 
   it("links scheduled jobs back to their scheduled task", () => {

@@ -77,42 +77,6 @@ RSpec.describe Admin::StuckJobExplainer do
     expect(payload.dig(:recommended_action, :reason)).not_to include("Dependency graph")
   end
 
-  it "recommends a successful no-change close for an empty reconciliation branch" do
-    parent = Factories.job_record(
-      user: user,
-      repository: repository,
-      state: "approved",
-      issue_title: "Parent",
-      branch_name: "syrus/parent",
-      pr_number: 10
-    )
-    job = Factories.job_record(
-      user: user,
-      repository: repository,
-      state: "implemented",
-      issue_title: "Reconcile",
-      branch_name: "syrus/reconcile",
-      pr_number: 11,
-      parent_job: parent
-    )
-    client = instance_double(
-      GithubClient,
-      pull_request: pr_with_base("syrus/parent"),
-      branch_head_sha: "same-sha",
-      commit_tree_sha: "same-tree"
-    )
-
-    payload = described_class.call(job, github_client: client)
-
-    expect(payload.dig(:dependencies, :selected_stack_parent)).to include(job_id: parent.id, branch_name: "syrus/parent")
-    expect(payload.dig(:dependencies, :pr_base_mismatch)).to include(checked: true, mismatch: false)
-    expect(payload.dig(:empty_reconciliation, :evidence)).to include(
-      include(kind: "branch_tip_equals_parent_branch", sha: "same-sha"),
-      include(kind: "head_tree_equals_effective_parent_tree", tree_sha: "same-tree")
-    )
-    expect(payload.dig(:recommended_action)).to include(action: "close_successfully_no_changes", closure_reason: "no_changes")
-  end
-
   it "points grader failures at Run logs instead of stack state" do
     job = Factories.job_record(
       user: user,

@@ -104,7 +104,7 @@ RSpec.describe McpToolPolicy do
         expect(described_class.capability_permitted?(context, :submit_summary)).to be(false)
       end
 
-      it "denies submit_chat_feedback for the standard implement role" do
+      it "has no workflow-side submit_chat_feedback capability" do
         context = McpToolContext.from_run(run)
         expect(described_class.capability_permitted?(context, :submit_chat_feedback)).to be(false)
       end

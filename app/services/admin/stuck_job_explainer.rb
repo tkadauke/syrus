@@ -21,8 +21,7 @@ module Admin
         workflows: workflows_payload,
         runs: runs_payload,
         dependencies: dependencies_payload,
-        landing: landing_payload,
-        empty_reconciliation: empty_reconciliation_payload
+        landing: landing_payload
       }
       payload[:recommended_action] = recommended_action(payload)
       payload[:human_summary] = human_summary(payload)
@@ -416,44 +415,7 @@ module Admin
       }
     end
 
-    def empty_reconciliation_payload
-      return { checked: false, evidence: [], reason: "job has no branch" } if job.branch_name.blank?
-
-      evidence = []
-      parent_branch = selected_stack_parent&.branch_name.presence || job.effective_base_branch
-      if parent_branch.present? && parent_branch != job.branch_name
-        branch_tip = github_client.branch_head_sha(job.repository.slug, job.branch_name)
-        parent_tip = github_client.branch_head_sha(job.repository.slug, parent_branch)
-        evidence << {
-          kind: "branch_tip_equals_parent_branch",
-          branch: job.branch_name,
-          parent_branch: parent_branch,
-          sha: branch_tip
-        } if branch_tip.present? && branch_tip == parent_tip
-
-        if github_client.respond_to?(:commit_tree_sha)
-          branch_tree = github_client.commit_tree_sha(job.repository.slug, job.branch_name)
-          parent_tree = github_client.commit_tree_sha(job.repository.slug, parent_branch)
-          evidence << {
-            kind: "head_tree_equals_effective_parent_tree",
-            branch: job.branch_name,
-            parent_branch: parent_branch,
-            tree_sha: branch_tree
-          } if branch_tree.present? && branch_tree == parent_tree
-        end
-      end
-
-      {
-        checked: true,
-        evidence: evidence,
-        recommended_successful_close: evidence.any? ? "no_changes" : nil
-      }
-    rescue StandardError => e
-      { checked: false, evidence: evidence, reason: "#{e.class}: #{e.message}" }
-    end
-
     def recommended_action(payload)
-      return action("close_successfully_no_changes", "Branch has no effective changes.", closure_reason: "no_changes") if payload.dig(:empty_reconciliation, :evidence)&.any?
       if (state_plan = ReconcileJobStatesJob::Plan.for(job))
         return action(
           "reconcile_job_state",

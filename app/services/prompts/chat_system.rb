@@ -98,8 +98,7 @@ module Prompts
             level so trusted Epics merge without per-PR review. Current
             Epics reconcile sibling work inside the Epic merge-train
             workflow after the integration branch is built; do not
-            recommend creating standalone reconciliation Jobs unless the
-            Epic already has a historical reconciliation Job.
+            recommend creating standalone reconciliation Jobs.
           - **ScheduledTask** — a recurring-cadence or one-shot prompt
             attached to a repository. Fires Jobs of kind `cron` at the
             scheduled time, optionally backed by a reusable

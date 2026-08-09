@@ -31,7 +31,8 @@ RSpec.describe Mcp::Tools::ExplainStuckJobTool do
 
     expect(response.dig(:result, :isError)).to be_falsey
     expect(payload[:job]).to include(id: job.id, state: "implemented", issue_title: "Needs diagnosis")
-    expect(payload).to include(:workflows, :runs, :dependencies, :landing, :empty_reconciliation, :recommended_action, :human_summary)
+    expect(payload).to include(:workflows, :runs, :dependencies, :landing, :recommended_action, :human_summary)
+    expect(payload).not_to include(:empty_reconciliation)
   end
 
   it "explains one stuck Job from reconciler issues and repair plans" do
