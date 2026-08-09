@@ -5,21 +5,28 @@ module Tailscale
     class << self
       def on_boot
         start_if_authkey_present
+        HostAllowlist.sync if DaemonManager.instance.alive?
       end
 
       def on_enable
         start_if_authkey_present
+        HostAllowlist.sync if DaemonManager.instance.alive?
       end
 
       def on_tick
-        DaemonManager.instance.restart_if_dead if ENV["TS_AUTHKEY"].present?
+        if ENV["TS_AUTHKEY"].present?
+          DaemonManager.instance.restart_if_dead
+          HostAllowlist.sync if DaemonManager.instance.alive?
+        end
       end
 
       def on_disable
+        HostAllowlist.clear
         DaemonManager.instance.stop
       end
 
       def on_shutdown
+        HostAllowlist.clear
         DaemonManager.instance.stop
       end
 
