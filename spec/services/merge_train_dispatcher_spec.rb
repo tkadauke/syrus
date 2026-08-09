@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe MergeTrainDispatcher do
   let(:user) { Factories.user(github_token: "ghp_test") }
   let(:repository) { Factories.repository(user: user, auto_merge_enabled: true) }
-  let(:epic) { Factories.epic(user: user, repository: repository, reconciliation_mode: "none") }
+  let(:epic) { Factories.epic(user: user, repository: repository) }
 
   def approved_child(issue_number)
     Factories.job_record(
@@ -52,7 +52,6 @@ RSpec.describe MergeTrainDispatcher do
 
     train = MergeTrain.last
     expect(train.member_jobs).to eq([ root, leaf ])
-    expect(epic.reload.reconciliation_job_id).to be_nil
     expect(epic.jobs.where("issue_title LIKE ?", "Reconciliation:%")).to be_empty
     expect(workflow.steps.order(:position).pluck(:kind)).to include("merge_train_reconcile")
     expect(workflow.first_step.runs.count).to eq(1)
@@ -74,7 +73,6 @@ RSpec.describe MergeTrainDispatcher do
 
     train = MergeTrain.last
     expect(train.member_jobs).to eq([ root, leaf_a, leaf_b ])
-    expect(epic.reload.reconciliation_job_id).to be_nil
     expect(JobDependency.where(job_id: epic.jobs.select(:id))).to be_empty
     expect(workflow.first_step.runs.count).to eq(1)
     expect(workflow.steps.order(:position).pluck(:kind)).to eq(

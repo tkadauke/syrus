@@ -93,7 +93,7 @@ RSpec.describe "notification event generation" do
     other = Factories.user(notification_preferences: { "epic_completed" => true })
     user.update!(notification_preferences: { "epic_completed" => true })
     repository = Factories.repository(user: user)
-    epic = Factories.epic(user: user, repository: repository, state: "in_progress", title: "Ship notifications", reconciliation_mode: "none")
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress", title: "Ship notifications")
     Factories.job_record(user: user, repository: repository, epic: epic, state: "closed", closure_reason: "pr_merged")
     Factories.job_record(user: user, owner_user: other, repository: repository, epic: epic, state: "closed", closure_reason: "external_pr_merged")
     Notification.delete_all

@@ -272,8 +272,7 @@ class McpToolRegistry
         AgentRole::WORKFLOW_IMPLEMENT,
         AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
         AgentRole::WORKFLOW_REBASE_CONFLICT,
-        AgentRole::WORKFLOW_MANUAL,
-        AgentRole::WORKFLOW_RECONCILIATION_FEEDBACK
+        AgentRole::WORKFLOW_MANUAL
       ]
 
       artifact_roles = [
@@ -309,10 +308,6 @@ class McpToolRegistry
           AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER,
           AgentRole::WORKFLOW_MANUAL
         ], mutation: true),
-        workflow(Mcp::Tools::SubmitReconciliationFeedbackTool, capability: :submit_chat_feedback, required_roles: [
-          AgentRole::WORKFLOW_RECONCILIATION_FEEDBACK,
-          AgentRole::WORKFLOW_MANUAL
-        ], mutation: true)
       ]
     end
 

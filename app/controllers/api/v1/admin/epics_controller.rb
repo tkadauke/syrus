@@ -61,7 +61,6 @@ module Api
             owner_user: owner_user
           )
           epic.auto_approve_mode = attrs[:auto_approve_mode] if attrs[:auto_approve_mode].present?
-          epic.reconciliation_mode = attrs[:reconciliation_mode] if attrs.key?(:reconciliation_mode)
           epic.epic_dependency_policy = attrs[:epic_dependency_policy] if attrs.key?(:epic_dependency_policy)
 
           if epic.save
@@ -78,7 +77,7 @@ module Api
 
         def epic_params
           source = params[:epic].present? ? params.require(:epic) : params
-          source.permit(:repository_id, :repository, :repo, :title, :description, :github_issue_url, :owner_user_id, :auto_approve_mode, :reconciliation_mode, :epic_dependency_policy)
+          source.permit(:repository_id, :repository, :repo, :title, :description, :github_issue_url, :owner_user_id, :auto_approve_mode, :epic_dependency_policy)
         end
 
         def find_active_repository(attrs)
@@ -139,7 +138,6 @@ module Api
             owner_email:        epic.owner&.email_address,
             claimed_at:         epic.claimed_at,
             auto_approve_mode:      epic.auto_approve_mode,
-            reconciliation_mode:    epic.reconciliation_mode,
             epic_dependency_policy: epic.epic_dependency_policy,
             resolved_epic_dependency_policy: epic.resolved_epic_dependency_policy,
             owner_user_id:          epic.owner_user_id,
@@ -164,7 +162,6 @@ module Api
             owner:              serialize_owner(epic.owner),
             claimed_at:         epic.claimed_at,
             auto_approve_mode:   epic.auto_approve_mode,
-            reconciliation_mode: epic.reconciliation_mode,
             epic_dependency_policy: epic.epic_dependency_policy,
             resolved_epic_dependency_policy: epic.resolved_epic_dependency_policy,
             owner_user_id:       epic.owner_user_id,

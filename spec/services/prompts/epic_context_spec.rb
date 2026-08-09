@@ -6,8 +6,7 @@ RSpec.describe Prompts::EpicContext do
       Epic,
       slug: "EPIC-70",
       title: "Syrus CLI and test planning",
-      description: "Build the Go CLI and the Rails-side test planning step.",
-      reconciliation_job_id: nil
+      description: "Build the Go CLI and the Rails-side test planning step."
     )
   end
 
@@ -92,24 +91,21 @@ RSpec.describe Prompts::EpicContext do
       expect(out).not_to include(current_job.slug)
     end
 
-    it "excludes the reconciliation Job from the siblings list" do
+    it "includes historical reconciliation-titled Jobs as ordinary approved siblings" do
       recon_job = Factories.job_record(user: u, repository: repo, epic: epic_record, state: "approved", issue_title: "Reconcile")
-      epic_record.update_columns(reconciliation_job_id: recon_job.id)
-
       out = described_class.new(epic: epic_record, job: current_job).to_s
 
-      expect(out).not_to include(recon_job.slug)
+      expect(out).to include(recon_job.slug)
     end
 
-    it "excludes both the current Job and the reconciliation Job when both are approved" do
+    it "excludes the current Job but includes other approved siblings" do
       recon_job = Factories.job_record(user: u, repository: repo, epic: epic_record, state: "approved", issue_title: "Reconcile")
       other_sibling = Factories.job_record(user: u, repository: repo, epic: epic_record, state: "approved", issue_title: "Add feature")
-      epic_record.update_columns(reconciliation_job_id: recon_job.id)
       current_job.update_columns(state: "approved", issue_title: "Current work")
 
       out = described_class.new(epic: epic_record, job: current_job).to_s
 
-      expect(out).not_to include(recon_job.slug)
+      expect(out).to include(recon_job.slug)
       expect(out).not_to include(current_job.slug)
       expect(out).to include(other_sibling.slug)
     end

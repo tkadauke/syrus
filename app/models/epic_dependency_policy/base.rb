@@ -14,8 +14,4 @@ class EpicDependencyPolicy::Base
 
   def validate_proposed_child_graph!(_proposals)
   end
-
-  def reconciliation_dependency_jobs(_epic, _sibling_jobs)
-    raise NotImplementedError
-  end
 end

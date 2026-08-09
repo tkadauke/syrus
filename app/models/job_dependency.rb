@@ -20,7 +20,6 @@ class JobDependency < ApplicationRecord
   validate :linear_chain_in_simple_mode
 
   after_save_commit :materialize_derived_epic_dependency, if: :depends_on_job_id?
-  after_save_commit :refresh_same_epic_reconciliation, if: :same_epic_job_dependency?
   after_save_commit :recheck_dependent_job_start_blocks
   after_destroy_commit :recheck_dependent_job_start_blocks
 
@@ -191,16 +190,8 @@ class JobDependency < ApplicationRecord
     )
   end
 
-  def refresh_same_epic_reconciliation
-    job.epic.maybe_create_reconciliation_job!(raise_on_invalid_graph: false)
-  end
-
   def recheck_dependent_job_start_blocks
     job&.recheck_queued_workflow_start_blocks!
-  end
-
-  def same_epic_job_dependency?
-    job&.epic_id.present? && depends_on_job&.epic_id == job.epic_id
   end
 
   def unresolved_reference_present?

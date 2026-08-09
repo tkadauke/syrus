@@ -16,7 +16,6 @@ export type EpicSearchOption = {
   label: string
 }
 
-export type EpicReconciliationMode = "pr" | "feedback" | "none" | null
 export type EpicDependencyPolicy = "linear" | "nonlinear"
 
 export type EpicDeploymentStage = {
@@ -36,7 +35,6 @@ export type EpicFormRecord = {
   owner_user: EpicOwnerUser | null
   repository_id: number | null
   github_issue_url: string
-  reconciliation_mode: EpicReconciliationMode
   epic_dependency_policy: EpicDependencyPolicy
   resolved_epic_dependency_policy: "linear" | "nonlinear" | null
   epic_path: string | null
@@ -58,7 +56,6 @@ export type EpicInput = {
   description: string
   repository_id: string
   github_issue_url: string
-  reconciliation_mode: EpicReconciliationMode
   epic_dependency_policy: EpicDependencyPolicy
 }
 

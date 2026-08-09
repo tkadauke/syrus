@@ -257,7 +257,7 @@ RSpec.describe Admin::StuckJobExplainer do
     expect(payload.dig(:recommended_action, :action)).to eq("manual_intervention")
   end
 
-  it "explains a historical Epic reconciliation Job as per-Job landable under merge trains" do
+  it "explains every approved Epic child as waiting for the merge train" do
     repository.update!(auto_merge_enabled: true)
     AppSetting.current.update!(merge_train_enabled: true)
     epic = Factories.epic(user: user, repository: repository, state: "in_progress")
@@ -278,15 +278,12 @@ RSpec.describe Admin::StuckJobExplainer do
       local_mergeable_state: "clean",
       approved_at: 1.minute.ago
     )
-    epic.update!(reconciliation_job_id: reconciliation.id)
-
     payload = described_class.call(reconciliation, github_client: no_github_client)
 
     expect(payload.dig(:landing, :queue)).to include(
-      eligible: true,
-      blocked_reason: nil
+      eligible: false,
+      blocked_reason: { key: "waiting_epic_merge_train" }
     )
-    expect(payload.dig(:landing, :queue, :blocked_reason)).not_to eq({ key: "waiting_epic_merge_train" })
   end
 
   def pr_with_base(ref)

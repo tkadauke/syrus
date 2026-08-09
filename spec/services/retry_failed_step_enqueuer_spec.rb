@@ -40,7 +40,7 @@ RSpec.describe RetryFailedStepEnqueuer do
     it "rebuilds a failed merge-train instead of retrying the old #{failed_step_kind} step in place" do
       user = Factories.user(github_token: "ghp_test")
       repository = Factories.repository(user: user, auto_merge_enabled: true)
-      epic = Factories.epic(user: user, repository: repository, state: "in_progress", reconciliation_mode: "none")
+      epic = Factories.epic(user: user, repository: repository, state: "in_progress")
       job = Factories.job_record(
         user: user,
         repository: repository,
@@ -89,7 +89,7 @@ RSpec.describe RetryFailedStepEnqueuer do
   it "recovers and re-approves failed members from the old merge-train before rebuilding" do
     user = Factories.user(github_token: "ghp_test")
     repository = Factories.repository(user: user, auto_merge_enabled: true)
-    epic = Factories.epic(user: user, repository: repository, state: "in_progress", reconciliation_mode: "none")
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
     job = Factories.job_record(
       user: user,
       repository: repository,
@@ -138,7 +138,7 @@ RSpec.describe RetryFailedStepEnqueuer do
   it "explains why a failed merge-train cannot be rebuilt" do
     user = Factories.user(github_token: "ghp_test")
     repository = Factories.repository(user: user, auto_merge_enabled: true)
-    epic = Factories.epic(user: user, repository: repository, state: "in_progress", reconciliation_mode: "none")
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
     job = Factories.job_record(
       user: user,
       repository: repository,

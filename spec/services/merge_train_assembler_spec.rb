@@ -84,26 +84,6 @@ RSpec.describe MergeTrainAssembler do
     expect(result.job_ids).to eq([ a.id ])
   end
 
-  it "excludes a historical standalone reconciliation Job from the member set" do
-    a = child(issue_number: 1, state: "approved")
-    reconciliation = Factories.job_record(
-      user: user,
-      repository: repository,
-      epic: epic,
-      issue_number: nil,
-      kind: "direct",
-      issue_title: "Reconciliation: #{epic.title}",
-      state: "implemented",
-      pr_number: nil
-    )
-    epic.update!(reconciliation_job_id: reconciliation.id)
-
-    result = described_class.call(epic)
-
-    expect(result).to be_ready
-    expect(result.job_ids).to eq([ a.id ])
-  end
-
   it "is not ready when there are no open children" do
     result = described_class.call(epic)
 

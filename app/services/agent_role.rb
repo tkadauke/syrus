@@ -13,7 +13,6 @@ module AgentRole
   WORKFLOW_SUMMARY_TEST_PLAN        = "workflow:summary_test_plan"
   WORKFLOW_ADVERSARIAL_REVIEWER     = "workflow:adversarial_reviewer"
   WORKFLOW_MANUAL                   = "workflow:manual"
-  WORKFLOW_RECONCILIATION_FEEDBACK  = "workflow:reconciliation_feedback"
 
   # Infrastructure (future)
   INFRASTRUCTURE_MAIN_REPAIR = "infrastructure:main_repair"
@@ -32,8 +31,7 @@ module AgentRole
     WORKFLOW_REBASE_CONFLICT,
     WORKFLOW_SUMMARY_TEST_PLAN,
     WORKFLOW_ADVERSARIAL_REVIEWER,
-    WORKFLOW_MANUAL,
-    WORKFLOW_RECONCILIATION_FEEDBACK
+    WORKFLOW_MANUAL
   ].freeze
 
   CHAT_ROLES = [

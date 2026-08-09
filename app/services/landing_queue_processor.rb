@@ -290,7 +290,7 @@ class LandingQueueProcessor
   end
 
   def landing_unit_key(job)
-    job.epic_id.present? && !epic_reconciliation_job?(job) ? "epic:#{job.epic_id}" : "job:#{job.id}"
+    job.epic_id.present? ? "epic:#{job.epic_id}" : "job:#{job.id}"
   end
 
   def ordered_landing_units(units, jobs)
@@ -411,11 +411,8 @@ class LandingQueueProcessor
     return [] unless epic_ids.one?
 
     epic_id = epic_ids.first
-    recon_job_id = Epic.where(id: epic_id).pick(:reconciliation_job_id)
-
     Job.where(epic_id: epic_id)
        .where.not(id: unit_job_ids.to_a)
-       .where.not(id: [recon_job_id].compact)
        .where.not(state: %w[ approved closed ])
        .order(:id)
        .pluck(:id)
@@ -480,21 +477,7 @@ class LandingQueueProcessor
 
   def merge_train_for_epic_child?(job)
     AppSetting.merge_train_enabled? &&
-      job.epic_id.present? &&
-      !epic_reconciliation_job?(job)
-  end
-
-  def epic_reconciliation_job?(job)
-    epic_reconciliation_job_id(job) == job.id
-  end
-
-  def epic_reconciliation_job_id(job)
-    return unless job.epic_id.present?
-
-    @epic_reconciliation_job_ids ||= {}
-    return @epic_reconciliation_job_ids[job.epic_id] if @epic_reconciliation_job_ids.key?(job.epic_id)
-
-    @epic_reconciliation_job_ids[job.epic_id] = Epic.where(id: job.epic_id).pick(:reconciliation_job_id)
+      job.epic_id.present?
   end
 
   def blockage_for(job, consume_override: false)

@@ -13,7 +13,6 @@ class Epic < ApplicationRecord
   STATES = (BOARD_STATES + [ ARCHIVED_STATE ]).freeze
   MERGED_JOB_CLOSURE_REASONS = %w[ pr_merged external_pr_merged ].freeze
   SUCCESSFUL_JOB_CLOSURE_REASONS = (MERGED_JOB_CLOSURE_REASONS + %w[ no_changes ]).freeze
-  RECONCILIATION_MODES = %w[ pr feedback none ].freeze
   EPIC_DEPENDENCY_POLICIES = %w[ linear nonlinear ].freeze
 
   attr_readonly :number
@@ -23,7 +22,6 @@ class Epic < ApplicationRecord
   belongs_to :owner, class_name: "User", optional: true, inverse_of: :owned_epics
   belongs_to :repository
   belongs_to :owner_user, class_name: "User", optional: true, inverse_of: :dashboard_owned_epics
-  belongs_to :reconciliation_job, class_name: "Job", optional: true
   has_many :jobs, dependent: :nullify
   has_many :chat_proposals, dependent: :nullify
   has_many :versions, class_name: "EpicVersion", dependent: :destroy, inverse_of: :epic
@@ -91,7 +89,6 @@ class Epic < ApplicationRecord
         self.state = "in_progress"
         claim!(actor || user || self.user, force: true) unless claimed?
         unblock_child_jobs!
-        maybe_create_reconciliation_job!
       }
     end
 
@@ -211,11 +208,8 @@ class Epic < ApplicationRecord
     !epic_advancement_actor(actor || user)&.product_owner?
   end
 
-  # Returns an AR relation for work jobs — all child jobs except the
-  # reconciliation job itself. Used by complete?, stuck?, and all_jobs_closed?
-  # so those predicates evaluate only the actual feature jobs.
   def work_jobs
-    reconciliation_job_id.present? ? jobs.where.not(id: reconciliation_job_id) : jobs
+    jobs
   end
 
   def complete?
@@ -308,35 +302,10 @@ class Epic < ApplicationRecord
     child_jobs.any? && child_jobs.all? { |j| j.approved? || j.landing? || j.closed? }
   end
 
-  # The effective reconciliation mode: Epic column → .syrus.yml → "pr".
-  def resolved_reconciliation_mode
-    RepoReconciliationPlan.for_epic(self).mode
-  end
-
   def resolved_epic_dependency_policy
     return nil unless repository
 
     EpicDependencyPolicy::Base.for(epic_dependency_policy).resolve(self)
-  end
-
-  # Historical compatibility hook. Syrus used to create a standalone
-  # reconciliation Job when an Epic entered :in_progress; new Epics reconcile
-  # inside merge-train landing after the integration branch is built.
-  def maybe_create_reconciliation_job!(raise_on_invalid_graph: true)
-    return if AppSetting.simple?
-
-    false
-  end
-
-  # Clears reconciliation_job_id if the linked reconciliation Job has closed.
-  # Returns true when the field was cleared so refresh_auto_state! can skip
-  # re-creation for the same refresh cycle.
-  def clear_reconciliation_job_if_closed!
-    return false unless reconciliation_job_id.present?
-    return false unless reconciliation_job&.closed?
-
-    update!(reconciliation_job_id: nil)
-    true
   end
 
   def refresh_auto_state!
@@ -344,8 +313,6 @@ class Epic < ApplicationRecord
       auto_ready!
     elsif in_progress?
       released = release_child_jobs_if_ready!
-      cleared = clear_reconciliation_job_if_closed!
-      maybe_create_reconciliation_job!(raise_on_invalid_graph: false) unless cleared
       return auto_complete! if may_auto_complete?
 
       dependent_epics.find_each(&:refresh_auto_state!) if fully_approved?
@@ -376,7 +343,6 @@ class Epic < ApplicationRecord
       if target_state == "in_progress"
         claim!(user, force: true) unless claimed?
         unblock_child_jobs!
-        maybe_create_reconciliation_job!
       elsif was_in_progress && %w[backlog ready].include?(target_state)
         restore_child_epic_blocks!
       elsif target_state == "archived"

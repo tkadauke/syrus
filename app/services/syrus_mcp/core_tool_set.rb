@@ -29,7 +29,6 @@ module SyrusMcp
       SubmitArtifactTool,
       ::Mcp::Tools::SubmitJobMetadataTool,
       ::Mcp::Tools::SubmitAdversarialReviewTool,
-      ::Mcp::Tools::SubmitReconciliationFeedbackTool,
       ::Mcp::Tools::SubmitInsightTool,
       ::Mcp::Tools::UpdateInsightTool,
       ::Mcp::Tools::ListInsightsTool,

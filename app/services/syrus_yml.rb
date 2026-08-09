@@ -20,12 +20,9 @@ class SyrusYml
   ParseError = Class.new(StandardError)
   ConfigError = Class.new(ParseError)
 
-
-  RECONCILIATION_VALID_MODES = %w[pr feedback none].freeze
-
   DEPLOYMENT_STAGE_NAME_PATTERN = /\A[A-Za-z0-9_]+\z/
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :reconciliation_mode, :deployment_stages, :preview)
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview)
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern)
   GradeConfig = Data.define(:max_iterations, :steps)
   GradeStep = Data.define(:name, :run, :fast, :ci, :description, :required, :timeout_minutes, :when_files_changed, :junit_output)
@@ -75,7 +72,6 @@ class SyrusYml
       coverage: parse_coverage(raw["coverage"]),
       formatters: parse_formatters(raw["formatters"]),
       generated: parse_generated(raw["generated"]),
-      reconciliation_mode: parse_reconciliation_mode(raw["reconciliation_mode"]),
       deployment_stages: parse_deployment_stages(raw["deployment_stages"]),
       preview: parse_preview(raw["preview"])
     )
@@ -92,17 +88,6 @@ class SyrusYml
     AgentInsightConfig.new(
       prepare: ActiveModel::Type::Boolean.new.cast(raw["prepare"])
     )
-  end
-
-  def parse_reconciliation_mode(raw)
-    return nil if raw.nil?
-
-    mode = raw.to_s.strip
-    unless RECONCILIATION_VALID_MODES.include?(mode)
-      raise ParseError, "reconciliation_mode: must be one of #{RECONCILIATION_VALID_MODES.join(', ')}"
-    end
-
-    mode
   end
 
   def parse_formatters(raw)

@@ -17,7 +17,6 @@ RSpec.describe AgentRole do
       expect(described_class::WORKFLOW_SUMMARY_TEST_PLAN).to        eq("workflow:summary_test_plan")
       expect(described_class::WORKFLOW_ADVERSARIAL_REVIEWER).to     eq("workflow:adversarial_reviewer")
       expect(described_class::WORKFLOW_MANUAL).to                   eq("workflow:manual")
-      expect(described_class::WORKFLOW_RECONCILIATION_FEEDBACK).to  eq("workflow:reconciliation_feedback")
     end
 
     it "defines all helper roles" do
@@ -40,8 +39,7 @@ RSpec.describe AgentRole do
         described_class::WORKFLOW_REBASE_CONFLICT,
         described_class::WORKFLOW_SUMMARY_TEST_PLAN,
         described_class::WORKFLOW_ADVERSARIAL_REVIEWER,
-        described_class::WORKFLOW_MANUAL,
-        described_class::WORKFLOW_RECONCILIATION_FEEDBACK
+        described_class::WORKFLOW_MANUAL
       )
     end
 

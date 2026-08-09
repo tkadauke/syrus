@@ -87,20 +87,8 @@ class McpToolContext
     when "agent_insight_run"
       AgentRole::AGENT_INSIGHT
     else
-      reconciliation_feedback_role_for(run) || AgentRole::WORKFLOW_IMPLEMENT
+      AgentRole::WORKFLOW_IMPLEMENT
     end
-  end
-
-  # Returns WORKFLOW_RECONCILIATION_FEEDBACK when the run belongs to a
-  # historical standalone Epic reconciliation Job configured for feedback mode.
-  # This grants submit_chat_feedback in addition to the standard implement tools.
-  private_class_method def self.reconciliation_feedback_role_for(run)
-    epic = run.job.epic
-    return unless epic
-    return unless epic.reconciliation_job_id == run.job.id
-    return unless epic.resolved_reconciliation_mode == "feedback"
-
-    AgentRole::WORKFLOW_RECONCILIATION_FEEDBACK
   end
 
   private_class_method def self.role_for_chat(chat_session)

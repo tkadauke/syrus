@@ -68,23 +68,11 @@ RSpec.describe McpToolPolicy do
       expect(tools).to include(Mcp::Tools::ReportMainConcernTool)
     end
 
-    it "returns submit_summary, submit_test_plan, and submit_reconciliation_feedback for the reconciliation_feedback role" do
-      context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_RECONCILIATION_FEEDBACK, user: user)
-      tools   = described_class.for(context)
-
-      expect(tools).to include(
-        Mcp::Tools::SubmitSummaryTool,
-        Mcp::Tools::SubmitTestPlanTool,
-        Mcp::Tools::SubmitReconciliationFeedbackTool
-      )
-      expect(tools).not_to include(Mcp::Tools::SubmitAdversarialReviewTool)
-    end
-
-    it "does not include submit_reconciliation_feedback for the standard implement role" do
+    it "does not include workflow-side submit_chat_feedback for the standard implement role" do
       context = McpToolContext.from_run(run)
       tools   = described_class.for(context)
 
-      expect(tools).not_to include(Mcp::Tools::SubmitReconciliationFeedbackTool)
+      expect(tools.map(&:tool_name)).not_to include("submit_chat_feedback")
     end
 
     it "includes submit_job_metadata for refresh_job_metadata runs" do
@@ -114,11 +102,6 @@ RSpec.describe McpToolPolicy do
       it "denies submit_summary for the adversarial_reviewer role" do
         context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER, user: user)
         expect(described_class.capability_permitted?(context, :submit_summary)).to be(false)
-      end
-
-      it "permits submit_chat_feedback for the reconciliation_feedback role" do
-        context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_RECONCILIATION_FEEDBACK, user: user)
-        expect(described_class.capability_permitted?(context, :submit_chat_feedback)).to be(true)
       end
 
       it "denies submit_chat_feedback for the standard implement role" do

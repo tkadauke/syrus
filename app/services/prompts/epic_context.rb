@@ -43,7 +43,7 @@ module Prompts
     def approved_siblings_section
       return nil unless @job
 
-      exclude_ids = [ @job.id, @epic.reconciliation_job_id ].compact
+      exclude_ids = [ @job.id ].compact
       siblings = @epic.jobs.where(state: %w[approved landing]).where.not(id: exclude_ids)
       return nil if siblings.empty?
 

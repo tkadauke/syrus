@@ -121,25 +121,6 @@ export function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payl
           />
         </Field>
 
-        <Field label={t("reconciliation_mode_label")}>
-          <select
-            className={inputClass()}
-            onChange={(event) => setValues({ ...values, reconciliation_mode: (event.target.value || null) as import("../api/epics").EpicReconciliationMode })}
-            value={values.reconciliation_mode ?? ""}
-          >
-            <option value="">{t("reconciliation_mode_repo_default")}</option>
-            <option value="pr">{t("reconciliation_mode_pr")}</option>
-            <option value="feedback">{t("reconciliation_mode_feedback")}</option>
-            <option value="none">{t("reconciliation_mode_none")}</option>
-          </select>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {values.reconciliation_mode === "pr" ? t("reconciliation_mode_pr_hint") :
-             values.reconciliation_mode === "feedback" ? t("reconciliation_mode_feedback_hint") :
-             values.reconciliation_mode === "none" ? t("reconciliation_mode_none_hint") :
-            t("reconciliation_mode_default_hint")}
-          </p>
-        </Field>
-
         <Field label={t("epic_dependency_policy_label")}>
           <select
             className={inputClass()}
@@ -188,7 +169,6 @@ function inputFromPayload(payload: EpicFormPayload): EpicInput {
     description: payload.epic.description,
     repository_id: payload.epic.repository_id ? String(payload.epic.repository_id) : "",
     github_issue_url: payload.epic.github_issue_url,
-    reconciliation_mode: payload.epic.reconciliation_mode,
     epic_dependency_policy: payload.epic.epic_dependency_policy
   }
 }

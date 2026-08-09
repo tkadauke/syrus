@@ -84,40 +84,6 @@ RSpec.describe McpToolContext do
       expect(context.role).to eq(AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER)
     end
 
-    it "assigns WORKFLOW_RECONCILIATION_FEEDBACK for the reconciliation Job of a feedback-mode Epic" do
-      epic = Factories.epic(user: user, repository: repository, reconciliation_mode: "feedback")
-      # Create job without epic so it gets an initial run, then associate it
-      recon_job = Factories.job(user: user, repository: repository)
-      recon_job.update!(epic: epic)
-      epic.update!(reconciliation_job_id: recon_job.id)
-
-      context = described_class.from_run(recon_job.initial_run)
-      expect(context.role).to eq(AgentRole::WORKFLOW_RECONCILIATION_FEEDBACK)
-    end
-
-    it "assigns WORKFLOW_IMPLEMENT (not WORKFLOW_RECONCILIATION_FEEDBACK) for a non-reconciliation Job in a feedback-mode Epic" do
-      epic = Factories.epic(user: user, repository: repository, reconciliation_mode: "feedback")
-      sibling_job = Factories.job(user: user, repository: repository)
-      other_job   = Factories.job(user: user, repository: repository)
-      sibling_job.update!(epic: epic)
-      other_job.update!(epic: epic)
-      # reconciliation_job_id points to other_job, so sibling_job is not the recon job
-      epic.update!(reconciliation_job_id: other_job.id)
-
-      context = described_class.from_run(sibling_job.initial_run)
-      expect(context.role).to eq(AgentRole::WORKFLOW_IMPLEMENT)
-    end
-
-    it "assigns WORKFLOW_IMPLEMENT for the reconciliation Job of a pr-mode Epic" do
-      epic = Factories.epic(user: user, repository: repository, reconciliation_mode: "pr")
-      recon_job = Factories.job(user: user, repository: repository)
-      recon_job.update!(epic: epic)
-      epic.update!(reconciliation_job_id: recon_job.id)
-
-      context = described_class.from_run(recon_job.initial_run)
-      expect(context.role).to eq(AgentRole::WORKFLOW_IMPLEMENT)
-    end
-
     it "exposes submit_adversarial_review to an adversarial_review step" do
       run.step.update_columns(kind: "adversarial_review")
       context = described_class.from_run(run.reload)

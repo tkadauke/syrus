@@ -195,23 +195,6 @@ coverage:
 
 `on_miss` behaviors: `block` fails the workflow, `warn` logs a warning and continues, `schedule` triggers a follow-up coverage-fix Job.
 
-
-## reconciliation_mode
-
-Legacy compatibility setting for standalone Epic reconciliation Jobs. New Epics no longer create a separate `Reconciliation: ...` child Job; reconciliation now happens during merge-train landing after Syrus builds the integration branch.
-
-```yaml
-reconciliation_mode: pr       # legacy standalone PR mode
-reconciliation_mode: feedback # legacy standalone feedback mode
-reconciliation_mode: none     # skip legacy standalone mode
-```
-
-Valid values: `pr`, `feedback`, `none`. Omitting the key defaults to `pr` for legacy compatibility.
-
-This setting does not create standalone reconciliation Jobs for new Epics. See the `reconciliation.md` and `merge_train.md` operator docs for the current landing-time reconciliation flow.
-
-An Epic-level `reconciliation_mode` column takes precedence over this `.syrus.yml` setting.
-
 ## deployment_stages
 
 Configures the named deployment pipeline stages Syrus will track for this repository. Each stage maps to a git tag (or tag pattern) that advances as the merge commit propagates through your deployment pipeline.

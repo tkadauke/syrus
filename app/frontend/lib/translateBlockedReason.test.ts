@@ -33,7 +33,6 @@ describe("translateBlockedReason", () => {
     expect(translateBlockedReason({ key: "landing_start_blocked_retrying" }, mockT)).toBe("common:blocked_reasons.landing_start_blocked_retrying")
     expect(translateBlockedReason({ key: "rebase_cap_reached" }, mockT)).toBe("common:blocked_reasons.rebase_cap_reached")
     expect(translateBlockedReason({ key: "urgent_job_active" }, mockT)).toBe("common:blocked_reasons.urgent_job_active")
-    expect(translateBlockedReason({ key: "epic_reconciliation_pending" }, mockT)).toBe("common:blocked_reasons.epic_reconciliation_pending")
   })
 
   it("translates structured reasons with params", () => {
