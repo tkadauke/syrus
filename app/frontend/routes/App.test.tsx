@@ -9811,7 +9811,7 @@ describe("App", () => {
     expect(gradeLogStream.closest("section")).toHaveClass("max-md:fixed", "max-md:inset-0", "max-md:h-[100dvh]")
     fireEvent.click(screen.getByRole("button", { name: "Close artifact viewer" }))
     expect(screen.queryByText("rspec output")).not.toBeInTheDocument()
-  }, 10_000)
+  })
 
   it("coalesces adjacent transcript chunks from the same command source", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
