@@ -29,6 +29,7 @@ RSpec.describe "queue partitioning" do
     indexing
     cleanup
     low_priority_maintenance
+    connectivity
   ].freeze
 
   # Where each non-resume queue must run in the multi-node split.
@@ -40,6 +41,7 @@ RSpec.describe "queue partitioning" do
     indexing
     cleanup
     low_priority_maintenance
+    connectivity
   ].freeze
   COMPUTE_QUEUES = %w[runs merges].freeze
 

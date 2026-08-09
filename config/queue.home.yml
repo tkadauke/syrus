@@ -80,6 +80,13 @@ default: &default
       threads: <%= ENV.fetch("VIDEO_CONCURRENCY", 2) %>
       processes: 1
       polling_interval: 0.5
+    # Connectivity plugin lifecycle jobs (e.g. Tailscale daemon start/stop).
+    # concurrency: 1 ensures a single worker owns the daemon — this is the
+    # leader-election mechanism for multi-replica / k3s deployments.
+    - queues: "connectivity"
+      threads: 1
+      processes: 1
+      polling_interval: 1
 
 development:
   <<: *default

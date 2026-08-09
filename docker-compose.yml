@@ -58,6 +58,18 @@ services:
         condition: service_completed_successfully
     environment:
       SYRUS_TERMINAL_HOST: worker
+      # Required for connectivity plugins (e.g. Tailscale) so the daemon can
+      # forward traffic to the web container. Safe to remove if no connectivity
+      # plugin is in use.
+      SYRUS_INTERNAL_WEB_URL: http://web:80
+    # Required for connectivity plugins (e.g. Tailscale) that manage network
+    # interfaces and TUN devices. Safe to remove if no connectivity plugin is
+    # in use.
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
     volumes:
       - syrus-data:/home/rails/.syrus
       - syrus-search:/home/rails/.syrus-search
