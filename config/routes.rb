@@ -29,6 +29,8 @@ Rails.application.routes.draw do
         resource :passkeys, only: [] do
           get :registration_options
           post :register
+          get :authentication_options
+          post :authenticate
         end
         post "bug_reports", to: "bug_reports#create"
         post "performance_events", to: "performance_events#create"

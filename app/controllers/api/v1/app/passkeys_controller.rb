@@ -2,8 +2,10 @@ module Api
   module V1
     module App
       class PasskeysController < BaseController
+        skip_before_action :require_authentication, only: %i[authentication_options authenticate]
+
         rate_limit to: 10, within: 3.minutes,
-                   only: %i[registration_options],
+                   only: %i[registration_options authentication_options],
                    with: -> { render_error("rate_limited", "Try again later.", status: :too_many_requests) }
 
         def registration_options
@@ -39,6 +41,39 @@ module Api
           challenge.destroy
 
           render json: passkey_json(passkey), status: :created
+        rescue WebAuthn::Error => e
+          render_error("webauthn_error", e.message, status: :unprocessable_content)
+        end
+
+        def authentication_options
+          options = WebAuthn::Credential.options_for_get(
+            allow: [],
+            user_verification: "preferred"
+          )
+
+          PasskeyChallenge.create_for!(type: "authentication", challenge: options.challenge)
+
+          render json: options.as_json
+        end
+
+        def authenticate
+          challenge = PasskeyChallenge.valid.for_type("authentication").find_by(challenge: params[:challenge])
+          return render_error("invalid_credential", "Invalid credential.", status: :unprocessable_content) unless challenge
+
+          credential = WebAuthn::Credential.from_get(params.require(:credential).to_unsafe_h)
+          passkey = Passkey.find_by(external_id: credential.id)
+          return render_error("invalid_credential", "Invalid credential.", status: :unprocessable_content) unless passkey
+
+          credential.verify(
+            challenge.challenge,
+            public_key: passkey.public_key,
+            sign_count: passkey.sign_count
+          )
+
+          passkey.update!(sign_count: credential.sign_count, last_used_at: Time.current)
+          challenge.destroy
+          start_new_session_for(passkey.user)
+          render json: { redirect_to: after_authentication_path }
         rescue WebAuthn::Error => e
           render_error("webauthn_error", e.message, status: :unprocessable_content)
         end

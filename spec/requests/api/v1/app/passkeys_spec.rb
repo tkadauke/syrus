@@ -170,4 +170,132 @@ RSpec.describe "API: /api/v1/app/passkeys", type: :request do
       end
     end
   end
+
+  describe "GET /api/v1/app/passkeys/authentication_options" do
+    it "returns 200 with a challenge" do
+      get "/api/v1/app/passkeys/authentication_options"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to have_key("challenge")
+    end
+
+    it "does not require authentication" do
+      get "/api/v1/app/passkeys/authentication_options"
+
+      expect(response).not_to have_http_status(:unauthorized)
+    end
+
+    it "creates a PasskeyChallenge with no user" do
+      expect {
+        get "/api/v1/app/passkeys/authentication_options"
+      }.to change { PasskeyChallenge.for_type("authentication").count }.by(1)
+
+      challenge = PasskeyChallenge.for_type("authentication").last
+      expect(challenge.user).to be_nil
+    end
+
+    it "sets challenge expiry to approximately 5 minutes from now" do
+      get "/api/v1/app/passkeys/authentication_options"
+
+      challenge = PasskeyChallenge.for_type("authentication").last
+      expect(challenge.expires_at).to be_within(10.seconds).of(5.minutes.from_now)
+    end
+  end
+
+  describe "POST /api/v1/app/passkeys/authenticate" do
+    let(:external_id) { "auth-cred-id-#{SecureRandom.hex(8)}" }
+    let(:public_key) { "fake-public-key-#{SecureRandom.hex(8)}" }
+    let(:challenge_value) { SecureRandom.urlsafe_base64(32) }
+
+    let!(:passkey) do
+      user.passkeys.create!(
+        external_id: external_id,
+        public_key: public_key,
+        sign_count: 0
+      )
+    end
+
+    let!(:pending_challenge) do
+      PasskeyChallenge.create_for!(type: "authentication", challenge: challenge_value)
+    end
+
+    let(:mock_credential) do
+      instance_double(
+        WebAuthn::PublicKeyCredentialWithAssertion,
+        id: external_id,
+        sign_count: 1,
+        verify: true
+      )
+    end
+
+    before do
+      allow(WebAuthn::Credential).to receive(:from_get).and_return(mock_credential)
+    end
+
+    it "returns 200, sets session cookie, and returns redirect_to" do
+      post "/api/v1/app/passkeys/authenticate",
+           params: { challenge: challenge_value, credential: { id: external_id, type: "public-key" } }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to have_key("redirect_to")
+      expect(cookies[:session_id]).to be_present
+    end
+
+    it "updates sign_count and last_used_at on the passkey" do
+      post "/api/v1/app/passkeys/authenticate",
+           params: { challenge: challenge_value, credential: { id: external_id, type: "public-key" } }
+
+      passkey.reload
+      expect(passkey.sign_count).to eq(1)
+      expect(passkey.last_used_at).to be_within(5.seconds).of(Time.current)
+    end
+
+    it "destroys the challenge after successful authentication" do
+      post "/api/v1/app/passkeys/authenticate",
+           params: { challenge: challenge_value, credential: { id: external_id, type: "public-key" } }
+
+      expect(PasskeyChallenge.find_by(id: pending_challenge.id)).to be_nil
+    end
+
+    it "returns 422 when WebAuthn verification fails" do
+      allow(mock_credential).to receive(:verify).and_raise(WebAuthn::Error, "Signature mismatch")
+
+      post "/api/v1/app/passkeys/authenticate",
+           params: { challenge: challenge_value, credential: { id: external_id, type: "public-key" } }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("webauthn_error")
+      expect(parse_body.dig("error", "message")).to eq("Signature mismatch")
+    end
+
+    it "returns 422 when the challenge has expired" do
+      pending_challenge.update!(expires_at: 1.minute.ago)
+
+      post "/api/v1/app/passkeys/authenticate",
+           params: { challenge: challenge_value, credential: { id: external_id, type: "public-key" } }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("invalid_credential")
+    end
+
+    it "returns 422 (not 404) when the external_id is unknown" do
+      allow(mock_credential).to receive(:id).and_return("unknown-external-id")
+
+      post "/api/v1/app/passkeys/authenticate",
+           params: { challenge: challenge_value, credential: { id: "unknown-external-id", type: "public-key" } }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("invalid_credential")
+    end
+
+    it "returns 422 when the challenge has already been used/destroyed" do
+      pending_challenge.destroy
+
+      post "/api/v1/app/passkeys/authenticate",
+           params: { challenge: challenge_value, credential: { id: external_id, type: "public-key" } }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("invalid_credential")
+    end
+  end
 end
