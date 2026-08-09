@@ -1,9 +1,16 @@
 import { jsonResponse } from "../testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
+
+const reloadMock = vi.hoisted(() => vi.fn())
+
+vi.mock("../lib/pageReload", () => ({
+  reloadPage: reloadMock
+}))
+
 import { AdminPlugins } from "./AdminPlugins"
 
 describe("AdminPlugins", () => {
@@ -49,6 +56,62 @@ describe("AdminPlugins", () => {
 
     expect(await screen.findByText("No plugins registered")).toBeInTheDocument()
     expect(screen.getByText("Registered plugin manifests will appear here after plugin engines load.")).toBeInTheDocument()
+  })
+
+  it("reloads the page after disabling a plugin", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input).endsWith("/disable") && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({ plugins: [] }))
+      }
+      return Promise.resolve(jsonResponse({
+        plugins: [
+          {
+            name: "codex_agent",
+            display_name: "Codex Agent",
+            disable_blockers: [],
+            disableable: true,
+            version: "1.2.3",
+            enabled: true,
+            description: "Codex agent provider",
+            extension_points: []
+          }
+        ]
+      }))
+    })
+
+    renderRoute(<AdminPlugins />)
+
+    fireEvent.click(await screen.findByRole("button", { name: "Disable" }))
+
+    await waitFor(() => expect(reloadMock).toHaveBeenCalled())
+  })
+
+  it("reloads the page after enabling a plugin", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input).endsWith("/enable") && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({ plugins: [] }))
+      }
+      return Promise.resolve(jsonResponse({
+        plugins: [
+          {
+            name: "codex_agent",
+            display_name: "Codex Agent",
+            disable_blockers: [],
+            disableable: true,
+            version: "1.2.3",
+            enabled: false,
+            description: "Codex agent provider",
+            extension_points: []
+          }
+        ]
+      }))
+    })
+
+    renderRoute(<AdminPlugins />)
+
+    fireEvent.click(await screen.findByRole("button", { name: "Enable" }))
+
+    await waitFor(() => expect(reloadMock).toHaveBeenCalled())
   })
 })
 

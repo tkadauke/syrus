@@ -1,9 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { disableAdminPlugin, enableAdminPlugin, fetchAdminPlugins, type AdminPlugin, type AdminPluginExtensionPoint } from "../api/adminPlugins"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
+import * as pageReload from "../lib/pageReload"
 
 export function AdminPlugins() {
   const { t } = useT("admin")
@@ -47,11 +48,10 @@ function PluginsView({ plugins }: { plugins: AdminPlugin[] }) {
 
 function PluginCard({ plugin }: { plugin: AdminPlugin }) {
   const { t } = useT("admin")
-  const queryClient = useQueryClient()
   const toggle = useMutation({
     mutationFn: () => plugin.enabled ? disableAdminPlugin(plugin.name) : enableAdminPlugin(plugin.name),
-    onSuccess: (payload) => {
-      queryClient.setQueryData(["admin", "plugins"], payload)
+    onSuccess: () => {
+      pageReload.reloadPage()
     }
   })
   const disableBlockers = plugin.disable_blockers || []
