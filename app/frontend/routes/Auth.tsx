@@ -11,6 +11,8 @@ import { authPrimaryButtonClass } from "../lib/buttonStyles"
 import { NoticeToast } from "../components/NoticeToast"
 import { CapsLockHint, EmailValidityHint, PasswordMatchHint, PasswordStrengthMeter } from "../components/PasswordFeedback"
 import {
+  authenticateWithPasskey,
+  fetchPasskeyAuthenticationOptions,
   fetchSignup,
   requestPasswordReset,
   resetPassword,
@@ -18,6 +20,7 @@ import {
   signUp,
   type SignupPayload
 } from "../api/auth"
+import { isPasskeySupported, signInWithPasskey } from "../lib/passkey"
 import { errorMessage } from "../lib/errorMessage"
 
 export function SignInRoute() {
@@ -28,6 +31,8 @@ export function SignInRoute() {
   const [emailAddress, setEmailAddress] = useState("")
   const [password, setPassword] = useState("")
   const [capsLock, setCapsLock] = useState(false)
+  const [passkeyError, setPasskeyError] = useState<string | null>(null)
+  const [passkeyLoading, setPasskeyLoading] = useState(false)
   const submit = useMutation({
     mutationFn: () => signIn({ email_address: emailAddress, password }),
     onSuccess: (payload) => assignWithPrefix(prefix, payload.redirect_to)
@@ -40,6 +45,26 @@ export function SignInRoute() {
 
   function trackCapsLock(event: KeyboardEvent<HTMLInputElement>) {
     setCapsLock(event.getModifierState("CapsLock"))
+  }
+
+  async function handlePasskeySignIn() {
+    setPasskeyLoading(true)
+    setPasskeyError(null)
+    try {
+      const redirectPath = await signInWithPasskey(
+        fetchPasskeyAuthenticationOptions,
+        authenticateWithPasskey
+      )
+      assignWithPrefix(prefix, redirectPath)
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "NotAllowedError") {
+        // user cancelled — no error message needed
+      } else {
+        setPasskeyError(t("sign_in.passkey_error"))
+      }
+    } finally {
+      setPasskeyLoading(false)
+    }
   }
 
   return (
@@ -82,6 +107,23 @@ export function SignInRoute() {
           <Link className="text-sm text-gray-700 dark:text-gray-300 underline hover:no-underline" to={`${prefix}/passwords/new`}>{t("sign_in.forgot")}</Link>
         </div>
       </form>
+      {isPasskeySupported() ? (
+        <div className="mt-4">
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-300 dark:border-gray-600" /></div>
+            <div className="relative flex justify-center text-sm"><span className="bg-white dark:bg-gray-900 px-2 text-gray-500 dark:text-gray-400">{t("sign_in.or")}</span></div>
+          </div>
+          <button
+            type="button"
+            disabled={passkeyLoading}
+            onClick={handlePasskeySignIn}
+            className={authPrimaryButtonClass}
+          >
+            {passkeyLoading ? t("sign_in.passkey_submitting") : t("sign_in.passkey_submit")}
+          </button>
+          {passkeyError ? <p className="text-sm text-red-600 dark:text-red-400 mt-1">{passkeyError}</p> : null}
+        </div>
+      ) : null}
     </AuthShell>
   )
 }

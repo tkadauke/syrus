@@ -1,9 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi, afterEach } from "vitest"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import type { ReactNode } from "react"
 import { authRedirectTarget, PasswordRequestRoute, PasswordResetRoute, SignInRoute } from "./Auth"
+import * as passkey from "../lib/passkey"
 
 function renderAt(path: string, routePath: string, element: ReactNode) {
   return render(
@@ -58,6 +59,49 @@ describe("SignInRoute", () => {
 
     pressKey(password, "keyup", false)
     expect(hint.className).toContain("opacity-0")
+  })
+})
+
+describe("SignInRoute passkey button", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it("renders the passkey button when passkeys are supported", () => {
+    vi.spyOn(passkey, "isPasskeySupported").mockReturnValue(true)
+    renderAt("/session/new", "/session/new", <SignInRoute />)
+
+    expect(screen.getByRole("button", { name: "Sign in with passkey" })).toBeInTheDocument()
+  })
+
+  it("hides the passkey button when passkeys are not supported", () => {
+    vi.spyOn(passkey, "isPasskeySupported").mockReturnValue(false)
+    renderAt("/session/new", "/session/new", <SignInRoute />)
+
+    expect(screen.queryByRole("button", { name: "Sign in with passkey" })).toBeNull()
+  })
+
+  it("shows an error message when passkey sign-in fails", async () => {
+    vi.spyOn(passkey, "isPasskeySupported").mockReturnValue(true)
+    vi.spyOn(passkey, "signInWithPasskey").mockRejectedValue(new Error("bad credential"))
+    renderAt("/session/new", "/session/new", <SignInRoute />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign in with passkey" }))
+
+    expect(await screen.findByText("Passkey sign-in failed. Try your email and password instead.")).toBeInTheDocument()
+  })
+
+  it("does not show an error message when user cancels the passkey prompt", async () => {
+    vi.spyOn(passkey, "isPasskeySupported").mockReturnValue(true)
+    const cancelled = new DOMException("User cancelled", "NotAllowedError")
+    vi.spyOn(passkey, "signInWithPasskey").mockRejectedValue(cancelled)
+    renderAt("/session/new", "/session/new", <SignInRoute />)
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign in with passkey" }))
+
+    // Give the async handler a chance to run
+    await screen.findByRole("button", { name: "Sign in with passkey" })
+    expect(screen.queryByText(/Passkey sign-in failed/)).toBeNull()
   })
 })
 
