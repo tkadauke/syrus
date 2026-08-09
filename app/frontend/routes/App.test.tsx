@@ -13308,6 +13308,14 @@ describe("App", () => {
     expect(await screen.findByText("Read")).toBeInTheDocument()
     expect(screen.getAllByText(/app\/models\/chat\.rb/).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/spec\/rails_helper\.rb/).length).toBeGreaterThan(0)
+
+    // Tool result bodies are deferred until the ToolGroup is expanded.
+    const readDetails = screen.getByText("Read").closest("details")
+    if (readDetails) {
+      readDetails.open = true
+      fireEvent(readDetails, new Event("toggle"))
+    }
+
     expect(screen.getByText("# RSpec config")).toHaveClass("text-gray-400")
     expect(screen.getAllByText("do")[0]).toHaveClass("font-semibold", "text-blue-700")
     expect(screen.getByText(":rspec")).toHaveClass("text-violet-700")
@@ -13317,6 +13325,13 @@ describe("App", () => {
     expect(screen.getAllByText(/bin\/rspec spec\/models\/job_spec\.rb/).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/rg perform app\/jobs/).length).toBeGreaterThan(0)
     expect(screen.getByText("9 paths")).toBeInTheDocument()
+
+    const globDetails = screen.getByText("Glob").closest("details")
+    if (globDetails) {
+      globDetails.open = true
+      fireEvent(globDetails, new Event("toggle"))
+    }
+
     expect(screen.getByText(/spec\/services\/chat_workspace_spec\.rb/)).toBeInTheDocument()
     expect(screen.queryByText(/\/syrus-home\/\.syrus\/chat-workspaces/)).not.toBeInTheDocument()
     expect(screen.queryByText(/\/syrus-home\/\.syrus\/workflows/)).not.toBeInTheDocument()
