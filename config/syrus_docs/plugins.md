@@ -111,7 +111,7 @@ not in the plugin registry.
 Admin-page plugins should declare:
 
 - `admin_page` provider metadata with `id`, fallback `label`, `label_key`,
-  `path`, `paths`, `component`, and `order`.
+  `path`, `paths`, `component`, `order`, and optionally `group_id`.
 - install-time `frontend.routes` metadata mapping component keys such as
   `syrus_dev/AdminPerformance` to plugin frontend files.
 - install-time `frontend.i18n` metadata listing plugin locale files.
@@ -120,6 +120,21 @@ Admin-page plugins should declare:
   `/api/v1/app/*` or `/api/v1/admin/*` are served by the host plugin-route
   dispatcher after concrete core routes, so plugin controllers can live inside
   the plugin engine without adding one-off host routes.
+
+The `group_id` field slots the plugin's admin page into one of the core
+navigation groups in the Admin sidebar. Valid values:
+
+| `group_id` | Admin section |
+|---|---|
+| `operations` | Operations (Queue, Stuck, Reconciler Activity, Processes) |
+| `observability` | Observability (Console, Resource Admission) |
+| `users_access` | Users & Access (Users, Invitations, GitHub App, Installations) |
+| `system` | System (Settings, Features, Plugins) |
+| `product_data` | Product Data (Scoped Chat Events, Insights) |
+
+Plugin pages with an unrecognized or absent `group_id` appear ungrouped at the
+bottom of the sidebar below the named sections. Omit `group_id` (or set it to
+`nil`) for standalone pages that do not belong to any group.
 
 Built-in workflow MCP tools are core app functionality, not a plugin. Optional
 or installation-specific MCP tools should be contributed through plugin

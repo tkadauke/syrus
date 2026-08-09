@@ -26,6 +26,12 @@
   "nav_features": "Facultates",
   "nav_operational_logs": "Acta",
   "nav_plugins": "Plugin",
+  "nav_insights": "Compendium",
+  "nav_group_operations": "Operationes",
+  "nav_group_observability": "Observantia",
+  "nav_group_users_access": "Utentes & Aditus",
+  "nav_group_system": "Systema",
+  "nav_group_product_data": "Data Producti",
   "section_label": "Administratio",
   "overview": {
     "heading": "Conspectus",

@@ -25,7 +25,8 @@ module Admin
         path: page.fetch(:path).to_s,
         paths: Array(page[:paths].presence || page[:path]).map(&:to_s),
         component: page[:component].presence&.to_s,
-        order: page[:order].to_i
+        order: page[:order].to_i,
+        group_id: page[:group_id].presence&.to_s
       }
     end
   end

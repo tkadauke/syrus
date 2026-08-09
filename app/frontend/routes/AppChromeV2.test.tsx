@@ -9,6 +9,7 @@ import * as chatsApi from "../api/chats"
 import type { ChatGroupRecord, ChatNavRecord, ChatsIndexPayload, MoreChatsPayload } from "../api/chats"
 import { AppChromeV2 } from "./AppChromeV2"
 import { chatSectionsFromPayload } from "./appChromeV2/helpers"
+import { buildAdminNavItems, ADMIN_NAV_GROUPS, CORE_ADMIN_NAV_ITEMS } from "./appChromeV2/adminNav"
 
 describe("AppChromeV2", () => {
   beforeEach(() => {
@@ -862,6 +863,207 @@ describe("chat row mode icons", () => {
     await screen.findByText("Active chat")
     const activityMarker = screen.getByTitle("Chat turn active")
     expect(activityMarker.parentElement?.className).toContain("group-hover:hidden")
+  })
+})
+
+describe("AdminNav grouped navigation", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    vi.restoreAllMocks()
+  })
+
+  it("renders group section headers in the admin nav on admin paths", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/app/admin/plugin_pages") {
+        return Promise.resolve(jsonResponse({ pages: [] }))
+      }
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderAppChrome(<div />, { initialEntries: ["/admin"] })
+
+    // Desktop sidebar and mobile accordion both render group headers; use *All* queries.
+    await screen.findAllByText("Operations")
+    expect(screen.queryAllByText("Observability").length).toBeGreaterThan(0)
+    expect(screen.queryAllByText("Users & Access").length).toBeGreaterThan(0)
+    expect(screen.queryAllByText("System").length).toBeGreaterThan(0)
+    expect(screen.queryAllByText("Product Data").length).toBeGreaterThan(0)
+  })
+
+  it("renders the Overview link above the grouped sections", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/app/admin/plugin_pages") {
+        return Promise.resolve(jsonResponse({ pages: [] }))
+      }
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderAppChrome(<div />, { initialEntries: ["/admin"] })
+
+    await screen.findAllByText("Operations")
+    const overviewLinks = screen.getAllByRole("link", { name: "Overview" })
+    expect(overviewLinks.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it("places plugin pages with a known group_id into the matching section", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/app/admin/plugin_pages") {
+        return Promise.resolve(jsonResponse({
+          pages: [{
+            id: "test.perf",
+            label: "Performance",
+            label_key: null,
+            path: "/admin/performance",
+            paths: ["/admin/performance"],
+            order: 10,
+            group_id: "observability"
+          }]
+        }))
+      }
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderAppChrome(<div />, { initialEntries: ["/admin"] })
+
+    await screen.findByText("Performance")
+    expect(screen.getByRole("link", { name: "Performance" })).toBeInTheDocument()
+  })
+
+  it("shows Features in System group when feature flags exist", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/app/admin/plugin_pages") {
+        return Promise.resolve(jsonResponse({ pages: [] }))
+      }
+      if (String(input).includes("/api/v1/app/terminal_sessions")) {
+        return Promise.resolve(jsonResponse({ sessions: [] }))
+      }
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderAppChrome(<div />, {
+      initialEntries: ["/admin"],
+      bootstrap: bootstrapPayload({ feature_flags: { terminal: true } })
+    })
+
+    await screen.findAllByText("System")
+    expect(screen.getAllByRole("link", { name: "Features" })).not.toHaveLength(0)
+  })
+
+  it("omits Features from the nav when no feature flags are configured", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/app/admin/plugin_pages") {
+        return Promise.resolve(jsonResponse({ pages: [] }))
+      }
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    renderAppChrome(<div />, {
+      initialEntries: ["/admin"],
+      bootstrap: bootstrapPayload({ feature_flags: {} })
+    })
+
+    await screen.findAllByText("System")
+    expect(screen.queryByRole("link", { name: "Features" })).not.toBeInTheDocument()
+  })
+
+  it("does not render the admin nav on non-admin paths", () => {
+    renderAppChrome(<div />, { initialEntries: ["/repositories"] })
+
+    expect(screen.queryByText("Operations")).not.toBeInTheDocument()
+    expect(screen.queryByText("Observability")).not.toBeInTheDocument()
+  })
+})
+
+describe("buildAdminNavItems", () => {
+  const translate = (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key
+
+  it("returns overview item as standalone and groups rest by group id", () => {
+    const { overviewItem, groups } = buildAdminNavItems({}, [], translate)
+
+    expect(overviewItem?.id).toBe("overview")
+    const operationsGroup = groups.find(({ group }) => group.id === "operations")
+    expect(operationsGroup).toBeDefined()
+    expect(operationsGroup?.items.map((i) => i.id)).toContain("queue")
+    expect(operationsGroup?.items.map((i) => i.id)).toContain("stuck")
+  })
+
+  it("excludes Features when feature flags object is empty", () => {
+    const { groups } = buildAdminNavItems({}, [], translate)
+    const systemGroup = groups.find(({ group }) => group.id === "system")
+    expect(systemGroup?.items.map((i) => i.id)).not.toContain("features")
+  })
+
+  it("includes Features in system group when feature flags are present", () => {
+    const { groups } = buildAdminNavItems({ terminal: true }, [], translate)
+    const systemGroup = groups.find(({ group }) => group.id === "system")
+    expect(systemGroup?.items.map((i) => i.id)).toContain("features")
+  })
+
+  it("places plugin pages with known group_id into the correct group", () => {
+    const { groups } = buildAdminNavItems({}, [{
+      id: "test.logs",
+      label: "Logs",
+      path: "/admin/logs",
+      paths: ["/admin/logs"],
+      order: 50,
+      group_id: "observability"
+    }], translate)
+
+    const observabilityGroup = groups.find(({ group }) => group.id === "observability")
+    expect(observabilityGroup?.items.map((i) => i.id)).toContain("test.logs")
+  })
+
+  it("puts plugin pages with unknown group_id in ungroupedExtensions", () => {
+    const { ungroupedExtensions } = buildAdminNavItems({}, [{
+      id: "test.custom",
+      label: "Custom Page",
+      path: "/admin/custom",
+      paths: ["/admin/custom"],
+      order: 10,
+      group_id: "unknown_group"
+    }], translate)
+
+    expect(ungroupedExtensions.map((i) => i.id)).toContain("test.custom")
+  })
+
+  it("puts plugin pages without group_id in ungroupedExtensions", () => {
+    const { ungroupedExtensions } = buildAdminNavItems({}, [{
+      id: "test.legacy",
+      label: "Legacy",
+      path: "/admin/legacy",
+      paths: ["/admin/legacy"],
+      order: 10
+    }], translate)
+
+    expect(ungroupedExtensions.map((i) => i.id)).toContain("test.legacy")
+  })
+
+  it("sorts group items by order then label", () => {
+    const { groups } = buildAdminNavItems({}, [
+      { id: "p.b", label: "B Plugin", path: "/admin/b", paths: ["/admin/b"], order: 10, group_id: "operations" },
+      { id: "p.a", label: "A Plugin", path: "/admin/a", paths: ["/admin/a"], order: 10, group_id: "operations" }
+    ], translate)
+
+    const opItems = groups.find(({ group }) => group.id === "operations")?.items.map((i) => i.id) ?? []
+    const aIndex = opItems.indexOf("p.a")
+    const bIndex = opItems.indexOf("p.b")
+    expect(aIndex).toBeLessThan(bIndex)
+  })
+
+  it("preserves all five stable group ids in order", () => {
+    expect(ADMIN_NAV_GROUPS.map((g) => g.id)).toEqual([
+      "operations",
+      "observability",
+      "users_access",
+      "system",
+      "product_data"
+    ])
+  })
+
+  it("includes insights in the product_data group", () => {
+    const insights = CORE_ADMIN_NAV_ITEMS.find((i) => i.id === "insights")
+    expect(insights).toBeDefined()
+    expect(insights?.groupId).toBe("product_data")
   })
 })
 

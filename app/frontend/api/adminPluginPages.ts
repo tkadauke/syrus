@@ -8,6 +8,7 @@ export type AdminPluginPage = {
   paths: string[]
   order: number
   component?: string | null
+  group_id?: string | null
 }
 
 export type AdminPluginPagesPayload = {

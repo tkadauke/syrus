@@ -42,7 +42,8 @@ RSpec.describe "API: /api/v1/app/admin/plugin_pages", type: :request do
             path: "/admin/performance",
             paths: [ "/admin/performance" ],
             component: "dev/AdminPerformance",
-            order: 50
+            order: 50,
+            group_id: "observability"
           }
         ]
       end
@@ -60,7 +61,8 @@ RSpec.describe "API: /api/v1/app/admin/plugin_pages", type: :request do
         "path" => "/admin/performance",
         "paths" => [ "/admin/performance" ],
         "component" => "dev/AdminPerformance",
-        "order" => 50
+        "order" => 50,
+        "group_id" => "observability"
       )
     )
   end
@@ -79,7 +81,8 @@ RSpec.describe "API: /api/v1/app/admin/plugin_pages", type: :request do
         "label_key" => "syrus_dev:nav_performance",
         "path" => "/admin/performance",
         "paths" => [ "/admin/performance" ],
-        "component" => "syrus_dev/AdminPerformance"
+        "component" => "syrus_dev/AdminPerformance",
+        "group_id" => "observability"
       )
     )
   end

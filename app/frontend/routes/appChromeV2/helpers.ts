@@ -181,6 +181,10 @@ export function adminSubnavLinkClass(active: boolean) {
   return `block whitespace-nowrap rounded px-3 py-3 font-medium ${active ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200" : "text-gray-700 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300"}`
 }
 
+export function adminNavLinkClass(active: boolean) {
+  return `block rounded px-2.5 py-1.5 text-sm font-medium ${active ? "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200" : "text-gray-700 hover:bg-gray-100 hover:text-blue-700 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-blue-300"}`
+}
+
 export function popupLinkClass() {
   return "block px-4 py-2 text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
 }

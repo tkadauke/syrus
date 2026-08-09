@@ -26,6 +26,12 @@
   "nav_features": "Funktionen",
   "nav_operational_logs": "Logs",
   "nav_plugins": "Plugins",
+  "nav_insights": "Einblicke",
+  "nav_group_operations": "Betrieb",
+  "nav_group_observability": "Beobachtbarkeit",
+  "nav_group_users_access": "Benutzer & Zugriff",
+  "nav_group_system": "System",
+  "nav_group_product_data": "Produktdaten",
   "section_label": "Administration",
   "overview": {
     "heading": "Übersicht",

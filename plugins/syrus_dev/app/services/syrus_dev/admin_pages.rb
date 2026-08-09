@@ -11,6 +11,7 @@ module SyrusDev
           path: "/admin/performance",
           paths: [ "/admin/performance" ],
           component: "syrus_dev/AdminPerformance",
+          group_id: "observability",
           order: 40
         },
         {
@@ -20,6 +21,7 @@ module SyrusDev
           path: "/admin/operational_logs",
           paths: [ "/admin/operational_logs" ],
           component: "syrus_dev/AdminOperationalLogs",
+          group_id: "observability",
           order: 45
         }
       ]

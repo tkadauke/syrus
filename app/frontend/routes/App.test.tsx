@@ -1695,7 +1695,7 @@ describe("App", () => {
       expect(screen.getByRole("navigation", { name: "Primary" })).toBeInTheDocument()
       const adminNav = screen.getByRole("navigation", { name: "Admin" })
       expect(adminNav.closest("aside")).toBeNull()
-      expect(adminNav).toHaveClass("flex", "overflow-x-auto")
+      expect(adminNav).toHaveClass("sticky", "overflow-y-auto")
       expect(within(adminNav).getByRole("link", { name: "Overview" })).toHaveAttribute("href", "/app-shell/admin")
       expect(within(adminNav).getByRole("link", { name: "Queue" })).toHaveAttribute("href", "/app-shell/admin/queue")
       expect(within(adminNav).getByRole("link", { name: "Processes" })).toHaveAttribute("href", "/app-shell/admin/processes")

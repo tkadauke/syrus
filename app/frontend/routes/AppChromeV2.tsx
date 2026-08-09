@@ -1,6 +1,7 @@
 import { PUBLILIUS_SYRUS_QUOTES } from "./appChromeV2/quotes"
 import { ChevronDownIcon, DashboardIcon, MoonIcon, PlusIcon, RepositoryIcon, ScheduleIcon, SearchIcon, SetupIcon, SpendingIcon, SunIcon, TeamIcon, TerminalIcon, UserIcon } from "./appChromeV2/icons"
-import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, activeChatIdFromPath, adminNavItemActive, adminSubnavLinkClass, bugReportContext, clampSidebarWidth, isAdminPath, isAuthPath, normalizedAppPath, popupButtonClass, popupLinkClass, redirectsToSetup, sidebarLinkClass, storeSidebarWidth, storedSidebarWidth, updateBootstrapTheme, withRoutePrefix } from "./appChromeV2/helpers"
+import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, activeChatIdFromPath, adminNavItemActive, adminNavLinkClass, bugReportContext, clampSidebarWidth, isAdminPath, isAuthPath, normalizedAppPath, popupButtonClass, popupLinkClass, redirectsToSetup, sidebarLinkClass, storeSidebarWidth, storedSidebarWidth, updateBootstrapTheme, withRoutePrefix } from "./appChromeV2/helpers"
+import { buildAdminNavItems, type AdminNavGroup, type MergedAdminNavItem } from "./appChromeV2/adminNav"
 import { RecentChatsSidebar } from "./appChromeV2/RecentChatsSidebar"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { BRAND_ICON_SRC } from "../lib/brandIcon"
@@ -270,11 +271,10 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         <FlashBanner flash={data?.flash} />
         <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
         {showAdminSubnav ? (
-          <div className="min-h-full min-w-0">
-            <AdminSubnav featureFlags={data?.feature_flags || {}} normalizedPath={normalizedPath} prefix={prefix} />
-            <div className="min-w-0 flex-1">
+          <div className="flex min-h-full min-w-0">
+            <AdminNav featureFlags={data?.feature_flags || {}} normalizedPath={normalizedPath} prefix={prefix}>
               {pageContent}
-            </div>
+            </AdminNav>
           </div>
         ) : (
           pageContent
@@ -425,59 +425,160 @@ function writeDismissedSystemAlerts(dismissed: Set<string>, alerts: BootstrapPay
   }
 }
 
-function AdminSubnav({ featureFlags, normalizedPath, prefix }: { featureFlags: Record<string, boolean>; normalizedPath: string; prefix: string }) {
-  const { t } = useTranslation("admin")
+function AdminNav({
+  children,
+  featureFlags,
+  normalizedPath,
+  prefix
+}: {
+  children: ReactNode
+  featureFlags: Record<string, boolean>
+  normalizedPath: string
+  prefix: string
+}) {
+  const { t } = useTranslation(["admin", "nav"])
   const pluginPages = useQuery({
     queryKey: ["admin", "plugin_pages"],
     queryFn: fetchAdminPluginPages,
     staleTime: 30_000
   })
-  const adminNavItems = [
-    { label: t("admin:nav_overview"), to: "/admin", paths: ["/admin"] },
-    { label: t("admin:nav_resource_admission"), to: "/admin/resource_admission", paths: ["/admin/resource_admission"] },
-    { label: t("admin:nav_scoped_chat_events"), to: "/admin/scoped_chat_events", paths: ["/admin/scoped_chat_events"] },
-    { label: t("admin:nav_queue"), to: "/admin/queue", paths: ["/admin/queue"] },
-    { label: t("admin:nav_stuck"), to: "/admin/stuck", paths: ["/admin/stuck"] },
-    { label: t("admin:nav_reconciler_activity"), to: "/admin/reconciler_activity", paths: ["/admin/reconciler_activity"] },
-    { label: t("admin:nav_processes"), to: "/admin/processes", paths: ["/admin/processes"] },
-    { label: t("admin:nav_users"), to: "/admin/users", paths: ["/admin/users"] },
-    { label: t("admin:nav_console"), to: "/admin/console", paths: ["/admin/console"] },
-    { label: t("admin:nav_installations"), to: "/admin/installations", paths: ["/admin/installations"] },
-    { label: t("admin:nav_github_app"), to: "/admin/github_app/register", paths: ["/admin/github_app"] },
-    { label: t("admin:nav_invitations"), to: "/invitations", paths: ["/invitations"] },
-    { label: t("admin:nav_plugins"), to: "/admin/plugins", paths: ["/admin/plugins"] },
-    { label: t("admin:nav_settings"), to: "/settings/edit", paths: ["/settings/edit"] }
-  ]
-  const items = [
-    ...adminNavItems.slice(0, -1),
-    ...(pluginPages.data?.pages || []).map((page) => ({
-      label: page.label_key ? t(page.label_key, { defaultValue: page.label }) : page.label,
-      to: page.path,
-      paths: page.paths
-    })),
-    ...(hasFeatureFlags(featureFlags) ? [{ label: t("admin:nav_features"), to: "/admin/features", paths: ["/admin/features"] }] : []),
-    adminNavItems[adminNavItems.length - 1]
-  ]
+
+  const { overviewItem, groups, ungroupedExtensions } = useMemo(
+    () => buildAdminNavItems(featureFlags, pluginPages.data?.pages || [], t),
+    [featureFlags, pluginPages.data, t]
+  )
 
   return (
-    <div className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
-      <nav aria-label={t("nav:admin_nav_aria")} title="Curia — The Roman Senate house" className="flex gap-2 overflow-x-auto px-4 py-3 text-sm">
-        {items.map((item) => {
-          const active = item.paths.some((path) => adminNavItemActive(normalizedPath, path))
-
-          return (
-            <Link className={adminSubnavLinkClass(active)} key={item.label} to={withRoutePrefix(item.to, prefix)}>
-              {item.label}
-            </Link>
-          )
-        })}
+    <>
+      {/* Desktop: sticky vertical sidebar */}
+      <nav
+        aria-label={t("nav:admin_nav_aria")}
+        className="hidden lg:block sticky top-0 h-screen w-48 shrink-0 overflow-y-auto border-r border-gray-200 bg-white px-2 py-3 dark:border-gray-800 dark:bg-gray-950"
+        title="Curia — The Roman Senate house"
+      >
+        {overviewItem && (
+          <div className="mb-3">
+            <AdminNavLink item={overviewItem} normalizedPath={normalizedPath} prefix={prefix} />
+          </div>
+        )}
+        <div className="space-y-4">
+          {groups.map(({ group, items }) => (
+            <section key={group.id}>
+              <p className="mb-1 px-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                {t(`admin:${group.labelKey}`)}
+              </p>
+              <div className="space-y-0.5">
+                {items.map((item) => (
+                  <AdminNavLink key={item.id} item={item} normalizedPath={normalizedPath} prefix={prefix} />
+                ))}
+              </div>
+            </section>
+          ))}
+          {ungroupedExtensions.length > 0 && (
+            <section>
+              <div className="space-y-0.5">
+                {ungroupedExtensions.map((item) => (
+                  <AdminNavLink key={item.id} item={item} normalizedPath={normalizedPath} prefix={prefix} />
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
       </nav>
-    </div>
+      {/* Content area: mobile accordion above page content */}
+      <div className="min-w-0 flex-1">
+        <div className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950 lg:hidden">
+          <AdminNavAccordion
+            groups={groups}
+            normalizedPath={normalizedPath}
+            overviewItem={overviewItem}
+            prefix={prefix}
+            ungroupedExtensions={ungroupedExtensions}
+          />
+        </div>
+        {children}
+      </div>
+    </>
   )
 }
 
-function hasFeatureFlags(featureFlags: Record<string, boolean>) {
-  return Object.keys(featureFlags).length > 0
+function AdminNavLink({ item, normalizedPath, prefix }: {
+  item: MergedAdminNavItem
+  normalizedPath: string
+  prefix: string
+}) {
+  const active = item.paths.some((p) => adminNavItemActive(normalizedPath, p))
+  return (
+    <Link className={adminNavLinkClass(active)} to={withRoutePrefix(item.to, prefix)}>
+      {item.label}
+    </Link>
+  )
+}
+
+function AdminNavAccordion({
+  groups,
+  normalizedPath,
+  overviewItem,
+  prefix,
+  ungroupedExtensions
+}: {
+  groups: Array<{ group: AdminNavGroup; items: MergedAdminNavItem[] }>
+  normalizedPath: string
+  overviewItem: MergedAdminNavItem | undefined
+  prefix: string
+  ungroupedExtensions: MergedAdminNavItem[]
+}) {
+  const { t } = useTranslation("admin")
+  const activeGroupId = useMemo(
+    () => groups.find(({ items }) => items.some((item) => item.paths.some((p) => adminNavItemActive(normalizedPath, p))))?.group.id ?? null,
+    [groups, normalizedPath]
+  )
+  const [expandedId, setExpandedId] = useState<string | null>(activeGroupId)
+
+  useEffect(() => {
+    setExpandedId(activeGroupId)
+  }, [activeGroupId])
+
+  return (
+    <div>
+      {overviewItem && (
+        <div className="px-4 py-2">
+          <AdminNavLink item={overviewItem} normalizedPath={normalizedPath} prefix={prefix} />
+        </div>
+      )}
+      {groups.map(({ group, items }) => {
+        const isExpanded = expandedId === group.id
+        const hasActive = items.some((item) => item.paths.some((p) => adminNavItemActive(normalizedPath, p)))
+        return (
+          <div className="border-t border-gray-100 dark:border-gray-800" key={group.id}>
+            <button
+              aria-expanded={isExpanded}
+              className={`flex w-full items-center justify-between px-4 py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-900 ${hasActive ? "text-blue-700 dark:text-blue-300" : "text-gray-700 dark:text-gray-300"}`}
+              onClick={() => setExpandedId(isExpanded ? null : group.id)}
+              type="button"
+            >
+              <span>{t(`admin:${group.labelKey}`)}</span>
+              <ChevronDownIcon className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+            </button>
+            {isExpanded && (
+              <div className="space-y-0.5 px-4 pb-2">
+                {items.map((item) => (
+                  <AdminNavLink key={item.id} item={item} normalizedPath={normalizedPath} prefix={prefix} />
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+      {ungroupedExtensions.length > 0 && (
+        <div className="space-y-0.5 border-t border-gray-100 px-4 pb-2 pt-1 dark:border-gray-800">
+          {ungroupedExtensions.map((item) => (
+            <AdminNavLink key={item.id} item={item} normalizedPath={normalizedPath} prefix={prefix} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function SidebarContent({
@@ -866,5 +967,5 @@ export function useTerminalSessionCount(enabled: boolean) {
   })
 
   if (!enabled) return 0
-  return terminalSessions.data?.sessions.filter((session) => !session.finished_at).length ?? 0
+  return terminalSessions.data?.sessions?.filter((session) => !session.finished_at).length ?? 0
 }
