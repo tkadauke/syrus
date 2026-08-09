@@ -36,7 +36,7 @@ NAMESPACE_PRODUCTION="syrus-production"
 # (Deployment) + the per-node compute workers (DaemonSet). Each entry carries
 # its resource type so `kubectl rollout restart/status` works for Deployments
 # and the DaemonSet alike.
-DEPLOYMENTS=(deployment/syrus-web deployment/syrus-worker-home daemonset/syrus-worker-compute)
+DEPLOYMENTS=(deployment/syrus-web deployment/syrus-worker-home daemonset/syrus-worker-compute deployment/syrus-preview)
 
 # --- argv parsing ----------------------------------------------------
 DEPLOY_STAGING=true
