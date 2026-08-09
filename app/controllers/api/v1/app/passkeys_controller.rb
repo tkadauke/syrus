@@ -8,6 +8,19 @@ module Api
                    only: %i[registration_options authentication_options],
                    with: -> { render_error("rate_limited", "Try again later.", status: :too_many_requests) }
 
+        def index
+          passkeys = current_user.passkeys.order(created_at: :desc)
+          render json: passkeys.as_json(only: %i[id nickname created_at last_used_at])
+        end
+
+        def destroy
+          passkey = current_user.passkeys.find(params[:id])
+          passkey.destroy!
+          head :no_content
+        rescue ActiveRecord::RecordNotFound
+          render_error("not_found", "Passkey not found.", status: :not_found)
+        end
+
         def registration_options
           options = WebAuthn::Credential.options_for_create(
             user: {

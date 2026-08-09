@@ -20,7 +20,8 @@ import {
   signUp,
   type SignupPayload
 } from "../api/auth"
-import { isPasskeySupported, signInWithPasskey } from "../lib/passkey"
+import { fetchPasskeyRegistrationOptions, registerPasskey } from "../api/passkeys"
+import { isPasskeySupported, registerNewPasskey, signInWithPasskey } from "../lib/passkey"
 import { errorMessage } from "../lib/errorMessage"
 
 export function SignInRoute() {
@@ -155,6 +156,8 @@ function SignUpForm({ payload, prefix }: { payload: SignupPayload; prefix: strin
   const [emailAddress, setEmailAddress] = useState(payload.invitation?.email_address || "")
   const [password, setPassword] = useState("")
   const [passwordConfirmation, setPasswordConfirmation] = useState("")
+  const [redirectTo, setRedirectTo] = useState<string | null>(null)
+  const [passkeyNudgePending, setPasskeyNudgePending] = useState(false)
   const submit = useMutation({
     mutationFn: () => signUp({
       email_address: emailAddress,
@@ -162,7 +165,13 @@ function SignUpForm({ payload, prefix }: { payload: SignupPayload; prefix: strin
       password_confirmation: passwordConfirmation,
       invitation_token: payload.invitation?.token
     }),
-    onSuccess: (saved) => assignWithPrefix(prefix, saved.redirect_to)
+    onSuccess: (saved) => {
+      if (isPasskeySupported()) {
+        setRedirectTo(saved.redirect_to)
+      } else {
+        assignWithPrefix(prefix, saved.redirect_to)
+      }
+    }
   })
 
   useEffect(() => {
@@ -174,6 +183,22 @@ function SignUpForm({ payload, prefix }: { payload: SignupPayload; prefix: strin
     submit.mutate()
   }
 
+  async function handlePasskeyNudge() {
+    if (!redirectTo) return
+    setPasskeyNudgePending(true)
+    try {
+      await registerNewPasskey("", fetchPasskeyRegistrationOptions, registerPasskey)
+    } catch {
+      // errors are non-fatal — proceed to redirect regardless
+    } finally {
+      assignWithPrefix(prefix, redirectTo)
+    }
+  }
+
+  function handleDismissNudge() {
+    if (redirectTo) assignWithPrefix(prefix, redirectTo)
+  }
+
   if (!payload.allowed) {
     return (
       <PanelMessage tone="error">
@@ -183,6 +208,35 @@ function SignUpForm({ payload, prefix }: { payload: SignupPayload; prefix: strin
           components={{ signin: <Link className="underline hover:no-underline" to={`${prefix}/session/new`} /> }}
         />
       </PanelMessage>
+    )
+  }
+
+  if (redirectTo) {
+    return (
+      <div className="space-y-4">
+        <PanelMessage tone="success">{t("sign_up.created")}</PanelMessage>
+        <div className="rounded border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 p-4">
+          <p className="text-sm text-blue-800 dark:text-blue-200">{t("sign_up.passkey_nudge")}</p>
+          <div className="mt-3 flex gap-2">
+            <button
+              className={`${authPrimaryButtonClass} text-sm`}
+              disabled={passkeyNudgePending}
+              onClick={handlePasskeyNudge}
+              type="button"
+            >
+              {passkeyNudgePending ? t("sign_up.passkey_nudge_adding") : t("sign_up.passkey_nudge_add")}
+            </button>
+            <button
+              className="rounded border border-blue-300 dark:border-blue-700 px-3 py-2 text-sm font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900"
+              disabled={passkeyNudgePending}
+              onClick={handleDismissNudge}
+              type="button"
+            >
+              {t("sign_up.passkey_nudge_dismiss")}
+            </button>
+          </div>
+        </div>
+      </div>
     )
   }
 

@@ -7,6 +7,80 @@ RSpec.describe "API: /api/v1/app/passkeys", type: :request do
     JSON.parse(response.body)
   end
 
+  describe "GET /api/v1/app/passkeys" do
+    let(:other_user) { Factories.user }
+
+    before do
+      user.passkeys.create!(external_id: "ext-1", public_key: "pk-1", nickname: "Work Mac")
+      user.passkeys.create!(external_id: "ext-2", public_key: "pk-2", nickname: nil)
+      other_user.passkeys.create!(external_id: "ext-3", public_key: "pk-3")
+    end
+
+    it "returns 401 when not authenticated" do
+      get "/api/v1/app/passkeys"
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "returns only the current user's passkeys in descending order" do
+      sign_in_as(user)
+
+      get "/api/v1/app/passkeys"
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body.length).to eq(2)
+      expect(body.first.keys).to match_array(%w[id nickname created_at last_used_at])
+      expect(body.none? { |p| p.key?("external_id") }).to be true
+    end
+
+    it "does not expose another user's passkeys" do
+      sign_in_as(user)
+
+      get "/api/v1/app/passkeys"
+
+      ids = parse_body.map { |p| p["id"] }
+      expect(ids).not_to include(other_user.passkeys.first.id)
+    end
+  end
+
+  describe "DELETE /api/v1/app/passkeys/:id" do
+    let!(:passkey) { user.passkeys.create!(external_id: "del-ext-1", public_key: "del-pk-1", nickname: "Old key") }
+    let(:other_user) { Factories.user }
+    let!(:other_passkey) { other_user.passkeys.create!(external_id: "del-ext-2", public_key: "del-pk-2") }
+
+    it "returns 401 when not authenticated" do
+      delete "/api/v1/app/passkeys/#{passkey.id}"
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    context "when authenticated" do
+      before { sign_in_as(user) }
+
+      it "destroys the passkey and returns 204" do
+        expect {
+          delete "/api/v1/app/passkeys/#{passkey.id}"
+        }.to change { user.passkeys.count }.by(-1)
+
+        expect(response).to have_http_status(:no_content)
+      end
+
+      it "returns 404 when the passkey belongs to another user" do
+        delete "/api/v1/app/passkeys/#{other_passkey.id}"
+
+        expect(response).to have_http_status(:not_found)
+        expect(parse_body.dig("error", "code")).to eq("not_found")
+      end
+
+      it "returns 404 for a non-existent passkey id" do
+        delete "/api/v1/app/passkeys/0"
+
+        expect(response).to have_http_status(:not_found)
+      end
+    end
+  end
+
   describe "GET /api/v1/app/passkeys/registration_options" do
     it "returns 401 when not authenticated" do
       get "/api/v1/app/passkeys/registration_options"

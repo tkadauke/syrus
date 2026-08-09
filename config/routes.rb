@@ -32,6 +32,7 @@ Rails.application.routes.draw do
           get :authentication_options
           post :authenticate
         end
+        resources :passkeys, only: %i[index destroy]
         post "bug_reports", to: "bug_reports#create"
         post "performance_events", to: "performance_events#create"
         post "report_issue", to: "report_issue#create"

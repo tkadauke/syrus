@@ -31,6 +31,8 @@ import { deleteJson } from "../api/client"
 import { errorMessage } from "../lib/errorMessage"
 import { PanelMessage } from "../components/PanelMessage"
 import { useConfirm } from "../hooks/useConfirm"
+import { deletePasskey, fetchPasskeyRegistrationOptions, fetchPasskeys, registerPasskey, type PasskeyRecord } from "../api/passkeys"
+import { isPasskeySupported, registerNewPasskey } from "../lib/passkey"
 
 const queryKey = ["credentials"] as const
 type AccountSettingsSection = "profile" | "credentials" | "agent" | "preferences"
@@ -116,6 +118,7 @@ function CredentialsView({ payload, onNotice, section }: { payload: CredentialsP
         <ClaudeCredentialCard onNotice={onNotice} payload={payload} />
         <CodexCredentialCard onNotice={onNotice} payload={payload} />
         <GeminiCredentialCard onNotice={onNotice} payload={payload} />
+        <PasskeysPanel />
         {payload.options.chat_providers.length > 0 ? <ChatProviderPanel onNotice={onNotice} payload={payload} /> : null}
         {payload.user.admin ? <ApiTokenPanel onNotice={onNotice} payload={payload} /> : null}
       </>
@@ -350,6 +353,137 @@ function CredentialsForm({ payload, onNotice, section }: { payload: CredentialsP
           {save.isPending ? t('account_settings.saving') : t('account_settings.save')}
         </button>
       </form>
+    </section>
+  )
+}
+
+const passkeysQueryKey = ["passkeys"] as const
+
+function PasskeysPanel() {
+  const { t } = useT("settings")
+  const queryClient = useQueryClient()
+  const { confirm, dialog } = useConfirm()
+  const [adding, setAdding] = useState(false)
+  const [nickname, setNickname] = useState("")
+  const [addError, setAddError] = useState<string | null>(null)
+  const [addPending, setAddPending] = useState(false)
+
+  const passkeys = useQuery({
+    queryKey: passkeysQueryKey,
+    queryFn: fetchPasskeys
+  })
+
+  const remove = useMutation({
+    mutationFn: (id: number) => deletePasskey(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: passkeysQueryKey })
+    }
+  })
+
+  async function handleAdd() {
+    setAddError(null)
+    setAddPending(true)
+    try {
+      await registerNewPasskey(nickname, fetchPasskeyRegistrationOptions, registerPasskey)
+      setAdding(false)
+      setNickname("")
+      void queryClient.invalidateQueries({ queryKey: passkeysQueryKey })
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "NotAllowedError") {
+        // user cancelled — no error message
+      } else {
+        setAddError(errorMessage(err, t("account_settings.passkeys_add_error")))
+      }
+    } finally {
+      setAddPending(false)
+    }
+  }
+
+  async function handleRemove(passkey: PasskeyRecord) {
+    if (await confirm({ message: t("account_settings.passkeys_confirm_remove"), destructive: true })) {
+      remove.mutate(passkey.id)
+    }
+  }
+
+  return (
+    <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
+      <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("account_settings.passkeys_heading")}</h2>
+      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("account_settings.passkeys_desc")}</p>
+
+      {passkeys.isError ? <PanelMessage tone="error">{errorMessage(passkeys.error, t("account_settings.passkeys_load_error"))}</PanelMessage> : null}
+      {remove.isError ? <PanelMessage tone="error">{errorMessage(remove.error, t("account_settings.passkeys_remove_error"))}</PanelMessage> : null}
+
+      {passkeys.isSuccess && passkeys.data.length === 0 ? (
+        <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">{t("account_settings.passkeys_empty")}</p>
+      ) : null}
+
+      {passkeys.isSuccess && passkeys.data.length > 0 ? (
+        <ul className="mt-3 divide-y divide-gray-100 dark:divide-gray-800">
+          {passkeys.data.map((passkey) => (
+            <li className="flex items-center justify-between gap-4 py-2" key={passkey.id}>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+                  {passkey.nickname || t("account_settings.passkeys_unnamed")}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {t("account_settings.passkeys_added")}: {new Date(passkey.created_at).toLocaleDateString()}
+                  {passkey.last_used_at ? ` · ${t("account_settings.passkeys_last_used")}: ${new Date(passkey.last_used_at).toLocaleDateString()}` : ""}
+                </p>
+              </div>
+              <button
+                className="shrink-0 rounded bg-red-50 dark:bg-red-950/40 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/60 disabled:opacity-50"
+                disabled={remove.isPending}
+                onClick={() => handleRemove(passkey)}
+                type="button"
+              >
+                {t("account_settings.passkeys_remove")}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {adding ? (
+        <div className="mt-3 flex items-center gap-2">
+          <input
+            aria-label={t("account_settings.passkeys_nickname_label")}
+            className={inputClass()}
+            disabled={addPending}
+            maxLength={100}
+            onChange={(event) => setNickname(event.target.value)}
+            placeholder={t("account_settings.passkeys_nickname_placeholder")}
+            type="text"
+            value={nickname}
+          />
+          <button
+            className="shrink-0 rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900"
+            disabled={addPending}
+            onClick={handleAdd}
+            type="button"
+          >
+            {addPending ? t("account_settings.passkeys_saving") : t("account_settings.passkeys_save")}
+          </button>
+          <button
+            className="shrink-0 rounded bg-gray-100 dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+            disabled={addPending}
+            onClick={() => { setAdding(false); setNickname(""); setAddError(null) }}
+            type="button"
+          >
+            {t("account_settings.passkeys_cancel")}
+          </button>
+        </div>
+      ) : isPasskeySupported() ? (
+        <button
+          className="mt-3 rounded bg-gray-100 dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+          onClick={() => { setAdding(true); setAddError(null) }}
+          type="button"
+        >
+          {t("account_settings.passkeys_add")}
+        </button>
+      ) : null}
+
+      {addError ? <PanelMessage tone="error">{addError}</PanelMessage> : null}
+      {dialog}
     </section>
   )
 }
