@@ -50,7 +50,7 @@ module Syrus
       # Direct form — registers a provider instance for a lightweight extension
       # point (e.g. :prompt_injector) without a full gem manifest:
       #   register(:prompt_injector, provider_instance)
-      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, description: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, category: nil, home_queue: :default, tick_interval: nil, **metadata)
+      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, description: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, category: nil, home_queue: :default, tick_interval: nil, config_schema: [], **metadata)
         if args.length == 2 && (args[0].is_a?(Symbol) || args[0].is_a?(String))
           register_direct(args[0], args[1])
           return
@@ -74,7 +74,8 @@ module Syrus
             disableable:     disableable,
             category:        category,
             home_queue:      home_queue,
-            tick_interval:   tick_interval
+            tick_interval:   tick_interval,
+            config_schema:   config_schema
           )
         end
 

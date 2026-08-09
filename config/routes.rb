@@ -303,6 +303,8 @@ Rails.application.routes.draw do
           get "plugins", to: "plugins#index"
           post "plugins/:name/enable", to: "plugins#enable", constraints: { name: /[^\/]+/ }
           post "plugins/:name/disable", to: "plugins#disable", constraints: { name: /[^\/]+/ }
+          get "plugins/:name/config", to: "plugins#show_config", constraints: { name: /[^\/]+/ }
+          patch "plugins/:name/config", to: "plugins#update_config", constraints: { name: /[^\/]+/ }
           get "plugin_pages", to: "plugin_pages#index"
           get "queue/:tab", to: "queue#show", as: :queue, constraints: { tab: /active|pending|failed|recurring|workers/ }
           post "queue/reap_stale_runs", to: "queue#reap_stale_runs"
@@ -402,6 +404,8 @@ Rails.application.routes.draw do
         get "plugins",  to: "plugins#index"
         post "plugins/:name/enable", to: "plugins#enable", constraints: { name: /[^\/]+/ }
         post "plugins/:name/disable", to: "plugins#disable", constraints: { name: /[^\/]+/ }
+        get "plugins/:name/config", to: "plugins#show_config", constraints: { name: /[^\/]+/ }
+        patch "plugins/:name/config", to: "plugins#update_config", constraints: { name: /[^\/]+/ }
         # Operator console kill switches.
         get  "console",                 to: "console#show"
         post "console/pause_polling",   to: "console#pause_polling"

@@ -2,15 +2,17 @@ module Admin
   class PluginsPayload
     def as_json(*)
       PerformanceLogging.phase("admin_plugins_payload") do
+        manifests = Syrus::PluginRegistry.all_plugins
+        records = PluginRecord.where(name: manifests.map(&:name)).index_by(&:name)
         {
-          plugins: Syrus::PluginRegistry.all_plugins.map { |manifest| plugin_payload(manifest) }
+          plugins: manifests.map { |manifest| plugin_payload(manifest, records[manifest.name]) }
         }
       end
     end
 
     private
 
-    def plugin_payload(manifest)
+    def plugin_payload(manifest, record = nil)
       PerformanceLogging.phase("admin_plugins.plugin", plugin: manifest.name) do
         spec = PerformanceLogging.phase("admin_plugins.plugin.gem_spec", plugin: manifest.name) { gem_spec_for(manifest) }
         metadata = manifest.metadata.with_indifferent_access
@@ -30,7 +32,8 @@ module Admin
           source: source_for(spec, metadata),
           frontend: metadata[:frontend].presence || {},
           routes: Array(metadata[:routes]).map { |route| route.to_h },
-          extension_points: PerformanceLogging.phase("admin_plugins.plugin.extension_points", plugin: manifest.name) { extension_points_payload(manifest) }
+          extension_points: PerformanceLogging.phase("admin_plugins.plugin.extension_points", plugin: manifest.name) { extension_points_payload(manifest) },
+          **Admin::PluginConfigPayload.new(manifest, record).as_json
         }
       end
     end
