@@ -293,7 +293,7 @@ module Api
           graph = EpicDependencyGraphRenderer.new(epic).render
           active_train = MergeTrain.active.where(epic_id: epic.id).where.not(integration_branch: nil).order(:id).last
 
-          {
+          payload = {
             message: message,
             simple_mode: AppSetting.simple?,
             merge_train_branch: active_train&.integration_branch,
@@ -322,7 +322,6 @@ module Api
             dependents: epic.dependent_links.includes(epic: :repository).order(:epic_id).map do |dependency|
               dependency_epic_json(dependency.epic)
             end,
-            deployment_stages: epic_aggregate_deployment_stages(epic, jobs, deployment_stages_plan),
             jobs: jobs.map { |job| job_json(job, deployment_stages_plan: deployment_stages_plan) },
             versions: epic.versions.includes(:user).order(created_at: :desc, id: :desc).map { |version| version_json(version) },
             paths: {
@@ -340,6 +339,10 @@ module Api
               app_start_preview_path: epic_start_preview_path(epic, jobs)
             }
           }
+
+          aggregate_stages = epic_aggregate_deployment_stages(epic, jobs, deployment_stages_plan)
+          payload[:deployment_stages] = aggregate_stages if aggregate_stages
+          payload
         end
 
         def epic_blocked_reason(dependency)

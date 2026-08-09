@@ -281,6 +281,91 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
     expect(rendered).not_to have_key("deployment_stages")
   end
 
+  it "includes aggregate deployment_stages on the epic payload for a done epic with landed jobs" do
+    sign_in_as(user)
+    staging = SyrusYml::DeploymentStage.new(name: "staging", label: "Staging", tag: "staging", tag_pattern: nil)
+    production = SyrusYml::DeploymentStage.new(name: "production", label: "Production", tag: "production", tag_pattern: nil)
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repository).and_return(
+      RepoDeploymentStagesReader::Result.new(stages: [ staging, production ], source: ".syrus.yml", note: nil)
+    )
+    epic = Factories.epic(user: user, repository: repository, title: "Raise the forum")
+    job1 = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 12, landed_sha: "sha1", state: "closed", closure_reason: "pr_merged")
+    job2 = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 13, landed_sha: "sha2", state: "closed", closure_reason: "pr_merged")
+    epic.update_columns(state: "done")
+    staging_at_1 = Time.zone.parse("2026-07-28 10:00:00 UTC")
+    staging_at_2 = Time.zone.parse("2026-07-29 10:00:00 UTC")
+    production_at_1 = Time.zone.parse("2026-07-30 10:00:00 UTC")
+    JobDeploymentStageStatus.create!(job: job1, stage_name: "staging", reached_at: staging_at_1, tag_sha: "staging-sha")
+    JobDeploymentStageStatus.create!(job: job2, stage_name: "staging", reached_at: staging_at_2, tag_sha: "staging-sha-2")
+    JobDeploymentStageStatus.create!(job: job1, stage_name: "production", reached_at: production_at_1, tag_sha: "prod-sha")
+
+    get "/api/v1/app/epics/#{epic.id}"
+
+    expect(response).to have_http_status(:ok)
+    stages = parse_body.fetch("deployment_stages")
+    expect(stages).to contain_exactly(
+      {
+        "name" => "staging",
+        "label" => "Staging",
+        "reached_count" => 2,
+        "total" => 2,
+        "reached_at" => staging_at_2.iso8601
+      },
+      {
+        "name" => "production",
+        "label" => "Production",
+        "reached_count" => 1,
+        "total" => 2,
+        "reached_at" => production_at_1.iso8601
+      }
+    )
+  end
+
+  it "omits aggregate deployment_stages from the epic payload when the epic is not done" do
+    sign_in_as(user)
+    staging = SyrusYml::DeploymentStage.new(name: "staging", label: "Staging", tag: "staging", tag_pattern: nil)
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repository).and_return(
+      RepoDeploymentStagesReader::Result.new(stages: [ staging ], source: ".syrus.yml", note: nil)
+    )
+    epic = Factories.epic(user: user, repository: repository, title: "Raise the forum", state: "in_progress")
+    job = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 12, landed_sha: "sha1", state: "closed", closure_reason: "pr_merged")
+    JobDeploymentStageStatus.create!(job: job, stage_name: "staging", reached_at: Time.current, tag_sha: nil)
+
+    get "/api/v1/app/epics/#{epic.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).not_to have_key("deployment_stages")
+  end
+
+  it "omits aggregate deployment_stages from the epic payload when no stages are configured" do
+    sign_in_as(user)
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repository).and_return(
+      RepoDeploymentStagesReader::Result.new(stages: [], source: "none", note: "no deployment_stages configured")
+    )
+    epic = Factories.epic(user: user, repository: repository, title: "Raise the forum", state: "done")
+    Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 12, landed_sha: "sha1", state: "closed", closure_reason: "pr_merged")
+
+    get "/api/v1/app/epics/#{epic.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).not_to have_key("deployment_stages")
+  end
+
+  it "omits aggregate deployment_stages from the epic payload when no jobs have landed" do
+    sign_in_as(user)
+    staging = SyrusYml::DeploymentStage.new(name: "staging", label: "Staging", tag: "staging", tag_pattern: nil)
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).with(repository).and_return(
+      RepoDeploymentStagesReader::Result.new(stages: [ staging ], source: ".syrus.yml", note: nil)
+    )
+    epic = Factories.epic(user: user, repository: repository, title: "Raise the forum", state: "done")
+    Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 12, state: "open")
+
+    get "/api/v1/app/epics/#{epic.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).not_to have_key("deployment_stages")
+  end
+
   it "includes simple-mode status and latest completed job summary" do
     sign_in_as(user)
     AppSetting.current.update!(mode: "simple", mode_configured_at: Time.current)
