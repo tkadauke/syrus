@@ -26,6 +26,10 @@ Rails.application.routes.draw do
         post "auth/users", to: "auth#create_user"
         post "auth/passwords", to: "auth#create_password"
         patch "auth/passwords/:token", to: "auth#update_password"
+        resource :passkeys, only: [] do
+          get :registration_options
+          post :register
+        end
         post "bug_reports", to: "bug_reports#create"
         post "performance_events", to: "performance_events#create"
         post "report_issue", to: "report_issue#create"
