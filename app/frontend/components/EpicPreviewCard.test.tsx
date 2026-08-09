@@ -226,6 +226,24 @@ describe("EpicPreviewCard", () => {
     expect(screen.queryByTestId("epic-deployment-stage-pipeline")).not.toBeInTheDocument()
   })
 
+  it("renders aggregate deployment stage row after the title, not before the slug/badge row", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      ...epicPayload({ state: "done", title: "My epic" }),
+      deployment_stages: [
+        { name: "staging", label: "On Staging", reached_count: 5, total: 5, reached_at: "2026-01-01T10:00:00Z" }
+      ]
+    }))
+    renderCard(7)
+    await waitFor(() => expect(screen.getByTestId("epic-deployment-stage-pipeline")).toBeInTheDocument())
+    const cardRoot = screen.getByTestId("epic-deployment-stage-pipeline").closest(".shadow-lg")!
+    const children = Array.from(cardRoot.children)
+    const slugRow = children.findIndex((el) => el.querySelector("[aria-label='Copy EPIC-7 to clipboard']"))
+    const titleLink = children.findIndex((el) => el.matches("a") && el.textContent === "My epic")
+    const pipeline = children.findIndex((el) => el.querySelector("[data-testid='epic-deployment-stage-pipeline']"))
+    expect(slugRow).toBeLessThan(titleLink)
+    expect(titleLink).toBeLessThan(pipeline)
+  })
+
   it("compact: does not render deployment stage row even when deployment_stages are present", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
       ...epicPayload({ state: "done" }),

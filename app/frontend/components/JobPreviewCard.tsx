@@ -27,9 +27,6 @@ export function JobPreviewCard({ id, compact = false }: { id: number; compact?: 
 
   return (
     <div className={compact ? "w-40 min-h-14 rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" : "w-80 rounded-lg border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900"}>
-      {!compact && data.deployment_stages?.length ? (
-        <DeploymentStagePipeline stages={data.deployment_stages} />
-      ) : null}
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <CopyableSlug className="text-xs" slug={`JOB-${id}`} />
         <StatusPill state={job.state} />
@@ -45,6 +42,9 @@ export function JobPreviewCard({ id, compact = false }: { id: number; compact?: 
           {title}
         </Link>
       )}
+      {!compact && data.deployment_stages?.length ? (
+        <DeploymentStagePipeline stages={data.deployment_stages} />
+      ) : null}
       {!compact && truncatedBody && (
         <div className="mb-3 line-clamp-6 text-xs text-gray-600 dark:text-gray-400 [&_code]:rounded [&_code]:bg-gray-100 [&_code]:px-0.5 [&_code]:font-mono dark:[&_code]:bg-gray-800 [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-semibold [&_pre]:rounded [&_pre]:bg-gray-100 [&_pre]:p-1.5 [&_pre]:font-mono dark:[&_pre]:bg-gray-800 [&_pre_code]:bg-transparent [&_pre_code]:px-0">
           <Markdown text={truncatedBody} />

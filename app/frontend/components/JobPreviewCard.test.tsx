@@ -190,6 +190,24 @@ describe("JobPreviewCard", () => {
     expect(screen.queryByTestId("deployment-stage-pipeline")).not.toBeInTheDocument()
   })
 
+  it("renders deployment stage pipeline after the title, not before the slug/badge row", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      job: { id: 42, state: "merged", issue_title: "My job", issue_body: "" },
+      deployment_stages: [
+        { name: "staging", label: "On Staging", reached: true, reached_at: "2026-01-01T10:00:00Z", tag_sha: "abc123" }
+      ]
+    }))
+    renderCard(42)
+    await waitFor(() => expect(screen.getByTestId("deployment-stage-pipeline")).toBeInTheDocument())
+    const cardRoot = screen.getByTestId("deployment-stage-pipeline").closest(".shadow-lg")!
+    const children = Array.from(cardRoot.children)
+    const slugRow = children.findIndex((el) => el.querySelector("[aria-label='Copy JOB-42 to clipboard']"))
+    const titleLink = children.findIndex((el) => el.matches("a") && el.textContent === "My job")
+    const pipeline = children.findIndex((el) => el.querySelector("[data-testid='deployment-stage-pipeline']"))
+    expect(slugRow).toBeLessThan(titleLink)
+    expect(titleLink).toBeLessThan(pipeline)
+  })
+
   it("compact: does not render deployment stage pipeline even when deployment_stages are present", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
       job: { id: 42, state: "merged", issue_title: "T", issue_body: "" },

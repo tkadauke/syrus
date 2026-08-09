@@ -91,9 +91,6 @@ export function EpicPreviewCard({ id, compact = false }: { id: number; compact?:
 
   return (
     <div className={compact ? "w-40 min-h-14 rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" : "w-80 rounded-lg border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900"}>
-      {!compact && data.deployment_stages?.length ? (
-        <EpicDeploymentStagesRow stages={data.deployment_stages} />
-      ) : null}
       <div className="mb-2 flex items-center gap-2">
         <CopyableSlug className="text-xs" slug={epic.display_number} />
         <StatusPill state={epic.state} />
@@ -101,6 +98,9 @@ export function EpicPreviewCard({ id, compact = false }: { id: number; compact?:
       <Link className={`mb-2 block text-sm font-medium text-gray-900 hover:underline dark:text-gray-100 ${compact ? "line-clamp-1" : "line-clamp-2"}`} to={`/epics/${id}`}>
         {epic.title}
       </Link>
+      {!compact && data.deployment_stages?.length ? (
+        <EpicDeploymentStagesRow stages={data.deployment_stages} />
+      ) : null}
       {!compact && totalCount > 0 && (
         <div
           aria-label={t("job_progress_label")}
