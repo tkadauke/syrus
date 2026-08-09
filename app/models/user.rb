@@ -25,6 +25,7 @@ class User < ApplicationRecord
   has_many :chat_pending_actions, dependent: :destroy
   has_many :cron_templates, dependent: :destroy
   has_many :invitations, foreign_key: :invited_by_id, dependent: :nullify
+  has_many :passkeys, dependent: :destroy
 
   DEFAULT_PROVIDER_AVAILABILITY_PAUSE_THRESHOLD_PERCENT = 10
   CODEX_AUTH_MODES = %w[ api_key chatgpt_login ].freeze
@@ -178,6 +179,7 @@ class User < ApplicationRecord
   after_initialize :seed_ui_preferences
   after_initialize :seed_locale
   before_create :promote_first_user_to_admin
+  before_create :generate_webauthn_id
 
   def admin?
     admin
@@ -638,6 +640,10 @@ class User < ApplicationRecord
   def codex_configured?
     attr = CODEX_AUTH_MODE_CREDENTIALS[codex_auth_mode]
     attr ? public_send(attr).present? : false
+  end
+
+  def generate_webauthn_id
+    self.webauthn_id ||= SecureRandom.urlsafe_base64(32)
   end
 
   def seed_notification_preferences

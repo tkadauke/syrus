@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_09_143100) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_09_161755) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1181,6 +1181,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_09_143100) do
     t.index ["workflow_id"], name: "index_operational_log_events_on_workflow_id"
   end
 
+  create_table "passkey_challenges", force: :cascade do |t|
+    t.string "challenge", null: false
+    t.string "challenge_type", null: false
+    t.datetime "created_at", null: false
+    t.datetime "expires_at", null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id"
+    t.index ["expires_at"], name: "index_passkey_challenges_on_expires_at"
+    t.index ["user_id", "challenge_type"], name: "index_passkey_challenges_on_user_id_and_challenge_type"
+  end
+
+  create_table "passkeys", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "external_id", null: false
+    t.datetime "last_used_at"
+    t.string "nickname"
+    t.string "public_key", null: false
+    t.integer "sign_count", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["external_id"], name: "index_passkeys_on_external_id", unique: true
+    t.index ["user_id"], name: "index_passkeys_on_user_id"
+  end
+
   create_table "plugin_records", force: :cascade do |t|
     t.json "config", null: false
     t.datetime "created_at", null: false
@@ -1797,9 +1821,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_09_143100) do
     t.string "theme", default: "light", null: false
     t.json "ui_preferences", null: false
     t.datetime "updated_at", null: false
+    t.string "webauthn_id", null: false
     t.index ["api_token"], name: "index_users_on_api_token", unique: true
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
     t.index ["landing_paused"], name: "index_users_on_landing_paused"
+    t.index ["webauthn_id"], name: "index_users_on_webauthn_id", unique: true
   end
 
   create_table "whiteboard_snapshots", force: :cascade do |t|
@@ -2087,6 +2113,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_09_143100) do
   add_foreign_key "operational_log_events", "jobs"
   add_foreign_key "operational_log_events", "runs"
   add_foreign_key "operational_log_events", "workflows"
+  add_foreign_key "passkeys", "users"
   add_foreign_key "pr_review_comments", "jobs"
   add_foreign_key "pr_review_comments", "workflows", column: "handling_workflow_id"
   add_foreign_key "preview_environments", "jobs"

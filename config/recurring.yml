@@ -114,6 +114,10 @@ default: &default
     class: CoverageHitMapTtlPruneJob
     queue: cleanup
     schedule: every day at 3:50am
+  purge_expired_passkey_challenges:
+    class: PurgeExpiredPasskeyChallengesJob
+    queue: cleanup
+    schedule: every day at 3:45am
   insight_sweep:
     class: InsightSweepJob
     queue: low_priority_maintenance
