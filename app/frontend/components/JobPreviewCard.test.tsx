@@ -166,6 +166,47 @@ describe("JobPreviewCard", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Copy JOB-42 to clipboard" })).toBeInTheDocument())
     expect(screen.getByText("open")).toBeInTheDocument()
   })
+
+  it("renders deployment stage pipeline when deployment_stages are present", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      job: { id: 42, state: "merged", issue_title: "T", issue_body: "" },
+      deployment_stages: [
+        { name: "staging", label: "On Staging", reached: true, reached_at: "2026-01-01T10:00:00Z", tag_sha: "abc123" },
+        { name: "production", label: "In Production", reached: false, reached_at: null, tag_sha: null }
+      ]
+    }))
+    renderCard(42)
+    await waitFor(() => expect(screen.getByTestId("deployment-stage-pipeline")).toBeInTheDocument())
+    expect(screen.getByText("On Staging")).toBeInTheDocument()
+    expect(screen.getByText("In Production")).toBeInTheDocument()
+  })
+
+  it("does not render deployment stage pipeline when deployment_stages is absent", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      job: { id: 42, state: "open", issue_title: "T", issue_body: "" }
+    }))
+    renderCard(42)
+    await waitFor(() => expect(screen.getByText("T")).toBeInTheDocument())
+    expect(screen.queryByTestId("deployment-stage-pipeline")).not.toBeInTheDocument()
+  })
+
+  it("compact: does not render deployment stage pipeline even when deployment_stages are present", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      job: { id: 42, state: "merged", issue_title: "T", issue_body: "" },
+      deployment_stages: [
+        { name: "staging", label: "On Staging", reached: true, reached_at: "2026-01-01T10:00:00Z", tag_sha: null }
+      ]
+    }))
+    render(
+      <QueryClientProvider client={client()}>
+        <MemoryRouter>
+          <JobPreviewCard compact id={42} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    await waitFor(() => expect(screen.getByText("T")).toBeInTheDocument())
+    expect(screen.queryByTestId("deployment-stage-pipeline")).not.toBeInTheDocument()
+  })
 })
 
 describe("JobPreviewSkeleton", () => {

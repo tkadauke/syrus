@@ -180,6 +180,69 @@ describe("EpicPreviewCard", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Copy EPIC-7 to clipboard" })).toBeInTheDocument())
     expect(screen.getByText("in progress")).toBeInTheDocument()
   })
+
+  it("renders aggregate deployment stage row for done epics with deployment_stages", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      ...epicPayload({ state: "done" }),
+      deployment_stages: [
+        { name: "staging", label: "On Staging", reached_count: 5, total: 5, reached_at: "2026-01-01T10:00:00Z" },
+        { name: "production", label: "In Production", reached_count: 3, total: 5, reached_at: "2026-01-02T10:00:00Z" }
+      ]
+    }))
+    renderCard(7)
+    await waitFor(() => expect(screen.getByTestId("epic-deployment-stage-pipeline")).toBeInTheDocument())
+    expect(screen.getByText("On Staging")).toBeInTheDocument()
+    expect(screen.getByText("In Production")).toBeInTheDocument()
+  })
+
+  it("shows fully-reached badge as checkmark when reached_count equals total", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      ...epicPayload({ state: "done" }),
+      deployment_stages: [
+        { name: "staging", label: "On Staging", reached_count: 5, total: 5, reached_at: "2026-01-01T10:00:00Z" }
+      ]
+    }))
+    renderCard(7)
+    await waitFor(() => expect(screen.getByTestId("epic-deployment-stage-pipeline")).toBeInTheDocument())
+    expect(screen.getByText("✓")).toBeInTheDocument()
+  })
+
+  it("shows partial count badge when reached_count is less than total", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      ...epicPayload({ state: "done" }),
+      deployment_stages: [
+        { name: "production", label: "In Production", reached_count: 3, total: 5, reached_at: null }
+      ]
+    }))
+    renderCard(7)
+    await waitFor(() => expect(screen.getByTestId("epic-deployment-stage-pipeline")).toBeInTheDocument())
+    expect(screen.getByText("3/5")).toBeInTheDocument()
+  })
+
+  it("does not render deployment stage row when deployment_stages is absent", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(epicPayload()))
+    renderCard(7)
+    await waitFor(() => expect(screen.getByText("Onboarding flow")).toBeInTheDocument())
+    expect(screen.queryByTestId("epic-deployment-stage-pipeline")).not.toBeInTheDocument()
+  })
+
+  it("compact: does not render deployment stage row even when deployment_stages are present", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      ...epicPayload({ state: "done" }),
+      deployment_stages: [
+        { name: "staging", label: "On Staging", reached_count: 5, total: 5, reached_at: "2026-01-01T10:00:00Z" }
+      ]
+    }))
+    render(
+      <QueryClientProvider client={client()}>
+        <MemoryRouter>
+          <EpicPreviewCard compact id={7} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    await waitFor(() => expect(screen.getByText("Onboarding flow")).toBeInTheDocument())
+    expect(screen.queryByTestId("epic-deployment-stage-pipeline")).not.toBeInTheDocument()
+  })
 })
 
 describe("EpicPreviewSkeleton", () => {

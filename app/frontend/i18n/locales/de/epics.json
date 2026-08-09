@@ -2,6 +2,7 @@
   "title": "Epics",
   "detail_label": "Epic",
   "job_progress_label": "Epic-Aufgabenfortschritt",
+  "deployment_stages_label": "Bereitstellungsstufen",
   "loading": "Epic wird geladen...",
   "load_error": "Epic konnte nicht geladen werden.",
   "form_loading": "Epic-Formular wird geladen...",

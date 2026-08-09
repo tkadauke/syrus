@@ -19,6 +19,14 @@ export type EpicSearchOption = {
 export type EpicReconciliationMode = "pr" | "feedback" | "none" | null
 export type EpicDependencyPolicy = "linear" | "nonlinear"
 
+export type EpicDeploymentStage = {
+  name: string
+  label: string
+  reached_count: number
+  total: number
+  reached_at: string | null
+}
+
 export type EpicFormRecord = {
   id: number | null
   title: string
@@ -204,6 +212,7 @@ export type EpicDetailPayload = {
   graph: EpicGraph
   dependencies: EpicDependencyRecord[]
   dependents: EpicDependencyRecord[]
+  deployment_stages?: EpicDeploymentStage[]
   jobs: EpicDetailJob[]
   versions?: EpicVersionRecord[]
   paths: {

@@ -1,10 +1,11 @@
 import { forwardRef, type KeyboardEvent, type ReactNode } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
-import type { EpicDetailJob } from "../api/epics"
+import type { EpicDeploymentStage, EpicDetailJob } from "../api/epics"
 import { fetchEpicDetail } from "../api/epics"
 import { useT } from "../hooks/useT"
 import { CopyableSlug } from "./CopyableSlug"
+import { RelativeTimestamp } from "./RelativeTimestamp"
 import { StatusPill } from "./StatusPill"
 
 const PROGRESS_SEGMENTS = [
@@ -34,6 +35,41 @@ function attentionPriority(state: string): number {
   return ATTENTION_ORDER[state] ?? 3
 }
 
+function EpicDeploymentStagesRow({ stages }: { stages: EpicDeploymentStage[] }) {
+  const { t } = useT("epics")
+
+  return (
+    <div aria-label={t("deployment_stages_label")} className="mb-3">
+      <ol className="flex w-full items-start" data-testid="epic-deployment-stage-pipeline">
+        {stages.map((stage, index) => {
+          const fullyReached = stage.reached_count === stage.total
+          const partiallyReached = stage.reached_count > 0
+          return (
+            <li className="flex min-w-0 flex-1 items-start" key={stage.name}>
+              <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
+                <span className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full border px-1 text-[11px] font-semibold ${fullyReached ? "border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : partiallyReached ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300" : "border-gray-300 bg-gray-100 text-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500"}`}>
+                  {fullyReached ? "✓" : `${stage.reached_count}/${stage.total}`}
+                </span>
+                <span className="w-full break-words text-xs font-medium text-gray-800 dark:text-gray-100">{stage.label}</span>
+                {stage.reached_at ? (
+                  <span className={`text-xs ${fullyReached ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300"}`}>
+                    <RelativeTimestamp value={stage.reached_at} />
+                  </span>
+                ) : null}
+              </div>
+              {index < stages.length - 1 ? (
+                <span className="mt-2.5 h-0.5 w-8 shrink-0 overflow-hidden rounded bg-gray-200 dark:bg-gray-800" aria-hidden="true">
+                  <span className={`block h-full ${fullyReached && stages[index + 1]?.reached_count === stages[index + 1]?.total ? "bg-emerald-500" : "bg-transparent"}`} />
+                </span>
+              ) : null}
+            </li>
+          )
+        })}
+      </ol>
+    </div>
+  )
+}
+
 export function EpicPreviewCard({ id, compact = false }: { id: number; compact?: boolean }) {
   const { t } = useT("epics")
   const { data, isPending } = useQuery({
@@ -55,6 +91,9 @@ export function EpicPreviewCard({ id, compact = false }: { id: number; compact?:
 
   return (
     <div className={compact ? "w-40 min-h-14 rounded-lg border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" : "w-80 rounded-lg border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900"}>
+      {!compact && data.deployment_stages?.length ? (
+        <EpicDeploymentStagesRow stages={data.deployment_stages} />
+      ) : null}
       <div className="mb-2 flex items-center gap-2">
         <CopyableSlug className="text-xs" slug={epic.display_number} />
         <StatusPill state={epic.state} />

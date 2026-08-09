@@ -3,6 +3,7 @@
 
   "detail_label": "Epic",
   "job_progress_label": "Epic job progress",
+  "deployment_stages_label": "Deployment stages",
   "loading": "Loading Epic...",
   "load_error": "Unable to load Epic.",
   "form_loading": "Loading epic form...",

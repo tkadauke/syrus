@@ -322,6 +322,7 @@ module Api
             dependents: epic.dependent_links.includes(epic: :repository).order(:epic_id).map do |dependency|
               dependency_epic_json(dependency.epic)
             end,
+            deployment_stages: epic_aggregate_deployment_stages(epic, jobs, deployment_stages_plan),
             jobs: jobs.map { |job| job_json(job, deployment_stages_plan: deployment_stages_plan) },
             versions: epic.versions.includes(:user).order(created_at: :desc, id: :desc).map { |version| version_json(version) },
             paths: {
@@ -674,6 +675,27 @@ module Api
             chat_session_id: proposal.chat_session_id,
             message_id: message.id
           }
+        end
+
+        def epic_aggregate_deployment_stages(epic, jobs, deployment_stages_plan)
+          return nil unless epic.done?
+          return nil if deployment_stages_plan.stages.empty?
+
+          landed_jobs = jobs.select { |j| j.landed_sha.present? }
+          return nil if landed_jobs.empty?
+
+          deployment_stages_plan.stages.map do |stage|
+            reached_statuses = landed_jobs.filter_map { |job|
+              job.deployment_stage_statuses.find { |s| s.stage_name == stage.name }
+            }
+            {
+              name: stage.name,
+              label: stage.label,
+              reached_count: reached_statuses.count,
+              total: landed_jobs.count,
+              reached_at: reached_statuses.filter_map(&:reached_at).max&.iso8601
+            }
+          end
         end
 
         def epic_params

@@ -3,6 +3,7 @@
 
   "detail_label": "Epica",
   "job_progress_label": "Progressus operum epicae",
+  "deployment_stages_label": "Gradus deploymenti",
   "loading": "Epica oneratur...",
   "load_error": "Epica onerari non potest.",
   "form_loading": "Forma epicae oneratur...",
