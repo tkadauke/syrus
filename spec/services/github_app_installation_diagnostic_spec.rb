@@ -69,7 +69,7 @@ RSpec.describe GithubAppInstallationDiagnostic do
 
     expect(payload.fetch(:global)).to include(
       jwt_usable: false,
-      jwt_error_class: "OpenSSL::PKey::RSAError"
+      jwt_error_class: "OpenSSL::PKey::PKeyError"
     )
   end
 end
