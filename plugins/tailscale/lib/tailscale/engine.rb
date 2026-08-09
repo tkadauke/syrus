@@ -19,7 +19,7 @@ module Tailscale
           { key: "exit_node", label: "Advertise as exit node", type: :boolean,
             required: false, default: false }
         ],
-        provides: {}
+        provides: { callbacks: Tailscale::Callbacks }
       )
     end
   end
