@@ -34,6 +34,12 @@ PATH
     syrus_dev (0.1.0)
       rails (>= 8.1)
 
+PATH
+  remote: plugins/tailscale
+  specs:
+    tailscale (0.1.0)
+      rails (>= 8.1)
+
 GEM
   remote: https://rubygems.org/
   specs:
@@ -601,6 +607,7 @@ DEPENDENCIES
   sqlite3 (>= 2.1)
   syrus_dev!
   syrus_rails!
+  tailscale!
   tailwindcss-rails
   thruster
   tzinfo-data
@@ -796,6 +803,7 @@ CHECKSUMS
   sshkit (1.25.1) sha256=be3f10b9d6eb0b44d5eaba3f7cbe41bc6bb894bce4339688ac20124391455b78
   syrus_dev (0.1.0)
   syrus_rails (0.1.0)
+  tailscale (0.1.0)
   tailwindcss-rails (4.6.0) sha256=d99512867173d55c5ef8890427682299d8539f550cec1408b3d8667a538bd365
   tailwindcss-ruby (4.3.3) sha256=ee0a64030749862deb501acab4c4aaf5adbee13865746a33299d46d7b5d0952a
   tailwindcss-ruby (4.3.3-aarch64-linux-gnu) sha256=c86d6dd3eccc85fe0d792a832b06f2bf3c0a7a83b399308aeb9d8f5725f42a6a

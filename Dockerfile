@@ -283,6 +283,16 @@ RUN apt-get update -qq && \
       doxygen graphviz lcov gcovr \
     && rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
+# Tailscale — connectivity plugin runs the daemon in the worker container.
+# The web pod uses the `app` stage and does not need the binaries.
+RUN curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.noarmor.gpg \
+      | tee /usr/share/keyrings/tailscale-archive-keyring.gpg >/dev/null && \
+    curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.tailscale-keyring.list \
+      | tee /etc/apt/sources.list.d/tailscale.list && \
+    apt-get update -qq && \
+    apt-get install --no-install-recommends -y tailscale && \
+    rm -rf /var/lib/apt/lists /var/cache/apt/archives
+
 # Pull pre-compiled runtimes + the mise binary from the runtime-cache
 # stage. This is the layer that previously ran `mise install ...` and
 # took ~13 min cold; now it's a fast COPY of artifacts that were
