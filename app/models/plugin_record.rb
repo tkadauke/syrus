@@ -12,6 +12,18 @@ class PluginRecord < ApplicationRecord
     self.disableable = true if has_attribute?(:disableable) && disableable.nil?
   end
 
+  after_commit on: :update do
+    next unless saved_change_to_enabled?
+
+    manifest = Syrus::PluginRegistry.all_plugins.find { |m| m.name == name }
+    next unless manifest
+    next if Array(manifest.provides[:callbacks]).empty?
+
+    event = enabled? ? "on_enable" : "on_disable"
+    queue = manifest.home_queue == :default ? PluginLifecycleJob.queue_name : manifest.home_queue.to_s
+    PluginLifecycleJob.set(queue: queue).perform_later(name, event)
+  end
+
   def effective_enabled?
     enabled? || !disableable?
   end

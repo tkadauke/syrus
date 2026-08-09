@@ -14,9 +14,11 @@ module Syrus
       :enabled,
       :default_enabled,
       :disableable,
-      :category
+      :category,
+      :home_queue,
+      :tick_interval
     ) do
-      def initialize(display_name: nil, description: nil, homepage: nil, icon_url: nil, enabled: true, default_enabled: true, disableable: true, category: nil, **) = super
+      def initialize(display_name: nil, description: nil, homepage: nil, icon_url: nil, enabled: true, default_enabled: true, disableable: true, category: nil, home_queue: :default, tick_interval: nil, **) = super
 
       def enabled? = enabled
       def default_enabled? = default_enabled

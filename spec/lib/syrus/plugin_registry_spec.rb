@@ -76,6 +76,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       expect(described_class::EXTENSION_POINTS).to include(:artifact_renderer)
     end
 
+    it "includes :callbacks" do
+      expect(described_class::EXTENSION_POINTS).to include(:callbacks)
+    end
+
     it "is frozen" do
       expect(described_class::EXTENSION_POINTS).to be_frozen
     end
@@ -109,6 +113,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "maps :artifact_renderer to Syrus::Plugin::ArtifactRenderer" do
       expect(described_class::INTERFACE_FOR[:artifact_renderer].call).to eq(Syrus::Plugin::ArtifactRenderer)
+    end
+
+    it "maps :callbacks to Syrus::Plugin::Callbacks" do
+      expect(described_class::INTERFACE_FOR[:callbacks].call).to eq(Syrus::Plugin::Callbacks)
     end
 
     it "gives artifact renderer providers the class contract used by the registry" do
@@ -600,6 +608,74 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       described_class.register(name: "pred_plugin", version: "1.0.0")
       manifest = described_class.all_plugins.first
       expect(manifest.enabled?).to be(true)
+    end
+  end
+
+  describe "Manifest home_queue and tick_interval" do
+    it "defaults home_queue to :default" do
+      described_class.register(name: "tick_plugin", version: "1.0.0")
+      expect(described_class.all_plugins.first.home_queue).to eq(:default)
+    end
+
+    it "stores a custom home_queue on the manifest" do
+      described_class.register(name: "tick_plugin", version: "1.0.0", home_queue: :control_plane)
+      expect(described_class.all_plugins.first.home_queue).to eq(:control_plane)
+    end
+
+    it "defaults tick_interval to nil" do
+      described_class.register(name: "tick_plugin", version: "1.0.0")
+      expect(described_class.all_plugins.first.tick_interval).to be_nil
+    end
+
+    it "stores a tick_interval on the manifest" do
+      described_class.register(name: "tick_plugin", version: "1.0.0", tick_interval: 5.minutes)
+      expect(described_class.all_plugins.first.tick_interval).to eq(5.minutes)
+    end
+  end
+
+  describe ".fire_boot_callbacks!" do
+    let(:callbacks_class) do
+      Class.new do
+        include Syrus::Plugin::Callbacks
+        def self.on_boot = @booted = true
+        def self.booted? = @booted
+      end
+    end
+
+    it "calls on_boot on enabled callback providers" do
+      described_class.register(name: "boot_plugin", version: "1.0.0", provides: { callbacks: callbacks_class })
+
+      described_class.fire_boot_callbacks!
+
+      expect(callbacks_class.booted?).to be(true)
+    end
+
+    it "does not call on_boot on disabled plugins" do
+      disabled_callbacks = Class.new do
+        include Syrus::Plugin::Callbacks
+        def self.on_boot = @booted = true
+        def self.booted? = @booted
+      end
+
+      described_class.register(name: "disabled_boot_plugin", version: "1.0.0", provides: { callbacks: disabled_callbacks })
+      PluginRecord.find_by!(name: "disabled_boot_plugin").update!(enabled: false)
+
+      described_class.fire_boot_callbacks!
+
+      expect(disabled_callbacks.booted?).to be_falsey
+    end
+
+    it "logs and continues when a provider raises on_boot" do
+      raising_callbacks = Class.new do
+        include Syrus::Plugin::Callbacks
+        def self.on_boot = raise "boot error"
+      end
+
+      described_class.register(name: "raising_plugin", version: "1.0.0", provides: { callbacks: raising_callbacks })
+      allow(Rails.logger).to receive(:warn)
+
+      expect { described_class.fire_boot_callbacks! }.not_to raise_error
+      expect(Rails.logger).to have_received(:warn).with(/on_boot failed/)
     end
   end
 

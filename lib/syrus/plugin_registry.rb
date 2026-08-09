@@ -14,6 +14,7 @@ module Syrus
       source_control_provider
       artifact_renderer
       grader_augmentor
+      callbacks
     ].freeze
 
     # Lambdas defer constant resolution until call time (autoload-friendly).
@@ -30,7 +31,8 @@ module Syrus
       chat_mcp_tool_set:       -> { Syrus::Plugin::ChatMcpToolSet },
       source_control_provider: -> { Syrus::Plugin::SourceControlProvider },
       artifact_renderer:       -> { Syrus::Plugin::ArtifactRenderer },
-      grader_augmentor:        -> { Syrus::Plugin::GraderAugmentor }
+      grader_augmentor:        -> { Syrus::Plugin::GraderAugmentor },
+      callbacks:               -> { Syrus::Plugin::Callbacks }
     }.freeze
 
     RegistrationError = Class.new(StandardError)
@@ -48,8 +50,8 @@ module Syrus
       # Direct form — registers a provider instance for a lightweight extension
       # point (e.g. :prompt_injector) without a full gem manifest:
       #   register(:prompt_injector, provider_instance)
-      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, description: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, category: nil, **metadata)
-        if args.length == 2 && (args[0].is_a?(Symbol) || args[0].is_a?(String))
+      def register(*args, name: nil, version: nil, provides: {}, display_name: nil, description: nil, homepage: nil, icon_url: nil, default_enabled: true, disableable: true, category: nil, home_queue: :default, tick_interval: nil, **metadata)
+        if args.length == 2 && args[0].is_a?(Symbol)
           register_direct(args[0], args[1])
           return
         end
@@ -70,7 +72,9 @@ module Syrus
             icon_url:        icon_url,
             default_enabled: default_enabled,
             disableable:     disableable,
-            category:        category
+            category:        category,
+            home_queue:      home_queue,
+            tick_interval:   tick_interval
           )
         end
 
@@ -161,6 +165,22 @@ module Syrus
         @mutex.synchronize do
           @plugins = []
           @direct_providers = Hash.new { |h, k| h[k] = [] }
+        end
+      end
+
+      def fire_boot_callbacks!
+        providers_for(:callbacks).each do |provider|
+          provider.on_boot
+        rescue StandardError => e
+          Rails.logger.warn("[PluginRegistry] on_boot failed for #{provider}: #{e.class}: #{e.message}")
+        end
+      end
+
+      def fire_shutdown_callbacks!
+        providers_for(:callbacks).each do |provider|
+          provider.on_shutdown
+        rescue StandardError => e
+          Rails.logger.warn("[PluginRegistry] on_shutdown failed for #{provider}: #{e.class}: #{e.message}")
         end
       end
 
