@@ -574,6 +574,48 @@ RSpec.describe App::DashboardPayload do
       expect(item).to include(start_blocked_reason: nil)
     end
 
+    it "includes start_blocked_next_check_at and start_blocked_count from the workflow artifacts" do
+      job = Factories.job_record(user: user, repository: repo, state: "queued")
+      next_check = 5.minutes.from_now.iso8601
+      Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "queued",
+        artifacts: {
+          "start_blocked_reason" => "urgent_job_active",
+          "start_blocked_at" => 10.minutes.ago.iso8601,
+          "start_blocked_next_check_at" => next_check,
+          "start_blocked_count" => 3
+        }
+      )
+
+      result = call(subject: "job")
+      item = result[:items].find { |i| i[:id] == job.id }
+
+      expect(item).to include(
+        start_blocked_next_check_at: next_check,
+        start_blocked_count: 3
+      )
+    end
+
+    it "includes nil for start_blocked_next_check_at and start_blocked_count when absent from artifacts" do
+      job = Factories.job_record(user: user, repository: repo, state: "queued")
+      Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "queued",
+        artifacts: { "start_blocked_reason" => "urgent_job_active" }
+      )
+
+      result = call(subject: "job")
+      item = result[:items].find { |i| i[:id] == job.id }
+
+      expect(item).to include(
+        start_blocked_next_check_at: nil,
+        start_blocked_count: nil
+      )
+    end
+
     it "shows running workflows with deferred progress as paused instead of in progress" do
       job = Factories.job_record(user: user, repository: repo, state: "running")
       Workflow.create!(

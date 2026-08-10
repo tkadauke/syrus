@@ -117,6 +117,8 @@ export type JobRecord = {
   main_branch_repair: boolean
   start_blocked_reason: string | null
   start_blocked_at: string | null
+  start_blocked_next_check_at: string | null
+  start_blocked_count: number | null
   start_blocked_details: StartBlockedDetails | null
   deployment_stages?: JobDeploymentStage[]
 }

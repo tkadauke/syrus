@@ -1901,4 +1901,44 @@ RSpec.describe StepDispatcher, "job_not_ready_for_execution block reason" do
 
     expect(workflow.reload.artifact("start_blocked_reason")).to be_nil
   end
+
+  describe ".record_start_blocked!" do
+    it "sets start_blocked_count to 1 on the first call" do
+      described_class.record_start_blocked!(workflow, "urgent_job_active", backoff: 5.minutes)
+
+      expect(workflow.reload.artifact("start_blocked_count")).to eq(1)
+    end
+
+    it "increments start_blocked_count on repeated calls for the same reason" do
+      described_class.record_start_blocked!(workflow, "urgent_job_active", backoff: 5.minutes)
+      described_class.record_start_blocked!(workflow, "urgent_job_active", backoff: 5.minutes)
+      described_class.record_start_blocked!(workflow, "urgent_job_active", backoff: 5.minutes)
+
+      expect(workflow.reload.artifact("start_blocked_count")).to eq(3)
+    end
+
+    it "resets start_blocked_count to 1 when the reason changes" do
+      described_class.record_start_blocked!(workflow, "urgent_job_active", backoff: 5.minutes)
+      described_class.record_start_blocked!(workflow, "urgent_job_active", backoff: 5.minutes)
+      described_class.record_start_blocked!(workflow, "main_branch_broken", backoff: 5.minutes)
+
+      expect(workflow.reload.artifact("start_blocked_count")).to eq(1)
+    end
+
+    it "sets start_blocked_next_check_at based on the backoff" do
+      travel_to(Time.zone.parse("2026-08-10 12:00:00 UTC")) do
+        described_class.record_start_blocked!(workflow, "urgent_job_active", backoff: 5.minutes)
+
+        expect(workflow.reload.artifact("start_blocked_next_check_at")).to eq("2026-08-10T12:05:00Z")
+      end
+    end
+
+    it "clears start_blocked_count on clear_start_blocked!" do
+      described_class.record_start_blocked!(workflow, "urgent_job_active", backoff: 5.minutes)
+      described_class.record_start_blocked!(workflow, "urgent_job_active", backoff: 5.minutes)
+      described_class.clear_start_blocked!(workflow, "urgent_job_active")
+
+      expect(workflow.reload.artifact("start_blocked_count")).to be_nil
+    end
+  end
 end

@@ -162,6 +162,8 @@ export type DashboardJobItem = {
   needs_attention_reason: string | null
   start_blocked_reason: string | null
   start_blocked_at: string | null
+  start_blocked_next_check_at: string | null
+  start_blocked_count: number | null
   start_blocked_details: StartBlockedDetails | null
   manual_paused?: boolean
   manual_paused_at?: string | null

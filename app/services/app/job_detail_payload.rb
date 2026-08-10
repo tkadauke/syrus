@@ -138,6 +138,8 @@ module App
         {
           reason: job_start_blocked_reason,
           at: job_start_blocked_at,
+          next_check_at: job_start_blocked_next_check_at,
+          count: job_start_blocked_count,
           details: job_start_blocked_details
         }
       end
@@ -218,6 +220,8 @@ module App
         main_branch_repair: @job.main_branch_repair?,
         start_blocked_reason: start_blocked.fetch(:reason),
         start_blocked_at: start_blocked.fetch(:at),
+        start_blocked_next_check_at: start_blocked.fetch(:next_check_at),
+        start_blocked_count: start_blocked.fetch(:count),
         start_blocked_details: start_blocked.fetch(:details)
       }.merge(deployment_stages_json)
     end
@@ -648,6 +652,14 @@ module App
 
     def job_start_blocked_at
       workflow_for_start_blocked&.artifact("start_blocked_at")
+    end
+
+    def job_start_blocked_next_check_at
+      workflow_for_start_blocked&.artifact("start_blocked_next_check_at")
+    end
+
+    def job_start_blocked_count
+      workflow_for_start_blocked&.artifact("start_blocked_count")
     end
 
     def job_start_blocked_details

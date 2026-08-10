@@ -56,6 +56,8 @@ module App
           blocked_reason: blocked_reason_for(job),
           start_blocked_reason: job_start_blocked_reason(job),
           start_blocked_at: job_start_blocked_at(job),
+          start_blocked_next_check_at: job_start_blocked_next_check_at(job),
+          start_blocked_count: job_start_blocked_count(job),
           start_blocked_details: job_start_blocked_details(job),
           manual_paused: job.manual_paused?,
           manual_paused_at: job.manual_paused_at&.iso8601,
@@ -282,6 +284,14 @@ module App
         start_blocked_data_by_job_id.dig(job.id, :at)
       end
 
+      def job_start_blocked_next_check_at(job)
+        start_blocked_data_by_job_id.dig(job.id, :next_check_at)
+      end
+
+      def job_start_blocked_count(job)
+        start_blocked_data_by_job_id.dig(job.id, :count)
+      end
+
       def job_start_blocked_details(job)
         start_blocked_data_by_job_id.dig(job.id, :details)
       end
@@ -300,6 +310,8 @@ module App
             map[wf.job_id] = {
               reason: reason,
               at: wf.artifacts&.dig("start_blocked_at"),
+              next_check_at: wf.artifacts&.dig("start_blocked_next_check_at"),
+              count: wf.artifacts&.dig("start_blocked_count"),
               details: wf.artifacts&.dig("start_blocked_details")
             } if reason.present?
           end

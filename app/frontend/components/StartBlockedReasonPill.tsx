@@ -21,10 +21,28 @@ const TONES: Record<StartBlockedReason, "amber" | "red" | "gray"> = {
   provider_availability: "amber"
 }
 
-export function StartBlockedReasonPill({ reason, details }: { reason: string; details?: StartBlockedDetails | null }) {
+const THROTTLE_URGENCY_THRESHOLD_MS = 30 * 60 * 1000
+
+export function StartBlockedReasonPill({
+  reason,
+  details,
+  startBlockedAt,
+  nextCheckAt,
+  count,
+}: {
+  reason: string
+  details?: StartBlockedDetails | null
+  startBlockedAt?: string | null
+  nextCheckAt?: string | null
+  count?: number | null
+}) {
   const { t } = useT()
-  const tone = TONES[reason as StartBlockedReason] ?? "amber"
-  const title = startBlockedTitle(reason, details, t)
+  const baseTone = TONES[reason as StartBlockedReason] ?? "amber"
+  const isStale = startBlockedAt
+    ? Date.now() - new Date(startBlockedAt).getTime() > THROTTLE_URGENCY_THRESHOLD_MS
+    : false
+  const tone = baseTone === "gray" && isStale ? "amber" : baseTone
+  const title = startBlockedTitle(reason, details, nextCheckAt ?? null, count ?? null, t)
 
   return (
     <TonePill
@@ -36,12 +54,28 @@ export function StartBlockedReasonPill({ reason, details }: { reason: string; de
   )
 }
 
-function startBlockedTitle(reason: string, details: StartBlockedDetails | null | undefined, t: ReturnType<typeof useT>["t"]) {
+function startBlockedTitle(
+  reason: string,
+  details: StartBlockedDetails | null | undefined,
+  nextCheckAt: string | null,
+  count: number | null,
+  t: ReturnType<typeof useT>["t"]
+) {
   const lines = [t(`common:start_blocked_reason_tooltips.${reason}`, { defaultValue: "" })].filter(Boolean)
   if (details?.message) lines.push(details.message)
   if (details?.dependencies?.length) {
     lines.push(`Dependencies: ${details.dependencies.map((dependency) => dependency.slug || (dependency.job_id ? `JOB-${dependency.job_id}` : null)).filter(Boolean).join(", ")}`)
   }
   if (details?.action) lines.push(details.action)
+  if (nextCheckAt) {
+    const diffMs = new Date(nextCheckAt).getTime() - Date.now()
+    if (diffMs > 0) {
+      const diffMin = Math.ceil(diffMs / 60_000)
+      lines.push(`Next retry in ${diffMin} ${diffMin === 1 ? "minute" : "minutes"}`)
+    }
+  }
+  if (count != null && count > 1) {
+    lines.push(`Refused ${count} times`)
+  }
   return lines.join("\n")
 }

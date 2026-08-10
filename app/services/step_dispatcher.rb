@@ -248,12 +248,15 @@ class StepDispatcher
   def self.record_start_blocked!(workflow, reason, backoff:, details: nil)
     now = Time.current
     current = workflow.artifacts || {}
-    blocked_since = current["start_blocked_reason"] == reason ? current["start_blocked_at"] : nil
+    same_reason = current["start_blocked_reason"] == reason
+    blocked_since = same_reason ? current["start_blocked_at"] : nil
+    current_count = same_reason ? current["start_blocked_count"].to_i : 0
     artifacts = current.merge(
         "start_blocked_reason" => reason,
         "start_blocked_at" => blocked_since.presence || now.iso8601,
         "start_blocked_last_seen_at" => now.iso8601,
-        "start_blocked_next_check_at" => (now + backoff).iso8601
+        "start_blocked_next_check_at" => (now + backoff).iso8601,
+        "start_blocked_count" => current_count + 1
       )
     if details.present?
       artifacts["start_blocked_details"] = details
@@ -306,6 +309,7 @@ class StepDispatcher
       "start_blocked_at",
       "start_blocked_last_seen_at",
       "start_blocked_next_check_at",
+      "start_blocked_count",
       "start_blocked_details",
       "pause_reason",
       "pause_kind",
