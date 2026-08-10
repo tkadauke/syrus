@@ -10,6 +10,7 @@ import { fetchBootstrap } from "../../api/bootstrap"
 import { CloseIcon } from "../../components/CloseIcon"
 import { ConfirmDialog } from "../../components/ConfirmDialog"
 import { ConfirmationCard } from "../../components/ConfirmationCard"
+import { CopyableSlug } from "../../components/CopyableSlug"
 import { StartEpicButton } from "../../components/StartEpicButton"
 import { Markdown } from "../../lib/Markdown"
 import { linkifySlugs } from "../../lib/linkifySlugs"
@@ -344,7 +345,7 @@ export function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposa
             </div>
           <ProposalDependencyStrip dependencies={proposal.dependencies} hasDependencies={proposal.has_dependencies} prefix={prefix} />
           <h3 className="mt-2 text-base font-semibold text-gray-900 dark:text-gray-100">{proposal.title}</h3>
-          <p className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{proposal.slug}</p>
+          <CopyableSlug className="mt-1 text-xs text-gray-500 dark:text-gray-400" slug={proposal.slug} />
         </>
       }
       body={

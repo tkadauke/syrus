@@ -1210,6 +1210,29 @@ describe("chat proposal cards", () => {
     mockDesktopViewport()
   })
 
+  it("renders the proposal slug as a copyable button", async () => {
+    Object.assign(navigator, {
+      clipboard: { writeText: vi.fn().mockResolvedValue(undefined) }
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload({
+        messages: [messageWithProposal(9, proposal({ slug: "JOB-DRAFT-1" }))]
+      })))
+    })
+
+    renderRoute()
+
+    const copyButton = await screen.findByRole("button", { name: "Copy JOB-DRAFT-1 to clipboard" })
+    expect(copyButton).toBeInTheDocument()
+    fireEvent.click(copyButton)
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("JOB-DRAFT-1")
+  })
+
   it("shows an edit button only for proposed proposal cards", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
