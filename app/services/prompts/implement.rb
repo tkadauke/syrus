@@ -9,10 +9,11 @@ module Prompts
   class Implement
     SKILL_FILE = Rails.root.join(".claude/skills/implement/SKILL.md").freeze
 
-    def initialize(issue:, issue_comments: [], replay_context: nil, epic: nil, job: nil, user: nil, repository_ids: [], injected_context: [])
+    def initialize(issue:, issue_comments: [], replay_context: nil, main_branch_context: nil, epic: nil, job: nil, user: nil, repository_ids: [], injected_context: [])
       @issue = issue
       @issue_comments = issue_comments
       @replay_context = replay_context
+      @main_branch_context = main_branch_context
       @epic = epic
       @job = job
       @user = user
@@ -26,6 +27,7 @@ module Prompts
       input << memory_context if memory_context.present?
       input << comments_context if @issue_comments.present?
       input << "Additional context from the operator:\n\n#{@replay_context}" if @replay_context.present?
+      input << @main_branch_context if @main_branch_context.present?
       input << injected_context_section if @injected_context.any?
       SkillLoader.render(SKILL_FILE, input.join("\n\n"))
     end

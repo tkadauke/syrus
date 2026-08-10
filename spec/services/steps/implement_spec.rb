@@ -26,6 +26,7 @@ RSpec.describe Steps::Implement do
     allow(handler).to receive(:diff_against_default).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
     allow(handler).to receive(:diff_against_sha).and_return("diff --git a/foo.rb b/foo.rb\n+bar")
     allow(handler).to receive(:head_sha).and_return("abc123")
+    allow(handler).to receive(:main_branch_context).and_return(nil)
 
     issue = Struct.new(:title, :body).new("Add greeting helper", "We need a greeting helper.")
     allow(handler).to receive(:fetch_issue).and_return(issue)
@@ -229,6 +230,56 @@ RSpec.describe Steps::Implement do
       it "does not inject an operator context section" do
         handler.call
         expect(run.reload.prompt).not_to include("Additional context from the operator")
+      end
+    end
+
+    describe "main branch context" do
+      context "when main has new commits since the job was filed" do
+        before do
+          allow(handler).to receive(:main_branch_context).and_return(
+            "## Recent changes to main since this Job was filed\n\n" \
+            "The following commits landed on the default branch after this Job was created.\n\n" \
+            "abc1234 Fix authentication bug\ndef5678 Update dependencies"
+          )
+        end
+
+        it "includes the recent-changes section in the prompt" do
+          handler.call
+          expect(run.reload.prompt).to include("Recent changes to main since this Job was filed")
+          expect(run.reload.prompt).to include("Fix authentication bug")
+        end
+
+        it "positions the section after the issue body" do
+          handler.call
+          prompt = run.reload.prompt
+          issue_pos   = prompt.index("Add greeting helper")
+          changes_pos = prompt.index("Recent changes to main since this Job was filed")
+          expect(changes_pos).to be > issue_pos
+        end
+      end
+
+      context "when main has not moved since filing" do
+        before do
+          allow(handler).to receive(:main_branch_context).and_return(nil)
+        end
+
+        it "does not include the recent-changes section" do
+          handler.call
+          expect(run.reload.prompt).not_to include("Recent changes to main since this Job was filed")
+        end
+      end
+
+      context "when trigger_kind is not initial or retry" do
+        before do
+          allow(handler).to receive(:main_branch_context).and_call_original
+          workflow.update!(trigger_kind: "pr_comment")
+        end
+
+        it "returns nil without attempting any git commands" do
+          expect(GitRunner).not_to receive(:new)
+          result = handler.send(:main_branch_context)
+          expect(result).to be_nil
+        end
       end
     end
 

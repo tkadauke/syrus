@@ -9,6 +9,9 @@ module Steps
   #
   # Doesn't push. Doesn't open a PR. Those are pr_open's job.
   class Implement < Base
+    MAIN_DIFF_TRIGGER_KINDS = %w[initial retry].freeze
+    MAX_MAIN_DIFF_BYTES = 16 * 1024
+
     def call
       perform_agentic_change_step(
         log_message: "invoking agent for #{target_label} (#{workflow.slug}, step ##{step.id} implement)",
@@ -38,7 +41,8 @@ module Steps
       job.update!(issue_title: issue.title, issue_body: issue.body) if job.issue?
       workflow.set_artifact!("initial_issue_comments", issue_comments) if job.issue?
       ctx = workflow.artifacts&.dig("replay_context")
-      run.update!(prompt: implement_prompt(issue: issue, issue_comments: issue_comments, replay_context: ctx))
+      main_ctx = main_branch_context
+      run.update!(prompt: implement_prompt(issue: issue, issue_comments: issue_comments, replay_context: ctx, main_branch_context: main_ctx))
     end
 
     def target_label
@@ -77,11 +81,12 @@ module Steps
       }
     end
 
-    def implement_prompt(issue:, issue_comments:, replay_context:)
+    def implement_prompt(issue:, issue_comments:, replay_context:, main_branch_context: nil)
       prompt = Prompts::Implement.new(
         issue: issue,
         issue_comments: issue_comments,
         replay_context: replay_context,
+        main_branch_context: main_branch_context,
         epic: job.epic,
         job: job,
         user: job.user,
@@ -89,6 +94,50 @@ module Steps
         injected_context: collect_injected_context
       ).to_s
       append_grade_failure_feedback(prompt)
+    end
+
+    # Computes commits and diff on the default branch since the Job was
+    # filed. Only runs for initial/retry workflows; returns nil (no
+    # section injected) when main has not advanced or on git errors.
+    def main_branch_context
+      return nil unless workflow.trigger_kind.in?(MAIN_DIFF_TRIGGER_KINDS)
+
+      created_at_iso = job.created_at.utc.iso8601
+      ref = "origin/#{repository.default_branch}"
+
+      commits = GitRunner.new.run(
+        "log", "--oneline", "--since=#{created_at_iso}", ref,
+        chdir: workspace.path.to_s
+      ).strip
+      return nil if commits.blank?
+
+      base_sha = GitRunner.new.run(
+        "rev-list", "-1", "--before=#{created_at_iso}", ref,
+        chdir: workspace.path.to_s
+      ).strip
+      return nil if base_sha.blank?
+
+      diff = GitRunner.new.run("diff", "#{base_sha}..#{ref}", chdir: workspace.path.to_s)
+      format_main_branch_context(commits: commits, diff: diff)
+    rescue GitRunner::GitError => e
+      log("[implement] could not compute main branch diff: #{e.message}")
+      nil
+    end
+
+    def format_main_branch_context(commits:, diff:)
+      header = <<~HEADER.strip
+        ## Recent changes to main since this Job was filed
+
+        The following commits landed on the default branch after this Job was created.
+        Review them before implementing — they may already address this task, contradict
+        the planned approach, or introduce dependencies your change must account for.
+      HEADER
+
+      if diff.bytesize <= MAX_MAIN_DIFF_BYTES
+        "#{header}\n\n#{diff}"
+      else
+        "#{header}\n\n#{commits}\n\n(The full diff was too large to include; showing the commit list only.)"
+      end
     end
 
     def collect_injected_context

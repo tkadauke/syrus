@@ -155,6 +155,51 @@ RSpec.describe Prompts::Implement do
     end
   end
 
+  describe "main_branch_context" do
+    it "is omitted when not provided" do
+      out = described_class.new(issue: issue).to_s
+      expect(out).not_to include("Recent changes to main since this Job was filed")
+    end
+
+    it "is omitted when blank" do
+      out = described_class.new(issue: issue, main_branch_context: "").to_s
+      expect(out).not_to include("Recent changes to main since this Job was filed")
+    end
+
+    it "is included when non-empty" do
+      ctx = "## Recent changes to main since this Job was filed\n\nabc1234 Fix auth bug\n\n+fixed"
+      out = described_class.new(issue: issue, main_branch_context: ctx).to_s
+      expect(out).to include("Recent changes to main since this Job was filed")
+      expect(out).to include("Fix auth bug")
+    end
+
+    it "appears after replay_context and before the skill file content" do
+      ctx = "## Recent changes to main since this Job was filed\n\nsome commits"
+      out = described_class.new(
+        issue: issue,
+        replay_context: "Some operator context.",
+        main_branch_context: ctx
+      ).to_s
+      replay_pos  = out.index("Some operator context.")
+      changes_pos = out.index("Recent changes to main since this Job was filed")
+      safety_pos  = out.index(Prompts::GitSafety::TEXT)
+      expect(changes_pos).to be > replay_pos
+      expect(safety_pos).to be > changes_pos
+    end
+
+    it "appears before injected_context when both are present" do
+      ctx = "## Recent changes to main since this Job was filed\n\nsome commits"
+      out = described_class.new(
+        issue: issue,
+        main_branch_context: ctx,
+        injected_context: [ "Plugin hint." ]
+      ).to_s
+      changes_pos = out.index("Recent changes to main since this Job was filed")
+      injected_pos = out.index("Plugin hint.")
+      expect(changes_pos).to be < injected_pos
+    end
+  end
+
   describe "injected_context" do
     it "is omitted when not provided" do
       out = described_class.new(issue: issue).to_s
