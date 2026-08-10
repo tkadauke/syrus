@@ -115,6 +115,25 @@ describe("Markdown", () => {
     expect(links[0]).toHaveAttribute("href", "/custom")
   })
 
+  it("decodes HTML entities in prose text", () => {
+    render(<Markdown text={"A job throttled for &lt;30 min and &gt;1 hr uses &amp;amp; and &quot;quotes&quot; and &apos;apos&apos;"} />)
+
+    expect(screen.getByText(/A job throttled for <30 min and >1 hr uses &amp; and "quotes" and 'apos'/)).toBeInTheDocument()
+  })
+
+  it("decodes numeric HTML entities in prose text", () => {
+    render(<Markdown text={"arrow &#60; and &#x3E; and &#169;"} />)
+
+    expect(screen.getByText(/arrow < and > and ©/)).toBeInTheDocument()
+  })
+
+  it("decodes HTML entities inside list items", () => {
+    render(<Markdown text={"- shows &lt;30 min pill\n- shows &gt;30 min pill"} />)
+
+    expect(screen.getByText(/shows <30 min pill/)).toBeInTheDocument()
+    expect(screen.getByText(/shows >30 min pill/)).toBeInTheDocument()
+  })
+
   it("renders fenced code blocks as scrollable pre > code elements", () => {
     const { container } = render(<Markdown text={"```\nconst x = 1\n```"} />)
     const pre = container.querySelector("pre")

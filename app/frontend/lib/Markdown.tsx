@@ -277,11 +277,21 @@ function renderInline(text: string, options: RenderInlineOptions = {}): InlineTo
   return tokens
 }
 
+function decodeHtmlEntities(text: string): string {
+  return text.replace(/&(amp|lt|gt|quot|apos|nbsp|#x[0-9a-fA-F]+|#\d+);/g, (_match, entity) => {
+    if (entity.startsWith("#x")) return String.fromCharCode(parseInt(entity.slice(2), 16))
+    if (entity.startsWith("#")) return String.fromCharCode(Number(entity.slice(1)))
+    const map: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " }
+    return map[entity] ?? _match
+  })
+}
+
 function renderInlineText(text: string, shouldLinkifySlugs: boolean, key: number): InlineToken {
-  if (shouldLinkifySlugs && containsSlug(text)) {
-    return <Fragment key={key}>{linkifySlugs(text)}</Fragment>
+  const decoded = decodeHtmlEntities(text)
+  if (shouldLinkifySlugs && containsSlug(decoded)) {
+    return <Fragment key={key}>{linkifySlugs(decoded)}</Fragment>
   }
-  return text
+  return decoded
 }
 
 function renderInlineToken(token: string, key: number, options: RenderInlineOptions): ReactNode {
