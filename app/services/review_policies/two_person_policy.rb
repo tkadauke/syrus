@@ -1,5 +1,9 @@
 module ReviewPolicies
   class TwoPersonPolicy < Base
+    def multi_person?
+      true
+    end
+
     def satisfied?
       owner_approved? &&
         @job.job_approvals.where.not(user_id: effective_owner_id).exists?

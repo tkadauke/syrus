@@ -13,6 +13,11 @@ RSpec.describe ReviewPolicies::SelfPolicy do
 
   subject(:policy) { described_class.new(job_with_approvals(*approvers)) }
 
+  describe "#multi_person?" do
+    let(:approvers) { [] }
+    it { is_expected.not_to be_multi_person }
+  end
+
   context "with no approvals" do
     let(:approvers) { [] }
     it { is_expected.not_to be_satisfied }

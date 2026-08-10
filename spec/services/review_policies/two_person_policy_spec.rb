@@ -11,6 +11,11 @@ RSpec.describe ReviewPolicies::TwoPersonPolicy do
     job
   end
 
+  describe "#multi_person?" do
+    subject { described_class.new(job_with_approvals) }
+    it { is_expected.to be_multi_person }
+  end
+
   context "with no approvals" do
     subject { described_class.new(job_with_approvals) }
     it { is_expected.not_to be_satisfied }

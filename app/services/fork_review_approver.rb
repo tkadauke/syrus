@@ -60,10 +60,10 @@ class ForkReviewApprover
   end
 
   def record_approval!(review_url:, reviewer_github_handle: nil)
-    if self_review_policy?
-      @job.record_github_review_approval!(review_url: review_url, approved_at: Time.current)
-    elsif multi_person_review_policy?
+    if review_policy.multi_person?
       record_fork_review_job_approval!(reviewer_github_handle: reviewer_github_handle)
+    else
+      @job.record_github_review_approval!(review_url: review_url, approved_at: Time.current)
     end
   end
 
@@ -86,12 +86,8 @@ class ForkReviewApprover
     User.where("LOWER(github_handle) = ?", github_handle.downcase).first
   end
 
-  def self_review_policy?
-    @job.repository.review_policy == "self"
-  end
-
-  def multi_person_review_policy?
-    @job.repository.review_policy.in?(%w[ two_person final_say ])
+  def review_policy
+    ReviewPolicies.for(@job.repository.review_policy).new(@job)
   end
 
   def upstream_pr_copy

@@ -12,6 +12,10 @@ module ReviewPolicies
       raise NotImplementedError, "#{self.class} must implement #pending_description"
     end
 
+    def multi_person?
+      false
+    end
+
     private
 
     def effective_owner_id

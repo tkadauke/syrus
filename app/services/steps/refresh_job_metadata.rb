@@ -47,10 +47,10 @@ module Steps
     end
 
     def feedback_text
-      case workflow.trigger_kind
-      when "chat_feedback"
+      case Workflow::TriggerKind.feedback_kind_for(workflow.trigger_kind)
+      when :chat_feedback
         workflow.artifact("chat_feedback").to_s
-      when "pr_comment"
+      when :pr_comment
         Array(workflow.artifact("pr_comments")).map { |comment| comment["body"].to_s }.reject(&:blank?).join("\n\n")
       end
     end

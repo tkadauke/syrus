@@ -257,7 +257,7 @@ class PollPullRequestJob < ApplicationJob
   end
 
   def multi_person_review_policy?
-    @job.repository.review_policy.in?(%w[ two_person final_say ])
+    ReviewPolicies.for(@job.repository.review_policy).new(@job).multi_person?
   end
 
   # ----- pr_comment branch ------------------------------------------------

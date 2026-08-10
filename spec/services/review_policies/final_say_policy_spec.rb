@@ -17,6 +17,14 @@ RSpec.describe ReviewPolicies::FinalSayPolicy do
     job
   end
 
+  describe "#multi_person?" do
+    let(:repo) { repo_with_final_approvers(owner) }
+
+    it "returns true" do
+      expect(described_class.new(job_with_approvals(repo))).to be_multi_person
+    end
+  end
+
   context "when owner is a final approver (collapses to self)" do
     let(:repo) { repo_with_final_approvers(owner) }
 

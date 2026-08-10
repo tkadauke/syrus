@@ -1,5 +1,9 @@
 module ReviewPolicies
   class FinalSayPolicy < Base
+    def multi_person?
+      true
+    end
+
     def satisfied?
       if owner_is_final_approver?
         owner_approved?
