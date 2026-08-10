@@ -32,8 +32,8 @@ WORKDIR /rails
 #     timestamps Gemini flags, so the analysis chat turn can illustrate each
 #     issue (VideoWalkthroughFrameExtractor).
 ARG NODE_MAJOR=22
-ARG CLAUDE_CODE_VERSION=2.1.126
-ARG CODEX_CLI_VERSION=0.146.0
+ARG CLAUDE_CODE_VERSION=2.1.226
+ARG CODEX_CLI_VERSION=0.147.0
 RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y \
       ca-certificates curl default-mysql-client ffmpeg git gnupg libjemalloc2 libvips && \
@@ -221,7 +221,7 @@ RUN /usr/local/bin/mise install $(for v in $MISE_PYTHONS; do echo python@$v; don
 
 FROM runtime-base AS runtime-go-cache
 
-ARG MISE_GO_VERSION="1.26.4"
+ARG MISE_GO_VERSION="1.26.5"
 RUN /usr/local/bin/mise install go@$MISE_GO_VERSION && \
     rm -rf /opt/mise/cache /opt/mise/tmp
 
@@ -252,9 +252,9 @@ FROM base AS worker-deps
 
 USER root
 
-ARG POETRY_VERSION=2.3.4
-ARG UV_VERSION=0.11.7
-ARG MISE_GO_VERSION="1.26.4"
+ARG POETRY_VERSION=2.4.1
+ARG UV_VERSION=0.12.3
+ARG MISE_GO_VERSION="1.26.5"
 
 # Native build deps + DB clients (no servers) + CLI tooling. Each tool
 # justified in greenacres#16 / syrus#114; ripgrep+fd in particular speed

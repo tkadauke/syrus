@@ -44,7 +44,7 @@ RSpec.describe "Dockerfile" do
   end
 
   it "pins a Codex CLI version with current model metadata support" do
-    expect(dockerfile).to include("ARG CODEX_CLI_VERSION=0.146.0")
+    expect(dockerfile).to include("ARG CODEX_CLI_VERSION=0.147.0")
     expect(dockerfile).to include("@openai/codex@${CODEX_CLI_VERSION}")
   end
 
@@ -77,9 +77,9 @@ RSpec.describe "Dockerfile" do
     worker_deps = worker_deps_stage
     worker_dev = dockerfile.match(/FROM worker-deps AS worker-dev(?<stage>.*)\z/m)[:stage]
 
-    expect(runtime_stage).to include("ARG MISE_GO_VERSION=\"1.26.4\"")
+    expect(runtime_stage).to include("ARG MISE_GO_VERSION=\"1.26.5\"")
     expect(runtime_stage).to include("/usr/local/bin/mise install go@$MISE_GO_VERSION")
-    expect(worker_deps).to include("ARG MISE_GO_VERSION=\"1.26.4\"")
+    expect(worker_deps).to include("ARG MISE_GO_VERSION=\"1.26.5\"")
     expect(worker_deps).to include("PATH=\"/opt/mise/installs/go/${MISE_GO_VERSION}/bin:/opt/python-tools/bin:/opt/mise/shims:${PATH}\"")
     expect(worker_dev).to include("RUN go version")
   end

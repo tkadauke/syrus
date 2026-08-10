@@ -237,7 +237,7 @@ RSpec.describe "Mcp::Tools job control tools" do
 
     response = call_tool("set_job_priority", job_id: job.id, priority: "critical")
 
-    expect(response.dig(:error, :message)).to include("Invalid params")
+    expect(response.dig(:result, :isError)).to be(true)
     expect(job.reload.priority).to eq("medium")
   end
 

@@ -66,9 +66,8 @@ RSpec.describe Mcp::Tools::SetBookmarkTool do
 
     response = call_tool(label: "Portent", kind: "omen")
 
-    expect(response[:error]).to be_present
-    expect(response[:error][:code]).to eq(-32602)
-    expect(response[:error][:data]).to match(/kind/)
+    expect(response.dig(:result, :isError)).to be(true)
+    expect(response.dig(:result, :content, 0, :text)).to match(/kind/)
     expect(chat_session.bookmarks).to be_empty
   end
 end

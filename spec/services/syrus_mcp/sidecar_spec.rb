@@ -20,7 +20,7 @@ RSpec.describe Mcp::Sidecar do
 
   describe "MCP handshake" do
     it "responds to `initialize` with serverInfo and a negotiated protocol version" do
-      response = jsonrpc(server_for(run), "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "test", version: "1" } })
+      response = jsonrpc(server_for(run), "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "test", version: "1" }, capabilities: {} })
       expect(response[:result][:serverInfo]).to include(name: "syrus-mcp-sidecar")
       expect(response[:result][:protocolVersion]).to be_a(String)
     end
@@ -119,10 +119,9 @@ RSpec.describe Mcp::Sidecar do
         arguments: { pr_title: "x" }   # pr_body + summary missing
       })
 
-      # Server returns a JSON-RPC error here, not a tool error.
-      expect(response[:error]).to be_present
-      expect(response[:error][:code]).to eq(-32602)  # JSON-RPC "invalid params"
-      expect(response[:error][:data]).to match(/Missing required arguments/)
+      # MCP 1.x returns a tool-level error for missing required arguments.
+      expect(response[:result][:isError]).to be(true)
+      expect(response[:result][:content].first[:text]).to match(/Missing required arguments/)
     end
   end
 

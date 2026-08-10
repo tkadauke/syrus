@@ -77,7 +77,7 @@ RSpec.describe "Mcp::Tools job dependency tools" do
 
       response = call_tool("add_job_dependency", job_id: job.id, depends_on_job_id: prerequisite.id, satisfaction_mode: "anything")
 
-      expect(response.dig(:error, :message)).to eq("Invalid params")
+      expect(response.dig(:result, :isError)).to be(true)
       expect(job.reload.dependencies).to be_empty
     end
 

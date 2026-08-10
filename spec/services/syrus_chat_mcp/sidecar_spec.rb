@@ -64,7 +64,7 @@ RSpec.describe Mcp::Sidecar do
 
   describe "MCP handshake" do
     it "responds to initialize with the chat sidecar server name" do
-      response = jsonrpc(server_for(chat_session), "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "test", version: "1" } })
+      response = jsonrpc(server_for(chat_session), "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "test", version: "1" }, capabilities: {} })
 
       expect(response[:result][:serverInfo]).to include(name: "syrus-chat-sidecar")
       expect(response[:result][:protocolVersion]).to be_a(String)
