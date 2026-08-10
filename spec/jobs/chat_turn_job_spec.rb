@@ -682,6 +682,17 @@ RSpec.describe ChatTurnJob do
     described_class.perform_now(chat.id, message.id)
   end
 
+  it "recalculates turn_in_flight from DB before broadcasting controls so broadcast reflects authoritative state" do
+    message = user_message
+    ChatTurnJob.agent_runner = ->(**_) {
+      result_fixture(session_id: "chat-session-1", transcript_jsonl: "x")
+    }
+
+    expect_any_instance_of(ChatSession).to receive(:recalculate_turn_state!).and_call_original
+
+    described_class.perform_now(chat.id, message.id)
+  end
+
   it "clears stop requests and broadcasts controls when the turn fails before the agent starts" do
     message = user_message
     allow(ChatWorkspace).to receive(:ensure_root!).with(chat) do

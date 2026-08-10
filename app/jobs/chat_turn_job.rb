@@ -117,6 +117,7 @@ class ChatTurnJob < ApplicationJob
     return unless @chat
 
     @chat.reload
+    @chat.recalculate_turn_state!
     @chat.update!(stop_requested_at: nil) if @chat.stop_requested_at?
     @chat.broadcast_controls
   end

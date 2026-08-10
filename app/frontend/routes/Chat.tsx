@@ -110,6 +110,7 @@ import { countIncomingVisibleMessages, isAgentActive, isLowPrioritySystemMessage
 import { availableWorkspaceTabs, clampWorkspaceWidth, defaultWorkspaceTab, mobileChatTabLabel, storeWorkspacePreference, storedWorkspaceCollapsed, storedWorkspaceTab, storedWorkspaceWidth, workspaceTabClass } from "./chat/workspaceTabs"
 import { SyrusTour } from "../components/SyrusTour"
 import { useTour } from "../hooks/useTour"
+import { useChatControlsRefetchOnReconnect } from "../hooks/useChatControlsRefetchOnReconnect"
 
 const ChatWorkspacePanel = lazy(() => import("./chat/WorkspacePanels").then((module) => ({ default: module.ChatWorkspacePanel })))
 const ChatSettingsDialog = lazy(() => import("./chat/WorkspacePanels").then((module) => ({ default: module.ChatSettingsDialog })))
@@ -148,6 +149,8 @@ export function ChatRoute() {
       previousQuery?.queryKey[0] === "chats" && previousQuery.queryKey[1] === id ? previousData : undefined
     )
   })
+
+  useChatControlsRefetchOnReconnect(id, chat.data?.turn_in_flight ?? false)
 
   usePageTitle(chat.isSuccess ? chatDisplayTitle(chat.data.chat) : undefined)
 

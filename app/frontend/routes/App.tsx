@@ -11,6 +11,7 @@ import { NoticeToast } from "../components/NoticeToast"
 import { RouteErrorBoundary } from "../components/RouteErrorBoundary"
 import { NotificationsRoute } from "../components/Notifications"
 import { useAppEvents } from "../lib/useAppEvents"
+import { ConnectionContext } from "../lib/connectionContext"
 import { AdminConsole } from "./AdminConsole"
 import { AppChromeV2 } from "./AppChromeV2"
 import { AdminGithubAppConfirm, AdminGithubAppRegister } from "./AdminGithubApp"
@@ -142,7 +143,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
 ]
 
 export function App() {
-  const { isDisconnected, justReconnected, clearReconnected } = useAppEvents()
+  const { isDisconnected, justReconnected, reconnectAt, clearReconnected } = useAppEvents()
   const initialBootstrap = readInitialBootstrap()
 
   const [bannerDismissed, setBannerDismissed] = useState(false)
@@ -151,7 +152,7 @@ export function App() {
   }, [isDisconnected])
 
   return (
-    <>
+    <ConnectionContext.Provider value={{ reconnectAt }}>
       <AppShell initialBootstrap={initialBootstrap} />
       {isDisconnected && !bannerDismissed ? (
         <NoticeToast persistent onDismiss={() => setBannerDismissed(true)}>
@@ -164,7 +165,7 @@ export function App() {
       {justReconnected ? (
         <NoticeToast onDismiss={clearReconnected} message="Reconnected — data refreshed" />
       ) : null}
-    </>
+    </ConnectionContext.Provider>
   )
 }
 

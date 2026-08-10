@@ -6,10 +6,14 @@ export function useAppEvents() {
   const queryClient = useQueryClient()
   const [isDisconnected, setIsDisconnected] = useState(false)
   const [justReconnected, setJustReconnected] = useState(false)
+  const [reconnectAt, setReconnectAt] = useState<number | null>(null)
 
   const onConnectionChange = useCallback((connected: boolean) => {
     setIsDisconnected(!connected)
-    if (connected) setJustReconnected(true)
+    if (connected) {
+      setJustReconnected(true)
+      setReconnectAt(Date.now())
+    }
   }, [])
 
   useEffect(() => {
@@ -17,5 +21,5 @@ export function useAppEvents() {
     return () => subscription.unsubscribe()
   }, [queryClient, onConnectionChange])
 
-  return { isDisconnected, justReconnected, clearReconnected: () => setJustReconnected(false) }
+  return { isDisconnected, justReconnected, reconnectAt, clearReconnected: () => setJustReconnected(false) }
 }
