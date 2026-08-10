@@ -14,7 +14,6 @@ module App
     # via Module.nesting (a constant in one concern is invisible to another).
     OWNERSHIP_SCOPES = %w[mine team claimable user].freeze
     DEFAULT_OWNERSHIP_SCOPE = "mine"
-    USER_FOCUSED_SUBJECTS = [].freeze
     TEAM_FOCUSED_SUBJECTS = %w[epic job workflow].freeze
     SECTIONS = %w[full chrome rows].freeze
     DEFAULT_SUBJECT = "epic"
@@ -614,13 +613,6 @@ module App
       latest_by_job.values.select do |workflow|
         workflow.running? && !workflow.landing_workflow? && workflow_pause_artifact?(workflow)
       end.map(&:job_id) - @job_runtime_active_job_ids.keys
-    end
-
-    def latest_runs_by_job_id(job_ids)
-      return {} if job_ids.empty?
-
-      latest_ids = Run.where(job_id: job_ids).group(:job_id).maximum(:id).values
-      latest_ids.empty? ? {} : Run.where(id: latest_ids).index_by(&:job_id)
     end
 
     def latest_runs_for_jobs(jobs)

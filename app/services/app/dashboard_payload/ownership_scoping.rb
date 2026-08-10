@@ -7,7 +7,7 @@ module App
       # active ownership scope (mine/team/claimable/user), the selected owner, and
       # applying those scopes (incl. the default epic-work scope) to the job/epic/
       # workflow queries. Mixed back in, so it reads the same @user/@params. The
-      # OWNERSHIP_SCOPES / *_FOCUSED_SUBJECTS constants live on the DashboardPayload
+      # OWNERSHIP_SCOPES / TEAM_FOCUSED_SUBJECTS constants live on the DashboardPayload
       # class body (not here) so sibling concerns like ChromeSerializers can resolve
       # them through Module.nesting — a constant defined in one included concern is
       # NOT visible to a method lexically scoped inside another.
@@ -16,11 +16,9 @@ module App
         @ownership_scope ||= begin
           raw_scope = params[:scope].presence || params[:ownership_scope].presence
           raw_scope ||= "user" if params[:owner_id].present? || params[:owner_user_id].present?
-          raw_scope ||= "mine" if default_user_focused_subject? && !ownership_param_present?
           raw_scope ||= user.dashboard_preferences.dig(subject.pluralize, "ownership_scope").to_s.presence
           raw_scope = "team" if default_team_focused_subject? && raw_scope == "mine" && !ownership_param_present?
-          raw_scope ||= user.dashboard_preferences["last_ownership_scope"].to_s.presence unless default_user_focused_subject? || default_team_focused_subject?
-          raw_scope ||= "mine" if default_user_focused_subject?
+          raw_scope ||= user.dashboard_preferences["last_ownership_scope"].to_s.presence unless default_team_focused_subject?
           raw_scope ||= "team" if default_team_focused_subject?
           raw_scope ||= DEFAULT_OWNERSHIP_SCOPE
 
@@ -29,10 +27,6 @@ module App
 
           normalized
         end
-      end
-
-      def default_user_focused_subject?
-        USER_FOCUSED_SUBJECTS.include?(subject)
       end
 
       def default_team_focused_subject?
