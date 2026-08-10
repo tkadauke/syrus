@@ -170,6 +170,34 @@ RSpec.describe Steps::Grader do
     expect(spans.map(&:command_excerpt)).not_to include("printf skipped")
   end
 
+  it "calls registered grader augmentors when the grader fails" do
+    step.update!(details: step.details.merge("command" => "ruby -e 'exit 1'"))
+
+    augmentor = double("augmentor")
+    allow(augmentor).to receive(:augment_grader_failure)
+      .with(name: "tests", command: "ruby -e 'exit 1'", workspace_path: @ws_path)
+      .and_return(["[rspec failures from JSON output]\n", "MyTest fails\n"])
+
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:grader_augmentor).and_return([augmentor])
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_result_parser).and_call_original
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed)
+
+    logged = run.reload.job_logs.where(kind: "grade_log").order(:sequence).pluck(:chunk).join
+    expect(logged).to include("[rspec failures from JSON output]")
+    expect(logged).to include("MyTest fails")
+  end
+
+  it "does not call augmentors when the grader passes" do
+    augmentor = double("augmentor")
+    expect(augmentor).not_to receive(:augment_grader_failure)
+
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:grader_augmentor).and_return([augmentor])
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:test_result_parser).and_call_original
+
+    handler.call
+  end
+
   it "records preflight grader spans through the shared grader implementation" do
     preflight_step = Step.create!(
       workflow: workflow,

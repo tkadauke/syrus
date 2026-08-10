@@ -94,10 +94,7 @@ module Steps
         "output" => output_excerpt
       ))
 
-      # When RSpec exits with failures, supplement the transcript with
-      # structured details from the JSON formatter — available even if
-      # stdout was cut off before the summary printed.
-      append_rspec_json_failures! unless passed
+      run_grader_augmentors!(name: name, command: command) unless passed
 
       ingest_test_output!(name, definition["junit_output"]) if definition["junit_output"].present?
 
@@ -140,28 +137,12 @@ module Steps
       log(text, kind: "grade_log")
     end
 
-    def append_rspec_json_failures!
-      json_paths = workspace.path.join(".syrus/rspec-json").glob("*.json")
-      return if json_paths.empty?
-
-      logged_header = false
-      json_paths.each do |path|
-        results = JSON.parse(path.read)
-        failures = results.dig("examples")&.select { |example| example["status"] == "failed" } || []
-        next if failures.empty?
-
-        unless logged_header
-          log("[rspec failures from JSON output]\n", kind: "grade_log")
-          logged_header = true
+    def run_grader_augmentors!(name:, command:)
+      Syrus::PluginRegistry.providers_for(:grader_augmentor).each do |provider|
+        lines = PerformanceLogging.plugin_call(extension_point: :grader_augmentor, provider: provider, operation: :augment_grader_failure) do
+          provider.augment_grader_failure(name: name, command: command, workspace_path: workspace.path)
         end
-
-        failures.each do |failure|
-          log("#{failure["full_description"]}\n", kind: "grade_log")
-          log("  #{failure.dig("exception", "message")}\n", kind: "grade_log") if failure.dig("exception", "message")
-          log("  #{failure["location"]}\n", kind: "grade_log") if failure["location"]
-        end
-      rescue JSON::ParserError
-        # Partial writes can happen when a grader is interrupted; the text log remains authoritative.
+        Array(lines).each { |line| log(line, kind: "grade_log") }
       end
     end
 

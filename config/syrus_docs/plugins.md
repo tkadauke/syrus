@@ -15,6 +15,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `source_control_provider`
 - `prompt_injector`
 - `artifact_renderer`
+- `grader_augmentor`
 
 Operators can inspect the registered plugins from **Admin → Plugins**
 (`/admin/plugins`). The page shows each plugin's name, version, enabled state,
@@ -143,6 +144,50 @@ each entry with the matching `renderer_type` from registered renderers and
 displays them in the **Artifacts** tab. Artifacts with no registered renderer
 fall back to a raw JSON display.
 
+## `grader_augmentor`
+
+Allows plugins to append additional diagnostic output to the grade log when a
+grader command fails. Augmentors are called after every failed grader run, before
+the step raises `StepFailed`. They run in registration order; each may return
+zero or more log lines.
+
+Include `Syrus::Plugin::GraderAugmentor` and implement the class method:
+
+| Method | Signature | Description |
+|---|---|---|
+| `augment_grader_failure` | `(name:, command:, workspace_path:) → Array<String>\|nil` | Return an array of lines to append (each ending with `"\n"`), or `nil`/`[]` to add nothing. Must not raise. |
+
+Parameters:
+
+- `name` — grader name from Step details (e.g. `"rspec"`)
+- `command` — the grader shell command that was run
+- `workspace_path` — `Pathname` pointing to the workflow workspace root
+
+Example use case: reading structured JSON failure output that a test runner
+wrote to a well-known path and surfacing it as compact human-readable lines in
+the run log, so the agent sees every failing test even when plain-text stdout
+was truncated.
+
+```ruby
+class MyPlugin::GraderAugmentor
+  include Syrus::Plugin::GraderAugmentor
+
+  def self.augment_grader_failure(name:, command:, workspace_path:)
+    return nil unless command.include?("my-runner")
+    report = workspace_path.join(".my-plugin/results.json")
+    return nil unless report.exist?
+    JSON.parse(report.read).fetch("failures", []).map { |f| "FAILED: #{f}\n" }
+  rescue JSON::ParserError
+    nil
+  end
+end
+
+Syrus::PluginRegistry.register(
+  name: "my-plugin", version: "1.0.0",
+  provides: { grader_augmentor: MyPlugin::GraderAugmentor }
+)
+```
+
 ## Plugin install and uninstall
 
 Plugin install and uninstall remain manual operations: edit the Gemfile, run
@@ -206,6 +251,7 @@ Bundled plugins:
   agents or operators should inspect Syrus's own production behavior.
 - `syrus_rails` — installed but disabled by default. Provides Rails-specific
   extension points: `:preview_provider` (starts a Rails server for preview
-  hosting), `:mcp_tool_set`, `:test_result_parser` (RSpec output), and
-  `:coverage_analyzer` (SimpleCov). Enable by calling `SyrusRails.register!`
-  from an initializer.
+  hosting), `:mcp_tool_set`, `:test_result_parser` (RSpec output),
+  `:coverage_analyzer` (SimpleCov), and `:grader_augmentor` (appends structured
+  RSpec JSON failure details to the grade log when an rspec grader fails). Enable
+  by calling `SyrusRails.register!` from an initializer.

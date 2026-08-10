@@ -12,6 +12,7 @@ module SyrusRails
       SyrusRails::SimpleCovAnalyzer.include(Syrus::Plugin::CoverageAnalyzer)
       SyrusRails::PromptContext.include(Syrus::Plugin::PromptInjector)
       SyrusRails::PreviewProvider.include(Syrus::Plugin::PreviewProvider)
+      SyrusRails::GraderAugmentor.include(Syrus::Plugin::GraderAugmentor)
 
       Syrus::PluginRegistry.register(
         name:        "syrus-rails",
@@ -24,7 +25,8 @@ module SyrusRails
           test_result_parser: SyrusRails::RspecParser,
           coverage_analyzer:  SyrusRails::SimpleCovAnalyzer,
           prompt_injector:    SyrusRails::PromptContext,
-          preview_provider:   SyrusRails::PreviewProvider
+          preview_provider:   SyrusRails::PreviewProvider,
+          grader_augmentor:   SyrusRails::GraderAugmentor
         }
       )
     end

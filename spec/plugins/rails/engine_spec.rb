@@ -23,7 +23,8 @@ RSpec.describe SyrusRails::Engine do
             test_result_parser: SyrusRails::RspecParser,
             coverage_analyzer:  SyrusRails::SimpleCovAnalyzer,
             prompt_injector:    SyrusRails::PromptContext,
-            preview_provider:   SyrusRails::PreviewProvider
+            preview_provider:   SyrusRails::PreviewProvider,
+            grader_augmentor:   SyrusRails::GraderAugmentor
           }
         )
       end
@@ -42,14 +43,15 @@ RSpec.describe SyrusRails::Engine do
       expect(registration.description).to eq("Ruby on Rails intelligence")
     end
 
-    it "provides all 6 extension point keys" do
+    it "provides all 7 extension point keys" do
       expect(registration.provides.keys).to contain_exactly(
         :mcp_tool_set,
         :artifact_renderer,
         :test_result_parser,
         :coverage_analyzer,
         :prompt_injector,
-        :preview_provider
+        :preview_provider,
+        :grader_augmentor
       )
     end
 
@@ -64,6 +66,10 @@ RSpec.describe SyrusRails::Engine do
     it "registers both artifact renderers as an array under :artifact_renderer" do
       renderers = Array(registration.provides[:artifact_renderer])
       expect(renderers).to include(SyrusRails::SchemaErdRenderer, SyrusRails::MigrationDiffRenderer)
+    end
+
+    it "registers GraderAugmentor as the :grader_augmentor" do
+      expect(registration.provides[:grader_augmentor]).to eq(SyrusRails::GraderAugmentor)
     end
   end
 end

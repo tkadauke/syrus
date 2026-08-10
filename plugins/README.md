@@ -42,6 +42,7 @@ gem "my_plugin", path: "plugins/my_plugin"
 | `:admin_page`     | `Syrus::Plugin::AdminPage`            | `.admin_pages` |
 | `:chat_mcp_tool_set` | `Syrus::Plugin::ChatMcpToolSet`    | `.tool_definitions(tier:)`, `.available_for?(session, tier:)`, `#handle` |
 | `:source_control_provider` | `Syrus::Plugin::SourceControlProvider` | `.provider_key`, `.display_name`, `.available_for?(repository)`, `.client_for(repository:, user:)` |
+| `:grader_augmentor` | `Syrus::Plugin::GraderAugmentor`    | `.augment_grader_failure(name:, command:, workspace_path:)` → `Array<String>\|nil` |
 
 `input_source` and `source_control_provider` are deliberately separate. A
 source plugin can poll for new work without owning PR operations, and a

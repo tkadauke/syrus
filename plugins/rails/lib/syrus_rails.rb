@@ -9,6 +9,7 @@ require "syrus_rails/rspec_parser"
 require "syrus_rails/simple_cov_analyzer"
 require "syrus_rails/prompt_context"
 require "syrus_rails/preview_provider"
+require "syrus_rails/grader_augmentor"
 require "syrus_rails/engine"
 
 module SyrusRails
