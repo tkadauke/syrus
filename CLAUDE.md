@@ -231,6 +231,11 @@ registered fork;
 `submit_summary(pr_title, pr_body, summary)` and
 `submit_test_plan(steps, notes)` — write to Workflow `artifacts` and append
 `JobLog` audit lines;
+`submit_artifact(type, title, payload)` — store a typed, named structured artifact
+under `Workflow#artifacts["typed_artifacts"]`; idempotent on `type` (replaces any
+prior entry with the same type); available to implement, summarize/test-plan, and
+rebase-conflict agents; use for structured outputs reviewers can see rendered
+(e.g. `rails_schema_erd`, `rails_migration_diff`);
 `submit_job_metadata(changed:, ...)` — used only by `refresh_job_metadata`;
 `submit_adversarial_review(verdict, critique)` — used by the `adversarial_review` step;
 `report_main_concern(failing_tests, reason)` — flag broken-main suspicion.
@@ -416,8 +421,7 @@ Chat composer input follows chat-app conventions: pasting a file (image,
 PDF) into the composer attaches it through the same funnel as the picker
 and drag-in (`handlePaste` → `handleAttachmentChange` in Chat.tsx), so
 validation, the walkthrough-video split, and the one-at-a-time guard all
-apply. The `chat_polish` UI-experiment Feature (default off) adds subtle
-motion-safe chat animations (new-message entrance, smooth jump-to-bottom).
+apply.
 
 **Walkthrough videos (video → Epic)** — a labs feature behind the
 `video_walkthroughs` Feature flag (default OFF; declared in
@@ -721,6 +725,14 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   0–1000). `0` means no `--max-turns` flag is passed to claude (the
   per-run 30-minute timeout still bounds runaway loops). Threaded through
   RunJob → AgentInvocation for both regular and rebase runs.
+- **Plugin architecture** — Agent providers, chat providers, MCP tool sets,
+  input sources, and source-control providers are registered as plugin gems
+  via `Syrus::PluginRegistry`. Bundled plugins live under `plugins/` (e.g.
+  `plugins/claude_agent`, `plugins/codex_agent`, `plugins/github_source`).
+  `AgentProviders.for(provider)` resolves providers from the registry.
+  When adding a new agent provider or MCP tool set, implement it as a plugin
+  gem that calls `Syrus::PluginRegistry.register` in its engine initializer;
+  don't add the class directly to `app/services/agent_providers/`.
 - **Agent provider selection** — `User#agent_provider` defaults new Jobs
   and direct Jobs; `Repository#agent_provider` overrides it for that repo
   and drives repository-level bulk retries. Per-Job actions and new direct
@@ -1249,5 +1261,6 @@ bin/jobs                                     # Solid Queue worker entry
 config/database.yml                          # 4-DB prod (primary/cache/queue/cable)
 config/queue.yml                             # SolidQueue: `runs` + `chat` + `default` worker split
 config/recurring.yml                         # Solid Queue recurring job schedule
+plugins/                                     # bundled plugin gems (claude_agent, codex_agent, github_source, rails, …)
 ROADMAP.md                                   # milestone plan + future work
 ```
