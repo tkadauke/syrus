@@ -2986,6 +2986,32 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
       expect(response).to have_http_status(:not_found)
     end
+
+    it "includes renderer_type for a submitted rails_schema_erd typed artifact" do
+      unless Syrus::PluginRegistry.registered_names.include?("syrus-rails")
+        Syrus::PluginRegistry.register(
+          name:    "syrus-rails",
+          version: "0.1.0",
+          provides: { artifact_renderer: [ SyrusRails::SchemaErdRenderer, SyrusRails::MigrationDiffRenderer ] }
+        )
+      end
+
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+      Mcp::Tools::SubmitArtifactTool.call(
+        type:    "rails_schema_erd",
+        title:   "Schema ERD",
+        payload: { "tables" => [ { "name" => "users", "columns" => [] } ] },
+        server_context: { chat_session: chat }
+      )
+
+      get "/api/v1/app/chats/#{chat.id}/media"
+
+      expect(response).to have_http_status(:ok)
+      entry = parse_body["typed_artifacts"].find { |e| e["type"] == "rails_schema_erd" }
+      expect(entry).to be_present
+      expect(entry["renderer_type"]).to eq("erd_diagram")
+    end
   end
 
   it "searches proposals in the current chat and excludes the edited proposal" do

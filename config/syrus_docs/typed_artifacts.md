@@ -2,6 +2,8 @@
 
 Agents can store structured, typed artifacts on a Workflow during a run using the `submit_artifact` MCP tool. Artifacts are persisted under the `'typed_artifacts'` key in `Workflow#artifacts` and survive for the lifetime of the workflow record. They appear in the job detail UI with a renderer selected by the plugin registry.
 
+Chat sessions have the same capability: a chat-surface `submit_artifact` MCP tool persists entries under the `'typed_artifacts'` key in `ChatSession#artifacts`, using the identical entry shape and replace-on-type idempotency described below. Both the workflow-surface and chat-surface tools share one `renderer_type` lookup implementation, `TypedArtifactRenderer.enrich`, so a new `:artifact_renderer` plugin registration is picked up on both surfaces automatically. See "Chat Media library" below.
+
 ## Convention
 
 Typed artifacts live as an array of entries under `Workflow#artifacts["typed_artifacts"]`. Each entry has this shape:
@@ -22,7 +24,7 @@ Typed artifacts live as an array of entries under `Workflow#artifacts["typed_art
 
 Calling `submit_artifact` with the same `type` a second time **replaces** the previous entry. Entries with different types accumulate.
 
-## MCP tool: `submit_artifact`
+## MCP tool: `submit_artifact` (workflow surface)
 
 Available to all non-adversarial workflow roles (implement, summary_test_plan, rebase_conflict, manual).
 
@@ -33,6 +35,14 @@ Available to all non-adversarial workflow roles (implement, summary_test_plan, r
 | `payload` | object | yes      | Artifact data as a JSON object               |
 
 The tool validates that `type` and `title` are non-empty and that `payload` is a JSON object. It does not validate the `type` against a registry — unsupported types are stored and ignored by the UI until a renderer is declared for them.
+
+## MCP tool: `submit_artifact` (chat surface)
+
+Available to chat agents (planning, coding, and local-mode sessions). Same parameters, validation, and replace-on-type idempotency as the workflow-surface tool above, but it writes into `ChatSession#artifacts["typed_artifacts"]` instead of `Workflow#artifacts["typed_artifacts"]` — there is no Workflow or Run in a chat session. A chat agent asked to visualize the schema or explain a migration can call `read_schema`/`explain_migration`-style repository tooling and then `submit_artifact` to hand the operator a rendered result in the chat.
+
+## Chat Media library
+
+Typed artifacts submitted in a chat session appear in `GET /api/v1/app/chats/:id/media` as a `typed_artifacts` array, alongside the existing `snapshots` (whiteboard) and `chat_images` keys. Each entry is enriched with `renderer_type` the same way the job detail payload is, via the shared `TypedArtifactRenderer.enrich` service — a plugin only needs to register its `:artifact_renderer` once to render on both surfaces.
 
 ## Adding a new artifact type
 

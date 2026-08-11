@@ -654,6 +654,7 @@ RSpec.describe ChatSession do
         chat_provider: "claude",
         title: "Supervisor",
         pinned: true,
+        artifacts: "{}",
         created_at: now,
         updated_at: now
       }

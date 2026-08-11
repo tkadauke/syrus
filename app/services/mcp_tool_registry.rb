@@ -239,6 +239,7 @@ class McpToolRegistry
         chat(Mcp::Tools::MoveElementTool, tier: :deferred, mutation: true),
         chat(Mcp::Tools::DeleteElementTool, tier: :deferred, mutation: true),
         chat(Mcp::Tools::ListChatMediaTool, tier: :deferred),
+        chat(Mcp::Tools::SubmitArtifactTool, tier: :deferred, mutation: true),
         chat(Mcp::Tools::SaveCanvasTool, tier: :deferred, mutation: true),
         chat(Mcp::Tools::ClearCanvasTool, tier: :deferred, mutation: true),
         chat(Mcp::Tools::LoadCanvasTool, tier: :deferred, mutation: true),

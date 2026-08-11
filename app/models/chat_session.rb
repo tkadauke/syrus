@@ -65,6 +65,10 @@ class ChatSession < ApplicationRecord
   has_one :linked_job, class_name: "Job", foreign_key: :linked_chat_id, inverse_of: :linked_chat, dependent: :nullify
   has_one :local_daemon_session, dependent: :destroy
 
+  # MySQL 8 rejects defaults on JSON columns, so seed `{}` on new records
+  # via after_initialize instead of a column default. Existing rows were
+  # backfilled by the AddArtifactsToChatSessions migration.
+  after_initialize :default_artifacts, if: :new_record?
   after_update_commit :broadcast_header, if: :header_previously_changed?
   before_validation :seed_chat_provider, on: :create
   after_create :attach_initial_repository
@@ -136,6 +140,19 @@ class ChatSession < ApplicationRecord
 
   def repository_id
     repository&.id
+  end
+
+  # Read-or-default convenience for artifact access, mirroring
+  # Workflow#artifact. Nil-safe against a freshly-created ChatSession
+  # whose `artifacts` column hasn't been touched yet.
+  def artifact(key)
+    (artifacts || {})[key.to_s]
+  end
+
+  # Append-only artifact write, mirroring Workflow#set_artifact!.
+  def set_artifact!(key, value)
+    self.artifacts = (artifacts || {}).merge(key.to_s => value)
+    save!
   end
 
   def effective_chat_provider
@@ -400,6 +417,10 @@ class ChatSession < ApplicationRecord
   end
 
   private
+
+  def default_artifacts
+    self.artifacts ||= {}
+  end
 
   def header_previously_changed?
     saved_change_to_title? ||

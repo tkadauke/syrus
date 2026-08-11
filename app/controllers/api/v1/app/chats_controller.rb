@@ -888,9 +888,12 @@ module Api
             (latest_manual_snapshot.nil? ||
               (whiteboard_last_edited && whiteboard_last_edited > latest_manual_snapshot.created_at))
 
+          typed_artifacts = TypedArtifactRenderer.enrich(chat_session.artifact("typed_artifacts"))
+
           render json: {
             snapshots: snapshots,
             chat_images: chat_images,
+            typed_artifacts: typed_artifacts,
             whiteboard_has_unsaved_content: whiteboard_has_unsaved_content
           }
         end
