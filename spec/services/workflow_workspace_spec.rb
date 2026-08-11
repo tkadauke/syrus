@@ -310,6 +310,50 @@ RSpec.describe WorkflowWorkspace, :ci_only do
     end
   end
 
+  describe "#setup — auto-initializing an empty/uninitialized remote" do
+    it "auto-initializes and pushes the default branch when the remote has zero branches" do
+      empty_bare_dir = Pathname.new(Dir.mktmpdir("syrus-wfws-empty-bare"))
+      sh("git init -q --bare #{empty_bare_dir}")
+      allow_any_instance_of(Repository).to receive(:remote_url).and_return("file://#{empty_bare_dir}")
+      allow_any_instance_of(Repository).to receive(:authenticated_push_url).and_return("file://#{empty_bare_dir}")
+
+      ws = described_class.new(workflow)
+      expect { ws.setup }.not_to raise_error
+
+      expect(ws.path).to exist
+      head_branch = `git -C #{ws.path} rev-parse --abbrev-ref HEAD`.strip
+      expect(head_branch).to eq("syrus/issue-7-#{job.id}")
+      expect(sh("git -C #{ws.path} log --oneline").lines.count).to be >= 1
+
+      remote_branches = sh("git --git-dir=#{empty_bare_dir} branch --list")
+      expect(remote_branches).to include("main")
+    ensure
+      FileUtils.rm_rf(empty_bare_dir) if empty_bare_dir
+    end
+
+    it "streams an auto-init log line through an injected log callback" do
+      empty_bare_dir = Pathname.new(Dir.mktmpdir("syrus-wfws-empty-bare"))
+      sh("git init -q --bare #{empty_bare_dir}")
+      allow_any_instance_of(Repository).to receive(:remote_url).and_return("file://#{empty_bare_dir}")
+      allow_any_instance_of(Repository).to receive(:authenticated_push_url).and_return("file://#{empty_bare_dir}")
+
+      messages = []
+      ws = described_class.new(workflow, log: ->(message, **) { messages << message })
+      ws.setup
+
+      expect(messages).to include(a_string_matching(/auto-initializing/))
+    ensure
+      FileUtils.rm_rf(empty_bare_dir) if empty_bare_dir
+    end
+
+    it "still raises when the clone fails against a non-empty remote with a misconfigured default_branch" do
+      repository.update!(default_branch: "does-not-exist")
+
+      ws = described_class.new(workflow)
+      expect { ws.setup }.to raise_error(GitRunner::GitError, /does-not-exist/)
+    end
+  end
+
   describe "#setup — sibling workspace sweep" do
     it "deletes a prior failed workflow's workspace when starting a fresh clone" do
       prior_workflow = Workflow.create!(job: job, trigger_kind: "initial")

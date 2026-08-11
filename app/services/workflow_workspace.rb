@@ -150,7 +150,7 @@ class WorkflowWorkspace
     Rails.logger.warn("[WorkflowWorkspace] cleanup failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
   end
 
-  def initialize(workflow, git: nil)
+  def initialize(workflow, git: nil, log: nil)
     @workflow = workflow
     @job = workflow.job
     @repository = @job.repository
@@ -158,6 +158,7 @@ class WorkflowWorkspace
     @path = self.class.path_for(workflow)
     @branch_name = @job.branch_name.presence || initial_branch_name
     @env = { "GIT_TERMINAL_PROMPT" => "0" }
+    @log = log
   end
 
   # Idempotent. The first Run on the first Step pays the clone cost;
@@ -262,12 +263,19 @@ class WorkflowWorkspace
       return
     end
 
-    @git.run(
-      "clone",
-      "--branch", clone_checkout_branch,
-      "--no-tags", authenticated_url, path.to_s,
-      env: @env
-    )
+    begin
+      @git.run(
+        "clone",
+        "--branch", clone_checkout_branch,
+        "--no-tags", authenticated_url, path.to_s,
+        env: @env
+      )
+    rescue GitRunner::GitError => e
+      raise e unless remote_repo_empty?
+
+      notify("remote #{@repository.slug} has no branches — auto-initializing '#{clone_checkout_branch}' before continuing")
+      initialize_empty_remote!
+    end
 
     @git.run("remote", "set-url", "origin", @repository.remote_url, chdir: path.to_s)
 
@@ -321,7 +329,43 @@ class WorkflowWorkspace
   end
 
   def authenticated_git(operation_type, &block)
-    GithubAuthenticatedGit.run(repository: @repository, user: @job.user, git: @git, operation_type: operation_type, &block)
+    GithubAuthenticatedGit.run(repository: @repository, user: @job.user, git: @git, operation_type: operation_type, log: @log, &block)
+  end
+
+  # Distinguishes a genuinely empty/uninitialized remote (zero branches —
+  # a freshly created GitHub repo whose auto-init commit hasn't landed
+  # yet, or auto-init disabled) from every other clone failure (a
+  # misconfigured `default_branch`, auth failure, network error, etc.),
+  # which must keep failing loudly rather than being silently papered over.
+  def remote_repo_empty?
+    refs = authenticated_git("git_workflow_check_empty_remote") do |url|
+      @git.run("ls-remote", "--heads", url, chdir: path.dirname.to_s, env: @env)
+    end
+    refs.strip.empty?
+  rescue GitRunner::GitError
+    false
+  end
+
+  # Clone the empty repo, create the configured branch locally with a
+  # minimal initial commit (mirrors what GitHub's own "Initialize this
+  # repository with a README" does on repo creation), and push it so
+  # every downstream step (base_ref, PR opening, checkout_main_sha!,
+  # etc.) has a real base to work from.
+  def initialize_empty_remote!
+    FileUtils.rm_rf(path.to_s) if path.exist?
+    @git.run("clone", "--no-tags", authenticated_url, path.to_s, env: @env)
+    @git.run("checkout", "-b", clone_checkout_branch, chdir: path.to_s)
+    configure_git_author
+    @git.run("commit", "--allow-empty", "-m", "Initial commit", chdir: path.to_s)
+
+    authenticated_git("git_workflow_push_empty_remote_init") do |url|
+      @git.run("push", url, "HEAD:refs/heads/#{clone_checkout_branch}", chdir: path.to_s, env: @env)
+    end
+  end
+
+  def notify(message)
+    Rails.logger.info("[WorkflowWorkspace] #{message}")
+    @log&.call(message, kind: "system")
   end
 
   # For main_grader workflows: detach HEAD at the exact SHA that was

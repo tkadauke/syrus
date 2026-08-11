@@ -52,7 +52,7 @@ module Steps
     private
 
     def workspace
-      @workspace ||= WorkflowWorkspace.new(workflow)
+      @workspace ||= WorkflowWorkspace.new(workflow, log: method(:log))
     end
 
     # True when a git push was rejected because the remote branch moved — a

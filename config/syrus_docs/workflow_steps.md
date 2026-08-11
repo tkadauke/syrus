@@ -10,6 +10,8 @@ Non-agentic. Runs the commands from `.syrus.yml` `prepare:` (or auto-detected fr
 
 Present in: `initial`, `pr_comment`, `chat_feedback`, `ci_failure`, `retry`, `auto_merge`, `landing_validation`, `external_pr_merge`, `merge_train`, `coding_handoff`.
 
+**Empty/uninitialized remotes.** `WorkflowWorkspace#clone_and_checkout` (called at the start of `prepare`) auto-recovers when a freshly-created GitHub repository has zero branches — for example, when GitHub hasn't finished async-provisioning its auto-init commit yet, or auto-init was disabled. When the branch-scoped clone fails, Syrus checks whether the remote genuinely has no branches at all (`git ls-remote --heads`); if so, it clones the empty repository, creates the configured default branch locally with a minimal initial commit, and pushes it before continuing. A log line in the Run transcript notes when this happened. Any other clone failure — most commonly a `default_branch` that doesn't match what's actually on GitHub — still fails the step as before.
+
 ## Agentic implementation steps
 
 Each Workflow stores a concrete `agent_provider` when Syrus creates it, and
