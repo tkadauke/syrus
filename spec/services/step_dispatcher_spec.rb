@@ -189,11 +189,17 @@ RSpec.describe StepDispatcher do
     it "starts once dependencies are satisfied" do
       prerequisite = Factories.job(repository: job.repository, issue_number: 99)
       JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual")
-      prerequisite.close_with_reason!("pr_merged")
+
+      # Closing the prerequisite successfully now starts dependents eagerly
+      # (Job#start_dependent_jobs_after_successful_close), rather than
+      # waiting for a later explicit re-dispatch.
+      expect {
+        prerequisite.close_with_reason!("pr_merged")
+      }.to change { s1.runs.count }.by(1)
 
       expect {
         described_class.start_workflow(workflow)
-      }.to change { s1.runs.count }.by(1)
+      }.not_to change { s1.runs.count }
     end
 
     context "when the job is locked by Coding Mode" do

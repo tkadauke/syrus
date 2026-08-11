@@ -319,7 +319,7 @@ RSpec.describe PollRepositoryJob do
       expect(job.runs).to be_empty
     end
 
-    it "starts a dependency-waiting workflow on a later poll once the dependency succeeds" do
+    it "starts a dependency-waiting workflow once the dependency succeeds, without double-dispatching on a later poll" do
       prerequisite = Job.create!(user: user, repository: repository, issue_number: 41)
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
         .and_return([ issue(number: 42, body: "Depends-on: #41") ])
@@ -329,11 +329,17 @@ RSpec.describe PollRepositoryJob do
       job.advance_after_triage!
       expect(job.runs).to be_empty
 
-      prerequisite.close_with_reason!("pr_merged")
+      # Closing the prerequisite successfully now starts dependents eagerly
+      # (Job#start_dependent_jobs_after_successful_close), rather than
+      # waiting for a later poll.
+      expect {
+        prerequisite.close_with_reason!("pr_merged")
+      }.to have_enqueued_job(RunJob)
+      expect(job.reload.runs.count).to eq(1)
 
       expect {
         described_class.perform_now(repository.id)
-      }.to have_enqueued_job(RunJob)
+      }.not_to have_enqueued_job(RunJob)
       expect(job.reload.runs.count).to eq(1)
     end
 
@@ -359,7 +365,7 @@ RSpec.describe PollRepositoryJob do
       )
     end
 
-    it "starts a dangling dependency workflow on a later poll once the dependency appears and succeeds" do
+    it "starts a dangling dependency workflow once it appears and succeeds, without double-dispatching on a later poll" do
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
         .and_return([ issue(number: 42, body: "Depends-on: #999") ])
 
@@ -368,12 +374,19 @@ RSpec.describe PollRepositoryJob do
       job.advance_after_triage!
 
       prerequisite = Job.create!(user: user, repository: repository, issue_number: 999)
-      prerequisite.close_with_reason!("pr_merged")
+
+      # Closing the prerequisite successfully now starts dependents eagerly
+      # (Job#start_dependent_jobs_after_successful_close), rather than
+      # waiting for a later poll.
+      expect {
+        prerequisite.close_with_reason!("pr_merged")
+      }.to have_enqueued_job(RunJob)
+      expect(job.reload.dependencies.first.depends_on_job).to eq(prerequisite)
+      expect(job.runs.count).to eq(1)
 
       expect {
         described_class.perform_now(repository.id)
-      }.to have_enqueued_job(RunJob)
-      expect(job.reload.dependencies.first.depends_on_job).to eq(prerequisite)
+      }.not_to have_enqueued_job(RunJob)
       expect(job.runs.count).to eq(1)
     end
   end
