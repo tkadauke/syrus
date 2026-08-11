@@ -1,0 +1,19 @@
+{
+  "nav_tailscale": "Tailscale",
+  "page_title": "Tailscale — Admin",
+  "section_label": "Admin",
+  "heading": "Tailscale",
+  "aria": "Tailscale admin status",
+  "loading": "Loading Tailscale status...",
+  "error_load": "Unable to load Tailscale status.",
+  "status_heading": "Device status",
+  "status_connected": "Connected",
+  "status_connecting": "Connecting",
+  "status_not_configured": "Not Configured",
+  "ts_net_url": "ts.net URL",
+  "mobile_tip": "Install the Tailscale app on your phone, sign in to the same tailnet, then open the ts.net URL above to reach this Syrus instance on the go.",
+  "checklist_heading": "Setup checklist",
+  "checklist_auth_key": "Auth key set",
+  "checklist_net_admin": "/dev/net/tun present",
+  "checklist_daemon": "Daemon running"
+}

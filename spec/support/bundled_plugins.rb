@@ -151,7 +151,30 @@ RSpec.configure do |config|
           { key: "exit_node", label: "Advertise as exit node", type: :boolean,
             required: false, default: false }
         ],
-        provides: {}
+        frontend: {
+          routes: {
+            "tailscale/AdminTailscale" => "app/frontend/routes/AdminTailscale.tsx"
+          },
+          i18n: [ "app/frontend/i18n/locales/*/tailscale.json" ]
+        },
+        routes: [
+          {
+            verb: "GET",
+            path: "/api/v1/app/admin/tailscale/status",
+            controller: "api/v1/app/admin/tailscale#status"
+          },
+          {
+            verb: "GET",
+            path: "/api/v1/admin/tailscale/status",
+            controller: "api/v1/admin/tailscale#status"
+          },
+          {
+            verb: "GET",
+            path: "/admin/tailscale",
+            controller: "spa#show"
+          }
+        ],
+        provides: { callbacks: Tailscale::Callbacks, admin_page: Tailscale::AdminPages }
       )
     end
 

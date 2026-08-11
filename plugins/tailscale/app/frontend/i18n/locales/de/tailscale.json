@@ -1,0 +1,19 @@
+{
+  "nav_tailscale": "Tailscale",
+  "page_title": "Tailscale — Administration",
+  "section_label": "Administration",
+  "heading": "Tailscale",
+  "aria": "Tailscale-Administratorstatus",
+  "loading": "Tailscale-Status wird geladen...",
+  "error_load": "Tailscale-Status konnte nicht geladen werden.",
+  "status_heading": "Gerätestatus",
+  "status_connected": "Verbunden",
+  "status_connecting": "Verbindung wird hergestellt",
+  "status_not_configured": "Nicht konfiguriert",
+  "ts_net_url": "ts.net-URL",
+  "mobile_tip": "Installiere die Tailscale-App auf deinem Smartphone, melde dich im selben Tailnet an und öffne dann die obige ts.net-URL, um von unterwegs auf diese Syrus-Instanz zuzugreifen.",
+  "checklist_heading": "Einrichtungs-Checkliste",
+  "checklist_auth_key": "Auth-Key gesetzt",
+  "checklist_net_admin": "/dev/net/tun vorhanden",
+  "checklist_daemon": "Daemon läuft"
+}

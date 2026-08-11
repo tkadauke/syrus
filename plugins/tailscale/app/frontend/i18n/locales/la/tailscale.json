@@ -1,0 +1,19 @@
+{
+  "nav_tailscale": "Tailscale",
+  "page_title": "Tailscale — Administratio",
+  "section_label": "Administratio",
+  "heading": "Tailscale",
+  "aria": "Status Tailscale administratoris",
+  "loading": "Status Tailscale oneratur...",
+  "error_load": "Status Tailscale onerari non potuit.",
+  "status_heading": "Status instrumenti",
+  "status_connected": "Connexum",
+  "status_connecting": "Connectitur",
+  "status_not_configured": "Non Constitutum",
+  "ts_net_url": "URL ts.net",
+  "mobile_tip": "Applicationem Tailscale in telephono tuo instaura, in eodem tailnet te insinua, deinde URL ts.net supra scriptam aperi ut ad hanc instantiam Syrus peregre pervenias.",
+  "checklist_heading": "Index constitutionis",
+  "checklist_auth_key": "Clavis authenticationis constituta",
+  "checklist_net_admin": "/dev/net/tun praesens",
+  "checklist_daemon": "Daemon currit"
+}
