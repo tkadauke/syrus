@@ -95,6 +95,18 @@ RSpec.describe StepDispatcher do
       expect(workflow.artifact("start_blocked_next_check_at")).to be_nil
     end
 
+    it "still preserves manual pause when workflow admission control is disabled" do
+      AppSetting.current.update!(workflow_admission_control_enabled: false)
+      job.pause_manually!(by_user: job.user)
+
+      expect {
+        described_class.start_workflow(workflow)
+      }.not_to change { Run.count }
+
+      expect(workflow.reload.artifact("pause_reason")).to eq(StepDispatcher::MANUAL_PAUSE_REASON)
+      expect(workflow.artifact("start_blocked_reason")).to eq(StepDispatcher::MANUAL_PAUSE_REASON)
+    end
+
     it "does not create the first Run when provider usage is below the user's provider threshold" do
       workflow.update!(agent_provider: "codex")
       job.user.update!(
@@ -124,6 +136,24 @@ RSpec.describe StepDispatcher do
         "remaining_percent" => 9.0
       )
       expect(enqueued_jobs.map { |entry| entry[:job] }).to include(WorkflowPhaseAdmissionJob)
+    end
+
+    it "still preserves provider availability pause when workflow admission control is disabled" do
+      AppSetting.current.update!(workflow_admission_control_enabled: false)
+      workflow.update!(agent_provider: "codex")
+      job.user.update!(
+        provider_availability_pause_thresholds: { "codex" => 10 },
+        codex_usage_status: "warning",
+        codex_usage_observed_at: Time.current,
+        codex_usage_snapshot: { "remaining_percent" => 9.0 }
+      )
+
+      expect {
+        described_class.start_workflow(workflow)
+      }.not_to change { Run.count }
+
+      expect(workflow.reload.artifact("pause_reason")).to eq(StepDispatcher::PROVIDER_AVAILABILITY_BLOCK_REASON)
+      expect(workflow.artifact("start_blocked_details")).to include("provider" => "codex")
     end
 
     it "does not provider-pause when the user's provider threshold is zero" do
@@ -1731,6 +1761,18 @@ RSpec.describe StepDispatcher, "stack_dependencies_not_ready block reason" do
     JobDependency.create!(job: job_model, depends_on_job: prerequisite, source: "manual")
 
     described_class.start_workflow(workflow)
+
+    expect(workflow.reload.artifact("start_blocked_reason")).to eq("stack_dependencies_not_ready")
+  end
+
+  it "still preserves dependency blockers when workflow admission control is disabled" do
+    AppSetting.current.update!(workflow_admission_control_enabled: false)
+    prerequisite = Factories.job(repository: job_model.repository, issue_number: 99)
+    JobDependency.create!(job: job_model, depends_on_job: prerequisite, source: "manual")
+
+    expect {
+      described_class.start_workflow(workflow)
+    }.not_to change { Run.count }
 
     expect(workflow.reload.artifact("start_blocked_reason")).to eq("stack_dependencies_not_ready")
   end
