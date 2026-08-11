@@ -12,8 +12,8 @@ module OperationalLogging
   module_function
 
   def enabled_for_instance?
-    return false if suppressed?
     return true if Current.operational_log_indexing_enabled == true
+    return false if suppressed?
 
     enabled = configured_for_instance?
     Current.operational_log_indexing_enabled = true if enabled

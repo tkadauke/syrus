@@ -21,6 +21,14 @@ RSpec.describe OperationalLogging do
     clear_enqueued_jobs
   end
 
+  it "returns true from inside a suppress block once the Current cache is warmed" do
+    expect(described_class.enabled_for_instance?).to be(true)
+
+    described_class.suppress do
+      expect(described_class.enabled_for_instance?).to be(true)
+    end
+  end
+
   it "does not ingest or schedule indexing while disabled" do
     Feature.find_by!(slug: "operational_log_indexing").update!(enabled: false)
     Current.reset

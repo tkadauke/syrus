@@ -52,6 +52,16 @@ RSpec.describe "API: /api/v1/app/admin/operational_logs", type: :request do
     )
   end
 
+  it "reports enabled true via the real capability check when the feature is on and a Syrus repository is active" do
+    allow(OperationalLogging).to receive(:enabled_for_instance?).and_call_original
+    sign_in_as(admin)
+
+    get "/api/v1/app/admin/operational_logs"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["enabled"]).to eq(true)
+  end
+
   it "searches indexed logs with filters and redacts output" do
     job = Factories.job(repository: repository, user: admin)
     workflow = job.workflows.first
