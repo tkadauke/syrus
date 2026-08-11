@@ -1,5 +1,6 @@
 import { ApiError, deleteJson, getJson, patchJson, postForm, postJson } from "./client"
 import type { ProviderAvailability } from "./providerAvailability"
+import type { TypedArtifact } from "./artifacts"
 
 export type ChatRepository = {
   id: number
@@ -190,6 +191,7 @@ export type ChatMediaImage = {
 export type ChatMediaPayload = {
   snapshots: ChatMediaSnapshot[]
   chat_images: ChatMediaImage[]
+  typed_artifacts: TypedArtifact[]
   whiteboard_has_unsaved_content: boolean
 }
 

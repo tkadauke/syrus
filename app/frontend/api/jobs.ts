@@ -3,6 +3,7 @@ import type { BlockedReason } from "../lib/translateBlockedReason"
 import type { MergeTrainStatus } from "./epics"
 import type { ProviderAvailability } from "./providerAvailability"
 import type { StartBlockedDetails } from "../types/startBlocked"
+import type { TypedArtifact } from "./artifacts"
 
 export type JobRepository = {
   id: number
@@ -663,14 +664,6 @@ export type PreviewActionPayload = {
   message: string
 }
 
-export type TypedArtifact = {
-  type: string
-  title: string
-  payload: SchemaErdPayload | MigrationDiffPayload | Record<string, unknown>
-  created_at: string
-  renderer_type: "erd_diagram" | "migration_diff" | "data_table" | "before_after_diff" | null
-}
-
 export type JobDetailPayload = {
   message?: string | null
   job: JobRecord
@@ -821,52 +814,9 @@ export function fetchJobRunArtifacts(path: string) {
 }
 
 // ── Typed artifacts ───────────────────────────────────────────────────────────
-
-export type ErdColumn = {
-  name: string
-  type: string
-  options?: Record<string, unknown>
-}
-
-export type ErdIndex = {
-  name: string
-  columns: string[]
-  unique?: boolean
-}
-
-export type ErdForeignKey = {
-  from_column: string
-  to_table: string
-  to_column: string
-}
-
-export type ErdTable = {
-  name: string
-  columns: ErdColumn[]
-  indexes?: ErdIndex[]
-  foreign_keys?: ErdForeignKey[]
-}
-
-export type SchemaErdPayload = {
-  tables: ErdTable[]
-}
-
-export type MigrationDiffColumn = {
-  name: string
-  type: string
-}
-
-export type MigrationDiffChange = {
-  type: "added" | "removed" | "modified"
-  column: MigrationDiffColumn
-}
-
-export type MigrationDiffPayload = {
-  migration_name: string
-  before: { table_name: string; columns: MigrationDiffColumn[] }
-  after: { table_name: string; columns: MigrationDiffColumn[] }
-  changes: MigrationDiffChange[]
-}
+// TypedArtifact, SchemaErdPayload, MigrationDiffPayload, and the Erd/*
+// component types live in "./artifacts" so non-Job API clients (e.g. chats.ts)
+// can import them without depending on this module.
 
 export type CoverageArtifact = {
   summary?: { lines_pct: number | null; branches_pct: number | null; functions_pct: number | null }

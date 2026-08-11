@@ -8,9 +8,10 @@ import "@excalidraw/excalidraw/index.css"
 import { ApiError } from "../../api/client"
 import { formatClock } from "../../components/WalkthroughRecorder"
 import { updateRecentChatCache } from "../../lib/chatCache"
-import { createWhiteboardSnapshot, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, fetchCodingFileTree, fetchCodingCommits, fetchCodingFileContent, fetchCodingDiff, updateChatMode, switchChatProvider, type ChatMode, type ChatPayload, type ChatRenderItem, type ChatWhiteboardElement, type ChatWhiteboardScene, type WhiteboardSnapshot } from "../../api/chats"
+import { createWhiteboardSnapshot, fetchChatMedia, fetchChatWhiteboard, fetchWhiteboardSnapshot, fetchWhiteboardSnapshots, patchChatWhiteboard, fetchCodingFileTree, fetchCodingCommits, fetchCodingFileContent, fetchCodingDiff, updateChatMode, switchChatProvider, type ChatMode, type ChatPayload, type ChatRenderItem, type ChatWhiteboardElement, type ChatWhiteboardScene, type WhiteboardSnapshot } from "../../api/chats"
 import { CloseIcon } from "../../components/CloseIcon"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
+import { TypedArtifactPanel } from "../../components/artifacts/TypedArtifactPanel"
 import { createConsumer, type Subscription } from "@rails/actioncable"
 import { useT } from "../../hooks/useT"
 import { ChatJobStatusPanel } from "../ChatJobStatusPanel"
@@ -226,15 +227,22 @@ function MediaGallery({ messages, payload, queryKey, onNotice }: { messages: Cha
   const [lightboxImage, setLightboxImage] = useState<ChatMessageImageAttachment | null>(null)
   const [loadingSnapshotId, setLoadingSnapshotId] = useState<number | null>(null)
   const [snapshotError, setSnapshotError] = useState<string | null>(null)
+  const [selectedArtifactType, setSelectedArtifactType] = useState<string | null>(null)
   const queryClient = useQueryClient()
   const snapshots = useQuery({
     queryKey: ["whiteboard_snapshots", String(payload.chat.id)],
     queryFn: () => fetchWhiteboardSnapshots(payload.chat.id),
     enabled: payload.chat.id != null
   })
+  const media = useQuery({
+    queryKey: ["chat_media", String(payload.chat.id)],
+    queryFn: () => fetchChatMedia(payload.chat.id),
+    enabled: payload.chat.id != null
+  })
   const chatBusy = payload.agent_busy
   const snapshotLoading = loadingSnapshotId != null
   const snapshotItems = snapshots.data?.whiteboard_snapshots || []
+  const artifactItems = media.data?.typed_artifacts || []
 
   async function loadSnapshot(snapshot: WhiteboardSnapshot) {
     if (chatBusy || snapshotLoading) return
@@ -296,7 +304,7 @@ function MediaGallery({ messages, payload, queryKey, onNotice }: { messages: Cha
     }
   }
 
-  if (images.length === 0 && snapshotItems.length === 0 && walkthroughs.length === 0 && !snapshots.isPending && !snapshots.isError) {
+  if (images.length === 0 && snapshotItems.length === 0 && walkthroughs.length === 0 && artifactItems.length === 0 && !snapshots.isPending && !snapshots.isError && !media.isPending && !media.isError) {
     return <PanelMessage>{t("media_empty")}</PanelMessage>
   }
 
@@ -305,7 +313,44 @@ function MediaGallery({ messages, payload, queryKey, onNotice }: { messages: Cha
       {snapshots.isPending ? <PanelMessage>{t("snapshots_loading")}</PanelMessage> : null}
       {snapshots.isError ? <PanelMessage tone="error">{errorMessage(snapshots.error, "Unable to load snapshots.")}</PanelMessage> : null}
       {snapshotError ? <PanelMessage tone="error">{snapshotError}</PanelMessage> : null}
+      {media.isError ? <PanelMessage tone="error">{errorMessage(media.error, "Unable to load artifacts.")}</PanelMessage> : null}
       {chatBusy ? <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">{t("chat_busy")}</div> : null}
+
+      {artifactItems.length > 0 ? (
+        <section className="space-y-2">
+          <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("chat_artifacts")}</h2>
+          <div className="space-y-2">
+            {artifactItems.map((artifact) => {
+              const selected = selectedArtifactType === artifact.type
+              return (
+                <article className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-950" key={artifact.type}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100" title={artifact.title}>{artifact.title}</div>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                        <span className="rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{artifact.type}</span>
+                        <span><RelativeTimestamp value={artifact.created_at} /></span>
+                      </div>
+                    </div>
+                    <button
+                      className={`${secondaryButton()} shrink-0 px-2 py-1 text-xs`}
+                      onClick={() => setSelectedArtifactType(selected ? null : artifact.type)}
+                      type="button"
+                    >
+                      {selected ? t("artifact_hide") : t("artifact_view")}
+                    </button>
+                  </div>
+                  {selected ? (
+                    <div className="mt-3">
+                      <TypedArtifactPanel artifacts={[artifact]} />
+                    </div>
+                  ) : null}
+                </article>
+              )
+            })}
+          </div>
+        </section>
+      ) : null}
 
       {snapshotItems.length > 0 ? (
         <section className="space-y-2">

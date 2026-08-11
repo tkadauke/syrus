@@ -44,6 +44,8 @@ Available to chat agents (planning, coding, and local-mode sessions). Same param
 
 Typed artifacts submitted in a chat session appear in `GET /api/v1/app/chats/:id/media` as a `typed_artifacts` array, alongside the existing `snapshots` (whiteboard) and `chat_images` keys. Each entry is enriched with `renderer_type` the same way the job detail payload is, via the shared `TypedArtifactRenderer.enrich` service — a plugin only needs to register its `:artifact_renderer` once to render on both surfaces.
 
+The chat workspace's **Media** panel (`app/frontend/routes/chat/WorkspacePanels.tsx`) lists these under an "Artifacts" section alongside whiteboard snapshots and image attachments, showing each artifact's title, type, and submission time. Clicking "View" renders the artifact inline using the same `TypedArtifactPanel` component (`app/frontend/components/artifacts/TypedArtifactPanel.tsx`) the job detail Artifacts tab uses, so a new `:artifact_renderer` plugin renders identically on both surfaces without any chat-specific UI work. The shared `TypedArtifact`/`SchemaErdPayload`/`MigrationDiffPayload` types live in `app/frontend/api/artifacts.ts`, imported by both the Job and chat API clients.
+
 ## Adding a new artifact type
 
 To make a typed artifact renderable in the Syrus job detail UI, a plugin must:

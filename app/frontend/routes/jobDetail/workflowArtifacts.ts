@@ -7,7 +7,8 @@
 // Find the most recent workflow that recorded a coverage artifact, and the
 // parsed created-at time for ordering. Pure over the job workflow + coverage
 // types; lifted out of the 3k-line JobDetail.tsx.
-import type { CoverageArtifact, JobWorkflow, TypedArtifact } from "../../api/jobs"
+import type { CoverageArtifact, JobWorkflow } from "../../api/jobs"
+import type { TypedArtifact } from "../../api/artifacts"
 
 export function latestWorkflowCoverage(workflows: JobWorkflow[]): { workflowId: number; coverage: CoverageArtifact } | null {
   for (let i = workflows.length - 1; i >= 0; i--) {

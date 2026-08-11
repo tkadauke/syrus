@@ -1,4 +1,4 @@
-import type { TypedArtifact, SchemaErdPayload, MigrationDiffPayload } from "../../api/jobs"
+import type { TypedArtifact, SchemaErdPayload, MigrationDiffPayload } from "../../api/artifacts"
 import { ErdDiagramRenderer } from "./ErdDiagramRenderer"
 import { MigrationDiffRenderer } from "./MigrationDiffRenderer"
 

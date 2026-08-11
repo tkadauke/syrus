@@ -4,12 +4,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
 import { ChatSettingsDialog, ChatWorkspacePanel } from "./WorkspacePanels"
 import type { ChatPayload } from "../../api/chats"
-import { fetchCodingCommits, fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree, fetchWhiteboardSnapshots, switchChatProvider } from "../../api/chats"
+import { fetchChatMedia, fetchCodingCommits, fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree, fetchWhiteboardSnapshots, switchChatProvider } from "../../api/chats"
 
 vi.mock("../../api/chats", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/chats")>()
   return {
     ...actual,
+    fetchChatMedia: vi.fn(),
     fetchCodingCommits: vi.fn(),
     fetchCodingDiff: vi.fn(),
     fetchCodingFileContent: vi.fn(),
@@ -350,6 +351,7 @@ describe("ChatWorkspacePanel coding files", () => {
 describe("MediaGallery busy states", () => {
   beforeEach(() => {
     vi.mocked(fetchWhiteboardSnapshots).mockResolvedValue({ whiteboard_snapshots: [] })
+    vi.mocked(fetchChatMedia).mockResolvedValue({ snapshots: [], chat_images: [], typed_artifacts: [], whiteboard_has_unsaved_content: false })
   })
 
   it("does not show the canvas/drawing warning when agent_busy is true", () => {
@@ -374,5 +376,63 @@ describe("MediaGallery busy states", () => {
 
     expect(screen.queryByText(/chat is busy/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/canvas is busy/i)).not.toBeInTheDocument()
+  })
+})
+
+describe("MediaGallery artifacts", () => {
+  beforeEach(() => {
+    vi.mocked(fetchWhiteboardSnapshots).mockResolvedValue({ whiteboard_snapshots: [] })
+  })
+
+  it("lists a submitted rails_schema_erd artifact and renders it via TypedArtifactPanel when viewed", async () => {
+    vi.mocked(fetchChatMedia).mockResolvedValue({
+      snapshots: [],
+      chat_images: [],
+      typed_artifacts: [
+        {
+          type: "rails_schema_erd",
+          title: "Schema ERD",
+          created_at: "2026-08-06T10:00:00Z",
+          renderer_type: "erd_diagram",
+          payload: {
+            tables: [
+              { name: "users", columns: [{ name: "id", type: "bigint" }, { name: "email", type: "string" }] }
+            ]
+          }
+        }
+      ],
+      whiteboard_has_unsaved_content: false
+    })
+
+    renderWorkspacePanel(makePayload(), { activeTab: "media" })
+
+    expect(await screen.findByText("Schema ERD")).toBeInTheDocument()
+    expect(screen.getByText("rails_schema_erd")).toBeInTheDocument()
+    expect(screen.queryByText("users")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "View" }))
+
+    expect(await screen.findByText("users")).toBeInTheDocument()
+    expect(screen.getByText("email")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide" }))
+
+    expect(screen.queryByText("users")).not.toBeInTheDocument()
+  })
+
+  it("does not show the media-empty placeholder when only artifacts are present", async () => {
+    vi.mocked(fetchChatMedia).mockResolvedValue({
+      snapshots: [],
+      chat_images: [],
+      typed_artifacts: [
+        { type: "rails_schema_erd", title: "Schema ERD", created_at: "2026-08-06T10:00:00Z", renderer_type: "erd_diagram", payload: { tables: [] } }
+      ],
+      whiteboard_has_unsaved_content: false
+    })
+
+    renderWorkspacePanel(makePayload(), { activeTab: "media" })
+
+    expect(await screen.findByText("Schema ERD")).toBeInTheDocument()
+    expect(screen.queryByText(/no media shared yet/i)).not.toBeInTheDocument()
   })
 })

@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import type { MigrationDiffPayload } from "../../api/jobs"
+import type { MigrationDiffPayload } from "../../api/artifacts"
 import { MigrationDiffRenderer } from "./MigrationDiffRenderer"
 
 const migrationPayload: MigrationDiffPayload = {
