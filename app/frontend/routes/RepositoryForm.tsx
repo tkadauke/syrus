@@ -509,10 +509,6 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
           </Field>
         </section>
 
-        {mode === "edit" && payload.repository.id ? (payload.input_source_types || []).map((sourceType) => (
-          <InputSourceSection key={sourceType.type} sourceType={sourceType} />
-        )) : null}
-
         <section className="space-y-3">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
             {t('repository_form.credential_section')}
@@ -529,6 +525,10 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
           </Link>
         </div>
       </form>
+
+      {mode === "edit" && payload.repository.id ? (payload.input_source_types || []).map((sourceType) => (
+        <InputSourceSection key={sourceType.type} sourceType={sourceType} />
+      )) : null}
 
       {mode === "edit" && payload.agent_insights_enabled && payload.insight_schedule_config && payload.repository.id ? (
         <InsightSchedulingSection
