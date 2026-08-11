@@ -33,7 +33,7 @@ module App
     end
 
     def available_platforms_json
-      PlatformIdentity::PLATFORMS.map do |platform|
+      PlatformIdentity.available_platforms.map do |platform|
         {
           platform: platform,
           configured: PlatformIdentity::PlatformConfig::Base.for(platform).configured?

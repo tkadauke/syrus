@@ -5,12 +5,14 @@ class PlatformIdentity < ApplicationRecord
 
   after_commit :broadcast_linked, on: [ :create, :update ]
 
-  enum :platform, PLATFORMS.index_with(&:itself), validate: true
-
-  validates :platform, presence: true, inclusion: { in: PLATFORMS }
+  validates :platform, presence: true, inclusion: { in: ->(_record) { PlatformIdentity.available_platforms } }
   validates :external_id, presence: true
   validates :linked_at, presence: true
   validates :external_id, uniqueness: { scope: :platform, message: "is already linked to a Syrus account" }
+
+  def self.available_platforms
+    PLATFORMS + Syrus::PluginRegistry.providers_for(:platform_delivery).map { |provider| provider.platform_key.to_s }
+  end
 
   private
 

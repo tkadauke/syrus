@@ -51,6 +51,14 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     Class.new { include Syrus::Plugin::ArtifactRenderer }
   end
 
+  let(:platform_delivery_class) do
+    Class.new do
+      include Syrus::Plugin::PlatformDelivery
+      def self.platform_key = "discord"
+      def deliver(message:, platform_identity:) = nil
+    end
+  end
+
   describe "EXTENSION_POINTS" do
     it "includes :chat_provider and :coverage_analyzer" do
       expect(described_class::EXTENSION_POINTS).to include(:chat_provider, :coverage_analyzer)
@@ -74,6 +82,10 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
 
     it "includes :artifact_renderer" do
       expect(described_class::EXTENSION_POINTS).to include(:artifact_renderer)
+    end
+
+    it "includes :platform_delivery" do
+      expect(described_class::EXTENSION_POINTS).to include(:platform_delivery)
     end
 
     it "is frozen" do
@@ -294,7 +306,8 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
             admin_page:         admin_page_class,
             chat_mcp_tool_set:  chat_mcp_tool_set_class,
             source_control_provider: source_control_provider_class,
-            artifact_renderer:  artifact_renderer_class
+            artifact_renderer:  artifact_renderer_class,
+            platform_delivery: platform_delivery_class
           }
         )
       }.not_to raise_error
@@ -411,6 +424,17 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       }.to raise_error(described_class::RegistrationError, /must include Syrus::Plugin::PreviewProvider/)
     end
 
+    it "raises RegistrationError when platform_delivery class lacks the interface module" do
+      plain_class = Class.new
+
+      expect {
+        described_class.register(
+          name: "bad_plugin", version: "1.0.0",
+          provides: { platform_delivery: plain_class }
+        )
+      }.to raise_error(described_class::RegistrationError, /must include Syrus::Plugin::PlatformDelivery/)
+    end
+
     it "allows the same extension point to be provided by multiple plugins" do
       second_provider = Class.new { include Syrus::Plugin::AgentProvider }
 
@@ -418,6 +442,26 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
       described_class.register(name: "plugin_b", version: "1.0.0", provides: { agent_provider: second_provider })
 
       expect(described_class.providers_for(:agent_provider)).to contain_exactly(agent_provider_class, second_provider)
+    end
+
+    it "resolves a registered platform_delivery provider by its platform_key" do
+      described_class.register(
+        name: "discord_plugin", version: "1.0.0",
+        provides: { platform_delivery: platform_delivery_class }
+      )
+
+      providers = described_class.providers_for(:platform_delivery)
+      expect(providers).to contain_exactly(platform_delivery_class)
+      expect(providers.first.platform_key).to eq("discord")
+    end
+
+    it "excludes a disabled plugin's platform_delivery provider from providers_for" do
+      described_class.register(
+        name: "discord_plugin", version: "1.0.0", default_enabled: false,
+        provides: { platform_delivery: platform_delivery_class }
+      )
+
+      expect(described_class.providers_for(:platform_delivery)).to be_empty
     end
 
     context "MCP tool name collision detection" do

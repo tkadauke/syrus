@@ -41,6 +41,42 @@ RSpec.describe PlatformIdentity, type: :model do
     expect(identity).not_to be_valid
   end
 
+  describe "plugin-registered platforms" do
+    let(:discord_adapter_class) do
+      Class.new do
+        include Syrus::Plugin::PlatformDelivery
+        def self.platform_key = "discord"
+        def deliver(message:, platform_identity:) = nil
+      end
+    end
+
+    around do |ex|
+      Syrus::PluginRegistry.reset!
+      ex.run
+      Syrus::PluginRegistry.reset!
+    end
+
+    it "accepts a platform value registered by an enabled plugin" do
+      Syrus::PluginRegistry.register(
+        name: "discord_plugin", version: "1.0.0",
+        provides: { platform_delivery: discord_adapter_class }
+      )
+
+      identity = PlatformIdentity.new(user: owner, platform: "discord", external_id: "123", linked_at: Time.current)
+      expect(identity).to be_valid
+    end
+
+    it "rejects a platform value from a disabled plugin" do
+      Syrus::PluginRegistry.register(
+        name: "discord_plugin", version: "1.0.0", default_enabled: false,
+        provides: { platform_delivery: discord_adapter_class }
+      )
+
+      identity = PlatformIdentity.new(user: owner, platform: "discord", external_id: "123", linked_at: Time.current)
+      expect(identity).not_to be_valid
+    end
+  end
+
   it "enforces uniqueness of external_id scoped to platform" do
     Factories.platform_identity(user: owner, platform: "telegram", external_id: "dup123")
     duplicate = PlatformIdentity.new(

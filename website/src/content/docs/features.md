@@ -724,11 +724,17 @@ adapter delivers the message to each participant who has a linked identity
 for that platform. Participants with no linked identity receive the reply via
 ActionCable on the web UI as usual. Platform adapters are registered at load
 time; the `web` adapter is a no-op since ActionCable already handles it.
+Beyond the built-in web and Telegram adapters, a plugin gem can register its
+own external platform through the `:platform_delivery` plugin extension
+point — once registered and enabled, its platform automatically appears as a
+Connected Platforms option, with no core code change required.
 
 **Starting the polling worker** — Platform polling workers self-reschedule
 after each poll cycle. On application boot, registered workers are started
-automatically when `SYRUS_ROLE` is set. Administrators can also trigger a
-manual start via the admin API:
+automatically when `SYRUS_ROLE` is set — core connectors and plugin-provided
+connectors both start automatically, but a plugin's connector only starts
+while its plugin is enabled. Administrators can also trigger a manual start
+of core connectors via the admin API:
 
 ```
 POST /api/v1/app/admin/platform_polling/start

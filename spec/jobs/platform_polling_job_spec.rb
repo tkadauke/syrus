@@ -166,5 +166,39 @@ RSpec.describe PlatformPollingJob do
       allow(SolidQueue::Job).to receive(:where).and_raise(ActiveRecord::StatementInvalid)
       expect { described_class.start_all! }.not_to raise_error
     end
+
+    context "when a subclass is a plugin's platform_delivery connector_job_class" do
+      let(:plugin_adapter_class) do
+        job_class = concrete_class
+        Class.new do
+          include Syrus::Plugin::PlatformDelivery
+          define_singleton_method(:platform_key) { "discord" }
+          define_singleton_method(:connector_job_class) { job_class }
+          def deliver(message:, platform_identity:) = nil
+        end
+      end
+
+      around do |ex|
+        Syrus::PluginRegistry.reset!
+        ex.run
+        Syrus::PluginRegistry.reset!
+      end
+
+      before { ensure_solid_queue_test_tables! }
+      after  { clear_solid_queue_test_tables! }
+
+      it "excludes it so PlatformDelivery::Registry.start_connectors! is the one that starts it" do
+        Syrus::PluginRegistry.register(
+          name: "discord_plugin", version: "1.0.0",
+          provides: { platform_delivery: plugin_adapter_class }
+        )
+
+        expect { described_class.start_all! }.not_to have_enqueued_job(concrete_class)
+      end
+
+      it "still starts it once the plugin is unregistered again" do
+        expect { described_class.start_all! }.to have_enqueued_job(concrete_class)
+      end
+    end
   end
 end

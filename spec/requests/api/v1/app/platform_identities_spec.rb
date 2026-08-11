@@ -52,6 +52,50 @@ RSpec.describe "API: /api/v1/app/platform_identities", type: :request do
       expect(response).to have_http_status(:ok)
       expect(parse_body["platform_identities"]).to eq([])
     end
+
+    context "with a plugin-registered platform" do
+      let(:discord_adapter_class) do
+        Class.new do
+          include Syrus::Plugin::PlatformDelivery
+          def self.platform_key = "discord"
+          def deliver(message:, platform_identity:) = nil
+        end
+      end
+
+      around do |ex|
+        Syrus::PluginRegistry.reset!
+        ex.run
+        Syrus::PluginRegistry.reset!
+      end
+
+      it "includes the plugin's platform in available_platforms, marked not configured" do
+        Syrus::PluginRegistry.register(
+          name: "discord_plugin", version: "1.0.0",
+          provides: { platform_delivery: discord_adapter_class }
+        )
+        sign_in_as(user)
+
+        get "/api/v1/app/platform_identities"
+
+        expect(response).to have_http_status(:ok)
+        available = parse_body["available_platforms"]
+        discord = available.find { |p| p["platform"] == "discord" }
+        expect(discord).to include("platform" => "discord", "configured" => false)
+      end
+
+      it "excludes the platform when the plugin is disabled" do
+        Syrus::PluginRegistry.register(
+          name: "discord_plugin", version: "1.0.0", default_enabled: false,
+          provides: { platform_delivery: discord_adapter_class }
+        )
+        sign_in_as(user)
+
+        get "/api/v1/app/platform_identities"
+
+        platforms = parse_body["available_platforms"].map { |p| p["platform"] }
+        expect(platforms).not_to include("discord")
+      end
+    end
   end
 
   describe "DELETE /api/v1/app/platform_identities/:id" do
@@ -136,6 +180,35 @@ RSpec.describe "API: /api/v1/app/platform_identities", type: :request do
       # MessageVerifier serializes via JSON so keys come back as strings
       expect(verified["user_id"]).to eq(user.id)
       expect(verified["platform"]).to eq("telegram")
+    end
+
+    context "with a plugin-registered platform" do
+      let(:discord_adapter_class) do
+        Class.new do
+          include Syrus::Plugin::PlatformDelivery
+          def self.platform_key = "discord"
+          def deliver(message:, platform_identity:) = nil
+        end
+      end
+
+      around do |ex|
+        Syrus::PluginRegistry.reset!
+        ex.run
+        Syrus::PluginRegistry.reset!
+      end
+
+      it "is no longer a bad_request once the plugin is registered, but is not configured" do
+        Syrus::PluginRegistry.register(
+          name: "discord_plugin", version: "1.0.0",
+          provides: { platform_delivery: discord_adapter_class }
+        )
+        sign_in_as(user)
+
+        post "/api/v1/app/platform_identities/linking_token", params: { platform: "discord" }
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(parse_body.dig("error", "code")).to eq("not_configured")
+      end
     end
   end
 end

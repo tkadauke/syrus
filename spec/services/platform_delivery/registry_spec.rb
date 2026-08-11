@@ -50,6 +50,130 @@ RSpec.describe PlatformDelivery::Registry do
     end
   end
 
+  describe "plugin-registered platforms" do
+    let(:discord_adapter_class) do
+      Class.new(PlatformDelivery::BaseAdapter) do
+        include Syrus::Plugin::PlatformDelivery
+        def self.platform_key = "discord"
+        def deliver(message:, platform_identity:) = "discord delivery"
+      end
+    end
+
+    around do |ex|
+      Syrus::PluginRegistry.reset!
+      ex.run
+      Syrus::PluginRegistry.reset!
+    end
+
+    it ".for resolves a plugin-registered adapter by platform key" do
+      Syrus::PluginRegistry.register(
+        name: "discord_plugin", version: "1.0.0",
+        provides: { platform_delivery: discord_adapter_class }
+      )
+
+      expect(described_class.for("discord")).to be_a(discord_adapter_class)
+    end
+
+    it ".registered? is true for a plugin-registered platform key" do
+      Syrus::PluginRegistry.register(
+        name: "discord_plugin", version: "1.0.0",
+        provides: { platform_delivery: discord_adapter_class }
+      )
+
+      expect(described_class.registered?("discord")).to be true
+    end
+
+    it "does not resolve a disabled plugin's platform" do
+      Syrus::PluginRegistry.register(
+        name: "discord_plugin", version: "1.0.0", default_enabled: false,
+        provides: { platform_delivery: discord_adapter_class }
+      )
+
+      expect(described_class.registered?("discord")).to be false
+      expect(described_class.for("discord")).to be_a(PlatformDelivery::BaseAdapter)
+    end
+  end
+
+  describe ".start_connectors!" do
+    let(:connector_job_class) do
+      Class.new(PlatformPollingJob) do
+        def self.name = "FakeDiscordConnectorJob"
+
+        private
+
+        def configured? = true
+        def poll_once = nil
+      end
+    end
+
+    let(:discord_adapter_class_with_connector) do
+      job_class = connector_job_class
+      Class.new(PlatformDelivery::BaseAdapter) do
+        include Syrus::Plugin::PlatformDelivery
+        define_singleton_method(:platform_key) { "discord" }
+        define_singleton_method(:connector_job_class) { job_class }
+        def deliver(message:, platform_identity:) = nil
+      end
+    end
+
+    let(:discord_adapter_class_without_connector) do
+      Class.new(PlatformDelivery::BaseAdapter) do
+        include Syrus::Plugin::PlatformDelivery
+        def self.platform_key = "discord"
+        def deliver(message:, platform_identity:) = nil
+      end
+    end
+
+    around do |ex|
+      Syrus::PluginRegistry.reset!
+      ex.run
+      Syrus::PluginRegistry.reset!
+      PlatformPollingJob.registry.delete(connector_job_class)
+    end
+
+    context "with SolidQueue tables available" do
+      before { ensure_solid_queue_test_tables! }
+      after  { clear_solid_queue_test_tables! }
+
+      it "starts a connector job class for an enabled plugin" do
+        Syrus::PluginRegistry.register(
+          name: "discord_plugin", version: "1.0.0",
+          provides: { platform_delivery: discord_adapter_class_with_connector }
+        )
+
+        expect { described_class.start_connectors! }.to have_enqueued_job(connector_job_class)
+      end
+
+      it "does not start a connector job class for a disabled plugin" do
+        Syrus::PluginRegistry.register(
+          name: "discord_plugin", version: "1.0.0", default_enabled: false,
+          provides: { platform_delivery: discord_adapter_class_with_connector }
+        )
+
+        expect { described_class.start_connectors! }.not_to have_enqueued_job(connector_job_class)
+      end
+
+      it "tolerates a StatementInvalid from SolidQueue without raising" do
+        Syrus::PluginRegistry.register(
+          name: "discord_plugin", version: "1.0.0",
+          provides: { platform_delivery: discord_adapter_class_with_connector }
+        )
+        allow(SolidQueue::Job).to receive(:where).and_raise(ActiveRecord::StatementInvalid)
+
+        expect { described_class.start_connectors! }.not_to raise_error
+      end
+    end
+
+    it "skips providers with no connector_job_class" do
+      Syrus::PluginRegistry.register(
+        name: "discord_plugin", version: "1.0.0",
+        provides: { platform_delivery: discord_adapter_class_without_connector }
+      )
+
+      expect { described_class.start_connectors! }.not_to raise_error
+    end
+  end
+
   describe PlatformDelivery::WebAdapter do
     it "delivers without raising" do
       adapter = described_class.new

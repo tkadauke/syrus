@@ -16,7 +16,7 @@ module Api
 
         def linking_token
           platform = params[:platform].to_s
-          unless PlatformIdentity::PLATFORMS.include?(platform)
+          unless PlatformIdentity.available_platforms.include?(platform)
             return render_error("bad_request", I18n.t("api.platform_identities.unsupported_platform"), status: :bad_request)
           end
 
