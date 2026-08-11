@@ -10,8 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_11_150500) do
-
+ActiveRecord::Schema[8.1].define(version: 2026_08_11_201912) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -55,6 +54,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_11_150500) do
     t.integer "adversarial_review_rounds", default: 0, null: false
     t.integer "chat_coding_workspace_budget_mb", default: 0, null: false
     t.datetime "created_at", null: false
+    t.text "discord_bot_token"
     t.bigint "github_app_id"
     t.integer "github_app_installation_sync_duration_ms"
     t.string "github_app_installation_sync_error_class"
@@ -1241,17 +1241,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_11_150500) do
     t.index ["user_id"], name: "index_passkeys_on_user_id"
   end
 
-  create_table "plugin_records", force: :cascade do |t|
-    t.json "config", null: false
-    t.datetime "created_at", null: false
-    t.boolean "default_enabled", default: true, null: false
-    t.boolean "disableable", default: true, null: false
-    t.boolean "enabled", default: true, null: false
-    t.string "name", null: false
-    t.datetime "updated_at", null: false
-    t.index ["name"], name: "index_plugin_records_on_name", unique: true
-  end
-
   create_table "platform_identities", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "external_handle"
@@ -1262,6 +1251,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_11_150500) do
     t.integer "user_id", null: false
     t.index ["platform", "external_id"], name: "index_platform_identities_on_platform_and_external_id", unique: true
     t.index ["user_id"], name: "index_platform_identities_on_user_id"
+  end
+
+  create_table "plugin_records", force: :cascade do |t|
+    t.json "config", null: false
+    t.datetime "created_at", null: false
+    t.boolean "default_enabled", default: true, null: false
+    t.boolean "disableable", default: true, null: false
+    t.boolean "enabled", default: true, null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_plugin_records_on_name", unique: true
   end
 
   create_table "pr_review_comments", force: :cascade do |t|

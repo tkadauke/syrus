@@ -29,6 +29,7 @@ RSpec.describe AppSettingRegistry do
     expect(described_class.admin_editable_keys).to eq([
       :signups_open,
       :telegram_bot_token,
+      :discord_bot_token,
       :max_concurrent_agent_runs,
       :proactive_rebase_commit_threshold,
       :video_retention_days,

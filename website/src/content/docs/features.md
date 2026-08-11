@@ -727,7 +727,12 @@ time; the `web` adapter is a no-op since ActionCable already handles it.
 Beyond the built-in web and Telegram adapters, a plugin gem can register its
 own external platform through the `:platform_delivery` plugin extension
 point — once registered and enabled, its platform automatically appears as a
-Connected Platforms option, with no core code change required.
+Connected Platforms option, with no core code change required. Discord is the
+first such plugin (`plugins/discord/`, disabled by default): instead of
+long-polling, it holds a persistent, bot-initiated outbound WebSocket
+connection to Discord's Gateway, so linking (a DM `/link <token>` command) and
+message delivery work the same no-inbound-webhook way as Telegram once an
+administrator sets a Discord bot token and enables the plugin.
 
 **Starting the polling worker** — Platform polling workers self-reschedule
 after each poll cycle. On application boot, registered workers are started

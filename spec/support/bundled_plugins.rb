@@ -132,6 +132,19 @@ RSpec.configure do |config|
       )
     end
 
+    unless registered_names.include?("discord")
+      Syrus::PluginRegistry.register(
+        name:            "discord",
+        display_name:    "Discord",
+        version:         SyrusDiscord::VERSION,
+        description:     "Links Discord accounts and delivers/receives chat messages over a Gateway DM listener.",
+        default_enabled: false,
+        disableable:     true,
+        category:        "platform_delivery",
+        provides: { platform_delivery: Discord::PlatformAdapter }
+      )
+    end
+
     Syrus::PluginRegistry.all_plugins
   end
 end

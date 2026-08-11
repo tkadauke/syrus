@@ -195,6 +195,12 @@ Instance-wide storage budget for walkthrough video blobs, measured in megabytes.
 
 The `@handle` of the Syrus Telegram bot (e.g. `syrus_bot`). Setting this marks Telegram as configured; `AppSetting.telegram_configured?` returns true and the Connected Platforms UI shows Telegram as available. The Telegram integration itself (long-poll adapter) is a separate job that registers via `PlatformPollingJob.registry`; this setting is what that job checks in its `configured?` guard.
 
+### discord_bot_token
+
+**Type:** string (encrypted) · **Default:** nil
+
+The bot token used by the `discord` plugin's Gateway connector (`Discord::GatewayConnectionJob`) and outbound adapter (`Discord::PlatformAdapter`). `AppSetting.discord_bot_token` is the gate `Discord::GatewayConnectionJob#configured?` checks before opening a Gateway connection; it is separate from the `discord` `PluginRecord`'s install/enable toggle -- the plugin can be enabled with no token set (no connector starts) or disabled with a token already configured.
+
 ## Coding-Mode workspaces
 
 ### chat_coding_workspace_budget_mb

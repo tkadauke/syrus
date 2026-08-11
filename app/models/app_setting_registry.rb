@@ -178,6 +178,18 @@ class AppSettingRegistry
       secret: false
     ),
     Definition.new(
+      key: :discord_bot_token,
+      type: :string,
+      default: nil,
+      min: nil,
+      max: nil,
+      category: "External platforms",
+      operational_meaning: "Encrypted Discord bot token used by the Discord plugin's Gateway connector and outbound adapter.",
+      zero_means: nil,
+      admin_editable: true,
+      secret: true
+    ),
+    Definition.new(
       key: :runs_paused,
       type: :boolean,
       default: false,

@@ -18,6 +18,10 @@ The account settings UI calls:
 
 Telegram is available only when `AppSetting.telegram_bot_handle` is present.
 Slack is listed as a supported platform but disabled until its integration is
-configured. When a platform poller creates a `PlatformIdentity`, Syrus broadcasts
-`platform_identity_linked` on `AppUserChannel` with the refreshed settings
-payload so the browser updates without a page refresh.
+configured. Discord is provided by the `discord` plugin (`plugins/discord/`)
+through the `:platform_delivery` extension point; it only appears once the
+plugin is enabled and `AppSetting.discord_bot_token` is set (see
+`config/syrus_docs/external_platforms.md`). When a platform poller creates a
+`PlatformIdentity`, Syrus broadcasts `platform_identity_linked` on
+`AppUserChannel` with the refreshed settings payload so the browser updates
+without a page refresh.

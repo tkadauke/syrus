@@ -252,6 +252,11 @@ Bundled plugins:
   provider. It is installed as a plugin for source ownership, but is not
   disableable yet because some GitHub behavior still lives in core.
 - `linear_source` — installed but disabled by default until configured.
+- `discord` — installed but disabled by default until an operator sets
+  `AppSetting.discord_bot_token`. Provides the `:platform_delivery`
+  extension point (`Discord::PlatformAdapter`); see
+  `config/syrus_docs/external_platforms.md` for the Gateway connector
+  details.
 - `syrus_dev` — installed but disabled by default. It owns Syrus-development-only
   diagnostics such as Admin → Performance and the `read_performance_diagnostics`
   / `read_syrus_logs` workflow MCP tools. Enable it only on instances where
