@@ -74,6 +74,14 @@ default: &default
     class: ReapStaleInstanceVersionsJob
     queue: cleanup
     schedule: every minute
+  sample_worker_host_health:
+    class: WorkerHostHealthSampleJob
+    queue: cleanup
+    schedule: every minute
+  check_worker_host_health_telemetry_gap:
+    class: WorkerHostHealthTelemetryCheckJob
+    queue: cleanup
+    schedule: every 5 minutes
   prune_worker_host_health_samples:
     class: WorkerHostHealthSamplePruneJob
     queue: cleanup

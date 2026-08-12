@@ -143,6 +143,30 @@ swallows sampler failures so worker liveness is never destabilized by metrics.
 Rows are retained for `WorkerHostHealthSample::RETAIN_AFTER` (7 days, matching
 `RunHealthSnapshot::RETAIN_AFTER`) and pruned daily by
 `WorkerHostHealthSamplePruneJob`.
+
+The heartbeat Thread is a single per-process code path: if it never starts
+(role/env misconfigured on that process) or dies, that host's samples go
+silent with no direct signal until `WorkflowAdmissionBudget` eventually falls
+back to its neutral "absent" telemetry reading (see the admission-control
+section below). Two recurring Solid Queue jobs backstop this:
+`WorkerHostHealthSampleJob` (`sample_worker_host_health`, every minute, queue
+`cleanup`) independently records a sample for whichever worker process
+executes it, using Solid Queue's normal job-execution threads rather than the
+heartbeat Thread — so a dead/never-started heartbeat on that same process
+still gets sampled here, and it self-heals the process's `InstanceVersion` row
+if registration itself never happened. `WorkerHostHealthTelemetryCheckJob`
+(`check_worker_host_health_telemetry_gap`, every 5 minutes, queue `cleanup`)
+compares live (fresh-heartbeat) worker `InstanceVersion` hostnames against
+hosts with a `WorkerHostHealthSample` in the last 5 minutes and logs a warning
+naming any host with a live heartbeat but no recent sample, so the gap is
+visible immediately instead of only manifesting days later as a start-blocked
+Workflow. In the single-node/Compose deployment (`config/queue.yml`, one
+worker consuming every queue) this fully covers that worker; in a split
+multi-node deployment (`config/queue.home.yml` /
+`config/queue.compute.yml`) the `cleanup` queue is home-tier only, so these
+two jobs sample and audit the home pod but not compute pods — compute pods
+still rely primarily on their own heartbeat Thread, with the telemetry-gap
+warning as the visible signal if that thread goes dark.
 The current admin overview, `/api/v1/admin/version`, and the admin queue
 workers payload include worker health snapshots alongside the existing
 data-root disk fields. Freshness follows `InstanceVersion` worker heartbeat

@@ -44,6 +44,26 @@ RSpec.describe "recurring job configuration" do
     )
   end
 
+  it "samples worker host health independently of the heartbeat thread" do
+    config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
+
+    expect(config.fetch("default").fetch("sample_worker_host_health")).to include(
+      "class" => "WorkerHostHealthSampleJob",
+      "queue" => "cleanup",
+      "schedule" => "every minute"
+    )
+  end
+
+  it "checks for a worker host health telemetry gap" do
+    config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
+
+    expect(config.fetch("default").fetch("check_worker_host_health_telemetry_gap")).to include(
+      "class" => "WorkerHostHealthTelemetryCheckJob",
+      "queue" => "cleanup",
+      "schedule" => "every 5 minutes"
+    )
+  end
+
   it "assigns every recurring task to an isolated app queue" do
     config = YAML.load_file(Rails.root.join("config/recurring.yml"), aliases: true)
     allowed_queues = %w[control_plane polling indexing cleanup low_priority_maintenance]
