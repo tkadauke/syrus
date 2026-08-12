@@ -65,6 +65,7 @@ export type CronTemplateInput = {
   pr_pileup_policy: string
   prompt: string
   enabled: boolean
+  structured_intent?: Record<string, unknown> | null
 }
 
 export type SchedulePreview = {
@@ -77,6 +78,8 @@ export type SchedulePreview = {
   next_fire_at: string | null
   cron_expression: string | null
   errors: string[]
+  source: string | null
+  structured_intent: Record<string, unknown> | null
 }
 
 export function fetchCronTemplates() {

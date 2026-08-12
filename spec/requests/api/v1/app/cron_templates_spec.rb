@@ -39,6 +39,38 @@ RSpec.describe "API: /api/v1/app/cron_templates", type: :request do
     )
   end
 
+  it "previews the exact UI placeholder successfully" do
+    sign_in_as(user)
+
+    post "/api/v1/app/cron_templates/preview_schedule", params: { schedule_input: "Every Monday at 9:00 AM" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("valid" => true, "schedule_explanation" => "Every Monday at 9:00 AM UTC")
+  end
+
+  it "resolves typo-heavy natural text through the LLM fallback, then validates deterministically" do
+    user.update!(gemini_api_key: "AIza-test-key")
+    sign_in_as(user)
+    fallback_intent = { frequency: "WEEKLY", day: "monday", hour: 9, minute: 0 }
+    allow(Schedules::CadenceLlmFallback).to receive(:call)
+      .with("moday at 9am in tjhe mornin", user: user)
+      .and_return(Schedules::CadenceLlmFallback::Result.new(usable?: true, structured_intent: fallback_intent, error: nil))
+
+    post "/api/v1/app/cron_templates/preview_schedule", params: { schedule_input: "moday at 9am in tjhe mornin" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("valid" => true, "schedule_explanation" => "Every Monday at 9:00 AM UTC")
+  end
+
+  it "does not leak raw Ruby exception text in invalid preview responses" do
+    sign_in_as(user)
+
+    post "/api/v1/app/cron_templates/preview_schedule", params: { schedule_input: "modays at 9" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["errors"].join).not_to match(/invalid value for Integer/)
+  end
+
   it "lists only the current user's cron templates" do
     sign_in_as(user)
     template = user.cron_templates.create!(valid_attrs)

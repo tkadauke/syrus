@@ -257,7 +257,9 @@ function CronTemplateForm({
   const navigate = useNavigate()
   const [values, setValues] = useState<CronTemplateInput>(initial)
   const save = useMutation({
-    mutationFn: () => mode === "new" ? createCronTemplate(values) : updateCronTemplate(id, values),
+    mutationFn: (structuredIntent: Record<string, unknown> | null) => mode === "new"
+      ? createCronTemplate(submitInput(values, structuredIntent))
+      : updateCronTemplate(id, submitInput(values, structuredIntent)),
     onSuccess: (payload) => {
       queryClient.setQueryData(["cron_templates", String(payload.template.id)], payload)
       void queryClient.invalidateQueries({ queryKey: ["cron_templates"] })
@@ -267,6 +269,12 @@ function CronTemplateForm({
   const preview = useMutation({
     mutationFn: previewCronTemplateSchedule
   })
+  // See ScheduledTasks.tsx's identical guard: don't show a preview result
+  // that no longer matches the currently-typed input.
+  const previewMatchesInput = preview.data?.schedule_input === values.schedule_input
+  const previewErrors = previewMatchesInput ? preview.data?.errors || [] : []
+  const previewExplanation = preview.data ? (previewMatchesInput ? preview.data.schedule_explanation : null) : values.schedule_explanation
+  const previewSource = previewMatchesInput ? preview.data?.source : null
 
   useEffect(() => {
     setValues(initial)
@@ -281,7 +289,7 @@ function CronTemplateForm({
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    save.mutate()
+    save.mutate(previewMatchesInput ? preview.data?.structured_intent ?? null : null)
   }
 
   return (
@@ -295,7 +303,7 @@ function CronTemplateForm({
       </Field>
       <Field label={t("cron_templates.field_schedule")}>
         <input className={inputClass()} onChange={(event) => setValues({ ...values, schedule_input: event.target.value, cron_expression: event.target.value })} placeholder={t("cron_templates.schedule_placeholder")} type="text" value={values.schedule_input} />
-        <SchedulePreviewState errors={preview.data?.errors || []} explanation={preview.data?.schedule_explanation || values.schedule_explanation} loading={preview.isPending} />
+        <SchedulePreviewState errors={previewErrors} explanation={previewExplanation} loading={preview.isPending} source={previewSource} />
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("cron_templates.schedule_help")}</p>
       </Field>
       <Field label={t("cron_templates.field_pileup")}>
@@ -378,11 +386,18 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-function SchedulePreviewState({ explanation, errors, loading }: { explanation?: string | null; errors: string[]; loading: boolean }) {
+function SchedulePreviewState({ explanation, errors, loading, source }: { explanation?: string | null; errors: string[]; loading: boolean; source?: string | null }) {
   const { t } = useT("settings")
   if (loading) return <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("cron_templates.preview_loading")}</p>
   if (errors.length > 0) return <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.join(", ")}</p>
-  if (explanation) return <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">{explanation}</p>
+  if (explanation) {
+    return (
+      <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">
+        {explanation}
+        {source === "structured_intent" ? <span className="ml-1 text-emerald-600 dark:text-emerald-400">{t("cron_templates.preview_via_ai")}</span> : null}
+      </p>
+    )
+  }
   return null
 }
 
@@ -416,6 +431,10 @@ function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?
 
 function routeBase(pathname: string) {
   return `${routePrefix(pathname)}/cron_templates`
+}
+
+function submitInput(values: CronTemplateInput, structuredIntent: Record<string, unknown> | null): CronTemplateInput {
+  return { ...values, structured_intent: structuredIntent }
 }
 
 function inputFromTemplate(template: CronTemplateDetail): CronTemplateInput {

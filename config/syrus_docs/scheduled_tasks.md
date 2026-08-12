@@ -15,6 +15,40 @@ Every Monday at 9:00 AM
 
 The minute is honored exactly. Syrus evaluates due tasks in UTC hourly windows so repeated poller ticks within the same hour do not double-fire. Fire-time scheduling is deterministic and does not call an AI provider.
 
+### Tiered cadence parsing
+
+`Schedules::CadencePreview` (used by both `ScheduledTask`/`CronTemplate` save
+and the `preview_schedule` API endpoints) resolves cadence text in three
+tiers:
+
+1. **Strict cron detection** — `Schedules::RecurringSchedule.cron_shaped?`
+   only routes input to the cron parser when every one of the five
+   whitespace-separated fields independently looks like cron syntax (`*`,
+   integers, ranges, steps, comma lists). Five *words* — e.g. `Every day at
+   10 am` — are never misrouted into the cron parser just because they
+   happen to split into five tokens.
+2. **Deterministic natural language** — a small set of supported phrasings
+   (`Every day at 10 am`, `Every Monday at 9:00 AM`, `daily at 14:30`, and
+   variants) parse without any AI call. Spaced/uppercase meridiem (`10 am`,
+   `10 AM`) and compact meridiem (`10am`) are equivalent.
+3. **LLM fallback** — only when steps 1–2 both fail, and only for input
+   that isn't cron-shaped-but-invalid. `Schedules::CadenceLlmFallback` sends
+   the raw text to Gemini (via the operator's own `User#gemini_api_key`) and
+   asks for structured intent only (frequency/day/month/hour/minute plus a
+   `confidence`/`ambiguous` signal) — never an executable schedule. The
+   fallback fails closed (no schedule is saved) when: the user has no
+   Gemini key configured, the model reports low confidence or flags the
+   request ambiguous, or the returned intent is incomplete. A usable result
+   is then run back through the *same deterministic*
+   `Schedules::RecurringSchedule.preview(structured_intent:)` path used by
+   tier 2, so validation/canonicalization/explanation is identical either
+   way and nothing executable ever comes directly from the model.
+
+The scheduler itself (`PollScheduledTasksJob`, `ScheduledTask#next_fire_at`,
+`#due?`) only ever reads the already-canonicalized `schedule_expression` —
+no LLM call happens at fire time, regardless of which tier resolved the
+schedule at save time.
+
 ### one_shot
 
 Fires once at a future datetime (`fire_at`). After firing, the task moves to `fired` (terminal) state.

@@ -4,6 +4,9 @@ class CronTemplate < ApplicationRecord
   belongs_to :user
   has_many :scheduled_tasks, dependent: :nullify
 
+  # Transient, not persisted — see ScheduledTask#structured_intent.
+  attr_accessor :structured_intent
+
   validates :name, presence: true, length: { maximum: 200 }
   validates :prompt, presence: true
   validates :schedule_expression, presence: true
@@ -34,7 +37,7 @@ class CronTemplate < ApplicationRecord
 
   def canonicalize_recurring_schedule
     input = schedule_input.presence || cron_expression.presence || legacy_cron_expression.presence || schedule_expression
-    result = Schedules::RecurringSchedule.preview(input: input)
+    result = Schedules::CadencePreview.call(input: input, structured_intent: structured_intent, user: user)
     if result.valid?
       self.schedule_input = input
       self.schedule_format = result.format

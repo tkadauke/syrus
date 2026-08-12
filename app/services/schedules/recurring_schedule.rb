@@ -2,7 +2,7 @@ require "fugit"
 
 module Schedules
   class RecurringSchedule
-    Result = Data.define(:valid?, :input, :format, :expression, :timezone, :explanation, :next_fire_at, :cron_expression, :errors)
+    Result = Data.define(:valid?, :input, :format, :expression, :timezone, :explanation, :next_fire_at, :cron_expression, :errors, :source, :structured_intent)
 
     DAYS = {
       "sunday" => "SU", "sundays" => "SU", "sun" => "SU",
@@ -17,7 +17,26 @@ module Schedules
     MONTHS = Date::MONTHNAMES.each_with_index.filter_map { |name, index| [ name.downcase, index ] if name }.to_h.freeze
     MIN_INTERVAL = 1.hour
 
+    # A cron field is a comma-separated list of `*` or integers, each
+    # optionally range- (`1-5`) and/or step- (`*/2`, `1-5/2`) qualified. This
+    # only needs to distinguish "looks like cron syntax" from "looks like
+    # words" — Fugit (and the rescue wrapper around parse_cron) still does
+    # real validation, so a malformed-but-digit-shaped field like day 0 still
+    # surfaces as a clean "not a valid cron expression" error instead of
+    # silently falling through to natural-language parsing.
+    CRON_TERM = /(?:\*|\d+)(?:-\d+)?(?:\/\d+)?/
+    CRON_FIELD = /\A#{CRON_TERM}(?:,#{CRON_TERM})*\z/
+
     class << self
+      # Strict recognizer used to route input to the cron parser instead of
+      # natural-language parsing. Five whitespace-separated tokens is not
+      # enough on its own ("Every day at 10 am" is five tokens) — every field
+      # must independently look like a cron field.
+      def cron_shaped?(value)
+        fields = value.to_s.strip.split(/\s+/)
+        fields.size == 5 && fields.all? { |field| field.match?(CRON_FIELD) }
+      end
+
       def preview(input:, structured_intent: nil, from: Time.current)
         new(input: input, structured_intent: structured_intent, from: from).preview
       end
@@ -62,7 +81,9 @@ module Schedules
           explanation: schedule.explanation,
           next_fire_at: schedule.next_fire_at(from: @from)&.iso8601,
           cron_expression: schedule.cron_expression,
-          errors: []
+          errors: [],
+          source: @source,
+          structured_intent: @structured_intent
         )
       end
     rescue ArgumentError => e
@@ -72,13 +93,21 @@ module Schedules
     private
 
     def invalid(message)
-      Result.new(valid?: false, input: @input, format: "rrule", expression: nil, timezone: "UTC", explanation: nil, next_fire_at: nil, cron_expression: nil, errors: [ message ])
+      Result.new(valid?: false, input: @input, format: "rrule", expression: nil, timezone: "UTC", explanation: nil, next_fire_at: nil, cron_expression: nil, errors: [ message ], source: nil, structured_intent: nil)
     end
 
     def parse_input
-      return parse_structured_intent(@structured_intent) if @structured_intent.present?
-      return parse_cron(@input) if @input.match?(/\A\S+\s+\S+\s+\S+\s+\S+\s+\S+\z/)
+      if @structured_intent.present?
+        @source = "structured_intent"
+        return parse_structured_intent(@structured_intent)
+      end
 
+      if self.class.cron_shaped?(@input)
+        @source = "cron"
+        return parse_cron(@input)
+      end
+
+      @source = "natural"
       parse_natural(@input)
     end
 
@@ -96,11 +125,15 @@ module Schedules
       parts << "BYMINUTE=#{minute}"
       parts << "BYSECOND=0"
       Schedule.new(self.class.parse_rrule(parts.join(";")), timezone: "UTC", input: value, cron_expression: value)
+    rescue ArgumentError
+      raise
+    rescue StandardError
+      raise ArgumentError, "is not a valid five-field cron expression"
     end
 
     def parse_natural(value)
       normalized = value.downcase.squish
-      if (match = normalized.match(/\A(?:every\s+)?day(?:ly)?\s+at\s+(.+)\z/))
+      if (match = normalized.match(/\A(?:every\s+)?(?:day|daily)\s+at\s+(.+)\z/))
         return schedule(freq: "DAILY", hour_minute: parse_time(match[1]))
       end
 
@@ -120,9 +153,32 @@ module Schedules
     def parse_structured_intent(intent)
       values = intent.to_h.transform_keys(&:to_s)
       freq = values.fetch("frequency", "").to_s.upcase
-      day = values["day"].presence && DAYS.fetch(values["day"].to_s.downcase, values["day"].to_s.upcase)
-      hour_minute = [ Integer(values.fetch("hour")), Integer(values.fetch("minute", 0)) ]
-      schedule(freq: freq, day: day, month: values["month"]&.to_i, month_day: values["month_day"]&.to_i, hour_minute: hour_minute)
+      raise ArgumentError, "frequency must be HOURLY, DAILY, WEEKLY, MONTHLY, or YEARLY" unless %w[HOURLY DAILY WEEKLY MONTHLY YEARLY].include?(freq)
+
+      day = normalize_structured_day(values["day"])
+      hour_minute = [ safe_integer(values["hour"], "hour"), safe_integer(values["minute"].presence || 0, "minute") ]
+      month = values["month"].presence && safe_integer(values["month"], "month")
+      month_day = values["month_day"].presence && safe_integer(values["month_day"], "month day")
+      schedule(freq: freq, day: day, month: month, month_day: month_day, hour_minute: hour_minute)
+    end
+
+    def normalize_structured_day(value)
+      return nil if value.blank?
+
+      DAYS.fetch(value.to_s.downcase) { raise ArgumentError, "day must be a day of the week" }
+    end
+
+    # Never let Ruby's core Integer() exception text ("invalid value for
+    # Integer(): \"am\"") reach a user-facing preview response — always raise
+    # our own friendly ArgumentError instead.
+    def safe_integer(value, label)
+      raise ArgumentError, "#{label} is required" if value.nil? || value == ""
+
+      begin
+        Integer(value)
+      rescue ArgumentError, TypeError
+        raise ArgumentError, "#{label} must be a whole number"
+      end
     end
 
     def schedule(freq:, hour_minute:, day: nil, month: nil, month_day: nil)

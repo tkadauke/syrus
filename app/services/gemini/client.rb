@@ -141,48 +141,17 @@ module Gemini
     # the proto snake_case field names to match the existing `file_data` /
     # `file_uri` fields — the generativelanguage REST endpoint accepts them.
     def generate_content(file_uri:, mime_type:, prompt:, response_schema:, media_resolution: :default, video_metadata: nil)
-      generation_config = {
-        responseMimeType: "application/json",
-        responseSchema: response_schema
-      }
-      generation_config[:mediaResolution] = "MEDIA_RESOLUTION_LOW" if media_resolution == :low
-
       video_part = { file_data: { file_uri: file_uri, mime_type: mime_type } }
       video_part[:video_metadata] = video_metadata if video_metadata.present?
 
-      body = {
-        contents: [
-          {
-            role: "user",
-            parts: [
-              video_part,
-              { text: prompt }
-            ]
-          }
-        ],
-        generationConfig: generation_config
-      }
+      generate([ video_part, { text: prompt } ], response_schema: response_schema, media_resolution: media_resolution)
+    end
 
-      post = Net::HTTP::Post.new(uri_for("/#{API_VERSION}/models/#{@model}:generateContent"))
-      post["Content-Type"] = "application/json"
-      post.body = body.to_json
-
-      json = parse!(request(post, read_timeout: 600))
-      # Long responses can arrive split across multiple text parts (the
-      # official SDKs join them) — reading only parts[0] truncates a large
-      # issues array mid-JSON and misreports a successful analysis as
-      # malformed (review finding).
-      parts = Array(json.dig("candidates", 0, "content", "parts"))
-      text = parts.filter_map { |part| part["text"] }.join
-      if text.blank?
-        finish_reason = json.dig("candidates", 0, "finishReason").to_s
-        detail = finish_reason.present? && finish_reason != "STOP" ? " (finish reason: #{finish_reason})" : ""
-        raise Error, "Gemini returned an empty analysis#{detail}"
-      end
-
-      JSON.parse(text)
-    rescue JSON::ParserError
-      raise Error, "Gemini returned malformed JSON despite the response schema"
+    # Text-only structured completion — no Files API upload, no video part.
+    # Scoped to short, synchronous, request-cycle uses (e.g. cadence-parsing
+    # fallback) rather than the longer video analysis timeout.
+    def generate_text(prompt:, response_schema:)
+      generate([ { text: prompt } ], response_schema: response_schema, read_timeout: 30)
     end
 
     # Re-analyze one CLIP of an already-uploaded file — the "zoom in" path.
@@ -206,6 +175,40 @@ module Gemini
     end
 
     private
+
+    def generate(parts, response_schema:, media_resolution: :default, read_timeout: 600)
+      generation_config = {
+        responseMimeType: "application/json",
+        responseSchema: response_schema
+      }
+      generation_config[:mediaResolution] = "MEDIA_RESOLUTION_LOW" if media_resolution == :low
+
+      body = {
+        contents: [ { role: "user", parts: parts } ],
+        generationConfig: generation_config
+      }
+
+      post = Net::HTTP::Post.new(uri_for("/#{API_VERSION}/models/#{@model}:generateContent"))
+      post["Content-Type"] = "application/json"
+      post.body = body.to_json
+
+      json = parse!(request(post, read_timeout: read_timeout))
+      # Long responses can arrive split across multiple text parts (the
+      # official SDKs join them) — reading only parts[0] truncates a large
+      # issues array mid-JSON and misreports a successful analysis as
+      # malformed (review finding).
+      response_parts = Array(json.dig("candidates", 0, "content", "parts"))
+      text = response_parts.filter_map { |part| part["text"] }.join
+      if text.blank?
+        finish_reason = json.dig("candidates", 0, "finishReason").to_s
+        detail = finish_reason.present? && finish_reason != "STOP" ? " (finish reason: #{finish_reason})" : ""
+        raise Error, "Gemini returned an empty analysis#{detail}"
+      end
+
+      JSON.parse(text)
+    rescue JSON::ParserError
+      raise Error, "Gemini returned malformed JSON despite the response schema"
+    end
 
     # Gemini's VideoMetadata offsets are protobuf Durations, serialized as a
     # decimal-seconds string with a trailing "s" (e.g. "12s").

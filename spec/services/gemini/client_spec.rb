@@ -329,6 +329,40 @@ RSpec.describe Gemini::Client do
     end
   end
 
+  describe "#generate_text" do
+    let(:endpoint) { "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent" }
+    let(:response_schema) { { type: "OBJECT", properties: { frequency: { type: "STRING" } } } }
+
+    it "posts a text-only part with a JSON responseSchema and parses the reply" do
+      stub_request(:post, endpoint).to_return(
+        status: 200,
+        headers: json_headers,
+        body: { candidates: [ { content: { parts: [ { text: { "frequency" => "DAILY" }.to_json } ] } } ] }.to_json
+      )
+
+      result = client.generate_text(prompt: "Interpret this cadence.", response_schema: response_schema)
+
+      expect(result).to eq({ "frequency" => "DAILY" })
+      expect(WebMock).to(have_requested(:post, endpoint).with do |req|
+        body = JSON.parse(req.body)
+        parts = body.dig("contents", 0, "parts")
+
+        parts == [ { "text" => "Interpret this cadence." } ]
+      end)
+    end
+
+    it "raises when the reply text is not valid JSON" do
+      stub_request(:post, endpoint).to_return(
+        status: 200,
+        headers: json_headers,
+        body: { candidates: [ { content: { parts: [ { text: "not json {" } ] } } ] }.to_json
+      )
+
+      expect { client.generate_text(prompt: "x", response_schema: response_schema) }
+        .to raise_error(Gemini::Client::Error, /malformed JSON/)
+    end
+  end
+
   # The "zoom in" path: re-analyze a clip of an ALREADY-uploaded file. The clip
   # window rides as video_metadata on the same file part — no re-upload — and
   # the offsets serialize as Duration strings ("Ns").

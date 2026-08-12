@@ -34,6 +34,23 @@ RSpec.describe ScheduledTask do
       expect(build_cron).to be_valid
     end
 
+    it "canonicalizes typo-heavy natural text through the LLM fallback when structured_intent is supplied" do
+      task = build_cron(
+        cron_expression: nil,
+        schedule_input: "moday at 9am in tjhe mornin",
+        structured_intent: { frequency: "WEEKLY", day: "monday", hour: 9, minute: 0 }
+      )
+
+      expect(task).to be_valid
+      expect(task.schedule_explanation).to eq("Every Monday at 9:00 AM UTC")
+    end
+
+    it "is invalid when schedule_input needs the LLM but no structured_intent or Gemini key is available" do
+      task = build_cron(cron_expression: nil, schedule_input: "moday at 9am in tjhe mornin")
+
+      expect(task).not_to be_valid
+    end
+
     it "is valid for one_shot with a future fire_at" do
       expect(build_one_shot).to be_valid
     end

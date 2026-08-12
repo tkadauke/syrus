@@ -49,6 +49,73 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(parse_body["errors"]).to include("Schedule input is not a supported cadence or five-field cron expression")
   end
 
+  it "previews the exact UI placeholder successfully" do
+    sign_in_as(user)
+
+    post "/api/v1/app/scheduled_tasks/preview_schedule", params: { schedule_input: "Every Monday at 9:00 AM" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("valid" => true, "schedule_explanation" => "Every Monday at 9:00 AM UTC")
+  end
+
+  it "previews the previously-broken spaced meridiem cadence successfully" do
+    sign_in_as(user)
+
+    post "/api/v1/app/scheduled_tasks/preview_schedule", params: { schedule_input: "Every day at 10 am" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("valid" => true, "schedule_explanation" => "Every day at 10:00 AM UTC")
+  end
+
+  it "still previews pasted cron correctly" do
+    sign_in_as(user)
+
+    post "/api/v1/app/scheduled_tasks/preview_schedule", params: { schedule_input: "0 9 * * 1" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("valid" => true, "schedule_explanation" => "Every Monday at 9:00 AM UTC", "source" => "cron")
+  end
+
+  it "does not leak raw Ruby exception text in invalid preview responses" do
+    sign_in_as(user)
+
+    post "/api/v1/app/scheduled_tasks/preview_schedule", params: { schedule_input: "modays at 9" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["errors"].join).not_to match(/invalid value for Integer/)
+  end
+
+  it "resolves typo-heavy natural text through the LLM fallback, then validates deterministically" do
+    user.update!(gemini_api_key: "AIza-test-key")
+    sign_in_as(user)
+    fallback_intent = { frequency: "WEEKLY", day: "monday", hour: 9, minute: 0 }
+    allow(Schedules::CadenceLlmFallback).to receive(:call)
+      .with("moday at 9am in tjhe mornin", user: user)
+      .and_return(Schedules::CadenceLlmFallback::Result.new(usable?: true, structured_intent: fallback_intent, error: nil))
+
+    post "/api/v1/app/scheduled_tasks/preview_schedule", params: { schedule_input: "moday at 9am in tjhe mornin" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include(
+      "valid" => true,
+      "schedule_explanation" => "Every Monday at 9:00 AM UTC",
+      "source" => "structured_intent"
+    )
+    expect(parse_body["structured_intent"]).to eq(fallback_intent.stringify_keys)
+  end
+
+  it "fails closed when the LLM fallback cannot confidently interpret the input" do
+    user.update!(gemini_api_key: "AIza-test-key")
+    sign_in_as(user)
+    allow(Schedules::CadenceLlmFallback).to receive(:call)
+      .and_return(Schedules::CadenceLlmFallback::Result.new(usable?: false, structured_intent: nil, error: "ambiguous"))
+
+    post "/api/v1/app/scheduled_tasks/preview_schedule", params: { schedule_input: "sometime, whenever works" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("valid" => false)
+  end
+
   it "lists current user's active, fired, and archived tasks" do
     sign_in_as(user)
     active = repository.scheduled_tasks.create!(user: user, **valid_cron_attrs)

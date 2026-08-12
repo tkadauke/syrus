@@ -34,6 +34,62 @@ RSpec.describe Schedules::RecurringSchedule do
     expect(result).to be_valid
     expect(result.expression).to eq("FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0")
     expect(result.cron_expression).to be_nil
+    expect(result.source).to eq("natural")
+  end
+
+  describe "strict cron-shape detection" do
+    it "does not route five-token natural language through the cron parser" do
+      expect(described_class.cron_shaped?("Every day at 10 am")).to be(false)
+      expect(described_class.cron_shaped?("Every Monday at 9:00 AM")).to be(false)
+    end
+
+    it "still recognizes genuine five-field cron" do
+      expect(described_class.cron_shaped?("0 9 * * 1")).to be(true)
+      expect(described_class.cron_shaped?("*/30 * * * *")).to be(true)
+    end
+  end
+
+  it "previews the exact UI placeholder successfully" do
+    result = described_class.preview(input: "Every Monday at 9:00 AM", from: Time.utc(2026, 8, 5, 8, 0, 0))
+
+    expect(result).to be_valid
+    expect(result.explanation).to eq("Every Monday at 9:00 AM UTC")
+    expect(result.source).to eq("natural")
+  end
+
+  it "parses the previously-broken spaced meridiem cadence deterministically" do
+    result = described_class.preview(input: "Every day at 10 am")
+
+    expect(result).to be_valid
+    expect(result.explanation).to eq("Every day at 10:00 AM UTC")
+  end
+
+  it "parses spaced and uppercase meridiem variants the same as compact lowercase" do
+    [ "Every day at 10 am", "Every day at 10 AM", "Every day at 10am" ].each do |input|
+      result = described_class.preview(input: input)
+      expect(result).to be_valid, "expected #{input.inspect} to be valid: #{result.errors}"
+      expect(result.expression).to eq("FREQ=DAILY;BYHOUR=10;BYMINUTE=0;BYSECOND=0")
+    end
+
+    [ "Every Monday at 9:00 AM", "Every Monday at 9 AM", "Every Monday at 9 am" ].each do |input|
+      result = described_class.preview(input: input)
+      expect(result).to be_valid, "expected #{input.inspect} to be valid: #{result.errors}"
+      expect(result.expression).to eq("FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0")
+    end
+  end
+
+  it "parses 24-hour daily cadence text" do
+    result = described_class.preview(input: "daily at 14:30")
+
+    expect(result).to be_valid
+    expect(result.expression).to eq("FREQ=DAILY;BYHOUR=14;BYMINUTE=30;BYSECOND=0")
+  end
+
+  it "does not leak raw Ruby Integer() exception text on invalid input" do
+    result = described_class.preview(input: "Every day at 10 xm")
+
+    expect(result).not_to be_valid
+    expect(result.errors.join).not_to match(/invalid value for Integer/)
   end
 
   it "rejects natural typos without structured intent" do
@@ -51,6 +107,40 @@ RSpec.describe Schedules::RecurringSchedule do
 
     expect(result).to be_valid
     expect(result.explanation).to eq("Every Monday at 9:00 AM UTC")
+    expect(result.source).to eq("structured_intent")
+    expect(result.structured_intent).to eq({ frequency: "weekly", day: "monday", hour: 9, minute: 0 })
+  end
+
+  describe "malformed structured intent (e.g. from an LLM fallback)" do
+    it "fails closed with a clear error, not a raw Integer() exception, when hour is missing" do
+      result = described_class.preview(input: "x", structured_intent: { frequency: "daily" })
+
+      expect(result).not_to be_valid
+      expect(result.errors.join).to include("hour is required")
+      expect(result.errors.join).not_to match(/invalid value for Integer/)
+    end
+
+    it "fails closed when hour is not a number" do
+      result = described_class.preview(input: "x", structured_intent: { frequency: "daily", hour: "noon" })
+
+      expect(result).not_to be_valid
+      expect(result.errors.join).to include("hour must be a whole number")
+      expect(result.errors.join).not_to match(/invalid value for Integer/)
+    end
+
+    it "fails closed on an unrecognized day name" do
+      result = described_class.preview(input: "x", structured_intent: { frequency: "weekly", day: "someday", hour: 9 })
+
+      expect(result).not_to be_valid
+      expect(result.errors.join).to include("day must be a day of the week")
+    end
+
+    it "fails closed on an unsupported frequency" do
+      result = described_class.preview(input: "x", structured_intent: { frequency: "fortnightly", hour: 9 })
+
+      expect(result).not_to be_valid
+      expect(result.errors.join).to include("frequency must be")
+    end
   end
 
   it "rejects cron that can fire more than once per hour" do

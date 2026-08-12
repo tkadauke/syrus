@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
-import { ScheduledTaskDetailRoute } from "./ScheduledTasks"
+import { ScheduledTaskDetailRoute, ScheduledTaskFormRoute } from "./ScheduledTasks"
 import * as useConfirmModule from "../hooks/useConfirm"
 
 function taskDetail(overrides: { recent_jobs?: unknown[] } = {}) {
@@ -150,6 +150,120 @@ describe("ScheduledTaskDetailRoute recent jobs", () => {
 
     await waitFor(() => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith("JOB-2922")
+    })
+  })
+})
+
+function newFormPayload() {
+  return {
+    task: {
+      id: null,
+      name: "",
+      prompt: "",
+      kind: "cron",
+      cron_expression: "",
+      schedule_input: "",
+      schedule_format: "rrule",
+      schedule_expression: "",
+      schedule_timezone: "UTC",
+      fire_at: "",
+      pr_pileup_policy: "skip",
+      auto_approve_mode: "never",
+      cron_template_id: null
+    },
+    repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1" },
+    from_template: null,
+    options: {
+      kinds: ["cron", "one_shot"],
+      pr_pileup_policies: ["skip", "pile", "replace"],
+      auto_approve_modes: [{ value: "never", label: "Never", preview: "No direct rule." }]
+    }
+  }
+}
+
+function renderNewForm() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={["/app-shell/repositories/1/scheduled_tasks/new"]}>
+        <Routes>
+          <Route element={<ScheduledTaskFormRoute mode="new" />} path="/app-shell/repositories/:repositoryId/scheduled_tasks/new" />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+describe("ScheduledTaskFormRoute cadence preview", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("previews the pre-filled placeholder cadence successfully on load", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      if (url === "/api/v1/app/scheduled_tasks/preview_schedule" && init?.method === "POST") {
+        const body = JSON.parse(String(init.body))
+        expect(body.schedule_input).toBe("Every Monday at 9:00 AM")
+        return Promise.resolve(jsonResponse({
+          valid: true,
+          schedule_input: "Every Monday at 9:00 AM",
+          schedule_format: "rrule",
+          schedule_expression: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
+          schedule_timezone: "UTC",
+          schedule_explanation: "Every Monday at 9:00 AM UTC",
+          next_fire_at: null,
+          cron_expression: null,
+          errors: [],
+          source: "natural",
+          structured_intent: null
+        }))
+      }
+      return Promise.resolve(jsonResponse(newFormPayload()))
+    })
+
+    renderNewForm()
+
+    expect(await screen.findByDisplayValue("Every Monday at 9:00 AM")).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText("Every Monday at 9:00 AM UTC")).toBeInTheDocument()
+    })
+  })
+
+  it("labels an LLM-assisted preview as a deterministic explanation with an AI-assist badge", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      if (url === "/api/v1/app/scheduled_tasks/preview_schedule" && init?.method === "POST") {
+        const body = JSON.parse(String(init.body))
+        if (body.schedule_input === "moday at 9am in tjhe mornin") {
+          return Promise.resolve(jsonResponse({
+            valid: true,
+            schedule_input: "moday at 9am in tjhe mornin",
+            schedule_format: "rrule",
+            schedule_expression: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
+            schedule_timezone: "UTC",
+            schedule_explanation: "Every Monday at 9:00 AM UTC",
+            next_fire_at: null,
+            cron_expression: null,
+            errors: [],
+            source: "structured_intent",
+            structured_intent: { frequency: "WEEKLY", day: "monday", hour: 9, minute: 0 }
+          }))
+        }
+        return Promise.resolve(jsonResponse({
+          valid: true, schedule_input: body.schedule_input, schedule_format: "rrule",
+          schedule_expression: "", schedule_timezone: "UTC", schedule_explanation: "Every Monday at 9:00 AM UTC",
+          next_fire_at: null, cron_expression: null, errors: [], source: "natural", structured_intent: null
+        }))
+      }
+      return Promise.resolve(jsonResponse(newFormPayload()))
+    })
+
+    renderNewForm()
+
+    const input = await screen.findByPlaceholderText("Every Monday at 9:00 AM")
+    fireEvent.change(input, { target: { value: "moday at 9am in tjhe mornin" } })
+
+    await waitFor(() => {
+      expect(screen.getByText("(via AI assist)")).toBeInTheDocument()
     })
   })
 })

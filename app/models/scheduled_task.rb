@@ -12,6 +12,12 @@ class ScheduledTask < ApplicationRecord
   belongs_to :cron_template, optional: true
   has_many :jobs, dependent: :nullify
 
+  # Transient, not persisted. Set by the controller when the operator's
+  # schedule_input previously resolved through the LLM cadence fallback, so
+  # save-time canonicalization can reuse that structured intent instead of
+  # calling the LLM again.
+  attr_accessor :structured_intent
+
   scope :active, -> { where(archived_at: nil).where(state: %w[ scheduled ]) }
   scope :archived, -> { where.not(archived_at: nil) }
   scope :alive,    -> { where(archived_at: nil) }
@@ -198,7 +204,7 @@ class ScheduledTask < ApplicationRecord
     return unless cron?
 
     input = schedule_input.presence || cron_expression.presence || legacy_cron_expression.presence || schedule_expression
-    result = Schedules::RecurringSchedule.preview(input: input)
+    result = Schedules::CadencePreview.call(input: input, structured_intent: structured_intent, user: user)
     if result.valid?
       self.schedule_input = input
       self.schedule_format = result.format

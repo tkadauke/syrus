@@ -35,9 +35,10 @@ module Api
         end
 
         def preview_schedule
-          result = Schedules::RecurringSchedule.preview(
+          result = Schedules::CadencePreview.call(
             input: params[:schedule_input].presence || params[:cron_expression],
-            structured_intent: params[:structured_intent]
+            structured_intent: unsafe_hash(params[:structured_intent]),
+            user: Current.user
           )
 
           render json: schedule_preview_json(result)
@@ -47,6 +48,7 @@ module Api
           repository = find_repository
           task = repository.scheduled_tasks.build(scheduled_task_params)
           task.user = Current.user
+          task.structured_intent = unsafe_hash(params.dig(:scheduled_task, :structured_intent))
           if params[:from_template].present?
             template = Current.user.cron_templates.find_by(id: params[:from_template])
             task.cron_template = template if template
@@ -85,6 +87,7 @@ module Api
 
         def update
           task = find_task
+          task.structured_intent = unsafe_hash(params.dig(:scheduled_task, :structured_intent))
 
           if task.update(scheduled_task_params)
             render json: scheduled_task_detail_payload(task).merge(message: "Scheduled task updated.")
@@ -293,8 +296,14 @@ module Api
             schedule_explanation: result.explanation,
             next_fire_at: result.next_fire_at,
             cron_expression: result.cron_expression,
-            errors: result.errors
+            errors: result.errors,
+            source: result.source,
+            structured_intent: result.structured_intent
           }
+        end
+
+        def unsafe_hash(value)
+          value.respond_to?(:to_unsafe_h) ? value.to_unsafe_h : value
         end
 
         def scheduled_task_options

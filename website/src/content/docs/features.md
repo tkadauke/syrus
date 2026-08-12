@@ -259,8 +259,17 @@ Supported schedule kinds:
 
 | Kind | Meaning |
 | --- | --- |
-| `cron` | Five-field cron expression interpreted in UTC, limited to at most one fire per hour. |
+| `cron` | Recurring schedule interpreted in UTC, limited to at most one fire per hour. |
 | `one_shot` | A single future fire time. |
+
+Cron schedules can be entered as a five-field cron expression (`0 9 * * 1`)
+or as simple cadence text (`Every Monday at 9:00 AM`, `Every day at 10 am`,
+`daily at 14:30`). If typo-heavy or unusually phrased text doesn't match a
+supported cadence, Syrus can optionally hand it to an AI model to produce
+structured intent (frequency, day, time), which is then validated and
+canonicalized the same deterministic way as any other cadence — the model
+never writes the schedule directly, and firing itself never calls an AI
+model.
 
 The `pr_pileup_policy` controls what happens if the last scheduled PR is
 still open: `skip`, `pile`, or `replace`. Repeated failures can

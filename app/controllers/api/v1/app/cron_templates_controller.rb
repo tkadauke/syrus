@@ -17,6 +17,7 @@ module Api
 
         def create
           template = Current.user.cron_templates.build(cron_template_params)
+          template.structured_intent = unsafe_hash(params.dig(:cron_template, :structured_intent))
 
           if template.save
             render json: template_detail_payload(template).merge(message: "Template created."), status: :created
@@ -28,6 +29,7 @@ module Api
 
         def update
           template = find_template
+          template.structured_intent = unsafe_hash(params.dig(:cron_template, :structured_intent))
 
           if template.update(cron_template_params)
             render json: template_detail_payload(template).merge(message: "Template updated.")
@@ -38,9 +40,10 @@ module Api
         end
 
         def preview_schedule
-          result = Schedules::RecurringSchedule.preview(
+          result = Schedules::CadencePreview.call(
             input: params[:schedule_input].presence || params[:cron_expression],
-            structured_intent: params[:structured_intent]
+            structured_intent: unsafe_hash(params[:structured_intent]),
+            user: Current.user
           )
 
           render json: schedule_preview_json(result)
@@ -135,8 +138,14 @@ module Api
             schedule_explanation: result.explanation,
             next_fire_at: result.next_fire_at,
             cron_expression: result.cron_expression,
-            errors: result.errors
+            errors: result.errors,
+            source: result.source,
+            structured_intent: result.structured_intent
           }
+        end
+
+        def unsafe_hash(value)
+          value.respond_to?(:to_unsafe_h) ? value.to_unsafe_h : value
         end
       end
     end

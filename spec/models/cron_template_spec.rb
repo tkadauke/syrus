@@ -18,6 +18,17 @@ RSpec.describe CronTemplate do
       expect(build_template).to be_valid
     end
 
+    it "canonicalizes typo-heavy natural text through the LLM fallback when structured_intent is supplied" do
+      template = build_template(
+        cron_expression: nil,
+        schedule_input: "moday at 9am in tjhe mornin",
+        structured_intent: { frequency: "WEEKLY", day: "monday", hour: 9, minute: 0 }
+      )
+
+      expect(template).to be_valid
+      expect(template.schedule_explanation).to eq("Every Monday at 9:00 AM UTC")
+    end
+
     it "requires a name" do
       expect(build_template(name: "")).not_to be_valid
     end

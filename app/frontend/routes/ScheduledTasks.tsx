@@ -370,9 +370,9 @@ function ScheduledTaskForm({
   const navigate = useNavigate()
   const [values, setValues] = useState<ScheduledTaskInput>(initial)
   const save = useMutation({
-    mutationFn: () => mode === "new"
-      ? createScheduledTask(repositoryId, submitInput(values), fromTemplate)
-      : updateScheduledTask(id, submitInput(values)),
+    mutationFn: (structuredIntent: Record<string, unknown> | null) => mode === "new"
+      ? createScheduledTask(repositoryId, submitInput(values, structuredIntent), fromTemplate)
+      : updateScheduledTask(id, submitInput(values, structuredIntent)),
     onSuccess: (payload) => {
       queryClient.setQueryData(["scheduled_tasks", String(payload.task.id)], payload)
       void queryClient.invalidateQueries({ queryKey: ["scheduled_tasks"] })
@@ -382,6 +382,15 @@ function ScheduledTaskForm({
   const preview = useMutation({
     mutationFn: previewScheduledTaskSchedule
   })
+  // The preview result only reflects values.schedule_input once it resolves for
+  // that exact string — while the debounce timer or the request itself is
+  // still in flight, a stale (possibly unrelated) explanation must not linger
+  // next to newly-typed, unvalidated input. Before any preview has run yet,
+  // fall back to the persisted explanation (edit mode's initial render).
+  const previewMatchesInput = preview.data?.schedule_input === values.schedule_input
+  const previewErrors = previewMatchesInput ? preview.data?.errors || [] : []
+  const previewExplanation = preview.data ? (previewMatchesInput ? preview.data.schedule_explanation : null) : values.schedule_explanation
+  const previewSource = previewMatchesInput ? preview.data?.source : null
 
   useEffect(() => {
     setValues(initial)
@@ -396,7 +405,7 @@ function ScheduledTaskForm({
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    save.mutate()
+    save.mutate(previewMatchesInput ? preview.data?.structured_intent ?? null : null)
   }
 
   const autoApproval = options.auto_approve_modes.find((option) => option.value === values.auto_approve_mode)
@@ -419,7 +428,7 @@ function ScheduledTaskForm({
       ) : (
         <Field label={t("scheduled_tasks.field_schedule")}>
           <input className={inputClass()} onChange={(event) => setValues({ ...values, schedule_input: event.target.value, cron_expression: event.target.value })} placeholder={t("scheduled_tasks.schedule_placeholder")} type="text" value={values.schedule_input} />
-          <SchedulePreviewState errors={preview.data?.errors || []} explanation={preview.data?.schedule_explanation || values.schedule_explanation} loading={preview.isPending} />
+          <SchedulePreviewState errors={previewErrors} explanation={previewExplanation} loading={preview.isPending} source={previewSource} />
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("scheduled_tasks.schedule_help")}</p>
         </Field>
       )}
@@ -456,11 +465,18 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-function SchedulePreviewState({ explanation, errors, loading }: { explanation?: string | null; errors: string[]; loading: boolean }) {
+function SchedulePreviewState({ explanation, errors, loading, source }: { explanation?: string | null; errors: string[]; loading: boolean; source?: string | null }) {
   const { t } = useT("settings")
   if (loading) return <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("scheduled_tasks.preview_loading")}</p>
   if (errors.length > 0) return <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.join(", ")}</p>
-  if (explanation) return <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">{explanation}</p>
+  if (explanation) {
+    return (
+      <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">
+        {explanation}
+        {source === "structured_intent" ? <span className="ml-1 text-emerald-600 dark:text-emerald-400">{t("scheduled_tasks.preview_via_ai")}</span> : null}
+      </p>
+    )
+  }
   return null
 }
 
@@ -514,12 +530,13 @@ function detailInput(task: ScheduledTaskDetail): ScheduledTaskInput {
   })
 }
 
-function submitInput(values: ScheduledTaskInput): ScheduledTaskInput {
+function submitInput(values: ScheduledTaskInput, structuredIntent: Record<string, unknown> | null): ScheduledTaskInput {
   return {
     ...values,
     cron_expression: values.kind === "cron" ? values.cron_expression : "",
     schedule_input: values.kind === "cron" ? values.schedule_input : "",
-    fire_at: values.kind === "one_shot" ? values.fire_at : ""
+    fire_at: values.kind === "one_shot" ? values.fire_at : "",
+    structured_intent: values.kind === "cron" ? structuredIntent : null
   }
 }
 

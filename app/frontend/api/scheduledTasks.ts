@@ -55,6 +55,7 @@ export type ScheduledTaskInput = {
   fire_at: string
   pr_pileup_policy: string
   auto_approve_mode: string
+  structured_intent?: Record<string, unknown> | null
 }
 
 export type ScheduledTaskOptions = {
@@ -128,6 +129,8 @@ export type SchedulePreview = {
   next_fire_at: string | null
   cron_expression: string | null
   errors: string[]
+  source: string | null
+  structured_intent: Record<string, unknown> | null
 }
 
 export function fetchScheduledTasks() {
