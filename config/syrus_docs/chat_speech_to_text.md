@@ -55,3 +55,18 @@ and kill a wedged invocation the same way as any other tracked subprocess. The
 recorded command omits the per-request audio tempfile path (replaced with
 `[audio]`) so local worker paths don't leak into the admin UI; the executable
 and model paths are shown.
+
+## Querying STT operational logs from chat
+
+The `chat_speech_to_text.*` operational log events above are queryable from an
+admin chat session, not just via kubectl/log-scraping. `admin_read_operational_logs`
+(`Mcp::Tools::AdminReadOperationalLogsTool`, registered `admin_only: true` in
+`McpToolRegistry`) wraps `OperationalLogIndex.search` with the same
+query/since/level/role/hostname/limit shape, `OperationalLogging.enabled_for_instance?`
+disabled-response guard, and write-time redaction as the workflow/agent-insight
+`read_syrus_logs` tool (`SyrusDev::ReadSyrusLogsTool`); the shared search and
+row-rendering logic lives in `OperationalLogSearch`. Unlike `read_syrus_logs`,
+it is not restricted to runs on a `tkadauke/syrus` repository — any admin chat
+session, including Supervisor chats with no attached repository, can call it —
+so an operator can ask "which STT mode fired for that transcription?" and get
+an answer in seconds.

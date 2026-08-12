@@ -139,6 +139,7 @@ class McpToolRegistry
         chat(Mcp::Tools::AdminListUsersTool, admin_only: true),
         chat(Mcp::Tools::AdminVersionTool, admin_only: true),
         chat(Mcp::Tools::ReadWorkerHealthTool, admin_only: true),
+        chat(Mcp::Tools::AdminReadOperationalLogsTool, admin_only: true),
         chat(Mcp::Tools::AdminKillProcessTool, admin_only: true, mutation: true),
         chat(Mcp::Tools::AdminReapStaleRunsTool, admin_only: true, mutation: true),
         chat(Mcp::Tools::AdminPausePollingTool, admin_only: true, mutation: true),

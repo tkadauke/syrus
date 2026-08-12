@@ -1,13 +1,12 @@
 require "mcp"
 
-module SyrusDev
-  class ReadSyrusLogsTool < MCP::Tool
-    tool_name "read_syrus_logs"
+module Mcp::Tools
+  class AdminReadOperationalLogsTool < MCP::Tool
+    tool_name "admin_read_operational_logs"
 
     DESCRIPTION = <<~DESC
       Search recent indexed Rails application logs for this Syrus instance.
-      Only available to workflow implementation and agent insight runs working on
-      tkadauke/syrus or a registered fork of that repository.
+      Admin-only chat tool.
     DESC
 
     description DESCRIPTION
@@ -16,21 +15,19 @@ module SyrusDev
 
     class << self
       def call(server_context:, query: nil, since: nil, level: nil, role: nil, hostname: nil, limit: 50)
-        context = McpToolContext.from_server_context(server_context)
-        return Mcp::Tools.not_authorized unless authorized_role?(context.role)
-        return Mcp::Tools.invalid("Syrus logs are only available for Syrus repositories") unless McpToolPolicy.syrus_repository?(context.repository)
+        return Mcp::Tools.unauthorized("Admin access required") unless admin?(server_context)
         return OperationalLogSearch.disabled_response unless OperationalLogging.enabled_for_instance?
 
         OperationalLogSearch.search_response(query: query, since: since, level: level, role: role, hostname: hostname, limit: limit)
       rescue StandardError => e
-        Rails.logger.error("[SyrusDev::ReadSyrusLogsTool] #{e.class}: #{e.message}")
+        Rails.logger.error("[Mcp::Tools::AdminReadOperationalLogsTool] #{e.class}: #{e.message}")
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
       end
 
       private
 
-      def authorized_role?(role)
-        role == AgentRole::WORKFLOW_IMPLEMENT || role == AgentRole::AGENT_INSIGHT
+      def admin?(server_context)
+        server_context.fetch(:chat_session).user.admin?
       end
     end
   end
