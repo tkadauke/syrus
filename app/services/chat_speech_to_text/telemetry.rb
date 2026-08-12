@@ -2,11 +2,24 @@ module ChatSpeechToText
   module Telemetry
     module_function
 
+    LOG_LEVELS = {
+      "mode_selected" => "info",
+      "transcribed" => "info",
+      "fallback" => "warn",
+      "error" => "error"
+    }.freeze
+
     def log(event, **fields)
       event_name = "chat_speech_to_text.#{event}"
       payload = safe_fields(fields)
       ActiveSupport::Notifications.instrument(event_name, payload)
       Rails.logger.info({ event: event_name }.merge(payload).to_json)
+      OperationalLogging.ingest(
+        level: LOG_LEVELS.fetch(event.to_s, "info"),
+        source: "chat_speech_to_text",
+        message: event_name,
+        context: payload
+      )
     rescue StandardError
       nil
     end
