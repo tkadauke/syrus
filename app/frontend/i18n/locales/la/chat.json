@@ -64,6 +64,7 @@
   "dictation_transcribing": "Transcribitur…",
   "dictation_unavailable": "Dictatio non praesto est",
   "dictation_error": "Dictatio defecit.",
+  "dictation_no_speech": "Nulla vox audita est.",
   "dictation_permission_denied": "Permissio microphoni negata est.",
   "dictation_stream_fallback": "Fluxus defecit — transcriptio fasciculi adhibetur.",
   "dictation_browser_fallback": "Dictatio navigatoris adhibetur.",

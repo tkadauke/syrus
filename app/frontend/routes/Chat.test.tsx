@@ -436,6 +436,71 @@ describe("chat composer dictation", () => {
 
     expect(await screen.findByText("Microphone permission was denied.")).toBeInTheDocument()
   })
+
+  it("quietly resets to idle without an error toast on no-speech", async () => {
+    const recognition = installSpeechRecognitionMock()
+    mockDictationFetch(chatPayloadWithDictation({ browser: true }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
+
+    await act(async () => {
+      recognition.lastInstance?.onerror?.({ error: "no-speech" })
+    })
+
+    expect(await screen.findByText("No speech detected.")).toBeInTheDocument()
+    expect(screen.queryByText("Dictation failed.")).not.toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "Start dictation" })).toBeInTheDocument()
+  })
+
+  it("quietly resets to idle without an error toast when aborted follows a user-initiated stop", async () => {
+    const recognition = installSpeechRecognitionMock()
+    mockDictationFetch(chatPayloadWithDictation({ browser: true }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
+    await screen.findByRole("button", { name: "Stop dictation" })
+
+    fireEvent.click(screen.getByRole("button", { name: "Stop dictation" }))
+    await act(async () => {
+      recognition.lastInstance?.onerror?.({ error: "aborted" })
+    })
+
+    expect(screen.queryByText("Dictation failed.")).not.toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "Start dictation" })).toBeInTheDocument()
+  })
+
+  it("shows the error toast when aborted fires without a user-initiated stop", async () => {
+    const recognition = installSpeechRecognitionMock()
+    mockDictationFetch(chatPayloadWithDictation({ browser: true }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
+
+    await act(async () => {
+      recognition.lastInstance?.onerror?.({ error: "aborted" })
+    })
+
+    expect(await screen.findByText("Dictation failed.")).toBeInTheDocument()
+  })
+
+  it("shows the error toast for unrecognized error codes", async () => {
+    const recognition = installSpeechRecognitionMock()
+    mockDictationFetch(chatPayloadWithDictation({ browser: true }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Start dictation" }))
+
+    await act(async () => {
+      recognition.lastInstance?.onerror?.({ error: "audio-capture" })
+    })
+
+    expect(await screen.findByText("Dictation failed.")).toBeInTheDocument()
+  })
 })
 
 describe("chat attachment popup", () => {

@@ -1850,9 +1850,23 @@ function useChatDictation({
       }
     }
     recognition.onerror = (event: { error?: string }) => {
+      if (event.error === "not-allowed") {
+        setPhase("error")
+        setMessageTone("error")
+        setMessage(t("dictation_permission_denied"))
+        return
+      }
+
+      if (event.error === "no-speech" || (event.error === "aborted" && stoppingRef.current)) {
+        setPhase("idle")
+        setMessageTone("status")
+        setMessage(event.error === "no-speech" ? t("dictation_no_speech") : null)
+        return
+      }
+
       setPhase("error")
       setMessageTone("error")
-      setMessage(event.error === "not-allowed" ? t("dictation_permission_denied") : t("dictation_error"))
+      setMessage(t("dictation_error"))
     }
     recognition.onend = () => {
       if (phase !== "error") setPhase("idle")

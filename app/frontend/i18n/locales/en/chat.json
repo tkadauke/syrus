@@ -64,6 +64,7 @@
   "dictation_transcribing": "Transcribing…",
   "dictation_unavailable": "Dictation is unavailable",
   "dictation_error": "Dictation failed.",
+  "dictation_no_speech": "No speech detected.",
   "dictation_permission_denied": "Microphone permission was denied.",
   "dictation_stream_fallback": "Streaming failed — using batch transcription.",
   "dictation_browser_fallback": "Using browser dictation.",

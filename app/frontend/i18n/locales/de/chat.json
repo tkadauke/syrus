@@ -64,6 +64,7 @@
   "dictation_transcribing": "Wird transkribiert…",
   "dictation_unavailable": "Diktat ist nicht verfügbar",
   "dictation_error": "Diktat fehlgeschlagen.",
+  "dictation_no_speech": "Keine Sprache erkannt.",
   "dictation_permission_denied": "Mikrofonzugriff wurde verweigert.",
   "dictation_stream_fallback": "Streaming fehlgeschlagen — Batch-Transkription wird verwendet.",
   "dictation_browser_fallback": "Browser-Diktat wird verwendet.",
