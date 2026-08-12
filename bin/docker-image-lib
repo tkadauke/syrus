@@ -217,6 +217,22 @@ syrus_docker_buildx_image() {
   docker buildx build -f Dockerfile --target "$target" --build-arg "GIT_SHA=$git_sha" --build-arg "SYRUS_VERSION=$syrus_version" --build-arg "SYRUS_BUILT_AT=$syrus_built_at" "$@"
 }
 
+# Whether the whisper.cpp build+model download should be skipped for the
+# LOCAL dev loop (bin/build-local-image, bin/compose-up — the only two
+# callers of syrus_build_local_base_image). Defaults to skipping: compiling
+# whisper.cpp and pulling its ~148MB model on every local rebuild would slow
+# down the fast-iteration loop these scripts exist for, and most local dev
+# doesn't touch chat_speech_to_text. Set SYRUS_SKIP_WHISPER_BUILD=0 to build
+# the real thing locally (e.g. testing dictation itself). bin/publish-image
+# and bin/deploy build the `app`/`worker-dev` targets directly, bypassing
+# this helper entirely, so published images always get the real build.
+syrus_whisper_skip_build_args() {
+  case "${SYRUS_SKIP_WHISPER_BUILD:-1}" in
+    0|false|FALSE|no|NO|off|OFF) ;;
+    *) printf '%s\n' "--build-arg" "SYRUS_SKIP_WHISPER_BUILD=1" ;;
+  esac
+}
+
 # Builds syrus-backend-base:latest (Dockerfile target worker-dev — the fat
 # agent toolchain) from the current working tree. Honors the registry
 # BuildKit cache like bin/compose-up: SYRUS_DOCKER_REGISTRY_CACHE=1 pulls
@@ -227,6 +243,12 @@ syrus_docker_buildx_image() {
 syrus_build_local_base_image() {
   local git_sha="${1:?usage: syrus_build_local_base_image GIT_SHA [--version=X.Y.Z] [--built-at=TS]}"
   shift
+
+  local -a whisper_args
+  whisper_args=()
+  while IFS= read -r arg; do
+    whisper_args+=("$arg")
+  done < <(syrus_whisper_skip_build_args)
 
   if syrus_registry_cache_enabled; then
     local ghcr_user cache_ref cache_token
@@ -251,11 +273,13 @@ syrus_build_local_base_image() {
     syrus_docker_buildx_image worker-dev "$git_sha" "$@" \
       --load \
       "${cache_args[@]}" \
+      "${whisper_args[@]}" \
       --provenance=false \
       -t syrus-backend-base:latest \
       .
   else
     syrus_docker_build_image worker-dev "$git_sha" "$@" \
+      "${whisper_args[@]}" \
       --provenance=false -t syrus-backend-base:latest .
   fi
 }

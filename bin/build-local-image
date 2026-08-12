@@ -32,6 +32,12 @@
 # The first base build compiles the full agent toolchain (20-40 min);
 # SYRUS_DOCKER_REGISTRY_CACHE=1 with a GHCR token warms it from the shared
 # registry cache. Later builds reuse the local layer cache.
+#
+# The whisper.cpp build stage is skipped by default here (see
+# docker-image-lib's syrus_whisper_skip_build_args) so this loop isn't slowed
+# down by an unrelated compile + ~148MB model download. Set
+# SYRUS_SKIP_WHISPER_BUILD=0 to bundle the real thing, e.g. when testing
+# chat_speech_to_text locally.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 . bin/docker-image-lib

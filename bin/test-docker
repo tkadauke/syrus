@@ -12,6 +12,7 @@
 #   c) worker            — the worker registers and drains jobs
 #   d) dev toolchain     — ruby / node / python / go are usable in the image
 #   e) MCP sidecar       — boots full Rails without errors
+#   f) whisper.cpp       — the bundled dictation binary + default model work
 #
 # Usage: bin/test-docker
 #   SYRUS_IMAGE=ghcr.io/tkadauke/syrus-backend:TAG  test a specific image
@@ -211,6 +212,24 @@ else
   else
     bad "sidecar did not complete the MCP handshake"; dump "$hs"
   fi
+fi
+
+# ---------------------------------------------------------------------------
+note "f) whisper.cpp (bundled chat_speech_to_text default backend)"
+# `web` is the app container in this stack (see docker-compose.yml's shared
+# `x-app` image) — the same role SpeechToTextController/ChatDictationChannel
+# run in. Exercise whisper-cli for real (not just `-x`) so a broken/corrupt
+# binary from a bad cross-arch build shows up here, not in an operator's log.
+out="$(compose -p "$PROJECT" exec -T web bash -c '
+  set -e
+  test -x /opt/whisper.cpp/whisper-cli
+  test -s /opt/whisper.cpp/models/ggml-base.en.bin
+  /opt/whisper.cpp/whisper-cli --help
+' 2>&1)"
+if [ $? -eq 0 ]; then
+  ok "whisper-cli + default model present; whisper-cli --help exits 0"
+else
+  bad "bundled whisper.cpp missing or broken"; dump "$out"
 fi
 
 # ---------------------------------------------------------------------------

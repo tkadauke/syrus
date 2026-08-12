@@ -42,6 +42,12 @@ fi
 # `image "...": already exists` (the no-op local layer matches the base).
 syrus_disable_buildx_attestations
 
+# The whisper.cpp build stage is skipped by default (see docker-image-lib's
+# syrus_whisper_skip_build_args) so this loop isn't slowed down by an
+# unrelated compile + ~148MB model download. Set SYRUS_SKIP_WHISPER_BUILD=0
+# before running this script to bundle the real thing, e.g. when testing
+# chat_speech_to_text locally.
+
 # 1. Generate .env with fresh secrets on first run — but refuse to mint fresh
 #    encryption keys when a data volume already exists, or the existing DB (which
 #    was encrypted with the old keys) becomes undecryptable.
