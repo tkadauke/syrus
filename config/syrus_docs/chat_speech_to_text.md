@@ -19,11 +19,19 @@ the frontend keeps the buffered audio blob while streaming so an `error` frame's
 ## Backend deployment
 
 Chat dictation is feature-gated by `chat_speech_to_text`. With the flag off,
-all modes are reported unavailable. With the flag on and no backend provider
-configured, the composer falls back to browser speech recognition when the
-browser supports it.
+all modes are reported unavailable. With the flag on, the official
+`syrus-backend` image works with zero extra env configuration: it bundles a
+CPU-only whisper.cpp build and a default model at fixed paths
+(`/opt/whisper.cpp/whisper-cli` and `/opt/whisper.cpp/models/ggml-base.en.bin`),
+and `ChatSpeechToText::Providers.configured` uses those paths automatically
+when `SYRUS_STT_PROVIDER`/`SYRUS_STT_WHISPER_CPP_EXECUTABLE`/
+`SYRUS_STT_WHISPER_CPP_MODEL` are unset — but only if the baked-in files
+actually exist, so bare-metal/non-bundled installs still correctly fall
+through to browser speech recognition when the browser supports it.
 
-The local/free backend provider is `whisper_cpp`:
+The backend provider is `whisper_cpp`. All three env vars are optional
+overrides, not required setup — set them to point at a different
+binary/model (e.g. bare-metal installs or a custom model):
 
 ```
 SYRUS_STT_PROVIDER=whisper_cpp
@@ -31,6 +39,8 @@ SYRUS_STT_WHISPER_CPP_EXECUTABLE=/opt/whisper.cpp/build/bin/whisper-cli
 SYRUS_STT_WHISPER_CPP_MODEL=/models/ggml-base.en.bin
 SYRUS_STT_BACKEND_STREAMING=false
 ```
+
+Explicit env vars always take precedence over the baked-in defaults.
 
 CPU-only deployments can use batch transcription, but latency depends heavily on
 host CPU and model size. The bundled `whisper_cpp` adapter uses the CLI batch
