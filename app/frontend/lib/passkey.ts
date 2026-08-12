@@ -1,4 +1,4 @@
-import type { CredentialCreationOptionsJSON, CredentialRequestOptionsJSON, PublicKeyCredentialWithAssertionJSON, PublicKeyCredentialWithAttestationJSON } from "@github/webauthn-json"
+import type { PublicKeyCredentialCreationOptionsJSON, PublicKeyCredentialRequestOptionsJSON, PublicKeyCredentialWithAssertionJSON, PublicKeyCredentialWithAttestationJSON } from "@github/webauthn-json"
 import { create, get } from "@github/webauthn-json"
 
 export function isPasskeySupported(): boolean {
@@ -9,20 +9,20 @@ export function isPasskeySupported(): boolean {
 
 export async function registerNewPasskey(
   nickname: string,
-  fetchOptions: () => Promise<CredentialCreationOptionsJSON>,
+  fetchOptions: () => Promise<PublicKeyCredentialCreationOptionsJSON>,
   submitRegistration: (cred: PublicKeyCredentialWithAttestationJSON, nickname: string) => Promise<unknown>
 ): Promise<void> {
   const options = await fetchOptions()
-  const credential = await create(options)
+  const credential = await create({ publicKey: options })
   await submitRegistration(credential, nickname)
 }
 
 export async function signInWithPasskey(
-  fetchOptions: () => Promise<CredentialRequestOptionsJSON>,
+  fetchOptions: () => Promise<PublicKeyCredentialRequestOptionsJSON>,
   submitAssertion: (cred: PublicKeyCredentialWithAssertionJSON, challenge: string) => Promise<{ redirect_to: string }>
 ): Promise<string> {
   const options = await fetchOptions()
-  const credential = await get(options)
-  const { redirect_to } = await submitAssertion(credential, options.publicKey!.challenge)
+  const credential = await get({ publicKey: options })
+  const { redirect_to } = await submitAssertion(credential, options.challenge)
   return redirect_to
 }

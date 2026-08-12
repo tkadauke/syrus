@@ -3,6 +3,7 @@ WebAuthn.configure do |config|
 
   if (app_host = ENV["SYRUS_APP_HOST"].presence)
     config.allowed_origins = [ "https://#{app_host}" ]
+    config.rp_id = app_host
   else
     port = ENV["PORT"].presence || "3000"
     config.allowed_origins = [ "http://localhost:#{port}" ]

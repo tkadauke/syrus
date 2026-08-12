@@ -117,6 +117,18 @@ RSpec.describe "API: /api/v1/app/passkeys", type: :request do
       challenge = PasskeyChallenge.for_type("registration").find_by!(user: user)
       expect(challenge.expires_at).to be_within(10.seconds).of(5.minutes.from_now)
     end
+
+    it "includes the configured rp_id in the rp entity" do
+      original_rp_id = WebAuthn.configuration.rp_id
+      WebAuthn.configuration.rp_id = "app.example.com"
+      sign_in_as(user)
+
+      get "/api/v1/app/passkeys/registration_options"
+
+      expect(parse_body.dig("rp", "id")).to eq("app.example.com")
+    ensure
+      WebAuthn.configuration.rp_id = original_rp_id
+    end
   end
 
   describe "POST /api/v1/app/passkeys/register" do
@@ -273,6 +285,17 @@ RSpec.describe "API: /api/v1/app/passkeys", type: :request do
 
       challenge = PasskeyChallenge.for_type("authentication").last
       expect(challenge.expires_at).to be_within(10.seconds).of(5.minutes.from_now)
+    end
+
+    it "includes the configured rp_id" do
+      original_rp_id = WebAuthn.configuration.rp_id
+      WebAuthn.configuration.rp_id = "app.example.com"
+
+      get "/api/v1/app/passkeys/authentication_options"
+
+      expect(parse_body["rpId"]).to eq("app.example.com")
+    ensure
+      WebAuthn.configuration.rp_id = original_rp_id
     end
   end
 

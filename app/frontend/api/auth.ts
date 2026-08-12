@@ -1,4 +1,4 @@
-import type { CredentialRequestOptionsJSON, PublicKeyCredentialWithAssertionJSON } from "@github/webauthn-json"
+import type { PublicKeyCredentialRequestOptionsJSON, PublicKeyCredentialWithAssertionJSON } from "@github/webauthn-json"
 import { getJson, patchJson, postJson } from "./client"
 
 export type SignupPayload = {
@@ -64,7 +64,7 @@ export function resetPassword(token: string, values: { password: string; passwor
 }
 
 export function fetchPasskeyAuthenticationOptions() {
-  return getJson<CredentialRequestOptionsJSON>("/api/v1/app/passkeys/authentication_options")
+  return getJson<PublicKeyCredentialRequestOptionsJSON>("/api/v1/app/passkeys/authentication_options")
 }
 
 export function authenticateWithPasskey(credential: PublicKeyCredentialWithAssertionJSON, challenge: string) {

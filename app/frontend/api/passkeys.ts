@@ -1,4 +1,4 @@
-import type { CredentialCreationOptionsJSON, PublicKeyCredentialWithAttestationJSON } from "@github/webauthn-json"
+import type { PublicKeyCredentialCreationOptionsJSON, PublicKeyCredentialWithAttestationJSON } from "@github/webauthn-json"
 import { deleteJson, getJson, postJson } from "./client"
 
 export type PasskeyRecord = {
@@ -9,7 +9,7 @@ export type PasskeyRecord = {
 }
 
 export function fetchPasskeyRegistrationOptions() {
-  return getJson<CredentialCreationOptionsJSON>("/api/v1/app/passkeys/registration_options")
+  return getJson<PublicKeyCredentialCreationOptionsJSON>("/api/v1/app/passkeys/registration_options")
 }
 
 export function registerPasskey(credential: PublicKeyCredentialWithAttestationJSON, nickname: string) {
