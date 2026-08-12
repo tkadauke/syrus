@@ -31,6 +31,37 @@ RSpec.describe "App API job lifecycle commands", type: :request do
     expect(parse_body.dig("paths", "job_path")).to eq(job_path(direct, tab: "workflows"))
   end
 
+  it "reports a blocked reason instead of a false success when the initial workflow is admission-blocked" do
+    direct = Job.create!(
+      user: user,
+      repository: repo,
+      kind: "direct",
+      issue_number: nil,
+      issue_title: "Direct repair",
+      issue_body: "Repair the forum."
+    )
+    decision = WorkflowAdmissionBudget::Decision.new(
+      action: "delay_until",
+      reason: "predicted_budget_pressure_high",
+      pressure: { "projected" => { "cpu_pressure" => 105.0 } },
+      delay_until: 10.minutes.from_now,
+      override: false,
+      details: { "candidate_seconds" => 1800 }
+    )
+    allow(WorkflowAdmissionBudget).to receive(:call).and_return(decision)
+
+    expect {
+      post app_job_path(direct, "start"), as: :json
+    }.not_to change { direct.reload.runs.count }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq(
+      "Blocked: workflow admission budget — see job card for details."
+    )
+    expect(direct.reload.workflows.where(trigger_kind: "initial").last.artifact("start_blocked_reason"))
+      .to eq(StepDispatcher::ADMISSION_BLOCK_REASON)
+  end
+
   it "retries a completed job" do
     job.initial_run.tap { |run| run.start!; run.succeed!; run.save! }
 

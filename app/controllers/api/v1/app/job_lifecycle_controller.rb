@@ -30,9 +30,13 @@ module Api
             user: job.user,
             repository_ids: [ job.repository_id ]
           ).to_s
-          StepDispatcher.start_workflow(workflow, prompt: rendered_prompt)
+          run = StepDispatcher.start_workflow(workflow, prompt: rendered_prompt)
 
-          render_job(job.reload, message: "Initial workflow enqueued.", changed: [ "workflows", "runs" ], tab: "workflows")
+          if run
+            render_job(job.reload, message: "Initial workflow enqueued.", changed: [ "workflows", "runs" ], tab: "workflows")
+          else
+            render_error("validation_failed", start_blocked_message(workflow.reload), status: :unprocessable_content)
+          end
         end
 
         def run_again
@@ -312,6 +316,15 @@ module Api
             runs_count: job.runs.size,
             workflows_count: job.workflows.size
           }
+        end
+
+        def start_blocked_message(workflow)
+          reason = workflow.artifact("start_blocked_reason") || workflow.artifact("start_cancelled_reason")
+          if reason.present?
+            "Blocked: #{reason.to_s.tr('_', ' ')} — see job card for details."
+          else
+            "Initial workflow could not be started right now. Refresh and check the job card for details."
+          end
         end
 
         def reopen_notice(prior_reason)

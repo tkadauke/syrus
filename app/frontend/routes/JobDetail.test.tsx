@@ -588,6 +588,21 @@ describe("JobDetailView", () => {
     expect(screen.getByPlaceholderText("What should be changed?")).toBeInTheDocument()
   })
 
+  it("shows the blocked reason instead of a false success toast when starting an admission-blocked workflow", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({ error: { message: "Blocked: workflow admission budget — see job card for details." } }, 422)
+    )
+    const payload = jobPayload({
+      job: { ...baseJob(), state: "open", summary_state: "open" }
+    })
+    renderJobDetail({ ...payload, actions: { ...payload.actions, can_start: true } })
+
+    fireEvent.click(screen.getByRole("button", { name: "Start Run" }))
+
+    expect(await screen.findByText("Blocked: workflow admission budget — see job card for details.")).toBeInTheDocument()
+    expect(screen.queryByText("Initial workflow enqueued.")).not.toBeInTheDocument()
+  })
+
   it("renders the issue body as markdown", () => {
     renderJobDetail(jobPayload({
       job: {
