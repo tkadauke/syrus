@@ -37,4 +37,19 @@ RSpec.describe JobDependencyParser do
   it "ignores malformed lines gracefully" do
     expect(refs("Depends-on: tomorrow\nBlocks: #9\nDepends-on: acme/widgets")).to eq([])
   end
+
+  it "bounds a pathological unbroken Depends-on line instead of scanning it unbounded" do
+    text = "Depends-on: #{'a' * 200_000}"
+
+    expect(refs(text)).to eq([])
+  end
+
+  it "caps the number of parsed references so a huge list can't trigger unbounded dependency lookups" do
+    text = "Depends-on: #{(1..500).map { |n| "##{n}" }.join(' ')}"
+
+    result = refs(text)
+
+    expect(result.size).to eq(described_class::MAX_REFERENCES)
+    expect(result.first).to eq([ "acme", "widgets", 1 ])
+  end
 end

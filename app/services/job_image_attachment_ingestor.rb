@@ -4,6 +4,8 @@ require "uri"
 
 class JobImageAttachmentIngestor
   MAX_BYTES = 10.megabytes
+  MAX_LINE_BYTES = 32.kilobytes
+  MAX_URL_BYTES = 4.kilobytes
   ALLOWED_CONTENT_TYPES = %w[
     image/gif
     image/jpeg
@@ -13,20 +15,6 @@ class JobImageAttachmentIngestor
 
   Result = Data.define(:attached, :skipped)
   Download = Data.define(:body, :content_type, :filename)
-
-  MARKDOWN_IMAGE = /
-    !\[[^\]]*\]
-    \(
-      \s*
-      (?:
-        <(?<bracketed_url>[^>]+)>
-        |
-        (?<bare_url>[^\s)]+)
-      )
-      (?:\s+["'][^"']*["'])?
-      \s*
-    \)
-  /x
 
   def self.ingest_markdown_images(job:, markdown:)
     new(job).ingest_markdown_images(markdown)
@@ -54,9 +42,32 @@ class JobImageAttachmentIngestor
   private
 
   def image_urls(markdown)
-    markdown.to_s.scan(MARKDOWN_IMAGE).map do |bracketed_url, bare_url|
-      (bracketed_url || bare_url).to_s.strip
-    end.uniq
+    markdown.to_s.each_line.flat_map { |line| urls_from_line(line) }.uniq
+  end
+
+  def urls_from_line(line)
+    line = line.to_s.safe_byteslice(0, MAX_LINE_BYTES)
+    urls = []
+    offset = 0
+
+    while (start = line.index("![", offset))
+      alt_end = line.index("]", start + 2)
+      break unless alt_end
+
+      open = line.index("(", alt_end + 1)
+      break unless open
+
+      close = line.index(")", open + 1)
+      break unless close
+
+      raw_target = line[(open + 1)...close].to_s.strip
+      raw_target = raw_target[1...-1] if raw_target.start_with?("<") && raw_target.end_with?(">")
+      raw_target = raw_target.split(/[[:space:]]+/, 2).first.to_s.strip
+      urls << raw_target.safe_byteslice(0, MAX_URL_BYTES) if raw_target.present?
+      offset = close + 1
+    end
+
+    urls
   end
 
   def ingest_url(source_url)

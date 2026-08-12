@@ -1,6 +1,9 @@
 class JobDependencyParser
   Reference = Data.define(:owner, :repo, :number)
 
+  MAX_LINE_BYTES = 8.kilobytes
+  MAX_REFERENCES = 50
+
   KEYWORD_PATTERN = /\A\s*(?:depends(?:\s+|-)?on|blocked(?:\s+|-)?by)\s*:\s*(?<refs>.+)\z/i
 
   REFERENCE_PATTERN = /
@@ -22,7 +25,7 @@ class JobDependencyParser
 
   def parse
     @text.each_line.flat_map do |line|
-      match = line.chomp.match(KEYWORD_PATTERN)
+      match = line.chomp.safe_byteslice(0, MAX_LINE_BYTES).match(KEYWORD_PATTERN)
       next [] unless match
 
       match[:refs].scan(REFERENCE_PATTERN).filter_map do |owner, repo, number|
@@ -32,6 +35,6 @@ class JobDependencyParser
           number: number.to_i
         )
       end
-    end.uniq
+    end.uniq.first(MAX_REFERENCES)
   end
 end

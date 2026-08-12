@@ -70,4 +70,14 @@ RSpec.describe JobImageAttachmentIngestor do
     expect(result.skipped).to eq(2)
     expect(job.job_attachments).to be_empty
   end
+
+  it "does not run an unbounded regex over huge single-line comment markdown" do
+    result = described_class.ingest_markdown_images(
+      job: job,
+      markdown: "![broken](#{'a' * 100_000}"
+    )
+
+    expect(result.attached).to eq(0)
+    expect(result.skipped).to eq(0)
+  end
 end
