@@ -294,6 +294,7 @@
     "workflow_admission_budget": "Syrus praedixit hunc cursum nunc nimiam vim operariis impositurum esse.",
     "provider_availability": "This job is paused until its configured agent provider has enough available usage, or an operator resumes it anyway."
   },
+  "admission_diagnostics_link": "Diagnostica oneris videre",
   "blocked_reasons": {
     "landing_paused": "Landing suspensa",
     "landing_paused_main_broken": "Landing suspensa: ramus principalis fractus",

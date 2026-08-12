@@ -1135,6 +1135,120 @@ RSpec.describe App::JobDetailPayload do
         "phase_step_kind" => "grader_fanout"
       )
     end
+
+    it "does not compute a breakdown for non-admission block reasons" do
+      job = Factories.job_record(user: user, repository: repo, state: "queued")
+      Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "queued",
+        artifacts: {
+          "start_blocked_reason" => "stack_dependencies_not_ready",
+          "start_blocked_at" => "2026-08-04T12:00:00Z"
+        }
+      )
+
+      expect(payload_for(job).dig(:job, :start_blocked_breakdown)).to be_nil
+    end
+
+    it "surfaces a step-profile pressure breakdown with current values vs the recorded thresholds" do
+      job = Factories.job_record(user: user, repository: repo, state: "queued")
+      Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "queued",
+        artifacts: {
+          "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
+          "start_blocked_at" => "2026-08-04T12:00:00Z",
+          "start_blocked_details" => {
+            "action" => "delay_until",
+            "reason" => "predicted_budget_pressure_high",
+            "pressure" => {
+              "projected" => { "cpu_pressure" => 132.4, "io_pressure" => 20.0, "memory_used_percent" => 40.0 },
+              "host" => { "telemetry_state" => "present" }
+            }
+          }
+        }
+      )
+
+      breakdown = payload_for(job).dig(:job, :start_blocked_breakdown)
+      expect(breakdown).to include(
+        "reason" => "predicted_budget_pressure_high",
+        "category" => "step_profile_pressure",
+        "telemetry_state" => "present",
+        "telemetry_absent" => false
+      )
+      expect(breakdown["dimensions"]).to include(
+        include("metric" => "cpu_pressure", "current" => 132.4, "threshold" => WorkflowAdmissionBudget::CPU_BUDGET, "over_threshold" => true)
+      )
+    end
+
+    it "surfaces a hard host pressure breakdown for the exact metric that tripped" do
+      job = Factories.job_record(user: user, repository: repo, state: "queued")
+      Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "queued",
+        artifacts: {
+          "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
+          "start_blocked_at" => "2026-08-04T12:00:00Z",
+          "start_blocked_details" => {
+            "action" => "requires_override",
+            "reason" => "worker_memory_exhausted",
+            "pressure" => { "host" => { "max_memory_used_percent" => 97.2, "telemetry_state" => "present" } }
+          }
+        }
+      )
+
+      breakdown = payload_for(job).dig(:job, :start_blocked_breakdown)
+      expect(breakdown["category"]).to eq("hard_host_pressure")
+      expect(breakdown["dimensions"]).to eq(
+        [ { "metric" => "memory_used_percent", "label" => "Memory used", "current" => 97.2, "threshold" => WorkflowAdmissionBudget::HARD_MEMORY_USED_PERCENT, "over_threshold" => true } ]
+      )
+    end
+
+    it "distinguishes the telemetry-absent case in the breakdown" do
+      job = Factories.job_record(user: user, repository: repo, state: "queued")
+      Workflow.create!(
+        job: job,
+        trigger_kind: "initial",
+        state: "queued",
+        artifacts: {
+          "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
+          "start_blocked_at" => "2026-08-04T12:00:00Z",
+          "start_blocked_details" => {
+            "action" => "delay_until",
+            "reason" => "worker_host_pressure_high",
+            "pressure" => { "host" => { "telemetry_state" => "absent" } }
+          }
+        }
+      )
+
+      breakdown = payload_for(job).dig(:job, :start_blocked_breakdown)
+      expect(breakdown["telemetry_state"]).to eq("absent")
+      expect(breakdown["telemetry_absent"]).to be(true)
+    end
+  end
+
+  describe "resource admission diagnostics visibility" do
+    # The `user` let is the first User created in the example, so
+    # User#promote_first_user_to_admin makes it an admin. A second user
+    # created afterward is a genuine non-admin.
+    it "hides the admin diagnostics link for non-admin users" do
+      job = Factories.job_record(user: user, repository: repo)
+      non_admin = Factories.user
+
+      result = described_class.build(job: job, user: non_admin)
+      expect(result.dig(:actions, :can_view_resource_admission_diagnostics)).to be(false)
+    end
+
+    it "exposes the admin diagnostics link for admin users" do
+      job = Factories.job_record(user: user, repository: repo)
+
+      result = described_class.build(job: job, user: user)
+      expect(result.dig(:actions, :can_view_resource_admission_diagnostics)).to be(true)
+      expect(result.dig(:paths, :admin_resource_admission_path)).to eq("/admin/resource_admission")
+    end
   end
 
   describe "#typed_artifacts" do

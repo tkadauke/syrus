@@ -294,6 +294,7 @@
     "workflow_admission_budget": "Syrus hat vorhergesagt, dass dieser Workflow die Worker jetzt zu stark belasten würde.",
     "provider_availability": "Dieser Job ist pausiert, bis der konfigurierte Agent-Provider genug verfügbare Nutzung hat oder ein Operator ihn trotzdem fortsetzt."
   },
+  "admission_diagnostics_link": "Druckdiagnose anzeigen",
   "blocked_reasons": {
     "landing_paused": "Landing pausiert",
     "landing_paused_main_broken": "Landing pausiert: Hauptbranch defekt",

@@ -140,7 +140,8 @@ module App
           at: job_start_blocked_at,
           next_check_at: job_start_blocked_next_check_at,
           count: job_start_blocked_count,
-          details: job_start_blocked_details
+          details: job_start_blocked_details,
+          breakdown: job_start_blocked_breakdown
         }
       end
 
@@ -222,7 +223,8 @@ module App
         start_blocked_at: start_blocked.fetch(:at),
         start_blocked_next_check_at: start_blocked.fetch(:next_check_at),
         start_blocked_count: start_blocked.fetch(:count),
-        start_blocked_details: start_blocked.fetch(:details)
+        start_blocked_details: start_blocked.fetch(:details),
+        start_blocked_breakdown: start_blocked.fetch(:breakdown)
       }.merge(deployment_stages_json)
     end
 
@@ -548,6 +550,7 @@ module App
         can_unclaim: @job.claimed_by_user_id == @user.id,
         can_override_dependencies: @user.admin?,
         can_view_timeline: @user.admin?,
+        can_view_resource_admission_diagnostics: @user.admin?,
         can_manage_tags: @job.user_id == @user.id,
         can_open_in_coding_mode: Feature.coding_mode_enabled? &&
           (@job.implemented? || @job.approved?) &&
@@ -598,7 +601,8 @@ module App
         app_cancel_local_mode_path: "/api/v1/app/jobs/#{@job.id}/cancel_local_mode",
         app_priority_path: "/api/v1/app/jobs/#{@job.id}/priority",
         app_provider_setting_path: "/api/v1/app/jobs/#{@job.id}/provider_setting",
-        app_preview_path: "/api/v1/app/jobs/#{@job.id}/preview"
+        app_preview_path: "/api/v1/app/jobs/#{@job.id}/preview",
+        admin_resource_admission_path: admin_resource_admission_path
       }
     end
 
@@ -664,6 +668,15 @@ module App
 
     def job_start_blocked_details
       workflow_for_start_blocked&.artifact("start_blocked_details")
+    end
+
+    def job_start_blocked_breakdown
+      return nil unless job_start_blocked_reason == StepDispatcher::ADMISSION_BLOCK_REASON
+
+      details = job_start_blocked_details
+      return nil unless details.is_a?(Hash)
+
+      AdmissionDiagnostics::Breakdown.for(details)
     end
 
     def workflow_for_start_blocked

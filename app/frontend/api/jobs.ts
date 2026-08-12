@@ -2,7 +2,7 @@ import { deleteJson, getJson, patchJson, postForm, postJson } from "./client"
 import type { BlockedReason } from "../lib/translateBlockedReason"
 import type { MergeTrainStatus } from "./epics"
 import type { ProviderAvailability } from "./providerAvailability"
-import type { StartBlockedDetails } from "../types/startBlocked"
+import type { AdmissionBreakdown, StartBlockedDetails } from "../types/startBlocked"
 import type { TypedArtifact } from "./artifacts"
 
 export type JobRepository = {
@@ -121,6 +121,7 @@ export type JobRecord = {
   start_blocked_next_check_at: string | null
   start_blocked_count: number | null
   start_blocked_details: StartBlockedDetails | null
+  start_blocked_breakdown: AdmissionBreakdown | null
   deployment_stages?: JobDeploymentStage[]
 }
 
@@ -547,6 +548,7 @@ export type JobActions = {
   can_unclaim: boolean
   can_override_dependencies: boolean
   can_view_timeline: boolean
+  can_view_resource_admission_diagnostics: boolean
   can_manage_tags: boolean
   can_open_in_coding_mode: boolean
   can_start_preview: boolean
@@ -645,6 +647,7 @@ export type JobPaths = {
   app_priority_path: string
   app_provider_setting_path?: string
   app_preview_path: string
+  admin_resource_admission_path: string
 }
 
 export type PreviewEnvironmentRecord = {

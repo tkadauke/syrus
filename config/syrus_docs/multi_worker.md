@@ -306,6 +306,25 @@ availability. Admin and dashboard surfaces reading `start_blocked_details` or
 truth for "no data" versus "data says busy" rather than inferring it from a
 0% pressure reading.
 
+**Operator-facing visibility.** The full diagnostics view lives at
+`/admin/resource_admission` (admin-only), backed by
+`Admin::ResourceAdmissionDiagnosticsPayload`. For an admission-blocked Job,
+the Job detail page also renders a pressure breakdown directly — which
+dimension tripped (hard host pressure, soft ambient host pressure, or
+predicted step-profile pressure), its current value versus the threshold
+that tripped it, and the telemetry state behind the reading — via
+`App::JobDetailPayload#job_json`'s `start_blocked_breakdown` field. Both
+surfaces format the same recorded `WorkflowAdmissionBudget::Decision#artifact`
+through the shared `AdmissionDiagnostics::Breakdown` service (never
+re-running the admission decision) so the numbers can't drift between them.
+`telemetry_state` of `"stale"` or `"absent"` renders as a distinct callout
+("no telemetry recorded — treating conservatively") so operators can tell a
+monitoring gap from a genuinely busy host. Admin users additionally get a
+"View pressure diagnostics" link (via `StartBlockedReasonPill`'s optional
+`diagnosticsPath` prop) out to the full admin page; the Job payload only
+includes the link's path when `Job::actions.can_view_resource_admission_diagnostics`
+is true (i.e. the requesting user is an admin).
+
 `AppSetting.workflow_admission_policy` chooses how far that admission decision
 extends:
 

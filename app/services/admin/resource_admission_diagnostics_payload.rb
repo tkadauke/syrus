@@ -148,7 +148,8 @@ module Admin
         decision: compact_decision(details),
         pressure: details["pressure"],
         estimated_remaining_cost: details.dig("pressure", "candidate", "predicted_command_cost"),
-        details: details["details"] || {}
+        details: details["details"] || {},
+        breakdown: AdmissionDiagnostics::Breakdown.for(details)
       }
     end
 
@@ -191,7 +192,8 @@ module Admin
         decision: compact_decision(override),
         pressure: override["pressure"],
         estimated_remaining_cost: override.dig("pressure", "candidate", "predicted_command_cost"),
-        details: override["details"] || {}
+        details: override["details"] || {},
+        breakdown: AdmissionDiagnostics::Breakdown.for(override)
       }
     end
 

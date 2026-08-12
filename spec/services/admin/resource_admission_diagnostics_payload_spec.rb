@@ -157,6 +157,12 @@ RSpec.describe Admin::ResourceAdmissionDiagnosticsPayload do
     )
     expect(delayed.fetch(:estimated_remaining_cost)).to include("duration_seconds" => 900, "cpu_pressure" => 80.0)
     expect(delayed.fetch(:details)).to include("decision_basis" => "ambient_pressure")
+    expect(delayed.fetch(:breakdown)).to include(
+      "category" => "soft_host_pressure",
+      "dimensions" => include(
+        a_hash_including("metric" => "cpu_pressure", "current" => 90.0, "threshold" => WorkflowAdmissionBudget::SOFT_HOST_PRESSURE, "over_threshold" => true)
+      )
+    )
   end
 
   it "surfaces low-confidence profiles and admission override audit entries" do

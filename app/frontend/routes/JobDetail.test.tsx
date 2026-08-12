@@ -85,6 +85,113 @@ describe("JobDetailView", () => {
     expect(screen.getByRole("img", { name: /Codex usage limit reached/ })).toBeInTheDocument()
   })
 
+  it("renders the pressure breakdown and telemetry state for a job blocked on step-profile pressure", () => {
+    renderJobDetail(jobPayload({
+      job: {
+        ...baseJob(),
+        state: "queued",
+        summary_state: "queued",
+        start_blocked_reason: "workflow_admission_budget",
+        start_blocked_at: "2026-08-11T14:00:00Z",
+        start_blocked_next_check_at: "2026-08-11T14:10:00Z",
+        start_blocked_count: 2,
+        start_blocked_details: {
+          action: "delay_until",
+          reason: "predicted_budget_pressure_high",
+          delay_until: "2026-08-11T14:10:00Z"
+        },
+        start_blocked_breakdown: {
+          reason: "predicted_budget_pressure_high",
+          category: "step_profile_pressure",
+          telemetry_state: "present",
+          telemetry_absent: false,
+          dimensions: [
+            { metric: "cpu_pressure", label: "CPU pressure", current: 132.4, threshold: 100, over_threshold: true },
+            { metric: "memory_used_percent", label: "Memory used", current: 40, threshold: 92, over_threshold: false }
+          ]
+        }
+      }
+    }))
+
+    expect(screen.getByText("Admission budget blocked")).toBeInTheDocument()
+    expect(screen.getByText("This workflow's predicted resource cost exceeds the worker budget.")).toBeInTheDocument()
+    expect(screen.getByText("CPU pressure: 132.4% (threshold 100%)")).toBeInTheDocument()
+    expect(screen.getByText("Memory used: 40% (threshold 92%)")).toBeInTheDocument()
+    expect(screen.queryByText(/No worker telemetry has been recorded/)).not.toBeInTheDocument()
+  })
+
+  it("distinctly calls out a telemetry-absent admission block instead of implying a measured reading", () => {
+    renderJobDetail(jobPayload({
+      job: {
+        ...baseJob(),
+        state: "queued",
+        summary_state: "queued",
+        start_blocked_reason: "workflow_admission_budget",
+        start_blocked_details: {
+          action: "requires_override",
+          reason: "worker_memory_exhausted"
+        },
+        start_blocked_breakdown: {
+          reason: "worker_memory_exhausted",
+          category: "hard_host_pressure",
+          telemetry_state: "absent",
+          telemetry_absent: true,
+          dimensions: []
+        }
+      }
+    }))
+
+    expect(screen.getByText("A worker host is at a hard resource limit.")).toBeInTheDocument()
+    expect(screen.getByText(/No worker telemetry has been recorded/)).toBeInTheDocument()
+  })
+
+  it("does not render the admission budget panel when the job is not admission-blocked", () => {
+    renderJobDetail(jobPayload({ job: { ...baseJob(), state: "running" } }))
+
+    expect(screen.queryByText("Admission budget blocked")).not.toBeInTheDocument()
+  })
+
+  it("hides the admin diagnostics link for users who cannot view it", () => {
+    renderJobDetail(jobPayload({
+      job: {
+        ...baseJob(),
+        state: "queued",
+        start_blocked_reason: "workflow_admission_budget",
+        start_blocked_details: { action: "delay_until", reason: "predicted_budget_pressure_high" },
+        start_blocked_breakdown: {
+          reason: "predicted_budget_pressure_high",
+          category: "step_profile_pressure",
+          telemetry_state: "present",
+          telemetry_absent: false,
+          dimensions: []
+        }
+      }
+    }))
+
+    expect(screen.queryByText("View pressure diagnostics")).not.toBeInTheDocument()
+  })
+
+  it("links out to the admin diagnostics page when the user can view it", () => {
+    const payload = jobPayload({
+      job: {
+        ...baseJob(),
+        state: "queued",
+        start_blocked_reason: "workflow_admission_budget",
+        start_blocked_details: { action: "delay_until", reason: "predicted_budget_pressure_high" },
+        start_blocked_breakdown: {
+          reason: "predicted_budget_pressure_high",
+          category: "step_profile_pressure",
+          telemetry_state: "present",
+          telemetry_absent: false,
+          dimensions: []
+        }
+      }
+    })
+    renderJobDetail({ ...payload, actions: { ...payload.actions, can_view_resource_admission_diagnostics: true } })
+
+    expect(screen.getByRole("link", { name: "View pressure diagnostics" })).toHaveAttribute("href", "/admin/resource_admission")
+  })
+
   it("links the origin chat from the job header", () => {
     renderJobDetail(jobPayload({
       job: {
@@ -1459,6 +1566,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       can_unclaim: false,
       can_override_dependencies: false,
       can_view_timeline: false,
+      can_view_resource_admission_diagnostics: false,
       can_manage_tags: false,
       can_open_in_coding_mode: false,
       can_open_in_local_mode: false,
@@ -1501,7 +1609,8 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       app_open_in_local_mode_path: "/api/v1/app/jobs/1/open_in_local_mode",
       app_cancel_local_mode_path: "/api/v1/app/jobs/1/cancel_local_mode",
       app_priority_path: "/api/v1/app/jobs/1/priority",
-      app_preview_path: "/api/v1/app/jobs/1/preview"
+      app_preview_path: "/api/v1/app/jobs/1/preview",
+      admin_resource_admission_path: "/admin/resource_admission"
     },
     ...overrides
   }
@@ -1577,6 +1686,7 @@ function baseJob(): JobDetailPayload["job"] {
     start_blocked_next_check_at: null,
     start_blocked_count: null,
     start_blocked_details: null,
+    start_blocked_breakdown: null,
     runaway_protection: null
   }
 }

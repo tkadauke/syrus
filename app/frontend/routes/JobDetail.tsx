@@ -10,6 +10,7 @@ import { KeyValue } from "../components/KeyValue"
 import { CopyableSlug } from "../components/CopyableSlug"
 import { NoticeToast } from "../components/NoticeToast"
 import { StatusPill, TonePill } from "../components/StatusPill"
+import { StartBlockedReasonPill } from "../components/StartBlockedReasonPill"
 import { Markdown } from "../lib/Markdown"
 import { translateBlockedReason } from "../lib/translateBlockedReason"
 import { workflowSlug } from "../lib/slugs"
@@ -326,6 +327,7 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
         </PanelMessage>
       ) : null}
       {payload.job.landing_failure_reason ? <PanelMessage tone="error">{t("landing_failed", { reason: payload.job.landing_failure_reason })}</PanelMessage> : null}
+      <AdmissionBudgetPanel payload={payload} />
       <RetryStatePanel payload={payload} />
       {payload.unsatisfied_dependencies.length > 0 ? <UnsatisfiedDependencies command={command} payload={payload} /> : null}
 
@@ -807,6 +809,48 @@ function jobMergeTrainDetail(status: NonNullable<JobDetailPayload["merge_train_s
   if (status.reconciliation?.result === "failed") return t("merge_train_reconcile_failed")
   if (status.current_step_label) return t("merge_train_current_step", { step: status.current_step_label })
   return t("merge_train_running")
+}
+
+function AdmissionBudgetPanel({ payload }: { payload: JobDetailPayload }) {
+  const { t } = useT("jobs")
+  const breakdown = payload.job.start_blocked_breakdown
+  if (payload.job.state !== "queued" || payload.job.start_blocked_reason !== "workflow_admission_budget" || !breakdown) return null
+
+  const diagnosticsPath = payload.actions.can_view_resource_admission_diagnostics ? payload.paths.admin_resource_admission_path : null
+  const telemetryMessage = breakdown.telemetry_state === "absent"
+    ? t("admission_breakdown_telemetry_absent")
+    : t("admission_breakdown_telemetry_stale")
+
+  return (
+    <section className="rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-semibold">{t("admission_breakdown_title")}</span>
+        <StartBlockedReasonPill
+          count={payload.job.start_blocked_count}
+          details={payload.job.start_blocked_details}
+          diagnosticsPath={diagnosticsPath}
+          nextCheckAt={payload.job.start_blocked_next_check_at}
+          reason={payload.job.start_blocked_reason}
+          startBlockedAt={payload.job.start_blocked_at}
+        />
+      </div>
+      <p className="mt-1">{t(`admission_breakdown_category_${breakdown.category}`, { defaultValue: t("admission_breakdown_category_other") })}</p>
+      {breakdown.telemetry_absent ? (
+        <p className="mt-2 rounded border border-amber-300 bg-amber-100 px-2 py-1.5 text-xs font-medium dark:border-amber-800 dark:bg-amber-900/50" role="status">
+          {telemetryMessage}
+        </p>
+      ) : null}
+      {breakdown.dimensions.length > 0 ? (
+        <ul className="mt-2 space-y-1 text-xs">
+          {breakdown.dimensions.map((dimension) => (
+            <li className={dimension.over_threshold ? "font-semibold" : ""} key={dimension.metric}>
+              {t("admission_breakdown_dimension", { current: dimension.current, label: dimension.label, threshold: dimension.threshold })}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
+  )
 }
 
 function RetryStatePanel({ payload }: { payload: JobDetailPayload }) {

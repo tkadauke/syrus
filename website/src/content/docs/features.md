@@ -611,6 +611,12 @@ Admission decisions record a `telemetry_state` of present, stale, or absent
 worker host telemetry alongside the pressure numbers, so a monitoring gap
 (no recent host samples) is distinguishable from workers that are genuinely
 busy or exhausted, instead of both looking like a 0% pressure reading.
+When a Job is blocked on admission control, its Job detail page shows an
+operator-facing pressure breakdown directly — which dimension tripped, its
+current value against the threshold that tripped it, and whether the reading
+behind it was actually measured or backed by absent/stale telemetry — without
+requiring admin access. Admins additionally see a link out to the full
+`/admin/resource_admission` diagnostics page from the same panel.
 Operators can also manually pause any Job from the dashboard, including in bulk.
 Manual pause lets the current workflow step finish and then prevents Syrus from
 starting the next step or workflow for that Job. The Job remains paused until an

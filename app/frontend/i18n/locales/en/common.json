@@ -294,6 +294,7 @@
     "workflow_admission_budget": "Syrus predicted that starting this workflow now would put too much pressure on the worker pool.",
     "provider_availability": "This job is paused until its configured agent provider has enough available usage, or an operator resumes it anyway."
   },
+  "admission_diagnostics_link": "View pressure diagnostics",
   "blocked_reasons": {
     "landing_paused": "Landing paused",
     "landing_paused_main_broken": "Landing paused: main branch broken",

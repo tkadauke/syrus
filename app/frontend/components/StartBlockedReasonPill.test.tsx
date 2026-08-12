@@ -173,4 +173,22 @@ describe("StartBlockedReasonPill", () => {
     const pill = screen.getByText("Urgent job in progress").closest("[data-status-pill]")
     expect(pill?.getAttribute("title")).not.toContain("Refused")
   })
+
+  it("links out to diagnostics when a path is provided for an admission budget block", () => {
+    render(<StartBlockedReasonPill diagnosticsPath="/admin/resource_admission" reason="workflow_admission_budget" />)
+
+    expect(screen.getByRole("link", { name: "View pressure diagnostics" })).toHaveAttribute("href", "/admin/resource_admission")
+  })
+
+  it("does not render a diagnostics link when no path is provided", () => {
+    render(<StartBlockedReasonPill reason="workflow_admission_budget" />)
+
+    expect(screen.queryByRole("link", { name: "View pressure diagnostics" })).not.toBeInTheDocument()
+  })
+
+  it("does not render a diagnostics link for non-admission block reasons even with a path", () => {
+    render(<StartBlockedReasonPill diagnosticsPath="/admin/resource_admission" reason="urgent_job_active" />)
+
+    expect(screen.queryByRole("link", { name: "View pressure diagnostics" })).not.toBeInTheDocument()
+  })
 })

@@ -44,12 +44,14 @@ export function StartBlockedReasonPill({
   startBlockedAt,
   nextCheckAt,
   count,
+  diagnosticsPath,
 }: {
   reason: string
   details?: StartBlockedDetails | null
   startBlockedAt?: string | null
   nextCheckAt?: string | null
   count?: number | null
+  diagnosticsPath?: string | null
 }) {
   const { t } = useT()
   const baseTone = TONES[reason as StartBlockedReason] ?? "amber"
@@ -60,12 +62,19 @@ export function StartBlockedReasonPill({
   const title = startBlockedTitle(reason, details, nextCheckAt ?? null, count ?? null, t)
 
   return (
-    <TonePill
-      tone={tone}
-      title={title}
-    >
-      {t(`common:start_blocked_reasons.${reason}`, { defaultValue: reason })}
-    </TonePill>
+    <>
+      <TonePill
+        tone={tone}
+        title={title}
+      >
+        {t(`common:start_blocked_reasons.${reason}`, { defaultValue: reason })}
+      </TonePill>
+      {diagnosticsPath && reason === "workflow_admission_budget" ? (
+        <a className="text-xs text-blue-600 hover:underline dark:text-blue-400" href={diagnosticsPath}>
+          {t("common:admission_diagnostics_link")}
+        </a>
+      ) : null}
+    </>
   )
 }
 

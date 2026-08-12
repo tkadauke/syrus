@@ -39,6 +39,22 @@ export type StartBlockedDetails = {
   }>
 }
 
+export type AdmissionBreakdownDimension = {
+  metric: string
+  label: string
+  current: number
+  threshold: number
+  over_threshold: boolean
+}
+
+export type AdmissionBreakdown = {
+  reason: string | null
+  category: "hard_host_pressure" | "soft_host_pressure" | "step_profile_pressure" | "other" | string
+  telemetry_state: "present" | "stale" | "absent" | string | null
+  telemetry_absent: boolean
+  dimensions: AdmissionBreakdownDimension[]
+}
+
 export type StartBlockedPressureSnapshot = {
   duration_seconds?: number | null
   cpu_pressure?: number | null
