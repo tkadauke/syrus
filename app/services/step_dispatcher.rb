@@ -174,6 +174,7 @@ class StepDispatcher
         backoff: backoff,
         details: admission.artifact
       )
+      WorkflowPhaseAdmissionJob.set(wait: backoff, priority: workflow.job.solid_queue_priority).perform_later(workflow.id)
       warn_if_stuck_queued(workflow, "#{reason}: #{admission.reason}")
       return
     end

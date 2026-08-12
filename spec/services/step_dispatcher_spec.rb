@@ -500,6 +500,63 @@ RSpec.describe StepDispatcher do
         "reason" => "predicted_budget_pressure_high"
       )
       expect(enqueued_jobs.map { |entry| entry[:job] }).not_to include(LandingQueueProcessorJob)
+      recheck_jobs = enqueued_jobs.select { |entry| entry[:job] == WorkflowPhaseAdmissionJob }
+      expect(recheck_jobs).to be_present
+      expect(recheck_jobs.last[:args]).to eq([ workflow.id ])
+      expect(recheck_jobs.last[:at]).to be_within(2.seconds).of(delay_until.to_f)
+    end
+
+    it "schedules exactly one recheck when a blocked non-landing workflow's start is retried before backoff expires" do
+      delay_until = 10.minutes.from_now
+      decision = WorkflowAdmissionBudget::Decision.new(
+        action: "delay_until",
+        reason: "predicted_budget_pressure_high",
+        pressure: { "projected" => { "cpu_pressure" => 105.0 } },
+        delay_until: delay_until,
+        override: false,
+        details: nil
+      )
+      allow(WorkflowAdmissionBudget).to receive(:call).and_return(decision)
+
+      described_class.start_workflow(workflow)
+
+      expect {
+        described_class.start_workflow(workflow)
+      }.not_to change { s1.runs.count }
+
+      recheck_jobs = enqueued_jobs.select { |entry| entry[:job] == WorkflowPhaseAdmissionJob }
+      expect(recheck_jobs.size).to eq(1)
+    end
+
+    it "starts the workflow once the recheck job fires and admission pressure has cleared" do
+      delay_until = 10.minutes.from_now
+      blocked_decision = WorkflowAdmissionBudget::Decision.new(
+        action: "delay_until",
+        reason: "predicted_budget_pressure_high",
+        pressure: { "projected" => { "cpu_pressure" => 105.0 } },
+        delay_until: delay_until,
+        override: false,
+        details: nil
+      )
+      admitted_decision = WorkflowAdmissionBudget::Decision.new(
+        action: "admit_now",
+        reason: "within_budget",
+        pressure: { "projected" => { "cpu_pressure" => 10.0 } },
+        delay_until: nil,
+        override: false,
+        details: nil
+      )
+      allow(WorkflowAdmissionBudget).to receive(:call).and_return(blocked_decision, admitted_decision)
+
+      described_class.start_workflow(workflow)
+      recheck_jobs = enqueued_jobs.select { |entry| entry[:job] == WorkflowPhaseAdmissionJob }
+      expect(recheck_jobs).to be_present
+
+      expect {
+        described_class.resume_deferred_phase(workflow.id)
+      }.to change { s1.runs.count }.by(1)
+
+      expect(workflow.reload.artifact("start_blocked_reason")).to be_nil
     end
   end
 
