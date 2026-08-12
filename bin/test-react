@@ -10,5 +10,21 @@ fi
 
 vitest_max_workers="${VITEST_MAX_WORKERS:-4}"
 
-npx vitest run --coverage --maxWorkers "$vitest_max_workers"
-npm run typecheck
+# Vitest is the dominant cost here; run `tsc --noEmit` concurrently instead
+# of after it so the two don't serialize inside the grader's wall-clock
+# budget (see the react-tests grader in .syrus.yml).
+npx vitest run --coverage --maxWorkers "$vitest_max_workers" &
+vitest_pid=$!
+
+npm run typecheck &
+typecheck_pid=$!
+
+vitest_status=0
+typecheck_status=0
+wait "$vitest_pid" || vitest_status=$?
+wait "$typecheck_pid" || typecheck_status=$?
+
+if [ "$vitest_status" -ne 0 ]; then
+  exit "$vitest_status"
+fi
+exit "$typecheck_status"

@@ -184,11 +184,13 @@ grade:
     description: |
       React SPA tests and TypeScript typecheck. This is the main
       frontend regression gate after the SPA migration; it runs
-      Vitest first, then `tsc --noEmit` through `bin/test-react`.
+      Vitest and `tsc --noEmit` concurrently through `bin/test-react`.
       Failures here usually mean the rendered app/API contract or
-      typed frontend model drifted.
+      typed frontend model drifted. Vitest alone now runs close to the
+      old 15-minute budget as the suite has grown, leaving no room for
+      `tsc --noEmit` even running concurrently; bumped for headroom.
     run: bin/test-react
-    timeout_minutes: 15
+    timeout_minutes: 20
 
   - name: website-build
     description: |
