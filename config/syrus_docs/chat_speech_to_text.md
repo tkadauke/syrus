@@ -46,3 +46,12 @@ Operational logs are structured as `chat_speech_to_text.*` events and include
 mode, provider name, latency, fallback reason, and error class/code. They must
 not include transcript text, prompts, uploaded audio bytes, executable paths, or
 model paths.
+
+Batch transcription via the `whisper_cpp` provider shells out through
+`ProcessRunner`, so each invocation registers a `SpawnedProcess` row
+(`kind: "chat_stt"`) visible in `/admin/processes` and `read_worker_health` —
+operators can confirm a transcription actually ran, see its duration/outcome,
+and kill a wedged invocation the same way as any other tracked subprocess. The
+recorded command omits the per-request audio tempfile path (replaced with
+`[audio]`) so local worker paths don't leak into the admin UI; the executable
+and model paths are shown.

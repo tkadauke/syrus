@@ -9,42 +9,85 @@ RSpec.describe ChatSpeechToText::Providers::WhisperCpp do
     file
   end
 
-  it "runs whisper.cpp with argv and returns stdout text" do
-    provider = described_class.new(executable: "/usr/local/bin/whisper-cli", model: "/models/base.bin")
+  # Stands in for the real whisper.cpp CLI: parses just enough of the
+  # argv shape (`-f <audio>`) to know where to write the `.txt` sidecar
+  # file whisper.cpp itself would produce, so `extract_transcript` reads
+  # it back exactly as it would in production.
+  def fake_whisper_script(body)
+    script = Tempfile.new([ "fake-whisper-cli", "" ])
+    script.write(<<~BASH)
+      #!/usr/bin/env bash
+      audio_file=""
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          -f) audio_file="$2"; shift 2 ;;
+          *) shift ;;
+        esac
+      done
+      #{body}
+    BASH
+    script.close
+    FileUtils.chmod("+x", script.path)
+    script.path
+  end
+
+  it "runs whisper.cpp through ProcessRunner and records a chat_stt SpawnedProcess row on success" do
+    executable = fake_whisper_script('echo "hello world" > "${audio_file}.txt"')
+    provider = described_class.new(executable: executable, model: "/models/base.bin")
     file = audio_file
-    status = instance_double(Process::Status, success?: true)
-    allow(Open3).to receive(:capture3).and_return([ "hello world\n", "", status ])
 
-    result = provider.transcribe_batch(
-      ChatSpeechToText::Providers::TranscriptionRequest.new(
-        audio: file,
-        content_type: "audio/webm",
-        language: nil,
-        prompt: nil
+    expect do
+      @result = provider.transcribe_batch(
+        ChatSpeechToText::Providers::TranscriptionRequest.new(
+          audio: file,
+          content_type: "audio/webm",
+          language: nil,
+          prompt: nil
+        )
       )
-    )
+    end.to change(SpawnedProcess, :count).by(1)
 
-    expect(result.text).to eq("hello world")
-    expect(result.provider).to eq("whisper_cpp")
-    expect(Open3).to have_received(:capture3).with(
-      "/usr/local/bin/whisper-cli",
-      "-m", "/models/base.bin",
-      "-f", file.path,
-      "-nt",
-      "-np",
-      "-otxt",
-      stdin_data: "",
-      binmode: true
-    )
+    expect(@result.text).to eq("hello world")
+    expect(@result.provider).to eq("whisper_cpp")
+
+    spawned = SpawnedProcess.last
+    expect(spawned.kind).to eq("chat_stt")
+    expect(spawned.outcome).to eq("succeeded")
+    expect(spawned.command).to eq("#{executable} -m /models/base.bin -f [audio] -nt -np -otxt")
+    expect(spawned.command).not_to include(file.path)
   ensure
     file&.close!
   end
 
-  it "maps non-zero exits to transcription errors" do
-    provider = described_class.new(executable: "/usr/local/bin/whisper-cli", model: "/models/base.bin")
+  it "maps non-zero exits to transcription errors and records a failed chat_stt SpawnedProcess row" do
+    executable = fake_whisper_script('echo "missing model" >&2; exit 1')
+    provider = described_class.new(executable: executable, model: "/models/base.bin")
     file = audio_file
-    status = instance_double(Process::Status, success?: false)
-    allow(Open3).to receive(:capture3).and_return([ "", "missing model", status ])
+
+    expect do
+      expect do
+        provider.transcribe_batch(
+          ChatSpeechToText::Providers::TranscriptionRequest.new(
+            audio: file,
+            content_type: "audio/webm",
+            language: nil,
+            prompt: nil
+          )
+        )
+      end.to raise_error(ChatSpeechToText::Providers::TranscriptionError, /missing model/)
+    end.to change(SpawnedProcess, :count).by(1)
+
+    spawned = SpawnedProcess.last
+    expect(spawned.kind).to eq("chat_stt")
+    expect(spawned.outcome).to eq("failed")
+  ensure
+    file&.close!
+  end
+
+  it "raises when whisper.cpp exits cleanly with an empty transcript" do
+    executable = fake_whisper_script('echo -n "" > "${audio_file}.txt"')
+    provider = described_class.new(executable: executable, model: "/models/base.bin")
+    file = audio_file
 
     expect do
       provider.transcribe_batch(
@@ -55,7 +98,7 @@ RSpec.describe ChatSpeechToText::Providers::WhisperCpp do
           prompt: nil
         )
       )
-    end.to raise_error(ChatSpeechToText::Providers::TranscriptionError, "missing model")
+    end.to raise_error(ChatSpeechToText::Providers::TranscriptionError, "whisper.cpp returned an empty transcript")
   ensure
     file&.close!
   end
