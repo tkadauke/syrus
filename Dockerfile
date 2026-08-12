@@ -155,7 +155,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       cmake --build /tmp/whisper-cpp-src/build --config Release -j"$(nproc)" && \
       cp /tmp/whisper-cpp-src/build/bin/whisper-cli /opt/whisper.cpp/whisper-cli && \
       curl -fsSL -o "/opt/whisper.cpp/models/${WHISPER_CPP_MODEL}" "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${WHISPER_CPP_MODEL}" && \
-      rm -rf /tmp/whisper-cpp-src /var/lib/apt/lists/* /var/cache/apt/archives/*; \
+      rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* /tmp/whisper-cpp-src; \
     fi
 
 
