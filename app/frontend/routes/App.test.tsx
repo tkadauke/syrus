@@ -7848,7 +7848,8 @@ describe("App", () => {
     expect(screen.queryByText("Effective cron")).not.toBeInTheDocument()
     expect(screen.getByText("FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "acme/widgets" })).toHaveAttribute("href", "/app-shell/repositories/3")
-    expect(screen.getByRole("link", { name: "#44" })).toHaveAttribute("href", "/app-shell/jobs/44")
+    expect(screen.getByText("JOB-44")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy JOB-44 to clipboard" })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Pause" }))
 
     await waitFor(() => {

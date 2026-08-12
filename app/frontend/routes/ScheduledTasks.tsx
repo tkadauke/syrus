@@ -7,8 +7,10 @@ import type { FormEvent, ReactNode } from "react"
 import { useEffect, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { buttonClass } from "../lib/buttonClasses"
+import { CopyableSlug } from "../components/CopyableSlug"
 import { NoticeToast } from "../components/NoticeToast"
 import { PanelMessage } from "../components/PanelMessage"
+import { SlugHoverCard } from "../components/SlugHoverCard"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useConfirm } from "../hooks/useConfirm"
@@ -262,7 +264,7 @@ function TaskDetail({ payload, basePath, prefix }: { payload: ScheduledTaskDetai
         <pre className="whitespace-pre-wrap rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 font-mono text-xs">{payload.task.prompt}</pre>
       </section>
 
-      <RecentJobs jobs={payload.recent_jobs} prefix={prefix} />
+      <RecentJobs jobs={payload.recent_jobs} />
     </>
   )
 }
@@ -309,7 +311,7 @@ function TaskActions({
   )
 }
 
-function RecentJobs({ jobs, prefix }: { jobs: ScheduledTaskDetailPayload["recent_jobs"]; prefix: string }) {
+function RecentJobs({ jobs }: { jobs: ScheduledTaskDetailPayload["recent_jobs"] }) {
   const { t } = useT("settings")
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
@@ -329,7 +331,11 @@ function RecentJobs({ jobs, prefix }: { jobs: ScheduledTaskDetailPayload["recent
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800 text-sm">
             {jobs.map((job) => (
               <tr key={job.id}>
-                <td className="px-2 py-2"><Link className="text-blue-600 dark:text-blue-400 underline hover:no-underline" to={withRoutePrefix(job.job_path, prefix)}>#{job.id}</Link></td>
+                <td className="px-2 py-2">
+                  <SlugHoverCard id={job.id} kind="job">
+                    <CopyableSlug slug={`JOB-${job.id}`} />
+                  </SlugHoverCard>
+                </td>
                 <td className="px-2 py-2">{job.closure_reason || job.state}</td>
                 <td className="px-2 py-2">{job.pr_number || job.external_pr_number || t("scheduled_tasks.none")}</td>
                 <td className="px-2 py-2 text-xs text-gray-500 dark:text-gray-400"><RelativeTimestamp value={job.created_at} /></td>
