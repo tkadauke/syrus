@@ -94,6 +94,26 @@ describe("StartBlockedReasonPill", () => {
     expect(title).not.toContain("delay_until")
   })
 
+  it("notes when an admission delay was decided without worker telemetry", () => {
+    render(
+      <StartBlockedReasonPill
+        details={{
+          action: "delay_until",
+          reason: "predicted_budget_pressure_high",
+          pressure: {
+            host: {
+              telemetry_state: "absent"
+            }
+          }
+        }}
+        reason="workflow_admission_budget"
+      />
+    )
+
+    const title = screen.getByText("Workflow admission delayed").closest("[data-status-pill]")?.getAttribute("title")
+    expect(title).toContain("No worker telemetry has been recorded; this decision used step-profile pressure only.")
+  })
+
   it("does not leak unknown machine action keys into generic tooltips", () => {
     render(
       <StartBlockedReasonPill

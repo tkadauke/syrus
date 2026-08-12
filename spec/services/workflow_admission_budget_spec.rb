@@ -523,4 +523,92 @@ RSpec.describe WorkflowAdmissionBudget do
     )
     expect(decision.pressure.dig("candidate", "prediction_source_contributions", "host_correlated", "cpu_pressure")).to eq(120.0)
   end
+
+  describe "telemetry_state" do
+    it "does not hard-block admission when host telemetry is absent but step profiles are clean" do
+      WorkerHostHealthSample.delete_all
+      workflow = workflow_for
+
+      decision = described_class.call(workflow: workflow)
+
+      expect(decision.action).to eq("admit_now")
+      expect(decision.action).not_to eq("requires_override")
+      expect(decision.pressure.dig("host", "telemetry_state")).to eq("absent")
+      expect(decision.pressure.dig("host", "sample_count")).to eq(0)
+      expect(decision.pressure.dig("host", "max_cpu_pressure")).to eq(0.0)
+      expect(decision.pressure.dig("host", "max_memory_used_percent")).to eq(0.0)
+      expect(decision.details.fetch("telemetry_state")).to eq("absent")
+    end
+
+    it "still governs admission by profile-based pressure when host telemetry is absent" do
+      WorkerHostHealthSample.delete_all
+      profile(step_kind: "grader", grader_name: "production-build-boot", duration: 2_400, cpu: 70.0, io: 40.0, memory: 70.0)
+      active = workflow_for(state: "running")
+      candidate = workflow_for
+
+      decision = described_class.call(workflow: candidate)
+
+      expect(active.reload).to be_running
+      expect(decision.action).to eq("delay_until")
+      expect(decision.reason).to eq("predicted_budget_pressure_high")
+      expect(decision.reason).not_to eq("worker_host_pressure_high")
+      expect(decision.pressure.dig("host", "telemetry_state")).to eq("absent")
+      expect(decision.pressure.dig("host", "max_cpu_pressure")).to eq(0.0)
+      expect(decision.details.fetch("telemetry_state")).to eq("absent")
+    end
+
+    it "requires an override from genuinely maxed-out hosts, not merely from missing telemetry" do
+      WorkerHostHealthSample.delete_all
+      workflow = workflow_for
+      expect(described_class.call(workflow: workflow).action).to eq("admit_now")
+
+      WorkerHostHealthSample.create!(
+        hostname: "worker-1",
+        role: "worker",
+        version: "test",
+        observed_at: Time.current,
+        memory_used_percent: 97.0,
+        raw_metrics: {}
+      )
+      maxed_out = workflow_for
+
+      decision = described_class.call(workflow: maxed_out)
+
+      expect(decision.action).to eq("requires_override")
+      expect(decision.reason).to eq("worker_memory_exhausted")
+      expect(decision.pressure.dig("host", "telemetry_state")).to eq("present")
+    end
+
+    it "labels samples outside the sampling window as stale rather than absent" do
+      WorkerHostHealthSample.delete_all
+      WorkerHostHealthSample.create!(
+        hostname: "worker-1",
+        role: "worker",
+        version: "test",
+        observed_at: 10.minutes.ago,
+        cpu_pressure_some: 5.0,
+        memory_used_percent: 20.0,
+        data_root_used_percent: 20.0,
+        raw_metrics: {}
+      )
+      workflow = workflow_for
+
+      decision = described_class.call(workflow: workflow)
+
+      expect(decision.pressure.dig("host", "telemetry_state")).to eq("stale")
+      expect(decision.pressure.dig("host", "sample_count")).to eq(0)
+      expect(decision.pressure.dig("host", "max_cpu_pressure")).to eq(0.0)
+    end
+
+    it "labels fresh samples within the sampling window as present" do
+      WorkerHostHealthSample.delete_all
+      worker_sample(hostname: "worker-1")
+      workflow = workflow_for
+
+      decision = described_class.call(workflow: workflow)
+
+      expect(decision.pressure.dig("host", "telemetry_state")).to eq("present")
+      expect(decision.pressure.dig("host", "sample_count")).to eq(1)
+    end
+  end
 end

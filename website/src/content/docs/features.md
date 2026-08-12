@@ -607,6 +607,10 @@ floor of one controlled workflow per healthy worker while running agentic work
 is below that floor. Soft pressure and conservative predictions can slow the
 queue, but they cannot starve all landing or merge progress; hard worker
 memory/disk exhaustion still stops starts.
+Admission decisions record a `telemetry_state` of present, stale, or absent
+worker host telemetry alongside the pressure numbers, so a monitoring gap
+(no recent host samples) is distinguishable from workers that are genuinely
+busy or exhausted, instead of both looking like a 0% pressure reading.
 Operators can also manually pause any Job from the dashboard, including in bulk.
 Manual pause lets the current workflow step finish and then prevents Syrus from
 starting the next step or workflow for that Job. The Job remains paused until an

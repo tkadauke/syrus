@@ -265,6 +265,23 @@ above still win. Admission artifacts include the healthy worker count, active
 agentic run count, floor capacity, whether the floor override was used, and the
 soft gates that were present.
 
+Every admission decision also records `pressure.host.telemetry_state` (and a
+copy under `details.telemetry_state`): `"present"` when fresh
+`WorkerHostHealthSample` rows landed inside the sampling window, `"stale"` when
+samples exist but none are recent (a monitoring gap, e.g. a missed heartbeat
+tick), or `"absent"` when no worker host health samples have ever been
+recorded (e.g. the per-worker heartbeat thread never started). A `"stale"` or
+`"absent"` state reports an explicit, documented neutral/zero-pressure host
+reading — full headroom, not a synthesized worst case — so a total telemetry
+outage cannot masquerade as maxed-out hosts. It only changes what the
+host-pressure gate itself can see; step-level `WorkflowStepResourceProfile`
+predictions still fall back to `WorkflowStepResourceProfile::CONSERVATIVE_DEFAULTS`
+when a profile is genuinely missing, independent of host telemetry
+availability. Admin and dashboard surfaces reading `start_blocked_details` or
+`workflow_admission_decision` should treat `telemetry_state` as the source of
+truth for "no data" versus "data says busy" rather than inferring it from a
+0% pressure reading.
+
 `AppSetting.workflow_admission_policy` chooses how far that admission decision
 extends:
 

@@ -461,31 +461,82 @@ class WorkflowAdmissionBudget
   def host_pressure
     @host_pressure ||= begin
       samples = latest_worker_samples
-      {
-        "sample_count" => samples.size,
-        "max_cpu_pressure" => samples.map { |sample| [ sample.cpu_pressure_some, sample.cpu_pressure_full ].compact.max.to_f }.max.to_f.round(1),
-        "max_io_pressure" => samples.map { |sample| [ sample.io_pressure_some, sample.io_pressure_full ].compact.max.to_f }.max.to_f.round(1),
-        "max_memory_used_percent" => samples.map { |sample| sample.memory_used_percent.to_f }.max.to_f.round(1),
-        "max_data_root_used_percent" => samples.map { |sample| sample.data_root_used_percent.to_f }.max.to_f.round(1),
-        "headroom" => {
-          "cpu_pressure" => [ CPU_BUDGET - samples.map { |sample| [ sample.cpu_pressure_some, sample.cpu_pressure_full ].compact.max.to_f }.max.to_f, 0.0 ].max.round(1),
-          "io_pressure" => [ IO_BUDGET - samples.map { |sample| [ sample.io_pressure_some, sample.io_pressure_full ].compact.max.to_f }.max.to_f, 0.0 ].max.round(1),
-          "memory_used_percent" => [ MEMORY_BUDGET - samples.map { |sample| sample.memory_used_percent.to_f }.max.to_f, 0.0 ].max.round(1),
-          "data_root_used_percent" => [ HARD_DATA_ROOT_USED_PERCENT - samples.map { |sample| sample.data_root_used_percent.to_f }.max.to_f, 0.0 ].max.round(1)
-        },
+      payload = samples.any? ? measured_host_pressure(samples) : neutral_host_pressure
+      payload.merge(
+        "telemetry_state" => telemetry_state,
         "observed_since" => (now - HOST_SAMPLE_WINDOW).iso8601
-      }
+      )
     end
   end
 
+  def measured_host_pressure(samples)
+    {
+      "sample_count" => samples.size,
+      "max_cpu_pressure" => samples.map { |sample| [ sample.cpu_pressure_some, sample.cpu_pressure_full ].compact.max.to_f }.max.to_f.round(1),
+      "max_io_pressure" => samples.map { |sample| [ sample.io_pressure_some, sample.io_pressure_full ].compact.max.to_f }.max.to_f.round(1),
+      "max_memory_used_percent" => samples.map { |sample| sample.memory_used_percent.to_f }.max.to_f.round(1),
+      "max_data_root_used_percent" => samples.map { |sample| sample.data_root_used_percent.to_f }.max.to_f.round(1),
+      "headroom" => {
+        "cpu_pressure" => [ CPU_BUDGET - samples.map { |sample| [ sample.cpu_pressure_some, sample.cpu_pressure_full ].compact.max.to_f }.max.to_f, 0.0 ].max.round(1),
+        "io_pressure" => [ IO_BUDGET - samples.map { |sample| [ sample.io_pressure_some, sample.io_pressure_full ].compact.max.to_f }.max.to_f, 0.0 ].max.round(1),
+        "memory_used_percent" => [ MEMORY_BUDGET - samples.map { |sample| sample.memory_used_percent.to_f }.max.to_f, 0.0 ].max.round(1),
+        "data_root_used_percent" => [ HARD_DATA_ROOT_USED_PERCENT - samples.map { |sample| sample.data_root_used_percent.to_f }.max.to_f, 0.0 ].max.round(1)
+      }
+    }
+  end
+
+  # No WorkerHostHealthSample rows landed in the sampling window. This is a
+  # monitoring gap (e.g. the per-worker heartbeat thread never started), not
+  # evidence that hosts are idle or maxed out — so it gets an explicit,
+  # documented neutral/zero-pressure profile (full headroom) rather than a
+  # synthesized worst case. `telemetry_state` on the payload tells downstream
+  # consumers this reading is "no data," not "measured idle."
+  def neutral_host_pressure
+    {
+      "sample_count" => 0,
+      "max_cpu_pressure" => 0.0,
+      "max_io_pressure" => 0.0,
+      "max_memory_used_percent" => 0.0,
+      "max_data_root_used_percent" => 0.0,
+      "headroom" => {
+        "cpu_pressure" => CPU_BUDGET,
+        "io_pressure" => IO_BUDGET,
+        "memory_used_percent" => MEMORY_BUDGET,
+        "data_root_used_percent" => HARD_DATA_ROOT_USED_PERCENT
+      }
+    }
+  end
+
+  # "present"  — fresh samples landed within HOST_SAMPLE_WINDOW.
+  # "stale"    — no fresh samples, but WorkerHostHealthSample has rows on
+  #              record at all (a recent gap, e.g. a missed heartbeat tick).
+  # "absent"   — no WorkerHostHealthSample rows have ever been recorded for
+  #              a worker host (e.g. the heartbeat thread never started).
+  def telemetry_state
+    @telemetry_state ||=
+      if latest_worker_samples.any?
+        "present"
+      elsif worker_health_samples_ever_recorded?
+        "stale"
+      else
+        "absent"
+      end
+  end
+
+  def worker_health_samples_ever_recorded?
+    WorkerHostHealthSample.where("role LIKE ?", "%worker%").exists?
+  end
+
   def latest_worker_samples
-    cutoff = now - HOST_SAMPLE_WINDOW
-    WorkerHostHealthSample.where("observed_at >= ?", cutoff)
-      .where("role LIKE ?", "%worker%")
-      .order(observed_at: :desc)
-      .group_by(&:hostname)
-      .values
-      .map(&:first)
+    @latest_worker_samples ||= begin
+      cutoff = now - HOST_SAMPLE_WINDOW
+      WorkerHostHealthSample.where("observed_at >= ?", cutoff)
+        .where("role LIKE ?", "%worker%")
+        .order(observed_at: :desc)
+        .group_by(&:hostname)
+        .values
+        .map(&:first)
+    end
   end
 
   def hard_host_pressure_reason
@@ -670,6 +721,7 @@ class WorkflowAdmissionBudget
       "active_agentic_run_count" => active_agentic_run_count,
       "active_minimum_progress_handoff_count" => active_minimum_progress_handoff_count,
       "healthy_worker_count" => healthy_worker_count,
+      "telemetry_state" => telemetry_state,
       "minimum_progress_floor_capacity" => minimum_progress_floor_capacity,
       "minimum_progress_floor_slots_used" => minimum_progress_floor_slots_used,
       "minimum_progress_floor_available" => minimum_progress_floor_available?,

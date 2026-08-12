@@ -14,6 +14,8 @@ export type StartBlockedDetails = {
       max_io_pressure?: number | null
       max_memory_used_percent?: number | null
       max_data_root_used_percent?: number | null
+      sample_count?: number | null
+      telemetry_state?: "present" | "stale" | "absent" | string
     }
   }
   details?: {
@@ -24,6 +26,7 @@ export type StartBlockedDetails = {
     active_run_count?: number
     active_agentic_run_count?: number
     healthy_worker_count?: number
+    telemetry_state?: "present" | "stale" | "absent" | string
     repository_active_workflow_count?: number
     candidate_high_cost?: boolean
     [key: string]: unknown

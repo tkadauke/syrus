@@ -116,7 +116,17 @@ function workflowAdmissionDetails(details: StartBlockedDetails | null | undefine
   const pressure = admissionPressureLine(details)
   if (pressure) lines.push(pressure)
 
+  const telemetry = telemetryStateLine(details)
+  if (telemetry) lines.push(telemetry)
+
   return lines
+}
+
+function telemetryStateLine(details: StartBlockedDetails | null | undefined) {
+  const telemetryState = details?.pressure?.host?.telemetry_state ?? details?.details?.telemetry_state
+  if (telemetryState === "absent") return "No worker telemetry has been recorded; this decision used step-profile pressure only."
+  if (telemetryState === "stale") return "Worker telemetry is stale (no recent samples); this decision used step-profile pressure only."
+  return null
 }
 
 function admissionReasonLine(details: StartBlockedDetails | null | undefined) {
