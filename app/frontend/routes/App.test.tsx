@@ -7927,7 +7927,8 @@ describe("App", () => {
               schedule_timezone: "UTC",
               fire_at: "",
               pr_pileup_policy: "skip",
-              auto_approve_mode: "never"
+              auto_approve_mode: "never",
+              structured_intent: null
             }
           })
         })
