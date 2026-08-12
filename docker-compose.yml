@@ -45,6 +45,8 @@ services:
     depends_on:
       setup:
         condition: service_completed_successfully
+    environment:
+      SYRUS_ROLE: web
     volumes:
       - syrus-data:/home/rails/.syrus
       - syrus-search:/home/rails/.syrus-search
@@ -57,6 +59,7 @@ services:
       setup:
         condition: service_completed_successfully
     environment:
+      SYRUS_ROLE: worker
       SYRUS_TERMINAL_HOST: worker
       # Required for connectivity plugins (e.g. Tailscale) so the daemon can
       # forward traffic to the web container. Safe to remove if no connectivity
