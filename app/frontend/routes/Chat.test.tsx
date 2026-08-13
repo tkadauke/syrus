@@ -1,6 +1,5 @@
 import { jsonResponse } from "../testSupport"
-import { readFileSync } from "node:fs"
-import { resolve } from "node:path"
+import tailwindConfigSource from "../../../config/tailwind.config.js?raw"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -1982,8 +1981,7 @@ describe("chat message entrance", () => {
     // creates a CSS containing block for any `position: fixed` descendant
     // (e.g. the image lightbox modal in MessageCards.tsx), trapping it
     // inside the message bubble instead of covering the viewport.
-    const tailwindConfig = readFileSync(resolve(__dirname, "../../../config/tailwind.config.js"), "utf-8")
-    const match = tailwindConfig.match(/"chat-message-in":\s*"chat-message-in [^"]*"/)
+    const match = tailwindConfigSource.match(/"chat-message-in":\s*"chat-message-in [^"]*"/)
     expect(match).not.toBeNull()
     expect(match![0]).not.toMatch(/\b(both|forwards)\b/)
   })
