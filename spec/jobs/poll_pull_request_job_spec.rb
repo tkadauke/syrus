@@ -1345,6 +1345,39 @@ RSpec.describe PollPullRequestJob, :ci_only do
         expect(fork_job.reload.state).to eq("approved")
       end
 
+      it "does not approve the job when two_person policy is satisfied but a chat_feedback workflow is active" do
+        reviewer_user  # trigger creation
+        fork_job.mark_implemented! if fork_job.may_mark_implemented?
+        fork_job.update!(state: "implemented")
+        Workflow.create!(job: fork_job, trigger_kind: "chat_feedback", state: "running")
+
+        stub_request(:get, upstream_pr_url).with(query: hash_including({})).to_return(
+          status: 200, headers: { "Content-Type" => "application/json" },
+          body: { number: 20, state: "open", merged: false, labels: [],
+                  head: { sha: "abc123" } }.to_json
+        )
+        stub_request(:get, upstream_reviews_url).with(query: hash_including({})).to_return(
+          status: 200, headers: { "Content-Type" => "application/json" },
+          body: [ { id: 1, state: "APPROVED", submitted_at: 1.hour.ago.iso8601,
+                    user: { login: "alice-dev" } } ].to_json
+        )
+        stub_request(:get, upstream_issue_comments_url).with(query: hash_including({})).to_return(
+          status: 200, headers: { "Content-Type" => "application/json" }, body: [].to_json
+        )
+        stub_request(:get, upstream_review_comments_url).with(query: hash_including({})).to_return(
+          status: 200, headers: { "Content-Type" => "application/json" }, body: [].to_json
+        )
+        stub_request(:get, "https://api.github.com/repos/upstream-org/widgets/commits/abc123/check-runs")
+          .with(query: hash_including({})).to_return(
+            status: 200, headers: { "Content-Type" => "application/json" },
+            body: { total_count: 0, check_runs: [] }.to_json
+          )
+
+        described_class.perform_now(fork_job.id)
+
+        expect(fork_job.reload.state).to eq("implemented")
+      end
+
       it "skips unrecognized GitHub reviewers (no matching Syrus user by github_handle)" do
         stub_request(:get, upstream_pr_url).with(query: hash_including({})).to_return(
           status: 200, headers: { "Content-Type" => "application/json" },
@@ -1457,6 +1490,21 @@ RSpec.describe PollPullRequestJob, :ci_only do
       expect {
         described_class.perform_now(job.id)
       }.not_to change { JobApproval.count }
+    end
+
+    it "does not re-approve a Job whose chat_feedback workflow is still queued or running" do
+      user.update!(github_handle: "reviewer")
+      job.update!(state: "implemented")
+      Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "running")
+      stub_reviews([
+        { id: 1, state: "APPROVED", submitted_at: 1.hour.ago.iso8601,
+          html_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1",
+          user: { login: "reviewer" } }
+      ])
+
+      described_class.perform_now(job.id)
+
+      expect(job.reload.state).to eq("implemented")
     end
   end
 

@@ -47,12 +47,20 @@ class Job::ApprovalPropagator
     Result.new(message: "GitHub review failed: #{e.message}.", status: :failure)
   end
 
+  # review_id is the review Syrus itself filed via #approve, when known.
+  # It's blank whenever the PR's approval came from a raw GitHub review
+  # left directly on github.com (never routed through #approve, so no id
+  # was ever captured) — in that case, look up the PR's current reviews
+  # and dismiss whichever one is APPROVED so it doesn't linger for the
+  # next poll to re-read as a fresh approval signal.
   def dismiss(review_id)
-    return skipped if review_id.blank?
     return skipped unless job.repository.approval_propagates_to_github
     return skipped if job.pr_number.blank?
 
-    client.dismiss_pr_review(job.repository.slug, job.pr_number, review_id, message: "Dismissed via Syrus.")
+    resolved_review_id = review_id.presence || approved_review_id
+    return skipped if resolved_review_id.blank?
+
+    client.dismiss_pr_review(job.repository.slug, job.pr_number, resolved_review_id, message: "Dismissed via Syrus.")
     Result.new(message: "GitHub review dismissed.", status: :success)
   rescue Octokit::Error => e
     Rails.logger.warn("[Job::ApprovalPropagator] GitHub dismiss failed for #{job.slug}: #{e.class}: #{e.message}")
@@ -79,6 +87,14 @@ class Job::ApprovalPropagator
 
   def pat_authored_pull_request?
     job.credential_mode == "pat"
+  end
+
+  def approved_review_id
+    reviews = client.pr_reviews(job.repository.slug, job.pr_number)
+    approved = reviews.find { |review| review.state == "APPROVED" }
+    return nil unless approved
+
+    approved.respond_to?(:id) ? approved.id : approved[:id]
   end
 
   def skipped

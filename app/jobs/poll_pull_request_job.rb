@@ -252,6 +252,7 @@ class PollPullRequestJob < ApplicationJob
     return unless newly_recorded || @job.reload.job_approvals.exists?
     return unless @job.approval_satisfied?
     return unless @job.may_approve?
+    return if @job.active_feedback_workflow?
 
     @job.approve!(via: "github_review")
   end

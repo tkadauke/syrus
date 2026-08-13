@@ -107,5 +107,46 @@ RSpec.describe Job::ApprovalPropagator do
       expect(result).to be_success
       expect(result.message).to eq("GitHub review dismissed.")
     end
+
+    it "looks up the approved review and dismisses it when no review id was captured" do
+      job.update!(pr_number: 123)
+      allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
+      expect(client).to receive(:pr_reviews).with("acme/widgets", 123).and_return([
+        Struct.new(:id, :state).new(111, "COMMENTED"),
+        Struct.new(:id, :state).new(222, "APPROVED")
+      ])
+      expect(client).to receive(:dismiss_pr_review)
+        .with("acme/widgets", 123, 222, message: "Dismissed via Syrus.")
+
+      result = described_class.dismiss(job, nil, user: user)
+
+      expect(result).to be_success
+      expect(result.message).to eq("GitHub review dismissed.")
+    end
+
+    it "skips when no review id was captured and no APPROVED review is found" do
+      job.update!(pr_number: 123)
+      allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
+      expect(client).to receive(:pr_reviews).with("acme/widgets", 123).and_return([
+        Struct.new(:id, :state).new(111, "COMMENTED")
+      ])
+      expect(client).not_to receive(:dismiss_pr_review)
+
+      result = described_class.dismiss(job, nil, user: user)
+
+      expect(result).to be_skipped
+    end
+
+    it "skips the lookup entirely when a review id was already captured" do
+      job.update!(pr_number: 123)
+      allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
+      expect(client).not_to receive(:pr_reviews)
+      expect(client).to receive(:dismiss_pr_review)
+        .with("acme/widgets", 123, 555, message: "Dismissed via Syrus.")
+
+      result = described_class.dismiss(job, 555, user: user)
+
+      expect(result).to be_success
+    end
   end
 end

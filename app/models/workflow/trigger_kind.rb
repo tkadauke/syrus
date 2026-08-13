@@ -34,6 +34,12 @@ class Workflow
 
     BY_KIND = ENTRIES.index_by(&:kind).freeze
 
+    # Workflow states that count as "still actively working" for guards that
+    # must not let a Job move forward (e.g. re-approval, resubmission) while
+    # a feedback workflow is queued or in flight. Shared so callers don't
+    # hand-maintain their own copy of this list.
+    ACTIVE_STATES = %w[queued running].freeze
+
     module_function
 
     def values
