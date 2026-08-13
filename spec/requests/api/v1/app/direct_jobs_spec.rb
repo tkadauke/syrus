@@ -82,7 +82,8 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     )
     expect(body["configured_agent_providers"]).to contain_exactly(
       include("value" => "claude", "label" => "Claude Code"),
-      include("value" => "codex", "label" => "Codex")
+      include("value" => "codex", "label" => "Codex"),
+      include("value" => "opencode", "label" => "Opencode")
     )
     expect(body["selected_repository_id"]).to eq(repository.id.to_s)
     expect(body["create_more"]).to eq(true)

@@ -1708,7 +1708,7 @@ RSpec.describe ChatTurnJob do
     expect(called).to eq(false)
     expect(chat.messages.last).to have_attributes(
       role: "system",
-      content: include("text" => match(/Claude credentials are missing/))
+      content: include("text" => match(/No chat credentials configured/))
     )
   end
 
