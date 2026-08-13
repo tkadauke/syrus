@@ -221,6 +221,135 @@ RSpec.describe WorkEngine::Reconciler do
     expect(result.repair_plans.select { |repair_plan| repair_plan.action == "reenqueue_run" }).to be_empty
   end
 
+  it "does not plan reenqueue_run for a queued Run while an auto-retry attempt is already pending for the workflow" do
+    ensure_solid_queue_test_tables!
+    run.update_columns(state: "queued", created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
+    workflow.update_columns(state: "running", started_at: 5.minutes.ago)
+    AutoRetryAttempt.create!(
+      job: job,
+      workflow: workflow,
+      agent_provider: "claude",
+      failure_classification: "timeout",
+      retry_kind: "failed_step",
+      attempt_number: 1,
+      scheduled_at: 1.minute.from_now
+    )
+
+    result = reconcile(run_id: run.id)
+
+    expect(kind(result, :queued_run_without_queue_claim)).to be_nil
+    expect(plan(result, :reenqueue_run)).to be_nil
+  end
+
+  it "does not reenqueue a grader_collect Run whose queue claim died once its required grader conclusion is already cached failed for the same commit" do
+    ensure_solid_queue_test_tables!
+    loop_id = SecureRandom.uuid
+    collect_step = workflow.steps.create!(kind: "grader_collect", position: 50, iteration: 2, loop_id: loop_id)
+    collect_run = collect_step.runs.create!(
+      job: job,
+      user: job.user,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider,
+      state: "queued",
+      created_at: 5.minutes.ago,
+      updated_at: 5.minutes.ago
+    )
+    workflow.update_columns(state: "running", started_at: 10.minutes.ago, worker_storage_key: "storage-dead")
+    workflow.set_artifact!(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY, "cafefeed")
+    workflow.set_artifact!(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY, "fp-1")
+    GraderConclusion.create!(
+      repository: job.repository,
+      job: job,
+      workflow: workflow,
+      commit_sha: "cafefeed",
+      grader_fingerprint: "fp-1",
+      grader_name: GraderConclusion::AGGREGATE_NAME,
+      required: true,
+      status: "failed",
+      checked_at: 6.minutes.ago
+    )
+    solid_queue_run_job(collect_run, ready: true, queue_name: "resume-storage-dead", created_at: 5.minutes.ago)
+
+    result = reconcile_and_execute(run_id: collect_run.id)
+    issue = kind(result, :queued_grader_collect_cached_failure)
+
+    expect(issue).to have_attributes(
+      severity: "warning",
+      safe_to_auto_repair: false,
+      recommended_repair_action: "operator_review_cached_grader_failure"
+    )
+    expect(kind(result, :queued_run_on_dead_resume_queue)).to be_nil
+    expect(plan(result, :reenqueue_run)).to be_nil
+    expect(plan(result, :operator_review_cached_grader_failure)).to have_attributes(auto_executable: false)
+    expect(collect_run.reload.state).to eq("queued")
+  end
+
+  it "still allows one reenqueue for a grader_collect Run that never had a queue claim, even with a cached failed conclusion for the same commit" do
+    ensure_solid_queue_test_tables!
+    loop_id = SecureRandom.uuid
+    collect_step = workflow.steps.create!(kind: "grader_collect", position: 50, iteration: 2, loop_id: loop_id)
+    collect_run = collect_step.runs.create!(
+      job: job,
+      user: job.user,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider,
+      state: "queued",
+      created_at: 5.minutes.ago,
+      updated_at: 5.minutes.ago
+    )
+    workflow.update_columns(state: "running", started_at: 10.minutes.ago)
+    workflow.set_artifact!(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY, "cafefeed")
+    workflow.set_artifact!(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY, "fp-1")
+    GraderConclusion.create!(
+      repository: job.repository,
+      job: job,
+      workflow: workflow,
+      commit_sha: "cafefeed",
+      grader_fingerprint: "fp-1",
+      grader_name: GraderConclusion::AGGREGATE_NAME,
+      required: true,
+      status: "failed",
+      checked_at: 6.minutes.ago
+    )
+
+    result = reconcile(run_id: collect_run.id)
+    issue = kind(result, :queued_run_without_queue_claim)
+
+    expect(issue).to have_attributes(safe_to_auto_repair: true, recommended_repair_action: "reenqueue_run")
+    expect(kind(result, :queued_grader_collect_cached_failure)).to be_nil
+    expect(plan(result, :reenqueue_run)).to have_attributes(auto_executable: true, target_id: collect_run.id)
+  end
+
+  it "declines to reenqueue a Run through the executor precondition re-check when a retry attempt becomes pending after planning" do
+    run.update_columns(state: "queued", created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
+    workflow.update_columns(state: "running", started_at: 5.minutes.ago)
+    AutoRetryAttempt.create!(
+      job: job,
+      workflow: workflow,
+      agent_provider: "claude",
+      failure_classification: "timeout",
+      retry_kind: "failed_step",
+      attempt_number: 1,
+      scheduled_at: 1.minute.from_now
+    )
+    stale_plan = WorkEngine::RepairPlanner::Plan.new(
+      issue_kind: "queued_run_without_queue_claim",
+      action: "reenqueue_run",
+      auto_executable: true,
+      target_type: "Run",
+      target_id: run.id,
+      affected_ids: { run_ids: [ run.id ] },
+      execution_steps: [ "Run#reenqueue!" ],
+      preconditions: {},
+      reason: "stale plan computed before the retry attempt existed"
+    )
+
+    execution = WorkEngine::RepairExecutor::Policies::ReenqueueRun.new(plan: stale_plan, now: Time.current).execute
+
+    expect(execution).to have_attributes(status: "skipped", message: "retry already pending for workflow")
+    expect(run.reload.state).to eq("queued")
+  end
+
   it "cancels active workflows on closed jobs in the global reconciliation scope" do
     ensure_solid_queue_test_tables!
     workflow.update_columns(state: "running", started_at: 45.minutes.ago)

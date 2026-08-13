@@ -43,6 +43,28 @@ class GraderConclusionCache
                     .first
   end
 
+  def self.failed?(repository:, commit_sha:, grader_fingerprint:)
+    return false if repository.blank? || commit_sha.blank? || grader_fingerprint.blank?
+
+    GraderConclusion.aggregate
+                    .failed
+                    .where(repository: repository, commit_sha: commit_sha, grader_fingerprint: grader_fingerprint)
+                    .exists?
+  end
+
+  # Convenience for repair/reconciliation code that only has a Workflow in
+  # hand: reads the head SHA + fingerprint that GraderFanout already stamped
+  # onto workflow artifacts for the current grade iteration.
+  def self.failed_for_workflow?(workflow)
+    return false unless workflow
+
+    failed?(
+      repository: workflow.job&.repository,
+      commit_sha: workflow.artifact(ARTIFACT_HEAD_SHA_KEY),
+      grader_fingerprint: workflow.artifact(ARTIFACT_FINGERPRINT_KEY)
+    )
+  end
+
   def self.record!(workflow:, run:, step:, commit_sha:, grader_steps:, aggregate_status:, grader_fingerprint: nil)
     return if commit_sha.blank? || grader_steps.empty?
 

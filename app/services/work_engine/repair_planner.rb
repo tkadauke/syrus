@@ -316,6 +316,21 @@ module WorkEngine
         end
       end
 
+      class QueuedGraderCollectCachedFailure < Base
+        def plan
+          operator_plan(
+            "operator_review_cached_grader_failure",
+            "The required grader conclusion is already cached failed for the current commit and fingerprint, so re-enqueueing this grader_collect Run would replay a known deterministic failure instead of letting the retry-until loop exhaust or fail the workflow.",
+            preconditions: {
+              step_kind: "grader_collect",
+              grader_conclusion_cached_failed: true,
+              commit_sha: issue.evidence["grade_plan_head_sha"],
+              grader_fingerprint: issue.evidence["grade_plan_fingerprint"]
+            }
+          )
+        end
+      end
+
       class QueuedStepWithoutRun < Base
         def plan
           automatic_plan(

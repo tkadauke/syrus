@@ -133,6 +133,8 @@ module Admin
         "Stale queue claim missing: #{issue.explanation} The reconciler can re-enqueue the same Run."
       when "queued_run_stale_queue_claim"
         "Stale queue claim: #{issue.explanation} Waiting avoids duplicating work while the queue claim is investigated."
+      when "queued_grader_collect_cached_failure"
+        "Cached grader failure: #{issue.explanation} Retry or investigate the required grader failure manually."
       when "resource_congestion"
         "Queue starvation or worker capacity pressure: #{issue.explanation}"
       when "dependency_stack_start_block"

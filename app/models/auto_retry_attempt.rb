@@ -23,4 +23,7 @@ class AutoRetryAttempt < ApplicationRecord
       failure_classification: failure_classification
     ).where(skipped_reason: nil)
   }
+
+  # Not yet performed and not skipped — a retry that is still going to happen.
+  scope :pending, -> { where(performed_at: nil, skipped_reason: nil) }
 end

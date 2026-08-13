@@ -184,7 +184,7 @@ module WorkEngine
           workflow ||= source_run&.workflow || target_workflow
           job ||= source_run&.job || workflow&.job || target_job
           return skipped("retry target is missing") unless workflow && job
-          return skipped("retry already pending") if workflow.auto_retry_attempts.where(performed_at: nil, skipped_reason: nil).exists?
+          return skipped("retry already pending") if workflow.auto_retry_attempts.pending.exists?
 
           agent_provider = source_run&.agent_provider.presence || workflow.agent_provider || job.agent_provider
           classification = source_run&.run_failure_classification&.classification.presence ||
@@ -245,9 +245,26 @@ module WorkEngine
           return skipped("Run no longer exists") unless run
           return skipped("Run is #{run.state}, not queued") unless run.queued?
           return skipped("Workflow is not active") unless run.workflow&.queued? || run.workflow&.running?
+          return skipped("retry already pending for workflow") if run.workflow.auto_retry_attempts.pending.exists?
+          return skipped("required grader conclusion already cached failed for this commit") if blocked_by_cached_grader_failure?(run)
 
           run.reenqueue!
           success("re-enqueued Run ##{run.id}")
+        end
+
+        private
+
+        # queued_run_without_queue_claim is the one queued-run issue kind where
+        # re-enqueueing is safe even with a cached failed conclusion: the Run
+        # never had a queue claim at all, so it has not executed yet and still
+        # needs to run once to make the loop progress deterministically. The
+        # other queued-run kinds (dead resume queue, failed SolidQueue
+        # execution) mean a claim/attempt already happened, so replaying a
+        # grader_collect Run against an already-known-failed commit just churns.
+        def blocked_by_cached_grader_failure?(run)
+          return false if plan.issue_kind == "queued_run_without_queue_claim"
+
+          run.step&.kind == "grader_collect" && GraderConclusionCache.failed_for_workflow?(run.workflow)
         end
       end
 

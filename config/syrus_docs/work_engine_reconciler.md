@@ -65,6 +65,7 @@ The classifier currently emits these families:
 - `queued_run_without_queue_claim`
 - `queued_run_solid_queue_failed_execution`
 - `queued_run_stale_queue_claim`
+- `queued_grader_collect_cached_failure`
 - `runs_paused`
 - `running_run_without_live_worker_evidence`
 - `queued_workflow_without_first_run`
@@ -106,6 +107,18 @@ Planner examples:
   the persisted Run remains the source of truth.
 - A stale queued Run with an existing queue claim returns
   `diagnose_queue_starvation`; it does not duplicate work.
+- A queued Run is never planned for `reenqueue_run` while its Workflow has a
+  pending (unperformed, unskipped) `AutoRetryAttempt` — that attempt already
+  owns recovery for the Workflow, so racing it with a second repair path is
+  what turns a single grader failure into a run storm.
+- A queued `grader_collect` Run that already lost a queue claim (dead resume
+  queue or a failed SolidQueue execution — not the "never had a claim" case)
+  returns `operator_review_cached_grader_failure` instead of `reenqueue_run`
+  when `GraderConclusionCache` already has a failed aggregate conclusion for
+  the Workflow's current head SHA and grader fingerprint: the outcome is
+  already known, so re-enqueueing would just replay it. A Run that never had
+  a queue claim at all still gets one legitimate `reenqueue_run`, since it
+  has to execute once to progress the retry-until loop deterministically.
 - Paused Run queues return `wait_for_queue_resume`, preserving the operator's
   pause instead of creating duplicate queue pressure.
 - A running Workflow whose previous Step succeeded but whose queued successor

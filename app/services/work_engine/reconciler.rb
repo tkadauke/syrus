@@ -288,6 +288,7 @@ module WorkEngine
         sqs = solid_queue_jobs_for_run(run)
         workflow = run.workflow
         next if stale_auto_retry_attempt_for(workflow)
+        next if pending_auto_retry_attempt?(workflow)
 
         if sqs.empty?
           issue(
@@ -300,25 +301,33 @@ module WorkEngine
             explanation: "Run ##{run.id} is queued but no active SolidQueue RunJob references it."
           )
         elsif sqs.none? { |sq| queue_job_can_progress?(sq) } && (sq = sqs.find { |candidate| candidate[:ready] && dead_resume_queue?(candidate[:queue_name]) })
-          issue(
-            kind: :queued_run_on_dead_resume_queue,
-            severity: :error,
-            affected_ids: ids_for(run).merge(solid_queue_job_ids: [ sq[:id] ]),
-            safe_to_auto_repair: workflow&.running? || workflow&.queued?,
-            recommended_repair_action: "reenqueue_run",
-            evidence: run_evidence(run).merge(solid_queue: sq, solid_queue_state: "dead_resume_queue"),
-            explanation: "Run ##{run.id} is queued on a storage-affinity resume queue with no live worker."
-          )
+          if grader_collect_cached_failure?(run)
+            issue(**grader_collect_cached_failure_issue(run, workflow, sq, "dead_resume_queue"))
+          else
+            issue(
+              kind: :queued_run_on_dead_resume_queue,
+              severity: :error,
+              affected_ids: ids_for(run).merge(solid_queue_job_ids: [ sq[:id] ]),
+              safe_to_auto_repair: workflow&.running? || workflow&.queued?,
+              recommended_repair_action: "reenqueue_run",
+              evidence: run_evidence(run).merge(solid_queue: sq, solid_queue_state: "dead_resume_queue"),
+              explanation: "Run ##{run.id} is queued on a storage-affinity resume queue with no live worker."
+            )
+          end
         elsif sqs.none? { |sq| queue_job_can_progress?(sq) } && (sq = sqs.find { |candidate| candidate[:failed] })
-          issue(
-            kind: :queued_run_solid_queue_failed_execution,
-            severity: :error,
-            affected_ids: ids_for(run).merge(solid_queue_job_ids: [ sq[:id] ]),
-            safe_to_auto_repair: workflow&.running? || workflow&.queued?,
-            recommended_repair_action: "reenqueue_run",
-            evidence: run_evidence(run).merge(solid_queue: sq, solid_queue_state: "failed_execution"),
-            explanation: "Run ##{run.id} is queued but its SolidQueue RunJob has a failed execution."
-          )
+          if grader_collect_cached_failure?(run)
+            issue(**grader_collect_cached_failure_issue(run, workflow, sq, "failed_execution"))
+          else
+            issue(
+              kind: :queued_run_solid_queue_failed_execution,
+              severity: :error,
+              affected_ids: ids_for(run).merge(solid_queue_job_ids: [ sq[:id] ]),
+              safe_to_auto_repair: workflow&.running? || workflow&.queued?,
+              recommended_repair_action: "reenqueue_run",
+              evidence: run_evidence(run).merge(solid_queue: sq, solid_queue_state: "failed_execution"),
+              explanation: "Run ##{run.id} is queued but its SolidQueue RunJob has a failed execution."
+            )
+          end
         elsif sqs.none? { |sq| queue_job_can_progress?(sq) } && (sq = sqs.find { |candidate| stale_queue_claim?(candidate) })
           issue(
             kind: :queued_run_stale_queue_claim,
@@ -614,6 +623,43 @@ module WorkEngine
       source.succeeded? ||
         newer_successful_workflow?(job, source) ||
         branch_divergence_recovered_by_current_pr_branch?(source)
+    end
+
+    # A pending AutoRetryAttempt already owns recovery for this workflow (it
+    # will schedule a fresh Run via AutoRetryJob once it fires), so a queued
+    # Run that lost its claim in the meantime should not also be repaired by
+    # reenqueue_run — racing the two paths is what turned a single grader
+    # failure into a run storm (JOB-2970 / WF-18780).
+    def pending_auto_retry_attempt?(workflow)
+      workflow.present? && workflow.auto_retry_attempts.pending.exists?
+    end
+
+    # queued_run_without_queue_claim (the Run never had a queue claim at all)
+    # is the one case desired behavior still allows: the Run has not executed
+    # yet, so it must run once to progress the retry-until loop
+    # deterministically. Once a claim/attempt already happened (dead resume
+    # queue, failed SolidQueue execution) and the required grader conclusion
+    # is already cached failed for the exact commit + fingerprint this
+    # workflow is at, re-enqueueing would just replay a known outcome.
+    def grader_collect_cached_failure?(run)
+      run.step&.kind == "grader_collect" && GraderConclusionCache.failed_for_workflow?(run.workflow)
+    end
+
+    def grader_collect_cached_failure_issue(run, workflow, sq, solid_queue_state)
+      {
+        kind: :queued_grader_collect_cached_failure,
+        severity: :warning,
+        affected_ids: ids_for(run).merge(solid_queue_job_ids: [ sq[:id] ]),
+        safe_to_auto_repair: false,
+        recommended_repair_action: "operator_review_cached_grader_failure",
+        evidence: run_evidence(run).merge(
+          solid_queue: sq,
+          solid_queue_state: solid_queue_state,
+          grade_plan_head_sha: workflow.artifact(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY),
+          grade_plan_fingerprint: workflow.artifact(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY)
+        ),
+        explanation: "Run ##{run.id} is a queued grader_collect Run that already lost a queue claim, but the required grader conclusion is already cached failed for the current commit; re-enqueueing would replay a known deterministic failure instead of letting the retry-until loop exhaust or fail the workflow."
+      }
     end
 
     def classify_job_workflow_drift

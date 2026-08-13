@@ -15,6 +15,7 @@ class GraderConclusion < ApplicationRecord
 
   scope :aggregate, -> { where(grader_name: AGGREGATE_NAME) }
   scope :passed, -> { where(status: "passed") }
+  scope :failed, -> { where(status: "failed") }
   scope :latest_first, -> { order(checked_at: :desc, created_at: :desc) }
 
   private
