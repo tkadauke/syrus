@@ -64,7 +64,7 @@ preview:
 
 ### Seeding must be idempotent
 
-`seed` (or, for auto-detected Rails repos, `SyrusRails::PreviewProvider#seed_command`) runs against a **fresh checkout on every preview spin-up**, not once. A `db/seeds.rb` that isn't idempotent (bare `Model.create!`) fails or duplicates rows on the second preview. The "Seed preview demo data" Job template (`lib/agent_skills/configure-preview-seed-data.md`, exposed via `PromptTemplate`) is a one-time, per-repo onboarding pass an operator runs to make an existing `db/seeds.rb` idempotent, add a demo user and representative sample data if the repo has none, and record how to reach an authenticated/populated view in the repo's `.syrus.yml` `visual_review.seed_notes` (see [`syrus_yml.md`](syrus_yml.md)).
+`seed` (or, for auto-detected Rails repos, `SyrusRails::PreviewProvider#seed_command`) runs against a **fresh checkout on every preview spin-up**, not once. A seed script that isn't idempotent (a bare, unguarded insert) fails or duplicates rows on the second preview. The "Seed preview demo data" Job template (`lib/agent_skills/configure-preview-seed-data.md`, exposed via `PromptTemplate`) is a one-time, per-repo onboarding pass an operator runs to detect the repo's seed mechanism (Rails `db/seeds.rb`, Django, Laravel, Node/Prisma, or a hand-rolled equivalent) and make it idempotent, add a demo user and representative sample data if the repo has none, and record how to reach an authenticated/populated view in the repo's `.syrus.yml` `visual_review.seed_notes` (see [`syrus_yml.md`](syrus_yml.md)).
 
 ### Preview service process
 

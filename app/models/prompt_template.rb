@@ -26,7 +26,7 @@ class PromptTemplate
     new(
       id: "configure-preview-seed-data",
       name: "Seed preview demo data",
-      description: "One-time onboarding: make db/seeds.rb idempotent and add demo user + sample data so previews reach a populated, authenticated state."
+      description: "One-time onboarding: make the repo's seed mechanism idempotent and add demo user + sample data so previews reach a populated, authenticated state."
     )
   ].freeze
 
