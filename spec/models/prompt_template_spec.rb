@@ -75,4 +75,19 @@ RSpec.describe PromptTemplate do
 
     include_examples "a skill-backed template", "update-dependencies"
   end
+
+  describe "configure-preview-seed-data template" do
+    subject(:template) { described_class.find("configure-preview-seed-data") }
+
+    include_examples "a skill-backed template", "configure-preview-seed-data"
+
+    it "mentions the idempotency requirement" do
+      expect(template.prompt).to include("idempotent")
+    end
+
+    it "mentions writing seed_notes into the visual_review block" do
+      expect(template.prompt).to include("seed_notes")
+      expect(template.prompt).to include("visual_review")
+    end
+  end
 end

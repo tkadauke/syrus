@@ -62,6 +62,10 @@ preview:
 
 `start` may use `$PORT` or `${PORT}`; Syrus replaces it with a dynamically allocated port. `setup` runs first in the fresh preview checkout, then `seed` runs before the server starts. Setup, seed, and server commands receive the same preview environment. Any nonzero setup or seed command fails the preview instead of starting a partially prepared app. `env` sets repository-specific variables and `unset_env` strips inherited variables such as production database URLs. Use these keys for repo-specific preview guardrails rather than hardcoding repository checks into Syrus.
 
+### Seeding must be idempotent
+
+`seed` (or, for auto-detected Rails repos, `SyrusRails::PreviewProvider#seed_command`) runs against a **fresh checkout on every preview spin-up**, not once. A `db/seeds.rb` that isn't idempotent (bare `Model.create!`) fails or duplicates rows on the second preview. The "Seed preview demo data" Job template (`lib/agent_skills/configure-preview-seed-data.md`, exposed via `PromptTemplate`) is a one-time, per-repo onboarding pass an operator runs to make an existing `db/seeds.rb` idempotent, add a demo user and representative sample data if the repo has none, and record how to reach an authenticated/populated view in the repo's `.syrus.yml` `visual_review.seed_notes` (see [`syrus_yml.md`](syrus_yml.md)).
+
 ### Preview service process
 
 The `preview` service (`bin/preview`, `Procfile.dev`) is a separate long-running process that manages preview app child processes. It is not involved in request routing.
