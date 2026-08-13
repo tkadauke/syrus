@@ -34,6 +34,7 @@ de:
 
   application:
     admin_required: "Administrator-Zugriff erforderlich."
+    chat_unavailable: "Dieser Chat ist nicht mehr verfügbar."
 
   api:
     base:

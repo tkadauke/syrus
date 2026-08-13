@@ -218,6 +218,28 @@ RSpec.describe "SPA shell", type: :request do
     expect(flash[:alert]).to match(/admin/i)
   end
 
+  it "redirects to root instead of a bare 404 for an inaccessible chat" do
+    owner = Factories.user
+    chat = ChatSession.create!(user: owner)
+    user = Factories.user
+    sign_in_as(user)
+
+    get chat_path(chat)
+
+    expect(response).to redirect_to(root_path)
+    expect(flash[:alert]).to match(/no longer available/i)
+  end
+
+  it "redirects to root instead of a bare 404 for a nonexistent chat" do
+    user = Factories.user
+    sign_in_as(user)
+
+    get chat_path(999_999)
+
+    expect(response).to redirect_to(root_path)
+    expect(flash[:alert]).to match(/no longer available/i)
+  end
+
   it "requires admin access for non-/admin admin SPA routes" do
     Factories.user
     user = Factories.user

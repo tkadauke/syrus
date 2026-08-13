@@ -69,7 +69,7 @@ class SpaController < ApplicationController
   def require_chat_owner
     return if Current.user.accessible_chat_sessions.exists?(id: chat_spa_id)
 
-    head :not_found
+    redirect_to root_path, alert: t("application.chat_unavailable")
   end
 
   def chat_spa_id

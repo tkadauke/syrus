@@ -66,6 +66,7 @@ en:
 
   application:
     admin_required: "Admin access required."
+    chat_unavailable: "That chat is no longer available."
 
   # API messages
   api:

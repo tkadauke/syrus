@@ -34,6 +34,7 @@ la:
 
   application:
     admin_required: "Accessus administratoris necessarius est."
+    chat_unavailable: "Ille colloquium non iam praesto est."
 
   api:
     base:
