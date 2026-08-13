@@ -297,6 +297,8 @@ export type ChatPendingAction = {
   before_snapshot?: Record<string, unknown>
   after_snapshot?: Record<string, unknown>
   chat_message_id?: number | null
+  resource_title?: string
+  resource_url?: string
   app_confirm_path: string
   app_reject_path: string
   app_cancel_path: string

@@ -113,5 +113,132 @@ module App
       transitions << [ "Archive", "archived" ] if epic.may_archive?
       transitions
     end
+
+    # Single source of truth for pending-action label/detail rendering.
+    # Both App::ChatMessagePayload (message-anchored pending actions) and
+    # ChatPendingActions (the live/unanchored pending-actions list) must
+    # delegate here instead of keeping their own case statements — two
+    # independent copies previously drifted out of sync and a chat agent
+    # tool (submit_coding_changes) silently rendered a blank label/detail
+    # in the live list while working fine once anchored to a message.
+    def pending_action_label(action)
+      payload = action.payload || {}
+      case action.action
+      when "cancel_job"
+        "Cancel #{job_slug(payload['job_id'])}"
+      when "close_job_successfully"
+        "Close #{job_slug(payload['job_id'])} as #{payload['closure_reason']}"
+      when "retry_job"
+        "Retry #{job_slug(payload['job_id'])}"
+      when "force_fail_job"
+        "Force fail #{job_slug(payload['job_id'])}"
+      when "rebase_job"
+        "Rebase #{job_slug(payload['job_id'])}"
+      when "force_rebase"
+        "Force rebase #{job_slug(payload['job_id'])}"
+      when "restack_epic"
+        "Restack Epic ##{payload['epic_id']}"
+      when "reopen_job"
+        "Reopen #{job_slug(payload['job_id'])}"
+      when "fire_scheduled_task_now"
+        "Fire scheduled task ##{payload['scheduled_task_id']}"
+      when "create_repo_document"
+        "Create document #{payload['title'].to_s.inspect}"
+      when "delete_repo_document"
+        "Delete document #{payload['title'].to_s.presence || "##{payload['document_id']}"}"
+      when "poll_job_feedback"
+        "Poll PR feedback for #{job_slug(payload['job_id'])}"
+      when "run_visual_review"
+        "Run visual review for #{job_slug(payload['job_id'])}"
+      when "check_job_mergeability"
+        "Check mergeability for #{job_slug(payload['job_id'])}"
+      when "force_landing_recheck"
+        "Force landing recheck for #{job_slug(payload['job_id'])}"
+      when "override_landing_blocker_once"
+        "Override #{payload['blocker_key']} once for #{job_slug(payload['job_id'])}"
+      when "wake_landing_queue"
+        "Wake landing queue"
+      when "delegate_issue"
+        "Delegate issue ##{payload['issue_number']}"
+      when "pause_landing_queue"
+        "Pause landing queue"
+      when "resume_landing_queue"
+        "Resume landing queue"
+      when "submit_chat_feedback"
+        "Submit feedback on #{job_slug(payload['job_id'])}"
+      when "reopen_epic_and_attach_job"
+        "Reopen Epic ##{payload['epic_id']} and attach #{job_slug(payload['job_id'])}"
+      when "submit_coding_changes"
+        payload["title"].presence || action.action_type.to_s.humanize
+      when "admin_kill_process"
+        "Kill process ##{payload['process_id']}"
+      when "admin_reap_stale_runs"
+        "Force-reap stale runs"
+      when "admin_pause_polling"
+        "Pause repository polling"
+      when "admin_unpause_polling"
+        "Resume repository polling"
+      when "admin_pause_runs"
+        "Pause runs"
+      when "admin_unpause_runs"
+        "Resume runs"
+      when "admin_clear_github_cache"
+        "Clear GitHub API cache"
+      when "admin_pause_user_scheduling"
+        "Pause scheduling for user ##{payload['user_id']}"
+      when "admin_unpause_user_scheduling"
+        "Resume scheduling for user ##{payload['user_id']}"
+      when "admin_retry_step"
+        "Retry step #{payload['step_slug']} on workflow ##{payload['workflow_id']}"
+      when "admin_cleanup_workspace"
+        "Delete workspace for workflow ##{payload['workflow_id']}"
+      when "admin_refresh_installations"
+        "Refresh GitHub App installations"
+      when "manual_agentic_run"
+        "Manual agentic run for #{job_slug(payload['job_id'])}"
+      when "adopt_current_pr_head"
+        "Adopt current PR head for #{job_slug(payload['job_id'])}"
+      when "replace_pr_branch_with_workflow_output"
+        "Replace PR branch for #{job_slug(payload['job_id'])}"
+      when "retry_from_current_pr_branch"
+        "Retry from current PR branch for #{job_slug(payload['job_id'])}"
+      else
+        payload["label"].presence || action.action_type.to_s.humanize
+      end
+    end
+
+    def pending_action_detail(action)
+      payload = action.payload || {}
+      case action.action.presence || action.action_type
+      when "close_job_successfully"
+        payload["comment"].presence
+      when "submit_chat_feedback"
+        payload["feedback"].presence
+      when "adopt_current_pr_head", "replace_pr_branch_with_workflow_output", "retry_from_current_pr_branch"
+        evidence = payload["evidence"].to_h
+        [
+          "Remote SHA: #{evidence['remote_sha'].presence || 'unknown'}",
+          "Workflow local SHA: #{evidence['workflow_local_sha'].presence || 'unknown'}",
+          "Base SHA: #{evidence['base_sha'].presence || 'unknown'}",
+          Array(evidence.dig("diff_summary", "files")).presence&.then { |files| "Changed files: #{files.first(10).join(', ')}" }
+        ].compact.join("\n")
+      when "schedule_recurring"
+        [
+          [ payload["label"], payload["schedule_explanation"] || payload["schedule_input"] || payload["cron_expression"] ].compact_blank.join(" — ").presence,
+          payload["prompt"].presence
+        ].compact.join("\n\n").presence
+      when "submit_coding_changes"
+        branch = payload["branch"].presence
+        description = payload["description"].presence
+        steps = <<~MARKDOWN.strip
+          **Branch:** #{branch}
+
+          1. Push branch to GitHub using server-side credentials
+          2. Create a new direct Job
+          3. Run the `coding_handoff` workflow (graders → summarize → PR open)
+        MARKDOWN
+        [ steps, description ].compact.join("\n\n---\n\n")
+      end
+    end
   end
 end

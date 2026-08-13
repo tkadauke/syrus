@@ -285,7 +285,21 @@ module ChatSerialization
         payload[:reason] = action.reason if action.reason.present?
         payload[:before_snapshot] = action.before_snapshot if action.before_snapshot.present?
         payload[:after_snapshot] = action.after_snapshot if action.after_snapshot.present?
+        resource = pending_action_resource(action)
+        payload.merge!(resource) if resource
       end
+    end
+  end
+
+  def pending_action_resource(action)
+    payload = action.payload || {}
+
+    case action.action
+    when "submit_coding_changes"
+      repository = action.user.repositories.active.find_by(id: payload["repository_id"])
+      return nil unless repository
+
+      { resource_title: repository.slug, resource_url: repository_path(repository) }
     end
   end
 

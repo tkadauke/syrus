@@ -427,83 +427,11 @@ module App
     end
 
     def pending_action_label(action)
-      payload = action.payload || {}
-      case action.action
-      when "cancel_job"
-        "Cancel #{::App::Presentation.job_slug(payload['job_id'])}"
-      when "close_job_successfully"
-        "Close #{::App::Presentation.job_slug(payload['job_id'])} as #{payload['closure_reason']}"
-      when "retry_job"
-        "Retry #{::App::Presentation.job_slug(payload['job_id'])}"
-      when "force_fail_job"
-        "Force fail #{::App::Presentation.job_slug(payload['job_id'])}"
-      when "rebase_job"
-        "Rebase #{::App::Presentation.job_slug(payload['job_id'])}"
-      when "force_rebase"
-        "Force rebase #{::App::Presentation.job_slug(payload['job_id'])}"
-      when "restack_epic"
-        "Restack Epic ##{payload['epic_id']}"
-      when "reopen_job"
-        "Reopen #{::App::Presentation.job_slug(payload['job_id'])}"
-      when "fire_scheduled_task_now"
-        "Fire scheduled task ##{payload['scheduled_task_id']}"
-      when "create_repo_document"
-        "Create document #{payload['title'].to_s.inspect}"
-      when "delete_repo_document"
-        "Delete document #{payload['title'].to_s.presence || "##{payload['document_id']}"}"
-      when "poll_job_feedback"
-        "Poll PR feedback for #{::App::Presentation.job_slug(payload['job_id'])}"
-      when "run_visual_review"
-        "Run visual review for #{::App::Presentation.job_slug(payload['job_id'])}"
-      when "check_job_mergeability"
-        "Check mergeability for #{::App::Presentation.job_slug(payload['job_id'])}"
-      when "force_landing_recheck"
-        "Force landing recheck for #{::App::Presentation.job_slug(payload['job_id'])}"
-      when "override_landing_blocker_once"
-        "Override #{payload['blocker_key']} once for #{::App::Presentation.job_slug(payload['job_id'])}"
-      when "wake_landing_queue"
-        "Wake landing queue"
-      when "delegate_issue"
-        "Delegate issue ##{payload['issue_number']}"
-      when "pause_landing_queue"
-        "Pause landing queue"
-      when "resume_landing_queue"
-        "Resume landing queue"
-      when "submit_chat_feedback"
-        "Submit feedback on #{::App::Presentation.job_slug(payload['job_id'])}"
-      when "reopen_epic_and_attach_job"
-        "Reopen Epic ##{payload['epic_id']} and attach #{::App::Presentation.job_slug(payload['job_id'])}"
-      when "submit_coding_changes"
-        payload["title"].presence || action.action_type.to_s.humanize
-      else
-        payload["label"].presence || action.action_type.to_s.humanize
-      end
+      ::App::Presentation.pending_action_label(action)
     end
 
     def pending_action_detail(action)
-      payload = action.payload || {}
-      case action.action.presence || action.action_type
-      when "close_job_successfully"
-        payload["comment"].presence
-      when "submit_chat_feedback"
-        payload["feedback"].presence
-      when "schedule_recurring"
-        [
-          [ payload["label"], payload["schedule_explanation"] || payload["schedule_input"] || payload["cron_expression"] ].compact_blank.join(" — ").presence,
-          payload["prompt"].presence
-        ].compact.join("\n\n").presence
-      when "submit_coding_changes"
-        branch = payload["branch"].presence
-        description = payload["description"].presence
-        steps = <<~MARKDOWN.strip
-          **Branch:** #{branch}
-
-          1. Push branch to GitHub using server-side credentials
-          2. Create a new direct Job
-          3. Run the `coding_handoff` workflow (graders → summarize → PR open)
-        MARKDOWN
-        [ steps, description ].compact.join("\n\n---\n\n")
-      end
+      ::App::Presentation.pending_action_detail(action)
     end
 
     def materialized_json(proposal)

@@ -168,6 +168,8 @@ export function pendingActionCardData(action: ChatPendingAction): ChatPendingAct
     state: action.state,
     label: action.label,
     detail: action.detail,
+    resource_title: action.resource_title,
+    resource_url: action.resource_url,
     app_confirm_path: action.app_confirm_path,
     app_reject_path: action.app_reject_path
   }

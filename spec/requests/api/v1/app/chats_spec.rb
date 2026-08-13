@@ -3885,6 +3885,35 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(job_to_keep.reload).to be_open
   end
 
+  it "includes title, description, and repository resource for unanchored submit_coding_changes pending actions" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    action = chat.pending_actions.create!(
+      action: "submit_coding_changes",
+      requested_by: "agent",
+      payload: {
+        "repository_id" => repository.id,
+        "branch" => "syrus/chat-42-handoff-7",
+        "title" => "Add dark mode toggle",
+        "description" => "Implemented a dark mode toggle in the settings panel."
+      }
+    )
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(parse_body["pending_actions"]).to contain_exactly(
+      include(
+        "id" => action.id,
+        "label" => "Add dark mode toggle",
+        "resource_title" => "acme/widgets",
+        "resource_url" => "/repositories/#{repository.id}"
+      )
+    )
+    detail = parse_body["pending_actions"].first["detail"]
+    expect(detail).to include("**Branch:** syrus/chat-42-handoff-7")
+    expect(detail).to include("Implemented a dark mode toggle in the settings panel.")
+  end
+
   it "confirms supervisor retry_job pending actions for user-owned Jobs through the app API" do
     admin = Factories.user(admin: true, claude_oauth_token: "oat-admin")
     admin_repository = Factories.repository(user: admin, owner: "acme", name: "supervised")
