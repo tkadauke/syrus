@@ -8,6 +8,20 @@
 # this file is here to facilitate running it.
 #
 
+# config/environments/test.rb turns on eager loading under CI, which
+# roughly doubles full-suite wall time (measured ~4m -> ~8m for this
+# suite) purely from GC pressure created by the much larger resident
+# object graph. GC heap knobs are read once at interpreter boot, so
+# they can't be set from Ruby code after this process has already
+# started -- re-exec once with them present in the environment.
+unless ENV["RUBY_GC_HEAP_GROWTH_FACTOR"]
+  ENV["RUBY_GC_HEAP_GROWTH_FACTOR"] = "1.8"
+  ENV["RUBY_GC_HEAP_INIT_SLOTS"] = "1000000"
+  ENV["RUBY_GC_MALLOC_LIMIT"] = "134217728"
+  ENV["RUBY_GC_MALLOC_LIMIT_MAX"] = "536870912"
+  exec(RbConfig.ruby, __FILE__, *ARGV)
+end
+
 ENV["BUNDLE_GEMFILE"] ||= File.expand_path("../Gemfile", __dir__)
 ENV["RAILS_ENV"] = "test"
 require_relative "../config/syrus_bundle_env"
