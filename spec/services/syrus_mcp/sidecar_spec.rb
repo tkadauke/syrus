@@ -58,7 +58,8 @@ RSpec.describe Mcp::Sidecar do
       response = jsonrpc(server_for(run), "tools/list", id: 1)
       tool_names = response[:result][:tools].map { |t| t[:name] }
       expect(tool_names).to contain_exactly(
-        *%w[read_live_state read_run_worker_health read_memory write_memory delete_memory search_memories list_memories get_coverage_report report_main_concern start_preview stop_preview read_preview_log submit_summary submit_test_plan submit_artifact]
+        *%w[read_live_state read_run_worker_health read_memory write_memory delete_memory search_memories list_memories get_coverage_report report_main_concern start_preview stop_preview read_preview_log submit_summary submit_test_plan submit_artifact
+            browser_navigate browser_click browser_fill browser_snapshot browser_screenshot browser_wait_for browser_close]
       )
       expect(tool_names).not_to include("submit_adversarial_review")
     end
