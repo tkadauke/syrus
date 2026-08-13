@@ -115,6 +115,10 @@ RSpec.describe PollExternalPrJob do
 
     it "leaves the external_pr Job open when the PR is still open" do
       stub_external_pr(state: "open", merged: false)
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/pulls/9/reviews")
+        .with(query: hash_including({})).to_return(
+          status: 200, headers: { "Content-Type" => "application/json" }, body: "[]"
+        )
       expect { described_class.perform_now(external_pr_job.id) }
         .not_to change { external_pr_job.reload.state }
     end
@@ -124,6 +128,93 @@ RSpec.describe PollExternalPrJob do
       stub_external_pr(state: "closed", merged: true)
       expect { described_class.perform_now(external_pr_job.id) }
         .to change { external_pr_job.reload.state }.to("closed")
+    end
+  end
+
+  describe "review reactions for external_pr Jobs" do
+    let(:external_pr_job) do
+      Job.create!(
+        user: user,
+        repository: repository,
+        kind: "external_pr",
+        external_pr_number: 9,
+        state: "implemented"
+      )
+    end
+
+    let(:reviews_url) { "https://api.github.com/repos/acme/widgets/pulls/9/reviews" }
+
+    def stub_reviews(reviews = [])
+      stub_request(:get, reviews_url).with(query: hash_including({})).to_return(
+        status: 200, headers: { "Content-Type" => "application/json" },
+        body: reviews.to_json
+      )
+    end
+
+    it "flips an implemented external_pr Job to approved on an APPROVED review" do
+      stub_external_pr(state: "open", merged: false)
+      stub_reviews([
+        { id: 1, state: "APPROVED", submitted_at: Time.current.iso8601,
+          html_url: "https://github.com/acme/widgets/pull/9#pullrequestreview-1", user: { login: "reviewer" } }
+      ])
+
+      expect { described_class.perform_now(external_pr_job.id) }
+        .to change { external_pr_job.reload.state }.from("implemented").to("approved")
+
+      external_pr_job.reload
+      expect(external_pr_job.approved_via).to eq("github_review")
+      expect(external_pr_job.approval_evidence).to eq(
+        "github_review_url" => "https://github.com/acme/widgets/pull/9#pullrequestreview-1"
+      )
+    end
+
+    it "sets needs_attention_reason on a CHANGES_REQUESTED review" do
+      stub_external_pr(state: "open", merged: false)
+      stub_reviews([
+        { id: 1, state: "CHANGES_REQUESTED", submitted_at: Time.current.iso8601,
+          html_url: nil, user: { login: "reviewer" } }
+      ])
+
+      described_class.perform_now(external_pr_job.id)
+
+      expect(external_pr_job.reload.needs_attention_reason).to eq("upstream_pr_changes_requested")
+    end
+
+    it "clears needs_attention_reason once CHANGES_REQUESTED is resolved by APPROVED" do
+      external_pr_job.update!(needs_attention: true, needs_attention_reason: "upstream_pr_changes_requested")
+      stub_external_pr(state: "open", merged: false)
+      stub_reviews([
+        { id: 1, state: "APPROVED", submitted_at: Time.current.iso8601,
+          html_url: "https://github.com/acme/widgets/pull/9#pullrequestreview-1", user: { login: "reviewer" } }
+      ])
+
+      described_class.perform_now(external_pr_job.id)
+
+      expect(external_pr_job.reload.needs_attention_reason).to be_nil
+    end
+
+    it "does not react to reviews when the PR is merged" do
+      stub_external_pr(state: "closed", merged: true)
+
+      described_class.perform_now(external_pr_job.id)
+
+      expect(WebMock).not_to have_requested(:get, reviews_url)
+    end
+
+    it "does not react to reviews when the PR is closed without merging" do
+      stub_external_pr(state: "closed", merged: false)
+
+      described_class.perform_now(external_pr_job.id)
+
+      expect(WebMock).not_to have_requested(:get, reviews_url)
+    end
+
+    it "does not react to reviews for non-external_pr Jobs polled via the preempted-issue path" do
+      stub_external_pr(state: "open", merged: false)
+
+      described_class.perform_now(job.id)
+
+      expect(WebMock).not_to have_requested(:get, "https://api.github.com/repos/acme/widgets/pulls/9/reviews")
     end
   end
 end
