@@ -1438,12 +1438,15 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body["documents_in_scope"]).to contain_exactly(include("title" => document.title, "repository_slug" => "acme/widgets"))
     expect(parse_body.dig("attachment_groups", "repositories")).to contain_exactly(include("label" => "acme/widgets"))
-    expect(parse_body["attachment_results"]).to contain_exactly(include("type" => "Document", "id" => document.id, "label" => "Launch notes"))
+    expect(parse_body["attachment_results"]).to contain_exactly(include("type" => "Document", "id" => document.id, "label" => "Launch notes (acme/widgets)"))
   end
 
   it "reports speech-to-text disabled by default" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user)
+    allow(File).to receive(:exist?).and_call_original
+    allow(File).to receive(:exist?).with(ChatSpeechToText::Providers::WhisperCpp::BUNDLED_EXECUTABLE_PATH).and_return(false)
+    allow(File).to receive(:exist?).with(ChatSpeechToText::Providers::WhisperCpp::BUNDLED_MODEL_PATH).and_return(false)
 
     get "/api/v1/app/chats/#{chat.id}"
 
@@ -1468,6 +1471,9 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       feature.category = "Labs"
       feature.name = "Chat speech-to-text"
     end.update!(enabled: true)
+    allow(File).to receive(:exist?).and_call_original
+    allow(File).to receive(:exist?).with(ChatSpeechToText::Providers::WhisperCpp::BUNDLED_EXECUTABLE_PATH).and_return(false)
+    allow(File).to receive(:exist?).with(ChatSpeechToText::Providers::WhisperCpp::BUNDLED_MODEL_PATH).and_return(false)
 
     get "/api/v1/app/chats/#{chat.id}"
 
@@ -2278,7 +2284,8 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       command: "claude --print",
       workdir: chat.workspace_root.to_s,
       hostname: "worker-1",
-      started_at: Time.current
+      started_at: Time.current,
+      pid: 1234
     )
     question = chat.agent_questions.create!(question: "Which branch?", options: [ "main", "release" ], asked_at: Time.current)
 
@@ -2768,7 +2775,8 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       command: "claude --print",
       workdir: chat.workspace_root.to_s,
       hostname: "worker-1",
-      started_at: Time.current
+      started_at: Time.current,
+      pid: 1234
     )
 
     get "/api/v1/app/chats/#{chat.id}"
@@ -3318,7 +3326,8 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       command: "claude --print",
       workdir: chat.workspace_root.to_s,
       hostname: "worker-1",
-      started_at: Time.current
+      started_at: Time.current,
+      pid: 1234
     )
 
     post "/api/v1/app/chats/#{chat.id}/stop"
@@ -3775,7 +3784,8 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       command: "claude --print",
       workdir: chat.workspace_root.to_s,
       hostname: "worker-1",
-      started_at: Time.current
+      started_at: Time.current,
+      pid: 1234
     )
 
     expect {

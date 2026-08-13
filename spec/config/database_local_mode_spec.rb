@@ -42,6 +42,16 @@ RSpec.describe "config/database.yml local SQLite mode" do
     expect(config.dig("production", "search", "adapter")).to eq("sqlite3")
   end
 
+  it "allows production database pools to be capped independently of Rails thread count" do
+    config = render_database_config("DB_POOL" => "4", "RAILS_MAX_THREADS" => "20")
+
+    expect(config.dig("production", "primary", "pool")).to eq(4)
+    expect(config.dig("production", "cache", "pool")).to eq(4)
+    expect(config.dig("production", "queue", "pool")).to eq(4)
+    expect(config.dig("production", "cable", "pool")).to eq(4)
+    expect(config.dig("production", "search", "pool")).to eq(4)
+  end
+
   it "leaves development and test on SQLite regardless" do
     config = render_database_config("SYRUS_SQLITE" => "1", "SYRUS_DATA_ROOT" => "/data")
 

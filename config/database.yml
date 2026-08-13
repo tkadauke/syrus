@@ -7,7 +7,7 @@
 
 default: &default
   adapter: sqlite3
-  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 10 } %>
+  pool: <%= ENV.fetch("DB_POOL") { ENV.fetch("RAILS_MAX_THREADS") { 10 } } %>
   timeout: 5000
 
 development:
@@ -80,7 +80,11 @@ production:
   primary: &primary_production
     adapter: mysql2
     encoding: utf8mb4
-    pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 10 } %>
+    # DB_POOL intentionally decouples Active Record connection pools from
+    # RAILS_MAX_THREADS. Multi-process Solid Queue workers each create their own
+    # primary/cache/queue/cable pools, so tying every pool to a generic thread
+    # count can reserve far more idle MySQL sessions than the server allows.
+    pool: <%= ENV.fetch("DB_POOL") { ENV.fetch("RAILS_MAX_THREADS") { 10 } } %>
     host: <%= ENV.fetch("DB_HOST") { "127.0.0.1" } %>
     database: syrus_production
     username: syrus
@@ -110,7 +114,7 @@ production:
     migrations_paths: db/cable_migrate
   search:
     adapter: sqlite3
-    pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 10 } %>
+    pool: <%= ENV.fetch("DB_POOL") { ENV.fetch("RAILS_MAX_THREADS") { 10 } } %>
     timeout: 5000
     database: <%= ENV.fetch("SEARCH_DATABASE_PATH", File.join(ENV.fetch("SYRUS_DATA_ROOT", File.expand_path("~/.syrus")), "search.sqlite3")) %>
     migrations_paths: db/search_migrate

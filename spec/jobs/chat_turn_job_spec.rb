@@ -875,7 +875,8 @@ RSpec.describe ChatTurnJob do
         command: "claude --print",
         workdir: workspace_path,
         hostname: "worker-1",
-        started_at: Time.current
+        started_at: Time.current,
+        pid: 1234
       )
       process_started.call(process)
       chat.update!(stop_requested_at: Time.current)
