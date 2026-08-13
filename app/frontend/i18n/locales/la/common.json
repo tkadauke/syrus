@@ -82,7 +82,8 @@
     "context_recent_errors": "Errores recentes",
     "context_no_recent_errors": "Nulli",
     "include_transcript": "Conloquii textum addere",
-    "transcript_preview": "Praevisa textus"
+    "transcript_preview": "Praevisa textus",
+    "annotate_screenshot": "Imaginem annota"
   },
   "image_annotation": {
     "annotate": "Annota {{name}}",

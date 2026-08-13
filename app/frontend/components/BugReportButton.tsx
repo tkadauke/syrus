@@ -5,6 +5,7 @@ import { createBugReport } from "../api/bugReports"
 import { useShakeToReport } from "../hooks/useShakeToReport"
 import { useT } from "../hooks/useT"
 import { CloseIcon } from "./CloseIcon"
+import { ImageAnnotationModal, type Shape } from "./ImageAnnotationModal"
 import { NoticeToast } from "./NoticeToast"
 import { errorMessage } from "../lib/errorMessage"
 import { getRecentErrors, type RecentError } from "../lib/errorRingBuffer"
@@ -13,11 +14,16 @@ import { mergeOptionalAttachments } from "../lib/bugReportOptionalAttachments"
 
 type Html2Canvas = typeof import("html2canvas-pro").default
 type ScreenshotChoice = "viewport" | "fullPage" | "none"
+type CapturedScreenshotChoice = Exclude<ScreenshotChoice, "none">
 type ScreenshotCapture = {
   file: File
   previewUrl: string
+  // Pristine (pre-annotation) capture, kept alive for the life of the dialog so re-opening
+  // the annotator always edits from the original screenshot, not an already-annotated one.
+  originalPreviewUrl: string
+  shapes?: Shape[]
 }
-type ScreenshotCaptures = Partial<Record<Exclude<ScreenshotChoice, "none">, ScreenshotCapture>>
+type ScreenshotCaptures = Partial<Record<CapturedScreenshotChoice, ScreenshotCapture>>
 
 type BugReportContext = {
   url: string
@@ -127,6 +133,7 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [captures, setCaptures] = useState<ScreenshotCaptures>({})
+  const [annotatingChoice, setAnnotatingChoice] = useState<CapturedScreenshotChoice | null>(null)
   const [screenshotChoice, setScreenshotChoice] = useState<ScreenshotChoice>("viewport")
   const [captureError, setCaptureError] = useState<string | null>(null)
   const [attachments, setAttachments] = useState<File[]>([])
@@ -170,7 +177,9 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
       setOpen(false)
       setTitle("")
       setDescription("")
+      revokeCaptures(captures)
       setCaptures({})
+      setAnnotatingChoice(null)
       setScreenshotChoice("viewport")
       setCaptureError(null)
       setAttachments([])
@@ -195,7 +204,13 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
     }
   })
 
-  useEffect(() => () => revokeCaptures(captures), [captures])
+  // Revocation is explicit at the points where a whole capture is discarded (dialog open/close,
+  // successful submit) rather than tied to every `captures` state change — annotating a screenshot
+  // replaces only its `previewUrl` in place, and the still-displayed `originalPreviewUrl` must
+  // survive that update so re-opening the annotator can keep editing from the pristine capture.
+  const capturesRef = useRef<ScreenshotCaptures>({})
+  useEffect(() => { capturesRef.current = captures }, [captures])
+  useEffect(() => () => revokeCaptures(capturesRef.current), [])
 
   useEffect(() => {
     function handleResize() {
@@ -228,7 +243,9 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
     bugReport.reset()
     setTitle(`${context} bug`)
     setDescription("")
+    revokeCaptures(captures)
     setCaptures({})
+    setAnnotatingChoice(null)
     setScreenshotChoice("viewport")
     setCaptureError(null)
     setAttachments([])
@@ -279,13 +296,29 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
 
   function closeDialog() {
     bugReport.reset()
+    revokeCaptures(captures)
     setCaptures({})
+    setAnnotatingChoice(null)
     setCaptureError(null)
     setAttachments([])
     setAttachmentError(null)
     setOptionalAttachments([])
     setSelectedOptionalAttachmentIds(new Set())
     setOpen(false)
+  }
+
+  function applyAnnotation(choice: CapturedScreenshotChoice, annotatedDataUrl: string, shapes: Shape[]) {
+    setCaptures((current) => {
+      const existing = current[choice]
+      if (!existing) return current
+      if (existing.previewUrl !== existing.originalPreviewUrl && typeof URL.revokeObjectURL === "function") {
+        URL.revokeObjectURL(existing.previewUrl)
+      }
+      const file = dataUrlToFile(annotatedDataUrl, existing.file.name)
+      const previewUrl = typeof URL.createObjectURL === "function" ? URL.createObjectURL(file) : annotatedDataUrl
+      return { ...current, [choice]: { ...existing, file, previewUrl, shapes } }
+    })
+    setAnnotatingChoice(null)
   }
 
   function handleAttachmentChange(event: ChangeEvent<HTMLInputElement>) {
@@ -500,7 +533,27 @@ export const BugReportButton = forwardRef<BugReportButtonHandle, {
                     selected={screenshotChoice === "none"}
                   />
                 </div>
+                {screenshotChoice !== "none" && captures[screenshotChoice] ? (
+                  <button
+                    className="rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                    onClick={() => setAnnotatingChoice(screenshotChoice)}
+                    type="button"
+                  >
+                    {t("bug_report.annotate_screenshot")}
+                  </button>
+                ) : null}
               </fieldset>
+
+              {annotatingChoice && captures[annotatingChoice] ? (
+                <ImageAnnotationModal
+                  dataUrl={captures[annotatingChoice].previewUrl}
+                  initialShapes={captures[annotatingChoice].shapes}
+                  name={captures[annotatingChoice].file.name}
+                  originalDataUrl={captures[annotatingChoice].originalPreviewUrl}
+                  onClose={() => setAnnotatingChoice(null)}
+                  onDone={(annotatedDataUrl, shapes) => applyAnnotation(annotatingChoice, annotatedDataUrl, shapes)}
+                />
+              ) : null}
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-4">
@@ -841,20 +894,27 @@ function canvasToCapture(canvas: HTMLCanvasElement, filename: string) {
       }
 
       const file = new File([blob], filename, { type: "image/png" })
-      resolve({
-        file,
-        previewUrl: typeof URL.createObjectURL === "function" ? URL.createObjectURL(file) : ""
-      })
+      const previewUrl = typeof URL.createObjectURL === "function" ? URL.createObjectURL(file) : ""
+      resolve({ file, previewUrl, originalPreviewUrl: previewUrl })
     }, "image/png")
   })
 }
 
 function revokeCaptures(captures: ScreenshotCaptures) {
   Object.values(captures).forEach((capture) => {
-    if (capture?.previewUrl && typeof URL.revokeObjectURL === "function") {
-      URL.revokeObjectURL(capture.previewUrl)
-    }
+    if (!capture || typeof URL.revokeObjectURL !== "function") return
+    URL.revokeObjectURL(capture.previewUrl)
+    if (capture.originalPreviewUrl !== capture.previewUrl) URL.revokeObjectURL(capture.originalPreviewUrl)
   })
+}
+
+function dataUrlToFile(dataUrl: string, filename: string): File {
+  const [header, base64 = ""] = dataUrl.split(",")
+  const mimeType = /data:(.*?);base64/.exec(header)?.[1] || "image/png"
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return new File([bytes], filename, { type: mimeType })
 }
 
 async function buildSelectedOptionalAttachments(attachments: BugReportOptionalAttachment[], selectedIds: Set<string>) {

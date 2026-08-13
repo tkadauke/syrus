@@ -82,7 +82,8 @@
     "context_recent_errors": "Aktuelle JS-Fehler",
     "context_no_recent_errors": "Keine",
     "include_transcript": "Chat-Verlauf einschließen",
-    "transcript_preview": "Vorschau des Verlaufs"
+    "transcript_preview": "Vorschau des Verlaufs",
+    "annotate_screenshot": "Bildschirmfoto markieren"
   },
   "image_annotation": {
     "annotate": "{{name}} annotieren",

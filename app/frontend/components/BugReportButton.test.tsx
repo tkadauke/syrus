@@ -1,5 +1,5 @@
 import { createRef } from "react"
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { BugReportButton, type BugReportButtonHandle } from "./BugReportButton"
@@ -886,5 +886,146 @@ describe("BugReportButton", () => {
       document.body.removeChild(normalEl)
     })
 
+  })
+
+  describe("screenshot annotation", () => {
+    let imageSrcs: string[]
+    let objectUrlCount: number
+
+    beforeEach(() => {
+      imageSrcs = []
+      objectUrlCount = 0
+      URL.createObjectURL = vi.fn(() => `blob:mock-url-${objectUrlCount++}`)
+
+      vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(function (this: HTMLCanvasElement) {
+        const canvas = this as HTMLCanvasElement & { __mockContext?: CanvasRenderingContext2D }
+        if (!canvas.__mockContext) {
+          canvas.__mockContext = {
+            beginPath: vi.fn(), clearRect: vi.fn(), drawImage: vi.fn(), ellipse: vi.fn(),
+            fillText: vi.fn(), lineTo: vi.fn(), moveTo: vi.fn(), rect: vi.fn(), save: vi.fn(),
+            restore: vi.fn(), setLineDash: vi.fn(), stroke: vi.fn(), fill: vi.fn()
+          } as unknown as CanvasRenderingContext2D
+        }
+        return canvas.__mockContext
+      })
+      vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/png;base64,YW5ub3RhdGVk")
+      vi.spyOn(HTMLCanvasElement.prototype, "getBoundingClientRect").mockReturnValue({
+        bottom: 80, height: 80, left: 0, right: 100, top: 0, width: 100, x: 0, y: 0, toJSON: () => ({})
+      })
+
+      Object.defineProperty(globalThis, "Image", {
+        configurable: true,
+        writable: true,
+        value: class MockImage {
+          naturalWidth = 100
+          naturalHeight = 80
+          width = 100
+          height = 80
+          onload: (() => void) | null = null
+          set src(value: string) {
+            imageSrcs.push(value)
+            window.setTimeout(() => this.onload?.(), 0)
+          }
+        }
+      })
+    })
+
+    async function annotate() {
+      fireEvent.click(screen.getByRole("button", { name: "Annotate screenshot" }))
+      await screen.findByRole("dialog", { name: /Annotate/ })
+      await waitFor(() => expect(screen.getByRole("button", { name: "Done" })).not.toBeDisabled())
+    }
+
+    it("does not show an Annotate button when no screenshot is selected", async () => {
+      renderButton()
+      await openDialog()
+
+      fireEvent.click(screen.getByRole("radio", { name: "No screenshot" }))
+
+      expect(screen.queryByRole("button", { name: "Annotate screenshot" })).not.toBeInTheDocument()
+    })
+
+    it("shows an Annotate button for the captured viewport screenshot", async () => {
+      renderButton()
+      await openDialog()
+
+      expect(screen.getByRole("button", { name: "Annotate screenshot" })).toBeInTheDocument()
+    })
+
+    it("opens the annotation editor for the captured screenshot", async () => {
+      renderButton()
+      await openDialog()
+
+      await annotate()
+
+      expect(screen.getByRole("dialog", { name: "Annotate bug-report-viewport.png" })).toBeInTheDocument()
+    })
+
+    it("closes the annotation editor without changing the screenshot on cancel", async () => {
+      renderButton()
+      await openDialog()
+
+      await annotate()
+      const annotationDialog = screen.getByRole("dialog", { name: /Annotate/ })
+      fireEvent.click(within(annotationDialog).getByRole("button", { name: "Cancel" }))
+
+      expect(screen.queryByRole("dialog", { name: /Annotate/ })).not.toBeInTheDocument()
+    })
+
+    it("submits the annotated screenshot instead of the raw capture", async () => {
+      renderButton()
+      await openDialog()
+
+      await annotate()
+      fireEvent.click(screen.getByRole("button", { name: "Done" }))
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: /Annotate/ })).not.toBeInTheDocument())
+
+      fireEvent.click(screen.getByRole("button", { name: /create job/i }))
+
+      await waitFor(async () => {
+        expect(bugReportsApi.createBugReport).toHaveBeenCalledTimes(1)
+        const [input] = vi.mocked(bugReportsApi.createBugReport).mock.calls[0]
+        expect(input.screenshot).toBeInstanceOf(File)
+        const text = await (input.screenshot as File).text()
+        expect(text).toBe("annotated")
+      })
+    })
+
+    it("supports annotating the full-page screenshot", async () => {
+      renderButton()
+      await openDialog()
+
+      fireEvent.click(screen.getByRole("radio", { name: "Full page" }))
+      await waitFor(() => expect(screen.getByRole("button", { name: "Annotate screenshot" })).toBeInTheDocument())
+
+      await annotate()
+      fireEvent.click(screen.getByRole("button", { name: "Done" }))
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: /Annotate/ })).not.toBeInTheDocument())
+
+      fireEvent.click(screen.getByRole("button", { name: /create job/i }))
+
+      await waitFor(async () => {
+        const [input] = vi.mocked(bugReportsApi.createBugReport).mock.calls[0]
+        const text = await (input.screenshot as File).text()
+        expect(text).toBe("annotated")
+      })
+    })
+
+    it("preserves the original screenshot so re-opening the annotator edits from the pristine capture", async () => {
+      renderButton()
+      await openDialog()
+
+      await annotate()
+      fireEvent.click(screen.getByRole("button", { name: "Done" }))
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: /Annotate/ })).not.toBeInTheDocument())
+
+      const firstLoadSrc = imageSrcs[0]
+
+      await annotate()
+
+      // Both the first and second edit session must load pixels from the same pristine
+      // screenshot URL, not from the annotated result produced by the first "Done".
+      expect(imageSrcs[imageSrcs.length - 1]).toBe(firstLoadSrc)
+    })
   })
 })

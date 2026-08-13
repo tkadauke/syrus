@@ -82,7 +82,8 @@
     "context_recent_errors": "Recent JS errors",
     "context_no_recent_errors": "None",
     "include_transcript": "Include chat transcript",
-    "transcript_preview": "Transcript preview"
+    "transcript_preview": "Transcript preview",
+    "annotate_screenshot": "Annotate screenshot"
   },
   "image_annotation": {
     "annotate": "Annotate {{name}}",
