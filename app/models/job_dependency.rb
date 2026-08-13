@@ -17,7 +17,7 @@ class JobDependency < ApplicationRecord
   validate :no_self_reference
   validate :no_cycle
   validate :pending_fields_consistent
-  validate :linear_chain_in_simple_mode
+  validate :linear_chain_within_epic
 
   after_save_commit :materialize_derived_epic_dependency, if: :depends_on_job_id?
   after_save_commit :recheck_dependent_job_start_blocks
@@ -198,8 +198,7 @@ class JobDependency < ApplicationRecord
     unresolved_owner.present? || unresolved_repo.present? || unresolved_number.present?
   end
 
-  def linear_chain_in_simple_mode
-    return unless AppSetting.simple?
+  def linear_chain_within_epic
     return if depends_on_job_id.blank?
 
     # Only enforce within the same epic.
@@ -214,7 +213,7 @@ class JobDependency < ApplicationRecord
                             .joins(:depends_on_job)
                             .where(jobs: { epic_id: job_epic_id })
     if existing_upstream.exists?
-      errors.add(:base, "Simple mode requires features to be implemented in sequence. This job would create a parallel branch.")
+      errors.add(:base, "Epic dependencies must form a single chain. This job would create a parallel branch.")
       return
     end
 
@@ -225,7 +224,7 @@ class JobDependency < ApplicationRecord
                               .joins(:job)
                               .where(jobs: { epic_id: job_epic_id })
     if existing_downstream.exists?
-      errors.add(:base, "Simple mode requires features to be implemented in sequence. This job would create a parallel branch.")
+      errors.add(:base, "Epic dependencies must form a single chain. This job would create a parallel branch.")
     end
   end
 end

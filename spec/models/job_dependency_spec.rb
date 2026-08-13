@@ -251,15 +251,11 @@ RSpec.describe JobDependency do
     end
   end
 
-  describe "simple mode linear chain enforcement" do
+  describe "linear chain enforcement within an epic" do
     let(:epic) { Factories.epic(user: user, repository: repository) }
 
     def epic_job(number)
       Factories.job_record(user: user, repository: repository, epic: epic, issue_number: number, state: "queued")
-    end
-
-    before do
-      allow(AppSetting).to receive(:simple?).and_return(true)
     end
 
     it "accepts a linear chain (each job depends on the previous one)" do
@@ -281,7 +277,7 @@ RSpec.describe JobDependency do
       dep = described_class.new(job: c, depends_on_job: a, source: "manual")
 
       expect(dep).not_to be_valid
-      expect(dep.errors[:base].first).to match(/Simple mode requires features to be implemented in sequence/)
+      expect(dep.errors[:base].first).to match(/Epic dependencies must form a single chain/)
     end
 
     it "rejects a merge (job already has an upstream in the same epic)" do
@@ -293,7 +289,7 @@ RSpec.describe JobDependency do
       dep = described_class.new(job: c, depends_on_job: b, source: "manual")
 
       expect(dep).not_to be_valid
-      expect(dep.errors[:base].first).to match(/Simple mode requires features to be implemented in sequence/)
+      expect(dep.errors[:base].first).to match(/Epic dependencies must form a single chain/)
     end
 
     it "rejects a new job with no dependency on the chain tail when non-first" do
@@ -306,19 +302,20 @@ RSpec.describe JobDependency do
       dep = described_class.new(job: c, depends_on_job: a, source: "manual")
 
       expect(dep).not_to be_valid
-      expect(dep.errors[:base].first).to match(/Simple mode requires features to be implemented in sequence/)
+      expect(dep.errors[:base].first).to match(/Epic dependencies must form a single chain/)
     end
 
-    it "does not enforce linearity in advanced mode" do
-      allow(AppSetting).to receive(:simple?).and_return(false)
+    it "enforces linearity in both simple and advanced instance mode" do
       a = epic_job(1)
       b = epic_job(2)
       c = epic_job(3)
       described_class.create!(job: b, depends_on_job: a, source: "manual")
 
-      dep = described_class.new(job: c, depends_on_job: a, source: "manual")
+      allow(AppSetting).to receive(:simple?).and_return(true)
+      expect(described_class.new(job: c, depends_on_job: a, source: "manual")).not_to be_valid
 
-      expect(dep).to be_valid
+      allow(AppSetting).to receive(:simple?).and_return(false)
+      expect(described_class.new(job: c, depends_on_job: a, source: "manual")).not_to be_valid
     end
 
     it "does not enforce linearity for cross-epic dependencies" do

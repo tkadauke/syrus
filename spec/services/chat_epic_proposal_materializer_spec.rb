@@ -258,7 +258,12 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(result.jobs.map(&:issue_title)).to eq([ "First", "Second", "Third" ])
   end
 
-  it "accepts redundant transitive sibling edges in a linear chain" do
+  it "rejects a redundant transitive sibling edge even though the chain is otherwise linear" do
+    # EpicDependencyPolicy::Linear's proposal-graph check treats this as a
+    # valid single chain (third is transitively ordered after first), but
+    # JobDependency's own linear-chain validation counts direct edges: an
+    # explicit third -> first edge on top of third -> second gives "third"
+    # two same-epic upstream dependencies, which is a merge.
     proposal = epic_proposal
     first = child_for(proposal, "first")
     second = child_for(proposal, "second")
@@ -268,8 +273,11 @@ RSpec.describe ChatEpicProposalMaterializer do
     depend_on(third, first)
 
     expect {
-      described_class.new(user: user).file!(proposal)
-    }.to change(Job, :count).by(3)
+      expect {
+        described_class.new(user: user).file!(proposal)
+      }.to raise_error(ActiveRecord::RecordInvalid, /Epic dependencies must form a single chain/)
+    }.to change(Job, :count).by(0)
+    expect(proposal.reload).to be_proposed
   end
 
   it "rejects fan-in child dependency graphs under the default linear policy" do
@@ -315,7 +323,11 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(proposal.reload).to be_proposed
   end
 
-  it "allows nonlinear child graphs when the proposal has an explicit override" do
+  it "still rejects fan-out JobDependency rows even with the proposal-level override" do
+    # nonlinear_dependency_override only bypasses EpicDependencyPolicy's
+    # proposal-graph check; JobDependency's own linear-chain validation
+    # runs unconditionally, so wiring the resulting fan-out edges still
+    # fails and the whole materialization rolls back.
     proposal = epic_proposal
     proposal.update!(nonlinear_dependency_override: true)
     root = child_for(proposal, "root")
@@ -324,11 +336,12 @@ RSpec.describe ChatEpicProposalMaterializer do
     depend_on(left, root)
     depend_on(right, root)
 
-    result = nil
     expect {
-      result = described_class.new(user: user).file!(proposal)
-    }.to change(Job, :count).by(3)
-    expect(result.epic.epic_dependency_policy).to eq("nonlinear")
+      expect {
+        described_class.new(user: user).file!(proposal)
+      }.to raise_error(ActiveRecord::RecordInvalid, /Epic dependencies must form a single chain/)
+    }.to change(Job, :count).by(0)
+    expect(proposal.reload).to be_proposed
   end
 
   it "creates pending Job dependencies for unresolved cross-card Job proposal references" do

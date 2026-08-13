@@ -200,7 +200,7 @@ RSpec.describe Admin::StuckJobExplainer do
     ]
     deps.each_with_index do |dependency, index|
       dependency.runs.create!(trigger_kind: "initial", state: "succeeded", head_sha: (index + 1).to_s * 40)
-      JobDependency.create!(job: job, depends_on_job: dependency, source: "manual")
+      Factories.legacy_job_dependency(job: job, depends_on_job: dependency)
     end
     Workflow.create!(
       job: job,

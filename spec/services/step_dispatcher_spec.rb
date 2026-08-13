@@ -357,8 +357,8 @@ RSpec.describe StepDispatcher do
         user: job.user, repository: job.repository, epic: epic, issue_number: 99, state: "approved",
         branch_name: "syrus/issue-99", pr_number: 99
       )
-      JobDependency.create!(job: landing_job, depends_on_job: root, source: "manual")
-      JobDependency.create!(job: landing_job, depends_on_job: middle, source: "manual")
+      Factories.legacy_job_dependency(job: landing_job, depends_on_job: root)
+      Factories.legacy_job_dependency(job: landing_job, depends_on_job: middle)
       auto_merge = Workflows::AutoMerge.instantiate(job: landing_job)
       first_step = auto_merge.first_step
 
@@ -1929,7 +1929,7 @@ RSpec.describe StepDispatcher, "stack_dependencies_not_ready block reason" do
       dep_a = approved_dependency(1574, "syrus/issue-1574", "a" * 40)
       dep_b = approved_dependency(1575, "syrus/issue-1575", "b" * 40)
       dep_c = approved_dependency(1576, "syrus/issue-1576", "c" * 40)
-      [ dep_a, dep_b, dep_c ].each { |dependency| JobDependency.create!(job: job_model, depends_on_job: dependency, source: "manual") }
+      [ dep_a, dep_b, dep_c ].each { |dependency| Factories.legacy_job_dependency(job: job_model, depends_on_job: dependency) }
       builder = instance_double(JobStackPreparedBaseBuilder)
       allow(JobStackPreparedBaseBuilder).to receive(:new).and_return(builder)
       allow(builder).to receive(:call).and_return(
@@ -1959,7 +1959,7 @@ RSpec.describe StepDispatcher, "stack_dependencies_not_ready block reason" do
       dep_a = approved_dependency(1574, "syrus/issue-1574", "a" * 40)
       dep_b = approved_dependency(1575, "syrus/issue-1575", "b" * 40)
       dep_c = approved_dependency(1576, "syrus/issue-1576", "c" * 40)
-      [ dep_a, dep_b, dep_c ].each { |dependency| JobDependency.create!(job: job_model, depends_on_job: dependency, source: "manual") }
+      [ dep_a, dep_b, dep_c ].each { |dependency| Factories.legacy_job_dependency(job: job_model, depends_on_job: dependency) }
       builder = instance_double(JobStackPreparedBaseBuilder)
       allow(JobStackPreparedBaseBuilder).to receive(:new).and_return(builder)
       allow(builder).to receive(:call).and_return(

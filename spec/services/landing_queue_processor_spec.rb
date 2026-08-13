@@ -485,8 +485,8 @@ RSpec.describe LandingQueueProcessor do
     )
     workflow = Workflows::Initial.instantiate(job: queued)
     first_step = workflow.first_step
-    JobDependency.create!(job: queued, depends_on_job: first, source: "manual")
-    JobDependency.create!(job: queued, depends_on_job: second, source: "manual")
+    Factories.legacy_job_dependency(job: queued, depends_on_job: first)
+    Factories.legacy_job_dependency(job: queued, depends_on_job: second)
 
     expect(first_step.runs.count).to eq(0)
 

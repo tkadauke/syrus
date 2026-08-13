@@ -44,8 +44,8 @@ RSpec.describe EpicRestackPlan do
     fan_in = child(issue_number: 24)
     descendant = child(issue_number: 25)
     blocked = child(issue_number: 26, state: "blocked_by_epic")
-    JobDependency.create!(job: fan_in, depends_on_job: root, source: "manual")
-    JobDependency.create!(job: fan_in, depends_on_job: missing_pr, source: "manual")
+    Factories.legacy_job_dependency(job: fan_in, depends_on_job: root)
+    Factories.legacy_job_dependency(job: fan_in, depends_on_job: missing_pr)
     JobDependency.create!(job: descendant, depends_on_job: fan_in, source: "manual")
 
     plan = described_class.for(epic)

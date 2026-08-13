@@ -1760,10 +1760,17 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
         branch_name: "syrus/issue-42", pr_number: 7
       )
       dep_b.runs.create!(trigger_kind: "initial", agent_provider: dep_b.agent_provider, head_sha: "b" * 40)
+      # JobDependency now rejects a second same-Epic upstream edge (fan-in)
+      # on create, in every instance mode, so multi-parent structure like
+      # this can no longer be seeded fresh via a "Depends-on:" issue body
+      # with two lines. Simulate the second edge as pre-existing structure
+      # (as it would be on an Epic the DAG-capable stack resolver already
+      # serves) to exercise the downstream execution-readiness behavior.
       job = Job.create!(
         user: user, repository: repository, epic: epic, issue_number: 43,
-        issue_body: "Depends-on: #41\nDepends-on: #42"
+        issue_body: "Depends-on: #41"
       )
+      Factories.legacy_job_dependency(job: job, depends_on_job: dep_b, source: "parsed")
 
       expect(job.reload).to be_dependencies_satisfied
       expect(job).not_to be_stack_ready_for_execution
@@ -1785,8 +1792,8 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
       leaf = Factories.job_record(
         user: user, repository: repository, epic: epic, issue_number: 43, state: "approved"
       )
-      root_dependency = JobDependency.create!(job: leaf, depends_on_job: root, source: "manual")
-      middle_dependency = JobDependency.create!(job: leaf, depends_on_job: middle, source: "manual")
+      root_dependency = Factories.legacy_job_dependency(job: leaf, depends_on_job: root)
+      middle_dependency = Factories.legacy_job_dependency(job: leaf, depends_on_job: middle)
 
       expect(leaf.reload).to be_dependencies_satisfied
       expect(leaf).to be_stack_ready_for_execution
@@ -1902,13 +1909,20 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
         state: "implemented", branch_name: "syrus/issue-42", pr_number: 7
       )
       second.runs.create!(trigger_kind: "initial", agent_provider: second.agent_provider, head_sha: "b" * 40)
+      # JobDependency now rejects a second same-Epic upstream edge (fan-in)
+      # on create, in every instance mode, so multi-parent structure like
+      # this can no longer be seeded fresh via a "Depends-on:" issue body
+      # with two lines. Simulate the second edge as pre-existing structure
+      # (as it would be on an Epic the DAG-capable stack resolver already
+      # serves) to exercise the downstream execution-readiness behavior.
       child = Job.create!(
         user: user,
         repository: repository,
         epic: epic,
         issue_number: 43,
-        issue_body: "Depends-on: #41\nDepends-on: #42"
+        issue_body: "Depends-on: #41"
       )
+      Factories.legacy_job_dependency(job: child, depends_on_job: second, source: "parsed")
       child.advance_after_triage!
       first_step = child.reload.latest_workflow.first_step
 

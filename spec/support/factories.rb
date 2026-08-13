@@ -105,6 +105,19 @@ module Factories
     }.merge(attrs))
   end
 
+  # JobDependency validates that same-Epic edges form a single chain (no
+  # fan-in/fan-out) on every create/update. That check only guards *new*
+  # rows going forward — existing non-linear structure (e.g. from before
+  # this validation existed, or on Epics the DAG-capable landing/restack
+  # services already serve) is left alone. Use this instead of
+  # `JobDependency.create!` when a spec needs to simulate such a
+  # pre-existing fan-in/fan-out edge to exercise that downstream behavior.
+  def legacy_job_dependency(**attrs)
+    dependency = JobDependency.new({ source: "manual", satisfaction_mode: "success" }.merge(attrs))
+    dependency.save!(validate: false)
+    dependency
+  end
+
   def tag(**attrs)
     Tag.create!({
       user: attrs[:user] || user,
