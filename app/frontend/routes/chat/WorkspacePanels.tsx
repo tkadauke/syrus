@@ -774,7 +774,7 @@ function WhiteboardPanel({ fullscreen, onToggleFullscreen, payload }: { fullscre
         </div>
       </div>
       <div className="relative min-h-0 flex-1 overflow-hidden rounded border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-950">
-        {whiteboard.isPending ? (
+        {whiteboard.isPending && payload.whiteboard.loaded !== true ? (
           <div className="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400">{t("loading_chat")}</div>
         ) : whiteboard.isError ? (
           <div className="p-3 text-sm text-red-700 dark:text-red-300">{errorMessage(whiteboard.error, t("whiteboard_unavailable"))}</div>

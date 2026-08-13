@@ -16717,7 +16717,8 @@ function chatPayload(overrides: {
       version: 2,
       elements: [{ id: "box-1", type: "rectangle" }],
       appState: {},
-      files: {}
+      files: {},
+      loaded: true
     },
     paths: {
       credentials_path: "/credentials",
