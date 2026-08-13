@@ -183,6 +183,24 @@ RSpec.configure do |config|
       )
     end
 
+    unless registered_names.include?("browser")
+      Syrus::PluginRegistry.register(
+        name:            "browser",
+        display_name:    "Browser (Playwright)",
+        version:         SyrusBrowser::VERSION,
+        description:     "Headless Chromium browser control for workflow agents, via a bundled " \
+                          "@playwright/mcp stdio subprocess. Navigation is hard-restricted to " \
+                          "127.0.0.1/loopback URLs — the browser can only drive a step's own " \
+                          "in-step preview, never an arbitrary network destination.",
+        default_enabled: true,
+        disableable:     true,
+        category:        "mcp_tool_set",
+        provides: {
+          mcp_tool_set: SyrusBrowser::McpToolSet
+        }
+      )
+    end
+
     unless registered_names.include?("discord")
       Syrus::PluginRegistry.register(
         name:            "discord",

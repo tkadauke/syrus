@@ -333,3 +333,16 @@ Bundled plugins:
   `:coverage_analyzer` (SimpleCov), and `:grader_augmentor` (appends structured
   RSpec JSON failure details to the grade log when an rspec grader fails). Enable
   by calling `SyrusRails.register!` from an initializer.
+- `browser` — default-enabled. Provides `:mcp_tool_set`
+  (`SyrusBrowser::McpToolSet`): granular headless-browser tools
+  (`browser_navigate`, `browser_click`, `browser_fill`, `browser_snapshot`,
+  `browser_screenshot`, `browser_wait_for`, `browser_close`) for workflow
+  agents, backed by a bundled `@playwright/mcp` stdio subprocess (Chromium
+  ships in the worker Docker image only — see `Dockerfile`'s `worker-deps`
+  stage). One browser session is spawned per Run and reused across every
+  `browser_*` call in that Run; it is killed when the workflow step's MCP
+  sidecar exits. `browser_navigate` is hard-restricted to loopback URLs
+  (`SyrusBrowser::LoopbackGuard`) — an agent driving a real browser can only
+  reach the worker's own `start_preview` preview, never an arbitrary network
+  destination, regardless of what a prompt or a compromised target repo asks
+  it to do.

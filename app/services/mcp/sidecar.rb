@@ -224,6 +224,7 @@ module Mcp
           )
         end
         Tools::AgentPreviewRegistry.kill_all
+        SyrusBrowser::SessionRegistry.kill_all if defined?(SyrusBrowser::SessionRegistry)
       end
 
       Signal.trap("TERM") do

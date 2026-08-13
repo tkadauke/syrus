@@ -379,6 +379,30 @@ ENV PATH="/opt/python-tools/bin:/opt/mise/shims:${PATH}" \
     MISE_GLOBAL_CONFIG_FILE=/opt/mise/config.toml \
     SYRUS_MISE_GO_VERSION=${MISE_GO_VERSION}
 
+# Headless Chromium + Playwright, for the SyrusBrowser MCP tool set the
+# visual_review agent drives against its own in-step preview (127.0.0.1
+# only — see SyrusBrowser::LoopbackGuard). Worker-only: the `app` stage
+# (web pod) never spawns a browser, so this stays out of that image. This
+# must NOT require any change to a target customer repository being cloned
+# into the worker — the browser binary lives only here, in Syrus's own
+# image. PLAYWRIGHT_BROWSERS_PATH pins the download to a shared,
+# world-readable location instead of $HOME/.cache/ms-playwright, since this
+# RUN executes as root but the worker container ultimately runs as uid 1000
+# (rails). `--with-deps` also apt-installs the system libraries Chromium
+# needs (nss, libatk, libgtk, etc.); `@playwright/mcp` is Microsoft's own
+# MCP server, bundled as a stdio subprocess rather than hand-rolled —
+# SyrusBrowser::McpToolSet spawns it and re-exposes granular tools.
+ARG PLAYWRIGHT_VERSION=1.57.0
+ARG PLAYWRIGHT_MCP_VERSION=0.0.41
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    npm install -g "playwright@${PLAYWRIGHT_VERSION}" "@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}" && \
+    npx --yes "playwright@${PLAYWRIGHT_VERSION}" install --with-deps chromium && \
+    chmod -R a+rX "${PLAYWRIGHT_BROWSERS_PATH}" && \
+    npm cache clean --force && \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+
 # ============================================================================
 # Worker dev stage — `worker-deps` plus the same rails code + bundle
 # the `app` stage gets. Mirrors app's COPY-from-build + GIT_SHA + entry

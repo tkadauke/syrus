@@ -1,4 +1,10 @@
 PATH
+  remote: plugins/browser
+  specs:
+    browser (0.1.0)
+      rails (>= 8.1)
+
+PATH
   remote: plugins/claude_agent
   specs:
     claude_agent (0.1.0)
@@ -580,6 +586,7 @@ DEPENDENCIES
   bcrypt (~> 3.1.7)
   bootsnap
   brakeman
+  browser!
   bundler-audit
   capybara
   claude_agent!
@@ -659,6 +666,7 @@ CHECKSUMS
   bindex (0.8.1) sha256=7b1ecc9dc539ed8bccfc8cb4d2732046227b09d6f37582ff12e50a5047ceb17e
   bootsnap (1.25.0) sha256=41059e7d0f9cb4023a33465d095f64b913fc9d1b808d6524c307da945fbcffcf
   brakeman (8.0.5) sha256=03735f9690d3fd4b32d66aacbf0a6d15a84266bdd06b32c05c8ecc8f6021d2be
+  browser (0.1.0)
   builder (3.3.0) sha256=497918d2f9dca528fdca4b88d84e4ef4387256d984b8154e9d5d3fe5a9c8835f
   bundler-audit (0.9.3) sha256=81c8766c71e47d0d28a0f98c7eed028539f21a6ea3cd8f685eb6f42333c9b4e9
   capybara (3.40.0) sha256=42dba720578ea1ca65fd7a41d163dd368502c191804558f6e0f71b391054aeef

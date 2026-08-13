@@ -88,6 +88,23 @@ RSpec.describe "Dockerfile" do
     expect(worker_dev).to include("RUN go version")
   end
 
+  it "installs headless Chromium via Playwright, only in the worker image" do
+    stage = worker_deps_stage
+    app_stage = dockerfile.match(/FROM base AS app(?<stage>.*?)FROM docker\.io\/library\/debian:bookworm-slim AS runtime-base/m)[:stage]
+
+    expect(stage).to include("ARG PLAYWRIGHT_VERSION=")
+    expect(stage).to include("ARG PLAYWRIGHT_MCP_VERSION=")
+    expect(stage).to include('ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright')
+    expect(stage).to include('npm install -g "playwright@${PLAYWRIGHT_VERSION}" "@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}"')
+    expect(stage).to include('npx --yes "playwright@${PLAYWRIGHT_VERSION}" install --with-deps chromium')
+    expect(stage).to include('chmod -R a+rX "${PLAYWRIGHT_BROWSERS_PATH}"')
+
+    # The `app` stage is the web pod image — it never spawns a browser, so
+    # Chromium and Playwright must not leak into it.
+    expect(app_stage).not_to include("playwright")
+    expect(app_stage).not_to include("PLAYWRIGHT_BROWSERS_PATH")
+  end
+
   it "keeps apt archives on BuildKit cache mounts to avoid layer space exhaustion" do
     dockerfile.scan(/RUN(?<body>.*?apt-get install.*?)(?=\n\n|FROM|\z)/m).flatten.each do |body|
       expect(body).to include("--mount=type=cache,target=/var/cache/apt,sharing=locked")
