@@ -9,6 +9,9 @@ class SyrusYml
   MAX_GRADE_MAX_ITERATIONS = 10
   MIN_ADVERSARIAL_REVIEW_ROUNDS = 0
   MAX_ADVERSARIAL_REVIEW_ROUNDS = 10
+  MIN_VISUAL_REVIEW_ROUNDS = 0
+  MAX_VISUAL_REVIEW_ROUNDS = 10
+  DEFAULT_VISUAL_REVIEW_ROUNDS = 1
   GRADE_NAME_PATTERN = /\A[A-Za-z0-9][A-Za-z0-9-]*\z/
 
   COVERAGE_VALID_FORMATS = %w[lcov cobertura].freeze
@@ -22,7 +25,7 @@ class SyrusYml
 
   DEPLOYMENT_STAGE_NAME_PATTERN = /\A[A-Za-z0-9_]+\z/
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview)
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review)
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern)
   GradeConfig = Data.define(:max_iterations, :steps)
   GradeStep = Data.define(:name, :run, :fast, :ci, :description, :required, :timeout_minutes, :when_files_changed, :junit_output)
@@ -38,6 +41,7 @@ class SyrusYml
   HooksConfig = Data.define(:post_checkout)
   PreviewConfig = Data.define(:start, :setup, :seed, :health_check, :logs, :env, :unset_env)
   AdversarialReviewConfig = Data.define(:rounds, :criteria)
+  VisualReviewConfig = Data.define(:enabled, :rounds, :when_files_changed, :seed_notes)
   AgentInsightConfig = Data.define(:prepare)
   # Backward-compat aliases — point to the canonical RepoCoveragePlan types so
   # existing code and specs that reference SyrusYml::CoverageConfig etc. still work.
@@ -73,7 +77,8 @@ class SyrusYml
       formatters: parse_formatters(raw["formatters"]),
       generated: parse_generated(raw["generated"]),
       deployment_stages: parse_deployment_stages(raw["deployment_stages"]),
-      preview: parse_preview(raw["preview"])
+      preview: parse_preview(raw["preview"]),
+      visual_review: parse_visual_review(raw["visual_review"])
     )
   rescue Psych::SyntaxError => e
     raise ParseError, "YAML parse error: #{e.message}"
@@ -157,6 +162,39 @@ class SyrusYml
       rounds: parse_adversarial_review_rounds(raw["rounds"]),
       criteria: parse_adversarial_review_criteria(raw["criteria"])
     )
+  end
+
+  # Visual review is off by default at the instance level (AppSetting.visual_review_enabled?);
+  # a repository opts in (or explicitly opts out) per repo via this block.
+  def parse_visual_review(raw)
+    return nil if raw.nil?
+    raise ParseError, "visual_review: must be a mapping" unless raw.is_a?(Hash)
+
+    when_files_changed = raw["when_files_changed"]
+    if !when_files_changed.nil?
+      raise ParseError, "visual_review.when_files_changed: must be an array" unless when_files_changed.is_a?(Array)
+      when_files_changed = when_files_changed.map { |p| p.to_s.strip }.reject(&:empty?)
+    end
+
+    VisualReviewConfig.new(
+      enabled: ActiveModel::Type::Boolean.new.cast(raw["enabled"]) || false,
+      rounds: parse_visual_review_rounds(raw["rounds"]),
+      when_files_changed: when_files_changed,
+      seed_notes: raw["seed_notes"].to_s.strip.presence
+    )
+  end
+
+  def parse_visual_review_rounds(raw)
+    return DEFAULT_VISUAL_REVIEW_ROUNDS if raw.nil?
+
+    rounds = Integer(raw)
+    clamped = rounds.clamp(MIN_VISUAL_REVIEW_ROUNDS, MAX_VISUAL_REVIEW_ROUNDS)
+    if clamped != rounds
+      Rails.logger.warn("[SyrusYml] visual_review.rounds #{rounds} outside #{MIN_VISUAL_REVIEW_ROUNDS}..#{MAX_VISUAL_REVIEW_ROUNDS}; clamping")
+    end
+    clamped
+  rescue ArgumentError, TypeError
+    raise ParseError, "visual_review.rounds: must be an integer"
   end
 
   def parse_hooks(raw)

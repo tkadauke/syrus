@@ -114,6 +114,13 @@ class AppSetting < ApplicationRecord
     current.adversarial_review_rounds
   end
 
+  # Instance-wide default for the visual_review Labs feature (headless-browser
+  # QA screenshots). A repository's .syrus.yml `visual_review.enabled` setting
+  # overrides this per repo, same split as adversarial_review_rounds.
+  def self.visual_review_enabled?
+    current.visual_review_enabled
+  end
+
   def self.main_concern_report_threshold
     current.main_concern_report_threshold
   end

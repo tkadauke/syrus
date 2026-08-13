@@ -163,6 +163,28 @@ adversarial_review:
 
 `criteria` is an optional array of strings directing the reviewer toward repository-specific concerns. When present, each entry is included as a focus area in the reviewer prompt, supplementing the standard review checklist. Omitting `criteria` or supplying an empty array keeps existing behaviour. Blank entries are silently dropped.
 
+## visual_review
+
+Configures the visual_review Labs feature: a headless-browser QA pass the worker agent runs against its own in-step preview to catch visible defects and capture screenshot artifacts.
+
+```yaml
+visual_review:
+  enabled: true
+  rounds: 2
+  when_files_changed:
+    - "app/frontend/**/*"
+    - "app/views/**/*"
+  seed_notes: "Log in as demo@example.com / password to reach the dashboard."
+```
+
+`enabled` turns visual review on for this repository. Defaults to `false`; when the block (or the `enabled` key) is omitted, the instance-wide `AppSetting.visual_review_enabled?` default applies.
+
+`rounds` controls how many visual-review passes run. Range: 0–10, defaults to `1`.
+
+`when_files_changed` is an optional array of glob patterns; when present, visual review only runs when at least one changed file (relative to the default branch) matches one of the patterns. Uses the same glob semantics as a grader's `when_files_changed`. Omitting it runs visual review regardless of which files changed.
+
+`seed_notes` is optional free text describing how to reach an authenticated or otherwise populated state in the preview app (e.g. demo credentials, a seed record to look for). It is read by the visual_review agent as a hint, not executed.
+
 ## coverage
 
 Enables coverage reporting. Syrus parses lcov or Cobertura artifacts produced by graders, computes diff annotations, and optionally posts a PR comment.

@@ -70,6 +70,18 @@ class AppSettingRegistry
       secret: false
     ),
     Definition.new(
+      key: :visual_review_enabled,
+      type: :boolean,
+      default: false,
+      min: nil,
+      max: nil,
+      category: "Workflow behavior",
+      operational_meaning: "Instance-wide default for the visual_review Labs feature; a repository's .syrus.yml visual_review.enabled setting overrides this per repo.",
+      zero_means: nil,
+      admin_editable: false,
+      secret: false
+    ),
+    Definition.new(
       key: :max_job_failures,
       type: :integer,
       default: 3,

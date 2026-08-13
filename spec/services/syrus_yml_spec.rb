@@ -927,4 +927,106 @@ RSpec.describe SyrusYml do
       }.to raise_error(SyrusYml::ParseError, /preview\.unset_env/)
     end
   end
+
+  describe "visual_review: key" do
+    it "returns nil when visual_review key is absent" do
+      expect(parse("grade: []").visual_review).to be_nil
+    end
+
+    it "parses a full visual_review block" do
+      config = parse(<<~YAML)
+        visual_review:
+          enabled: true
+          rounds: 2
+          when_files_changed:
+            - "app/frontend/**/*"
+            - "app/views/**/*"
+          seed_notes: "Log in as demo@example.com / password to reach the dashboard."
+      YAML
+
+      expect(config.visual_review.enabled).to be true
+      expect(config.visual_review.rounds).to eq(2)
+      expect(config.visual_review.when_files_changed).to eq([
+        "app/frontend/**/*",
+        "app/views/**/*"
+      ])
+      expect(config.visual_review.seed_notes).to eq("Log in as demo@example.com / password to reach the dashboard.")
+    end
+
+    it "defaults enabled to false, rounds to 1, when_files_changed to nil, and seed_notes to nil when omitted" do
+      config = parse(<<~YAML)
+        visual_review: {}
+      YAML
+
+      expect(config.visual_review.enabled).to be false
+      expect(config.visual_review.rounds).to eq(1)
+      expect(config.visual_review.when_files_changed).to be_nil
+      expect(config.visual_review.seed_notes).to be_nil
+    end
+
+    it "clamps visual_review rounds above the hard ceiling with a warning" do
+      expect(Rails.logger).to receive(:warn).with(/visual_review\.rounds 12 outside 0\.\.10; clamping/)
+
+      config = parse(<<~YAML)
+        visual_review:
+          enabled: true
+          rounds: 12
+      YAML
+
+      expect(config.visual_review.rounds).to eq(10)
+    end
+
+    it "clamps negative visual_review rounds with a warning" do
+      expect(Rails.logger).to receive(:warn).with(/visual_review\.rounds -1 outside 0\.\.10; clamping/)
+
+      config = parse(<<~YAML)
+        visual_review:
+          rounds: -1
+      YAML
+
+      expect(config.visual_review.rounds).to eq(0)
+    end
+
+    it "rejects non-integer visual_review rounds" do
+      expect {
+        parse(<<~YAML)
+          visual_review:
+            rounds: many
+        YAML
+      }.to raise_error(SyrusYml::ParseError, /visual_review\.rounds: must be an integer/)
+    end
+
+    it "rejects a non-mapping visual_review value" do
+      expect {
+        parse("visual_review: true\n")
+      }.to raise_error(SyrusYml::ParseError, /visual_review: must be a mapping/)
+    end
+
+    it "rejects a non-array visual_review when_files_changed" do
+      expect {
+        parse("visual_review:\n  when_files_changed: \"app/frontend/**/*\"\n")
+      }.to raise_error(SyrusYml::ParseError, /visual_review\.when_files_changed: must be an array/)
+    end
+
+    it "strips blank entries from visual_review when_files_changed" do
+      config = parse(<<~YAML)
+        visual_review:
+          when_files_changed:
+            - "app/frontend/**/*"
+            - "   "
+            - ""
+      YAML
+
+      expect(config.visual_review.when_files_changed).to eq([ "app/frontend/**/*" ])
+    end
+
+    it "treats a blank seed_notes as nil" do
+      config = parse(<<~YAML)
+        visual_review:
+          seed_notes: "   "
+      YAML
+
+      expect(config.visual_review.seed_notes).to be_nil
+    end
+  end
 end
