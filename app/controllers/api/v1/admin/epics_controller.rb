@@ -46,6 +46,14 @@ module Api
         end
 
         def create
+          if attrs_request_nonlinear_epic_dependency_policy?(params[:epic].present? ? params.require(:epic) : params)
+            return render_error(
+              "validation_failed",
+              "epic_dependency_policy cannot be newly set to \"nonlinear\" — it is a legacy-only value for existing Epics.",
+              status: :unprocessable_content
+            )
+          end
+
           attrs = epic_params
           repository = find_active_repository(attrs)
           return render_error("validation_failed", "Repository not found or not active.", status: :unprocessable_content) unless repository
@@ -103,6 +111,13 @@ module Api
 
         def truthy?(value)
           %w[ true 1 yes ].include?(value.to_s.downcase)
+        end
+
+        # "nonlinear" stays valid for already-stored Epics (existing
+        # DAG-capable rows keep working unmodified), but no surface may
+        # newly choose it.
+        def attrs_request_nonlinear_epic_dependency_policy?(attrs)
+          attrs[:epic_dependency_policy].to_s == "nonlinear"
         end
 
         def apply_owner_filter(scope)

@@ -80,6 +80,8 @@ module Api
         end
 
         def create
+          return render_nonlinear_epic_dependency_policy_rejected if nonlinear_epic_dependency_policy_requested?
+
           attrs = repository_params
           repository = Repository.find_or_initialize_by(
             owner: attrs[:owner].to_s.strip,
@@ -107,6 +109,8 @@ module Api
         end
 
         def update
+          return render_nonlinear_epic_dependency_policy_rejected if nonlinear_epic_dependency_policy_requested?
+
           repository = find_repository
 
           if repository.update(repository_params)
@@ -1246,6 +1250,21 @@ module Api
 
         def repository_param_present?(attrs, key)
           attrs.key?(key) || attrs.key?(key.to_s)
+        end
+
+        # "nonlinear" stays valid for already-stored Repositories (existing
+        # DAG-capable Epics keep working unmodified), but no surface may
+        # newly choose it.
+        def nonlinear_epic_dependency_policy_requested?
+          params[:repository]&.[](:epic_dependency_policy).to_s == "nonlinear"
+        end
+
+        def render_nonlinear_epic_dependency_policy_rejected
+          render_error(
+            "validation_failed",
+            I18n.t("api.repositories.epic_dependency_policy_nonlinear_not_selectable"),
+            status: :unprocessable_content
+          )
         end
 
         def issue_state

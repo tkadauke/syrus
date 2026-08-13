@@ -36,7 +36,7 @@ If either check fails, the train is cancelled and member Jobs revert to `approve
 
 ## Build phase
 
-`merge_train_build` creates a fresh integration branch starting from the base branch tip. It then rebases each member branch onto the growing integration tip in dependency order (respecting `Depends-on:` lines between child Jobs). Explicit nonlinear Epics are handled the same way: a root with multiple approved leaves produces one integration branch containing every member branch before reconciliation runs.
+`merge_train_build` creates a fresh integration branch starting from the base branch tip. It then rebases each member branch onto the growing integration tip in dependency order (respecting `Depends-on:` lines between child Jobs). Legacy nonlinear Epics (an Epic whose `epic_dependency_policy` is the now-unselectable `"nonlinear"` value, or whose `JobDependency` graph predates the unconditional same-Epic linear-chain enforcement) are handled the same way: a root with multiple approved leaves produces one integration branch containing every member branch before reconciliation runs. No new fan-in/fan-out structure can be created going forward — see [Epic Dependency Policy](epic_dependency_policy.md) — but the build phase keeps serving whatever structure already exists on older Epics unmodified.
 
 For each member branch:
 - Syrus first tries a deterministic `git rebase`. If clean, it advances the integration tip.

@@ -61,13 +61,13 @@ function editPayload(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function mockFetch() {
+function mockFetch(repositoryOverrides: Record<string, unknown> = {}) {
   return vi.spyOn(window, "fetch").mockImplementation((input, init) => {
     const url = String(input)
     const method = init?.method || "GET"
 
     if (url === "/api/v1/app/repositories/1/edit") {
-      return Promise.resolve(jsonResponse(editPayload()))
+      return Promise.resolve(jsonResponse(editPayload({ repository: { ...editPayload().repository, ...repositoryOverrides } })))
     }
     if (url === "/api/v1/app/repositories/owners") {
       return Promise.resolve(jsonResponse({ error: "no_token" }))
@@ -149,5 +149,29 @@ describe("RepositoryForm plugin input-source decoupling", () => {
       "/api/v1/app/repositories/1",
       expect.objectContaining({ method: "PATCH" })
     )
+  })
+})
+
+describe("RepositoryForm Epic dependency policy field", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("only offers Linear as a selectable dependency policy", async () => {
+    mockFetch()
+    renderRoute()
+
+    const select = await screen.findByLabelText("Epic dependency policy")
+    expect(select).not.toBeDisabled()
+    expect(screen.getByRole("option", { name: /^Linear/ })).toBeInTheDocument()
+    expect(screen.queryByRole("option", { name: /Nonlinear/ })).not.toBeInTheDocument()
+  })
+
+  it("shows an existing nonlinear policy as disabled/informational, not selectable", async () => {
+    mockFetch({ epic_dependency_policy: "nonlinear" })
+    renderRoute()
+
+    const select = await screen.findByLabelText("Epic dependency policy")
+    expect(select).toBeDisabled()
+    expect(select).toHaveValue("nonlinear")
+    expect(screen.queryByRole("option", { name: /^Linear/ })).not.toBeInTheDocument()
   })
 })

@@ -1209,7 +1209,7 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
         description: "Install louder columns.",
         repository_id: other_repo.id,
         github_issue_url: "https://github.com/acme/marble/issues/7",
-        epic_dependency_policy: "nonlinear"
+        epic_dependency_policy: "linear"
       }
     }
 
@@ -1219,7 +1219,7 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
       description: "Install louder columns.",
       repository_id: other_repo.id,
       github_issue_url: "https://github.com/acme/marble/issues/7",
-      epic_dependency_policy: "nonlinear"
+      epic_dependency_policy: "linear"
     )
     expect(parse_body).to include("message" => "Epic updated.", "redirect_to" => epic_path(epic))
   end
@@ -1252,6 +1252,58 @@ RSpec.describe "API: /api/v1/app/epics", type: :request do
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "message")).to include("Epic dependency policy")
+  end
+
+  it "rejects newly setting the nonlinear Epic dependency policy on create" do
+    sign_in_as(user)
+
+    expect {
+      post "/api/v1/app/epics", params: {
+        epic: {
+          title: "Fan-in feature",
+          repository_id: repository.id,
+          epic_dependency_policy: "nonlinear"
+        }
+      }
+    }.not_to change(Epic, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    expect(parse_body.dig("error", "message")).to include("nonlinear")
+  end
+
+  it "rejects newly setting the nonlinear Epic dependency policy on update" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, title: "Raise the forum", epic_dependency_policy: "linear")
+
+    patch "/api/v1/app/epics/#{epic.id}", params: {
+      epic: { epic_dependency_policy: "nonlinear" }
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    expect(parse_body.dig("error", "message")).to include("nonlinear")
+    expect(epic.reload.epic_dependency_policy).to eq("linear")
+  end
+
+  it "keeps an already-nonlinear Epic dependency policy readable after unrelated updates" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, title: "Fan-in feature", epic_dependency_policy: "nonlinear")
+
+    patch "/api/v1/app/epics/#{epic.id}", params: {
+      epic: { title: "Fan-in feature v2" }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(epic.reload).to have_attributes(title: "Fan-in feature v2", epic_dependency_policy: "nonlinear")
+
+    get "/api/v1/app/epics/#{epic.id}/edit"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["epic"]).to include(
+      "epic_dependency_policy" => "nonlinear",
+      "resolved_epic_dependency_policy" => "nonlinear"
+    )
   end
 
   it "exposes Epics on shared repositories (any membership role)" do

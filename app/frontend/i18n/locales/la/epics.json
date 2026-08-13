@@ -109,6 +109,7 @@
   "epic_dependency_policy_nonlinear": "Non linearis",
   "epic_dependency_policy_linear_hint": "Opera filia unam catenam ordinatam formare debent.",
   "epic_dependency_policy_nonlinear_hint": "Ramos aut confluentes dependentias huic Epico permittere.",
+  "epic_dependency_policy_nonlinear_legacy_hint": "Hoc Epos iam graphum dependentiarum non linearem habet. \"Non linearis\" pro novis Epicis eligi non potest amplius; haec optio tantum ad memoriam ostenditur.",
   "saving": "Servatur...",
   "create": "Epicam crea",
   "save": "Epicam serva",

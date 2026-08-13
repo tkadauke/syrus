@@ -507,6 +507,7 @@
     "epic_dependency_linear": "Linearis — opera filia Epici unam catenam formare debent",
     "epic_dependency_nonlinear": "Non linearis — ramos aut confluentes dependentias permittere",
     "epic_dependency_hint": "Haec optio consilium ad Epica creanda praebet; unumquodque Epic suam rationem dependentiarum servat.",
+    "epic_dependency_nonlinear_legacy_hint": "Ratio praedefinita huius repositorii iam non linearis est. \"Non linearis\" eligi non potest amplius; haec optio tantum ad memoriam ostenditur.",
     "heading_new": "Repositorium addere",
     "heading_edit": "{{slug}} recensere",
     "owner_err_no_token": "Nullum signum GitHub configuratum. Repositorium manu inscribe aut signum in Testimoniis adde.",

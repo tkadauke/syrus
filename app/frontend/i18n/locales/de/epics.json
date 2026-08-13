@@ -98,6 +98,7 @@
   "epic_dependency_policy_nonlinear": "Nichtlinear",
   "epic_dependency_policy_linear_hint": "Kind-Jobs sollen eine geordnete Kette bilden.",
   "epic_dependency_policy_nonlinear_hint": "Erlaubt Verzweigungen oder Fan-in-Abhängigkeiten für dieses Epic.",
+  "epic_dependency_policy_nonlinear_legacy_hint": "Dieses Epic hat bereits einen nichtlinearen Abhängigkeitsgraphen. \"Nichtlinear\" kann für neue Epics nicht mehr ausgewählt werden; diese Einstellung wird nur zur Information angezeigt.",
   "saving": "Wird gespeichert...",
   "create": "Epic erstellen",
   "save": "Epic speichern",

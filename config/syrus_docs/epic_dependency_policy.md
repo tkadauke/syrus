@@ -7,12 +7,36 @@ Epic dependency policy controls the shape Syrus expects for child Job dependenci
 Repository `epic_dependency_policy` values:
 
 - `linear` (default) — child Jobs should form one ordered chain.
-- `nonlinear` — child Jobs may branch or fan in.
+- `nonlinear` — legacy value; child Jobs may branch or fan in.
 
 Epic `epic_dependency_policy` values:
 
 - `linear` (default) — require one ordered chain for this Epic.
-- `nonlinear` — allow branching or fan-in dependencies for this Epic.
+- `nonlinear` — legacy value; allows branching or fan-in dependencies for this Epic.
+
+## Settability
+
+`nonlinear` can no longer be newly chosen from any surface. The App and Admin
+REST APIs (`Api::V1::App::EpicsController`, `Api::V1::App::RepositoriesController`,
+`Api::V1::Admin::EpicsController`) reject an incoming `epic_dependency_policy`
+param of `"nonlinear"` on create/update with a validation error, and the
+`EpicForm`/`RepositoryForm` React forms no longer render "Nonlinear" as a
+selectable `<option>` — only `"linear"` can be picked going forward.
+
+This closes every path an operator (or the chat agent's Epic/Repository
+settings surface) could use to newly opt an Epic or Repository into a
+non-linear same-Epic `JobDependency` graph; combined with the unconditional
+`JobDependency`-level enforcement described below, no new fan-in/fan-out
+structure can be created regardless of what policy value is stored.
+
+Existing Epics/Repositories that already have `epic_dependency_policy: "nonlinear"`
+stored keep that value untouched — it is not migrated or coerced to `"linear"`.
+The `EpicForm`/`RepositoryForm` forms show the stored `"nonlinear"` value as a
+disabled, informational field instead of an editable option, and the read-only
+detail pages (`EpicDetail`, `RepositoryDetail`) keep displaying "Nonlinear" for
+those rows. The `EPIC_DEPENDENCY_POLICIES = %w[linear nonlinear]` model
+constant and the underlying DB columns are unchanged — this is a
+new-writes-only restriction, not a data migration.
 
 ## Resolution
 

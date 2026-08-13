@@ -100,6 +100,7 @@ de:
       fork_sync_enqueued: "%{slug} wird mit seinem Upstream synchronisiert."
       not_fork_syncable: "%{slug} ist kein Fork mit einem Upstream in dieser Instanz."
       no_sha_to_grade: "Noch kein Branch-SHA erfasst — bitte zuerst das Repository abfragen."
+      epic_dependency_policy_nonlinear_not_selectable: "\"nonlinear\" kann nicht mehr als Epic-Abhängigkeitsrichtlinie gesetzt werden — Abhängigkeiten innerhalb eines Epics bleiben immer linear."
 
     input_sources:
       saved: "%{source}-Quelle gespeichert."
@@ -143,6 +144,7 @@ de:
       owner_not_found: "Eigentümer-Benutzer nicht gefunden."
       already_assigned: "Epic ist bereits %{email} zugewiesen."
       admin_forbidden: "Administrator-Zugriff erforderlich."
+      epic_dependency_policy_nonlinear_not_selectable: "\"nonlinear\" kann nicht mehr als Epic-Abhängigkeitsrichtlinie gesetzt werden — Abhängigkeiten innerhalb eines Epics bleiben immer linear."
 
     admin_queue:
       reap_ran: "ReapStaleRunsJob wurde inline ausgeführt."

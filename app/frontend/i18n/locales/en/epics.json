@@ -109,6 +109,7 @@
   "epic_dependency_policy_nonlinear": "Nonlinear",
   "epic_dependency_policy_linear_hint": "Child Jobs should form one ordered chain.",
   "epic_dependency_policy_nonlinear_hint": "Allows branching or fan-in child Job dependencies for this Epic.",
+  "epic_dependency_policy_nonlinear_legacy_hint": "This Epic already has a nonlinear dependency graph. \"Nonlinear\" can no longer be selected for new Epics, so this legacy setting is shown for reference only.",
   "saving": "Saving...",
   "create": "Create Epic",
   "save": "Save Epic",

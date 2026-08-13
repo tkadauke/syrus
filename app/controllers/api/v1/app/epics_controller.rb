@@ -65,6 +65,8 @@ module Api
         end
 
         def create
+          return render_nonlinear_epic_dependency_policy_rejected if nonlinear_epic_dependency_policy_requested?
+
           epic = Current.user.epics.new(epic_params)
           start_requested = ActiveModel::Type::Boolean.new.cast(params[:start])
 
@@ -78,6 +80,8 @@ module Api
         end
 
         def update
+          return render_nonlinear_epic_dependency_policy_rejected if nonlinear_epic_dependency_policy_requested?
+
           epic = find_epic
           attrs = epic_params
 
@@ -723,6 +727,20 @@ module Api
 
         def epic_params
           params.require(:epic).permit(:title, :description, :repository_id, :github_issue_url, :epic_dependency_policy)
+        end
+
+        # "nonlinear" stays valid for already-stored Epics (existing DAG-capable
+        # rows keep working unmodified), but no surface may newly choose it.
+        def nonlinear_epic_dependency_policy_requested?
+          params[:epic]&.[](:epic_dependency_policy).to_s == "nonlinear"
+        end
+
+        def render_nonlinear_epic_dependency_policy_rejected
+          render_error(
+            "validation_failed",
+            I18n.t("api.epics.epic_dependency_policy_nonlinear_not_selectable"),
+            status: :unprocessable_content
+          )
         end
       end
     end

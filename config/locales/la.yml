@@ -100,6 +100,7 @@ la:
       fork_sync_enqueued: "%{slug} cum fonte superiore synchronizatur."
       not_fork_syncable: "%{slug} non est furca cum fonte superiore in hac instantia."
       no_sha_to_grade: "Nullum SHA rami adhuc indagatum — prius repositorium interroga."
+      epic_dependency_policy_nonlinear_not_selectable: "\"nonlinear\" iam eligi non potest ut ratio dependentiae Epotis — dependentiae intra idem Epos semper lineares manent."
 
     input_sources:
       saved: "Fons %{source} servatus est."
@@ -143,6 +144,7 @@ la:
       owner_not_found: "Usor dominus non inventus est."
       already_assigned: "Epos iam %{email} assignatum est."
       admin_forbidden: "Accessus administratoris necessarius est."
+      epic_dependency_policy_nonlinear_not_selectable: "\"nonlinear\" iam eligi non potest ut ratio dependentiae Epotis — dependentiae intra idem Epos semper lineares manent."
 
     admin_queue:
       reap_ran: "ReapStaleRunsJob in linea cursum dedit."

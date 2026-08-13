@@ -507,6 +507,7 @@
     "epic_dependency_linear": "Linear — require Epic child Jobs to form one chain",
     "epic_dependency_nonlinear": "Nonlinear — allow branching or fan-in child dependencies",
     "epic_dependency_hint": "Use this setting as guidance when creating Epics; each Epic stores its own dependency policy.",
+    "epic_dependency_nonlinear_legacy_hint": "This repository's default is already nonlinear. \"Nonlinear\" can no longer be selected, so this legacy setting is shown for reference only.",
     "heading_new": "Add repository",
     "heading_edit": "Edit {{slug}}",
     "owner_err_no_token": "No GitHub token configured. Enter the repository manually or add a token in Credentials.",

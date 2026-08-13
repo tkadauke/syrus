@@ -715,7 +715,7 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
           treat_grader_timeouts_as_failures: "1",
           agent_provider: "codex",
           auto_approve_mode: "if_graders_pass",
-          epic_dependency_policy: "nonlinear",
+          epic_dependency_policy: "linear",
           github_owner_id: "123",
           github_repository_id: "456"
         }
@@ -737,10 +737,30 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     expect(repository.treat_grader_timeouts_as_failures).to eq(true)
     expect(repository.agent_provider).to eq("codex")
     expect(repository.auto_approve_mode).to eq("if_graders_pass")
-    expect(repository.epic_dependency_policy).to eq("nonlinear")
+    expect(repository.epic_dependency_policy).to eq("linear")
     expect(repository.github_owner_id).to eq(123)
     expect(repository.github_repository_id).to eq(456)
     expect(parse_body).to include("message" => "Repository acme/widgets added.", "redirect_to" => repositories_path)
+  end
+
+  it "rejects newly setting the nonlinear Epic dependency policy on repository create" do
+    sign_in_as(user)
+
+    expect {
+      post "/api/v1/app/repositories", params: {
+        repository: {
+          owner: "acme",
+          name: "widgets",
+          default_branch: "main",
+          trigger_label: "syrus",
+          epic_dependency_policy: "nonlinear"
+        }
+      }
+    }.not_to change(user.repositories, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    expect(parse_body.dig("error", "message")).to include("nonlinear")
   end
 
   it "honors explicit main branch repair settings when creating fork repositories" do
@@ -833,7 +853,7 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
         treat_grader_timeouts_as_failures: "1",
         agent_provider: "codex",
         auto_approve_mode: "if_graders_pass_and_tagged_safe",
-        epic_dependency_policy: "nonlinear",
+        epic_dependency_policy: "linear",
         github_owner_id: "123",
         github_repository_id: "456"
       }
@@ -855,10 +875,41 @@ RSpec.describe "API: /api/v1/app/repositories", type: :request do
     expect(repository.treat_grader_timeouts_as_failures).to eq(true)
     expect(repository.agent_provider).to eq("codex")
     expect(repository.auto_approve_mode).to eq("if_graders_pass_and_tagged_safe")
-    expect(repository.epic_dependency_policy).to eq("nonlinear")
+    expect(repository.epic_dependency_policy).to eq("linear")
     expect(repository.github_owner_id).to eq(123)
     expect(repository.github_repository_id).to eq(456)
     expect(parse_body).to include("message" => "Repository acme/widgets updated.", "redirect_to" => repositories_path)
+  end
+
+  it "rejects newly setting the nonlinear Epic dependency policy on repository update" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets", epic_dependency_policy: "linear")
+
+    patch "/api/v1/app/repositories/#{repository.id}", params: {
+      repository: { epic_dependency_policy: "nonlinear" }
+    }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("validation_failed")
+    expect(parse_body.dig("error", "message")).to include("nonlinear")
+    expect(repository.reload.epic_dependency_policy).to eq("linear")
+  end
+
+  it "keeps an already-nonlinear repository Epic dependency policy readable after unrelated updates" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets", epic_dependency_policy: "nonlinear")
+
+    patch "/api/v1/app/repositories/#{repository.id}", params: {
+      repository: { trigger_label: "delegate" }
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(repository.reload).to have_attributes(trigger_label: "delegate", epic_dependency_policy: "nonlinear")
+
+    get "/api/v1/app/repositories/#{repository.id}/edit"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["repository"]).to include("epic_dependency_policy" => "nonlinear")
   end
 
   it "resumes repository work even when main remains broken" do

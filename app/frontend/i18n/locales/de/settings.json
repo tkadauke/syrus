@@ -507,6 +507,7 @@
     "epic_dependency_linear": "Linear — Epic-Kind-Jobs müssen eine Kette bilden",
     "epic_dependency_nonlinear": "Nichtlinear — Verzweigungen oder Fan-in-Abhängigkeiten erlauben",
     "epic_dependency_hint": "Diese Einstellung dient als Orientierung beim Erstellen von Epics; jedes Epic speichert seine eigene Abhängigkeitsrichtlinie.",
+    "epic_dependency_nonlinear_legacy_hint": "Der Standard dieses Repositories ist bereits nichtlinear. \"Nichtlinear\" kann nicht mehr ausgewählt werden; diese Einstellung wird nur zur Information angezeigt.",
     "heading_new": "Repository hinzufügen",
     "heading_edit": "{{slug}} bearbeiten",
     "owner_err_no_token": "Kein GitHub-Token konfiguriert. Geben Sie das Repository manuell ein oder fügen Sie in den Zugangsdaten ein Token hinzu.",

@@ -96,3 +96,30 @@ describe("EpicForm create buttons", () => {
     expect(screen.getByRole("button", { name: "Save Epic" })).toBeInTheDocument()
   })
 })
+
+describe("EpicForm dependency policy field", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("only offers Linear as a selectable dependency policy", () => {
+    renderForm("new")
+
+    const select = screen.getByRole("combobox", { name: /dependency policy/i })
+    expect(select).not.toBeDisabled()
+    expect(screen.getByRole("option", { name: "Linear" })).toBeInTheDocument()
+    expect(screen.queryByRole("option", { name: "Nonlinear" })).not.toBeInTheDocument()
+  })
+
+  it("shows an existing nonlinear policy as disabled/informational, not selectable", () => {
+    renderForm("edit", formPayload({
+      id: 3,
+      epic_path: "/epics/3",
+      epic_dependency_policy: "nonlinear",
+      resolved_epic_dependency_policy: "nonlinear"
+    }))
+
+    const select = screen.getByRole("combobox", { name: /dependency policy/i })
+    expect(select).toBeDisabled()
+    expect(select).toHaveValue("nonlinear")
+    expect(screen.queryByRole("option", { name: "Linear" })).not.toBeInTheDocument()
+  })
+})

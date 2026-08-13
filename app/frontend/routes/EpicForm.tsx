@@ -122,18 +122,29 @@ export function EpicForm({ mode, payload, prefix }: { mode: "new" | "edit"; payl
         </Field>
 
         <Field label={t("epic_dependency_policy_label")}>
-          <select
-            className={inputClass()}
-            onChange={(event) => setValues({ ...values, epic_dependency_policy: event.target.value as import("../api/epics").EpicDependencyPolicy })}
-            value={values.epic_dependency_policy}
-          >
-            <option value="linear">{t("epic_dependency_policy_linear")}</option>
-            <option value="nonlinear">{t("epic_dependency_policy_nonlinear")}</option>
-          </select>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {values.epic_dependency_policy === "nonlinear" ? t("epic_dependency_policy_nonlinear_hint") :
-             t("epic_dependency_policy_linear_hint")}
-          </p>
+          {values.epic_dependency_policy === "nonlinear" ? (
+            <>
+              <select className={inputClass()} disabled value="nonlinear">
+                <option value="nonlinear">{t("epic_dependency_policy_nonlinear")}</option>
+              </select>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {t("epic_dependency_policy_nonlinear_legacy_hint")}
+              </p>
+            </>
+          ) : (
+            <>
+              <select
+                className={inputClass()}
+                onChange={(event) => setValues({ ...values, epic_dependency_policy: event.target.value as import("../api/epics").EpicDependencyPolicy })}
+                value={values.epic_dependency_policy}
+              >
+                <option value="linear">{t("epic_dependency_policy_linear")}</option>
+              </select>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {t("epic_dependency_policy_linear_hint")}
+              </p>
+            </>
+          )}
         </Field>
 
         <div className="flex flex-wrap items-center gap-3">
