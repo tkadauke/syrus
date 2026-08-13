@@ -308,6 +308,22 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(proposal.reload).to be_proposed
   end
 
+  it "rejects a nonlinear child graph even when the target Epic's stored policy is nonlinear" do
+    target_epic = Factories.epic(user: user, repository: repository, epic_dependency_policy: "nonlinear")
+    proposal = epic_proposal
+    proposal.update!(target_epic: target_epic)
+    root = child_for(proposal, "root")
+    left = child_for(proposal, "left")
+    right = child_for(proposal, "right")
+    depend_on(left, root)
+    depend_on(right, root)
+
+    expect {
+      described_class.new(user: user).file!(proposal)
+    }.to raise_error(ArgumentError, /single chain.*left, right/)
+    expect(proposal.reload).to be_proposed
+  end
+
   it "rejects multiple root and leaf child graphs under the default linear policy" do
     proposal = epic_proposal
     first = child_for(proposal, "first")
@@ -320,27 +336,6 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect {
       described_class.new(user: user).file!(proposal)
     }.to raise_error(ArgumentError, /single chain.*first, third/)
-    expect(proposal.reload).to be_proposed
-  end
-
-  it "still rejects fan-out JobDependency rows even with the proposal-level override" do
-    # nonlinear_dependency_override only bypasses EpicDependencyPolicy's
-    # proposal-graph check; JobDependency's own linear-chain validation
-    # runs unconditionally, so wiring the resulting fan-out edges still
-    # fails and the whole materialization rolls back.
-    proposal = epic_proposal
-    proposal.update!(nonlinear_dependency_override: true)
-    root = child_for(proposal, "root")
-    left = child_for(proposal, "left")
-    right = child_for(proposal, "right")
-    depend_on(left, root)
-    depend_on(right, root)
-
-    expect {
-      expect {
-        described_class.new(user: user).file!(proposal)
-      }.to raise_error(ActiveRecord::RecordInvalid, /Epic dependencies must form a single chain/)
-    }.to change(Job, :count).by(0)
     expect(proposal.reload).to be_proposed
   end
 
@@ -475,21 +470,21 @@ RSpec.describe ChatEpicProposalMaterializer do
   it "rolls back the Epic when a child Job cannot be created" do
     other_repository = Factories.repository(user: user)
     proposal = epic_proposal
-    proposal.update!(nonlinear_dependency_override: true)
-    proposal.child_proposals.create!(
+    good = proposal.child_proposals.create!(
       chat_session: chat_session,
       slug: "good",
       title: "Good",
       body: "Same repo.",
       repository: repository
     )
-    proposal.child_proposals.create!(
+    bad = proposal.child_proposals.create!(
       chat_session: chat_session,
       slug: "bad",
       title: "Bad",
       body: "Different repo.",
       repository: other_repository
     )
+    depend_on(bad, good)
 
     expect {
       expect {

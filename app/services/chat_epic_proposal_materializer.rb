@@ -83,7 +83,7 @@ class ChatEpicProposalMaterializer
       repository: repository,
       title: proposal.title,
       description: proposal.body,
-      epic_dependency_policy: proposal.nonlinear_dependency_override? ? "nonlinear" : "linear",
+      epic_dependency_policy: "linear",
       state: "ready"
     )
   end
@@ -92,12 +92,8 @@ class ChatEpicProposalMaterializer
     policy_for(epic_proposal).validate_proposed_child_graph!(job_proposals)
   end
 
-  def policy_for(epic_proposal)
-    return EpicDependencyPolicy::Nonlinear.new if epic_proposal.nonlinear_dependency_override?
-
-    target_epic = epic_proposal.target_epic
-    policy_name = target_epic ? target_epic.resolved_epic_dependency_policy : "linear"
-    EpicDependencyPolicy::Base.for(policy_name)
+  def policy_for(_epic_proposal)
+    EpicDependencyPolicy::Linear.new
   end
 
   def create_job_for(proposal, epic)

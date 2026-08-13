@@ -3639,7 +3639,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(child.reload.job).to be_blocked_by_epic
   end
 
-  it "returns an actionable validation error when confirming a nonlinear Epic proposal without override" do
+  it "returns an actionable validation error when confirming a nonlinear Epic proposal" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
     proposal = chat.proposals.create!(
@@ -3669,8 +3669,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     }.not_to change(Epic, :count)
 
     expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to include("single chain under linear policy")
-    expect(parse_body.dig("error", "message")).to include("set nonlinear_dependency_override only when the operator explicitly requested nonlinear execution")
+    expect(parse_body.dig("error", "message")).to include("must be a single chain")
     expect(proposal.reload).to be_proposed
   end
 

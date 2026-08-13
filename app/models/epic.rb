@@ -305,7 +305,7 @@ class Epic < ApplicationRecord
   def resolved_epic_dependency_policy
     return nil unless repository
 
-    EpicDependencyPolicy::Base.for(epic_dependency_policy).resolve(self)
+    epic_dependency_policy
   end
 
   def refresh_auto_state!

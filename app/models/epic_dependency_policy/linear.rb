@@ -1,10 +1,6 @@
 require "set"
 
-class EpicDependencyPolicy::Linear < EpicDependencyPolicy::Base
-  def resolve(epic)
-    "linear"
-  end
-
+class EpicDependencyPolicy::Linear
   def validate_proposed_child_graph!(proposals)
     proposals = proposals.to_a
     return if proposals.length <= 1
@@ -37,8 +33,7 @@ class EpicDependencyPolicy::Linear < EpicDependencyPolicy::Base
 
     slugs = unordered.map { |id| slugs_by_id.fetch(id) }
     raise ArgumentError,
-          "Epic child dependency graph must be a single chain under linear policy; child slugs are unordered or branching: #{slugs.join(', ')}. " \
-          "Add sibling depends_on edges to make one chain, or set nonlinear_dependency_override only when the operator explicitly requested nonlinear execution."
+          "Epic child dependency graph must be a single chain; child slugs are unordered or branching: #{slugs.join(', ')}. " \
+          "Add sibling depends_on edges to make one chain."
   end
-
 end

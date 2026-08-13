@@ -119,7 +119,6 @@ export type ChatProposal = {
   app_reject_path: string
   depends_on_job_ids?: number[]
   depends_on_epic_ids?: number[]
-  nonlinear_dependency_override?: boolean
   media_ids?: string[]
   materialized_label: string | null
   materialized_path: string | null
@@ -169,7 +168,6 @@ export type ChatProposalUpdateInput = {
   dependency_slugs: string[]
   depends_on_job_ids: number[]
   depends_on_epic_ids: number[]
-  nonlinear_dependency_override?: boolean
   media_ids?: string[]
 }
 

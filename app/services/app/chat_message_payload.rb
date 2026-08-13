@@ -167,7 +167,6 @@ module App
         dependency_slugs: dependency_slugs,
         depends_on_job_ids: proposal.depends_on_job_ids || [],
         depends_on_epic_ids: proposal.depends_on_epic_ids || [],
-        nonlinear_dependency_override: proposal.nonlinear_dependency_override?,
         dependencies: visible_dependencies,
         has_dependencies: visible_dependencies.any?,
         target_epic_label: proposal.target_epic&.slug,

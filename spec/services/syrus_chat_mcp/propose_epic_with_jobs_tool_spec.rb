@@ -70,27 +70,6 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     expect(chat_session.messages.last).to have_attributes(role: "assistant", proposal: proposal)
   end
 
-  it "stores the explicit nonlinear dependency override on the Epic proposal" do
-    response = call_tool(
-      epic: {
-        slug: "parallel-work",
-        title: "Parallel work",
-        description: "Run child jobs in parallel.",
-        target_repo: repository.slug,
-        nonlinear_dependency_override: true
-      },
-      jobs: [
-        { slug: "left", title: "Left", description: "Build left." },
-        { slug: "right", title: "Right", description: "Build right." }
-      ]
-    )
-
-    proposal = chat_session.proposals.find_by!(slug: "parallel-work")
-    expect(response[:result][:isError]).to be_falsey
-    expect(proposal).to be_nonlinear_dependency_override
-    expect(response_payload(response)).to include(nonlinear_dependency_override: true)
-  end
-
   it "creates a grouped child Job proposal card for an existing Epic" do
     target_epic = Factories.epic(
       user: user,

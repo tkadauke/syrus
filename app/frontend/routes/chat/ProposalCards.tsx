@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { createPortal } from "react-dom"
 import "@excalidraw/excalidraw/index.css"
-import { confirmChatProposal, confirmPendingAction, rejectChatProposal, rejectPendingAction, searchChatEpics, searchChatJobs, searchChatProposals, updateChatProposal, type ChatEpicDependencySearchResult, type ChatJobDependencySearchResult, type ChatPendingAction, type ChatPendingActionInline, type ChatPayload, type ChatProposal, type ChatProposalChild, type ChatProposalChildDependency, type ChatProposalDependency, type ChatProposalSearchResult } from "../../api/chats"
+import { confirmChatProposal, confirmPendingAction, rejectChatProposal, rejectPendingAction, searchChatEpics, searchChatJobs, searchChatProposals, updateChatProposal, type ChatEpicDependencySearchResult, type ChatJobDependencySearchResult, type ChatPendingAction, type ChatPendingActionInline, type ChatPayload, type ChatProposal, type ChatProposalChild, type ChatProposalDependency, type ChatProposalSearchResult } from "../../api/chats"
 import { fetchBootstrap } from "../../api/bootstrap"
 import { CloseIcon } from "../../components/CloseIcon"
 import { ConfirmDialog } from "../../components/ConfirmDialog"
@@ -44,7 +44,6 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
   const [proposalDeps, setProposalDeps] = useState<DependencyPill[]>(initialProposalDependencyPills(proposal))
   const [jobDeps, setJobDeps] = useState<DependencyPill[]>((proposal.depends_on_job_ids || []).map((id) => ({ key: String(id), label: `JOB-${id}` })))
   const [epicDeps, setEpicDeps] = useState<DependencyPill[]>((proposal.depends_on_epic_ids || []).map((id) => ({ key: String(id), label: `EPIC-${id}` })))
-  const [nonlinearDependencyOverride, setNonlinearDependencyOverride] = useState(Boolean(proposal.nonlinear_dependency_override))
   const [proposalQuery, setProposalQuery] = useState("")
   const [jobQuery, setJobQuery] = useState("")
   const [epicQuery, setEpicQuery] = useState("")
@@ -59,8 +58,7 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
     body !== proposal.body ||
     !sameValues(proposalDeps.map((dep) => dep.key), initialProposalDependencyPills(proposal).map((dep) => dep.key)) ||
     !sameValues(jobDeps.map((dep) => dep.key), (proposal.depends_on_job_ids || []).map(String)) ||
-    !sameValues(epicDeps.map((dep) => dep.key), (proposal.depends_on_epic_ids || []).map(String)) ||
-    nonlinearDependencyOverride !== Boolean(proposal.nonlinear_dependency_override)
+    !sameValues(epicDeps.map((dep) => dep.key), (proposal.depends_on_epic_ids || []).map(String))
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -83,8 +81,7 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
       body,
       dependency_slugs: proposalDeps.map((dep) => dep.key),
       depends_on_job_ids: jobDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id)),
-      depends_on_epic_ids: epicDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id)),
-      nonlinear_dependency_override: nonlinearDependencyOverride
+      depends_on_epic_ids: epicDeps.map((dep) => Number(dep.key)).filter((id) => Number.isFinite(id))
     }),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
@@ -182,22 +179,6 @@ export function ProposalEditModal({ chatId, proposal, search, queryKey, onClose,
                 setSelected={setEpicDeps}
               />
             </div>
-            {proposal.epic_bundle ? (
-              <label className="block rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-100">
-                <span className="flex items-start gap-2 font-medium">
-                  <input
-                    checked={nonlinearDependencyOverride}
-                    className="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-700 focus:ring-amber-500 dark:border-amber-700"
-                    onChange={(event) => setNonlinearDependencyOverride(event.target.checked)}
-                    type="checkbox"
-                  />
-                  <span>{t("nonlinear_override_label")}</span>
-                </span>
-                <span className="mt-1 block pl-6 text-xs text-amber-900 dark:text-amber-100">
-                  {t("nonlinear_override_help")}
-                </span>
-              </label>
-            ) : null}
           </div>
           <div className="flex justify-end gap-2 border-t border-gray-200 px-5 py-4 dark:border-gray-800">
             <button className={secondaryButton()} onClick={onClose} type="button">{t("cancel")}</button>
@@ -339,7 +320,6 @@ export function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposa
                 <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">{proposal.epic_bundle ? "Epic" : proposal.kind_label}</span>
                 <span className={`rounded px-2 py-0.5 text-xs font-medium ${proposal.proposed ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{proposal.state_label}</span>
                 {proposal.epic_bundle ? <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">{proposal.active_children_count || 0} child Jobs</span> : null}
-                {proposal.epic_bundle && proposal.nonlinear_dependency_override ? <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">{t("nonlinear_override_badge")}</span> : null}
               </div>
               {proposal.proposed ? <ProposalEditButton label={`Edit ${proposal.slug}`} onClick={() => setEditingProposal(proposal)} /> : null}
             </div>
@@ -351,12 +331,7 @@ export function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposa
       body={
         <>
           <Markdown className="chat-prose text-sm text-gray-800 dark:text-gray-100" text={proposal.body} />
-          {proposal.epic_bundle && proposal.nonlinear_dependency_override ? (
-            <p className="mt-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-100">
-              {t("nonlinear_override_notice")}
-            </p>
-          ) : null}
-          {proposal.epic_bundle ? <ProposalChildren children={proposal.children || []} isLinear={!proposal.nonlinear_dependency_override} parentProposed={proposal.proposed} mutation={proposalAction} prefix={prefix} onEdit={(child) => setEditingProposal(editableChildProposal(child))} /> : <ProposalMeta proposal={proposal} />}
+          {proposal.epic_bundle ? <ProposalChildren children={proposal.children || []} parentProposed={proposal.proposed} mutation={proposalAction} prefix={prefix} onEdit={(child) => setEditingProposal(editableChildProposal(child))} /> : <ProposalMeta proposal={proposal} />}
         </>
       }
       footer={
@@ -635,7 +610,7 @@ function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
   )
 }
 
-function ProposalChildren({ children, isLinear, parentProposed, mutation, prefix, onEdit }: { children: ChatProposalChild[]; isLinear: boolean; parentProposed: boolean; mutation: UseMutationResult<ChatPayload, Error, ProposalActionInput>; prefix: string; onEdit: (child: ChatProposalChild) => void }) {
+function ProposalChildren({ children, parentProposed, mutation, prefix, onEdit }: { children: ChatProposalChild[]; parentProposed: boolean; mutation: UseMutationResult<ChatPayload, Error, ProposalActionInput>; prefix: string; onEdit: (child: ChatProposalChild) => void }) {
   if (children.length === 0) return null
   return (
     <div className="mt-4 divide-y divide-gray-100 rounded border border-gray-200 dark:divide-gray-800 dark:border-gray-700">
@@ -644,7 +619,6 @@ function ProposalChildren({ children, isLinear, parentProposed, mutation, prefix
           <summary className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-800">
             <span className="text-gray-400 group-open:rotate-90 dark:text-gray-500">▸</span>
             <span className="min-w-0 flex-1 truncate font-medium text-gray-900 dark:text-gray-100">{child.title}</span>
-            {child.dependencies.length > 0 ? <ChildDependencySummary child={child} isLinear={isLinear} prefix={prefix} /> : null}
             <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-medium ${child.proposed ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>{child.state_label}</span>
             {child.proposed && parentProposed ? <ProposalEditButton label={`Edit ${child.slug}`} onClick={(event) => { event.stopPropagation(); onEdit(child) }} /> : null}
           </summary>
@@ -670,44 +644,3 @@ function ProposalChildren({ children, isLinear, parentProposed, mutation, prefix
   )
 }
 
-function ChildDependencySummary({ child, isLinear, prefix }: { child: ChatProposalChild; isLinear: boolean; prefix: string }) {
-  if (isLinear) return null
-
-  const details = child.dependency_details || []
-  const collapsedPillClass = "hidden sm:inline shrink-0 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300"
-
-  if (details.length === 0) {
-    if (child.dependencies.length >= 2) {
-      return <span className={collapsedPillClass} title={child.dependencies.join(", ")}>{child.dependencies.length} dependencies</span>
-    }
-    return <span className="hidden sm:inline shrink-0 rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">depends on {child.dependencies.join(", ")}</span>
-  }
-
-  if (details.length >= 2) {
-    return <span className={collapsedPillClass} title={details.map((d) => d.slug).join(", ")}>{details.length} dependencies</span>
-  }
-
-  return (
-    <span className="hidden sm:flex shrink-0 flex-wrap items-center justify-end gap-1 text-xs">
-      <span className="text-gray-500 dark:text-gray-400">depends on</span>
-      {details.map((dependency) => (
-        <ChildDependencyPill dependency={dependency} key={dependency.slug} prefix={prefix} />
-      ))}
-    </span>
-  )
-}
-
-function ChildDependencyPill({ dependency, prefix }: { dependency: ChatProposalChildDependency; prefix: string }) {
-  const label = dependency.materialized_label || dependency.slug
-  const scopeLabel = dependency.scope === "cross_card" ? "cross-card" : "sibling"
-  const className = dependency.scope === "cross_card"
-    ? "rounded border border-blue-200 bg-blue-50 px-2 py-0.5 font-mono text-xs text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200"
-    : "rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300"
-  const content = <>{label}<span className="ml-1 font-sans text-[10px] uppercase">{scopeLabel}</span></>
-
-  if (dependency.materialized_path) {
-    return <Link className={className} to={withRoutePrefix(dependency.materialized_path, prefix)}>{content}</Link>
-  }
-
-  return <span className={className}>{content}</span>
-}

@@ -312,10 +312,10 @@ module Prompts
         Sibling slugs inside the same card resolve first; if a slug is
         not a sibling, Syrus resolves it against Job proposal slugs from
         other cards in this same chat session. Omitting it lets every
-        child start in parallel and race on shared files. By default,
-        Epic child Jobs must form one linear chain. Only set
-        `epic.nonlinear_dependency_override` on `propose_epic_with_jobs`
-        when the operator explicitly requested nonlinear execution.
+        child start in parallel and race on shared files. Epic child
+        Jobs always form one linear chain, no exceptions — express
+        every ordering constraint via `depends_on` so the proposed
+        graph resolves to a single chain.
         If the operator explicitly needs a cleanup or teardown Job to
         wait only until another Job is terminal, even if that Job is
         canceled, do not encode that only in prose. After the Job exists,
