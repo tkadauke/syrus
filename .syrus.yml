@@ -182,6 +182,13 @@ grade:
     run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/rails db:test:prepare && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bin/rspec
     fast: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" RSPEC_PROCESSES="${RSPEC_PROCESSES:-8}" bin/rspec-fast
     ci: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" RSPEC_PROCESSES="${RSPEC_PROCESSES:-8}" bin/rspec-ci
+    # The serial `run:` variant (bin/rspec, no parallelism) has grown to
+    # 9300+ examples and now finishes in ~52.5 minutes on its own —
+    # leaving under 3 minutes of the old 55-minute budget for the
+    # preceding bundle check/install and db:test:prepare steps. That
+    # margin is too tight and produced a spurious exit-124 timeout with
+    # 0 actual failures. Widen the ceiling rather than treat suite
+    # growth as a per-PR regression to fix.
     timeout_minutes: 75
 
   - name: react-tests
