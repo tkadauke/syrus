@@ -177,7 +177,7 @@ visual_review:
   seed_notes: "Log in as demo@example.com / password to reach the dashboard."
 ```
 
-`enabled` turns visual review on for this repository. Defaults to `false`; when the block (or the `enabled` key) is omitted, the instance-wide `Feature.visual_review_enabled?` default applies.
+`enabled` explicitly turns visual review on (`true`) or off (`false`) for this repository, overriding the instance-wide default. When the block (or the `enabled` key within it) is omitted, no repository-level override is recorded and the instance-wide `Feature.visual_review_enabled?` default applies instead — so a repository can set `rounds`, `when_files_changed`, or `seed_notes` without omitted `enabled` forcing the feature off.
 
 `rounds` controls how many visual-review passes run. Range: 0–10, defaults to `1`.
 

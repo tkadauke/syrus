@@ -177,7 +177,11 @@ class SyrusYml
     end
 
     VisualReviewConfig.new(
-      enabled: ActiveModel::Type::Boolean.new.cast(raw["enabled"]) || false,
+      # No `|| false` here on purpose: nil (the `enabled` key omitted, or
+      # present but unparseable as a boolean) must stay nil so callers can
+      # distinguish "not specified — defer to Feature.visual_review_enabled?"
+      # from an explicit `enabled: false` repo override.
+      enabled: ActiveModel::Type::Boolean.new.cast(raw["enabled"]),
       rounds: parse_visual_review_rounds(raw["rounds"]),
       when_files_changed: when_files_changed,
       seed_notes: raw["seed_notes"].to_s.strip.presence
