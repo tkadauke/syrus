@@ -77,7 +77,19 @@ External PR Jobs start in the `implemented` state, bypassing the agent workflow.
 - Comments authored by the configured Syrus GitHub App bot (e.g. its own grader-failure review comments) are excluded.
 - A `last_seen_comment_at` watermark — the same column `PollPullRequestJob` uses — keeps already-seen comments from being reprocessed on later polls.
 
-Recording is currently the only effect: this poller does not dispatch a follow-up workflow on its own. Actionable, non-job-owner comments still surface to the operator through the Job Detail page's pending-feedback panel (Apply/Replace/Ignore), same as for any other Job.
+This poller never dispatches a follow-up workflow on its own — recording is one effect, the waiting-state reaction below is the other. Actionable comments still surface to the operator through the Job Detail page's pending-feedback panel (Apply/Replace/Ignore), same as for any other Job.
+
+### Fork PR waiting state
+
+For fork PRs (`external_pr_fork: true` — Syrus cannot push to the branch), qualifying comment feedback puts the Job into the same waiting state as a formal GitHub `CHANGES_REQUESTED` review: `needs_attention_reason` is set to `"upstream_pr_changes_requested"`. There is no distinction between a formal review and a plain qualifying comment — per operator decision, only a collaborator can leave either on GitHub, so the nuance doesn't matter in practice.
+
+A comment "qualifies" using the same rule `PollPullRequestJob` uses for Syrus-authored PRs (`PrCommentIngester#qualifies_for_workflow?`): actionable comments from the job owner always qualify; actionable comments from a repository member or an unrelated (`external`) commenter qualify only when the repository's `feedback_policy` is `"auto"`.
+
+Actionable comments from an `external` commenter (no relationship to the repository) that don't clear that bar are not auto-acted on. Instead, Syrus sends the job owner a `external_pr_feedback` notification asking them to review the feedback themselves; the Job's `needs_attention` state is left untouched.
+
+If the fork Job is already `approved` when qualifying feedback arrives, Syrus unapproves it (mirroring `PollPullRequestJob#clear_stale_approval!` for Syrus-authored PRs) so it doesn't land out from under a fresh objection.
+
+Same-repo external PRs (Syrus can push) get the full fix-and-push treatment instead of this waiting state — see the Epic this feature belongs to.
 
 ## Dashboard display
 

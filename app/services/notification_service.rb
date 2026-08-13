@@ -3,7 +3,7 @@ require "digest"
 class NotificationService
   SIMPLE_SUPPRESSED_KINDS = %w[
     job_failed job_implemented pr_comment_addressed pr_merged epic_completed upstream_pr_closed
-    main_broken main_inconclusive main_recovered
+    main_broken main_inconclusive main_recovered external_pr_feedback
   ].freeze
 
   def self.create_for(user:, kind:, job: nil, repository: nil, actor: nil, pr_url: nil, body:, supervisor_dedupe_key: nil)

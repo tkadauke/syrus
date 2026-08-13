@@ -125,7 +125,8 @@ class User < ApplicationRecord
     "upstream_pr_closed" => true,
     "main_broken" => true,
     "main_inconclusive" => true,
-    "main_recovered" => true
+    "main_recovered" => true,
+    "external_pr_feedback" => true
   }.freeze
   DASHBOARD_VIEWS = %w[list kanban dependencies].freeze
 

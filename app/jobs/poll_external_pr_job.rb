@@ -92,10 +92,11 @@ class PollExternalPrJob < ApplicationJob
   end
 
   # ----- comment ingestion -----------------------------------------------
-  # Recording only — attribution + actionable classification via the same
-  # PrCommentIngester pipeline PollPullRequestJob uses for Syrus-authored
-  # PRs. No workflow is enqueued here; jobs 2/3 of this Epic act on what
-  # gets recorded (fork waiting-state vs. same-repo fix-and-push).
+  # Attribution + actionable classification via the same PrCommentIngester
+  # pipeline PollPullRequestJob uses for Syrus-authored PRs. For fork Jobs
+  # (Syrus cannot push to the branch), qualifying feedback puts the Job
+  # into the same waiting state as a formal CHANGES_REQUESTED review — job
+  # 3 of this Epic handles the same-repo fix-and-push reaction instead.
 
   def ingest_pr_comments
     cutoff = @job.last_seen_comment_at
@@ -106,20 +107,68 @@ class PollExternalPrJob < ApplicationJob
     user = @job.owner_user || @job.user
     provider = @job.workflow_agent_provider
 
-    PrCommentIngester.call(
+    issue_result = PrCommentIngester.call(
       job: @job, comments: issue_comments, pr_type: "external",
       comment_kind: "issue", user: user, agent_provider: provider
     )
-    PrCommentIngester.call(
+    review_result = PrCommentIngester.call(
       job: @job, comments: review_comments, pr_type: "external",
       comment_kind: "review", user: user, agent_provider: provider
     )
+
+    react_to_qualifying_feedback(issue_result, review_result) if @job.external_pr_fork?
 
     advance_comment_watermark(issue_comments + review_comments, cutoff)
   end
 
   def new_since(comments, cutoff)
     comments.select { |comment| cutoff.nil? || (comment.created_at && comment.created_at > cutoff) }
+  end
+
+  # `qualifying_records` (per PrCommentIngester#qualifies_for_workflow?)
+  # already covers job_owner comments unconditionally, and member/external
+  # comments when the repository's feedback_policy is "auto" — so a
+  # qualifying record here is exactly the set the operator said should be
+  # treated like a formal CHANGES_REQUESTED review, no distinction. External
+  # comments that don't clear that bar (feedback_policy != "auto") aren't
+  # auto-acted on; they're surfaced to the job owner as a notification
+  # instead of pausing landing.
+  def react_to_qualifying_feedback(issue_result, review_result)
+    qualifying = issue_result.qualifying_records + review_result.qualifying_records
+    non_qualifying = issue_result.non_qualifying_records + review_result.non_qualifying_records
+    external_notify_records = non_qualifying.select { |record| record.actionable? && record.external? }
+
+    return if qualifying.empty? && external_notify_records.empty?
+
+    if qualifying.any?
+      @job.set_needs_attention!(reason: "upstream_pr_changes_requested")
+      unapprove_stale_approval!
+    end
+
+    external_notify_records.each { |record| notify_external_feedback(record) }
+  end
+
+  def unapprove_stale_approval!
+    return unless @job.may_unapprove?
+
+    Job::ApprovalUnapprover.call(job: @job, user: @job.user)
+  end
+
+  def notify_external_feedback(record)
+    recipient = @job.owner_user || @job.user
+    from = record.github_handle.present? ? "@#{record.github_handle}" : "an external contributor"
+    body = "New feedback on #{@job.slug}'s external PR ##{@job.external_pr_number} from #{from}: " \
+           "#{record.body.to_s.truncate(160)}"
+
+    NotificationService.create_for(
+      user: recipient,
+      kind: "external_pr_feedback",
+      job: @job,
+      pr_url: App::Presentation.external_pr_url(@job),
+      body: body
+    )
+  rescue => e
+    Rails.logger.warn("[PollExternalPrJob] #{@job.slug}: could not send external_pr_feedback notification — #{e.message}")
   end
 
   def advance_comment_watermark(comments, cutoff)

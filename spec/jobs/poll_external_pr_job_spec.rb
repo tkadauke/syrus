@@ -355,4 +355,127 @@ RSpec.describe PollExternalPrJob do
         .not_to change { PrReviewComment.count }
     end
   end
+
+  describe "fork PR feedback waiting state" do
+    let(:external_pr_job) do
+      Job.create!(
+        user: user,
+        repository: repository,
+        kind: "external_pr",
+        external_pr_number: 9,
+        external_pr_fork: true,
+        state: "implemented"
+      )
+    end
+
+    let(:reviews_url) { "https://api.github.com/repos/acme/widgets/pulls/9/reviews" }
+
+    def stub_reviews(reviews = [])
+      stub_request(:get, reviews_url).with(query: hash_including({})).to_return(
+        status: 200, headers: { "Content-Type" => "application/json" },
+        body: reviews.to_json
+      )
+    end
+
+    before do
+      stub_external_pr(state: "open", merged: false)
+      stub_reviews([])
+    end
+
+    it "sets needs_attention_reason to upstream_pr_changes_requested on an actionable job-owner comment" do
+      user.update!(github_handle: "owner-handle")
+      allow(PrCommentClassifier).to receive(:call).and_return(
+        PrCommentClassifier::Result.new(actionable: true, reason: "requests a change", error: nil)
+      )
+      stub_issue_comments([
+        { id: 1, body: "Please fix the typo", user: { login: "owner-handle" }, created_at: 1.hour.ago.iso8601 }
+      ])
+      stub_review_comments([])
+
+      described_class.perform_now(external_pr_job.id)
+
+      expect(external_pr_job.reload.needs_attention_reason).to eq("upstream_pr_changes_requested")
+    end
+
+    it "does not set needs_attention for a non-actionable comment" do
+      allow(PrCommentClassifier).to receive(:call).and_return(
+        PrCommentClassifier::Result.new(actionable: false, reason: "just praise", error: nil)
+      )
+      stub_issue_comments([
+        { id: 1, body: "nice work", user: { login: "owner-handle" }, created_at: 1.hour.ago.iso8601 }
+      ])
+      stub_review_comments([])
+
+      described_class.perform_now(external_pr_job.id)
+
+      expect(external_pr_job.reload.needs_attention?).to be false
+    end
+
+    it "sends a notification but does not set needs_attention for an actionable external-attributed comment under the default confirm policy" do
+      repository.update!(feedback_policy: "confirm")
+      allow(PrCommentClassifier).to receive(:call).and_return(
+        PrCommentClassifier::Result.new(actionable: true, reason: "requests a change", error: nil)
+      )
+      stub_issue_comments([
+        { id: 1, body: "Please add a test for this", user: { login: "stranger" }, created_at: 1.hour.ago.iso8601 }
+      ])
+      stub_review_comments([])
+
+      expect { described_class.perform_now(external_pr_job.id) }
+        .to change { user.notifications.where(kind: "external_pr_feedback").count }.by(1)
+
+      expect(external_pr_job.reload.needs_attention?).to be false
+      expect(user.notifications.where(kind: "external_pr_feedback").last.body).to include("stranger")
+    end
+
+    it "treats an external-attributed comment as qualifying (no notification) when feedback_policy is auto" do
+      repository.update!(feedback_policy: "auto")
+      allow(PrCommentClassifier).to receive(:call).and_return(
+        PrCommentClassifier::Result.new(actionable: true, reason: "requests a change", error: nil)
+      )
+      stub_issue_comments([
+        { id: 1, body: "Please add a test for this", user: { login: "stranger" }, created_at: 1.hour.ago.iso8601 }
+      ])
+      stub_review_comments([])
+
+      expect { described_class.perform_now(external_pr_job.id) }
+        .not_to change { user.notifications.where(kind: "external_pr_feedback").count }
+
+      expect(external_pr_job.reload.needs_attention_reason).to eq("upstream_pr_changes_requested")
+    end
+
+    it "unapproves an already-approved fork Job when qualifying feedback arrives" do
+      user.update!(github_handle: "owner-handle")
+      external_pr_job.approve!(via: "operator")
+      allow(PrCommentClassifier).to receive(:call).and_return(
+        PrCommentClassifier::Result.new(actionable: true, reason: "requests a change", error: nil)
+      )
+      stub_issue_comments([
+        { id: 1, body: "Please fix the typo", user: { login: "owner-handle" }, created_at: 1.hour.ago.iso8601 }
+      ])
+      stub_review_comments([])
+
+      expect(external_pr_job.approved?).to be true
+
+      described_class.perform_now(external_pr_job.id)
+
+      expect(external_pr_job.reload.state).to eq("implemented")
+    end
+
+    it "does not react to qualifying comments for a same-repo (non-fork) external PR Job" do
+      external_pr_job.update!(external_pr_fork: false)
+      user.update!(github_handle: "owner-handle")
+      allow(PrCommentClassifier).to receive(:call).and_return(
+        PrCommentClassifier::Result.new(actionable: true, reason: "requests a change", error: nil)
+      )
+      stub_issue_comments([
+        { id: 1, body: "Please fix the typo", user: { login: "owner-handle" }, created_at: 1.hour.ago.iso8601 }
+      ])
+      stub_review_comments([])
+
+      described_class.perform_now(external_pr_job.id)
+
+      expect(external_pr_job.reload.needs_attention?).to be false
+    end
+  end
 end
