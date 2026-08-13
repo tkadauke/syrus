@@ -23,7 +23,7 @@ RSpec.describe "Chats", type: :request do
 
       get chat_path(other_chat)
 
-      expect(response).to have_http_status(:not_found)
+      expect(response).to redirect_to(root_path)
       expect(response.body).not_to include('id="syrus-spa-root"')
     end
   end
