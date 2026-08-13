@@ -164,7 +164,7 @@ class SyrusYml
     )
   end
 
-  # Visual review is off by default at the instance level (AppSetting.visual_review_enabled?);
+  # Visual review is off by default at the instance level (Feature.visual_review_enabled?);
   # a repository opts in (or explicitly opts out) per repo via this block.
   def parse_visual_review(raw)
     return nil if raw.nil?

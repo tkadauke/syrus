@@ -222,6 +222,10 @@
       "landing_validation_prefetch": {
         "name": "Praecaptura validationis descensus",
         "description": "Gradatores descensus pro proximo opere idoneo eiusdem repositorii speculative exsequitur postquam gradatores operis praesentis successerunt. Coniunctio ipsa serialis manet."
+      },
+      "visual_review": {
+        "name": "Recognitio visualis",
+        "description": "Habilitat transitum probationis qualitatis navigatri sine capite, quem agens operarius adversus suam ipsius praevisionem intra gradum exercet ut vitia visibilia deprehendat et imagines artificiorum capiat. Ordinatio visual_review.enabled in .syrus.yml repositorii hanc praedictionem per repositorium vincit."
       }
     }
   },

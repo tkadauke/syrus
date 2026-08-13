@@ -177,7 +177,7 @@ visual_review:
   seed_notes: "Log in as demo@example.com / password to reach the dashboard."
 ```
 
-`enabled` turns visual review on for this repository. Defaults to `false`; when the block (or the `enabled` key) is omitted, the instance-wide `AppSetting.visual_review_enabled?` default applies.
+`enabled` turns visual review on for this repository. Defaults to `false`; when the block (or the `enabled` key) is omitted, the instance-wide `Feature.visual_review_enabled?` default applies.
 
 `rounds` controls how many visual-review passes run. Range: 0–10, defaults to `1`.
 

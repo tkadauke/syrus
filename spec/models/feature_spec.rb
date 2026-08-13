@@ -90,6 +90,19 @@ RSpec.describe Feature, type: :model do
     end
   end
 
+  describe ".visual_review_enabled?" do
+    it "is false when the row is absent and follows the row when present" do
+      Feature.where(slug: "visual_review").delete_all
+      expect(Feature.visual_review_enabled?).to eq(false)
+
+      feature = Feature.create!(slug: "visual_review", category: "Labs", name: "Visual review", enabled: true)
+      expect(Feature.visual_review_enabled?).to eq(true)
+
+      feature.update!(enabled: false)
+      expect(Feature.visual_review_enabled?).to eq(false)
+    end
+  end
+
   describe ".coding_mode_enabled?" do
     it "returns the flag value in advanced mode" do
       Feature.create!(slug: "coding_mode", category: "Labs", name: "Coding Mode", enabled: true)
@@ -139,6 +152,11 @@ RSpec.describe Feature, type: :model do
       declaration = YAML.load_file(Rails.root.join("config/features.yml")).fetch("features")
                         .find { |f| f["slug"] == "admin_supervisor_chat" }
       expect(declaration).to include("category" => "Operations", "default" => false)
+    end
+
+    it "declares the visual_review labs flag default-off in config/features.yml" do
+      declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "visual_review" }
+      expect(declaration).to have_attributes(category: "Labs", default_enabled: false, type: :boolean)
     end
   end
 

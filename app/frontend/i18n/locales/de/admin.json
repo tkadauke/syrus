@@ -222,6 +222,10 @@
       "landing_validation_prefetch": {
         "name": "Landing-Validierungs-Prefetch",
         "description": "Führt spekulativ Landing-Grader für den nächsten geeigneten Job desselben Repositorys aus, nachdem die aktuellen Landing-Grader bestanden haben. Der eigentliche Merge bleibt serialisiert."
+      },
+      "visual_review": {
+        "name": "Visuelle Überprüfung",
+        "description": "Aktiviert einen Headless-Browser-QA-Durchlauf, den der Worker-Agent gegen seine eigene In-Step-Vorschau ausführt, um sichtbare Fehler zu erkennen und Screenshot-Artefakte zu erfassen. Die Einstellung visual_review.enabled in der .syrus.yml eines Repositorys überschreibt diesen Standardwert pro Repository."
       }
     }
   },

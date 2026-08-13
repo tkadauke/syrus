@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_13_164511) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_11_201912) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -85,7 +85,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_13_164511) do
     t.datetime "updated_at", null: false
     t.integer "video_retention_days", default: 7, null: false
     t.integer "video_storage_budget_mb", default: 2048, null: false
-    t.boolean "visual_review_enabled", default: false, null: false
     t.datetime "workflow_admission_control_changed_at"
     t.integer "workflow_admission_control_changed_by_user_id"
     t.boolean "workflow_admission_control_enabled", default: true, null: false
