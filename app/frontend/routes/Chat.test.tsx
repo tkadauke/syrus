@@ -1,4 +1,6 @@
 import { jsonResponse } from "../testSupport"
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -1972,6 +1974,18 @@ describe("chat message entrance", () => {
     const article = document.getElementById("chat_message_9")
     expect(article).not.toBeNull()
     expect(article!.className).not.toContain("animate-chat-message-in")
+  })
+
+  it("never pins a lingering transform after the entrance animation finishes", () => {
+    // A "forwards"/"both" fill-mode keeps the animation's final `transform`
+    // applied to the message <article> forever. Even a no-op translateY(0)
+    // creates a CSS containing block for any `position: fixed` descendant
+    // (e.g. the image lightbox modal in MessageCards.tsx), trapping it
+    // inside the message bubble instead of covering the viewport.
+    const tailwindConfig = readFileSync(resolve(__dirname, "../../../config/tailwind.config.js"), "utf-8")
+    const match = tailwindConfig.match(/"chat-message-in":\s*"chat-message-in [^"]*"/)
+    expect(match).not.toBeNull()
+    expect(match![0]).not.toMatch(/\b(both|forwards)\b/)
   })
 })
 

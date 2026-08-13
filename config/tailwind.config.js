@@ -70,7 +70,11 @@ module.exports = {
         }
       },
       animation: {
-        "chat-message-in": "chat-message-in 0.25s ease-out both",
+        // fill-mode intentionally omits "forwards": a lingering `transform`
+        // after the animation ends creates a CSS containing block for any
+        // `position: fixed` descendant (e.g. the image lightbox modal),
+        // trapping it inside the message bubble instead of the viewport.
+        "chat-message-in": "chat-message-in 0.25s ease-out backwards",
         "progress-indeterminate": "progress-indeterminate 1.4s ease-in-out infinite",
         "drag-blink": "drag-blink 1s ease-in-out 1 forwards",
         "drag-blink-dark": "drag-blink-dark 1s ease-in-out 1 forwards"
