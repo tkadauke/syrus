@@ -378,6 +378,7 @@ export type LandingQueueBlockerJob = {
   job_path: string
   state: string
   pr_number: number | null
+  pr_is_external?: boolean
   pr_path: string | null
   epic_id?: number | null
   epic_title?: string | null

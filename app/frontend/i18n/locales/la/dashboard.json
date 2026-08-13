@@ -70,6 +70,8 @@
   "claimed_by_you": "A te vindicata",
   "chat_link": "Colloquium",
   "standalone": "separatum",
+  "external_pr_badge": "Externa",
+  "external_pr_badge_title": "Haec PR non a Syro aperta est.",
   "epic_attribution": "Epica: {{title}}",
   "epic_attribution_by_id": "Epica #{{id}}",
   "epic_progress": "{{done}}/{{total}} perfecta",

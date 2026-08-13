@@ -1,4 +1,4 @@
-import { SortableColumnHeader, TimestampCell, useMediaQuery, ExternalMetadataLink, MetadataLine, NeutralStatePill, OwnerBadge, PendingJobTitle, RepositorySlugLink, WorkflowBadges } from "./components"
+import { SortableColumnHeader, TimestampCell, useMediaQuery, ExternalMetadataLink, ExternalPrBadge, MetadataLine, NeutralStatePill, OwnerBadge, PendingJobTitle, RepositorySlugLink, WorkflowBadges } from "./components"
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { formatRelativeDate } from "../../lib/relativeTime"
 import { translateBlockedReason } from "../../lib/translateBlockedReason"
@@ -349,6 +349,7 @@ function LandingQueueBlockerCell({ job, column, attribution, prefix }: { job: La
                 <ExternalMetadataLink href={job.pr_path}>PR #{job.pr_number}</ExternalMetadataLink>
               </PrHoverCard>
             ) : null}
+          <ExternalPrBadge external={job.pr_is_external} />
           {attribution ? <span className="rounded border border-gray-200 px-1.5 py-0.5 text-[11px] text-gray-500 dark:border-gray-700 dark:text-gray-400">{attribution}</span> : null}
         </div>
       </td>
@@ -559,6 +560,7 @@ function MobileLandingQueueBlockerRow({ attribution, job, prefix }: { attributio
               <ExternalMetadataLink href={job.pr_path}>PR #{job.pr_number}</ExternalMetadataLink>
             </PrHoverCard>
           ) : null}
+          <ExternalPrBadge external={job.pr_is_external} />
           {attribution ? <span>{attribution}</span> : null}
           {job.latest_workflow_id == null ? null : <WorkflowBadges state={job.latest_workflow_state ?? ""} triggerAriaPrefix="Latest workflow trigger" triggerKind={job.latest_workflow_trigger_kind} />}
           <span><RelativeTimestamp value={job.started_at || job.created_at} /></span>
@@ -599,6 +601,7 @@ function MobileJobRow({ job, selected, onToggleOne, prefix, topSeparator = false
                 <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink>
               </PrHoverCard>
             ) : null}
+          <ExternalPrBadge external={job.pr_is_external} />
           {job.source_chat ? <JobSourceChatLink job={job} prefix={prefix} /> : null}
           {job.claimed_by_user && !job.claimed_by_current_user ? <DashboardOwnerLabel job={job} prefix={prefix} quiet /> : null}
           <span>{approvalLabel}</span>
@@ -640,6 +643,7 @@ function JobCell({ job, column, selected, onToggleOne, prefix }: { job: Dashboar
                 <ExternalMetadataLink href={job.pr_url}>PR #{job.pr_number}</ExternalMetadataLink>
               </PrHoverCard>
             ) : null}
+          <ExternalPrBadge external={job.pr_is_external} />
           {job.source_chat ? <JobSourceChatLink job={job} prefix={prefix} /> : null}
           {job.owner_badge ? <OwnerBadge badge={job.owner_badge} /> : null}
           {job.tags.map((tag) => <span className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800 dark:text-gray-300" key={tag.id}>{tag.name}</span>)}

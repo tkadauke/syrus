@@ -254,6 +254,7 @@ module App
           job_path: "/jobs/#{job.id}",
           state: job.state,
           pr_number: job.pr_number || job.external_pr_number,
+          pr_is_external: App::Presentation.pr_external?(job),
           pr_path: App::Presentation.job_pr_url(job) || App::Presentation.external_pr_url(job),
           repository: repository_json(job.repository),
           latest_workflow_state: App::Presentation.workflow_dashboard_state(job.latest_workflow_state, job.latest_workflow_trigger_kind),

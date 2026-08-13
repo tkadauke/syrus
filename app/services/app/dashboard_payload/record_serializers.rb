@@ -44,6 +44,7 @@ module App
           issue_url: App::Presentation.job_issue_url(job),
           branch_name: job.branch_name,
           pr_number: job.pr_number || job.external_pr_number,
+          pr_is_external: App::Presentation.pr_external?(job),
           active_workflow_trigger_kind: active_workflow_trigger_kind(job),
           latest_workflow_id: job.latest_workflow_id,
           latest_workflow_trigger_kind: job.latest_workflow_trigger_kind,

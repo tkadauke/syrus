@@ -94,6 +94,20 @@ export function EpicStuckBadge({ stuck }: { stuck: boolean }) {
   )
 }
 
+export function ExternalPrBadge({ external }: { external?: boolean }) {
+  const { t } = useT("dashboard")
+  if (!external) return null
+
+  return (
+    <span
+      className="inline-flex items-center rounded bg-violet-100 px-1.5 py-0.5 text-xs font-medium text-violet-700 ring-1 ring-violet-200 dark:bg-violet-950/50 dark:text-violet-200 dark:ring-violet-800"
+      title={t("external_pr_badge_title")}
+    >
+      {t("external_pr_badge")}
+    </span>
+  )
+}
+
 export function EpicCommitsBehindBadge({ commits }: { commits: number | null }) {
   const { t } = useT("dashboard")
   if (!commits || commits <= 0) return null

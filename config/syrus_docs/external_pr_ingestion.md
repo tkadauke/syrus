@@ -60,6 +60,15 @@ External PR Jobs start in the `implemented` state, bypassing the agent workflow.
 - Auto-merge lands it if enabled on the repository
 - If the external PR closes or merges on GitHub, `PollExternalPrJob` closes the Syrus Job accordingly (`external_pr_merged` or `external_pr_closed`)
 
+## Dashboard display
+
+Dashboard job lists (table, mobile rows, kanban cards, and landing-queue blocker
+rows) mark a PR link with a violet "External" badge whenever the PR shown for a
+Job was not opened by Syrus — either an `external_pr` kind Job, or a Syrus-initiated
+Job whose own PR was preempted by an externally authored one (`external_pr_number`
+set with no `pr_number`). This lets operators tell at a glance which PRs need
+review-only handling versus ones Syrus authored itself.
+
 ## Job fields
 
 | Field | Source |

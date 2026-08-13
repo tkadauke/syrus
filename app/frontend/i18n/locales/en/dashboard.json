@@ -70,6 +70,8 @@
   "claimed_by_you": "Claimed by you",
   "chat_link": "Chat",
   "standalone": "standalone",
+  "external_pr_badge": "External",
+  "external_pr_badge_title": "This PR was not opened by Syrus.",
   "epic_attribution": "Epic: {{title}}",
   "epic_attribution_by_id": "Epic #{{id}}",
   "epic_progress": "{{done}}/{{total}} done",

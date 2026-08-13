@@ -200,6 +200,25 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(rows).not_to have_key("smart_folders")
     end
 
+    it "marks the PR shown for a Job as external when it was not opened by Syrus" do
+      own_pr_job = Factories.job_record(repository: repo, issue_number: 1, issue_title: "Own PR", state: "implemented", pr_number: 17, owner_user: user)
+      external_pr_job = Job.create!(
+        user: user,
+        owner_user: user,
+        repository: repo,
+        kind: "external_pr",
+        state: "implemented",
+        external_pr_number: 88
+      )
+
+      get "/api/v1/app/dashboard", params: { subject: "job" }
+
+      expect(response).to have_http_status(:ok)
+      items = parse_body.fetch("items").index_by { |item| item.fetch("id") }
+      expect(items.fetch(own_pr_job.id)).to include("pr_number" => 17, "pr_is_external" => false)
+      expect(items.fetch(external_pr_job.id)).to include("pr_number" => 88, "pr_is_external" => true)
+    end
+
     it "forces the dashboard to feature rows in simple mode" do
       AppSetting.current.update!(mode: "simple", mode_configured_at: Time.current)
       epic = Factories.epic(user: user, repository: repo, title: "Checkout polish")

@@ -90,6 +90,13 @@ module App
       "https://github.com/#{job.repository.slug}/pull/#{job.external_pr_number}"
     end
 
+    # True when the PR being shown for this Job was not opened by Syrus —
+    # either an external_pr-kind Job, or a Syrus-initiated Job whose own PR
+    # was preempted by an externally authored one.
+    def pr_external?(job)
+      job.pr_number.blank? && job.external_pr_number.present?
+    end
+
     def job_issue_url(job)
       return nil if job.issue_number.blank?
 

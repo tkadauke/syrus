@@ -125,6 +125,7 @@ export type DashboardJobItem = {
   issue_url: string | null
   branch_name: string | null
   pr_number: number | null
+  pr_is_external?: boolean
   active_workflow_trigger_kind: string | null
   latest_workflow_id: number | null
   latest_workflow_trigger_kind: string | null

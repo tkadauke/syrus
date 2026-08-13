@@ -1,4 +1,4 @@
-import { EpicProgressBar, EpicStuckBadge, ExternalMetadataLink, NeutralStatePill, OwnerBadge, PendingJobTitle, RepositorySlugLink, WorkflowBadges, workflowLabel } from "./components"
+import { EpicProgressBar, EpicStuckBadge, ExternalMetadataLink, ExternalPrBadge, NeutralStatePill, OwnerBadge, PendingJobTitle, RepositorySlugLink, WorkflowBadges, workflowLabel } from "./components"
 import { StartBlockedReasonPill } from "../../components/StartBlockedReasonPill"
 import { TonePill } from "../../components/StatusPill"
 import { PrHoverCard } from "../../components/PrHoverCard"
@@ -241,6 +241,7 @@ function KanbanCard({ item, onDragEnd, onDragStart, prefix }: { item: DashboardI
               <ExternalMetadataLink className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-blue-700 hover:underline dark:bg-gray-800 dark:text-gray-300 dark:hover:text-blue-300" href={item.pr_url}>PR #{item.pr_number}</ExternalMetadataLink>
             </PrHoverCard>
           ) : null}
+          <ExternalPrBadge external={item.pr_is_external} />
         </div>
       </article>
     )

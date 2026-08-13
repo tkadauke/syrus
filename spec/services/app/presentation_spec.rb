@@ -104,6 +104,26 @@ RSpec.describe App::Presentation do
     end
   end
 
+  describe ".pr_external?" do
+    it "is false when the Job has its own Syrus-opened PR" do
+      job = Factories.job_record(pr_number: 4, external_pr_number: nil)
+
+      expect(described_class.pr_external?(job)).to eq(false)
+    end
+
+    it "is true when only an externally authored PR is on record" do
+      job = Factories.job_record(pr_number: nil, external_pr_number: 5)
+
+      expect(described_class.pr_external?(job)).to eq(true)
+    end
+
+    it "is false when there is no PR at all" do
+      job = Factories.job_record(pr_number: nil, external_pr_number: nil)
+
+      expect(described_class.pr_external?(job)).to eq(false)
+    end
+  end
+
   describe ".epic_state_transition_options" do
     it "lists operator transitions for ready epics" do
       epic = Factories.epic(state: "ready")
