@@ -60,4 +60,11 @@ RSpec.describe Workflow::TriggerKind do
       end
     end
   end
+
+  describe "::ACTIVE_STATES" do
+    it "is queued and running, shared with ChatFeedbackSubmission" do
+      expect(described_class::ACTIVE_STATES).to eq(%w[queued running])
+      expect(ChatFeedbackSubmission::ACTIVE_STATES).to equal(described_class::ACTIVE_STATES)
+    end
+  end
 end

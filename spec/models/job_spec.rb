@@ -724,6 +724,80 @@ RSpec.describe Job do
           )
         }.not_to change { job.job_approvals.count }
       end
+
+      it "does not re-approve while a chat_feedback workflow is queued or running" do
+        job = Factories.job
+        job.update!(state: "implemented")
+        Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "running")
+
+        result = job.record_github_review_approval!(
+          review_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1",
+          approved_at: Time.current,
+          reviewer_user: job.user
+        )
+
+        expect(result).to be false
+        expect(job.reload.state).to eq("implemented")
+      end
+
+      it "does not re-approve while a pr_comment workflow is queued" do
+        job = Factories.job
+        job.update!(state: "implemented")
+        Workflow.create!(job: job, trigger_kind: "pr_comment", state: "queued")
+
+        result = job.record_github_review_approval!(
+          review_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1",
+          approved_at: Time.current,
+          reviewer_user: job.user
+        )
+
+        expect(result).to be false
+        expect(job.reload.state).to eq("implemented")
+      end
+
+      it "approves once the active feedback workflow reaches a terminal state" do
+        job = Factories.job
+        job.update!(state: "implemented")
+        Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "succeeded")
+
+        result = job.record_github_review_approval!(
+          review_url: "https://github.com/acme/widgets/pull/7#pullrequestreview-1",
+          approved_at: Time.current,
+          reviewer_user: job.user
+        )
+
+        expect(result).not_to be false
+        expect(job.reload.state).to eq("approved")
+      end
+    end
+
+    describe "#active_feedback_workflow?" do
+      it "is true when a chat_feedback workflow is queued or running" do
+        job = Factories.job
+        Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "queued")
+
+        expect(job.active_feedback_workflow?).to be true
+      end
+
+      it "is true when a pr_comment workflow is running" do
+        job = Factories.job
+        Workflow.create!(job: job, trigger_kind: "pr_comment", state: "running")
+
+        expect(job.active_feedback_workflow?).to be true
+      end
+
+      it "is false when the only feedback workflow is terminal" do
+        job = Factories.job
+        Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "failed")
+
+        expect(job.active_feedback_workflow?).to be false
+      end
+
+      it "is false when there are no feedback workflows at all" do
+        job = Factories.job
+
+        expect(job.active_feedback_workflow?).to be false
+      end
     end
 
 describe "running / failed lifecycle (new in this commit)" do

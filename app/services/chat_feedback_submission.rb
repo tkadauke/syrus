@@ -1,5 +1,5 @@
 class ChatFeedbackSubmission
-  ACTIVE_STATES = %w[queued running].freeze
+  ACTIVE_STATES = Workflow::TriggerKind::ACTIVE_STATES
 
   Result = Data.define(:workflow, :error) do
     def success? = error.blank?

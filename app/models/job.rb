@@ -707,9 +707,18 @@ class Job < ApplicationRecord
     unapprove(*args, **kwargs).tap { save! }
   end
 
+  # True while a chat_feedback or pr_comment workflow is queued/running
+  # against this Job. Guards against re-approving (or otherwise advancing)
+  # a Job whose PR still shows a stale GitHub APPROVED review while a fix
+  # for that same feedback is actively in flight.
+  def active_feedback_workflow?
+    workflows.where(trigger_kind: Workflow::TriggerKind.feedback_values, state: Workflow::TriggerKind::ACTIVE_STATES).exists?
+  end
+
   def record_github_review_approval!(review_url:, approved_at: Time.current, reviewer_user: nil)
     mark_implemented! if may_mark_implemented?
     return false unless may_approve?
+    return false if active_feedback_workflow?
 
     approver = reviewer_user || user
     approval = job_approvals.find_or_initialize_by(user: approver)
