@@ -68,6 +68,17 @@ External PR Jobs start in the `implemented` state, bypassing the agent workflow.
 - Auto-merge lands it if enabled on the repository
 - If the external PR closes or merges on GitHub, `PollExternalPrJob` closes the Syrus Job accordingly (`external_pr_merged` or `external_pr_closed`)
 
+## PR feedback comments
+
+`PollExternalPrJob` also records issue and review comments left on an `external_pr` Job's PR, using the same pipeline Syrus uses for its own PRs (`PollPullRequestJob`):
+
+- Each new comment is attributed via `PrCommentAttributor` (`job_owner`, `member`, or `external`) and classified as actionable or not via `PrCommentClassifier`.
+- Records are stored as `PrReviewComment` rows with `pr_type: "external"`.
+- Comments authored by the configured Syrus GitHub App bot (e.g. its own grader-failure review comments) are excluded.
+- A `last_seen_comment_at` watermark — the same column `PollPullRequestJob` uses — keeps already-seen comments from being reprocessed on later polls.
+
+Recording is currently the only effect: this poller does not dispatch a follow-up workflow on its own. Actionable, non-job-owner comments still surface to the operator through the Job Detail page's pending-feedback panel (Apply/Replace/Ignore), same as for any other Job.
+
 ## Dashboard display
 
 Dashboard job lists (table, mobile rows, kanban cards, and landing-queue blocker

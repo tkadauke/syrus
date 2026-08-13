@@ -25,6 +25,23 @@ RSpec.describe PollExternalPrJob do
     )
   end
 
+  let(:issue_comments_url) { "https://api.github.com/repos/acme/widgets/issues/9/comments" }
+  let(:review_comments_url) { "https://api.github.com/repos/acme/widgets/pulls/9/comments" }
+
+  def stub_issue_comments(comments = [])
+    stub_request(:get, issue_comments_url).with(query: hash_including({})).to_return(
+      status: 200, headers: { "Content-Type" => "application/json" },
+      body: comments.to_json
+    )
+  end
+
+  def stub_review_comments(comments = [])
+    stub_request(:get, review_comments_url).with(query: hash_including({})).to_return(
+      status: 200, headers: { "Content-Type" => "application/json" },
+      body: comments.to_json
+    )
+  end
+
   describe "close conditions" do
     it "closes the Job with external_pr_merged when the external PR is merged" do
       stub_external_pr(state: "closed", merged: true)
@@ -119,6 +136,8 @@ RSpec.describe PollExternalPrJob do
         .with(query: hash_including({})).to_return(
           status: 200, headers: { "Content-Type" => "application/json" }, body: "[]"
         )
+      stub_issue_comments([])
+      stub_review_comments([])
       expect { described_class.perform_now(external_pr_job.id) }
         .not_to change { external_pr_job.reload.state }
     end
@@ -149,6 +168,11 @@ RSpec.describe PollExternalPrJob do
         status: 200, headers: { "Content-Type" => "application/json" },
         body: reviews.to_json
       )
+    end
+
+    before do
+      stub_issue_comments([])
+      stub_review_comments([])
     end
 
     it "flips an implemented external_pr Job to approved on an APPROVED review" do
@@ -215,6 +239,120 @@ RSpec.describe PollExternalPrJob do
       described_class.perform_now(job.id)
 
       expect(WebMock).not_to have_requested(:get, "https://api.github.com/repos/acme/widgets/pulls/9/reviews")
+    end
+
+    it "does not ingest comments for non-external_pr Jobs polled via the preempted-issue path" do
+      stub_external_pr(state: "open", merged: false)
+
+      described_class.perform_now(job.id)
+
+      expect(WebMock).not_to have_requested(:get, issue_comments_url)
+      expect(WebMock).not_to have_requested(:get, review_comments_url)
+    end
+  end
+
+  describe "comment ingestion for external_pr Jobs" do
+    let(:external_pr_job) do
+      Job.create!(
+        user: user,
+        repository: repository,
+        kind: "external_pr",
+        external_pr_number: 9,
+        state: "implemented"
+      )
+    end
+
+    let(:reviews_url) { "https://api.github.com/repos/acme/widgets/pulls/9/reviews" }
+
+    def stub_reviews(reviews = [])
+      stub_request(:get, reviews_url).with(query: hash_including({})).to_return(
+        status: 200, headers: { "Content-Type" => "application/json" },
+        body: reviews.to_json
+      )
+    end
+
+    before do
+      stub_external_pr(state: "open", merged: false)
+      stub_reviews([])
+      allow(PrCommentClassifier).to receive(:call).and_return(
+        PrCommentClassifier::Result.new(actionable: true, reason: "requests a change", error: nil)
+      )
+    end
+
+    it "ingests issue and review comments with correct pr_type, attribution, and actionable classification" do
+      user.update!(github_handle: "owner-handle")
+      stub_issue_comments([
+        { id: 1, body: "Please fix the typo", user: { login: "owner-handle" }, created_at: 1.hour.ago.iso8601 }
+      ])
+      stub_review_comments([
+        { id: 2, body: "This line looks wrong", path: "lib/greet.rb", line: 3,
+          user: { login: "rando" }, created_at: 30.minutes.ago.iso8601 }
+      ])
+
+      expect { described_class.perform_now(external_pr_job.id) }
+        .to change { PrReviewComment.count }.by(2)
+
+      issue_record = PrReviewComment.find_by(comment_kind: "issue")
+      expect(issue_record.pr_type).to eq("external")
+      expect(issue_record.attributed_to).to eq("job_owner")
+      expect(issue_record.actionable).to be true
+
+      review_record = PrReviewComment.find_by(comment_kind: "review")
+      expect(review_record.pr_type).to eq("external")
+      expect(review_record.attributed_to).to eq("external")
+    end
+
+    it "excludes Syrus's own bot comments via reject_syrus_bot_comments" do
+      AppSetting.current.update!(github_app_slug: "syrus-local")
+      stub_issue_comments([
+        { id: 1, body: "## Grader failures\n\nsomething broke",
+          user: { login: "syrus-local[bot]", type: "Bot" }, created_at: 1.hour.ago.iso8601 }
+      ])
+      stub_review_comments([])
+
+      expect { described_class.perform_now(external_pr_job.id) }
+        .not_to change { PrReviewComment.count }
+    end
+
+    it "does not duplicate rows on re-polling (github_comment_id uniqueness)" do
+      stub_issue_comments([
+        { id: 1, body: "Please fix", user: { login: "rando" }, created_at: 1.hour.ago.iso8601 }
+      ])
+      stub_review_comments([])
+
+      described_class.perform_now(external_pr_job.id)
+      expect(PrReviewComment.count).to eq(1)
+
+      # Force a re-fetch of the same already-seen comment by resetting the
+      # watermark — PrCommentIngester's github_comment_id uniqueness lookup
+      # is what prevents the duplicate here, not the watermark.
+      external_pr_job.update!(last_seen_comment_at: nil)
+      described_class.perform_now(external_pr_job.id)
+      expect(PrReviewComment.count).to eq(1)
+    end
+
+    it "advances last_seen_comment_at to the newest ingested comment" do
+      t1 = 1.hour.ago
+      stub_issue_comments([
+        { id: 1, body: "Please fix", user: { login: "rando" }, created_at: t1.iso8601 }
+      ])
+      stub_review_comments([])
+
+      described_class.perform_now(external_pr_job.id)
+
+      expect(external_pr_job.reload.last_seen_comment_at).to be_within(1.second).of(t1)
+    end
+
+    it "does not reprocess comments already covered by the watermark" do
+      t1 = 1.hour.ago
+      external_pr_job.update!(last_seen_comment_at: t1)
+      stub_issue_comments([
+        { id: 1, body: "Old comment", user: { login: "rando" }, created_at: (t1 - 1.minute).iso8601 }
+      ])
+      stub_review_comments([])
+
+      expect { described_class.perform_now(external_pr_job.id) }
+        .not_to change { PrReviewComment.count }
     end
   end
 end

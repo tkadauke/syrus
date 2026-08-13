@@ -1,5 +1,5 @@
 class PrReviewComment < ApplicationRecord
-  PR_TYPES = %w[ direct upstream fork_review ].freeze
+  PR_TYPES = %w[ direct upstream fork_review external ].freeze
   COMMENT_KINDS = %w[ issue review ].freeze
   ATTRIBUTED_TOS = %w[ job_owner member external ].freeze
   HANDLING_STATES = %w[ pending active failed handled ignored ].freeze

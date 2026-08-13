@@ -19,7 +19,10 @@ class PollExternalPrJob < ApplicationJob
     return close_with("external_pr_merged") if @pr.merged
     return close_with("external_pr_closed") if @pr.state == "closed"
 
-    react_to_pr_reviews if @job.external_pr?
+    return unless @job.external_pr?
+
+    react_to_pr_reviews
+    ingest_pr_comments
   end
 
   private
@@ -86,5 +89,41 @@ class PollExternalPrJob < ApplicationJob
         reviewer_user: reviewer_user
       )
     end
+  end
+
+  # ----- comment ingestion -----------------------------------------------
+  # Recording only — attribution + actionable classification via the same
+  # PrCommentIngester pipeline PollPullRequestJob uses for Syrus-authored
+  # PRs. No workflow is enqueued here; jobs 2/3 of this Epic act on what
+  # gets recorded (fork waiting-state vs. same-repo fix-and-push).
+
+  def ingest_pr_comments
+    cutoff = @job.last_seen_comment_at
+    issue_comments = new_since(reject_syrus_bot_comments(@client.pr_issue_comments(@slug, @job.external_pr_number)), cutoff)
+    review_comments = new_since(reject_syrus_bot_comments(@client.pr_review_comments(@slug, @job.external_pr_number)), cutoff)
+    return if issue_comments.empty? && review_comments.empty?
+
+    user = @job.owner_user || @job.user
+    provider = @job.workflow_agent_provider
+
+    PrCommentIngester.call(
+      job: @job, comments: issue_comments, pr_type: "external",
+      comment_kind: "issue", user: user, agent_provider: provider
+    )
+    PrCommentIngester.call(
+      job: @job, comments: review_comments, pr_type: "external",
+      comment_kind: "review", user: user, agent_provider: provider
+    )
+
+    advance_comment_watermark(issue_comments + review_comments, cutoff)
+  end
+
+  def new_since(comments, cutoff)
+    comments.select { |comment| cutoff.nil? || (comment.created_at && comment.created_at > cutoff) }
+  end
+
+  def advance_comment_watermark(comments, cutoff)
+    latest = comments.map(&:created_at).compact.max
+    @job.update!(last_seen_comment_at: latest) if latest && (cutoff.nil? || latest > cutoff)
   end
 end
