@@ -86,3 +86,62 @@ RSpec.describe "API: /api/v1/app/workflows/:workflow_id/coverage_hit_map", type:
     expect(response).to have_http_status(:not_found)
   end
 end
+
+RSpec.describe "API: /api/v1/app/workflows/:workflow_id/visual_artifact", type: :request do
+  let(:user) { Factories.user }
+  let(:png_bytes) { "\x89PNG\r\n\x1a\n".b }
+
+  def workflow_for(user)
+    job = Factories.job(user: user)
+    job.workflows.first
+  end
+
+  it "returns the image bytes for an attached visual artifact" do
+    sign_in_as(user)
+    workflow = workflow_for(user)
+    workflow.attach_visual_artifact!(type: "visual_review_screenshot", data: png_bytes, content_type: "image/png", filename: "screenshot.png")
+
+    get "/api/v1/app/workflows/#{workflow.id}/visual_artifact", params: { type: "visual_review_screenshot" }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to eq(png_bytes)
+    expect(response.headers["Content-Type"]).to eq("image/png")
+  end
+
+  it "returns 404 when no visual artifact is attached for the type" do
+    sign_in_as(user)
+    workflow = workflow_for(user)
+
+    get "/api/v1/app/workflows/#{workflow.id}/visual_artifact", params: { type: "visual_review_screenshot" }
+
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it "returns 404 when the type param is missing" do
+    sign_in_as(user)
+    workflow = workflow_for(user)
+    workflow.attach_visual_artifact!(type: "visual_review_screenshot", data: png_bytes, content_type: "image/png", filename: "screenshot.png")
+
+    get "/api/v1/app/workflows/#{workflow.id}/visual_artifact"
+
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it "returns 401 when signed out" do
+    workflow = workflow_for(user)
+
+    get "/api/v1/app/workflows/#{workflow.id}/visual_artifact", params: { type: "visual_review_screenshot" }
+
+    expect(response).to have_http_status(:unauthorized)
+  end
+
+  it "returns 404 for a workflow belonging to another user" do
+    sign_in_as(user)
+    other_workflow = workflow_for(Factories.user)
+    other_workflow.attach_visual_artifact!(type: "visual_review_screenshot", data: png_bytes, content_type: "image/png", filename: "screenshot.png")
+
+    get "/api/v1/app/workflows/#{other_workflow.id}/visual_artifact", params: { type: "visual_review_screenshot" }
+
+    expect(response).to have_http_status(:not_found)
+  end
+end

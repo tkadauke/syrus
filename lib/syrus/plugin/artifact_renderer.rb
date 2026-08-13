@@ -19,7 +19,7 @@ module Syrus
     # A plugin may register multiple renderer classes (one per artifact type) by
     # passing an array to the :artifact_renderer key.
     module ArtifactRenderer
-      VALID_RENDERER_TYPES = %i[erd_diagram migration_diff data_table before_after_diff].freeze
+      VALID_RENDERER_TYPES = %i[erd_diagram migration_diff data_table before_after_diff image_diff].freeze
 
       def self.included(base)
         base.extend(ClassMethods)
@@ -33,7 +33,7 @@ module Syrus
         end
 
         # @return [Symbol] the core renderer type, one of
-        #   :erd_diagram, :migration_diff, :data_table, :before_after_diff
+        #   :erd_diagram, :migration_diff, :data_table, :before_after_diff, :image_diff
         def renderer_type
           raise NotImplementedError, "#{name} must implement .renderer_type"
         end

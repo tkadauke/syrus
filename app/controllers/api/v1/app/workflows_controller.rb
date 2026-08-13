@@ -28,6 +28,19 @@ module Api
           }
         end
 
+        def visual_artifact
+          workflow = find_workflow
+          attachment = workflow.visual_artifact_for(params[:type].to_s.strip)
+          raise ActiveRecord::RecordNotFound, "Visual artifact not found" unless attachment
+
+          send_data(
+            attachment.download,
+            filename: attachment.filename.to_s,
+            type: attachment.content_type || "application/octet-stream",
+            disposition: "inline"
+          )
+        end
+
         private
 
         def find_workflow

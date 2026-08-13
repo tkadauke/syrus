@@ -5,6 +5,7 @@ module SyrusBrowser
     # (autoloaded from this engine's own app/ dir) are resolvable.
     config.after_initialize do
       SyrusBrowser::McpToolSet.include(Syrus::Plugin::McpToolSet)
+      SyrusBrowser::ImageDiffRenderer.include(Syrus::Plugin::ArtifactRenderer)
 
       Syrus::PluginRegistry.register(
         name:            "browser",
@@ -19,7 +20,8 @@ module SyrusBrowser
         disableable:     true,
         category:        "mcp_tool_set",
         provides: {
-          mcp_tool_set: SyrusBrowser::McpToolSet
+          mcp_tool_set:      SyrusBrowser::McpToolSet,
+          artifact_renderer: SyrusBrowser::ImageDiffRenderer
         }
       )
     end

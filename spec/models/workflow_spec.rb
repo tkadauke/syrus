@@ -1157,6 +1157,91 @@ RSpec.describe Workflow do
     end
   end
 
+  describe "#set_typed_artifact!" do
+    let(:wf) { described_class.create!(job: job, trigger_kind: "initial") }
+
+    it "appends a typed artifact entry" do
+      entry = wf.set_typed_artifact!(type: "rails_schema_erd", title: "Schema ERD", payload: { "tables" => 3 })
+
+      expect(entry).to include("type" => "rails_schema_erd", "title" => "Schema ERD", "payload" => { "tables" => 3 })
+      expect(entry["created_at"]).to be_present
+      expect(wf.reload.artifact("typed_artifacts")).to contain_exactly(entry)
+    end
+
+    it "replaces an existing entry with the same type" do
+      wf.set_typed_artifact!(type: "rails_schema_erd", title: "Schema ERD", payload: { "tables" => 3 })
+      wf.set_typed_artifact!(type: "rails_schema_erd", title: "Schema ERD", payload: { "tables" => 5 })
+
+      entries = wf.reload.artifact("typed_artifacts")
+      expect(entries.size).to eq(1)
+      expect(entries.first["payload"]).to eq({ "tables" => 5 })
+    end
+
+    it "accumulates entries with different types" do
+      wf.set_typed_artifact!(type: "rails_schema_erd", title: "ERD", payload: {})
+      wf.set_typed_artifact!(type: "rails_migration_diff", title: "Migration Diff", payload: {})
+
+      expect(wf.reload.artifact("typed_artifacts").map { |e| e["type"] }).to contain_exactly("rails_schema_erd", "rails_migration_diff")
+    end
+  end
+
+  describe "visual artifact blob helpers" do
+    let(:wf) { described_class.create!(job: job, trigger_kind: "initial") }
+    let(:png_bytes) { "\x89PNG\r\n\x1a\n".b }
+
+    describe "#attach_visual_artifact!" do
+      it "attaches an image blob tagged with the artifact type" do
+        wf.attach_visual_artifact!(type: "visual_review_screenshot", data: png_bytes, content_type: "image/png", filename: "screenshot.png")
+
+        attachment = wf.visual_artifact_for("visual_review_screenshot")
+        expect(attachment).to be_present
+        expect(attachment.filename.to_s).to eq("screenshot.png")
+        expect(attachment.content_type).to eq("image/png")
+        expect(attachment.download).to eq(png_bytes)
+      end
+
+      it "purges the previous blob when re-attaching the same type" do
+        wf.attach_visual_artifact!(type: "visual_review_screenshot", data: png_bytes, content_type: "image/png", filename: "first.png")
+        first_blob_id = wf.visual_artifact_for("visual_review_screenshot").blob.id
+
+        wf.attach_visual_artifact!(type: "visual_review_screenshot", data: png_bytes, content_type: "image/png", filename: "second.png")
+
+        expect(wf.visual_artifacts.count).to eq(1)
+        expect(wf.visual_artifact_for("visual_review_screenshot").filename.to_s).to eq("second.png")
+        expect(ActiveStorage::Blob.exists?(first_blob_id)).to be(false)
+      end
+
+      it "keeps blobs for different types independent" do
+        wf.attach_visual_artifact!(type: "home_screenshot", data: png_bytes, content_type: "image/png", filename: "home.png")
+        wf.attach_visual_artifact!(type: "login_screenshot", data: png_bytes, content_type: "image/png", filename: "login.png")
+
+        expect(wf.visual_artifacts.count).to eq(2)
+        expect(wf.visual_artifact_for("home_screenshot").filename.to_s).to eq("home.png")
+        expect(wf.visual_artifact_for("login_screenshot").filename.to_s).to eq("login.png")
+      end
+    end
+
+    describe "#visual_artifact_for" do
+      it "returns nil when no blob is attached for the type" do
+        expect(wf.visual_artifact_for("visual_review_screenshot")).to be_nil
+      end
+    end
+
+    describe "#purge_visual_artifact!" do
+      it "removes the attachment for the given type" do
+        wf.attach_visual_artifact!(type: "visual_review_screenshot", data: png_bytes, content_type: "image/png", filename: "screenshot.png")
+
+        wf.purge_visual_artifact!("visual_review_screenshot")
+
+        expect(wf.reload.visual_artifact_for("visual_review_screenshot")).to be_nil
+      end
+
+      it "is a no-op when no blob is attached" do
+        expect { wf.purge_visual_artifact!("visual_review_screenshot") }.not_to raise_error
+      end
+    end
+  end
+
   describe "#schedule_auto_retry!" do
     let(:workflow) { job.latest_workflow }
 

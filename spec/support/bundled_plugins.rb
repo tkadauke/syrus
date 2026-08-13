@@ -196,7 +196,8 @@ RSpec.configure do |config|
         disableable:     true,
         category:        "mcp_tool_set",
         provides: {
-          mcp_tool_set: SyrusBrowser::McpToolSet
+          mcp_tool_set:      SyrusBrowser::McpToolSet,
+          artifact_renderer: SyrusBrowser::ImageDiffRenderer
         }
       )
     end

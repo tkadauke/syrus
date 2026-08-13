@@ -36,6 +36,19 @@ Available to all non-adversarial workflow roles (implement, summary_test_plan, r
 
 The tool validates that `type` and `title` are non-empty and that `payload` is a JSON object. It does not validate the `type` against a registry — unsupported types are stored and ignored by the UI until a renderer is declared for them.
 
+## MCP tool: `submit_visual_artifact` (workflow surface)
+
+Image-capable sibling of `submit_artifact`, for base64-encoded screenshots and other images. Same role availability (implement, summary_test_plan, rebase_conflict, manual).
+
+| Parameter      | Type   | Required | Description                                                          |
+|----------------|--------|----------|------------------------------------------------------------------------|
+| `type`         | string | yes      | Artifact type identifier (non-empty)                                  |
+| `title`        | string | yes      | Human-readable title (non-empty)                                      |
+| `image_base64` | string | yes      | Base64-encoded image bytes, no `data:` URI prefix                     |
+| `content_type` | string | no       | One of `image/png`, `image/jpeg`, `image/webp`. Defaults to `image/png` |
+
+Unlike `submit_artifact`, the image bytes are not stored in the `Workflow#artifacts` JSON column. They are decoded and attached to the Workflow via ActiveStorage (`Workflow#visual_artifacts`, a `has_many_attached` mirroring the existing `coverage_hit_map` pattern), capped at 10 MB decoded. The `typed_artifacts` entry's `payload` instead carries `content_type`, `byte_size`, and an `image_url` the UI fetches the bytes from (`GET /api/v1/app/workflows/:workflow_id/visual_artifact?type=<type>`). Calling it again with the same `type` replaces both the entry and the previously stored blob — the old blob is purged, not orphaned.
+
 ## MCP tool: `submit_artifact` (chat surface)
 
 Available to chat agents (planning, coding, and local-mode sessions). Same parameters, validation, and replace-on-type idempotency as the workflow-surface tool above, but it writes into `ChatSession#artifacts["typed_artifacts"]` instead of `Workflow#artifacts["typed_artifacts"]` — there is no Workflow or Run in a chat session. A chat agent asked to visualize the schema or explain a migration can call `read_schema`/`explain_migration`-style repository tooling and then `submit_artifact` to hand the operator a rendered result in the chat.
@@ -50,8 +63,8 @@ The chat workspace's **Media** panel (`app/frontend/routes/chat/WorkspacePanels.
 
 To make a typed artifact renderable in the Syrus job detail UI, a plugin must:
 
-1. Register an `:artifact_renderer` extension that maps the artifact `type` to one of the core renderer types (`erd_diagram`, `migration_diff`, `data_table`, `before_after_diff`).
-2. Optionally register a `:prompt_injector` to instruct the implementing agent when to call `submit_artifact`.
+1. Register an `:artifact_renderer` extension that maps the artifact `type` to one of the core renderer types (`erd_diagram`, `migration_diff`, `data_table`, `before_after_diff`, `image_diff`).
+2. Optionally register a `:prompt_injector` to instruct the implementing agent when to call `submit_artifact` (or `submit_visual_artifact`, for images).
 
 See `config/syrus_docs/plugins.md` for the full `:artifact_renderer` extension point API.
 
@@ -82,6 +95,7 @@ The job detail page shows an **Artifacts** tab listing all typed artifacts for t
 | `migration_diff` | Two-column before/after table schema diff (added columns highlighted) |
 | `data_table` | HTML table from `headers` and `rows` arrays in the payload |
 | `before_after_diff` | Side-by-side before/after `<pre>` blocks |
+| `image_diff` | Single `<img>`, linked to the full-size image (after-only; no before/after comparison yet) |
 | `null` (no registered renderer) | Raw JSON display |
 
 Artifacts are deduplicated by `type` across all workflows on the job; the most recently produced entry for each type wins. The tab count reflects the number of unique artifact types present.
@@ -119,5 +133,19 @@ Rendered as a two-column before/after diff (`:migration_diff` renderer). Payload
     { "type": "removed",  "column": { "name": "legacy_key", "type": "string" } },
     { "type": "modified", "column": { "name": "status", "type": "integer" } }
   ]
+}
+```
+
+## browser plugin artifact types
+
+### `visual_review_screenshot`
+
+Rendered as a single image (`:image_diff` renderer). Payload written by `submit_visual_artifact`:
+
+```json
+{
+  "content_type": "image/png",
+  "byte_size": 48213,
+  "image_url": "/api/v1/app/workflows/123/visual_artifact?type=visual_review_screenshot"
 }
 ```

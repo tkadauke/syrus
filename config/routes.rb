@@ -281,6 +281,7 @@ Rails.application.routes.draw do
         get "repositories/:id/insight_schedule_config", to: "insight_schedule_configs#show", constraints: { id: /\d+/ }
         patch "repositories/:id/insight_schedule_config", to: "insight_schedule_configs#update", constraints: { id: /\d+/ }
         get "workflows/:workflow_id/coverage_hit_map", to: "workflows#coverage_hit_map", constraints: { workflow_id: /\d+/ }
+        get "workflows/:workflow_id/visual_artifact", to: "workflows#visual_artifact", constraints: { workflow_id: /\d+/ }
         get "repositories/:repository_id/input_sources/:type", to: "input_sources#show"
         patch "repositories/:repository_id/input_sources/:type", to: "input_sources#update"
         get "repositories/:repository_id/documents", to: "repository_documents#index"

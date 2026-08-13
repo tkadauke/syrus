@@ -91,6 +91,7 @@
   "artifact_migration_after": "Post",
   "artifact_diff_before": "Ante",
   "artifact_diff_after": "Post",
+  "artifact_image_alt": "Imago capturae",
   "merge_train_phase": {
     "assembling": "Epic merge train assembling",
     "reconciling": "Epic merge train reconciling",

@@ -13,6 +13,7 @@ class Workflow < ApplicationRecord
   has_many :mcp_tool_usages, dependent: :nullify
   has_many :auto_retry_attempts, dependent: :destroy
   has_one_attached :coverage_hit_map
+  has_many_attached :visual_artifacts
 
   validates :trigger_kind, presence: true, inclusion: { in: TRIGGER_KINDS }
   validates :agent_provider, presence: true, inclusion: { in: -> { User.agent_providers } }
@@ -479,6 +480,22 @@ class Workflow < ApplicationRecord
     save!
   end
 
+  # Shared replace-on-type write for the 'typed_artifacts' array, used by
+  # both SyrusMcp::SubmitArtifactTool and SyrusMcp::SubmitVisualArtifactTool
+  # so the idempotent-replace semantics live in one place.
+  def set_typed_artifact!(type:, title:, payload:)
+    entry = {
+      "type"       => type,
+      "title"      => title,
+      "payload"    => payload,
+      "created_at" => Time.current.iso8601
+    }
+    updated = Array(artifact("typed_artifacts")).reject { |e| e["type"] == type }
+    updated << entry
+    set_artifact!("typed_artifacts", updated)
+    entry
+  end
+
   # Increment the workflow's failure counter and auto-fail the
   # workflow if it crosses the threshold. Per-Workflow scope: a
   # bad CiFailure burst doesn't take down a Job whose Initial was
@@ -615,6 +632,37 @@ class Workflow < ApplicationRecord
   # Detach and delete the coverage hit map blob.
   def purge_coverage_hit_map!
     coverage_hit_map.purge
+  end
+
+  # Attaches base64-decoded image bytes as a visual artifact, tagged with
+  # `type` in blob metadata so visual_artifact_for(type) can look it up
+  # later without parsing filenames. Purges any existing blob for the same
+  # type first (replace-on-type, mirroring set_typed_artifact!) so
+  # re-submission doesn't leak orphaned blobs. identify: false trusts the
+  # caller's validated content_type instead of Marcel's byte-sniffed guess,
+  # so the stored blob's content_type always matches what was validated
+  # against SubmitVisualArtifactTool::ALLOWED_CONTENT_TYPES and what the
+  # typed_artifacts payload records.
+  def attach_visual_artifact!(type:, data:, content_type:, filename:)
+    purge_visual_artifact!(type)
+    visual_artifacts.attach(
+      io: StringIO.new(data),
+      filename: filename,
+      content_type: content_type,
+      identify: false,
+      metadata: { "artifact_type" => type.to_s }
+    )
+    visual_artifact_for(type)
+  end
+
+  # Finds the attached visual artifact blob for the given type, if any.
+  def visual_artifact_for(type)
+    visual_artifacts.find { |attachment| attachment.blob.metadata["artifact_type"] == type.to_s }
+  end
+
+  # Detach and delete the visual artifact blob for the given type.
+  def purge_visual_artifact!(type)
+    visual_artifact_for(type)&.purge
   end
 
 

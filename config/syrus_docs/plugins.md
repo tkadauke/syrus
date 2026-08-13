@@ -199,7 +199,7 @@ Maps agent-submitted artifact types to a core frontend renderer. Include
 | Method | Returns | Description |
 |---|---|---|
 | `.artifact_type` | `String` | Artifact type identifier (e.g. `"rails_schema_erd"`) |
-| `.renderer_type` | `Symbol` | One of `:erd_diagram`, `:migration_diff`, `:data_table`, `:before_after_diff` |
+| `.renderer_type` | `Symbol` | One of `:erd_diagram`, `:migration_diff`, `:data_table`, `:before_after_diff`, `:image_diff` |
 | `.payload_schema` | `Hash\|nil` | Optional JSON Schema for the payload (documentation only, not validated) |
 
 A plugin may register multiple renderer classes by passing an array to the
@@ -345,4 +345,9 @@ Bundled plugins:
   (`SyrusBrowser::LoopbackGuard`) — an agent driving a real browser can only
   reach the worker's own `start_preview` preview, never an arbitrary network
   destination, regardless of what a prompt or a compromised target repo asks
-  it to do.
+  it to do. Also provides `:artifact_renderer` (`SyrusBrowser::ImageDiffRenderer`,
+  type `visual_review_screenshot` → `:image_diff`) — `browser_screenshot`
+  itself only returns image content to the agent's own context, so an agent
+  that wants a screenshot to survive as a durable, operator-visible artifact
+  calls the core `submit_visual_artifact` MCP tool (see
+  `config/syrus_docs/typed_artifacts.md`) to persist it.

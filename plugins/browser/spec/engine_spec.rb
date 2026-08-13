@@ -14,6 +14,10 @@ RSpec.describe SyrusBrowser::Engine do
     expect(Syrus::PluginRegistry.providers_for(:mcp_tool_set)).to include(SyrusBrowser::McpToolSet)
   end
 
+  it "registers SyrusBrowser::ImageDiffRenderer as the :artifact_renderer provider" do
+    expect(Syrus::PluginRegistry.providers_for(:artifact_renderer)).to include(SyrusBrowser::ImageDiffRenderer)
+  end
+
   it "registers a manifest named 'browser'" do
     manifest = Syrus::PluginRegistry.all_plugins.find { |m| m.name == "browser" }
     expect(manifest).not_to be_nil
@@ -22,5 +26,9 @@ RSpec.describe SyrusBrowser::Engine do
 
   it "includes the McpToolSet plugin interface module" do
     expect(SyrusBrowser::McpToolSet.ancestors).to include(Syrus::Plugin::McpToolSet)
+  end
+
+  it "includes the ArtifactRenderer plugin interface module" do
+    expect(SyrusBrowser::ImageDiffRenderer.ancestors).to include(Syrus::Plugin::ArtifactRenderer)
   end
 end

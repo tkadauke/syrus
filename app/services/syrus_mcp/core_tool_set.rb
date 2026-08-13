@@ -27,6 +27,7 @@ module SyrusMcp
       ::Mcp::Tools::SubmitSummaryTool,
       ::Mcp::Tools::SubmitTestPlanTool,
       SubmitArtifactTool,
+      SubmitVisualArtifactTool,
       ::Mcp::Tools::SubmitJobMetadataTool,
       ::Mcp::Tools::SubmitAdversarialReviewTool,
       ::Mcp::Tools::SubmitInsightTool,

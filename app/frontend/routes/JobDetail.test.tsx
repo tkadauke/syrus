@@ -1212,6 +1212,37 @@ describe("ArtifactsTab", () => {
     expect(screen.getByText(/adapter: postgresql/)).toBeInTheDocument()
   })
 
+  it("renders image_diff: a linked screenshot image", () => {
+    renderArtifactsTab([{
+      type: "visual_review_screenshot",
+      title: "Homepage after fix",
+      created_at: "2026-08-06T10:00:00Z",
+      renderer_type: "image_diff",
+      payload: {
+        image_url: "/api/v1/app/workflows/1/visual_artifact?type=visual_review_screenshot",
+        content_type: "image/png",
+        byte_size: 48213
+      }
+    }])
+
+    const image = screen.getByRole("img", { name: "Homepage after fix" })
+    expect(image).toHaveAttribute("src", "/api/v1/app/workflows/1/visual_artifact?type=visual_review_screenshot")
+    expect(image.closest("a")).toHaveAttribute("href", "/api/v1/app/workflows/1/visual_artifact?type=visual_review_screenshot")
+  })
+
+  it("falls back to raw JSON for image_diff artifacts with no image_url", () => {
+    renderArtifactsTab([{
+      type: "visual_review_screenshot",
+      title: "Homepage after fix",
+      created_at: "2026-08-06T10:00:00Z",
+      renderer_type: "image_diff",
+      payload: {}
+    }])
+
+    expect(screen.queryByRole("img")).not.toBeInTheDocument()
+    expect(screen.getByText("{}")).toBeInTheDocument()
+  })
+
   it("falls back to raw JSON for unknown renderer_type", () => {
     renderArtifactsTab([{
       type: "unknown_type",

@@ -1415,6 +1415,8 @@ function ArtifactRenderer({ artifact }: { artifact: TypedArtifact }) {
       return <DataTableRenderer payload={artifact.payload} />
     case "before_after_diff":
       return <BeforeAfterDiffRenderer payload={artifact.payload} />
+    case "image_diff":
+      return <ImageDiffRenderer payload={artifact.payload} title={artifact.title} />
     default:
       return <RawArtifactRenderer payload={artifact.payload} />
   }
@@ -1573,6 +1575,25 @@ function BeforeAfterDiffRenderer({ payload }: { payload: Record<string, unknown>
         <pre className="overflow-x-auto rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">{after ?? "(empty)"}</pre>
       </div>
     </div>
+  )
+}
+
+function ImageDiffRenderer({ payload, title }: { payload: Record<string, unknown>; title: string }) {
+  const { t } = useT("jobs")
+  const imageUrl = typeof payload.image_url === "string" ? payload.image_url : null
+
+  if (!imageUrl) {
+    return <RawArtifactRenderer payload={payload} />
+  }
+
+  return (
+    <a href={imageUrl} target="_blank" rel="noreferrer">
+      <img
+        src={imageUrl}
+        alt={title || t("artifact_image_alt")}
+        className="max-w-full rounded border border-gray-200 dark:border-gray-700"
+      />
+    </a>
   )
 }
 
