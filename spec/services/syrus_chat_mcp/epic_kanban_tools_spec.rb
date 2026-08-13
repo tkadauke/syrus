@@ -129,6 +129,24 @@ RSpec.describe "Mcp::Tools epic kanban tools" do
       expect(error_text(response)).to include("epic not found in this repository")
     end
 
+    it "allows an admin to start another user's Epic regardless of chat repository" do
+      admin = Factories.user(admin: true)
+      other_user = Factories.user
+      other_epic = Factories.epic(user: other_user, repository: Factories.repository(user: other_user), state: "ready")
+      admin_session = ChatSession.create!(user: admin)
+      admin_server = MCP::Server.new(
+        name: "syrus-chat-sidecar",
+        tools: [ Mcp::Tools::StartEpicTool ],
+        server_context: { chat_session: admin_session }
+      )
+
+      raw = admin_server.handle_json({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "start_epic", arguments: { epic_id: other_epic.id } } }.to_json)
+      response = JSON.parse(raw, symbolize_names: true)
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(other_epic.reload).to be_in_progress
+    end
+
     it "rejects Epics that are not ready" do
       epic = Factories.epic(user: user, repository: repository)
 
@@ -170,6 +188,24 @@ RSpec.describe "Mcp::Tools epic kanban tools" do
       expect(error_text(response)).to include("epic not found in this repository")
     end
 
+    it "allows an admin to move another user's Epic back to backlog regardless of chat repository" do
+      admin = Factories.user(admin: true)
+      other_user = Factories.user
+      other_epic = Factories.epic(user: other_user, repository: Factories.repository(user: other_user), state: "ready")
+      admin_session = ChatSession.create!(user: admin)
+      admin_server = MCP::Server.new(
+        name: "syrus-chat-sidecar",
+        tools: [ Mcp::Tools::MoveEpicToBacklogTool ],
+        server_context: { chat_session: admin_session }
+      )
+
+      raw = admin_server.handle_json({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "move_epic_to_backlog", arguments: { epic_id: other_epic.id } } }.to_json)
+      response = JSON.parse(raw, symbolize_names: true)
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(other_epic.reload).to be_backlog
+    end
+
     it "rejects Epics that are not ready" do
       epic = Factories.epic(user: user, repository: repository, state: "in_progress")
 
@@ -198,6 +234,24 @@ RSpec.describe "Mcp::Tools epic kanban tools" do
 
       expect(response.dig(:result, :isError)).to be true
       expect(error_text(response)).to include("epic not found in this repository")
+    end
+
+    it "allows an admin to archive another user's Epic regardless of chat repository" do
+      admin = Factories.user(admin: true)
+      other_user = Factories.user
+      other_epic = Factories.epic(user: other_user, repository: Factories.repository(user: other_user), state: "in_progress")
+      admin_session = ChatSession.create!(user: admin)
+      admin_server = MCP::Server.new(
+        name: "syrus-chat-sidecar",
+        tools: [ Mcp::Tools::ArchiveEpicTool ],
+        server_context: { chat_session: admin_session }
+      )
+
+      raw = admin_server.handle_json({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "archive_epic", arguments: { epic_id: other_epic.id } } }.to_json)
+      response = JSON.parse(raw, symbolize_names: true)
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(other_epic.reload).to be_archived
     end
 
     it "rejects Epics that are already archived" do

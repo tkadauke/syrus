@@ -9,7 +9,8 @@ module Mcp::Tools
     def find_repository_epic(chat_session, epic_id)
       return unless epic_id
 
-      chat_session.repository.epics.find_by(id: epic_id)
+      scope = chat_session.user.admin? ? Epic.all : chat_session.repository.epics
+      scope.find_by(id: epic_id)
     end
 
     def epic_not_found(epic_id)

@@ -1,6 +1,8 @@
 require "rails_helper"
 
 RSpec.describe "Mcp::Tools epic dependency tools" do
+  let!(:_bootstrap_admin) { Factories.user(admin: true) }
+
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
@@ -69,6 +71,28 @@ RSpec.describe "Mcp::Tools epic dependency tools" do
       expect(error_text(response)).to include("epic not found in this repository")
       expect(epic.reload.depends_on_epics).to be_empty
     end
+
+    it "allows an admin to link Epics across repositories/users" do
+      admin = Factories.user(admin: true)
+      other_user = Factories.user
+      epic = Factories.epic(user: other_user, repository: Factories.repository(user: other_user))
+      prerequisite = Factories.epic(user: other_user, repository: Factories.repository(user: other_user))
+      admin_session = ChatSession.create!(user: admin)
+      admin_server = MCP::Server.new(
+        name: "syrus-chat-sidecar",
+        tools: [ Mcp::Tools::AddEpicDependencyTool ],
+        server_context: { chat_session: admin_session }
+      )
+
+      raw = admin_server.handle_json({
+        jsonrpc: "2.0", id: 1, method: "tools/call",
+        params: { name: "add_epic_dependency", arguments: { epic_id: epic.id, depends_on_epic_id: prerequisite.id } }
+      }.to_json)
+      response = JSON.parse(raw, symbolize_names: true)
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(epic.reload.depends_on_epics).to contain_exactly(prerequisite)
+    end
   end
 
   describe "remove_epic_dependency" do
@@ -94,6 +118,29 @@ RSpec.describe "Mcp::Tools epic dependency tools" do
         expect(response.dig(:result, :isError)).to be_falsey
         expect(payload(response)).to include(epic_id: epic.id, depends_on: [])
       end
+    end
+
+    it "allows an admin to unlink Epics across repositories/users" do
+      admin = Factories.user(admin: true)
+      other_user = Factories.user
+      epic = Factories.epic(user: other_user, repository: Factories.repository(user: other_user))
+      prerequisite = Factories.epic(user: other_user, repository: Factories.repository(user: other_user))
+      EpicDependency.create!(epic: epic, depends_on_epic: prerequisite, derived: false)
+      admin_session = ChatSession.create!(user: admin)
+      admin_server = MCP::Server.new(
+        name: "syrus-chat-sidecar",
+        tools: [ Mcp::Tools::RemoveEpicDependencyTool ],
+        server_context: { chat_session: admin_session }
+      )
+
+      raw = admin_server.handle_json({
+        jsonrpc: "2.0", id: 1, method: "tools/call",
+        params: { name: "remove_epic_dependency", arguments: { epic_id: epic.id, depends_on_epic_id: prerequisite.id } }
+      }.to_json)
+      response = JSON.parse(raw, symbolize_names: true)
+
+      expect(response.dig(:result, :isError)).to be_falsey
+      expect(epic.reload.depends_on_epics).to be_empty
     end
   end
 end
