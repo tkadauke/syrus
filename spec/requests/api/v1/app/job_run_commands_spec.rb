@@ -88,6 +88,53 @@ RSpec.describe "App API job run commands", type: :request do
     expect(parse_body.dig("error", "message")).to include("already in progress")
   end
 
+  describe "POST /retry_pr_ingestion" do
+    let(:external_job) do
+      Job.create!(
+        user: user, repository: repo,
+        kind: "external_pr", state: "implemented",
+        external_pr_number: 55, external_pr_fork: false,
+        branch_name: "dependabot/bundler/sqlite3-2.9.4"
+      )
+    end
+
+    def app_external_job_path(path) = "/api/v1/app/jobs/#{external_job.id}#{path}"
+
+    it "dispatches a fresh external_pr_ingest workflow and returns the Job to :queued after a failed ingest" do
+      external_job.update_columns(state: "failed")
+      Workflow.create!(job: external_job, trigger_kind: "external_pr_ingest", state: "failed")
+
+      expect {
+        post app_external_job_path("/retry_pr_ingestion"), as: :json
+      }.to change { external_job.reload.workflows.where(trigger_kind: "external_pr_ingest").count }.by(1)
+        .and have_enqueued_job(RunJob)
+
+      expect(response).to have_http_status(:ok)
+      expect(external_job.reload.state).to eq("queued")
+      expect(parse_body).to include("message" => "Retrying PR ingestion...")
+    end
+
+    it "rejects Jobs that are not external PR Jobs" do
+      expect {
+        post app_job_path("/retry_pr_ingestion"), as: :json
+      }.not_to change { job.reload.workflows.count }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "message")).to eq("Only external PR Jobs can retry ingestion.")
+    end
+
+    it "rejects when a workflow is already active for the Job" do
+      Workflow.create!(job: external_job, trigger_kind: "external_pr_ingest", state: "queued")
+
+      expect {
+        post app_external_job_path("/retry_pr_ingestion"), as: :json
+      }.not_to change { external_job.reload.workflows.where(trigger_kind: "external_pr_ingest").count }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "message")).to match(/already running/i)
+    end
+  end
+
   it "resumes a failed run using its captured agent session" do
     failed_run = job.initial_run
     failed_run.start!

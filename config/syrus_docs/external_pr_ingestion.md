@@ -52,6 +52,14 @@ When a new external PR Job is created, Syrus immediately dispatches an `external
 
 If the repository has no graders configured (no `.syrus.yml` `grade:` block), the workflow succeeds immediately as a no-op.
 
+## Recovering from a failed ingestion
+
+When the same-repo grader/repair chain above exhausts its retries, the Job transitions to `failed`. Syrus treats this as an operator-action state, not an input to further automation:
+
+- Automatic rebase dispatch (`PollMergeStateJob`) will not rebase the Job's branch while its most recent `external_pr_ingest` Workflow is failed. Rebasing a branch behind a failed ingestion is not a fix for the underlying grader/application failure — it previously left Jobs in a confusing "failed but rebased" state.
+- The work engine's automatic retryable-failure repair loop skips `external_pr_ingest` Runs. The workflow's own bounded `retry_until` chain (capped by `AppSetting.grade_max_iterations`) is the only retry mechanism for these Runs; an individual grader Run that happens to time out or lose its worker is not treated as a signal to keep auto-repairing a deterministic failure.
+- The operator uses the **Retry PR Ingestion** action on the Job Details page to recover. It is shown only for external PR Jobs whose latest `external_pr_ingest` Workflow is failed, and dispatches a fresh `external_pr_ingest` Workflow against the PR's current branch (re-fetched by the `prepare` step). Dispatching this clears the automatic-rebase gate above; if the new attempt fails too, the gate re-applies until the operator retries again.
+
 ## Job lifecycle
 
 External PR Jobs start in the `implemented` state, bypassing the agent workflow. From there the standard approval and landing pipeline applies:

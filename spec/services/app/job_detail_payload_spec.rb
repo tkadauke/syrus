@@ -775,6 +775,49 @@ RSpec.describe App::JobDetailPayload do
     end
   end
 
+  describe "#actions_json can_retry_pr_ingestion" do
+    def external_pr_job(state: "implemented")
+      Job.create!(
+        user: user, repository: repo,
+        kind: "external_pr", state: "implemented",
+        external_pr_number: 55, external_pr_fork: false,
+        branch_name: "dependabot/bundler/sqlite3-2.9.4"
+      ).tap { |j| j.update_columns(state: state) }
+    end
+
+    it "is true when the latest external_pr_ingest workflow failed" do
+      job = external_pr_job(state: "failed")
+      Workflow.create!(job: job, trigger_kind: "external_pr_ingest", state: "failed")
+
+      payload = payload_for(job)
+
+      expect(payload.dig(:actions, :can_retry_pr_ingestion)).to be(true)
+      expect(payload.dig(:paths, :app_retry_pr_ingestion_path)).to eq("/api/v1/app/jobs/#{job.id}/retry_pr_ingestion")
+    end
+
+    it "is false when the latest external_pr_ingest workflow succeeded" do
+      job = external_pr_job
+      Workflow.create!(job: job, trigger_kind: "external_pr_ingest", state: "succeeded")
+
+      expect(payload_for(job).dig(:actions, :can_retry_pr_ingestion)).to be(false)
+    end
+
+    it "is false for a same-repo issue Job even when its latest workflow failed" do
+      job = Factories.job_record(user: user, repository: repo, state: "failed")
+      Workflow.create!(job: job, trigger_kind: "initial", state: "failed")
+
+      expect(payload_for(job).dig(:actions, :can_retry_pr_ingestion)).to be(false)
+    end
+
+    it "is false while a workflow is already active for the Job" do
+      job = external_pr_job(state: "failed")
+      Workflow.create!(job: job, trigger_kind: "external_pr_ingest", state: "failed")
+      Workflow.create!(job: job, trigger_kind: "rebase", state: "running")
+
+      expect(payload_for(job).dig(:actions, :can_retry_pr_ingestion)).to be(false)
+    end
+  end
+
   describe "#actions_json can_restart" do
     it "is true for an issue job with no active runs" do
       job = Factories.job_record(repository: repo, issue_number: 5)

@@ -150,6 +150,7 @@ class PollMergeStateJob < ApplicationJob
     return if attempt_cap_reached?
     return if rebase_failure_cooling_down?
     return if repo_rebase_concurrency_reached?
+    return if external_pr_ingest_not_ready?
     return if start_blocked?
     return if merge_train_active_for_stack?
     return if stack_rebase_blocked_by_unchanged_deps?
@@ -200,6 +201,20 @@ class PollMergeStateJob < ApplicationJob
 
     audit("auto_merge: PR ##{@job.pr_number} needs rebase but merge train ##{train.id} is active for this stack; waiting for the train to finish")
     Rails.logger.info("[PollMergeStateJob] #{@job.slug} PR ##{@job.pr_number} needs rebase but merge train ##{train.id} is active for this stack; skipping dispatch")
+    true
+  end
+
+  # A same-repo external PR whose most recent external_pr_ingest Workflow
+  # failed is an operator-action state (deterministic grader/application
+  # failure, or exhausted repair iterations). Rebase must not be the
+  # implicit recovery path for that — the operator retries ingestion
+  # explicitly (Retry PR Ingestion), which dispatches a fresh
+  # external_pr_ingest Workflow and clears this gate.
+  def external_pr_ingest_not_ready?
+    return false unless @job.external_pr_ingest_blocked?
+
+    audit("auto_merge: PR ##{@job.pr_number || @job.external_pr_number} needs rebase but its external_pr_ingest workflow failed and has not been retried; waiting for operator action")
+    Rails.logger.info("[PollMergeStateJob] #{@job.slug} PR ##{@job.pr_number || @job.external_pr_number} needs rebase but external_pr_ingest failed; skipping dispatch until retried")
     true
   end
 

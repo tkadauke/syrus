@@ -140,6 +140,7 @@ Rails.application.routes.draw do
         post "jobs/:job_id/pending_feedback/:id/retry", to: "pending_feedback#retry", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
         post "jobs/:job_id/poll_feedback", to: "job_run_commands#poll_feedback", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/rebase", to: "job_run_commands#rebase", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/retry_pr_ingestion", to: "job_run_commands#retry_pr_ingestion", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/check_mergeability", to: "job_run_commands#check_mergeability", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/resume", to: "job_run_commands#resume", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/runs/:run_id/stop", to: "job_run_commands#stop_run", constraints: { job_id: /[a-zA-Z0-9_-]+/, run_id: /\d+/ }

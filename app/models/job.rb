@@ -243,6 +243,24 @@ class Job < ApplicationRecord
     kind == "external_pr"
   end
 
+  # The most recently created external_pr_ingest Workflow for this Job,
+  # if any. Used to gate automatic rebase/landing dispatch and to drive
+  # the "Retry PR Ingestion" action's visibility.
+  def latest_external_pr_ingest_workflow
+    workflows.where(trigger_kind: "external_pr_ingest").reorder(created_at: :desc, id: :desc).first
+  end
+
+  # True when this external PR Job's most recent ingest attempt failed
+  # and has not since been explicitly retried (a fresh external_pr_ingest
+  # Workflow dispatched via the "Retry PR Ingestion" action). Non-retryable
+  # ingestion failure is an operator-action state — automatic rebase and
+  # landing repair must not treat it as an input to fix.
+  def external_pr_ingest_blocked?
+    return false unless external_pr?
+
+    latest_external_pr_ingest_workflow&.failed? || false
+  end
+
   def main_branch_repair?
     system_kind == SYSTEM_KIND_MAIN_BRANCH_REPAIR ||
       (system_kind.blank? && direct? && issue_title == MAIN_BRANCH_REPAIR_TITLE)

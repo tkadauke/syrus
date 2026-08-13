@@ -139,6 +139,7 @@ function headerActions(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"
   if (actions.can_poll_feedback) available.push({ key: "poll_feedback", label: t("check_feedback"), input: { method: "post", path: paths.app_poll_feedback_path }, tone: "secondary" })
   if (actions.can_rebase) available.push({ key: "rebase", label: t("rebase_now"), input: { method: "post", path: paths.app_rebase_path }, tone: "secondary" })
   if (actions.can_check_mergeability) available.push({ key: "check_mergeability", label: t("check_mergeability"), input: { method: "post", path: paths.app_check_mergeability_path }, tone: "secondary" })
+  if (actions.can_retry_pr_ingestion) available.push({ key: "retry_pr_ingestion", label: t("retry_pr_ingestion"), input: { method: "post", path: paths.app_retry_pr_ingestion_path, confirm: t("confirm_retry_pr_ingestion") }, tone: "primary" })
   if (actions.retry_failed_step_action) available.push({ key: "retry_failed_step", label: actions.retry_failed_step_action.label, input: { method: "post", path: actions.retry_failed_step_action.path }, tone: "primary" })
   if (actions.retry_implementation_action) available.push({ key: "retry_implementation", label: actions.retry_implementation_action.label, input: { method: "post", path: actions.retry_implementation_action.path }, tone: "primary" })
   if (actions.retry_implementation_action) available.push({ key: "retry_feedback", label: t("retry_with_feedback"), input: { method: "post", path: actions.retry_implementation_action.path }, tone: "secondary" })
@@ -189,6 +190,9 @@ function primaryHeaderActionKeys(payload: JobDetailPayload, actions: HeaderActio
   } else if (availableKeys.has("approve")) {
     add("approve")
     add("retry_failed_step")
+  } else if (jobState === "failed" && payload.job.kind === "external_pr") {
+    add("retry_pr_ingestion")
+    add("restart")
   } else if (jobState === "failed") {
     add("retry_failed_step")
     add("retry_implementation")

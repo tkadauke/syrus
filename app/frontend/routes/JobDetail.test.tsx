@@ -710,6 +710,45 @@ describe("JobDetailView", () => {
     expect(screen.queryByText("Initial workflow enqueued.")).not.toBeInTheDocument()
   })
 
+  it("shows Retry PR ingestion for a failed external PR job and dispatches it after confirmation", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({ message: "Retrying PR ingestion...", job: { id: 1, state: "queued" } })
+    )
+    const payload = jobPayload({
+      job: { ...baseJob(), kind: "external_pr", state: "failed", summary_state: "failed", external_pr_number: 55 }
+    })
+    renderJobDetail({
+      ...payload,
+      actions: { ...payload.actions, can_retry_pr_ingestion: true },
+      paths: { ...payload.paths, app_retry_pr_ingestion_path: "/api/v1/app/jobs/1/retry_pr_ingestion" }
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry PR ingestion" }))
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/jobs/1/retry_pr_ingestion",
+        expect.objectContaining({ method: "POST" })
+      )
+    })
+  })
+
+  it("does not show Retry PR ingestion when can_retry_pr_ingestion is false", () => {
+    const payload = jobPayload({
+      job: { ...baseJob(), kind: "external_pr", state: "failed", summary_state: "failed", external_pr_number: 55 }
+    })
+    renderJobDetail({
+      ...payload,
+      actions: { ...payload.actions, can_retry_pr_ingestion: false }
+    })
+
+    expect(screen.queryByRole("button", { name: "Retry PR ingestion" })).not.toBeInTheDocument()
+  })
+
   it("renders the issue body as markdown", () => {
     renderJobDetail(jobPayload({
       job: {
@@ -1569,6 +1608,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       can_poll_feedback: false,
       can_rebase: false,
       can_check_mergeability: false,
+      can_retry_pr_ingestion: false,
       can_retry: false,
       can_retry_from_failed_step: false,
       can_restart: false,
@@ -1609,6 +1649,7 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       app_poll_feedback_path: "/api/v1/app/jobs/1/poll_feedback",
       app_rebase_path: "/api/v1/app/jobs/1/rebase",
       app_check_mergeability_path: "/api/v1/app/jobs/1/check_mergeability",
+      app_retry_pr_ingestion_path: "/api/v1/app/jobs/1/retry_pr_ingestion",
       app_resume_path: "/api/v1/app/jobs/1/resume",
       app_tags_path: "/api/v1/app/jobs/1/tags",
       app_claim_path: "/api/v1/app/jobs/1/claim",

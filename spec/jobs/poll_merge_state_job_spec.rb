@@ -161,6 +161,42 @@ RSpec.describe PollMergeStateJob, :ci_only do
     }.not_to change { job.workflows.where(trigger_kind: "rebase").count }
   end
 
+  describe "external PR ingest readiness gate" do
+    def failed_ingest_external_job(state: "failed")
+      external_job = Job.create!(
+        user: user, repository: repository,
+        kind: "external_pr", state: "implemented",
+        external_pr_number: 55, branch_name: "dependabot/bundler/sqlite3-2.9.4"
+      )
+      external_job.update_columns(state: state)
+      external_job
+    end
+
+    before do
+      allow_any_instance_of(GithubClient).to receive(:pull_request).and_return(pr(mergeable_state: "dirty", mergeable: false))
+      allow_any_instance_of(GithubClient).to receive(:pr_reviews).and_return([])
+    end
+
+    it "does not dispatch Rebase when the external PR's ingest workflow failed and has not been retried" do
+      external_job = failed_ingest_external_job
+      Workflow.create!(job: external_job, trigger_kind: "external_pr_ingest", state: "failed")
+
+      expect {
+        described_class.perform_now(external_job.id)
+      }.not_to change { external_job.workflows.where(trigger_kind: "rebase").count }
+    end
+
+    it "dispatches Rebase for an external PR once ingestion has been explicitly retried" do
+      external_job = failed_ingest_external_job(state: "implemented")
+      Workflow.create!(job: external_job, trigger_kind: "external_pr_ingest", state: "failed", created_at: 1.hour.ago)
+      Workflow.create!(job: external_job, trigger_kind: "external_pr_ingest", state: "succeeded", created_at: Time.current)
+
+      expect {
+        described_class.perform_now(external_job.id)
+      }.to change { external_job.workflows.where(trigger_kind: "rebase").count }.by(1)
+    end
+  end
+
   describe "proactive rebase is limited to the front of the landing queue" do
     before do
       allow_any_instance_of(GithubClient).to receive(:pull_request).and_return(

@@ -78,6 +78,28 @@ module Api
           render_job(job.reload, message: notice, changed: [ "workflows", "runs" ], run: run&.reload, workflow: workflow.reload, tab: "workflows")
         end
 
+        def retry_pr_ingestion
+          job = find_job
+          unless job.external_pr?
+            render_error("validation_failed", "Only external PR Jobs can retry ingestion.", status: :unprocessable_content)
+            return
+          end
+
+          result = ExternalPrIngestRetryEnqueuer.call(job: job)
+          unless result.success?
+            render_error("validation_failed", result.error, status: :unprocessable_content)
+            return
+          end
+
+          render_job(
+            job.reload,
+            message: "Retrying PR ingestion...",
+            changed: [ "workflows", "runs", "state" ],
+            workflow: result.workflow.reload,
+            tab: "workflows"
+          )
+        end
+
         def stop_run
           job = find_job
           run = job.runs.find_by(id: params[:run_id])

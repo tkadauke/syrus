@@ -1320,6 +1320,61 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
     end
   end
 
+  describe "#external_pr_ingest_blocked?" do
+    let(:user) { Factories.user }
+    let(:repository) { Factories.repository(user: user) }
+
+    def build_external_pr_job(**attrs)
+      Job.create!({
+        user: user,
+        repository: repository,
+        kind: "external_pr",
+        external_pr_number: 77,
+        state: "implemented"
+      }.merge(attrs))
+    end
+
+    it "is false for non-external_pr jobs" do
+      job = Factories.job(user: user, repository: repository)
+      expect(job.external_pr_ingest_blocked?).to be false
+    end
+
+    it "is false for an external_pr job with no ingest workflow yet" do
+      job = build_external_pr_job
+      expect(job.external_pr_ingest_blocked?).to be false
+    end
+
+    it "is true when the latest external_pr_ingest workflow failed" do
+      job = build_external_pr_job
+      Workflow.create!(job: job, trigger_kind: "external_pr_ingest", state: "failed")
+
+      expect(job.external_pr_ingest_blocked?).to be true
+    end
+
+    it "is false when the latest external_pr_ingest workflow succeeded" do
+      job = build_external_pr_job
+      Workflow.create!(job: job, trigger_kind: "external_pr_ingest", state: "succeeded")
+
+      expect(job.external_pr_ingest_blocked?).to be false
+    end
+
+    it "clears once a fresh ingest workflow has been dispatched after a failure" do
+      job = build_external_pr_job
+      Workflow.create!(job: job, trigger_kind: "external_pr_ingest", state: "failed", created_at: 1.hour.ago)
+      Workflow.create!(job: job, trigger_kind: "external_pr_ingest", state: "queued", created_at: Time.current)
+
+      expect(job.external_pr_ingest_blocked?).to be false
+    end
+
+    it "ignores unrelated workflows dispatched after the failed ingest" do
+      job = build_external_pr_job
+      Workflow.create!(job: job, trigger_kind: "external_pr_ingest", state: "failed", created_at: 1.hour.ago)
+      Workflow.create!(job: job, trigger_kind: "rebase", state: "succeeded", created_at: Time.current)
+
+      expect(job.external_pr_ingest_blocked?).to be true
+    end
+  end
+
   describe "priority" do
     let(:user) { Factories.user }
     let(:repository) { Factories.repository(user: user) }

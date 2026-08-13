@@ -1042,6 +1042,7 @@ module WorkEngine
         next if step_needs_terminal_run_reconciliation?(run.step)
         next if recoverable_branch_divergence?(run)
         next if branch_divergence_recovered_by_current_pr_branch?(run.workflow)
+        next if external_pr_ingest_run?(run)
 
         classification = run.run_failure_classification
         next if classification.nil?
@@ -1620,6 +1621,18 @@ module WorkEngine
     def branch_diverged_pr_open_run?(run)
       run.step&.kind == "pr_open" &&
         run.run_failure_classification&.classification == "branch_diverged"
+    end
+
+    # external_pr_ingest already retries deterministically within its own
+    # bounded RetryUntil chain (see Workflows::ExternalPrIngest). Layering the
+    # work engine's separate auto-repair loop on top just because an
+    # individual grader Run's outcome happened to look like a timeout or
+    # worker death converts a deterministic grader/application failure into
+    # an unbounded retry loop instead of letting the workflow exhaust its
+    # iterations and land the Job in :failed for operator action (Retry PR
+    # Ingestion).
+    def external_pr_ingest_run?(run)
+      run.workflow&.trigger_kind == "external_pr_ingest"
     end
 
     def latest_workflow_run?(run)

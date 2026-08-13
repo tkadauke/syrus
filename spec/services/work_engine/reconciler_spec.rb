@@ -1948,6 +1948,33 @@ RSpec.describe WorkEngine::Reconciler do
     expect(repair_plan.preconditions["step_repair_semantics"]).to eq("deterministic_idempotent")
   end
 
+  it "does not plan automatic repair for external_pr_ingest grader failures even when the classification looks retryable" do
+    external_job = Job.create!(
+      user: job.user, repository: job.repository,
+      kind: "external_pr", state: "implemented",
+      external_pr_number: 91, branch_name: "dependabot/bundler/sqlite3-2.9.4"
+    )
+    ingest_workflow = Workflow.create!(job: external_job, trigger_kind: "external_pr_ingest", state: "failed", finished_at: Time.current)
+    grader_step = ingest_workflow.steps.create!(kind: "grader", position: 0, state: "failed", finished_at: Time.current)
+    grader_run = grader_step.runs.create!(job: external_job, trigger_kind: "external_pr_ingest", agent_provider: "claude", state: "failed", finished_at: Time.current)
+    external_job.update_columns(state: "failed")
+    RunFailureClassification.create!(
+      run: grader_run,
+      classification: "timeout",
+      retryable: true,
+      confidence: 0.85,
+      reason: "grader timed out",
+      classified_at: Time.current
+    )
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(ingest_workflow)).and_return(true)
+
+    result = reconcile(run_id: grader_run.id)
+
+    expect(kind(result, :retryable_run_failure)).to be_nil
+    expect(plan(result, :retry_failed_step)).to be_nil
+  end
+
   it "executes safe retry plans through AutoRetryAttempt and AutoRetryJob" do
     step.update_columns(kind: "grader", state: "failed", finished_at: Time.current)
     workflow.update_columns(state: "failed", finished_at: Time.current, cleaned_up_at: nil)

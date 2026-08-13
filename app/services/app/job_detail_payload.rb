@@ -533,6 +533,7 @@ module App
           !RebaseWorkflowSelector.active_for_stack?(@job) &&
           !RebaseWorkflowSelector.active_merge_train_for_stack?(@job),
         can_check_mergeability: @job.pr_number.present? || @job.external_pr_number.present?,
+        can_retry_pr_ingestion: @job.open? && @job.external_pr_ingest_blocked? && !@job.workflows.active.exists?,
         can_retry: retry_actions[:implementation].present?,
         can_retry_from_failed_step: retry_actions[:failed_step].present?,
         retry_failed_step_action: retry_actions[:failed_step],
@@ -583,6 +584,7 @@ module App
         app_reopen_path: "/api/v1/app/jobs/#{@job.id}/reopen",
         app_poll_feedback_path: "/api/v1/app/jobs/#{@job.id}/poll_feedback",
         app_rebase_path: "/api/v1/app/jobs/#{@job.id}/rebase",
+        app_retry_pr_ingestion_path: "/api/v1/app/jobs/#{@job.id}/retry_pr_ingestion",
         app_check_mergeability_path: "/api/v1/app/jobs/#{@job.id}/check_mergeability",
         app_resume_path: "/api/v1/app/jobs/#{@job.id}/resume",
         app_tags_path: "/api/v1/app/jobs/#{@job.id}/tags",
