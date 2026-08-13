@@ -345,6 +345,7 @@ module App
         google_doc_url: attachment.google_doc_url,
         uploaded_file: attachment.uploaded_file?,
         file_path: attachment.file.attached? ? "/api/v1/app/jobs/#{@job.id}/attachments/#{attachment.id}/file" : nil,
+        content_path: attachment.file.attached? ? "/api/v1/app/jobs/#{@job.id}/attachments/#{attachment.id}/content" : nil,
         created_at: iso8601(attachment.created_at),
         app_delete_path: "/api/v1/app/jobs/#{@job.id}/attachments/#{attachment.id}"
       }

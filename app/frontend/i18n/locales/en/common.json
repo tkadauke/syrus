@@ -8,6 +8,18 @@
   "show_more": "Show more",
   "show_less": "Show less",
   "workflows": "Workflows",
+  "file_preview": {
+    "dialog_label": "File preview for {{title}}",
+    "line": "Line {{line}}",
+    "mode_preview": "Preview",
+    "mode_source": "Source",
+    "open_raw": "Open raw",
+    "close": "Close file preview",
+    "loading": "Loading file...",
+    "load_error": "File could not be loaded.",
+    "binary": "Binary files cannot be previewed.",
+    "too_large": "This file is too large to preview. Use Open raw to inspect it directly."
+  },
   "onboarding": {
     "loading": "Loading setup status...",
     "setup_label": "First-run setup",

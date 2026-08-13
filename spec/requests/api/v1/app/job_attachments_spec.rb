@@ -11,6 +11,7 @@ RSpec.describe "App API job attachments", type: :request do
   def app_attachments_path(job_record) = "/api/v1/app/jobs/#{job_record.id}/attachments"
   def app_attachment_path(job_record, attachment) = "/api/v1/app/jobs/#{job_record.id}/attachments/#{attachment.id}"
   def app_attachment_file_path(job_record, attachment) = "/api/v1/app/jobs/#{job_record.id}/attachments/#{attachment.id}/file"
+  def app_attachment_content_path(job_record, attachment) = "/api/v1/app/jobs/#{job_record.id}/attachments/#{attachment.id}/content"
 
   def upload_file(name: "notes.md", content_type: "text/markdown", content: "# Notes")
     file = Tempfile.new([ "job-attachment", File.extname(name) ])
@@ -72,6 +73,91 @@ RSpec.describe "App API job attachments", type: :request do
     expect(response.headers["Content-Disposition"]).to include("inline")
     expect(response.headers["Content-Disposition"]).to include("notes.txt")
     expect(response.body).to eq("hello from storage")
+  end
+
+  it "returns markdown attachment content as JSON for the shared file preview modal" do
+    attachment = job.job_attachments.build(attachment_type: "uploaded_file")
+    attachment.file.attach(
+      io: StringIO.new("# Notes\n\nHello"),
+      filename: "notes.md",
+      content_type: "text/markdown"
+    )
+    attachment.save!
+
+    get app_attachment_content_path(job, attachment)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to eq(
+      "path" => "notes.md",
+      "content" => "# Notes\n\nHello",
+      "binary" => false,
+      "too_large" => false
+    )
+  end
+
+  it "flags binary attachment content instead of inlining it" do
+    attachment = job.job_attachments.build(attachment_type: "uploaded_file")
+    attachment.file.attach(
+      io: StringIO.new("\x89PNG\x00binary"),
+      filename: "screenshot.png",
+      content_type: "image/png"
+    )
+    attachment.save!
+
+    get app_attachment_content_path(job, attachment)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to eq("path" => "screenshot.png", "content" => nil, "binary" => true, "too_large" => false)
+  end
+
+  it "flags oversized attachment content instead of downloading it" do
+    attachment = job.job_attachments.build(attachment_type: "uploaded_file")
+    attachment.file.attach(
+      io: StringIO.new("x" * (Document::MAX_PREVIEW_SIZE + 1)),
+      filename: "huge.txt",
+      content_type: "text/plain"
+    )
+    attachment.save!
+
+    get app_attachment_content_path(job, attachment)
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body).to include("path" => "huge.txt", "content" => nil, "binary" => false, "too_large" => true)
+    expect(body["size"]).to eq(Document::MAX_PREVIEW_SIZE + 1)
+  end
+
+  it "exposes a content_path for uploaded attachments and none for Google Doc links" do
+    file_attachment = job.job_attachments.build(attachment_type: "uploaded_file")
+    file_attachment.file.attach(io: StringIO.new("hello"), filename: "notes.txt", content_type: "text/plain")
+    file_attachment.save!
+    doc_attachment = job.job_attachments.create!(
+      attachment_type: "google_doc_link",
+      google_doc_url: "https://docs.google.com/document/d/context/edit"
+    )
+
+    get app_attachment_content_path(job, file_attachment)
+    expect(response).to have_http_status(:ok)
+
+    post app_attachments_path(job),
+         params: { job_attachment: { google_doc_url: "https://docs.google.com/document/d/other/edit" } },
+         as: :json
+    attachments = parse_body["attachments"]
+    expect(attachments.find { |a| a["id"] == file_attachment.id }["content_path"]).to eq(app_attachment_content_path(job, file_attachment))
+    expect(attachments.find { |a| a["id"] == doc_attachment.id }["content_path"]).to be_nil
+  end
+
+  it "does not serve another user's attachment content" do
+    other_user = Factories.user
+    other_repo = Factories.repository(user: other_user, owner: "globex", name: "private")
+    other_job = Factories.job_record(repository: other_repo, issue_number: 99)
+    attachment = other_job.job_attachments.build(attachment_type: "uploaded_file")
+    attachment.file.attach(io: StringIO.new("secret"), filename: "secret.txt", content_type: "text/plain")
+    attachment.save!
+
+    get app_attachment_content_path(other_job, attachment)
+
+    expect(response).to have_http_status(:not_found)
   end
 
   it "rejects empty attachment submissions" do

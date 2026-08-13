@@ -9,7 +9,8 @@ import { StatusPill } from "../../components/StatusPill"
 import { buttonClass } from "../../lib/buttonClasses"
 import { errorMessage } from "../../lib/errorMessage"
 import { formatBytes } from "../../lib/format"
-import { fetchJobTimeline, type JobAttachment, type JobDependency, type JobDependencyTarget, type JobDetailPayload } from "../../api/jobs"
+import { fetchJobAttachmentContent, fetchJobTimeline, type JobAttachment, type JobDependency, type JobDependencyTarget, type JobDetailPayload } from "../../api/jobs"
+import { FilePreviewModal } from "../../components/FilePreviewModal"
 import { useJobCommand } from "./command"
 import { jobSlug } from "./formatting"
 import type { ReactNode, UIEvent } from "react"
@@ -388,13 +389,38 @@ export function AttachmentPreview({ attachments }: { attachments: JobAttachment[
 export function AttachmentCard({ attachment }: { attachment: JobAttachment }) {
   const { t } = useT("jobs")
   const title = attachment.title || attachment.filename || attachment.google_doc_url || `Attachment #${attachment.id}`
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const previewable = !!attachment.content_path
+
+  const fileContent = useQuery({
+    queryKey: ["job_attachment_content", attachment.content_path],
+    queryFn: () => fetchJobAttachmentContent(attachment.content_path!),
+    enabled: previewOpen && previewable
+  })
+
   return (
     <article className="rounded border border-gray-200 bg-white p-3 text-sm dark:border-gray-700 dark:bg-gray-900">
-      <div className="font-medium text-gray-900 dark:text-gray-100">{attachment.file_path ? <a className="hover:underline" href={attachment.file_path}>{title}</a> : title}</div>
+      <div className="font-medium text-gray-900 dark:text-gray-100">
+        {previewable ? (
+          <button className="text-left hover:underline" onClick={() => setPreviewOpen(true)} type="button">{title}</button>
+        ) : attachment.file_path ? (
+          <a className="hover:underline" href={attachment.file_path}>{title}</a>
+        ) : (
+          title
+        )}
+      </div>
       <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
         {attachment.google_doc_url ? <a className="text-blue-600 hover:underline" href={attachment.google_doc_url} rel="noopener" target="_blank">{t("attachment_google_doc")}</a> : attachment.content_type || attachment.attachment_type}
         {attachment.byte_size ? ` · ${formatBytes(attachment.byte_size)}` : ""}
       </div>
+      {previewOpen && previewable ? (
+        <FilePreviewModal
+          onClose={() => setPreviewOpen(false)}
+          path={attachment.filename || title}
+          query={fileContent}
+          rawHref={attachment.file_path || "#"}
+        />
+      ) : null}
     </article>
   )
 }

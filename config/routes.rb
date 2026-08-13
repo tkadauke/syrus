@@ -103,6 +103,7 @@ Rails.application.routes.draw do
         delete "jobs/:job_id/pin", to: "job_pins#destroy", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/attachments", to: "job_attachments#create", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:job_id/attachments/:id/file", to: "job_attachments#show", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
+        get "jobs/:job_id/attachments/:id/content", to: "job_attachments#content", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
         delete "jobs/:job_id/attachments/:id", to: "job_attachments#destroy", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
         post "jobs/:job_id/tags", to: "job_metadata#add_tag", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         delete "jobs/:job_id/tags/:tag_id", to: "job_metadata#remove_tag", constraints: { job_id: /[a-zA-Z0-9_-]+/, tag_id: /\d+/ }

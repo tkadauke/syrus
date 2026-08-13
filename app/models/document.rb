@@ -3,6 +3,7 @@ require "uri"
 class Document < ApplicationRecord
   KINDS = %w[file google_doc pending_snapshot].freeze
   MAX_FILE_SIZE = 20.megabytes
+  MAX_PREVIEW_SIZE = 500.kilobytes
   MAX_CONTENT_CACHE_SIZE = 64.kilobytes
   MAX_ATTACHMENTS_PER_JOB = 10
   ACCEPTED_FILE_CONTENT_TYPES = [

@@ -225,6 +225,7 @@
   "job_status_show_closed": "Show closed",
   "aria_chat": "Chat",
   "aria_close_image": "Close image preview",
+  "source_preview_unavailable": "Source preview is not available for this chat.",
   "ph_search_proposals": "Search proposals",
   "ph_search_jobs": "Search Jobs",
   "ph_search_epics": "Search Epics",

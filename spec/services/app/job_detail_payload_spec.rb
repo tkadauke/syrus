@@ -37,6 +37,7 @@ RSpec.describe App::JobDetailPayload do
         include(
           id: attachment.id,
           file_path: "/api/v1/app/jobs/#{job.id}/attachments/#{attachment.id}/file",
+          content_path: "/api/v1/app/jobs/#{job.id}/attachments/#{attachment.id}/content",
           app_delete_path: "/api/v1/app/jobs/#{job.id}/attachments/#{attachment.id}"
         )
       )

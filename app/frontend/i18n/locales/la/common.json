@@ -8,6 +8,18 @@
   "show_more": "Ostende plus",
   "show_less": "Ostende minus",
   "workflows": "Cursus operum",
+  "file_preview": {
+    "dialog_label": "Praevisio plicae {{title}}",
+    "line": "Linea {{line}}",
+    "mode_preview": "Praevisio",
+    "mode_source": "Fons",
+    "open_raw": "Plicam crudam aperire",
+    "close": "Praevisionem plicae claudere",
+    "loading": "Plica oneratur...",
+    "load_error": "Plica onerari non potuit.",
+    "binary": "Plicae binariae praevideri non possunt.",
+    "too_large": "Haec plica nimis magna est ad praevidendum. Utere \"Plicam crudam aperire\" ut eam directe inspicias."
+  },
   "onboarding": {
     "loading": "Status constitutionis oneratur...",
     "setup_label": "Constitutio Prima",

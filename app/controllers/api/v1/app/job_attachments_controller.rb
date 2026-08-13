@@ -15,6 +15,19 @@ module Api
           )
         end
 
+        # JSON content endpoint backing the shared FilePreviewModal (see
+        # chats#source_file for the chat-side counterpart). Text content is
+        # inlined so the frontend can render markdown/syntax highlighting
+        # without a second round trip; binary files and oversized files are
+        # flagged instead of downloaded, matching ChatWorkspace#file_content.
+        def content
+          job = find_job
+          attachment = job.job_attachments.find(params[:id])
+          raise ActiveRecord::RecordNotFound, "Attachment file not found" unless attachment.file.attached?
+
+          render json: attachment_content_json(attachment)
+        end
+
         def create
           job = find_job
           created, errors = create_attachments(job)
@@ -127,12 +140,36 @@ module Api
             google_doc_url: attachment.google_doc_url,
             uploaded_file: attachment.uploaded_file?,
             file_path: attachment.file.attached? ? app_file_path(job, attachment) : nil,
+            content_path: attachment.file.attached? ? app_content_path(job, attachment) : nil,
             app_delete_path: "/api/v1/app/jobs/#{job.id}/attachments/#{attachment.id}"
           }
         end
 
         def app_file_path(job, attachment)
           "/api/v1/app/jobs/#{job.id}/attachments/#{attachment.id}/file"
+        end
+
+        def app_content_path(job, attachment)
+          "/api/v1/app/jobs/#{job.id}/attachments/#{attachment.id}/content"
+        end
+
+        def attachment_content_json(attachment)
+          size = attachment.byte_size
+          if size && size > Document::MAX_PREVIEW_SIZE
+            return { path: attachment.filename, content: nil, binary: false, too_large: true, size: size }
+          end
+
+          raw = attachment.file.download
+          if raw.include?("\x00")
+            return { path: attachment.filename, content: nil, binary: true, too_large: false }
+          end
+
+          {
+            path: attachment.filename,
+            content: raw.encode(Encoding::UTF_8, invalid: :replace, undef: :replace),
+            binary: false,
+            too_large: false
+          }
         end
 
         def broadcast_attachment_change(job)

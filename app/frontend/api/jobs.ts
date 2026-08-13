@@ -350,8 +350,21 @@ export type JobAttachment = {
   google_doc_url: string | null
   uploaded_file: boolean
   file_path: string | null
+  content_path: string | null
   created_at: string | null
   app_delete_path: string
+}
+
+export type JobAttachmentContent = {
+  path: string | null
+  content: string | null
+  binary: boolean
+  too_large: boolean
+  size?: number
+}
+
+export function fetchJobAttachmentContent(contentPath: string) {
+  return getJson<JobAttachmentContent>(contentPath)
 }
 
 export type JobSummary = {

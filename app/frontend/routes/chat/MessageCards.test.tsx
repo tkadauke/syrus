@@ -140,7 +140,7 @@ describe("chat workspace source links", () => {
 
     fireEvent.click(screen.getByRole("link", { name: "user" }))
 
-    expect(await screen.findByRole("dialog", { name: /source preview/i })).toBeInTheDocument()
+    expect(await screen.findByRole("dialog", { name: /file preview/i })).toBeInTheDocument()
     expect(fetchSourceFileContent).toHaveBeenCalledWith("/api/v1/app/chats/122/source_file", "app/models/user.rb")
     expect(screen.getByText("app/models/user.rb")).toBeInTheDocument()
     expect(screen.getByText("Line 2")).toBeInTheDocument()

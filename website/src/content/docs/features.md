@@ -17,6 +17,13 @@ Jobs show the repository, source prompt, state, priority, credential mode,
 agent provider, active Workflow, past Workflows, transcripts, captured
 diffs, PR link, attachments, dependencies, and logs. Operators can retry,
 cancel, run again, change priority, approve, or inspect the related PR.
+Clicking an uploaded attachment on the Job detail Attachments tab opens it in
+the same file preview popup chat uses for local file references: a Raw button
+opens the underlying file in a new tab, markdown files render as markdown
+with a Source toggle, and other text files get syntax highlighting. Google
+Doc attachments stay a plain external link; binary uploads (images, PDFs,
+Office documents) open the popup but show a "cannot be previewed" state with
+the Raw button still available.
 Dashboard Kanban boards for Jobs, Epics, and Workflows load cards per lane and
 show a Load more control whenever older cards exist beyond the loaded window.
 The Jobs and Epics dashboards also include a desktop-only Dependencies graph

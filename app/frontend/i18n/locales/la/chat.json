@@ -225,6 +225,7 @@
   "job_status_show_closed": "Clausa monstrare",
   "aria_chat": "Colloquium",
   "aria_close_image": "Praevisionem imaginis claudere",
+  "source_preview_unavailable": "Praevisio fontis huic sermoni non praesto est.",
   "ph_search_proposals": "Proposita quaerere",
   "ph_search_jobs": "Opera quaerere",
   "ph_search_epics": "Epica quaerere",

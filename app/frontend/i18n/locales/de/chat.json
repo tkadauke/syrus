@@ -225,6 +225,7 @@
   "job_status_show_closed": "Abgeschlossene anzeigen",
   "aria_chat": "Chat",
   "aria_close_image": "Bildvorschau schließen",
+  "source_preview_unavailable": "Quellcode-Vorschau ist für diesen Chat nicht verfügbar.",
   "ph_search_proposals": "Vorschläge suchen",
   "ph_search_jobs": "Jobs suchen",
   "ph_search_epics": "Epics suchen",

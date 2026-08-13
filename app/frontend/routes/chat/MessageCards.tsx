@@ -6,6 +6,7 @@ import { Link } from "react-router-dom"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
 import { createChatBookmark, fetchSourceFileContent, sourceFileUrl, type ChatMessageItem, type ChatPayload, type ChatRenderItem, type ChatStructuredTool, type ChatSystemMessage, type ChatToolGroupItem } from "../../api/chats"
 import { CloseIcon } from "../../components/CloseIcon"
+import { FilePreviewModal } from "../../components/FilePreviewModal"
 import { Markdown, PlainText } from "../../lib/Markdown"
 import { linkifySlugs } from "../../lib/linkifySlugs"
 import { highlightCode, inferToolResultLanguage } from "../../lib/syntaxHighlight"
@@ -80,7 +81,7 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
           {!readOnly && item.proposal ? <ProposalCard proposal={item.proposal} prefix={prefix} queryKey={queryKey} onNotice={onNotice} /> : null}
           {!readOnly && !item.proposal && item.pending_action && !pendingActionIds.has(item.pending_action.id) ? <PendingActionCard pendingAction={item.pending_action} queryKey={queryKey} onNotice={onNotice} /> : null}
         </div>
-        {sourcePreview ? <SourcePreviewModal link={sourcePreview} payload={payload} onClose={() => setSourcePreview(null)} /> : null}
+        {sourcePreview ? <ChatSourcePreviewModal link={sourcePreview} payload={payload} onClose={() => setSourcePreview(null)} /> : null}
       </article>
     )
   }
@@ -225,13 +226,11 @@ function splitLineSuffix(value: string): WorkspaceFileLink {
   return { path: match[1], line: Number.parseInt(match[2], 10) }
 }
 
-function SourcePreviewModal({ link, payload, onClose }: { link: WorkspaceFileLink; payload: ChatPayload; onClose: () => void }) {
-  const [mode, setMode] = useState<"preview" | "source">("preview")
-  const bodyRef = useRef<HTMLDivElement>(null)
+function ChatSourcePreviewModal({ link, payload, onClose }: { link: WorkspaceFileLink; payload: ChatPayload; onClose: () => void }) {
+  const { t } = useT("chat")
   const sourcePath = payload.paths.app_source_file_path
   const rawBasePath = payload.paths.app_source_file_raw_path
   const rawHref = rawBasePath ? sourceFileUrl(rawBasePath, link.path) : "#"
-  const markdown = isMarkdownPath(link.path)
 
   const fileContent = useQuery({
     queryKey: ["chat_source_file", sourcePath, link.path],
@@ -239,102 +238,15 @@ function SourcePreviewModal({ link, payload, onClose }: { link: WorkspaceFileLin
     enabled: !!sourcePath
   })
 
-  useEffect(() => {
-    const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
-    }
-
-    window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
-  }, [onClose])
-
-  useEffect(() => {
-    if (!link.line || mode !== "source" || !fileContent.data) return
-    const row = bodyRef.current?.querySelector(`[data-source-line="${link.line}"]`)
-    row?.scrollIntoView({ block: "center" })
-  }, [fileContent.data, link.line, mode])
-
-  const showSource = !markdown || mode === "source"
-  const title = link.line ? `${link.path}:${link.line}` : link.path
-
   return (
-    <div className="fixed inset-0 z-50 flex h-[100dvh] w-[100dvw] items-stretch justify-center bg-gray-950/40 p-0 sm:items-center sm:p-4" onClick={onClose} role="presentation">
-      <section
-        aria-label={`Source preview for ${title}`}
-        aria-modal="true"
-        className="flex h-[100dvh] w-[100dvw] flex-col overflow-hidden bg-white shadow-2xl sm:h-[min(82dvh,52rem)] sm:w-[min(92dvw,72rem)] sm:rounded-lg dark:bg-gray-950"
-        onClick={(event) => event.stopPropagation()}
-        role="dialog"
-      >
-        <header className="sticky top-0 z-10 flex shrink-0 items-center gap-3 border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950">
-          <div className="min-w-0 flex-1">
-            <h2 className="truncate font-mono text-sm font-semibold text-gray-900 dark:text-gray-100">{link.path}</h2>
-            {link.line ? <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Line {link.line}</p> : null}
-          </div>
-          {markdown ? (
-            <div className="flex rounded border border-gray-200 p-0.5 text-xs dark:border-gray-700">
-              <button className={`rounded px-2 py-1 ${mode === "preview" ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900" : "text-gray-600 dark:text-gray-300"}`} onClick={() => setMode("preview")} type="button">Preview</button>
-              <button className={`rounded px-2 py-1 ${mode === "source" ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900" : "text-gray-600 dark:text-gray-300"}`} onClick={() => setMode("source")} type="button">Source</button>
-            </div>
-          ) : null}
-          <a className="rounded border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900" href={rawHref} rel="noreferrer" target="_blank">Open raw</a>
-          <button aria-label="Close source preview" className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-gray-300 dark:hover:bg-gray-900 dark:hover:text-white" onClick={onClose} type="button">
-            <CloseIcon className="h-4 w-4" />
-          </button>
-        </header>
-        <div className="min-h-0 flex-1 overflow-auto" ref={bodyRef}>
-          {!sourcePath ? (
-            <SourcePreviewState message="Source preview is not available for this chat." />
-          ) : fileContent.isPending ? (
-            <SourcePreviewState message="Loading file..." />
-          ) : fileContent.isError ? (
-            <SourcePreviewState tone="error" message={errorMessage(fileContent.error, "File could not be loaded.")} />
-          ) : fileContent.data.binary ? (
-            <SourcePreviewState message="Binary files cannot be previewed." />
-          ) : fileContent.data.too_large ? (
-            <SourcePreviewState message="This file is too large to preview. Use Open raw to inspect it directly." />
-          ) : markdown && !showSource ? (
-            <div className="mx-auto max-w-4xl px-5 py-4">
-              <Markdown className="text-gray-800 dark:text-gray-100" text={fileContent.data.content ?? ""} />
-            </div>
-          ) : (
-            <SourceCodeTable content={fileContent.data.content ?? ""} path={link.path} targetLine={link.line} />
-          )}
-        </div>
-      </section>
-    </div>
-  )
-}
-
-function SourcePreviewState({ message, tone = "neutral" }: { message: string; tone?: "neutral" | "error" }) {
-  return <div className={`flex min-h-full items-center justify-center px-4 py-10 text-sm ${tone === "error" ? "text-red-600 dark:text-red-400" : "text-gray-500 dark:text-gray-400"}`}>{message}</div>
-}
-
-function isMarkdownPath(path: string) {
-  return /\.(md|markdown|mdown|mkdn)$/i.test(path)
-}
-
-function SourceCodeTable({ content, path, targetLine }: { content: string; path: string; targetLine: number | null }) {
-  const language = inferToolResultLanguage(path, "Read")
-  const lines = content.split("\n")
-
-  return (
-    <table className="min-w-full border-separate border-spacing-0 font-mono text-xs" data-testid="source-preview-code">
-      <tbody>
-        {lines.map((line, index) => {
-          const lineNum = index + 1
-          const targeted = targetLine === lineNum
-          return (
-            <tr className={targeted ? "bg-yellow-100 dark:bg-yellow-950/50" : "bg-white dark:bg-gray-950"} data-source-line={lineNum} key={lineNum}>
-              <td className="w-12 select-none border-r border-gray-100 px-2 py-0.5 text-right text-xs text-gray-400 dark:border-gray-800 dark:text-gray-600">{lineNum}</td>
-              <td className="min-w-[40rem] whitespace-pre px-3 py-0.5 leading-relaxed text-gray-900 dark:text-gray-100">
-                {language ? highlightCode(line || " ", language) : line || " "}
-              </td>
-            </tr>
-          )
-        })}
-      </tbody>
-    </table>
+    <FilePreviewModal
+      line={link.line}
+      onClose={onClose}
+      path={link.path}
+      query={fileContent}
+      rawHref={rawHref}
+      unavailableMessage={sourcePath ? null : t("source_preview_unavailable")}
+    />
   )
 }
 

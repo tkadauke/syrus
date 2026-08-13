@@ -8,6 +8,18 @@
   "show_more": "Mehr anzeigen",
   "show_less": "Weniger anzeigen",
   "workflows": "Arbeitsabläufe",
+  "file_preview": {
+    "dialog_label": "Dateivorschau für {{title}}",
+    "line": "Zeile {{line}}",
+    "mode_preview": "Vorschau",
+    "mode_source": "Quelltext",
+    "open_raw": "Rohdatei öffnen",
+    "close": "Dateivorschau schließen",
+    "loading": "Datei wird geladen...",
+    "load_error": "Datei konnte nicht geladen werden.",
+    "binary": "Binärdateien können nicht angezeigt werden.",
+    "too_large": "Diese Datei ist zu groß für die Vorschau. Nutze „Rohdatei öffnen“, um sie direkt anzusehen."
+  },
   "onboarding": {
     "loading": "Setup-Status wird geladen...",
     "setup_label": "Ersteinrichtung",
