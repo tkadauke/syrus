@@ -207,7 +207,7 @@ describe("EpicPreviewCard", () => {
     expect(screen.getByText("✓")).toBeInTheDocument()
   })
 
-  it("shows partial count badge when reached_count is less than total", async () => {
+  it("shows a half-filled circle and the reached/total count when jobs disagree on a stage", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
       ...epicPayload({ state: "done" }),
       deployment_stages: [
@@ -216,7 +216,25 @@ describe("EpicPreviewCard", () => {
     }))
     renderCard(7)
     await waitFor(() => expect(screen.getByTestId("epic-deployment-stage-pipeline")).toBeInTheDocument())
-    expect(screen.getByText("3/5")).toBeInTheDocument()
+    const pipeline = screen.getByTestId("epic-deployment-stage-pipeline")
+    const partialStage = pipeline.querySelector("li[data-state='partial']")
+    expect(partialStage).not.toBeNull()
+    expect(partialStage!.querySelector(".w-1\\/2")).not.toBeNull()
+    expect(screen.getByText("3/5 Jobs")).toBeInTheDocument()
+  })
+
+  it("shows an empty circle for a stage no landed job has reached", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      ...epicPayload({ state: "done" }),
+      deployment_stages: [
+        { name: "public", label: "Released to Public", reached_count: 0, total: 5, reached_at: null }
+      ]
+    }))
+    renderCard(7)
+    await waitFor(() => expect(screen.getByTestId("epic-deployment-stage-pipeline")).toBeInTheDocument())
+    const pipeline = screen.getByTestId("epic-deployment-stage-pipeline")
+    expect(pipeline.querySelector("li[data-state='pending']")).not.toBeNull()
+    expect(screen.getByText("Pending")).toBeInTheDocument()
   })
 
   it("does not render deployment stage row when deployment_stages is absent", async () => {
