@@ -196,6 +196,9 @@ module Syrus
         record.disableable = disableable if record.has_attribute?(:disableable)
         record.config = record.config.to_h.merge("manifest" => metadata)
         record.enabled = true if !disableable && !record.enabled?
+        record.display_name = metadata[:display_name] if record.has_attribute?(:display_name)
+        record.description = metadata[:description] if record.has_attribute?(:description)
+        record.category = metadata[:category] if record.has_attribute?(:category)
         record.save!
       end
 

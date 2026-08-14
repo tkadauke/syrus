@@ -819,6 +819,8 @@ enabled state, default enabled policy, disableability, category, extension
 point classes, and basic author/source metadata when available. Disableable
 installed plugins can be toggled live for new requests and sidecars. Installing
 or removing plugins still requires changing the Gemfile and restarting Syrus.
+A search box filters the list by name, description, and category — a simple
+full text search, not a full search-engine integration.
 
 ## Tailscale
 

@@ -25,6 +25,16 @@ when available, and every class registered for an extension point. Disableable
 installed plugins can be enabled or disabled live; new requests and sidecars use
 the latest `PluginRecord` state through `PluginRegistry.providers_for`.
 
+The page's search box filters plugins by name, display name, description, and
+category via a `q` query param on `GET /api/v1/app/admin/plugins` (and the
+bearer-token `GET /api/v1/admin/plugins`). `PluginRecord` mirrors those
+manifest fields onto plain columns (kept in sync by
+`Syrus::PluginRegistry.upsert_plugin_record!`) so the search can run as a real
+MySQL `FULLTEXT` `MATCH ... AGAINST` query in production; SQLite (dev/test)
+falls back to a `LIKE` scan via `PluginRecord.search`. This is a plain
+per-table full text search, not the SQLite FTS5 `SearchRecord` search engine
+used for Jobs/Epics/chat/operational logs.
+
 Installation and enablement are deliberately separate. Installed plugin gems are
 loaded at boot, so their Ruby code, controllers, frontend modules, and i18n
 files are available after deploy/restart. Runtime enablement only decides

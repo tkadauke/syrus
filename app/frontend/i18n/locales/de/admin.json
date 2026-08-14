@@ -286,6 +286,10 @@
     "no_extension_points": "Keine Erweiterungspunkte registriert.",
     "aria_plugins": "Admin-Plugins",
     "list_aria": "Registrierte Plugins",
+    "search_placeholder": "Plugins durchsuchen...",
+    "search_aria": "Plugins durchsuchen",
+    "no_results_heading": "Keine Plugins entsprechen Ihrer Suche",
+    "no_results_body": "Versuchen Sie einen anderen Namen, eine andere Beschreibung oder Kategorie.",
     "extension_points": {
       "agent_provider": "agent_provider",
       "mcp_tool_set": "mcp_tool_set",

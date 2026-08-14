@@ -31,8 +31,11 @@ export type AdminPluginsPayload = {
   plugins: AdminPlugin[]
 }
 
-export function fetchAdminPlugins() {
-  return getJson<AdminPluginsPayload>("/api/v1/app/admin/plugins")
+export function fetchAdminPlugins(query = "") {
+  const params = new URLSearchParams()
+  if (query.trim()) params.set("q", query.trim())
+  const search = params.toString()
+  return getJson<AdminPluginsPayload>(`/api/v1/app/admin/plugins${search ? `?${search}` : ""}`)
 }
 
 export function enableAdminPlugin(name: string) {

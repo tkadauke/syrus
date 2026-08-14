@@ -111,6 +111,42 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     )
   end
 
+  it "filters plugins by a full text search query" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(
+      name: "search-target-plugin",
+      display_name: "Weather Radar",
+      version: "1.0.0",
+      description: "Watches storms roll in.",
+      category: "monitoring",
+      provides: { agent_provider: AdminPluginsSpec::AvailableProvider }
+    )
+    Syrus::PluginRegistry.register(
+      name: "search-other-plugin",
+      display_name: "Ticket Sync",
+      version: "1.0.0",
+      description: "Keeps issues in sync.",
+      category: "integration"
+    )
+
+    get "/api/v1/app/admin/plugins", params: { q: "storms" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("plugins").map { |p| p["name"] }).to eq([ "search-target-plugin" ])
+  end
+
+  it "returns every plugin when the search query is blank" do
+    sign_in_as(admin)
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(name: "blank-query-plugin", version: "1.0.0")
+
+    get "/api/v1/app/admin/plugins", params: { q: "" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("plugins").map { |p| p["name"] }).to eq([ "blank-query-plugin" ])
+  end
+
   it "handles zero plugins gracefully" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!

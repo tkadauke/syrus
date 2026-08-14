@@ -1,17 +1,28 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
-import type { ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { disableAdminPlugin, enableAdminPlugin, fetchAdminPlugins, type AdminPlugin, type AdminPluginExtensionPoint } from "../api/adminPlugins"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import * as pageReload from "../lib/pageReload"
 
+const SEARCH_DEBOUNCE_MS = 300
+
 export function AdminPlugins() {
   const { t } = useT("admin")
   usePageTitle(t("page_title_plugins"))
+  const [search, setSearch] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+
+  useEffect(() => {
+    const handle = setTimeout(() => setDebouncedSearch(search), SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(handle)
+  }, [search])
+
   const plugins = useQuery({
-    queryKey: ["admin", "plugins"],
-    queryFn: fetchAdminPlugins
+    queryKey: ["admin", "plugins", debouncedSearch],
+    queryFn: () => fetchAdminPlugins(debouncedSearch),
+    placeholderData: (previousData) => previousData
   })
 
   return (
@@ -21,20 +32,33 @@ export function AdminPlugins() {
         <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("plugins.heading")}</h1>
       </header>
 
+      <input
+        aria-label={t("plugins.search_aria")}
+        className="w-full max-w-sm rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder={t("plugins.search_placeholder")}
+        type="search"
+        value={search}
+      />
+
       {plugins.isPending ? <PanelMessage>{t("plugins.loading")}</PanelMessage> : null}
       {plugins.isError ? <PanelMessage tone="error">{errorMessage(plugins.error, t("plugins.error_load"))}</PanelMessage> : null}
-      {plugins.isSuccess ? <PluginsView plugins={plugins.data.plugins} /> : null}
+      {plugins.isSuccess ? <PluginsView isFiltered={debouncedSearch.trim().length > 0} plugins={plugins.data.plugins} /> : null}
     </main>
   )
 }
 
-function PluginsView({ plugins }: { plugins: AdminPlugin[] }) {
+function PluginsView({ plugins, isFiltered }: { plugins: AdminPlugin[]; isFiltered: boolean }) {
   const { t } = useT("admin")
   if (plugins.length === 0) {
     return (
       <section className="rounded border border-dashed border-gray-300 bg-white p-8 text-center dark:border-gray-700 dark:bg-gray-900">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("plugins.no_plugins_heading")}</h2>
-        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{t("plugins.no_plugins_body")}</p>
+        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+          {isFiltered ? t("plugins.no_results_heading") : t("plugins.no_plugins_heading")}
+        </h2>
+        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+          {isFiltered ? t("plugins.no_results_body") : t("plugins.no_plugins_body")}
+        </p>
       </section>
     )
   }

@@ -1,6 +1,26 @@
 class PluginRecord < ApplicationRecord
+  SEARCH_COLUMNS = %w[name display_name description category].freeze
+
   validates :name, presence: true, uniqueness: true
   validate :enabled_plugin_is_disableable
+
+  # Simple full text search over the manifest fields we mirror onto plain
+  # columns (see Syrus::PluginRegistry.upsert_plugin_record!). MySQL gets a
+  # real FULLTEXT MATCH ... AGAINST query (index added in
+  # db/migrate/20260814142224_add_search_fields_to_plugin_records.rb);
+  # sqlite (dev/test) falls back to a LIKE scan since it has no FULLTEXT
+  # index type.
+  def self.search(query)
+    query = query.to_s.strip
+    return all if query.blank?
+
+    if connection.adapter_name.downcase.include?("mysql")
+      where("MATCH(#{SEARCH_COLUMNS.join(', ')}) AGAINST (?)", query)
+    else
+      like = "%#{sanitize_sql_like(query)}%"
+      where(SEARCH_COLUMNS.map { |column| "#{column} LIKE ? ESCAPE '\\'" }.join(" OR "), *[ like ] * SEARCH_COLUMNS.size)
+    end
+  end
 
   # Installation means the gem's engine registered during this boot. Enabling and
   # disabling installed plugins takes effect for new requests because registry

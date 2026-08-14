@@ -1,8 +1,13 @@
 module Admin
   class PluginsPayload
+    def initialize(query: nil)
+      @query = query
+    end
+
     def as_json(*)
       PerformanceLogging.phase("admin_plugins_payload") do
         manifests = Syrus::PluginRegistry.all_plugins
+        manifests = filter_by_query(manifests) if @query.present?
         records = PluginRecord.where(name: manifests.map(&:name)).index_by(&:name)
         {
           plugins: manifests.map { |manifest| plugin_payload(manifest, records[manifest.name]) }
@@ -11,6 +16,13 @@ module Admin
     end
 
     private
+
+    def filter_by_query(manifests)
+      matching_names = PerformanceLogging.phase("admin_plugins_payload.search", query: @query) do
+        PluginRecord.search(@query).pluck(:name).to_set
+      end
+      manifests.select { |manifest| matching_names.include?(manifest.name) }
+    end
 
     def plugin_payload(manifest, record = nil)
       PerformanceLogging.phase("admin_plugins.plugin", plugin: manifest.name) do

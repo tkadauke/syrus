@@ -30,6 +30,29 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
     expect(parse_body.fetch("plugins").sole).to include("name" => "api-plugin", "version" => "2.0.0")
   end
 
+  it "filters plugins by a full text search query" do
+    admin_token
+    Syrus::PluginRegistry.reset!
+    Syrus::PluginRegistry.register(
+      name: "api-search-target-plugin",
+      display_name: "Weather Radar",
+      version: "1.0.0",
+      description: "Watches storms roll in.",
+      provides: { agent_provider: AdminPluginsSpec::AvailableProvider }
+    )
+    Syrus::PluginRegistry.register(
+      name: "api-search-other-plugin",
+      display_name: "Ticket Sync",
+      version: "1.0.0",
+      description: "Keeps issues in sync."
+    )
+
+    get "/api/v1/admin/plugins", params: { q: "storms" }, headers: auth
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("plugins").map { |p| p["name"] }).to eq([ "api-search-target-plugin" ])
+  end
+
   it "toggles installed plugins through the token admin API" do
     admin_token
     Syrus::PluginRegistry.reset!

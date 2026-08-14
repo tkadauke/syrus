@@ -3,7 +3,7 @@ module Api
     module Admin
       class PluginsController < BaseController
         def index
-          render json: ::Admin::PluginsPayload.new.as_json
+          render json: ::Admin::PluginsPayload.new(query: params[:q]).as_json
         end
 
         def enable

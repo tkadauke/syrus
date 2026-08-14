@@ -200,6 +200,43 @@ describe("AdminPlugins", () => {
     expect(screen.getByText("Active workflows use Claude Code: 6")).toBeInTheDocument()
   })
 
+  it("searches plugins by query and shows a filtered empty state", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = String(input)
+      if (url.includes("q=storm")) {
+        return Promise.resolve(jsonResponse({ plugins: [] }))
+      }
+      return Promise.resolve(jsonResponse({
+        plugins: [
+          {
+            name: "codex_agent",
+            display_name: "Codex Agent",
+            disable_blockers: [],
+            version: "1.2.3",
+            enabled: true,
+            disableable: true,
+            default_enabled: true,
+            description: "Codex agent provider",
+            homepage: null,
+            author: null,
+            source: null,
+            extension_points: []
+          }
+        ]
+      }))
+    })
+
+    renderRoute(<AdminPlugins />)
+
+    await screen.findByRole("region", { name: "Registered plugins" })
+
+    fireEvent.change(screen.getByPlaceholderText("Search plugins..."), { target: { value: "storm" } })
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("q=storm"), expect.anything()))
+    expect(await screen.findByText("No plugins match your search")).toBeInTheDocument()
+    expect(screen.getByText("Try a different name, description, or category.")).toBeInTheDocument()
+  })
+
   it("shows an empty state when no plugins are registered", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ plugins: [] }))
 
