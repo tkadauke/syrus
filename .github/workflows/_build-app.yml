@@ -295,7 +295,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: cli/go.mod
           # setup-go's default cache lookup expects go.sum at the repo ROOT;
@@ -414,7 +414,7 @@ jobs:
       # soft-skip) and every in-app CLI/skill install died with ENOENT. The
       # script now hard-fails under SYRUS_RELEASE_BUILD=1; this pinned
       # toolchain (same source of truth as build-cli) makes it never trigger.
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: cli/go.mod
           # setup-go's default cache lookup expects go.sum at the repo ROOT;
@@ -662,7 +662,7 @@ jobs:
       # with build-mac/build-cli and determinism over runner-image drift. The
       # desktop build needs it to bundle the CLI (stage-cli.mjs hard-fails
       # without it under SYRUS_RELEASE_BUILD=1).
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: cli/go.mod
           # setup-go's default cache lookup expects go.sum at the repo ROOT;
