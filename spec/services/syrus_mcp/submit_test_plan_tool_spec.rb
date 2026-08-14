@@ -27,7 +27,9 @@ RSpec.describe Mcp::Tools::SubmitTestPlanTool do
 
     expect(run.workflow.reload.artifact("test_plan")).to eq(
       "steps" => [ "Run bin/rspec", "Open the PR and inspect ## Test Plan." ],
-      "notes" => "Covers the new MCP handoff."
+      "notes" => "Covers the new MCP handoff.",
+      "visual_review_recommended" => nil,
+      "visual_review_reason" => nil
     )
   end
 
@@ -35,8 +37,42 @@ RSpec.describe Mcp::Tools::SubmitTestPlanTool do
     call(steps: [ "Run ● spec".b, "  " ], notes: "Review ● output.".b)
 
     artifact = run.workflow.reload.artifact("test_plan")
-    expect(artifact).to eq("steps" => [ "Run ● spec" ], "notes" => "Review ● output.")
+    expect(artifact).to eq(
+      "steps" => [ "Run ● spec" ],
+      "notes" => "Review ● output.",
+      "visual_review_recommended" => nil,
+      "visual_review_reason" => nil
+    )
     expect(artifact["steps"].first.encoding).to eq(Encoding::UTF_8)
+  end
+
+  it "persists the implementer's visual_review recommendation and reason" do
+    described_class.call(
+      steps: [ "Open /dashboard and check the new banner." ],
+      notes: nil,
+      visual_review_recommended: true,
+      visual_review_reason: "Added a new banner to the dashboard header.",
+      server_context: { run: run }
+    )
+
+    expect(run.workflow.reload.artifact("test_plan")).to include(
+      "visual_review_recommended" => true,
+      "visual_review_reason" => "Added a new banner to the dashboard header."
+    )
+  end
+
+  it "normalizes binary-tagged UTF-8 in visual_review_reason" do
+    described_class.call(
+      steps: [ "Run bin/rspec" ],
+      notes: nil,
+      visual_review_recommended: false,
+      visual_review_reason: "  Backend-only change ●.  ".b,
+      server_context: { run: run }
+    )
+
+    artifact = run.workflow.reload.artifact("test_plan")
+    expect(artifact["visual_review_reason"]).to eq("Backend-only change ●.")
+    expect(artifact["visual_review_reason"].encoding).to eq(Encoding::UTF_8)
   end
 
   it "rejects an empty steps list" do

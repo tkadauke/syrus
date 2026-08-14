@@ -84,6 +84,8 @@ class McpToolContext
       AgentRole::WORKFLOW_SUMMARY_TEST_PLAN
     when "adversarial_review"
       AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER
+    when "visual_review"
+      AgentRole::WORKFLOW_VISUAL_REVIEWER
     when "agent_insight_run"
       AgentRole::AGENT_INSIGHT
     else

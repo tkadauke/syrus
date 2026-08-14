@@ -81,6 +81,8 @@ class Step
       Entry.new(kind: "implement",          handler: "Implement",          label: "Implement",                  style: "bg-blue-100 text-blue-700",   agentic: true),
       Entry.new(kind: "adversarial_review", handler: "AdversarialReview",  label: "Adversarial review",        style: "bg-rose-100 text-rose-700",   agentic: true,
                 required_mcp_tools: %w[submit_adversarial_review]),
+      Entry.new(kind: "visual_review",      handler: "VisualReview",      label: "Visual review",             style: "bg-pink-100 text-pink-700",   agentic: true,
+                required_mcp_tools: %w[submit_visual_review]),
       Entry.new(kind: "summarize",          handler: "Summarize",          label: "Summarize",                  style: "bg-indigo-100 text-indigo-700", agentic: true,
                 required_mcp_tools: %w[submit_summary]),
       Entry.new(kind: "test_plan",          handler: "TestPlan",           label: "Test plan",                  style: "bg-sky-100 text-sky-700",     agentic: true,

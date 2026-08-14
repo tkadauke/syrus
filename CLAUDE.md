@@ -89,11 +89,11 @@ sweeps old terminal workspaces after 7 days.
 Current chains:
 
 ```
-initial:     prepare → [loop(implement → adversarial_review)] → retry_until(implement → graders) → coverage_analyze → summarize → test_plan → pr_open
-pr_comment:  prepare → [loop(respond → adversarial_review)] → retry_until(respond → graders) → coverage_analyze → coverage_pr_comment → summarize_amend → refresh_job_metadata → try(push)
-chat_feedback: prepare → [loop(respond → adversarial_review)] → retry_until(respond → graders) → coverage_analyze → coverage_pr_comment → summarize_amend → refresh_job_metadata → try(push)
+initial:     prepare → [loop(implement → adversarial_review)] → [loop(implement → visual_review)] → retry_until(implement → graders) → coverage_analyze → summarize → test_plan → pr_open
+pr_comment:  prepare → [loop(respond → adversarial_review)] → [loop(respond → visual_review)] → retry_until(respond → graders) → coverage_analyze → coverage_pr_comment → summarize_amend → refresh_job_metadata → try(push)
+chat_feedback: prepare → [loop(respond → adversarial_review)] → [loop(respond → visual_review)] → retry_until(respond → graders) → coverage_analyze → coverage_pr_comment → summarize_amend → refresh_job_metadata → try(push)
 ci_failure:  prepare → retry_until(analyze_and_fix → graders) → summarize_amend → try(push)
-retry:       prepare → [loop(implement → adversarial_review)] → retry_until(implement → graders) → coverage_analyze → summarize → test_plan → pr_open
+retry:       prepare → [loop(implement → visual_review)] → retry_until(implement → graders) → coverage_analyze → summarize → test_plan → pr_open
 rebase:      auto_rebase → agent_rebase → force_push
 stack_rebase: stack_auto_rebase → stack_agent_rebase → stack_force_push
 auto_merge:  mergeability_preflight → prepare → retry_until(graders, repair: landing_fix) → push → auto_merge
@@ -103,7 +103,7 @@ external_pr_ingest (same-repo): prepare → retry_until(graders, repair: landing
 external_pr_ingest (fork):      prepare → grader_fanout → grader_collect
 ```
 
-`[loop(...)]` steps are conditional: the `adversarial_review` loop only appears when `adversarial_review_rounds > 0` (per `.syrus.yml` or `AppSetting`); `coverage_analyze` only appears when a coverage plan is configured for the repository.
+`[loop(...)]` steps are conditional: the `adversarial_review` loop only appears when `adversarial_review_rounds > 0` (per `.syrus.yml` or `AppSetting`); the `visual_review` loop only appears when `visual_review.enabled` is true (per `.syrus.yml` or `AppSetting.visual_review_enabled?`); `coverage_analyze` only appears when a coverage plan is configured for the repository.
 
 Key steps:
 
@@ -182,14 +182,33 @@ Key steps:
 - **`adversarial_review`** — Independent critic agent that reads the issue
   and the diff from the preceding `implement` (or `respond`) step, then calls
   `submit_adversarial_review(verdict, critique)`. Verdict `approved` exits the
-  loop (findings carry forward but no re-implement needed); `needs_work` feeds
-  findings back to the next `implement`/`respond` iteration via `prior_findings`
-  in the prompt. The reviewer's workspace changes are discarded — it is
-  read-only. Runs in feedback workflows (`pr_comment`, `chat_feedback`) as
-  well as `initial`/`retry`; skipped in `ci_failure`, `auto_merge`, and
-  maintenance workflows. `.syrus.yml` accepts an optional `criteria` array in
-  the `adversarial_review` block to inject repository-specific checklist items
+  loop (findings carry forward but no re-implement needed); `needs_work` keeps
+  the loop going for another `implement`/`respond` iteration. The reviewer's
+  workspace changes are discarded — it is read-only. Runs in feedback
+  workflows (`pr_comment`, `chat_feedback`) and `initial`; not currently wired
+  into `retry`; skipped in `ci_failure`, `auto_merge`, and maintenance
+  workflows. `.syrus.yml` accepts an optional `criteria` array in the
+  `adversarial_review` block to inject repository-specific checklist items
   into the reviewer prompt (additive — the default checklist still runs).
+- **`visual_review`** — Independent QA agent that drives a headless browser
+  (via the browser MCP tool set) against its own `start_preview` instance to
+  catch visible defects, then calls `submit_visual_review(verdict, critique)`.
+  Verdicts: `approved` (looks correct), `needs_work` (keeps the loop going for
+  another `implement`/`respond` iteration), `skipped` (not visually testable —
+  exits the loop the same as `approved`). Before spending an agent turn, a
+  deterministic `visual_review.when_files_changed` pre-filter can skip the
+  step outright (mirrors `grader_fanout`'s glob matching). When it does run,
+  the agent reads the `submit_test_plan` artifact's `visual_review_recommended`
+  / `visual_review_reason` fields (set by the implementing agent) as a hint,
+  but makes its own independent go/no-go call before launching a preview; on
+  go, it reads `visual_review.seed_notes`, may run ad hoc seed commands via
+  its normal shell access, captures "after" screenshots via
+  `submit_visual_artifact`, and always calls `stop_preview` before exiting.
+  The reviewer's workspace changes are discarded — it is read-only. Runs
+  immediately after the `adversarial_review` loop, before the grader retry
+  loop, in `initial`, `retry`, `pr_comment`, and `chat_feedback`; gated by
+  `visual_review.enabled` in `.syrus.yml` or `AppSetting.visual_review_enabled?`;
+  skipped in `ci_failure`, `auto_merge`, and maintenance workflows.
 - **`summarize`** / **`summarize_amend`** — Short agentic step that
   asks the agent to call `submit_summary`.
   If the upstream agentic step (`implement` for `summarize`; `respond` or
@@ -238,6 +257,7 @@ rebase-conflict agents; use for structured outputs reviewers can see rendered
 (e.g. `rails_schema_erd`, `rails_migration_diff`);
 `submit_job_metadata(changed:, ...)` — used only by `refresh_job_metadata`;
 `submit_adversarial_review(verdict, critique)` — used by the `adversarial_review` step;
+`submit_visual_review(verdict, critique)` — used by the `visual_review` step;
 `report_main_concern(failing_tests, reason)` — flag broken-main suspicion.
 The config key and binary basename must match (`syrus-mcp-sidecar`) so the
 agent can invoke the tool name registered in the MCP config. See

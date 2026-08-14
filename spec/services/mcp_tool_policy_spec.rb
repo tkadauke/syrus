@@ -62,6 +62,33 @@ RSpec.describe McpToolPolicy do
       expect(tools).not_to include(Mcp::Tools::ReportMainConcernTool)
     end
 
+    it "returns submit_visual_review and submit_visual_artifact but not submit_summary for the visual_reviewer role" do
+      context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_VISUAL_REVIEWER, user: user)
+      tools   = described_class.for(context)
+
+      expect(tools).to include(
+        Mcp::Tools::ReadLiveStateTool,
+        Mcp::Tools::StartPreviewTool,
+        Mcp::Tools::StopPreviewTool,
+        Mcp::Tools::SubmitVisualReviewTool,
+        SyrusMcp::SubmitVisualArtifactTool
+      )
+      expect(tools).not_to include(
+        Mcp::Tools::SubmitSummaryTool,
+        Mcp::Tools::SubmitTestPlanTool,
+        SyrusMcp::SubmitArtifactTool,
+        Mcp::Tools::SubmitAdversarialReviewTool
+      )
+      expect(tools.size).to eq(13)
+    end
+
+    it "excludes report_main_concern from the visual_reviewer role" do
+      context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_VISUAL_REVIEWER, user: user)
+      tools   = described_class.for(context)
+
+      expect(tools).not_to include(Mcp::Tools::ReportMainConcernTool)
+    end
+
     it "includes report_main_concern for the implement role" do
       context = McpToolContext.from_run(run)
       tools   = described_class.for(context)
@@ -133,6 +160,31 @@ RSpec.describe McpToolPolicy do
       it "denies submit_visual_artifact for the adversarial_reviewer role" do
         context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER, user: user)
         expect(described_class.capability_permitted?(context, :submit_visual_artifact)).to be(false)
+      end
+
+      it "permits submit_visual_review for the visual_reviewer role" do
+        context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_VISUAL_REVIEWER, user: user)
+        expect(described_class.capability_permitted?(context, :submit_visual_review)).to be(true)
+      end
+
+      it "denies submit_visual_review for the implement role" do
+        context = McpToolContext.from_run(run)
+        expect(described_class.capability_permitted?(context, :submit_visual_review)).to be(false)
+      end
+
+      it "denies submit_visual_review for the adversarial_reviewer role" do
+        context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER, user: user)
+        expect(described_class.capability_permitted?(context, :submit_visual_review)).to be(false)
+      end
+
+      it "permits submit_visual_artifact for the visual_reviewer role" do
+        context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_VISUAL_REVIEWER, user: user)
+        expect(described_class.capability_permitted?(context, :submit_visual_artifact)).to be(true)
+      end
+
+      it "denies submit_artifact for the visual_reviewer role" do
+        context = McpToolContext.new(surface: :run, role: AgentRole::WORKFLOW_VISUAL_REVIEWER, user: user)
+        expect(described_class.capability_permitted?(context, :submit_artifact)).to be(false)
       end
     end
   end

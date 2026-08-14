@@ -33,10 +33,15 @@ class McpToolPolicy
       AgentRole::WORKFLOW_IMPLEMENT,
       AgentRole::WORKFLOW_SUMMARY_TEST_PLAN,
       AgentRole::WORKFLOW_REBASE_CONFLICT,
-      AgentRole::WORKFLOW_MANUAL
+      AgentRole::WORKFLOW_MANUAL,
+      AgentRole::WORKFLOW_VISUAL_REVIEWER
     ].freeze,
     submit_adversarial_review: [
       AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER,
+      AgentRole::WORKFLOW_MANUAL
+    ].freeze,
+    submit_visual_review:      [
+      AgentRole::WORKFLOW_VISUAL_REVIEWER,
       AgentRole::WORKFLOW_MANUAL
     ].freeze
   }.freeze
@@ -95,11 +100,13 @@ class McpToolPolicy
   private
 
   # Per-step workflow tool set. Submit tools are role-specific so the
-  # adversarial reviewer cannot call submit_summary/submit_test_plan and
-  # non-reviewer roles cannot call submit_adversarial_review.
-  # ReportMainConcernTool is excluded from the adversarial reviewer: it only
-  # sees a diff and cannot distinguish a real main-branch regression from a
-  # transient infrastructure failure, so granting it would produce false quorum signals.
+  # adversarial reviewer cannot call submit_summary/submit_test_plan, the
+  # visual reviewer cannot call submit_summary/submit_test_plan/submit_artifact,
+  # and non-reviewer roles cannot call submit_adversarial_review/submit_visual_review.
+  # ReportMainConcernTool is excluded from both reviewer roles: they only see a
+  # diff (and, for visual review, a running preview) and cannot distinguish a real
+  # main-branch regression from a transient infrastructure failure, so granting it
+  # would produce false quorum signals.
   def workflow_tools
     base = [
       Mcp::Tools::ReadLiveStateTool,
@@ -116,6 +123,8 @@ class McpToolPolicy
     ]
     if @context.role == AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER
       base + [ Mcp::Tools::SubmitAdversarialReviewTool ]
+    elsif @context.role == AgentRole::WORKFLOW_VISUAL_REVIEWER
+      base + [ Mcp::Tools::SubmitVisualReviewTool, SyrusMcp::SubmitVisualArtifactTool ]
     else
       tools = base + [ Mcp::Tools::ReportMainConcernTool, Mcp::Tools::SubmitSummaryTool, Mcp::Tools::SubmitTestPlanTool, SyrusMcp::SubmitArtifactTool, SyrusMcp::SubmitVisualArtifactTool ]
       tools << Mcp::Tools::SubmitJobMetadataTool if @context.run&.step&.kind == "refresh_job_metadata"

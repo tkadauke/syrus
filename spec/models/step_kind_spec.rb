@@ -49,6 +49,10 @@ RSpec.describe Step::Kind do
       expect(described_class.fetch("adversarial_review").required_mcp_tools).to eq(%w[submit_adversarial_review])
     end
 
+    it "returns submit_visual_review for visual_review" do
+      expect(described_class.fetch("visual_review").required_mcp_tools).to eq(%w[submit_visual_review])
+    end
+
     it "returns empty array for non-submission steps" do
       %w[implement respond prepare pr_open push grader grader_collect].each do |kind|
         expect(described_class.fetch(kind).required_mcp_tools).to eq([]),

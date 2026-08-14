@@ -21,6 +21,7 @@ module Workflows
       prepare_then(
         job,
         adversarial_review_loop(job, agent_step: :respond),
+        visual_review_loop(job, agent_step: :respond),
         grader_retry_loop(:respond),
         feedback_finish_steps
       )

@@ -89,6 +89,16 @@ RSpec.describe McpToolRegistry do
       )
     end
 
+    it "keeps the visual reviewer tool set unchanged" do
+      run = Factories.job.initial_run
+      run.step.update_columns(kind: "visual_review")
+      context = McpToolContext.from_run(run.reload)
+
+      expect(tool_names_for(context)).to contain_exactly(
+        *%w[read_live_state read_memory write_memory delete_memory search_memories list_memories get_coverage_report read_run_worker_health start_preview stop_preview read_preview_log report_main_concern submit_visual_review submit_visual_artifact]
+      )
+    end
+
     it "keeps agent insight tools gated by feature flag" do
       run = Factories.job.initial_run
       run.step.update_columns(kind: "agent_insight_run")

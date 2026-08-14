@@ -123,6 +123,13 @@ module Workflows
       Workflows::Loop.new(max_iterations: rounds, steps: [ agent_step, :adversarial_review ])
     end
 
+    def self.visual_review_loop(job, agent_step:)
+      plan = RepoVisualReviewPlan.for_job(job)
+      return nil unless plan.enabled? && plan.rounds.positive?
+
+      Workflows::Loop.new(max_iterations: plan.rounds, steps: [ agent_step, :visual_review ])
+    end
+
     def self.grader_retry_loop(agent_step, max_iterations: AppSetting.grade_max_iterations)
       Workflows::RetryUntil.new(
         max_iterations: max_iterations,

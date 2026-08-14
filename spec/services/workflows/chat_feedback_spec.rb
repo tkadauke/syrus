@@ -9,6 +9,9 @@ RSpec.describe Workflows::ChatFeedback do
     allow(RepoAdversarialReviewPlan).to receive(:for_job).and_return(
       RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "disabled", criteria: [])
     )
+    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
+      RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
+    )
   end
 
   it "materializes the standard chain with coverage steps always present" do
@@ -65,6 +68,38 @@ RSpec.describe Workflows::ChatFeedback do
       expect(ar_respond).not_to be_nil
       expect(retry_respond).not_to be_nil
       expect(ar_respond.loop_id).to eq(review_step.loop_id)
+      expect(retry_respond.loop_id).not_to eq(review_step.loop_id)
+    end
+  end
+
+  context "when visual review is enabled" do
+    before do
+      allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
+        RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
+      )
+    end
+
+    it "inserts a respond/visual_review loop before the grader retry chain" do
+      workflow = described_class.instantiate(job: job)
+
+      kinds = workflow.steps.order(:position).pluck(:kind)
+      expect(kinds).to eq(
+        %w[ prepare respond visual_review respond grader_fanout grader_collect coverage_analyze coverage_pr_comment summarize_amend refresh_job_metadata push ]
+      )
+    end
+
+    it "puts respond and visual_review in the same loop_id, distinct from the retry chain's loop_id" do
+      workflow = described_class.instantiate(job: job)
+
+      review_step   = workflow.steps.find_by!(kind: "visual_review")
+      respond_steps = workflow.steps.order(:position).select { |s| s.kind == "respond" }
+
+      vr_respond    = respond_steps.find { |s| s.loop_id == review_step.loop_id }
+      retry_respond = respond_steps.find { |s| s.loop_id != review_step.loop_id }
+
+      expect(vr_respond).not_to be_nil
+      expect(retry_respond).not_to be_nil
+      expect(vr_respond.loop_id).to eq(review_step.loop_id)
       expect(retry_respond.loop_id).not_to eq(review_step.loop_id)
     end
   end

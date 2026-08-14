@@ -101,6 +101,29 @@ RSpec.describe McpToolContext do
       expect(tools).not_to include(Mcp::Tools::SubmitAdversarialReviewTool)
       expect(tools).to include(Mcp::Tools::SubmitSummaryTool)
     end
+
+    it "assigns WORKFLOW_VISUAL_REVIEWER for visual_review step kind" do
+      run.step.update_columns(kind: "visual_review")
+      context = described_class.from_run(run.reload)
+      expect(context.role).to eq(AgentRole::WORKFLOW_VISUAL_REVIEWER)
+    end
+
+    it "exposes submit_visual_review to a visual_review step" do
+      run.step.update_columns(kind: "visual_review")
+      context = described_class.from_run(run.reload)
+
+      tools = McpToolPolicy.for(context)
+      expect(tools).to include(Mcp::Tools::SubmitVisualReviewTool)
+      expect(tools).not_to include(Mcp::Tools::SubmitSummaryTool)
+    end
+
+    it "does not expose submit_visual_review to a grader step" do
+      run.step.update_columns(kind: "grader")
+      context = described_class.from_run(run.reload)
+
+      tools = McpToolPolicy.for(context)
+      expect(tools).not_to include(Mcp::Tools::SubmitVisualReviewTool)
+    end
   end
 
   describe ".from_chat_session" do

@@ -12,6 +12,10 @@ module Mcp::Tools
       implementation and summary are complete. steps should name exact
       user flows, URLs, commands, and edge cases worth exercising; notes
       may include short context that does not fit naturally as a step.
+      visual_review_recommended and visual_review_reason hand your own
+      opinion to the separate visual_review agent about whether this
+      change is visually testable at all — it treats them as a hint, not
+      a directive.
     DESC
 
     input_schema(
@@ -24,25 +28,36 @@ module Mcp::Tools
         notes: {
           type: "string",
           description: "Optional short context for reviewers."
+        },
+        visual_review_recommended: {
+          type: "boolean",
+          description: "Whether this change is worth a headless-browser visual review pass (true for visible UI/rendering changes, false for backend-only/invisible changes)."
+        },
+        visual_review_reason: {
+          type: "string",
+          description: "Optional short reason supporting visual_review_recommended, e.g. which screens or flows changed."
         }
       },
       required: %w[steps]
     )
 
     class << self
-      def call(steps:, notes: nil, server_context:)
+      def call(steps:, notes: nil, visual_review_recommended: nil, visual_review_reason: nil, server_context:)
         run = Mcp::Tools.run_from_context(server_context)
         context = McpToolContext.from_run(run)
         return Mcp::Tools.not_authorized unless McpToolPolicy.capability_permitted?(context, :submit_test_plan)
 
         normalized_steps = Array(steps).map { |step| Mcp::Tools.utf8(step).strip }.reject(&:empty?)
         normalized_notes = Mcp::Tools.utf8(notes).strip.presence
+        normalized_visual_review_reason = Mcp::Tools.utf8(visual_review_reason).strip.presence
 
         return Mcp::Tools.invalid("steps must include at least one item") if normalized_steps.empty?
 
         run.workflow.set_artifact!("test_plan", {
           steps: normalized_steps,
-          notes: normalized_notes
+          notes: normalized_notes,
+          visual_review_recommended: visual_review_recommended,
+          visual_review_reason: normalized_visual_review_reason
         })
         Mcp::Tools.write_log(run, "[mcp] submit_test_plan received: #{normalized_steps.size} step(s)")
 

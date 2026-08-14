@@ -239,6 +239,7 @@ module App
 
         artifacts.slice(
           "adversarial_review_iterations",
+          "visual_review_iterations",
           "auto_rebase_reason",
           "auto_rebase_result",
           "branch_divergence",

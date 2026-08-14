@@ -12,6 +12,7 @@ module AgentRole
   WORKFLOW_REBASE_CONFLICT          = "workflow:rebase_conflict"
   WORKFLOW_SUMMARY_TEST_PLAN        = "workflow:summary_test_plan"
   WORKFLOW_ADVERSARIAL_REVIEWER     = "workflow:adversarial_reviewer"
+  WORKFLOW_VISUAL_REVIEWER          = "workflow:visual_reviewer"
   WORKFLOW_MANUAL                   = "workflow:manual"
 
   # Infrastructure (future)
@@ -31,6 +32,7 @@ module AgentRole
     WORKFLOW_REBASE_CONFLICT,
     WORKFLOW_SUMMARY_TEST_PLAN,
     WORKFLOW_ADVERSARIAL_REVIEWER,
+    WORKFLOW_VISUAL_REVIEWER,
     WORKFLOW_MANUAL
   ].freeze
 

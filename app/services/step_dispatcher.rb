@@ -627,6 +627,7 @@ class StepDispatcher
 
   def advance!
     return if handle_successful_adversarial_loop_iteration
+    return if handle_successful_visual_review_loop_iteration
 
     next_step = find_next_runnable
     if next_step
@@ -662,15 +663,38 @@ class StepDispatcher
   private
 
   def handle_successful_adversarial_loop_iteration
-    return false unless @from_step&.kind == "adversarial_review"
+    handle_successful_review_loop_iteration(
+      kind: "adversarial_review",
+      artifact_key: "adversarial_review_iterations",
+      exit_verdicts: %w[approved],
+      cancellation_reason: "adversarial_review_approved"
+    )
+  end
+
+  # Mirrors handle_successful_adversarial_loop_iteration: the visual_review
+  # step also has three verdicts (approved/needs_work/skipped) instead of two —
+  # "skipped" (not visually testable, or filtered out by when_files_changed)
+  # exits the loop the same way "approved" does, since there's nothing for
+  # another iteration to address.
+  def handle_successful_visual_review_loop_iteration
+    handle_successful_review_loop_iteration(
+      kind: "visual_review",
+      artifact_key: "visual_review_iterations",
+      exit_verdicts: %w[approved skipped],
+      cancellation_reason: "visual_review_approved"
+    )
+  end
+
+  def handle_successful_review_loop_iteration(kind:, artifact_key:, exit_verdicts:, cancellation_reason:)
+    return false unless @from_step&.kind == kind
     return false unless @from_step.loop_id.present?
 
     loop_node = loop_node_for(@from_step)
     return false unless loop_node&.fetch("type") == "loop"
-    return false unless loop_step_kinds(loop_node).last == "adversarial_review"
+    return false unless loop_step_kinds(loop_node).last == kind
 
-    if last_adversarial_review_approved?
-      cancel_and_skip_to_next!(implement_step: @from_step.next_step)
+    if review_loop_exit?(artifact_key, exit_verdicts)
+      cancel_and_skip_to_next!(implement_step: @from_step.next_step, cancellation_reason: cancellation_reason)
       true
     elsif @from_step.iteration < loop_max_iterations(loop_node)
       enqueue_next_loop_iteration!(loop_node)
@@ -680,21 +704,19 @@ class StepDispatcher
     end
   end
 
-  def last_adversarial_review_approved?
-    @workflow.artifacts
-      &.dig("adversarial_review_iterations")
-      &.last
-      &.fetch("verdict", nil) == "approved"
+  def review_loop_exit?(artifact_key, exit_verdicts)
+    verdict = @workflow.artifacts&.dig(artifact_key)&.last&.fetch("verdict", nil)
+    exit_verdicts.include?(verdict)
   end
 
-  def cancel_and_skip_to_next!(implement_step:)
+  def cancel_and_skip_to_next!(implement_step:, cancellation_reason:)
     return unless implement_step
     continuation = implement_step.next_step
 
     Step.transaction do
       Step.suppress_cancel_cascade do
         if implement_step.may_cancel?
-          implement_step.cancellation_reason = "adversarial_review_approved"
+          implement_step.cancellation_reason = cancellation_reason
           implement_step.cancel!
           implement_step.save!
         end
