@@ -984,6 +984,15 @@ RSpec.describe SyrusYml do
       expect(config.visual_review.enabled).to be false
     end
 
+    it "casts an unrecognized non-boolean enabled value to true, not nil" do
+      config = parse(<<~YAML)
+        visual_review:
+          enabled: maybe
+      YAML
+
+      expect(config.visual_review.enabled).to be true
+    end
+
     it "clamps visual_review rounds above the hard ceiling with a warning" do
       expect(Rails.logger).to receive(:warn).with(/visual_review\.rounds 12 outside 0\.\.10; clamping/)
 

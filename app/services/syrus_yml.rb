@@ -178,9 +178,13 @@ class SyrusYml
 
     VisualReviewConfig.new(
       # No `|| false` here on purpose: nil (the `enabled` key omitted, or
-      # present but unparseable as a boolean) must stay nil so callers can
+      # explicitly set to `null`/blank) must stay nil so callers can
       # distinguish "not specified — defer to Feature.visual_review_enabled?"
-      # from an explicit `enabled: false` repo override.
+      # from an explicit `enabled: false` repo override. Any other present
+      # value is cast to a real boolean by ActiveModel::Type::Boolean (only
+      # its recognized false-spellings — "false", "0", "f", etc. — cast to
+      # false; every other non-blank value, including unrecognized strings,
+      # casts to true).
       enabled: ActiveModel::Type::Boolean.new.cast(raw["enabled"]),
       rounds: parse_visual_review_rounds(raw["rounds"]),
       when_files_changed: when_files_changed,
