@@ -190,7 +190,9 @@ RSpec.describe Mcp::Sidecar do
       expect(response[:result][:isError]).to be_falsey
       expect(run.workflow.reload.artifact("test_plan")).to eq(
         "steps" => [ "Run bin/rspec spec/services/steps/test_plan_spec.rb" ],
-        "notes" => "Manual check for PR copy."
+        "notes" => "Manual check for PR copy.",
+        "visual_review_recommended" => nil,
+        "visual_review_reason" => nil
       )
     end
   end
