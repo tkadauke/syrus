@@ -177,6 +177,10 @@ class Job < ApplicationRecord
   def previewable?
     implemented? || approved? || landing?
   end
+
+  def visual_review_runnable?
+    (implemented? || approved?) && !any_active_run?
+  end
   scope :without_active_workflows, -> {
     where(<<~SQL.squish)
       NOT EXISTS (

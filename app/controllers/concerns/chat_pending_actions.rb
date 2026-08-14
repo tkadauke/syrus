@@ -37,6 +37,8 @@ module ChatPendingActions
       "Delete document #{payload['title'].to_s.presence || "##{payload['document_id']}"}"
     when "poll_job_feedback"
       "Poll PR feedback for #{::App::Presentation.job_slug(payload['job_id'])}"
+    when "run_visual_review"
+      "Run visual review for #{::App::Presentation.job_slug(payload['job_id'])}"
     when "check_job_mergeability"
       "Check mergeability for #{::App::Presentation.job_slug(payload['job_id'])}"
     when "delegate_issue"

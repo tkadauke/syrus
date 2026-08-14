@@ -556,6 +556,7 @@ module App
           (@job.implemented? || @job.approved?) &&
           @job.branch_name.present?,
         can_start_preview: preview_provider_configured? && @job.previewable?,
+        can_run_visual_review: visual_review_configured? && @job.visual_review_runnable?,
         feedback_agent_options: @job.alternate_configured_agent_providers,
         rebase_agent_options: @job.alternate_configured_agent_providers,
         retry_agent_options: @job.retry_with_agent_providers
@@ -602,6 +603,7 @@ module App
         app_priority_path: "/api/v1/app/jobs/#{@job.id}/priority",
         app_provider_setting_path: "/api/v1/app/jobs/#{@job.id}/provider_setting",
         app_preview_path: "/api/v1/app/jobs/#{@job.id}/preview",
+        app_visual_review_path: "/api/v1/app/jobs/#{@job.id}/visual_review",
         admin_resource_admission_path: admin_resource_admission_path
       }
     end
@@ -758,6 +760,38 @@ module App
       SyrusYml.new(yml_content).parse.preview.present?
     rescue StandardError
       false
+    end
+
+    # Mirrors preview_provider_configured?'s read-the-local-bare-clone
+    # approach (no GitHub API call on every job-detail render), but unlike
+    # preview, visual_review has an instance-wide default toggle
+    # (AppSetting.visual_review_enabled?) that applies whenever the repo
+    # hasn't overridden it — so a missing/unreadable .syrus.yml or an
+    # absent local clone falls back to that default instead of `false`.
+    # This mirrors RepoVisualReviewPlan's resolution order, which the
+    # Initial/Retry/PrFeedback/ChatFeedback workflow templates use to
+    # decide whether the automatic visual_review loop runs at all.
+    def visual_review_configured?
+      return @visual_review_configured unless @visual_review_configured.nil?
+
+      enabled = syrus_yml_visual_review_config&.enabled
+      @visual_review_configured = enabled.nil? ? AppSetting.visual_review_enabled? : enabled
+    end
+
+    def syrus_yml_visual_review_config
+      clone_path = File.join(
+        ENV.fetch("SYRUS_DATA_ROOT", File.expand_path("~/.syrus")),
+        "clones",
+        "#{@job.repository_id}.git"
+      )
+      return nil unless File.directory?(clone_path)
+
+      yml_content = `git --git-dir #{clone_path.shellescape} show HEAD:.syrus.yml 2>/dev/null`
+      return nil unless $?.success? && yml_content.present?
+
+      SyrusYml.new(yml_content).parse.visual_review
+    rescue StandardError
+      nil
     end
   end
 end

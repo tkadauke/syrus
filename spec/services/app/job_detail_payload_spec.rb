@@ -1,4 +1,6 @@
 require "rails_helper"
+require "tmpdir"
+require "fileutils"
 
 RSpec.describe App::JobDetailPayload do
   let(:user) { Factories.user }
@@ -1385,6 +1387,86 @@ RSpec.describe App::JobDetailPayload do
         repository_slug: repo.slug,
         epic_path: "/epics/#{blocker.id}"
       )
+    end
+  end
+
+  describe "#actions_json can_run_visual_review" do
+    # Mirrors can_start_preview's approach: read .syrus.yml straight off the
+    # local bare clone (no GitHub API call) so job-detail rendering stays
+    # cheap. Build a real tiny bare clone under a scratch SYRUS_DATA_ROOT so
+    # the git-show code path is exercised rather than stubbed away.
+    around do |example|
+      @data_root = Pathname.new(Dir.mktmpdir("syrus-data"))
+      previous_root = ENV["SYRUS_DATA_ROOT"]
+      ENV["SYRUS_DATA_ROOT"] = @data_root.to_s
+      example.run
+      ENV["SYRUS_DATA_ROOT"] = previous_root
+      FileUtils.rm_rf(@data_root)
+    end
+
+    def write_bare_clone(repository, syrus_yml: nil)
+      work_dir = Dir.mktmpdir("syrus-work")
+      system("git", "init", "-q", "-b", "main", work_dir, exception: true)
+      system("git", "-C", work_dir, "config", "user.email", "test@example.com", exception: true)
+      system("git", "-C", work_dir, "config", "user.name", "Test", exception: true)
+      File.write(File.join(work_dir, "README.md"), "hi") unless syrus_yml
+      File.write(File.join(work_dir, ".syrus.yml"), syrus_yml) if syrus_yml
+      system("git", "-C", work_dir, "add", ".", exception: true)
+      system("git", "-C", work_dir, "commit", "-q", "-m", "init", exception: true)
+
+      clone_path = @data_root.join("clones", "#{repository.id}.git")
+      FileUtils.mkdir_p(clone_path.dirname)
+      system("git", "clone", "-q", "--bare", work_dir, clone_path.to_s, exception: true)
+    ensure
+      FileUtils.rm_rf(work_dir) if work_dir
+    end
+
+    it "is true for an implemented job when .syrus.yml enables visual_review" do
+      write_bare_clone(repo, syrus_yml: "visual_review:\n  enabled: true\n")
+      job = Factories.job_record(user: user, repository: repo, state: "implemented")
+
+      expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(true)
+    end
+
+    it "is false when .syrus.yml explicitly disables visual_review" do
+      allow(AppSetting).to receive(:visual_review_enabled?).and_return(true)
+      write_bare_clone(repo, syrus_yml: "visual_review:\n  enabled: false\n")
+      job = Factories.job_record(user: user, repository: repo, state: "implemented")
+
+      expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(false)
+    end
+
+    it "falls back to the instance-wide default when .syrus.yml has no visual_review block" do
+      write_bare_clone(repo)
+      job = Factories.job_record(user: user, repository: repo, state: "implemented")
+
+      allow(AppSetting).to receive(:visual_review_enabled?).and_return(true)
+      expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(true)
+
+      allow(AppSetting).to receive(:visual_review_enabled?).and_return(false)
+      expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(false)
+    end
+
+    it "falls back to the instance-wide default when there is no local clone yet" do
+      job = Factories.job_record(user: user, repository: repo, state: "implemented")
+
+      allow(AppSetting).to receive(:visual_review_enabled?).and_return(true)
+      expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(true)
+    end
+
+    it "is false for a job that is not implemented or approved, even when configured" do
+      write_bare_clone(repo, syrus_yml: "visual_review:\n  enabled: true\n")
+      job = Factories.job_record(user: user, repository: repo, state: "running")
+
+      expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(false)
+    end
+
+    it "is false for an implemented job with an active run" do
+      write_bare_clone(repo, syrus_yml: "visual_review:\n  enabled: true\n")
+      job = Factories.job_record(user: user, repository: repo, state: "implemented")
+      job.runs.create!(trigger_kind: "manual_visual_review", agent_provider: job.agent_provider)
+
+      expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(false)
     end
   end
 end

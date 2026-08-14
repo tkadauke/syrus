@@ -91,6 +91,28 @@ RSpec.describe Job do
     end
   end
 
+  describe "#visual_review_runnable?" do
+    it "allows implemented and approved jobs with no active run" do
+      expect(Factories.job_record(state: "implemented")).to be_visual_review_runnable
+      expect(Factories.job_record(state: "approved")).to be_visual_review_runnable
+    end
+
+    it "rejects jobs before implementation" do
+      expect(Factories.job_record(state: "running")).not_to be_visual_review_runnable
+    end
+
+    it "rejects a landing job (unlike previewable?)" do
+      expect(Factories.job_record(state: "landing")).not_to be_visual_review_runnable
+    end
+
+    it "rejects a job with an active run" do
+      job = Factories.job_record(state: "implemented")
+      job.runs.create!(trigger_kind: "manual_visual_review", agent_provider: job.agent_provider)
+
+      expect(job.reload).not_to be_visual_review_runnable
+    end
+  end
+
   describe "fork base branch (fork -> upstream)" do
     let(:repo_owner) { Factories.user }
     let(:upstream) { Factories.repository(user: repo_owner, owner: "upstream-org", name: "project", default_branch: "main") }

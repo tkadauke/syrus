@@ -90,6 +90,43 @@ RSpec.describe Steps::VisualReview do
     expect { handler.call }.to raise_error(Steps::Base::StepFailed, /no succeeded implement diff/)
   end
 
+  context "in a standalone manual_visual_review workflow (no implement/respond step)" do
+    let(:manual_job) { Factories.job_record(issue_title: "Add a dashboard banner", issue_body: "Show a banner on the dashboard.") }
+    let(:manual_workflow) do
+      Workflow.create!(job: manual_job, trigger_kind: "manual_visual_review", agent_provider: "claude", chain_template: [])
+    end
+    let(:manual_step) { Step.create!(workflow: manual_workflow, kind: "visual_review", position: 0, iteration: 1) }
+    let(:manual_run) { Run.create!(job: manual_job, step: manual_step, trigger_kind: "manual_visual_review") }
+    let(:manual_handler) { described_class.new(manual_run) }
+
+    before do
+      fake_ws = instance_double(WorkflowWorkspace, setup: true, path: Pathname.new("/tmp/workspace"), base_ref: "origin/main")
+      allow(manual_handler).to receive(:workspace).and_return(fake_ws)
+      allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_raise(Errno::ENOENT)
+    end
+
+    it "falls back to a fresh git diff against the default branch" do
+      allow(manual_handler).to receive(:diff_against_default).and_return(
+        "diff --git a/app/views/dashboard/show.html.erb b/app/views/dashboard/show.html.erb\n+<div class=\"banner\">New</div>\n"
+      )
+
+      expect(manual_handler).to receive(:run_agent) do |prompt: nil, **|
+        expect(prompt).to include("diff --git a/app/views/dashboard/show.html.erb")
+        manual_workflow.set_artifact!("visual_review_iterations", [
+          { "iteration" => manual_step.iteration, "critique" => "Looks correct.", "verdict" => "approved" }
+        ])
+      end
+
+      manual_handler.call
+    end
+
+    it "raises StepFailed when the branch has no changes to review" do
+      allow(manual_handler).to receive(:diff_against_default).and_return("")
+
+      expect { manual_handler.call }.to raise_error(Steps::Base::StepFailed, /no changes to review/)
+    end
+  end
+
   context "when the implementer's test plan recommends visual review" do
     before do
       workflow.set_artifact!("test_plan", {

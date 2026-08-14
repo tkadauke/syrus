@@ -88,6 +88,53 @@ RSpec.describe "App API job run commands", type: :request do
     expect(parse_body.dig("error", "message")).to include("already in progress")
   end
 
+  def stub_visual_review_plan(enabled:)
+    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(
+      RepoVisualReviewPlan::Result.new(enabled: enabled, rounds: 1, source: ".syrus.yml", note: nil)
+    )
+  end
+
+  it "queues a manual visual review workflow for an implemented job" do
+    stub_visual_review_plan(enabled: true)
+    job.initial_run.update_columns(state: "succeeded")
+    job.update_columns(state: "implemented")
+
+    expect {
+      post app_job_path("/visual_review"), as: :json
+    }.to change { job.reload.workflows.where(trigger_kind: "manual_visual_review").count }.by(1)
+      .and have_enqueued_job(RunJob)
+
+    workflow = job.workflows.where(trigger_kind: "manual_visual_review").last
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("message" => "Visual review enqueued.")
+    expect(parse_body.dig("workflow", "id")).to eq(workflow.id)
+  end
+
+  it "rejects a manual visual review request when the job is not runnable" do
+    stub_visual_review_plan(enabled: true)
+    job.update_columns(state: "running")
+
+    expect {
+      post app_job_path("/visual_review"), as: :json
+    }.not_to have_enqueued_job(RunJob)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("implemented or approved")
+  end
+
+  it "rejects a manual visual review request when visual review is not configured" do
+    stub_visual_review_plan(enabled: false)
+    job.initial_run.update_columns(state: "succeeded")
+    job.update_columns(state: "implemented")
+
+    expect {
+      post app_job_path("/visual_review"), as: :json
+    }.not_to have_enqueued_job(RunJob)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("not configured")
+  end
+
   it "resumes a failed run using its captured agent session" do
     failed_run = job.initial_run
     failed_run.start!

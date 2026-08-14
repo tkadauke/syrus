@@ -12,6 +12,7 @@ class ChatPendingAction < ApplicationRecord
     create_repo_document
     delete_repo_document
     poll_job_feedback
+    run_visual_review
     check_job_mergeability
     delegate_issue
     pause_landing_queue

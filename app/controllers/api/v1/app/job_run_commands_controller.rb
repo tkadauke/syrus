@@ -78,6 +78,17 @@ module Api
           render_job(job.reload, message: notice, changed: [ "workflows", "runs" ], run: run&.reload, workflow: workflow.reload, tab: "workflows")
         end
 
+        def run_visual_review
+          job = find_job
+          result = ManualVisualReviewSubmission.call(job: job)
+          unless result.success?
+            render_error("validation_failed", result.error, status: :unprocessable_content)
+            return
+          end
+
+          render_job(job.reload, message: "Visual review enqueued.", changed: [ "workflows", "runs" ], run: result.run&.reload, workflow: result.workflow.reload, tab: "workflows")
+        end
+
         def stop_run
           job = find_job
           run = job.runs.find_by(id: params[:run_id])

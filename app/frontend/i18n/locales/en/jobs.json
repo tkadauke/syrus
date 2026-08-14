@@ -17,6 +17,7 @@
   "check_feedback": "Check feedback",
   "rebase_now": "Rebase now",
   "check_mergeability": "Check mergeability",
+  "run_visual_review": "Run visual review",
   "retry": "Retry",
   "retry_with_feedback": "Retry with feedback",
   "retry_with_agent": "Retry with {{provider}}",

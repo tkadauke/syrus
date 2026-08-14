@@ -101,15 +101,27 @@ module Steps
       job.synthetic_issue || Struct.new(:title, :body).new(job.issue_title.to_s, job.issue_body.to_s)
     end
 
+    # Standalone manual visual review workflows (Workflows::ManualVisualReview)
+    # have no implement/respond step to read a diff off of — they run the
+    # reviewer alone against whatever is already on the branch. Only fall
+    # back to a fresh `git diff` when this workflow's chain has no step of
+    # that kind at all; when one exists but hasn't produced a diff (still
+    # running, failed, or genuinely produced nothing) keep raising so a
+    # broken loop iteration surfaces instead of silently reviewing stale state.
     def latest_agentic_diff
       agentic_kind = feedback_workflow? ? "respond" : "implement"
-      workflow.steps
-        .where(kind: agentic_kind, state: "succeeded")
-        .order(:position)
-        .last
-        &.latest_run
-        &.agent_diff
-        .presence || raise(StepFailed, "no succeeded #{agentic_kind} diff available for visual_review")
+      scope = workflow.steps.where(kind: agentic_kind)
+
+      if scope.exists?
+        scope.where(state: "succeeded")
+          .order(:position)
+          .last
+          &.latest_run
+          &.agent_diff
+          .presence || raise(StepFailed, "no succeeded #{agentic_kind} diff available for visual_review")
+      else
+        diff_against_default.presence || raise(StepFailed, "no changes to review against #{default_branch_ref}")
+      end
     end
 
     def feedback_workflow?

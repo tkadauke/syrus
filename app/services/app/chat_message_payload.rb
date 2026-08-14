@@ -103,7 +103,7 @@ module App
       base[:after_snapshot] = action.after_snapshot if action.after_snapshot.present?
 
       case action.action.presence || action.action_type
-      when "cancel_job", "close_job_successfully", "retry_job", "force_fail_job", "rebase_job", "force_rebase", "reopen_job", "poll_job_feedback", "check_job_mergeability", "submit_chat_feedback", "force_landing_recheck", "override_landing_blocker_once"
+      when "cancel_job", "close_job_successfully", "retry_job", "force_fail_job", "rebase_job", "force_rebase", "reopen_job", "poll_job_feedback", "run_visual_review", "check_job_mergeability", "submit_chat_feedback", "force_landing_recheck", "override_landing_blocker_once"
         if (job = cached_action_job(action, payload["job_id"]))
           base.merge(resource_title: job.issue_title, resource_url: job_path(job))
         else
@@ -454,6 +454,8 @@ module App
         "Delete document #{payload['title'].to_s.presence || "##{payload['document_id']}"}"
       when "poll_job_feedback"
         "Poll PR feedback for #{::App::Presentation.job_slug(payload['job_id'])}"
+      when "run_visual_review"
+        "Run visual review for #{::App::Presentation.job_slug(payload['job_id'])}"
       when "check_job_mergeability"
         "Check mergeability for #{::App::Presentation.job_slug(payload['job_id'])}"
       when "force_landing_recheck"

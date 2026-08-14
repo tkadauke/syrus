@@ -206,6 +206,7 @@ class McpToolRegistry
         chat(Mcp::Tools::RebaseJobTool, tier: :deferred, mutation: true),
         chat(Mcp::Tools::ReopenJobTool, tier: :deferred, mutation: true),
         chat(Mcp::Tools::PollJobFeedbackTool, tier: :deferred, mutation: true),
+        chat(Mcp::Tools::RunVisualReviewTool, tier: :deferred, mutation: true),
         chat(Mcp::Tools::CheckJobMergeabilityTool, tier: :deferred, mutation: true),
         chat(Mcp::Tools::DelegateIssueTool, tier: :deferred, mutation: true),
         chat(Mcp::Tools::ReadPrTool, tier: :deferred),
