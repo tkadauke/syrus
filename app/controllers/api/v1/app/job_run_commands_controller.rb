@@ -67,6 +67,8 @@ module Api
           agent_provider = params[:agent_provider].to_s.presence
           return unless valid_configured_agent_provider?(agent_provider)
 
+          superseded_active_workflow = job.cancel_active_workflows_for_rebase!
+
           workflow = RebaseWorkflowSelector.instantiate(
             job: job,
             agent_provider: agent_provider,
@@ -75,6 +77,7 @@ module Api
           run = StepDispatcher.start_workflow(workflow)
 
           notice = agent_provider.present? ? "Rebase workflow enqueued with #{agent_provider.titleize}." : "Rebase workflow enqueued."
+          notice = "Cancelled the running workflow. #{notice}" if superseded_active_workflow
           render_job(job.reload, message: notice, changed: [ "workflows", "runs" ], run: run&.reload, workflow: workflow.reload, tab: "workflows")
         end
 

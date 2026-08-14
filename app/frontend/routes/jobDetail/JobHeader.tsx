@@ -137,7 +137,18 @@ function headerActions(payload: JobDetailPayload, t: ReturnType<typeof useT>["t"
 
   if (actions.can_start) available.push({ key: "start", label: t("start_run"), input: { method: "post", path: paths.app_start_path }, tone: "primary" })
   if (actions.can_poll_feedback) available.push({ key: "poll_feedback", label: t("check_feedback"), input: { method: "post", path: paths.app_poll_feedback_path }, tone: "secondary" })
-  if (actions.can_rebase) available.push({ key: "rebase", label: t("rebase_now"), input: { method: "post", path: paths.app_rebase_path }, tone: "secondary" })
+  if (actions.can_rebase) {
+    available.push({
+      key: "rebase",
+      label: t("rebase_now"),
+      input: {
+        method: "post",
+        path: paths.app_rebase_path,
+        confirm: payload.job.any_active_run ? t("confirm_rebase_cancels_running") : undefined
+      },
+      tone: "secondary"
+    })
+  }
   if (actions.can_check_mergeability) available.push({ key: "check_mergeability", label: t("check_mergeability"), input: { method: "post", path: paths.app_check_mergeability_path }, tone: "secondary" })
   if (actions.can_retry_pr_ingestion) available.push({ key: "retry_pr_ingestion", label: t("retry_pr_ingestion"), input: { method: "post", path: paths.app_retry_pr_ingestion_path, confirm: t("confirm_retry_pr_ingestion") }, tone: "primary" })
   if (actions.can_run_visual_review) available.push({ key: "run_visual_review", label: t("run_visual_review"), input: { method: "post", path: paths.app_visual_review_path }, tone: "secondary" })

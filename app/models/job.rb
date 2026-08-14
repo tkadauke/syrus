@@ -735,6 +735,36 @@ class Job < ApplicationRecord
     close_with_reason!(reason)
   end
 
+  # Cancels every other active Workflow on this Job right before "Rebase
+  # Now" starts a fresh rebase Workflow. Unlike cancel_active_runs_and_
+  # close!, this does NOT close the Job — the caller starts a new Workflow
+  # immediately after, which drives the Job's state itself via
+  # Workflow#propagate_start_to_job!. Marks each cancelled Workflow's
+  # artifacts with Workflow::SUPERSEDED_BY_REBASE_REASON so
+  # Workflow#propagate_cancel_to_job! skips its own Job-state side effect
+  # (it would otherwise mark a :running Job :failed moments before the
+  # rebase workflow starts). Skips landing/coding-handoff/local-mode-
+  # handoff/infrastructure workflows — those own their own lifecycle and
+  # must not be pre-empted by a manual rebase click. Returns true if
+  # anything was cancelled.
+  def cancel_active_workflows_for_rebase!
+    cancelled = false
+    workflows.active.find_each do |workflow|
+      next if workflow.landing_workflow? || workflow.coding_handoff_workflow? ||
+              workflow.local_mode_handoff_workflow? || workflow.infrastructure_workflow?
+      next unless workflow.may_cancel?
+
+      workflow.artifacts = (workflow.artifacts || {}).merge(
+        "cancelled_reason" => Workflow::SUPERSEDED_BY_REBASE_REASON,
+        "cancelled_at" => Time.current.iso8601
+      )
+      workflow.cancel!
+      workflow.save!
+      cancelled = true
+    end
+    cancelled
+  end
+
   def mark_externally_implemented!(number)
     transaction do
       runs.active.find_each do |run|

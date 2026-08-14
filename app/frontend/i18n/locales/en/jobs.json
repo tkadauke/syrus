@@ -43,6 +43,7 @@
   "preview_generating_title": "Generating title…",
   "confirm_start_over": "Start over with a new Job and abandon this branch?",
   "confirm_retry_pr_ingestion": "Re-run PR ingestion against the current PR head? This starts a fresh ingestion workflow.",
+  "confirm_rebase_cancels_running": "A workflow is currently running for this Job. Rebasing now will cancel it and start the rebase instead. Continue?",
   "confirm_unapprove": "Move this Job back to implemented?",
   "confirm_cancel": "Cancel any running work and close this Job?",
   "confirm_cancel_local_mode": "Release this Job from local mode? Changes not yet pushed will be lost.",
