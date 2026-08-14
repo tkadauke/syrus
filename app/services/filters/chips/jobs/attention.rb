@@ -161,7 +161,7 @@ module Filters
           active = scope.where(manual_paused: false)
           active.where(state: "queued")
                .where.not(id: running_infra_ids)
-               .or(active.open_threads.where.not(state: "landing").where(id: active_queued_workflow_job_ids))
+               .or(active.open_threads.where.not(state: "landing").where(id: latest_workflow_job_ids("queued")))
         end
 
         def apply_inbox
@@ -258,10 +258,6 @@ module Filters
             )
           SQL
             .select(:job_id)
-        end
-
-        def active_queued_workflow_job_ids
-          Workflow.where(state: "queued").select(:job_id)
         end
 
         def unpaused_running_workflow_job_ids
