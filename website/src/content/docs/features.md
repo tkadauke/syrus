@@ -254,14 +254,11 @@ Syrus records landing throughput metrics on workflow artifacts so operators can
 see cache skips, rerun reasons, wall-clock grader loop time, summed grader time,
 and required-grader failures while the throughput dashboard evolves.
 
-New Epics no longer create a standalone `Reconciliation: ...` child Job just
-to review sibling consistency. Existing historical reconciliation Jobs remain
-readable and can still close through the successful `no_changes` path when
-they produce no patch.
-
-The legacy `reconciliation_mode` setting is retained for compatibility with
-older standalone reconciliation Jobs, but current Epics reconcile during
-merge-train landing after the integration branch is built.
+Syrus no longer creates a standalone `Reconciliation: ...` child Job to review
+sibling consistency; that path, including its `reconciliation_mode` setting,
+has been removed. Existing historical reconciliation Jobs remain readable and
+can still close through the successful `no_changes` path when they produce no
+patch.
 
 When reconciliation is a no-op, operators see that the merge train is
 continuing through normal gates. If the agent commits reconciliation fixes,

@@ -45,9 +45,8 @@ Chat agents can call `explain_stuck_job(job_id)` to get a read-only structured
 diagnosis for one Job, whether or not the Job currently appears in the global
 admin stuck list. The payload includes the Job state, latest and active
 Workflow summaries, Run heartbeat evidence, dependency blockers, selected stack
-parent and effective base, landing queue and merge-train blockers, cached PR
-check and mergeability state, and best-effort PR base / empty-reconciliation
-evidence from GitHub.
+parent and effective base, and landing queue and merge-train blockers, including
+cached PR check and mergeability state.
 
 The tool returns both machine-readable fields and a concise `human_summary`.
 Its `recommended_action.action` is one of the operator-facing repair choices
