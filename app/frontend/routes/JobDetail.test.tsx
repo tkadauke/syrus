@@ -1117,6 +1117,20 @@ describe("FeedbackHistoryPanel", () => {
     expect(screen.getByText("PR review feedback")).toBeInTheDocument()
   })
 
+  it("shows the PR review note for external PR feedback workflows", () => {
+    renderFeedbackHistory([
+      workflow({
+        id: 8,
+        trigger_kind: "external_pr_feedback",
+        state: "running",
+        created_at: "2026-06-03T10:00:00Z"
+      })
+    ])
+
+    expect(screen.getByText("External PR feedback")).toBeInTheDocument()
+    expect(screen.getByText("PR review feedback")).toBeInTheDocument()
+  })
+
   it("shows multiple entries in newest-first order", () => {
     renderFeedbackHistory([
       workflow({

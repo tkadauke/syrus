@@ -195,7 +195,8 @@
     "rebase": "Rebase",
     "stack_rebase": "Stack-Rebase",
     "coding_handoff": "Coding-Übergabe",
-    "chat_feedback": "Chat-Feedback"
+    "chat_feedback": "Chat-Feedback",
+    "external_pr_feedback": "Externes PR-Feedback"
   },
   "terminal": {
     "sessions": "Terminal-Sitzungen",

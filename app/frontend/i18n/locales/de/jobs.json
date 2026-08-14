@@ -331,6 +331,7 @@
   "retry_state_delayed_until": "Verzögert bis",
   "feedback_trigger_chat": "Chat-Feedback",
   "feedback_trigger_pr": "PR-Review",
+  "feedback_trigger_external_pr": "Externes PR-Feedback",
   "feedback_trigger_pr_review_text": "PR-Review-Feedback",
   "source_label_direct": "Direkte Aufgabe",
   "source_label_scheduled": "Geplante Aufgabe",

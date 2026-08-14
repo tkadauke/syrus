@@ -171,4 +171,38 @@ RSpec.describe Steps::Push do
     expect(step.reload.details).to include("failure_code" => "remote_branch_advanced_rebase_conflict")
     expect(workflow.reload.artifact("push_rebase_remote_ref")).to eq("refs/remotes/origin/syrus/issue-42")
   end
+
+  it "pushes successfully to a non-syrus/-prefixed branch name (e.g. a same-repo external_pr Job's dependabot branch)" do
+    external_job = Job.create!(
+      user: user, repository: repository, kind: "external_pr",
+      external_pr_number: 9, external_pr_fork: false,
+      branch_name: "dependabot/bundler/rack-3.1.1", state: "implemented"
+    )
+    ext_workflow = Workflow.create!(job: external_job, trigger_kind: "external_pr_feedback", agent_provider: "claude")
+    ext_step = Step.create!(workflow: ext_workflow, kind: "push", position: 0)
+    ext_run = Run.create!(job: external_job, step: ext_step, trigger_kind: "external_pr_feedback", agent_provider: "claude")
+
+    handler = described_class.new(ext_run)
+    workspace = instance_double(
+      WorkflowWorkspace,
+      setup: nil,
+      branch_name: "dependabot/bundler/rack-3.1.1",
+      path: Pathname.new("/tmp/workspace")
+    )
+    git = instance_double(GitRunner)
+    client = instance_double(GithubClient, access_token: "token")
+    push_url = "https://push.example/repo.git"
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:streaming_git).and_return(git)
+    allow(GithubClient).to receive(:for).with(repository: repository, user: user).and_return(client)
+    allow(repository).to receive(:authenticated_push_url).with("token").and_return(push_url)
+
+    expect(git).to receive(:run).with(
+      "push", push_url, "HEAD:refs/heads/dependabot/bundler/rack-3.1.1",
+      chdir: "/tmp/workspace"
+    )
+
+    handler.call
+  end
 end

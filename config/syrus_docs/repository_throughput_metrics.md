@@ -215,8 +215,9 @@ The review funnel tracks PR review flow from durable comments and approvals:
 - `jobs_with_feedback_before_approval` - Jobs approved in the window that
   had at least one actionable PR feedback comment at or before approval.
 - `feedback_rounds` - per-Job feedback rounds in the window. Syrus uses the
-  larger of feedback Workflow count (`pr_comment`/`chat_feedback`) and
-  actionable `PrReviewComment` batches when comments exist without a matching
+  larger of feedback Workflow count (`Workflow::TriggerKind.feedback_values`
+  — `pr_comment`/`chat_feedback`/`external_pr_feedback`) and actionable
+  `PrReviewComment` batches when comments exist without a matching
   Workflow row.
 - `feedback_rounds_by_job` - per-Job samples with PR source, PR numbers,
   total round count, Workflow round count, comment counts split by issue,
@@ -254,7 +255,7 @@ Source fields:
 - `pr_review_comments.actionable`
 - `pr_review_comments.handled_at`
 - `pr_review_comments.actioned_at`
-- `workflows.trigger_kind IN ("pr_comment", "chat_feedback")`
+- `workflows.trigger_kind IN Workflow::TriggerKind.feedback_values` (`"pr_comment"`, `"chat_feedback"`, `"external_pr_feedback"`)
 - `workflows.created_at`
 - `jobs.approved_at`
 - `jobs.approved_via`

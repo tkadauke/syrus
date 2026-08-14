@@ -69,9 +69,9 @@ The adversarial reviewer resumes its session from the previous `adversarial_revi
 
 ## Which workflows include adversarial review
 
-Adversarial review runs in `initial`, `retry`, `pr_comment`, and `chat_feedback` workflows when rounds > 0. It does not run in `ci_failure`, `auto_merge`, or maintenance workflows (`rebase`, `stack_rebase`).
+Adversarial review runs in `initial`, `retry`, `pr_comment`, `chat_feedback`, and `external_pr_feedback` workflows when rounds > 0. It does not run in `ci_failure`, `auto_merge`, or maintenance workflows (`rebase`, `stack_rebase`).
 
-### Feedback workflows (pr_comment, chat_feedback)
+### Feedback workflows (pr_comment, chat_feedback, external_pr_feedback)
 
 When adversarial review is enabled for a feedback workflow, the loop runs before the grader retry chain:
 

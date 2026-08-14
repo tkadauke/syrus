@@ -754,7 +754,7 @@ class RepositoryThroughputMetricContract
   def created_feedback_workflows
     @created_feedback_workflows ||= Workflow.joins(:job)
       .where(jobs: { repository_id: repository.id })
-      .where(trigger_kind: %w[ pr_comment chat_feedback ])
+      .where(trigger_kind: Workflow::TriggerKind.feedback_values)
       .where(window_condition(:workflows, :created_at))
       .includes(:job)
       .to_a

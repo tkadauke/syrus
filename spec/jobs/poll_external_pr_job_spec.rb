@@ -462,7 +462,7 @@ RSpec.describe PollExternalPrJob do
       expect(external_pr_job.reload.state).to eq("implemented")
     end
 
-    it "does not react to qualifying comments for a same-repo (non-fork) external PR Job" do
+    it "does not set needs_attention for a same-repo (non-fork) external PR Job on qualifying feedback (it dispatches a fix-and-push workflow instead)" do
       external_pr_job.update!(external_pr_fork: false)
       user.update!(github_handle: "owner-handle")
       allow(PrCommentClassifier).to receive(:call).and_return(
@@ -476,6 +476,132 @@ RSpec.describe PollExternalPrJob do
       described_class.perform_now(external_pr_job.id)
 
       expect(external_pr_job.reload.needs_attention?).to be false
+    end
+  end
+
+  describe "same-repo PR feedback fix-and-push" do
+    let(:external_pr_job) do
+      Job.create!(
+        user: user,
+        repository: repository,
+        kind: "external_pr",
+        external_pr_number: 9,
+        external_pr_fork: false,
+        branch_name: "dependabot/bundler/rack-3.1.1",
+        state: "implemented"
+      )
+    end
+
+    let(:reviews_url) { "https://api.github.com/repos/acme/widgets/pulls/9/reviews" }
+
+    def stub_reviews(reviews = [])
+      stub_request(:get, reviews_url).with(query: hash_including({})).to_return(
+        status: 200, headers: { "Content-Type" => "application/json" },
+        body: reviews.to_json
+      )
+    end
+
+    before do
+      stub_external_pr(state: "open", merged: false)
+      stub_reviews([])
+      user.update!(github_handle: "owner-handle")
+    end
+
+    def stub_actionable_owner_comment(body: "Please fix the typo")
+      allow(PrCommentClassifier).to receive(:call).and_return(
+        PrCommentClassifier::Result.new(actionable: true, reason: "requests a change", error: nil)
+      )
+      stub_issue_comments([
+        { id: 1, body: body, user: { login: "owner-handle" }, created_at: 1.hour.ago.iso8601 }
+      ])
+      stub_review_comments([])
+    end
+
+    it "dispatches a Workflows::ExternalPrFeedback workflow for an actionable job-owner comment" do
+      stub_actionable_owner_comment
+
+      expect { described_class.perform_now(external_pr_job.id) }
+        .to change { external_pr_job.workflows.where(trigger_kind: "external_pr_feedback").count }.by(1)
+
+      workflow = external_pr_job.workflows.where(trigger_kind: "external_pr_feedback").last
+      expect(workflow.artifact("pr_comments")).not_to be_empty
+    end
+
+    it "unapproves an already-approved same-repo Job when qualifying feedback arrives" do
+      external_pr_job.approve!(via: "operator")
+      stub_actionable_owner_comment
+
+      expect(external_pr_job.approved?).to be true
+
+      described_class.perform_now(external_pr_job.id)
+
+      expect(external_pr_job.reload.approved?).to be false
+    end
+
+    it "does not set needs_attention_reason (unlike the fork waiting-state path)" do
+      stub_actionable_owner_comment
+
+      described_class.perform_now(external_pr_job.id)
+
+      expect(external_pr_job.reload.needs_attention?).to be false
+    end
+
+    it "the dispatched workflow pushes successfully to a non-syrus/-prefixed branch name" do
+      stub_actionable_owner_comment
+
+      described_class.perform_now(external_pr_job.id)
+
+      workflow = external_pr_job.workflows.where(trigger_kind: "external_pr_feedback").last
+      push_step = workflow.steps.find_by(kind: "push")
+      expect(push_step).not_to be_nil
+      expect(workflow.job.branch_name).to eq("dependabot/bundler/rack-3.1.1")
+    end
+
+    it "does not dispatch a duplicate workflow while a feedback workflow is already active" do
+      stub_actionable_owner_comment
+      described_class.perform_now(external_pr_job.id)
+      expect(external_pr_job.workflows.where(trigger_kind: "external_pr_feedback").count).to eq(1)
+
+      stub_issue_comments([
+        { id: 1, body: "Please fix the typo", user: { login: "owner-handle" }, created_at: 1.hour.ago.iso8601 },
+        { id: 2, body: "Also fix this", user: { login: "owner-handle" }, created_at: 30.minutes.ago.iso8601 }
+      ])
+
+      expect { described_class.perform_now(external_pr_job.id) }
+        .not_to change { external_pr_job.workflows.where(trigger_kind: "external_pr_feedback").count }
+    end
+
+    it "does not react to needs_attention_reason=upstream_pr_changes_requested for fork Jobs (fork path unaffected)" do
+      fork_job = Job.create!(
+        user: user, repository: repository, kind: "external_pr",
+        external_pr_number: 10, external_pr_fork: true, state: "implemented"
+      )
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/pulls/10")
+        .with(query: hash_including({})).to_return(
+          status: 200, headers: { "Content-Type" => "application/json" },
+          body: { number: 10, state: "open", merged: false }.to_json
+        )
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/pulls/10/reviews")
+        .with(query: hash_including({})).to_return(
+          status: 200, headers: { "Content-Type" => "application/json" }, body: [].to_json
+        )
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/issues/10/comments")
+        .with(query: hash_including({})).to_return(
+          status: 200, headers: { "Content-Type" => "application/json" },
+          body: [ { id: 5, body: "Please fix the typo", user: { login: "owner-handle" }, created_at: 1.hour.ago.iso8601 } ].to_json
+        )
+      stub_request(:get, "https://api.github.com/repos/acme/widgets/pulls/10/comments")
+        .with(query: hash_including({})).to_return(
+          status: 200, headers: { "Content-Type" => "application/json" }, body: [].to_json
+        )
+      allow(PrCommentClassifier).to receive(:call).and_return(
+        PrCommentClassifier::Result.new(actionable: true, reason: "requests a change", error: nil)
+      )
+
+      described_class.perform_now(fork_job.id)
+
+      expect(fork_job.reload.needs_attention_reason).to eq("upstream_pr_changes_requested")
+      expect(fork_job.workflows.where(trigger_kind: "external_pr_feedback")).to be_empty
     end
   end
 end

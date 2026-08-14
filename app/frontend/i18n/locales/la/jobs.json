@@ -329,6 +329,7 @@
   "retry_state_delayed_until": "Dilatum usque ad",
   "feedback_trigger_chat": "Responsum colloquii",
   "feedback_trigger_pr": "Recensio PR",
+  "feedback_trigger_external_pr": "Responsum PR externi",
   "feedback_trigger_pr_review_text": "Responsum recensionis PR",
   "source_label_direct": "Opus Directum",
   "source_label_scheduled": "Opus Programmatum",

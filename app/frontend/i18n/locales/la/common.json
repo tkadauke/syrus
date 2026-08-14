@@ -195,7 +195,8 @@
     "rebase": "Rebase",
     "stack_rebase": "Rebase acervi",
     "coding_handoff": "Traditio codicis",
-    "chat_feedback": "Relatio colloquii"
+    "chat_feedback": "Relatio colloquii",
+    "external_pr_feedback": "Responsum PR externi"
   },
   "terminal": {
     "sessions": "Sessiones terminalis",

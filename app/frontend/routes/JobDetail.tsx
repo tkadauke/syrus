@@ -732,7 +732,7 @@ function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: numbe
 export function FeedbackHistoryPanel({ workflows, prefix }: { workflows: JobWorkflow[]; prefix: string }) {
   const { t } = useT("jobs")
   const feedbackWorkflows = [...workflows]
-    .filter((workflow) => workflow.trigger_kind === "chat_feedback" || workflow.trigger_kind === "pr_comment")
+    .filter((workflow) => FEEDBACK_TRIGGER_KINDS.includes(workflow.trigger_kind))
     .sort((left, right) => workflowCreatedAtTime(right) - workflowCreatedAtTime(left))
 
   if (feedbackWorkflows.length === 0) return null
@@ -776,9 +776,12 @@ export function FeedbackHistoryPanel({ workflows, prefix }: { workflows: JobWork
   )
 }
 
+const FEEDBACK_TRIGGER_KINDS = [ "chat_feedback", "pr_comment", "external_pr_feedback" ]
+
 function feedbackTriggerLabel(triggerKind: string, t: ReturnType<typeof useT>["t"]) {
   if (triggerKind === "chat_feedback") return t("feedback_trigger_chat")
   if (triggerKind === "pr_comment") return t("feedback_trigger_pr")
+  if (triggerKind === "external_pr_feedback") return t("feedback_trigger_external_pr")
   return triggerKind.replaceAll("_", " ")
 }
 

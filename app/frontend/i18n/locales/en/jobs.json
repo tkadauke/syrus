@@ -331,6 +331,7 @@
   "retry_state_delayed_until": "Delayed until",
   "feedback_trigger_chat": "Chat feedback",
   "feedback_trigger_pr": "PR review",
+  "feedback_trigger_external_pr": "External PR feedback",
   "feedback_trigger_pr_review_text": "PR review feedback",
   "source_label_direct": "Direct Job",
   "source_label_scheduled": "Scheduled Job",

@@ -236,6 +236,33 @@ RSpec.describe "App API pending feedback", type: :request do
       expect(comment.actioned_by).to eq("operator:retry")
     end
 
+    it "re-dispatches a Workflows::ExternalPrFeedback workflow when the original was external_pr_feedback" do
+      allow(RepoAdversarialReviewPlan).to receive(:for_job).and_return(
+        RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "disabled", criteria: [])
+      )
+      original = Workflow.create!(
+        job: job,
+        trigger_kind: "external_pr_feedback",
+        state: "failed",
+        artifacts: { "pr_comments" => [ { "author" => "reviewer", "body" => "Please add tests" } ] }
+      )
+      comment = make_pr_comment(
+        handling_workflow: original,
+        handling_state: "failed",
+        handling_failed_at: Time.current,
+        handling_failure_reason: "rate_limit"
+      )
+      original.update!(artifacts: original.artifacts.merge("pr_review_comment_ids" => [ comment.id ]))
+
+      post "/api/v1/app/jobs/#{job.id}/pending_feedback/#{comment.id}/retry"
+
+      expect(response).to have_http_status(:created)
+      new_workflow = Workflow.find(parse_body["workflow"]["id"])
+      expect(new_workflow.trigger_kind).to eq("external_pr_feedback")
+      expect(comment.reload.handling_state).to eq("active")
+      expect(comment.actioned_by).to eq("operator:retry")
+    end
+
     it "blocks duplicate retries while the same comment has an active workflow" do
       original = Workflow.create!(job: job, trigger_kind: "chat_feedback", state: "failed")
       comment = make_pr_comment(
