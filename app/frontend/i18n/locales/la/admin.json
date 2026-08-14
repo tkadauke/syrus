@@ -222,6 +222,10 @@
       "landing_validation_prefetch": {
         "name": "Praecaptura validationis descensus",
         "description": "Gradatores descensus pro proximo opere idoneo eiusdem repositorii speculative exsequitur postquam gradatores operis praesentis successerunt. Coniunctio ipsa serialis manet."
+      },
+      "visual_review": {
+        "name": "Recognitio Visualis",
+        "description": "Gradum visual_review activat: agens independens navigatorem sine capite contra ipsam praevisionem operarii in gradu dirigit ut vitia visibilia deprehendat et documenta screenshot capiat antequam gradatores currunt. Fasciculus .syrus.yml repositorii hunc valorem praedefinitum totius instantiae per repositorium mutare potest."
       }
     }
   },

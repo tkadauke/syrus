@@ -1453,7 +1453,8 @@ RSpec.describe "Work engine reconciler chaos simulation" do
   end
 
   it "covers every registered workflow template and every registered step kind" do
-    AppSetting.current.update!(adversarial_review_rounds: 1, visual_review_enabled: true)
+    AppSetting.current.update!(adversarial_review_rounds: 1)
+    allow(Feature).to receive(:visual_review_enabled?).and_return(true)
     user = Factories.user
     repository = Factories.repository(user: user)
     template_classes = Workflow::TriggerKind::ENTRIES.map(&:template_class).uniq

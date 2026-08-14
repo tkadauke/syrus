@@ -1,6 +1,7 @@
 # Resolves the optional visual_review loop configured in `.syrus.yml`,
-# falling back to the instance-wide AppSetting default when the repository
-# hasn't configured (or couldn't fetch) a visual_review block.
+# falling back to the instance-wide `visual_review` Feature flag default
+# when the repository hasn't configured (or couldn't fetch) a visual_review
+# block, or configured one without an explicit `enabled` key.
 #
 # Mirrors RepoAdversarialReviewPlan: the Initial workflow chain is
 # materialized before the workflow workspace is cloned, so this resolver
@@ -39,7 +40,8 @@ class RepoVisualReviewPlan
     review = config.visual_review
     return instance_default(source: ".syrus.yml", note: "no visual_review configured") unless review
 
-    Result.new(enabled: review.enabled, rounds: review.rounds, source: ".syrus.yml", note: nil)
+    enabled = review.enabled.nil? ? Feature.visual_review_enabled? : review.enabled
+    Result.new(enabled: enabled, rounds: review.rounds, source: ".syrus.yml", note: nil)
   rescue SyrusYml::ParseError => e
     instance_default(source: ".syrus.yml", note: e.message)
   rescue StandardError => e
@@ -63,6 +65,6 @@ class RepoVisualReviewPlan
   end
 
   def instance_default(source:, note:)
-    Result.new(enabled: AppSetting.visual_review_enabled?, rounds: SyrusYml::DEFAULT_VISUAL_REVIEW_ROUNDS, source: source, note: note)
+    Result.new(enabled: Feature.visual_review_enabled?, rounds: SyrusYml::DEFAULT_VISUAL_REVIEW_ROUNDS, source: source, note: note)
   end
 end

@@ -103,7 +103,7 @@ external_pr_ingest (same-repo): prepare → retry_until(graders, repair: landing
 external_pr_ingest (fork):      prepare → grader_fanout → grader_collect
 ```
 
-`[loop(...)]` steps are conditional: the `adversarial_review` loop only appears when `adversarial_review_rounds > 0` (per `.syrus.yml` or `AppSetting`); the `visual_review` loop only appears when `visual_review.enabled` is true (per `.syrus.yml` or `AppSetting.visual_review_enabled?`); `coverage_analyze` only appears when a coverage plan is configured for the repository.
+`[loop(...)]` steps are conditional: the `adversarial_review` loop only appears when `adversarial_review_rounds > 0` (per `.syrus.yml` or `AppSetting`); the `visual_review` loop only appears when `visual_review.enabled` is true (per `.syrus.yml` or the `visual_review` Labs feature flag, `Feature.visual_review_enabled?`); `coverage_analyze` only appears when a coverage plan is configured for the repository.
 
 Key steps:
 
@@ -207,7 +207,8 @@ Key steps:
   The reviewer's workspace changes are discarded — it is read-only. Runs
   immediately after the `adversarial_review` loop, before the grader retry
   loop, in `initial`, `retry`, `pr_comment`, and `chat_feedback`; gated by
-  `visual_review.enabled` in `.syrus.yml` or `AppSetting.visual_review_enabled?`;
+  `visual_review.enabled` in `.syrus.yml` or the instance-wide `visual_review`
+  Labs feature flag (`Feature.visual_review_enabled?`, off by default);
   skipped in `ci_failure`, `auto_merge`, and maintenance workflows.
 - **`summarize`** / **`summarize_amend`** — Short agentic step that
   asks the agent to call `submit_summary`.

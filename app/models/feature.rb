@@ -70,6 +70,10 @@ class Feature < ApplicationRecord
     enabled?(:landing_validation_prefetch)
   end
 
+  def self.visual_review_enabled?
+    enabled?(:visual_review)
+  end
+
   private
 
   def clear_request_enabled_cache

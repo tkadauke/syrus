@@ -1429,10 +1429,21 @@ RSpec.describe App::JobDetailPayload do
     end
 
     it "is false when .syrus.yml explicitly disables visual_review" do
-      allow(AppSetting).to receive(:visual_review_enabled?).and_return(true)
+      allow(Feature).to receive(:visual_review_enabled?).and_return(true)
       write_bare_clone(repo, syrus_yml: "visual_review:\n  enabled: false\n")
       job = Factories.job_record(user: user, repository: repo, state: "implemented")
 
+      expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(false)
+    end
+
+    it "falls back to the instance-wide default when .syrus.yml has a visual_review block without an enabled key" do
+      write_bare_clone(repo, syrus_yml: "visual_review:\n  rounds: 2\n")
+      job = Factories.job_record(user: user, repository: repo, state: "implemented")
+
+      allow(Feature).to receive(:visual_review_enabled?).and_return(true)
+      expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(true)
+
+      allow(Feature).to receive(:visual_review_enabled?).and_return(false)
       expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(false)
     end
 
@@ -1440,17 +1451,17 @@ RSpec.describe App::JobDetailPayload do
       write_bare_clone(repo)
       job = Factories.job_record(user: user, repository: repo, state: "implemented")
 
-      allow(AppSetting).to receive(:visual_review_enabled?).and_return(true)
+      allow(Feature).to receive(:visual_review_enabled?).and_return(true)
       expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(true)
 
-      allow(AppSetting).to receive(:visual_review_enabled?).and_return(false)
+      allow(Feature).to receive(:visual_review_enabled?).and_return(false)
       expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(false)
     end
 
     it "falls back to the instance-wide default when there is no local clone yet" do
       job = Factories.job_record(user: user, repository: repo, state: "implemented")
 
-      allow(AppSetting).to receive(:visual_review_enabled?).and_return(true)
+      allow(Feature).to receive(:visual_review_enabled?).and_return(true)
       expect(payload_for(job).dig(:actions, :can_run_visual_review)).to be(true)
     end
 

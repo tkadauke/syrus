@@ -18,11 +18,9 @@ Maximum number of repair→check cycles in the grader loop before a workflow fai
 
 Number of implement→adversarial-review iterations run before graders. `0` disables adversarial review instance-wide. Per-repo `.syrus.yml` can override with `adversarial_review.rounds`.
 
-### visual_review_enabled
-
-**Type:** boolean · **Default:** false
-
-Instance-wide default for the visual_review Labs feature (headless-browser QA screenshots taken against the worker's own in-step preview). Per-repo `.syrus.yml` can override with `visual_review.enabled`.
+Visual review's instance-wide default is controlled by the `visual_review` Labs
+feature flag (`Feature.visual_review_enabled?`), not an `AppSetting` — see
+[`visual_review.md`](visual_review.md) and [`feature_flags.md`](feature_flags.md).
 
 ### max_job_failures
 

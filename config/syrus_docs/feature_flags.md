@@ -45,6 +45,12 @@ Enables walkthrough video intake in Syrus Chat. Operators can record or drag in 
 
 Enables the Local chat mode and the `syrus local` daemon command. The agent connects to a daemon running on the user's local machine via a reverse WebSocket tunnel to read/write files and run commands locally, without requiring a server-side clone.
 
+## visual_review
+
+**Category:** Labs
+
+Enables the `visual_review` step: an independent reviewer agent drives a headless browser against its own in-step preview to catch visible defects and capture screenshot artifacts before graders run. `Feature.visual_review_enabled?` is the instance-wide default; a repository's `.syrus.yml` `visual_review.enabled` key overrides it per repo. See the Visual Review documentation for the full config block, step behavior, seeding requirements, and the browser tool set's loopback restriction.
+
 ## admin_supervisor_chat
 
 **Category:** Operations

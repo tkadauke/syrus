@@ -72,14 +72,6 @@ RSpec.describe AppSetting do
     expect(AppSetting.adversarial_review_rounds).to eq(2)
   end
 
-  it ".visual_review_enabled? defaults to false and reflects the instance-wide override" do
-    expect(AppSetting.visual_review_enabled?).to be false
-
-    AppSetting.current.update!(visual_review_enabled: true)
-
-    expect(AppSetting.visual_review_enabled?).to be true
-  end
-
   it "rejects grade_max_iterations above 10" do
     expect(AppSettingRegistry.fetch(:grade_max_iterations).max).to eq(10)
 

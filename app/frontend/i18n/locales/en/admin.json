@@ -222,6 +222,10 @@
       "landing_validation_prefetch": {
         "name": "Landing validation prefetch",
         "description": "Speculatively runs landing graders for the next eligible same-repository Job after the current Job's landing graders pass. Actual merge remains serialized."
+      },
+      "visual_review": {
+        "name": "Visual review",
+        "description": "Enables the visual_review step: an independent agent drives a headless browser against the worker's own in-step preview to catch visible defects and capture screenshot artifacts before graders run. A repository's .syrus.yml can override this instance-wide default per repo."
       }
     }
   },

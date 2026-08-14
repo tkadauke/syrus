@@ -139,6 +139,31 @@ a fresh workflow agent fixes the committed handoff branch and graders retry
 before the PR opens. The originating chat may receive status notifications, but
 it is not queued to repair the grader failure.
 
+## Visual Review
+
+When the `visual_review` feature flag is enabled, Syrus adds a headless-browser
+QA pass to the implementation loop. After the agent implements a change, an
+independent reviewer agent boots its own preview of the running app, decides
+for itself whether the change is even visually testable (skipping invisible or
+backend-only diffs), and — if so — drives a real browser against it: clicking
+through the actual feature, not just loading the homepage. It captures
+screenshots as it goes so operators can see exactly what was tested, then
+records a verdict. If it finds a visible defect, the change goes back through
+another implementation pass automatically, the same way adversarial review's
+findings do; if it looks correct, or isn't visually testable, the loop exits
+and grading continues.
+
+Operators can also trigger a visual review pass on demand from the Job detail
+page's "Run visual review" action — useful for a fresh look after
+implementation, or to cover a pass that was skipped or never configured.
+
+Repositories opt in per repo, or an admin can turn the flag on instance-wide
+from Admin → Features. A repository's `.syrus.yml` can override the
+instance-wide default, bound how many review rounds run, restrict visual
+review to specific changed files, and record seed notes (demo login, a record
+to look for) so the reviewer can reach an authenticated or populated view of
+the app instead of a blank one.
+
 ## Epics
 
 Epics group related Jobs inside one repository. They are useful when a

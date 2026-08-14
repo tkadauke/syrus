@@ -953,15 +953,35 @@ RSpec.describe SyrusYml do
       expect(config.visual_review.seed_notes).to eq("Log in as demo@example.com / password to reach the dashboard.")
     end
 
-    it "defaults enabled to false, rounds to 1, when_files_changed to nil, and seed_notes to nil when omitted" do
+    it "defaults enabled to nil (defers to the instance-wide Feature default), rounds to 1, when_files_changed to nil, and seed_notes to nil when omitted" do
       config = parse(<<~YAML)
         visual_review: {}
       YAML
 
-      expect(config.visual_review.enabled).to be false
+      expect(config.visual_review.enabled).to be_nil
       expect(config.visual_review.rounds).to eq(1)
       expect(config.visual_review.when_files_changed).to be_nil
       expect(config.visual_review.seed_notes).to be_nil
+    end
+
+    it "leaves enabled nil when the block is present but the enabled key is omitted, even with other keys set" do
+      config = parse(<<~YAML)
+        visual_review:
+          rounds: 2
+          seed_notes: "Log in as demo@example.com / password."
+      YAML
+
+      expect(config.visual_review.enabled).to be_nil
+      expect(config.visual_review.rounds).to eq(2)
+    end
+
+    it "records an explicit enabled: false repo override distinctly from an omitted key" do
+      config = parse(<<~YAML)
+        visual_review:
+          enabled: false
+      YAML
+
+      expect(config.visual_review.enabled).to be false
     end
 
     it "clamps visual_review rounds above the hard ceiling with a warning" do
