@@ -56,6 +56,7 @@ export type PersonalDocument = {
   content_type: string | null
   byte_size: number | null
   created_at: string
+  file_path: string | null
 }
 
 export type CredentialsOptions = {

@@ -16,6 +16,7 @@ import { PanelMessage } from "../components/PanelMessage"
 import { errorMessage } from "../lib/errorMessage"
 import { formatBytes } from "../lib/format"
 import { useConfirm } from "../hooks/useConfirm"
+import { DocumentPreviewModal, isPreviewableContentType } from "../components/DocumentPreviewModal"
 
 const queryKey = ["personal-documents"] as const
 
@@ -65,6 +66,7 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
   const queryClient = useQueryClient()
   const [files, setFiles] = useState<File[]>([])
   const [googleDocUrl, setGoogleDocUrl] = useState("")
+  const [previewDocument, setPreviewDocument] = useState<PersonalDocument | null>(null)
   const upload = useMutation({
     mutationFn: () => addCredentialDocuments(files, googleDocUrl),
     onSuccess: (updated) => {
@@ -88,6 +90,19 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
     upload.mutate()
   }
 
+  function openDocument(document: PersonalDocument) {
+    if (document.kind === "google_doc") {
+      if (document.google_doc_url) window.open(document.google_doc_url, "_blank", "noopener")
+      return
+    }
+    if (!document.file_path) return
+    if (isPreviewableContentType(document.content_type)) {
+      setPreviewDocument(document)
+    } else {
+      window.open(document.file_path, "_blank", "noopener")
+    }
+  }
+
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -109,7 +124,9 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
           </p>
         ) : payload.documents.map((document) => (
           <div className="flex items-center justify-between gap-3 p-3" key={document.id}>
-            <DocumentSummary document={document} />
+            <button className="min-w-0 flex-1 rounded text-left hover:bg-gray-50 dark:hover:bg-gray-800" onClick={() => openDocument(document)} type="button">
+              <DocumentSummary document={document} />
+            </button>
             <button
               className="text-xs font-medium text-red-600 dark:text-red-300 hover:text-red-700 dark:hover:text-red-300 disabled:text-red-300 dark:disabled:text-red-500"
               disabled={destroy.isPending}
@@ -150,6 +167,12 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
           )}
         </button>
       </form>
+      {previewDocument && previewDocument.file_path ? (
+        <DocumentPreviewModal
+          file={{ title: previewDocument.filename || t('personal_documents.file'), rawUrl: previewDocument.file_path, contentType: previewDocument.content_type }}
+          onClose={() => setPreviewDocument(null)}
+        />
+      ) : null}
       {dialog}
     </section>
   )
@@ -160,7 +183,7 @@ function DocumentSummary({ document }: { document: PersonalDocument }) {
   if (document.kind === "google_doc" && document.google_doc_url) {
     return (
       <div className="min-w-0">
-        <a className="block truncate text-sm font-medium text-blue-700 dark:text-blue-300 hover:underline" href={document.google_doc_url} rel="noopener" target="_blank">{document.google_doc_url}</a>
+        <div className="truncate text-sm font-medium text-blue-700 dark:text-blue-300">{document.google_doc_url}</div>
         <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
           {t('personal_documents.google_doc')}
         </div>

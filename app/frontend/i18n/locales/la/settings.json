@@ -424,6 +424,15 @@
     "confirm_delete": "Hoc documentum delere?",
     "removed": "Documentum remotum."
   },
+  "document_preview": {
+    "aria_label": "Prospectus documenti {{title}}",
+    "preview": "Prospectus",
+    "source": "Fons",
+    "open_raw": "Fontem aperire",
+    "close": "Prospectum claudere",
+    "loading": "Documentum oneratur...",
+    "error": "Documentum onerari non potuit."
+  },
   "tags": {
     "heading": "Pittacia",
     "description": "Pittacia officiorum globalia computatro tuo adscripta.",

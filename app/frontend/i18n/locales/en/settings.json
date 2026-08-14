@@ -424,6 +424,15 @@
     "confirm_delete": "Delete this document?",
     "removed": "Document removed."
   },
+  "document_preview": {
+    "aria_label": "Preview of {{title}}",
+    "preview": "Preview",
+    "source": "Source",
+    "open_raw": "Open raw",
+    "close": "Close preview",
+    "loading": "Loading document...",
+    "error": "Document could not be loaded."
+  },
   "tags": {
     "heading": "Tags",
     "description": "Global job labels scoped to your account.",

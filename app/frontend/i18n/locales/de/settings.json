@@ -424,6 +424,15 @@
     "confirm_delete": "Dieses Dokument löschen?",
     "removed": "Dokument entfernt."
   },
+  "document_preview": {
+    "aria_label": "Vorschau von {{title}}",
+    "preview": "Vorschau",
+    "source": "Quelle",
+    "open_raw": "Original öffnen",
+    "close": "Vorschau schließen",
+    "loading": "Dokument wird geladen...",
+    "error": "Dokument konnte nicht geladen werden."
+  },
   "tags": {
     "heading": "Schlagwörter",
     "description": "Globale Aufgaben-Labels für Ihr Konto.",

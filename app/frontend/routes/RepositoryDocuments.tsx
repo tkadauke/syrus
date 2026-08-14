@@ -20,6 +20,7 @@ import { PanelMessage } from "../components/PanelMessage"
 import { errorMessage } from "../lib/errorMessage"
 import { formatBytes } from "../lib/format"
 import { useConfirm } from "../hooks/useConfirm"
+import { DocumentPreviewModal, isPreviewableContentType } from "../components/DocumentPreviewModal"
 
 export function RepositoryDocumentsRoute() {
   const { t } = useT("settings")
@@ -48,6 +49,7 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
   const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
   const [notice, setNotice] = useState<string | null>(payload.message || null)
+  const [previewDocument, setPreviewDocument] = useState<RepositoryDocument | null>(null)
   const queryKey = ["repositories", String(payload.repository.id), "documents"] as const
   const destroy = useMutation({
     mutationFn: (document: RepositoryDocument) => deleteRepositoryDocument(document.id),
@@ -56,6 +58,19 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
       setNotice(updated.message || t('repository_documents.removed'))
     }
   })
+
+  function openDocument(document: RepositoryDocument) {
+    if (document.kind === "google_doc") {
+      if (document.google_doc_url) window.open(document.google_doc_url, "_blank", "noopener")
+      return
+    }
+    if (!document.file_path) return
+    if (isPreviewableContentType(document.content_type)) {
+      setPreviewDocument(document)
+    } else {
+      window.open(document.file_path, "_blank", "noopener")
+    }
+  }
 
   return (
     <>
@@ -89,8 +104,14 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
             {payload.documents.map((document) => (
               <li className="py-3" key={document.id}>
                 <div className="flex items-start gap-3">
-                  <DocumentBadge document={document} />
-                  <DocumentSummary document={document} />
+                  <button
+                    className="flex min-w-0 flex-1 items-start gap-3 rounded text-left hover:bg-gray-50 dark:hover:bg-gray-800"
+                    onClick={() => openDocument(document)}
+                    type="button"
+                  >
+                    <DocumentBadge document={document} />
+                    <DocumentSummary document={document} />
+                  </button>
                   <button
                     className="shrink-0 rounded bg-gray-100 dark:bg-gray-800 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:text-gray-300 dark:disabled:text-gray-600"
                     disabled={destroy.isPending}
@@ -109,6 +130,12 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
       </section>
 
       <DocumentForms acceptedTypes={payload.accepted_file_content_types} onNotice={setNotice} payload={payload} />
+      {previewDocument && previewDocument.file_path ? (
+        <DocumentPreviewModal
+          file={{ title: previewDocument.title, rawUrl: previewDocument.file_path, contentType: previewDocument.content_type }}
+          onClose={() => setPreviewDocument(null)}
+        />
+      ) : null}
       {dialog}
     </>
   )
@@ -228,7 +255,7 @@ function DocumentSummary({ document }: { document: RepositoryDocument }) {
       <div className="break-words text-sm font-medium text-gray-900 dark:text-gray-100">{document.title}</div>
       <div className="mt-1 break-all text-xs text-gray-500 dark:text-gray-400">
         {document.kind === "google_doc" && document.google_doc_url ? (
-          <a className="text-blue-600 dark:text-blue-400 underline hover:no-underline" href={document.google_doc_url} rel="noopener" target="_blank">{document.google_doc_url}</a>
+          <span className="text-blue-600 dark:text-blue-400 underline">{document.google_doc_url}</span>
         ) : (
           <span>
             {document.filename || (

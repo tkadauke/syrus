@@ -93,7 +93,10 @@ RSpec.describe "API: /api/v1/app/repository_documents", type: :request do
     expect(document.title).to eq("API notes")
     expect(document.file).to be_attached
     expect(parse_body["message"]).to eq("Document added.")
-    expect(parse_body["documents"].first).to include("filename" => "notes.md")
+    expect(parse_body["documents"].first).to include(
+      "filename" => "notes.md",
+      "file_path" => "/api/v1/app/repository_documents/#{document.id}/file"
+    )
   end
 
   it "creates a Google Docs link document" do
@@ -112,6 +115,7 @@ RSpec.describe "API: /api/v1/app/repository_documents", type: :request do
     expect(response).to have_http_status(:created)
     expect(repository.repository_documents.last.google_docs_url).to eq("https://docs.google.com/document/d/design/edit")
     expect(parse_body.dig("documents", 0, "title")).to eq("Design brief")
+    expect(parse_body.dig("documents", 0, "file_path")).to be_nil
   end
 
   it "returns validation errors" do
@@ -168,5 +172,38 @@ RSpec.describe "API: /api/v1/app/repository_documents", type: :request do
     delete "/api/v1/app/repository_documents/#{document.id}"
     expect(response).to have_http_status(:not_found)
     expect(document.reload).to be_present
+  end
+
+  it "serves a repository document's raw file inline" do
+    sign_in_as(user)
+    document = repository.repository_documents.create!(
+      user: user,
+      kind: "file",
+      title: "Notes",
+      file: upload_file(name: "notes.md", content_type: "text/markdown", content: "# Notes")
+    )
+
+    get "/api/v1/app/repository_documents/#{document.id}/file"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.headers["Content-Type"]).to include("text/markdown")
+    expect(response.headers["Content-Disposition"]).to include("inline")
+    expect(response.body).to eq("# Notes")
+  end
+
+  it "404s fetching another user's repository document file" do
+    sign_in_as(user)
+    other_user = Factories.user
+    other_repo = Factories.repository(user: other_user, owner: "other", name: "private")
+    document = other_repo.repository_documents.create!(
+      user: other_user,
+      kind: "file",
+      title: "Private",
+      file: upload_file
+    )
+
+    get "/api/v1/app/repository_documents/#{document.id}/file"
+
+    expect(response).to have_http_status(:not_found)
   end
 end

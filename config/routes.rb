@@ -81,7 +81,9 @@ Rails.application.routes.draw do
           post :recheck_provider_availability
           post :override_provider_availability
           delete :revoke_api_token
-          resources :documents, only: %i[ index create destroy ], controller: "credentials/documents"
+          resources :documents, only: %i[ index create destroy ], controller: "credentials/documents" do
+            member { get :file }
+          end
         end
         get "jobs/new", to: "direct_jobs#new"
         get "jobs/graph", to: "jobs#graph"
@@ -290,6 +292,7 @@ Rails.application.routes.draw do
         patch "repositories/:repository_id/input_sources/:type", to: "input_sources#update"
         get "repositories/:repository_id/documents", to: "repository_documents#index"
         post "repositories/:repository_id/documents", to: "repository_documents#create"
+        get "repository_documents/:id/file", to: "repository_documents#file"
         delete "repository_documents/:id", to: "repository_documents#destroy"
         get "repositories/:repository_id/scheduled_tasks/new", to: "scheduled_tasks#new"
         get "repositories/:repository_id/scheduled_tasks", to: "scheduled_tasks#repository_index"

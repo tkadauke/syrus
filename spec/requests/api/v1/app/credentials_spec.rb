@@ -502,12 +502,43 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     body = parse_body
     expect(body["documents"].map { |document| document["kind"] }).to contain_exactly("file", "google_doc")
 
+    file_document = body["documents"].find { |document| document["kind"] == "file" }
+    expect(file_document["file_path"]).to eq("/api/v1/app/credentials/documents/#{file_document['id']}/file")
+    google_doc_document = body["documents"].find { |document| document["kind"] == "google_doc" }
+    expect(google_doc_document["file_path"]).to be_nil
+
     document = user.documents.find_by!(kind: "google_doc")
     delete "/api/v1/app/credentials/documents/#{document.id}"
 
     expect(response).to have_http_status(:ok)
     expect(Document.where(id: document.id)).not_to exist
     expect(parse_body["message"]).to eq("Document removed.")
+  end
+
+  it "serves a personal document's raw file inline" do
+    sign_in_as(user)
+    document = user.documents.build(kind: "file", user: user)
+    document.file.attach(upload_file(name: "notes.txt", content_type: "text/plain", content: "hello world"))
+    document.save!
+
+    get "/api/v1/app/credentials/documents/#{document.id}/file"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.headers["Content-Type"]).to include("text/plain")
+    expect(response.headers["Content-Disposition"]).to include("inline")
+    expect(response.body).to eq("hello world")
+  end
+
+  it "404s fetching another user's personal document file" do
+    sign_in_as(user)
+    other_user = Factories.user
+    document = other_user.documents.build(kind: "file", user: other_user)
+    document.file.attach(upload_file)
+    document.save!
+
+    get "/api/v1/app/credentials/documents/#{document.id}/file"
+
+    expect(response).to have_http_status(:not_found)
   end
 
   it "rotates and revokes admin API tokens" do

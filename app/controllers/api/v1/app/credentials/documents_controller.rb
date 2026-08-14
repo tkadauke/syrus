@@ -47,6 +47,18 @@ module Api
           render json: documents_payload(Current.user.reload).merge(message: "Document removed.")
         end
 
+        def file
+          document = Current.user.documents.find(params[:id])
+          raise ActiveRecord::RecordNotFound, "Document file not found" unless document.file.attached?
+
+          send_data(
+            document.file.download,
+            filename: document.filename || "document",
+            type: document.content_type || "application/octet-stream",
+            disposition: "inline"
+          )
+        end
+
         private
 
         def uploaded_files

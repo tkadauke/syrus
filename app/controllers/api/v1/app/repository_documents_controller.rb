@@ -30,6 +30,18 @@ module Api
           render json: documents_payload(repository.reload).merge(message: "Document removed.")
         end
 
+        def file
+          document = find_document
+          raise ActiveRecord::RecordNotFound, "Document file not found" unless document.file.attached?
+
+          send_data(
+            document.file.download,
+            filename: document.filename || "document",
+            type: document.content_type || "application/octet-stream",
+            disposition: "inline"
+          )
+        end
+
         private
 
         def documents_payload(repository)
@@ -63,7 +75,8 @@ module Api
             content_type: document.content_type,
             byte_size: document.byte_size,
             uploaded_by: document.user&.display_name,
-            created_at: document.created_at.iso8601
+            created_at: document.created_at.iso8601,
+            file_path: document.file.attached? ? "/api/v1/app/repository_documents/#{document.id}/file" : nil
           }
         end
 

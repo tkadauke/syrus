@@ -17,6 +17,7 @@ export type RepositoryDocument = {
   byte_size: number | null
   uploaded_by: string | null
   created_at: string
+  file_path: string | null
 }
 
 export type RepositoryDocumentsPayload = {
