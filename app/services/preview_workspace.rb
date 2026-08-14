@@ -17,6 +17,7 @@ class PreviewWorkspace
   def self.cleanup_for(preview_environment)
     path = preview_environment.workspace_path.presence || path_for(preview_environment).to_s
     FileUtils.rm_rf(path)
+    preview_environment.update_columns(workspace_path: nil, updated_at: Time.current)
   rescue StandardError => e
     Rails.logger.warn("[PreviewWorkspace] cleanup failed for PreviewEnvironment ##{preview_environment.id}: #{e.class}: #{e.message}")
   end

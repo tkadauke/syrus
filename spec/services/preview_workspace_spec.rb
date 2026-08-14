@@ -52,4 +52,19 @@ RSpec.describe PreviewWorkspace do
   ensure
     FileUtils.rm_rf(source_path) if source_path
   end
+
+  describe ".cleanup_for" do
+    it "removes the workspace directory and nulls the stale workspace_path column" do
+      repository = Factories.repository
+      job = Factories.job_record(repository: repository, branch_name: "preview-branch", state: "implemented")
+      workspace_path = Dir.mktmpdir
+      FileUtils.mkdir_p(File.join(workspace_path, "log"))
+      preview_environment = PreviewEnvironment.create!(job: job, state: "stopping", workspace_path: workspace_path)
+
+      described_class.cleanup_for(preview_environment)
+
+      expect(Dir.exist?(workspace_path)).to be(false)
+      expect(preview_environment.reload.workspace_path).to be_nil
+    end
+  end
 end

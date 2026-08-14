@@ -153,21 +153,45 @@ RSpec.describe "App API job preview", type: :request do
   end
 
   describe "GET /api/v1/app/jobs/:job_id/preview/logs" do
-    it "returns tailed preview logs for the latest environment" do
-      Dir.mktmpdir do |dir|
-        FileUtils.mkdir_p(File.join(dir, "log"))
-        File.write(File.join(dir, "log", "development.log"), "first\nsecond\nthird\n")
-        env = create_preview_env(job, state: "running", workspace_path: dir, expires_at: 10.minutes.from_now)
-        allow(PreviewLogReader).to receive(:call).with(env, lines: "2").and_call_original
+    def stub_control_endpoint(env, lines:, status: 200, body: nil)
+      stub_request(:get, "http://10.0.0.5:#{PreviewControlServer::PORT}/environments/#{env.id}/logs?lines=#{lines}")
+        .to_return(status: status, headers: { "Content-Type" => "application/json" }, body: body || "{}")
+    end
 
-        get "#{preview_logs_path(job)}?lines=2", as: :json
-      end
+    it "returns tailed preview logs fetched through the preview control endpoint" do
+      env = create_preview_env(job, state: "running", internal_host: "10.0.0.5", expires_at: 10.minutes.from_now)
+      stub = stub_control_endpoint(env, lines: "2", body: {
+        logs: [ { path: "log/development.log", content: "second\nthird", missing: false } ]
+      }.to_json)
 
+      get "#{preview_logs_path(job)}?lines=2", as: :json
+
+      expect(stub).to have_been_requested
       expect(response).to have_http_status(:ok)
       expect(parse_body.dig("preview", "state")).to eq("running")
       expect(parse_body["logs"]).to include(
         a_hash_including("path" => "log/development.log", "content" => "second\nthird", "missing" => false)
       )
+    end
+
+    it "returns service_unavailable when the preview control endpoint is unreachable" do
+      env = create_preview_env(job, state: "running", internal_host: "10.0.0.5", expires_at: 10.minutes.from_now)
+      stub_request(:get, "http://10.0.0.5:#{PreviewControlServer::PORT}/environments/#{env.id}/logs?lines=120")
+        .to_timeout
+
+      get preview_logs_path(job), as: :json
+
+      expect(response).to have_http_status(:service_unavailable)
+      expect(parse_body.dig("error", "code")).to eq("preview_logs_unavailable")
+    end
+
+    it "returns service_unavailable when the environment has no internal host recorded yet" do
+      create_preview_env(job, state: "starting")
+
+      get preview_logs_path(job), as: :json
+
+      expect(response).to have_http_status(:service_unavailable)
+      expect(parse_body.dig("error", "code")).to eq("preview_logs_unavailable")
     end
 
     it "returns not_found when no preview environment exists" do
@@ -181,7 +205,7 @@ RSpec.describe "App API job preview", type: :request do
       other_user = Factories.user
       other_repo = Factories.repository(user: other_user)
       other_job = Factories.job_record(repository: other_repo)
-      create_preview_env(other_job, state: "running", workspace_path: Dir.mktmpdir)
+      create_preview_env(other_job, state: "running", internal_host: "10.0.0.5")
 
       get preview_logs_path(other_job), as: :json
 

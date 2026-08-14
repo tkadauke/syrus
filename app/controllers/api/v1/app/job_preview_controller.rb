@@ -18,7 +18,13 @@ module Api
             return
           end
 
-          logs = PreviewLogReader.call(env, lines: params.fetch(:lines, PreviewLogReader::DEFAULT_LINES))
+          begin
+            logs = PreviewLogClient.call(env, lines: params.fetch(:lines, PreviewLogReader::DEFAULT_LINES))
+          rescue PreviewLogClient::Unavailable
+            render_error("preview_logs_unavailable", "Preview logs are temporarily unavailable.", status: :service_unavailable)
+            return
+          end
+
           render json: {
             preview: preview_json(env),
             logs: logs.map { |log| preview_log_json(log) }

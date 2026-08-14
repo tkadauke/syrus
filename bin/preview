@@ -2,4 +2,10 @@
 
 require_relative "../config/environment"
 
-PreviewService.new.run
+control_server = PreviewControlServer.start
+
+begin
+  PreviewService.new.run
+ensure
+  control_server.stop
+end

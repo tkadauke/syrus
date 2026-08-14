@@ -27,6 +27,10 @@ Controls the base domain for preview subdomains. Default: `lvh.me`.
 
 Port range the preview service allocates from when spawning preview apps. Defaults: `20000`–`29999`.
 
+### `SYRUS_PREVIEW_CONTROL_PORT`
+
+Fixed port the `preview` service binds its internal control endpoint on (see "Preview service process" below). Default: `4568`. Distinct from the `SYRUS_PREVIEW_PORT_MIN`/`MAX` range, which is for per-environment app ports, not this shared control port.
+
 ## Architecture
 
 ### Web process: `PreviewProxyMiddleware`
@@ -68,6 +72,15 @@ detail Preview panel exposes these logs on demand, and workflow agents can read
 them through `read_preview_log`. The bundled Rails provider exposes both
 `log/development.log` and `log/vite.log`.
 
+The web process does not share a filesystem with `preview` (they are separate
+Deployments), so `GET /api/v1/app/jobs/:job_id/preview/logs` cannot read the
+preview workspace directly. Instead it makes an internal HTTP request to the
+`preview` service's control endpoint (`PreviewControlServer`), which runs
+inside the `preview` process where the workspace actually lives on disk and
+reads the log files locally via `PreviewLogReader`. If that internal request
+fails (e.g. the preview pod is mid-restart), the API responds with
+`503 preview_logs_unavailable` rather than a misleading empty log list.
+
 The bundled Rails preview provider installs JavaScript dependencies when a
 package-manager lockfile is present, starts `npm run dev` alongside
 `bin/rails server` when the repo has `package.json`, and forces
@@ -84,9 +97,11 @@ proxy forwards them to the app's local Vite dev server.
 
 ### Preview service process
 
-The `preview` service (`bin/preview`, `Procfile.dev`) is a separate long-running process that manages preview app child processes. It is not involved in request routing.
+The `preview` service (`bin/preview`, `Procfile.dev`) is a separate long-running process that manages preview app child processes. It is not involved in app request routing.
 
-Preview apps do not reuse workflow workspaces: successful workflow workspaces are cleaned up as part of normal workflow lifecycle. When an operator starts a preview, the preview service materializes a fresh checkout under `$SYRUS_DATA_ROOT/previews/<preview_environment_id>/` at the Job's PR branch, runs preview setup and seed commands there, and starts the app from that checkout.
+Alongside its poll loop, `bin/preview` also starts `PreviewControlServer`, a small internal-only HTTP responder bound to `0.0.0.0:SYRUS_PREVIEW_CONTROL_PORT`. It exposes `GET /environments/:id/logs?lines=N`, used by the web process (`PreviewLogClient`) to read preview app logs without a shared volume — see above. Like the terminal relay, this endpoint is internal/private network only and must never be exposed through public ingress.
+
+Preview apps do not reuse workflow workspaces: successful workflow workspaces are cleaned up as part of normal workflow lifecycle. When an operator starts a preview, the preview service materializes a fresh checkout under `$SYRUS_DATA_ROOT/previews/<preview_environment_id>/` at the Job's PR branch, runs preview setup and seed commands there, and starts the app from that checkout. Stopping or expiring an environment removes that checkout and nulls the `workspace_path` column so a stopped/expired environment's row never points at a deleted directory.
 
 Each preview server child process is recorded as a `SpawnedProcess` with `kind=preview`, including `pid`, `pgid`, command, workdir, and preview/job identifiers in `resource_attribution`. This keeps preview processes visible in the admin Spawned Processes UI and lets the normal spawned-process supervisor/audit path detect exits and honor operator kill requests.
 
@@ -103,3 +118,4 @@ Each preview server child process is recorded as a `SpawnedProcess` with `kind=p
 2. Add a wildcard DNS record: `*.{your_domain} → your web server IP`.
 3. Ensure your TLS terminator (Traefik, nginx, etc.) passes the `Host` header through to Rails.
 4. The preview service must run alongside web and worker (`SYRUS_ROLE=preview bin/preview`).
+5. The web pod must be able to reach the preview pod's `SYRUS_PREVIEW_CONTROL_PORT` (default `4568`) over the internal cluster network — this is how preview logs are fetched. Do not expose this port through public ingress.
