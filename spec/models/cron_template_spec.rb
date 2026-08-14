@@ -126,4 +126,35 @@ RSpec.describe CronTemplate do
       expect(task.reload.cron_template_id).to be_nil
     end
   end
+
+  describe ".seed_defaults_for" do
+    # The first User created in the process is auto-seeded on creation (see
+    # User#seed_default_cron_templates); create a throwaway user first so
+    # `user` starts with an empty template list for these examples.
+    before { Factories.user }
+
+    it "creates the default templates for the given user" do
+      expect {
+        described_class.seed_defaults_for(user)
+      }.to change { user.cron_templates.count }.by(described_class::DEFAULT_TEMPLATES.size)
+
+      expect(user.cron_templates.pluck(:name)).to contain_exactly(
+        "Deduplicate code", "Keep documentation up to date", "Increase test coverage"
+      )
+    end
+
+    it "is idempotent" do
+      described_class.seed_defaults_for(user)
+
+      expect {
+        described_class.seed_defaults_for(user)
+      }.not_to change { user.cron_templates.count }
+    end
+
+    it "seeds templates that are individually valid" do
+      described_class.seed_defaults_for(user)
+
+      expect(user.cron_templates.reload).to all(be_valid)
+    end
+  end
 end

@@ -1,6 +1,11 @@
 require "rails_helper"
 
 RSpec.describe "API: /api/v1/app/cron_templates", type: :request do
+  # The very first User created in the process gets the seeded default cron
+  # templates (see CronTemplate::DEFAULT_TEMPLATES). Create a throwaway user
+  # up front so `user`/`other_user` below start with an empty template list.
+  before { Factories.user }
+
   let(:user) { Factories.user }
   let(:other_user) { Factories.user }
 

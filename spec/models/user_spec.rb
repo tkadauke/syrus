@@ -21,6 +21,19 @@ RSpec.describe User do
       second.update!(email_address: "two-renamed@example.com")
       expect(second.admin?).to be false
     end
+
+    it "seeds the default cron templates for the first user" do
+      user = User.create!(attrs)
+      expect(user.cron_templates.pluck(:name)).to contain_exactly(
+        "Deduplicate code", "Keep documentation up to date", "Increase test coverage"
+      )
+    end
+
+    it "does not seed cron templates for subsequent users" do
+      User.create!(attrs)
+      second = User.create!(attrs.merge(email_address: "two@example.com"))
+      expect(second.cron_templates).to be_empty
+    end
   end
 
   describe "profile fields" do

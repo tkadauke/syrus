@@ -86,6 +86,18 @@ Cron tasks should be written so the agent can succeed even if there's nothing to
 
 Templates are managed from the user's settings page. Useful when the same survey or maintenance prompt runs across many repositories.
 
+### Seeded defaults
+
+A brand-new Syrus installation seeds three starter templates (`CronTemplate::DEFAULT_TEMPLATES`) for the first user created — the installation's bootstrap admin — so `/cron_templates` isn't empty on day one:
+
+| Template | Cadence | Purpose |
+|---|---|---|
+| Deduplicate code | Weekly, Monday 9:00 AM UTC | Finds and consolidates duplicated logic |
+| Keep documentation up to date | Weekly, Wednesday 9:00 AM UTC | Audits docs against recent code changes |
+| Increase test coverage | Weekly, Friday 9:00 AM UTC | Adds tests for under-covered, high-risk code |
+
+They're seeded once via `User#seed_default_cron_templates` (an `after_create` callback gated on being the very first `User` row) and are ordinary templates from then on — operators can edit, disable, or delete them like any other. `CronTemplate.seed_defaults_for(user)` is idempotent (`find_or_create_by!` on name), so re-running it is a no-op. Later signups don't get a copy.
+
 ## Variables in prompts
 
 Cron task prompts support these interpolation variables, rendered at fire time:

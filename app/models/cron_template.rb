@@ -1,6 +1,61 @@
 class CronTemplate < ApplicationRecord
   PR_PILEUP_POLICIES = %w[ skip pile replace ].freeze
 
+  DEFAULT_TEMPLATES = [
+    {
+      name: "Deduplicate code",
+      description: "Finds and consolidates duplicated logic.",
+      prompt: <<~PROMPT.strip,
+        Survey {{repo_slug}} for duplicated logic — repeated helper methods,
+        copy-pasted service objects, near-identical components, or parallel
+        implementations of the same behavior. When you find a safe,
+        well-scoped duplication to consolidate, extract a shared abstraction
+        and update every call site, with tests covering the consolidated
+        code path. Keep the change narrowly scoped to one duplication per
+        run; don't restructure unrelated code.
+
+        If nothing meets the bar, call submit_summary with a one-line note
+        and finish without committing — that's a normal, successful outcome.
+      PROMPT
+      cron_expression: "0 9 * * 1",
+      pr_pileup_policy: "skip"
+    },
+    {
+      name: "Keep documentation up to date",
+      description: "Audits docs against recent code changes.",
+      prompt: <<~PROMPT.strip,
+        Compare recent commits on {{repo_slug}} against its documentation
+        (README, top-level agent/contributor guide, and any docs directory)
+        to find operator-facing or contributor-facing behavior that has
+        drifted out of sync with what's documented. Fix the stale or
+        missing documentation for one concrete drift at a time — don't
+        rewrite unrelated sections.
+
+        If everything is already current, call submit_summary with a
+        one-line note and finish without committing — that's a normal,
+        successful outcome.
+      PROMPT
+      cron_expression: "0 9 * * 3",
+      pr_pileup_policy: "skip"
+    },
+    {
+      name: "Increase test coverage",
+      description: "Adds tests for under-covered, high-risk code.",
+      prompt: <<~PROMPT.strip,
+        Find under-tested files in {{repo_slug}} and add focused tests for
+        the least-covered, highest-risk code path. Prefer regression-style
+        tests that exercise real edge cases over trivial line-count
+        padding. Keep the change scoped to one area per run.
+
+        If coverage is already healthy and no under-tested file stands
+        out, call submit_summary with a one-line note and finish without
+        committing — that's a normal, successful outcome.
+      PROMPT
+      cron_expression: "0 9 * * 5",
+      pr_pileup_policy: "skip"
+    }
+  ].freeze
+
   belongs_to :user
   has_many :scheduled_tasks, dependent: :nullify
 
@@ -16,6 +71,14 @@ class CronTemplate < ApplicationRecord
   before_validation :canonicalize_recurring_schedule
 
   scope :enabled_only, -> { where(enabled: true) }
+
+  def self.seed_defaults_for(user)
+    DEFAULT_TEMPLATES.each do |attrs|
+      user.cron_templates.find_or_create_by!(name: attrs.fetch(:name)) do |template|
+        template.assign_attributes(attrs)
+      end
+    end
+  end
 
   def hourly_cron_expression
     legacy_cron_expression.presence || cron_expression

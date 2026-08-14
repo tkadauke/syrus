@@ -184,6 +184,7 @@ class User < ApplicationRecord
   after_initialize :seed_locale
   before_create :promote_first_user_to_admin
   before_create :generate_webauthn_id
+  after_create :seed_default_cron_templates
 
   def admin?
     admin
@@ -831,7 +832,16 @@ class User < ApplicationRecord
   end
 
   def promote_first_user_to_admin
-    self.admin = true if User.count.zero?
+    @first_user = User.count.zero?
+    self.admin = true if @first_user
+  end
+
+  # A new Syrus installation should start with a useful set of Cron
+  # Templates rather than an empty list. Seeded only for the very first
+  # user (the installation's bootstrap admin) so later signups don't
+  # each accumulate their own copies.
+  def seed_default_cron_templates
+    CronTemplate.seed_defaults_for(self) if @first_user
   end
 
   def provider_availability_pause_thresholds_valid
