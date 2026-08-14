@@ -25,6 +25,11 @@ export function AdminProcessesIndex() {
   const queryClient = useQueryClient()
   const prefix = routePrefix(location.pathname)
   const basePath = location.pathname.startsWith("/app-shell") ? "/app-shell/admin/processes" : "/admin/processes"
+  // A bare visit to this path (no query at all) defaults to the "Running"
+  // smart folder server-side. The "All" nav link marks its request
+  // explicitly with an empty smart_folder_id so it isn't swallowed by
+  // that default and still shows the unfiltered active+recent view.
+  const allPath = `${basePath}?smart_folder_id=`
   const processes = useQuery({
     queryKey: ["admin", "processes", location.search],
     queryFn: () => fetchAdminProcesses(location.search)
@@ -56,7 +61,7 @@ export function AdminProcessesIndex() {
             <AdminSmartFolderNav
               activeFolderId={processes.data.active_smart_folder_id}
               allLabel={t("processes.all_label")}
-              allPath={basePath}
+              allPath={allPath}
               ariaLabel="Admin process smart folders"
               currentFilter={processes.data.filter}
               folders={processes.data.smart_folders}

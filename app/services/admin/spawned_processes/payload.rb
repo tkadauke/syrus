@@ -3,10 +3,11 @@ module Admin
     class Payload
       PER_PAGE = 100
 
-      def initialize(params:, user:, per_page: PER_PAGE)
+      def initialize(params:, user:, per_page: PER_PAGE, default_to_running: false)
         @params = params
         @user = user
         @per_page = per_page
+        @default_to_running = default_to_running
       end
 
       def index
@@ -46,10 +47,34 @@ module Admin
 
       private
 
-      attr_reader :params, :user
+      attr_reader :params, :user, :default_to_running
 
       def active_smart_folder
-        ::Admin::SmartFolderNavigation.active_folder(subject: :spawned_process, user: user, params: params)
+        explicit_folder = ::Admin::SmartFolderNavigation.active_folder(subject: :spawned_process, user: user, params: params)
+        return explicit_folder if explicit_folder
+        return nil unless default_to_running
+        return nil if explicit_smart_folder_requested? || explicit_filter_present?
+
+        default_running_folder
+      end
+
+      # Bare `/admin/processes` (no smart_folder_id, no filter chips) lands
+      # on the "Running" folder by default in the operator SPA so the
+      # operator sees active work first. The "All" nav link marks its
+      # request explicitly (an empty `smart_folder_id` param) so it isn't
+      # swallowed by this default. `default_to_running` is opt-in so the
+      # external bearer-token admin API keeps its documented
+      # active+recent-1h default (see Api::V1::Admin::SpawnedProcessesController).
+      def explicit_smart_folder_requested?
+        params.key?(:smart_folder_id) || params.key?("smart_folder_id")
+      end
+
+      def explicit_filter_present?
+        ::Admin::SpawnedProcesses::Filter.from_params(params, user: user).active?
+      end
+
+      def default_running_folder
+        SmartFolder.for_subject(:spawned_process).where(user_id: nil).builtin.find_by(name: "Running")
       end
 
       def display_filter(active_folder)

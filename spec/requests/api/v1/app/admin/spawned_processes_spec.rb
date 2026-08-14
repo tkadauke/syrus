@@ -37,7 +37,7 @@ RSpec.describe "API: /api/v1/app/admin/processes", type: :request do
     expect(parse_body.dig("error", "code")).to eq("forbidden")
   end
 
-  it "returns the default active and recent process inventory" do
+  it "defaults to the Running smart folder when no filter or folder is requested" do
     sign_in_as(admin)
     running = fixture
     fixture(started_at: 5.hours.ago, finished_at: 4.hours.ago, outcome: "succeeded", exit_status: 0)
@@ -46,17 +46,34 @@ RSpec.describe "API: /api/v1/app/admin/processes", type: :request do
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body["processes"].map { |process| process["id"] }).to include(running.id)
+    running_folder = SmartFolder.for_subject(:spawned_process).find_by!(name: "Running")
+    expect(body["active_smart_folder_id"]).to eq(running_folder.id)
+    expect(body["filter"]).to eq(running_folder.filter)
+    expect(body["processes"].map { |process| process["id"] }).to eq([ running.id ])
     expect(body["running_total"]).to eq(SpawnedProcess.running.count)
-    expect(body["filter"]).to eq("and" => [])
     expect(body.dig("controls", "filter_schema").map { |field| field["field"] }).to include("state", "kind", "hostname")
     hostname_field = body.dig("controls", "filter_schema").find { |field| field["field"] == "hostname" }
     expect(hostname_field).to include("typeahead" => true)
     expect(hostname_field).not_to have_key("values")
     expect(body["smart_folders"].find { |folder| folder["name"] == "Running" }).to include(
       "count" => 1,
+      "active" => true,
       "path" => a_string_matching(%r{\A/admin/processes\?smart_folder_id=})
     )
+  end
+
+  it "shows the unfiltered active+recent view when the All folder is explicitly requested" do
+    sign_in_as(admin)
+    running = fixture
+    fixture(started_at: 5.hours.ago, finished_at: 4.hours.ago, outcome: "succeeded", exit_status: 0)
+
+    get "/api/v1/app/admin/processes", params: { smart_folder_id: "" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["active_smart_folder_id"]).to be_nil
+    expect(body["processes"].map { |process| process["id"] }).to include(running.id)
+    expect(body["filter"]).to eq("and" => [])
   end
 
   it "redacts GitHub credentials from process inventory commands" do
