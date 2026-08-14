@@ -17,3 +17,9 @@ Unsupported chips are ignored for result types that do not understand them
 rather than failing the whole search.
 
 This phase intentionally has no explicit sort controls or sort URL parameters.
+
+Job and Epic result rows show a copyable `JOB-N` / `EPIC-N` slug next to the
+type badge (the `CopyableSlug` control also used on dashboards and Job/Epic
+detail pages). Hovering the slug opens the same `JobPreviewCard` /
+`EpicPreviewCard` popup used elsewhere in the app. The search API includes a
+`slug` field on job and epic results for this purpose.

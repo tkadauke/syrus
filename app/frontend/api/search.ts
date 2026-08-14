@@ -17,12 +17,14 @@ export type BaseSearchResult = {
 
 export type JobSearchResult = BaseSearchResult & {
   type: "job"
+  slug: string
   state: string
   repository_slug: string
 }
 
 export type EpicSearchResult = BaseSearchResult & {
   type: "epic"
+  slug: string
   state: string
   repository_slug: string
 }

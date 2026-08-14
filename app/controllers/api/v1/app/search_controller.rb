@@ -262,6 +262,7 @@ module Api
           {
             type: "job",
             id: job.id,
+            slug: job.slug,
             title: job.issue_title.to_s,
             snippet: row.fetch(:snippet),
             rank: row.fetch(:rank),
@@ -279,6 +280,7 @@ module Api
           {
             type: "epic",
             id: epic.id,
+            slug: epic.slug,
             title: epic.title.to_s,
             snippet: row.fetch(:snippet),
             rank: row.fetch(:rank),

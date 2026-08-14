@@ -8,6 +8,8 @@ import { ChevronIcon } from "../components/ChevronIcon"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { FilterBar, type FilterLinkBuilder } from "../components/FilterBar"
+import { CopyableSlug } from "../components/CopyableSlug"
+import { SlugHoverCard } from "../components/SlugHoverCard"
 
 type SearchFilter = SearchResultType | "all"
 
@@ -116,6 +118,11 @@ function SearchResultRow({ result }: { result: SearchResult }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${styles.badge}`}>{styles.label}</span>
+            {result.type === "job" || result.type === "epic" ? (
+              <SlugHoverCard id={result.id} kind={result.type}>
+                <CopyableSlug slug={result.slug} />
+              </SlugHoverCard>
+            ) : null}
             {result.repository_slug ? <span className="text-xs text-gray-500 dark:text-gray-400">{result.repository_slug}</span> : null}
             {result.state ? <span className="text-xs capitalize text-gray-500 dark:text-gray-400">{result.state.replace(/_/g, " ")}</span> : null}
           </div>

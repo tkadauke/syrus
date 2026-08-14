@@ -402,7 +402,9 @@ predicate FilterBar used on dashboard lists: combined results expose common
 repository and timestamp filters, while single-type views expose the relevant
 Job or Epic filters. These filters keep the relevance order intact and are
 encoded in the `q=` URL parameter; older plain-text `q=` search links still
-open as text searches when no `query=` parameter is present. The older chat search page remains
+open as text searches when no `query=` parameter is present. Job and Epic
+results show a copyable `JOB-N` / `EPIC-N` slug that opens the same preview
+popup used elsewhere in the app on hover. The older chat search page remains
 available for chat-specific repository, Epic, Job, and attachment filters.
 Operators can also share a chat with teammates on the same Syrus instance:
 the `/share` slash command copies a stable link to a read-only transcript

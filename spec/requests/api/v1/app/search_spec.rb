@@ -59,6 +59,7 @@ RSpec.describe "App API unified search", type: :request do
     expect(by_type_and_id.fetch([ "job", stronger_job.id ])).to include(
       "type" => "job",
       "id" => stronger_job.id,
+      "slug" => stronger_job.slug,
       "title" => "Stronger job",
       "rank" => 0.0,
       "path" => job_path(stronger_job),
@@ -71,6 +72,7 @@ RSpec.describe "App API unified search", type: :request do
     expect(by_type_and_id.fetch([ "epic", epic.id ])).to include(
       "type" => "epic",
       "id" => epic.id,
+      "slug" => epic.slug,
       "title" => "Launch epic",
       "rank" => 0.0,
       "path" => epic_path(epic),
@@ -135,6 +137,7 @@ RSpec.describe "App API unified search", type: :request do
       include(
         "type" => "job",
         "id" => job.id,
+        "slug" => job.slug,
         "title" => "Unindexed slug target",
         "snippet" => "<mark>#{job.slug}</mark>",
         "path" => job_path(job),
@@ -153,6 +156,7 @@ RSpec.describe "App API unified search", type: :request do
       include(
         "type" => "epic",
         "id" => epic.id,
+        "slug" => epic.slug,
         "title" => "Unindexed epic target",
         "snippet" => "<mark>#{epic.slug}</mark>",
         "path" => epic_path(epic),
