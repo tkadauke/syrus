@@ -70,10 +70,8 @@
 
   "jobs_section": "Opera",
   "no_jobs": "Nulla opera in hac Epica.",
-  "job_column": "Opus",
-  "state_column": "Status",
-  "stage_pending": "Pendens",
-  "stage_not_landed": "Non depositum",
+  "deployment_stage_pending": "Pendens",
+  "deployment_stage_partial": "{{reached}}/{{total}} opera",
 
   "details": "Particularia",
   "owner": "Dominus",

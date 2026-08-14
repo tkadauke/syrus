@@ -508,7 +508,7 @@ describe("JobsSection", () => {
     expect(screen.queryByText("alice@example.com")).not.toBeInTheDocument()
   })
 
-  it("adds one table column per configured deployment stage", () => {
+  it("renders a plain job list regardless of per-job deployment stage data", () => {
     const jobs = [
       job("closed", {
         landed: true,
@@ -524,38 +524,54 @@ describe("JobsSection", () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByRole("columnheader", { name: "Staging" })).toBeInTheDocument()
-    expect(screen.getByRole("columnheader", { name: "Production" })).toBeInTheDocument()
-    expect(screen.getByText("Pending")).toBeInTheDocument()
+    expect(screen.queryByRole("columnheader")).not.toBeInTheDocument()
+    expect(screen.getByText("Closed")).toBeInTheDocument()
+    expect(screen.queryByText("Staging")).not.toBeInTheDocument()
   })
+})
 
-  it("shows an empty stage cell for jobs that have not landed", () => {
-    const jobs = [
-      job("open", {
-        landed: false,
-        deployment_stages: [
-          { name: "staging", label: "Staging", reached: false, reached_at: null, tag_sha: null }
-        ]
-      })
+describe("EpicDetail deployment stages panel", () => {
+  it("renders the aggregate deployment stage pipeline as the first item in Details", () => {
+    const payload = detailPayload()
+    payload.deployment_stages = [
+      { name: "staging", label: "On Staging", reached_count: 3, total: 3, reached_at: "2026-07-30T12:00:00Z" },
+      { name: "production", label: "In Production", reached_count: 1, total: 3, reached_at: null },
+      { name: "public", label: "Released to Public", reached_count: 0, total: 3, reached_at: null }
     ]
-    render(
-      <MemoryRouter>
-        <JobsSection jobs={jobs} newJobPath="/jobs/new" prefix="" />
-      </MemoryRouter>
-    )
 
-    expect(screen.getByLabelText("Not landed")).toHaveTextContent("—")
-    expect(screen.queryByText("Pending")).not.toBeInTheDocument()
+    renderDetail(payload)
+
+    const details = screen.getByRole("heading", { name: "Details" }).closest("section")!
+    const pipeline = screen.getByTestId("epic-deployment-stage-pipeline")
+    expect(details).toContainElement(pipeline)
+    expect(details.children[0]).toHaveTextContent("Details")
+    expect(details.children[1]).toContainElement(pipeline)
+
+    expect(pipeline.querySelector("li[data-state='reached']")).not.toBeNull()
+    const partialStage = pipeline.querySelector("li[data-state='partial']")
+    expect(partialStage).not.toBeNull()
+    expect(partialStage!.querySelector(".w-1\\/2")).not.toBeNull()
+    expect(pipeline.querySelector("li[data-state='pending']")).not.toBeNull()
+
+    const owner = screen.getByText("Owner")
+    expect(pipeline.compareDocumentPosition(owner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it("keeps the list layout when no job has deployment stage data", () => {
-    render(
-      <MemoryRouter>
-        <JobsSection jobs={[job("open")]} newJobPath="/jobs/new" prefix="" />
-      </MemoryRouter>
-    )
+  it("omits the Jobs table's stage columns now that stages live in the Details panel", () => {
+    const payload = detailPayload()
+    payload.deployment_stages = [
+      { name: "staging", label: "On Staging", reached_count: 1, total: 1, reached_at: "2026-07-30T12:00:00Z" }
+    ]
+    payload.jobs = [job("closed", { landed: true })]
 
-    expect(screen.queryByRole("columnheader", { name: "Job" })).not.toBeInTheDocument()
-    expect(screen.getByText("Open")).toBeInTheDocument()
+    renderDetail(payload)
+
+    expect(screen.queryByRole("columnheader")).not.toBeInTheDocument()
+  })
+
+  it("omits the pipeline entirely when the epic has no aggregate deployment stages", () => {
+    renderDetail(detailPayload())
+
+    expect(screen.queryByTestId("epic-deployment-stage-pipeline")).not.toBeInTheDocument()
   })
 })

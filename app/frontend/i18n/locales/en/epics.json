@@ -70,10 +70,8 @@
 
   "jobs_section": "Jobs",
   "no_jobs": "No Jobs in this Epic.",
-  "job_column": "Job",
-  "state_column": "State",
-  "stage_pending": "Pending",
-  "stage_not_landed": "Not landed",
+  "deployment_stage_pending": "Pending",
+  "deployment_stage_partial": "{{reached}}/{{total}} Jobs",
 
   "details": "Details",
   "owner": "Owner",
