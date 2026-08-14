@@ -10,6 +10,18 @@ RSpec.describe "App API job run commands", type: :request do
   def parse_body = JSON.parse(response.body)
   def app_job_path(path) = "/api/v1/app/jobs/#{job.id}#{path}"
 
+  # The Job factory auto-instantiates and starts an "initial" Workflow, but
+  # never actually runs it (RunJob isn't executed in request specs), so it
+  # stays queued/active. Real Jobs only ever have pr_number set once that
+  # initial Workflow has succeeded. Simulate that here so rebase specs that
+  # fake an already-open PR don't also see a stray active initial Workflow.
+  def finish_initial_workflow!(job)
+    run = job.initial_run
+    run.step.workflow.update_columns(state: "succeeded", finished_at: Time.current)
+    run.step.update_columns(state: "succeeded", finished_at: Time.current)
+    run.update_columns(state: "succeeded", finished_at: Time.current)
+  end
+
   it "checks PR feedback for an open job with a PR" do
     job.update!(pr_number: 42)
 
@@ -62,6 +74,7 @@ RSpec.describe "App API job run commands", type: :request do
 
   it "queues a rebase workflow when the job has a PR" do
     job.update!(pr_number: 7, branch_name: "syrus/issue-42-1")
+    finish_initial_workflow!(job)
 
     expect {
       post app_job_path("/rebase"), as: :json
@@ -73,6 +86,27 @@ RSpec.describe "App API job run commands", type: :request do
     expect(workflow.first_step.runs.last).to be_present
     expect(parse_body).to include("message" => "Rebase workflow enqueued.")
     expect(parse_body.dig("workflow", "id")).to eq(workflow.id)
+  end
+
+  it "cancels a still-active workflow instead of running it alongside a manually triggered rebase" do
+    job.update!(pr_number: 7, branch_name: "syrus/issue-42-1")
+    finish_initial_workflow!(job)
+    job.update_columns(state: "running")
+    active_workflow = Workflow.create!(
+      job: job, user: user, trigger_kind: "pr_comment", state: "running",
+      agent_provider: job.workflow_agent_provider, started_at: Time.current
+    )
+
+    expect {
+      post app_job_path("/rebase"), as: :json
+    }.to change { job.reload.workflows.where(trigger_kind: "rebase").count }.by(1)
+      .and have_enqueued_job(RunJob)
+
+    expect(response).to have_http_status(:ok)
+    expect(active_workflow.reload).to be_cancelled
+    expect(active_workflow.artifact("cancelled_reason")).to eq("superseded_by_rebase")
+    expect(job.reload.state).to eq("running")
+    expect(parse_body).to include("message" => "Cancelled the running workflow. Rebase workflow enqueued.")
   end
 
   it "does not stack rebase workflows" do

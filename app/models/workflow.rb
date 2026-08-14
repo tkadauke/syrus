@@ -8,6 +8,13 @@ class Workflow < ApplicationRecord
   PRIORITIES = Job::PRIORITIES
   DEFAULT_PRIORITY = "medium"
 
+  # Marker written to `artifacts["cancelled_reason"]` by
+  # Job#cancel_active_workflows_for_rebase! before cancelling a still-active
+  # Workflow that a manual "Rebase Now" click is about to supersede. Read by
+  # #superseded_cancellation? so propagate_cancel_to_job! leaves the Job's
+  # state alone — the rebase Workflow started right after will drive it.
+  SUPERSEDED_BY_REBASE_REASON = "superseded_by_rebase"
+
   belongs_to :job
   belongs_to :user
   has_many :steps, -> { order(:position) }, dependent: :destroy
@@ -297,6 +304,7 @@ class Workflow < ApplicationRecord
     return if coding_handoff_workflow?
     return if local_mode_handoff_workflow?
     return if infrastructure_workflow?
+    return if superseded_cancellation?
 
     # A rebase (or stack_rebase) workflow cancelled before any run started
     # should restore the job to :implemented when the job is stuck in
@@ -331,6 +339,10 @@ class Workflow < ApplicationRecord
        .active
        .where("created_at > ? OR (created_at = ? AND id > ?)", cutoff, cutoff, id)
        .exists?
+  end
+
+  def superseded_cancellation?
+    artifact("cancelled_reason") == SUPERSEDED_BY_REBASE_REASON
   end
 
   def no_changes_produced_failure?
