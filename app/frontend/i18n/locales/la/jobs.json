@@ -508,5 +508,13 @@
   "preview_stop_on_action_title": "Ambitus praevisi currit",
   "preview_stop_on_action_body": "Pro hoc opere ambitus praevisi currit. Nunc sistere?",
   "preview_stop_yes": "Ita, siste",
-  "preview_keep_running": "Pergat currere"
+  "preview_keep_running": "Pergat currere",
+  "preview_view_logs": "Vide acta praevisi",
+  "preview_logs_modal_title": "Acta praevisi",
+  "preview_logs_loading": "Acta onerantur...",
+  "preview_logs_error": "Acta praevisi defecerunt.",
+  "preview_logs_empty": "Nulla acta praevisi inventa.",
+  "preview_logs_missing": "deest",
+  "preview_logs_empty_content": "(vacuum)",
+  "preview_logs_close": "Claude"
 }

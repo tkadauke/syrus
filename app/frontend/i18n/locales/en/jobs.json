@@ -510,5 +510,13 @@
   "preview_stop_on_action_title": "A preview environment is running",
   "preview_stop_on_action_body": "A preview environment is running for this job. Stop it now?",
   "preview_stop_yes": "Yes, stop it",
-  "preview_keep_running": "Keep running"
+  "preview_keep_running": "Keep running",
+  "preview_view_logs": "View logs",
+  "preview_logs_modal_title": "Preview logs",
+  "preview_logs_loading": "Loading logs...",
+  "preview_logs_error": "Preview logs could not be loaded.",
+  "preview_logs_empty": "No preview logs found.",
+  "preview_logs_missing": "missing",
+  "preview_logs_empty_content": "(empty)",
+  "preview_logs_close": "Close"
 }

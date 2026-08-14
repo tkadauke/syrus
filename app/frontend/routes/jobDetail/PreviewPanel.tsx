@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useT } from "../../hooks/useT"
 import { fetchJobPreview, fetchJobPreviewLogs, startJobPreview, stopJobPreview, type PreviewEnvironmentRecord } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
+import { CloseIcon } from "../../components/CloseIcon"
 import type { JobDetailQueryKey } from "./queryKeys"
 
 const ACTIVE_STATES = ["starting", "seeding", "running", "stopping"] as const
@@ -124,39 +125,100 @@ export function PreviewPanel({
 }
 
 function PreviewLogs({ jobId, previewLogsPath, running }: { jobId: number; previewLogsPath: string; running: boolean }) {
+  const { t } = useT("jobs")
   const [open, setOpen] = useState(false)
-  const logs = useQuery({
-    queryKey: ["job-preview-logs", jobId],
-    queryFn: () => fetchJobPreviewLogs(previewLogsPath),
-    enabled: open,
-    refetchInterval: open && running ? POLL_INTERVAL_MS : false
-  })
 
   return (
     <div className="pt-1">
       <button
         className="text-xs font-medium text-gray-600 underline decoration-gray-300 underline-offset-2 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => setOpen(true)}
         type="button"
       >
-        {open ? "Hide preview logs" : "Show preview logs"}
+        {t("preview_view_logs")}
       </button>
       {open ? (
-        <div className="mt-2 space-y-2">
-          {logs.isPending ? <p className="text-xs text-gray-500 dark:text-gray-400">Loading logs...</p> : null}
-          {logs.isError ? <p className="text-xs text-red-600 dark:text-red-400">Preview logs could not be loaded.</p> : null}
-          {logs.data?.logs.length === 0 ? <p className="text-xs text-gray-500 dark:text-gray-400">No preview logs found.</p> : null}
+        <PreviewLogsModal
+          jobId={jobId}
+          onClose={() => setOpen(false)}
+          previewLogsPath={previewLogsPath}
+          running={running}
+        />
+      ) : null}
+    </div>
+  )
+}
+
+function PreviewLogsModal({
+  jobId,
+  previewLogsPath,
+  running,
+  onClose
+}: {
+  jobId: number
+  previewLogsPath: string
+  running: boolean
+  onClose: () => void
+}) {
+  const { t } = useT("jobs")
+  const closeRef = useRef<HTMLButtonElement>(null)
+
+  const logs = useQuery({
+    queryKey: ["job-preview-logs", jobId],
+    queryFn: () => fetchJobPreviewLogs(previewLogsPath),
+    refetchInterval: running ? POLL_INTERVAL_MS : false
+  })
+
+  useEffect(() => {
+    closeRef.current?.focus()
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose()
+    }
+    document.addEventListener("keydown", onKeyDown)
+    return () => document.removeEventListener("keydown", onKeyDown)
+  }, [onClose])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
+      <section
+        aria-labelledby="preview-logs-modal-title"
+        aria-modal="true"
+        className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl dark:bg-gray-900"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+      >
+        <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="preview-logs-modal-title">
+            {t("preview_logs_modal_title")}
+          </h2>
+          <button
+            aria-label={t("preview_logs_close")}
+            className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+            onClick={onClose}
+            ref={closeRef}
+            type="button"
+          >
+            <CloseIcon className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="space-y-2 overflow-auto p-4">
+          {logs.isPending ? <p className="text-xs text-gray-500 dark:text-gray-400">{t("preview_logs_loading")}</p> : null}
+          {logs.isError ? <p className="text-xs text-red-600 dark:text-red-400">{t("preview_logs_error")}</p> : null}
+          {logs.data?.logs.length === 0 ? <p className="text-xs text-gray-500 dark:text-gray-400">{t("preview_logs_empty")}</p> : null}
           {logs.data?.logs.map((log) => (
             <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700" key={log.path}>
               <div className="flex items-center justify-between bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
                 <span>{log.path}</span>
-                {log.missing ? <span className="text-amber-600 dark:text-amber-400">missing</span> : null}
+                {log.missing ? <span className="text-amber-600 dark:text-amber-400">{t("preview_logs_missing")}</span> : null}
               </div>
-              <pre className="max-h-56 overflow-auto bg-gray-950 p-2 text-[11px] leading-4 text-gray-100">{log.missing ? "" : log.content || "(empty)"}</pre>
+              <pre className="max-h-56 overflow-auto bg-gray-950 p-2 text-[11px] leading-4 text-gray-100">{log.missing ? "" : log.content || t("preview_logs_empty_content")}</pre>
             </div>
           ))}
         </div>
-      ) : null}
+      </section>
     </div>
   )
 }

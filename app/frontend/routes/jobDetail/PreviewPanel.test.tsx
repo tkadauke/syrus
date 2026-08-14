@@ -1,5 +1,5 @@
 import { jsonResponse } from "../../testSupport"
-import { render, screen, waitFor, act, fireEvent } from "@testing-library/react"
+import { render, screen, waitFor, act, fireEvent, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { PreviewPanel, PreviewStopModal } from "./PreviewPanel"
@@ -115,7 +115,7 @@ describe("PreviewPanel", () => {
     expect(screen.getByText("No preview provider found.")).toBeInTheDocument()
   })
 
-  it("loads preview logs on demand", async () => {
+  it("loads preview logs in a modal on demand", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path.endsWith("/preview/logs")) {
@@ -131,18 +131,89 @@ describe("PreviewPanel", () => {
     })
 
     renderPanel({ initialPreview: preview({ state: "running" }) })
-    fireEvent.click(screen.getByRole("button", { name: "Show preview logs" }))
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "View logs" }))
 
+    expect(screen.getByRole("dialog")).toBeInTheDocument()
     await waitFor(() => {
       expect(window.fetch).toHaveBeenCalledWith(
         "/api/v1/app/jobs/42/preview/logs",
         expect.objectContaining({ credentials: "same-origin" })
       )
     })
-    expect(await screen.findByText(/Started POST \/signup/)).toBeInTheDocument()
-    expect(screen.getByText(/Completed 500/)).toBeInTheDocument()
-    expect(screen.getByText("log/vite.log")).toBeInTheDocument()
-    expect(screen.getByText("missing")).toBeInTheDocument()
+    const dialog = screen.getByRole("dialog")
+    expect(await within(dialog).findByText(/Started POST \/signup/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/Completed 500/)).toBeInTheDocument()
+    expect(within(dialog).getByText("log/vite.log")).toBeInTheDocument()
+    expect(within(dialog).getByText("missing")).toBeInTheDocument()
+  })
+
+  it("closes the preview logs modal when the close button is clicked", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path.endsWith("/preview/logs")) {
+        return Promise.resolve(jsonResponse({ preview: preview({ state: "running" }), logs: [] }))
+      }
+      return Promise.resolve(jsonResponse({ preview: preview({ state: "running" }) }))
+    })
+
+    renderPanel({ initialPreview: preview({ state: "running" }) })
+    fireEvent.click(screen.getByRole("button", { name: "View logs" }))
+    expect(screen.getByRole("dialog")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }))
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+
+  it("closes the preview logs modal on Escape", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path.endsWith("/preview/logs")) {
+        return Promise.resolve(jsonResponse({ preview: preview({ state: "running" }), logs: [] }))
+      }
+      return Promise.resolve(jsonResponse({ preview: preview({ state: "running" }) }))
+    })
+
+    renderPanel({ initialPreview: preview({ state: "running" }) })
+    fireEvent.click(screen.getByRole("button", { name: "View logs" }))
+    expect(screen.getByRole("dialog")).toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: "Escape" })
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+
+  it("closes the preview logs modal when the backdrop is clicked", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path.endsWith("/preview/logs")) {
+        return Promise.resolve(jsonResponse({ preview: preview({ state: "running" }), logs: [] }))
+      }
+      return Promise.resolve(jsonResponse({ preview: preview({ state: "running" }) }))
+    })
+
+    renderPanel({ initialPreview: preview({ state: "running" }) })
+    fireEvent.click(screen.getByRole("button", { name: "View logs" }))
+    const dialog = screen.getByRole("dialog")
+    const backdrop = dialog.parentElement as HTMLElement
+
+    fireEvent.click(backdrop)
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+
+  it("shows loading and error states in the preview logs modal", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path.endsWith("/preview/logs")) {
+        return Promise.reject(new Error("network error"))
+      }
+      return Promise.resolve(jsonResponse({ preview: preview({ state: "running" }) }))
+    })
+
+    renderPanel({ initialPreview: preview({ state: "running" }) })
+    fireEvent.click(screen.getByRole("button", { name: "View logs" }))
+
+    expect(screen.getByText("Loading logs...")).toBeInTheDocument()
+    expect(await screen.findByText("Preview logs could not be loaded.")).toBeInTheDocument()
   })
 
   it("starts a preview when Start Preview is clicked", async () => {

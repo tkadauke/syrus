@@ -510,5 +510,13 @@
   "preview_stop_on_action_title": "Eine Vorschau-Umgebung läuft",
   "preview_stop_on_action_body": "Für diesen Job läuft eine Vorschau-Umgebung. Jetzt stoppen?",
   "preview_stop_yes": "Ja, stoppen",
-  "preview_keep_running": "Weiterlaufen lassen"
+  "preview_keep_running": "Weiterlaufen lassen",
+  "preview_view_logs": "Protokolle anzeigen",
+  "preview_logs_modal_title": "Vorschau-Protokolle",
+  "preview_logs_loading": "Protokolle werden geladen...",
+  "preview_logs_error": "Vorschau-Protokolle konnten nicht geladen werden.",
+  "preview_logs_empty": "Keine Vorschau-Protokolle gefunden.",
+  "preview_logs_missing": "fehlt",
+  "preview_logs_empty_content": "(leer)",
+  "preview_logs_close": "Schließen"
 }
