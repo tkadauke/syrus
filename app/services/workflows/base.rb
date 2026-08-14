@@ -37,8 +37,16 @@ module Workflows
 
     def self.queue_name = :runs
 
-    def self.solid_queue_priority(job)
-      job.solid_queue_priority
+    # `workflow.priority` overrides `job.priority` for this workflow's
+    # dispatch when it has been explicitly set away from the default
+    # (e.g. a low-priority deferred workflow that should queue behind
+    # the job's own work). Workflows that never touch their own
+    # `priority` column stay on `job.solid_queue_priority` unchanged.
+    def self.solid_queue_priority(workflow)
+      job = workflow.job
+      return job.solid_queue_priority if workflow.priority == Workflow::DEFAULT_PRIORITY
+
+      Job::PRIORITY_TO_SQ.fetch(workflow.priority, job.solid_queue_priority)
     end
 
     # Lifecycle hooks. The Workflow model invokes the matching hook
