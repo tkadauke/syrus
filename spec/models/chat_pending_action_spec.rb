@@ -666,6 +666,7 @@ RSpec.describe ChatPendingAction do
       # in ChatPendingAction::ACTIONS, so their action_key registrations run.
       PendingActions::CompleteImplementStep
       PendingActions::SubmitCodingChanges
+      PendingActions::RunVisualReview
       all_keys = ChatPendingAction::ACTIONS + ChatPendingAction::ACTION_TYPES
       all_keys.each do |key|
         expect(PendingActions::REGISTRY).to have_key(key), "registry missing '#{key}'"
