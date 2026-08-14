@@ -2119,6 +2119,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_15_040000) do
     t.string "failure_reason"
     t.datetime "finished_at"
     t.integer "job_id", null: false
+    t.string "priority", default: "medium", null: false
     t.datetime "started_at"
     t.string "state", default: "queued", null: false
     t.string "trigger_kind", null: false
