@@ -128,6 +128,21 @@ RSpec.describe Mcp::Tools::ReadInsightTool do
     end
   end
 
+  describe "retired insight" do
+    it "includes retirement fields once the insight is retired" do
+      insight = create_insight
+      superseding = create_insight(title: "Newer finding")
+      insight.retire!(reason: "Folded into the newer finding.", actor: nil, superseded_by_insight: superseding)
+
+      result = parsed_insight(call(id: insight.id))
+
+      expect(result[:state]).to eq("retired")
+      expect(result[:retired_reason]).to eq("Folded into the newer finding.")
+      expect(result[:retired_at]).to be_a(String)
+      expect(result[:superseded_by_insight_id]).to eq(superseding.id)
+    end
+  end
+
   describe "not found" do
     it "returns an error when the id does not exist" do
       response = call(id: 0)

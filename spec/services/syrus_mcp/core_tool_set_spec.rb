@@ -29,7 +29,7 @@ RSpec.describe SyrusMcp::CoreToolSet do
         "start_preview", "stop_preview", "read_preview_log",
         "report_main_concern",
         "submit_summary", "submit_test_plan", "submit_artifact", "submit_visual_artifact", "submit_job_metadata", "submit_adversarial_review",
-        "submit_insight", "update_insight", "list_insights", "read_insight",
+        "submit_insight", "update_insight", "retire_insight", "list_insights", "read_insight",
         "list_recent_workflows", "read_run_transcript"
       )
     end

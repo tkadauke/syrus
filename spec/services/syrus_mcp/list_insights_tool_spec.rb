@@ -100,6 +100,15 @@ RSpec.describe Mcp::Tools::ListInsightsTool do
       expect(parsed_response(response)[:insights].size).to eq(2)
     end
 
+    it "returns only retired insights when state=retired" do
+      retired = create_insight(title: "Retired one")
+      retired.retire!(reason: "Stale.", actor: nil)
+
+      response = call(state: "retired")
+      titles = parsed_response(response)[:insights].map { |i| i[:title] }
+      expect(titles).to eq(["Retired one"])
+    end
+
     it "defaults to all when state is omitted" do
       response = call
       expect(parsed_response(response)[:insights].size).to eq(2)

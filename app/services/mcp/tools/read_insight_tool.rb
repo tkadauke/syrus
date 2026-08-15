@@ -76,6 +76,10 @@ module Mcp::Tools
           stale_memory_text: insight.redacted_stale_memory_text,
           stale_memory_evidence: insight.redacted_stale_memory_evidence,
           target_insight_id: insight.target_insight_id,
+          retired_at:        insight.retired_at&.iso8601,
+          retired_reason:    insight.redacted_retired_reason,
+          superseded_by_insight_id: insight.superseded_by_insight_id,
+          superseded_by_job_id:     insight.superseded_by_job_id,
           job:               { id: insight.job_id, title: insight.job.title },
           created_at:        insight.created_at.iso8601,
           updated_at:        insight.updated_at.iso8601

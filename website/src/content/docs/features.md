@@ -922,7 +922,11 @@ Insight runs also review pending/accepted/dismissed insights and repository
 memories for freshness. If a memory is stale or describes a fixed bug, the
 agent proposes a remove-memory insight; accepting it soft-deletes the target
 memory through the normal audited memory path instead of letting the analysis
-agent delete memory directly.
+agent delete memory directly. Stale, duplicated, or superseded pending or
+dismissed insights are retired (an audited state change, not a delete) instead
+of piling up meta-insights that only say another insight is stale; retired
+insights drop out of the default active review but stay inspectable through
+a "Retired" filter alongside Pending/Accepted/Dismissed/All.
 
 When the `agent_insights` feature is enabled, regular chat agents can discover
 and call `list_insights` and `read_insight` to inspect suggestions for the

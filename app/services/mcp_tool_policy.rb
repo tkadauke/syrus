@@ -246,6 +246,7 @@ class McpToolPolicy
     if Feature.agent_insights_enabled?
       tools << Mcp::Tools::SubmitInsightTool
       tools << Mcp::Tools::UpdateInsightTool
+      tools << Mcp::Tools::RetireInsightTool
       tools << Mcp::Tools::ListInsightsTool
       tools << Mcp::Tools::ReadInsightTool
       tools << Mcp::Tools::ListRecentWorkflowsTool

@@ -154,6 +154,98 @@ RSpec.describe InsightSuggestion do
       end
     end
 
+    describe "#retire!" do
+      it "transitions from pending to retired, stamps retired_at/reason, and records an audit event" do
+        suggestion = create_suggestion
+
+        expect {
+          result = suggestion.retire!(reason: "Duplicate of a later finding.", actor: user)
+          expect(result).to be true
+        }.to change(InsightSuggestionAuditEvent, :count).by(1)
+
+        suggestion.reload
+        expect(suggestion.state).to eq("retired")
+        expect(suggestion.retired_at).to be_present
+        expect(suggestion.retired_reason).to eq("Duplicate of a later finding.")
+
+        event = InsightSuggestionAuditEvent.last
+        expect(event.insight_suggestion).to eq(suggestion)
+        expect(event.event_type).to eq("retired")
+        expect(event.actor_kind).to eq("user")
+        expect(event.actor_user).to eq(user)
+        expect(event.previous_values).to include("state" => "pending")
+        expect(event.new_values).to include("state" => "retired")
+      end
+
+      it "retires a dismissed insight" do
+        suggestion = create_suggestion(state: "dismissed", dismissed_at: 1.hour.ago)
+
+        expect(suggestion.retire!(reason: "Stale.", actor: nil)).to be true
+        expect(suggestion.reload.state).to eq("retired")
+      end
+
+      it "records superseded_by_insight and superseded_by_job when given" do
+        suggestion = create_suggestion
+        superseding = create_suggestion(title: "Newer finding")
+        superseding_job = Factories.job(user: user, repository: repository)
+
+        suggestion.retire!(
+          reason: "Folded into a newer insight.",
+          actor: nil,
+          superseded_by_insight: superseding,
+          superseded_by_job: superseding_job
+        )
+
+        suggestion.reload
+        expect(suggestion.superseded_by_insight).to eq(superseding)
+        expect(suggestion.superseded_by_job).to eq(superseding_job)
+      end
+
+      it "returns false and does not retire when already retired" do
+        suggestion = create_suggestion
+        suggestion.retire!(reason: "First retirement.", actor: nil)
+
+        expect {
+          expect(suggestion.retire!(reason: "Second attempt.", actor: nil)).to be false
+        }.not_to change(InsightSuggestionAuditEvent, :count)
+      end
+
+      it "returns false for an accepted insight by default" do
+        suggestion = create_suggestion
+        suggestion.accept!
+
+        expect(suggestion.retire!(reason: "Stale now.", actor: nil)).to be false
+        expect(suggestion.reload.state).to eq("accepted")
+      end
+
+      it "retires an accepted insight when retire_accepted is true" do
+        suggestion = create_suggestion
+        suggestion.accept!
+
+        result = suggestion.retire!(reason: "Confirmed obsolete.", actor: nil, retire_accepted: true)
+
+        expect(result).to be true
+        expect(suggestion.reload.state).to eq("retired")
+      end
+
+      it "requires a retired_reason to be valid once retired" do
+        suggestion = create_suggestion
+        suggestion.update_columns(state: "retired")
+
+        expect(suggestion.reload).not_to be_valid
+        expect(suggestion.errors[:retired_reason]).to be_present
+      end
+
+      it "rejects a superseded_by_insight that references itself" do
+        suggestion = create_suggestion
+        suggestion.update_columns(state: "retired", retired_reason: "x")
+        suggestion.superseded_by_insight_id = suggestion.id
+
+        expect(suggestion).not_to be_valid
+        expect(suggestion.errors[:superseded_by_insight]).to be_present
+      end
+    end
+
     describe "#undismiss!" do
       it "transitions from dismissed back to pending and clears dismissed_at" do
         suggestion = create_suggestion
@@ -200,6 +292,13 @@ RSpec.describe InsightSuggestion do
 
       expect(suggestion.dismissed?).to be true
     end
+
+    it "#retired? returns true after retire!" do
+      suggestion = create_suggestion
+      suggestion.retire!(reason: "Stale.", actor: nil)
+
+      expect(suggestion.retired?).to be true
+    end
   end
 
   describe "scopes" do
@@ -222,6 +321,24 @@ RSpec.describe InsightSuggestion do
 
       expect(InsightSuggestion.pending).to include(s1)
       expect(InsightSuggestion.pending).not_to include(s2)
+    end
+
+    it ".retired only returns retired suggestions" do
+      s1 = create_suggestion
+      s2 = create_suggestion
+      s2.retire!(reason: "Stale.", actor: nil)
+
+      expect(InsightSuggestion.retired).to include(s2)
+      expect(InsightSuggestion.retired).not_to include(s1)
+    end
+
+    it ".active excludes retired suggestions" do
+      s1 = create_suggestion
+      s2 = create_suggestion
+      s2.retire!(reason: "Stale.", actor: nil)
+
+      expect(InsightSuggestion.active).to include(s1)
+      expect(InsightSuggestion.active).not_to include(s2)
     end
   end
 end

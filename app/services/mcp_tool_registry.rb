@@ -331,6 +331,7 @@ class McpToolRegistry
         entry(Mcp::Tools::ListMemoriesTool, surface: :agent_insight),
         entry(Mcp::Tools::SubmitInsightTool, surface: :agent_insight, feature_flag: :agent_insights, mutation: true),
         entry(Mcp::Tools::UpdateInsightTool, surface: :agent_insight, feature_flag: :agent_insights, mutation: true),
+        entry(Mcp::Tools::RetireInsightTool, surface: :agent_insight, feature_flag: :agent_insights, mutation: true),
         entry(Mcp::Tools::ListInsightsTool, surface: :agent_insight, feature_flag: :agent_insights),
         entry(Mcp::Tools::ReadInsightTool, surface: :agent_insight, feature_flag: :agent_insights),
         entry(Mcp::Tools::ListRecentWorkflowsTool, surface: :agent_insight, feature_flag: :agent_insights),

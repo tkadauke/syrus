@@ -53,8 +53,43 @@ Each `submit_insight` call creates one `InsightSuggestion` row:
 | `stale_memory_text` | text  | Snapshot of stale/wrong memory text.                              |
 | `stale_memory_evidence` | text | Explanation of why the memory no longer matches current reality. |
 | `target_insight`  | FK      | Legacy revision reference retained for old rows.                 |
-| `state`           | string  | `pending` → `accepted` or `dismissed`; dismissed suggestions can return to `pending`. |
+| `state`           | string  | `pending` → `accepted` or `dismissed`; dismissed suggestions can return to `pending`. Any of `pending`/`dismissed` (and, with an explicit override, `accepted`) can transition to `retired`, a terminal audited state. |
+| `retired_at`      | datetime| Set when the insight is retired.                                  |
+| `retired_reason`  | text    | Required explanation recorded on retirement.                      |
+| `superseded_by_insight` | FK | Optional insight that supersedes this retired one.            |
+| `superseded_by_job` | FK   | Optional Job that resolved or replaced this retired finding.      |
 | `created_job`     | FK      | Populated when the operator promotes the suggestion into a Job.  |
+
+### Retirement
+
+`retire_insight` is an audited state transition, not a physical delete: retired
+rows keep their full history and stay inspectable via `list_insights(state:
+"retired")`/`state: "all"` and `read_insight`. Pending and dismissed insights
+retire directly. Accepted insights are refused by default — accepted insights
+are operator history, so the normal path is filing a new standalone insight
+that supersedes the accepted one — unless the caller explicitly passes
+`retire_accepted: true`, a distinct override reserved for accepted insights
+that are themselves confirmed obsolete. Every retirement records a
+`retired` `InsightSuggestionAuditEvent` with the previous/new state and
+retirement fields, the actor (run/user/system), and the reason.
+
+Repository and admin insight list views default to the `pending` tab, so
+retired insights are excluded from the default active-review surface without
+any extra filtering. Both views accept an explicit `state=retired` (or
+`state=all`, which includes retired rows) to inspect retired insights.
+
+A one-off cleanup path retires the pre-existing stale backlog — pending or
+dismissed legacy `revise_existing_insight` rows and pending or dismissed
+`informational` rows titled `Superseded by #...` — without manual DB work:
+
+```
+bin/rails syrus:retire_stale_insight_backlog        # retire
+DRY_RUN=true bin/rails syrus:retire_stale_insight_backlog  # preview only
+```
+
+This runs `InsightSuggestions::StaleBacklogRetirement`, which retires each
+matching row through the normal `InsightSuggestion#retire!` audit path with a
+`system` actor.
 
 ## MCP tools
 
@@ -71,6 +106,7 @@ The insight agent receives:
 - `write_memory` — store durable facts discovered during analysis.
 - `submit_insight` — record a new finding (only present when `agent_insights` flag is on), including structured memory-removal proposals.
 - `update_insight` — revise a pending or dismissed existing insight in place with an audit event. Accepted insights are rejected and should be handled by filing a new standalone insight that cites the accepted prior insight as context.
+- `retire_insight` — retire a pending or dismissed insight that is stale, duplicated, or superseded, with a required `reason` and optional `superseded_by_insight_id`/`superseded_by_job_id`. Accepted insights are rejected unless `retire_accepted: true` is passed explicitly. Records a `retired` audit event; the row stays inspectable, never deleted.
 
 **Scope enforcement:** workflow evidence tools are constrained to the current insight run's repository. `submit_insight` also validates that `evidence.job_id` values belong to repositories accessible to the running user. Non-admin users cannot reference jobs from repositories they do not own. Admin users may reference any job.
 
@@ -81,9 +117,14 @@ worker health, code paths, or repeated occurrences across the log window. Avoid
 filing insights from one-off benign log lines or isolated noise.
 
 Insight runs must review pending, accepted, and dismissed insights for freshness
-before filing new ones. When an unaccepted insight is stale, duplicated, or
-incomplete, call `update_insight` instead of filing a new revision card. When an
-accepted insight is changed by a novel realization, create a new insight. They
+before filing new ones. When an unaccepted insight's details need correcting but
+the finding is still active, call `update_insight` to revise it in place. When
+an unaccepted insight is stale, duplicated, folded into another insight, or no
+longer worth any operator review, call `retire_insight` instead of filing a new
+informational "Superseded by #N" card. When an accepted insight is changed by a
+novel realization, create a new insight rather than updating or retiring the
+accepted row (unless the accepted insight itself is confirmed obsolete, in which
+case `retire_insight(..., retire_accepted: true)` applies). They
 should call `list_memories` / `read_memory` for
 repository-relevant memories and compare them with current code, docs, recent
 jobs, and accepted implementation state. If a memory is stale or wrong, the

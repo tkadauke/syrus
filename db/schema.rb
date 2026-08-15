@@ -743,11 +743,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_194000) do
     t.text "memory_suggestion"
     t.string "proposal_type", default: "informational", null: false
     t.integer "repository_id", null: false
+    t.datetime "retired_at"
+    t.text "retired_reason"
     t.string "severity", default: "medium", null: false
     t.text "stale_memory_evidence"
     t.text "stale_memory_text"
     t.string "state", default: "pending", null: false
     t.text "suggested_prompt"
+    t.integer "superseded_by_insight_id"
+    t.integer "superseded_by_job_id"
     t.integer "target_insight_id"
     t.integer "target_memory_id"
     t.string "title", null: false
@@ -759,6 +763,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_194000) do
     t.index ["repository_id", "state"], name: "idx_insight_suggestions_repo_state"
     t.index ["repository_id"], name: "index_insight_suggestions_on_repository_id"
     t.index ["state"], name: "index_insight_suggestions_on_state"
+    t.index ["superseded_by_insight_id"], name: "index_insight_suggestions_on_superseded_by_insight_id"
+    t.index ["superseded_by_job_id"], name: "index_insight_suggestions_on_superseded_by_job_id"
     t.index ["target_insight_id"], name: "index_insight_suggestions_on_target_insight_id"
     t.index ["target_memory_id"], name: "index_insight_suggestions_on_target_memory_id"
   end
@@ -2236,9 +2242,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_194000) do
   add_foreign_key "insight_suggestion_audit_events", "runs", column: "actor_run_id"
   add_foreign_key "insight_suggestion_audit_events", "users", column: "actor_user_id"
   add_foreign_key "insight_suggestions", "chat_memories", column: "target_memory_id"
+  add_foreign_key "insight_suggestions", "insight_suggestions", column: "superseded_by_insight_id"
   add_foreign_key "insight_suggestions", "insight_suggestions", column: "target_insight_id"
   add_foreign_key "insight_suggestions", "jobs"
   add_foreign_key "insight_suggestions", "jobs", column: "created_job_id"
+  add_foreign_key "insight_suggestions", "jobs", column: "superseded_by_job_id"
   add_foreign_key "insight_suggestions", "repositories"
   add_foreign_key "installations", "users"
   add_foreign_key "invitations", "users", column: "invited_by_id"
