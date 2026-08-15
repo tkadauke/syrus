@@ -660,7 +660,8 @@
     "aria_events": "Eventus transcriptionis",
     "aria_summary": "Summarium transcriptionis",
     "aria_pagination": "Paginatio transcriptionis",
-    "other_event": "Eventus alius"
+    "other_event": "Eventus alius",
+    "no_events": "Nulli eventus in hac pagina."
   },
   "aria_queue": "Ordo administratoris",
   "aria_queue_tabs": "Tabulae ordinis",

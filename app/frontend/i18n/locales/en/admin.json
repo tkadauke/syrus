@@ -667,7 +667,8 @@
     "aria_events": "Transcript events",
     "aria_summary": "Transcript summary",
     "aria_pagination": "Transcript pagination",
-    "other_event": "Other event"
+    "other_event": "Other event",
+    "no_events": "No events on this page."
   },
   "aria_queue": "Admin queue",
   "aria_queue_tabs": "Queue tabs",

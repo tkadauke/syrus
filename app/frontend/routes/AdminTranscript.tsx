@@ -1,11 +1,14 @@
 import { routePrefix, withRoutePrefix } from "../lib/routing"
-import { useQuery } from "@tanstack/react-query"
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type UIEvent, type ReactNode } from "react"
+import { keepPreviousData, useQuery } from "@tanstack/react-query"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type UIEvent, type ReactNode } from "react"
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom"
 import { ApiError } from "../api/client"
-import { fetchAdminTranscript, type TranscriptEvent, type TranscriptPayload } from "../api/adminTranscript"
+import { fetchAdminTranscript, type TranscriptPayload } from "../api/adminTranscript"
 import { AnsiText } from "../components/AnsiText"
+import { Markdown } from "../lib/Markdown"
 import { useT } from "../hooks/useT"
+import { ToolGroup } from "./chat/MessageCards"
+import { groupTranscriptEvents, type AdminTranscriptRenderItem } from "./adminTranscriptGrouping"
 
 const DEFAULT_PER_PAGE = 100
 const TRANSCRIPT_BOTTOM_THRESHOLD_PX = 48
@@ -24,7 +27,8 @@ export function AdminTranscript() {
     queryKey: ["admin", "transcript", runId, { page, per }],
     queryFn: () => fetchAdminTranscript(runId, page, per),
     enabled: runId.length > 0,
-    refetchInterval: TRANSCRIPT_REFETCH_INTERVAL_MS
+    refetchInterval: TRANSCRIPT_REFETCH_INTERVAL_MS,
+    placeholderData: keepPreviousData
   })
 
   return (
@@ -77,6 +81,7 @@ function TranscriptEventStream({ payload }: { payload: TranscriptPayload }) {
   const streamPageRef = useRef(transcriptPageKey(payload))
   const [hasNewMessages, setHasNewMessages] = useState(false)
   const eventSignature = transcriptEventSignature(payload)
+  const items = useMemo(() => groupTranscriptEvents(payload.events), [payload])
 
   const scrollToBottom = useCallback(() => {
     scrollTranscriptStreamToBottom(streamRef.current)
@@ -120,8 +125,9 @@ function TranscriptEventStream({ payload }: { payload: TranscriptPayload }) {
         onScroll={handleScroll}
         ref={streamRef}
       >
-        {payload.events.map((event, index) => (
-          <TranscriptEventCard event={event} key={`${event.kind}-${event.timestamp || index}-${index}`} />
+        {items.length === 0 ? <PanelMessage>{t("transcript.no_events")}</PanelMessage> : null}
+        {items.map((item) => (
+          <TranscriptRenderItemView item={item} key={item.key} />
         ))}
       </section>
       {hasNewMessages ? (
@@ -209,40 +215,45 @@ function Pagination({ payload }: { payload: TranscriptPayload }) {
   )
 }
 
-function TranscriptEventCard({ event }: { event: TranscriptEvent }) {
+function TranscriptRenderItemView({ item }: { item: AdminTranscriptRenderItem }) {
   const { t } = useT("admin")
-  const data = event.data
 
-  switch (event.kind) {
+  switch (item.type) {
+    case "tool_group":
+      return <ToolGroup item={item} />
+    case "text":
+      if (item.kind === "user_prompt") {
+        return (
+          <div className="flex justify-end">
+            <pre className="max-w-[85%] whitespace-pre-wrap break-words rounded bg-blue-600 px-4 py-2 text-sm leading-normal text-white dark:bg-blue-500"><AnsiText text={item.text} /></pre>
+          </div>
+        )
+      }
+      if (item.kind === "assistant_text") {
+        return (
+          <div className="rounded border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900">
+            <Markdown className="chat-prose text-gray-800 dark:text-gray-100" text={item.text} />
+          </div>
+        )
+      }
+      return (
+        <div className="rounded border border-gray-200 bg-white px-3 py-2 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+          <div className="mb-1 font-medium uppercase">job log</div>
+          <pre className="whitespace-pre-wrap break-words font-mono"><AnsiText text={item.text} /></pre>
+        </div>
+      )
     case "system_init":
-      return <DetailsEvent badge="init" title={`${stringValue(data.model)} · ${stringValue(data.cwd)}`} data={data} />
-    case "user_prompt":
-      return <TextEvent badge="user prompt" tone="blue" text={stringValue(data.text)} />
-    case "assistant_text":
-      return <TextEvent badge="assistant" text={stringValue(data.text)} />
-    case "tool_use":
-      return <DetailsEvent badge="tool" title={stringValue(data.name)} data={data.input as Record<string, unknown>} />
-    case "tool_result":
-      return <DetailsEvent badge={data.error === true ? "tool err" : "tool ok"} title={preview(data.content)} data={data.content} tone={data.error === true ? "red" : "emerald"} />
+      return <DetailsCard badge="init" title={`${stringValue(item.data.model)} · ${stringValue(item.data.cwd)}`} data={item.data} />
     case "result":
-      return <ResultEvent data={data} />
+      return <ResultCard data={item.data} />
+    case "fallback":
+      return <DetailsCard badge={item.badge} title={item.title ?? t("transcript.other_event")} data={item.data} tone={item.tone} />
     default:
-      return <DetailsEvent badge={event.kind} title={t("transcript.other_event")} data={data} />
+      return null
   }
 }
 
-function TextEvent({ badge, text, tone = "gray" }: { badge: string; text: string; tone?: "blue" | "gray" }) {
-  const classes = tone === "blue" ? "border-blue-100 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300" : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400"
-
-  return (
-    <div className={`rounded border px-3 py-2 ${classes}`}>
-      <div className="mb-1 text-xs font-medium uppercase">{badge}</div>
-      <pre className="whitespace-pre-wrap break-words text-sm text-gray-800 dark:text-gray-100"><AnsiText text={text} /></pre>
-    </div>
-  )
-}
-
-function DetailsEvent({ badge, title, data, tone = "gray" }: { badge: string; title: string; data: unknown; tone?: "gray" | "red" | "emerald" }) {
+function DetailsCard({ badge, title, data, tone = "gray" }: { badge: string; title: string; data: unknown; tone?: "gray" | "red" | "emerald" }) {
   const badgeClass = {
     gray: "bg-gray-100  text-gray-700 dark:text-gray-200",
     red: "bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300",
@@ -260,7 +271,7 @@ function DetailsEvent({ badge, title, data, tone = "gray" }: { badge: string; ti
   )
 }
 
-function ResultEvent({ data }: { data: Record<string, unknown> }) {
+function ResultCard({ data }: { data: Record<string, unknown> }) {
   const isError = data.is_error === true
 
   return (
@@ -295,10 +306,6 @@ function positiveInteger(value: string | null, fallback: number) {
 function stringValue(value: unknown) {
   if (value == null) return "-"
   return String(value)
-}
-
-function preview(value: unknown) {
-  return stringValue(typeof value === "string" ? value : JSON.stringify(value)).replace(/\s+/g, " ").slice(0, 150)
 }
 
 function pretty(value: unknown) {

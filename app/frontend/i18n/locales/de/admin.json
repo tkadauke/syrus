@@ -660,7 +660,8 @@
     "aria_events": "Transkript-Ereignisse",
     "aria_summary": "Transkript-Zusammenfassung",
     "aria_pagination": "Transkript-Paginierung",
-    "other_event": "Anderes Ereignis"
+    "other_event": "Anderes Ereignis",
+    "no_events": "Keine Ereignisse auf dieser Seite."
   },
   "aria_queue": "Admin-Warteschlange",
   "aria_queue_tabs": "Warteschlangen-Tabs",
