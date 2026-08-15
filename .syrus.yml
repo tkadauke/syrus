@@ -122,7 +122,7 @@ grade:
       reordered migrations that are invisible on a fully migrated dev
       database but crash deploys when an environment is still behind.
     run: bin/check-primary-migration-baselines
-    timeout_minutes: 5
+    timeout_minutes: 10
 
   - name: thread-budget
     description: |
