@@ -4171,6 +4171,31 @@ describe("chat effort selector in toolbar", () => {
     fireEvent.pointerDown(document.body)
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument()
   })
+
+  it("keeps the effort selector in the same wrapping toolbar row as the mode and model selectors", async () => {
+    mockChatRouteFetch(chatPayload(
+      { chat: { effective_chat_provider: "claude", available_chat_models: [{ value: "claude-opus-4-7", label: "Opus 4.7" }] } },
+      { coding_mode_enabled: true }
+    ))
+    renderRoute()
+
+    const modeButton = await screen.findByRole("button", { name: "Change mode" })
+    const modelButton = screen.getByRole("button", { name: "Chat model" })
+    const effortButton = screen.getByRole("button", { name: "Effort" })
+
+    // Regression guard: the effort selector used to live outside the toolbar's
+    // wrapping flex row as a `justify-between` sibling, so once the row wrapped
+    // to a second line on narrow viewports it centered against the row's full
+    // (multi-line) height and floated away from the control it belonged next to.
+    // All toolbar controls must share the same wrapping row so they wrap together.
+    const modeRow = modeButton.closest('[class*="flex-wrap"]')
+    const modelRow = modelButton.closest('[class*="flex-wrap"]')
+    const effortRow = effortButton.closest('[class*="flex-wrap"]')
+
+    expect(modeRow).not.toBeNull()
+    expect(modelRow).toBe(modeRow)
+    expect(effortRow).toBe(modeRow)
+  })
 })
 
 describe("renderChatMessages tool_result content key", () => {

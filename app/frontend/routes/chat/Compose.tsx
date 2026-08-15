@@ -1594,37 +1594,38 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
           ) : null}
         </div>
       </div>
-      <div className="relative mt-1 flex items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <button
-            aria-controls={attachmentPopoverOpen ? "chat-attachment-popover" : undefined}
-            aria-expanded={attachmentPopoverOpen}
-            aria-label={t("add_attachment")}
-            aria-haspopup="dialog"
-            className="flex h-6 min-h-11 w-6 min-w-11 shrink-0 items-center justify-center rounded border border-gray-300 bg-white text-lg leading-none text-gray-700 hover:bg-gray-50 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 sm:text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
+      <div className="relative mt-1 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+        <button
+          aria-controls={attachmentPopoverOpen ? "chat-attachment-popover" : undefined}
+          aria-expanded={attachmentPopoverOpen}
+          aria-label={t("add_attachment")}
+          aria-haspopup="dialog"
+          className="flex h-6 min-h-11 w-6 min-w-11 shrink-0 items-center justify-center rounded border border-gray-300 bg-white text-lg leading-none text-gray-700 hover:bg-gray-50 disabled:text-gray-300 sm:min-h-0 sm:min-w-0 sm:text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-600"
+          disabled={send.isPending || systemAction.isPending}
+          onClick={() => setAttachmentPopoverOpen((open) => !open)}
+          ref={addAttachmentButtonRef}
+          type="button"
+        >
+          +
+        </button>
+        {dictation.available ? (
+          <DictationButton
             disabled={send.isPending || systemAction.isPending}
-            onClick={() => setAttachmentPopoverOpen((open) => !open)}
-            ref={addAttachmentButtonRef}
-            type="button"
-          >
-            +
-          </button>
-          {dictation.available ? (
-            <DictationButton
-              disabled={send.isPending || systemAction.isPending}
-              labels={{
-                idle: t("dictation_start"),
-                requesting: t("dictation_requesting"),
-                recording: t("dictation_stop"),
-                transcribing: t("dictation_transcribing"),
-                unavailable: t("dictation_unavailable")
-              }}
-              phase={dictation.phase}
-              onClick={dictation.phase === "recording" ? dictation.stop : dictation.start}
-            />
-          ) : null}
-          <ChatModeSelector chatId={chatId} payload={payload} queryKey={queryKey} />
-          <ChatModelSelector chatId={chatId} payload={payload} queryKey={queryKey} />
+            labels={{
+              idle: t("dictation_start"),
+              requesting: t("dictation_requesting"),
+              recording: t("dictation_stop"),
+              transcribing: t("dictation_transcribing"),
+              unavailable: t("dictation_unavailable")
+            }}
+            phase={dictation.phase}
+            onClick={dictation.phase === "recording" ? dictation.stop : dictation.start}
+          />
+        ) : null}
+        <ChatModeSelector chatId={chatId} payload={payload} queryKey={queryKey} />
+        <ChatModelSelector chatId={chatId} payload={payload} queryKey={queryKey} />
+        <div className="sm:ml-auto">
+          <ChatEffortSelector chatId={chatId} payload={payload} queryKey={queryKey} onNotice={onNotice} />
         </div>
         {attachmentPopoverOpen ? (
           <div
@@ -1679,7 +1680,6 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
             <AddAttachment payload={payload} prefix={prefix} queryKey={queryKey} onAttached={() => setAttachmentPopoverOpen(false)} onNotice={onNotice} />
           </div>
         ) : null}
-        <ChatEffortSelector chatId={chatId} payload={payload} queryKey={queryKey} onNotice={onNotice} />
       </div>
       </form>
     </>
@@ -2155,7 +2155,7 @@ function ChatModeSelector({ chatId, payload, queryKey }: { chatId: string; paylo
         aria-expanded={dropdownOpen}
         aria-haspopup="listbox"
         aria-label={t("mode_selector_label")}
-        className="flex min-h-11 items-center gap-1 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:min-h-0 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+        className="flex min-h-11 max-w-[6.5rem] items-center gap-1 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:min-h-0 sm:max-w-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
         disabled={mode.isPending}
         onClick={() => setDropdownOpen((open) => !open)}
         ref={buttonRef}
@@ -2241,7 +2241,7 @@ function ChatModelSelector({ chatId, payload, queryKey }: { chatId: string; payl
         aria-expanded={dropdownOpen}
         aria-haspopup="listbox"
         aria-label={t("aria_chat_model")}
-        className="flex min-h-11 max-w-[9rem] items-center gap-1 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:min-h-0 sm:max-w-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+        className="flex min-h-11 max-w-[6.5rem] items-center gap-1 rounded border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:min-h-0 sm:max-w-none dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
         disabled={updateModel.isPending || agentActive}
         onClick={() => setDropdownOpen((open) => !open)}
         ref={buttonRef}
@@ -2332,7 +2332,7 @@ function ChatEffortSelector({ chatId, payload, queryKey, onNotice }: { chatId: s
         aria-expanded={dropdownOpen}
         aria-haspopup="listbox"
         aria-label={t("effort_label")}
-        className="flex min-h-11 max-w-[8rem] items-center gap-1 rounded border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50 sm:min-h-0 sm:max-w-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+        className="flex min-h-11 max-w-[5.5rem] items-center gap-1 rounded border border-gray-200 bg-white px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50 sm:min-h-0 sm:max-w-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
         disabled={updateEffort.isPending}
         onClick={() => setDropdownOpen((open) => !open)}
         ref={buttonRef}
