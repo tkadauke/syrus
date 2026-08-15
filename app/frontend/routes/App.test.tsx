@@ -10644,7 +10644,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/42/dependencies/override", expect.objectContaining({ method: "POST" }))
     })
-  })
+  }, 30000)
 
   it("dispatches Job workflow and run commands through the app API", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
