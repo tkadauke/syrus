@@ -84,6 +84,15 @@ module SyrusSearchDatabaseTasks
     SQL
   }.freeze
 
+  # `CREATE ... IF NOT EXISTS` silently no-ops when a table already exists
+  # under an older column set (e.g. a migration added a column but the
+  # pre-existing SQLite file on a long-lived host predates it). Rebuilding
+  # loses any indexed rows, so tables with a durable primary-DB source of
+  # truth get a repopulation hook run right after the rebuild.
+  REBUILD_HOOKS = {
+    "operational_log_fts" => -> { OperationalLogIndex.rebuild! }
+  }.freeze
+
   module_function
 
   def prepare!
@@ -93,7 +102,10 @@ module SyrusSearchDatabaseTasks
 
   def ensure_required_tables!
     REQUIRED_TABLE_SQL.each do |table_name, sql|
-      next if table_exists?(table_name)
+      if table_exists?(table_name)
+        rebuild_table!(table_name, sql) unless schema_matches?(table_name, sql)
+        next
+      end
 
       SearchRecord.connection.execute(sql)
     end
@@ -103,6 +115,33 @@ module SyrusSearchDatabaseTasks
     SearchRecord.connection.select_value(
       "SELECT name FROM sqlite_master WHERE name = #{SearchRecord.connection.quote(table_name)}"
     ).present?
+  end
+
+  def schema_matches?(table_name, sql)
+    expected_columns(sql) == actual_columns(table_name)
+  end
+
+  def expected_columns(sql)
+    columns_clause = sql[/\((.*)\)\s*\z/m, 1].to_s
+    columns_clause.split(",")
+                  .map(&:strip)
+                  .reject { |segment| segment.include?("=") }
+                  .map { |segment| segment.split(/\s+/).first }
+  end
+
+  def actual_columns(table_name)
+    SearchRecord.connection.select_rows("PRAGMA table_info(#{table_name})").map { |row| row[1] }
+  end
+
+  def rebuild_table!(table_name, sql)
+    Rails.logger.warn("search_database: rebuilding #{table_name} (column set drifted from expected schema)")
+
+    SearchRecord.connection.transaction do
+      SearchRecord.connection.execute("DROP TABLE IF EXISTS #{table_name}")
+      SearchRecord.connection.execute(sql)
+    end
+
+    REBUILD_HOOKS[table_name]&.call
   end
 end
 

@@ -138,6 +138,15 @@ class OperationalLogIndex < SearchRecord
       false
     end
 
+    # Repopulates the FTS table from the primary-DB events after a schema
+    # rebuild (see SyrusSearchDatabaseTasks). Retention is short (6 hours)
+    # so a full re-scan is cheap.
+    def rebuild!
+      OperationalLogEvent.where(occurred_at: OperationalLogEvent::RETENTION.ago..).find_each do |event|
+        upsert(event)
+      end
+    end
+
     private
 
     def fallback_search(query:, since:, until_time:, level:, role:, hostname:, app_revision:, limit:, offset:)
