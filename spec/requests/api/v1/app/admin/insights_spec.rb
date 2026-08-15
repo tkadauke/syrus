@@ -132,6 +132,22 @@ RSpec.describe "Admin API insight suggestions", type: :request do
       )
     end
 
+    it "excludes retired suggestions from the pending filter and surfaces them via retired/all" do
+      pending_suggestion = create_suggestion(title: "Pending")
+      retired = create_suggestion(title: "Stale")
+      retired.retire!(reason: "Duplicate finding.", actor: nil)
+
+      get "/api/v1/app/admin/insights", params: { state: "pending" }
+      body = parse_body
+      expect(body["suggestions"].map { |s| s["id"] }).to eq([ pending_suggestion.id ])
+      expect(body.dig("meta", "counts")).to include("pending" => 1, "retired" => 1, "all" => 2)
+
+      get "/api/v1/app/admin/insights", params: { state: "retired" }
+      body = parse_body
+      expect(body["suggestions"].map { |s| s["id"] }).to eq([ retired.id ])
+      expect(body["suggestions"].first["retired_reason"]).to eq("Duplicate finding.")
+    end
+
     it "auto-accepts stale remove_memory suggestions before listing admin insights" do
       memory = ChatMemory.create!(
         user: other_user,

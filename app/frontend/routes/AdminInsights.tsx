@@ -6,7 +6,7 @@ import { useT } from "../hooks/useT"
 import { acceptRemoveMemoryInsight, fetchAdminInsights, promoteInsightMemory, type AdminInsightSuggestion, type PaginationMeta } from "../api/insights"
 import { errorMessage } from "../lib/errorMessage"
 
-type StateFilter = "pending" | "accepted" | "dismissed" | "all"
+type StateFilter = "pending" | "accepted" | "dismissed" | "retired" | "all"
 
 export function AdminInsightsRoute() {
   const { t } = useT("insights")
@@ -73,6 +73,7 @@ function AdminInsightsList({
     { key: "pending", label: t("filter_pending"), count: meta.counts.pending },
     { key: "accepted", label: t("filter_accepted"), count: meta.counts.accepted },
     { key: "dismissed", label: t("filter_dismissed"), count: meta.counts.dismissed },
+    { key: "retired", label: t("filter_retired"), count: meta.counts.retired },
     { key: "all", label: t("filter_all"), count: meta.counts.all }
   ]
 
@@ -308,6 +309,18 @@ function AdminSuggestionRow({ suggestion, prefix }: { suggestion: AdminInsightSu
                 )}
               </div>
             )}
+            {suggestion.state === "retired" && (
+              <div className="mt-2 rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                <p className="font-medium text-gray-700 dark:text-gray-200">{t("retired_heading")}</p>
+                {suggestion.retired_reason && <p className="mt-1 whitespace-pre-wrap">{suggestion.retired_reason}</p>}
+                {suggestion.superseded_by_insight_id && (
+                  <p className="mt-1">{t("superseded_by_insight_label", { id: suggestion.superseded_by_insight_id })}</p>
+                )}
+                {suggestion.superseded_by_job_id && (
+                  <p className="mt-1">{t("superseded_by_job_label", { id: suggestion.superseded_by_job_id })}</p>
+                )}
+              </div>
+            )}
           </td>
         </tr>
       )}
@@ -337,7 +350,9 @@ function StatePill({ state }: { state: string }) {
       ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
       : state === "dismissed"
         ? "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
-        : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+        : state === "retired"
+          ? "bg-gray-200 text-gray-500 dark:bg-gray-800/60 dark:text-gray-500"
+          : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
   return (
     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${classes}`}>
       {t(`state_${state}`)}

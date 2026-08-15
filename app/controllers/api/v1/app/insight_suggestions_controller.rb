@@ -8,7 +8,7 @@ module Api
         prepend_before_action :require_agent_insights_feature
 
         PER_PAGE = 20
-        STATES = %w[pending accepted dismissed all].freeze
+        STATES = %w[pending accepted dismissed retired all].freeze
 
         def index
           repository = find_repository
@@ -118,6 +118,7 @@ module Api
             pending:   counts.fetch("pending", 0),
             accepted:  counts.fetch("accepted", 0),
             dismissed: counts.fetch("dismissed", 0),
+            retired:   counts.fetch("retired", 0),
             all:       counts.values.sum
           }
         end
@@ -254,11 +255,15 @@ module Api
             stale_memory_text: suggestion.redacted_stale_memory_text,
             stale_memory_evidence: suggestion.redacted_stale_memory_evidence,
             target_insight_id: suggestion.target_insight_id,
+            retired_reason: suggestion.redacted_retired_reason,
+            superseded_by_insight_id: suggestion.superseded_by_insight_id,
+            superseded_by_job_id: suggestion.superseded_by_job_id,
             evidence: evidence_json(suggestion.redacted_evidence),
             job_slug: suggestion.job.slug,
             job_path: job_path(suggestion.job),
             accepted_at: suggestion.accepted_at,
             dismissed_at: suggestion.dismissed_at,
+            retired_at: suggestion.retired_at,
             created_at: suggestion.created_at,
             created_job: suggestion.created_job ? created_job_summary_json(suggestion.created_job) : nil
           }

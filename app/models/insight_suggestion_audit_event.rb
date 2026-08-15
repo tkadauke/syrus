@@ -1,5 +1,5 @@
 class InsightSuggestionAuditEvent < ApplicationRecord
-  EVENT_TYPES = %w[ updated ].freeze
+  EVENT_TYPES = %w[ updated retired ].freeze
   ACTOR_KINDS = %w[ user agent system ].freeze
 
   belongs_to :insight_suggestion

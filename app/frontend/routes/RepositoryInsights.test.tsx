@@ -24,11 +24,15 @@ function makeSuggestion(overrides: Record<string, unknown> = {}) {
     stale_memory_text: null,
     stale_memory_evidence: null,
     target_insight_id: null,
+    retired_reason: null,
+    superseded_by_insight_id: null,
+    superseded_by_job_id: null,
     evidence: [],
     job_slug: "JOB-100",
     job_path: "/jobs/100",
     accepted_at: null,
     dismissed_at: null,
+    retired_at: null,
     created_at: "2026-07-01T00:00:00Z",
     created_job: null,
     ...overrides
@@ -42,16 +46,16 @@ function makeMeta(overrides: Record<string, unknown> = {}) {
     per_page: 20,
     total_pages: 1,
     state: "pending",
-    counts: { pending: 1, accepted: 0, dismissed: 0, all: 1 },
+    counts: { pending: 1, accepted: 0, dismissed: 0, retired: 0, all: 1 },
     ...overrides
   }
 }
 
 function makeCounts(suggestions: unknown[]) {
-  const counts = { pending: 0, accepted: 0, dismissed: 0, all: suggestions.length }
+  const counts = { pending: 0, accepted: 0, dismissed: 0, retired: 0, all: suggestions.length }
   suggestions.forEach((suggestion) => {
     const state = (suggestion as { state?: string }).state
-    if (state === "pending" || state === "accepted" || state === "dismissed") counts[state] += 1
+    if (state === "pending" || state === "accepted" || state === "dismissed" || state === "retired") counts[state] += 1
   })
   return counts
 }
@@ -102,7 +106,7 @@ function renderRepositoryInsightsRoute() {
   )
 }
 
-type StateFilter = "pending" | "accepted" | "dismissed" | "all"
+type StateFilter = "pending" | "accepted" | "dismissed" | "retired" | "all"
 
 describe("RepositoryInsightsRoute", () => {
   afterEach(async () => {
@@ -596,6 +600,55 @@ describe("RepositoryInsightsRoute", () => {
           expect.objectContaining({ method: "PATCH" })
         )
       })
+    })
+  })
+
+  describe("retired insights", () => {
+    it("shows a Retired tab and switching to it fetches state=retired", async () => {
+      const retired = makeSuggestion({
+        state: "retired",
+        retired_reason: "Folded into a newer finding.",
+        superseded_by_insight_id: 7
+      })
+      const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+        const url = String(input)
+        const state = new URL(url, "http://example.test").searchParams.get("state")
+        return Promise.resolve(jsonResponse(payload(state === "retired" ? [retired] : [])))
+      })
+
+      renderRepositoryInsightsRoute()
+
+      const retiredTab = await screen.findByRole("button", { name: /Retired/ })
+      fireEvent.click(retiredTab)
+
+      await screen.findByText("Frequent prepare failures")
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          expect.stringContaining("state=retired"),
+          expect.anything()
+        )
+      })
+    })
+
+    it("shows the retirement reason and superseding insight but no action buttons when expanded", async () => {
+      const retired = makeSuggestion({
+        state: "retired",
+        retired_reason: "Folded into a newer finding.",
+        superseded_by_insight_id: 7
+      })
+      renderRouteByState({
+        pending: { suggestions: [] },
+        retired: { suggestions: [retired] }
+      })
+
+      fireEvent.click(await screen.findByRole("button", { name: /Retired/ }))
+      fireEvent.click(await screen.findByRole("button", { name: "Expand" }))
+
+      expect(screen.getAllByText("Retired").length).toBeGreaterThanOrEqual(2)
+      expect(screen.getByText("Folded into a newer finding.")).toBeInTheDocument()
+      expect(screen.getByText("Superseded by insight #7")).toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: "Dismiss" })).not.toBeInTheDocument()
     })
   })
 

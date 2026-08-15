@@ -23,7 +23,7 @@ export type InsightSuggestion = {
   category: string
   severity: "low" | "medium" | "high"
   confidence: number
-  state: "pending" | "accepted" | "dismissed"
+  state: "pending" | "accepted" | "dismissed" | "retired"
   proposal_type: "create_job" | "save_memory" | "remove_memory" | "revise_existing_insight" | "informational"
   suggested_prompt: string | null
   memory_suggestion: string | null
@@ -32,11 +32,15 @@ export type InsightSuggestion = {
   stale_memory_text: string | null
   stale_memory_evidence: string | null
   target_insight_id: number | null
+  retired_reason: string | null
+  superseded_by_insight_id: number | null
+  superseded_by_job_id: number | null
   evidence: InsightEvidenceItem[]
   job_slug: string
   job_path: string
   accepted_at: string | null
   dismissed_at: string | null
+  retired_at: string | null
   created_at: string
   created_job: InsightJobSummary | null
 }
@@ -46,11 +50,12 @@ export type PaginationMeta = {
   page: number
   per_page: number
   total_pages: number
-  state: "pending" | "accepted" | "dismissed" | "all"
+  state: "pending" | "accepted" | "dismissed" | "retired" | "all"
   counts: {
     pending: number
     accepted: number
     dismissed: number
+    retired: number
     all: number
   }
 }
@@ -59,6 +64,7 @@ export type InsightSuggestionCounts = {
   pending: number
   accepted: number
   dismissed: number
+  retired: number
   all: number
 }
 

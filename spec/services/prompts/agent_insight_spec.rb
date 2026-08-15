@@ -156,6 +156,20 @@ RSpec.describe Prompts::AgentInsight do
       expect(out).not_to include('proposal_type: "revise_existing_insight"')
     end
 
+    it "instructs the agent to retire stale unaccepted insights instead of filing superseded cards" do
+      out = described_class.new(repository: repository).to_s
+      expect(out).to include("retire_insight")
+      expect(out).to include("target_insight_id")
+      expect(out).to match(/Superseded by #N/)
+      expect(out).to match(/no longer worth any operator review/i)
+    end
+
+    it "instructs the agent to pass retire_accepted only for confirmed-obsolete accepted insights" do
+      out = described_class.new(repository: repository).to_s
+      expect(out).to include("retire_accepted: true")
+      expect(out).to match(/confirmed obsolete/i)
+    end
+
     it "mentions worker health correlation evidence" do
       out = described_class.new(repository: repository).to_s
       expect(out).to include("read_run_worker_health")

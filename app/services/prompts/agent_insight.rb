@@ -94,12 +94,26 @@ module Prompts
         after a fix.
         Do not refile known insights unless you have new evidence.
         Call `read_insight(id:)` to get the full details of any entry. Call `list_insights`
-        to page through more insights beyond those listed here. If an existing insight is
-        stale, duplicated, or superseded, use state-aware handling: call
-        `update_insight(target_insight_id:, reason:, ...)` for pending or dismissed
-        insights so the existing row is corrected in place. If the existing insight
-        is accepted, do not update it; submit a new standalone insight and cite the
-        accepted insight in evidence or context if useful.
+        to page through more insights beyond those listed here (pass `state: "retired"` or
+        `state: "all"` to review previously retired insights too). If an existing insight is
+        stale, duplicated, or superseded, use state-aware handling:
+
+        - If a pending or dismissed insight's details need correcting but the finding is
+          still active and worth tracking, call `update_insight(target_insight_id:, reason:, ...)`
+          to revise it in place.
+        - If a pending or dismissed insight is stale, a duplicate, folded into another
+          insight, or no longer worth any operator review at all, call
+          `retire_insight(target_insight_id:, reason:, ...)` to remove it from active
+          review with an audit trail. Pass `superseded_by_insight_id` or
+          `superseded_by_job_id` when a specific insight or Job explains why it is no
+          longer current. Do NOT submit a new `informational` insight titled something
+          like "Superseded by #N" just to signal that another insight is stale — retire
+          the stale one directly instead.
+        - If the existing insight is accepted, do not update or retire it by default;
+          submit a new standalone insight and cite the accepted insight in evidence or
+          context if useful. Only call `retire_insight(..., retire_accepted: true)` when
+          the accepted insight itself is confirmed obsolete (not merely superseded by
+          newer work).
 
         #{lines.join("\n")}
       TEXT
@@ -149,7 +163,8 @@ module Prompts
           `stale_memory_text`, and `stale_memory_evidence` explaining why the memory no
           longer matches current code, docs, recent jobs, or accepted implementation state.
         - Do not submit `revise_existing_insight`; that legacy proposal type is not
-          an operator action. Use `update_insight` for unaccepted insight revisions.
+          an operator action. Use `update_insight` for unaccepted insight revisions,
+          or `retire_insight` to remove a stale unaccepted insight from active review.
 
         ## When to use each suggestion type
 
@@ -172,9 +187,23 @@ module Prompts
         during an insight run; operators accept removals through audited application code.
 
         **Update an existing unaccepted insight (`update_insight`)** when a pending or
-        dismissed insight is stale, duplicated, incomplete, or superseded. Include
-        `target_insight_id`, the revised fields, and a concise `reason` for the audit
-        trail. This updates the target row in place instead of creating a new review card.
+        dismissed insight's details are incomplete or out of date but the finding itself
+        is still active and worth operator review. Include `target_insight_id`, the
+        revised fields, and a concise `reason` for the audit trail. This updates the
+        target row in place instead of creating a new review card.
+
+        **Retire an existing unaccepted insight (`retire_insight`)** when a pending or
+        dismissed insight is stale, a duplicate, folded into another insight, or no
+        longer current for any reason and does not need further operator review at all.
+        Include `target_insight_id` and a concise `reason`; pass `superseded_by_insight_id`
+        or `superseded_by_job_id` when a specific insight or Job explains the retirement.
+        This is an audited state transition, not a delete — retired insights stay
+        inspectable via `list_insights(state: "retired")` and `read_insight`. Never file a
+        new `informational` insight just to say another insight is stale; retire the
+        stale one instead. Accepted insights are refused by `retire_insight` unless you
+        pass `retire_accepted: true`, which should only be used when the accepted insight
+        itself is confirmed obsolete — prefer filing a new standalone insight for anything
+        merely superseded by newer work.
 
         **File a new standalone insight for accepted prior insights** when a novel
         realization changes an already accepted insight. Accepted insights are operator

@@ -32,6 +32,7 @@ module SyrusMcp
       ::Mcp::Tools::SubmitAdversarialReviewTool,
       ::Mcp::Tools::SubmitInsightTool,
       ::Mcp::Tools::UpdateInsightTool,
+      ::Mcp::Tools::RetireInsightTool,
       ::Mcp::Tools::ListInsightsTool,
       ::Mcp::Tools::ReadInsightTool,
       ::Mcp::Tools::ListRecentWorkflowsTool,

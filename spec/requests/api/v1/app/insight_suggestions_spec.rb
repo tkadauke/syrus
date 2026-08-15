@@ -154,6 +154,38 @@ RSpec.describe "App API insight suggestions", type: :request do
       )
     end
 
+    it "excludes retired suggestions from the pending state filter and includes them in retired/all" do
+      pending_suggestion = create_suggestion(title: "Pending")
+      retired = create_suggestion(title: "Stale")
+      retired.retire!(reason: "Duplicate finding.", actor: nil)
+
+      get "/api/v1/app/repositories/#{repository.id}/insight_suggestions", params: { state: "pending" }
+      body = parse_body
+      expect(body["suggestions"].map { |s| s["id"] }).to eq([ pending_suggestion.id ])
+      expect(body.dig("meta", "counts")).to include("pending" => 1, "retired" => 1, "all" => 2)
+
+      get "/api/v1/app/repositories/#{repository.id}/insight_suggestions", params: { state: "retired" }
+      body = parse_body
+      expect(body["suggestions"].map { |s| s["id"] }).to eq([ retired.id ])
+
+      get "/api/v1/app/repositories/#{repository.id}/insight_suggestions", params: { state: "all" }
+      body = parse_body
+      expect(body["suggestions"].map { |s| s["id"] }).to match_array([ pending_suggestion.id, retired.id ])
+    end
+
+    it "returns retirement fields for a retired suggestion" do
+      superseding = create_suggestion(title: "Newer finding")
+      retired = create_suggestion(title: "Stale finding")
+      retired.retire!(reason: "Folded into the newer finding.", actor: nil, superseded_by_insight: superseding)
+
+      get "/api/v1/app/repositories/#{repository.id}/insight_suggestions", params: { state: "retired" }
+
+      suggestion = parse_body["suggestions"].first
+      expect(suggestion["state"]).to eq("retired")
+      expect(suggestion["retired_reason"]).to eq("Folded into the newer finding.")
+      expect(suggestion["superseded_by_insight_id"]).to eq(superseding.id)
+    end
+
     it "auto-accepts stale remove_memory suggestions whose target memory was already deleted" do
       memory = ChatMemory.create!(
         user: user,

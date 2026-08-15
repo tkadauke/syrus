@@ -21,11 +21,15 @@ function makeSuggestion(overrides: Record<string, unknown> = {}) {
     stale_memory_text: null,
     stale_memory_evidence: null,
     target_insight_id: null,
+    retired_reason: null,
+    superseded_by_insight_id: null,
+    superseded_by_job_id: null,
     evidence: [],
     job_slug: "JOB-200",
     job_path: "/jobs/200",
     accepted_at: null,
     dismissed_at: null,
+    retired_at: null,
     created_at: "2026-07-01T00:00:00Z",
     created_job: null,
     repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", insights_path: "/repositories/1/insights" },
@@ -41,7 +45,7 @@ function makeMeta(overrides: Record<string, unknown> = {}) {
     per_page: 20,
     total_pages: 1,
     state: "pending",
-    counts: { pending: 1, accepted: 0, dismissed: 0, all: 1 },
+    counts: { pending: 1, accepted: 0, dismissed: 0, retired: 0, all: 1 },
     ...overrides
   }
 }
@@ -152,6 +156,39 @@ describe("AdminInsightsRoute", () => {
           expect.anything()
         )
       })
+    })
+
+    it("clicking the Retired tab re-fetches with state=retired", async () => {
+      const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload([makeSuggestion()])))
+
+      renderRoute()
+
+      const retiredTab = await screen.findByRole("button", { name: /Retired/ })
+      fireEvent.click(retiredTab)
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          expect.stringContaining("state=retired"),
+          expect.anything()
+        )
+      })
+    })
+  })
+
+  describe("retired insight row", () => {
+    it("shows the retirement reason and superseding insight when expanded", async () => {
+      const retired = makeSuggestion({
+        state: "retired",
+        retired_reason: "Folded into a newer finding.",
+        superseded_by_insight_id: 9
+      })
+      renderRoute([retired])
+
+      fireEvent.click(await screen.findByRole("button", { name: "Cross-repo cache miss" }))
+
+      expect(screen.getAllByText("Retired").length).toBeGreaterThanOrEqual(2)
+      expect(screen.getByText("Folded into a newer finding.")).toBeInTheDocument()
+      expect(screen.getByText("Superseded by insight #9")).toBeInTheDocument()
     })
   })
 
