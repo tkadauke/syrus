@@ -48,7 +48,8 @@ module OperationalLogging
       Observability::EventSink.append(kind: :operational, event: event, durable: true)
       event
     end
-  rescue StandardError
+  rescue StandardError => e
+    Rails.logger.error("[OperationalLogging] ingest failed, event dropped: #{e.class}: #{e.message}")
     nil
   end
 

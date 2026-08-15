@@ -93,4 +93,35 @@ RSpec.describe Observability::EventSink do
     }.to change(OperationalLogEvent, :count).by(1)
     expect(enqueued_jobs.map { |job| job[:job] }).to include(IndexOperationalLogEventJob)
   end
+
+  it "logs instead of silently dropping an event when append fails" do
+    allow(described_class).to receive(:append_memory).and_raise(RuntimeError, "buffer mutex poisoned")
+    allow(Rails.logger).to receive(:error)
+
+    result = described_class.append(kind: :operational, event: { "message" => "hello" })
+
+    expect(result).to be_nil
+    expect(Rails.logger).to have_received(:error).with(a_string_matching(/append failed for operational.*RuntimeError.*buffer mutex poisoned/))
+  end
+
+  it "logs and restores events to the buffer instead of silently dropping them when flush fails" do
+    described_class.append(kind: :operational, event: {
+      "occurred_at" => Time.current.iso8601(6),
+      "level" => "error",
+      "role" => "worker",
+      "hostname" => "host-a",
+      "source" => "spec",
+      "message" => "will fail to persist",
+      "context" => {}
+    }, durable: true)
+    allow(OperationalLogEvent).to receive(:create!).and_raise(RuntimeError, "db unavailable")
+    allow(Rails.logger).to receive(:error)
+
+    expect {
+      described_class.flush!(kinds: [ :operational ])
+    }.not_to change(OperationalLogEvent, :count)
+
+    expect(Rails.logger).to have_received(:error).with(a_string_matching(/flush failed for operational, 1 event\(s\) restored to buffer/))
+    expect(described_class.recent(kind: :operational, limit: 10).size).to eq(1)
+  end
 end

@@ -23,7 +23,8 @@ module Observability
       append_spool(kind, event) if durable || SPOOL_KINDS.include?(kind)
       start_background_flusher
       event
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.error("[Observability::EventSink] append failed for #{kind} event, event dropped: #{e.class}: #{e.message}")
       nil
     end
 
@@ -96,7 +97,8 @@ module Observability
           end
         end
       end
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.error("[Observability::EventSink] flush failed for #{kind}, #{events.size} event(s) restored to buffer: #{e.class}: #{e.message}")
       restore_memory(kind, events)
       nil
     end
@@ -114,8 +116,8 @@ module Observability
           loop do
             sleep FLUSH_INTERVAL
             flush!
-          rescue StandardError
-            nil
+          rescue StandardError => e
+            Rails.logger.error("[Observability::EventSink] background flusher iteration failed: #{e.class}: #{e.message}")
           end
         end
       end

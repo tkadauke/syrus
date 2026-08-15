@@ -179,6 +179,16 @@ RSpec.describe OperationalLogging do
     }.not_to change(OperationalLogEvent, :count)
   end
 
+  it "logs and returns nil instead of silently dropping ingestion failures" do
+    allow(Observability::EventSink).to receive(:append).and_raise(RuntimeError, "spool disk full")
+    allow(Rails.logger).to receive(:error)
+
+    result = described_class.ingest(level: "info", source: "spec", message: "hello")
+
+    expect(result).to be_nil
+    expect(Rails.logger).to have_received(:error).with(a_string_matching(/ingest failed.*RuntimeError.*spool disk full/))
+  end
+
   it "prunes expired primary and search rows without logging recursively" do
     old_event = OperationalLogEvent.create!(
       occurred_at: 7.hours.ago,
