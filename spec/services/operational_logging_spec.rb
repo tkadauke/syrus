@@ -110,6 +110,67 @@ RSpec.describe OperationalLogging do
     Thread.current[:syrus_current_run] = nil
   end
 
+  it "captures exception message and a bounded backtrace on request and job ingestion" do
+    error = begin
+      raise ArgumentError, "boom detail"
+    rescue ArgumentError => e
+      e
+    end
+
+    request_event = described_class.ingest_request(
+      {
+        request_id: "req-3",
+        method: "GET",
+        path: "/api/v1/app/jobs",
+        controller: "Api::V1::App::JobsController",
+        action: "index",
+        status: 500,
+        exception: [ "ArgumentError", "boom detail" ],
+        exception_object: error
+      },
+      12.34
+    )
+
+    expect(request_event["context"]["exception"]).to eq("ArgumentError")
+    expect(request_event["context"]["exception_message"]).to eq("boom detail")
+    expect(request_event["context"]["backtrace"]).to be_present
+    expect(request_event["context"]["backtrace"].bytesize).to be <= 1_000
+
+    job_event = described_class.ingest_job(
+      { job: RunJob.new, exception: [ "ArgumentError", "boom detail" ], exception_object: error },
+      45.67
+    )
+
+    expect(job_event["context"]["exception"]).to eq("ArgumentError")
+    expect(job_event["context"]["exception_message"]).to eq("boom detail")
+    expect(job_event["context"]["backtrace"]).to be_present
+    expect(job_event["context"]["backtrace"].bytesize).to be <= 1_000
+  end
+
+  it "omits exception context keys when there is no exception" do
+    request_event = described_class.ingest_request(
+      {
+        request_id: "req-4",
+        method: "GET",
+        path: "/api/v1/app/jobs",
+        controller: "Api::V1::App::JobsController",
+        action: "index",
+        status: 200
+      },
+      12.34
+    )
+
+    expect(request_event["context"]).not_to have_key("exception")
+    expect(request_event["context"]).not_to have_key("exception_message")
+    expect(request_event["context"]).not_to have_key("backtrace")
+
+    job_event = described_class.ingest_job({ job: RunJob.new }, 45.67)
+
+    expect(job_event["context"]).not_to have_key("exception")
+    expect(job_event["context"]).not_to have_key("exception_message")
+    expect(job_event["context"]).not_to have_key("backtrace")
+  end
+
   it "does not touch the primary or search database during primary ingest" do
     allow(SearchRecord).to receive(:connection).and_raise("compute worker must not write search")
 

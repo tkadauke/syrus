@@ -3,6 +3,7 @@ module OperationalLogging
   MAX_MESSAGE_BYTES = 4_000
   MAX_CONTEXT_BYTES = 8_000
   PRUNE_INTERVAL = 10.minutes
+  MAX_BACKTRACE_FRAMES = 15
   SECRET_FILTERS = [
     /(authorization:\s*bearer\s+)[^\s,;]+/i,
     /((?:password|passwd|secret|token|api[_-]?key)=)[^&\s]+/i,
@@ -70,7 +71,9 @@ module OperationalLogging
         format: payload[:format],
         status: status,
         duration_ms: duration_ms.to_f.round(1),
-        exception: Array(payload[:exception]).first
+        exception: Array(payload[:exception]).first,
+        exception_message: Array(payload[:exception])[1],
+        backtrace: formatted_backtrace(payload[:exception_object])
       }.compact_blank
     )
   end
@@ -91,6 +94,8 @@ module OperationalLogging
         queue_name: job&.queue_name,
         executions: job&.executions,
         exception: Array(payload[:exception]).first,
+        exception_message: Array(payload[:exception])[1],
+        backtrace: formatted_backtrace(payload[:exception_object]),
         job_id: current_run&.job_id,
         workflow_id: current_run&.workflow_id,
         run_id: current_run&.id
@@ -144,6 +149,15 @@ module OperationalLogging
   def ignored_job?(job, payload)
     job_class = job&.class&.name || payload[:job_class].to_s
     job_class.in?([ "IndexOperationalLogEventJob", "PruneOperationalLogsJob" ])
+  end
+
+  def formatted_backtrace(exception_object)
+    backtrace = exception_object&.backtrace
+    return if backtrace.blank?
+
+    cleaned = Rails.backtrace_cleaner.clean(backtrace)
+    cleaned = backtrace if cleaned.blank?
+    cleaned.first(MAX_BACKTRACE_FRAMES).join(" | ")
   end
 
   def normalize_level(level)
