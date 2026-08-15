@@ -5,8 +5,6 @@ class Workflow < ApplicationRecord
 
   TRIGGER_KINDS = Workflow::TriggerKind.values
   EPIC_WIDE_TRIGGER_KINDS = Workflow::TriggerKind.epic_wide_values
-  PRIORITIES = Job::PRIORITIES
-  DEFAULT_PRIORITY = "medium"
 
   belongs_to :job
   belongs_to :user
@@ -19,7 +17,6 @@ class Workflow < ApplicationRecord
 
   validates :trigger_kind, presence: true, inclusion: { in: TRIGGER_KINDS }
   validates :agent_provider, presence: true, inclusion: { in: -> { User.agent_providers } }
-  validates :priority, presence: true, inclusion: { in: PRIORITIES }
   validate :user_matches_job
   validate :job_must_be_open_on_create, on: :create
   before_validation :default_user_from_job, on: :create

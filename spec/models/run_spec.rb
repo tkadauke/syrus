@@ -235,32 +235,6 @@ RSpec.describe Run do
       expect(run_jobs.last[:priority]).to eq(Job::PRIORITY_TO_SQ["medium"])
     end
 
-    it "enqueues with the job's SolidQueue priority when the workflow priority is left at the default" do
-      high_job = Factories.job(priority: "high")
-      workflow = Workflows::Initial.instantiate(job: high_job)
-      step = workflow.steps.first
-      ActiveJob::Base.queue_adapter.enqueued_jobs.clear
-
-      step.runs.create!(job: high_job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
-      run_jobs = ActiveJob::Base.queue_adapter.enqueued_jobs.select { |j| j[:job] == RunJob }
-
-      expect(run_jobs.last[:priority]).to eq(Job::PRIORITY_TO_SQ["high"])
-    end
-
-    it "enqueues at the workflow's own SolidQueue priority when it overrides the job's" do
-      high_job = Factories.job(priority: "high")
-      workflow = Workflows::Initial.instantiate(job: high_job)
-      workflow.update!(priority: "low")
-      step = workflow.steps.first
-      ActiveJob::Base.queue_adapter.enqueued_jobs.clear
-
-      step.runs.create!(job: high_job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider)
-      run_jobs = ActiveJob::Base.queue_adapter.enqueued_jobs.select { |j| j[:job] == RunJob }
-
-      expect(run_jobs.last[:priority]).to eq(Job::PRIORITY_TO_SQ["low"])
-      expect(run_jobs.last[:priority]).not_to eq(Job::PRIORITY_TO_SQ["high"])
-    end
-
     it "enqueues main_grader workflow runs ahead of urgent user work" do
       main_grader_job = Job.create!(
         user: job.user,

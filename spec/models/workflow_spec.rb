@@ -58,25 +58,6 @@ RSpec.describe Workflow do
       expect(workflow).not_to be_valid
       expect(workflow.errors[:user]).to include("must match the Job owner")
     end
-
-    it "defaults priority to medium" do
-      workflow = described_class.create!(job: job, trigger_kind: "initial")
-
-      expect(workflow.priority).to eq("medium")
-    end
-
-    it "is valid with any known priority" do
-      Workflow::PRIORITIES.each do |p|
-        expect(build_wf(priority: p)).to be_valid, "expected #{p} to be valid"
-      end
-    end
-
-    it "rejects unknown priority values" do
-      workflow = build_wf(priority: "critical")
-
-      expect(workflow).not_to be_valid
-      expect(workflow.errors[:priority]).to be_present
-    end
   end
 
   describe "#landing_workflow?" do

@@ -24,7 +24,7 @@ module Workflows
 
     def self.queue_name = :runs
 
-    def self.solid_queue_priority(_workflow) = SOLID_QUEUE_PRIORITY
+    def self.solid_queue_priority(_job) = SOLID_QUEUE_PRIORITY
 
     def self.after_success(workflow)
       update_grader_health!(workflow, "healthy")
