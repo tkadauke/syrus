@@ -103,11 +103,30 @@ module SyrusSearchDatabaseTasks
   def ensure_required_tables!
     REQUIRED_TABLE_SQL.each do |table_name, sql|
       if table_exists?(table_name)
-        rebuild_table!(table_name, sql) unless schema_matches?(table_name, sql)
+        handle_existing_table!(table_name, sql)
         next
       end
 
       SearchRecord.connection.execute(sql)
+    end
+  end
+
+  # Only rebuilds tables that have a REBUILD_HOOKS repopulation path: a
+  # drop+recreate loses every indexed row, and for tables without a durable
+  # primary-DB source of truth to replay from (or a coupled sibling table,
+  # like chat_message_fts + chat_search_metadata's indexed-marker rows) that
+  # loss has no repair path. Drift on those is logged so it's visible without
+  # silently destroying data Syrus cannot rebuild.
+  def handle_existing_table!(table_name, sql)
+    return if schema_matches?(table_name, sql)
+
+    if REBUILD_HOOKS.key?(table_name)
+      rebuild_table!(table_name, sql)
+    else
+      Rails.logger.warn(
+        "search_database: #{table_name} column set has drifted from the expected schema " \
+        "and has no repopulation hook; leaving it as-is to avoid an unrecoverable data loss"
+      )
     end
   end
 

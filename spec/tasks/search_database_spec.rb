@@ -57,4 +57,31 @@ RSpec.describe "syrus:prepare_search" do
     results = OperationalLogIndex.search(since: 1.hour.ago)
     expect(results.map { |row| row[:operational_log_event_id] }).to eq([ stale_event.id ])
   end
+
+  it "leaves a drifted table without a repopulation hook in place instead of destroying its rows" do
+    SearchRecord.connection.execute("DROP TABLE IF EXISTS job_fts")
+    SearchRecord.connection.execute(<<~SQL)
+      CREATE VIRTUAL TABLE job_fts
+      USING fts5(
+        title,
+        job_id UNINDEXED,
+        user_id UNINDEXED,
+        repository_id UNINDEXED,
+        state UNINDEXED,
+        created_at UNINDEXED,
+        tokenize = 'porter unicode61'
+      )
+    SQL
+    SearchRecord.connection.execute(<<~SQL)
+      INSERT INTO job_fts (title, job_id, user_id, repository_id, state, created_at)
+      VALUES ('irreplaceable row', 1, 1, 1, 'open', '2026-01-01')
+    SQL
+
+    Rake::Task["syrus:prepare_search"].invoke
+
+    expect(SearchRecord.connection.select_value("SELECT COUNT(*) FROM job_fts")).to eq(1)
+  ensure
+    SearchRecord.connection.execute("DROP TABLE IF EXISTS job_fts")
+    SyrusSearchDatabaseTasks.ensure_required_tables!
+  end
 end
