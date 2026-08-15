@@ -20,8 +20,8 @@ describe("AdminOperationalLogs", () => {
 
     const table = await screen.findByRole("table")
     expect(within(table).getByText("error")).toBeInTheDocument()
-    expect(within(table).getByText("worker · worker-a")).toBeInTheDocument()
-    expect(within(table).getByText("active_job · pid 123")).toBeInTheDocument()
+    expect(within(table).getByText("worker · worker-a · pid 123")).toBeInTheDocument()
+    expect(within(table).queryByText("abcdef1234567890".slice(0, 12))).not.toBeInTheDocument()
     expect(within(table).getByText("JOB-2631 · WF-16100 · RUN-74392 · REQ req-1")).toBeInTheDocument()
     const message = within(table).getByText("failed token=[REDACTED] migration")
     expect(message).toHaveClass("break-words")
@@ -81,6 +81,37 @@ describe("AdminOperationalLogs", () => {
 
     expect(screen.getByText("Loading operational logs...")).toBeInTheDocument()
     expect(await screen.findByText("Unable to load operational logs.")).toBeInTheDocument()
+  })
+
+  it("dedupes job_class from context and only shows per-row revision when scope is all", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(logsPayload({
+      revision_scope: "all",
+      logs: [
+        {
+          id: 11,
+          occurred_at: "2026-08-05T10:05:00Z",
+          level: "info",
+          role: "worker",
+          hostname: "worker-b",
+          app_revision: "0123456789ab",
+          pid: 456,
+          source: "run_job",
+          job_id: null,
+          workflow_id: null,
+          run_id: null,
+          request_id: null,
+          message: "RunJob",
+          context: { job_class: "RunJob", queue: "runs" }
+        }
+      ]
+    })))
+
+    renderRoute(<AdminOperationalLogs />)
+
+    const table = await screen.findByRole("table")
+    expect(within(table).getByText("0123456789ab")).toBeInTheDocument()
+    expect(within(table).getByText("queue=runs")).toBeInTheDocument()
+    expect(within(table).queryByText(/job_class=/)).not.toBeInTheDocument()
   })
 })
 

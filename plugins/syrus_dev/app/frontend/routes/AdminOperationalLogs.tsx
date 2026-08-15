@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { type FormEvent, type ReactNode, useMemo } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
-import { fetchAdminOperationalLogs, type OperationalLogRow, type OperationalLogsPayload } from "../api/adminOperationalLogs"
+import { fetchAdminOperationalLogs, type OperationalLogRevisionScope, type OperationalLogRow, type OperationalLogsPayload } from "../api/adminOperationalLogs"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
@@ -146,23 +146,23 @@ function OperationalLogsView({ onNavigate, payload, search }: { onNavigate: (par
         <span>{t("operational_logs.showing", { count: payload.logs.length, page: payload.pagination.page })}</span>
         <span>{t("operational_logs.retention", { hours: Math.round(payload.retention_seconds / 3600), revision: payload.revision_scope === "all" ? t("operational_logs.all_revisions") : shortRevision(payload.current_revision) })}</span>
       </div>
-      {payload.logs.length > 0 ? <OperationalLogsTable rows={payload.logs} /> : <PanelMessage>{t("operational_logs.empty")}</PanelMessage>}
+      {payload.logs.length > 0 ? <OperationalLogsTable revisionScope={payload.revision_scope} rows={payload.logs} /> : <PanelMessage>{t("operational_logs.empty")}</PanelMessage>}
       <Pagination pagination={payload.pagination} search={search} onNavigate={onNavigate} />
     </section>
   )
 }
 
-function OperationalLogsTable({ rows }: { rows: OperationalLogRow[] }) {
+function OperationalLogsTable({ revisionScope, rows }: { revisionScope: OperationalLogRevisionScope; rows: OperationalLogRow[] }) {
   const { t } = useT("admin")
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full table-fixed divide-y divide-gray-200 text-sm dark:divide-gray-700">
         <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
           <tr>
-            <th className="w-44 px-4 py-2">{t("operational_logs.col_time")}</th>
-            <th className="w-28 px-4 py-2">{t("operational_logs.col_level")}</th>
-            <th className="w-56 px-4 py-2">{t("operational_logs.col_process")}</th>
-            <th className="w-56 px-4 py-2">{t("operational_logs.col_refs")}</th>
+            <th className="w-36 px-4 py-2">{t("operational_logs.col_time")}</th>
+            <th className="w-20 px-4 py-2">{t("operational_logs.col_level")}</th>
+            <th className="w-40 px-4 py-2">{t("operational_logs.col_process")}</th>
+            <th className="w-40 px-4 py-2">{t("operational_logs.col_refs")}</th>
             <th className="px-4 py-2">{t("operational_logs.col_message")}</th>
           </tr>
         </thead>
@@ -172,14 +172,13 @@ function OperationalLogsTable({ rows }: { rows: OperationalLogRow[] }) {
               <td className="whitespace-nowrap px-4 py-3 align-top font-mono text-xs text-gray-600 dark:text-gray-300">{formatDate(row.occurred_at)}</td>
               <td className="px-4 py-3 align-top"><LevelBadge level={row.level} /></td>
               <td className="px-4 py-3 align-top text-xs text-gray-700 dark:text-gray-200">
-                <div className="font-medium">{row.role} · {row.hostname}</div>
-                <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{row.source}{row.pid ? ` · pid ${row.pid}` : ""}</div>
-                <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{shortRevision(row.app_revision)}</div>
+                <div className="font-medium">{row.role} · {row.hostname}{row.pid ? ` · pid ${row.pid}` : ""}</div>
+                {revisionScope === "all" ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{shortRevision(row.app_revision)}</div> : null}
               </td>
               <td className="px-4 py-3 align-top font-mono text-xs text-gray-600 dark:text-gray-300">{refsText(row)}</td>
               <td className="px-4 py-3 align-top">
-                <div className="max-w-[56rem] overflow-hidden break-words font-mono text-xs leading-5 text-gray-900 dark:text-gray-100">{row.message}</div>
-                {row.context && Object.keys(row.context).length > 0 ? <div className="mt-2 max-w-[56rem] overflow-hidden break-words font-mono text-xs leading-5 text-gray-500 dark:text-gray-400">{compactContext(row.context)}</div> : null}
+                <div className="overflow-hidden break-words font-mono text-xs leading-5 text-gray-900 dark:text-gray-100">{row.message}</div>
+                {row.context && Object.keys(row.context).length > 0 ? <div className="mt-2 overflow-hidden break-words font-mono text-xs leading-5 text-gray-500 dark:text-gray-400">{compactContext(row.context, row.message)}</div> : null}
               </td>
             </tr>
           ))}
@@ -258,8 +257,11 @@ function refsText(row: OperationalLogRow) {
   return refs.length > 0 ? refs.join(" · ") : "-"
 }
 
-function compactContext(context: Record<string, string>) {
-  return Object.entries(context).map(([key, value]) => `${key}=${value}`).join(" ")
+function compactContext(context: Record<string, string>, message?: string) {
+  return Object.entries(context)
+    .filter(([key, value]) => key !== "job_class" && value !== message)
+    .map(([key, value]) => `${key}=${value}`)
+    .join(" ")
 }
 
 function shortRevision(value: string | null | undefined) {
