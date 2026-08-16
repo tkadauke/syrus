@@ -486,6 +486,9 @@ export type JobRun = {
   agent_pr_title: string | null
   agent_summary: string | null
   parent_session_id: string | null
+  skill_source: string | null
+  skill_resolved_path: string | null
+  skill_resolved_class: string | null
   head_sha: string | null
   iteration: number | null
   started_at: string | null

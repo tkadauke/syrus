@@ -8,7 +8,7 @@ Each Syrus workflow is a chain of steps. Steps are either **agentic** (invoke th
 
 Non-agentic. Runs the commands from `.syrus.yml` `prepare:` (or auto-detected from lockfiles) in the cloned workspace. Explicit commands hard-fail on error; auto-detected commands soft-fail with a warning so a wrong guess doesn't block the first run. Per-timeout: 10 minutes per command.
 
-Present in: `initial`, `pr_comment`, `chat_feedback`, `ci_failure`, `retry`, `auto_merge`, `landing_validation`, `external_pr_merge`, `merge_train`, `coding_handoff`.
+Present in: `initial`, `pr_comment`, `chat_feedback`, `ci_failure`, `retry`, `auto_merge`, `landing_validation`, `external_pr_merge`, `merge_train`, `coding_handoff`, `skill`.
 
 **Empty/uninitialized remotes.** `WorkflowWorkspace#clone_and_checkout` (called at the start of `prepare`) auto-recovers when a freshly-created GitHub repository has zero branches — for example, when GitHub hasn't finished async-provisioning its auto-init commit yet, or auto-init was disabled. When the branch-scoped clone fails, Syrus checks whether the remote genuinely has no branches at all (`git ls-remote --heads`); if so, it clones the empty repository, creates the configured default branch locally with a minimal initial commit, and pushes it before continuing. A log line in the Run transcript notes when this happened. Any other clone failure — most commonly a `default_branch` that doesn't match what's actually on GitHub — still fails the step as before.
 
@@ -52,6 +52,27 @@ usage snapshot when stale so Workflows resume automatically once usage is above
 threshold. Operators can force a recheck or "Resume anyway" from Agent Settings
 or the usage banner; the override is per-user/per-provider and only suppresses
 pauses until newer provider evidence arrives.
+
+### run_skill
+
+Agentic. The `skill` workflow's equivalent of `implement`: resolves the Job's
+`skill_name` via `Skills.for(repository:, name:)` (repo-local
+`.syrus/skills/<name>/SKILL.md` override, else a built-in `Skills::` class),
+renders the resolved definition's instructions with `skill_args` substituted
+(`Skills::Renderer`, `{{key}}` placeholders — same convention as
+`Prompts::ScheduledTask`), and invokes the agent. Records `skill_source`
+(`repo_override`/`built_in`) and the resolved path/class onto the Run before
+invoking the agent, so provenance is captured even for a no-diff run.
+
+**No-change outcome:** identical to `implement` — a successful run with no
+diff raises `Steps::Base::NoChangesProduced`, which `propagate_fail_to_job!`
+turns into a `closure_reason: "no_changes"` Job closure instead of `:failed`.
+This is the intended outcome for read-only skills (an `investigate` skill) and
+purely operational skills that only report.
+
+`Steps::Summarize` treats `run_skill` the same as `implement` — it resumes the
+agent session from whichever of the two ran, so `run_skill → summarize →
+pr_open` composes exactly like `implement → summarize → pr_open`.
 
 ### respond
 
@@ -134,7 +155,7 @@ Non-agentic. Legacy single-grader step; prefer `grader_fanout`/`grader`/`grader_
 
 ### summarize
 
-Agentic. Asks the agent to call the available `submit_summary` MCP tool name with a PR title, body, and operator-facing summary. Skipped if `implement` already called `submit_summary`.
+Agentic. Asks the agent to call the available `submit_summary` MCP tool name with a PR title, body, and operator-facing summary. Skipped if the upstream agentic step (`implement` or `run_skill`) already called `submit_summary`.
 
 ### summarize_amend
 
