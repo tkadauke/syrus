@@ -690,8 +690,10 @@ and hides the admin navigation item entirely when no flags are declared.
 
 The `performance_logging` operations flag records structured slow-request,
 slow-SQL, slow application-phase, and selected browser route-load events for production debugging. Slow
-request events include request/user context, SQL counters, and top SQL
-fingerprints for that request; phase events cover expensive dashboard, chat,
+request events include request/user context, trigger reasons, SQL counters, and
+top SQL fingerprints for that request; requests that are fast wall-clock but
+cross the request SQL-count or SQL-duration thresholds are retained too, so
+many-query endpoints do not disappear from the performance view. Phase events cover expensive dashboard, chat,
 repository, job detail, bootstrap, spending, and admin payload builders, with
 phase-local SQL counters and top SQL fingerprints.
 Browser traces currently cover dashboard loads and include only structural

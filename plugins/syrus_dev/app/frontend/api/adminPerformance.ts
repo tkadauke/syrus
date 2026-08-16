@@ -4,6 +4,8 @@ export type PerformanceThresholds = {
   slow_request_ms: number
   slow_sql_ms: number
   slow_phase_ms: number
+  request_sql_count_threshold: number
+  request_sql_duration_ms: number
   top_sql_fingerprint_limit: number
   max_sql_fingerprints_per_request: number
 }
@@ -115,6 +117,7 @@ export type PerformanceEvent = {
   slow_sql_count?: number | null
   top_sql_fingerprints?: RequestSqlFingerprint[] | null
   status?: number | null
+  trigger_reasons?: string[] | null
   metadata?: Record<string, unknown> | null
   trace_id?: string | null
   visibility_state?: string | null

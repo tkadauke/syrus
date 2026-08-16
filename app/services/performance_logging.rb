@@ -8,6 +8,8 @@ module PerformanceLogging
   DEFAULT_SLOW_REQUEST_MS = 1_000.0
   DEFAULT_SLOW_SQL_MS = 250.0
   DEFAULT_SLOW_PHASE_MS = 250.0
+  DEFAULT_REQUEST_SQL_COUNT_THRESHOLD = 50
+  DEFAULT_REQUEST_SQL_DURATION_MS = 500.0
   TOP_SQL_FINGERPRINT_LIMIT = Integer(ENV["SYRUS_PERFORMANCE_TOP_SQL_FINGERPRINT_LIMIT"], exception: false) || 8
   MAX_SQL_FINGERPRINTS_PER_REQUEST = Integer(ENV["SYRUS_PERFORMANCE_MAX_SQL_FINGERPRINTS_PER_REQUEST"], exception: false) || 25
   # Multiple of a caller's byte limit that `safe_string` will scan before
@@ -111,12 +113,14 @@ module PerformanceLogging
     return if suppressed?
     return if ignored_request?(payload)
     return unless enabled?
-    return if duration_ms.to_f < slow_request_threshold_ms
+    trigger_reasons = request_trigger_reasons(duration_ms)
+    return if trigger_reasons.empty?
 
     emit(
       base_event(SLOW_REQUEST_EVENT).merge(
         request_context_from_payload(payload),
         "duration_ms" => rounded_duration(duration_ms),
+        "trigger_reasons" => trigger_reasons,
         "method" => safe_string(payload[:method], 20),
         "path" => safe_string(payload[:path], 500),
         "controller" => safe_string(payload[:controller], 200),
@@ -206,11 +210,21 @@ module PerformanceLogging
     threshold_from_env("SYRUS_PERFORMANCE_SLOW_PHASE_MS", DEFAULT_SLOW_PHASE_MS)
   end
 
+  def request_sql_count_threshold
+    threshold_from_env("SYRUS_PERFORMANCE_REQUEST_SQL_COUNT_THRESHOLD", DEFAULT_REQUEST_SQL_COUNT_THRESHOLD).to_i
+  end
+
+  def request_sql_duration_threshold_ms
+    threshold_from_env("SYRUS_PERFORMANCE_REQUEST_SQL_DURATION_MS", DEFAULT_REQUEST_SQL_DURATION_MS)
+  end
+
   def thresholds
     {
       slow_request_ms: slow_request_threshold_ms,
       slow_sql_ms: slow_sql_threshold_ms,
       slow_phase_ms: slow_phase_threshold_ms,
+      request_sql_count_threshold: request_sql_count_threshold,
+      request_sql_duration_ms: request_sql_duration_threshold_ms,
       top_sql_fingerprint_limit: TOP_SQL_FINGERPRINT_LIMIT,
       max_sql_fingerprints_per_request: MAX_SQL_FINGERPRINTS_PER_REQUEST
     }
@@ -303,6 +317,14 @@ module PerformanceLogging
       "controller" => safe_string(payload[:controller] || request_context["controller"], 200),
       "action" => safe_string(payload[:action] || request_context["action"], 100)
     ).compact_blank
+  end
+
+  def request_trigger_reasons(duration_ms)
+    reasons = []
+    reasons << "duration" if duration_ms.to_f >= slow_request_threshold_ms
+    reasons << "sql_count" if request_sql_count_threshold.positive? && Current.performance_sql_count.to_i >= request_sql_count_threshold
+    reasons << "sql_duration" if request_sql_duration_threshold_ms.positive? && Current.performance_sql_duration_ms.to_f >= request_sql_duration_threshold_ms
+    reasons
   end
 
   def safe_context(context)

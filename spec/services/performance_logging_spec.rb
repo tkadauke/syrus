@@ -107,6 +107,7 @@ RSpec.describe PerformanceLogging do
       "request_id" => "req-abc",
       "duration_ms" => 1_500.3,
       "path" => "/dashboard/jobs?view=list",
+      "trigger_reasons" => [ "duration" ],
       "sql_count" => 3,
       "sql_duration_ms" => 50.3,
       "slow_sql_count" => 0
@@ -116,6 +117,43 @@ RSpec.describe PerformanceLogging do
       "count" => 2,
       "total_duration_ms" => 42.3,
       "max_duration_ms" => 22.3
+    )
+  end
+
+  it "records SQL-heavy requests even when the request is below the slow duration threshold" do
+    Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+    Current.reset
+    allow(described_class).to receive(:slow_request_threshold_ms).and_return(1_000.0)
+    allow(described_class).to receive(:request_sql_count_threshold).and_return(2)
+    allow(described_class).to receive(:request_sql_duration_threshold_ms).and_return(25.0)
+    allow(described_class).to receive(:slow_sql_threshold_ms).and_return(1_000.0)
+
+    described_class.with_request_context(request_id: "req-sql-heavy", path: "/api/v1/app/dashboard") do
+      described_class.record_sql({ name: "Job Load", sql: "SELECT * FROM jobs WHERE id = 1" }, 20.0)
+      described_class.record_sql({ name: "Run Load", sql: "SELECT * FROM runs WHERE id = 2" }, 10.0)
+    end
+
+    described_class.record_request(
+      {
+        request_id: "req-sql-heavy",
+        method: "GET",
+        path: "/api/v1/app/dashboard",
+        controller: "Api::V1::App::DashboardController",
+        action: "show",
+        format: "json",
+        status: 200
+      },
+      120.0
+    )
+
+    event = described_class::Store.recent.first
+    expect(event).to include(
+      "event" => "syrus.performance.slow_request",
+      "request_id" => "req-sql-heavy",
+      "duration_ms" => 120.0,
+      "trigger_reasons" => [ "sql_count", "sql_duration" ],
+      "sql_count" => 2,
+      "sql_duration_ms" => 30.0
     )
   end
 

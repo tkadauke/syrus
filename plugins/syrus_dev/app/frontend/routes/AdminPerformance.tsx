@@ -75,7 +75,7 @@ function PerformanceView({ payload }: { payload: AdminPerformancePayload }) {
         <Metric title={t("performance.events")} value={eventCount} context={t("performance.events_context", { max: payload.storage.max_events })} />
         <Metric title={t("performance.revision")} value={payload.revision_scope === "all" ? t("performance.all_revisions_short") : shortRevision(payload.current_revision)} context={payload.revision_scope === "all" ? t("performance.all_revisions_context") : t("performance.current_revision_context")} />
         <Metric title={t("performance.storage")} value={payload.storage.kind} context={t("performance.retention", { hours: Math.round(payload.storage.expires_in_seconds / 3600) })} />
-        <Metric title={t("performance.thresholds")} value={formatMs(payload.thresholds.slow_request_ms)} context={t("performance.threshold_context", { phase: formatMs(payload.thresholds.slow_phase_ms), sql: formatMs(payload.thresholds.slow_sql_ms) })} />
+        <Metric title={t("performance.thresholds")} value={formatMs(payload.thresholds.slow_request_ms)} context={t("performance.threshold_context", { phase: formatMs(payload.thresholds.slow_phase_ms), sql: formatMs(payload.thresholds.slow_sql_ms), request_sql: formatMs(payload.thresholds.request_sql_duration_ms), request_sql_count: payload.thresholds.request_sql_count_threshold })} />
       </section>
 
       <nav aria-label={t("performance.tabs_aria")} className="flex flex-wrap gap-2 border-b border-gray-200 dark:border-gray-700">
@@ -253,7 +253,7 @@ function SlowRequestSqlModal({ events, onClose, onExplain, request }: { events: 
             <article className="overflow-hidden rounded border border-gray-200 dark:border-gray-700" key={`${event.request_id ?? event.occurred_at}-${index}`}>
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
                 <div className="font-mono">{event.request_id || t("performance.request_without_id")}</div>
-                <div>{formatDate(event.occurred_at)} · {formatMs(event.duration_ms)} · {t("performance.sql_context", { count: event.sql_count ?? 0, duration: formatMs(event.sql_duration_ms) })}</div>
+                <div>{formatDate(event.occurred_at)} · {formatMs(event.duration_ms)} · {t("performance.sql_context", { count: event.sql_count ?? 0, duration: formatMs(event.sql_duration_ms) })} · {(event.trigger_reasons ?? []).join(", ") || "-"}</div>
               </div>
               <div className="space-y-4 p-4">
                 <RequestPhasesTable onExplain={onExplain} phases={event.request_id ? phasesByRequestId[event.request_id] ?? [] : []} />
@@ -660,6 +660,7 @@ function EventsTable({ rows }: { rows: PerformanceEvent[] }) {
               <NumberCell value={formatMs(row.duration_ms)} />
               <td className="max-w-4xl px-4 py-2 text-xs text-gray-600 dark:text-gray-300">
                 <div className="font-mono">{row.phase || row.path || row.name || row.fingerprint || "-"}</div>
+                {row.trigger_reasons?.length ? <div className="mt-1">{t("performance.triggered_by", { reasons: row.trigger_reasons.join(", ") })}</div> : null}
                 {row.sql_count != null ? <div className="mt-1">{t("performance.sql_context", { count: row.sql_count, duration: formatMs(row.sql_duration_ms) })}</div> : null}
                 {row.api_requests?.length ? <div className="mt-1">{t("performance.browser_api_context", { count: row.api_requests.length, ids: row.api_requests.map((request) => request.request_id).filter(Boolean).join(", ") || "-" })}</div> : null}
               </td>

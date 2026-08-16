@@ -66,6 +66,7 @@ class PerformanceLogEvent < ApplicationRecord
       "status" => attrs["status"],
       "view_runtime_ms" => attrs["view_runtime_ms"],
       "db_runtime_ms" => attrs["db_runtime_ms"],
+      "trigger_reasons" => compact_string_array(attrs["trigger_reasons"]),
       "visibility_state" => attrs["visibility_state"],
       "metadata" => compact_metadata(attrs["metadata"]),
       "api_requests" => compact_api_requests(attrs["api_requests"]),
@@ -78,6 +79,10 @@ class PerformanceLogEvent < ApplicationRecord
     value.to_h.transform_values { |entry| entry.to_s.safe_byteslice(0, 300) }.presence
   rescue StandardError
     nil
+  end
+
+  def self.compact_string_array(value)
+    Array(value).first(5).filter_map { |entry| entry.to_s.safe_byteslice(0, 80).presence }.presence
   end
 
   def self.compact_api_requests(value)

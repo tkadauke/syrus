@@ -178,6 +178,8 @@ function performancePayload() {
       slow_request_ms: 1000,
       slow_sql_ms: 500,
       slow_phase_ms: 250,
+      request_sql_count_threshold: 50,
+      request_sql_duration_ms: 500,
       top_sql_fingerprint_limit: 10,
       max_sql_fingerprints_per_request: 5
     },
