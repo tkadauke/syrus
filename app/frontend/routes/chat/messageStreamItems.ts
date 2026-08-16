@@ -21,6 +21,19 @@ export function mergeChatMessages(...groups: ChatMessageItem[][]) {
   return messages
 }
 
+// Merges a freshly fetched message tail (the server's latest-page GET response)
+// into a previously loaded message list, preserving anything older than the new
+// tail instead of discarding it. Without this, a chat that has accumulated more
+// than a page of history via live websocket tail updates loses all of that
+// history the moment something (e.g. an Action Cable reconnect) forces a plain
+// GET refetch, since the server only ever returns the latest page.
+export function mergeMessageTail(current: ChatMessageItem[], next: ChatMessageItem[]) {
+  if (next.length === 0) return next
+
+  const minNextId = Math.min(...next.map((message) => message.id))
+  return mergeChatMessages(current.filter((message) => message.id < minNextId), next)
+}
+
 export function renderItemKey(item: ChatStreamItem) {
   if (item.type === "timestamp") return `timestamp-${item.fullDatetime}`
   if (item.type === "day_divider") return `day-divider-${item.date}`
