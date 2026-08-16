@@ -314,7 +314,19 @@ memories, whiteboard state, and message-level image or PDF files. The chat
 can include one owner participant and additional member participants; every
 participant can open the session, post messages, receive live updates, and keep
 their own read/unread state. User messages record the sender so multi-person
-agent context can identify who spoke. Platform-origin sessions, such as future
+agent context can identify who spoke. A chat's group-ness is fixed at
+creation: the sidebar's **New group chat** picker starts a session with 2 or
+more humans from the outset, while an ordinary 1:1 chat can never gain a
+second participant later. In a group chat, the header lists every current
+participant and lets any of them add another (through the same picker,
+filtered to people not already in the chat) or remove one — removing someone
+else reads as "Remove", removing yourself reads as "Leave" and takes you back
+out of the chat. The message list labels each human message with its
+sender's name so a multi-person transcript stays readable, and because the
+agent only replies to a group chat message that explicitly mentions
+`@syrus`, the composer shows a lightweight reminder of that requirement
+whenever more than one human is currently in the chat. Platform-origin
+sessions, such as future
 Telegram or Slack conversations, are found by platform plus participant
 membership and use the current `speak_when_spoken_to` trigger policy. The chat
 agent can read selected repository context, propose Jobs, propose Epics,

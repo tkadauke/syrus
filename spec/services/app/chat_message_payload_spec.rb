@@ -44,6 +44,30 @@ RSpec.describe App::ChatMessagePayload do
     expect(payload.fetch(:attachments)).to eq([ attachment ])
   end
 
+  it "includes sender_user details for a human message with a sender" do
+    message = chat.messages.create!(role: "user", content: { "text" => "Hi there." }, sender_user: user)
+
+    payload = described_class.messages([ message ], repository: repository).first
+
+    expect(payload.fetch(:sender_user)).to eq(id: user.id, name: user.display_name)
+  end
+
+  it "omits sender_user for a human message with no recorded sender" do
+    message = chat.messages.create!(role: "user", content: { "text" => "Hi there." })
+
+    payload = described_class.messages([ message ], repository: repository).first
+
+    expect(payload.fetch(:sender_user)).to be_nil
+  end
+
+  it "omits sender_user for non-user role messages even when a sender happens to be set" do
+    message = chat.messages.create!(role: "assistant", content: { "text" => "Hello." }, sender_user: user)
+
+    payload = described_class.messages([ message ], repository: repository).first
+
+    expect(payload.fetch(:sender_user)).to be_nil
+  end
+
   it "includes the message creation timestamp in ISO8601 format" do
     message = chat.messages.create!(role: "user", content: { "text" => "Inspect this." })
 

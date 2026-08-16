@@ -15,7 +15,7 @@ module Api
             scope = scope.where.not(id: chat_session.chat_participants.select(:user_id)) if chat_session
           end
 
-          render json: scope.map { |user| { id: user.id, name: user.display_name } }
+          render json: scope.map { |user| { id: user.id, name: user.display_name, avatar_url: user.avatar_url } }
         end
       end
     end

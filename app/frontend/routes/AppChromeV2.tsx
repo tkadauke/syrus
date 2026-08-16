@@ -9,7 +9,7 @@ import { type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode, us
 import { useTranslation } from "react-i18next"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload } from "../api/bootstrap"
-import { createEmptyChat, fetchNewChat, type ChatsIndexPayload } from "../api/chats"
+import { createEmptyChat, createGroupChat, fetchNewChat, type ChatsIndexPayload } from "../api/chats"
 import { patchJson, postJson } from "../api/client"
 import { dashboardApiSearch, dashboardChromeSearch, fetchDashboardChrome, mergeDashboardPayload, type DashboardChromePayload, type DashboardRowsPayload, type DashboardSubject } from "../api/dashboard"
 import { fetchAdminPluginPages } from "../api/adminPluginPages"
@@ -27,6 +27,7 @@ import { SyrusBrand } from "../components/SyrusBrand"
 import { TestChannelBadge, TestChannelDot } from "../components/TestChannelBadge"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { updateRecentChatCache } from "../lib/chatCache"
+import { ParticipantPickerModal } from "./chat/ParticipantPicker"
 import { firstUnstartedChat } from "../lib/unstartedChat"
 
 export const PUBLILIUS_SYRUS_WIKIPEDIA_URL = "https://en.wikipedia.org/wiki/Publilius_Syrus"
@@ -67,6 +68,9 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const [sidebarResize, setSidebarResize] = useState<{ startX: number; startWidth: number } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [bugReportAttachments, setBugReportAttachments] = useState<BugReportOptionalAttachment[]>([])
+  const [groupChatPickerOpen, setGroupChatPickerOpen] = useState(false)
+  const [groupChatCreating, setGroupChatCreating] = useState(false)
+  const [groupChatError, setGroupChatError] = useState<string | null>(null)
   const mainRef = useRef<HTMLElement | null>(null)
   const bugReportRef = useRef<BugReportButtonHandle | null>(null)
   const openBugReport = useCallback((options?: BugReportOpenOptions) => {
@@ -118,6 +122,27 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
       navigate(withRoutePrefix(created.redirect_to, prefix))
     } catch (_error) {
       setNotice(t("chat:unable_to_start"))
+    }
+  }
+
+  function startGroupChat() {
+    setDrawerOpen(false)
+    setGroupChatError(null)
+    setGroupChatPickerOpen(true)
+  }
+
+  async function confirmGroupChat(userIds: number[]) {
+    setGroupChatCreating(true)
+    setGroupChatError(null)
+    try {
+      const created = await createGroupChat(userIds)
+      updateRecentChatCache(queryClient, created.chat, { prepend: true })
+      setGroupChatPickerOpen(false)
+      navigate(withRoutePrefix(created.redirect_to, prefix))
+    } catch (_error) {
+      setGroupChatError(t("chat:unable_to_start"))
+    } finally {
+      setGroupChatCreating(false)
     }
   }
 
@@ -193,6 +218,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           onCloseDrawer={() => setDrawerOpen(false)}
           onNotice={setNotice}
           onStartChat={startChat}
+          onStartGroupChat={startGroupChat}
           prefix={prefix}
           showTeamProfile={(data?.team_user_count || 0) > 1}
           showDashboardSidebarSubjects={showDashboardSidebarSubjects}
@@ -244,6 +270,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
             onCloseDrawer={() => setDrawerOpen(false)}
             onNotice={setNotice}
             onStartChat={startChat}
+            onStartGroupChat={startGroupChat}
             prefix={prefix}
             showTeamProfile={(data?.team_user_count || 0) > 1}
             showDashboardSidebarSubjects={showDashboardSidebarSubjects}
@@ -283,6 +310,16 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
       </main>
       {user ? <BugReportButton bugReportMode={data?.app?.bug_report_mode ?? null} chatId={activeChatIdFromPath(location.pathname)} context={bugReportContext(location.pathname)} featureFlags={data?.feature_flags} pageAttachments={bugReportAttachments} position="bottom-right" ref={bugReportRef} reportIssueRepoSlug={data?.app?.report_issue_repo_slug ?? null} /> : null}
       <BuildBadge builtAt={data?.app?.built_at} revision={data?.app?.revision} version={data?.app?.version} />
+      {groupChatPickerOpen ? (
+        <ParticipantPickerModal
+          confirmLabel={t("chat:group_picker_create_button")}
+          error={groupChatError}
+          onCancel={() => setGroupChatPickerOpen(false)}
+          onConfirm={confirmGroupChat}
+          submitting={groupChatCreating}
+          title={t("chat:group_picker_title_create")}
+        />
+      ) : null}
     </div>
     </BugReportContext.Provider>
   )
@@ -589,6 +626,7 @@ function SidebarContent({
   onCloseDrawer,
   onNotice,
   onStartChat,
+  onStartGroupChat,
   prefix,
   showDashboardSidebarSubjects,
   showTeamProfile,
@@ -601,6 +639,7 @@ function SidebarContent({
   onCloseDrawer: () => void
   onNotice: (message: string | null) => void
   onStartChat: () => void
+  onStartGroupChat: () => void
   prefix: string
   showDashboardSidebarSubjects: boolean
   showTeamProfile: boolean
@@ -662,6 +701,15 @@ function SidebarContent({
           >
             <PlusIcon />
             <span>{t("nav:new_chat")}</span>
+          </button>
+          <button
+            className="inline-flex w-full items-center justify-center gap-2 rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-300 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+            disabled={!user}
+            onClick={onStartGroupChat}
+            type="button"
+          >
+            <TeamIcon />
+            <span>{t("nav:new_group_chat")}</span>
           </button>
           <SidebarSearchForm onCloseDrawer={onCloseDrawer} prefix={prefix} />
         </div>

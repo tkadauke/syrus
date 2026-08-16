@@ -473,6 +473,7 @@ class ChatSession < ApplicationRecord
       {
         id: participant.user_id,
         name: participant.user.display_name,
+        avatar_url: participant.user.avatar_url,
         role: participant.role
       }
     end

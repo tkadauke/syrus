@@ -51,6 +51,9 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
         <span className="absolute -top-4" id={`message-${item.id}`} />
         {readOnly ? null : <BookmarkControl item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} />}
         <div className="max-w-[min(42rem,85%)] space-y-2">
+          {payload.chat.conversation_kind === "group" && item.sender_user ? (
+            <div className="pr-1 text-right text-xs font-medium text-gray-500 dark:text-gray-400">{item.sender_user.name}</div>
+          ) : null}
           {item.video_walkthrough_id ? (
             <div className="flex items-center justify-end gap-2 text-sm text-gray-500 dark:text-gray-400" data-testid="walkthrough-message-chip">
               <span aria-hidden="true">🎥</span>

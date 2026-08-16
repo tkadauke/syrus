@@ -99,6 +99,7 @@ import { type ChatQueryKey, CHAT_WORKSPACE_COLLAPSED_KEY, CHAT_WORKSPACE_MIN_WID
 import { findChatMessageAnchor, isMessageStreamAtBottom, isMessageStreamNearTop, messageIdFromHash, messageStreamNeedsOlderMessages, scrollChatMessageIntoView, scrollMessageStreamToBottom } from "./chat/messageStream"
 import { appendSearch, visualViewportHeight, chatDisplayTitle, formatCurrency, formatTokenCount, isSupervisorChat, primaryButton, secondaryButton, withRoutePrefix } from "./chat/utils"
 import { PendingActionCard } from "./chat/ProposalCards"
+import { GroupChatParticipants } from "./chat/GroupChatParticipants"
 import { ChatMessage, shouldAnimateMessageEntrance, ToolGroup } from "./chat/MessageCards"
 import { AgentActivityIndicator, DayDivider, MessageTimestamp, SwitchingProviderIndicator, SystemMessagesToggle } from "./chat/streamChrome"
 import { Compose } from "./chat/Compose"
@@ -377,6 +378,9 @@ function ChatView({ chatId, payload, prefix, queryKey }: { chatId: string; paylo
                 <span aria-hidden="true" className="h-2 w-2 rounded-full bg-emerald-500" />
                 <span>{t("local_daemon_connected", { repo: payload.chat.local_daemon_repo ?? "", branch: payload.chat.local_daemon_branch ?? "" })}</span>
               </div>
+            ) : null}
+            {payload.chat.conversation_kind === "group" ? (
+              <GroupChatParticipants payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} />
             ) : null}
           </div>
           <button

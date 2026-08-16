@@ -1,5 +1,5 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query"
-import type { ChatAgentQuestion, ChatBookmark, ChatMessageItem, ChatPayload, ChatQueuedMessage, ChatRecord, ChatRepository } from "../api/chats"
+import type { ChatAgentQuestion, ChatBookmark, ChatConversationKind, ChatMessageItem, ChatParticipant, ChatPayload, ChatQueuedMessage, ChatRecord, ChatRepository } from "../api/chats"
 import { updateRecentChatHeaderCache, updateRecentChatScratchpadCache, updateRecentChatTurnCache } from "./chatRecentCache"
 
 const DASHBOARD_INVALIDATION_MIN_INTERVAL_MS = 5_000
@@ -411,6 +411,23 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
     return patched
   }
 
+  const participants = chatParticipantsPayload(event.payload)
+  if (participants) {
+    let patched = false
+    queryClient.setQueriesData<ChatPayload>(
+      { queryKey: ["chats", String(event.id)] },
+      (current) => {
+        if (!current || !Array.isArray(current.messages)) return current
+        patched = true
+        return {
+          ...current,
+          chat: { ...current.chat, conversation_kind: participants.conversation_kind, participants: participants.participants }
+        }
+      }
+    )
+    return patched
+  }
+
   const bookmark = chatBookmarkPayload(event.payload)
   if (bookmark) {
     let patched = false
@@ -537,6 +554,12 @@ type ChatUpdateProposalPayload = {
 type ChatJobStatusChangedPayload = {
   action: "job_status_changed"
   job_id: number
+}
+
+type ChatParticipantsPayload = {
+  action: "update_participants"
+  conversation_kind: ChatConversationKind
+  participants: ChatParticipant[]
 }
 
 function chatReplaceTailPayload(payload: unknown): ChatReplaceTailPayload | null {
@@ -729,6 +752,30 @@ function isChatBookmark(value: unknown): value is ChatBookmark {
     typeof candidate.chat_message_id === "number" &&
     (typeof candidate.anchor_message_id === "number" || candidate.anchor_message_id == null)
   )
+}
+
+function isChatParticipants(value: unknown): value is ChatParticipant[] {
+  return Array.isArray(value) && value.every((item) => {
+    if (!item || typeof item !== "object") return false
+
+    const candidate = item as Partial<ChatParticipant>
+    return typeof candidate.id === "number" && typeof candidate.name === "string" && typeof candidate.role === "string"
+  })
+}
+
+function chatParticipantsPayload(payload: unknown): ChatParticipantsPayload | null {
+  if (!payload || typeof payload !== "object") return null
+
+  const candidate = payload as Partial<ChatParticipantsPayload>
+  if (candidate.action !== "update_participants") return null
+  if (candidate.conversation_kind !== "direct" && candidate.conversation_kind !== "group") return null
+  if (!isChatParticipants(candidate.participants)) return null
+
+  return {
+    action: "update_participants",
+    conversation_kind: candidate.conversation_kind,
+    participants: candidate.participants
+  }
 }
 
 function isChatAgentQuestions(value: unknown): value is ChatAgentQuestion[] {
