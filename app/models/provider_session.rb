@@ -2,6 +2,7 @@ class ProviderSession < ApplicationRecord
   belongs_to :resumable, polymorphic: true
 
   before_validation :mirror_run_id_for_run_resumables
+  before_save :sync_transcript_pruned
   belongs_to :run, optional: true
 
   validates :session_id, presence: true
@@ -30,7 +31,7 @@ class ProviderSession < ApplicationRecord
   # a named scope for admin diagnostics; prune deletes the whole row once the
   # terminal retention window expires.
   scope :with_succeeded_transcript, -> {
-    for_runs.where(runs: { state: "succeeded" }).where.not(transcript_jsonl: nil)
+    for_runs.where(runs: { state: "succeeded" }, transcript_pruned: false)
   }
 
   scope :for_runs, -> {
@@ -71,5 +72,9 @@ class ProviderSession < ApplicationRecord
 
   def default_resumable_from_run
     self.resumable ||= run if run
+  end
+
+  def sync_transcript_pruned
+    self.transcript_pruned = transcript_jsonl.nil?
   end
 end

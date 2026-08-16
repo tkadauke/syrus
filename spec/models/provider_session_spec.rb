@@ -77,12 +77,14 @@ RSpec.describe ProviderSession do
       succeeded_run = Factories.job.initial_run.tap { |r| r.start!; r.succeed!; r.save! }
       session = described_class.create!(resumable: succeeded_run, session_id: "s", transcript_jsonl: "data")
       expect(described_class.with_succeeded_transcript).to include(session)
+      expect(session).not_to be_transcript_pruned
     end
 
     it "excludes succeeded Runs whose transcript_jsonl is already nil" do
       succeeded_run = Factories.job.initial_run.tap { |r| r.start!; r.succeed!; r.save! }
       session = described_class.create!(resumable: succeeded_run, session_id: "s", transcript_jsonl: nil)
       expect(described_class.with_succeeded_transcript).not_to include(session)
+      expect(session).to be_transcript_pruned
     end
 
     it "excludes failed and cancelled Runs regardless of transcript content" do

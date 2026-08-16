@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_16_192000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_16_193000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1391,6 +1391,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_192000) do
     t.integer "run_id"
     t.string "session_id", null: false
     t.text "transcript_jsonl", limit: 67108864
+    t.boolean "transcript_pruned", default: false, null: false
     t.datetime "updated_at", null: false
     t.index ["created_at"], name: "index_provider_sessions_on_created_at"
     t.index ["resumable_type", "resumable_id"], name: "index_provider_sessions_on_resumable", unique: true

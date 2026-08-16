@@ -391,7 +391,7 @@ module App
                 :run_id,
                 :session_id,
                 :provider,
-                Arel.sql("transcript_jsonl IS NULL")
+                :transcript_pruned
               )
               .to_h do |run_id, session_id, provider, transcript_pruned|
                 [

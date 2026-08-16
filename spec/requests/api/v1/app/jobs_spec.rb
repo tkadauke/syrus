@@ -295,6 +295,7 @@ RSpec.describe "App API job detail", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(sql).not_to include(match(/SELECT\s+["`]provider_sessions["`]\.\*/i))
+    expect(sql).not_to include(match(/transcript_jsonl/i))
     body = parse_body
     expect(body.dig("job", "id")).to eq(job.id)
     expect(body.dig("job", "issue_title")).to eq("Repair aqueduct")
