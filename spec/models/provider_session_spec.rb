@@ -105,6 +105,23 @@ RSpec.describe ProviderSession do
       expect(described_class.prunable).not_to include(new_session)
     end
 
+    # Rows here are few but enormous (~375KB of transcript each), so an
+    # unindexed prune has to pull the whole tablespace through the buffer pool
+    # just to decide what expired — one production DELETE ran 1,952 seconds
+    # holding row locks. The scope must stay index-served on both filter
+    # columns. Plan syntax below is SQLite's (the test database); MySQL picks
+    # the same index for the same reason.
+    it "is served by the resumable_type/updated_at index rather than a scan" do
+      plan = ActiveRecord::Base.connection
+                               .select_all("EXPLAIN QUERY PLAN #{described_class.prunable.to_sql}")
+                               .map { |row| row["detail"] }
+
+      provider_session_step = plan.find { |detail| detail.include?("provider_sessions") }
+
+      expect(provider_session_step).to include("index_provider_sessions_on_resumable_type_updated_at")
+      expect(provider_session_step).not_to include("SCAN")
+    end
+
     it "excludes sessions whose Run is still active even if old" do
       active_run = Factories.job.initial_run  # state=queued
       session = described_class.create!(resumable: active_run, session_id: "active", transcript_jsonl: "x")

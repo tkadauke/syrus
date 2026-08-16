@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_15_051000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_16_040425) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1395,6 +1395,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_15_051000) do
     t.datetime "updated_at", null: false
     t.index ["created_at"], name: "index_provider_sessions_on_created_at"
     t.index ["resumable_type", "resumable_id"], name: "index_provider_sessions_on_resumable", unique: true
+    t.index ["resumable_type", "updated_at", "resumable_id"], name: "index_provider_sessions_on_resumable_type_updated_at"
     t.index ["run_id"], name: "index_provider_sessions_on_run_id", unique: true
   end
 
