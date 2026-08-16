@@ -71,6 +71,12 @@ RSpec.describe RebaseTarget do
 
       expect(described_class.branch_for(job: child)).to eq("main")
     end
+
+    it "falls back to the job's target_branch override when no artifact or open parent applies" do
+      job = Factories.job_record(user: user, repository: repository, state: "queued", target_branch: "release/4.2")
+
+      expect(described_class.branch_for(job: job)).to eq("release/4.2")
+    end
   end
 
   describe ".artifacts" do

@@ -985,6 +985,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_194000) do
     t.datetime "started_at"
     t.string "state", default: "triaging", null: false
     t.string "system_kind"
+    t.string "target_branch"
     t.bigint "target_repository_id"
     t.boolean "title_pending", default: false, null: false
     t.string "triaging_reason", default: "classifier_pending", null: false

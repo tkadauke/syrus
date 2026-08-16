@@ -150,6 +150,40 @@ RSpec.describe Steps::PrOpen, :ci_only do
     expect(job.reload.pr_repository_id).to eq(repository.id)
   end
 
+  it "uses the Job's target_branch override for pr_base_branch even when the Job is otherwise stacked" do
+    parent = Factories.job_record(user: user, repository: repository, issue_number: 40, state: "queued", branch_name: "syrus/issue-40", pr_number: 40)
+    JobDependency.create!(job: job, depends_on_job: parent, source: "manual", created_by_user: user)
+    job.update!(target_branch: "release/4.2")
+
+    pr_open_run = Run.create!(
+      job: job,
+      step: pr_open_step,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider
+    )
+    handler = described_class.new(pr_open_run)
+    workspace = instance_double(WorkflowWorkspace, setup: true, branch_name: "syrus/issue-42-#{job.id}")
+    opener = instance_double(PullRequestOpener)
+    client = instance_double(GithubClient, access_token: "tok")
+
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:push_branch)
+    allow(handler).to receive(:pr_title_and_body).and_return([ "T", "B" ])
+    allow(GithubClient).to receive(:for).with(repository: repository, user: job.user).and_return(client)
+    expect(PullRequestOpener).to receive(:new).with(repository, client: client).and_return(opener)
+    expect(opener).to receive(:open).with(
+      branch: "syrus/issue-42-#{job.id}",
+      title: "T",
+      body: "B",
+      job: job,
+      base: "release/4.2"
+    ).and_return(99)
+
+    handler.call
+
+    expect(job.reload.pr_number).to eq(99)
+  end
+
   context "when the Job has a cross-fork target_repository (fork review mode)" do
     let(:upstream) { Factories.repository(user: user, owner: "upstream-org", name: "widgets") }
     let(:fork_job) do

@@ -2270,6 +2270,34 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
 
       expect(child.effective_base_branch).to eq("syrus/issue-41")
     end
+
+    it "returns target_branch when set, bypassing stack/dependency resolution entirely" do
+      parent = Factories.job_record(
+        user: user,
+        repository: repository,
+        issue_number: 41,
+        state: "queued",
+        branch_name: "syrus/issue-41",
+        pr_number: 41
+      )
+      child = Factories.job_record(
+        user: user,
+        repository: repository,
+        issue_number: 42,
+        state: "queued",
+        stack_base: "main",
+        target_branch: "release/4.2"
+      )
+      JobDependency.create!(job: child, depends_on_job: parent, source: "manual", created_by_user: user)
+
+      expect(child.effective_base_branch).to eq("release/4.2")
+    end
+
+    it "ignores a blank target_branch and falls through to normal resolution" do
+      job = Factories.job_record(user: user, repository: repository, issue_number: 43, state: "queued", target_branch: "")
+
+      expect(job.effective_base_branch).to eq("main")
+    end
   end
 
   describe "#effective_target_repository" do

@@ -2,6 +2,17 @@ module JobStackBase
   extend ActiveSupport::Concern
 
   def effective_base_branch
+    # `target_branch` is an explicit operator/skill-set override (e.g. a
+    # `promote`/`backport` skill Job that must PR against a specific branch
+    # regardless of repo topology). It is unrelated to `stack_base == "main"`
+    # below, which means "force base off the repository's default branch" —
+    # a `stack_base` enum value that happens to be the literal string "main"
+    # because that's this repo's own default branch name, not a reference to
+    # any branch named "main" in general. A Job with an explicit
+    # `target_branch` isn't part of stack topology at all, so it short-
+    # circuits every other check here, including `stack_base_forces_main?`.
+    return target_branch if target_branch.present?
+
     return base_default_branch if stack_base_forces_main?
 
     if parent_job.present? &&
