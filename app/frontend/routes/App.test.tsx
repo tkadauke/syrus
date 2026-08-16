@@ -14436,8 +14436,10 @@ describe("App", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByRole("link", { name: "#11" })).toHaveAttribute("href", "/app-shell/epics/11")
-    expect(screen.getByText((_, element) => element?.textContent === '→ Epic #11 "Raise the forum"')).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "Copy EPIC-11 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByText((_, element) => element?.textContent === '→ EPIC-11 "Raise the forum"')).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy JOB-154 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Copy JOB-155 to clipboard" })).toBeInTheDocument()
     expect(screen.getByText((_, element) => element?.textContent === 'Jobs: JOB-154 "Add inspection tools", JOB-155 "Add trigger"')).toBeInTheDocument()
   })
 
