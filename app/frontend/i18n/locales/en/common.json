@@ -25,6 +25,7 @@
     "setup_label": "First-run setup",
     "heading": "Set up Syrus",
     "complete_badge": "Complete",
+    "edit_label": "Edit",
     "ready_heading": "Ready for normal operations",
     "ready_description": "Your first Epic has landed — Syrus is set up. The Setup tab will drop off the nav.",
     "open_dashboard": "Open dashboard"

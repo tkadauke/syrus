@@ -23,6 +23,12 @@ type ChecklistStep = {
   ctaModal?: "github_token" | "configure_agent" | "add_repository"
   // When set, the CTA runs an action (and may navigate away) instead of linking.
   ctaAction?: "start_chat" | "choose_mode"
+  // Once the step is complete, prefer linking here over reopening ctaModal
+  // (e.g. a management page rather than an "add new" form).
+  editPath?: string
+  // Label for the CTA once the step is already complete. Defaults to a
+  // generic "Edit" when omitted.
+  editLabel?: string
 }
 
 export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | null | undefined }) {
@@ -92,40 +98,47 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
                     {current ? <p className="mt-2 max-w-xl text-sm text-gray-600 dark:text-gray-400">{step.detail}</p> : null}
                   </div>
                 </div>
-                {step.complete ? (
-                  <span className="self-start rounded bg-green-50 dark:bg-green-950/40 px-2.5 py-1 text-xs font-medium text-green-700 dark:text-green-300 sm:self-center">{t('onboarding.complete_badge')}</span>
-                ) : step.ctaAction === "choose_mode" ? (
-                  <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
-                    <button
-                      className={`${primaryCtaClass(current)} sm:min-w-44`}
-                      disabled={chooseMode.isPending}
-                      onClick={() => chooseMode.mutate("advanced")}
-                      type="button"
-                    >
-                      Yes, I write code
+                <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
+                  {step.complete ? (
+                    <span className="rounded bg-green-50 dark:bg-green-950/40 px-2.5 py-1 text-xs font-medium text-green-700 dark:text-green-300">{t('onboarding.complete_badge')}</span>
+                  ) : null}
+                  {step.ctaAction === "choose_mode" ? (
+                    <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                      <button
+                        className={`${primaryCtaClass(step.complete ? bootstrap?.app.mode === "advanced" : current)} sm:min-w-44`}
+                        disabled={chooseMode.isPending}
+                        onClick={() => chooseMode.mutate("advanced")}
+                        type="button"
+                      >
+                        Yes, I write code
+                      </button>
+                      <button
+                        className={`${primaryCtaClass(step.complete ? bootstrap?.app.mode === "simple" : false)} sm:min-w-44`}
+                        disabled={chooseMode.isPending}
+                        onClick={() => chooseMode.mutate("simple")}
+                        type="button"
+                      >
+                        No, build things for me
+                      </button>
+                    </div>
+                  ) : step.complete && step.editPath ? (
+                    <Link className={secondaryCtaClass()} to={withRoutePrefix(step.editPath, prefix)}>
+                      {step.editLabel ?? t('onboarding.edit_label')}
+                    </Link>
+                  ) : step.ctaModal ? (
+                    <button className={step.complete ? secondaryCtaClass() : primaryCtaClass(current)} onClick={() => setOpenModal(step.ctaModal ?? null)} type="button">
+                      {step.complete ? (step.editLabel ?? t('onboarding.edit_label')) : step.ctaLabel}
                     </button>
-                    <button
-                      className={`${primaryCtaClass(false)} sm:min-w-44`}
-                      disabled={chooseMode.isPending}
-                      onClick={() => chooseMode.mutate("simple")}
-                      type="button"
-                    >
-                      No, build things for me
+                  ) : step.ctaAction === "start_chat" ? (
+                    <button className={step.complete ? secondaryCtaClass() : primaryCtaClass(current)} disabled={startingChat} onClick={launchChat} type="button">
+                      {startingChat ? "Opening chat…" : step.ctaLabel}
                     </button>
-                  </div>
-                ) : step.ctaModal ? (
-                  <button className={primaryCtaClass(current)} onClick={() => setOpenModal(step.ctaModal ?? null)} type="button">
-                    {step.ctaLabel}
-                  </button>
-                ) : step.ctaAction === "start_chat" ? (
-                  <button className={primaryCtaClass(current)} disabled={startingChat} onClick={launchChat} type="button">
-                    {startingChat ? "Opening chat…" : step.ctaLabel}
-                  </button>
-                ) : (
-                  <Link className={primaryCtaClass(current)} to={withRoutePrefix(step.ctaPath, prefix)}>
-                    {step.ctaLabel}
-                  </Link>
-                )}
+                  ) : (
+                    <Link className={step.complete ? secondaryCtaClass() : primaryCtaClass(current)} to={withRoutePrefix(step.ctaPath, prefix)}>
+                      {step.ctaLabel}
+                    </Link>
+                  )}
+                </div>
               </li>
             )
           })}
@@ -181,7 +194,8 @@ function checklistSteps(setup: SetupStatus, user: NonNullable<BootstrapPayload["
       complete: setup.credential_status.github,
       ctaLabel: "Configure GitHub",
       ctaPath: "/credentials",
-      ctaModal: "github_token"
+      ctaModal: "github_token",
+      editLabel: "Edit GitHub connection"
     },
     {
       key: "agent",
@@ -190,7 +204,8 @@ function checklistSteps(setup: SetupStatus, user: NonNullable<BootstrapPayload["
       complete: setup.credential_status.agent,
       ctaLabel: "Configure agent",
       ctaPath: "/credentials",
-      ctaModal: "configure_agent"
+      ctaModal: "configure_agent",
+      editLabel: "Edit agent settings"
     },
     {
       key: "repository",
@@ -199,7 +214,11 @@ function checklistSteps(setup: SetupStatus, user: NonNullable<BootstrapPayload["
       complete: setup.repository_configured,
       ctaLabel: "Add repository",
       ctaPath: "/repositories/new",
-      ctaModal: "add_repository"
+      ctaModal: "add_repository",
+      // Reopening the "add repository" modal wouldn't let the user manage
+      // repos they already added — send them to the management page instead.
+      editPath: "/repositories",
+      editLabel: "Manage repositories"
     },
     {
       key: "chat",
@@ -265,4 +284,10 @@ function checklistContentClass(current: boolean) {
 function primaryCtaClass(current: boolean) {
   const base = "inline-flex shrink-0 justify-center rounded px-3 py-2 text-sm font-medium"
   return current ? `${base} min-w-48 bg-blue-600 text-white hover:bg-blue-700` : `${base} border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800`
+}
+
+// Small text-style action for revisiting an already-completed step, shown
+// next to the "Complete" badge instead of the full-size primary CTA.
+function secondaryCtaClass() {
+  return "inline-flex shrink-0 justify-center rounded px-2 py-1 text-xs font-medium text-blue-700 dark:text-blue-400 hover:underline"
 }
