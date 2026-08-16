@@ -25,12 +25,30 @@ RSpec.describe PerformanceLogEvent do
       attrs = described_class.from_event_hash(
         "occurred_at" => 1.minute.ago.iso8601,
         "event" => "sql.active_record",
-        "fingerprint" => "SELECT 1"
+        "fingerprint" => "SELECT 1",
+        "sql" => "SELECT * FROM jobs",
+        "top_sql_fingerprints" => [
+          {
+            "fingerprint" => "SELECT * FROM jobs WHERE id IN (?)",
+            "sample_sql" => "SELECT * FROM jobs WHERE id IN (1, 2, 3)",
+            "name" => "Job Load",
+            "count" => 1,
+            "total_duration_ms" => 300.0,
+            "max_duration_ms" => 300.0
+          }
+        ]
       )
 
       expect(attrs[:event_name]).to eq("sql.active_record")
       expect(attrs[:sql_fingerprint]).to eq("SELECT 1")
       expect(attrs[:payload]).to be_a(Hash)
+      expect(attrs[:payload]).not_to have_key("sql")
+      expect(attrs[:payload].dig("top_sql_fingerprints", 0)).to include(
+        "fingerprint" => "SELECT * FROM jobs WHERE id IN (?)",
+        "name" => "Job Load",
+        "count" => 1
+      )
+      expect(attrs[:payload].dig("top_sql_fingerprints", 0)).not_to have_key("sample_sql")
     end
   end
 end

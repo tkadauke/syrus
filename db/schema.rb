@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_16_070000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_16_082000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1276,9 +1276,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_070000) do
     t.index ["app_revision", "occurred_at"], name: "idx_perf_events_revision_occurred"
     t.index ["event_name", "occurred_at"], name: "idx_perf_events_name_occurred"
     t.index ["occurred_at"], name: "idx_perf_events_occurred_at"
-    t.index ["path", "occurred_at"], name: "idx_perf_events_path_occurred"
-    t.index ["phase", "occurred_at"], name: "idx_perf_events_phase_occurred"
-    t.index ["sql_fingerprint", "occurred_at"], name: "idx_perf_events_sql_fingerprint_occurred"
   end
 
   create_table "platform_identities", force: :cascade do |t|
@@ -1810,6 +1807,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_070000) do
     t.index ["next_step_id"], name: "index_steps_on_next_step_id"
     t.index ["workflow_id", "loop_id", "iteration"], name: "index_steps_on_workflow_id_and_loop_id_and_iteration"
     t.index ["workflow_id", "position"], name: "index_steps_on_workflow_id_and_position"
+    t.index ["workflow_id", "state", "position", "id"], name: "idx_steps_workflow_state_position_for_repository_detail"
     t.index ["workflow_id"], name: "index_steps_on_workflow_id"
   end
 

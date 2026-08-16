@@ -52,6 +52,12 @@ RSpec.describe Observability::EventSink do
     )
   end
 
+  it "uses small batches for performance log inserts" do
+    stream = Observability::EventStream.fetch(:performance)
+
+    expect(stream.batch_size).to eq(25)
+  end
+
   it "spools operational events and persists them only when flushed" do
     described_class.append(
       kind: :operational,

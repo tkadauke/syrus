@@ -1,6 +1,6 @@
 module Observability
   module EventStream
-    Stream = Struct.new(:kind, :model_name, :durable, :persist_mode, keyword_init: true) do
+    Stream = Struct.new(:kind, :model_name, :durable, :persist_mode, :batch_size, keyword_init: true) do
       def model
         model_name.to_s.constantize
       end
@@ -13,7 +13,8 @@ module Observability
         rows = events.filter_map { |event| model.from_event_hash(event) }
         return if rows.empty?
 
-        rows.each_slice(batch_size) do |batch|
+        effective_batch_size = self.batch_size || batch_size
+        rows.each_slice(effective_batch_size) do |batch|
           case persist_mode
           when :create_each
             batch.each { |row| model.create!(row) }
@@ -41,9 +42,15 @@ module Observability
 
     module_function
 
-    def register(kind, model:, durable: false, persist: :insert_all)
+    def register(kind, model:, durable: false, persist: :insert_all, batch_size: nil)
       kind = normalize_kind(kind)
-      @streams[kind] = Stream.new(kind: kind, model_name: model.to_s, durable: durable, persist_mode: persist.to_sym)
+      @streams[kind] = Stream.new(
+        kind: kind,
+        model_name: model.to_s,
+        durable: durable,
+        persist_mode: persist.to_sym,
+        batch_size: normalized_batch_size(batch_size)
+      )
     end
 
     def fetch(kind)
@@ -67,8 +74,19 @@ module Observability
       kind.to_sym
     end
 
+    def normalized_batch_size(value)
+      value = Integer(value, exception: false)
+      return unless value&.positive?
+
+      value
+    end
+
     def register_defaults
-      register(:performance, model: "PerformanceLogEvent")
+      register(
+        :performance,
+        model: "PerformanceLogEvent",
+        batch_size: Integer(ENV["SYRUS_PERFORMANCE_FLUSH_BATCH_SIZE"], exception: false) || 25
+      )
       register(:operational, model: "OperationalLogEvent", durable: true, persist: :create_each)
       register(:work_engine_reconciler_activity, model: "WorkEngineReconcilerActivityEvent")
       register(:workflow_activity, model: "WorkflowActivityEvent", durable: true)

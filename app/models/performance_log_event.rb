@@ -11,6 +11,7 @@ class PerformanceLogEvent < ApplicationRecord
 
   def self.from_event_hash(event)
     attrs = event.to_h
+    now = Time.current
     {
       occurred_at: parse_event_time(attrs["occurred_at"]) || Time.current,
       app_revision: attrs["app_revision"],
@@ -28,9 +29,9 @@ class PerformanceLogEvent < ApplicationRecord
       sql_count: attrs["sql_count"],
       sql_duration_ms: attrs["sql_duration_ms"],
       slow_sql_count: attrs["slow_sql_count"],
-      payload: attrs,
-      created_at: Time.current,
-      updated_at: Time.current
+      payload: compact_payload(attrs),
+      created_at: now,
+      updated_at: now
     }
   end
 
@@ -57,5 +58,50 @@ class PerformanceLogEvent < ApplicationRecord
 
   def self.as_recent_event_hashes(limit:)
     recent_first.limit(limit).map(&:as_event_hash)
+  end
+
+  def self.compact_payload(attrs)
+    {
+      "format" => attrs["format"],
+      "status" => attrs["status"],
+      "view_runtime_ms" => attrs["view_runtime_ms"],
+      "db_runtime_ms" => attrs["db_runtime_ms"],
+      "visibility_state" => attrs["visibility_state"],
+      "metadata" => compact_metadata(attrs["metadata"]),
+      "api_requests" => compact_api_requests(attrs["api_requests"]),
+      "top_sql_fingerprints" => compact_top_sql_fingerprints(attrs["top_sql_fingerprints"])
+    }.compact_blank
+  end
+
+  def self.compact_metadata(value)
+    value.to_h.transform_values { |entry| entry.to_s.safe_byteslice(0, 300) }.presence
+  rescue StandardError
+    nil
+  end
+
+  def self.compact_api_requests(value)
+    Array(value).first(10).filter_map do |entry|
+      attrs = entry.to_h
+      {
+        "name" => attrs["name"].to_s.safe_byteslice(0, 100),
+        "path" => attrs["path"].to_s.safe_byteslice(0, 300),
+        "request_id" => attrs["request_id"].to_s.safe_byteslice(0, 100),
+        "duration_ms" => attrs["duration_ms"],
+        "status" => attrs["status"]
+      }.compact_blank
+    end.presence
+  end
+
+  def self.compact_top_sql_fingerprints(value)
+    Array(value).first(5).filter_map do |entry|
+      attrs = entry.to_h
+      {
+        "fingerprint" => attrs["fingerprint"].to_s.safe_byteslice(0, 300),
+        "name" => attrs["name"].to_s.safe_byteslice(0, 100),
+        "count" => attrs["count"],
+        "total_duration_ms" => attrs["total_duration_ms"],
+        "max_duration_ms" => attrs["max_duration_ms"]
+      }.compact_blank
+    end.presence
   end
 end
