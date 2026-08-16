@@ -43,7 +43,7 @@ Enables walkthrough video intake in Syrus Chat. Operators can record or drag in 
 
 **Category:** Labs
 
-Enables the Local chat mode and the `syrus local` daemon command. The agent connects to a daemon running on the user's local machine via a reverse WebSocket tunnel to read/write files and run commands locally, without requiring a server-side clone.
+Enables the Local chat mode and the `syrus local` daemon command. The agent connects to a daemon running on the user's local machine via a reverse WebSocket tunnel to read/write files and run commands locally, without requiring a server-side clone. Pairing the CLI to a chat requires a `--chat`/`--token` command copied from the chat UI's Local Mode banner — see the Local Mode documentation for the full pairing flow.
 
 ## visual_review
 

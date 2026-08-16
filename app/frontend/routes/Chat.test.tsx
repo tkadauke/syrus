@@ -4473,6 +4473,84 @@ describe("chat mode selector in toolbar", () => {
   })
 })
 
+describe("LocalDaemonBanner", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  function mockLocalChatFetch(options: { daemonSessionStatus?: number; daemonSessionBody?: unknown } = {}) {
+    let createCalls = 0
+    const spy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/local_daemon_session" && init?.method === "POST") {
+        createCalls += 1
+        return Promise.resolve(jsonResponse(
+          options.daemonSessionBody ?? {
+            daemon_session: {
+              id: 1,
+              chat_session_id: 8,
+              connected: false,
+              daemon_repo: null,
+              daemon_branch: null,
+              last_heartbeat_at: null,
+              auth_token: "secret-token"
+            }
+          },
+          options.daemonSessionStatus ?? 201
+        ))
+      }
+      return Promise.resolve(jsonResponse({ ...chatPayload({ chat: { mode: "local" } }), local_mode_enabled: true }))
+    })
+    return { spy, createCalls: () => createCalls }
+  }
+
+  it("creates a pairing session and renders the interpolated command", async () => {
+    mockLocalChatFetch()
+    renderRoute()
+
+    await screen.findByText("syrus local --chat 8 --token secret-token")
+  })
+
+  it("only requests a pairing session once", async () => {
+    const { createCalls } = mockLocalChatFetch()
+    renderRoute()
+
+    await screen.findByText("syrus local --chat 8 --token secret-token")
+    expect(createCalls()).toBe(1)
+  })
+
+  it("shows an error message when the pairing session request fails", async () => {
+    mockLocalChatFetch({
+      daemonSessionStatus: 404,
+      daemonSessionBody: { error: { code: "not_found", message: "Local Mode is not enabled." } }
+    })
+    renderRoute()
+
+    await screen.findByText("Could not prepare a pairing command. Try reloading the page.")
+  })
+
+  it("does not render a banner once the daemon is connected", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      return Promise.resolve(jsonResponse({
+        ...chatPayload({ chat: { mode: "local", local_daemon_state: "connected" } }),
+        local_mode_enabled: true
+      }))
+    })
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    expect(screen.queryByText(/syrus local/)).not.toBeInTheDocument()
+  })
+})
+
 describe("chat model selector in toolbar", () => {
   beforeEach(() => {
     window.localStorage.clear()

@@ -31,6 +31,7 @@ import {
   createChat,
   createChatBookmark,
   createChatTopicBookmark,
+  createLocalDaemonSession,
   createScratchpadItem,
   deleteScratchpadItem,
   deleteQueuedChatMessage,
@@ -1120,14 +1121,30 @@ function LocalDaemonBanner({ payload }: { payload: ChatPayload }) {
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => { if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current) }, [])
 
+  const daemonState = payload.chat.local_daemon_state ?? null
+  const chatId = payload.chat.id
+
+  // Only the "not connected yet" banner needs a pairing session — a
+  // previously-connected daemon that dropped ("disconnected") already has
+  // one, and a connected daemon doesn't need the command at all.
+  const sessionQuery = useQuery({
+    queryKey: ["local-daemon-session", chatId],
+    queryFn: () => createLocalDaemonSession(chatId),
+    enabled: daemonState === null,
+    staleTime: Infinity
+  })
+  const session = sessionQuery.data?.daemon_session
+  const command = session?.auth_token
+    ? t("local_daemon_command", { chatSessionId: session.chat_session_id, authToken: session.auth_token })
+    : null
+
   function copyCommand() {
-    void navigator.clipboard.writeText(t("local_daemon_command")).then(() => {
+    if (!command) return
+    void navigator.clipboard.writeText(command).then(() => {
       setCopied(true)
       copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000)
     })
   }
-
-  const daemonState = payload.chat.local_daemon_state ?? null
 
   if (daemonState === "connected") return null
 
@@ -1145,15 +1162,17 @@ function LocalDaemonBanner({ payload }: { payload: ChatPayload }) {
       <div className="font-semibold">{t("local_daemon_not_connected_title")}</div>
       <p className="mt-1">{t("local_daemon_not_connected_body")}</p>
       <div className="mt-3 flex items-center gap-2">
-        <code className="rounded bg-gray-100 px-2 py-1 font-mono text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">{t("local_daemon_command")}</code>
+        <code className="rounded bg-gray-100 px-2 py-1 font-mono text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">{command ?? t("local_daemon_command_loading")}</code>
         <button
-          className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50 hover:text-gray-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100"
+          className="rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50 hover:text-gray-800 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={!command}
           onClick={copyCommand}
           type="button"
         >
           {copied ? t("local_daemon_copied") : t("local_daemon_copy")}
         </button>
       </div>
+      {sessionQuery.isError ? <p className="mt-2 text-red-600 dark:text-red-400">{t("local_daemon_session_error")}</p> : null}
     </section>
   )
 }

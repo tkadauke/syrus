@@ -301,8 +301,50 @@ func TestExecuteLocalRunCommandRespectTimeout(t *testing.T) {
 // Connection loop with mock WebSocket server
 // ---------------------------------------------------------------------------
 
-func TestLocalConnectAndServeHandlesRegisteredWithChatSession(t *testing.T) {
-	chatID := int64(42)
+// subscribeIdentifier reads the client's "subscribe" command and returns its
+// decoded identifier, so tests can assert chat_session_id/tunnel_token made
+// it into the Action Cable subscribe frame.
+func subscribeIdentifier(t *testing.T, conn *websocket.Conn) map[string]any {
+	t.Helper()
+	_, raw, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatalf("reading subscribe command: %v", err)
+	}
+	var cmd struct {
+		Identifier string `json:"identifier"`
+	}
+	if err := json.Unmarshal(raw, &cmd); err != nil {
+		t.Fatalf("decoding subscribe command: %v", err)
+	}
+	var identifier map[string]any
+	if err := json.Unmarshal([]byte(cmd.Identifier), &identifier); err != nil {
+		t.Fatalf("decoding subscribe identifier: %v", err)
+	}
+	return identifier
+}
+
+func TestLocalConnectAndServeSendsChatSessionAndTokenInSubscribeIdentifier(t *testing.T) {
+	var gotIdentifier map[string]any
+	srv := newLocalWSServer(t, func(conn *websocket.Conn) {
+		conn.WriteJSON(map[string]string{"type": "welcome"})
+		gotIdentifier = subscribeIdentifier(t, conn)
+		conn.WriteJSON(map[string]string{"type": "reject_subscription"})
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), t.TempDir(), "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
+
+	if gotIdentifier["chat_session_id"] != float64(42) {
+		t.Fatalf("chat_session_id = %v", gotIdentifier["chat_session_id"])
+	}
+	if gotIdentifier["tunnel_token"] != "tok-abc" {
+		t.Fatalf("tunnel_token = %v", gotIdentifier["tunnel_token"])
+	}
+}
+
+func TestLocalConnectAndServeHandlesConnected(t *testing.T) {
 	srv := newLocalWSServer(t, func(conn *websocket.Conn) {
 		// Send welcome.
 		conn.WriteJSON(map[string]string{"type": "welcome"})
@@ -310,16 +352,12 @@ func TestLocalConnectAndServeHandlesRegisteredWithChatSession(t *testing.T) {
 		conn.ReadMessage() //nolint:errcheck
 		// Send confirm.
 		conn.WriteJSON(map[string]string{"type": "confirm_subscription", "identifier": `{"channel":"LocalTunnelChannel"}`})
-		// Read register message.
+		// Read connect message.
 		conn.ReadMessage() //nolint:errcheck
-		// Send registered with a chat_session_id.
+		// Send connected — matches LocalTunnelChannel#handle_connect's transmit({ type: "connected" }).
 		conn.WriteJSON(map[string]any{
 			"identifier": `{"channel":"LocalTunnelChannel"}`,
-			"message": map[string]any{
-				"type":              "registered",
-				"tunnel_session_id": 1,
-				"chat_session_id":   chatID,
-			},
+			"message":    map[string]any{"type": "connected"},
 		})
 		// Close gracefully.
 		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
@@ -329,38 +367,101 @@ func TestLocalConnectAndServeHandlesRegisteredWithChatSession(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	localConnectAndServe(ctx, &out, wsURL(t, srv), t.TempDir(), "acme/widget", "main") //nolint:errcheck
+	localConnectAndServe(ctx, &out, wsURL(t, srv), t.TempDir(), "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
 
 	if !strings.Contains(out.String(), "chat session #42") {
 		t.Fatalf("output = %q", out.String())
 	}
 }
 
-func TestLocalConnectAndServeHandlesRegisteredWithoutChatSession(t *testing.T) {
+func TestLocalConnectAndServeSendsConnectWithRepoAndBranch(t *testing.T) {
+	var gotConnect map[string]any
 	srv := newLocalWSServer(t, func(conn *websocket.Conn) {
 		conn.WriteJSON(map[string]string{"type": "welcome"})
 		conn.ReadMessage() //nolint:errcheck
 		conn.WriteJSON(map[string]string{"type": "confirm_subscription", "identifier": `{"channel":"LocalTunnelChannel"}`})
-		conn.ReadMessage() //nolint:errcheck
-		conn.WriteJSON(map[string]any{
-			"identifier": `{"channel":"LocalTunnelChannel"}`,
-			"message": map[string]any{
-				"type":              "registered",
-				"tunnel_session_id": 1,
-				"chat_session_id":   nil,
-			},
-		})
+
+		_, raw, _ := conn.ReadMessage()
+		var envelope struct {
+			Data string `json:"data"`
+		}
+		if err := json.Unmarshal(raw, &envelope); err == nil {
+			json.Unmarshal([]byte(envelope.Data), &gotConnect)
+		}
 		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 	})
 
-	var out strings.Builder
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	localConnectAndServe(ctx, &out, wsURL(t, srv), t.TempDir(), "acme/widget", "main") //nolint:errcheck
+	localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), t.TempDir(), "acme/widget", "feat-branch", 42, "tok-abc") //nolint:errcheck
 
-	if !strings.Contains(out.String(), "no active Local Mode chat session") {
-		t.Fatalf("output = %q", out.String())
+	if gotConnect["type"] != "connect" {
+		t.Fatalf("type = %v", gotConnect["type"])
+	}
+	if gotConnect["repo"] != "acme/widget" {
+		t.Fatalf("repo = %v", gotConnect["repo"])
+	}
+	if gotConnect["branch"] != "feat-branch" {
+		t.Fatalf("branch = %v", gotConnect["branch"])
+	}
+}
+
+func TestLocalConnectAndServeRespondsToPing(t *testing.T) {
+	var gotPong map[string]any
+	srv := newLocalWSServer(t, func(conn *websocket.Conn) {
+		conn.WriteJSON(map[string]string{"type": "welcome"})
+		conn.ReadMessage() //nolint:errcheck
+		conn.WriteJSON(map[string]string{"type": "confirm_subscription", "identifier": `{"channel":"LocalTunnelChannel"}`})
+		conn.ReadMessage() // connect
+
+		conn.WriteJSON(map[string]any{
+			"identifier": `{"channel":"LocalTunnelChannel"}`,
+			"message":    map[string]any{"type": "ping"},
+		})
+
+		_, raw, _ := conn.ReadMessage()
+		var envelope struct {
+			Data string `json:"data"`
+		}
+		if err := json.Unmarshal(raw, &envelope); err == nil {
+			json.Unmarshal([]byte(envelope.Data), &gotPong)
+		}
+		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), t.TempDir(), "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
+
+	if gotPong["type"] != "pong" {
+		t.Fatalf("expected a pong reply, got %v", gotPong)
+	}
+}
+
+func TestLocalConnectAndServeReturnsErrorOnDisconnectedFrame(t *testing.T) {
+	srv := newLocalWSServer(t, func(conn *websocket.Conn) {
+		conn.WriteJSON(map[string]string{"type": "welcome"})
+		conn.ReadMessage() //nolint:errcheck
+		conn.WriteJSON(map[string]string{"type": "confirm_subscription", "identifier": `{"channel":"LocalTunnelChannel"}`})
+		conn.ReadMessage() // connect
+
+		conn.WriteJSON(map[string]any{
+			"identifier": `{"channel":"LocalTunnelChannel"}`,
+			"message":    map[string]any{"type": "disconnected", "reason": "heartbeat_timeout"},
+		})
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), t.TempDir(), "acme/widget", "main", 42, "tok-abc")
+	if err == nil {
+		t.Fatal("expected error on disconnected frame")
+	}
+	if !strings.Contains(err.Error(), "heartbeat_timeout") {
+		t.Fatalf("error = %q", err.Error())
 	}
 }
 
@@ -376,25 +477,22 @@ func TestLocalConnectAndServeExecutesToolCallAndReturnsResult(t *testing.T) {
 		conn.WriteJSON(map[string]string{"type": "welcome"})
 		conn.ReadMessage() //nolint:errcheck
 		conn.WriteJSON(map[string]string{"type": "confirm_subscription", "identifier": `{"channel":"LocalTunnelChannel"}`})
-		conn.ReadMessage() // register
-		// Send a registered message first.
+		conn.ReadMessage() // connect
+		// Send a connected message first.
 		conn.WriteJSON(map[string]any{
 			"identifier": `{"channel":"LocalTunnelChannel"}`,
-			"message": map[string]any{
-				"type":              "registered",
-				"tunnel_session_id": 1,
-				"chat_session_id":   nil,
-			},
+			"message":    map[string]any{"type": "connected"},
 		})
-		// Send a tool_call.
-		params, _ := json.Marshal(readFileParams{Path: "hello.txt"})
+		// Send a tool_call — matches LocalTunnelChannel#dispatch_tool_call's
+		// transmit({ type: "tool_call", tool_use_id:, tool:, input: }).
+		input, _ := json.Marshal(readFileParams{Path: "hello.txt"})
 		conn.WriteJSON(map[string]any{
 			"identifier": `{"channel":"LocalTunnelChannel"}`,
 			"message": map[string]any{
-				"type":    "tool_call",
-				"call_id": "call-1",
-				"tool":    "read_file",
-				"params":  json.RawMessage(params),
+				"type":        "tool_call",
+				"tool_use_id": "call-1",
+				"tool":        "read_file",
+				"input":       json.RawMessage(input),
 			},
 		})
 		// Read the tool_result response.
@@ -411,7 +509,7 @@ func TestLocalConnectAndServeExecutesToolCallAndReturnsResult(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), root, "acme/widget", "main") //nolint:errcheck
+	localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), root, "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
 
 	// Give the goroutine a moment to deliver.
 	time.Sleep(100 * time.Millisecond)
@@ -419,16 +517,43 @@ func TestLocalConnectAndServeExecutesToolCallAndReturnsResult(t *testing.T) {
 	if toolResultReceived == nil {
 		t.Fatal("did not receive tool result")
 	}
-	if toolResultReceived["call_id"] != "call-1" {
-		t.Fatalf("call_id = %v", toolResultReceived["call_id"])
+	if toolResultReceived["type"] != "tool_result" {
+		t.Fatalf("type = %v", toolResultReceived["type"])
 	}
-	result, _ := toolResultReceived["result"].(map[string]any)
-	if result["content"] != "hi there" {
-		t.Fatalf("result content = %v", result["content"])
+	if toolResultReceived["tool_use_id"] != "call-1" {
+		t.Fatalf("tool_use_id = %v", toolResultReceived["tool_use_id"])
+	}
+	content, _ := toolResultReceived["content"].(map[string]any)
+	if content["content"] != "hi there" {
+		t.Fatalf("content = %v", content["content"])
 	}
 }
 
-func TestLocalConnectAndServeReturnsErrorOnRejectedSubscription(t *testing.T) {
+func TestLocalConnectAndServeReturnsErrorOnRejectSubscription(t *testing.T) {
+	srv := newLocalWSServer(t, func(conn *websocket.Conn) {
+		conn.WriteJSON(map[string]string{"type": "welcome"})
+		conn.ReadMessage() //nolint:errcheck
+		// The real Action Cable per-channel rejection frame — sent when
+		// LocalTunnelChannel#subscribed calls reject.
+		conn.WriteJSON(map[string]string{"type": "reject_subscription"})
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), t.TempDir(), "acme/widget", "main", 42, "tok-abc")
+	if err == nil {
+		t.Fatal("expected error on subscription rejection")
+	}
+	if !strings.Contains(err.Error(), "pairing rejected") {
+		t.Fatalf("error = %q", err.Error())
+	}
+	if !strings.Contains(err.Error(), "42") {
+		t.Fatalf("error should mention the chat session id: %q", err.Error())
+	}
+}
+
+func TestLocalConnectAndServeReturnsErrorOnConnectionLevelDisconnect(t *testing.T) {
 	srv := newLocalWSServer(t, func(conn *websocket.Conn) {
 		conn.WriteJSON(map[string]string{"type": "welcome"})
 		conn.ReadMessage() //nolint:errcheck
@@ -438,11 +563,47 @@ func TestLocalConnectAndServeReturnsErrorOnRejectedSubscription(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err := localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), t.TempDir(), "acme/widget", "main")
+	err := localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), t.TempDir(), "acme/widget", "main", 42, "tok-abc")
 	if err == nil {
-		t.Fatal("expected error on rejected subscription")
+		t.Fatal("expected error on connection-level disconnect")
 	}
 	if !strings.Contains(err.Error(), "local_mode feature") {
+		t.Fatalf("error = %q", err.Error())
+	}
+}
+
+func TestRunLocalWithReconnectPrintsUnderlyingErrorBeforeReconnecting(t *testing.T) {
+	srv := newLocalWSServer(t, func(conn *websocket.Conn) {
+		conn.WriteJSON(map[string]string{"type": "welcome"})
+		conn.ReadMessage() //nolint:errcheck
+		conn.WriteJSON(map[string]string{"type": "reject_subscription"})
+	})
+
+	var out strings.Builder
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	runLocalWithReconnect(ctx, &out, wsURL(t, srv), t.TempDir(), "acme/widget", "main", 42, "tok-abc") //nolint:errcheck
+
+	if !strings.Contains(out.String(), "pairing rejected") {
+		t.Fatalf("expected the underlying error to be printed, got %q", out.String())
+	}
+	if !strings.Contains(out.String(), "Reconnecting...") {
+		t.Fatalf("expected Reconnecting..., got %q", out.String())
+	}
+}
+
+func TestLocalCommandFailsWithoutChatOrToken(t *testing.T) {
+	command := NewRootCommand()
+	command.SetOut(&strings.Builder{})
+	command.SetErr(&strings.Builder{})
+	command.SetArgs([]string{"local", "--dir", t.TempDir()})
+
+	err := command.Execute()
+	if err == nil {
+		t.Fatal("expected error when --chat/--token are missing")
+	}
+	if !strings.Contains(err.Error(), "--chat and --token are required") {
 		t.Fatalf("error = %q", err.Error())
 	}
 }
@@ -454,7 +615,7 @@ func TestLocalCommandFailsWithoutCredentials(t *testing.T) {
 	command := NewRootCommand()
 	command.SetOut(&strings.Builder{})
 	command.SetErr(&strings.Builder{})
-	command.SetArgs([]string{"local", "--dir", t.TempDir()})
+	command.SetArgs([]string{"local", "--dir", t.TempDir(), "--chat", "42", "--token", "tok-abc"})
 
 	err := command.Execute()
 	if err == nil {

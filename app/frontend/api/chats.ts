@@ -819,6 +819,23 @@ export function cancelCodingCheckout(path: string) {
   return deleteJson<ChatPayload>(path)
 }
 
+export type LocalDaemonSession = {
+  id: number
+  chat_session_id: number
+  connected: boolean
+  daemon_repo: string | null
+  daemon_branch: string | null
+  last_heartbeat_at: string | null
+  auth_token?: string
+}
+
+// Creates (or reuses) the pairing session the `syrus local` CLI needs to
+// authenticate its Action Cable subscription; only this create response
+// carries the auth_token.
+export function createLocalDaemonSession(chatId: number | string) {
+  return postJson<{ daemon_session: LocalDaemonSession }>(`/api/v1/app/chats/${chatId}/local_daemon_session`)
+}
+
 
 export function clearChatHistory(path: string) {
   return deleteJson<ChatPayload>(path)
