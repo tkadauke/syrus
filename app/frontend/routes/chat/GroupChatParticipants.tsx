@@ -7,6 +7,7 @@ import { CloseIcon } from "../../components/CloseIcon"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { type ChatQueryKey } from "./constants"
+import { ParticipantAvatar } from "./ParticipantAvatar"
 import { ParticipantPickerModal } from "./ParticipantPicker"
 
 // Participant management for the chat header of a `conversation_kind: "group"`
@@ -39,12 +40,14 @@ export function GroupChatParticipants({ payload, prefix, queryKey, onNotice }: {
     setPickerSubmitting(true)
     setPickerError(null)
     try {
-      let latest = participants
+      // Apply each addition to the cache as it lands, not only once the
+      // whole batch succeeds — if a later id in the batch fails, everyone
+      // added before it still shows up immediately instead of waiting for
+      // the next `update_participants` broadcast.
       for (const userId of userIds) {
         const result = await addChatParticipant(payload.chat.id, userId)
-        latest = result.participants
+        applyParticipants(result.participants)
       }
-      applyParticipants(latest)
       setPickerOpen(false)
     } catch (error) {
       setPickerError(errorMessage(error, t("group_picker_add_error")))
@@ -110,19 +113,5 @@ export function GroupChatParticipants({ payload, prefix, queryKey, onNotice }: {
         />
       ) : null}
     </div>
-  )
-}
-
-function ParticipantAvatar({ avatarUrl, name }: { avatarUrl: string | null | undefined; name: string }) {
-  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "U"
-
-  if (avatarUrl) {
-    return <img alt="" className="h-5 w-5 shrink-0 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-700" src={avatarUrl} />
-  }
-
-  return (
-    <span aria-hidden="true" className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-200 text-[9px] font-semibold text-gray-500 dark:bg-gray-700 dark:text-gray-300">
-      {initials}
-    </span>
   )
 }

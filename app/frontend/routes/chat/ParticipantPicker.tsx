@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { fetchInvitableUsers, type InvitableUser } from "../../api/chats"
 import { CloseIcon } from "../../components/CloseIcon"
 import { useT } from "../../hooks/useT"
+import { ParticipantAvatar } from "./ParticipantAvatar"
 import { primaryButton, secondaryButton } from "./utils"
 
 // Reused for both entry points that need to pick Syrus users to add to a
@@ -106,7 +107,7 @@ export function ParticipantPickerModal({
                     type="button"
                   >
                     <input checked={selected} className="pointer-events-none h-4 w-4 rounded border-gray-300 text-blue-600 dark:border-gray-600" readOnly type="checkbox" />
-                    <PickerAvatar avatarUrl={user.avatar_url} name={user.name} />
+                    <ParticipantAvatar avatarUrl={user.avatar_url} name={user.name} size="md" />
                     <span className="min-w-0 truncate text-gray-900 dark:text-gray-100">{user.name}</span>
                   </button>
                 )
@@ -126,19 +127,5 @@ export function ParticipantPickerModal({
         {error ? <p className="px-4 pb-3 text-sm text-red-700 dark:text-red-300">{error}</p> : null}
       </section>
     </div>
-  )
-}
-
-function PickerAvatar({ avatarUrl, name }: { avatarUrl: string | null; name: string }) {
-  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "U"
-
-  if (avatarUrl) {
-    return <img alt="" className="h-6 w-6 shrink-0 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-700" src={avatarUrl} />
-  }
-
-  return (
-    <span aria-hidden="true" className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700">
-      {initials}
-    </span>
   )
 }
