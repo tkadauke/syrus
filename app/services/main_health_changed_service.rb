@@ -247,19 +247,21 @@ class MainHealthChangedService
     user = @repository.user
     return unless user
 
-    job = user.jobs.create!(
-      repository: @repository,
-      kind: "direct",
-      system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
-      issue_number: nil,
-      issue_title: FIX_MAIN_TITLE,
-      issue_body: fix_job_prompt,
-      agent_provider: @repository.effective_agent_provider,
-      priority: "urgent"
-    )
-    attach_repair_context!(job)
-    job.advance_after_triage! if job.may_advance_after_triage?
-    job
+    Job.transaction do
+      job = user.jobs.create!(
+        repository: @repository,
+        kind: "direct",
+        system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+        issue_number: nil,
+        issue_title: FIX_MAIN_TITLE,
+        issue_body: fix_job_prompt,
+        agent_provider: @repository.effective_agent_provider,
+        priority: "urgent"
+      )
+      attach_repair_context!(job)
+      job.advance_after_triage! if job.may_advance_after_triage?
+      job
+    end
   end
 
   def repair_jobs

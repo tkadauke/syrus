@@ -121,6 +121,16 @@ RSpec.describe MainHealthChangedService do
         )
       end
 
+      it "does not leave a triaging repair Job behind when workflow dispatch fails" do
+        allow(StepDispatcher).to receive(:start_workflow).and_raise(RuntimeError, "dispatch interrupted")
+
+        expect {
+          described_class.on_health_change!(repository)
+        }.to raise_error(RuntimeError, "dispatch interrupted")
+
+        expect(repository.jobs.where(system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR)).to be_empty
+      end
+
       it "does not spawn a fix Job when the broken health target is stale" do
         allow(github_client).to receive(:branch_head_sha).and_return("newer-default-branch-sha")
 

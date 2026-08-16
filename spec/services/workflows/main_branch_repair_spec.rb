@@ -85,6 +85,12 @@ RSpec.describe Workflows::MainBranchRepair do
         expect(repository.reload.grader_health).to eq("healthy")
       end
 
+      it "records last_graded_sha for the repaired main SHA" do
+        described_class.after_success(workflow)
+
+        expect(repository.reload.last_graded_sha).to eq("abc123def456")
+      end
+
       it "records a grader health check linked to the workflow" do
         described_class.after_success(workflow)
 
