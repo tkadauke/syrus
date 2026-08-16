@@ -1,4 +1,5 @@
 require "rails_helper"
+require "benchmark"
 
 RSpec.describe PerformanceLogging do
   let(:cache_store) { ActiveSupport::Cache::MemoryStore.new }
@@ -153,5 +154,73 @@ RSpec.describe PerformanceLogging do
 
     expect(described_class::Store.recent.size).to eq(3)
     expect(cache_store).not_to have_received(:write)
+  end
+
+  # Production pollers died with Regexp::TimeoutError raised out of
+  # instrumentation (PollInputSourceJob, PollExternalOpenPrsJob): safe_string
+  # collapsed whitespace across the *whole* value before truncating, so one
+  # oversized SQL statement made the regexp engine walk megabytes and took
+  # the surrounding job down with it.
+  #
+  # These assert the fix by bounding the work rather than by tripping
+  # Regexp.timeout — Ruby does not reliably check that timeout during simple
+  # character-class scans, so it cannot express the regression. Measured on
+  # this pattern: 20MB takes ~1.5s unbounded versus ~0.0002s bounded, so the
+  # threshold below sits far from both sides.
+  MAX_SAFE_STRING_SECONDS = 0.25
+
+  describe ".safe_string" do
+    it "does not scan beyond a bounded prefix of a huge value" do
+      giant = "a b " * 5_000_000
+      expect(giant.bytesize).to be > 19_000_000
+
+      elapsed = Benchmark.realtime { described_class.safe_string(giant, 600) }
+
+      expect(elapsed).to be < MAX_SAFE_STRING_SECONDS
+    end
+
+    it "truncates a huge value to the caller's limit" do
+      giant = "a b " * 5_000_000
+
+      expect(described_class.safe_string(giant, 600).bytesize).to be <= 600
+    end
+
+    it "still collapses whitespace and trims ordinary values" do
+      expect(described_class.safe_string("  SELECT\n\t*  FROM   jobs  ", 600)).to eq("SELECT * FROM jobs")
+    end
+
+    it "leaves values shorter than the limit untouched" do
+      expect(described_class.safe_string("SELECT 1", 600)).to eq("SELECT 1")
+    end
+
+    it "collapses runs of whitespace that fit inside the scan window" do
+      padded = "SELECT 1#{' ' * 1_000}FROM jobs"
+
+      expect(described_class.safe_string(padded, 600)).to eq("SELECT 1 FROM jobs")
+    end
+
+    # The headroom trades a little fidelity for a hard bound: a value padded
+    # with more whitespace than the scan window loses whatever follows it.
+    # These are instrumentation samples, not data, so a truncated sample beats
+    # an unbounded scan.
+    it "drops content past the scan window when padding exceeds it" do
+      padded = "SELECT 1#{' ' * 5_000}FROM jobs"
+
+      expect(described_class.safe_string(padded, 600)).to eq("SELECT 1")
+    end
+  end
+
+  describe ".fingerprint_sql" do
+    it "fingerprints an oversized statement without scanning all of it" do
+      giant = "SELECT * FROM jobs WHERE id IN (#{Array.new(2_000_000) { '1' }.join(', ')})"
+      expect(giant.bytesize).to be > 5_000_000
+
+      fingerprint = nil
+      elapsed = Benchmark.realtime { fingerprint = described_class.fingerprint_sql(giant) }
+
+      expect(elapsed).to be < MAX_SAFE_STRING_SECONDS
+      expect(fingerprint).to start_with("SELECT * FROM jobs WHERE id IN (?")
+      expect(fingerprint.bytesize).to be <= 1_000
+    end
   end
 end

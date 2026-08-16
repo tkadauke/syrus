@@ -10,6 +10,11 @@ module PerformanceLogging
   DEFAULT_SLOW_PHASE_MS = 250.0
   TOP_SQL_FINGERPRINT_LIMIT = Integer(ENV["SYRUS_PERFORMANCE_TOP_SQL_FINGERPRINT_LIMIT"], exception: false) || 8
   MAX_SQL_FINGERPRINTS_PER_REQUEST = Integer(ENV["SYRUS_PERFORMANCE_MAX_SQL_FINGERPRINTS_PER_REQUEST"], exception: false) || 25
+  # Multiple of a caller's byte limit that `safe_string` will scan before
+  # collapsing whitespace. Whitespace collapsing can only shrink a string,
+  # so the headroom keeps the post-collapse result full for realistic
+  # inputs while still bounding the regexp against pathological ones.
+  SAFE_STRING_SCAN_HEADROOM = 4
 
   module Store
     CACHE_KEY = "observability:performance_log_events"
@@ -342,8 +347,17 @@ module PerformanceLogging
       .safe_byteslice(0, 1_000)
   end
 
+  # Bound the input before any regexp touches it. Ruby applies a global
+  # Regexp timeout, and collapsing whitespace across a multi-megabyte
+  # string (a large `IN (...)` list, a bulk INSERT) blows through it —
+  # raising Regexp::TimeoutError out of instrumentation and killing the
+  # job being measured. Slice with headroom first so ordinary inputs
+  # collapse exactly as before, then trim to the caller's limit.
   def safe_string(value, limit)
-    value.to_s.gsub(/[[:space:]]+/, " ").strip.safe_byteslice(0, limit)
+    raw = value.to_s
+    scan_limit = limit * SAFE_STRING_SCAN_HEADROOM
+    raw = raw.safe_byteslice(0, scan_limit) if raw.bytesize > scan_limit
+    raw.gsub(/[[:space:]]+/, " ").strip.safe_byteslice(0, limit)
   end
 
   def safe_metadata(metadata)
