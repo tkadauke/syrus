@@ -216,7 +216,7 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
 
       if (action.kind === "discard") {
         const updated = await rejectChatProposal(appendSearch(action.path, search))
-        return { payload: updated, notice: "Proposal discarded" }
+        return { notice: updated.message || "Proposal discarded" }
       }
 
       if (action.kind === "job") {

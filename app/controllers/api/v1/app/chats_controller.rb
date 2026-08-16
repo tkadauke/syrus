@@ -793,7 +793,12 @@ module Api
           notify_agent_of_proposal_outcome(confirmation_message)
           broadcast_proposal_updated(chat_session, proposal.reload)
 
-          render json: chat_payload(chat_session.reload, message: proposal_confirmed_notice(proposal, result, epic_started: epic_started))
+          render json: proposal_action_payload(
+            chat_session,
+            proposal.reload,
+            confirmation_message,
+            message: proposal_confirmed_notice(proposal, result, epic_started: epic_started)
+          )
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         rescue ArgumentError => e
@@ -823,7 +828,7 @@ module Api
             )
             notify_agent_of_proposal_outcome(rejection_message)
             broadcast_proposal_updated(chat_session, proposal.reload)
-            render json: chat_payload(chat_session.reload, message: "Proposal rejected.")
+            render json: proposal_action_payload(chat_session, proposal.reload, rejection_message, message: "Proposal rejected.")
           else
             render_error("validation_failed", "Proposal is no longer proposed.", status: :unprocessable_content)
           end
@@ -1218,6 +1223,15 @@ module Api
             slug: proposal.slug,
             title: proposal.title,
             state: proposal.state
+          }
+        end
+
+        def proposal_action_payload(chat_session, proposal, system_message, message:)
+          repository = chat_session.repository
+          {
+            message: message,
+            proposal: ::App::ChatMessagePayload.proposal(proposal, chat_session: chat_session, repository: repository),
+            messages: ::App::ChatMessagePayload.messages([ system_message ], repository: repository)
           }
         end
 

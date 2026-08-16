@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { createPortal } from "react-dom"
 import "@excalidraw/excalidraw/index.css"
-import { confirmChatProposal, confirmPendingAction, rejectChatProposal, rejectPendingAction, searchChatEpics, searchChatJobs, searchChatProposals, updateChatProposal, type ChatEpicDependencySearchResult, type ChatJobDependencySearchResult, type ChatPendingAction, type ChatPendingActionInline, type ChatPayload, type ChatProposal, type ChatProposalChild, type ChatProposalDependency, type ChatProposalSearchResult } from "../../api/chats"
+import { confirmChatProposal, confirmPendingAction, rejectChatProposal, rejectPendingAction, searchChatEpics, searchChatJobs, searchChatProposals, updateChatProposal, type ChatEpicDependencySearchResult, type ChatJobDependencySearchResult, type ChatMessageItem, type ChatPendingAction, type ChatPendingActionInline, type ChatPayload, type ChatProposal, type ChatProposalChild, type ChatProposalDependency, type ChatProposalMutationPayload, type ChatProposalSearchResult } from "../../api/chats"
 import { fetchBootstrap } from "../../api/bootstrap"
 import { CloseIcon } from "../../components/CloseIcon"
 import { ConfirmDialog } from "../../components/ConfirmDialog"
@@ -303,7 +303,7 @@ export function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposa
       return input.action === "confirm" ? confirmChatProposal(path, { start: input.start }) : rejectChatProposal(path)
     },
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      queryClient.setQueryData(queryKey, (current: ChatPayload | undefined) => applyProposalActionResult(current, updated))
       onNotice(updated.message || null)
     }
   })
@@ -380,6 +380,33 @@ export function ProposalCard({ proposal, prefix, queryKey, onNotice }: { proposa
       {editingProposal ? <ProposalEditModal chatId={queryKey[1]} proposal={editingProposal} search={search} queryKey={queryKey} onClose={() => setEditingProposal(null)} onNotice={onNotice} /> : null}
     </>
   )
+}
+
+function applyProposalActionResult(current: ChatPayload | undefined, updated: ChatPayload | ChatProposalMutationPayload) {
+  if (isChatPayload(updated)) return updated
+  if (!current) return current
+
+  const proposal = updated.proposal || null
+  const messages = current.messages.map((message) => proposal ? replaceProposal(message, proposal) : message)
+  return { ...current, messages: appendMissingMessages(messages, updated.messages || []) }
+}
+
+function isChatPayload(payload: ChatPayload | ChatProposalMutationPayload): payload is ChatPayload {
+  return "chat" in payload && Array.isArray(payload.messages)
+}
+
+function replaceProposal(message: ChatMessageItem, proposal: ChatProposal) {
+  if (message.proposal?.id !== proposal.id) return message
+
+  return { ...message, proposal }
+}
+
+function appendMissingMessages(messages: ChatMessageItem[], additions: ChatMessageItem[]) {
+  if (additions.length === 0) return messages
+
+  const seen = new Set(messages.map((message) => message.id))
+  const missing = additions.filter((message) => !seen.has(message.id))
+  return missing.length > 0 ? [...messages, ...missing] : messages
 }
 
 function ProposalEditButton({ label, onClick }: { label: string; onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void }) {
@@ -610,7 +637,7 @@ function ProposalMeta({ proposal }: { proposal: ChatProposal }) {
   )
 }
 
-function ProposalChildren({ children, parentProposed, mutation, prefix, onEdit }: { children: ChatProposalChild[]; parentProposed: boolean; mutation: UseMutationResult<ChatPayload, Error, ProposalActionInput>; prefix: string; onEdit: (child: ChatProposalChild) => void }) {
+function ProposalChildren({ children, parentProposed, mutation, prefix, onEdit }: { children: ChatProposalChild[]; parentProposed: boolean; mutation: UseMutationResult<ChatPayload | ChatProposalMutationPayload, Error, ProposalActionInput>; prefix: string; onEdit: (child: ChatProposalChild) => void }) {
   if (children.length === 0) return null
   return (
     <div className="mt-4 divide-y divide-gray-100 rounded border border-gray-200 dark:divide-gray-800 dark:border-gray-700">
@@ -643,4 +670,3 @@ function ProposalChildren({ children, parentProposed, mutation, prefix, onEdit }
     </div>
   )
 }
-

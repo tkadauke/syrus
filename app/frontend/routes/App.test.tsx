@@ -13671,20 +13671,30 @@ describe("App", () => {
 
       if (path === `/api/v1/app/chats/8/proposals/5/confirm${search}` && init?.method === "POST") {
         return Promise.resolve(new Response(JSON.stringify({
-          ...initialPayload,
           message: "Proposal confirmed and filed as JOB-88.",
-          messages: [initialPayload.messages[0], {
-            ...proposalMessage,
-            proposal: {
-              ...proposalMessage.proposal,
-              proposed: false,
-              resolved: true,
-              state: "confirmed",
-              state_label: "Confirmed",
-              materialized_label: "JOB-88",
-              materialized_path: "/jobs/88",
-              materialized: { kind: "job", job_id: 88, job_title: "Map auth", job_state: "open" }
-            }
+          proposal: {
+            ...proposalMessage.proposal,
+            proposed: false,
+            resolved: true,
+            state: "confirmed",
+            state_label: "Confirmed",
+            materialized_label: "JOB-88",
+            materialized_path: "/jobs/88",
+            materialized: { kind: "job", job_id: 88, job_title: "Map auth", job_state: "open" }
+          },
+          messages: [{
+            type: "message",
+            id: 88,
+            role: "system",
+            content: {
+              text: 'Proposal confirmed. JOB-88 "Map auth" was created.',
+              source: "proposal_notification",
+              outcome: "confirmed",
+              acknowledgment: "Confirmed JOB-88."
+            },
+            text: 'Proposal confirmed. JOB-88 "Map auth" was created.',
+            bookmarkable: false,
+            created_at: "2026-05-30T11:05:00Z"
           }]
         }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }

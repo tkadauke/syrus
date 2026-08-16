@@ -539,6 +539,12 @@ export type ChatPayload = {
   local_tunnel_connected: boolean
 }
 
+export type ChatProposalMutationPayload = {
+  message?: string | null
+  proposal?: ChatProposal | null
+  messages?: ChatMessageItem[]
+}
+
 export type ChatContextPayload = Pick<ChatPayload, "attachment_groups" | "documents_in_scope" | "attachment_results">
 
 export type ChatSpeechToTextCapability = {
@@ -860,11 +866,11 @@ export function deleteChatAttachment(path: string) {
 // `start: true` asks the server to also move a materialized Epic to
 // In progress and dispatch its ready child Jobs right after confirming.
 export function confirmChatProposal(path: string, options: { start?: boolean } = {}) {
-  return postJson<ChatPayload>(path, options.start ? { start: true } : undefined)
+  return postJson<ChatPayload | ChatProposalMutationPayload>(path, options.start ? { start: true } : undefined)
 }
 
 export function rejectChatProposal(path: string) {
-  return postJson<ChatPayload>(path)
+  return postJson<ChatPayload | ChatProposalMutationPayload>(path)
 }
 
 export function updateChatProposal(path: string, values: ChatProposalUpdateInput) {
