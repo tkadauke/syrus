@@ -50,6 +50,9 @@ export type BrowserTraceSummary = {
   max_duration_ms: number | null
   average_api_duration_ms: number | null
   max_api_duration_ms: number | null
+  average_span_duration_ms?: number | null
+  max_span_duration_ms?: number | null
+  recent_spans?: BrowserTraceSpan[] | null
   recent_api_request_ids: string[]
   last_seen_at: string | null
   recent_metadata?: Record<string, unknown> | null
@@ -72,6 +75,13 @@ export type RequestSqlFingerprint = {
   count?: number | null
   total_duration_ms?: number | null
   max_duration_ms?: number | null
+}
+
+export type BrowserTraceSpan = {
+  name?: string | null
+  duration_ms?: number | null
+  started_at_ms?: number | null
+  metadata?: Record<string, unknown> | null
 }
 
 export type PerformanceComparison = {
@@ -115,6 +125,7 @@ export type PerformanceEvent = {
     duration_ms?: number | null
     status?: number | null
   }> | null
+  spans?: BrowserTraceSpan[] | null
 }
 
 export type AdminPerformancePayload = {

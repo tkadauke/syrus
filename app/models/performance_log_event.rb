@@ -69,6 +69,7 @@ class PerformanceLogEvent < ApplicationRecord
       "visibility_state" => attrs["visibility_state"],
       "metadata" => compact_metadata(attrs["metadata"]),
       "api_requests" => compact_api_requests(attrs["api_requests"]),
+      "spans" => compact_browser_spans(attrs["spans"]),
       "top_sql_fingerprints" => compact_top_sql_fingerprints(attrs["top_sql_fingerprints"])
     }.compact_blank
   end
@@ -88,6 +89,18 @@ class PerformanceLogEvent < ApplicationRecord
         "request_id" => attrs["request_id"].to_s.safe_byteslice(0, 100),
         "duration_ms" => attrs["duration_ms"],
         "status" => attrs["status"]
+      }.compact_blank
+    end.presence
+  end
+
+  def self.compact_browser_spans(value)
+    Array(value).first(20).filter_map do |entry|
+      attrs = entry.to_h
+      {
+        "name" => attrs["name"].to_s.safe_byteslice(0, 100),
+        "duration_ms" => attrs["duration_ms"],
+        "started_at_ms" => attrs["started_at_ms"],
+        "metadata" => compact_metadata(attrs["metadata"])
       }.compact_blank
     end.presence
   end

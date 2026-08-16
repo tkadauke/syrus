@@ -9,6 +9,13 @@ export type BrowserTraceApiRequest = {
   status: number
 }
 
+export type BrowserTraceSpan = {
+  name: string
+  duration_ms: number
+  started_at_ms?: number | null
+  metadata?: Record<string, unknown>
+}
+
 export type BrowserTracePayload = {
   trace_id: string
   name: string
@@ -17,6 +24,7 @@ export type BrowserTracePayload = {
   visibility_state: string
   metadata?: Record<string, unknown>
   api_requests?: BrowserTraceApiRequest[]
+  spans?: BrowserTraceSpan[]
 }
 
 type BrowserObserverOptions = {

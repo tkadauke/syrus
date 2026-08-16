@@ -61,8 +61,10 @@ function PerformanceView({ payload }: { payload: AdminPerformancePayload }) {
   const [activeTab, setActiveTab] = useState<PerformanceTab>("overview")
   const [explainSqlText, setExplainSqlText] = useState<string | null>(null)
   const [requestDetail, setRequestDetail] = useState<SlowRequestSummary | null>(null)
+  const [browserDetail, setBrowserDetail] = useState<BrowserTraceSummary | null>(null)
   const openExplain = (sql: string) => {
     setRequestDetail(null)
+    setBrowserDetail(null)
     setExplainSqlText(sql)
   }
 
@@ -92,18 +94,19 @@ function PerformanceView({ payload }: { payload: AdminPerformancePayload }) {
       {activeTab === "overview" ? (
         <>
           <RegressionTable payload={payload} />
-          <BrowserTracesTable rows={(payload.summaries.browser_traces ?? []).slice(0, OVERVIEW_ROW_LIMIT)} />
+          <BrowserTracesTable onInspect={setBrowserDetail} rows={(payload.summaries.browser_traces ?? []).slice(0, OVERVIEW_ROW_LIMIT)} />
           <SlowRequestsTable onInspect={setRequestDetail} rows={payload.summaries.slow_requests.slice(0, OVERVIEW_ROW_LIMIT)} />
           <SqlFingerprintsTable onExplain={openExplain} rows={payload.summaries.sql_fingerprints.slice(0, OVERVIEW_ROW_LIMIT)} />
           <SlowPhasesTable rows={payload.summaries.slow_phases.slice(0, OVERVIEW_ROW_LIMIT)} />
         </>
       ) : null}
-      {activeTab === "browser" ? <BrowserTracesTable rows={payload.summaries.browser_traces ?? []} /> : null}
+      {activeTab === "browser" ? <BrowserTracesTable onInspect={setBrowserDetail} rows={payload.summaries.browser_traces ?? []} /> : null}
       {activeTab === "requests" ? <SlowRequestsTable onInspect={setRequestDetail} rows={payload.summaries.slow_requests} /> : null}
       {activeTab === "sql" ? <SqlFingerprintsTable onExplain={openExplain} rows={payload.summaries.sql_fingerprints} /> : null}
       {activeTab === "phases" ? <SlowPhasesTable rows={payload.summaries.slow_phases} /> : null}
       {activeTab === "events" ? <EventsTable rows={payload.events} /> : null}
       {requestDetail ? <SlowRequestSqlModal events={payload.events} onClose={() => setRequestDetail(null)} onExplain={openExplain} request={requestDetail} /> : null}
+      {browserDetail ? <BrowserTraceModal events={payload.events} onClose={() => setBrowserDetail(null)} trace={browserDetail} /> : null}
       {explainSqlText ? <SqlExplainModal initialSql={explainSqlText} onClose={() => setExplainSqlText(null)} /> : null}
     </div>
   )
@@ -378,7 +381,7 @@ function SlowPhasesTable({ rows }: { rows: SlowPhaseSummary[] }) {
   )
 }
 
-function BrowserTracesTable({ rows }: { rows: BrowserTraceSummary[] }) {
+function BrowserTracesTable({ onInspect, rows }: { onInspect: (row: BrowserTraceSummary) => void; rows: BrowserTraceSummary[] }) {
   const { t } = useT("syrus_dev")
   return (
     <TableSection empty={t("performance.no_browser_traces")} rowCount={rows.length} title={t("performance.browser_traces")}>
@@ -392,8 +395,10 @@ function BrowserTracesTable({ rows }: { rows: BrowserTraceSummary[] }) {
             <th className="px-4 py-2 text-right">{t("performance.col_browser_max")}</th>
             <th className="px-4 py-2 text-right">{t("performance.col_backend_api")}</th>
             <th className="px-4 py-2 text-right">{t("performance.col_frontend_overhead")}</th>
+            <th className="px-4 py-2 text-right">{t("performance.col_spans")}</th>
             <th className="px-4 py-2">{t("performance.col_request_ids")}</th>
             <th className="px-4 py-2">{t("performance.col_last_seen")}</th>
+            <th className="px-4 py-2 text-right">{t("performance.col_actions")}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -409,15 +414,91 @@ function BrowserTracesTable({ rows }: { rows: BrowserTraceSummary[] }) {
               <NumberCell value={formatMs(row.max_duration_ms)} />
               <NumberCell value={`${formatMs(row.average_api_duration_ms)} / ${formatMs(row.max_api_duration_ms)}`} />
               <NumberCell value={`${formatMs(frontendOverhead(row.average_duration_ms, row.average_api_duration_ms))} / ${formatMs(frontendOverhead(row.max_duration_ms, row.max_api_duration_ms))}`} />
+              <NumberCell value={`${formatMs(row.average_span_duration_ms)} / ${formatMs(row.max_span_duration_ms)}`} />
               <td className="max-w-md px-4 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">
                 <div className="truncate" title={row.recent_api_request_ids.join(", ")}>{row.recent_api_request_ids.join(", ") || "-"}</div>
               </td>
               <td className="whitespace-nowrap px-4 py-2 text-xs text-gray-600 dark:text-gray-300">{formatDate(row.last_seen_at)}</td>
+              <td className="whitespace-nowrap px-4 py-2 text-right">
+                <button aria-label={t("performance.browser_trace_details_action", { name: row.name })} className={smallActionClass()} onClick={() => onInspect(row)} type="button">
+                  {t("performance.details")}
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
     </TableSection>
+  )
+}
+
+function BrowserTraceModal({ events, onClose, trace }: { events: PerformanceEvent[]; onClose: () => void; trace: BrowserTraceSummary }) {
+  const { t } = useT("syrus_dev")
+  const traceEvents = events
+    .filter((event) => event.event === "syrus.performance.browser_trace")
+    .filter((event) => event.name === trace.name && event.path === trace.path)
+    .sort((a, b) => (b.occurred_at ?? "").localeCompare(a.occurred_at ?? ""))
+
+  return (
+    <div aria-label={t("performance.browser_trace_modal_aria")} aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog">
+      <section className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-950">
+        <header className="flex items-start justify-between gap-4 border-b border-gray-200 px-5 py-4 dark:border-gray-700">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t("performance.browser_trace_heading")}</h2>
+            <p className="mt-1 truncate font-mono text-sm text-gray-600 dark:text-gray-300" title={trace.path ?? undefined}>{trace.name} · {trace.path ?? "-"}</p>
+          </div>
+          <button className={secondaryActionClass()} onClick={onClose} type="button">
+            {t("performance.close")}
+          </button>
+        </header>
+        <div className="border-b border-gray-200 px-5 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
+          {t("performance.browser_trace_help")}
+        </div>
+        <div className="min-h-0 flex-1 space-y-4 overflow-auto p-5">
+          {traceEvents.length > 0 ? traceEvents.map((event, index) => (
+            <article className="overflow-hidden rounded border border-gray-200 dark:border-gray-700" key={`${event.trace_id ?? event.occurred_at}-${index}`}>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                <div className="font-mono">{event.trace_id || t("performance.trace_without_id")}</div>
+                <div>{formatDate(event.occurred_at)} · {formatMs(event.duration_ms)}</div>
+              </div>
+              <BrowserTraceDetailTables event={event} />
+            </article>
+          )) : <PanelMessage>{t("performance.browser_trace_no_events")}</PanelMessage>}
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function BrowserTraceDetailTables({ event }: { event: PerformanceEvent }) {
+  const { t } = useT("syrus_dev")
+  return (
+    <div className="space-y-4 p-4">
+      <div>
+        <h3 className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("performance.browser_trace_spans")}</h3>
+        <SimpleRowsTable
+          empty={t("performance.browser_trace_no_spans")}
+          rows={(event.spans ?? []).map((span) => ({
+            [t("performance.col_name")]: span.name || "-",
+            [t("performance.col_duration")]: formatMs(span.duration_ms),
+            [t("performance.col_metadata")]: compactJson(span.metadata)
+          }))}
+        />
+      </div>
+      <div>
+        <h3 className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("performance.browser_trace_api")}</h3>
+        <SimpleRowsTable
+          empty={t("performance.browser_trace_no_api")}
+          rows={(event.api_requests ?? []).map((request) => ({
+            [t("performance.col_name")]: request.name || "-",
+            [t("performance.col_request")]: request.path || "-",
+            [t("performance.col_request_ids")]: request.request_id || "-",
+            [t("performance.col_duration")]: formatMs(request.duration_ms),
+            [t("performance.col_status")]: request.status ?? "-"
+          }))}
+        />
+      </div>
+    </div>
   )
 }
 
@@ -832,6 +913,28 @@ function TableSection({ children, empty, rowCount, title }: { children: ReactNod
       <div className="border-b border-gray-200 px-4 py-3 text-sm font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100">{title}</div>
       {rowCount > 0 ? <div className="overflow-x-auto">{children}</div> : <PanelMessage>{empty}</PanelMessage>}
     </section>
+  )
+}
+
+function SimpleRowsTable({ empty, rows }: { empty: string; rows: Array<Record<string, ReactNode>> }) {
+  const columns = Array.from(new Set(rows.flatMap((row) => Object.keys(row))))
+  if (rows.length === 0 || columns.length === 0) return <PanelMessage>{empty}</PanelMessage>
+
+  return (
+    <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
+      <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
+        <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+          <tr>{columns.map((column) => <th className="px-4 py-2" key={column}>{column}</th>)}</tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+          {rows.map((row, index) => (
+            <tr key={index}>
+              {columns.map((column) => <td className="max-w-3xl break-words px-4 py-2 font-mono text-xs text-gray-700 dark:text-gray-200" key={column}>{row[column]}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 

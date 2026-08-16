@@ -234,6 +234,8 @@ module SyrusDev
         durations = rows.map { |event| event["duration_ms"].to_f }
         api_requests = rows.flat_map { |event| Array(event["api_requests"]) }
         api_durations = api_requests.map { |request| request["duration_ms"].to_f }
+        spans = rows.flat_map { |event| Array(event["spans"]) }
+        span_durations = spans.map { |span| span["duration_ms"].to_f }
         {
           name: name,
           path: path,
@@ -243,6 +245,9 @@ module SyrusDev
           max_duration_ms: durations.max&.round(1),
           average_api_duration_ms: average(api_durations),
           max_api_duration_ms: api_durations.max&.round(1),
+          average_span_duration_ms: average(span_durations),
+          max_span_duration_ms: span_durations.max&.round(1),
+          recent_spans: spans.first(8),
           recent_api_request_ids: api_requests.filter_map { |request| request["request_id"] }.first(6),
           recent_metadata: rows.first["metadata"],
           last_seen_at: rows.map { |event| event["occurred_at"] }.compact.max

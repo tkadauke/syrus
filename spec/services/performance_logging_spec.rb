@@ -171,6 +171,34 @@ RSpec.describe PerformanceLogging do
     )
   end
 
+  it "records browser trace spans" do
+    Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+    Current.reset
+
+    described_class.record_browser_trace(
+      trace_id: "trace-dashboard",
+      name: "dashboard.route",
+      path: "/dashboard/jobs",
+      duration_ms: 350.0,
+      visibility_state: "visible",
+      spans: [
+        { name: "api.dashboard.rows", duration_ms: 120.25, started_at_ms: 10.0 },
+        { name: "frontend.after_api", duration_ms: 229.75, metadata: { api_request_count: 1 } }
+      ]
+    )
+
+    event = described_class::Store.recent.first
+    expect(event).to include(
+      "event" => "syrus.performance.browser_trace",
+      "trace_id" => "trace-dashboard",
+      "name" => "dashboard.route"
+    )
+    expect(event["spans"]).to eq([
+      { "name" => "api.dashboard.rows", "duration_ms" => 120.3, "started_at_ms" => 10.0 },
+      { "name" => "frontend.after_api", "duration_ms" => 229.8, "metadata" => { "api_request_count" => "1" } }
+    ])
+  end
+
   it "does not flush the admin buffer to Rails.cache on every event" do
     Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
     Current.reset

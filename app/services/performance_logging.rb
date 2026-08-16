@@ -188,6 +188,7 @@ module PerformanceLogging
       "path" => safe_string(attrs[:path] || attrs["path"], 500),
       "visibility_state" => safe_string(attrs[:visibility_state] || attrs["visibility_state"], 50),
       "api_requests" => safe_api_requests(attrs[:api_requests] || attrs["api_requests"]),
+      "spans" => safe_browser_spans(attrs[:spans] || attrs["spans"]),
       "metadata" => safe_metadata(attrs[:metadata] || attrs["metadata"] || {})
     ).compact
     emit(event, flush: false)
@@ -414,6 +415,21 @@ module PerformanceLogging
         "request_id" => safe_string(values[:request_id] || values["request_id"], 100),
         "duration_ms" => rounded_duration(values[:duration_ms] || values["duration_ms"]),
         "status" => Integer(values[:status] || values["status"], exception: false)
+      }.compact_blank
+    end
+  end
+
+  def safe_browser_spans(spans)
+    Array(spans).first(20).filter_map do |entry|
+      values = entry.to_h
+      duration_ms = rounded_duration(values[:duration_ms] || values["duration_ms"])
+      next if duration_ms.nil?
+
+      {
+        "name" => safe_string(values[:name] || values["name"], 100),
+        "duration_ms" => duration_ms,
+        "started_at_ms" => rounded_duration(values[:started_at_ms] || values["started_at_ms"]),
+        "metadata" => safe_metadata(values[:metadata] || values["metadata"] || {})
       }.compact_blank
     end
   end

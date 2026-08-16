@@ -17,7 +17,8 @@ module Api
             :duration_ms,
             :visibility_state,
             metadata: {},
-            api_requests: %i[name path request_id duration_ms status]
+            api_requests: %i[name path request_id duration_ms status],
+            spans: [ :name, :duration_ms, :started_at_ms, { metadata: {} } ]
           )
         end
       end

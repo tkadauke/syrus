@@ -24,7 +24,7 @@ import { dashboardApiSearch, dashboardChromeSearch, fetchDashboardChromeWithMeta
 import type { JsonResponseMeta } from "../api/client"
 import { TopoDepGraph } from "../components/TopoDepGraph"
 import { errorMessage } from "../lib/errorMessage"
-import { apiRequestTrace, browserTraceId, recordBrowserTrace } from "../lib/performanceTrace"
+import { apiRequestTrace, browserTraceId, recordBrowserTrace, type BrowserTraceSpan } from "../lib/performanceTrace"
 
 export function DashboardRoute() {
   const { t } = useT("dashboard")
@@ -95,11 +95,17 @@ export function DashboardRoute() {
 }
 
 function recordDashboardBrowserTrace({ chromeMeta, loggingEnabled, payload, rowsMeta, startedAt, traceId, tracePath }: { chromeMeta: JsonResponseMeta | null; loggingEnabled: boolean; payload: DashboardPayload; rowsMeta: JsonResponseMeta | null; startedAt: number; traceId: string; tracePath: string }) {
+  const totalDuration = Math.max(0, performance.now() - startedAt)
+  const apiRequests = [
+    apiRequestTrace("dashboard.chrome", sanitizedDashboardRequestMeta(chromeMeta)),
+    apiRequestTrace("dashboard.rows", sanitizedDashboardRequestMeta(rowsMeta))
+  ].filter((request): request is NonNullable<typeof request> => request != null)
+  const apiDuration = apiRequests.reduce((sum, request) => sum + request.duration_ms, 0)
   recordBrowserTrace({
     trace_id: traceId,
     name: "dashboard.route",
     path: tracePath,
-    duration_ms: Math.max(0, performance.now() - startedAt),
+    duration_ms: totalDuration,
     visibility_state: document.visibilityState || "unknown",
     metadata: {
       subject: payload.subject,
@@ -110,11 +116,22 @@ function recordDashboardBrowserTrace({ chromeMeta, loggingEnabled, payload, rows
       total_estimated: payload.total_estimated === true,
       smart_folder_id: payload.active_smart_folder_id
     },
-    api_requests: [
-      apiRequestTrace("dashboard.chrome", sanitizedDashboardRequestMeta(chromeMeta)),
-      apiRequestTrace("dashboard.rows", sanitizedDashboardRequestMeta(rowsMeta))
-    ].filter((request): request is NonNullable<typeof request> => request != null)
+    api_requests: apiRequests,
+    spans: dashboardTraceSpans({ apiRequests, apiDuration, totalDuration })
   }, { enabled: loggingEnabled })
+}
+
+function dashboardTraceSpans({ apiDuration, apiRequests, totalDuration }: { apiDuration: number; apiRequests: Array<{ name: string; duration_ms: number }>; totalDuration: number }): BrowserTraceSpan[] {
+  const spans = apiRequests.map((request) => ({
+    name: `api.${request.name}`,
+    duration_ms: request.duration_ms
+  }))
+  spans.push({
+    name: "frontend.after_api",
+    duration_ms: Math.max(0, Math.round((totalDuration - apiDuration) * 10) / 10),
+    metadata: { api_request_count: apiRequests.length }
+  })
+  return spans
 }
 
 function dashboardTracePath(pathname: string, rawSearch: string): string {
