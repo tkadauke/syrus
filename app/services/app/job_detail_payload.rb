@@ -49,6 +49,7 @@ module App
           epic_dependency_target_options: [],
           attachments: PerformanceLogging.phase("job_detail.attachments", job_id: @job.id) { @job.job_attachments.includes(file_attachment: :blob).map { |attachment| attachment_json(attachment) } },
           typed_artifacts: PerformanceLogging.phase("job_detail.typed_artifacts", job_id: @job.id) { typed_artifacts_json },
+          coverage: PerformanceLogging.phase("job_detail.coverage", job_id: @job.id) { latest_coverage_json },
           summary: PerformanceLogging.phase("job_detail.summary", job_id: @job.id) { summary_json },
           test_plan: PerformanceLogging.phase("job_detail.test_plan", job_id: @job.id) { test_plan_json },
           has_test_results: PerformanceLogging.phase("job_detail.has_test_results", job_id: @job.id) { has_test_results? },
@@ -56,7 +57,7 @@ module App
           pending_feedback: PerformanceLogging.phase("job_detail.pending_feedback", job_id: @job.id) { pending_feedback_json },
           landing_queue_entry: PerformanceLogging.phase("job_detail.landing_queue_entry", job_id: @job.id) { landing_queue_entry_json },
           preview: PerformanceLogging.phase("job_detail.preview", job_id: @job.id) { preview_env_json },
-          workflows: PerformanceLogging.phase("job_detail.workflows", job_id: @job.id, page: workflows_page) { workflows_json },
+          workflows: [],
           workflows_pagination: PerformanceLogging.phase("job_detail.workflows_pagination", job_id: @job.id) { workflows_pagination_json },
           feature_flags: feature_flags_json,
           actions: PerformanceLogging.phase("job_detail.actions", job_id: @job.id) { actions_json },
@@ -326,7 +327,7 @@ module App
     end
 
     def no_pr_reason_json
-      @job.workflows
+      artifact_workflows
           .select { |workflow| workflow.artifacts.is_a?(Hash) && workflow.artifacts["no_pr_reason"].is_a?(Hash) }
           .max_by(&:created_at)
           &.artifacts
@@ -359,17 +360,15 @@ module App
       # Collect typed artifacts from all workflows, deduplicating by type and
       # keeping the most recent entry (by workflow created_at) for each type.
       latest_by_type = {}
-      @job.workflows
-        .sort_by { |wf| wf.created_at || Time.at(0) }
-        .each do |wf|
-          next unless wf.artifacts.is_a?(Hash)
+      artifact_workflows.each do |wf|
+        next unless wf.artifacts.is_a?(Hash)
 
-          Array(wf.artifact("typed_artifacts")).each do |entry|
-            next unless entry.is_a?(Hash) && entry["type"].present?
+        Array(wf.artifact("typed_artifacts")).each do |entry|
+          next unless entry.is_a?(Hash) && entry["type"].present?
 
-            latest_by_type[entry["type"]] = entry
-          end
+          latest_by_type[entry["type"]] = entry
         end
+      end
 
       latest_by_type.values.map do |entry|
         {
@@ -380,6 +379,24 @@ module App
           renderer_type: renderer_map[entry["type"]]
         }
       end
+    end
+
+    def latest_coverage_json
+      entry = artifact_workflows.filter_map do |workflow|
+        next unless workflow.artifacts.is_a?(Hash)
+
+        coverage = workflow.artifact("coverage")
+        next unless coverage.is_a?(Hash)
+
+        [ workflow, coverage ]
+      end.max_by { |workflow, _coverage| [ workflow.created_at || Time.zone.at(0), workflow.id ] }
+      return unless entry
+
+      workflow, coverage = entry
+      {
+        workflow_id: workflow.id,
+        coverage: coverage_artifact_json(coverage)
+      }
     end
 
     def summary_json
@@ -406,7 +423,7 @@ module App
     end
 
     def test_plan_json
-      entry = @job.workflows.to_a.filter_map do |workflow|
+      entry = artifact_workflows.filter_map do |workflow|
         next unless workflow.succeeded?
         next unless workflow.artifacts.is_a?(Hash)
 
@@ -430,7 +447,7 @@ module App
     end
 
     def latest_canonical_metadata_entry
-      @job.workflows.to_a.filter_map do |workflow|
+      artifact_workflows.filter_map do |workflow|
         next unless workflow.succeeded?
 
         metadata = workflow.artifact("job_metadata")
@@ -496,9 +513,8 @@ module App
     end
 
     def feedback_history_json
-      @job.workflows
+      artifact_workflows
         .select { |workflow| Workflow::TriggerKind.feedback_kind_for(workflow.trigger_kind) }
-        .sort_by { |workflow| workflow.created_at || Time.at(0) }
         .filter_map do |workflow|
           feedback_entry_for(workflow)
         end
@@ -511,7 +527,12 @@ module App
         return unless body.present?
 
         source = workflow.artifacts&.dig("feedback_source")
-        { kind: "chat_feedback", body: body, created_at: iso8601(workflow.created_at), state: workflow.state, feedback_source: source }
+        feedback_history_entry_json(
+          workflow,
+          kind: "chat_feedback",
+          body: body,
+          feedback_source: source
+        )
       when :pr_comment
         comments = Array(workflow.artifacts&.dig("pr_comments"))
         return if comments.empty?
@@ -521,8 +542,33 @@ module App
           "#{author}#{comment["body"]}"
         end.join("\n\n")
 
-        { kind: "pr_comment", body: body, created_at: iso8601(workflow.created_at), state: workflow.state, feedback_source: nil }
+        feedback_history_entry_json(
+          workflow,
+          kind: "pr_comment",
+          body: body,
+          feedback_source: nil
+        )
       end
+    end
+
+    def feedback_history_entry_json(workflow, kind:, body:, feedback_source:)
+      {
+        kind: kind,
+        body: body,
+        created_at: iso8601(workflow.created_at),
+        state: workflow.state,
+        feedback_source: feedback_source,
+        workflow_id: workflow.id,
+        workflow_slug: workflow.slug,
+        workflow_path: "#{job_path(@job)}?tab=workflows#workflow-#{workflow.id}"
+      }
+    end
+
+    def artifact_workflows
+      @artifact_workflows ||= @job.workflows
+        .select(:id, :job_id, :trigger_kind, :state, :artifacts, :created_at, :finished_at)
+        .reorder(created_at: :asc, id: :asc)
+        .to_a
     end
 
     def actions_json

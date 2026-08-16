@@ -14,6 +14,10 @@ RSpec.describe "typed artifacts in job detail payload" do
     App::JobDetailPayload.build(job: job, user: user)
   end
 
+  def workflows_payload_for(job, user)
+    App::JobDetailPayload.workflows(job: job, user: user)
+  end
+
   it "injects renderer_type for rails_schema_erd artifacts using the registered plugin" do
     Syrus::PluginRegistry.register(
       name:    "syrus-rails",
@@ -36,12 +40,11 @@ RSpec.describe "typed artifacts in job detail payload" do
       server_context: { run: run }
     )
 
-    workflows = payload_for(job, job.user)[:workflows]
-    typed = workflows.flat_map { |w| (w[:artifacts] || {}).fetch("typed_artifacts", []) }
+    typed = payload_for(job, job.user)[:typed_artifacts]
 
-    erd_entry = typed.find { |e| e["type"] == "rails_schema_erd" }
+    erd_entry = typed.find { |entry| entry[:type] == "rails_schema_erd" }
     expect(erd_entry).to be_present
-    expect(erd_entry["renderer_type"]).to eq("erd_diagram")
+    expect(erd_entry[:renderer_type]).to eq("erd_diagram")
   end
 
   it "injects renderer_type for rails_migration_diff artifacts" do
@@ -61,12 +64,11 @@ RSpec.describe "typed artifacts in job detail payload" do
       server_context: { run: run }
     )
 
-    workflows = payload_for(job, job.user)[:workflows]
-    typed = workflows.flat_map { |w| (w[:artifacts] || {}).fetch("typed_artifacts", []) }
+    typed = payload_for(job, job.user)[:typed_artifacts]
 
-    diff_entry = typed.find { |e| e["type"] == "rails_migration_diff" }
+    diff_entry = typed.find { |entry| entry[:type] == "rails_migration_diff" }
     expect(diff_entry).to be_present
-    expect(diff_entry["renderer_type"]).to eq("migration_diff")
+    expect(diff_entry[:renderer_type]).to eq("migration_diff")
   end
 
   it "passes through artifacts with no registered renderer without renderer_type" do
@@ -80,12 +82,11 @@ RSpec.describe "typed artifacts in job detail payload" do
       server_context: { run: run }
     )
 
-    workflows = payload_for(job, job.user)[:workflows]
-    typed = workflows.flat_map { |w| (w[:artifacts] || {}).fetch("typed_artifacts", []) }
+    typed = payload_for(job, job.user)[:typed_artifacts]
 
-    custom_entry = typed.find { |e| e["type"] == "custom_artifact" }
+    custom_entry = typed.find { |entry| entry[:type] == "custom_artifact" }
     expect(custom_entry).to be_present
-    expect(custom_entry).not_to have_key("renderer_type")
+    expect(custom_entry[:renderer_type]).to be_nil
   end
 
   it "does not modify workflows without typed_artifacts" do
@@ -99,7 +100,7 @@ RSpec.describe "typed artifacts in job detail payload" do
       artifacts: { "test_plan" => { "steps" => [ "Run tests" ] } }
     )
 
-    workflows = payload_for(job, job.user)[:workflows]
+    workflows = workflows_payload_for(job, job.user)[:workflows]
     non_typed = workflows.find { |w| w[:artifacts].is_a?(Hash) && !w[:artifacts].key?("typed_artifacts") }
     expect(non_typed).to be_present
     expect(non_typed[:artifacts]).to eq({ "test_plan" => { "steps" => [ "Run tests" ] } })

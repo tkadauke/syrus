@@ -714,9 +714,11 @@ export type JobDetailPayload = {
   epic_dependency_target_options: Array<{ label: string; value: number }>
   attachments: JobAttachment[]
   typed_artifacts: TypedArtifact[]
+  coverage: { workflow_id: number; coverage: CoverageArtifact } | null
   summary: JobSummary | null
   test_plan: JobTestPlan | null
   has_test_results: boolean
+  feedback_history: JobFeedbackHistoryEntry[]
   pending_feedback?: PendingFeedbackComment[]
   landing_queue_entry: JobLandingQueueEntry | null
   preview: PreviewEnvironmentRecord | null
@@ -726,6 +728,17 @@ export type JobDetailPayload = {
   feature_flags?: Record<string, boolean>
   actions: JobActions
   paths: JobPaths
+}
+
+export type JobFeedbackHistoryEntry = {
+  kind: "chat_feedback" | "pr_comment" | "external_pr_feedback"
+  body: string
+  created_at: string | null
+  state: string
+  feedback_source: string | null
+  workflow_id?: number
+  workflow_slug?: string
+  workflow_path?: string
 }
 
 export type JobDeploymentStage = {

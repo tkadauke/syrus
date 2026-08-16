@@ -343,6 +343,11 @@ RSpec.describe "App API job detail", type: :request do
     expect(body.dig("paths", "app_claim_path")).to eq("/api/v1/app/jobs/#{job.id}/claim")
     expect(body.dig("paths", "app_source_path")).to eq("/api/v1/app/jobs/#{job.id}/source")
     expect(body.dig("paths", "app_timeline_path")).to eq("/api/v1/app/jobs/#{job.id}/timeline")
+    expect(body["workflows"]).to eq([])
+
+    get "/api/v1/app/jobs/#{job.id}/workflows"
+    expect(response).to have_http_status(:ok)
+    body = parse_body
 
     workflow = body["workflows"].first
     expect(workflow).to include("trigger_kind" => "initial")
@@ -394,6 +399,15 @@ RSpec.describe "App API job detail", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("job", "total_cost_usd")).to eq(0.34)
+  end
+
+  it "omits the heavyweight workflow graph from the default job detail payload" do
+    get "/api/v1/app/jobs/#{job.id}"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body["workflows"]).to eq([])
+    expect(body.dig("workflows_pagination", "total_workflows")).to eq(job.workflows.count)
   end
 
   it "returns a workflow-only job detail payload for live workflow refreshes" do
@@ -521,7 +535,7 @@ RSpec.describe "App API job detail", type: :request do
     expect(job.reload.claimed_by_user).to eq(teammate)
   end
 
-  it "paginates workflows on the job detail payload" do
+  it "paginates workflows on the workflow-only job detail payload" do
     job.workflows.destroy_all
     12.times do |index|
       Workflow.create!(
@@ -532,7 +546,7 @@ RSpec.describe "App API job detail", type: :request do
       )
     end
 
-    get "/api/v1/app/jobs/#{job.id}", params: { workflows_page: 2 }
+    get "/api/v1/app/jobs/#{job.id}/workflows", params: { workflows_page: 2 }
 
     expect(response).to have_http_status(:ok)
     body = parse_body
@@ -594,7 +608,7 @@ RSpec.describe "App API job detail", type: :request do
     initial_workflow.update!(created_at: 2.hours.ago)
     retry_workflow = Workflow.create!(job: job, trigger_kind: "retry", created_at: 1.hour.ago)
 
-    get "/api/v1/app/jobs/#{job.id}"
+    get "/api/v1/app/jobs/#{job.id}/workflows"
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["workflows"].map { |workflow| workflow["id"] }).to eq([
@@ -740,7 +754,7 @@ RSpec.describe "App API job detail", type: :request do
       classified_at: Time.current
     )
 
-    get "/api/v1/app/jobs/#{job.id}"
+    get "/api/v1/app/jobs/#{job.id}/workflows"
 
     first_run = parse_body["workflows"].flat_map { |workflow| workflow["steps"] }.flat_map { |step| step["runs"] }.find { |payload| payload["id"] == run.id }
     expect(first_run["run_diagnostic"]).to include(
@@ -810,7 +824,7 @@ RSpec.describe "App API job detail", type: :request do
     grade_step.update!(state: "failed")
     write_grade_log(grade_run, "tests", "rspec output\n")
 
-    get "/api/v1/app/jobs/#{job.id}"
+    get "/api/v1/app/jobs/#{job.id}/workflows"
 
     step_payload = parse_body["workflows"].flat_map { |payload| payload["steps"] }.find { |payload| payload["id"] == grade_step.id }
     expect(step_payload).to include("display_name" => "tests", "display_status" => "failed")
@@ -885,7 +899,7 @@ RSpec.describe "App API job detail", type: :request do
     collect = workflow.steps.find_by!(kind: "grader_collect")
     collect_run = Run.create!(job: job, step: collect, trigger_kind: "initial", iteration: collect.iteration, state: "succeeded")
 
-    get "/api/v1/app/jobs/#{job.id}"
+    get "/api/v1/app/jobs/#{job.id}/workflows"
 
     step_payload = parse_body["workflows"].flat_map { |payload| payload["steps"] }.find { |payload| payload["id"] == collect.id }
     run_payload = step_payload["runs"].find { |payload| payload["id"] == collect_run.id }

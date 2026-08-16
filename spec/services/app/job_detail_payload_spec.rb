@@ -10,6 +10,10 @@ RSpec.describe App::JobDetailPayload do
     described_class.build(job: job, user: user)
   end
 
+  def workflows_payload_for(job)
+    described_class.workflows(job: job, user: user)
+  end
+
   def capture_sql
     queries = []
     callback = lambda do |_name, _started, _finished, _id, payload|
@@ -559,7 +563,7 @@ RSpec.describe App::JobDetailPayload do
         workflow: workflow
       )
 
-      active_process = payload_for(job).dig(:workflows, 0, :steps, 0, :runs, 0, :active_process)
+      active_process = workflows_payload_for(job).dig(:workflows, 0, :steps, 0, :runs, 0, :active_process)
 
       expect(active_process).to include(
         id: active.id,
@@ -597,7 +601,7 @@ RSpec.describe App::JobDetailPayload do
         workflow: workflow
       )
 
-      payload = payload_for(job)
+      payload = workflows_payload_for(job)
       serialized = JSON.generate(payload)
       active_process = payload.dig(:workflows, 0, :steps, 0, :runs, 0, :active_process)
 
@@ -627,7 +631,7 @@ RSpec.describe App::JobDetailPayload do
         cpu_pressure_some: 52.0
       )
 
-      run_payload = payload_for(job).dig(:workflows, 0, :steps, 0, :runs, 0)
+      run_payload = workflows_payload_for(job).dig(:workflows, 0, :steps, 0, :runs, 0)
 
       expect(run_payload).not_to have_key(:worker_health_correlation)
     end
@@ -650,7 +654,7 @@ RSpec.describe App::JobDetailPayload do
         }
       )
 
-      artifacts = payload_for(job).dig(:workflows, 0, :artifacts)
+      artifacts = workflows_payload_for(job).dig(:workflows, 0, :artifacts)
 
       expect(artifacts).to include("summary" => "Done")
       expect(artifacts).not_to have_key("iterations")
@@ -694,8 +698,26 @@ RSpec.describe App::JobDetailPayload do
 
       expect(payload_for(job)[:feedback_history]).to eq(
         [
-          { kind: "chat_feedback", body: "Old feedback", created_at: older.created_at.iso8601, state: "succeeded", feedback_source: nil },
-          { kind: "chat_feedback", body: "New feedback", created_at: newer.created_at.iso8601, state: "running", feedback_source: nil }
+          {
+            kind: "chat_feedback",
+            body: "Old feedback",
+            created_at: older.created_at.iso8601,
+            state: "succeeded",
+            feedback_source: nil,
+            workflow_id: older.id,
+            workflow_slug: older.slug,
+            workflow_path: "/jobs/#{job.id}?tab=workflows#workflow-#{older.id}"
+          },
+          {
+            kind: "chat_feedback",
+            body: "New feedback",
+            created_at: newer.created_at.iso8601,
+            state: "running",
+            feedback_source: nil,
+            workflow_id: newer.id,
+            workflow_slug: newer.slug,
+            workflow_path: "/jobs/#{job.id}?tab=workflows#workflow-#{newer.id}"
+          }
         ]
       )
     end
@@ -722,7 +744,10 @@ RSpec.describe App::JobDetailPayload do
             body: "@alice: Please cover the blank state.\n\n@bob: This should mention review feedback.",
             created_at: workflow.created_at.iso8601,
             state: "succeeded",
-            feedback_source: nil
+            feedback_source: nil,
+            workflow_id: workflow.id,
+            workflow_slug: workflow.slug,
+            workflow_path: "/jobs/#{job.id}?tab=workflows#workflow-#{workflow.id}"
           }
         ]
       )
@@ -765,8 +790,26 @@ RSpec.describe App::JobDetailPayload do
 
       expect(payload_for(job)[:feedback_history]).to eq(
         [
-          { kind: "chat_feedback", body: "Chat feedback", created_at: chat_workflow.created_at.iso8601, state: "succeeded", feedback_source: nil },
-          { kind: "pr_comment", body: "@reviewer: PR feedback", created_at: pr_workflow.created_at.iso8601, state: "running", feedback_source: nil }
+          {
+            kind: "chat_feedback",
+            body: "Chat feedback",
+            created_at: chat_workflow.created_at.iso8601,
+            state: "succeeded",
+            feedback_source: nil,
+            workflow_id: chat_workflow.id,
+            workflow_slug: chat_workflow.slug,
+            workflow_path: "/jobs/#{job.id}?tab=workflows#workflow-#{chat_workflow.id}"
+          },
+          {
+            kind: "pr_comment",
+            body: "@reviewer: PR feedback",
+            created_at: pr_workflow.created_at.iso8601,
+            state: "running",
+            feedback_source: nil,
+            workflow_id: pr_workflow.id,
+            workflow_slug: pr_workflow.slug,
+            workflow_path: "/jobs/#{job.id}?tab=workflows#workflow-#{pr_workflow.id}"
+          }
         ]
       )
     end

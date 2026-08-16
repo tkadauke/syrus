@@ -409,11 +409,7 @@ describe("JobDetailView", () => {
 
   it("skips workflows with null artifacts when rendering coverage", () => {
     renderJobDetail(jobPayload({
-      workflows: [
-        workflow({ id: 1, artifacts: { coverage: { summary: { lines_pct: 92.4, branches_pct: null, functions_pct: null } } } }),
-        workflow({ id: 2, artifacts: null })
-      ],
-      workflows_pagination: workflowPagination(2)
+      coverage: { workflow_id: 1, coverage: { summary: { lines_pct: 92.4, branches_pct: null, functions_pct: null } } }
     }))
 
     expect(screen.getByTestId("coverage-card")).toBeInTheDocument()
@@ -1537,9 +1533,39 @@ describe("Job detail tour", () => {
 })
 
 function renderFeedbackHistory(workflows: JobWorkflow[]) {
+  const entries: JobDetailPayload["feedback_history"] = workflows.flatMap<JobDetailPayload["feedback_history"][number]>((workflow) => {
+    if (workflow.trigger_kind === "chat_feedback") {
+      const body = typeof workflow.artifacts?.chat_feedback === "string" ? workflow.artifacts.chat_feedback : ""
+      if (!body) return []
+      return [{
+        kind: "chat_feedback" as const,
+        body,
+        created_at: workflow.created_at,
+        state: workflow.state,
+        feedback_source: typeof workflow.artifacts?.feedback_source === "string" ? workflow.artifacts.feedback_source : null,
+        workflow_id: workflow.id,
+        workflow_slug: workflow.slug,
+        workflow_path: workflow.path
+      }]
+    }
+    if (workflow.trigger_kind === "pr_comment" || workflow.trigger_kind === "external_pr_feedback") {
+      return [{
+        kind: workflow.trigger_kind as "pr_comment" | "external_pr_feedback",
+        body: "",
+        created_at: workflow.created_at,
+        state: workflow.state,
+        feedback_source: null,
+        workflow_id: workflow.id,
+        workflow_slug: workflow.slug,
+        workflow_path: workflow.path
+      }]
+    }
+    return []
+  })
+
   return render(
     <MemoryRouter>
-      <FeedbackHistoryPanel prefix="/app-shell" workflows={workflows} />
+      <FeedbackHistoryPanel entries={entries} prefix="/app-shell" />
     </MemoryRouter>
   )
 }
@@ -1631,9 +1657,11 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
     epic_dependency_target_options: [],
     attachments: [],
     typed_artifacts: [],
+    coverage: null,
     summary: null,
     test_plan: null,
     has_test_results: false,
+    feedback_history: [],
     pending_feedback: [],
     landing_queue_entry: null,
     workflows: [],

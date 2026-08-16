@@ -93,7 +93,7 @@ RSpec.describe "resilience flow regressions" do
     JobLog.append!(run: run, kind: "rate_limited",
                    chunk: "[rate-limited] core quota exhausted; resets soon")
 
-    payload = App::JobDetailPayload.build(job: job, user: user)
+    payload = App::JobDetailPayload.workflows(job: job, user: user)
     payload_run = payload.fetch(:workflows).flat_map { |wf| wf.fetch(:steps) }
                          .flat_map { |s| s.fetch(:runs) }
                          .find { |item| item.fetch(:id) == run.id }

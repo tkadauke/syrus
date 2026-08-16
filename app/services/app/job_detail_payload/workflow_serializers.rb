@@ -224,7 +224,33 @@ module App
       end
 
       def command_span_json(span)
-        WorkerHealthRunCorrelation.for_span(span, sample_limit: 0, samples: worker_samples_for_span(span))
+        {
+          id: span.id,
+          run_id: span.run_id,
+          job_id: span.job_id,
+          workflow_id: span.workflow_id,
+          step_id: span.step_id,
+          spawned_process_id: span.spawned_process_id,
+          sequence: span.sequence,
+          name: span.name,
+          command_excerpt: CommandRedactor.redact(span.command_excerpt),
+          started_at: iso8601(span.started_at),
+          finished_at: iso8601(span.finished_at),
+          duration_ms: span.duration_ms,
+          duration_s: span.duration_s,
+          exit_status: span.exit_status,
+          outcome: span.outcome,
+          hostname: span.hostname,
+          metadata: CommandRedactor.redact_value(span.metadata),
+          sample_count: 0,
+          samples_missing: true,
+          retention_limited: false,
+          summary: {},
+          pressure: {
+            level: "unknown",
+            reasons: [ "worker health correlation is loaded on demand" ]
+          }
+        }
       end
 
       def workflow_failure_classification_json(workflow)
@@ -315,36 +341,6 @@ module App
             {}
           else
             CommandSpan.where(run_id: ids).order(:run_id, :sequence, :id).group_by(&:run_id)
-          end
-        end
-      end
-
-      def visible_command_spans
-        @visible_command_spans ||= command_spans_by_run_id.values.flatten
-      end
-
-      def worker_samples_for_span(span)
-        return [] if span.hostname.blank? || span.started_at.blank?
-
-        range_finish = span.finished_at || Time.current
-        effective_since = [ span.started_at, WorkerHostHealthSample::RETAIN_AFTER.ago ].max
-        worker_samples_by_hostname.fetch(span.hostname, []).select do |sample|
-          sample.observed_at >= effective_since && sample.observed_at <= range_finish
-        end
-      end
-
-      def worker_samples_by_hostname
-        @worker_samples_by_hostname ||= begin
-          spans = visible_command_spans.select { |span| span.hostname.present? && span.started_at.present? }
-          if spans.empty?
-            {}
-          else
-            since = spans.map { |span| [ span.started_at, WorkerHostHealthSample::RETAIN_AFTER.ago ].max }.min
-            until_time = spans.map { |span| span.finished_at || Time.current }.max
-            WorkerHostHealthSample
-              .where(hostname: spans.map(&:hostname).uniq, observed_at: since..until_time)
-              .order(:hostname, :observed_at)
-              .group_by(&:hostname)
           end
         end
       end

@@ -29,7 +29,6 @@ import { ChatBubbleIcon, HeaderActions, JobFeedbackPanel } from "./jobDetail/Job
 import { PreviewPanel, PreviewStopModal } from "./jobDetail/PreviewPanel"
 import { jobDetailQueryKey, jobDetailSearch, jobWorkflowsQueryKey, mergeJobWorkflowsPayload, tabFromLocation } from "./jobDetail/queryKeys"
 import { formatCurrency, jobSlug, withRoutePrefix } from "./jobDetail/formatting"
-import { latestWorkflowCoverage, latestTypedArtifacts, workflowCreatedAtTime } from "./jobDetail/workflowArtifacts"
 import { TypedArtifactPanel } from "../components/artifacts/TypedArtifactPanel"
 import { WorkflowsTab } from "./jobDetail/WorkflowGraph"
 import { SourceTab } from "./jobDetail/SourceBrowser"
@@ -263,7 +262,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, activeTab,
       {activeTab === "workflows" ? <WorkflowsTab command={command} payload={payload} prefix={prefix} /> : null}
       {activeTab === "attachments" ? <AttachmentsTab payload={payload} queryKey={queryKey} onNotice={setNotice} /> : null}
       {activeTab === "artifacts" ? <ArtifactsTab artifacts={payload.typed_artifacts ?? []} /> : null}
-      {activeTab === "source" ? <SourceTab jobId={String(payload.job.id)} coverageInfo={latestWorkflowCoverage(payload.workflows)} /> : null}
+      {activeTab === "source" ? <SourceTab jobId={String(payload.job.id)} coverageInfo={payload.coverage ? { workflowId: payload.coverage.workflow_id, coverage: payload.coverage.coverage } : null} /> : null}
       {activeTab === "tests" ? <TestsTab payload={payload} /> : null}
     </>
   )
@@ -301,8 +300,8 @@ function TabNav({ active, workflowsCount, attachmentsCount, artifactsCount, hasT
 
 function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string; queryKey: JobDetailQueryKey; withPreviewStop: (proceed: () => void) => void }) {
   const { t } = useT("jobs")
-  const coverageInfo = latestWorkflowCoverage(payload.workflows)
-  const typedArtifacts = latestTypedArtifacts(payload.workflows)
+  const coverageInfo = payload.coverage
+  const typedArtifacts = payload.typed_artifacts
   return (
     <div className="space-y-4">
       <NeedsAttentionBanner job={payload.job} />
@@ -344,13 +343,13 @@ function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { p
 
           <TestPlanPanel testPlan={payload.test_plan} />
 
-          {typedArtifacts ? <TypedArtifactPanel artifacts={typedArtifacts} /> : null}
+          {typedArtifacts.length > 0 ? <TypedArtifactPanel artifacts={typedArtifacts} /> : null}
 
           {coverageInfo ? <CoverageCard coverage={coverageInfo.coverage} /> : null}
 
           <PendingFeedbackPanel jobId={payload.job.id} comments={payload.pending_feedback} queryKey={queryKey} />
 
-          <FeedbackHistoryPanel prefix={prefix} workflows={payload.workflows} />
+          <FeedbackHistoryPanel entries={payload.feedback_history} prefix={prefix} />
 
           <TimelinePanel canView={payload.actions.can_view_timeline} jobId={payload.job.id} prefix={prefix} runsCount={payload.job.runs_count} />
           <AttachmentPreview attachments={payload.attachments} />
@@ -730,38 +729,37 @@ function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: numbe
   )
 }
 
-export function FeedbackHistoryPanel({ workflows, prefix }: { workflows: JobWorkflow[]; prefix: string }) {
+export function FeedbackHistoryPanel({ entries, prefix }: { entries: JobDetailPayload["feedback_history"]; prefix: string }) {
   const { t } = useT("jobs")
-  const feedbackWorkflows = [...workflows]
-    .filter((workflow) => FEEDBACK_TRIGGER_KINDS.includes(workflow.trigger_kind))
-    .sort((left, right) => workflowCreatedAtTime(right) - workflowCreatedAtTime(left))
+  const feedbackEntries = [...(entries || [])].sort((left, right) => feedbackCreatedAtTime(right) - feedbackCreatedAtTime(left))
 
-  if (feedbackWorkflows.length === 0) return null
+  if (feedbackEntries.length === 0) return null
 
   return (
     <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
       <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t("section_feedback_history")}</h2>
       <div className="mt-3">
-        {feedbackWorkflows.map((workflow) => {
-          const artifacts = workflow.artifacts ?? {}
-          const chatFeedback = artifacts.chat_feedback
+        {feedbackEntries.map((entry, index) => {
+          const chatFeedback = entry.body
           return (
-            <div className="mt-3 border-t border-gray-100 pt-3 first:mt-0 first:border-t-0 first:pt-0 dark:border-gray-800" key={workflow.id}>
+            <div className="mt-3 border-t border-gray-100 pt-3 first:mt-0 first:border-t-0 first:pt-0 dark:border-gray-800" key={entry.workflow_id ?? index}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{feedbackTriggerLabel(workflow.trigger_kind, t)}</span>
-                  <StatusPill state={workflow.state} />
+                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{feedbackTriggerLabel(entry.kind, t)}</span>
+                  <StatusPill state={entry.state} />
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                  <span><RelativeTimestamp value={workflow.created_at} /></span>
-                  <Link className="text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(workflow.path, prefix)}>
-                    {workflow.slug || workflowSlug(workflow.id)}
-                  </Link>
+                  <span><RelativeTimestamp value={entry.created_at} /></span>
+                  {entry.workflow_path ? (
+                    <Link className="text-blue-600 hover:underline dark:text-blue-300" to={withRoutePrefix(entry.workflow_path, prefix)}>
+                      {entry.workflow_slug || (entry.workflow_id ? workflowSlug(entry.workflow_id) : t("workflow"))}
+                    </Link>
+                  ) : null}
                 </div>
               </div>
-              {workflow.trigger_kind === "chat_feedback" ? (
+              {entry.kind === "chat_feedback" ? (
                 <>
-                  <FeedbackSourceBadge source={artifacts.feedback_source} />
+                  <FeedbackSourceBadge source={entry.feedback_source} />
                   <div className="mt-2 text-sm text-gray-700 dark:text-gray-300 [&_code]:rounded [&_code]:bg-gray-100 [&_code]:px-0.5 [&_code]:font-mono dark:[&_code]:bg-gray-800 [&_h1]:font-semibold [&_h2]:font-semibold [&_h3]:font-semibold [&_pre]:rounded [&_pre]:bg-gray-100 [&_pre]:p-1.5 [&_pre]:font-mono dark:[&_pre]:bg-gray-800 [&_pre_code]:bg-transparent [&_pre_code]:px-0">
                     <Markdown text={typeof chatFeedback === "string" ? chatFeedback : ""} />
                   </div>
@@ -777,7 +775,11 @@ export function FeedbackHistoryPanel({ workflows, prefix }: { workflows: JobWork
   )
 }
 
-const FEEDBACK_TRIGGER_KINDS = [ "chat_feedback", "pr_comment", "external_pr_feedback" ]
+function feedbackCreatedAtTime(entry: JobDetailPayload["feedback_history"][number]) {
+  if (!entry.created_at) return 0
+  const time = Date.parse(entry.created_at)
+  return Number.isNaN(time) ? 0 : time
+}
 
 function feedbackTriggerLabel(triggerKind: string, t: ReturnType<typeof useT>["t"]) {
   if (triggerKind === "chat_feedback") return t("feedback_trigger_chat")
