@@ -1322,19 +1322,19 @@ module WorkEngine
         claimed_by_job_id = PerformanceLogging.phase("work_engine.reconciler.solid_queue_claimed", count: solid_queue_job_ids.size) do
           solid_queue_job_ids.empty? ? {} : SolidQueue::ClaimedExecution.where(job_id: solid_queue_job_ids).select(:job_id, :process_id, :created_at).index_by(&:job_id)
         end
-        failed_by_job_id = PerformanceLogging.phase("work_engine.reconciler.solid_queue_failed", count: solid_queue_job_ids.size) do
-          solid_queue_job_ids.empty? ? {} : SolidQueue::FailedExecution.where(job_id: solid_queue_job_ids).select(:job_id, :error).index_by(&:job_id)
+        failed_job_ids = PerformanceLogging.phase("work_engine.reconciler.solid_queue_failed", count: solid_queue_job_ids.size) do
+          solid_queue_job_ids.empty? ? Set.new : SolidQueue::FailedExecution.where(job_id: solid_queue_job_ids).pluck(:job_id).to_set
         end
         scheduled_by_job_id = PerformanceLogging.phase("work_engine.reconciler.solid_queue_scheduled", count: solid_queue_job_ids.size) do
           solid_queue_job_ids.empty? ? {} : SolidQueue::ScheduledExecution.where(job_id: solid_queue_job_ids).select(:job_id, :scheduled_at).index_by(&:job_id)
         end
+        running_root_run_ids = runs.select(&:running?).map(&:id).to_set
         parsed = PerformanceLogging.phase("work_engine.reconciler.solid_queue_parse") do
           jobs.filter_map do |job|
             root_run_id = run_id_from_solid_queue_arguments(job.arguments)
             next if root_ids.any? && !root_ids.include?(root_run_id)
 
             claim = claimed_by_job_id[job.id]
-            failed = failed_by_job_id[job.id]
             scheduled = scheduled_by_job_id[job.id]
             {
               id: job.id,
@@ -1348,10 +1348,17 @@ module WorkEngine
               process_id: claim&.process_id,
               scheduled: scheduled.present?,
               scheduled_at: scheduled&.scheduled_at,
-              failed: failed.present?,
-              error: failed&.error
+              failed: failed_job_ids.include?(job.id),
+              error: nil
             }
           end
+        end
+        failed_error_job_ids = parsed.filter_map { |job| job[:id] if job[:failed] && running_root_run_ids.include?(job[:root_run_id]) }
+        if failed_error_job_ids.any?
+          error_by_job_id = PerformanceLogging.phase("work_engine.reconciler.solid_queue_failed_errors", count: failed_error_job_ids.size) do
+            SolidQueue::FailedExecution.where(job_id: failed_error_job_ids).pluck(:job_id, :error).to_h
+          end
+          parsed.each { |job| job[:error] = error_by_job_id[job[:id]] if error_by_job_id.key?(job[:id]) }
         end
 
         {
