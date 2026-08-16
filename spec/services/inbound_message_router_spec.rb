@@ -88,6 +88,46 @@ RSpec.describe InboundMessageRouter do
           ).call
         }.not_to have_enqueued_job(ChatTurnJob)
       end
+
+      context "when the session has more than one human participant" do
+        before do
+          session = ChatSession.for_platform(user: user, platform: "telegram")
+          session.chat_participants.create!(user: Factories.user, role: "member")
+        end
+
+        it "does not enqueue ChatTurnJob for an unmentioned message" do
+          expect {
+            described_class.new(
+              platform: "telegram",
+              external_id: "42",
+              external_handle: "@alice",
+              message_text: "Hello everyone"
+            ).call
+          }.not_to have_enqueued_job(ChatTurnJob)
+        end
+
+        it "enqueues ChatTurnJob when the message mentions @syrus" do
+          expect {
+            described_class.new(
+              platform: "telegram",
+              external_id: "42",
+              external_handle: "@alice",
+              message_text: "hey @syrus can you help?"
+            ).call
+          }.to have_enqueued_job(ChatTurnJob)
+        end
+      end
+
+      it "enqueues ChatTurnJob for an unmentioned message when 0-1 human participants" do
+        expect {
+          described_class.new(
+            platform: "telegram",
+            external_id: "42",
+            external_handle: "@alice",
+            message_text: "Hello, no mention here"
+          ).call
+        }.to have_enqueued_job(ChatTurnJob)
+      end
     end
   end
 end

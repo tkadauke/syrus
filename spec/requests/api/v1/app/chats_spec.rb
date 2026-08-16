@@ -1323,6 +1323,46 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(response).to have_http_status(:unprocessable_content)
   end
 
+  describe "group chat mention gating" do
+    it "does not enqueue a ChatTurnJob for an unmentioned message with 2+ human participants" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, conversation_kind: "group")
+      chat.chat_participants.create!(user: Factories.user, role: "member")
+
+      expect {
+        post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "Hello everyone" } }
+      }.to change(ChatMessage, :count).by(1)
+
+      expect(ChatTurnJob).not_to have_been_enqueued
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "enqueues a ChatTurnJob when the message mentions @syrus with 2+ human participants" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, conversation_kind: "group")
+      chat.chat_participants.create!(user: Factories.user, role: "member")
+
+      expect {
+        post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "hey @syrus, can you help?" } }
+      }.to change(ChatMessage, :count).by(1)
+        .and have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer))
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "still enqueues a ChatTurnJob for an unmentioned message with 0-1 human participants" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user)
+
+      expect {
+        post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "no mention here" } }
+      }.to change(ChatMessage, :count).by(1)
+        .and have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer))
+
+      expect(response).to have_http_status(:ok)
+    end
+  end
+
   it "starts the first-message chat with a pending generated title" do
     sign_in_as(user)
 
@@ -4439,6 +4479,25 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(response.body).to include("Built **aqueducts**.")
     expect(response.body).to include("event: turn_complete")
     expect(chat.reload.messages.where(role: "user").last.content).to eq("text" => "Now inspect proposals")
+  end
+
+  it "streams turn_complete immediately for an unmentioned group-chat message, without waiting on an agent turn" do
+    user.update!(api_token: "cli-token")
+    chat = ChatSession.create!(user: user, repository: repository, conversation_kind: "group", last_message_at: 1.day.ago)
+    chat.chat_participants.create!(user: Factories.user, role: "member")
+    expect(ChatTurnJob).not_to receive(:perform_later)
+
+    post "/api/v1/app/chats/#{chat.id}/message",
+         params: { content: "Hello everyone" },
+         headers: {
+           "Authorization" => "Bearer cli-token",
+           "Accept" => "text/event-stream"
+         }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.media_type).to eq("text/event-stream")
+    expect(response.body).to include("event: turn_complete")
+    expect(response.body).not_to include("event: text_chunk")
   end
 
   it "uses the first user message for a delayed initial title" do
