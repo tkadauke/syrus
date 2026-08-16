@@ -875,6 +875,42 @@ RSpec.describe ChatSession do
     end
   end
 
+  describe "#agent_addressed?" do
+    it "matches a case-insensitive @syrus substring" do
+      session = described_class.create!(user: repo.user)
+
+      expect(session.agent_addressed?("hey @Syrus can you help?")).to be true
+      expect(session.agent_addressed?("@SYRUS")).to be true
+    end
+
+    it "does not false-positive on unrelated text" do
+      session = described_class.create!(user: repo.user)
+
+      expect(session.agent_addressed?("syrus is great but no mention here")).to be false
+      expect(session.agent_addressed?("")).to be false
+      expect(session.agent_addressed?(nil)).to be false
+    end
+  end
+
+  describe "#should_trigger_agent?" do
+    it "always triggers with 0-1 human participants, mention or not" do
+      session = described_class.create!(user: repo.user)
+
+      expect(session.chat_participants.count).to eq(1)
+      expect(session.should_trigger_agent?("no mention here")).to be true
+      expect(session.should_trigger_agent?("@syrus hello")).to be true
+    end
+
+    it "requires a mention once a second human participant joins" do
+      session = described_class.create!(user: repo.user, conversation_kind: "group")
+      session.chat_participants.create!(user: Factories.user, role: "member")
+
+      expect(session.chat_participants.count).to eq(2)
+      expect(session.should_trigger_agent?("no mention here")).to be false
+      expect(session.should_trigger_agent?("hey @syrus")).to be true
+    end
+  end
+
   describe "#broadcast_participants_update!" do
     it "broadcasts a participants payload to the current participant set by default" do
       session = described_class.create!(user: repo.user, conversation_kind: "group")

@@ -453,6 +453,21 @@ class ChatSession < ApplicationRecord
     supervisor_chat? && Feature.admin_supervisor_chat_enabled?
   end
 
+  # Plain-text, case-insensitive `@syrus` substring match — no
+  # autocomplete/chip UI in this pass. Mirrors Telegram's own
+  # plain-text bot-mention convention so this stays compatible with a
+  # future Telegram-group bridge.
+  def agent_addressed?(text)
+    text.to_s.downcase.include?("@syrus")
+  end
+
+  # Computed live from current human headcount, not a stored/toggleable
+  # setting: chats with 0-1 participants always trigger the agent; chats
+  # with 2+ participants require an explicit @syrus mention on every message.
+  def should_trigger_agent?(text)
+    chat_participants.count <= 1 || agent_addressed?(text)
+  end
+
   def participants_payload
     chat_participants.includes(:user).order(:joined_at, :id).map do |participant|
       {
