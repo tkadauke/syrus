@@ -14,6 +14,11 @@ module Observability
         return if rows.empty?
 
         effective_batch_size = self.batch_size || batch_size
+        if model.respond_to?(:persist_observability_events!)
+          model.persist_observability_events!(rows, batch_size: effective_batch_size)
+          return
+        end
+
         rows.each_slice(effective_batch_size) do |batch|
           case persist_mode
           when :create_each

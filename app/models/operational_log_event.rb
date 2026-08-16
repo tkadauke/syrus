@@ -17,6 +17,21 @@ class OperationalLogEvent < ApplicationRecord
 
   scope :expired, -> { where(occurred_at: ...RETENTION.ago) }
 
+  def self.persist_observability_events!(rows, batch_size:)
+    rows.each_slice(batch_size) do |batch|
+      ids = []
+      previous = Current.suppress_operational_log_index_enqueue
+      Current.suppress_operational_log_index_enqueue = true
+      begin
+        batch.each { |row| ids << create!(row).id }
+      ensure
+        Current.suppress_operational_log_index_enqueue = previous
+      end
+
+      IndexOperationalLogEventsJob.perform_later(ids) if ids.present? && OperationalLogging.configured_for_instance?
+    end
+  end
+
   def self.from_event_hash(event)
     attrs = event.to_h
     {
@@ -41,6 +56,7 @@ class OperationalLogEvent < ApplicationRecord
   private
 
   def enqueue_index
+    return if Current.suppress_operational_log_index_enqueue
     return unless OperationalLogging.configured_for_instance?
 
     IndexOperationalLogEventJob.perform_later(id)

@@ -119,7 +119,7 @@ RSpec.describe Observability::EventSink do
     expect {
       described_class.flush!(kinds: [ :operational ])
     }.to change(OperationalLogEvent, :count).by(1)
-    expect(enqueued_jobs.map { |job| job[:job] }).to include(IndexOperationalLogEventJob)
+    expect(enqueued_jobs.map { |job| job[:job] }).to include(IndexOperationalLogEventsJob)
   end
 
   it "logs instead of silently dropping an event when append fails" do

@@ -149,7 +149,7 @@ module OperationalLogging
 
   def ignored_job?(job, payload)
     job_class = job&.class&.name || payload[:job_class].to_s
-    job_class.in?([ "IndexOperationalLogEventJob", "PruneOperationalLogsJob" ])
+    job_class.in?([ "IndexOperationalLogEventJob", "IndexOperationalLogEventsJob", "PruneOperationalLogsJob" ])
   end
 
   def formatted_backtrace(exception_object)

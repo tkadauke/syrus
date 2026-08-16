@@ -77,7 +77,7 @@ RSpec.describe OperationalLogging do
       Observability::EventSink.flush!(kinds: [ :operational ])
     }.to change(OperationalLogEvent, :count).by(1)
 
-    expect(enqueued_jobs.map { |job| job[:job] }).to include(IndexOperationalLogEventJob)
+    expect(enqueued_jobs.map { |job| job[:job] }).to include(IndexOperationalLogEventsJob)
   end
 
   it "ingests request and active job notification payloads with structured identifiers" do
