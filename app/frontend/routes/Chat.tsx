@@ -104,7 +104,7 @@ import { AgentActivityIndicator, DayDivider, MessageTimestamp, SwitchingProvider
 import { Compose } from "./chat/Compose"
 import { routePrefix } from "../lib/routing"
 import type { ChatSystemCommandHandlers } from "./chat/composeTypes"
-import { chatStreamItemsSignature, maxMessageId, mergeChatMessages, oldestMessageId, renderItemKey } from "./chat/messageStreamItems"
+import { chatStreamItemsSignature, maxMessageId, mergeChatMessages, mergeMessageTail, oldestMessageId, renderItemKey } from "./chat/messageStreamItems"
 import { buildMessageStreamItems, injectTemporalMarkers, pendingActionCardData, renderChatMessages } from "./chat/streamBuilders"
 import type { MobileChatTab, WorkspaceTab } from "./chat/workspaceTabs"
 import { countIncomingVisibleMessages, isAgentActive, isLowPrioritySystemMessage } from "./chat/messageDisplay"
@@ -144,7 +144,13 @@ export function ChatRoute() {
   const { t } = useT("chat")
   const chat = useQuery({
     queryKey,
-    queryFn: () => fetchChat(id, location.search),
+    queryFn: async () => {
+      const fetched = await fetchChat(id, location.search)
+      const cached = queryClient.getQueryData<ChatPayload>(queryKey)
+      if (!cached || !Array.isArray(cached.messages)) return fetched
+
+      return { ...fetched, messages: mergeMessageTail(cached.messages, fetched.messages) }
+    },
     enabled: id.length > 0,
     placeholderData: (previousData, previousQuery) => (
       previousQuery?.queryKey[0] === "chats" && previousQuery.queryKey[1] === id ? previousData : undefined

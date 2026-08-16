@@ -182,6 +182,70 @@ describe("ChatWorkspace panel collapse", () => {
   }, 15000)
 })
 
+describe("chat message tail refetch", () => {
+  it("preserves older messages when a background refetch returns only the latest page", async () => {
+    const olderMessage = {
+      type: "message",
+      id: 1,
+      role: "user",
+      tool_name: null,
+      content: { text: "What did the aqueduct plan say?" },
+      text: "What did the aqueduct plan say?",
+      bookmarkable: true
+    }
+    const newerMessage = {
+      type: "message",
+      id: 9,
+      role: "assistant",
+      tool_name: null,
+      content: { text: "Discuss aqueducts." },
+      text: "Discuss aqueducts.",
+      bookmarkable: true
+    }
+
+    let chatGetCount = 0
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8") {
+        chatGetCount += 1
+        // First load simulates a long chat whose history (like `olderMessage`) grew past a
+        // single server page via live websocket tail updates. A later refetch (e.g. triggered
+        // by an Action Cable reconnect) only ever returns the server's latest page, which must
+        // not clobber the history already shown.
+        const messages = chatGetCount === 1 ? [olderMessage, newerMessage] : [newerMessage]
+        return Promise.resolve(jsonResponse(chatPayload({ messages })))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+          <Routes>
+            <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("What did the aqueduct plan say?")).toBeInTheDocument()
+    expect(screen.getByText("Discuss aqueducts.")).toBeInTheDocument()
+
+    await act(async () => {
+      await queryClient.refetchQueries({ queryKey: ["chats", "8", ""] })
+    })
+
+    await waitFor(() => expect(chatGetCount).toBe(2))
+    expect(screen.getByText("Discuss aqueducts.")).toBeInTheDocument()
+    expect(screen.getByText("What did the aqueduct plan say?")).toBeInTheDocument()
+  })
+})
+
 describe("simple mode chat transcript", () => {
   beforeEach(() => {
     window.localStorage.clear()
