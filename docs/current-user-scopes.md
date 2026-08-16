@@ -16,6 +16,7 @@ per-user/private:
   - app/controllers/api/v1/app/bug_reports_controller.rb
   - app/controllers/api/v1/app/report_issue_controller.rb
   - app/controllers/api/v1/app/chat_job_status_controller.rb
+  - app/controllers/api/v1/app/chat_participants_controller.rb
   - app/controllers/api/v1/app/chat_whiteboards_controller.rb
   - app/controllers/api/v1/app/chats_controller.rb
   - app/controllers/concerns/chat_attachable_resolution.rb
@@ -70,6 +71,7 @@ per-user/private:
   - app/controllers/api/v1/app/terminal_sessions_controller.rb
   - app/controllers/api/v1/app/theme_controller.rb
   - app/controllers/api/v1/app/tours_controller.rb
+  - app/controllers/api/v1/app/users_controller.rb
   - app/controllers/api/v1/app/video_walkthroughs_controller.rb
   - app/controllers/api/v1/app/whiteboard_snapshots_controller.rb
   - app/controllers/api/v1/app/workflows_controller.rb
@@ -124,6 +126,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/bug_reports_controller.rb` | per-user/private | Files bug reports with the current user as reporter/context. |
 | `app/controllers/api/v1/app/report_issue_controller.rb` | per-user/private | Files GitHub issues with the current user's connected GitHub token. |
 | `app/controllers/api/v1/app/chat_job_status_controller.rb` | per-user/private | Returns job and epic status for confirmed proposals in a chat session found through `Current.user.chat_sessions`. |
+| `app/controllers/api/v1/app/chat_participants_controller.rb` | per-user/private | Group-chat participant add/remove find the chat through `Current.user.accessible_chat_sessions`, so only current participants can manage membership. |
 | `app/controllers/api/v1/app/chat_whiteboards_controller.rb` | per-user/private | Locates whiteboards through `Current.user.chat_sessions`. |
 | `app/controllers/api/v1/app/chats_controller.rb` | per-user/private | Chat sessions, proposals, attached repositories/jobs/documents/epics, and pending actions are all owned or selected through the current user's associations. |
 | `app/controllers/concerns/chat_attachable_resolution.rb` | per-user/private | Attachable-resolution helpers (extracted from `ChatsController`) resolve a specific repository/job/document/epic through `Current.user`'s associations. |
@@ -176,6 +179,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/terminal_sessions_controller.rb` | per-user/private | Terminal sessions are listed, created, shown, and killed through `Current.user.terminal_sessions`; recent Workflow workspace choices and workflow defaults are scoped through `Current.user.workflows`. |
 | `app/controllers/api/v1/app/theme_controller.rb` | per-user/private | Updates only `Current.user.theme` for the signed-in operator. |
 | `app/controllers/api/v1/app/tours_controller.rb` | per-user/private | Marks individual tours seen and resets all seen tours through `Current.user.mark_tour_seen` / `Current.user.reset_tours!`. |
+| `app/controllers/api/v1/app/users_controller.rb` | per-user/private | Invite-picker listing excludes the current user and, when scoping to a chat, excludes that chat's existing participants found through `Current.user.accessible_chat_sessions`. No admin gate — Syrus has no team/org scoping, so any authenticated user may see the flat instance user list. |
 | `app/controllers/api/v1/app/video_walkthroughs_controller.rb` | per-user/private | Creates walkthroughs through `Current.user.chat_sessions`; retry joins chat_sessions on `Current.user.id`. |
 | `app/controllers/api/v1/app/whiteboard_snapshots_controller.rb` | per-user/private | Lists and loads snapshots only through `Current.user.chat_sessions`. |
 | `app/controllers/api/v1/app/auth_controller.rb` | per-user/private | Public auth status can resume the current session and serialize whether a signed-in user is present. |
