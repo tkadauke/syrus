@@ -193,6 +193,40 @@ RSpec.describe Run do
     end
   end
 
+  # Materialized on purpose: fed into IN / NOT IN against `jobs`, where the
+  # subquery form makes MySQL scan all of `runs`. See Run.active_job_ids.
+  describe ".active_job_ids" do
+    it "returns job ids that have a queued or running Run" do
+      running = job.initial_run
+      running.start!
+      running.save!
+
+      expect(described_class.active_job_ids).to contain_exactly(job.id)
+    end
+
+    it "excludes jobs whose Runs are all terminal" do
+      finished = job.initial_run
+      finished.start!
+      finished.succeed!
+      finished.save!
+
+      expect(described_class.active_job_ids).to be_empty
+    end
+
+    it "reports a job once even with several active Runs" do
+      job.initial_run
+      Run.create!(job: job, user: job.user, trigger_kind: "pr_comment")
+
+      expect(described_class.active_job_ids).to eq([ job.id ])
+    end
+
+    it "returns plain ids rather than a relation so callers cannot re-embed it as a subquery" do
+      job.initial_run
+
+      expect(described_class.active_job_ids).to all(be_an(Integer))
+    end
+  end
+
   describe "auto-enqueue RunJob on commit" do
     around do |example|
       old_in_run_job = Thread.current[:syrus_in_run_job]

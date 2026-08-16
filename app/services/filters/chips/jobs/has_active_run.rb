@@ -9,7 +9,8 @@ module Filters
         operators :is_true, :is_false
 
         def apply
-          active = Run.active.select(:job_id)
+          # Materialized rather than a subquery — see Run.active_job_ids.
+          active = Run.active_job_ids
           case op
           when :is_true  then scope.where(id: active)
           when :is_false then scope.where.not(id: active)

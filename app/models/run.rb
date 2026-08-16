@@ -56,6 +56,24 @@ class Run < ApplicationRecord
 
   scope :active, -> { where(state: %w[ queued running ]) }
   scope :terminal, -> { where(state: %w[ succeeded failed cancelled ]) }
+
+  # Job ids with a queued/running Run, materialized on purpose.
+  #
+  # Passing `Run.active.select(:job_id)` straight into an IN / NOT IN against
+  # `jobs` reads well but is a trap on MySQL. `runs.state` has five values and
+  # InnoDB keeps no histogram, so the optimizer assumes they are evenly spread
+  # and estimates the subquery matches about half the table. In reality
+  # queued+running is a rounding error (11 rows out of 87k on production), but
+  # on that estimate MySQL materializes the subquery with a full scan of `runs`
+  # — 549MB of wide text — instead of using the covering
+  # (state, job_id, updated_at) index that already exists.
+  #
+  # Measured on production: 4,660ms for the subquery form versus 1.26ms for the
+  # same count against a literal id list. Two small queries beat one query the
+  # planner mis-costs, and this stays correct regardless of table statistics.
+  def self.active_job_ids
+    active.distinct.pluck(:job_id)
+  end
   scope :ordered, -> { order(:created_at) }
   # Currently-executing agent Runs across the cluster — the `:runs`-queue
   # workflows subject to the global agent-concurrency cap. App-DB counted, so

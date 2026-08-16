@@ -1165,7 +1165,8 @@ module Api
 
             base.where(id: inactive_job_ids)
           else
-            base.where.not(id: Run.active.select(:job_id))
+            # Materialized rather than a subquery — see Run.active_job_ids.
+            base.where.not(id: Run.active_job_ids)
           end
 
           base.where(state: "failed").or(base.where.not(landing_failure_reason: nil))
