@@ -37,6 +37,8 @@ class RunFailureClassifier
       result("timeout", 0.85, true, "The run failed because an operation timed out.")
     when mcp_sidecar?
       result("mcp_sidecar_failure", 0.75, true, "The agent sidecar failed or disconnected.")
+    when grader_failure?
+      result("grader_failure", 0.90, false, "A configured grader command failed.")
     when process_died?
       result("worker_died", 0.95, true, "The worker or agent process disappeared while the run was active.")
     when agent_resume_unavailable?
@@ -108,6 +110,12 @@ class RunFailureClassifier
     run.agent_outcome == "worker_died" ||
       text_match?(/ProcessPrunedError|worker died|process (is )?gone|process died|sigkill|killed|terminated|exit status/i) ||
       spawned_processes.any? { |process| %w[aliveness_failed orphaned stopped operator_killed].include?(process.outcome) }
+  end
+
+  def grader_failure?
+    %w[grader preflight_grader grader_collect preflight_grader_collect].include?(run.step&.kind.to_s) &&
+      diagnostic&.error_class.to_s.match?(/Steps::Base::StepFailed/) &&
+      text_match?(/grader .*failed|required graders failed/i)
   end
 
   def branch_diverged?

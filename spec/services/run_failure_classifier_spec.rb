@@ -178,7 +178,7 @@ RSpec.describe RunFailureClassifier do
     result = described_class.persist!(grader_run)
 
     expect(result.classification).not_to eq("rate_limited")
-    expect(result.classification).to eq("validation_or_user_error")
+    expect(result.classification).to eq("grader_failure")
   end
 
   it "classifies provider usage-limit exhaustion separately from retryable rate limits" do
@@ -275,6 +275,23 @@ RSpec.describe RunFailureClassifier do
     process("silent_timed_out")
 
     expect(classification.classification).to eq("timeout")
+  end
+
+  it "classifies failed grader steps before worker-death noise" do
+    run.step.update!(kind: "preflight_grader")
+    run.update!(state: "failed")
+    diagnostic("Steps::Base::StepFailed", "grader react-tests failed (exit 1)")
+    JobLog.append!(
+      run: run,
+      chunk: "Run was cancelled after the workflow terminated downstream retries.",
+      kind: "system"
+    )
+    process("stopped")
+
+    result = classification
+
+    expect(result.classification).to eq("grader_failure")
+    expect(result.retryable).to eq(false)
   end
 
   it "classifies ActiveRecord connection exhaustion as retryable database contention" do

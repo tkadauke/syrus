@@ -10189,9 +10189,14 @@ describe("App", () => {
         next_path: null
       }
     })
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } })
-    )
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/jobs/42/workflows?workflows_page=2") {
+        return Promise.resolve(new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+
+      return Promise.resolve(new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -10202,13 +10207,17 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("button", { name: "Workflows (12)" })).toBeInTheDocument()
-    expect(screen.getByText("WF-15")).toBeInTheDocument()
+    expect(await screen.findByText("WF-15")).toBeInTheDocument()
     expect(screen.getByText("WF-16")).toBeInTheDocument()
     expect(screen.getAllByText("Showing 11-12 of 12")).toHaveLength(2)
     expect(screen.getAllByRole("link", { name: "Previous" })[0]).toHaveAttribute("href", "/app-shell/jobs/42?tab=workflows&workflows_page=1")
     expect(screen.getAllByText("Next")[0]).toHaveClass("text-gray-300")
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/jobs/42?workflows_page=2",
+      expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
+    )
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/jobs/42/workflows?workflows_page=2",
       expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
     )
   })
