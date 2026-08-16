@@ -12,6 +12,8 @@ module SyrusDev
       :normalized_sql,
       :placeholder_substituted,
       :timeout_ms,
+      :analyze_safe,
+      :analyze_safety_reason,
       :rows,
       :json_plan,
       :warnings
@@ -23,6 +25,8 @@ module SyrusDev
           normalized_sql: normalized_sql,
           placeholder_substituted: placeholder_substituted,
           timeout_ms: timeout_ms,
+          analyze_safe: analyze_safe,
+          analyze_safety_reason: analyze_safety_reason,
           rows: rows,
           json_plan: json_plan,
           warnings: warnings
@@ -76,6 +80,7 @@ module SyrusDev
       raise Error, "SQL comments are not accepted for explain requests" if sql.match?(%r{/\*|--|#})
       raise Error, "Only SELECT/CTE statements can be explained" unless normalized_sql.match?(/\A(?:select|with)\b/i)
       raise Error, "Statement contains non-read-only SQL" if normalized_sql.match?(/\b(?:insert|update|delete|replace|alter|create|drop|truncate|call|load|grant|revoke|lock|unlock)\b/i)
+      raise Error, "Statement contains user variables, which are not safe for EXPLAIN ANALYZE" if analyze? && normalized_sql.match?(/@\w+/)
     end
 
     def mysql_explain(connection, adapter)
@@ -111,12 +116,15 @@ module SyrusDev
     end
 
     def result(adapter:, mode:, timeout_ms:, rows:, json_plan: nil, warnings: [])
+      analyze_safety = analyze_safety_for(adapter)
       Result.new(
         adapter: adapter,
         mode: mode,
         normalized_sql: normalized_sql,
         placeholder_substituted: placeholder_substituted?,
         timeout_ms: timeout_ms,
+        analyze_safe: analyze_safety.fetch(:safe),
+        analyze_safety_reason: analyze_safety.fetch(:reason),
         rows: rows,
         json_plan: json_plan,
         warnings: warnings
@@ -147,6 +155,15 @@ module SyrusDev
 
     def placeholder_substituted?
       sql.include?("?")
+    end
+
+    def analyze_safety_for(adapter)
+      return { safe: false, reason: "EXPLAIN ANALYZE is only enabled for MySQL connections." } unless adapter.include?("mysql")
+      return { safe: false, reason: "Only SELECT/CTE statements can be analyzed." } unless normalized_sql.match?(/\A(?:select|with)\b/i)
+      return { safe: false, reason: "Statement contains non-read-only SQL." } if normalized_sql.match?(/\b(?:insert|update|delete|replace|alter|create|drop|truncate|call|load|grant|revoke|lock|unlock)\b/i)
+      return { safe: false, reason: "Statement contains user variables." } if normalized_sql.match?(/@\w+/)
+
+      { safe: true, reason: "Read-only single-statement query; EXPLAIN ANALYZE will run with a short statement timeout." }
     end
   end
 end

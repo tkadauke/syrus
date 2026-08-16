@@ -95,6 +95,34 @@ describe("AdminPerformance", () => {
     expect(slowRequestTable).not.toBeNull()
     expect(browserTraces.compareDocumentPosition(slowRequestTable!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
+
+  it("opens SQL explain results in a visual modal and supports safe analyze", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch")
+      .mockResolvedValueOnce(jsonResponse(performancePayload()))
+      .mockResolvedValueOnce(jsonResponse(explainPayload({ analyzeSafe: true })))
+      .mockResolvedValueOnce(jsonResponse(explainPayload({ mode: "analyze", analyzeSafe: true, rows: [{ "EXPLAIN": "-> Table scan on jobs (actual time=0.1..1.2 rows=25 loops=1)" }] })))
+
+    renderRoute(<AdminPerformance />)
+    await screen.findByRole("heading", { name: "Performance" })
+
+    fireEvent.click(await screen.findByRole("button", { name: "Explain" }))
+    expect(await screen.findByRole("dialog", { name: "SQL explain result" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Run EXPLAIN ANALYZE" })).toBeDisabled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Run EXPLAIN" }))
+    await screen.findByText("Table jobs")
+    expect(screen.getByText("access: ALL")).toBeInTheDocument()
+    expect(screen.getByText("high")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Run EXPLAIN ANALYZE" })).not.toBeDisabled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Run EXPLAIN ANALYZE" }))
+    await screen.findByText(/EXPLAIN ANALYZE executed this read-only query/)
+
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/performance/explain", expect.objectContaining({
+      method: "POST",
+      body: expect.stringContaining("\"analyze\":true")
+    }))
+  })
 })
 
 function renderRoute(children: ReactNode) {
@@ -219,5 +247,44 @@ function performancePayload() {
         phase: "chat_payload.recent_chats"
       }
     ]
+  }
+}
+
+function explainPayload({ analyzeSafe, mode = "explain", rows }: { analyzeSafe: boolean; mode?: "explain" | "analyze"; rows?: Array<Record<string, unknown>> }) {
+  return {
+    adapter: "mysql2",
+    mode,
+    normalized_sql: "SELECT `jobs`.* FROM `jobs` WHERE `jobs`.`state` = NULL",
+    placeholder_substituted: true,
+    timeout_ms: mode === "analyze" ? 1000 : null,
+    analyze_safe: analyzeSafe,
+    analyze_safety_reason: analyzeSafe ? "Read-only single-statement query; EXPLAIN ANALYZE will run with a short statement timeout." : "Only SELECT/CTE statements can be analyzed.",
+    rows: rows ?? [
+      {
+        EXPLAIN: JSON.stringify({
+          query_block: {
+            table: {
+              table_name: "jobs",
+              access_type: "ALL",
+              rows_examined_per_scan: 1000,
+              filtered: 10,
+              cost_info: { query_cost: "42.00" }
+            }
+          }
+        })
+      }
+    ],
+    json_plan: rows ? null : {
+      query_block: {
+        table: {
+          table_name: "jobs",
+          access_type: "ALL",
+          rows_examined_per_scan: 1000,
+          filtered: 10,
+          cost_info: { query_cost: "42.00" }
+        }
+      }
+    },
+    warnings: []
   }
 }

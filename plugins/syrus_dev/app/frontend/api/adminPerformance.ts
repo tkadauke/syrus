@@ -136,6 +136,8 @@ export type SqlExplainResult = {
   normalized_sql: string
   placeholder_substituted: boolean
   timeout_ms: number | null
+  analyze_safe: boolean
+  analyze_safety_reason: string
   rows: Array<Record<string, unknown>>
   json_plan: Record<string, unknown> | null
   warnings: string[]

@@ -80,8 +80,10 @@ RSpec.describe "API: /api/v1/admin/performance", type: :request do
     expect(body).to include(
       "mode" => "explain",
       "normalized_sql" => "SELECT * FROM users WHERE id = NULL",
-      "placeholder_substituted" => true
+      "placeholder_substituted" => true,
+      "analyze_safe" => satisfy { |value| value == true || value == false }
     )
+    expect(body["analyze_safety_reason"]).to be_present
     expect(body["rows"]).to be_present
   end
 
