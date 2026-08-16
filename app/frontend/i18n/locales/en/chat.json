@@ -280,6 +280,7 @@
   "tab_whiteboard": "Whiteboard",
   "tab_context": "Context",
   "tab_media": "Media",
+  "tab_pinned": "Pinned",
   "tab_files": "Files",
   "tab_diff": "Local Diff",
   "tab_jobs": "Jobs",
@@ -326,5 +327,10 @@
   "unable_to_unpin": "Unable to unpin message.",
   "aria_pinned_messages": "Pinned messages",
   "pinned_message_empty": "Pinned message",
-  "pinned_messages_more": "+{{count}} more"
+  "pinned_messages_more": "+{{count}} more",
+  "pinned_panel_loading": "Loading pinned messages...",
+  "pinned_panel_error": "Unable to load pinned messages.",
+  "pinned_panel_empty": "No pinned messages yet.",
+  "pinned_role_user": "You",
+  "pinned_role_assistant": "Assistant"
 }

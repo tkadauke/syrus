@@ -1181,13 +1181,13 @@ describe("pinned messages bar", () => {
     renderRoute()
 
     const bar = await screen.findByTestId("pinned-messages-bar")
-    const previews = within(bar).getAllByRole("button")
+    const previews = within(bar).getAllByRole("button", { name: /pinned note\./ })
     expect(previews.map((button) => button.textContent)).toEqual([
       "Fifth pinned note.",
       "Fourth pinned note.",
       "Third pinned note."
     ])
-    expect(within(bar).getByText("+2 more")).toBeInTheDocument()
+    expect(within(bar).getByRole("button", { name: "+2 more" })).toBeInTheDocument()
   })
 
   it("renders nothing when the chat has no pinned messages", async () => {
@@ -1216,6 +1216,25 @@ describe("pinned messages bar", () => {
     await waitFor(() => {
       expect(scrollIntoView).toHaveBeenCalledWith({ block: "start", behavior: "smooth" })
     })
+  })
+
+  it("opens the Pinned workspace tab when the 'view all' affordance is clicked", async () => {
+    mockPinsFetch([
+      { id: 1, chat_message_id: 21, text: "First pinned note.", role: "user", created_at: "2026-08-10T10:00:00Z" },
+      { id: 2, chat_message_id: 22, text: "Second pinned note.", role: "assistant", created_at: "2026-08-11T10:00:00Z" },
+      { id: 3, chat_message_id: 23, text: "Third pinned note.", role: "user", created_at: "2026-08-12T10:00:00Z" },
+      { id: 4, chat_message_id: 24, text: "Fourth pinned note.", role: "assistant", created_at: "2026-08-13T10:00:00Z" },
+      { id: 5, chat_message_id: 25, text: "Fifth pinned note.", role: "user", created_at: "2026-08-14T10:00:00Z" }
+    ])
+
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "+2 more" }))
+
+    const workspace = await screen.findByRole("complementary", { name: "Chat workspace" })
+    expect(within(workspace).getByRole("button", { name: "Pinned" })).toHaveClass("border-blue-600")
+    expect(within(workspace).getAllByRole("listitem")).toHaveLength(5)
+    expect(within(workspace).getByText("First pinned note.")).toBeInTheDocument()
   })
 })
 

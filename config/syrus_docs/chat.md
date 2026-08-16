@@ -108,9 +108,13 @@ across all chat participants, not per-user. The SPA shows a hover-revealed
 pin toggle on each pinnable message bubble and a top-of-chat bar with the 3
 most-recently-pinned messages as truncated single-line previews (newest
 first); clicking a preview scrolls to and highlights that message, reusing
-the bookmark scroll-to-anchor mechanism. `ChatMessagePin` broadcasts
-`upsert_pin`/`remove_pin` app events (`changed: ["pins"]`) so the bar and
-toggle stay live for every participant.
+the bookmark scroll-to-anchor mechanism. When more than 3 messages are
+pinned, the bar's "+N more" affordance opens a "Pinned" tab in the right-side
+workspace panel (`availableWorkspaceTabs` in `workspaceTabs.ts`) listing every
+pinned message with its sender, a relative timestamp, and the same
+click-to-navigate behavior. `ChatMessagePin` broadcasts `upsert_pin`/
+`remove_pin` app events (`changed: ["pins"]`) so the bar, panel, and toggle
+stay live for every participant.
 
 ## Proposal dependencies
 
