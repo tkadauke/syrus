@@ -104,7 +104,11 @@ class SmartFolder < ApplicationRecord
   SPAWNED_PROCESS_BUILTINS = [
     { key: "running",         name: "Running",         visibility: :always,       filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "running" } ] } },
     { key: "stale",           name: "Stale",           visibility: :when_present, filter: { "and" => [ { "field" => "stale", "op" => "is", "value" => "true" } ] } },
-    { key: "recently_failed", name: "Recently failed", visibility: :when_present, filter: { "and" => [ { "field" => "state", "op" => "is", "value" => "failed" }, { "field" => "started_at", "op" => "within_last", "value" => { "n" => 1, "unit" => "hours" } } ] } }
+    # `outcome`, not `state`: the spawned-process state chip only knows
+    # running/finished, so filtering it by "failed" compiled to `1=0` and this
+    # folder could never match. Being :when_present, it was then hidden on
+    # every render — silently invisible rather than visibly broken.
+    { key: "recently_failed", name: "Recently failed", visibility: :when_present, filter: { "and" => [ { "field" => "outcome", "op" => "is", "value" => "failed" }, { "field" => "started_at", "op" => "within_last", "value" => { "n" => 1, "unit" => "hours" } } ] } }
   ].freeze
 
   ADMIN_QUEUE_BUILTINS = [

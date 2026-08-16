@@ -216,6 +216,7 @@ module Filters
       model: SpawnedProcess,
       chips: {
         "state"       => "Filters::Chips::SpawnedProcesses::State",
+        "outcome"     => "Filters::Chips::SpawnedProcesses::Outcome",
         "kind"        => "Filters::Chips::SpawnedProcesses::Kind",
         "hostname"    => "Filters::Chips::SpawnedProcesses::Hostname",
         "run_id"      => "Filters::Chips::SpawnedProcesses::RunId",
