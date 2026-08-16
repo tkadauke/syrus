@@ -24,6 +24,7 @@ type BrowserObserverOptions = {
   eventLoopIntervalMs?: number
   eventLoopLagThresholdMs?: number
   minEventLoopReportIntervalMs?: number
+  maxPlausibleEventLoopLagMs?: number
 }
 
 type PerformanceEventTimingEntry = PerformanceEntry & {
@@ -163,19 +164,49 @@ function observeSlowEvents(_options: BrowserObserverOptions): void {
   }
 }
 
+// A setInterval sampler cannot, on its own, tell a blocked main thread from a
+// timer that was never allowed to run. Browsers clamp background-tab timers to
+// roughly once a minute, and across system sleep they do not fire at all, so
+// the overshoot on the next tick measures the throttle or the nap rather than
+// any work the page did. Unfiltered, that dwarfs real jank: production
+// collected a 3,139,015ms sample (52 minutes, which no live page survives),
+// and hidden tabs produced 96% of all recorded lag.
+//
+// Two filters, because the two causes are different. Visibility catches
+// background throttling. A plausibility ceiling catches clock discontinuities
+// that leave visibility alone — a sleeping machine with the tab still
+// foregrounded reports visibility_state "visible" on wake.
 function observeEventLoopLag(options: BrowserObserverOptions): void {
   const intervalMs = options.eventLoopIntervalMs ?? 1_000
   const thresholdMs = options.eventLoopLagThresholdMs ?? 150
   const minReportIntervalMs = options.minEventLoopReportIntervalMs ?? 10_000
+  const maxPlausibleLagMs = options.maxPlausibleEventLoopLagMs ?? 10_000
   let expectedAt = performanceNow() + intervalMs
   let lastReportedAt = 0
+  // The interval spanning a visibility transition measured the throttle, not
+  // the page, so drop it and re-baseline.
+  let skipNextSample = documentHidden()
+
+  const onVisibilityChange = (): void => {
+    expectedAt = performanceNow() + intervalMs
+    skipNextSample = true
+  }
+  document.addEventListener("visibilitychange", onVisibilityChange)
 
   const intervalId = window.setInterval(() => {
     const now = performanceNow()
     const lagMs = now - expectedAt
     expectedAt = now + intervalMs
 
+    const hidden = documentHidden()
+    const skip = skipNextSample || hidden
+    // Stay suppressed for as long as the tab is hidden, and for the first tick
+    // after it comes back.
+    skipNextSample = hidden
+    if (skip) return
+
     if (lagMs < thresholdMs) return
+    if (lagMs > maxPlausibleLagMs) return
     if (now - lastReportedAt < minReportIntervalMs) return
 
     lastReportedAt = now
@@ -188,12 +219,20 @@ function observeEventLoopLag(options: BrowserObserverOptions): void {
       metadata: {
         interval_ms: intervalMs,
         threshold_ms: thresholdMs,
+        max_plausible_lag_ms: maxPlausibleLagMs,
         source: "event_loop_sampler"
       }
     }, { enabled: true })
   }, intervalMs)
 
-  observerCleanups.push(() => window.clearInterval(intervalId))
+  observerCleanups.push(() => {
+    document.removeEventListener("visibilitychange", onVisibilityChange)
+    window.clearInterval(intervalId)
+  })
+}
+
+function documentHidden(): boolean {
+  return typeof document !== "undefined" && document.visibilityState === "hidden"
 }
 
 function supportsPerformanceObserverType(type: string): boolean {

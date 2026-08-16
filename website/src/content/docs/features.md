@@ -697,7 +697,11 @@ Browser traces currently cover dashboard loads and include only structural
 timing data: route path, browser-observed duration until current rows render,
 document visibility state, row counts, and backend request IDs/durations/statuses
 for dashboard API calls. They do not include row content, titles, prompts, or
-free-form filter text; route paths are sanitized before logging. The
+free-form filter text; route paths are sanitized before logging. Event-loop lag
+sampling only reports while the tab is visible, skips the interval spanning a
+return from the background, and discards implausibly long gaps: a timer that
+was throttled in a background tab or paused across system sleep measures the
+pause, not the page, and would otherwise swamp real jank. The
 admin performance endpoint returns recent raw events plus grouped summaries for
 slow routes, phases, browser traces, and SQL fingerprints. Events are stamped with the running
 app revision, and the admin view defaults to the current revision so stale
