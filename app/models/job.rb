@@ -106,6 +106,8 @@ class Job < ApplicationRecord
   validates :triaging_reason, presence: true, inclusion: { in: TRIAGING_REASONS }
   validates :approved_via, inclusion: { in: APPROVAL_VIAS }, allow_nil: true
   validates :system_kind, inclusion: { in: SYSTEM_KINDS }, allow_nil: true
+  validates :skill_name, format: { with: Skills::NAME_PATTERN }, allow_nil: true
+  validate  :skill_name_requires_direct_kind, if: -> { skill_name.present? }
   validates :issue_number,
             presence: true,
             numericality: { only_integer: true, greater_than: 0 },
@@ -274,6 +276,18 @@ class Job < ApplicationRecord
   def main_branch_repair?
     system_kind == SYSTEM_KIND_MAIN_BRANCH_REPAIR ||
       (system_kind.blank? && direct? && issue_title == MAIN_BRANCH_REPAIR_TITLE)
+  end
+
+  # A direct Job launched from a named Skills:: instruction set
+  # (`skill_name` + `skill_args`, see SkillJobs::Creator) rather than a
+  # free-form prompt. Drives Workflows::Skill instead of Workflows::Initial
+  # in #create_initial_run.
+  def skill_launch?
+    direct? && skill_name.present?
+  end
+
+  def skill_workflow_artifacts
+    { "skill_name" => skill_name, "skill_args" => skill_args.presence || {} }
   end
 
   def infrastructure?
@@ -1124,9 +1138,15 @@ class Job < ApplicationRecord
   # observable behavior as the v0 single-Run flow, but each
   # phase is now its own attemptable step.
   def create_initial_run
-    template = main_branch_repair? ? Workflows::MainBranchRepair : Workflows::Initial
-    workflow = template.instantiate(job: self)
-    prompt = if direct?
+    template = if skill_launch?
+      Workflows::Skill
+    elsif main_branch_repair?
+      Workflows::MainBranchRepair
+    else
+      Workflows::Initial
+    end
+    workflow = template.instantiate(job: self, artifacts: skill_launch? ? skill_workflow_artifacts : nil)
+    prompt = if direct? && !skill_launch?
       Prompts::DirectJob.new(
         prompt: issue_body.to_s,
         epic: epic,
@@ -1454,6 +1474,10 @@ class Job < ApplicationRecord
 
   def issue_number_blank_for_agent_insight
     errors.add(:issue_number, "must be blank for agent_insight Jobs") if issue_number.present?
+  end
+
+  def skill_name_requires_direct_kind
+    errors.add(:skill_name, "requires kind=direct") unless direct?
   end
 
   def issue_number_blank_for_external_pr

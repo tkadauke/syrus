@@ -101,6 +101,7 @@ merge_train: merge_train_assemble → merge_train_build → prepare → retry_un
 coding_handoff: prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open
 external_pr_ingest (same-repo): prepare → retry_until(graders, repair: landing_fix) → push
 external_pr_ingest (fork):      prepare → grader_fanout → grader_collect
+skill:       prepare → run_skill → summarize → pr_open
 ```
 
 `[loop(...)]` steps are conditional: the `adversarial_review` loop only appears when `adversarial_review_rounds > 0` (per `.syrus.yml` or `AppSetting`); the `visual_review` loop only appears when `visual_review.enabled` is true (per `.syrus.yml` or the `visual_review` Labs feature flag, `Feature.visual_review_enabled?`); `coverage_analyze` only appears when a coverage plan is configured for the repository.
@@ -130,6 +131,25 @@ Key steps:
   invoke the Workflow's configured `AgentProviders::*` adapter. Claude uses
   `AgentInvocation`/`claude --print`; Codex uses `CodexInvocation`/`codex exec`.
   Pluggable `runner:` for tests.
+- **`run_skill`** — Agentic step of `skill` workflows (EPIC-233). Resolves the
+  Job's `skill_name` via `Skills.for(repository:, name:)` (repo-local override,
+  else built-in), renders the resolved `Skills::Definition`'s instructions with
+  `skill_args` substituted (`Skills::Renderer`, `Prompts::Skill`), and invokes
+  the agent the same way `implement` does — commit locally, verify branch
+  history, capture the diff. Records `skill_source` (`repo_override`/
+  `built_in`) and the resolved path/class onto the Run (provenance
+  requirement — never a silent shadowing trap). A skill run with no diff (a
+  read-only `investigate` skill, an operational skill that only reports) is a
+  valid outcome: like `implement`, it raises `Steps::Base::NoChangesProduced`,
+  which fails the step/workflow but `propagate_fail_to_job!` closes the Job
+  with `closure_reason: "no_changes"` instead — the same happy path cron Jobs
+  use, so `summarize`/`pr_open` never run and no PR is opened.
+  `Steps::Summarize` recognizes both `implement` and `run_skill` as the
+  upstream agentic step it resumes from. `SkillJobs::Creator` is the Job
+  creation entry point: validates the skill resolves and `args` satisfy its
+  parameter schema, then creates a `direct` Job with `skill_name`/`skill_args`
+  set; `Job#create_initial_run` reads those to dispatch `Workflows::Skill`
+  (trigger_kind `skill`) instead of `Workflows::Initial`.
 - **`auto_rebase`** / **`agent_rebase`** / **`force_push`** — Rebase chain:
   first try deterministic `git rebase`; if clean, cancel only `agent_rebase`
   and still `force_push`. On conflict, `agent_rebase` resolves it, then
@@ -587,6 +607,7 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   `Prompts::SubmitSummaryInstructions`, `Prompts::TestPlan`,
   `Prompts::Rebase`, `Prompts::PushRebase`, `Prompts::LandingFix`,
   `Prompts::ScheduledTask`, `Prompts::DirectJob`, `Prompts::EpicContext`,
+  `Prompts::Skill`,
   `Prompts::VideoWalkthroughAnalysis`, `Prompts::VideoWalkthroughContext`,
   `Prompts::VideoWalkthroughReport`, `Prompts::VideoWalkthroughSegment`).
   Each has a `to_s`. Compose by appending; never inline prompt text in
