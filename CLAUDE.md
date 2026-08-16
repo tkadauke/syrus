@@ -737,9 +737,18 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   (dedicated low-concurrency worker) for ChatTurnJob and ChatWorkspaceJob;
   `videos` (low-concurrency) for VideoWalkthroughAnalysisJob, whose
   multi-minute Gemini uploads/polling would otherwise pin default threads;
-  `default` for pollers, app-event broadcasts, and reaper jobs. Splitting
-  prevents long RunJobs from starving landing, chat, the reaper, and UI
-  broadcasts.
+  `control_plane` (the `ApplicationJob` default) for schedulers, landing
+  admission, reconciliation, and retry dispatch; `polling` for the
+  per-repository/per-PR poll fan-out; `indexing` for search-index writes;
+  `cleanup` for pruning; `low_priority_maintenance` for enrichment;
+  `connectivity` for plugin daemon lifecycle. Splitting prevents long
+  RunJobs from starving landing, chat, the reaper, and UI broadcasts.
+  **`default` is NOT consumed by any worker** — nothing in `config/queue.yml`
+  lists it, so anything enqueued there is never claimed and accumulates
+  silently. `ApplicationJob` sets `queue_as :control_plane` so Syrus jobs are
+  safe, but framework jobs that subclass `ActiveJob::Base` directly (Active
+  Storage, Action Mailer) must be routed explicitly in `config/application.rb`.
+  `spec/config/queue_partitioning_spec.rb` guards both cases.
 - **Per-user max-turns** — `User#agent_max_turns` (default 200, range
   0–1000). `0` means no `--max-turns` flag is passed to claude (the
   per-run 30-minute timeout still bounds runaway loops). Threaded through

@@ -23,6 +23,14 @@ module Syrus
     config.i18n.available_locales = %i[en de la]
     config.i18n.default_locale = :en
 
+    # Active Storage's jobs subclass ActiveJob::Base directly, so they never
+    # pick up ApplicationJob's `queue_as :control_plane` and default to :default
+    # — a queue no worker in config/queue.yml consumes. Anything landing there
+    # is never claimed (57 analyze jobs had accumulated in production, the
+    # oldest 11 days), so route them onto queues that actually have workers.
+    config.active_storage.queues.analysis = :low_priority_maintenance
+    config.active_storage.queues.purge = :cleanup
+
     # Configuration for the application, engines, and railties goes here.
     #
     # These settings can be overridden in specific environments using the files

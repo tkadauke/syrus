@@ -102,6 +102,27 @@ RSpec.describe "queue partitioning" do
     expect(unknown).to be_empty, message
   end
 
+  # The check above only sees `queue_as` in app/jobs. Framework jobs subclass
+  # ActiveJob::Base directly, so they miss ApplicationJob's `queue_as
+  # :control_plane` and fall back to :default — which no worker consumes, so
+  # they are enqueued and then never claimed. This caught Active Storage
+  # silently stranding every attachment analysis in production.
+  it "does not leave framework-owned jobs on queues no worker consumes" do
+    framework_jobs = [
+      ActiveStorage::AnalyzeJob,
+      ActiveStorage::PurgeJob
+    ]
+
+    stranded = framework_jobs.filter_map do |klass|
+      queue = klass.new.queue_name.to_s
+      [ klass.name, queue ] unless APP_QUEUES.include?(queue)
+    end
+
+    message = "framework jobs resolve to unconsumed queues: " \
+              "#{stranded.map { |name, queue| "#{name} => #{queue}" }.join(", ")}"
+    expect(stranded).to be_empty, message
+  end
+
   it "routes only the search-bound + light queues to the home worker" do
     expect(queues_for("config/queue.home.yml")[:regular].uniq).to match_array(HOME_QUEUES)
   end
