@@ -192,6 +192,7 @@
     "failed": "Defecit",
     "no_change_needed": "Iam factum",
     "cancelled": "Intermissum",
+    "skipped": "Praetermissum",
     "invalid": "Invalidum",
     "unmergeable": "Bellum",
     "mergeable": "Concordia"

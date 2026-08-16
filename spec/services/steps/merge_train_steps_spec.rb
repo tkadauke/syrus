@@ -340,7 +340,7 @@ RSpec.describe "Steps::MergeTrain*" do
 
       handler.call
 
-      expect(workflow.steps.find_by!(kind: "grader_fanout")).to be_cancelled
+      expect(workflow.steps.find_by!(kind: "grader_fanout")).to be_skipped
       expect(workflow.steps.find_by!(kind: "merge_train_land")).to be_queued
       expect(run.job_logs.pluck(:chunk).join("\n")).to include("merge_train: reusing cached grading validation (same_tree)")
     end
@@ -492,9 +492,9 @@ RSpec.describe "Steps::MergeTrain*" do
       handler.call
 
       expect(workflow.steps.order(:position).pluck(:kind, :state)).to include(
-        [ "prepare", "cancelled" ],
-        [ "grader_fanout", "cancelled" ],
-        [ "grader_collect", "cancelled" ],
+        [ "prepare", "skipped" ],
+        [ "grader_fanout", "skipped" ],
+        [ "grader_collect", "skipped" ],
         [ "merge_train_land", "queued" ]
       )
     end
@@ -980,8 +980,8 @@ RSpec.describe "Steps::MergeTrain*" do
         "changed_files_fingerprint" => LandingValidationCache.changed_files_fingerprint([ "app/models/job.rb" ]),
         "validation_source" => "clean_rebase"
       )
-      expect(handler.workflow.steps.find_by!(kind: "prepare")).to be_cancelled
-      expect(handler.workflow.steps.find_by!(kind: "grader_fanout")).to be_cancelled
+      expect(handler.workflow.steps.find_by!(kind: "prepare")).to be_skipped
+      expect(handler.workflow.steps.find_by!(kind: "grader_fanout")).to be_skipped
       expect(handler.workflow.steps.find_by!(kind: "merge_train_land_after_rebase")).to be_queued
       expect(handler.workflow.artifact(LandingThroughputMetrics::ARTIFACT_KEY).dig("validation_decisions").last).to include(
         "context" => "merge_train_rebase",

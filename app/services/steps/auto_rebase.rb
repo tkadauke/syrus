@@ -13,7 +13,7 @@ module Steps
 
       if result.succeeded?
         log("auto_rebase: clean — #{result.note}")
-        cancel_agent_rebase!(reason: "auto_rebase already succeeded; agent rebase not needed")
+        skip_agent_rebase!(reason: "auto_rebase already succeeded; agent rebase not needed")
       else
         workflow.set_artifact!("auto_rebase_reason", result.reason)
         log("auto_rebase: #{result.reason} — falling through to agent_rebase")
@@ -36,16 +36,13 @@ module Steps
       ::AutoRebase.new(job, **kwargs)
     end
 
-    def cancel_agent_rebase!(reason:)
+    def skip_agent_rebase!(reason:)
       next_step = step.next_step
       return unless next_step&.kind == "agent_rebase"
-      return unless next_step.may_cancel?
+      return unless next_step.may_skip?
 
-      log("[#{step.kind}] cancelling downstream step ##{next_step.id} (#{next_step.kind}): #{reason}")
-      Step.suppress_cancel_cascade do
-        next_step.cancel!
-        next_step.save!
-      end
+      log("[#{step.kind}] skipping downstream step ##{next_step.id} (#{next_step.kind}): #{reason}")
+      next_step.skip_with_reason!(reason)
     end
   end
 end

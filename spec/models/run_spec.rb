@@ -66,6 +66,12 @@ RSpec.describe Run do
       expect(run.finished_at).to be_present
     end
 
+    it "queued → skipped via skip" do
+      run = job.initial_run
+      expect { run.skip! }.to change(run, :state).from("queued").to("skipped")
+      expect(run.finished_at).to be_present
+    end
+
     it "running → failed via fail" do
       run = job.initial_run
       run.start!
@@ -472,6 +478,32 @@ RSpec.describe Run do
     end
   end
 
+  describe "cancellation dispatch" do
+    it "does not cancel a workflow when an obsolete Run is cancelled on an already-terminal Step" do
+      workflow = Workflow.create!(job: job, trigger_kind: "rebase", state: "running")
+      step = Step.create!(workflow: workflow, kind: "agent_rebase", position: 0, state: "succeeded")
+      run = step.runs.create!(job: job, trigger_kind: "rebase", state: "queued")
+
+      run.cancel!
+      run.save!
+
+      expect(step.reload).to be_succeeded
+      expect(workflow.reload).to be_running
+    end
+
+    it "does not cancel a workflow when a Run is skipped" do
+      workflow = Workflow.create!(job: job, trigger_kind: "rebase", state: "running")
+      step = Step.create!(workflow: workflow, kind: "agent_rebase", position: 0, state: "queued")
+      run = step.runs.create!(job: job, trigger_kind: "rebase", state: "queued")
+
+      run.skip!
+      run.save!
+
+      expect(step.reload).to be_queued
+      expect(workflow.reload).to be_running
+    end
+  end
+
   describe "in-place worker_died step retry" do
     let(:workflow) { Workflow.create!(job: job, trigger_kind: "initial") }
     let(:step) { Step.create!(workflow: workflow, kind: "grader", position: 0, state: "running") }
@@ -577,8 +609,8 @@ RSpec.describe Run do
       expect(run).not_to be_terminal
     end
 
-    it "is true for succeeded, failed, cancelled" do
-      [ ->(r) { r.start!; r.succeed! }, ->(r) { r.fail! }, ->(r) { r.cancel! } ].each do |drive|
+    it "is true for succeeded, failed, cancelled, and skipped" do
+      [ ->(r) { r.start!; r.succeed! }, ->(r) { r.fail! }, ->(r) { r.cancel! }, ->(r) { r.skip! } ].each do |drive|
         run = Run.create!(job: Factories.job, trigger_kind: "pr_comment")
         drive.call(run)
         expect(run).to be_terminal

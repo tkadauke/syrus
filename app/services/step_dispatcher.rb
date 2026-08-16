@@ -714,13 +714,7 @@ class StepDispatcher
     continuation = implement_step.next_step
 
     Step.transaction do
-      Step.suppress_cancel_cascade do
-        if implement_step.may_cancel?
-          implement_step.cancellation_reason = cancellation_reason
-          implement_step.cancel!
-          implement_step.save!
-        end
-      end
+      implement_step.skip_with_reason!(cancellation_reason) if implement_step.may_skip?
 
       if continuation&.queued? && continuation.runs.none? && !manually_paused_before_next_step?(continuation)
         self.class.create_run_and_enqueue(continuation, @workflow)
@@ -1010,10 +1004,9 @@ class StepDispatcher
   end
 
   # Linear chain walk: starting at `@from_step.next_step`, find
-  # the first step in `queued` state. Skips cancelled / succeeded /
-  # failed steps en route — the chain can have cancelled gaps when
-  # an upstream step calls cancel_downstream! (e.g.
-  # Steps::AutoRebase on a clean rebase). v3's graph version walks
+  # the first step in `queued` state. Skips terminal gaps en route — the
+  # chain can have skipped gaps when an upstream step proves future work
+  # unnecessary (e.g. Steps::AutoRebase on a clean rebase). v3's graph version walks
   # edges instead of next_step pointers.
   def find_next_runnable
     # If we're advancing FROM a step, look at its successor (which
@@ -1041,19 +1034,7 @@ class StepDispatcher
   end
 
   def skip_queued_step!(step)
-    now = Time.current
-    details = step.details.to_h.merge(
-      "skipped" => true,
-      "skip_reason" => "test_plan_already_submitted"
-    )
-
-    step.update_columns(
-      state: "succeeded",
-      started_at: now,
-      finished_at: now,
-      details: details,
-      updated_at: now
-    )
+    step.skip_with_reason!("test_plan_already_submitted")
 
     Rails.logger.info(
       "[StepDispatcher] workflow #{@workflow.id} skipped step #{step.id} " \

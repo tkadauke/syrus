@@ -180,8 +180,8 @@ class RunJob < ApplicationJob
     return if cancel_ineligible_retry_workflow!
 
     if @step.terminal?
-      log("step ##{@step.id} already terminal (#{@step.state}); abandoning run")
-      @run.cancel! if @run.may_cancel?
+      log("step ##{@step.id} already terminal (#{@step.state}); skipping obsolete run")
+      @run.skip! if @run.may_skip?
       @run.save!
       return
     end
@@ -457,10 +457,9 @@ class RunJob < ApplicationJob
     Step.suppress_cancel_cascade do
       cursor = @step.next_step
       while cursor
-        if cursor.may_cancel?
-          log("[#{@step.kind}] cancelling downstream step ##{cursor.id} (#{cursor.kind}): #{reason}")
-          cursor.cancel!
-          cursor.save!
+        if cursor.may_skip?
+          log("[#{@step.kind}] skipping downstream step ##{cursor.id} (#{cursor.kind}): #{reason}")
+          cursor.skip_with_reason!(reason)
         end
         cursor = cursor.next_step
       end

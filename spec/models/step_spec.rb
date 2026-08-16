@@ -91,6 +91,15 @@ describe "details JSON bag" do
         expect(step.finished_at).to eq(Time.current)
       end
     end
+
+    it "queued → skipped stamps finished_at" do
+      freeze_time do
+        step.skip!
+        step.save!
+        expect(step.state).to eq("skipped")
+        expect(step.finished_at).to eq(Time.current)
+      end
+    end
   end
 
   describe "linear chain navigation" do
@@ -162,11 +171,9 @@ describe "details JSON bag" do
       expect(workflow.reload.state).to eq("cancelled")
     end
 
-    it "leaves later steps queued when the cancel is wrapped in suppress_cancel_cascade (skip-one-step pattern)" do
-      Step.suppress_cancel_cascade do
-        step_b.cancel!
-        step_b.save!
-      end
+    it "leaves later steps queued when a future step is skipped" do
+      step_b.skip!
+      step_b.save!
 
       expect(step_c.reload.state).to eq("queued")
       expect(workflow.reload.state).to eq("running")

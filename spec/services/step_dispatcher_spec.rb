@@ -644,7 +644,7 @@ RSpec.describe StepDispatcher do
         described_class.advance_from(s2)
       }.to change { s3.runs.count }.by(1)
 
-      expect(test_plan.reload).to be_succeeded
+      expect(test_plan.reload).to be_skipped
       expect(test_plan.runs.count).to eq(0)
       expect(test_plan.details).to include(
         "skipped" => true,
@@ -1126,8 +1126,8 @@ RSpec.describe StepDispatcher do
       }.to change { grader_fanout.runs.count }.by(1)
 
       expect(review_workflow.reload.steps.count).to eq(original_step_count)
-      expect(final_implement.reload).to be_cancelled
-      expect(final_implement.cancellation_reason).to eq("adversarial_review_approved")
+      expect(final_implement.reload).to be_skipped
+      expect(final_implement.details).to include("skip_reason" => "adversarial_review_approved")
       expect(grader_fanout.reload).to be_queued
       expect(review_workflow.steps.find_by!(kind: "grader_collect")).to be_queued
       expect(review_workflow.reload).not_to be_cancelled
@@ -1163,8 +1163,8 @@ RSpec.describe StepDispatcher do
       }.to change { grader_fanout.runs.count }.by(1)
 
       expect(review_workflow.reload.steps.count).to eq(original_step_count)
-      expect(final_implement.reload).to be_cancelled
-      expect(final_implement.cancellation_reason).to eq("adversarial_review_approved")
+      expect(final_implement.reload).to be_skipped
+      expect(final_implement.details).to include("skip_reason" => "adversarial_review_approved")
       expect(grader_fanout.reload).to be_queued
       expect(review_workflow.steps.find_by!(kind: "grader_collect")).to be_queued
       expect(review_workflow.reload).not_to be_cancelled
@@ -1264,8 +1264,8 @@ RSpec.describe StepDispatcher do
       }.to change { grader_fanout.runs.count }.by(1)
 
       expect(review_workflow.reload.steps.count).to eq(original_step_count)
-      expect(final_implement.reload).to be_cancelled
-      expect(final_implement.cancellation_reason).to eq("visual_review_approved")
+      expect(final_implement.reload).to be_skipped
+      expect(final_implement.details).to include("skip_reason" => "visual_review_approved")
       expect(grader_fanout.reload).to be_queued
       expect(review_workflow.steps.where(loop_id: review.loop_id, iteration: 2)).to be_empty
     end
@@ -1284,8 +1284,8 @@ RSpec.describe StepDispatcher do
         described_class.advance_from(review)
       }.to change { grader_fanout.runs.count }.by(1)
 
-      expect(final_implement.reload).to be_cancelled
-      expect(final_implement.cancellation_reason).to eq("visual_review_approved")
+      expect(final_implement.reload).to be_skipped
+      expect(final_implement.details).to include("skip_reason" => "visual_review_approved")
       expect(review_workflow.steps.where(loop_id: review.loop_id, iteration: 2)).to be_empty
     end
 

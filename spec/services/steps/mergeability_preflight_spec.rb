@@ -246,10 +246,10 @@ RSpec.describe Steps::MergeabilityPreflight do
 
     states = workflow.steps.order(:position).pluck(:kind, :state)
     expect(states).to include(
-      [ "prepare", "cancelled" ],
-      [ "grader_fanout", "cancelled" ],
-      [ "grader_collect", "cancelled" ],
-      [ "push", "cancelled" ],
+      [ "prepare", "skipped" ],
+      [ "grader_fanout", "skipped" ],
+      [ "grader_collect", "skipped" ],
+      [ "push", "skipped" ],
       [ "auto_merge", "queued" ]
     )
     expect(workflow.reload).to be_running

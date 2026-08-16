@@ -19,6 +19,9 @@ class Step < ApplicationRecord
   validates :kind, presence: true, inclusion: { in: KINDS }
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
 
+  ACTIVE_STATES = %w[ queued running ].freeze
+  TERMINAL_STATES = %w[ succeeded failed cancelled skipped ].freeze
+
   # MySQL 8 rejects defaults on JSON columns, so seed `{}` on new
   # records via after_initialize instead of a column default. Existing
   # rows were backfilled by the AddDetailsToSteps migration.
@@ -26,8 +29,8 @@ class Step < ApplicationRecord
   # serialize: needed.)
   after_initialize :default_details, if: :new_record?
 
-  scope :active, -> { where(state: %w[ queued running ]) }
-  scope :terminal, -> { where(state: %w[ succeeded failed cancelled ]) }
+  scope :active, -> { where(state: ACTIVE_STATES) }
+  scope :terminal, -> { where(state: TERMINAL_STATES) }
 
   # When a Step transitions to :cancelled, `cancel_workflow_chain!`
   # normally cascades the cancellation to downstream queued steps
@@ -35,14 +38,10 @@ class Step < ApplicationRecord
   # workflow itself. That cascade is what we want for "this step
   # was the current chain — the workflow is dead" cases.
   #
-  # But there's a legitimate inverse pattern: a still-running
-  # upstream step intentionally cancels a single FUTURE step it
-  # knows it can skip (Steps::AutoRebase cancelling agent_rebase
-  # after a clean deterministic rebase; the dispatcher's
-  # cancel_post_loop_steps! before failing the workflow with a
-  # reason). In those cases the auto-cascade would over-reach and
-  # kill the rest of the chain. Wrap the explicit cancel call in
-  # `Step.suppress_cancel_cascade { ... }` to opt out.
+  # Historical "skip one future step" callsites used cancelled with the
+  # cascade suppressed. New benign no-op paths should use :skipped instead;
+  # this suppression remains for real cancellation propagation that must not
+  # fan out further.
   def self.suppress_cancel_cascade
     prior = Thread.current[:syrus_step_suppress_cancel_cascade]
     Thread.current[:syrus_step_suppress_cancel_cascade] = true
@@ -54,7 +53,7 @@ class Step < ApplicationRecord
   aasm column: :state, whiny_transitions: false do
     after_all_transitions :record_state_transition!
     state :queued, initial: true
-    state :running, :succeeded, :failed, :cancelled
+    state :running, :succeeded, :failed, :cancelled, :skipped
 
     event :start do
       transitions from: :queued, to: :running, after: -> { self.started_at ||= Time.current }
@@ -70,6 +69,10 @@ class Step < ApplicationRecord
 
     event :cancel do
       transitions from: [ :queued, :running ], to: :cancelled, after: -> { self.finished_at = Time.current }
+    end
+
+    event :skip do
+      transitions from: [ :queued, :running ], to: :skipped, after: -> { self.finished_at = Time.current }
     end
 
     # Reopen a failed Step so a new Run can be created on it. Used
@@ -89,7 +92,15 @@ class Step < ApplicationRecord
   end
 
   def terminal?
-    succeeded? || failed? || cancelled?
+    TERMINAL_STATES.include?(state)
+  end
+
+  def skip_with_reason!(reason)
+    return false unless may_skip?
+
+    self.details = details.to_h.merge("skipped" => true, "skip_reason" => reason)
+    skip!
+    save!
   end
 
   # When a Step succeeds, hand off to the dispatcher to start the
@@ -110,8 +121,7 @@ class Step < ApplicationRecord
   # downstream queued steps, then (if the workflow has no active
   # work left) cancel the workflow itself so workspace cleanup +
   # after_cancel hooks fire. Legitimate "skip one future step"
-  # callsites wrap their cancel in Step.suppress_cancel_cascade
-  # to opt out — see the class method's comment.
+  # :skipped means the step was intentionally unnecessary and does not cascade.
   after_update_commit :cancel_workflow_chain!, if: :saved_change_to_state_to_cancelled?
 
   def saved_change_to_state_to_succeeded?

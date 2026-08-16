@@ -27,7 +27,11 @@ RSpec.describe Steps::AutoRebase do
     described_class.new(run).call
 
     expect(::AutoRebase).to have_received(:new).with(job, base_branch: job.effective_base_branch)
-    expect(agent_rebase_step.reload.state).to eq("cancelled")
+    expect(agent_rebase_step.reload.state).to eq("skipped")
+    expect(agent_rebase_step.details).to include(
+      "skipped" => true,
+      "skip_reason" => "auto_rebase already succeeded; agent rebase not needed"
+    )
     expect(force_push_step.reload.state).to eq("queued")
     expect(workflow.reload.artifact("auto_rebase_result")).to include(
       "changed" => true,

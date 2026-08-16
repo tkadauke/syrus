@@ -23,7 +23,7 @@ class ProviderSession < ApplicationRecord
 
   scope :prunable, -> {
     for_runs
-      .where(runs: { state: %w[ succeeded failed cancelled ] })
+      .where(runs: { state: Run::TERMINAL_STATES })
       .where("provider_sessions.updated_at < ?", RETAIN_AFTER_TERMINAL.ago)
   }
 

@@ -42,7 +42,7 @@ module WorkflowStepResourceProfiles
         summary.trigger_kind.present? &&
         summary.step_kind.present? &&
         summary.duration_seconds.present? &&
-        summary.run&.state.in?(%w[ succeeded failed cancelled ])
+        summary.run&.state.in?(Run::TERMINAL_STATES)
     end
 
     def profile_key(summary)

@@ -27,7 +27,7 @@ RSpec.describe Steps::StackAutoRebase do
   let(:agent_step) { workflow.steps.find_by!(kind: "stack_agent_rebase") }
   let(:run) { Run.create!(job: job, step: auto_step, trigger_kind: "stack_rebase") }
 
-  it "cancels the agent step when every branch rebases deterministically" do
+  it "skips the agent step when every branch rebases deterministically" do
     root_result = AutoRebase::Result.new(true, "rebased", "advanced root", changed: true, pre_sha: "a", post_sha: "b", base_sha: "m")
     child_result = AutoRebase::Result.new(true, "rebased", "no-op", changed: false, pre_sha: "c", post_sha: "c", base_sha: "b")
     allow(AutoRebase).to receive(:new)
@@ -39,7 +39,7 @@ RSpec.describe Steps::StackAutoRebase do
 
     described_class.new(run).call
 
-    expect(agent_step.reload.state).to eq("cancelled")
+    expect(agent_step.reload.state).to eq("skipped")
     expect(workflow.reload.artifact("stack_rebase_agent_pending")).to eq([])
     expect(workflow.artifact("stack_rebase_results").map { |entry| entry.dig("result", "reason") }).to eq(%w[ rebased rebased ])
   end

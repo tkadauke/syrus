@@ -313,7 +313,7 @@ RSpec.describe RunJob, :ci_only do
       expect(wf.state).to eq("succeeded")
       kinds_states = wf.steps.pluck(:kind, :state)
       expect(kinds_states[0]).to eq([ "auto_rebase",  "succeeded" ])
-      expect(kinds_states[1]).to eq([ "agent_rebase", "cancelled" ])
+      expect(kinds_states[1]).to eq([ "agent_rebase", "skipped" ])
       expect(kinds_states[2]).to eq([ "force_push",   "succeeded" ])
     end
   end

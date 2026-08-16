@@ -53,9 +53,11 @@ class Run < ApplicationRecord
   # reads, broad greps, multi-file edits).
   STALE_HEARTBEAT_THRESHOLD = 30.minutes
   WORKER_DIED_STEP_MAX_RETRIES = 3
+  ACTIVE_STATES = %w[ queued running ].freeze
+  TERMINAL_STATES = %w[ succeeded failed cancelled skipped ].freeze
 
-  scope :active, -> { where(state: %w[ queued running ]) }
-  scope :terminal, -> { where(state: %w[ succeeded failed cancelled ]) }
+  scope :active, -> { where(state: ACTIVE_STATES) }
+  scope :terminal, -> { where(state: TERMINAL_STATES) }
 
   # Job ids with a queued/running Run, materialized on purpose.
   #
@@ -92,7 +94,7 @@ class Run < ApplicationRecord
   aasm column: :state, whiny_transitions: false do
     after_all_transitions :record_state_transition!
     state :queued, initial: true
-    state :running, :succeeded, :failed, :cancelled
+    state :running, :succeeded, :failed, :cancelled, :skipped
 
     event :start do
       transitions from: :queued, to: :running, after: -> { self.started_at = Time.current }
@@ -108,6 +110,10 @@ class Run < ApplicationRecord
 
     event :cancel do
       transitions from: [ :queued, :running ], to: :cancelled, after: -> { self.finished_at = Time.current }
+    end
+
+    event :skip do
+      transitions from: [ :queued, :running ], to: :skipped, after: -> { self.finished_at = Time.current }
     end
   end
 
@@ -176,6 +182,8 @@ class Run < ApplicationRecord
       step.cancel!
       step.save!
     end
+    return unless step.reload.cancelled?
+
     wf = step.workflow
     if wf.may_cancel?
       wf.cancel!
@@ -216,7 +224,7 @@ class Run < ApplicationRecord
   end
 
   def terminal?
-    succeeded? || failed? || cancelled?
+    TERMINAL_STATES.include?(state)
   end
 
   def cost_breakdown?

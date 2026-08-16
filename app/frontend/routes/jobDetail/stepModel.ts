@@ -25,7 +25,7 @@ export type PrepareFailure = {
 
 export type GradeSummary = {
   name: string
-  status: "passed" | "failed" | "error" | "running" | "queued" | "cancelled" | "unknown"
+  status: "passed" | "failed" | "error" | "running" | "queued" | "cancelled" | "skipped" | "unknown"
   required: boolean | null
   exitCode: number | null
   duration: number | null
@@ -157,7 +157,11 @@ export function gradeDisplayStatus(item: GradeStepItem) {
   if (statuses.includes("queued")) return "queued"
   if (statuses.includes("failed")) return "failed"
   if (statuses.includes("cancelled")) return "cancelled"
-  if (item.steps.length > 0 && item.steps.every((step) => effectiveStepStatus(step) === "succeeded")) return "succeeded"
+  if (item.steps.length > 0 && item.steps.every((step) => {
+    const status = effectiveStepStatus(step)
+    return status === "succeeded" || status === "skipped"
+  })) return "succeeded"
+  if (statuses.includes("skipped")) return "skipped"
   return null
 }
 
@@ -178,12 +182,13 @@ export function gradeSummaries(item: GradeStepItem): GradeSummary[] {
 
 export function gradeSummaryStatus(step: JobStep, details: Record<string, unknown>): GradeSummary["status"] {
   const status = stringValue(details.status)
-  if (status === "passed" || status === "failed" || status === "error" || status === "cancelled") return status
+  if (status === "passed" || status === "failed" || status === "error" || status === "cancelled" || status === "skipped") return status
   if (step.state === "succeeded") return "passed"
   if (step.state === "failed") return numberValue(details.exit_code) === null ? "error" : "failed"
   if (step.state === "running") return "running"
   if (step.state === "queued") return "queued"
   if (step.state === "cancelled") return "cancelled"
+  if (step.state === "skipped") return "skipped"
   return "unknown"
 }
 
@@ -211,7 +216,8 @@ export function loopDisplayStatus(item: LoopStepItem) {
   if (statuses.includes("queued")) return "queued"
   if (statuses.includes("failed")) return "failed"
   if (statuses.includes("cancelled")) return "cancelled"
-  if (statuses.length > 0 && statuses.every((status) => status === "succeeded")) return "succeeded"
+  if (statuses.length > 0 && statuses.every((status) => status === "succeeded" || status === "skipped")) return "succeeded"
+  if (statuses.includes("skipped")) return "skipped"
   return null
 }
 

@@ -6,7 +6,7 @@ module Workflows
   #
   # auto_rebase tries a deterministic `git rebase` (today's
   # AutoRebase service) — non-agentic, fast, free. If it succeeds
-  # cleanly, Steps::AutoRebase marks only agent_rebase `cancelled`
+  # cleanly, Steps::AutoRebase marks only agent_rebase `skipped`
   # and advances to force_push. If auto_rebase hits a real conflict,
   # agent_rebase runs claude with Prompts::Rebase to resolve it, then
   # force_push pushes the rebased branch.

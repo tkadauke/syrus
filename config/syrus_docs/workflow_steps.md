@@ -174,7 +174,7 @@ Non-agentic. Final push after a conflict-resolved rebase.
 
 ### auto_rebase
 
-Non-agentic. Attempts a deterministic `git rebase` onto the base branch. On clean rebase, cancels `agent_rebase` and proceeds to `force_push`.
+Non-agentic. Attempts a deterministic `git rebase` onto the base branch. On clean rebase, marks `agent_rebase` skipped and proceeds to `force_push`.
 
 ### agent_rebase
 

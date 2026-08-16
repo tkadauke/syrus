@@ -32,7 +32,7 @@ module Steps
       workflow.set_artifact!(StackRebasePlan::RESULTS_ARTIFACT, results)
       workflow.set_artifact!(StackRebasePlan::AGENT_PENDING_ARTIFACT, pending)
 
-      cancel_agent_rebase! if pending.empty?
+      skip_agent_rebase! if pending.empty?
     end
 
     private
@@ -45,16 +45,14 @@ module Steps
       stack_job&.open? && stack_job.branch_name.present? && (stack_job.pr_number.present? || stack_job.external_pr_number.present?)
     end
 
-    def cancel_agent_rebase!
+    def skip_agent_rebase!
       next_step = step.next_step
       return unless next_step&.kind == "stack_agent_rebase"
-      return unless next_step.may_cancel?
+      return unless next_step.may_skip?
 
-      log("[#{step.kind}] cancelling downstream step ##{next_step.id} (#{next_step.kind}): stack auto-rebase already succeeded")
-      Step.suppress_cancel_cascade do
-        next_step.cancel!
-        next_step.save!
-      end
+      reason = "stack auto-rebase already succeeded"
+      log("[#{step.kind}] skipping downstream step ##{next_step.id} (#{next_step.kind}): #{reason}")
+      next_step.skip_with_reason!(reason)
     end
   end
 end

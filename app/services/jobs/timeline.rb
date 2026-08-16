@@ -254,6 +254,7 @@ module Jobs
       when "succeed" then "succeeded"
       when "fail"   then "failed"
       when "cancel" then "cancelled"
+      when "skip"   then "skipped"
       when "reopen" then "reopened"
       end
     end
@@ -262,7 +263,7 @@ module Jobs
       bits = []
       bits << t.event_name if t.event_name.present?
 
-      if t.subject_type == "Run" && %w[ succeeded failed cancelled ].include?(t.to_state)
+      if t.subject_type == "Run" && Run::TERMINAL_STATES.include?(t.to_state)
         run = Run.find_by(id: t.subject_id)
         if run
           bits << "outcome=#{run.agent_outcome}" if run.agent_outcome.present?

@@ -78,11 +78,7 @@ module Steps
       Step.suppress_cancel_cascade do
         cursor = step.next_step
         while cursor && cursor.kind != "merge_train_land"
-          if cursor.may_cancel?
-            cursor.cancellation_reason = "landing_validation_cached"
-            cursor.cancel!
-            cursor.save!
-          end
+          cursor.skip_with_reason!("landing_validation_cached") if cursor.may_skip?
           cursor = cursor.next_step
         end
       end

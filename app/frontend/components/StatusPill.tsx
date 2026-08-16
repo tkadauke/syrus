@@ -19,6 +19,7 @@ const STATE_LATIN: Record<string, string> = {
   success:     "Successit — It has succeeded",
   failed:      "Defecit — It has failed",
   cancelled:   "Intermissum est — It has been interrupted",
+  skipped:     "Praetermissum est — It has been skipped",
   invalid:     "Invalidum — Invalid",
   // Merge state
   unmergeable: "Bellum Civile — Civil war between branches",

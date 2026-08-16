@@ -207,7 +207,7 @@ RSpec.describe RunJob, "step-dispatch path" do
         [ "prepare", "succeeded" ],
         [ "implement", "succeeded" ],
         [ "adversarial_review", "succeeded" ],
-        [ "implement", "cancelled" ],
+        [ "implement", "skipped" ],
         [ "grader_fanout", "succeeded" ],
         [ "grader_collect", "succeeded" ],
         [ "coverage_analyze", "succeeded" ],
@@ -374,14 +374,15 @@ RSpec.describe RunJob, "step-dispatch path" do
       expect(run.reload.state).to eq("cancelled")
     end
 
-    it "abandons the Run as cancelled if the Step is already terminal" do
+    it "abandons the Run as skipped if the Step is already terminal" do
       StepDispatcher.start_workflow(workflow)
       Step.suppress_cancel_cascade do
         s_implement.update!(state: "cancelled", started_at: 1.minute.ago, finished_at: Time.current)
       end
       run = s_implement.runs.last
       described_class.perform_now(run.id)
-      expect(run.reload.state).to eq("cancelled")
+      expect(run.reload.state).to eq("skipped")
+      expect(workflow.reload).not_to be_cancelled
     end
 
     it "fails the Run with worker_died on re-entrancy (run already running)" do
