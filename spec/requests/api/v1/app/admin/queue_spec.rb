@@ -197,9 +197,14 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
       error: { "exception_class" => "RuntimeError", "message" => "boom" }
     )
 
-    get "/api/v1/app/admin/queue/failed"
+    queries = capture_sql { get "/api/v1/app/admin/queue/failed" }
 
     expect(response).to have_http_status(:ok)
+    failed_execution_queries = queries.select { |sql| sql.include?("solid_queue_failed_executions") }
+    expect(failed_execution_queries).not_to be_empty
+    failed_execution_queries.each do |sql|
+      expect(sql.scan(/solid_queue_failed_executions[^\\n]+created_at[^\\n]+>=/).size).to be <= 1
+    end
     expect(parse_body["failures"].first).to include(
       "class_name" => "RunJob",
       "arguments" => [ 9 ],

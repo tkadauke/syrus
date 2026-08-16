@@ -51,9 +51,7 @@ module Admin
           SmartFolder.ensure_admin_queue_builtins!
           since = failed_since
           active_folder = active_smart_folder
-          base = SolidQueue::FailedExecution
-            .joins(:job)
-            .where(SolidQueue::FailedExecution.arel_table[:created_at].gteq(since))
+          base = SolidQueue::FailedExecution.joins(:job)
           filter = display_filter(:failed, active_folder)
           failures = PerformanceLogging.phase("admin_queue.failed.query") {
             filter
