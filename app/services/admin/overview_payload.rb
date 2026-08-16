@@ -103,9 +103,7 @@ module Admin
     end
 
     def provider_circuits
-      ProviderCircuitBreaker.open_circuits.map do |decision|
-        ProviderCircuitInspector.call(provider: decision.provider)
-      end
+      ProviderCircuitBreaker.open_circuits(include_logs: false).map(&:as_json)
     end
 
     def capture_rate_payload

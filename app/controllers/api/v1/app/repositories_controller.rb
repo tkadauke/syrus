@@ -739,7 +739,7 @@ module Api
         end
 
         def retry_failed_jobs_json(repository)
-          circuit = ProviderCircuitBreaker.call(repository.effective_agent_provider)
+          circuit = ProviderCircuitBreaker.call(repository.effective_agent_provider, include_logs: false)
           {
             count: retryable_failed_jobs_count(repository),
             agent_provider: repository.effective_agent_provider,
