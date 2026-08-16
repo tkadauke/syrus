@@ -161,7 +161,7 @@ RSpec.describe Prompts::AgentInsight do
       expect(out).to include("retire_insight")
       expect(out).to include("target_insight_id")
       expect(out).to match(/Superseded by #N/)
-      expect(out).to match(/no longer worth any operator review/i)
+      expect(out).to match(/does not need further operator review/i)
     end
 
     it "instructs the agent to pass retire_accepted only for confirmed-obsolete accepted insights" do

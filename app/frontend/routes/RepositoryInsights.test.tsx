@@ -731,7 +731,7 @@ describe("RepositoryInsightsRoute", () => {
       const acceptedSuggestions = Array.from({ length: 20 }, (_, i) =>
         makeSuggestion({ id: i + 101, title: `Accepted ${i + 1}`, state: "accepted" })
       )
-      const counts = { pending: 20, accepted: 25, dismissed: 2, all: 47 }
+      const counts = { pending: 20, accepted: 25, dismissed: 2, retired: 0, all: 47 }
 
       const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
         const url = String(input)
