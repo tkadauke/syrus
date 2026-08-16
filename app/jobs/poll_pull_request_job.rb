@@ -406,6 +406,7 @@ class PollPullRequestJob < ApplicationJob
     end
 
     return if @job.last_ci_handled_sha == head_sha   # already reacted to this commit
+    return if landing_workflow_active?
     return if ci_failure_cap_reached?
     return if pending_ci_failure_run?
     return if provider_circuit_open?("ci_failure")
@@ -484,6 +485,13 @@ class PollPullRequestJob < ApplicationJob
 
   def pending_ci_failure_run?
     @job.workflows.active.where(trigger_kind: "ci_failure").exists?
+  end
+
+  def landing_workflow_active?
+    return false unless @job.landing?
+
+    Rails.logger.info("[PollPullRequestJob] #{@job.slug}: ci_failure suppressed while landing is active")
+    true
   end
 
   def provider_circuit_open?(trigger_kind)
