@@ -613,20 +613,26 @@ function ProposalMaterializedResult({ proposal, prefix }: { proposal: ChatPropos
   }
 
   if (materialized?.kind === "epic") {
-    const children = materialized.child_jobs.filter((job) => job.job_id)
+    const children = materialized.child_jobs.filter((job): job is { job_id: number; title: string | null } => job.job_id != null)
     return (
       <>
         <span>
           → <SlugHoverCard kind="epic" id={materialized.epic_id}>
             <CopyableSlug className="text-xs" slug={`EPIC-${materialized.epic_id}`} />
-          </SlugHoverCard>{materialized.epic_title ? ` "${materialized.epic_title}"` : ""}
+          </SlugHoverCard>{materialized.epic_title ? (
+            <>
+              {" \""}
+              <ProposalResultLink path={proposal.materialized_path} prefix={prefix}>{materialized.epic_title}</ProposalResultLink>
+              {"\""}
+            </>
+          ) : null}
         </span>
         {children.length > 0 ? (
           <span className="basis-full sm:basis-auto">
             Jobs: {children.map((job, index) => (
               <span key={`${job.job_id}-${index}`}>
                 {index > 0 ? ", " : ""}
-                <SlugHoverCard kind="job" id={job.job_id as number}>
+                <SlugHoverCard kind="job" id={job.job_id}>
                   <CopyableSlug className="text-xs" slug={`JOB-${job.job_id}`} />
                 </SlugHoverCard>{job.title ? ` "${job.title}"` : ""}
               </span>
