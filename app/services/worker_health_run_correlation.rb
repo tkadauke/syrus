@@ -1,3 +1,5 @@
+require "set"
+
 class WorkerHealthRunCorrelation
   SAMPLE_LIMIT = 20
   JOB_RUN_LIMIT = 10
@@ -16,7 +18,8 @@ class WorkerHealthRunCorrelation
               .order(created_at: :desc)
               .limit(run_limit)
               .to_a
-    summaries = runs.map { |run| new(run: run, sample_limit: 0, now: now).as_json(compact: true) }
+    samples_by_hostname = preload_samples_by_hostname(runs, now: now)
+    summaries = runs.map { |run| new(run: run, sample_limit: 0, now: now, samples_by_hostname: samples_by_hostname).as_json(compact: true) }
     pressured = summaries.select { |summary| %w[warning critical].include?(summary.dig(:pressure, :level)) }
 
     {
@@ -29,10 +32,46 @@ class WorkerHealthRunCorrelation
     }
   end
 
-  def initialize(run:, sample_limit: SAMPLE_LIMIT, now: Time.current)
+  def self.preload_samples_by_hostname(runs, now:)
+    retained_since = now - WorkerHostHealthSample::RETAIN_AFTER
+    hostnames = Set.new
+    starts = []
+    finishes = []
+
+    runs.each do |run|
+      run_processes = run.spawned_processes.to_a
+      run_spans = run.command_spans.to_a
+
+      ([ run.workflow&.worker_hostname ] + run_processes.map(&:hostname) + run_spans.map(&:hostname)).compact_blank.each { |hostname| hostnames << hostname }
+
+      if (started_at = run.started_at || run.created_at)
+        starts << [ started_at, retained_since ].max
+        finishes << (run.finished_at || now)
+      end
+
+      run_spans.each do |span|
+        next if span.hostname.blank? || span.started_at.blank?
+
+        starts << [ span.started_at, retained_since ].max
+        finishes << (span.finished_at || now)
+      end
+    end
+
+    return {} if hostnames.empty? || starts.empty? || finishes.empty?
+
+    WorkerHostHealthSample
+      .where(hostname: hostnames.to_a, observed_at: starts.min..finishes.max)
+      .order(:hostname, :observed_at)
+      .to_a
+      .group_by(&:hostname)
+  end
+  private_class_method :preload_samples_by_hostname
+
+  def initialize(run:, sample_limit: SAMPLE_LIMIT, now: Time.current, samples_by_hostname: nil)
     @run = run
     @sample_limit = sample_limit.to_i.clamp(0, 100)
     @now = now
+    @samples_by_hostname = samples_by_hostname
   end
 
   def as_json(compact: false)
@@ -60,7 +99,7 @@ class WorkerHealthRunCorrelation
 
   private
 
-  attr_reader :run, :sample_limit, :now
+  attr_reader :run, :sample_limit, :now, :samples_by_hostname
 
   def range_payload
     {
@@ -128,7 +167,7 @@ class WorkerHealthRunCorrelation
 
   def command_span_payloads
     command_spans.map do |span|
-      SpanCorrelation.new(span: span, sample_limit: 0, now: now).as_json
+      SpanCorrelation.new(span: span, sample_limit: 0, now: now, samples_by_hostname: samples_by_hostname).as_json
     end
   end
 
@@ -151,6 +190,10 @@ class WorkerHealthRunCorrelation
     @samples ||= begin
       if hostnames.empty? || effective_since.blank? || range_finish.blank?
         []
+      elsif samples_by_hostname
+        hostnames.flat_map { |hostname| samples_by_hostname.fetch(hostname, []) }
+          .select { |sample| sample.observed_at >= effective_since && sample.observed_at <= range_finish }
+          .sort_by(&:observed_at)
       else
         WorkerHostHealthSample
           .where(hostname: hostnames, observed_at: effective_since..range_finish)
@@ -211,11 +254,12 @@ class WorkerHealthRunCorrelation
   end
 
   class SpanCorrelation
-    def initialize(span:, sample_limit:, now:, samples: nil)
+    def initialize(span:, sample_limit:, now:, samples: nil, samples_by_hostname: nil)
       @span = span
       @sample_limit = sample_limit.to_i.clamp(0, 100)
       @now = now
       @samples_override = samples
+      @samples_by_hostname = samples_by_hostname
     end
 
     def as_json
@@ -249,7 +293,7 @@ class WorkerHealthRunCorrelation
 
     private
 
-    attr_reader :span, :sample_limit, :now
+    attr_reader :span, :sample_limit, :now, :samples_by_hostname
 
     def pressure_payload
       reasons = []
@@ -291,6 +335,9 @@ class WorkerHealthRunCorrelation
       @samples ||= begin
         if span.hostname.blank? || effective_since.blank? || range_finish.blank?
           []
+        elsif samples_by_hostname
+          samples_by_hostname.fetch(span.hostname, [])
+            .select { |sample| sample.observed_at >= effective_since && sample.observed_at <= range_finish }
         else
           WorkerHostHealthSample
             .where(hostname: span.hostname, observed_at: effective_since..range_finish)

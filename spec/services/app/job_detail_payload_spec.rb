@@ -74,6 +74,66 @@ RSpec.describe App::JobDetailPayload do
       )
     end
 
+    it "preloads worker health samples once for the compact job summary" do
+      now = Time.zone.parse("2026-08-16T18:00:00Z")
+      job = Factories.job_record(user: user, repository: repo)
+
+      3.times do |index|
+        workflow = Workflow.create!(
+          job: job,
+          user: user,
+          trigger_kind: "initial",
+          state: "succeeded",
+          worker_hostname: "worker-#{index}"
+        )
+        step = Step.create!(workflow: workflow, kind: "grader", position: index + 1, state: "succeeded")
+        run = Run.create!(
+          job: job,
+          user: user,
+          step: step,
+          trigger_kind: "initial",
+          agent_provider: "claude",
+          state: "succeeded",
+          started_at: now - (20 + index).minutes,
+          finished_at: now - (10 + index).minutes
+        )
+        SpawnedProcess.create!(
+          run: run,
+          workflow: workflow,
+          kind: "grader",
+          command: "bin/rspec",
+          workdir: "/tmp/repo",
+          hostname: "worker-#{index}",
+          started_at: run.started_at + 1.minute,
+          finished_at: run.finished_at - 1.minute
+        )
+        run.command_spans.create!(
+          job: job,
+          workflow: workflow,
+          step: step,
+          sequence: index + 1,
+          name: "rspec #{index}",
+          command_excerpt: "bin/rspec",
+          hostname: "worker-#{index}",
+          started_at: run.started_at + 2.minutes,
+          finished_at: run.finished_at - 2.minutes
+        )
+        WorkerHostHealthSample.create!(
+          hostname: "worker-#{index}",
+          role: "worker",
+          version: "abc123",
+          observed_at: run.started_at + 5.minutes,
+          cpu_pressure_some: 30.0
+        )
+      end
+
+      queries = travel_to(now) { capture_sql { payload_for(job) } }
+      sample_queries = queries.grep(/FROM [`"]?worker_host_health_samples[`"]?/i)
+
+      expect(sample_queries.size).to eq(1)
+      expect(payload_for(job).dig(:job, :worker_health_correlation, :runs_analyzed)).to eq(3)
+    end
+
     it "includes configured deployment stage statuses in the Job detail shape" do
       staging = SyrusYml::DeploymentStage.new(name: "staging", label: "Staging", tag: "staging", tag_pattern: nil)
       production = SyrusYml::DeploymentStage.new(name: "production", label: "Production", tag: "production", tag_pattern: nil)
