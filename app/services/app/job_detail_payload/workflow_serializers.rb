@@ -114,14 +114,18 @@ module App
 
       def steps_by_workflow_id
         @steps_by_workflow_id ||= PerformanceLogging.phase("job_detail.workflow.steps.query", job_id: @job.id, workflow_count: paginated_workflows.size) do
-          paginated_workflows.to_h do |workflow|
-            steps = workflow.steps
-                            .includes(runs: [ :run_diagnostic, :run_failure_classification ])
-                            .reorder(position: :desc, id: :desc)
-                            .limit(MAX_STEPS_PER_WORKFLOW)
-                            .to_a
-                            .sort_by { |step| [ step.position || 0, step.id || 0 ] }
-            [ workflow.id, steps ]
+          ids = paginated_workflows.map(&:id)
+          next {} if ids.empty?
+
+          steps = Step
+            .where(workflow_id: ids)
+            .includes(runs: [ :run_diagnostic, :run_failure_classification ])
+            .order(:workflow_id, :position, :id)
+            .to_a
+
+          grouped = steps.group_by(&:workflow_id)
+          ids.to_h do |workflow_id|
+            [ workflow_id, grouped.fetch(workflow_id, []).last(MAX_STEPS_PER_WORKFLOW) ]
           end
         end
       end
@@ -381,31 +385,23 @@ module App
           if ids.empty?
             {}
           else
-            line_count_sql = <<~SQL.squish
-              CASE
-                WHEN transcript_jsonl IS NULL THEN NULL
-                ELSE LENGTH(transcript_jsonl) - LENGTH(REPLACE(transcript_jsonl, CHAR(10), ''))
-              END
-            SQL
             ProviderSession
               .where(run_id: ids)
               .pluck(
                 :run_id,
                 :session_id,
                 :provider,
-                Arel.sql("transcript_jsonl IS NULL"),
-                Arel.sql("LENGTH(transcript_jsonl)"),
-                Arel.sql(line_count_sql)
+                Arel.sql("transcript_jsonl IS NULL")
               )
-              .to_h do |run_id, session_id, provider, transcript_pruned, transcript_bytes, transcript_lines|
+              .to_h do |run_id, session_id, provider, transcript_pruned|
                 [
                   run_id,
                   AgentSessionSummary.new(
                     session_id: session_id,
                     provider: provider,
                     transcript_pruned: ActiveModel::Type::Boolean.new.cast(transcript_pruned),
-                    transcript_bytes: transcript_bytes,
-                    transcript_lines: transcript_lines
+                    transcript_bytes: nil,
+                    transcript_lines: nil
                   )
                 ]
               end

@@ -371,8 +371,8 @@ RSpec.describe "App API job detail", type: :request do
       "session_id" => "session-1",
       "provider" => "codex",
       "transcript_pruned" => false,
-      "transcript_bytes" => 13,
-      "transcript_lines" => 2
+      "transcript_bytes" => nil,
+      "transcript_lines" => nil
     )
     expect(first_run["health_snapshots"]).to contain_exactly(include("health_status" => "healthy", "run_state" => "running"))
     expect(first_run["failure_classification"]).to include(
