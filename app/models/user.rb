@@ -35,6 +35,7 @@ class User < ApplicationRecord
   THEMES = %w[ light dark ].freeze
   ROLES = %w[ developer product_owner ].freeze
   LOCALES = %w[ en de la ].freeze
+  EMAIL_LOCAL_PART_SEPARATORS = /[._+-]+/
   CLEARABLE_CREDENTIALS = {
     "github_token" => "GitHub token",
     "claude_oauth_token" => "Claude OAuth token",
@@ -191,7 +192,7 @@ class User < ApplicationRecord
   end
 
   def display_name
-    profile_name.presence || name.presence || email_address
+    profile_name.presence || name.presence || guessed_display_name.presence || email_address
   end
 
   def profile_name
@@ -203,7 +204,27 @@ class User < ApplicationRecord
   end
 
   def team_display_name
-    profile_name.presence || name.presence || (github_handle.present? ? "@#{github_handle}" : "User ##{id}")
+    profile_name.presence || name.presence ||
+      (github_handle.present? ? "@#{github_handle}" : nil) ||
+      guessed_display_name.presence || "User ##{id}"
+  end
+
+  # Signup only collects an email address, so a fresh account has no name
+  # to show until the operator fills in their profile. Rather than surface
+  # the raw email address or an anonymous "User #N", take a best-effort
+  # guess at a human name from the email's local part: a separator
+  # ("first.last@", "first_last@") is treated as a first/last name split;
+  # without one ("mkadauke@") there's no reliable way to tell where a name
+  # would start or end, so the local part is shown as-is.
+  def guessed_display_name
+    local_part = email_address.to_s.split("@").first.to_s
+    return nil if local_part.blank?
+
+    words = local_part.split(EMAIL_LOCAL_PART_SEPARATORS).filter_map { |segment| segment.gsub(/\d+/, "").presence }
+
+    return local_part if words.size < 2
+
+    words.map(&:capitalize).join(" ")
   end
 
   def dashboard_preferences
