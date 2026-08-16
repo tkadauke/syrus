@@ -161,15 +161,14 @@ module Admin
     end
 
     def recurring_payload
-      overdue = []
-      ::SolidQueue::RecurringTask.find_each do |task|
-        last = ::SolidQueue::RecurringExecution.where(task_key: task.key)
-                                               .order(run_at: :desc).first
-        if last.nil?
-          overdue << { key: task.key, age_seconds: nil, never_run: true }
+      last_run_at_by_task_key = ::SolidQueue::RecurringExecution.group(:task_key).maximum(:run_at)
+      overdue = ::SolidQueue::RecurringTask.pluck(:key).filter_map do |key|
+        last_run_at = last_run_at_by_task_key[key]
+        if last_run_at.nil?
+          { key: key, age_seconds: nil, never_run: true }
         else
-          age = Time.current - last.run_at
-          overdue << { key: task.key, age_seconds: age.to_i } if age > 10.minutes
+          age = Time.current - last_run_at
+          { key: key, age_seconds: age.to_i } if age > 10.minutes
         end
       end
       { overdue: overdue }

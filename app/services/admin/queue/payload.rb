@@ -73,19 +73,37 @@ module Admin
 
       def recurring
         PerformanceLogging.phase("admin_queue_payload", tab: "recurring") do
-          tasks = SolidQueue::RecurringTask.order(:key).map do |task|
-            last = SolidQueue::RecurringExecution.where(task_key: task.key).order(run_at: :desc).first
+          recurring_tasks = SolidQueue::RecurringTask.order(:key).to_a
+          latest_run_at_by_key = SolidQueue::RecurringExecution.where(task_key: recurring_tasks.map(&:key)).group(:task_key).maximum(:run_at)
+          latest_execution_keys = latest_run_at_by_key.map { |task_key, run_at| [ task_key, run_at ] }
+          latest_executions = latest_execution_keys.empty? ? [] : SolidQueue::RecurringExecution.where(latest_execution_predicate(latest_execution_keys)).to_a
+          latest_execution_by_key = latest_executions.index_by(&:task_key)
+          jobs_by_id = SolidQueue::Job.where(id: latest_executions.map(&:job_id)).index_by(&:id)
+
+          tasks = recurring_tasks.map do |task|
+            last = latest_execution_by_key[task.key]
+            job = jobs_by_id[last&.job_id]
             {
               key: task.key,
               class_name: task.class_name,
               schedule: task.schedule,
               last_run_at: last&.run_at,
-              last_finished_at: last && SolidQueue::Job.find_by(id: last.job_id)&.finished_at
+              last_finished_at: job&.finished_at
             }
           end
 
           { tasks: tasks }
         end
+      end
+
+      def latest_execution_predicate(keys)
+        table = SolidQueue::RecurringExecution.quoted_table_name
+        pairs = keys.map do |task_key, run_at|
+          ActiveRecord::Base.sanitize_sql_array(
+            [ "(#{table}.task_key = ? AND #{table}.run_at = ?)", task_key, run_at ]
+          )
+        end
+        pairs.join(" OR ")
       end
 
       def workers
