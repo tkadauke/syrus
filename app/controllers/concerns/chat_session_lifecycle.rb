@@ -15,6 +15,9 @@ module ChatSessionLifecycle
     content = message_content(text) if text.present?
     return if performed?
 
+    additional_participants = group_participant_users_from_params
+    return if performed?
+
     chat_session = nil
     user_message = nil
 
@@ -23,8 +26,12 @@ module ChatSessionLifecycle
         user: Current.user,
         repository: repository,
         title: nil,
-        last_message_at: text.present? ? Time.current : nil
+        last_message_at: text.present? ? Time.current : nil,
+        conversation_kind: additional_participants ? "group" : "direct"
       )
+      additional_participants&.each do |participant_user|
+        chat_session.chat_participants.create!(user: participant_user, role: "member")
+      end
       if text.present?
         user_message = chat_session.messages.create!(role: "user", content: content, sender_user_id: Current.user.id)
         chat_session.pin_chat_provider!
@@ -34,6 +41,36 @@ module ChatSessionLifecycle
     enqueue_chat_title(chat_session, user_message) if user_message
     enqueue_chat_turn(chat_session, user_message) if user_message
     chat_session
+  end
+
+  # Returns nil (direct chat, unchanged behavior) when `participant_user_ids`
+  # is absent; otherwise returns the resolved additional-member Users for a
+  # group chat, or renders a 422 and returns nil with `performed?` true.
+  def group_participant_users_from_params
+    raw_ids = params[:participant_user_ids]
+    return nil if raw_ids.blank?
+
+    requested_ids = Array(raw_ids).map { |id| Integer(id, exception: false) }
+    if requested_ids.include?(nil)
+      render_error("validation_failed", "participant_user_ids must be an array of user ids.", status: :unprocessable_content)
+      return
+    end
+
+    requested_ids = requested_ids.uniq
+    found_users_by_id = User.where(id: requested_ids).index_by(&:id)
+    missing_ids = requested_ids - found_users_by_id.keys
+    if missing_ids.any?
+      render_error("validation_failed", "Unknown participant user id(s): #{missing_ids.join(', ')}.", status: :unprocessable_content)
+      return
+    end
+
+    additional_users = found_users_by_id.values.reject { |candidate| candidate.id == Current.user.id }
+    if additional_users.empty?
+      render_error("validation_failed", "A group chat needs at least one other participant.", status: :unprocessable_content)
+      return
+    end
+
+    additional_users
   end
 
   def enqueue_chat_title(chat_session, user_message)
