@@ -15,7 +15,7 @@ concurrency:
 jobs:
   rspec:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
         with:
@@ -35,11 +35,17 @@ jobs:
       - name: Check migration baselines
         run: bin/check-primary-migration-baselines
 
-      - name: Prepare test database
-        run: bin/rails db:test:prepare
-
+      # The serial `bin/rspec` (no parallelism, no tag filter) now takes
+      # 50-56+ minutes on its own — see .syrus.yml's `rspec` grader, whose
+      # own timeout was separately widened to 75 minutes for the same
+      # reason. That left this job's old 30-minute budget unable to even
+      # finish a normal green run, so it was killed mid-suite with no
+      # parseable failure output. Run the same parallel + ci_only command
+      # the `rspec` grader's `ci:` variant uses instead (bin/rspec-ci:
+      # db:test:prepare, bin/rspec-fast, then the :ci_only examples), and
+      # give the job matching headroom.
       - name: Run RSpec
-        run: bin/rspec
+        run: bin/rspec-ci
 
   react:
     runs-on: ubuntu-latest

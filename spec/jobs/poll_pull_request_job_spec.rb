@@ -150,6 +150,16 @@ RSpec.describe PollPullRequestJob, :ci_only do
       ])
       stub_review_comments([])
       stub_check_runs("deadbeef0000000000000000000000000000beef", [])
+      # The review that just got approved above never captured a
+      # github_review_id (only record_github_review_approval! ran, not
+      # ApprovalPropagator.approve), so clear_stale_approval! dismisses it
+      # via the approved-review lookup fallback in
+      # Job::ApprovalPropagator#dismiss, which actually calls the GitHub
+      # dismiss API for review id 1.
+      stub_request(:put, "#{reviews_url}/1/dismissals").to_return(
+        status: 200, headers: { "Content-Type" => "application/json" },
+        body: { id: 1, state: "DISMISSED" }.to_json
+      )
 
       expect {
         described_class.perform_now(job.id)
