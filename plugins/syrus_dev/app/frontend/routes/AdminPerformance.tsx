@@ -20,7 +20,7 @@ export function AdminPerformance() {
   usePageTitle(t("page_title_performance"))
   const performance = useQuery({
     queryKey: ["admin", "performance", revisionScope],
-    queryFn: () => fetchAdminPerformance(200, revisionScope)
+    queryFn: () => fetchAdminPerformance(500, revisionScope)
   })
 
   return (

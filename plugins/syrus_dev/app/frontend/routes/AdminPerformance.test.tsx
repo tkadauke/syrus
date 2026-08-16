@@ -41,7 +41,7 @@ describe("AdminPerformance", () => {
     renderRoute(<AdminPerformance />)
 
     expect(await screen.findByRole("heading", { name: "Performance" })).toBeInTheDocument()
-    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/performance?limit=200&revision_scope=current", expect.objectContaining({
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/performance?limit=500&revision_scope=current", expect.objectContaining({
       credentials: "same-origin"
     }))
 
@@ -79,7 +79,7 @@ describe("AdminPerformance", () => {
     expect(screen.getByText("246 SQL · 629ms")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "All SHAs" }))
-    await waitFor(() => expect(fetchSpy).toHaveBeenLastCalledWith("/api/v1/app/admin/performance?limit=200&revision_scope=all", expect.objectContaining({
+    await waitFor(() => expect(fetchSpy).toHaveBeenLastCalledWith("/api/v1/app/admin/performance?limit=500&revision_scope=all", expect.objectContaining({
       credentials: "same-origin"
     })))
   })

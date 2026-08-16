@@ -4,6 +4,7 @@ require "securerandom"
 module Observability
   module EventSink
     MEMORY_LIMIT = Integer(ENV["SYRUS_OBSERVABILITY_MEMORY_EVENTS"], exception: false) || 500
+    PERFORMANCE_MEMORY_LIMIT = Integer(ENV["SYRUS_PERFORMANCE_MEMORY_EVENTS"], exception: false) || 2_000
     FLUSH_BATCH_SIZE = Integer(ENV["SYRUS_OBSERVABILITY_FLUSH_BATCH_SIZE"], exception: false) || 250
     FLUSH_INTERVAL = (Integer(ENV["SYRUS_OBSERVABILITY_FLUSH_INTERVAL_SECONDS"], exception: false) || 15).seconds
 
@@ -28,7 +29,7 @@ module Observability
 
     def recent(kind:, limit:)
       kind = normalize_kind(kind)
-      limit = clamp_limit(limit)
+      limit = clamp_limit(limit, kind: kind)
       persisted = persisted_recent(kind, limit: limit)
       buffered = buffered_events(kind)
       (persisted + buffered)
@@ -68,8 +69,8 @@ module Observability
       end
     end
 
-    def clamp_limit(limit)
-      [[limit.to_i, 1].max, MEMORY_LIMIT].min
+    def clamp_limit(limit, kind: nil)
+      [[limit.to_i, 1].max, memory_limit(kind)].min
     end
 
     def flush_kind!(kind)
@@ -120,10 +121,10 @@ module Observability
       @mutex.synchronize do
         buffer = @buffers[kind]
         buffer << event
-        overflow = buffer.size - MEMORY_LIMIT
+        overflow = buffer.size - memory_limit(kind)
         if overflow.positive?
           @dropped[kind] += overflow
-          @buffers[kind] = buffer.last(MEMORY_LIMIT)
+          @buffers[kind] = buffer.last(memory_limit(kind))
         end
       end
     end
@@ -131,7 +132,7 @@ module Observability
     def restore_memory(kind, events)
       return if events.blank?
 
-      @mutex.synchronize { @buffers[kind] = (events + @buffers[kind]).last(MEMORY_LIMIT) }
+      @mutex.synchronize { @buffers[kind] = (events + @buffers[kind]).last(memory_limit(kind)) }
     end
 
     def drain_memory(kind)
@@ -199,6 +200,12 @@ module Observability
 
     def normalize_kind(kind)
       Observability::EventStream.fetch(kind).kind
+    end
+
+    def memory_limit(kind)
+      return MEMORY_LIMIT if kind.nil?
+
+      normalize_kind(kind) == :performance ? PERFORMANCE_MEMORY_LIMIT : MEMORY_LIMIT
     end
 
     def normalized_event(event)

@@ -710,8 +710,9 @@ slow routes, phases, browser traces, and SQL fingerprints. Events are stamped wi
 app revision, and the admin view defaults to the current revision so stale
 pre-deploy timings do not hide whether a new deploy helped; admins can switch
 to all revisions when investigating rolling-deploy overlap. The in-app
-diagnostics buffer is cache-backed, capped at 200 events, and expires after 6
-hours; structured log retention follows the deployment's log sink policy.
+diagnostics buffer uses the observability event sink, defaults to 2,000 recent
+performance events per process, and persists events for 24 hours; structured
+log retention follows the deployment's log sink policy.
 When the bundled `syrus_dev` plugin is enabled, Admin → Performance and the
 admin performance API expose the same diagnostics payload. The slow-request
 table can drill into retained request events and show matching slow phases plus

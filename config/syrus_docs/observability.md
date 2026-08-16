@@ -52,7 +52,7 @@ landing queue stalls and delayed retries across deploys.
 ## Existing Streams
 
 `performance_log_events` contain slow request, slow SQL, slow phase, and browser
-trace diagnostics. They retain 6 hours and are surfaced by Admin -> Performance
+trace diagnostics. They retain 24 hours and are surfaced by Admin -> Performance
 when the `performance_logging` feature is enabled.
 
 `operational_log_events` contain structured process/request/job logs. They

@@ -20,8 +20,8 @@ module PerformanceLogging
 
   module Store
     CACHE_KEY = "observability:performance_log_events"
-    MAX_EVENTS = Integer(ENV["SYRUS_PERFORMANCE_MAX_EVENTS"], exception: false) || 300
-    EXPIRES_IN = 6.hours
+    MAX_EVENTS = Integer(ENV["SYRUS_PERFORMANCE_MAX_EVENTS"], exception: false) || 2_000
+    EXPIRES_IN = 24.hours
     FLUSH_INTERVAL = (Integer(ENV["SYRUS_PERFORMANCE_FLUSH_INTERVAL_SECONDS"], exception: false) || 60).seconds
 
     @mutex = Mutex.new

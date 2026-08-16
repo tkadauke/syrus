@@ -1,7 +1,7 @@
 class PerformanceLogEvent < ApplicationRecord
   include ObservabilityEventRecord
 
-  RETENTION = 6.hours
+  RETENTION = 24.hours
 
   attribute :payload, :json, default: -> { {} }
 

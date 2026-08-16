@@ -1,6 +1,6 @@
 module SyrusDev
   class PerformancePayload
-    DEFAULT_LIMIT = 100
+    DEFAULT_LIMIT = 500
 
     def initialize(params: {})
       @params = params

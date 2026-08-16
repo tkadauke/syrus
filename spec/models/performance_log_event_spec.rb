@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe PerformanceLogEvent do
   describe ".expired" do
     it "includes events older than the retention window and excludes newer ones" do
-      stale = described_class.create!(occurred_at: 7.hours.ago, event_name: "sql", payload: {})
+      stale = described_class.create!(occurred_at: (described_class::RETENTION + 1.hour).ago, event_name: "sql", payload: {})
       fresh = described_class.create!(occurred_at: 1.hour.ago, event_name: "sql", payload: {})
 
       expect(described_class.expired).to include(stale)

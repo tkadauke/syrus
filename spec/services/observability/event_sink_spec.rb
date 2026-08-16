@@ -58,6 +58,28 @@ RSpec.describe Observability::EventSink do
     expect(stream.batch_size).to eq(25)
   end
 
+  it "allows a larger in-memory window for performance diagnostics than generic operational events" do
+    stub_const("Observability::EventSink::MEMORY_LIMIT", 2)
+    stub_const("Observability::EventSink::PERFORMANCE_MEMORY_LIMIT", 4)
+
+    5.times do |index|
+      described_class.append(kind: :operational, event: {
+        "event" => "operational.log",
+        "occurred_at" => "2026-08-14T03:00:0#{index}Z",
+        "message" => "operational #{index}"
+      })
+      described_class.append(kind: :performance, event: {
+        "event" => PerformanceLogging::BROWSER_TRACE_EVENT,
+        "occurred_at" => "2026-08-14T03:00:0#{index}Z",
+        "name" => "dashboard.route",
+        "trace_id" => "trace-#{index}"
+      })
+    end
+
+    expect(described_class.recent(kind: :operational, limit: 10).size).to eq(2)
+    expect(described_class.recent(kind: :performance, limit: 10).size).to eq(4)
+  end
+
   it "spools operational events and persists them only when flushed" do
     described_class.append(
       kind: :operational,
