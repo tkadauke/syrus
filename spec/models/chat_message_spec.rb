@@ -66,6 +66,21 @@ RSpec.describe ChatMessage do
     expect(bookmarkable_roles).to eq(%w[user assistant])
   end
 
+  it "destroys pins with the message" do
+    message = described_class.create!(chat_session: session, role: "assistant", content: { "text" => "Salve" })
+    pin = message.pins.create!
+
+    expect { message.destroy }.to change { ChatMessagePin.where(id: pin.id).count }.by(-1)
+  end
+
+  it "only treats user and assistant rows as pinnable" do
+    pinnable_roles = described_class::ROLES.select do |role|
+      described_class.new(chat_session: session, role: role, content: {}).pinnable?
+    end
+
+    expect(pinnable_roles).to eq(%w[user assistant])
+  end
+
   describe "#turn_in_flight?" do
     it "flips to false once a non-user message follows the latest user message" do
       session
