@@ -97,6 +97,7 @@ class PerformanceLogEvent < ApplicationRecord
       attrs = entry.to_h
       {
         "fingerprint" => attrs["fingerprint"].to_s.safe_byteslice(0, 300),
+        "sample_sql" => attrs["sample_sql"].to_s.safe_byteslice(0, 600),
         "name" => attrs["name"].to_s.safe_byteslice(0, 100),
         "count" => attrs["count"],
         "total_duration_ms" => attrs["total_duration_ms"],

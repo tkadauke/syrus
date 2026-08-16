@@ -60,6 +60,11 @@ function PerformanceView({ payload }: { payload: AdminPerformancePayload }) {
   const eventCount = payload.events.length
   const [activeTab, setActiveTab] = useState<PerformanceTab>("overview")
   const [explainSqlText, setExplainSqlText] = useState<string | null>(null)
+  const [requestDetail, setRequestDetail] = useState<SlowRequestSummary | null>(null)
+  const openExplain = (sql: string) => {
+    setRequestDetail(null)
+    setExplainSqlText(sql)
+  }
 
   return (
     <div className="space-y-6">
@@ -88,16 +93,17 @@ function PerformanceView({ payload }: { payload: AdminPerformancePayload }) {
         <>
           <RegressionTable payload={payload} />
           <BrowserTracesTable rows={(payload.summaries.browser_traces ?? []).slice(0, OVERVIEW_ROW_LIMIT)} />
-          <SlowRequestsTable rows={payload.summaries.slow_requests.slice(0, OVERVIEW_ROW_LIMIT)} />
-          <SqlFingerprintsTable onExplain={setExplainSqlText} rows={payload.summaries.sql_fingerprints.slice(0, OVERVIEW_ROW_LIMIT)} />
+          <SlowRequestsTable onInspect={setRequestDetail} rows={payload.summaries.slow_requests.slice(0, OVERVIEW_ROW_LIMIT)} />
+          <SqlFingerprintsTable onExplain={openExplain} rows={payload.summaries.sql_fingerprints.slice(0, OVERVIEW_ROW_LIMIT)} />
           <SlowPhasesTable rows={payload.summaries.slow_phases.slice(0, OVERVIEW_ROW_LIMIT)} />
         </>
       ) : null}
       {activeTab === "browser" ? <BrowserTracesTable rows={payload.summaries.browser_traces ?? []} /> : null}
-      {activeTab === "requests" ? <SlowRequestsTable rows={payload.summaries.slow_requests} /> : null}
-      {activeTab === "sql" ? <SqlFingerprintsTable onExplain={setExplainSqlText} rows={payload.summaries.sql_fingerprints} /> : null}
+      {activeTab === "requests" ? <SlowRequestsTable onInspect={setRequestDetail} rows={payload.summaries.slow_requests} /> : null}
+      {activeTab === "sql" ? <SqlFingerprintsTable onExplain={openExplain} rows={payload.summaries.sql_fingerprints} /> : null}
       {activeTab === "phases" ? <SlowPhasesTable rows={payload.summaries.slow_phases} /> : null}
       {activeTab === "events" ? <EventsTable rows={payload.events} /> : null}
+      {requestDetail ? <SlowRequestSqlModal events={payload.events} onClose={() => setRequestDetail(null)} onExplain={openExplain} request={requestDetail} /> : null}
       {explainSqlText ? <SqlExplainModal initialSql={explainSqlText} onClose={() => setExplainSqlText(null)} /> : null}
     </div>
   )
@@ -164,7 +170,7 @@ function comparisonPillClass(status: PerformanceComparison["status"]) {
   return `${base} bg-gray-100 text-gray-600 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700`
 }
 
-function SlowRequestsTable({ rows }: { rows: SlowRequestSummary[] }) {
+function SlowRequestsTable({ onInspect, rows }: { onInspect: (row: SlowRequestSummary) => void; rows: SlowRequestSummary[] }) {
   const { t } = useT("syrus_dev")
   return (
     <TableSection empty={t("performance.no_slow_requests")} rowCount={rows.length} title={t("performance.slow_requests")}>
@@ -178,6 +184,7 @@ function SlowRequestsTable({ rows }: { rows: SlowRequestSummary[] }) {
             <th className="px-4 py-2 text-right">{t("performance.col_max")}</th>
             <th className="px-4 py-2 text-right">{t("performance.col_sql")}</th>
             <th className="px-4 py-2">{t("performance.col_last_seen")}</th>
+            <th className="px-4 py-2 text-right">{t("performance.col_actions")}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -193,11 +200,99 @@ function SlowRequestsTable({ rows }: { rows: SlowRequestSummary[] }) {
               <NumberCell value={formatMs(row.max_duration_ms)} />
               <NumberCell value={`${row.average_sql_count ?? "-"} / ${formatMs(row.average_sql_duration_ms)}`} />
               <td className="px-4 py-2 text-xs text-gray-600 dark:text-gray-300">{formatDate(row.last_seen_at)}</td>
+              <td className="whitespace-nowrap px-4 py-2 text-right">
+                <button className={smallActionClass()} onClick={() => onInspect(row)} type="button">
+                  {t("performance.details")}
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
     </TableSection>
+  )
+}
+
+function SlowRequestSqlModal({ events, onClose, onExplain, request }: { events: PerformanceEvent[]; onClose: () => void; onExplain: (sql: string) => void; request: SlowRequestSummary }) {
+  const { t } = useT("syrus_dev")
+  const requestEvents = events
+    .filter((event) => event.event === "syrus.performance.slow_request")
+    .filter((event) => event.method === request.method && event.path === request.path && event.controller === request.controller && event.action === request.action)
+    .sort((a, b) => (b.occurred_at ?? "").localeCompare(a.occurred_at ?? ""))
+
+  return (
+    <div aria-label={t("performance.request_sql_modal_aria")} aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog">
+      <section className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-950">
+        <header className="flex items-start justify-between gap-4 border-b border-gray-200 px-5 py-4 dark:border-gray-700">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t("performance.request_sql_heading")}</h2>
+            <p className="mt-1 truncate font-mono text-sm text-gray-600 dark:text-gray-300" title={`${request.method} ${request.path}`}>{request.method} {request.path}</p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{request.controller}#{request.action}</p>
+          </div>
+          <button className={secondaryActionClass()} onClick={onClose} type="button">
+            {t("performance.close")}
+          </button>
+        </header>
+        <div className="border-b border-gray-200 px-5 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
+          {t("performance.request_sql_help")}
+        </div>
+        <div className="min-h-0 flex-1 space-y-4 overflow-auto p-5">
+          {requestEvents.length > 0 ? requestEvents.map((event, index) => (
+            <article className="overflow-hidden rounded border border-gray-200 dark:border-gray-700" key={`${event.request_id ?? event.occurred_at}-${index}`}>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                <div className="font-mono">{event.request_id || t("performance.request_without_id")}</div>
+                <div>{formatDate(event.occurred_at)} · {formatMs(event.duration_ms)} · {t("performance.sql_context", { count: event.sql_count ?? 0, duration: formatMs(event.sql_duration_ms) })}</div>
+              </div>
+              <RequestSqlTable fingerprints={event.top_sql_fingerprints ?? []} onExplain={onExplain} />
+            </article>
+          )) : <PanelMessage>{t("performance.request_sql_no_events")}</PanelMessage>}
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function RequestSqlTable({ fingerprints, onExplain }: { fingerprints: NonNullable<PerformanceEvent["top_sql_fingerprints"]>; onExplain: (sql: string) => void }) {
+  const { t } = useT("syrus_dev")
+  if (fingerprints.length === 0) return <PanelMessage>{t("performance.request_sql_no_fingerprints")}</PanelMessage>
+
+  return (
+    <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-700">
+      <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+        <tr>
+          <th className="px-4 py-2">{t("performance.col_sql")}</th>
+          <th className="px-4 py-2 text-right">{t("performance.col_count")}</th>
+          <th className="px-4 py-2 text-right">{t("performance.col_total")}</th>
+          <th className="px-4 py-2 text-right">{t("performance.col_avg")}</th>
+          <th className="px-4 py-2 text-right">{t("performance.col_max")}</th>
+          <th className="px-4 py-2 text-right">{t("performance.col_actions")}</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+        {fingerprints.map((row, index) => {
+          const count = row.count ?? 0
+          const total = row.total_duration_ms ?? null
+          const average = total != null && count > 0 ? total / count : null
+          return (
+            <tr key={`${row.fingerprint}-${index}`}>
+              <td className="max-w-4xl px-4 py-2">
+                <div className="text-xs font-medium text-gray-700 dark:text-gray-200">{row.name || t("performance.sql_unknown")}</div>
+                <div className="mt-1 max-h-20 overflow-hidden break-words font-mono text-xs text-gray-600 dark:text-gray-300">{row.sample_sql || row.fingerprint}</div>
+              </td>
+              <NumberCell value={count || "-"} />
+              <NumberCell value={formatMs(total)} />
+              <NumberCell value={formatMs(average)} />
+              <NumberCell value={formatMs(row.max_duration_ms)} />
+              <td className="whitespace-nowrap px-4 py-2 text-right">
+                <button className={smallActionClass()} disabled={!row.sample_sql} onClick={() => row.sample_sql && onExplain(row.sample_sql)} type="button">
+                  {t("performance.explain")}
+                </button>
+              </td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
   )
 }
 
@@ -676,6 +771,10 @@ function primaryActionClass() {
 
 function secondaryActionClass() {
   return "rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-500"
+}
+
+function smallActionClass() {
+  return "rounded border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-500"
 }
 
 function tabButtonClass(active: boolean) {

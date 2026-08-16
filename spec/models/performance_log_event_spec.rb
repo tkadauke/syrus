@@ -45,10 +45,10 @@ RSpec.describe PerformanceLogEvent do
       expect(attrs[:payload]).not_to have_key("sql")
       expect(attrs[:payload].dig("top_sql_fingerprints", 0)).to include(
         "fingerprint" => "SELECT * FROM jobs WHERE id IN (?)",
+        "sample_sql" => "SELECT * FROM jobs WHERE id IN (1, 2, 3)",
         "name" => "Job Load",
         "count" => 1
       )
-      expect(attrs[:payload].dig("top_sql_fingerprints", 0)).not_to have_key("sample_sql")
     end
   end
 end

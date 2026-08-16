@@ -65,6 +65,15 @@ export type SqlFingerprintSummary = {
   max_duration_ms: number | null
 }
 
+export type RequestSqlFingerprint = {
+  fingerprint: string
+  sample_sql?: string | null
+  name?: string | null
+  count?: number | null
+  total_duration_ms?: number | null
+  max_duration_ms?: number | null
+}
+
 export type PerformanceComparison = {
   key: string
   label: string
@@ -81,6 +90,7 @@ export type PerformanceEvent = {
   event: string
   occurred_at?: string | null
   app_revision?: string | null
+  request_id?: string | null
   duration_ms?: number | null
   method?: string | null
   path?: string | null
@@ -93,6 +103,7 @@ export type PerformanceEvent = {
   sql_count?: number | null
   sql_duration_ms?: number | null
   slow_sql_count?: number | null
+  top_sql_fingerprints?: RequestSqlFingerprint[] | null
   status?: number | null
   metadata?: Record<string, unknown> | null
   trace_id?: string | null

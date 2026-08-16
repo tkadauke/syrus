@@ -710,12 +710,14 @@ to all revisions when investigating rolling-deploy overlap. The in-app
 diagnostics buffer is cache-backed, capped at 200 events, and expires after 6
 hours; structured log retention follows the deployment's log sink policy.
 When the bundled `syrus_dev` plugin is enabled, Admin → Performance and the
-admin performance API expose the same diagnostics payload. The SQL tab can
-run EXPLAIN for captured slow-SQL samples and shows a visual plan, raw table
-rows, raw JSON, and normalized SQL. EXPLAIN ANALYZE is available only when the
-backend classifies the statement as safe: MySQL, a single read-only SELECT/CTE,
-no comments or user variables, and a short statement timeout because analyze
-executes the query. Implementation
+admin performance API expose the same diagnostics payload. The slow-request
+table can drill into retained request events and show the bounded top SQL
+fingerprints captured for each event; these samples are diagnostic context,
+not an exhaustive query log. The SQL tab can run EXPLAIN for captured slow-SQL
+samples and shows a visual plan, raw table rows, raw JSON, and normalized SQL.
+EXPLAIN ANALYZE is available only when the backend classifies the statement as
+safe: MySQL, a single read-only SELECT/CTE, no comments or user variables, and
+a short statement timeout because analyze executes the query. Implementation
 workflow agents working on `tkadauke/syrus` or a registered fork of that
 repository also receive the read-only `read_performance_diagnostics` MCP tool
 through that plugin. Scheduled prompts that target Syrus performance work can

@@ -75,7 +75,7 @@ describe("AdminPerformance", () => {
     expect(screen.getByText("SELECT `jobs`.* FROM `jobs` WHERE `jobs`.`state` = ?")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Events" }))
-    expect(screen.getByText("request")).toBeInTheDocument()
+    expect(screen.getByText("slow_request")).toBeInTheDocument()
     expect(screen.getByText("246 SQL · 629ms")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "All SHAs" }))
@@ -126,6 +126,33 @@ describe("AdminPerformance", () => {
     fireEvent.click(screen.getByRole("button", { name: "Run EXPLAIN" }))
     expect(await screen.findByText("Table jobs")).toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledTimes(3)
+  })
+
+  it("shows request-level SQL fingerprints from a slow request summary", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch")
+      .mockResolvedValueOnce(jsonResponse(performancePayload()))
+      .mockResolvedValueOnce(jsonResponse(explainPayload({ analyzeSafe: true })))
+
+    renderRoute(<AdminPerformance />)
+    await screen.findByRole("heading", { name: "Performance" })
+
+    fireEvent.click(await screen.findByRole("button", { name: "Details" }))
+    const dialog = await screen.findByRole("dialog", { name: "Slow request SQL details" })
+    expect(within(dialog).getByText("request-123")).toBeInTheDocument()
+    expect(within(dialog).getAllByText((_content, element) => element?.textContent?.includes("246 SQL · 629ms") ?? false).length).toBeGreaterThan(0)
+    expect(within(dialog).getByText("Job Exists")).toBeInTheDocument()
+    expect(within(dialog).getByText("SELECT 1 AS one FROM `jobs` WHERE `jobs`.`id` = ? LIMIT ?")).toBeInTheDocument()
+    expect(within(dialog).getByText("620ms")).toBeInTheDocument()
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Explain" }))
+    expect(await screen.findByRole("dialog", { name: "SQL explain result" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Run EXPLAIN" }))
+    await screen.findByText("Table jobs")
+
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/performance/explain", expect.objectContaining({
+      method: "POST",
+      body: expect.stringContaining("SELECT 1 AS one")
+    }))
   })
 })
 
@@ -234,14 +261,27 @@ function performancePayload() {
     },
     events: [
       {
-        event: "syrus.performance.request",
+        event: "syrus.performance.slow_request",
         occurred_at: "2026-08-01T14:32:45Z",
         app_revision: "abcdef1234567890",
+        request_id: "request-123",
         duration_ms: 1180,
         method: "GET",
         path: "/api/v1/app/chats/126",
+        controller: "Api::V1::App::ChatsController",
+        action: "show",
         sql_count: 246,
-        sql_duration_ms: 629
+        sql_duration_ms: 629,
+        top_sql_fingerprints: [
+          {
+            fingerprint: "SELECT ? AS one FROM `jobs` WHERE `jobs`.`id` = ? LIMIT ?",
+            sample_sql: "SELECT 1 AS one FROM `jobs` WHERE `jobs`.`id` = ? LIMIT ?",
+            name: "Job Exists",
+            count: 20,
+            total_duration_ms: 620,
+            max_duration_ms: 80
+          }
+        ]
       },
       {
         event: "syrus.performance.phase",
