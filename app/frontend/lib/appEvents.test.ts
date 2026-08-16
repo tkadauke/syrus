@@ -561,6 +561,36 @@ describe("applyAppEvent", () => {
     ])
   })
 
+  it("invalidates the chat-pins query cache on upsert_pin without touching the chat payload cache", () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "old")]))
+    queryClient.setQueryData(["chat-pins", "9", ""], { pins: [] })
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    const handled = applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      changed: [ "pins" ],
+      payload: { action: "upsert_pin", pin: { id: 1, chat_message_id: 3 } }
+    })
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "chat-pins", "9" ] })
+    const untouched = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
+    expect(untouched?.bookmarks).toEqual([])
+  })
+
+  it("invalidates the chat-pins query cache on remove_pin", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      changed: [ "pins" ],
+      payload: { action: "remove_pin", pin: { id: 1, chat_message_id: 3 } }
+    })
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: [ "chat-pins", "9" ] })
+  })
+
   it("applies chat agent question payloads directly to cached chat data", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")

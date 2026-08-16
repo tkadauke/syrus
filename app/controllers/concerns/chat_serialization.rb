@@ -193,7 +193,9 @@ module ChatSerialization
   def pin_json(pin)
     {
       id: pin.id,
-      chat_message_id: pin.chat_message_id
+      chat_message_id: pin.chat_message_id,
+      text: pin.chat_message.preview_text,
+      role: pin.chat_message.role
     }
   end
 
@@ -202,8 +204,8 @@ module ChatSerialization
       .joins(:chat_message)
       .where(chat_messages: { chat_session_id: chat_session.id })
       .order("chat_message_pins.created_at", "chat_message_pins.id")
-      .pluck("chat_message_pins.id", "chat_message_pins.chat_message_id")
-      .map { |id, chat_message_id| { id: id, chat_message_id: chat_message_id } }
+      .includes(:chat_message)
+      .map { |pin| pin_json(pin) }
   end
 
   def whiteboard_state_for_payload(chat_session, include_scene:)

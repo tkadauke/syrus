@@ -247,6 +247,7 @@ export type ChatMessageItem = {
   content?: unknown
   text: string
   bookmarkable: boolean
+  pinnable?: boolean
   created_at?: string
   attachments?: Array<{ name: string; mime_type: string; data: string }>
   video_walkthrough_id?: number
@@ -295,6 +296,13 @@ export type ChatBookmark = {
   label: string
   chat_message_id: number
   anchor_message_id?: number
+}
+
+export type ChatMessagePin = {
+  id: number
+  chat_message_id: number
+  text: string
+  role: string
 }
 
 export type ChatPendingAction = {
@@ -883,6 +891,18 @@ export function createChatTopicBookmark(path: string, label: string) {
   return postJson<ChatPayload>(path, {
     chat_bookmark: { label, kind: "topic" }
   })
+}
+
+export function fetchChatMessagePins(path: string, options: { signal?: AbortSignal } = {}) {
+  return getJson<{ pins: ChatMessagePin[] }>(path, options)
+}
+
+export function createChatMessagePin(path: string, messageId: number) {
+  return postJson<ChatPayload>(path, { message_id: messageId })
+}
+
+export function deleteChatMessagePin(path: string, messageId: number) {
+  return deleteJson<ChatPayload & { pins: ChatMessagePin[] }>(`${path}/${messageId}`)
 }
 
 export function addChatAttachment(path: string, record: ChatAttachmentResult) {

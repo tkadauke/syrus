@@ -335,5 +335,12 @@
   "group_picker_add_error": "Could not add participant.",
   "group_picker_remove_error": "Could not remove participant.",
   "left_group_chat_notice": "You left the chat.",
-  "group_mention_hint": "Mention @syrus to get a response in this group chat."
+  "group_mention_hint": "Mention @syrus to get a response in this group chat.",
+  "pin_message": "Pin message",
+  "unpin_message": "Unpin message",
+  "unable_to_pin": "Unable to pin message.",
+  "unable_to_unpin": "Unable to unpin message.",
+  "aria_pinned_messages": "Pinned messages",
+  "pinned_message_empty": "Pinned message",
+  "pinned_messages_more": "+{{count}} more"
 }

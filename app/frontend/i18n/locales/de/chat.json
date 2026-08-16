@@ -335,5 +335,12 @@
   "group_picker_add_error": "Teilnehmer konnte nicht hinzugefügt werden.",
   "group_picker_remove_error": "Teilnehmer konnte nicht entfernt werden.",
   "left_group_chat_notice": "Du hast den Chat verlassen.",
-  "group_mention_hint": "Erwähne @syrus, um in diesem Gruppenchat eine Antwort zu erhalten."
+  "group_mention_hint": "Erwähne @syrus, um in diesem Gruppenchat eine Antwort zu erhalten.",
+  "pin_message": "Nachricht anpinnen",
+  "unpin_message": "Nachricht loslösen",
+  "unable_to_pin": "Nachricht konnte nicht angepinnt werden.",
+  "unable_to_unpin": "Nachricht konnte nicht gelöst werden.",
+  "aria_pinned_messages": "Angepinnte Nachrichten",
+  "pinned_message_empty": "Angepinnte Nachricht",
+  "pinned_messages_more": "+{{count}} weitere"
 }
