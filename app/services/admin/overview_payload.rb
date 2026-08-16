@@ -111,10 +111,13 @@ module Admin
                   .where(steps: { kind: ::Step::AGENTIC_KINDS })
                   .where(runs: { state: "succeeded" })
                   .where("runs.finished_at >= ?", 24.hours.ago)
-      total = recent.count
-      captured = recent.left_outer_joins(:provider_session)
-                       .where.not(provider_sessions: { id: nil })
-                       .count
+      total, captured = recent.left_outer_joins(:provider_session)
+                              .pick(
+                                Arel.sql("COUNT(*)"),
+                                Arel.sql("SUM(CASE WHEN provider_sessions.id IS NULL THEN 0 ELSE 1 END)")
+                              )
+      total = total.to_i
+      captured = captured.to_i
       {
         total: total,
         captured: captured,
