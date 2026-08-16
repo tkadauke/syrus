@@ -287,10 +287,10 @@ function RequestPhasesTable({ onExplain, phases }: { onExplain: (sql: string) =>
                 <div className="mt-1 truncate" title={compactJson(phase.metadata)}>{compactJson(phase.metadata)}</div>
               </div>
               <div className="font-mono">{formatMs(phase.duration_ms)}</div>
-              <div className="font-mono">{t("performance.sql_context", { count: phase.sql_count ?? 0, duration: formatMs(phase.sql_duration_ms) })}</div>
+              <div className="font-mono">{t("performance.phase_sql_context", { total_count: phase.sql_count ?? 0, total_duration: formatMs(phase.sql_duration_ms), self_count: phase.self_sql_count ?? 0, self_duration: formatMs(phase.self_sql_duration_ms) })}</div>
               <div className="font-mono">{formatDate(phase.occurred_at)}</div>
             </div>
-            <RequestSqlTable fingerprints={phase.top_sql_fingerprints ?? []} onExplain={onExplain} />
+            <RequestSqlTable fingerprints={(phase.self_top_sql_fingerprints?.length ? phase.self_top_sql_fingerprints : phase.top_sql_fingerprints) ?? []} onExplain={onExplain} />
           </article>
         ))}
       </div>

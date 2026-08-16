@@ -97,7 +97,9 @@ module PerformanceLogging
     return if duration_ms.to_f < slow_sql_threshold_ms
 
     Current.performance_slow_sql_count = Current.performance_slow_sql_count.to_i + 1
-    Current.performance_phase_stack&.last&.then { |phase_entry| phase_entry["slow_sql_count"] += 1 }
+    phase_stack = Current.performance_phase_stack
+    phase_stack&.each { |phase_entry| phase_entry["total_slow_sql_count"] += 1 }
+    phase_stack&.last&.then { |phase_entry| phase_entry["self_slow_sql_count"] += 1 }
     emit(
       base_event(SLOW_SQL_EVENT).merge(
         request_context,
@@ -142,10 +144,14 @@ module PerformanceLogging
 
     phase_entry = {
       "phase" => safe_string(name, 200),
-      "sql_count" => 0,
-      "sql_duration_ms" => 0.0,
-      "slow_sql_count" => 0,
-      "sql_fingerprints" => {}
+      "self_sql_count" => 0,
+      "self_sql_duration_ms" => 0.0,
+      "self_slow_sql_count" => 0,
+      "self_sql_fingerprints" => {},
+      "total_sql_count" => 0,
+      "total_sql_duration_ms" => 0.0,
+      "total_slow_sql_count" => 0,
+      "total_sql_fingerprints" => {}
     }
     phase_stack = Current.performance_phase_stack ||= []
     phase_stack.push(phase_entry)
@@ -161,10 +167,14 @@ module PerformanceLogging
           "duration_ms" => rounded_duration(duration_ms),
           "phase" => phase_entry&.fetch("phase", nil) || safe_string(name, 200),
           "metadata" => safe_metadata(metadata),
-          "sql_count" => phase_entry&.fetch("sql_count", 0).to_i,
-          "sql_duration_ms" => rounded_duration(phase_entry&.fetch("sql_duration_ms", 0.0)),
-          "slow_sql_count" => phase_entry&.fetch("slow_sql_count", 0).to_i,
-          "top_sql_fingerprints" => top_sql_fingerprints(phase_entry&.fetch("sql_fingerprints", {}))
+          "sql_count" => phase_entry&.fetch("total_sql_count", 0).to_i,
+          "sql_duration_ms" => rounded_duration(phase_entry&.fetch("total_sql_duration_ms", 0.0)),
+          "slow_sql_count" => phase_entry&.fetch("total_slow_sql_count", 0).to_i,
+          "top_sql_fingerprints" => top_sql_fingerprints(phase_entry&.fetch("total_sql_fingerprints", {})),
+          "self_sql_count" => phase_entry&.fetch("self_sql_count", 0).to_i,
+          "self_sql_duration_ms" => rounded_duration(phase_entry&.fetch("self_sql_duration_ms", 0.0)),
+          "self_slow_sql_count" => phase_entry&.fetch("self_slow_sql_count", 0).to_i,
+          "self_top_sql_fingerprints" => top_sql_fingerprints(phase_entry&.fetch("self_sql_fingerprints", {}))
         )
       )
     end
@@ -359,12 +369,19 @@ module PerformanceLogging
   end
 
   def record_phase_sql(payload, duration_ms)
-    phase_entry = Current.performance_phase_stack&.last
-    return unless phase_entry
+    phase_stack = Current.performance_phase_stack
+    return if phase_stack.blank?
 
-    phase_entry["sql_count"] += 1
-    phase_entry["sql_duration_ms"] += duration_ms.to_f
-    add_sql_fingerprint(phase_entry["sql_fingerprints"], payload, duration_ms)
+    phase_stack.each do |phase_entry|
+      phase_entry["total_sql_count"] += 1
+      phase_entry["total_sql_duration_ms"] += duration_ms.to_f
+      add_sql_fingerprint(phase_entry["total_sql_fingerprints"], payload, duration_ms)
+    end
+
+    current_phase = phase_stack.last
+    current_phase["self_sql_count"] += 1
+    current_phase["self_sql_duration_ms"] += duration_ms.to_f
+    add_sql_fingerprint(current_phase["self_sql_fingerprints"], payload, duration_ms)
   end
 
   def add_sql_fingerprint(fingerprints, payload, duration_ms)

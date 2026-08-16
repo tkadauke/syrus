@@ -68,9 +68,13 @@ class PerformanceLogEvent < ApplicationRecord
       "db_runtime_ms" => attrs["db_runtime_ms"],
       "trigger_reasons" => compact_string_array(attrs["trigger_reasons"]),
       "visibility_state" => attrs["visibility_state"],
+      "self_sql_count" => attrs["self_sql_count"],
+      "self_sql_duration_ms" => attrs["self_sql_duration_ms"],
+      "self_slow_sql_count" => attrs["self_slow_sql_count"],
       "metadata" => compact_metadata(attrs["metadata"]),
       "api_requests" => compact_api_requests(attrs["api_requests"]),
       "spans" => compact_browser_spans(attrs["spans"]),
+      "self_top_sql_fingerprints" => compact_top_sql_fingerprints(attrs["self_top_sql_fingerprints"]),
       "top_sql_fingerprints" => compact_top_sql_fingerprints(attrs["top_sql_fingerprints"])
     }.compact_blank
   end

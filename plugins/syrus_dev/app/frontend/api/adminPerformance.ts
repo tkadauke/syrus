@@ -116,6 +116,10 @@ export type PerformanceEvent = {
   sql_duration_ms?: number | null
   slow_sql_count?: number | null
   top_sql_fingerprints?: RequestSqlFingerprint[] | null
+  self_sql_count?: number | null
+  self_sql_duration_ms?: number | null
+  self_slow_sql_count?: number | null
+  self_top_sql_fingerprints?: RequestSqlFingerprint[] | null
   status?: number | null
   trigger_reasons?: string[] | null
   metadata?: Record<string, unknown> | null

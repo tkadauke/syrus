@@ -48,6 +48,7 @@
     "no_events": "Nulla eventa celeritatis relata sunt.",
     "sql_unknown": "SQL",
     "sql_context": "{{count}} SQL · {{duration}}",
+    "phase_sql_context": "SQL totum {{total_count}} / {{total_duration}} · ipsum {{self_count}} / {{self_duration}}",
     "browser_api_context": "{{count}} API · ID petitionum {{ids}}",
     "triggered_by": "Causa {{reasons}}",
     "details": "Singula",

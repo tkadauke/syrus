@@ -209,6 +209,42 @@ RSpec.describe PerformanceLogging do
     )
   end
 
+  it "records nested phase SQL as parent total and child self" do
+    Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+    Current.reset
+    allow(described_class).to receive(:slow_phase_threshold_ms).and_return(0.0)
+    allow(described_class).to receive(:slow_sql_threshold_ms).and_return(1.0)
+
+    described_class.with_request_context(request_id: "req-nested", path: "/admin/performance") do
+      described_class.phase("admin_payload") do
+        described_class.phase("admin_payload.sql_summary") do
+          described_class.record_sql({ name: "Job Load", sql: "SELECT * FROM jobs WHERE state = 'open'" }, 12.0)
+        end
+      end
+    end
+
+    events = described_class::Store.recent.select { |event| event["event"] == "syrus.performance.slow_phase" }
+    parent = events.find { |event| event["phase"] == "admin_payload" }
+    child = events.find { |event| event["phase"] == "admin_payload.sql_summary" }
+
+    expect(parent).to include(
+      "sql_count" => 1,
+      "sql_duration_ms" => 12.0,
+      "slow_sql_count" => 1,
+      "self_sql_count" => 0,
+      "self_sql_duration_ms" => 0.0,
+      "self_slow_sql_count" => 0
+    )
+    expect(child).to include(
+      "sql_count" => 1,
+      "sql_duration_ms" => 12.0,
+      "slow_sql_count" => 1,
+      "self_sql_count" => 1,
+      "self_sql_duration_ms" => 12.0,
+      "self_slow_sql_count" => 1
+    )
+  end
+
   it "records browser trace spans" do
     Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
     Current.reset

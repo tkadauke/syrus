@@ -48,6 +48,7 @@
     "no_events": "Keine Performance-Events aufgezeichnet.",
     "sql_unknown": "SQL",
     "sql_context": "{{count}} SQL · {{duration}}",
+    "phase_sql_context": "SQL gesamt {{total_count}} / {{total_duration}} · selbst {{self_count}} / {{self_duration}}",
     "browser_api_context": "{{count}} API · Request-IDs {{ids}}",
     "triggered_by": "Ausgelöst durch {{reasons}}",
     "details": "Details",

@@ -695,7 +695,7 @@ top SQL fingerprints for that request; requests that are fast wall-clock but
 cross the request SQL-count or SQL-duration thresholds are retained too, so
 many-query endpoints do not disappear from the performance view. Phase events cover expensive dashboard, chat,
 repository, job detail, bootstrap, spending, and admin payload builders, with
-phase-local SQL counters and top SQL fingerprints.
+total and self SQL counters plus top SQL fingerprints.
 Browser traces currently cover dashboard loads and include only structural
 timing data: route path, browser-observed duration until current rows render,
 document visibility state, row counts, and backend request IDs/durations/statuses
