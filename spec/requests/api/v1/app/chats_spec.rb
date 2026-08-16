@@ -2671,6 +2671,18 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body["bookmarks"]).to contain_exactly(include("label" => "Aqueducts", "chat_message_id" => message.id, "anchor_message_id" => message.id))
   end
 
+  it "loads pins on demand through the pins endpoint" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    message = chat.messages.create!(role: "assistant", content: { "text" => "Discuss **aqueducts**." })
+    message.pins.create!
+
+    get "/api/v1/app/chats/#{chat.id}/pins"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["pins"]).to contain_exactly(include("chat_message_id" => message.id))
+  end
+
   it "does not embed chat navigation in the chat detail payload" do
     sign_in_as(user)
     current_chat = ChatSession.create!(
@@ -3257,6 +3269,50 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     get "/api/v1/app/chats/#{chat.id}/bookmarks"
 
     expect(parse_body["bookmarks"]).to contain_exactly(include("label" => "Arch plan", "chat_message_id" => latest.id, "anchor_message_id" => latest.id))
+  end
+
+  it "pins a message through the app API" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    message = chat.messages.create!(role: "assistant", content: { "text" => "Build aqueducts." })
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/pins", params: { message_id: message.id }
+    }.to change(ChatMessagePin, :count).by(1)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Message pinned.")
+    get "/api/v1/app/chats/#{chat.id}/pins"
+
+    expect(parse_body["pins"]).to contain_exactly(include("chat_message_id" => message.id))
+  end
+
+  it "rejects pinning a non-pinnable message through the app API" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    message = chat.messages.create!(role: "system", content: { "text" => "Session context." })
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/pins", params: { message_id: message.id }
+    }.not_to change(ChatMessagePin, :count)
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("Cannot pin this message.")
+  end
+
+  it "unpins a message through the app API" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    message = chat.messages.create!(role: "assistant", content: { "text" => "Build aqueducts." })
+    message.pins.create!
+
+    expect {
+      delete "/api/v1/app/chats/#{chat.id}/pins/#{message.id}"
+    }.to change(ChatMessagePin, :count).by(-1)
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Message unpinned.")
+    expect(parse_body["pins"]).to eq([])
   end
 
   it "adds and removes attachments through the app API" do

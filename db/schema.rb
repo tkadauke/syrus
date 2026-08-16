@@ -209,6 +209,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_070000) do
     t.index ["chat_memory_id"], name: "index_chat_memory_audit_events_on_chat_memory_id"
   end
 
+  create_table "chat_message_pins", force: :cascade do |t|
+    t.integer "chat_message_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_message_id", "id"], name: "idx_chat_message_pins_message_id_id"
+    t.index ["chat_message_id"], name: "index_chat_message_pins_on_chat_message_id"
+  end
+
   create_table "chat_messages", force: :cascade do |t|
     t.integer "chat_session_id", null: false
     t.json "content", null: false
@@ -2168,6 +2176,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_070000) do
   add_foreign_key "chat_memory_audit_events", "chat_memories"
   add_foreign_key "chat_memory_audit_events", "runs", column: "actor_run_id"
   add_foreign_key "chat_memory_audit_events", "users", column: "actor_user_id"
+  add_foreign_key "chat_message_pins", "chat_messages"
   add_foreign_key "chat_messages", "chat_pending_actions", column: "pending_action_id"
   add_foreign_key "chat_messages", "chat_proposals", column: "proposal_id"
   add_foreign_key "chat_messages", "chat_sessions"

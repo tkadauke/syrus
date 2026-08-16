@@ -718,6 +718,38 @@ module Api
           }
         end
 
+        def create_pin
+          chat_session = find_chat_session
+          message = chat_session.messages.find(params[:message_id])
+          unless message.pinnable?
+            render_error("validation_failed", "Cannot pin this message.", status: :unprocessable_content)
+            return
+          end
+
+          message.pins.create!
+
+          render json: chat_payload(chat_session.reload, message: "Message pinned.")
+        rescue ActiveRecord::RecordInvalid => e
+          render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
+        end
+
+        def destroy_pin
+          chat_session = find_chat_session
+          message = chat_session.messages.find(params[:message_id])
+          message.pins.destroy_all
+
+          render json: chat_payload(chat_session.reload, message: "Message unpinned.").merge(
+            pins: pins_json(chat_session)
+          )
+        end
+
+        def pins
+          chat_session = find_chat_session
+          render json: {
+            pins: PerformanceLogging.phase("chat_pins_payload", chat_id: chat_session.id) { pins_json(chat_session) }
+          }
+        end
+
         def context
           chat_session = find_chat_session
           attachment_groups = PerformanceLogging.phase("chat_context.attachment_groups", chat_id: chat_session.id) { attachment_groups_for_payload(chat_session) }

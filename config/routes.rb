@@ -235,6 +235,9 @@ Rails.application.routes.draw do
         post "chats/:id/switch_provider", to: "chats#switch_provider", constraints: { id: /\d+/ }
         get "chats/:id/bookmarks", to: "chats#bookmarks", constraints: { id: /\d+/ }
         post "chats/:id/bookmarks", to: "chats#create_bookmark", constraints: { id: /\d+/ }
+        get "chats/:id/pins", to: "chats#pins", constraints: { id: /\d+/ }
+        post "chats/:id/pins", to: "chats#create_pin", constraints: { id: /\d+/ }
+        delete "chats/:id/pins/:message_id", to: "chats#destroy_pin", constraints: { id: /\d+/, message_id: /\d+/ }
         get "chats/:id/context", to: "chats#context", constraints: { id: /\d+/ }
         post "chats/:id/attachments", to: "chats#add_attachment", constraints: { id: /\d+/ }
         delete "chats/:id/attachments/:attachment_id", to: "chats#destroy_attachment", constraints: { id: /\d+/, attachment_id: /\d+/ }

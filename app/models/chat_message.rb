@@ -10,6 +10,7 @@ class ChatMessage < ApplicationRecord
   belongs_to :sender_user, class_name: "User", optional: true
 
   has_many :bookmarks, class_name: "ChatBookmark", dependent: :destroy, inverse_of: :chat_message
+  has_many :pins, class_name: "ChatMessagePin", dependent: :destroy, inverse_of: :chat_message
   has_many :scoped_events, class_name: "ChatScopedEvent", dependent: :nullify
 
   after_create :record_chat_turn_state
@@ -22,6 +23,10 @@ class ChatMessage < ApplicationRecord
   validate :content_is_present
 
   def bookmarkable?
+    role.in?(%w[user assistant])
+  end
+
+  def pinnable?
     role.in?(%w[user assistant])
   end
 
