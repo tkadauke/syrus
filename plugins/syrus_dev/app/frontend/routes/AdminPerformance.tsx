@@ -335,18 +335,31 @@ function SqlFingerprintsTable({ onExplain, rows }: { onExplain: (sql: string) =>
 function SqlExplainModal({ initialSql, onClose }: { initialSql: string; onClose: () => void }) {
   const { t } = useT("syrus_dev")
   const [activeTab, setActiveTab] = useState<ExplainModalTab>("visual")
-  const [result, setResult] = useState<SqlExplainResult | null>(null)
+  const [displayedMode, setDisplayedMode] = useState<ExplainMode>("explain")
+  const [resultsByMode, setResultsByMode] = useState<Partial<Record<ExplainMode, SqlExplainResult>>>({})
   const mutation = useMutation({
     mutationFn: ({ mode }: { mode: ExplainMode }) => explainSql(initialSql, { analyze: mode === "analyze", timeoutMs: mode === "analyze" ? 1000 : undefined }),
-    onSuccess: (nextResult) => {
-      setResult(nextResult)
+    onSuccess: (nextResult, variables) => {
+      setResultsByMode((current) => ({ ...current, [variables.mode]: nextResult }))
+      setDisplayedMode(variables.mode)
       setActiveTab("visual")
     }
   })
+  const result = resultsByMode[displayedMode] ?? null
+  const explainResult = resultsByMode.explain ?? null
   const isLoading = mutation.isPending
-  const analyzeSafe = result?.analyze_safe === true
-  const analyzeDisabled = isLoading || result == null || !analyzeSafe
+  const analyzeSafe = explainResult?.analyze_safe === true || resultsByMode.analyze?.analyze_safe === true
+  const analyzeDisabled = isLoading || explainResult == null || !analyzeSafe
   const warning = result?.placeholder_substituted ? [t("performance.explain_placeholder_warning"), ...result.warnings] : result?.warnings ?? []
+  const showOrRun = (mode: ExplainMode) => {
+    if (resultsByMode[mode]) {
+      mutation.reset()
+      setDisplayedMode(mode)
+      setActiveTab("visual")
+    } else {
+      mutation.mutate({ mode })
+    }
+  }
 
   return (
     <div aria-label={t("performance.explain_modal_aria")} aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog">
@@ -362,10 +375,10 @@ function SqlExplainModal({ initialSql, onClose }: { initialSql: string; onClose:
         </header>
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-5 py-3 dark:border-gray-700">
           <div className="flex flex-wrap gap-2">
-            <button className={primaryActionClass()} disabled={isLoading} onClick={() => mutation.mutate({ mode: "explain" })} type="button">
+            <button className={primaryActionClass()} disabled={isLoading} onClick={() => showOrRun("explain")} type="button">
               {isLoading ? t("performance.explain_running") : t("performance.run_explain")}
             </button>
-            <button className={secondaryActionClass()} disabled={analyzeDisabled} onClick={() => mutation.mutate({ mode: "analyze" })} type="button" title={result && !analyzeSafe ? result.analyze_safety_reason : t("performance.run_analyze_title")}>
+            <button className={secondaryActionClass()} disabled={analyzeDisabled} onClick={() => showOrRun("analyze")} type="button" title={explainResult && !analyzeSafe ? explainResult.analyze_safety_reason : t("performance.run_analyze_title")}>
               {t("performance.run_analyze")}
             </button>
           </div>

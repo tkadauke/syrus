@@ -122,6 +122,10 @@ describe("AdminPerformance", () => {
       method: "POST",
       body: expect.stringContaining("\"analyze\":true")
     }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Run EXPLAIN" }))
+    expect(await screen.findByText("Table jobs")).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledTimes(3)
   })
 })
 
