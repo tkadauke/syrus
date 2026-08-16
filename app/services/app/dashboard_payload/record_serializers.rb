@@ -162,6 +162,8 @@ module App
 
       def epic_json(epic)
         owner_user = epic_owner_user(epic)
+        child_jobs = epic.jobs.to_a
+        claimable = epic.claimable?
 
         {
           type: "epic",
@@ -171,22 +173,22 @@ module App
           title: epic.title,
           description: epic.description.to_s,
           state: epic.state,
-          simple_status: simple_epic_status(epic),
-          stuck: epic.stuck?,
-          all_jobs_closed: epic.all_jobs_closed?,
+          simple_status: simple_epic_status(epic, child_jobs),
+          stuck: epic_stuck?(epic, child_jobs),
+          all_jobs_closed: all_epic_jobs_closed?(child_jobs),
           owner: owner_json(epic.owner),
           owned_by_current_user: epic.owner_user_id == user.id || epic.claimed_by?(user),
-          claimable: epic.claimable?,
-          owner_badge: owner_badge_for(owner_user, claimable: epic.claimable?),
+          claimable: claimable,
+          owner_badge: owner_badge_for(owner_user, claimable: claimable),
           claimed_at: epic.claimed_at&.iso8601,
           auto_approve_mode: epic.auto_approve_mode,
           owner_user_id: owner_user&.id,
           owner_status: epic_owner_status(epic),
           owner_user: owner_user_json(owner_user),
-          jobs_count: epic.jobs.size,
-          landed_jobs_count: epic_landed_jobs_count(epic),
-          job_state_counts: epic_job_state_counts(epic),
-          max_commits_behind_base: epic.jobs.select { |j| j.parent_job_id.nil? }.filter_map(&:commits_behind_base).max,
+          jobs_count: child_jobs.size,
+          landed_jobs_count: epic_landed_jobs_count(child_jobs),
+          job_state_counts: epic_job_state_counts(child_jobs),
+          max_commits_behind_base: child_jobs.select { |j| j.parent_job_id.nil? }.filter_map(&:commits_behind_base).max,
           created_at: epic.created_at&.iso8601,
           updated_at: epic.updated_at&.iso8601,
           done_at: epic.done_at&.iso8601,
@@ -202,12 +204,12 @@ module App
         }
       end
 
-      def epic_landed_jobs_count(epic)
-        epic.jobs.count { |job| job.closed? && Epic::MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
+      def epic_landed_jobs_count(child_jobs)
+        child_jobs.count { |job| job.closed? && Epic::MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
       end
 
-      def epic_job_state_counts(epic)
-        epic.jobs.each_with_object(Hash.new(0)) do |job, counts|
+      def epic_job_state_counts(child_jobs)
+        child_jobs.each_with_object(Hash.new(0)) do |job, counts|
           state = if job.closure_reason == "preempted" || job.closure_reason&.start_with?("external_pr_")
                     "preempted"
                   else
@@ -217,8 +219,30 @@ module App
         end.to_h
       end
 
-      def simple_epic_status(epic)
-        epic.simple_status(jobs: epic.jobs.to_a)
+      def simple_epic_status(epic, child_jobs)
+        return "done" if epic.user_approved_at.present?
+        return "something_went_wrong" if child_jobs.any? { |job| job.closed? && !Epic::MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
+        return "working_on_it" if child_jobs.any?(&:open?)
+        return "ready_for_your_review" if dashboard_simple_mode? && epic.user_approved_at.blank? && child_jobs.any? && child_jobs.all? { |job| job.closed? && Epic::MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
+        return "wrapping_up" if child_jobs.any? && child_jobs.all? { |job| job.closed? && Epic::MERGED_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
+
+        "working_on_it"
+      end
+
+      def epic_stuck?(epic, child_jobs)
+        epic.in_progress? &&
+          child_jobs.any? &&
+          child_jobs.none?(&:open?) &&
+          !child_jobs.all? { |job| job.closed? && Epic::SUCCESSFUL_JOB_CLOSURE_REASONS.include?(job.closure_reason) }
+      end
+
+      def all_epic_jobs_closed?(child_jobs)
+        child_jobs.any? && child_jobs.all?(&:closed?)
+      end
+
+      def dashboard_simple_mode?
+        @dashboard_simple_mode = AppSetting.simple? unless defined?(@dashboard_simple_mode)
+        @dashboard_simple_mode
       end
 
       def owner_json(owner)

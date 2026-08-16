@@ -8,6 +8,19 @@ RSpec.describe "App API dashboard commands", type: :request do
 
   def parse_body = JSON.parse(response.body)
 
+  def capture_sql
+    queries = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      next if payload[:name] == "SCHEMA"
+
+      queries << payload[:sql].to_s
+    end
+    yield
+    queries
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+  end
+
   def lane_item_ids(body, key)
     body.fetch("lanes").find { |lane| lane.fetch("key") == key }.fetch("items").map { |item| item.fetch("id") }
   end
@@ -1136,6 +1149,20 @@ RSpec.describe "App API dashboard commands", type: :request do
         "all_jobs_closed" => false,
         "job_state_counts" => { "closed" => 2, "preempted" => 1, "implemented" => 1 }
       )
+    end
+
+    it "serializes epic Kanban cards from preloaded child jobs" do
+      3.times do |epic_index|
+        epic = Factories.epic(user: user, repository: repo, title: "Epic #{epic_index}", state: "in_progress")
+        Factories.job_record(repository: repo, epic: epic, issue_number: 200 + epic_index, issue_title: "Closed #{epic_index}", state: "closed", closure_reason: "pr_merged")
+        Factories.job_record(repository: repo, epic: epic, issue_number: 210 + epic_index, issue_title: "Open #{epic_index}", state: "implemented")
+      end
+
+      queries = capture_sql { get "/api/v1/app/dashboard", params: { subject: "epic", view: "kanban" } }
+
+      expect(response).to have_http_status(:ok)
+      per_epic_child_loads = queries.grep(/FROM ["`]jobs["`] WHERE ["`]jobs["`]\.["`]epic_id["`] = /i)
+      expect(per_epic_child_loads).to be_empty
     end
 
     it "returns per-lane Kanban counts and has_more metadata for Epics" do
