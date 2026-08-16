@@ -98,8 +98,18 @@ production:
     # enqueue → 50s lock-wait → all SolidQueue threads starved →
     # workers stopped heartbeating → 3 RunJobs orphaned). 10s is the
     # ceiling.
+    # Active Record writes timestamps from Ruby in UTC, but `insert_all` /
+    # `upsert_all` do not: they emit CURRENT_TIMESTAMP(6) as literal SQL, which
+    # MySQL evaluates in the *session* time zone. With time_zone left at SYSTEM
+    # the database container's local zone wins, so bulk-inserted rows land
+    # hours away from everything written through Ruby. Production showed
+    # solid_queue_claimed_executions.created_at exactly 4h behind
+    # UTC_TIMESTAMP() while runs/solid_queue_jobs were correct, and Syrus's own
+    # ChatMessage.insert_all! and Observability::EventStream writes take the
+    # same path. Pin every session to UTC so both paths agree.
     variables:
       innodb_lock_wait_timeout: 10
+      time_zone: "+00:00"
   cache:
     <<: *primary_production
     database: syrus_production_cache
