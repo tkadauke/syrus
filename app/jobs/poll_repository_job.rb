@@ -28,6 +28,7 @@ class PollRepositoryJob < ApplicationJob
       end
       closed_jobs = close_jobs_for_closed_issues!(repository, closed_issues)
       repository.jobs.open_threads.find_each(&:start_pending_workflows_if_dependencies_satisfied!)
+      update_untagged_open_issue_count!(repository, client)
 
       log_poll_summary(repository, issues: issues, closed_issues: closed_issues, closed_jobs: closed_jobs, stats: stats, incremental_since: incremental_since)
       repository.update_columns(last_poll_status: "ok", last_poll_error: nil)
@@ -38,6 +39,27 @@ class PollRepositoryJob < ApplicationJob
   end
 
   private
+
+  # Best-effort, cheap dashboard signal — never part of the ingestion
+  # contract. A failure here (rate limit, transient GitHub error) must
+  # not fail the poll or block labeled-issue ingestion.
+  def update_untagged_open_issue_count!(repository, client)
+    return if repository.archived? || !repository.polling_enabled?
+
+    open_issues = client.list_all_issues(repository.slug, state: "open")
+    untagged_count = open_issues.count { |issue| untagged?(issue, repository) }
+    repository.update_columns(
+      untagged_open_issue_count: untagged_count,
+      untagged_open_issues_checked_at: Time.current
+    )
+  rescue => e
+    Rails.logger.warn("[PollRepositoryJob] #{repository.slug} failed to refresh untagged open issue count: #{e.message}")
+  end
+
+  def untagged?(issue, repository)
+    names = label_names(issue)
+    !names.include?(repository.trigger_label) && !names.include?(IngestPolicy::SKIP_LABEL)
+  end
 
   def list_labeled_issues(client, repository, state: "open", since: nil)
     if since.present?
