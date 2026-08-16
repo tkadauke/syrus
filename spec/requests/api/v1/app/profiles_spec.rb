@@ -46,7 +46,7 @@ RSpec.describe "API: /api/v1/app/profiles", type: :request do
     expect(row.dig("counts", "repositories")).to eq(1)
     expect(row.dig("counts", "epics")).to eq(1)
     expect(row.dig("counts", "jobs")).to eq(1)
-    expect(unprofiled_row["display_name"]).to eq("User ##{unprofiled.id}")
+    expect(unprofiled_row["display_name"]).to eq("private")
     expect(response.body).not_to include("ghp_secret")
     expect(response.body).not_to include("sk-secret")
     expect(response.body).not_to include("teammate@example.com")

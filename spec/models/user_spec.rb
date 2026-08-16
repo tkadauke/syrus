@@ -37,12 +37,48 @@ RSpec.describe User do
   end
 
   describe "profile fields" do
-    it "keeps legacy display names stable when profile fields are blank" do
+    it "falls back to a name guessed from the email address when profile fields are blank" do
       user = User.create!(attrs)
       named_user = User.create!(attrs.merge(email_address: "named@example.com", name: "Operator"))
 
-      expect(user.display_name).to eq("user@example.com")
+      expect(user.display_name).to eq("user")
       expect(named_user.display_name).to eq("Operator")
+    end
+
+    describe "#guessed_display_name" do
+      it "treats a separator in the email local part as a first/last name split" do
+        user = User.new(attrs.merge(email_address: "martin.kadauke@example.com"))
+        expect(user.guessed_display_name).to eq("Martin Kadauke")
+
+        underscored = User.new(attrs.merge(email_address: "martin_kadauke@example.com"))
+        expect(underscored.guessed_display_name).to eq("Martin Kadauke")
+      end
+
+      it "strips digits from each guessed name segment" do
+        user = User.new(attrs.merge(email_address: "martin.kadauke99@example.com"))
+        expect(user.guessed_display_name).to eq("Martin Kadauke")
+      end
+
+      it "keeps the local part as-is when there is no separator to reason from" do
+        user = User.new(attrs.merge(email_address: "mkadauke@example.com"))
+        expect(user.guessed_display_name).to eq("mkadauke")
+      end
+    end
+
+    describe "#team_display_name" do
+      it "prefers a github handle over a guessed name, then falls back to a guessed name" do
+        handled = User.create!(attrs.merge(email_address: "handled@example.com", github_handle: "handled"))
+        guessed = User.create!(attrs.merge(email_address: "guessed.person@example.com"))
+
+        expect(handled.team_display_name).to eq("@handled")
+        expect(guessed.team_display_name).to eq("Guessed Person")
+      end
+
+      it "falls back to an anonymous label only when there is no email to guess from either" do
+        user = User.new(attrs.merge(email_address: nil)).tap { |u| u.id = 7 }
+
+        expect(user.team_display_name).to eq("User #7")
+      end
     end
 
     it "stores normalized safe profile fields and can use first and last name as a display fallback" do
