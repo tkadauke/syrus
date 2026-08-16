@@ -141,6 +141,15 @@ class ReconcileJobStatesJob < ApplicationJob
                   reason: "latest workflow :succeeded but Job stuck at :queued",
                   steps: %i[ start_running! mark_implemented! ])
 
+      when [ "queued", "running" ]
+        # Workflow#start normally transitions queued Jobs to running.
+        # If that callback is interrupted or bypassed, the Job remains
+        # invisible as actively progressing even though its latest
+        # workflow owns live work.
+        new(job, target_state: "running",
+                  reason: "latest workflow :running but Job stuck at :queued",
+                  steps: %i[ start_running! ])
+
       when [ "queued", "cancelled" ]
         # A stale auto-retry can be cancelled after a previous retry
         # already published a current, passing PR. In that shape the

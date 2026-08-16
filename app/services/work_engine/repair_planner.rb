@@ -318,10 +318,13 @@ module WorkEngine
 
       class QueuedGraderCollectCachedFailure < Base
         def plan
-          operator_plan(
-            "operator_review_cached_grader_failure",
-            "The required grader conclusion is already cached failed for the current commit and fingerprint, so re-enqueueing this grader_collect Run would replay a known deterministic failure instead of letting the retry-until loop exhaust or fail the workflow.",
+          automatic_plan(
+            "mark_cached_grader_collect_failed",
+            primary_run,
+            "The required grader conclusion is already cached failed for the current commit and fingerprint, so mark this grader_collect Run failed instead of replaying known deterministic work.",
+            execution_steps: [ "Run#fail!(agent_outcome: grader_failure)" ],
             preconditions: {
+              run_state: "queued",
               step_kind: "grader_collect",
               grader_conclusion_cached_failed: true,
               commit_sha: issue.evidence["grade_plan_head_sha"],
@@ -491,6 +494,24 @@ module WorkEngine
               job_state: "closed",
               workflow_state: %w[queued running],
               job_closure_reason: issue.evidence["job_closure_reason"]
+            }
+          )
+        end
+      end
+
+      class SupersededActiveWorkflow < Base
+        def plan
+          automatic_plan(
+            "cancel_superseded_active_workflow",
+            primary_workflow,
+            "A newer active Workflow exists for the same Job, so cancel the older active Workflow and its active descendants without changing the Job state.",
+            execution_steps: [ "Workflow#cancel!" ],
+            preconditions: {
+              workflow_state: %w[queued running],
+              keeper_workflow_id: issue.evidence["keeper_workflow_id"],
+              keeper_trigger_kind: issue.evidence["keeper_trigger_kind"],
+              keeper_workflow_state: issue.evidence["keeper_workflow_state"],
+              cancelled_reason: Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON
             }
           )
         end

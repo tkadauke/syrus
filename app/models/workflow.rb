@@ -14,6 +14,7 @@ class Workflow < ApplicationRecord
   # #superseded_cancellation? so propagate_cancel_to_job! leaves the Job's
   # state alone — the rebase Workflow started right after will drive it.
   SUPERSEDED_BY_REBASE_REASON = "superseded_by_rebase"
+  SUPERSEDED_BY_NEWER_WORKFLOW_REASON = "superseded_by_newer_workflow"
 
   belongs_to :job
   belongs_to :user
@@ -352,7 +353,10 @@ class Workflow < ApplicationRecord
   end
 
   def superseded_cancellation?
-    artifact("cancelled_reason") == SUPERSEDED_BY_REBASE_REASON
+    artifact("cancelled_reason").in?([
+      SUPERSEDED_BY_REBASE_REASON,
+      SUPERSEDED_BY_NEWER_WORKFLOW_REASON
+    ])
   end
 
   def no_changes_produced_failure?

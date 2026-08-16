@@ -268,6 +268,34 @@ module WorkEngine
         end
       end
 
+      class MarkCachedGraderCollectFailed < Base
+        def perform
+          run = target_run
+          return skipped("Run no longer exists") unless run
+          return skipped("Run is #{run.state}, not queued") unless run.queued?
+
+          step = run.step
+          return skipped("Run has no Step") unless step
+          return skipped("Step is #{step.state}, not queued") unless step.queued?
+          return skipped("Step is #{step.kind}, not grader_collect") unless step.kind == "grader_collect"
+          return skipped("Workflow is not running") unless run.workflow&.running?
+          return skipped("required grader conclusion is no longer cached failed") unless GraderConclusionCache.failed_for_workflow?(run.workflow)
+
+          RunDiagnostic.find_or_create_by!(run: run) do |diagnostic|
+            diagnostic.error_class = "Steps::Base::StepFailed"
+            diagnostic.error_message = "required graders failed: cached grader conclusion failed"
+          end
+
+          StateTransition.with_source("reconciler") do
+            run.agent_outcome = "grader_failure"
+            run.fail!
+            run.save!
+          end
+
+          success("marked cached grader_collect Run ##{run.id} failed so retry-until can continue")
+        end
+      end
+
       class ResumeQueuedStep < Base
         def perform
           step = target_step
@@ -526,6 +554,37 @@ module WorkEngine
           end
 
           success("cancelled Workflow ##{workflow.id} because Job ##{workflow.job_id} is closed")
+        end
+      end
+
+      class CancelSupersededActiveWorkflow < Base
+        def perform
+          workflow = target_workflow
+          return skipped("Workflow no longer exists") unless workflow
+          return skipped("Workflow is #{workflow.state}, not active") unless workflow.queued? || workflow.running?
+          return skipped("Workflow cannot transition to cancelled") unless workflow.may_cancel?
+
+          keeper_id = plan.preconditions["keeper_workflow_id"]
+          keeper = Workflow.find_by(id: keeper_id)
+          return skipped("Keeper Workflow ##{keeper_id} is no longer active") unless keeper&.queued? || keeper&.running?
+          return skipped("Keeper Workflow ##{keeper.id} belongs to a different Job") unless keeper.job_id == workflow.job_id
+          return skipped("Workflow ##{workflow.id} is not older than keeper Workflow ##{keeper.id}") unless workflow.created_at < keeper.created_at || (workflow.created_at == keeper.created_at && workflow.id < keeper.id)
+
+          StateTransition.with_source("reconciler") do
+            workflow.artifacts = (workflow.artifacts || {}).merge(
+              "cancelled_reason" => Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
+              "cancelled_by_reconciler_at" => Time.current.iso8601,
+              "cancelled_details" => {
+                "keeper_workflow_id" => keeper.id,
+                "keeper_workflow_slug" => keeper.slug,
+                "keeper_trigger_kind" => keeper.trigger_kind
+              }
+            )
+            workflow.cancel!
+            workflow.save!
+          end
+
+          success("cancelled superseded Workflow ##{workflow.id} because newer Workflow ##{keeper.id} is active")
         end
       end
 

@@ -241,7 +241,7 @@ RSpec.describe WorkEngine::Reconciler do
     expect(plan(result, :reenqueue_run)).to be_nil
   end
 
-  it "does not reenqueue a grader_collect Run whose queue claim died once its required grader conclusion is already cached failed for the same commit" do
+  it "marks a queued grader_collect Run failed instead of reenqueueing once its required grader conclusion is already cached failed for the same commit" do
     ensure_solid_queue_test_tables!
     loop_id = SecureRandom.uuid
     collect_step = workflow.steps.create!(kind: "grader_collect", position: 50, iteration: 2, loop_id: loop_id)
@@ -275,13 +275,15 @@ RSpec.describe WorkEngine::Reconciler do
 
     expect(issue).to have_attributes(
       severity: "warning",
-      safe_to_auto_repair: false,
-      recommended_repair_action: "operator_review_cached_grader_failure"
+      safe_to_auto_repair: true,
+      recommended_repair_action: "mark_cached_grader_collect_failed"
     )
     expect(kind(result, :queued_run_on_dead_resume_queue)).to be_nil
     expect(plan(result, :reenqueue_run)).to be_nil
-    expect(plan(result, :operator_review_cached_grader_failure)).to have_attributes(auto_executable: false)
-    expect(collect_run.reload.state).to eq("queued")
+    expect(plan(result, :mark_cached_grader_collect_failed)).to have_attributes(auto_executable: true)
+    expect(collect_run.reload).to have_attributes(state: "failed", agent_outcome: "grader_failure")
+    expect(collect_step.reload).to be_failed
+    expect(collect_run.run_failure_classification).to have_attributes(classification: "grader_failure")
   end
 
   it "still allows one reenqueue for a grader_collect Run that never had a queue claim, even with a cached failed conclusion for the same commit" do
@@ -375,6 +377,45 @@ RSpec.describe WorkEngine::Reconciler do
     expect(workflow.reload).to be_cancelled
     expect(step.reload).to be_cancelled
     expect(run.reload).to be_cancelled
+  end
+
+  it "cancels older active workflows when a newer workflow is already active for the same job" do
+    older = workflow
+    older_step = step
+    older_run = run
+    newer = Workflow.create!(
+      job: job,
+      user: job.user,
+      trigger_kind: "ci_failure",
+      agent_provider: job.agent_provider,
+      state: "queued",
+      created_at: 5.minutes.ago
+    )
+    Step.create!(workflow: newer, kind: "prepare", position: 0, state: "queued")
+    job.update_columns(state: "approved")
+    older.update_columns(state: "running", started_at: 20.minutes.ago, created_at: 20.minutes.ago)
+    older_step.update_columns(state: "running", started_at: 20.minutes.ago)
+    older_run.update_columns(state: "running", started_at: 20.minutes.ago, last_heartbeat_at: 20.minutes.ago)
+
+    result = reconcile_and_execute(job_id: job.id)
+
+    expect(kind(result, :superseded_active_workflow)).to have_attributes(
+      severity: "error",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "cancel_superseded_active_workflow"
+    )
+    expect(plan(result, :cancel_superseded_active_workflow)).to have_attributes(
+      auto_executable: true,
+      target_type: "Workflow",
+      target_id: older.id
+    )
+    expect(result.repair_executions.map(&:message)).to include("cancelled superseded Workflow ##{older.id} because newer Workflow ##{newer.id} is active")
+    expect(older.reload).to be_cancelled
+    expect(older.artifact("cancelled_reason")).to eq(Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON)
+    expect(older_step.reload).to be_cancelled
+    expect(older_run.reload).to be_cancelled
+    expect(newer.reload).to be_queued
+    expect(job.reload).to be_approved
   end
 
   it "cancels active workflows that conflict with an Epic-wide workflow" do
@@ -780,6 +821,22 @@ RSpec.describe WorkEngine::Reconciler do
     expect(plan(result, :reconcile_job_state)).to have_attributes(target_id: job.id)
     expect(plan(result, :retry_job_after_cancelled_workflow)).to be_nil
     expect(job.reload.state).to eq("implemented")
+  end
+
+  it "reconciles a queued Job whose latest Workflow is already running" do
+    workflow.update!(state: "running", started_at: 5.minutes.ago)
+    step.update_columns(state: "running", started_at: 5.minutes.ago)
+    run.update_columns(state: "running", started_at: 5.minutes.ago, last_heartbeat_at: Time.current)
+    job.update!(state: "queued")
+
+    result = reconcile_and_execute(job_id: job.id)
+
+    expect(kind(result, :unambiguous_job_state_drift)).to have_attributes(
+      recommended_repair_action: "reconcile_job_state",
+      safe_to_auto_repair: true
+    )
+    expect(plan(result, :reconcile_job_state)).to have_attributes(target_id: job.id)
+    expect(job.reload).to be_running
   end
 
   it "discards stale branch-diverged workflow output when the current PR head matches the protected remote SHA" do
@@ -1621,6 +1678,32 @@ RSpec.describe WorkEngine::Reconciler do
     expect(issue.affected_ids[:workflow_ids]).to include(workflow.id)
   end
 
+  it "does not classify implemented jobs with main-health-blocked follow-up workflows as state drift" do
+    job.repository.update!(ci_health: "broken", grader_health: "healthy", landing_paused: true)
+    workflow.update_columns(state: "succeeded", finished_at: 2.minutes.ago)
+    step.update_columns(state: "succeeded", finished_at: 2.minutes.ago)
+    run.update_columns(state: "succeeded", finished_at: 2.minutes.ago)
+    job.update_columns(state: "implemented")
+    follow_up = Workflow.create!(
+      job: job,
+      user: job.user,
+      trigger_kind: "ci_failure",
+      agent_provider: job.agent_provider,
+      state: "queued",
+      artifacts: {
+        "start_blocked_reason" => StepDispatcher::MAIN_HEALTH_BLOCK_REASON,
+        "start_blocked_at" => 5.minutes.ago.iso8601,
+        "start_blocked_next_check_at" => 5.minutes.from_now.iso8601
+      }
+    )
+    Step.create!(workflow: follow_up, kind: "prepare", position: 0, state: "queued")
+
+    result = reconcile(job_id: job.id)
+
+    expect(kind(result, :job_workflow_state_drift)).to be_nil
+    expect(kind(result, :main_health_start_block)).to be_present
+  end
+
   it "auto-defers a landing Job that has no active Workflow" do
     workflow.update_columns(state: "succeeded", finished_at: 1.minute.ago)
     step.update_columns(state: "succeeded", finished_at: 1.minute.ago)
@@ -2084,6 +2167,34 @@ RSpec.describe WorkEngine::Reconciler do
     expect(issue.retry_after.to_i).to eq(reset_at.to_i)
     expect(repair_plan.auto_executable).to eq(true)
     expect(repair_plan.retry_after.to_i).to eq(reset_at.to_i)
+  end
+
+  it "ignores retryable failed Runs that were superseded by a later successful Run on the same Step" do
+    step.update_columns(state: "succeeded", finished_at: 2.minutes.ago)
+    workflow.update_columns(state: "running", started_at: 30.minutes.ago)
+    run.update_columns(state: "failed", finished_at: 20.minutes.ago, agent_outcome: "mcp_sidecar_failed")
+    RunFailureClassification.create!(
+      run: run,
+      classification: "mcp_sidecar_failure",
+      retryable: true,
+      confidence: 0.9,
+      reason: "sidecar terminated",
+      classified_at: 20.minutes.ago
+    )
+    step.runs.create!(
+      job: job,
+      user: job.user,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider,
+      state: "succeeded",
+      finished_at: 2.minutes.ago
+    )
+
+    result = reconcile(run_id: run.id)
+
+    expect(kind(result, :retryable_run_failure)).to be_nil
+    expect(plan(result, :resume_failed_step)).to be_nil
+    expect(plan(result, :retry_failed_step)).to be_nil
   end
 
   it "plans provider usage-limit failures for the provider reset time" do

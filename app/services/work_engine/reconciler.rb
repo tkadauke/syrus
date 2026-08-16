@@ -168,6 +168,7 @@ module WorkEngine
       issues = []
       issues.concat(classify_epic_workflow_conflicts)
       issues.concat(classify_closed_jobs_with_active_workflows)
+      issues.concat(classify_superseded_active_workflows)
       issues.concat(classify_queued_runs)
       issues.concat(classify_paused_queues)
       issues.concat(classify_running_runs)
@@ -662,15 +663,15 @@ module WorkEngine
         kind: :queued_grader_collect_cached_failure,
         severity: :warning,
         affected_ids: ids_for(run).merge(solid_queue_job_ids: [ sq[:id] ]),
-        safe_to_auto_repair: false,
-        recommended_repair_action: "operator_review_cached_grader_failure",
+        safe_to_auto_repair: true,
+        recommended_repair_action: "mark_cached_grader_collect_failed",
         evidence: run_evidence(run).merge(
           solid_queue: sq,
           solid_queue_state: solid_queue_state,
           grade_plan_head_sha: workflow.artifact(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY),
           grade_plan_fingerprint: workflow.artifact(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY)
         ),
-        explanation: "Run ##{run.id} is a queued grader_collect Run that already lost a queue claim, but the required grader conclusion is already cached failed for the current commit; re-enqueueing would replay a known deterministic failure instead of letting the retry-until loop exhaust or fail the workflow."
+        explanation: "Run ##{run.id} is a queued grader_collect Run that already lost a queue claim, but the required grader conclusion is already cached failed for the current commit; mark the collect failed so the retry-until loop can exhaust or append the next repair iteration without replaying known work."
       }
     end
 
@@ -679,6 +680,7 @@ module WorkEngine
         active = workflows.select { |workflow| workflow.job_id == job.id && %w[queued running].include?(workflow.state) }
         next if active.empty? || job.closed? || %w[queued running landing coding approved].include?(job.state)
         next if job.failed? && job.latest_workflow&.queued? && ReconcileJobStatesJob::Plan.for(job)
+        next if active.all? { |workflow| expected_start_blocked_workflow?(job, workflow) }
 
         issue(
           kind: :job_workflow_state_drift,
@@ -689,6 +691,22 @@ module WorkEngine
           evidence: { job_state: job.state, active_workflow_states: active.map { |workflow| [ workflow.id, workflow.state ] } },
           explanation: "Job ##{job.id} is #{job.state} while it still has active Workflows."
         )
+      end
+    end
+
+    def expected_start_blocked_workflow?(job, workflow)
+      return false unless workflow.queued?
+      return false unless workflow.first_step&.runs&.none?
+
+      case workflow.artifact("start_blocked_reason")
+      when StepDispatcher::MAIN_HEALTH_BLOCK_REASON
+        # Follow-up workflows on implemented Jobs are allowed to sit queued
+        # while main health is red. `classify_start_blocks` reports the real
+        # blocker; surfacing this as generic state drift sends operators down
+        # the wrong recovery path.
+        job.implemented?
+      else
+        false
       end
     end
 
@@ -711,6 +729,33 @@ module WorkEngine
               explanation: "Closed Job ##{job.id} still has active Workflow ##{workflow.id}; that work should be cancelled."
             )
           end
+      end
+    end
+
+    def classify_superseded_active_workflows
+      jobs.reject(&:closed?).flat_map do |job|
+        active = workflows
+          .select { |workflow| workflow.job_id == job.id && %w[queued running].include?(workflow.state) }
+          .sort_by { |workflow| [ workflow.created_at || Time.zone.at(0), workflow.id || 0 ] }
+        next [] if active.size < 2
+
+        keeper = active.last
+        active[0...-1].map do |workflow|
+          issue(
+            kind: :superseded_active_workflow,
+            severity: :error,
+            affected_ids: ids_for(workflow).merge(job_ids: [ job.id ], workflow_ids: [ workflow.id, keeper.id ]),
+            safe_to_auto_repair: workflow.may_cancel?,
+            recommended_repair_action: "cancel_superseded_active_workflow",
+            evidence: workflow_evidence(workflow).merge(
+              keeper_workflow_id: keeper.id,
+              keeper_trigger_kind: keeper.trigger_kind,
+              keeper_workflow_state: keeper.state,
+              active_workflow_states: active.map { |candidate| [ candidate.id, candidate.trigger_kind, candidate.state ] }
+            ),
+            explanation: "Job ##{job.id} has multiple active Workflows; older Workflow ##{workflow.id} is superseded by newer active Workflow ##{keeper.id}."
+          )
+        end
       end
     end
 
@@ -1097,6 +1142,7 @@ module WorkEngine
       runs.select(&:failed?).filter_map do |run|
         next if run.job&.closed?
         next unless latest_workflow_run?(run)
+        next unless failed_run_still_controls_step?(run)
         next if step_needs_terminal_run_reconciliation?(run.step)
         next if recoverable_branch_divergence?(run)
         next if branch_divergence_recovered_by_current_pr_branch?(run.workflow)
@@ -1778,6 +1824,13 @@ module WorkEngine
       workflow = run.workflow
       job = run.job
       workflow && job && workflow == job.latest_workflow
+    end
+
+    def failed_run_still_controls_step?(run)
+      step = run.step
+      return false unless step&.failed?
+
+      step.latest_run == run
     end
 
     def divergence_current_pr_head?(job, divergence)
