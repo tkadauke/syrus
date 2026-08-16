@@ -642,4 +642,86 @@ RSpec.describe RepositoryThroughputMetricContract do
 
     expect(output_run_queries.size).to eq(1)
   end
+
+  describe "window prefiltering" do
+    def output_run_sql
+      captured_sql { call }.find do |sql|
+        normalized = sql.downcase
+        normalized.include?("from \"runs\"") &&
+          normalized.include?("inner join \"steps\"") &&
+          normalized.include?("\"steps\".\"kind\"")
+      end
+    end
+
+    # The date predicate used to be one OR'd range per window. That form cannot
+    # drive an index range: the planner matches only the leading equality
+    # column and filters the rest row by row, so this endpoint scanned `runs`
+    # end to end — 131s in production, 129s of it inside SQL.
+    it "emits a single date range rather than one OR term per window" do
+      where_clause = output_run_sql[/WHERE.*/m]
+
+      expect(where_clause).to include("\"runs\".\"finished_at\" >=")
+      expect(where_clause).to include("\"runs\".\"finished_at\" <=")
+      # Exactly one lower and one upper bound — five OR'd ranges would be ten.
+      expect(where_clause.scan(/"runs"\."finished_at"/).size).to eq(2)
+      expect(where_clause).not_to include(" OR ")
+    end
+
+    it "is served by the state/finished_at index rather than scanning runs" do
+      contract = described_class.new(repository: repository, now: now)
+      relation = Run.joins(step: { workflow: :job })
+        .where(jobs: { repository_id: repository.id })
+        .where(steps: { kind: described_class::OUTPUT_STEP_KINDS })
+        .where(state: "succeeded")
+        .where(contract.send(:window_condition, :runs, :finished_at))
+
+      plan = ActiveRecord::Base.connection
+                               .select_all("EXPLAIN QUERY PLAN #{relation.to_sql}")
+                               .map { |row| row["detail"] }
+      runs_step = plan.find { |detail| detail.include?("runs") }
+
+      expect(runs_step).to include("idx_runs_state_finished_at")
+      expect(runs_step).to include("finished_at")
+    end
+
+    # `SELECT runs.*` pulled `prompt` (longtext) along with the diffs — 8.3MB of
+    # the 33.7MB loaded for one repository's 7-day window, never read.
+    it "loads only the run columns the output metrics read" do
+      sql = output_run_sql
+
+      select_clause = sql[/SELECT.*?FROM/m]
+
+      expect(select_clause).to include("\"runs\".\"agent_diff\"")
+      expect(select_clause).to include("\"runs\".\"step_agent_diff\"")
+      expect(select_clause).to include("\"runs\".\"head_sha\"")
+      expect(select_clause).not_to include("prompt")
+      expect(select_clause).not_to include("agent_pr_body")
+      expect(select_clause).not_to include("\"runs\".*")
+    end
+
+    # The prefilter is deliberately a superset spanning every window, so the
+    # per-window split has to stay exact in Ruby.
+    it "still separates windows when one prefilter range spans them all" do
+      job = Factories.job_record(user: user, repository: repository, created_at: now - 8.days)
+      workflow = workflow_for(job, trigger_kind: "initial")
+      diff = <<~DIFF
+        diff --git a/app.rb b/app.rb
+        --- a/app.rb
+        +++ b/app.rb
+        +added
+      DIFF
+
+      recent_step = step_for(workflow, kind: "implement", started_at: now - 30.minutes, finished_at: now - 25.minutes, position: 0)
+      run_for(job, recent_step, head_sha: "a" * 40, step_agent_diff: diff)
+
+      old_step = step_for(workflow, kind: "implement", started_at: now - 3.days, finished_at: now - 3.days, position: 1)
+      run_for(job, old_step, head_sha: "b" * 40, step_agent_diff: diff)
+
+      windows = call.fetch(:windows)
+
+      expect(windows.fetch("1h").dig(:output, :commits, :count)).to eq(1)
+      expect(windows.fetch("24h").dig(:output, :commits, :count)).to eq(1)
+      expect(windows.fetch("7d").dig(:output, :commits, :count)).to eq(2)
+    end
+  end
 end

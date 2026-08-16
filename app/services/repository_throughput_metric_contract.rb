@@ -56,11 +56,30 @@ class RepositoryThroughputMetricContract
     value.present? && value >= range.begin && value <= range.end
   end
 
+  # One range covering every window, not an OR of five.
+  #
+  # This predicate is only a prefilter: every `*_in(range)` reader re-filters
+  # the loaded rows per window with `in_range?`, so the SQL merely has to
+  # return a superset. Emitting `a <= col <= b` instead of five OR'd ranges
+  # keeps the condition index-eligible — the OR form defeated the optimizer and
+  # made these queries scan the largest tables in the schema (`runs` alone is
+  # 75k rows and 549MB of wide text, scanned to find ~370 matches).
+  #
+  # The four fixed windows are nested and all end at `now`, so the union is
+  # normally just the 7d window. Only an idle repository — where last_active
+  # trails far behind — widens the span, and there the extra rows are few and
+  # still dropped by `in_range?`. An index range scan over a wider span beats a
+  # full scan of the whole table either way.
   def window_condition(table_name, column_name)
     table = Arel::Table.new(table_name)
-    window_ranges.values
-      .map { |range| table[column_name].gteq(range.begin).and(table[column_name].lteq(range.end)) }
-      .reduce { |memo, condition| memo.or(condition) }
+    table[column_name].gteq(window_bounds.begin).and(table[column_name].lteq(window_bounds.end))
+  end
+
+  def window_bounds
+    @window_bounds ||= begin
+      ranges = window_ranges.values
+      ranges.map(&:begin).min..ranges.map(&:end).max
+    end
   end
 
   def metrics_for(range)
@@ -732,12 +751,22 @@ class RepositoryThroughputMetricContract
       .to_a
   end
 
+  # Only the columns `output_for` actually reads. `SELECT runs.*` dragged in
+  # `prompt` (longtext) alongside the diffs — 8.3MB of the 33.7MB loaded for a
+  # single 7-day window on one repository, none of it ever read. Names are
+  # table-qualified because the join puts several `id` columns in scope.
+  OUTPUT_RUN_COLUMNS = %w[
+    runs.id runs.job_id runs.head_sha runs.finished_at
+    runs.agent_diff runs.step_agent_diff
+  ].freeze
+
   def output_runs
     @output_runs ||= Run.joins(step: { workflow: :job })
       .where(jobs: { repository_id: repository.id })
       .where(steps: { kind: OUTPUT_STEP_KINDS })
       .where(state: "succeeded")
       .where(window_condition(:runs, :finished_at))
+      .select(*OUTPUT_RUN_COLUMNS)
       .preload(:job)
       .to_a
   end

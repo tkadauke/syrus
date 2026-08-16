@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_16_040425) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_16_042117) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -815,6 +815,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_040425) do
     t.integer "job_id", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.index ["approved_at"], name: "idx_job_approvals_approved_at"
     t.index ["job_id", "user_id"], name: "index_job_approvals_on_job_id_and_user_id", unique: true
     t.index ["job_id"], name: "index_job_approvals_on_job_id"
     t.index ["user_id"], name: "index_job_approvals_on_user_id"
@@ -1184,6 +1185,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_040425) do
     t.string "state", default: "building", null: false
     t.datetime "updated_at", null: false
     t.index ["epic_id"], name: "index_merge_trains_on_epic_id"
+    t.index ["repository_id", "finished_at"], name: "idx_merge_trains_repo_finished_at"
     t.index ["repository_id"], name: "index_merge_trains_on_repository_id"
     t.index ["state", "id"], name: "idx_merge_trains_state_id"
   end
@@ -1651,6 +1653,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_040425) do
     t.index ["parent_session_id"], name: "index_runs_on_parent_session_id"
     t.index ["state", "agent_provider", "finished_at", "updated_at", "id"], name: "idx_runs_provider_failed_recent"
     t.index ["state", "finished_at", "step_id"], name: "idx_runs_throughput_state_finished"
+    t.index ["state", "finished_at"], name: "idx_runs_state_finished_at"
     t.index ["state", "job_id", "updated_at"], name: "idx_runs_state_job_updated"
     t.index ["state", "last_heartbeat_at"], name: "index_runs_on_state_and_last_heartbeat_at"
     t.index ["state", "step_id"], name: "idx_runs_state_step_id"

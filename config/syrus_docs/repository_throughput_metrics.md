@@ -10,6 +10,26 @@ stability later demands it.
 Metrics roll up per `Repository`. Global aggregates may be built by summing
 repository windows, but the repository contract is canonical.
 
+## Query shape
+
+Each source table is loaded once per request with a single date range covering
+every window, and the per-window split happens in Ruby via `in_range?`. The SQL
+predicate is therefore only a prefilter and is allowed to return a superset;
+anything narrower must keep that property or windows will silently lose rows.
+
+This matters for cost. Emitting one range per window and OR-ing them together
+cannot drive an index range scan — the planner matches only the leading
+equality column and filters the rest row by row, which turns these queries into
+full scans of the largest tables in the schema. The window columns are indexed
+for this access pattern (`idx_runs_state_finished_at`,
+`idx_merge_trains_repo_finished_at`, `idx_job_approvals_approved_at`,
+alongside the existing `idx_steps_throughput_kind_state_finished` and
+`idx_jobs_repo_state_closure_finished`).
+
+Queries also select only the columns each metric reads. `runs` in particular
+carries several large text columns (`prompt`, `agent_pr_body`) that the output
+metrics never touch, and loading them dominates the response.
+
 The current contract is produced by `RepositoryThroughputMetricContract` and returns:
 
 ```ruby
