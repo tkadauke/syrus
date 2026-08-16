@@ -53,7 +53,10 @@ landing queue stalls and delayed retries across deploys.
 
 `performance_log_events` contain slow request, slow SQL, slow phase, and browser
 trace diagnostics. They retain 24 hours and are surfaced by Admin -> Performance
-when the `performance_logging` feature is enabled.
+when the `performance_logging` feature is enabled. Phase SQL counts are
+inclusive of nested work, but phase SQL fingerprint drilldowns are exclusive:
+each query is attributed to the deepest active phase so the same statement does
+not appear under multiple nested phases.
 
 `operational_log_events` contain structured process/request/job logs. They
 retain 6 hours and can be indexed for full-text search when

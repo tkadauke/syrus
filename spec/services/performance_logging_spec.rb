@@ -243,6 +243,19 @@ RSpec.describe PerformanceLogging do
       "self_sql_duration_ms" => 12.0,
       "self_slow_sql_count" => 1
     )
+    expect(parent["top_sql_fingerprints"]).to eq([])
+    expect(parent["self_top_sql_fingerprints"]).to eq([])
+    expect(child["top_sql_fingerprints"].first).to include(
+      "fingerprint" => "SELECT * FROM jobs WHERE state = ?",
+      "count" => 1,
+      "total_duration_ms" => 12.0
+    )
+    expect(child["self_top_sql_fingerprints"]).to eq(child["top_sql_fingerprints"])
+    slow_sql = described_class::Store.recent.find { |event| event["event"] == "syrus.performance.slow_sql" }
+    expect(slow_sql).to include(
+      "phase" => "admin_payload.sql_summary",
+      "fingerprint" => "SELECT * FROM jobs WHERE state = ?"
+    )
   end
 
   it "records browser trace spans" do
