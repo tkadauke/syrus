@@ -85,6 +85,7 @@
   "section_approval": "Probatio",
   "section_dependencies": "Dependentiae",
   "section_no_workflows": "Nulli cursus adhuc.",
+  "workflow_steps_truncated": "Ostenduntur novissimi {{displayed}} ex {{total}} gradibus.",
   "section_no_attachments": "Nulla adiuncta.",
   "section_no_artifacts": "Nulla artificia.",
   "section_no_runs": "Nullae exsecutiones huic gradui.",

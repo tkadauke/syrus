@@ -485,6 +485,51 @@ RSpec.describe App::JobDetailPayload do
   end
 
   describe "#workflows_json" do
+    it "bounds serialized steps per workflow and keeps workflow failure classification" do
+      stub_const("App::JobDetailPayload::WorkflowSerializers::MAX_STEPS_PER_WORKFLOW", 3)
+      job = Factories.job_record(repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "failed")
+
+      5.times do |index|
+        state = index.zero? ? "failed" : "succeeded"
+        step = Step.create!(
+          workflow: workflow,
+          kind: "grader",
+          position: index + 1,
+          state: state,
+          finished_at: (5 - index).minutes.ago
+        )
+        run = Run.create!(
+          job: job,
+          step: step,
+          trigger_kind: "initial",
+          agent_provider: "claude",
+          state: state,
+          finished_at: (5 - index).minutes.ago
+        )
+        next unless index.zero?
+
+        RunFailureClassification.create!(
+          run: run,
+          classification: "grader_failure",
+          retryable: true,
+          confidence: 0.9,
+          reason: "rspec failed",
+          classified_at: Time.current
+        )
+      end
+
+      workflow_payload = workflows_payload_for(job).fetch(:workflows).first
+
+      expect(workflow_payload).to include(
+        steps_total: 5,
+        steps_displayed: 3,
+        steps_truncated: true
+      )
+      expect(workflow_payload.fetch(:steps).map { |step| step[:position] }).to eq([ 3, 4, 5 ])
+      expect(workflow_payload.dig(:failure_classification, :classification)).to eq("grader_failure")
+    end
+
     it "does not query command spans or spawned processes once per run" do
       job = Factories.job_record(repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")

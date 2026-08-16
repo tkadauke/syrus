@@ -11,6 +11,7 @@ module App
       # owner_json helpers through the include ancestry.
 
       AgentSessionSummary = Data.define(:session_id, :provider, :transcript_pruned, :transcript_bytes, :transcript_lines)
+      MAX_STEPS_PER_WORKFLOW = Integer(ENV["SYRUS_JOB_DETAIL_MAX_STEPS_PER_WORKFLOW"], exception: false) || 250
 
       def workflows_json
         PerformanceLogging.phase("job_detail.workflows.serialize", job_id: @job.id, page: workflows_page) do
@@ -23,6 +24,7 @@ module App
       def workflow_json(workflow)
         PerformanceLogging.phase("job_detail.workflow.serialize", job_id: @job.id, workflow_id: workflow.id) do
           steps = ordered_steps_for(workflow)
+          step_count = step_counts_by_workflow_id.fetch(workflow.id, steps.size)
           latest_step = steps.last
           {
             id: workflow.id,
@@ -44,6 +46,9 @@ module App
             app_force_push_branch_path: "/api/v1/app/jobs/#{@job.id}/workflows/#{workflow.id}/force_push_branch",
             app_discard_branch_output_path: "/api/v1/app/jobs/#{@job.id}/workflows/#{workflow.id}/discard_branch_output",
             failure_classification: workflow_failure_classification_json(workflow),
+            steps_total: step_count,
+            steps_displayed: steps.size,
+            steps_truncated: step_count > steps.size,
             steps: PerformanceLogging.phase("job_detail.workflow.steps", job_id: @job.id, workflow_id: workflow.id, step_count: steps.size) do
               steps.map { |step| step_json(step, workflow: workflow, latest_step: latest_step) }
             end
@@ -79,7 +84,6 @@ module App
 
       def workflows_scope
         @job.workflows
-            .includes(steps: { runs: [ :run_diagnostic, :run_failure_classification ] })
             .reorder(created_at: :desc, id: :desc)
       end
 
@@ -105,7 +109,28 @@ module App
       end
 
       def ordered_steps_for(workflow)
-        workflow.steps.to_a.sort_by { |step| [ step.position || 0, step.id || 0 ] }
+        steps_by_workflow_id.fetch(workflow.id, [])
+      end
+
+      def steps_by_workflow_id
+        @steps_by_workflow_id ||= PerformanceLogging.phase("job_detail.workflow.steps.query", job_id: @job.id, workflow_count: paginated_workflows.size) do
+          paginated_workflows.to_h do |workflow|
+            steps = workflow.steps
+                            .includes(runs: [ :run_diagnostic, :run_failure_classification ])
+                            .reorder(position: :desc, id: :desc)
+                            .limit(MAX_STEPS_PER_WORKFLOW)
+                            .to_a
+                            .sort_by { |step| [ step.position || 0, step.id || 0 ] }
+            [ workflow.id, steps ]
+          end
+        end
+      end
+
+      def step_counts_by_workflow_id
+        @step_counts_by_workflow_id ||= begin
+          ids = paginated_workflows.map(&:id)
+          ids.empty? ? {} : Step.where(workflow_id: ids).group(:workflow_id).count
+        end
       end
 
       def ordered_runs_for(step)
@@ -254,10 +279,11 @@ module App
       end
 
       def workflow_failure_classification_json(workflow)
-        run = workflow.steps
-                      .flat_map { |step| step.runs.select(&:failed?) }
-                      .sort_by { |candidate| candidate.finished_at || candidate.updated_at || candidate.created_at }
-                      .last
+        run = Run.joins(:step)
+                 .where(steps: { workflow_id: workflow.id }, state: "failed")
+                 .includes(:run_failure_classification)
+                 .order(Arel.sql("COALESCE(runs.finished_at, runs.updated_at, runs.created_at) DESC"), id: :desc)
+                 .first
         failure_classification_json(run&.run_failure_classification)
       end
 

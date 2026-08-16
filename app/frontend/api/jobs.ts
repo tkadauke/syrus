@@ -452,6 +452,9 @@ export type JobWorkflow = {
   app_force_push_branch_path: string
   app_discard_branch_output_path: string
   failure_classification?: RunFailureClassification | null
+  steps_total?: number
+  steps_displayed?: number
+  steps_truncated?: boolean
   steps: JobStep[]
 }
 

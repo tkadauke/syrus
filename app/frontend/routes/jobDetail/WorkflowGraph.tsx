@@ -104,6 +104,11 @@ function WorkflowCard({ workflow, payload, command, prefix }: { workflow: JobWor
         </div>
       </div>
       {branchDivergence ? <BranchDivergencePanel command={command} divergence={branchDivergence} payload={payload} prefix={prefix} workflow={workflow} /> : null}
+      {workflow.steps_truncated ? (
+        <div className="mt-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+          {t("workflow_steps_truncated", { displayed: workflow.steps_displayed || workflow.steps.length, total: workflow.steps_total || workflow.steps.length })}
+        </div>
+      ) : null}
       <div className="mt-4 overflow-hidden rounded border border-gray-200 dark:border-gray-700">
         {stepItems.map((item, index) => item.type === "loop" ? (
           <LoopGroup command={command} item={item} key={item.loopId} payload={payload} workflowArtifacts={workflow.artifacts} />
