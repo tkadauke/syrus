@@ -589,6 +589,14 @@ chats. In ordinary chats, `/propose` starts a guided wizard: the agent asks for
 a Job title, description, and optional Epic, then creates a proposal card for
 operator confirmation.
 
+Operators (and the agent) can pin individual user and assistant messages
+independently of bookmarks. Hovering a message bubble reveals a pin toggle
+alongside the copy and bookmark controls; pin state is shared across every
+chat participant, the same as bookmarks. The 3 most-recently-pinned messages
+show as truncated single-line previews in a bar at the top of the chat, newest
+first, and clicking one scrolls to and highlights that message. Pin and unpin
+events update the bar live for everyone in the chat.
+
 Chat transcripts also surface MCP sidecar health. Syrus distinguishes
 available, pending, and unavailable chat tools so operators can tell when
 proposal, schedule, bookmark, or whiteboard persistence is not ready and

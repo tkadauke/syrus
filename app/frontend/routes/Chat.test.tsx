@@ -1145,6 +1145,80 @@ describe("chat bookmark picker command", () => {
   })
 })
 
+describe("pinned messages bar", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn()
+    })
+  })
+
+  function mockPinsFetch(pins: Array<Record<string, unknown>>, payload = chatPayload()) {
+    return vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8/pins") {
+        return Promise.resolve(jsonResponse({ pins }))
+      }
+
+      return Promise.resolve(jsonResponse(payload))
+    })
+  }
+
+  it("renders up to 3 most-recently-pinned messages newest first, with a hook for the rest", async () => {
+    mockPinsFetch([
+      { id: 1, chat_message_id: 21, text: "First pinned note.", role: "user" },
+      { id: 2, chat_message_id: 22, text: "Second pinned note.", role: "assistant" },
+      { id: 3, chat_message_id: 23, text: "Third pinned note.", role: "user" },
+      { id: 4, chat_message_id: 24, text: "Fourth pinned note.", role: "assistant" },
+      { id: 5, chat_message_id: 25, text: "Fifth pinned note.", role: "user" }
+    ])
+
+    renderRoute()
+
+    const bar = await screen.findByTestId("pinned-messages-bar")
+    const previews = within(bar).getAllByRole("button")
+    expect(previews.map((button) => button.textContent)).toEqual([
+      "Fifth pinned note.",
+      "Fourth pinned note.",
+      "Third pinned note."
+    ])
+    expect(within(bar).getByText("+2 more")).toBeInTheDocument()
+  })
+
+  it("renders nothing when the chat has no pinned messages", async () => {
+    mockPinsFetch([])
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    expect(screen.queryByTestId("pinned-messages-bar")).not.toBeInTheDocument()
+  })
+
+  it("scrolls to and highlights the message when a pinned preview is clicked", async () => {
+    const scrollIntoView = vi.fn()
+    mockPinsFetch([
+      { id: 1, chat_message_id: 9, text: "Discuss aqueducts.", role: "assistant" }
+    ])
+
+    renderRoute()
+
+    const preview = await screen.findByRole("button", { name: /Discuss aqueducts\./ })
+    Object.defineProperty(document.getElementById("message-9"), "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    })
+    fireEvent.click(preview)
+
+    await waitFor(() => {
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "start", behavior: "smooth" })
+    })
+  })
+})
+
 describe("chat pending proposal jump banner", () => {
   beforeEach(() => {
     window.localStorage.clear()

@@ -3,6 +3,7 @@ class ChatMessage < ApplicationRecord
 
   ROLES = %w[ user assistant tool_use tool_result system ].freeze
   SPA_EVENT_TAIL_SIZE = 24
+  PREVIEW_TEXT_MAX_BYTES = 500
 
   belongs_to :chat_session
   belongs_to :proposal, class_name: "ChatProposal", optional: true
@@ -49,7 +50,24 @@ class ChatMessage < ApplicationRecord
     end
   end
 
+  # Single-line preview text for surfaces like the pinned-messages bar —
+  # collapses whitespace/newlines and caps length so a long message can't
+  # blow up a compact UI row.
+  def preview_text
+    extract_text_from_content.to_s.gsub(/[[:space:]]+/, " ").strip.safe_byteslice(0, PREVIEW_TEXT_MAX_BYTES)
+  end
+
   private
+
+  def extract_text_from_content
+    if content.is_a?(Array)
+      content.filter_map { |block| block["text"] if block.is_a?(Hash) && block["type"] == "text" }.join
+    elsif content.is_a?(Hash)
+      content["text"].to_s
+    else
+      content.to_s
+    end
+  end
 
   def content_is_present
     errors.add(:content, "can't be blank") if content.nil?

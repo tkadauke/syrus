@@ -319,5 +319,12 @@
   "picker_no_jobs_with_pr": "Keine Jobs mit offenen Pull Requests.",
   "picker_no_epics": "Keine Epics gefunden.",
   "picker_loading": "Wird geladen…",
-  "aria_job_epic_picker": "Job oder Epic auswählen"
+  "aria_job_epic_picker": "Job oder Epic auswählen",
+  "pin_message": "Nachricht anpinnen",
+  "unpin_message": "Nachricht loslösen",
+  "unable_to_pin": "Nachricht konnte nicht angepinnt werden.",
+  "unable_to_unpin": "Nachricht konnte nicht gelöst werden.",
+  "aria_pinned_messages": "Angepinnte Nachrichten",
+  "pinned_message_empty": "Angepinnte Nachricht",
+  "pinned_messages_more": "+{{count}} weitere"
 }

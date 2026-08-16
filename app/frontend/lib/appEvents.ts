@@ -426,6 +426,17 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
     return patched
   }
 
+  const pin = chatPinPayload(event.payload)
+  if (pin) {
+    // Pin broadcasts carry only the pin id / chat_message_id (no preview
+    // text), so refetch the pins query rather than trying to patch it —
+    // same "extend the existing chat-payload handling" pattern as the
+    // bookmark/header/controls branches above, just invalidate-based since
+    // pins live in their own query cache, not on ChatPayload itself.
+    void queryClient.invalidateQueries({ queryKey: ["chat-pins", String(event.id)] })
+    return true
+  }
+
   const agentQuestions = chatAgentQuestionsPayload(event.payload)
   if (agentQuestions) {
     let patched = false
@@ -511,6 +522,10 @@ type ChatHeaderPayload = {
 type ChatBookmarkPayload = {
   action: "upsert_bookmark"
   bookmark: ChatBookmark
+}
+
+type ChatPinPayload = {
+  action: "upsert_pin" | "remove_pin"
 }
 
 type ChatAgentQuestionsPayload = {
@@ -625,6 +640,15 @@ function chatBookmarkPayload(payload: unknown): ChatBookmarkPayload | null {
     action: "upsert_bookmark",
     bookmark: candidate.bookmark
   }
+}
+
+function chatPinPayload(payload: unknown): ChatPinPayload | null {
+  if (!payload || typeof payload !== "object") return null
+
+  const candidate = payload as Partial<ChatPinPayload>
+  if (candidate.action !== "upsert_pin" && candidate.action !== "remove_pin") return null
+
+  return { action: candidate.action }
 }
 
 function chatAgentQuestionsPayload(payload: unknown): ChatAgentQuestionsPayload | null {

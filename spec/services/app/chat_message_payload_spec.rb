@@ -35,6 +35,16 @@ RSpec.describe App::ChatMessagePayload do
     expect(payload.fetch(:text)).to eq("")
   end
 
+  it "includes pinnable to gate the pin control the same way as bookmarkable" do
+    user_message = chat.messages.create!(role: "user", content: { "text" => "Pin me." })
+    tool_message = chat.messages.create!(role: "tool_use", tool_name: "Read", content: { "type" => "tool_use", "id" => "t1", "name" => "Read", "input" => {} })
+
+    payloads = described_class.messages([ user_message, tool_message ], repository: repository)
+
+    expect(payloads.first.fetch(:pinnable)).to eq(true)
+    expect(payloads.second.fetch(:pinnable)).to eq(false)
+  end
+
   it "includes stored chat message attachments" do
     attachment = { "name" => "diagram.png", "mime_type" => "image/png", "data" => "cGl4ZWxz" }
     message = chat.messages.create!(role: "user", content: { "text" => "Inspect this.", "attachments" => [ attachment ] })

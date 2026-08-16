@@ -74,6 +74,7 @@ module App
         content: message.content,
         text: text,
         bookmarkable: message.bookmarkable?,
+        pinnable: message.pinnable?,
         created_at: message.created_at.iso8601
       }
 

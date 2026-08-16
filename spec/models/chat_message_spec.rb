@@ -81,6 +81,35 @@ RSpec.describe ChatMessage do
     expect(pinnable_roles).to eq(%w[user assistant])
   end
 
+  describe "#preview_text" do
+    it "extracts text from legacy flat content" do
+      message = described_class.new(chat_session: session, role: "user", content: { "text" => "Fix the aqueduct." })
+
+      expect(message.preview_text).to eq("Fix the aqueduct.")
+    end
+
+    it "extracts text from canonical content-blocks assistant messages" do
+      message = described_class.new(chat_session: session, role: "assistant", content: [
+        { "type" => "thinking", "thinking" => "Consider the plan." },
+        { "type" => "text", "text" => "Here is the answer." }
+      ])
+
+      expect(message.preview_text).to eq("Here is the answer.")
+    end
+
+    it "collapses newlines and repeated whitespace into single spaces" do
+      message = described_class.new(chat_session: session, role: "user", content: { "text" => "Line one.\n\n  Line   two." })
+
+      expect(message.preview_text).to eq("Line one. Line two.")
+    end
+
+    it "truncates long text to the byte cap without splitting a UTF-8 character" do
+      message = described_class.new(chat_session: session, role: "user", content: { "text" => "a" * 600 })
+
+      expect(message.preview_text.bytesize).to eq(described_class::PREVIEW_TEXT_MAX_BYTES)
+    end
+  end
+
   describe "#turn_in_flight?" do
     it "flips to false once a non-user message follows the latest user message" do
       session

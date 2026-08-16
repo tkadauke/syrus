@@ -319,5 +319,12 @@
   "picker_no_jobs_with_pr": "Nulla opera cum extractionibus apertis.",
   "picker_no_epics": "Nulla epica inventa.",
   "picker_loading": "Onerantur…",
-  "aria_job_epic_picker": "Elige opus vel epicum"
+  "aria_job_epic_picker": "Elige opus vel epicum",
+  "pin_message": "Adfige nuntium",
+  "unpin_message": "Dimitte nuntium",
+  "unable_to_pin": "Nuntius adfigi non potuit.",
+  "unable_to_unpin": "Nuntius dimitti non potuit.",
+  "aria_pinned_messages": "Nuntii adfixi",
+  "pinned_message_empty": "Nuntius adfixus",
+  "pinned_messages_more": "+{{count}} plures"
 }

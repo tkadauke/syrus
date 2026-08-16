@@ -3284,7 +3284,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body["message"]).to eq("Message pinned.")
     get "/api/v1/app/chats/#{chat.id}/pins"
 
-    expect(parse_body["pins"]).to contain_exactly(include("chat_message_id" => message.id))
+    expect(parse_body["pins"]).to contain_exactly(include("chat_message_id" => message.id, "text" => "Build aqueducts.", "role" => "assistant"))
   end
 
   it "rejects pinning a non-pinnable message through the app API" do
