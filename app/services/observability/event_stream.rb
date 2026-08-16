@@ -18,7 +18,7 @@ module Observability
           when :create_each
             batch.each { |row| model.create!(row) }
           else
-            model.insert_all(batch) # rubocop:disable Rails/SkipsModelValidations
+            model.insert_all(normalize_insert_rows(batch)) # rubocop:disable Rails/SkipsModelValidations
           end
         end
       end
@@ -27,6 +27,13 @@ module Observability
         return [] unless model.respond_to?(:as_recent_event_hashes)
 
         model.as_recent_event_hashes(limit: limit)
+      end
+
+      private
+
+      def normalize_insert_rows(rows)
+        keys = rows.flat_map(&:keys).uniq
+        rows.map { |row| keys.index_with { |key| row[key] } }
       end
     end
 

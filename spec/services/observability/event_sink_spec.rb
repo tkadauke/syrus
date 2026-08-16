@@ -124,4 +124,41 @@ RSpec.describe Observability::EventSink do
     expect(Rails.logger).to have_received(:error).with(a_string_matching(/flush failed for operational, 1 event\(s\) restored to buffer/))
     expect(described_class.recent(kind: :operational, limit: 10).size).to eq(1)
   end
+
+  it "persists heterogeneous insert_all rows for optional event fields" do
+    job = Factories.job_record
+    workflow = Workflow.create!(job: job, user: job.user, trigger_kind: "initial", agent_provider: "codex")
+    step = workflow.steps.create!(kind: "prepare", position: 1)
+    described_class.clear!(kind: :workflow_activity)
+    WorkflowActivityEvent.delete_all
+
+    described_class.append(kind: :workflow_activity, durable: true, event: {
+      "occurred_at" => Time.current.iso8601(6),
+      "event_type" => "workflow_started",
+      "source" => "spec",
+      "severity" => "info",
+      "job_id" => job.id,
+      "workflow_id" => workflow.id,
+      "trigger_kind" => "initial",
+      "workflow_state" => "running",
+      "message" => "workflow started",
+      "metadata" => {}
+    })
+    described_class.append(kind: :workflow_activity, durable: true, event: {
+      "occurred_at" => Time.current.iso8601(6),
+      "event_type" => "run_started",
+      "source" => "spec",
+      "severity" => "info",
+      "job_id" => job.id,
+      "workflow_id" => workflow.id,
+      "step_id" => step.id,
+      "step_kind" => "prepare",
+      "message" => "run started",
+      "metadata" => {}
+    })
+
+    expect {
+      described_class.flush!(kinds: [ :workflow_activity ])
+    }.to change(WorkflowActivityEvent, :count).by(2)
+  end
 end
