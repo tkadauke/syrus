@@ -9980,6 +9980,53 @@ describe("App", () => {
     expect(screen.queryByText("rspec output")).not.toBeInTheDocument()
   })
 
+  it("shows the workflows tab lazy-load state instead of an empty workflow list", async () => {
+    const detailPayload = jobDetailPayload({
+      job: { workflows_count: 13, runs_count: 121 },
+      workflows: [],
+      workflows_pagination: {
+        page: 1,
+        per_page: 10,
+        total_workflows: 13,
+        total_pages: 2,
+        first_item: 0,
+        last_item: 0,
+        previous_path: null,
+        next_path: "/jobs/42?tab=workflows&workflows_page=2"
+      }
+    })
+    const workflowsPayload = jobDetailPayload()
+    let resolveWorkflows!: (response: Response) => void
+    const workflowsPromise = new Promise<Response>((resolve) => {
+      resolveWorkflows = resolve
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/jobs/42/workflows") return workflowsPromise
+
+      return Promise.resolve(new Response(JSON.stringify(detailPayload), { status: 200, headers: { "Content-Type": "application/json" } }))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/jobs/42?tab=workflows"]}>
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("button", { name: "Workflows (13)" })).toBeInTheDocument()
+    expect(await screen.findByText("Loading workflows...")).toBeInTheDocument()
+    expect(screen.queryByText("No workflows yet.")).not.toBeInTheDocument()
+
+    await act(async () => {
+      resolveWorkflows(new Response(JSON.stringify(workflowsPayload), { status: 200, headers: { "Content-Type": "application/json" } }))
+      await workflowsPromise
+    })
+
+    expect(await screen.findByText("WF-5")).toBeInTheDocument()
+  })
+
   it("coalesces adjacent transcript chunks from the same command source", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)

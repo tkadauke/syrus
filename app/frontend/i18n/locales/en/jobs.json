@@ -86,6 +86,8 @@
   "section_attachments": "Attachments",
   "section_approval": "Approval",
   "section_dependencies": "Dependencies",
+  "section_workflows_loading": "Loading workflows...",
+  "section_workflows_load_error": "Unable to load workflows.",
   "section_no_workflows": "No workflows yet.",
   "section_no_attachments": "No attachments.",
   "section_no_artifacts": "No artifacts.",

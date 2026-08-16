@@ -86,6 +86,8 @@
   "section_attachments": "Anhänge",
   "section_approval": "Genehmigung",
   "section_dependencies": "Abhängigkeiten",
+  "section_workflows_loading": "Arbeitsabläufe werden geladen...",
+  "section_workflows_load_error": "Arbeitsabläufe konnten nicht geladen werden.",
   "section_no_workflows": "Noch keine Arbeitsabläufe.",
   "section_no_attachments": "Keine Anhänge.",
   "section_no_artifacts": "Keine Artefakte.",

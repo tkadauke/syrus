@@ -77,12 +77,23 @@ export function JobDetailRoute() {
     <main aria-label={t("aria_job")} className="mx-auto max-w-[96rem] space-y-6 p-6">
       {detail.isPending ? <PanelMessage>{t("loading")}</PanelMessage> : null}
       {detail.isError ? <PanelMessage tone="error">{errorMessage(detail.error, t("load_error"))}</PanelMessage> : null}
-      {payload ? <JobDetailView activeTab={activeTab} onSelectTab={selectTab} payload={payload} prefix={prefix} queryKey={queryKey} workflowsQueryKey={workflowsQueryKey} /> : null}
+      {payload ? (
+        <JobDetailView
+          activeTab={activeTab}
+          onSelectTab={selectTab}
+          payload={payload}
+          prefix={prefix}
+          queryKey={queryKey}
+          workflowsError={workflows.error}
+          workflowsLoading={activeTab === "workflows" && workflows.isPending}
+          workflowsQueryKey={workflowsQueryKey}
+        />
+      ) : null}
     </main>
   )
 }
 
-export function JobDetailView({ payload, queryKey, workflowsQueryKey, activeTab, onSelectTab, prefix }: { payload: JobDetailPayload; queryKey: JobDetailQueryKey; workflowsQueryKey?: JobWorkflowsQueryKey; activeTab: JobTab; onSelectTab: (tab: JobTab) => void; prefix: string }) {
+export function JobDetailView({ payload, queryKey, workflowsQueryKey, workflowsLoading = false, workflowsError = null, activeTab, onSelectTab, prefix }: { payload: JobDetailPayload; queryKey: JobDetailQueryKey; workflowsQueryKey?: JobWorkflowsQueryKey; workflowsLoading?: boolean; workflowsError?: Error | null; activeTab: JobTab; onSelectTab: (tab: JobTab) => void; prefix: string }) {
   const { t } = useT("jobs")
   const { t: tTours } = useT("tours")
   const location = useLocation()
@@ -259,7 +270,7 @@ export function JobDetailView({ payload, queryKey, workflowsQueryKey, activeTab,
       <TabNav active={activeTab} artifactsCount={(payload.typed_artifacts ?? []).length} attachmentsCount={(payload.attachments ?? []).length} workflowsCount={payload.job.workflows_count} hasTestResults={payload.has_test_results} onSelect={onSelectTab} />
 
       {activeTab === "summary" ? <SummaryTab command={command} payload={payload} prefix={prefix} queryKey={queryKey} withPreviewStop={withPreviewStop} /> : null}
-      {activeTab === "workflows" ? <WorkflowsTab command={command} payload={payload} prefix={prefix} /> : null}
+      {activeTab === "workflows" ? <WorkflowsTab command={command} error={workflowsError} loading={workflowsLoading} payload={payload} prefix={prefix} /> : null}
       {activeTab === "attachments" ? <AttachmentsTab payload={payload} queryKey={queryKey} onNotice={setNotice} /> : null}
       {activeTab === "artifacts" ? <ArtifactsTab artifacts={payload.typed_artifacts ?? []} /> : null}
       {activeTab === "source" ? <SourceTab jobId={String(payload.job.id)} coverageInfo={payload.coverage ? { workflowId: payload.coverage.workflow_id, coverage: payload.coverage.coverage } : null} /> : null}

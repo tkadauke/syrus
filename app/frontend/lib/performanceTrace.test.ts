@@ -138,8 +138,11 @@ describe("event loop lag sampling", () => {
 
   const lagBodies = (fetchSpy: ReturnType<typeof vi.spyOn>): Array<Record<string, unknown>> =>
     fetchSpy.mock.calls
-      .map(([ , init ]) => JSON.parse(String((init as RequestInit).body)).performance_event)
-      .filter((event) => event?.name === "browser.event_loop_lag")
+      .map((call: unknown[]) => {
+        const init = call[1] as RequestInit
+        return JSON.parse(String(init.body)).performance_event as Record<string, unknown>
+      })
+      .filter((event: Record<string, unknown>) => event.name === "browser.event_loop_lag")
 
   it("reports a plausible block on a visible tab", () => {
     const fetchSpy = startSampler()

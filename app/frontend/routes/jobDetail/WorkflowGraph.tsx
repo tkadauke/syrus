@@ -30,8 +30,10 @@ import { workflowBranchDivergence } from "./branchDivergence"
 // micro-components) and shared UI imports, so it carries no circular edge back to
 // the route file. Unused header imports were trimmed after the move.
 
-export function WorkflowsTab({ payload, command, prefix }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string }) {
+export function WorkflowsTab({ payload, command, prefix, loading = false, error = null }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string; loading?: boolean; error?: unknown }) {
   const { t } = useT("jobs")
+  if (loading) return <PanelMessage>{t("section_workflows_loading")}</PanelMessage>
+  if (error) return <PanelMessage tone="error">{errorMessage(error, t("section_workflows_load_error"))}</PanelMessage>
   if (payload.workflows.length === 0) return <PanelMessage>{t("section_no_workflows")}</PanelMessage>
 
   return (
