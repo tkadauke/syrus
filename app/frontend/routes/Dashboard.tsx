@@ -122,7 +122,7 @@ function recordDashboardBrowserTrace({ chromeMeta, loggingEnabled, payload, rows
 }
 
 function dashboardTraceSpans({ apiDuration, apiRequests, totalDuration }: { apiDuration: number; apiRequests: Array<{ name: string; duration_ms: number }>; totalDuration: number }): BrowserTraceSpan[] {
-  const spans = apiRequests.map((request) => ({
+  const spans: BrowserTraceSpan[] = apiRequests.map((request) => ({
     name: `api.${request.name}`,
     duration_ms: request.duration_ms
   }))
