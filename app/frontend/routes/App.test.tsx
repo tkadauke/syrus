@@ -14437,6 +14437,7 @@ describe("App", () => {
     )
 
     expect(await screen.findByRole("button", { name: "Copy EPIC-11 to clipboard" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Raise the forum" })).toHaveAttribute("href", "/app-shell/epics/11")
     expect(screen.getByText((_, element) => element?.textContent === '→ EPIC-11 "Raise the forum"')).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Copy JOB-154 to clipboard" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Copy JOB-155 to clipboard" })).toBeInTheDocument()
