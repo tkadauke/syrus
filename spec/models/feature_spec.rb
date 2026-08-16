@@ -37,7 +37,7 @@ RSpec.describe Feature, type: :model do
       Feature.create!(slug: "memoized_feature", category: "Example", name: "Memoized", enabled: true)
       Current.feature_enabled_cache = {}
 
-      expect(Feature).to receive(:find_by).with(slug: "memoized_feature").once.and_call_original
+      expect(Feature).to receive(:pluck).with(:slug, :enabled).once.and_call_original
 
       expect(Feature.enabled?("memoized_feature")).to be true
       expect(Feature.enabled?(:memoized_feature)).to be true

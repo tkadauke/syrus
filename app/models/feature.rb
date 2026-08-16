@@ -1,4 +1,6 @@
 class Feature < ApplicationRecord
+  ENABLED_CACHE_LOADED_KEY = "__all_features_loaded__".freeze
+
   after_commit :clear_request_enabled_cache
 
   normalizes :slug, with: ->(slug) { slug.to_s.strip }
@@ -14,16 +16,30 @@ class Feature < ApplicationRecord
   def self.enabled?(slug)
     key = slug.to_s
     cache = Current.feature_enabled_cache ||= {}
+    load_enabled_cache!(cache) unless cache[ENABLED_CACHE_LOADED_KEY]
     return cache[key] if cache.key?(key)
 
-    cache[key] = find_by(slug: key)&.enabled? || false
+    cache[key] = false
   end
+
+  def self.load_enabled_cache!(cache)
+    pluck(:slug, :enabled).each do |feature_slug, enabled|
+      cache[feature_slug.to_s] = enabled == true
+    end
+    cache[ENABLED_CACHE_LOADED_KEY] = true
+  end
+  private_class_method :load_enabled_cache!
 
   def self.clear_enabled_cache!(slug = nil)
     cache = Current.feature_enabled_cache
     return unless cache
 
-    slug ? cache.delete(slug.to_s) : cache.clear
+    if slug
+      cache.delete(slug.to_s)
+      cache.delete(ENABLED_CACHE_LOADED_KEY)
+    else
+      cache.clear
+    end
   end
 
   def self.terminal_enabled?
