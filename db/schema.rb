@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_16_085000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_16_153000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -515,6 +515,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_085000) do
     t.datetime "updated_at", null: false
     t.integer "workflow_id", null: false
     t.index ["job_id"], name: "index_coverage_snapshots_on_job_id"
+    t.index ["repository_id", "branch", "created_at", "lines_pct", "branches_pct", "functions_pct"], name: "idx_coverage_snapshots_repo_branch_trend"
     t.index ["repository_id", "branch", "created_at"], name: "idx_coverage_snapshots_repo_branch_created"
     t.index ["repository_id", "branch"], name: "index_coverage_snapshots_on_repository_id_and_branch"
     t.index ["repository_id", "created_at"], name: "index_coverage_snapshots_on_repository_id_and_created_at"
@@ -755,6 +756,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_085000) do
     t.index ["job_id"], name: "index_insight_suggestions_on_job_id"
     t.index ["proposal_type"], name: "index_insight_suggestions_on_proposal_type"
     t.index ["repository_id", "created_at"], name: "index_insight_suggestions_on_repository_id_and_created_at"
+    t.index ["repository_id", "state"], name: "idx_insight_suggestions_repo_state"
     t.index ["repository_id"], name: "index_insight_suggestions_on_repository_id"
     t.index ["state"], name: "index_insight_suggestions_on_state"
     t.index ["target_insight_id"], name: "index_insight_suggestions_on_target_insight_id"
