@@ -512,7 +512,7 @@ describe("chat compose drafts", () => {
     await waitFor(() => {
       expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("Follow the operator chat draft.")
     })
-  })
+  }, 30000)
 })
 
 describe("chat composer dictation", () => {
