@@ -20,6 +20,8 @@ class RepositoryThroughputMetricContract
     stack_auto_rebase stack_agent_rebase
   ].freeze
   LANDING_VALIDATION_CACHED_REASON = "landing_validation_cached".freeze
+  MAX_DIFF_SAMPLE_BYTES = 256.kilobytes
+  MAX_TOTAL_DIFF_SAMPLE_BYTES = 2.megabytes
   APPROVAL_SOURCE_BY_VIA = {
     "operator" => :operator,
     "bulk" => :operator,
@@ -320,10 +322,10 @@ class RepositoryThroughputMetricContract
   def output_for(range)
     runs = output_runs.select { |run| in_range?(run.finished_at, range) }
 
-    diffs = runs.filter_map { |run| run.step_agent_diff.presence || run.agent_diff.presence }
+    diffs = runs.filter_map { |run| output_diff_for(run) }
     loc = diffs.map { |diff| diff_loc(diff) }
     by_job = runs.group_by(&:job).map do |job, job_runs|
-      job_diffs = job_runs.filter_map { |run| run.step_agent_diff.presence || run.agent_diff.presence }
+      job_diffs = job_runs.filter_map { |run| output_diff_for(run) }
       job_loc = job_diffs.map { |diff| diff_loc(diff) }
 
       {
@@ -751,13 +753,17 @@ class RepositoryThroughputMetricContract
       .to_a
   end
 
-  # Only the columns `output_for` actually reads. `SELECT runs.*` dragged in
-  # `prompt` (longtext) alongside the diffs — 8.3MB of the 33.7MB loaded for a
-  # single 7-day window on one repository, none of it ever read. Names are
-  # table-qualified because the join puts several `id` columns in scope.
-  OUTPUT_RUN_COLUMNS = %w[
-    runs.id runs.job_id runs.head_sha runs.finished_at
-    runs.agent_diff runs.step_agent_diff
+  # Only the columns `output_for` needs for exact commit counting and bounded
+  # diff sampling. The actual longtext diffs are fetched later by primary key,
+  # capped by MAX_*_DIFF_SAMPLE_BYTES, so one pathological repository page
+  # cannot transfer hundreds of MB of patch text just to draw throughput cards.
+  OUTPUT_RUN_COLUMNS = [
+    "runs.id",
+    "runs.job_id",
+    "runs.head_sha",
+    "runs.finished_at",
+    Arel.sql("LENGTH(runs.agent_diff) AS agent_diff_bytes"),
+    Arel.sql("LENGTH(runs.step_agent_diff) AS step_agent_diff_bytes")
   ].freeze
 
   def output_runs
@@ -769,6 +775,46 @@ class RepositoryThroughputMetricContract
       .select(*OUTPUT_RUN_COLUMNS)
       .preload(:job)
       .to_a
+  end
+
+  def output_diff_for(run)
+    output_diffs_by_run_id[run.id]
+  end
+
+  def output_diffs_by_run_id
+    @output_diffs_by_run_id ||= begin
+      ids = output_diff_sample_run_ids
+      if ids.empty?
+        {}
+      else
+        Run.where(id: ids)
+           .pluck(:id, :step_agent_diff, :agent_diff)
+           .each_with_object({}) do |(id, step_diff, run_diff), map|
+             diff = step_diff.presence || run_diff.presence
+             map[id] = diff if diff.present?
+           end
+      end
+    end
+  end
+
+  def output_diff_sample_run_ids
+    total_bytes = 0
+    output_runs.filter_map do |run|
+      bytes = preferred_diff_bytes_for(run)
+      next if bytes <= 0
+      next if bytes > MAX_DIFF_SAMPLE_BYTES
+      next if total_bytes + bytes > MAX_TOTAL_DIFF_SAMPLE_BYTES
+
+      total_bytes += bytes
+      run.id
+    end
+  end
+
+  def preferred_diff_bytes_for(run)
+    step_bytes = run.read_attribute(:step_agent_diff_bytes).to_i
+    return step_bytes if step_bytes.positive?
+
+    run.read_attribute(:agent_diff_bytes).to_i
   end
 
   def actionable_comments

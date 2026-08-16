@@ -181,6 +181,32 @@ RSpec.describe RepositoryThroughputMetricContract do
     )
   end
 
+  it "does not load over-budget run diffs for throughput LOC metrics" do
+    stub_const("#{described_class}::MAX_DIFF_SAMPLE_BYTES", 10)
+    stub_const("#{described_class}::MAX_TOTAL_DIFF_SAMPLE_BYTES", 10)
+    job = Factories.job_record(user: user, repository: repository, pr_number: 123, created_at: now - 40.minutes)
+    workflow = workflow_for(job, trigger_kind: "initial")
+    step = step_for(workflow, kind: "implement", finished_at: now - 25.minutes)
+    run_for(job, step, head_sha: "b" * 40, step_agent_diff: "+#{'x' * 20}\n")
+
+    output = call.fetch(:windows).fetch("1h").fetch(:output)
+
+    expect(output.fetch(:commits)).to include(count: 1, sample_count: 1)
+    expect(output.fetch(:loc)).to include(count: 0, sample_count: 0, confidence: "none", unavailable_sample_count: 1)
+    expect(output.fetch(:by_job)).to contain_exactly(
+      include(
+        job_id: job.id,
+        commit_count: 1,
+        sample_count: 1,
+        diff_sample_count: 0,
+        unavailable_sample_count: 1,
+        additions: 0,
+        deletions: 0,
+        net: 0
+      )
+    )
+  end
+
   it "defines landing throughput, merge-train size, latency, and landing waste for clean auto-merge and trains" do
     approved_at = now - 50.minutes
     landing_started_at = now - 20.minutes
@@ -684,18 +710,23 @@ RSpec.describe RepositoryThroughputMetricContract do
       expect(runs_step).to include("finished_at")
     end
 
-    # `SELECT runs.*` pulled `prompt` (longtext) along with the diffs — 8.3MB of
-    # the 33.7MB loaded for one repository's 7-day window, never read.
-    it "loads only the run columns the output metrics read" do
+    # `SELECT runs.*` pulled `prompt`, and selecting the diff text columns made
+    # this endpoint transfer huge patches before Ruby could decide whether it
+    # needed them. The source query should stay metadata-only; bounded diff
+    # samples are fetched later by primary key.
+    it "loads only metadata columns in the output run source query" do
       sql = output_run_sql
 
       select_clause = sql[/SELECT.*?FROM/m]
 
-      expect(select_clause).to include("\"runs\".\"agent_diff\"")
-      expect(select_clause).to include("\"runs\".\"step_agent_diff\"")
+      expect(select_clause).to include("LENGTH")
+      expect(select_clause).to include("agent_diff_bytes")
+      expect(select_clause).to include("step_agent_diff_bytes")
       expect(select_clause).to include("\"runs\".\"head_sha\"")
       expect(select_clause).not_to include("prompt")
       expect(select_clause).not_to include("agent_pr_body")
+      expect(select_clause).not_to include("\"runs\".\"agent_diff\"")
+      expect(select_clause).not_to include("\"runs\".\"step_agent_diff\"")
       expect(select_clause).not_to include("\"runs\".*")
     end
 
