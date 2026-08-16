@@ -1,18 +1,22 @@
 module Steps
-  # Second step of Initial / Retry workflows. Short claude call
-  # (--resumed against the implement step's session) whose only
+  # Second step of Initial / Retry / Skill workflows. Short claude call
+  # (--resumed against the upstream agentic step's session) whose only
   # job is to call `submit_summary` via the MCP sidecar. The
   # MCP tool writes pr_title / pr_body / summary onto the Run;
   # this handler then promotes them onto Workflow.artifacts so
   # downstream steps (and future workflow rounds) can read them.
   #
-  # Also rewrites the implement step's placeholder commit message
+  # Also rewrites the upstream step's placeholder commit message
   # to use the agent-authored pr_title — keeping the GH commit
   # log human-readable.
   class Summarize < Base
     # The prompt is short, but Claude may spend turns waiting for the MCP
     # sidecar/tool list to become available before it can call submit_summary.
     SUMMARIZE_TURN_BUDGET = 25
+
+    # implement (Initial/Retry) or run_skill (Skill) — whichever agentic
+    # step precedes summarize in this workflow's chain.
+    UPSTREAM_AGENT_STEP_KINDS = %w[implement run_skill].freeze
 
     def call
       workspace.setup
@@ -81,14 +85,14 @@ module Steps
     end
 
     def successful_implement_run
-      workflow.steps.where(kind: "implement")
+      workflow.steps.where(kind: UPSTREAM_AGENT_STEP_KINDS)
         .order(:position)
         .flat_map { |step| step.runs.select(&:succeeded?) }
         .max_by(&:created_at)
     end
 
     def missing_required_implement_run?
-      workflow.steps.exists?(kind: "implement") && successful_implement_run.blank?
+      workflow.steps.exists?(kind: UPSTREAM_AGENT_STEP_KINDS) && successful_implement_run.blank?
     end
 
     def resume_fallback_failure?(error)
