@@ -2467,4 +2467,64 @@ RSpec.describe WorkEngine::Reconciler do
       retry_after: decision.retry_after
     )
   end
+
+  # A failed SolidQueue job keeps finished_at NULL forever, so the
+  # unfinished-RunJob query accumulates every RunJob that ever failed. On
+  # production that was 1,775 rows -- 1,751 of them permanently dead, oldest a
+  # month old -- fanned into four `job_id IN (...)` queries, one of which hits
+  # a 272MB failed-executions table, to serve 24 live rows. The parse always
+  # discarded them; the queries must not carry them either.
+  describe "SolidQueue capture scoping" do
+    # Bound values, not SQL text: the fan-out is a prepared statement, so the
+    # ids only appear as binds.
+    def captured_execution_binds
+      queries = []
+      callback = lambda do |_name, _started, _finished, _id, payload|
+        next if payload[:name] == "SCHEMA" || payload[:cached]
+        next unless payload[:sql].to_s.include?("solid_queue_failed_executions") ||
+                    payload[:sql].to_s.include?("solid_queue_ready_executions")
+
+        binds = Array(payload[:binds]).map { |bind| bind.respond_to?(:value) ? bind.value : bind }
+        queries << binds
+      end
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+      queries
+    end
+
+    it "does not query executions for RunJobs belonging to other Runs" do
+      solid_queue_run_job(run, ready: true)
+
+      other_job = Factories.job(agent_provider: "claude")
+      other_run = other_job.latest_workflow.first_step.runs.first
+      stranded = solid_queue_run_job(other_run, failed: true, created_at: 30.days.ago)
+
+      bind_sets = captured_execution_binds { reconcile(run_id: run.id) }
+
+      expect(bind_sets).not_to be_empty, "expected the reconciler to fan out over queue executions"
+      bind_sets.each do |binds|
+        expect(binds).not_to include(stranded.id),
+          "fan-out still carries the unrelated queue job #{stranded.id}: binds=#{binds.inspect}"
+      end
+    end
+
+    it "still reports queue state for the Run under reconciliation" do
+      queue_job = solid_queue_run_job(run, ready: true)
+
+      result = reconcile(run_id: run.id)
+
+      expect(result.snapshot.solid_queue_jobs.map { |entry| entry[:id] }).to include(queue_job.id)
+    end
+
+    it "keeps failure evidence for the reconciled Run" do
+      run.start!
+      run.save!
+      queue_job = solid_queue_run_job(run, failed: true, error: "worker process died")
+
+      result = reconcile(run_id: run.id)
+      entry = result.snapshot.solid_queue_jobs.find { |candidate| candidate[:id] == queue_job.id }
+
+      expect(entry).to include(failed: true)
+      expect(entry[:error]).to be_present
+    end
+  end
 end

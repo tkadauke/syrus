@@ -1315,6 +1315,23 @@ module WorkEngine
             .select(:id, :arguments, :queue_name, :priority, :finished_at)
             .to_a
         end
+        # Resolve each queue job's root Run and drop the irrelevant ones before
+        # fanning out. The parse below already discards everything outside
+        # root_ids; doing it after four `job_id IN (...)` queries just pays for
+        # rows nobody reads. The discarded share is not marginal: a failed
+        # SolidQueue job keeps finished_at NULL forever, so on production this
+        # query returned 1,775 rows — 1,751 of them permanently-failed RunJobs,
+        # the oldest a month old — to serve 24 that were actually live. One of
+        # the four fan-outs hits a 272MB failed-executions table.
+        root_run_id_by_job_id = PerformanceLogging.phase("work_engine.reconciler.solid_queue_scope", count: jobs.size) do
+          jobs.each_with_object({}) do |job, acc|
+            root_run_id = run_id_from_solid_queue_arguments(job.arguments)
+            next if root_ids.any? && !root_ids.include?(root_run_id)
+
+            acc[job.id] = root_run_id
+          end
+        end
+        jobs = jobs.select { |job| root_run_id_by_job_id.key?(job.id) }
         solid_queue_job_ids = jobs.map(&:id)
         ready_job_ids = PerformanceLogging.phase("work_engine.reconciler.solid_queue_ready_ids", count: solid_queue_job_ids.size) do
           solid_queue_job_ids.empty? ? Set.new : SolidQueue::ReadyExecution.where(job_id: solid_queue_job_ids).pluck(:job_id).to_set
@@ -1331,8 +1348,8 @@ module WorkEngine
         running_root_run_ids = runs.select(&:running?).map(&:id).to_set
         parsed = PerformanceLogging.phase("work_engine.reconciler.solid_queue_parse") do
           jobs.filter_map do |job|
-            root_run_id = run_id_from_solid_queue_arguments(job.arguments)
-            next if root_ids.any? && !root_ids.include?(root_run_id)
+            # Already resolved and scoped above; `jobs` holds only what survived.
+            root_run_id = root_run_id_by_job_id[job.id]
 
             claim = claimed_by_job_id[job.id]
             scheduled = scheduled_by_job_id[job.id]
