@@ -795,7 +795,7 @@ class Job < ApplicationRecord
 
   # The most recently created Run on this thread, regardless of state.
   def current_run
-    runs.last
+    runs.reorder(created_at: :desc, id: :desc).first
   end
   SUCCESSFUL_CLOSURE_REASONS = %w[
     pr_merged

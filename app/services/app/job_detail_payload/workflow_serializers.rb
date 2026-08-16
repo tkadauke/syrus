@@ -119,7 +119,6 @@ module App
 
           steps = Step
             .where(workflow_id: ids)
-            .includes(runs: [ :run_diagnostic, :run_failure_classification ])
             .order(:workflow_id, :position, :id)
             .to_a
 
@@ -138,7 +137,7 @@ module App
       end
 
       def ordered_runs_for(step)
-        step.runs.to_a.sort_by { |run| [ run.created_at || Time.zone.at(0), run.id || 0 ] }
+        runs_by_step_id.fetch(step.id, [])
       end
 
       def ordered_command_spans_for(run)
@@ -164,7 +163,7 @@ module App
             details: step.details.presence,
             latest: step == latest_step,
             runs: PerformanceLogging.phase("job_detail.step.runs", job_id: @job.id, workflow_id: workflow.id, step_id: step.id, run_count: runs.size) do
-              runs.map { |run| run_json(run, workflow: workflow) }
+              runs.map { |run| run_json(run, workflow: workflow, step: step) }
             end
           }
         end
@@ -177,18 +176,20 @@ module App
       end
 
       def step_display_status(step)
-        active_run = step.runs.find { |run| run.state.in?(%w[queued running]) }
+        active_run = ordered_runs_for(step).find { |run| run.state.in?(%w[queued running]) }
         return active_run.state if active_run
-        return nil if step.queued? && step.runs.empty?
+        return nil if step.queued? && ordered_runs_for(step).empty?
 
         step.state
       end
 
-      def run_json(run, workflow:)
+      def run_json(run, workflow:, step:)
         session = agent_session_summary_for(run)
         command_spans = PerformanceLogging.phase("job_detail.run.command_spans", job_id: @job.id, run_id: run.id) do
           ordered_command_spans_for(run).map { |span| command_span_json(span) }
         end
+        agent_diff_bytes = projected_byte_size(run, "agent_diff")
+        step_agent_diff_bytes = projected_byte_size(run, "step_agent_diff")
         {
           id: run.id,
           state: run.state,
@@ -211,10 +212,10 @@ module App
           output_tokens: run.output_tokens,
           cache_creation_input_tokens: run.cache_creation_input_tokens,
           cache_read_input_tokens: run.cache_read_input_tokens,
-          agent_diff_present: run.agent_diff.present?,
-          agent_diff_bytes: run.agent_diff&.bytesize || 0,
-          step_agent_diff_present: run.step_agent_diff.present?,
-          step_agent_diff_bytes: run.step_agent_diff&.bytesize || 0,
+          agent_diff_present: agent_diff_bytes.positive?,
+          agent_diff_bytes: agent_diff_bytes,
+          step_agent_diff_present: step_agent_diff_bytes.positive?,
+          step_agent_diff_bytes: step_agent_diff_bytes,
           job_log_count: job_log_counts.fetch(run.id, 0),
           rate_limited: rate_limited_run_ids.key?(run.id),
           failure_classification: failure_classification_json(run.run_failure_classification),
@@ -230,7 +231,7 @@ module App
           app_stop_path: "/api/v1/app/jobs/#{@job.id}/runs/#{run.id}/stop",
           app_diagnose_path: "/api/v1/app/jobs/#{@job.id}/runs/#{run.id}/diagnose",
           app_resume_path: "/api/v1/app/jobs/#{@job.id}/resume",
-          app_grade_log_path: app_grade_log_path(run, workflow: workflow)
+          app_grade_log_path: app_grade_log_path(run, workflow: workflow, step: step)
         }
       end
 
@@ -283,12 +284,7 @@ module App
       end
 
       def workflow_failure_classification_json(workflow)
-        run = Run.joins(:step)
-                 .where(steps: { workflow_id: workflow.id }, state: "failed")
-                 .includes(:run_failure_classification)
-                 .order(Arel.sql("COALESCE(runs.finished_at, runs.updated_at, runs.created_at) DESC"), id: :desc)
-                 .first
-        failure_classification_json(run&.run_failure_classification)
+        failure_classification_json(workflow_failure_classifications_by_workflow_id[workflow.id])
       end
 
       def workflow_artifacts_json(workflow)
@@ -333,6 +329,52 @@ module App
         @visible_run_ids ||= paginated_workflows.flat_map do |workflow|
           ordered_steps_for(workflow).flat_map { |step| ordered_runs_for(step).map(&:id) }
         end.compact
+      end
+
+      def visible_step_ids
+        @visible_step_ids ||= paginated_workflows.flat_map do |workflow|
+          ordered_steps_for(workflow).map(&:id)
+        end.compact
+      end
+
+      def runs_by_step_id
+        @runs_by_step_id ||= PerformanceLogging.phase("job_detail.workflow.runs.query", job_id: @job.id, step_count: visible_step_ids.size) do
+          ids = visible_step_ids
+          next {} if ids.empty?
+
+          Run
+            .where(step_id: ids)
+            .select(
+              :id,
+              :job_id,
+              :step_id,
+              :state,
+              :trigger_kind,
+              :agent_provider,
+              :agent_outcome,
+              :agent_turns,
+              :agent_pr_title,
+              :agent_summary,
+              :parent_session_id,
+              :head_sha,
+              :iteration,
+              :started_at,
+              :last_heartbeat_at,
+              :finished_at,
+              :created_at,
+              :updated_at,
+              :cost_usd,
+              :input_tokens,
+              :output_tokens,
+              :cache_creation_input_tokens,
+              :cache_read_input_tokens,
+              Arel.sql("LENGTH(runs.agent_diff) AS agent_diff_byte_size"),
+              Arel.sql("LENGTH(runs.step_agent_diff) AS step_agent_diff_byte_size")
+            )
+            .includes(:run_diagnostic, :run_failure_classification)
+            .order(:step_id, :created_at, :id)
+            .group_by(&:step_id)
+        end
       end
 
       def latest_health_snapshot_for(run)
@@ -429,6 +471,43 @@ module App
           ids = visible_run_ids
           ids.empty? ? {} : JobLog.where(run_id: ids, kind: "rate_limited").distinct.pluck(:run_id).index_with(true)
         end
+      end
+
+      def workflow_failure_classifications_by_workflow_id
+        @workflow_failure_classifications_by_workflow_id ||= begin
+          workflow_ids = paginated_workflows.map(&:id)
+          if workflow_ids.empty?
+            {}
+          else
+            rows = Run
+              .joins(:step)
+              .where(steps: { workflow_id: workflow_ids }, state: "failed")
+              .select(
+                :id,
+                "steps.workflow_id AS workflow_id_for_failure_classification",
+                Arel.sql("COALESCE(runs.finished_at, runs.updated_at, runs.created_at) AS failure_sort_at")
+              )
+              .order(Arel.sql("steps.workflow_id ASC, failure_sort_at DESC, runs.id DESC"))
+              .to_a
+
+            run_ids_by_workflow_id = {}
+            rows.each do |run|
+              workflow_id = run.read_attribute("workflow_id_for_failure_classification")
+              run_ids_by_workflow_id[workflow_id] ||= run.id
+            end
+
+            classifications = RunFailureClassification.where(run_id: run_ids_by_workflow_id.values).index_by(&:run_id)
+            run_ids_by_workflow_id.transform_values { |run_id| classifications[run_id] }.compact
+          end
+        end
+      end
+
+      def projected_byte_size(run, column)
+        attribute = column == "step_agent_diff" ? "step_agent_diff_byte_size" : "agent_diff_byte_size"
+        value = run.read_attribute(attribute)
+        value.to_i
+      rescue ActiveModel::MissingAttributeError
+        run.public_send(column)&.bytesize || 0
       end
 
       def failure_classification_json(classification)
@@ -528,8 +607,8 @@ module App
         filtered.merge("typed_artifacts" => TypedArtifactRenderer.enrich(typed))
       end
 
-      def app_grade_log_path(run, workflow:)
-        step = run.step
+      def app_grade_log_path(run, workflow:, step: nil)
+        step ||= run.step
         return unless step&.kind.in?(%w[grade grader])
 
         name = step.details.is_a?(Hash) ? step.details["name"] : nil

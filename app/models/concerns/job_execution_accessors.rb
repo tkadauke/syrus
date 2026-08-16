@@ -9,7 +9,7 @@ module JobExecutionAccessors
     configured = user.configured_agent_providers
     return [] unless configured.size > 1
 
-    configured - [ current_run&.agent_provider ]
+    configured - [ current_run_agent_provider ]
   end
 
   def alternate_configured_agent_providers
@@ -22,15 +22,19 @@ module JobExecutionAccessors
   end
 
   def latest_succeeded_run
-    runs.where(state: "succeeded").last
+    runs.where(state: "succeeded").reorder(created_at: :desc, id: :desc).first
   end
 
   def head_sha
-    runs.where.not(head_sha: [ nil, "" ]).order(:created_at).last&.head_sha
+    runs.where.not(head_sha: [ nil, "" ]).reorder(created_at: :desc, id: :desc).pick(:head_sha)
   end
   def any_active_run?
     return runs.any? { |run| run.state.in?(%w[queued running]) } if runs.loaded?
 
     runs.active.exists?
+  end
+
+  def current_run_agent_provider
+    runs.reorder(created_at: :desc, id: :desc).pick(:agent_provider)
   end
 end

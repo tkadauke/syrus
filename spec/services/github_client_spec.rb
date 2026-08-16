@@ -837,14 +837,28 @@ RSpec.describe GithubClient do
         expect(user.reload.gh_rate_limit_observed_at).to eq(first_observed_at)
       end
 
-      it "writes again when the remaining count moves even within the coalesce window" do
+      it "skips healthy remaining-count movement within the coalesce window" do
         client.send(:persist_rate_limit_headers!, headers_with.call(4221))
+        user.reload
+        first_observed_at = user.gh_rate_limit_observed_at
 
         travel 1.second do
           client.send(:persist_rate_limit_headers!, headers_with.call(4200))
         end
 
-        expect(user.reload.gh_rate_limit_remaining).to eq(4200)
+        user.reload
+        expect(user.gh_rate_limit_remaining).to eq(4221)
+        expect(user.gh_rate_limit_observed_at).to eq(first_observed_at)
+      end
+
+      it "writes immediately when the remaining count reaches zero" do
+        client.send(:persist_rate_limit_headers!, headers_with.call(4221))
+
+        travel 1.second do
+          client.send(:persist_rate_limit_headers!, headers_with.call(0))
+        end
+
+        expect(user.reload.gh_rate_limit_remaining).to eq(0)
       end
 
       it "writes again after the coalesce window even when remaining is unchanged" do

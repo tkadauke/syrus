@@ -1013,7 +1013,7 @@ class GithubClient
     installation_auth? ? "i#{@installation.id}" : "u#{@user.id}"
   end
 
-  RATE_LIMIT_PERSIST_COALESCE = 30.seconds
+  RATE_LIMIT_PERSIST_COALESCE = 2.minutes
 
   def persist_rate_limit_headers!(headers)
     return unless headers && @user
@@ -1026,24 +1026,43 @@ class GithubClient
     # That contention used to bleed into the credentials-update path
     # in the request thread: the operator's UPDATE waited behind a
     # train of background writers and hit `innodb_lock_wait_timeout`.
-    # Skip the write when the value hasn't moved AND we updated
-    # recently — collapses "every API call" into "at most one row
-    # update every 30s per user".
-    if @user.gh_rate_limit_observed_at &&
-       @user.gh_rate_limit_observed_at > RATE_LIMIT_PERSIST_COALESCE.ago &&
-       @user.gh_rate_limit_remaining == remaining_i
+    limit_i = headers["x-ratelimit-limit"].to_i
+    reset_at = Time.at(headers["x-ratelimit-reset"].to_i)
+    resource = headers["x-ratelimit-resource"]
+
+    # Skip healthy snapshots while the local row is fresh. The exact
+    # remaining counter can move on every uncached GitHub request, and
+    # persisting each decrement turns background pollers into a write
+    # convoy on users.id. Still write immediately when the bucket changes
+    # or the remaining count reaches zero, because those affect admission
+    # and operator diagnostics.
+    if fresh_matching_rate_limit_snapshot?(remaining_i: remaining_i, limit_i: limit_i, reset_at: reset_at, resource: resource)
       return
     end
 
     @user.update_columns(
       gh_rate_limit_remaining:  remaining_i,
-      gh_rate_limit_limit:      headers["x-ratelimit-limit"].to_i,
-      gh_rate_limit_reset_at:   Time.at(headers["x-ratelimit-reset"].to_i),
-      gh_rate_limit_resource:   headers["x-ratelimit-resource"],
+      gh_rate_limit_limit:      limit_i,
+      gh_rate_limit_reset_at:   reset_at,
+      gh_rate_limit_resource:   resource,
       gh_rate_limit_observed_at: Time.current
     )
   rescue => e
     Rails.logger.warn("[GithubClient] rate_limit persist failed: #{e.message}")
+  end
+
+  def fresh_matching_rate_limit_snapshot?(remaining_i:, limit_i:, reset_at:, resource:)
+    return false unless @user.gh_rate_limit_observed_at&.> RATE_LIMIT_PERSIST_COALESCE.ago
+    return false unless @user.gh_rate_limit_limit.to_i == limit_i
+    return false unless @user.gh_rate_limit_resource.to_s == resource.to_s
+    return false unless same_second?(@user.gh_rate_limit_reset_at, reset_at)
+    return false if remaining_i.zero?
+
+    @user.gh_rate_limit_remaining.to_i.positive?
+  end
+
+  def same_second?(left, right)
+    left.present? && right.present? && left.to_i == right.to_i
   end
 
   def write_rate_limit_job_log!(headers)

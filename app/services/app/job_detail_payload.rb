@@ -127,13 +127,16 @@ module App
       provider_availability = PerformanceLogging.phase("job_detail.job.provider_availability", job_id: @job.id, provider: workflow_agent_provider) do
         App::ProviderAvailability.for_user(@user, workflow_agent_provider)
       end
-      retry_state = PerformanceLogging.phase("job_detail.job.retry_state", job_id: @job.id) { ::App::RetryState.for(@job) }
+      any_active_run = PerformanceLogging.phase("job_detail.job.any_active_run", job_id: @job.id) { @job.any_active_run? }
+      latest_run_for_retry_state = PerformanceLogging.phase("job_detail.job.latest_run_for_retry_state", job_id: @job.id) { latest_run_for_retry_state }
+      retry_state = PerformanceLogging.phase("job_detail.job.retry_state", job_id: @job.id) do
+        ::App::RetryState.for(@job, latest_run: latest_run_for_retry_state, any_active_run: any_active_run)
+      end
       approval_status = PerformanceLogging.phase("job_detail.job.approval_status", job_id: @job.id) { approval_status_json }
       worker_health_correlation = PerformanceLogging.phase("job_detail.job.worker_health_correlation", job_id: @job.id) { worker_health_job_correlation_json }
       source_chat = PerformanceLogging.phase("job_detail.job.source_chat", job_id: @job.id) { App::JobSourceChat.for(@job) }
       workflows_count = PerformanceLogging.phase("job_detail.job.workflows_count", job_id: @job.id) { @job.workflows.size }
       runs_count = PerformanceLogging.phase("job_detail.job.runs_count", job_id: @job.id) { @job.runs.size }
-      any_active_run = PerformanceLogging.phase("job_detail.job.any_active_run", job_id: @job.id) { @job.any_active_run? }
       prepare_skip_reason = PerformanceLogging.phase("job_detail.job.prepare_skip_reason", job_id: @job.id) { @job.prepare_skip_reason }
       start_blocked = PerformanceLogging.phase("job_detail.job.start_blocked", job_id: @job.id) do
         {
@@ -231,6 +234,14 @@ module App
 
     def worker_health_job_correlation_json
       WorkerHealthRunCorrelation.for_job(@job)
+    end
+
+    def latest_run_for_retry_state
+      @job.runs
+          .reorder(created_at: :desc, id: :desc)
+          .select(:id, :job_id, :step_id, :state, :created_at, :finished_at, :updated_at)
+          .includes(:run_diagnostic)
+          .first
     end
 
     def repository_json(repository)
@@ -555,7 +566,7 @@ module App
     def actions_json
       retry_actions = ::App::JobRetryActions.for(@job)
       {
-        can_start: @job.direct? && @job.open? && @job.runs.empty?,
+        can_start: @job.direct? && @job.open? && !@job.runs.exists?,
         can_poll_feedback: @job.open? && @job.pr_number.present?,
         can_rebase: (@job.pr_number.present? || @job.external_pr_number.present?) &&
           !RebaseWorkflowSelector.active_for_stack?(@job) &&

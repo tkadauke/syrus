@@ -14,8 +14,20 @@ class WorkerHealthRunCorrelation
 
   def self.for_job(job, run_limit: JOB_RUN_LIMIT, now: Time.current)
     runs = job.runs
+              .select(
+                :id,
+                :job_id,
+                :step_id,
+                :state,
+                :started_at,
+                :finished_at,
+                :created_at,
+                :updated_at,
+                :last_heartbeat_at,
+                :agent_turns
+              )
               .includes(:step, :spawned_processes, :command_spans, step: :workflow)
-              .order(created_at: :desc)
+              .reorder(created_at: :desc, id: :desc)
               .limit(run_limit)
               .to_a
     samples_by_hostname = preload_samples_by_hostname(runs, now: now)

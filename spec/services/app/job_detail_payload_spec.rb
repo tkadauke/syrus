@@ -631,6 +631,73 @@ RSpec.describe App::JobDetailPayload do
       expect(queries.grep(/FROM [`"]?spawned_processes[`"]? WHERE [`"]?spawned_processes[`"]?.[`"]?run_id[`"]? =/i)).to be_empty
     end
 
+    it "does not load full run diff text for workflow rows" do
+      job = Factories.job_record(repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "succeeded")
+      step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")
+      Run.create!(
+        job: job,
+        step: step,
+        trigger_kind: "initial",
+        agent_provider: "claude",
+        state: "succeeded",
+        agent_diff: "a" * 1024,
+        step_agent_diff: "b" * 2048
+      )
+
+      queries = []
+      payload = nil
+      callback = lambda do |_name, _started, _finished, _id, sql_payload|
+        next if sql_payload[:cached] || sql_payload[:name] == "SCHEMA"
+
+        queries << sql_payload[:sql]
+      end
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+        payload = workflows_payload_for(job)
+      end
+
+      run_payload = payload.dig(:workflows, 0, :steps, 0, :runs, 0)
+      expect(run_payload).to include(
+        agent_diff_present: true,
+        agent_diff_bytes: 1024,
+        step_agent_diff_present: true,
+        step_agent_diff_bytes: 2048
+      )
+
+      run_selects = queries.select { |sql| sql.match?(/FROM [`"]?runs[`"]?/i) }
+      expect(run_selects.grep(/SELECT\s+[`"]?runs[`"]?\.\*/i)).to be_empty
+    end
+
+    it "loads workflow failure classifications in bulk" do
+      job = Factories.job_record(repository: repo)
+
+      3.times do |index|
+        workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "failed", created_at: (3 - index).minutes.ago)
+        step = Step.create!(workflow: workflow, kind: "grader", position: 1, state: "failed")
+        run = Run.create!(
+          job: job,
+          step: step,
+          trigger_kind: "initial",
+          agent_provider: "claude",
+          state: "failed",
+          finished_at: (3 - index).minutes.ago
+        )
+        RunFailureClassification.create!(
+          run: run,
+          classification: "grader_failure",
+          retryable: true,
+          confidence: 0.9,
+          reason: "rspec failed #{index}",
+          classified_at: Time.current
+        )
+      end
+
+      queries = capture_sql { workflows_payload_for(job) }
+
+      per_workflow_failed_run_queries = queries.grep(/FROM [`"]?runs[`"]?.*WHERE .*[`"]?steps[`"]?\.[`"]?workflow_id[`"]? =/im)
+      expect(per_workflow_failed_run_queries).to be_empty
+    end
+
     it "includes the active spawned process for running runs" do
       job = Factories.job_record(repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
