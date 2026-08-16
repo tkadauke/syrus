@@ -16331,12 +16331,15 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
         app_delete_path: "/api/v1/app/jobs/42/attachments/8"
       }
     ],
+    typed_artifacts: [],
+    coverage: null,
     summary: {
       run_id: 9,
       text: "Moved the uphill water simulation.",
       finished_at: "2026-05-30T12:00:00Z"
     },
     test_plan: null,
+    feedback_history: [],
     landing_queue_entry: null,
     workflows: [
       {
