@@ -135,8 +135,9 @@ class RunJob < ApplicationJob
   # back to the queue with a short delay. DB-counted so it holds across worker
   # pods (per-pod JOB_CONCURRENCY only bounds a single pod). Best-effort — a
   # couple extra may slip through under contention; it's a cost/rate ceiling,
-  # not a hard lock. 0 = unlimited. Main-branch graders also run on `:runs`, but
-  # are exempt so user Job bursts cannot make the health signal stale.
+  # not a hard lock. 0 = unlimited. Main-branch graders and repair jobs also
+  # run on `:runs`, but are exempt so user Job bursts cannot make the health
+  # signal stale or keep main broken while the landing queue is paused.
   # Landing/merge Runs are not capped (different queues, isolated pools).
   def defer_for_agent_concurrency?(run_id)
     limit = AppSetting.max_concurrent_agent_runs
@@ -144,7 +145,7 @@ class RunJob < ApplicationJob
 
     run = ::Run.find_by(id: run_id)
     return false unless run && !run.terminal? && run.agent_queue?
-    return false if run.trigger_kind == "main_grader"
+    return false if run.trigger_kind.in?(%w[main_grader main_branch_repair])
 
     active = ::Run.running_agent_runs.where.not(id: run_id).count
     return false if active < limit

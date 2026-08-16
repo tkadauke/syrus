@@ -896,6 +896,28 @@ RSpec.describe RunJob, :ci_only do
       )
     end
 
+    def main_branch_repair_run!
+      repair_job = Job.create!(
+        user: user,
+        repository: repository,
+        kind: "direct",
+        system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+        issue_title: Job::MAIN_BRANCH_REPAIR_TITLE
+      )
+      workflow = Workflow.create!(
+        job: repair_job,
+        user: user,
+        trigger_kind: "main_branch_repair"
+      )
+      step = Step.create!(workflow: workflow, kind: "prepare", position: 0)
+      Run.create!(
+        job: repair_job,
+        step: step,
+        trigger_kind: "main_branch_repair",
+        agent_provider: repair_job.agent_provider
+      )
+    end
+
     it "does not defer when the cap is 0 (unlimited)" do
       AppSetting.current.update!(max_concurrent_agent_runs: 0)
       running_agent_run!
@@ -937,6 +959,18 @@ RSpec.describe RunJob, :ci_only do
       expect(main_grader_run.reload.state).to eq("queued")
     end
 
+    it "does not defer main_branch_repair runs when user work saturates the cap" do
+      AppSetting.current.update!(max_concurrent_agent_runs: 1)
+      running_agent_run!
+      repair_run = main_branch_repair_run!
+
+      clear_enqueued_jobs
+      expect {
+        expect(RunJob.new.send(:defer_for_agent_concurrency?, repair_run.id)).to be(false)
+      }.not_to have_enqueued_job(RunJob)
+      expect(repair_run.reload.state).to eq("queued")
+    end
+
     it "preserves main_grader priority when delayed re-enqueue is needed" do
       main_grader_run = main_grader_run!
       urgent_priority = Job::PRIORITY_TO_SQ["urgent"]
@@ -951,7 +985,7 @@ RSpec.describe RunJob, :ci_only do
     it "classifies runs-queue trigger kinds, excluding landing and merge workflows" do
       kinds = Workflow.runs_queue_trigger_kinds
 
-      expect(kinds).to include("initial", "pr_comment", "retry", "ci_failure", "main_grader")
+      expect(kinds).to include("initial", "pr_comment", "retry", "ci_failure", "main_grader", "main_branch_repair")
       expect(kinds).not_to include("auto_merge", "merge_train", "rebase", "stack_rebase")
       expect(queued_run.agent_queue?).to be(true)
     end
