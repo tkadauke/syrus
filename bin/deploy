@@ -153,6 +153,25 @@ fi
 # of headroom.
 ROLLOUT_TIMEOUT="${ROLLOUT_TIMEOUT:-15m}"
 MISE_CACHE_HOST_PATH="${MISE_CACHE_HOST_PATH:-/data/syrus-mise-cache}"
+MYSQL_BACKUP_CRONJOB="${MYSQL_BACKUP_CRONJOB:-syrus-mysql-backup}"
+MYSQL_BACKUP_DRAIN_SECONDS="${MYSQL_BACKUP_DRAIN_SECONDS:-30}"
+
+ACTIVE_FLUX_KUBECONFIG=""
+ACTIVE_FLUX_LABEL=""
+ACTIVE_BACKUP_KUBECONFIG=""
+ACTIVE_BACKUP_NAMESPACE=""
+ACTIVE_BACKUP_LABEL=""
+
+cleanup_rollout_controls() {
+  if [ -n "$ACTIVE_BACKUP_KUBECONFIG" ]; then
+    resume_mysql_backup "$ACTIVE_BACKUP_KUBECONFIG" "$ACTIVE_BACKUP_NAMESPACE" "$ACTIVE_BACKUP_LABEL" || true
+  fi
+  if [ -n "$ACTIVE_FLUX_KUBECONFIG" ]; then
+    flux_resume_now "$ACTIVE_FLUX_KUBECONFIG" "$ACTIVE_FLUX_LABEL" || true
+  fi
+}
+
+trap cleanup_rollout_controls EXIT
 
 rollout() {
   local label="$1" kubeconfig="$2" namespace="$3"
@@ -173,15 +192,109 @@ rollout() {
   fi
 
   flux_suspend_with_watchdog "$kubeconfig" "$label"
+  suspend_mysql_backup "$kubeconfig" "$namespace" "$label"
   ensure_mise_cache "$label" "$kubeconfig" "$namespace"
   echo "→ ${label}: rollout restart in ${namespace}"
   KUBECONFIG="$kubeconfig" kubectl rollout restart -n "$namespace" "${targets[@]}"
   for dep in "${targets[@]}"; do
-    KUBECONFIG="$kubeconfig" kubectl rollout status -n "$namespace" "$dep" --timeout="$ROLLOUT_TIMEOUT"
+    echo "→ ${label}: waiting for ${dep}"
+    if ! KUBECONFIG="$kubeconfig" kubectl rollout status -n "$namespace" "$dep" --timeout="$ROLLOUT_TIMEOUT"; then
+      diagnose_rollout_target "$label" "$kubeconfig" "$namespace" "$dep"
+      exit 1
+    fi
   done
   verify_sha "$label" "$kubeconfig" "$namespace"
+  resume_mysql_backup "$kubeconfig" "$namespace" "$label"
   flux_resume_now "$kubeconfig" "$label"
   echo "✓ ${label} rolled to ${SHA}"
+}
+
+suspend_mysql_backup() {
+  local kubeconfig="$1" namespace="$2" label="$3"
+  if ! KUBECONFIG="$kubeconfig" kubectl get cronjob "$MYSQL_BACKUP_CRONJOB" -n "$namespace" >/dev/null 2>&1; then
+    echo "→ ${label}: mysql backup cronjob '${MYSQL_BACKUP_CRONJOB}' not found — proceeding"
+    return 0
+  fi
+
+  echo "→ ${label}: suspending cronjob/${MYSQL_BACKUP_CRONJOB} during rollout"
+  KUBECONFIG="$kubeconfig" kubectl patch cronjob "$MYSQL_BACKUP_CRONJOB" -n "$namespace" --type merge -p '{"spec":{"suspend":true}}' >/dev/null
+  ACTIVE_BACKUP_KUBECONFIG="$kubeconfig"
+  ACTIVE_BACKUP_NAMESPACE="$namespace"
+  ACTIVE_BACKUP_LABEL="$label"
+
+  drain_mysql_backup_pods "$kubeconfig" "$namespace" "$label"
+}
+
+resume_mysql_backup() {
+  local kubeconfig="$1" namespace="$2" label="$3"
+  if ! KUBECONFIG="$kubeconfig" kubectl get cronjob "$MYSQL_BACKUP_CRONJOB" -n "$namespace" >/dev/null 2>&1; then
+    ACTIVE_BACKUP_KUBECONFIG=""
+    ACTIVE_BACKUP_NAMESPACE=""
+    ACTIVE_BACKUP_LABEL=""
+    return 0
+  fi
+
+  echo "→ ${label}: resuming cronjob/${MYSQL_BACKUP_CRONJOB}"
+  KUBECONFIG="$kubeconfig" kubectl patch cronjob "$MYSQL_BACKUP_CRONJOB" -n "$namespace" --type merge -p '{"spec":{"suspend":false}}' >/dev/null
+  ACTIVE_BACKUP_KUBECONFIG=""
+  ACTIVE_BACKUP_NAMESPACE=""
+  ACTIVE_BACKUP_LABEL=""
+}
+
+drain_mysql_backup_pods() {
+  local kubeconfig="$1" namespace="$2" label="$3"
+  local deadline=$((SECONDS + MYSQL_BACKUP_DRAIN_SECONDS))
+  local running
+
+  while true; do
+    running="$(running_mysql_backup_jobs "$kubeconfig" "$namespace")"
+    if [ -z "$running" ]; then
+      return 0
+    fi
+    if [ "$SECONDS" -ge "$deadline" ]; then
+      echo "→ ${label}: active mysql backup still running after ${MYSQL_BACKUP_DRAIN_SECONDS}s; deleting it before rollout"
+      echo "$running" | while read -r job_name; do
+        [ -n "$job_name" ] || continue
+        KUBECONFIG="$kubeconfig" kubectl delete job "$job_name" -n "$namespace" --ignore-not-found
+      done
+      return 0
+    fi
+    echo "→ ${label}: waiting for active mysql backup job(s) before rollout: $(echo "$running" | tr '\n' ' ')"
+    sleep 5
+  done
+}
+
+running_mysql_backup_jobs() {
+  local kubeconfig="$1" namespace="$2"
+  KUBECONFIG="$kubeconfig" kubectl get pods -n "$namespace" -o jsonpath='{range .items[?(@.status.phase=="Running")]}{.metadata.labels.job-name}{"\n"}{end}' 2>/dev/null |
+    awk -v prefix="${MYSQL_BACKUP_CRONJOB}-" '$0 ~ "^" prefix { print $0 }' |
+    sort -u
+}
+
+diagnose_rollout_target() {
+  local label="$1" kubeconfig="$2" namespace="$3" target="$4"
+  local selector selector_key
+  selector="$(KUBECONFIG="$kubeconfig" kubectl get -n "$namespace" "$target" -o jsonpath='{.spec.selector.matchLabels.name}' 2>/dev/null || true)"
+  selector_key="name"
+  if [ -z "$selector" ]; then
+    selector="$(KUBECONFIG="$kubeconfig" kubectl get -n "$namespace" "$target" -o jsonpath='{.spec.selector.matchLabels.app}' 2>/dev/null || true)"
+    selector_key="app"
+  fi
+
+  echo "✗ ${label}: rollout target ${target} did not finish within ${ROLLOUT_TIMEOUT}" >&2
+  KUBECONFIG="$kubeconfig" kubectl get -n "$namespace" "$target" -o wide >&2 || true
+  if [ -n "$selector" ]; then
+    echo "→ ${label}: pods for ${target}" >&2
+    KUBECONFIG="$kubeconfig" kubectl get pods -n "$namespace" -l "${selector_key}=${selector}" -o wide >&2 || true
+    echo "→ ${label}: recent events for ${target}" >&2
+    KUBECONFIG="$kubeconfig" kubectl get events -n "$namespace" --sort-by=.lastTimestamp | tail -80 >&2 || true
+    echo "→ ${label}: describe pods for ${target}" >&2
+    KUBECONFIG="$kubeconfig" kubectl describe pods -n "$namespace" -l "${selector_key}=${selector}" >&2 || true
+    echo "→ ${label}: recent logs for ${target}" >&2
+    KUBECONFIG="$kubeconfig" kubectl logs -n "$namespace" -l "${selector_key}=${selector}" --all-containers --tail=120 >&2 || true
+  else
+    echo "→ ${label}: unable to derive selector for ${target}" >&2
+  fi
 }
 
 ensure_mise_cache() {
@@ -275,6 +388,8 @@ flux_suspend_with_watchdog() {
   KUBECONFIG="$kubeconfig" kubectl -n "$FLUX_NAMESPACE" \
     patch kustomization "$FLUX_KUSTOMIZATION" \
     --type merge -p '{"spec":{"suspend":true}}' >/dev/null
+  ACTIVE_FLUX_KUBECONFIG="$kubeconfig"
+  ACTIVE_FLUX_LABEL="$label"
   schedule_resume_watchdog "$kubeconfig"
 }
 
@@ -287,6 +402,8 @@ flux_resume_now() {
   KUBECONFIG="$kubeconfig" kubectl -n "$FLUX_NAMESPACE" \
     patch kustomization "$FLUX_KUSTOMIZATION" \
     --type merge -p '{"spec":{"suspend":false}}' >/dev/null
+  ACTIVE_FLUX_KUBECONFIG=""
+  ACTIVE_FLUX_LABEL=""
 }
 
 # RBAC for the watchdog Job: a ServiceAccount in flux-system with

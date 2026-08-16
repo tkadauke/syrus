@@ -188,4 +188,25 @@ RSpec.describe "Docker image scripts" do
     expect(deploy).not_to include('patch_mise_mount "$kubeconfig" "$namespace" "deployment" "syrus-web"')
     expect(deploy).not_to include('patch_mise_mount "$kubeconfig" "$namespace" "deployment" "syrus-preview"')
   end
+
+  it "suspends mysql backups and prints rollout diagnostics during deploys" do
+    expect(deploy).to include('MYSQL_BACKUP_CRONJOB="${MYSQL_BACKUP_CRONJOB:-syrus-mysql-backup}"')
+    expect(deploy).to include('suspend_mysql_backup "$kubeconfig" "$namespace" "$label"')
+    expect(deploy).to include('resume_mysql_backup "$kubeconfig" "$namespace" "$label"')
+    expect(deploy).to include('drain_mysql_backup_pods "$kubeconfig" "$namespace" "$label"')
+    expect(deploy).to include('running_mysql_backup_jobs()')
+    expect(deploy).to include('kubectl patch cronjob "$MYSQL_BACKUP_CRONJOB"')
+    expect(deploy).to include('active mysql backup still running')
+    expect(deploy).to include('diagnose_rollout_target "$label" "$kubeconfig" "$namespace" "$dep"')
+    expect(deploy).to include('kubectl describe pods')
+    expect(deploy).to include('kubectl logs')
+  end
+
+  it "tracks suspended rollout controls so failures resume them" do
+    expect(deploy).to include("trap cleanup_rollout_controls EXIT")
+    expect(deploy).to include('ACTIVE_FLUX_KUBECONFIG="$kubeconfig"')
+    expect(deploy).to include('ACTIVE_BACKUP_KUBECONFIG="$kubeconfig"')
+    expect(deploy).to include('ACTIVE_FLUX_KUBECONFIG=""')
+    expect(deploy).to include('ACTIVE_BACKUP_KUBECONFIG=""')
+  end
 end
