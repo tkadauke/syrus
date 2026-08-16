@@ -34,6 +34,8 @@ var localDialer = func(ctx context.Context, rawURL string) (*websocket.Conn, err
 
 func NewLocalCommand() *cobra.Command {
 	var dir string
+	var chatSessionID int64
+	var tunnelToken string
 	cmd := &cobra.Command{
 		Use:   "local",
 		Short: "Connect this machine to a Syrus Local Mode chat session",
@@ -41,19 +43,26 @@ func NewLocalCommand() *cobra.Command {
 to your Syrus backend. The chat agent can then read and write files,
 run commands, and inspect git state on your machine.
 
-Requires the local_mode feature flag to be enabled on your Syrus instance.`,
+Requires the local_mode feature flag to be enabled on your Syrus instance.
+Run this with the --chat and --token values shown in the Syrus chat UI's
+Local Mode banner — they pair this machine to that chat session.`,
 		Args:          cobra.NoArgs,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runLocalDaemon(cmd, dir)
+			if chatSessionID == 0 || tunnelToken == "" {
+				return errors.New("--chat and --token are required — copy the full command from the Local Mode banner in the Syrus chat UI")
+			}
+			return runLocalDaemon(cmd, dir, chatSessionID, tunnelToken)
 		},
 	}
 	cmd.Flags().StringVar(&dir, "dir", "", "path to the git repository (defaults to current directory)")
+	cmd.Flags().Int64Var(&chatSessionID, "chat", 0, "Syrus chat session id (from the Local Mode pairing command)")
+	cmd.Flags().StringVar(&tunnelToken, "token", "", "pairing auth token (from the Local Mode pairing command)")
 	return cmd
 }
 
-func runLocalDaemon(cmd *cobra.Command, dirFlag string) error {
+func runLocalDaemon(cmd *cobra.Command, dirFlag string, chatSessionID int64, tunnelToken string) error {
 	creds, err := loadCredentials()
 	if err != nil {
 		return err
@@ -90,7 +99,7 @@ func runLocalDaemon(cmd *cobra.Command, dirFlag string) error {
 	ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	return runLocalWithReconnect(ctx, cmd.OutOrStdout(), wsURL, repoRoot, repoSlug, branch)
+	return runLocalWithReconnect(ctx, cmd.OutOrStdout(), wsURL, repoRoot, repoSlug, branch, chatSessionID, tunnelToken)
 }
 
 func findLocalGitRoot(ctx context.Context, startDir string) (string, error) {
@@ -145,10 +154,10 @@ func buildLocalCableURL(baseURL, token string) (string, error) {
 	return parsed.String(), nil
 }
 
-func runLocalWithReconnect(ctx context.Context, out io.Writer, wsURL, repoRoot, repoSlug, branch string) error {
+func runLocalWithReconnect(ctx context.Context, out io.Writer, wsURL, repoRoot, repoSlug, branch string, chatSessionID int64, tunnelToken string) error {
 	backoff := localInitialBackoff
 	for {
-		err := localConnectAndServe(ctx, out, wsURL, repoRoot, repoSlug, branch)
+		err := localConnectAndServe(ctx, out, wsURL, repoRoot, repoSlug, branch, chatSessionID, tunnelToken)
 
 		select {
 		case <-ctx.Done():
@@ -157,6 +166,7 @@ func runLocalWithReconnect(ctx context.Context, out io.Writer, wsURL, repoRoot, 
 		}
 
 		if err != nil {
+			fmt.Fprintln(out, err.Error())
 			fmt.Fprintln(out, "Reconnecting...")
 		}
 
@@ -187,28 +197,27 @@ type acInbound struct {
 	Message    json.RawMessage `json:"message,omitempty"`
 }
 
-type localRegisteredMsg struct {
-	Type            string  `json:"type"`
-	TunnelSessionID int64   `json:"tunnel_session_id"`
-	ChatSessionID   *int64  `json:"chat_session_id"`
-	Message         string  `json:"message,omitempty"`
-}
-
+// localToolCallMsg mirrors the "tool_call" frame LocalTunnelChannel#dispatch_tool_call
+// transmits: { type: "tool_call", tool_use_id: ..., tool: ..., input: ... }.
 type localToolCallMsg struct {
-	Type   string          `json:"type"`
-	CallID string          `json:"call_id"`
-	Tool   string          `json:"tool"`
-	Params json.RawMessage `json:"params"`
+	Type      string          `json:"type"`
+	ToolUseID string          `json:"tool_use_id"`
+	Tool      string          `json:"tool"`
+	Input     json.RawMessage `json:"input"`
 }
 
-func localConnectAndServe(ctx context.Context, out io.Writer, wsURL, repoRoot, repoSlug, branch string) error {
+func localConnectAndServe(ctx context.Context, out io.Writer, wsURL, repoRoot, repoSlug, branch string, chatSessionID int64, tunnelToken string) error {
 	conn, err := localDialer(ctx, wsURL)
 	if err != nil {
 		return fmt.Errorf("connection failed: %w", err)
 	}
 	defer conn.Close()
 
-	identJSON, err := json.Marshal(map[string]string{"channel": "LocalTunnelChannel"})
+	identJSON, err := json.Marshal(map[string]any{
+		"channel":         "LocalTunnelChannel",
+		"chat_session_id": chatSessionID,
+		"tunnel_token":    tunnelToken,
+	})
 	if err != nil {
 		return err
 	}
@@ -277,22 +286,31 @@ func localConnectAndServe(ctx context.Context, out io.Writer, wsURL, repoRoot, r
 	switch confirm.Type {
 	case "confirm_subscription":
 		// ok
+	case "reject_subscription":
+		// The real Action Cable per-channel rejection frame — sent when
+		// LocalTunnelChannel#subscribed calls reject (no matching/owned
+		// LocalDaemonSession for the given chat_session_id/tunnel_token, or
+		// local_mode is disabled). Distinct from "disconnect", which is a
+		// connection-level close, not a channel-level rejection.
+		return fmt.Errorf("pairing rejected for chat session %d — check that local_mode is enabled and that --chat/--token exactly match the command shown in the Syrus chat UI (it may have expired or been regenerated)", chatSessionID)
 	case "disconnect":
-		return errors.New("server rejected subscription — is the local_mode feature enabled?")
+		return errors.New("server closed the connection — is the local_mode feature enabled?")
 	default:
 		return fmt.Errorf("unexpected message type %q during subscription", confirm.Type)
 	}
 
-	// Step 4: send registration.
-	regData, err := json.Marshal(map[string]string{
-		"type":      "register",
-		"repo_slug": repoSlug,
-		"branch":    branch,
+	// Step 4: announce this machine to the daemon session. Mirrors
+	// LocalTunnelChannel#receive's "connect" case, which expects "repo" and
+	// "branch" fields and replies with a "connected" frame.
+	connectData, err := json.Marshal(map[string]string{
+		"type":   "connect",
+		"repo":   repoSlug,
+		"branch": branch,
 	})
 	if err != nil {
 		return err
 	}
-	writeCh <- acOutbound{Command: "message", Identifier: identifier, Data: string(regData)}
+	writeCh <- acOutbound{Command: "message", Identifier: identifier, Data: string(connectData)}
 
 	// Step 5: main loop.
 	for {
@@ -328,15 +346,28 @@ func localConnectAndServe(ctx context.Context, out io.Writer, wsURL, repoRoot, r
 		}
 
 		switch msgType {
-		case "registered":
-			var reg localRegisteredMsg
-			if err := json.Unmarshal(msg.Message, &reg); err == nil {
-				if reg.ChatSessionID != nil {
-					fmt.Fprintf(out, "Connected to Syrus chat session #%d\n", *reg.ChatSessionID)
-				} else {
-					fmt.Fprintln(out, "Connected to Syrus (no active Local Mode chat session yet)")
-				}
+		case "connected":
+			fmt.Fprintf(out, "Connected to Syrus chat session #%d\n", chatSessionID)
+
+		case "ping":
+			// Keepalive: LocalTunnelChannel disconnects the daemon session
+			// (LocalDaemonSession::HEARTBEAT_TIMEOUT, 45s) if pings go
+			// unanswered, so every "ping" needs a "pong" reply.
+			pongData, err := json.Marshal(map[string]string{"type": "pong"})
+			if err != nil {
+				continue
 			}
+			writeCh <- acOutbound{Command: "message", Identifier: identifier, Data: string(pongData)}
+
+		case "disconnected":
+			var reason struct {
+				Reason string `json:"reason"`
+			}
+			_ = json.Unmarshal(msg.Message, &reason)
+			if reason.Reason != "" {
+				return fmt.Errorf("daemon session disconnected by server (%s)", reason.Reason)
+			}
+			return errors.New("daemon session disconnected by server")
 
 		case "tool_call":
 			var call localToolCallMsg
@@ -346,9 +377,9 @@ func localConnectAndServe(ctx context.Context, out io.Writer, wsURL, repoRoot, r
 			go func(c localToolCallMsg) {
 				result := executeLocalToolCall(ctx, repoRoot, c)
 				payload, err := json.Marshal(map[string]any{
-					"type":    "tool_result",
-					"call_id": c.CallID,
-					"result":  result,
+					"type":        "tool_result",
+					"tool_use_id": c.ToolUseID,
+					"content":     result,
 				})
 				if err != nil {
 					return
@@ -363,13 +394,13 @@ func localConnectAndServe(ctx context.Context, out io.Writer, wsURL, repoRoot, r
 func executeLocalToolCall(ctx context.Context, repoRoot string, call localToolCallMsg) map[string]any {
 	switch call.Tool {
 	case "read_file":
-		return executeLocalReadFile(repoRoot, call.Params)
+		return executeLocalReadFile(repoRoot, call.Input)
 	case "write_file":
-		return executeLocalWriteFile(repoRoot, call.Params)
+		return executeLocalWriteFile(repoRoot, call.Input)
 	case "list_files":
-		return executeLocalListFiles(repoRoot, call.Params)
+		return executeLocalListFiles(repoRoot, call.Input)
 	case "run_command":
-		return executeLocalRunCommand(ctx, repoRoot, call.Params)
+		return executeLocalRunCommand(ctx, repoRoot, call.Input)
 	case "git_diff":
 		return executeLocalGitDiff(ctx, repoRoot)
 	case "git_diff_staged":
