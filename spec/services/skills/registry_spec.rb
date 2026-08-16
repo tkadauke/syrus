@@ -1,0 +1,29 @@
+require "rails_helper"
+
+RSpec.describe Skills::Registry do
+  describe ".values" do
+    it "includes the seed built-in skill" do
+      expect(described_class.values).to include("investigate")
+    end
+  end
+
+  describe ".fetch" do
+    it "raises Skills::NotFoundError for an unknown name" do
+      expect {
+        described_class.fetch("does-not-exist")
+      }.to raise_error(Skills::NotFoundError, /does-not-exist/)
+    end
+  end
+
+  describe ".class_for" do
+    it "constantizes the registered class" do
+      expect(described_class.class_for("investigate")).to eq(Skills::Investigate)
+    end
+  end
+
+  describe ".definition_for" do
+    it "returns the class's definition" do
+      expect(described_class.definition_for("investigate")).to eq(Skills::Investigate.definition)
+    end
+  end
+end
