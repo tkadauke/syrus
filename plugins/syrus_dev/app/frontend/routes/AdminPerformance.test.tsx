@@ -52,9 +52,15 @@ describe("AdminPerformance", () => {
     expect(within(summary).getByText("abcdef123456")).toBeInTheDocument()
     expect(within(summary).getByText("rails.cache")).toBeInTheDocument()
     expect(within(summary).getByText("1.00s")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Overview" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Browser" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Requests" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "SQL" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Phases" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Events" })).toBeInTheDocument()
 
     expect(screen.getByText("Revision comparison vs oldsha123456")).toBeInTheDocument()
-    expect(screen.getAllByText("/api/v1/app/chats/126")).toHaveLength(2)
+    expect(screen.getByText("/api/v1/app/chats/126")).toBeInTheDocument()
     expect(screen.getByText("regressed")).toBeInTheDocument()
     expect(screen.getByText("+580ms (+96.7%)")).toBeInTheDocument()
     expect(screen.getByText("Browser traces")).toBeInTheDocument()
@@ -67,6 +73,8 @@ describe("AdminPerformance", () => {
     expect(screen.getByText("frontend-request-1")).toBeInTheDocument()
     expect(screen.getByText("300ms / 300ms")).toBeInTheDocument()
     expect(screen.getByText("SELECT `jobs`.* FROM `jobs` WHERE `jobs`.`state` = ?")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Events" }))
     expect(screen.getByText("request")).toBeInTheDocument()
     expect(screen.getByText("246 SQL · 629ms")).toBeInTheDocument()
 

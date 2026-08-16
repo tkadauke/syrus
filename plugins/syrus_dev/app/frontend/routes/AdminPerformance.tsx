@@ -6,6 +6,10 @@ import { usePageTitle } from "@app/hooks/usePageTitle"
 import { errorMessage } from "@app/lib/errorMessage"
 
 type RevisionScope = "current" | "all"
+type PerformanceTab = "overview" | "browser" | "requests" | "sql" | "phases" | "events"
+
+const PERFORMANCE_TABS: PerformanceTab[] = ["overview", "browser", "requests", "sql", "phases", "events"]
+const OVERVIEW_ROW_LIMIT = 5
 
 export function AdminPerformance() {
   const { t } = useT("syrus_dev")
@@ -51,6 +55,7 @@ export default AdminPerformance
 function PerformanceView({ payload }: { payload: AdminPerformancePayload }) {
   const { t } = useT("syrus_dev")
   const eventCount = payload.events.length
+  const [activeTab, setActiveTab] = useState<PerformanceTab>("overview")
 
   return (
     <div className="space-y-6">
@@ -62,12 +67,33 @@ function PerformanceView({ payload }: { payload: AdminPerformancePayload }) {
         <Metric title={t("performance.thresholds")} value={formatMs(payload.thresholds.slow_request_ms)} context={t("performance.threshold_context", { phase: formatMs(payload.thresholds.slow_phase_ms), sql: formatMs(payload.thresholds.slow_sql_ms) })} />
       </section>
 
-      <RegressionTable payload={payload} />
-      <BrowserTracesTable rows={payload.summaries.browser_traces ?? []} />
-      <SlowRequestsTable rows={payload.summaries.slow_requests} />
-      <SlowPhasesTable rows={payload.summaries.slow_phases} />
-      <SqlFingerprintsTable rows={payload.summaries.sql_fingerprints} />
-      <EventsTable rows={payload.events} />
+      <nav aria-label={t("performance.tabs_aria")} className="flex flex-wrap gap-2 border-b border-gray-200 dark:border-gray-700">
+        {PERFORMANCE_TABS.map((tab) => (
+          <button
+            className={tabButtonClass(activeTab === tab)}
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            type="button"
+          >
+            {t(`performance.tab_${tab}`)}
+          </button>
+        ))}
+      </nav>
+
+      {activeTab === "overview" ? (
+        <>
+          <RegressionTable payload={payload} />
+          <BrowserTracesTable rows={(payload.summaries.browser_traces ?? []).slice(0, OVERVIEW_ROW_LIMIT)} />
+          <SlowRequestsTable rows={payload.summaries.slow_requests.slice(0, OVERVIEW_ROW_LIMIT)} />
+          <SqlFingerprintsTable rows={payload.summaries.sql_fingerprints.slice(0, OVERVIEW_ROW_LIMIT)} />
+          <SlowPhasesTable rows={payload.summaries.slow_phases.slice(0, OVERVIEW_ROW_LIMIT)} />
+        </>
+      ) : null}
+      {activeTab === "browser" ? <BrowserTracesTable rows={payload.summaries.browser_traces ?? []} /> : null}
+      {activeTab === "requests" ? <SlowRequestsTable rows={payload.summaries.slow_requests} /> : null}
+      {activeTab === "sql" ? <SqlFingerprintsTable rows={payload.summaries.sql_fingerprints} /> : null}
+      {activeTab === "phases" ? <SlowPhasesTable rows={payload.summaries.slow_phases} /> : null}
+      {activeTab === "events" ? <EventsTable rows={payload.events} /> : null}
     </div>
   )
 }
@@ -328,6 +354,12 @@ function scopeButtonClass(active: boolean) {
   return active
     ? "rounded bg-gray-900 px-3 py-1.5 font-medium text-white dark:bg-gray-100 dark:text-gray-900"
     : "rounded px-3 py-1.5 font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+}
+
+function tabButtonClass(active: boolean) {
+  return active
+    ? "border-b-2 border-gray-900 px-3 py-2 text-sm font-semibold text-gray-900 dark:border-gray-100 dark:text-gray-100"
+    : "border-b-2 border-transparent px-3 py-2 text-sm font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
 }
 
 function TableSection({ children, empty, rowCount, title }: { children: ReactNode; empty: string; rowCount: number; title: string }) {
