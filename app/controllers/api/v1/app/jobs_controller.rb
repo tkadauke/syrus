@@ -7,11 +7,12 @@ module Api
         def index
           jobs = Current.user.jobs
                              .without_active_workflows
-                             .includes(:epic, :repository, :deployment_stage_statuses, workflows: :steps)
+                             .includes(:epic, :repository, :deployment_stage_statuses)
                              .order(updated_at: :desc, id: :desc)
           jobs = filter_jobs(jobs)
           limit = params.fetch(:limit, 20).to_i.clamp(1, 100)
           page_jobs = jobs.limit(limit).to_a
+          preload_compact_latest_workflows(page_jobs)
           preload_compact_latest_runs(page_jobs)
 
           render json: {
@@ -260,7 +261,7 @@ module Api
 
 
         def compact_job_json(job)
-          workflow = job.workflows.max_by { |candidate| [ candidate.finished_at.nil? ? 1 : 0, candidate.finished_at || Time.zone.at(0), candidate.id || 0 ] }
+          workflow = latest_workflow_for_job(job)
           steps = workflow&.steps&.sort_by(&:position) || []
           payload = {
             id: job.id,
@@ -328,15 +329,26 @@ module Api
           }
         end
 
+        def preload_compact_latest_workflows(jobs)
+          job_ids = jobs.map(&:id)
+          latest_workflow_ids = job_ids.empty? ? [] : Workflow.where(job_id: job_ids).group(:job_id).maximum(:id).values.compact
+          workflows = latest_workflow_ids.empty? ? [] : Workflow.where(id: latest_workflow_ids).includes(:steps)
+          @compact_latest_workflow_by_job_id = workflows.index_by(&:job_id)
+        end
+
         def preload_compact_latest_runs(jobs)
           job_ids = jobs.map(&:id)
-          step_ids = jobs.flat_map { |job| job.workflows.flat_map { |workflow| workflow.steps.map(&:id) } }.compact
+          step_ids = Array(@compact_latest_workflow_by_job_id&.values).flat_map { |workflow| workflow.steps.map(&:id) }.compact
 
           latest_job_run_ids = job_ids.empty? ? [] : Run.where(job_id: job_ids).group(:job_id).maximum(:id).values.compact
           latest_step_run_ids = step_ids.empty? ? [] : Run.where(step_id: step_ids).group(:step_id).maximum(:id).values.compact
 
           @compact_latest_run_by_job_id = latest_job_run_ids.empty? ? {} : Run.where(id: latest_job_run_ids).select(:id, :job_id, :state, :created_at).index_by(&:job_id)
           @compact_latest_run_by_step_id = latest_step_run_ids.empty? ? {} : Run.where(id: latest_step_run_ids).select(:id, :step_id, :state, :created_at).index_by(&:step_id)
+        end
+
+        def latest_workflow_for_job(job)
+          @compact_latest_workflow_by_job_id&.fetch(job.id, nil)
         end
 
         def latest_run_for_job(job)
