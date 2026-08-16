@@ -199,8 +199,9 @@ module Prompts
         or `superseded_by_job_id` when a specific insight or Job explains the retirement.
         This is an audited state transition, not a delete — retired insights stay
         inspectable via `list_insights(state: "retired")` and `read_insight`. Never file a
-        new `informational` insight just to say another insight is stale; retire the
-        stale one instead. Accepted insights are refused by `retire_insight` unless you
+        new `informational` insight titled something like "Superseded by #N" just to say
+        another insight is stale; retire the stale one directly instead. Accepted insights
+        are refused by `retire_insight` unless you
         pass `retire_accepted: true`, which should only be used when the accepted insight
         itself is confirmed obsolete — prefer filing a new standalone insight for anything
         merely superseded by newer work.
