@@ -11,6 +11,7 @@ import { CloseIcon } from "../../components/CloseIcon"
 import { ConfirmDialog } from "../../components/ConfirmDialog"
 import { ConfirmationCard } from "../../components/ConfirmationCard"
 import { CopyableSlug } from "../../components/CopyableSlug"
+import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { StartEpicButton } from "../../components/StartEpicButton"
 import { Markdown } from "../../lib/Markdown"
 import { linkifySlugs } from "../../lib/linkifySlugs"
@@ -616,14 +617,18 @@ function ProposalMaterializedResult({ proposal, prefix }: { proposal: ChatPropos
     return (
       <>
         <span>
-          → Epic <ProposalResultLink path={proposal.materialized_path} prefix={prefix}>#{materialized.epic_id}</ProposalResultLink>{materialized.epic_title ? ` "${materialized.epic_title}"` : ""}
+          → <SlugHoverCard kind="epic" id={materialized.epic_id}>
+            <CopyableSlug className="text-xs" slug={`EPIC-${materialized.epic_id}`} />
+          </SlugHoverCard>{materialized.epic_title ? ` "${materialized.epic_title}"` : ""}
         </span>
         {children.length > 0 ? (
           <span className="basis-full sm:basis-auto">
             Jobs: {children.map((job, index) => (
               <span key={`${job.job_id}-${index}`}>
                 {index > 0 ? ", " : ""}
-                JOB-{job.job_id}{job.title ? ` "${job.title}"` : ""}
+                <SlugHoverCard kind="job" id={job.job_id as number}>
+                  <CopyableSlug className="text-xs" slug={`JOB-${job.job_id}`} />
+                </SlugHoverCard>{job.title ? ` "${job.title}"` : ""}
               </span>
             ))}
           </span>
