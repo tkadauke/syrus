@@ -431,6 +431,25 @@ RSpec.describe Job do
         terminal
       )
     end
+
+    it "includes every job when nothing is active" do
+      idle = Factories.job_record(issue_number: 11, issue_title: "Ready")
+      terminal = Factories.job_record(repository: idle.repository, issue_number: 12, issue_title: "Done")
+      Workflow.create!(job: terminal, trigger_kind: "manual", state: "succeeded")
+
+      expect(described_class.where(id: [ idle.id, terminal.id ]).without_active_workflows).to contain_exactly(idle, terminal)
+    end
+
+    # The correlated NOT EXISTS survived on its own, but the Inbox preset ORs it
+    # with four more subqueries over `jobs`, and there MySQL rewrote it into an
+    # anti-join, lost the correlation, and materialized it with a full scan of
+    # `workflows` (19,415 rows, 329MB) -- 10.2s cold to count 4 rows.
+    it "does not reference workflows as a subquery" do
+      sql = described_class.all.without_active_workflows.to_sql
+
+      expect(sql).not_to match(/workflows/i)
+      expect(sql).not_to match(/NOT EXISTS/i)
+    end
   end
 
   describe "thread state machine" do

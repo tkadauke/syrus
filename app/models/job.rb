@@ -185,15 +185,17 @@ class Job < ApplicationRecord
   def visual_review_runnable?
     (implemented? || approved?) && !any_active_run?
   end
-  scope :without_active_workflows, -> {
-    where(<<~SQL.squish)
-      NOT EXISTS (
-        SELECT 1 FROM workflows
-        WHERE workflows.job_id = jobs.id
-          AND workflows.state IN ('queued', 'running')
-      )
-    SQL
-  }
+  # Materialized rather than a correlated NOT EXISTS — see
+  # Workflow.active_job_ids. The subquery form survives on its own, but the
+  # Inbox smart folder ORs it together with four more subqueries over `jobs`,
+  # and there MySQL rewrites it into an anti-join, loses the correlation, and
+  # materializes it with a full scan of `workflows`:
+  #
+  #   select_type: MATERIALIZED  table: workflows  type: ALL  key: NULL  rows: 19415
+  #
+  # That scan is what made the Inbox count 10.2s cold on production, averaging
+  # 20,729ms across the dashboard's smart-folder counts.
+  scope :without_active_workflows, -> { where.not(id: Workflow.active_job_ids) }
 
   def issue?
     kind == "issue"

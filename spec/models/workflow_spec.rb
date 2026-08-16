@@ -9,6 +9,37 @@ RSpec.describe Workflow do
     described_class.new({ job: job, trigger_kind: "initial" }.merge(overrides))
   end
 
+  # Materialized on purpose: fed into NOT IN against `jobs`, where the
+  # subquery form makes MySQL scan all of `workflows`. See
+  # Workflow.active_job_ids and Job.without_active_workflows.
+  describe ".active_job_ids" do
+    it "returns job ids with a queued or running Workflow" do
+      described_class.create!(job: job, trigger_kind: "manual", state: "running")
+
+      expect(described_class.active_job_ids).to include(job.id)
+    end
+
+    it "excludes jobs whose Workflows are all terminal" do
+      other = Factories.job_record(issue_number: 91, issue_title: "Done")
+      described_class.create!(job: other, trigger_kind: "manual", state: "succeeded")
+
+      expect(described_class.active_job_ids).not_to include(other.id)
+    end
+
+    it "reports a job once even with several active Workflows" do
+      described_class.create!(job: job, trigger_kind: "manual", state: "running")
+      described_class.create!(job: job, trigger_kind: "manual", state: "queued")
+
+      expect(described_class.active_job_ids.count(job.id)).to eq(1)
+    end
+
+    it "returns plain ids so callers cannot re-embed it as a subquery" do
+      described_class.create!(job: job, trigger_kind: "manual", state: "running")
+
+      expect(described_class.active_job_ids).to all(be_an(Integer))
+    end
+  end
+
   describe "validations" do
     it "is valid with a known trigger_kind" do
       expect(build_wf(trigger_kind: "initial")).to be_valid
