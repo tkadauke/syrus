@@ -294,7 +294,7 @@ module App
     end
 
     def latest_terminal_provider_run
-      run = provider_run_scope
+      run = provider_run_scope_for_latest
         .select(:id, :state, :finished_at, :updated_at)
         .where(state: %w[succeeded failed])
         .where.not(finished_at: nil)
@@ -318,6 +318,13 @@ module App
 
     def provider_run_scope
       Run.where(user_id: user.id, agent_provider: provider)
+    end
+
+    def provider_run_scope_for_latest
+      scope = provider_run_scope
+      return scope unless ActiveRecord::Base.connection.adapter_name.downcase.include?("mysql")
+
+      scope.from(Arel.sql("#{Run.quoted_table_name} FORCE INDEX (idx_runs_provider_latest_finished)"))
     end
 
     def usage_limit?(run, text)
