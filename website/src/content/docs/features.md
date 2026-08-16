@@ -966,6 +966,14 @@ provider override, prepare behavior, PR cost footer, auto-merge settings,
 and approval behavior. The repository issues panel can list GitHub issues
 and delegate work by adding the trigger label through the same credential
 path Syrus uses for polling.
+
+Polling also tracks how many open GitHub issues on each repository are
+**not** carrying the trigger label — issues Syrus never ingests because no
+one labeled them. The main Dashboard surfaces this as a dismissible
+cross-repo notice ("N unlabeled open issues across M repositories") with
+links straight into each repository's GitHub Issues tab, so operators
+notice unlabeled bug reports without visiting every repository one at a
+time.
 When approval propagation is enabled, Syrus mirrors eligible Job approvals
 as GitHub PR reviews, but skips PAT-created PRs because GitHub treats them
 as user-authored and rejects self-approval.

@@ -136,6 +136,7 @@ module App
         provider_availability: PerformanceLogging.phase("dashboard_chrome.provider_availability", subject: subject) { provider_availability_by_provider },
         broken_repositories: health_blocked_repositories,
         health_blocked_repositories: health_blocked_repositories,
+        untagged_issues: PerformanceLogging.phase("dashboard_chrome.untagged_issues", subject: subject) { untagged_issues_json },
         smart_folders: PerformanceLogging.phase("dashboard_chrome.smart_folders", subject: subject) { smart_folders_json },
         active_smart_folder_id: active_smart_folder&.id,
         setup: PerformanceLogging.phase("dashboard_chrome.setup", subject: subject) { ::App::SetupStatus.call(user: user) },
