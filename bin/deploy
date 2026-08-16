@@ -192,8 +192,10 @@ rollout() {
   fi
 
   flux_suspend_with_watchdog "$kubeconfig" "$label"
+  flux_pin_desired_images "$kubeconfig" "$label"
   suspend_mysql_backup "$kubeconfig" "$namespace" "$label"
   ensure_mise_cache "$label" "$kubeconfig" "$namespace"
+  pin_live_images "$label" "$kubeconfig" "$namespace"
   echo "→ ${label}: rollout restart in ${namespace}"
   KUBECONFIG="$kubeconfig" kubectl rollout restart -n "$namespace" "${targets[@]}"
   for dep in "${targets[@]}"; do
@@ -206,7 +208,35 @@ rollout() {
   verify_sha "$label" "$kubeconfig" "$namespace"
   resume_mysql_backup "$kubeconfig" "$namespace" "$label"
   flux_resume_now "$kubeconfig" "$label"
+  verify_flux_desired_images "$kubeconfig" "$label"
   echo "✓ ${label} rolled to ${SHA}"
+}
+
+pin_live_images() {
+  local label="$1" kubeconfig="$2" namespace="$3"
+  echo "→ ${label}: pinning live workloads to ${SHA} image tags"
+  set_images_if_present "$label" "$kubeconfig" "$namespace" "deployment/syrus-web" \
+    "syrus-web=${REGISTRY}:${SHA}" \
+    "db-prepare=${REGISTRY}:${SHA}"
+  set_images_if_present "$label" "$kubeconfig" "$namespace" "deployment/syrus-worker-home" \
+    "syrus-worker=${WORKER_DEV_REGISTRY}:${SHA}" \
+    "seed-mise=${WORKER_DEV_REGISTRY}:${SHA}"
+  set_images_if_present "$label" "$kubeconfig" "$namespace" "daemonset/syrus-worker-compute" \
+    "syrus-worker=${WORKER_DEV_REGISTRY}:${SHA}" \
+    "seed-mise=${WORKER_DEV_REGISTRY}:${SHA}"
+  set_images_if_present "$label" "$kubeconfig" "$namespace" "deployment/syrus-preview" \
+    "syrus-preview=${WORKER_DEV_REGISTRY}:${SHA}" \
+    "seed-mise=${WORKER_DEV_REGISTRY}:${SHA}"
+}
+
+set_images_if_present() {
+  local label="$1" kubeconfig="$2" namespace="$3" target="$4"
+  shift 4
+  if KUBECONFIG="$kubeconfig" kubectl get -n "$namespace" "$target" >/dev/null 2>&1; then
+    KUBECONFIG="$kubeconfig" kubectl set image -n "$namespace" "$target" "$@" >/dev/null
+  else
+    echo "→ ${label}: image target ${target} not found in ${namespace} — skipping"
+  fi
 }
 
 suspend_mysql_backup() {
@@ -370,6 +400,7 @@ FLUX_NAMESPACE="${FLUX_NAMESPACE:-flux-system}"
 FLUX_KUSTOMIZATION="${FLUX_KUSTOMIZATION:-apps}"
 FLUX_SUSPEND_TTL="${FLUX_SUSPEND_TTL:-1200}"  # seconds — generous deploy budget
 FLUX_WATCHDOG_IMAGE="${FLUX_WATCHDOG_IMAGE:-alpine/k8s:1.31.13}"
+FLUX_IMAGE_FIELD_MANAGER="${FLUX_IMAGE_FIELD_MANAGER:-flux-client-side-apply}"
 
 flux_kustomization_exists() {
   local kubeconfig="$1"
@@ -402,8 +433,80 @@ flux_resume_now() {
   KUBECONFIG="$kubeconfig" kubectl -n "$FLUX_NAMESPACE" \
     patch kustomization "$FLUX_KUSTOMIZATION" \
     --type merge -p '{"spec":{"suspend":false}}' >/dev/null
+  flux_request_reconcile "$kubeconfig"
   ACTIVE_FLUX_KUBECONFIG=""
   ACTIVE_FLUX_LABEL=""
+}
+
+flux_pin_desired_images() {
+  local kubeconfig="$1" label="$2"
+  local patch
+  if ! flux_kustomization_exists "$kubeconfig"; then
+    return 0
+  fi
+
+  patch="$(flux_desired_images_patch "$kubeconfig")"
+  echo "→ ${label}: pinning flux image overrides to ${SHA}"
+  KUBECONFIG="$kubeconfig" kubectl -n "$FLUX_NAMESPACE" \
+    patch kustomization "$FLUX_KUSTOMIZATION" \
+    --type merge \
+    --field-manager "$FLUX_IMAGE_FIELD_MANAGER" \
+    -p "$patch" >/dev/null
+}
+
+flux_desired_images_patch() {
+  local kubeconfig="$1"
+  KUBECONFIG="$kubeconfig" kubectl -n "$FLUX_NAMESPACE" \
+    get kustomization "$FLUX_KUSTOMIZATION" -o json |
+    SHA="$SHA" REGISTRY="$REGISTRY" WORKER_DEV_REGISTRY="$WORKER_DEV_REGISTRY" ruby -rjson -e '
+      doc = JSON.parse(STDIN.read)
+      wanted = [
+        { "name" => ENV.fetch("REGISTRY"), "newTag" => ENV.fetch("SHA") },
+        { "name" => ENV.fetch("WORKER_DEV_REGISTRY"), "newTag" => ENV.fetch("SHA") }
+      ]
+      wanted_names = wanted.map { |image| image.fetch("name") }
+      existing = Array(doc.dig("spec", "images")).reject do |image|
+        wanted_names.include?(image["name"])
+      end
+      puts JSON.generate({ "spec" => { "images" => existing + wanted } })
+    '
+}
+
+verify_flux_desired_images() {
+  local kubeconfig="$1" label="$2"
+  local missing
+  if ! flux_kustomization_exists "$kubeconfig"; then
+    return 0
+  fi
+
+  missing="$(KUBECONFIG="$kubeconfig" kubectl -n "$FLUX_NAMESPACE" \
+    get kustomization "$FLUX_KUSTOMIZATION" -o json |
+    SHA="$SHA" REGISTRY="$REGISTRY" WORKER_DEV_REGISTRY="$WORKER_DEV_REGISTRY" ruby -rjson -e '
+      doc = JSON.parse(STDIN.read)
+      images = Array(doc.dig("spec", "images"))
+      expected = {
+        ENV.fetch("REGISTRY") => ENV.fetch("SHA"),
+        ENV.fetch("WORKER_DEV_REGISTRY") => ENV.fetch("SHA")
+      }
+      by_name = images.to_h { |image| [image["name"], image["newTag"]] }
+      missing = expected.filter_map do |name, tag|
+        "#{name}:#{tag}" unless by_name[name] == tag
+      end
+      puts missing.join("\n")
+    ')"
+  if [ -n "$missing" ]; then
+    echo "✗ ${label}: flux image overrides do not include expected SHA tags:" >&2
+    echo "$missing" >&2
+    exit 1
+  fi
+}
+
+flux_request_reconcile() {
+  local kubeconfig="$1"
+  KUBECONFIG="$kubeconfig" kubectl -n "$FLUX_NAMESPACE" \
+    annotate kustomization "$FLUX_KUSTOMIZATION" \
+    "reconcile.fluxcd.io/requestedAt=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --overwrite >/dev/null || true
 }
 
 # RBAC for the watchdog Job: a ServiceAccount in flux-system with
@@ -520,6 +623,9 @@ verify_sha() {
   local mismatch=0
   for dep in "${DEPLOYMENTS[@]}"; do
     local actual
+    if ! KUBECONFIG="$kubeconfig" kubectl get -n "$namespace" "$dep" >/dev/null 2>&1; then
+      continue
+    fi
     # Don't pass -c: the resource name is not the container name (both workers'
     # container is "syrus-worker", and the resource prefix varies deployment/
     # vs daemonset/), so let kubectl default to each pod's single app container.
@@ -533,24 +639,19 @@ verify_sha() {
   if [ "$mismatch" = 1 ]; then
     cat >&2 <<MSG
 
-The ${label} rollout reported success but at least one deployment is
-still serving an older image. Now that bin/deploy suspends Flux for
-the rollout window and verifies images landed in the registry before
-restart, the surviving causes are:
+The ${label} rollout reported success but at least one workload is
+still serving an older image. bin/deploy now pins both Flux desired
+image overrides and the live workload images before restarting, so the
+surviving causes are usually pod startup problems or an unpatched
+workload:
 
   - A new pod failed init (db migration crash, missing secret) and
     was kept un-Ready while old pods stayed alive. Check 'kubectl get
     pods -n ${namespace}' for Init:Error / CrashLoopBackOff.
 
-  - The deployment manifest references the wrong image repo (e.g.
-    'ghcr.io/tkadauke/syrus' for the worker pod when it should be
-    'ghcr.io/tkadauke/syrus-worker-dev'). Both pods then pull
-    :latest from the same repo, which won't match either build.
-    Check the deployment yaml in greenacres.
-
-  - kubelet is using a cached image digest from before the push.
-    Delete the affected pod manually to force a fresh pull:
-    'kubectl delete pod -n ${namespace} <pod-name>'.
+  - A deployment, daemonset, or init container was added without a
+    matching entry in pin_live_images. Check 'kubectl get deploy,ds -n
+    ${namespace} -o yaml | grep image:'.
 
 MSG
     exit 1
