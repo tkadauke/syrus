@@ -23,6 +23,11 @@ module SyrusDev
             controller: "api/v1/app/admin/performance#show"
           },
           {
+            verb: "POST",
+            path: "/api/v1/app/admin/performance/explain",
+            controller: "api/v1/app/admin/performance#explain"
+          },
+          {
             verb: "GET",
             path: "/api/v1/app/admin/operational_logs",
             controller: "api/v1/app/admin/operational_logs#index"
@@ -31,6 +36,11 @@ module SyrusDev
             verb: "GET",
             path: "/api/v1/admin/performance",
             controller: "api/v1/admin/performance#show"
+          },
+          {
+            verb: "POST",
+            path: "/api/v1/admin/performance/explain",
+            controller: "api/v1/admin/performance#explain"
           },
           {
             verb: "GET",

@@ -193,11 +193,45 @@ RSpec.describe "API: /api/v1/app/admin/performance", type: :request do
     )
   end
 
+  it "explains a read-only SQL statement for app admins" do
+    sign_in_as(admin)
+
+    post "/api/v1/app/admin/performance/explain", params: { sql: "SELECT * FROM users WHERE id = ?", analyze: false }, as: :json
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body).to include(
+      "mode" => "explain",
+      "normalized_sql" => "SELECT * FROM users WHERE id = NULL",
+      "placeholder_substituted" => true
+    )
+    expect(body["rows"]).to be_present
+  end
+
+  it "rejects non-read-only explain requests" do
+    sign_in_as(admin)
+
+    post "/api/v1/app/admin/performance/explain", params: { sql: "DELETE FROM users" }, as: :json
+
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(parse_body.dig("error", "code")).to eq("invalid_sql_explain_request")
+  end
+
   it "404s when the Syrus Dev plugin is disabled" do
     PluginRecord.find_by!(name: "syrus_dev").update!(enabled: false)
     sign_in_as(admin)
 
     get "/api/v1/app/admin/performance"
+
+    expect(response).to have_http_status(:not_found)
+    expect(parse_body).to include("error" => "syrus_dev_plugin_disabled")
+  end
+
+  it "404s explain requests when the Syrus Dev plugin is disabled" do
+    PluginRecord.find_by!(name: "syrus_dev").update!(enabled: false)
+    sign_in_as(admin)
+
+    post "/api/v1/app/admin/performance/explain", params: { sql: "SELECT 1" }, as: :json
 
     expect(response).to have_http_status(:not_found)
     expect(parse_body).to include("error" => "syrus_dev_plugin_disabled")

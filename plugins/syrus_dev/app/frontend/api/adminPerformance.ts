@@ -1,4 +1,4 @@
-import { getJson } from "@app/api/client"
+import { getJson, postJson } from "@app/api/client"
 
 export type PerformanceThresholds = {
   slow_request_ms: number
@@ -130,7 +130,26 @@ export type AdminPerformancePayload = {
   events: PerformanceEvent[]
 }
 
+export type SqlExplainResult = {
+  adapter: string
+  mode: "explain" | "analyze"
+  normalized_sql: string
+  placeholder_substituted: boolean
+  timeout_ms: number | null
+  rows: Array<Record<string, unknown>>
+  json_plan: Record<string, unknown> | null
+  warnings: string[]
+}
+
 export function fetchAdminPerformance(limit = 200, revisionScope: "current" | "all" = "current") {
   const params = new URLSearchParams({ limit: String(limit), revision_scope: revisionScope })
   return getJson<AdminPerformancePayload>(`/api/v1/app/admin/performance?${params.toString()}`)
+}
+
+export function explainSql(sql: string, options: { analyze?: boolean; timeoutMs?: number } = {}) {
+  return postJson<SqlExplainResult>("/api/v1/app/admin/performance/explain", {
+    sql,
+    analyze: options.analyze ?? false,
+    timeout_ms: options.timeoutMs
+  })
 }
