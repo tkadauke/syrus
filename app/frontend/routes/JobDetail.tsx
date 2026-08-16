@@ -301,7 +301,10 @@ function TabNav({ active, workflowsCount, attachmentsCount, artifactsCount, hasT
 function SummaryTab({ payload, command, prefix, queryKey, withPreviewStop }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand>; prefix: string; queryKey: JobDetailQueryKey; withPreviewStop: (proceed: () => void) => void }) {
   const { t } = useT("jobs")
   const coverageInfo = payload.coverage
-  const typedArtifacts = payload.typed_artifacts
+  // Defaulted like the other two read sites: the payload type declares this
+  // required, but a payload without it crashes the whole Summary tab through
+  // the route error boundary rather than just hiding one panel.
+  const typedArtifacts = payload.typed_artifacts ?? []
   return (
     <div className="space-y-4">
       <NeedsAttentionBanner job={payload.job} />
