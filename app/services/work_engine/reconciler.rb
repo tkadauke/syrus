@@ -1294,7 +1294,7 @@ module WorkEngine
         solid_queue_processes: solid_queue[:processes],
         solid_queue_pauses: solid_queue[:pauses],
         spawned_process_ids: PerformanceLogging.phase("work_engine.reconciler.snapshot_spawned_processes") {
-          SpawnedProcess.where(run_id: runs.map(&:id)).or(SpawnedProcess.where(workflow_id: workflows.map(&:id))).pluck(:id)
+          spawned_process_ids_for(runs.map(&:id), workflows.map(&:id))
         },
         instance_version_ids: PerformanceLogging.phase("work_engine.reconciler.snapshot_instance_versions") { InstanceVersion.fresh.pluck(:id) },
         main_health: PerformanceLogging.phase("work_engine.reconciler.snapshot_main_health") { repositories.index_with(&:main_health).transform_keys(&:slug) },
@@ -1405,6 +1405,20 @@ module WorkEngine
       workflow_run_ids = workflow_root_run_ids(run.workflow)
       direct, workflow = solid_queue[:jobs].partition { |job| job[:root_run_id] == run.id }
       (direct + workflow.select { |job| workflow_run_ids.include?(job[:root_run_id]) }).uniq { |job| job[:id] }
+    end
+
+    # Two indexed lookups unioned in Ruby, not one OR'd relation.
+    #
+    # `where(run_id: ...).or(where(workflow_id: ...))` reads better but MySQL
+    # will not combine the run_id and workflow_id indexes for it, so the OR
+    # degrades to a full scan of spawned_processes — 382k rows and 375MB on
+    # production. Measured there: the OR form took 127.4 seconds; the same two
+    # predicates queried separately took 0.99ms and 0.80ms.
+    def spawned_process_ids_for(run_ids, workflow_ids)
+      by_run = run_ids.empty? ? [] : SpawnedProcess.where(run_id: run_ids).pluck(:id)
+      by_workflow = workflow_ids.empty? ? [] : SpawnedProcess.where(workflow_id: workflow_ids).pluck(:id)
+
+      (by_run | by_workflow).sort
     end
 
     def solid_queue_root_run_ids

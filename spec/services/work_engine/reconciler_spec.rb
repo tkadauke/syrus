@@ -2515,6 +2515,37 @@ RSpec.describe WorkEngine::Reconciler do
       expect(result.snapshot.solid_queue_jobs.map { |entry| entry[:id] }).to include(queue_job.id)
     end
 
+    # `where(run_id:).or(where(workflow_id:))` cannot combine the two indexes
+    # on MySQL and degrades to a full scan of spawned_processes — 382k rows and
+    # 375MB on production, measured at 127.4 seconds against 0.99ms and 0.80ms
+    # for the same predicates queried separately.
+    it "collects spawned processes without OR-ing the two foreign keys" do
+      by_run = SpawnedProcess.create!(
+        run: run, kind: "agent", command: "claude --print", hostname: "worker-1", started_at: 5.minutes.ago
+      )
+      by_workflow = SpawnedProcess.create!(
+        workflow: workflow, kind: "grader", command: "bin/rspec", hostname: "worker-1", started_at: 5.minutes.ago
+      )
+      unrelated = SpawnedProcess.create!(
+        kind: "git", command: "git fetch", hostname: "worker-2", started_at: 5.minutes.ago
+      )
+
+      queries = []
+      callback = lambda do |_name, _started, _finished, _id, payload|
+        next if payload[:name] == "SCHEMA" || payload[:cached]
+
+        queries << payload[:sql].to_s if payload[:sql].to_s.include?("spawned_processes")
+      end
+      result = ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { reconcile(run_id: run.id) }
+
+      expect(result.snapshot.spawned_process_ids).to include(by_run.id, by_workflow.id)
+      expect(result.snapshot.spawned_process_ids).not_to include(unrelated.id)
+      expect(queries).not_to be_empty
+      queries.each do |sql|
+        expect(sql).not_to match(/run_id.*\bOR\b.*workflow_id/im), "still OR-ing both foreign keys: #{sql}"
+      end
+    end
+
     it "keeps failure evidence for the reconciled Run" do
       run.start!
       run.save!
