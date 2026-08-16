@@ -1,5 +1,6 @@
 class ChatPendingAction < ApplicationRecord
   TOOL_CALL_ANCHOR_REPAIR_SCAN_LIMIT = 250
+  TOOL_CALL_ANCHOR_REPAIR_MAX_AGE = 1.day
 
   ACTIONS = %w[
     cancel_job
@@ -196,10 +197,24 @@ class ChatPendingAction < ApplicationRecord
   end
 
   def self.repair_tool_call_anchors_for!(chat_session)
-    unanchored_ids = chat_session.pending_actions
+    unanchored_actions = chat_session.pending_actions
       .where(state: %w[queued pending], chat_message_id: nil)
-      .pluck(:id)
-    return if unanchored_ids.blank?
+      .select(:id, :chat_session_id, :tool_use_id, :created_at)
+      .to_a
+    return if unanchored_actions.blank?
+
+    unanchored_actions.select { |action| action.tool_use_id.present? }.each do |action|
+      anchor_to_tool_call!(
+        chat_session: chat_session,
+        pending_action_id: action.id,
+        tool_use_id: action.tool_use_id
+      )
+    end
+
+    legacy_unanchored_ids = unanchored_actions
+      .select { |action| action.tool_use_id.blank? && action.created_at >= TOOL_CALL_ANCHOR_REPAIR_MAX_AGE.ago }
+      .map(&:id)
+    return if legacy_unanchored_ids.blank?
 
     chat_session.messages
       .where(role: "tool_result")
@@ -209,7 +224,7 @@ class ChatPendingAction < ApplicationRecord
       .to_a
       .reverse_each do |message|
         pending_action_id = pending_action_id_from_tool_result(tool_result_payload(message))
-        next unless unanchored_ids.include?(pending_action_id.to_i)
+        next unless legacy_unanchored_ids.include?(pending_action_id.to_i)
 
         anchor_to_tool_call!(
           chat_session: chat_session,

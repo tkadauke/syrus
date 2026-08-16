@@ -4146,6 +4146,62 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(action.reload).to have_attributes(tool_call_message: tool_use, tool_use_id: "toolu_mergeability")
   end
 
+  it "does not scan old tool results forever for stale unanchored pending actions" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    job = Factories.job(repository: repository)
+    action = chat.pending_actions.create!(
+      action: "check_job_mergeability",
+      payload: { "job_id" => job.id },
+      created_at: 2.days.ago,
+      updated_at: 2.days.ago
+    )
+    tool_use = chat.messages.create!(
+      role: "tool_use",
+      tool_name: "syrus-chat-sidecar.check_job_mergeability",
+      tool_use_id: "toolu_old_mergeability",
+      content: {
+        "type" => "tool_use",
+        "id" => "toolu_old_mergeability",
+        "name" => "check_job_mergeability",
+        "input" => { "job_id" => job.id }
+      }
+    )
+    chat.messages.create!(
+      role: "tool_result",
+      tool_name: "syrus-chat-sidecar.check_job_mergeability",
+      tool_use_id: "toolu_old_mergeability",
+      content: {
+        "type" => "tool_result",
+        "tool_use_id" => "toolu_old_mergeability",
+        "content" => [
+          {
+            "type" => "text",
+            "text" => JSON.generate(
+              pending_action_id: action.id,
+              state: "pending",
+              message: "Check mergeability for #{job.slug}?"
+            )
+          }
+        ],
+        "is_error" => false
+      }
+    )
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(action.reload.tool_call_message).to be_nil
+    expect(parse_body["pending_actions"]).to contain_exactly(
+      include(
+        "id" => action.id,
+        "label" => "Check mergeability for #{job.slug}",
+        "chat_message_id" => nil
+      )
+    )
+    expect(tool_use.reload.pending_action_id).to be_nil
+  end
+
   it "counts proposed chat proposals and pending actions in the chat header payload" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
