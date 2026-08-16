@@ -122,25 +122,27 @@ class GithubClient
     end
   end
 
-  # Wraps Rails.cache with a per-user key namespace so faraday-http-cache
-  # entries from one user can't be served to another. Implements the
+  # Wraps a process-local memory store with a per-user key namespace so
+  # faraday-http-cache entries from one user can't be served to another. Implements the
   # subset of the cache interface faraday-http-cache calls: read, write,
   # delete.
   class ScopedCache
+    STORE = ActiveSupport::Cache::MemoryStore.new(size: 64.megabytes)
+
     def initialize(namespace)
       @prefix = "github_etag/#{namespace}/".freeze
     end
 
     def read(key)
-      Rails.cache.read(@prefix + key.to_s)
+      STORE.read(@prefix + key.to_s)
     end
 
     def write(key, value, opts = {})
-      Rails.cache.write(@prefix + key.to_s, value, opts)
+      STORE.write(@prefix + key.to_s, value, opts)
     end
 
     def delete(key)
-      Rails.cache.delete(@prefix + key.to_s)
+      STORE.delete(@prefix + key.to_s)
     end
   end
 

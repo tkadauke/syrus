@@ -121,6 +121,24 @@ RSpec.describe GithubClient do
     end
   end
 
+  describe "HTTP cache store" do
+    it "keeps GitHub response cache entries out of Rails.cache" do
+      cache = described_class::ScopedCache.new("u#{user.id}")
+      allow(Rails.cache).to receive(:read)
+      allow(Rails.cache).to receive(:write)
+      allow(Rails.cache).to receive(:delete)
+
+      cache.write("GET /repos/acme/widgets/issues", "cached-body", expires_in: 1.minute)
+
+      expect(cache.read("GET /repos/acme/widgets/issues")).to eq("cached-body")
+      expect(Rails.cache).not_to have_received(:read)
+      expect(Rails.cache).not_to have_received(:write)
+      expect(Rails.cache).not_to have_received(:delete)
+    ensure
+      described_class::ScopedCache::STORE.clear
+    end
+  end
+
   describe "installation token refresh" do
     before do
       AppSetting.current.update!(github_app_id: 123, github_app_private_key_pem: "stub-pem")
