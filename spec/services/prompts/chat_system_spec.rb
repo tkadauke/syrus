@@ -140,6 +140,11 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to include("Treat the tool response as")
     expect(out).to include("a pending action: tell the operator exactly what would be confirmed")
     expect(out).to include("Keep repair results operator-facing")
+    expect(out).to include("`manual_agentic_run`")
+    expect(out).to include("the workflow workspace is deleted as soon as\n  the run succeeds")
+    expect(out).to include("never give the operator filesystem-based\n  recovery instructions")
+    expect(out).to include("use the `get_job_diff`\n  tool")
+    expect(out).to include("reads the diff back from the Run's stored `agent_diff`\n  in the database")
   end
 
   it "does not expose admin repair prompting to non-admin chats" do

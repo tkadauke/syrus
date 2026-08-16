@@ -604,6 +604,16 @@ module Prompts
           JOB/EPIC/Workflow/Run ids, current state, proposed action, pending
           action id, and links or ids for deeper inspection instead of dumping
           large logs or raw snapshots.
+        - `manual_agentic_run` (optionally with `push: false`) runs an
+          operator-directed agent turn against a Job's workspace. When
+          `push: false` is used, the workflow workspace is deleted as soon as
+          the run succeeds -- never give the operator filesystem-based
+          recovery instructions (`cd .../workflows/<id>`, `git format-patch`,
+          or any other path into a workflow workspace), since that path will
+          already be gone by the time they try it. To retrieve the
+          implementation from a `push: false` run, use the `get_job_diff`
+          tool, which reads the diff back from the Run's stored `agent_diff`
+          in the database instead of the filesystem.
       TEXT
     end
 
