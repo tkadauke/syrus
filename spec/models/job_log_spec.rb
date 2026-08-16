@@ -23,6 +23,30 @@ RSpec.describe JobLog do
     expect(run.reload.job_logs.order(:sequence).pluck(:chunk)).to eq(%w[first second])
   end
 
+  it "retries when a concurrent append claims the same sequence first" do
+    JobLog.create!(run: run, chunk: "first", sequence: 0)
+
+    call_count = 0
+    allow(described_class).to receive(:next_sequence_for).and_wrap_original do |original, run_id|
+      call_count += 1
+      call_count == 1 ? 0 : original.call(run_id)
+    end
+
+    log = described_class.append!(run: run, chunk: "second")
+
+    expect(call_count).to eq(2)
+    expect(log.sequence).to eq(1)
+    expect(run.reload.job_logs.order(:sequence).pluck(:chunk)).to eq(%w[first second])
+  end
+
+  it "gives up after exhausting retry attempts on persistent collisions" do
+    JobLog.create!(run: run, chunk: "first", sequence: 0)
+
+    allow(described_class).to receive(:next_sequence_for).and_return(0)
+
+    expect { described_class.append!(run: run, chunk: "second") }.to raise_error(ActiveRecord::RecordInvalid)
+  end
+
   it "does not reload or save dirty state on the caller's run instance" do
     run.assign_attributes(prompt: "dirty in memory")
 
