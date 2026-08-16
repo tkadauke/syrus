@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_16_082000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_16_085000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -865,9 +865,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_082000) do
     t.integer "sequence", null: false
     t.datetime "updated_at", null: false
     t.index ["kind", "run_id"], name: "idx_job_logs_kind_run_id"
-    t.index ["run_id", "kind", "chunk"], name: "idx_job_logs_run_kind_chunk_lookup"
     t.index ["run_id", "sequence"], name: "index_job_logs_on_run_id_and_sequence", unique: true
-    t.index ["run_id"], name: "index_job_logs_on_run_id"
   end
 
   create_table "job_pins", force: :cascade do |t|
