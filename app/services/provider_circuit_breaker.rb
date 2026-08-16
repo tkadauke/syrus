@@ -330,7 +330,7 @@ class ProviderCircuitBreaker
   end
 
   def recent_log_text(run)
-    run.job_logs.order(sequence: :desc).limit(5).pluck(:chunk).join(" ")
+    run.job_logs.reorder(sequence: :desc).limit(5).pluck(:chunk).join(" ")
   end
 
   def positive_provider_evidence_after?(run)
