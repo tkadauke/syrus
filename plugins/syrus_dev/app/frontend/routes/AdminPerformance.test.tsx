@@ -140,11 +140,14 @@ describe("AdminPerformance", () => {
     const dialog = await screen.findByRole("dialog", { name: "Slow request SQL details" })
     expect(within(dialog).getByText("request-123")).toBeInTheDocument()
     expect(within(dialog).getAllByText((_content, element) => element?.textContent?.includes("246 SQL · 629ms") ?? false).length).toBeGreaterThan(0)
+    expect(within(dialog).getByText("Slow phases")).toBeInTheDocument()
+    expect(within(dialog).getByText("chat_payload.messages_json")).toBeInTheDocument()
+    expect(within(dialog).getByText("Message Load")).toBeInTheDocument()
     expect(within(dialog).getByText("Job Exists")).toBeInTheDocument()
     expect(within(dialog).getByText("SELECT 1 AS one FROM `jobs` WHERE `jobs`.`id` = ? LIMIT ?")).toBeInTheDocument()
     expect(within(dialog).getByText("620ms")).toBeInTheDocument()
 
-    fireEvent.click(within(dialog).getByRole("button", { name: "Explain" }))
+    fireEvent.click(within(dialog).getAllByRole("button", { name: "Explain" }).at(-1)!)
     expect(await screen.findByRole("dialog", { name: "SQL explain result" })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Run EXPLAIN" }))
     await screen.findByText("Table jobs")
@@ -284,11 +287,25 @@ function performancePayload() {
         ]
       },
       {
-        event: "syrus.performance.phase",
-        occurred_at: "2026-08-01T14:32:46Z",
+        event: "syrus.performance.slow_phase",
+        occurred_at: "2026-08-01T14:32:47Z",
         app_revision: "abcdef1234567890",
-        duration_ms: 620,
-        phase: "chat_payload.recent_chats"
+        request_id: "request-123",
+        duration_ms: 520,
+        phase: "chat_payload.messages_json",
+        metadata: { chat_id: 126, message_count: 40 },
+        sql_count: 8,
+        sql_duration_ms: 300,
+        top_sql_fingerprints: [
+          {
+            fingerprint: "SELECT `chat_messages`.* FROM `chat_messages` WHERE `chat_messages`.`chat_session_id` = ?",
+            sample_sql: "SELECT `chat_messages`.* FROM `chat_messages` WHERE `chat_messages`.`chat_session_id` = ?",
+            name: "Message Load",
+            count: 8,
+            total_duration_ms: 300,
+            max_duration_ms: 90
+          }
+        ]
       }
     ]
   }

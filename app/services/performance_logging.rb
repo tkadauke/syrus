@@ -65,6 +65,7 @@ module PerformanceLogging
     Current.performance_sql_duration_ms = 0.0
     Current.performance_slow_sql_count = 0
     Current.performance_sql_fingerprints = {}
+    Current.performance_phase_stack = []
     yield
   end
 
@@ -90,9 +91,11 @@ module PerformanceLogging
     Current.performance_sql_count = Current.performance_sql_count.to_i + 1
     Current.performance_sql_duration_ms = Current.performance_sql_duration_ms.to_f + duration_ms.to_f
     record_sql_fingerprint(payload, duration_ms)
+    record_phase_sql(payload, duration_ms)
     return if duration_ms.to_f < slow_sql_threshold_ms
 
     Current.performance_slow_sql_count = Current.performance_slow_sql_count.to_i + 1
+    Current.performance_phase_stack&.last&.then { |phase_entry| phase_entry["slow_sql_count"] += 1 }
     emit(
       base_event(SLOW_SQL_EVENT).merge(
         request_context,
@@ -133,17 +136,31 @@ module PerformanceLogging
   def phase(name, metadata = {})
     return yield unless enabled?
 
+    phase_entry = {
+      "phase" => safe_string(name, 200),
+      "sql_count" => 0,
+      "sql_duration_ms" => 0.0,
+      "slow_sql_count" => 0,
+      "sql_fingerprints" => {}
+    }
+    phase_stack = Current.performance_phase_stack ||= []
+    phase_stack.push(phase_entry)
     started_at = monotonic_ms
     yield
   ensure
     duration_ms = monotonic_ms - started_at if started_at
+    phase_stack&.delete(phase_entry) if phase_entry
     if duration_ms && duration_ms >= slow_phase_threshold_ms
       emit(
         base_event(SLOW_PHASE_EVENT).merge(
           request_context,
           "duration_ms" => rounded_duration(duration_ms),
-          "phase" => safe_string(name, 200),
-          "metadata" => safe_metadata(metadata)
+          "phase" => phase_entry&.fetch("phase", nil) || safe_string(name, 200),
+          "metadata" => safe_metadata(metadata),
+          "sql_count" => phase_entry&.fetch("sql_count", 0).to_i,
+          "sql_duration_ms" => rounded_duration(phase_entry&.fetch("sql_duration_ms", 0.0)),
+          "slow_sql_count" => phase_entry&.fetch("slow_sql_count", 0).to_i,
+          "top_sql_fingerprints" => top_sql_fingerprints(phase_entry&.fetch("sql_fingerprints", {}))
         )
       )
     end
@@ -315,6 +332,19 @@ module PerformanceLogging
 
   def record_sql_fingerprint(payload, duration_ms)
     fingerprints = Current.performance_sql_fingerprints ||= {}
+    add_sql_fingerprint(fingerprints, payload, duration_ms)
+  end
+
+  def record_phase_sql(payload, duration_ms)
+    phase_entry = Current.performance_phase_stack&.last
+    return unless phase_entry
+
+    phase_entry["sql_count"] += 1
+    phase_entry["sql_duration_ms"] += duration_ms.to_f
+    add_sql_fingerprint(phase_entry["sql_fingerprints"], payload, duration_ms)
+  end
+
+  def add_sql_fingerprint(fingerprints, payload, duration_ms)
     fingerprint = fingerprint_sql(payload[:sql])
     return if fingerprint.blank?
     return if fingerprints.size >= MAX_SQL_FINGERPRINTS_PER_REQUEST && !fingerprints.key?(fingerprint)
@@ -333,8 +363,8 @@ module PerformanceLogging
     entry["max_duration_ms"] = [ entry["max_duration_ms"], duration ].max
   end
 
-  def top_sql_fingerprints
-    (Current.performance_sql_fingerprints || {}).to_h.values
+  def top_sql_fingerprints(fingerprints = Current.performance_sql_fingerprints)
+    (fingerprints || {}).to_h.values
       .sort_by { |entry| [ -entry["total_duration_ms"].to_f, -entry["count"].to_i, entry["fingerprint"].to_s ] }
       .first(TOP_SQL_FINGERPRINT_LIMIT)
       .map do |entry|

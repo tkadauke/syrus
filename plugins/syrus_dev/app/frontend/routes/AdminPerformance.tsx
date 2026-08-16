@@ -219,6 +219,15 @@ function SlowRequestSqlModal({ events, onClose, onExplain, request }: { events: 
     .filter((event) => event.event === "syrus.performance.slow_request")
     .filter((event) => event.method === request.method && event.path === request.path && event.controller === request.controller && event.action === request.action)
     .sort((a, b) => (b.occurred_at ?? "").localeCompare(a.occurred_at ?? ""))
+  const phasesByRequestId = events
+    .filter((event) => event.event === "syrus.performance.slow_phase" && event.request_id)
+    .reduce<Record<string, PerformanceEvent[]>>((grouped, event) => {
+      const requestId = event.request_id
+      if (!requestId) return grouped
+      grouped[requestId] ||= []
+      grouped[requestId].push(event)
+      return grouped
+    }, {})
 
   return (
     <div aria-label={t("performance.request_sql_modal_aria")} aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog">
@@ -243,11 +252,45 @@ function SlowRequestSqlModal({ events, onClose, onExplain, request }: { events: 
                 <div className="font-mono">{event.request_id || t("performance.request_without_id")}</div>
                 <div>{formatDate(event.occurred_at)} · {formatMs(event.duration_ms)} · {t("performance.sql_context", { count: event.sql_count ?? 0, duration: formatMs(event.sql_duration_ms) })}</div>
               </div>
-              <RequestSqlTable fingerprints={event.top_sql_fingerprints ?? []} onExplain={onExplain} />
+              <div className="space-y-4 p-4">
+                <RequestPhasesTable onExplain={onExplain} phases={event.request_id ? phasesByRequestId[event.request_id] ?? [] : []} />
+                <div>
+                  <h3 className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("performance.request_sql_queries")}</h3>
+                  <RequestSqlTable fingerprints={event.top_sql_fingerprints ?? []} onExplain={onExplain} />
+                </div>
+              </div>
             </article>
           )) : <PanelMessage>{t("performance.request_sql_no_events")}</PanelMessage>}
         </div>
       </section>
+    </div>
+  )
+}
+
+function RequestPhasesTable({ onExplain, phases }: { onExplain: (sql: string) => void; phases: PerformanceEvent[] }) {
+  const { t } = useT("syrus_dev")
+  const sortedPhases = [...phases].sort((a, b) => (b.duration_ms ?? 0) - (a.duration_ms ?? 0))
+  if (sortedPhases.length === 0) return <PanelMessage>{t("performance.request_sql_no_phases")}</PanelMessage>
+
+  return (
+    <div>
+      <h3 className="mb-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("performance.request_sql_phases")}</h3>
+      <div className="space-y-3">
+        {sortedPhases.map((phase, index) => (
+          <article className="overflow-hidden rounded border border-gray-200 dark:border-gray-700" key={`${phase.phase}-${phase.occurred_at}-${index}`}>
+            <div className="grid gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 md:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
+              <div className="min-w-0">
+                <div className="truncate font-mono text-gray-900 dark:text-gray-100" title={phase.phase ?? undefined}>{phase.phase ?? "-"}</div>
+                <div className="mt-1 truncate" title={compactJson(phase.metadata)}>{compactJson(phase.metadata)}</div>
+              </div>
+              <div className="font-mono">{formatMs(phase.duration_ms)}</div>
+              <div className="font-mono">{t("performance.sql_context", { count: phase.sql_count ?? 0, duration: formatMs(phase.sql_duration_ms) })}</div>
+              <div className="font-mono">{formatDate(phase.occurred_at)}</div>
+            </div>
+            <RequestSqlTable fingerprints={phase.top_sql_fingerprints ?? []} onExplain={onExplain} />
+          </article>
+        ))}
+      </div>
     </div>
   )
 }

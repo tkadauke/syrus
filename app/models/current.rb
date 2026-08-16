@@ -9,7 +9,8 @@ class Current < ActiveSupport::CurrentAttributes
             :performance_sql_count,
             :performance_sql_duration_ms,
             :performance_slow_sql_count,
-            :performance_sql_fingerprints
+            :performance_sql_fingerprints,
+            :performance_phase_stack
 
   def user
     api_user || session&.user

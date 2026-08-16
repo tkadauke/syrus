@@ -145,7 +145,10 @@ RSpec.describe PerformanceLogging do
     allow(described_class).to receive(:slow_phase_threshold_ms).and_return(0.0)
 
     described_class.with_request_context(request_id: "req-phase", path: "/dashboard") do
-      described_class.phase("dashboard_payload", subject: "job", view: "list") { "done" }
+      described_class.phase("dashboard_payload", subject: "job", view: "list") do
+        described_class.record_sql({ name: "Job Load", sql: "SELECT * FROM jobs WHERE state = 'open'" }, 12.0)
+        "done"
+      end
     end
 
     event = described_class::Store.recent.first
@@ -154,7 +157,17 @@ RSpec.describe PerformanceLogging do
       "request_id" => "req-phase",
       "path" => "/dashboard",
       "phase" => "dashboard_payload",
-      "metadata" => { "subject" => "job", "view" => "list" }
+      "metadata" => { "subject" => "job", "view" => "list" },
+      "sql_count" => 1,
+      "sql_duration_ms" => 12.0,
+      "slow_sql_count" => 0
+    )
+    expect(event["top_sql_fingerprints"].first).to include(
+      "fingerprint" => "SELECT * FROM jobs WHERE state = ?",
+      "sample_sql" => "SELECT * FROM jobs WHERE state = 'open'",
+      "name" => "Job Load",
+      "count" => 1,
+      "total_duration_ms" => 12.0
     )
   end
 
