@@ -5,9 +5,11 @@ class FlushObservabilityEventsJob < ApplicationJob
   MAX_DELETE_BATCHES = Integer(ENV["SYRUS_OBSERVABILITY_PRUNE_MAX_BATCHES"], exception: false) || 50
 
   def perform
-    Observability::EventSink.flush!
-    prune_expired(PerformanceLogEvent)
-    prune_expired(WorkflowActivityEvent)
+    PerformanceLogging.suppress do
+      Observability::EventSink.flush!
+      prune_expired(PerformanceLogEvent)
+      prune_expired(WorkflowActivityEvent)
+    end
   end
 
   private

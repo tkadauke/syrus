@@ -13,6 +13,15 @@ RSpec.describe FlushObservabilityEventsJob do
     expect(PerformanceLogEvent.exists?(fresh.id)).to eq(true)
   end
 
+  it "suppresses performance logging while flushing and pruning observability events" do
+    allow(PerformanceLogging).to receive(:suppress).and_call_original
+    allow(Observability::EventSink).to receive(:flush!)
+
+    described_class.new.perform
+
+    expect(PerformanceLogging).to have_received(:suppress)
+  end
+
   it "bounds expired log deletes per run" do
     stub_const("FlushObservabilityEventsJob::DELETE_BATCH_SIZE", 2)
     stub_const("FlushObservabilityEventsJob::MAX_DELETE_BATCHES", 1)

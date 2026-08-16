@@ -223,7 +223,16 @@ module PerformanceLogging
   def ignored_sql?(payload)
     return true if payload[:cached] || payload[:name] == "SCHEMA"
 
-    payload[:sql].to_s.match?(/\A\s*(BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE SAVEPOINT)\b/i)
+    sql = payload[:sql].to_s
+    name = payload[:name].to_s
+    return true if observability_sql?(sql, name)
+
+    sql.match?(/\A\s*(BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE SAVEPOINT)\b/i)
+  end
+
+  def observability_sql?(sql, name)
+    name.start_with?("PerformanceLogEvent ", "OperationalLogEvent ", "WorkflowActivityEvent ", "WorkEngineReconcilerActivityEvent ") ||
+      sql.match?(/\b(?:performance_log_events|operational_log_events|workflow_activity_events|work_engine_reconciler_activity_events)\b/i)
   end
 
   def ignored_request?(payload)

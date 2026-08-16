@@ -152,6 +152,8 @@ fi
 # grace period before the new pod becomes ready. 15m gives us ~5m
 # of headroom.
 ROLLOUT_TIMEOUT="${ROLLOUT_TIMEOUT:-15m}"
+ROLLOUT_STALL_DIAGNOSE_INTERVAL="${ROLLOUT_STALL_DIAGNOSE_INTERVAL:-90s}"
+ROLLOUT_VERBOSE_DIAGNOSTICS="${ROLLOUT_VERBOSE_DIAGNOSTICS:-false}"
 MISE_CACHE_HOST_PATH="${MISE_CACHE_HOST_PATH:-/data/syrus-mise-cache}"
 MYSQL_BACKUP_CRONJOB="${MYSQL_BACKUP_CRONJOB:-syrus-mysql-backup}"
 MYSQL_BACKUP_DRAIN_SECONDS="${MYSQL_BACKUP_DRAIN_SECONDS:-30}"
@@ -200,10 +202,7 @@ rollout() {
   KUBECONFIG="$kubeconfig" kubectl rollout restart -n "$namespace" "${targets[@]}"
   for dep in "${targets[@]}"; do
     echo "→ ${label}: waiting for ${dep}"
-    if ! KUBECONFIG="$kubeconfig" kubectl rollout status -n "$namespace" "$dep" --timeout="$ROLLOUT_TIMEOUT"; then
-      diagnose_rollout_target "$label" "$kubeconfig" "$namespace" "$dep"
-      exit 1
-    fi
+    wait_for_rollout_target "$label" "$kubeconfig" "$namespace" "$dep"
   done
   verify_sha "$label" "$kubeconfig" "$namespace"
   resume_mysql_backup "$kubeconfig" "$namespace" "$label"
@@ -301,8 +300,46 @@ running_mysql_backup_jobs() {
     sort -u
 }
 
-diagnose_rollout_target() {
+wait_for_rollout_target() {
   local label="$1" kubeconfig="$2" namespace="$3" target="$4"
+  local total_seconds poll_seconds deadline
+  total_seconds="$(duration_to_seconds "$ROLLOUT_TIMEOUT")"
+  poll_seconds="$(duration_to_seconds "$ROLLOUT_STALL_DIAGNOSE_INTERVAL")"
+  deadline=$((SECONDS + total_seconds))
+
+  while true; do
+    if KUBECONFIG="$kubeconfig" kubectl rollout status -n "$namespace" "$target" --timeout="${poll_seconds}s"; then
+      return 0
+    fi
+
+    if [ "$SECONDS" -ge "$deadline" ]; then
+      diagnose_rollout_target_full "$label" "$kubeconfig" "$namespace" "$target"
+      echo "✗ ${label}: ${target} still not rolled out after ${ROLLOUT_TIMEOUT}" >&2
+      exit 1
+    fi
+
+    if [ "$ROLLOUT_VERBOSE_DIAGNOSTICS" = true ]; then
+      diagnose_rollout_target_full "$label" "$kubeconfig" "$namespace" "$target"
+    else
+      diagnose_rollout_target_summary "$label" "$kubeconfig" "$namespace" "$target"
+    fi
+    echo "→ ${label}: ${target} still rolling out; rechecking until ${ROLLOUT_TIMEOUT} total timeout"
+  done
+}
+
+duration_to_seconds() {
+  local value="$1"
+  case "$value" in
+    *s) echo "${value%s}" ;;
+    *m) echo "$(( ${value%m} * 60 ))" ;;
+    *h) echo "$(( ${value%h} * 3600 ))" ;;
+    *[!0-9]*) echo "900" ;;
+    *) echo "$value" ;;
+  esac
+}
+
+rollout_selector() {
+  local kubeconfig="$1" namespace="$2" target="$3"
   local selector selector_key
   selector="$(KUBECONFIG="$kubeconfig" kubectl get -n "$namespace" "$target" -o jsonpath='{.spec.selector.matchLabels.name}' 2>/dev/null || true)"
   selector_key="name"
@@ -310,20 +347,39 @@ diagnose_rollout_target() {
     selector="$(KUBECONFIG="$kubeconfig" kubectl get -n "$namespace" "$target" -o jsonpath='{.spec.selector.matchLabels.app}' 2>/dev/null || true)"
     selector_key="app"
   fi
+  [ -n "$selector" ] && printf '%s=%s\n' "$selector_key" "$selector"
+}
 
-  echo "✗ ${label}: rollout target ${target} did not finish within ${ROLLOUT_TIMEOUT}" >&2
+diagnose_rollout_target_summary() {
+  local label="$1" kubeconfig="$2" namespace="$3" target="$4"
+  local selector
+  selector="$(rollout_selector "$kubeconfig" "$namespace" "$target")"
+
+  echo "→ ${label}: rollout target ${target} is not complete yet" >&2
   KUBECONFIG="$kubeconfig" kubectl get -n "$namespace" "$target" -o wide >&2 || true
   if [ -n "$selector" ]; then
     echo "→ ${label}: pods for ${target}" >&2
-    KUBECONFIG="$kubeconfig" kubectl get pods -n "$namespace" -l "${selector_key}=${selector}" -o wide >&2 || true
+    KUBECONFIG="$kubeconfig" kubectl get pods -n "$namespace" -l "$selector" -o wide >&2 || true
+    echo "→ ${label}: warning events for ${target}" >&2
+    KUBECONFIG="$kubeconfig" kubectl get events -n "$namespace" --field-selector type=Warning --sort-by=.lastTimestamp | tail -20 >&2 || true
+  else
+    echo "→ ${label}: unable to derive selector for ${target}" >&2
+  fi
+}
+
+diagnose_rollout_target_full() {
+  local label="$1" kubeconfig="$2" namespace="$3" target="$4"
+  local selector
+  selector="$(rollout_selector "$kubeconfig" "$namespace" "$target")"
+
+  diagnose_rollout_target_summary "$label" "$kubeconfig" "$namespace" "$target"
+  if [ -n "$selector" ]; then
     echo "→ ${label}: recent events for ${target}" >&2
     KUBECONFIG="$kubeconfig" kubectl get events -n "$namespace" --sort-by=.lastTimestamp | tail -80 >&2 || true
     echo "→ ${label}: describe pods for ${target}" >&2
-    KUBECONFIG="$kubeconfig" kubectl describe pods -n "$namespace" -l "${selector_key}=${selector}" >&2 || true
+    KUBECONFIG="$kubeconfig" kubectl describe pods -n "$namespace" -l "$selector" >&2 || true
     echo "→ ${label}: recent logs for ${target}" >&2
-    KUBECONFIG="$kubeconfig" kubectl logs -n "$namespace" -l "${selector_key}=${selector}" --all-containers --tail=120 >&2 || true
-  else
-    echo "→ ${label}: unable to derive selector for ${target}" >&2
+    KUBECONFIG="$kubeconfig" kubectl logs -n "$namespace" -l "$selector" --all-containers --tail=120 >&2 || true
   fi
 }
 

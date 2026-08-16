@@ -57,6 +57,23 @@ RSpec.describe PerformanceLogging do
     expect(Rails.logger).to have_received(:info).with(/syrus\.performance\.slow_sql/)
   end
 
+  it "does not record observability table writes as slow SQL" do
+    Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
+    Current.reset
+    allow(described_class).to receive(:slow_sql_threshold_ms).and_return(1.0)
+
+    described_class.record_sql(
+      {
+        name: "PerformanceLogEvent Bulk Insert",
+        sql: "INSERT INTO `performance_log_events` (`occurred_at`, `event_name`) VALUES ('2026-08-16', 'slow')"
+      },
+      5_000.0
+    )
+
+    expect(described_class::Store.recent).to be_empty
+    expect(Rails.logger).not_to have_received(:info)
+  end
+
   it "records slow request events with SQL counters and top SQL fingerprints" do
     Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
     Current.reset
