@@ -10,8 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_15_040000) do
-
+ActiveRecord::Schema[8.1].define(version: 2026_08_15_050000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1095,6 +1094,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_15_040000) do
     t.datetime "updated_at", null: false
     t.integer "workflow_id"
     t.index ["repository_id", "checked_at"], name: "idx_mbhc_repo_checked_at"
+    t.index ["repository_id", "sha", "ci_health"], name: "idx_mbhc_repo_sha_ci_health"
+    t.index ["repository_id", "sha", "grader_health"], name: "idx_mbhc_repo_sha_grader_health"
+    t.index ["repository_id", "sha", "source", "checked_at"], name: "idx_mbhc_repo_sha_source_checked_at"
     t.index ["repository_id"], name: "index_main_branch_health_checks_on_repository_id"
     t.index ["workflow_id"], name: "index_main_branch_health_checks_on_workflow_id"
   end
