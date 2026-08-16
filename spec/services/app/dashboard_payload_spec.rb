@@ -729,6 +729,31 @@ RSpec.describe App::DashboardPayload do
     end
   end
 
+  describe "fast built-in smart folder counts" do
+    before { SmartFolder.ensure_builtins_for_subject!("job") }
+
+    it "keeps the optimized inbox count aligned with the generic inbox filter" do
+      inbox_folder = SmartFolder.find_builtin_by_attention("inbox")
+      implemented = Factories.job_record(user: user, repository: repo, state: "implemented")
+      failed = Factories.job_record(user: user, repository: repo, state: "failed")
+      running = Factories.job_record(user: user, repository: repo, state: "implemented")
+      Workflow.create!(job: running, trigger_kind: "initial", state: "running")
+      other_user = Factories.user
+      other_repo = Factories.repository(user: other_user, owner: "acme", name: "other")
+      Factories.job_record(user: other_user, owner_user: other_user, repository: other_repo, state: "implemented")
+
+      result = call(subject: "job", section: "chrome")
+      count = result.fetch(:smart_folders).find { |folder| folder[:key] == "inbox" }.fetch(:count)
+      generic_count = Jobs::Filter.from_tree(inbox_folder.filter, user: user)
+                                  .apply(App::DashboardPayload.new(user: user, params: ActionController::Parameters.new(subject: "job")).send(:jobs_base_scope))
+                                  .count
+
+      expect(count).to eq(generic_count)
+      expect(count).to eq(2)
+      expect([ implemented, failed ].map(&:id)).to all(be_present)
+    end
+  end
+
   describe "smart folder count caching" do
     before { SmartFolder.ensure_builtins_for_subject!("job") }
 

@@ -121,6 +121,9 @@ module App
       def smart_folder_count_uncached(folder)
         case subject
         when "job"
+          count = fast_builtin_job_count(folder)
+          return count unless count.nil?
+
           Jobs::Filter.from_tree(folder.filter, user: user).apply(jobs_base_scope).count
         when "workflow"
           Workflows::Filter.from_tree(folder.filter, user: user).apply(workflows_base_scope).count
@@ -130,6 +133,46 @@ module App
           scope = scope.where.not(state: Epic::ARCHIVED_STATE) unless filter.includes_archived_state?
           filter.apply(scope).count
         end
+      end
+
+      def fast_builtin_job_count(folder)
+        return nil unless folder.builtin?
+
+        case folder.builtin_key
+        when "inbox" then fast_inbox_job_count
+        else nil
+        end
+      end
+
+      def fast_job_builtin_scope
+        jobs_base_scope
+          .where(kind: Filters::Chips::Jobs::JobType::USER_KINDS)
+          .merge(Job.effectively_owned_by(user))
+      end
+
+      def fast_inbox_job_count
+        scope = fast_job_builtin_scope.open_threads.without_active_workflows
+        scope.where(
+          <<~SQL.squish,
+            (
+              jobs.last_seen_comment_at IS NOT NULL
+              AND (jobs.last_feedback_addressed_at IS NULL OR jobs.last_seen_comment_at > jobs.last_feedback_addressed_at)
+              AND jobs.state NOT IN (:feedback_excluded_states)
+            )
+            OR jobs.state = :failed_state
+            OR (
+              jobs.landing_failure_reason IS NOT NULL
+              AND jobs.landing_failure_reason NOT LIKE :start_blocker_prefix
+            )
+            OR jobs.validity IN (:review_validities)
+            OR jobs.state = :implemented_state
+          SQL
+          feedback_excluded_states: %w[ triaging queued running landing ],
+          failed_state: "failed",
+          start_blocker_prefix: "#{LandingQueueReentry::START_BLOCKER_PREFIX}%",
+          review_validities: %w[ duplicate already_implemented ],
+          implemented_state: "implemented"
+        ).count
       end
 
       def preferences_json
