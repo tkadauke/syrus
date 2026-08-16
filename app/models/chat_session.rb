@@ -166,6 +166,10 @@ class ChatSession < ApplicationRecord
   end
 
   def repository
+    if association(:repository_attachments).loaded?
+      return repository_attachments.first&.attachable || @initial_repository
+    end
+
     attached_repositories.first || @initial_repository
   end
 

@@ -4,6 +4,18 @@ require "tmpdir"
 RSpec.describe ChatSession do
   let(:repo) { Factories.repository }
 
+  def captured_sql
+    queries = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      next if payload[:name] == "SCHEMA" || payload[:cached]
+
+      queries << payload[:sql].to_s
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+    queries
+  end
+
   it "creates with valid attributes and token defaults" do
     session = described_class.create!(repository: repo, user: repo.user, title: "Plan the aqueduct")
 
@@ -13,6 +25,15 @@ RSpec.describe ChatSession do
     expect(session.cumulative_input_tokens).to eq(0)
     expect(session.cumulative_output_tokens).to eq(0)
     expect(session.cumulative_cost).to eq(0)
+  end
+
+  it "uses preloaded repository attachments when resolving the primary repository" do
+    described_class.create!(repository: repo, user: repo.user, title: "Plan the aqueduct")
+    session = described_class.preload(repository_attachments: :attachable).find_by!(title: "Plan the aqueduct")
+
+    queries = captured_sql { expect(session.repository).to eq(repo) }
+
+    expect(queries.grep(/chat_attachments|repositories/i)).to be_empty
   end
 
   it "can exist without an attached repository" do
