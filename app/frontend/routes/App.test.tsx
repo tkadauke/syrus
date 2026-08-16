@@ -10189,14 +10189,11 @@ describe("App", () => {
         next_path: null
       }
     })
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
-      const path = String(input)
-      if (path === "/api/v1/app/jobs/42/workflows?workflows_page=2") {
-        return Promise.resolve(new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } }))
-      }
-
-      return Promise.resolve(new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } }))
-    })
+    // Both the initial job detail fetch and the dedicated paginated workflows
+    // fetch land on this mock; a Response body can only be read once, so a
+    // shared instance (mockResolvedValue) would make the second read fail.
+    // Build a fresh Response per call instead.
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(payload)))
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
