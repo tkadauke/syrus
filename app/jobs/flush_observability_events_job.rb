@@ -1,7 +1,7 @@
 class FlushObservabilityEventsJob < ApplicationJob
   queue_as :low_priority_maintenance
 
-  DELETE_BATCH_SIZE = Integer(ENV["SYRUS_OBSERVABILITY_PRUNE_BATCH_SIZE"], exception: false) || 1_000
+  DELETE_BATCH_SIZE = Integer(ENV["SYRUS_OBSERVABILITY_PRUNE_BATCH_SIZE"], exception: false) || 100
   MAX_DELETE_BATCHES = Integer(ENV["SYRUS_OBSERVABILITY_PRUNE_MAX_BATCHES"], exception: false) || 50
 
   def perform
@@ -17,7 +17,10 @@ class FlushObservabilityEventsJob < ApplicationJob
   def prune_expired(model)
     deleted = 0
     MAX_DELETE_BATCHES.times do
-      batch_deleted = model.expired.order(:id).limit(DELETE_BATCH_SIZE).delete_all
+      ids = model.expired.reorder(nil).limit(DELETE_BATCH_SIZE).pluck(:id)
+      break if ids.empty?
+
+      batch_deleted = model.where(id: ids).delete_all
       break if batch_deleted.zero?
 
       deleted += batch_deleted
