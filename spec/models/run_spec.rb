@@ -533,6 +533,31 @@ RSpec.describe Run do
       expect(step.runs.where(state: "queued").count).to eq(0)
     end
 
+    it "does not retry failed grader commands just because process cleanup looks stopped" do
+      run = step.runs.create!(job: job, trigger_kind: "initial", state: "running")
+      run.create_run_diagnostic!(
+        error_class: "Steps::Base::StepFailed",
+        error_message: "grader react-tests failed (exit 1)"
+      )
+      SpawnedProcess.create!(
+        run: run,
+        workflow: workflow,
+        kind: "grader",
+        command: "npm run test:react",
+        hostname: "worker-1",
+        started_at: 2.minutes.ago,
+        finished_at: 1.minute.ago,
+        outcome: "stopped"
+      )
+
+      run.fail!
+      run.save!
+
+      expect(step.reload).to be_failed
+      expect(step.runs.where(state: "queued").count).to eq(0)
+      expect(run.reload.run_failure_classification.classification).to eq("grader_failure")
+    end
+
     it "does not call StepDispatcher.fail_from when a retry run is created" do
       run = step.runs.create!(job: job, trigger_kind: "initial", state: "running")
       run.agent_outcome = "worker_died"
