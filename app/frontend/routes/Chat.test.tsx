@@ -5,6 +5,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { ChatRoute } from "./Chat"
+import { ConnectionContext } from "../lib/connectionContext"
 import { getStartingPhrase } from "./chat/streamChrome"
 import { shouldAnimateMessageEntrance } from "./chat/MessageCards"
 import { numericArg } from "./chat/utils"
@@ -238,6 +239,76 @@ describe("chat message tail refetch", () => {
 
     await act(async () => {
       await queryClient.refetchQueries({ queryKey: ["chats", "8", ""] })
+    })
+
+    await waitFor(() => expect(chatGetCount).toBe(2))
+    expect(screen.getByText("Discuss aqueducts.")).toBeInTheDocument()
+    expect(screen.getByText("What did the aqueduct plan say?")).toBeInTheDocument()
+  })
+
+  it("preserves older messages across the real Action Cable stale-reconnect refetch mid-turn", async () => {
+    const olderMessage = {
+      type: "message",
+      id: 1,
+      role: "user",
+      tool_name: null,
+      content: { text: "What did the aqueduct plan say?" },
+      text: "What did the aqueduct plan say?",
+      bookmarkable: true
+    }
+    const newerMessage = {
+      type: "message",
+      id: 9,
+      role: "assistant",
+      tool_name: null,
+      content: { text: "Discuss aqueducts." },
+      text: "Discuss aqueducts.",
+      bookmarkable: true
+    }
+
+    let chatGetCount = 0
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/chats/8") {
+        chatGetCount += 1
+        const messages = chatGetCount === 1 ? [olderMessage, newerMessage] : [newerMessage]
+        // turn_in_flight stays true while a multi-step "plan" turn is in progress — the
+        // exact window in which useChatControlsRefetchOnReconnect reacts to a reconnect.
+        return Promise.resolve(jsonResponse(chatPayload({ messages }, { turn_in_flight: true })))
+      }
+
+      return Promise.resolve(jsonResponse(chatPayload()))
+    })
+
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    function Harness({ reconnectAt }: { reconnectAt: number | null }) {
+      return (
+        <QueryClientProvider client={queryClient}>
+          <ConnectionContext.Provider value={{ reconnectAt }}>
+            <MemoryRouter initialEntries={["/app-shell/chats/8"]}>
+              <Routes>
+                <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
+              </Routes>
+            </MemoryRouter>
+          </ConnectionContext.Provider>
+        </QueryClientProvider>
+      )
+    }
+
+    const { rerender } = render(<Harness reconnectAt={null} />)
+
+    expect(await screen.findByText("What did the aqueduct plan say?")).toBeInTheDocument()
+    expect(screen.getByText("Discuss aqueducts.")).toBeInTheDocument()
+
+    // Simulate the Action Cable ConnectionMonitor reopening a stale connection after the
+    // tab was backgrounded (e.g. by the OS screenshot tool) — exactly what drives
+    // useChatControlsRefetchOnReconnect's real refetchQueries call while turn_in_flight.
+    await act(async () => {
+      rerender(<Harness reconnectAt={1000} />)
     })
 
     await waitFor(() => expect(chatGetCount).toBe(2))
