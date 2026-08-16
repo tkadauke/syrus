@@ -352,6 +352,7 @@ RSpec.describe App::DashboardPayload do
       newer = Factories.job_record(user: user, repository: repo, state: "implemented", pr_number: 103)
       newer.approve!(via: "github_review")
       newer.update!(approved_at: 10.minutes.ago)
+      LandingQueueProcessor.refresh_snapshot!(user.jobs)
 
       result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
 
@@ -378,6 +379,7 @@ RSpec.describe App::DashboardPayload do
       newer = Factories.job_record(user: user, repository: repo, state: "implemented", pr_number: 103)
       newer.approve!(via: "github_review")
       newer.update!(approved_at: 10.minutes.ago)
+      LandingQueueProcessor.refresh_snapshot!(user.jobs)
 
       result = call(subject: "job", smart_folder_id: landing_queue_folder.id, sort_column: "landing_queue_position", sort_direction: "desc")
 
@@ -398,6 +400,7 @@ RSpec.describe App::DashboardPayload do
       visible_first = Factories.job_record(user: user, repository: repo, state: "implemented", pr_number: 300)
       visible_first.approve!(via: "github_review")
       visible_first.update!(approved_at: Time.current)
+      LandingQueueProcessor.refresh_snapshot!(user.jobs)
 
       result = call(subject: "job", smart_folder_id: landing_queue_folder.id, sort_column: "landing_queue_position", sort_direction: "asc")
 

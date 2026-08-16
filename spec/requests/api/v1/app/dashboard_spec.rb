@@ -545,6 +545,7 @@ RSpec.describe "App API dashboard commands", type: :request do
         kind: "user_defined",
         filter: SmartFolder.attention_preset_filter("landing_queue")
       )
+      LandingQueueProcessor.refresh_snapshot!(Job.where(id: [ first.id, second.id ]))
 
       get "/api/v1/app/dashboard", params: { subject: "job", smart_folder_id: folder.id }
 
@@ -556,6 +557,33 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(body.dig("controls", "sort_columns")).to include("landing_queue_position")
       positions = body.fetch("items").index_by { |item| item.fetch("id") }.transform_values { |item| item.fetch("landing_queue_position") }
       expect(positions).to include(first.id => 1, second.id => 2)
+    end
+
+    it "wakes the landing queue processor instead of refreshing a cold snapshot inline" do
+      repo.update!(auto_merge_enabled: true)
+      job = Factories.job_record(
+        repository: repo,
+        owner_user: user,
+        issue_number: 21,
+        issue_title: "Cold queue row",
+        state: "approved",
+        pr_number: 21,
+        approved_at: 2.hours.ago
+      )
+      folder = SmartFolder.create!(
+        user: user,
+        subject_type: "job",
+        name: "Landing queue",
+        kind: "user_defined",
+        filter: SmartFolder.attention_preset_filter("landing_queue")
+      )
+
+      expect {
+        get "/api/v1/app/dashboard", params: { subject: "job", smart_folder_id: folder.id }
+      }.to have_enqueued_job(LandingQueueProcessorJob)
+
+      expect(response).to have_http_status(:ok)
+      expect(job.reload.landing_queue_cached_at).to be_nil
     end
 
     it "keeps jobs with requested changes out of the landing smart folder" do
@@ -624,6 +652,7 @@ RSpec.describe "App API dashboard commands", type: :request do
         kind: "user_defined",
         filter: SmartFolder.attention_preset_filter("landing_queue")
       )
+      LandingQueueProcessor.refresh_snapshot!(Job.where(id: [ blocked.id, eligible.id ]))
 
       user.update_dashboard_sort!(subject: "job", column: "landing_queue_position", direction: "asc")
       get "/api/v1/app/dashboard", params: { subject: "job", smart_folder_id: folder.id }
@@ -697,6 +726,7 @@ RSpec.describe "App API dashboard commands", type: :request do
         kind: "user_defined",
         filter: SmartFolder.attention_preset_filter("landing_queue")
       )
+      LandingQueueProcessor.refresh_snapshot!(Job.where(id: [ approved.id ]))
 
       get "/api/v1/app/dashboard", params: { subject: "job", smart_folder_id: folder.id }
 
@@ -769,6 +799,7 @@ RSpec.describe "App API dashboard commands", type: :request do
         kind: "user_defined",
         filter: SmartFolder.attention_preset_filter("landing_queue")
       )
+      LandingQueueProcessor.refresh_snapshot!(Job.where(id: [ approved.id ]))
 
       get "/api/v1/app/dashboard", params: { subject: "job", smart_folder_id: folder.id }
 
@@ -832,6 +863,7 @@ RSpec.describe "App API dashboard commands", type: :request do
         kind: "user_defined",
         filter: SmartFolder.attention_preset_filter("landing_queue")
       )
+      LandingQueueProcessor.refresh_snapshot!(Job.where(id: [ epic_child.id, loose.id, epic_parent.id ]))
 
       user.update_dashboard_sort!(subject: "job", column: "landing_queue_position", direction: "asc")
       get "/api/v1/app/dashboard", params: { subject: "job", smart_folder_id: folder.id }

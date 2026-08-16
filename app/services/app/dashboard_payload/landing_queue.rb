@@ -41,7 +41,7 @@ module App
         candidates = jobs_base_scope.where(state: %w[ approved landing ])
         return unless candidates.where(landing_queue_cached_at: nil).exists?
 
-        LandingQueueProcessor.refresh_snapshot!(jobs_base_scope)
+        LandingQueueProcessorJob.perform_later
       end
 
       def landing_queue_position_for(job)
