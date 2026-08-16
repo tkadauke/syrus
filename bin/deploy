@@ -302,15 +302,23 @@ running_mysql_backup_jobs() {
 
 wait_for_rollout_target() {
   local label="$1" kubeconfig="$2" namespace="$3" target="$4"
-  local total_seconds poll_seconds deadline
+  local total_seconds poll_seconds deadline started_at elapsed status_log
   total_seconds="$(duration_to_seconds "$ROLLOUT_TIMEOUT")"
   poll_seconds="$(duration_to_seconds "$ROLLOUT_STALL_DIAGNOSE_INTERVAL")"
+  started_at="$SECONDS"
   deadline=$((SECONDS + total_seconds))
 
   while true; do
-    if KUBECONFIG="$kubeconfig" kubectl rollout status -n "$namespace" "$target" --timeout="${poll_seconds}s"; then
+    status_log="$(mktemp)"
+    if KUBECONFIG="$kubeconfig" kubectl rollout status -n "$namespace" "$target" --timeout="${poll_seconds}s" >"$status_log" 2>&1; then
+      cat "$status_log"
+      rm -f "$status_log"
       return 0
     fi
+    if [ "$ROLLOUT_VERBOSE_DIAGNOSTICS" = true ]; then
+      cat "$status_log" >&2
+    fi
+    rm -f "$status_log"
 
     if [ "$SECONDS" -ge "$deadline" ]; then
       diagnose_rollout_target_full "$label" "$kubeconfig" "$namespace" "$target"
@@ -321,9 +329,9 @@ wait_for_rollout_target() {
     if [ "$ROLLOUT_VERBOSE_DIAGNOSTICS" = true ]; then
       diagnose_rollout_target_full "$label" "$kubeconfig" "$namespace" "$target"
     else
-      diagnose_rollout_target_summary "$label" "$kubeconfig" "$namespace" "$target"
+      elapsed=$((SECONDS - started_at))
+      echo "→ ${label}: ${target} still rolling out after ${elapsed}s; next check in ${poll_seconds}s" >&2
     fi
-    echo "→ ${label}: ${target} still rolling out; rechecking until ${ROLLOUT_TIMEOUT} total timeout"
   done
 }
 
