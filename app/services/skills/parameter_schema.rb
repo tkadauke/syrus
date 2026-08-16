@@ -73,6 +73,10 @@ module Skills
         if field.type == "select" && value.present? && !field.options.include?(value.to_s)
           errors << "#{field.key}: must be one of #{field.options.join(', ')}"
         end
+
+        if field.type == "integer" && value.present? && !integer_string?(value)
+          errors << "#{field.key}: must be an integer"
+        end
       end
 
       known_keys = fields.map(&:key)
@@ -81,6 +85,13 @@ module Skills
       raise ValidationError, errors.join("; ") if errors.any?
 
       true
+    end
+
+    def integer_string?(value)
+      Integer(value.to_s)
+      true
+    rescue ArgumentError, TypeError
+      false
     end
   end
 end

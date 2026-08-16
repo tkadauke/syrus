@@ -92,6 +92,25 @@ RSpec.describe Skills::ParameterSchema do
       }.to raise_error(described_class::ValidationError, /extra.*is not a declared parameter/)
     end
 
+    context "with an integer field" do
+      let(:fields) do
+        described_class.normalize([
+          { "key" => "question", "type" => "string", "required" => true },
+          { "key" => "retries", "type" => "integer" }
+        ])
+      end
+
+      it "passes when the value is an integer string" do
+        expect(described_class.validate!(fields, { "question" => "why?", "retries" => "3" })).to eq(true)
+      end
+
+      it "raises when the value is not an integer" do
+        expect {
+          described_class.validate!(fields, { "question" => "why?", "retries" => "soon" })
+        }.to raise_error(described_class::ValidationError, /retries.*must be an integer/)
+      end
+    end
+
     it "accumulates every problem in one error" do
       expect {
         described_class.validate!(fields, { "extra" => "1" })
