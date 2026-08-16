@@ -103,6 +103,25 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", type: :request do
       expect(body.dig("job", "workflows").first["trigger_kind"]).to eq("initial")
     end
 
+    it "sets target_branch when provided, overriding stack/default base resolution" do
+      repo = Factories.repository(user: admin, owner: "acme", name: "widgets", default_branch: "development")
+
+      post "/api/v1/admin/jobs",
+           params: {
+             job: {
+               repository_id: repo.id,
+               prompt: "Promote the release branch to main.",
+               target_branch: "main"
+             }
+           },
+           headers: auth(admin_token)
+
+      expect(response).to have_http_status(:created)
+      created = Job.order(:created_at).last
+      expect(created.target_branch).to eq("main")
+      expect(created.effective_base_branch).to eq("main")
+    end
+
     it "can create a direct job under an Epic and let the Epic block execution" do
       repo = Factories.repository(user: admin, owner: "acme", name: "widgets")
       epic = Factories.epic(user: admin, repository: repo, title: "Marble administration")

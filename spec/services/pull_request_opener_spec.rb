@@ -50,6 +50,24 @@ RSpec.describe PullRequestOpener do
     )
   end
 
+  it "uses the Job's target_branch override instead of the repository default or stack resolution" do
+    job = Factories.job_record(user: user, repository: repository, issue_number: 5, state: "queued", target_branch: "release/4.2")
+    fake_pr = double(number: 103)
+    fake_client = instance_double(GithubClient, create_pull_request: fake_pr)
+
+    opener = described_class.new(repository, client: fake_client)
+    pr_number = opener.open(branch: "syrus/issue-5-5", title: "T", body: "B", job: job)
+
+    expect(pr_number).to eq(103)
+    expect(fake_client).to have_received(:create_pull_request).with(
+      "acme/widgets",
+      base: "release/4.2",
+      head: "acme:syrus/issue-5-5",
+      title: "T",
+      body: "B"
+    )
+  end
+
   it "qualifies the head branch with the configured repository owner" do
     fork = Factories.repository(user: user, owner: "octavia", name: "widgets", default_branch: "main")
     fake_pr = double(number: 101)

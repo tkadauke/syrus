@@ -66,6 +66,7 @@ module Api
           title = params[:title].to_s.strip.presence
           priority = params[:priority].to_s.presence
           priority = "medium" unless Job::PRIORITIES.include?(priority)
+          target_branch = params[:target_branch].to_s.strip.presence
 
           Current.user.jobs.create!(
             repository: repository,
@@ -77,6 +78,7 @@ module Api
             agent_provider: selected_agent_provider,
             job_provider_setting: agent_provider || "default",
             priority: priority,
+            target_branch: target_branch,
             state: Job.initial_state_for_creator(Current.user)
           )
         end

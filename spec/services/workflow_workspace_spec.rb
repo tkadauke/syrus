@@ -691,6 +691,14 @@ RSpec.describe WorkflowWorkspace, :ci_only do
       expect(fork_job.base_on_upstream_default?).to be(true)
       expect(described_class.base_ref_for(fork_job)).to eq("upstream/main")
     end
+
+    it "uses origin/<target_branch> when the job has a target_branch override, even with stacking present" do
+      parent = Factories.job_record(repository: repository, state: "implemented", branch_name: "syrus/direct-parent", pr_number: 41)
+      child = Factories.job_record(repository: repository, parent_job: parent, target_branch: "release/4.2")
+
+      expect(child.effective_base_branch).to eq("release/4.2")
+      expect(described_class.base_ref_for(child)).to eq("origin/release/4.2")
+    end
   end
 
   describe ".cleanable_here? / worker affinity" do

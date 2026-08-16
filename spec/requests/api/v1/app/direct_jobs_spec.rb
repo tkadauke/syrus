@@ -127,6 +127,36 @@ RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
     expect(parse_body.dig("job", "title_pending")).to eq(false)
   end
 
+  it "sets target_branch when provided so the PR opens against an explicit base" do
+    sign_in_as(user)
+
+    post "/api/v1/app/jobs", params: {
+      repository_id: repository.id,
+      title: "Backport hotfix",
+      prompt: "Backport the fix to the release branch.",
+      target_branch: "release/4.2"
+    }
+
+    expect(response).to have_http_status(:created)
+    new_job = Job.order(:created_at).last
+    expect(new_job.target_branch).to eq("release/4.2")
+    expect(new_job.effective_base_branch).to eq("release/4.2")
+  end
+
+  it "leaves target_branch nil when not provided" do
+    sign_in_as(user)
+
+    post "/api/v1/app/jobs", params: {
+      repository_id: repository.id,
+      title: "Ordinary job",
+      prompt: "Do the normal thing."
+    }
+
+    expect(response).to have_http_status(:created)
+    new_job = Job.order(:created_at).last
+    expect(new_job.target_branch).to be_nil
+  end
+
   it "holds product-owner direct jobs before triage release" do
     user.update!(role: "product_owner")
     sign_in_as(user)

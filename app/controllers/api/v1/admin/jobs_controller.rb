@@ -91,6 +91,7 @@ module Api
 
           selected_agent_provider = agent_provider || repository.effective_agent_provider
           title = attrs[:title].to_s.strip.presence
+          target_branch = attrs[:target_branch].to_s.strip.presence
           job = repository.user.jobs.create!(
             repository: repository,
             kind: "direct",
@@ -101,7 +102,8 @@ module Api
             agent_provider: selected_agent_provider,
             priority: priority,
             epic: epic,
-            owner_user: owner_user
+            owner_user: owner_user,
+            target_branch: target_branch
           )
           GenerateJobTitleJob.perform_later(job) if job.title_pending?
           job.advance_after_triage! if job.may_advance_after_triage?
@@ -116,7 +118,7 @@ module Api
 
         def job_params
           source = params[:job].present? ? params.require(:job) : params
-          source.permit(:repository_id, :repository, :repo, :title, :prompt, :priority, :agent_provider, :epic_id, :owner_user_id)
+          source.permit(:repository_id, :repository, :repo, :title, :prompt, :priority, :agent_provider, :epic_id, :owner_user_id, :target_branch)
         end
 
         def find_active_repository(attrs)
