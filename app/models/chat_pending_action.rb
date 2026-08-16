@@ -1,4 +1,6 @@
 class ChatPendingAction < ApplicationRecord
+  TOOL_CALL_ANCHOR_REPAIR_SCAN_LIMIT = 250
+
   ACTIONS = %w[
     cancel_job
     close_job_successfully
@@ -202,8 +204,10 @@ class ChatPendingAction < ApplicationRecord
     chat_session.messages
       .where(role: "tool_result")
       .where.not(tool_use_id: [ nil, "" ])
-      .order(:created_at, :id)
-      .find_each do |message|
+      .reorder(id: :desc)
+      .limit(TOOL_CALL_ANCHOR_REPAIR_SCAN_LIMIT)
+      .to_a
+      .reverse_each do |message|
         pending_action_id = pending_action_id_from_tool_result(tool_result_payload(message))
         next unless unanchored_ids.include?(pending_action_id.to_i)
 
