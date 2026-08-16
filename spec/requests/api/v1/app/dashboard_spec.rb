@@ -531,6 +531,22 @@ RSpec.describe "App API dashboard commands", type: :request do
       expect(entries.find { |r| r["id"] == other.id }).to include("landing_paused" => false)
     end
 
+    it "includes an untagged_issues summary with a per-repository breakdown" do
+      repo.update_columns(untagged_open_issue_count: 3)
+      other = Factories.repository(user: user, owner: "acme", name: "widgets2", untagged_open_issue_count: 2)
+      Factories.repository(user: user, owner: "acme", name: "widgets3", untagged_open_issue_count: 0)
+
+      get "/api/v1/app/dashboard", params: { subject: "job" }
+
+      expect(response).to have_http_status(:ok)
+      untagged_issues = parse_body["untagged_issues"]
+      expect(untagged_issues["total"]).to eq(5)
+      expect(untagged_issues["repositories"]).to contain_exactly(
+        { "id" => repo.id, "slug" => repo.slug, "count" => 3, "issues_path" => "/repositories/#{repo.id}?tab=github_issues" },
+        { "id" => other.id, "slug" => other.slug, "count" => 2, "issues_path" => "/repositories/#{other.id}?tab=github_issues" }
+      )
+    end
+
     it "adds landing queue positions when the landing smart folder is active" do
       repo.update!(auto_merge_enabled: true)
       first = Factories.job_record(

@@ -859,4 +859,60 @@ RSpec.describe App::DashboardPayload do
       expect(item.dig(:epic, :landed_jobs_count)).to eq(2)
     end
   end
+
+  describe "untagged_issues chrome field" do
+    it "returns a zero total and no repositories when nothing has untagged open issues" do
+      repo.update_columns(untagged_open_issue_count: 0)
+
+      result = call(subject: "job")
+
+      expect(result[:untagged_issues]).to eq(total: 0, repositories: [])
+    end
+
+    it "aggregates the total across repositories and includes a per-repository breakdown" do
+      repo.update_columns(untagged_open_issue_count: 5)
+      other_repo = Factories.repository(user: user, untagged_open_issue_count: 7)
+      zero_repo = Factories.repository(user: user, untagged_open_issue_count: 0)
+
+      result = call(subject: "job")
+
+      expect(result[:untagged_issues][:total]).to eq(12)
+      breakdown = result[:untagged_issues][:repositories]
+      expect(breakdown.map { |entry| entry[:id] }).to contain_exactly(repo.id, other_repo.id)
+      expect(breakdown.map { |entry| entry[:id] }).not_to include(zero_repo.id)
+
+      repo_entry = breakdown.find { |entry| entry[:id] == repo.id }
+      expect(repo_entry).to eq(
+        id: repo.id,
+        slug: repo.slug,
+        count: 5,
+        issues_path: "/repositories/#{repo.id}?tab=github_issues"
+      )
+    end
+
+    it "excludes archived repositories even when they have a stale untagged issue count" do
+      repo.update_columns(untagged_open_issue_count: 3)
+      archived = Factories.repository(user: user, untagged_open_issue_count: 4, archived_at: Time.current)
+
+      result = call(subject: "job")
+
+      expect(result[:untagged_issues][:total]).to eq(3)
+      expect(result[:untagged_issues][:repositories].map { |entry| entry[:id] }).not_to include(archived.id)
+    end
+
+    it "respects the same active_repositories_scope used by the rest of the chrome payload (team-wide, active-only)" do
+      repo.update_columns(untagged_open_issue_count: 2)
+      teammate = Factories.user
+      teammate_repo = Factories.repository(user: teammate, untagged_open_issue_count: 6)
+
+      result = call(subject: "job")
+
+      # Dashboard repository visibility is team-wide (same scoping `counts` and
+      # `landing_queue` chrome fields already use), not restricted to repos this
+      # user personally connected.
+      breakdown_ids = result[:untagged_issues][:repositories].map { |entry| entry[:id] }
+      expect(breakdown_ids).to contain_exactly(repo.id, teammate_repo.id)
+      expect(result[:untagged_issues][:total]).to eq(8)
+    end
+  end
 end

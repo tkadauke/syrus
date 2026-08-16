@@ -27,6 +27,18 @@ export type DashboardHealthBlockedRepository = {
   main_branch_repair: DashboardMainBranchRepairStatus
 }
 
+export type DashboardUntaggedIssueRepository = {
+  id: number
+  slug: string
+  count: number
+  issues_path: string
+}
+
+export type DashboardUntaggedIssues = {
+  total: number
+  repositories: DashboardUntaggedIssueRepository[]
+}
+
 export type DashboardRepairJob = {
   id: number
   slug: string
@@ -355,6 +367,7 @@ export type DashboardPayload = {
   provider_availability?: Record<string, ProviderAvailability>
   broken_repositories?: DashboardHealthBlockedRepository[]
   health_blocked_repositories?: DashboardHealthBlockedRepository[]
+  untagged_issues?: DashboardUntaggedIssues
   ownership: {
     scope: string
     owner_id: number | null
@@ -549,6 +562,7 @@ export function mergeDashboardPayload(chrome: DashboardChromePayload, rows: Dash
     provider_availability: chrome.provider_availability,
     broken_repositories: chrome.broken_repositories,
     health_blocked_repositories: chrome.health_blocked_repositories,
+    untagged_issues: chrome.untagged_issues,
     smart_folders: chrome.smart_folders.map((folder) => ({ ...folder, active: folder.id === activeSmartFolderId })),
     active_smart_folder_id: activeSmartFolderId,
     setup: chrome.setup,

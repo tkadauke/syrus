@@ -20,7 +20,7 @@ import { FilterBar } from "../components/FilterBar"
 import { SyrusTour } from "../components/SyrusTour"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { useTour } from "../hooks/useTour"
-import { dashboardApiSearch, dashboardChromeSearch, fetchDashboardChromeWithMeta, fetchDashboardRowsWithMeta, fetchEpicsGraph, fetchJobsGraph, mergeDashboardPayload, recordDashboardFilterUsage, requestDashboardMainBranchRepair, updateDashboardPreferences, type DashboardHealthBlockedRepository, type DashboardEpicItem, type DashboardJobItem, type DashboardPayload, type DashboardSubject, type DashboardWorkflowItem } from "../api/dashboard"
+import { dashboardApiSearch, dashboardChromeSearch, fetchDashboardChromeWithMeta, fetchDashboardRowsWithMeta, fetchEpicsGraph, fetchJobsGraph, mergeDashboardPayload, recordDashboardFilterUsage, requestDashboardMainBranchRepair, updateDashboardPreferences, type DashboardHealthBlockedRepository, type DashboardEpicItem, type DashboardJobItem, type DashboardPayload, type DashboardSubject, type DashboardUntaggedIssues, type DashboardWorkflowItem } from "../api/dashboard"
 import type { JsonResponseMeta } from "../api/client"
 import { TopoDepGraph } from "../components/TopoDepGraph"
 import { errorMessage } from "../lib/errorMessage"
@@ -181,6 +181,7 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
       </header>
       <ReadinessPanel className="mx-4 sm:mx-0" prefix={prefix} readiness={readiness} />
       <RepositoryHealthBanners className="mx-4 sm:mx-0" prefix={prefix} repositories={payload.health_blocked_repositories ?? payload.broken_repositories ?? []} />
+      <UntaggedIssuesBanner className="mx-4 sm:mx-0" prefix={prefix} untaggedIssues={payload.untagged_issues} />
 
       {isDesktop ? (
         <>
@@ -397,6 +398,70 @@ export function RepositoryHealthBanners({ className = "", prefix, repositories }
           </div>
         )
       })}
+    </div>
+  )
+}
+
+const UNTAGGED_ISSUES_DISMISSAL_KEY = "syrus.untagged_issues_banner_dismissed"
+
+function untaggedIssuesEvidenceToken(untaggedIssues: DashboardUntaggedIssues): string {
+  return `${untaggedIssues.total}:${untaggedIssues.repositories.map((repo) => `${repo.id}:${repo.count}`).join(",")}`
+}
+
+function readUntaggedIssuesDismissal(): string | null {
+  try {
+    return window.sessionStorage.getItem(UNTAGGED_ISSUES_DISMISSAL_KEY)
+  } catch {
+    return null
+  }
+}
+
+function writeUntaggedIssuesDismissal(token: string): void {
+  try {
+    window.sessionStorage.setItem(UNTAGGED_ISSUES_DISMISSAL_KEY, token)
+  } catch {
+    // sessionStorage can be unavailable in private or restricted browser contexts.
+  }
+}
+
+export function UntaggedIssuesBanner({ className = "", prefix, untaggedIssues }: { className?: string; prefix: string; untaggedIssues?: DashboardUntaggedIssues }) {
+  const { t } = useT("dashboard")
+  const [dismissedToken, setDismissedToken] = useState<string | null>(() => readUntaggedIssuesDismissal())
+
+  if (!untaggedIssues || untaggedIssues.total === 0 || untaggedIssues.repositories.length === 0) return null
+
+  const token = untaggedIssuesEvidenceToken(untaggedIssues)
+  if (dismissedToken === token) return null
+
+  return (
+    <div className={`${className} flex flex-col gap-2 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm dark:border-amber-900 dark:bg-amber-950/40 sm:flex-row sm:items-center sm:justify-between`} role="status">
+      <div className="min-w-0 text-amber-900 dark:text-amber-200">
+        <span>
+          {t("untagged_issues_summary", { count: untaggedIssues.total })}{" "}
+          {t("untagged_issues_repo_count", { count: untaggedIssues.repositories.length })}
+        </span>
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+          {untaggedIssues.repositories.map((repo, index) => (
+            <span key={repo.id}>
+              {index > 0 ? ", " : null}
+              <Link className="font-medium underline underline-offset-2" to={withRoutePrefix(repo.issues_path, prefix)}>
+                {repo.slug} ({repo.count})
+              </Link>
+            </span>
+          ))}
+        </div>
+      </div>
+      <button
+        aria-label={t("untagged_issues_dismiss")}
+        className="shrink-0 text-amber-600 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-100"
+        onClick={() => {
+          setDismissedToken(token)
+          writeUntaggedIssuesDismissal(token)
+        }}
+        type="button"
+      >
+        <CloseIcon />
+      </button>
     </div>
   )
 }
