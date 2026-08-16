@@ -391,6 +391,68 @@ RSpec.describe PollRepositoryJob do
     end
   end
 
+  describe "untagged open issue count" do
+    before do
+      allow_any_instance_of(GithubClient).to receive(:linked_open_pr_for_issue).and_return(nil)
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label).and_return([])
+    end
+
+    it "caches the count of open issues without the trigger or skip label, with a checked-at timestamp" do
+      untagged_issues = [
+        issue(number: 101, labels: []),
+        issue(number: 102, labels: [ "bug" ])
+      ]
+      labeled_or_skipped_issues = [
+        issue(number: 42, labels: [ "syrus" ]),
+        issue(number: 43, labels: [ IngestPolicy::SKIP_LABEL ])
+      ]
+      allow_any_instance_of(GithubClient).to receive(:list_all_issues)
+        .with(repository.slug, state: "open")
+        .and_return(untagged_issues + labeled_or_skipped_issues)
+
+      freeze_time do
+        described_class.perform_now(repository.id)
+
+        repository.reload
+        expect(repository.untagged_open_issue_count).to eq(2)
+        expect(repository.untagged_open_issues_checked_at).to eq(Time.current)
+      end
+    end
+
+    it "does not fail the poll or block labeled-issue ingestion when the untagged-count call errors" do
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label)
+        .and_return([ issue(labels: [ "syrus" ]) ])
+      allow_any_instance_of(GithubClient).to receive(:list_all_issues)
+        .and_raise(Octokit::TooManyRequests.new)
+
+      expect {
+        described_class.perform_now(repository.id)
+      }.not_to raise_error
+
+      job = Job.find_by(repository: repository, issue_number: 42)
+      expect(job).to be_present
+
+      repository.reload
+      expect(repository.last_poll_status).to eq("ok")
+      expect(repository.untagged_open_issue_count).to eq(0)
+      expect(repository.untagged_open_issues_checked_at).to be_nil
+    end
+
+    it "skips the untagged-count call for an archived repository" do
+      repository.archive!
+      expect_any_instance_of(GithubClient).not_to receive(:list_all_issues)
+
+      described_class.perform_now(repository.id, force: true)
+    end
+
+    it "skips the untagged-count call when polling is disabled" do
+      repository.update!(polling_enabled: false)
+      expect_any_instance_of(GithubClient).not_to receive(:list_all_issues)
+
+      described_class.perform_now(repository.id, force: true)
+    end
+  end
+
   describe "#perform", vcr: { cassette_name: "poll_repository_job/lists_issues" } do
     # Default: pretend GitHub reports no linked PR for these issues.
     # Tests covering the preempted path (below) override this stub to

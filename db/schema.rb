@@ -1541,6 +1541,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_151725) do
     t.boolean "treat_grader_timeouts_as_failures", default: false, null: false
     t.string "trigger_label", default: "syrus", null: false
     t.boolean "trust_clean_rebase_grade", default: false, null: false
+    t.integer "untagged_open_issue_count", default: 0, null: false
+    t.datetime "untagged_open_issues_checked_at"
     t.datetime "updated_at", null: false
     t.string "upstream_default_branch"
     t.string "upstream_name"
