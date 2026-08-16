@@ -10,8 +10,14 @@ class PreviewWorkspace
     data_root.join("previews", preview_environment.id.to_s)
   end
 
-  def self.prepare!(preview_environment, git: GitRunner.new)
-    new(preview_environment, git: git).prepare!
+  # revision: :head (default) checks out the Job's feature branch — today's
+  # behavior, unchanged for every existing caller. revision: :base checks out
+  # the Job's base revision instead, resolved fresh via `git merge-base
+  # <effective_base_branch> <head>` so stacked Jobs compare against their real
+  # parent branch rather than always the repo default branch. Not persisted —
+  # recomputed on every prepare! call.
+  def self.prepare!(preview_environment, git: GitRunner.new, revision: :head)
+    new(preview_environment, git: git, revision: revision).prepare!
   end
 
   def self.cleanup_for(preview_environment)
@@ -22,11 +28,12 @@ class PreviewWorkspace
     Rails.logger.warn("[PreviewWorkspace] cleanup failed for PreviewEnvironment ##{preview_environment.id}: #{e.class}: #{e.message}")
   end
 
-  def initialize(preview_environment, git:)
+  def initialize(preview_environment, git:, revision: :head)
     @preview_environment = preview_environment
     @job = preview_environment.job
     @repository = @job.repository
     @git = git
+    @revision = revision
     @path = self.class.path_for(preview_environment)
     @env = { "GIT_TERMINAL_PROMPT" => "0" }
   end
@@ -43,6 +50,7 @@ class PreviewWorkspace
       env: @env
     )
     @git.run("remote", "set-url", "origin", @repository.remote_url, chdir: @path.to_s)
+    checkout_base_revision! if base_revision?
     @git.configure_author(BotIdentity.for(@job), chdir: @path.to_s)
     apply_preview_asset_proxy_overrides!
     @preview_environment.update_columns(workspace_path: @path.to_s, updated_at: Time.current)
@@ -53,6 +61,19 @@ class PreviewWorkspace
   end
 
   private
+
+  def base_revision?
+    @revision == :base
+  end
+
+  # Non-shallow clone (no --depth above) fetches every branch as a
+  # remote-tracking ref regardless of --branch, so origin/<effective base
+  # branch> is already present locally — no extra fetch needed.
+  def checkout_base_revision!
+    base_ref = "origin/#{@job.effective_base_branch}"
+    base_sha = @git.run("merge-base", base_ref, "HEAD", chdir: @path.to_s).strip
+    @git.run("checkout", base_sha, chdir: @path.to_s)
+  end
 
   def authenticated_url
     @repository.authenticated_url(user: @job.user)
