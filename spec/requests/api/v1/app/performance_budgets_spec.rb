@@ -85,9 +85,9 @@ RSpec.describe "App API structural performance budgets", type: :request do
     expect(response).to have_http_status(:ok)
     expect_performance_budget(
       metrics,
-      max_sql: 95,
+      max_sql: 55,
       max_payload_bytes: 180.kilobytes,
-      forbidden_sql: [ /FORCE INDEX/i ]
+      forbidden_sql: [ /FORCE INDEX/i, /workflows\.finished_at IS NULL/i ]
     )
   end
 

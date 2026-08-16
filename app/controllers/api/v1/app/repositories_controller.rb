@@ -451,17 +451,10 @@ module Api
 
         def repository_detail_payload(repository, page:, message: nil, extra: {})
           PerformanceLogging.phase("repository_detail_payload", repository_id: repository.id, page: page) do
-            jobs_scope = repository.jobs
-              .includes(:repository, :scheduled_task)
-              .with_latest_workflow_snapshot
-              .order(updated_at: :desc)
             total_jobs = PerformanceLogging.phase("repository_detail.total_jobs", repository_id: repository.id) { repository.jobs.count }
             total_pages = [ (total_jobs / PER_PAGE.to_f).ceil, 1 ].max
             jobs = PerformanceLogging.phase("repository_detail.jobs_query", repository_id: repository.id, page: page) do
-              jobs_scope
-                .limit(PER_PAGE)
-                .offset((page - 1) * PER_PAGE)
-                .to_a
+              repository_detail_jobs(repository, page)
             end
             @repository_detail_jobs_by_id = jobs.index_by(&:id)
             PerformanceLogging.phase("repository_detail.preload_job_state", repository_id: repository.id, job_count: jobs.size) do
@@ -738,11 +731,10 @@ module Api
         end
 
         def repository_counts_json(repository)
-          job_ids = repository.jobs.select(:id)
           {
-            running: Run.where(job_id: job_ids, state: "running").distinct.count(:job_id),
-            queued: Run.where(job_id: job_ids, state: "queued").distinct.count(:job_id),
-            failed_7d: Run.where(job_id: job_ids, state: "failed", updated_at: 7.days.ago..).distinct.count(:job_id)
+            running: repository_run_job_count(repository, state: "running"),
+            queued: repository_run_job_count(repository, state: "queued"),
+            failed_7d: repository_run_job_count(repository, state: "failed", since: 7.days.ago)
           }
         end
 
@@ -856,7 +848,7 @@ module Api
             job.workflow_agent_provider
           end
           provider_availability = PerformanceLogging.phase("repository_detail.job.provider_availability", repository_id: job.repository_id, job_id: job.id, provider: workflow_agent_provider) do
-            ::App::ProviderAvailability.for_user(Current.user, workflow_agent_provider)
+            provider_availability_for(workflow_agent_provider)
           end
           current_step_caption = PerformanceLogging.phase("repository_detail.job.current_step_caption", repository_id: job.repository_id, job_id: job.id) do
             current_step_caption_for(job)
@@ -1081,26 +1073,11 @@ module Api
 
           workflows_by_id = Workflow
             .where(id: workflow_ids)
-            .select(:id, :job_id, :created_at)
-            .includes(:job)
+            .select(:id, :job_id)
             .index_by(&:id)
-          ranked = Workflow
-            .where(job_id: workflows_by_id.values.map(&:job_id).uniq)
-            .select(
-              "workflows.id",
-              "ROW_NUMBER() OVER (PARTITION BY workflows.job_id ORDER BY workflows.created_at DESC, workflows.id DESC) AS syrus_row_number"
-            )
-          ranks_by_id = Workflow
-            .from("(#{ranked.to_sql}) workflows")
-            .where(id: workflow_ids)
-            .pluck(:id, Arel.sql("syrus_row_number"))
-            .to_h
 
           workflows_by_id.transform_values do |workflow|
-            page = (((ranks_by_id.fetch(workflow.id, 1).to_i - 1) / ::App::WorkflowNavigation::PER_PAGE) + 1).to_i
-            query = { tab: "workflows" }
-            query[:workflows_page] = page if page > 1
-            "#{job_path(workflow.job)}?#{query.to_query}#workflow-#{workflow.id}"
+            "/jobs/#{workflow.job_id}?tab=workflows#workflow-#{workflow.id}"
           end
         end
 
@@ -1208,6 +1185,27 @@ module Api
           end
         end
 
+        def repository_detail_jobs(repository, page)
+          job_ids = repository.jobs
+            .reorder(updated_at: :desc, id: :desc)
+            .limit(PER_PAGE)
+            .offset((page - 1) * PER_PAGE)
+            .pluck(:id)
+          return [] if job_ids.empty?
+
+          jobs_by_id = Job
+            .where(id: job_ids)
+            .includes(:repository, :scheduled_task)
+            .index_by(&:id)
+          job_ids.filter_map { |id| jobs_by_id[id] }
+        end
+
+        def repository_run_job_count(repository, state:, since: nil)
+          scope = repository.jobs.joins(:runs).where(runs: { state: state })
+          scope = scope.where("runs.updated_at >= ?", since) if since
+          scope.distinct.count(:id)
+        end
+
         def latest_jobs_by_repository_id(repository_ids)
           return {} if repository_ids.empty?
 
@@ -1221,13 +1219,7 @@ module Api
         def latest_runs_by_job_id(job_ids)
           return {} if job_ids.empty?
 
-          if defined?(@repository_detail_jobs_by_id)
-            latest_ids = @repository_detail_jobs_by_id.values.filter_map do |job|
-              job.latest_run_id if job_ids.include?(job.id)
-            end
-          else
-            latest_ids = Run.where(job_id: job_ids).group(:job_id).maximum(:id).values
-          end
+          latest_ids = Run.where(job_id: job_ids).group(:job_id).maximum(:id).values
           latest_ids.empty? ? {} : Run.where(id: latest_ids).index_by(&:job_id)
         end
 
@@ -1292,6 +1284,11 @@ module Api
             latest_run_diagnostic: latest_run && @repository_detail_run_diagnostics_by_run_id[latest_run.id],
             any_active_run: @repository_detail_active_job_ids.key?(job.id)
           )
+        end
+
+        def provider_availability_for(provider)
+          @repository_detail_provider_availability_by_provider ||= {}
+          @repository_detail_provider_availability_by_provider[provider] ||= ::App::ProviderAvailability.for_user(Current.user, provider)
         end
 
         def detail_page
