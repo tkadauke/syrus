@@ -822,6 +822,82 @@ RSpec.describe ChatSession do
     end
   end
 
+  describe "conversation_kind" do
+    it "defaults to direct" do
+      session = described_class.create!(user: repo.user)
+
+      expect(session.conversation_kind).to eq("direct")
+      expect(session).to be_direct
+    end
+
+    it "accepts group" do
+      session = described_class.create!(user: repo.user, conversation_kind: "group")
+
+      expect(session.conversation_kind).to eq("group")
+      expect(session).to be_group
+    end
+
+    it "rejects unknown conversation kinds" do
+      session = described_class.new(user: repo.user, conversation_kind: "team")
+
+      expect(session).not_to be_valid
+      expect(session.errors[:conversation_kind]).to be_present
+    end
+
+    it "is immutable after creation" do
+      session = described_class.create!(user: repo.user, conversation_kind: "direct")
+
+      session.conversation_kind = "group"
+
+      expect(session).not_to be_valid
+      expect(session.errors[:conversation_kind]).to be_present
+      expect { session.save! }.to raise_error(ActiveRecord::RecordInvalid)
+      expect(session.reload.conversation_kind).to eq("direct")
+    end
+
+    it "does not shadow ActiveRecord's GROUP BY query method with a `group` scope" do
+      described_class.create!(user: repo.user, conversation_kind: "group")
+
+      expect { described_class.group("chat_sessions.id").count }.not_to raise_error
+    end
+  end
+
+  describe "#participants_payload" do
+    it "returns id, name, and role for every participant" do
+      session = described_class.create!(user: repo.user)
+      other_user = Factories.user(first_name: "Cato", last_name: "Elder")
+      session.chat_participants.create!(user: other_user, role: "member")
+
+      expect(session.participants_payload).to contain_exactly(
+        include(id: repo.user.id, role: "owner"),
+        include(id: other_user.id, name: "Cato Elder", role: "member")
+      )
+    end
+  end
+
+  describe "#broadcast_participants_update!" do
+    it "broadcasts a participants payload to the current participant set by default" do
+      session = described_class.create!(user: repo.user, conversation_kind: "group")
+      other_user = Factories.user
+      session.chat_participants.create!(user: other_user, role: "member")
+
+      expect(AppEvents).to receive(:broadcast).with(hash_including(user: repo.user, resource: "chat", changed: [ "participants" ]))
+      expect(AppEvents).to receive(:broadcast).with(hash_including(user: other_user, resource: "chat", changed: [ "participants" ]))
+
+      session.broadcast_participants_update!
+    end
+
+    it "broadcasts to an explicit recipient list, including a just-removed participant" do
+      session = described_class.create!(user: repo.user, conversation_kind: "group")
+      removed_user = Factories.user
+
+      expect(AppEvents).to receive(:broadcast).with(hash_including(user: repo.user))
+      expect(AppEvents).to receive(:broadcast).with(hash_including(user: removed_user))
+
+      session.broadcast_participants_update!(recipients: [ repo.user, removed_user ])
+    end
+  end
+
   describe "broadcasting to participants" do
     it "broadcasts header updates to all participants" do
       session = described_class.create!(user: repo.user)

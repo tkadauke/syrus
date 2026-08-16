@@ -25,6 +25,44 @@ membership to find the durable conversation for a user's external account.
 and sets `trigger_policy` to `speak_when_spoken_to`; that is the only trigger
 policy value today, but the string enum leaves room for future policies.
 
+## Group chats
+
+`chat_sessions.conversation_kind` is `direct` (default) or `group`, and is
+**immutable after creation** — a model validation rejects any update once the
+row is persisted, so a 1:1 chat can never later gain a second human. (The enum
+is declared with `scopes: false` because an auto-generated `.group` scope
+would shadow ActiveRecord's `group` GROUP BY method, which the admin chat
+transcript listing relies on.)
+
+`POST /api/v1/app/chats` accepts an optional `participant_user_ids` array. When
+present, every id must resolve to an existing `User` (422 listing any unknown
+ids otherwise) and must include at least one user other than the creator (422
+if not); the session is created with `conversation_kind: "group"`, the usual
+owner `ChatParticipant` is added, and a `member` `ChatParticipant` is created
+for each additional requested user. Omitting the param is unchanged
+`direct`-chat behavior.
+
+Only `group` chats support participant management:
+`POST /api/v1/app/chats/:chat_id/participants` (body `{ user_id }`) adds a
+`member`, and `DELETE /api/v1/app/chats/:chat_id/participants/:user_id`
+removes one — both 404 for a `direct` chat and require the caller to already
+be a current participant (the same `accessible_chat_sessions`-scoped lookup
+`find_chat_session` uses elsewhere). Any current participant may add or remove
+any other participant, or remove themselves ("leave"); removal is rejected
+with 422 if it would leave the chat with zero human participants. Both
+endpoints call `ChatSession#broadcast_participants_update!`, which fans out an
+`updated`/`chat`/`participants` app event to the resulting participant set —
+`broadcast_to_participants` accepts an explicit `recipients:` override so a
+just-removed participant's own client still gets notified even though it is no
+longer in `chat.participants` by the time the event fires.
+
+`GET /api/v1/app/users/invitable` powers the add-participant picker: it lists
+`{ id, name }` for every user except the caller, and an optional
+`exclude_chat_id` param additionally excludes that chat's current
+participants. It has no admin gate — Syrus has no team/org scoping anywhere
+else in the app, so any authenticated user can see the flat instance user
+list here.
+
 Operators can intentionally switch an existing chat through the chat provider
 switch endpoint. That path enqueues `SwitchChatProviderJob`, rehydrates
 provider-specific session state, rewrites the stored session metadata, and
