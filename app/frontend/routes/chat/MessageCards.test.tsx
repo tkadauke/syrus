@@ -316,7 +316,7 @@ describe("pin control", () => {
   })
 
   it("shows an unpin toggle and unpins on click when the message is already pinned", async () => {
-    const pin: ChatMessagePin = { id: 1, chat_message_id: 5, text: "Discuss the aqueduct.", role: "assistant" }
+    const pin: ChatMessagePin = { id: 1, chat_message_id: 5, text: "Discuss the aqueduct.", role: "assistant", created_at: "2026-08-10T10:00:00Z" }
     vi.mocked(fetchChatMessagePins).mockResolvedValue({ pins: [ pin ] })
     vi.mocked(deleteChatMessagePin).mockResolvedValue({ pins: [] } as unknown as ChatPayload & { pins: ChatMessagePin[] })
     renderMessage("Discuss the aqueduct.", makePayload(), { pinnable: true })

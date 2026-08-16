@@ -22,6 +22,8 @@ import { type ChatQueryKey, WHITEBOARD_MAX_ELEMENTS, WHITEBOARD_SAVE_DEBOUNCE_MS
 import { chatDisplayTitle, snapshotKindLabel, diffLineClass, secondaryButton, errorAsError, formatCurrency, formatTokenCount, truncateSnapshotName, withRoutePrefix } from "./utils"
 import { ImageLightbox } from "./MessageCards"
 import { Attachments } from "./Attachments"
+import { PinIcon } from "../../components/PinIcon"
+import { newestPins, useChatPins } from "./pins"
 import type { WorkspaceTab } from "./workspaceTabs"
 import type { ChatMessageImageAttachment } from "./messageDisplay"
 import type { FileTreeNode } from "./fileTree"
@@ -114,11 +116,52 @@ export function ChatWorkspacePanel({
         ) : null}
         {activeTab === "context" && !simpleMode ? <Attachments payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} /> : null}
         {activeTab === "media" ? <MediaGallery messages={payload.messages} payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
+        {activeTab === "pinned" ? <PinnedPanel payload={payload} queryKey={queryKey} onSelectMessage={onBookmarkSelect} /> : null}
         {activeTab === "files" ? <CodingFilesPanel payload={payload} /> : null}
         {activeTab === "diff" && payload.local_tunnel_connected ? <LocalDiffPanel /> : null}
         {activeTab === "jobs" ? <ChatJobStatusPanel chatId={payload.chat.id} /> : null}
       </div>
     </aside>
+  )
+}
+
+// Every pinned message for the chat, newest first. Clicking a row reuses
+// the same bookmark scroll-to-anchor handler (onBookmarkSelect) as the
+// top-of-chat PinnedMessagesBar preview — navigating to a message is
+// identical for bookmarks and pins.
+function PinnedPanel({ payload, queryKey, onSelectMessage }: { payload: ChatPayload; queryKey: ChatQueryKey; onSelectMessage: (messageId: number) => void }) {
+  const { t } = useT("chat")
+  const search = queryKey[2]
+  const pinsQuery = useChatPins(payload.chat.id, search)
+  const pins = pinsQuery.data?.pins ?? []
+  const sortedPins = newestPins(pins, pins.length)
+
+  if (pinsQuery.isPending) return <PanelMessage>{t("pinned_panel_loading")}</PanelMessage>
+  if (pinsQuery.isError) return <PanelMessage tone="error">{errorMessage(pinsQuery.error, t("pinned_panel_error"))}</PanelMessage>
+  if (sortedPins.length === 0) return <PanelMessage>{t("pinned_panel_empty")}</PanelMessage>
+
+  return (
+    <ul aria-label={t("aria_pinned_messages")} className="space-y-1.5">
+      {sortedPins.map((pin) => (
+        <li key={pin.id}>
+          <button
+            className="flex w-full min-w-0 items-start gap-2 rounded border border-gray-200 bg-white p-2 text-left text-sm hover:border-blue-200 hover:bg-blue-50 dark:border-gray-700 dark:bg-gray-950 dark:hover:border-blue-800 dark:hover:bg-blue-950"
+            onClick={() => onSelectMessage(pin.chat_message_id)}
+            type="button"
+          >
+            <PinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-600 dark:text-blue-300" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-gray-800 dark:text-gray-100">{pin.text || t("pinned_message_empty")}</span>
+              <span className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                <span>{pin.role === "user" ? t("pinned_role_user") : t("pinned_role_assistant")}</span>
+                <span aria-hidden="true">·</span>
+                <RelativeTimestamp value={pin.created_at} />
+              </span>
+            </span>
+          </button>
+        </li>
+      ))}
+    </ul>
   )
 }
 

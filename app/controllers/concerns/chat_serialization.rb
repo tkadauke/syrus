@@ -195,7 +195,8 @@ module ChatSerialization
       id: pin.id,
       chat_message_id: pin.chat_message_id,
       text: pin.chat_message.preview_text,
-      role: pin.chat_message.role
+      role: pin.chat_message.role,
+      created_at: pin.created_at.iso8601
     }
   end
 

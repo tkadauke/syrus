@@ -4,13 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
 import { ChatSettingsDialog, ChatWorkspacePanel } from "./WorkspacePanels"
 import type { ChatPayload } from "../../api/chats"
-import { fetchChatMedia, fetchCodingCommits, fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree, fetchWhiteboardSnapshots, switchChatProvider } from "../../api/chats"
+import { fetchChatMedia, fetchChatMessagePins, fetchCodingCommits, fetchCodingDiff, fetchCodingFileContent, fetchCodingFileTree, fetchWhiteboardSnapshots, switchChatProvider } from "../../api/chats"
 
 vi.mock("../../api/chats", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/chats")>()
   return {
     ...actual,
     fetchChatMedia: vi.fn(),
+    fetchChatMessagePins: vi.fn(),
     fetchCodingCommits: vi.fn(),
     fetchCodingDiff: vi.fn(),
     fetchCodingFileContent: vi.fn(),
@@ -115,8 +116,9 @@ function makeCodingPayload(overrides: Partial<ChatPayload> = {}): ChatPayload {
 }
 
 function renderWorkspacePanel(payload: ChatPayload, options: {
-  activeTab?: "whiteboard" | "context" | "media" | "files" | "diff" | "jobs"
-  onSelectTab?: (tab: "whiteboard" | "context" | "media" | "files" | "diff" | "jobs") => void
+  activeTab?: "whiteboard" | "context" | "media" | "pinned" | "files" | "diff" | "jobs"
+  onSelectTab?: (tab: "whiteboard" | "context" | "media" | "pinned" | "files" | "diff" | "jobs") => void
+  onBookmarkSelect?: (messageId: number) => void
 } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
@@ -130,7 +132,7 @@ function renderWorkspacePanel(payload: ChatPayload, options: {
           payload={payload}
           prefix=""
           queryKey={["chats", "1", ""] as const}
-          onBookmarkSelect={() => {}}
+          onBookmarkSelect={options.onBookmarkSelect ?? (() => {})}
           onNotice={() => {}}
         />
       </MemoryRouter>
@@ -464,5 +466,51 @@ describe("MediaGallery artifacts", () => {
 
     expect(await screen.findByText("Schema ERD")).toBeInTheDocument()
     expect(screen.queryByText(/no media shared yet/i)).not.toBeInTheDocument()
+  })
+})
+
+describe("ChatWorkspacePanel pinned tab", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it("lists every pinned message newest first with sender and relative timestamp", async () => {
+    vi.mocked(fetchChatMessagePins).mockResolvedValue({
+      pins: [
+        { id: 1, chat_message_id: 21, text: "First pinned note.", role: "user", created_at: "2026-08-10T10:00:00Z" },
+        { id: 2, chat_message_id: 22, text: "Second pinned note.", role: "assistant", created_at: "2026-08-12T10:00:00Z" }
+      ]
+    })
+
+    renderWorkspacePanel(makePayload(), { activeTab: "pinned" })
+
+    const rows = await screen.findAllByRole("listitem")
+    expect(rows.map((row) => row.textContent)).toEqual([
+      expect.stringContaining("Second pinned note."),
+      expect.stringContaining("First pinned note.")
+    ])
+    expect(screen.getByText("Assistant")).toBeInTheDocument()
+    expect(screen.getByText("You")).toBeInTheDocument()
+  })
+
+  it("shows an empty state when there are no pinned messages", async () => {
+    vi.mocked(fetchChatMessagePins).mockResolvedValue({ pins: [] })
+
+    renderWorkspacePanel(makePayload(), { activeTab: "pinned" })
+
+    expect(await screen.findByText("No pinned messages yet.")).toBeInTheDocument()
+  })
+
+  it("navigates to the message when a pinned row is clicked", async () => {
+    vi.mocked(fetchChatMessagePins).mockResolvedValue({
+      pins: [{ id: 1, chat_message_id: 21, text: "Discuss aqueducts.", role: "assistant", created_at: "2026-08-10T10:00:00Z" }]
+    })
+    const onBookmarkSelect = vi.fn()
+
+    renderWorkspacePanel(makePayload(), { activeTab: "pinned", onBookmarkSelect })
+
+    fireEvent.click(await screen.findByRole("button", { name: /Discuss aqueducts\./ }))
+
+    expect(onBookmarkSelect).toHaveBeenCalledWith(21)
   })
 })

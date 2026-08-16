@@ -280,6 +280,7 @@
   "tab_whiteboard": "Whiteboard",
   "tab_context": "Kontext",
   "tab_media": "Medien",
+  "tab_pinned": "Angeheftet",
   "tab_files": "Dateien",
   "tab_diff": "Lokale Diff",
   "tab_jobs": "Aufgaben",
@@ -342,5 +343,10 @@
   "unable_to_unpin": "Nachricht konnte nicht gelöst werden.",
   "aria_pinned_messages": "Angepinnte Nachrichten",
   "pinned_message_empty": "Angepinnte Nachricht",
-  "pinned_messages_more": "+{{count}} weitere"
+  "pinned_messages_more": "+{{count}} weitere",
+  "pinned_panel_loading": "Angeheftete Nachrichten werden geladen...",
+  "pinned_panel_error": "Angeheftete Nachrichten konnten nicht geladen werden.",
+  "pinned_panel_empty": "Noch keine angehefteten Nachrichten.",
+  "pinned_role_user": "Du",
+  "pinned_role_assistant": "Assistent"
 }

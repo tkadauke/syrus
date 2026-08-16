@@ -280,6 +280,7 @@
   "tab_whiteboard": "Tabula Alba",
   "tab_context": "Contextus",
   "tab_media": "Media",
+  "tab_pinned": "Adfixa",
   "tab_files": "Fasciculi",
   "tab_diff": "Differentia Localis",
   "tab_jobs": "Opera",
@@ -342,5 +343,10 @@
   "unable_to_unpin": "Nuntius dimitti non potuit.",
   "aria_pinned_messages": "Nuntii adfixi",
   "pinned_message_empty": "Nuntius adfixus",
-  "pinned_messages_more": "+{{count}} plures"
+  "pinned_messages_more": "+{{count}} plures",
+  "pinned_panel_loading": "Nuntii adfixi onerantur...",
+  "pinned_panel_error": "Nuntii adfixi onerari non potuerunt.",
+  "pinned_panel_empty": "Nulli nuntii adhuc adfixi.",
+  "pinned_role_user": "Tu",
+  "pinned_role_assistant": "Adiutor"
 }

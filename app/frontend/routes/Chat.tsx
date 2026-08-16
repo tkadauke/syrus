@@ -764,6 +764,12 @@ function ChatWorkspace({
     selectTab(tab)
   }
 
+  function openPinnedMessages() {
+    setPanelCollapsed(false)
+    setActiveMobileTab("pinned")
+    selectTab("pinned")
+  }
+
   function selectBookmark(messageId: number) {
     onWhiteboardFullscreenChange(false)
     setActiveMobileTab("chat")
@@ -817,7 +823,7 @@ function ChatWorkspace({
         </nav>
         <div className="flex min-h-0 w-full flex-1">
           {activeMobileTab === "chat" ? (
-            <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onSelectMessage={selectBookmark} />
+            <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} />
           ) : (
             <Suspense fallback={<PanelMessage>{t("loading_chat")}</PanelMessage>}>
               <ChatWorkspacePanel
@@ -860,7 +866,7 @@ function ChatWorkspace({
             }
       }
     >
-      {expanded ? null : <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onSelectMessage={selectBookmark} />}
+      {expanded ? null : <ChatColumn bookmarkTarget={bookmarkTarget} chatId={chatId} commandHandlers={commandHandlers} payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onOpenPinnedMessages={openPinnedMessages} onSelectMessage={selectBookmark} />}
       {expanded || panelCollapsed ? null : (
         <button
           aria-label={t("resize_workspace")}
@@ -1028,7 +1034,7 @@ export function ChatTour() {
   return <SyrusTour steps={steps} run={run} onEvent={(data) => handleJoyrideCallback(data)} />
 }
 
-function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, queryKey, onNotice, onSelectMessage }: { bookmarkTarget: BookmarkTarget | null; chatId: string; commandHandlers: ChatSystemCommandHandlers; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onSelectMessage: (messageId: number) => void }) {
+function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, queryKey, onNotice, onOpenPinnedMessages, onSelectMessage }: { bookmarkTarget: BookmarkTarget | null; chatId: string; commandHandlers: ChatSystemCommandHandlers; payload: ChatPayload; prefix: string; queryKey: ChatQueryKey; onNotice: (message: string | null) => void; onOpenPinnedMessages: () => void; onSelectMessage: (messageId: number) => void }) {
   const [hasSentFirstMessage, setHasSentFirstMessage] = useState(false)
   const olderMessageRequesterRef = useRef<OlderMessageRequester | null>(null)
   const [canLoadEarlierMessages, setCanLoadEarlierMessages] = useState(payload.has_more_older)
@@ -1051,7 +1057,7 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
       {payload.local_mode_enabled && payload.chat.mode === "local" ? (
         <LocalDaemonBanner payload={payload} />
       ) : null}
-      {!landing ? <PinnedMessagesBar payload={payload} queryKey={queryKey} onSelectMessage={onSelectMessage} /> : null}
+      {!landing ? <PinnedMessagesBar payload={payload} queryKey={queryKey} onSelectMessage={onSelectMessage} onViewAll={onOpenPinnedMessages} /> : null}
       <div className={`relative min-h-0 overflow-hidden rounded border border-gray-200 bg-white transition-all duration-500 ease-out dark:border-gray-700 dark:bg-gray-950 ${landing ? "h-0 w-full max-w-2xl opacity-0" : "flex-1 opacity-100"}`} data-tour="chat-message-list">
         <div data-tour="chat-message-list-top" className="absolute inset-x-0 top-0 h-0" />
         <MessageStream bookmarkTarget={bookmarkTarget} olderMessageRequesterRef={olderMessageRequesterRef} payload={payload} prefix={prefix} queryKey={queryKey} onCanLoadOlderChange={setCanLoadEarlierMessages} onNotice={onNotice} />
@@ -1068,9 +1074,9 @@ function ChatColumn({ bookmarkTarget, chatId, commandHandlers, payload, prefix, 
 // Up to the 3 most-recently-pinned messages, newest first, as truncated
 // single-line previews. Clicking one reuses the bookmark scroll-to-anchor
 // handler (selectBookmark) since navigating to a message is identical for
-// bookmarks and pins. "View all" is left as a hook point (rendered only
-// when there are more than 3 pins) for a follow-up Job to wire up.
-function PinnedMessagesBar({ payload, queryKey, onSelectMessage }: { payload: ChatPayload; queryKey: ChatQueryKey; onSelectMessage: (messageId: number) => void }) {
+// bookmarks and pins. "View all" (rendered only when there are more than 3
+// pins) opens the full Pinned tab in the workspace panel.
+function PinnedMessagesBar({ payload, queryKey, onSelectMessage, onViewAll }: { payload: ChatPayload; queryKey: ChatQueryKey; onSelectMessage: (messageId: number) => void; onViewAll: () => void }) {
   const { t } = useT("chat")
   const search = queryKey[2]
   const pinsQuery = useChatPins(payload.chat.id, search)
@@ -1095,7 +1101,13 @@ function PinnedMessagesBar({ payload, queryKey, onSelectMessage }: { payload: Ch
         </button>
       ))}
       {remaining > 0 ? (
-        <span className="px-1.5 py-0.5 text-xs text-gray-500 dark:text-gray-400">{t("pinned_messages_more", { count: remaining })}</span>
+        <button
+          className="rounded px-1.5 py-0.5 text-left text-xs font-medium text-blue-700 hover:underline dark:text-blue-300"
+          onClick={onViewAll}
+          type="button"
+        >
+          {t("pinned_messages_more", { count: remaining })}
+        </button>
       ) : null}
     </div>
   )

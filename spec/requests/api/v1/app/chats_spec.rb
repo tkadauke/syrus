@@ -3443,6 +3443,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     get "/api/v1/app/chats/#{chat.id}/pins"
 
     expect(parse_body["pins"]).to contain_exactly(include("chat_message_id" => message.id, "text" => "Build aqueducts.", "role" => "assistant"))
+    expect(parse_body["pins"].first["created_at"]).to be_present
   end
 
   it "rejects pinning a non-pinnable message through the app API" do

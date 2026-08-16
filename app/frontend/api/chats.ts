@@ -303,6 +303,7 @@ export type ChatMessagePin = {
   chat_message_id: number
   text: string
   role: string
+  created_at: string
 }
 
 export type ChatPendingAction = {
