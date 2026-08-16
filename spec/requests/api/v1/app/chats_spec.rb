@@ -1251,6 +1251,35 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     end
   end
 
+  it "includes conversation_kind and participants in the chat show payload for a group chat" do
+    sign_in_as(user)
+    other_user = Factories.user
+    chat = ChatSession.create!(user: user, conversation_kind: "group")
+    chat.chat_participants.create!(user: other_user, role: "member")
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("chat", "conversation_kind")).to eq("group")
+    expect(parse_body.dig("chat", "participants")).to contain_exactly(
+      hash_including("id" => user.id, "name" => user.display_name, "role" => "owner"),
+      hash_including("id" => other_user.id, "name" => other_user.display_name, "role" => "member")
+    )
+  end
+
+  it "includes conversation_kind direct and a single participant for a direct chat" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("chat", "conversation_kind")).to eq("direct")
+    expect(parse_body.dig("chat", "participants")).to contain_exactly(
+      hash_including("id" => user.id, "name" => user.display_name, "role" => "owner")
+    )
+  end
+
   it "creates the first message and enqueues a turn" do
     sign_in_as(user)
 

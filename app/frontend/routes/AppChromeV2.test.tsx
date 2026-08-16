@@ -268,6 +268,54 @@ describe("AppChromeV2", () => {
     expect(await screen.findByText("Unable to start chat.")).toBeInTheDocument()
     expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/dashboard/jobs")
   })
+
+  it("opens the participant picker for New group chat and creates a group chat with the selected users", async () => {
+    vi.spyOn(chatsApi, "fetchInvitableUsers").mockResolvedValue([
+      { id: 5, name: "Cicero", avatar_url: null },
+      { id: 6, name: "Cato", avatar_url: null }
+    ])
+    const createGroupChat = vi.spyOn(chatsApi, "createGroupChat").mockResolvedValue({
+      message: "Chat created.",
+      redirect_to: "/chats/21",
+      chat: chatNav({ id: 21, title: null, title_pending: true, chat_path: "/chats/21", last_message_at: null }) as chatsApi.ChatRecord
+    })
+
+    renderAppChrome(<LocationProbe />, {
+      initialEntries: ["/app-shell/dashboard/jobs"],
+      queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+      routeWrapper: true
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "New group chat" }))
+
+    const option = await screen.findByRole("option", { name: /Cicero/i })
+    fireEvent.click(option)
+    fireEvent.click(screen.getByRole("button", { name: "Create group chat" }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/21")
+    })
+    expect(createGroupChat).toHaveBeenCalledWith([5])
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+
+  it("shows an error in the picker when creating a group chat fails", async () => {
+    vi.spyOn(chatsApi, "fetchInvitableUsers").mockResolvedValue([{ id: 5, name: "Cicero", avatar_url: null }])
+    vi.spyOn(chatsApi, "createGroupChat").mockRejectedValue(new Error("boom"))
+
+    renderAppChrome(<LocationProbe />, {
+      initialEntries: ["/app-shell/dashboard/jobs"],
+      queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+      routeWrapper: true
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "New group chat" }))
+    fireEvent.click(await screen.findByRole("option", { name: /Cicero/i }))
+    fireEvent.click(screen.getByRole("button", { name: "Create group chat" }))
+
+    expect(await screen.findByText("Unable to start chat.")).toBeInTheDocument()
+    expect(screen.getByRole("dialog")).toBeInTheDocument()
+  })
 })
 
 describe("AppChromeV2 recent chats", () => {

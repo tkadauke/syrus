@@ -11,12 +11,22 @@ export type ChatRepository = {
 export type ChatMode = "planning" | "coding" | "local"
 export type ChatSystemKind = "supervisor"
 export type SupervisorUnreadSeverity = "info" | "warning" | "critical"
+export type ChatConversationKind = "direct" | "group"
+
+export type ChatParticipant = {
+  id: number
+  name: string
+  avatar_url: string | null
+  role: string
+}
 
 export type ChatRecord = {
   id: number
   title: string | null
   title_pending: boolean
   system_kind?: ChatSystemKind | null
+  conversation_kind?: ChatConversationKind
+  participants?: ChatParticipant[]
   pinned: boolean
   pinned_context: string | null
   chat_provider?: string | null
@@ -242,6 +252,7 @@ export type ChatMessageItem = {
   video_walkthrough_id?: number
   proposal?: ChatProposal | null
   pending_action?: ChatPendingActionInline | null
+  sender_user?: { id: number; name: string } | null
 }
 
 export type ChatPendingActionInline = {
@@ -714,6 +725,35 @@ export function createChat(values: CreateChatInput) {
 export function createEmptyChat(repositoryId?: number | string | null) {
   const payload = repositoryId == null || repositoryId === "" ? undefined : { repository_id: repositoryId }
   return postJson<ChatCreatedPayload>("/api/v1/app/chats", payload)
+}
+
+export type InvitableUser = {
+  id: number
+  name: string
+  avatar_url: string | null
+}
+
+export function fetchInvitableUsers(excludeChatId?: number | string | null) {
+  const params = new URLSearchParams()
+  if (excludeChatId != null) params.set("exclude_chat_id", String(excludeChatId))
+  const query = params.toString()
+  return getJson<InvitableUser[]>(`/api/v1/app/users/invitable${query ? `?${query}` : ""}`)
+}
+
+export function createGroupChat(participantUserIds: number[], repositoryId?: number | string | null) {
+  const payload: { participant_user_ids: number[]; repository_id?: number | string } = {
+    participant_user_ids: participantUserIds
+  }
+  if (repositoryId != null && repositoryId !== "") payload.repository_id = repositoryId
+  return postJson<ChatCreatedPayload>("/api/v1/app/chats", payload)
+}
+
+export function addChatParticipant(chatId: number | string, userId: number) {
+  return postJson<{ participants: ChatParticipant[] }>(`/api/v1/app/chats/${chatId}/participants`, { user_id: userId })
+}
+
+export function removeChatParticipant(chatId: number | string, userId: number) {
+  return deleteJson<{ participants: ChatParticipant[] }>(`/api/v1/app/chats/${chatId}/participants/${userId}`)
 }
 
 // Create the first-run onboarding chat (seeded so the agent greets the

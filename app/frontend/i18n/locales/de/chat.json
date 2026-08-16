@@ -319,5 +319,21 @@
   "picker_no_jobs_with_pr": "Keine Jobs mit offenen Pull Requests.",
   "picker_no_epics": "Keine Epics gefunden.",
   "picker_loading": "Wird geladen…",
-  "aria_job_epic_picker": "Job oder Epic auswählen"
+  "aria_job_epic_picker": "Job oder Epic auswählen",
+  "add_participant": "Teilnehmer hinzufügen",
+  "leave_chat": "Chat verlassen",
+  "remove_participant": "{{name}} entfernen",
+  "group_picker_title_create": "Gruppenchat starten",
+  "group_picker_title_add": "Teilnehmer hinzufügen",
+  "group_picker_search_placeholder": "Personen suchen…",
+  "group_picker_no_users": "Niemand zum Hinzufügen.",
+  "group_picker_loading": "Wird geladen…",
+  "group_picker_create_button": "Gruppenchat erstellen",
+  "group_picker_add_button": "Hinzufügen",
+  "group_picker_selected_count_one": "{{count}} ausgewählt",
+  "group_picker_selected_count_other": "{{count}} ausgewählt",
+  "group_picker_add_error": "Teilnehmer konnte nicht hinzugefügt werden.",
+  "group_picker_remove_error": "Teilnehmer konnte nicht entfernt werden.",
+  "left_group_chat_notice": "Du hast den Chat verlassen.",
+  "group_mention_hint": "Erwähne @syrus, um in diesem Gruppenchat eine Antwort zu erhalten."
 }

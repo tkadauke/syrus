@@ -57,11 +57,44 @@ just-removed participant's own client still gets notified even though it is no
 longer in `chat.participants` by the time the event fires.
 
 `GET /api/v1/app/users/invitable` powers the add-participant picker: it lists
-`{ id, name }` for every user except the caller, and an optional
+`{ id, name, avatar_url }` for every user except the caller, and an optional
 `exclude_chat_id` param additionally excludes that chat's current
 participants. It has no admin gate — Syrus has no team/org scoping anywhere
 else in the app, so any authenticated user can see the flat instance user
-list here.
+list here. `ChatSession#participants_payload` (returned by the chat show
+payload's `chat.participants`, the two participant endpoints, and the
+`update_participants` broadcast event) includes the same `avatar_url` field.
+
+Mention gating: `ChatSession#should_trigger_agent?(text)` is computed live
+from `chat_participants.count`, not a stored setting — chats with 0-1 human
+participants trigger the agent on every message; chats with 2+ require a
+case-insensitive `@syrus` substring (`agent_addressed?`) on that specific
+message. `InboundMessageRouter` and `ChatsController#message` both gate their
+`ChatTurnJob` enqueue on this. There is no autocomplete/mention-chip UI —
+plain-text matching only, kept intentionally compatible with a future
+Telegram-group bridge.
+
+The web UI's entry point for group chats is a "New group chat" button in the
+chat sidebar (`AppChromeV2`), which opens a participant picker
+(`ParticipantPickerModal`, shared with the header's "Add participant" flow)
+backed by `GET /api/v1/app/users/invitable` and creates the session via
+`POST /api/v1/app/chats` with `participant_user_ids`. For an existing
+`conversation_kind: "group"` chat, the header (`GroupChatParticipants`) shows
+every current participant as a chip with a remove control — removing another
+participant reads as "Remove", removing yourself reads as "Leave" and
+navigates away once the request succeeds, since `accessible_chat_sessions` no
+longer includes that chat. Both flows patch the chat's `participants` in the
+TanStack Query cache directly from each endpoint's response, and also apply
+live `update_participants` broadcast events so other open tabs/participants
+stay in sync. `App::ChatMessagePayload` adds `sender_user: { id, name }` to
+each message (`nil` for non-`role: "user"` messages, or when the message has
+no recorded sender); the message stream only renders that name above a human
+message when `chat.conversation_kind == "group"`, leaving direct-chat
+rendering unlabeled. The composer shows a static hint ("Mention @syrus...")
+whenever a group chat currently has 2+ participants, mirroring the backend
+gate above without attempting to predict it from `conversation_kind` alone
+(a group can be talked down to a single remaining human, at which point the
+gate — and the hint — turn off).
 
 Operators can intentionally switch an existing chat through the chat provider
 switch endpoint. That path enqueues `SwitchChatProviderJob`, rehydrates

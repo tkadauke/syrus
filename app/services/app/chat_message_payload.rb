@@ -34,7 +34,8 @@ module App
         records: messages,
         associations: [
           :chat_session,
-          :pending_action
+          :pending_action,
+          :sender_user
         ]
       ).call
       proposal_messages = messages.select(&:proposal_id)
@@ -74,6 +75,7 @@ module App
         content: message.content,
         text: text,
         bookmarkable: message.bookmarkable?,
+        sender_user: sender_user_json(message),
         created_at: message.created_at.iso8601
       }
 
@@ -83,6 +85,15 @@ module App
       payload[:pending_action] = pending_action_json(message.pending_action, chat_session: message.chat_session) if message.pending_action_id.present?
 
       payload
+    end
+
+    def sender_user_json(message)
+      return nil unless message.role == "user"
+
+      sender = message.sender_user
+      return nil unless sender
+
+      { id: sender.id, name: sender.display_name }
     end
 
     def pending_action_json(action, chat_session:)

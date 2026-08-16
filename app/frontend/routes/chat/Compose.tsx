@@ -1534,6 +1534,9 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
         ref={fileInputRef}
         type="file"
       />
+      {payload.chat.conversation_kind === "group" && (payload.chat.participants?.length ?? 0) > 1 ? (
+        <p className="mb-1 text-xs text-gray-500 dark:text-gray-400" data-testid="group-mention-hint">{t("group_mention_hint")}</p>
+      ) : null}
       <div className="relative">
         <textarea
           aria-controls={commandPaletteOpen ? "chat-slash-command-palette" : undefined}

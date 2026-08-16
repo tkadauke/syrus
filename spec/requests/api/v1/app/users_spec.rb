@@ -22,7 +22,7 @@ RSpec.describe "App API users", type: :request do
       ids = parse_body.pluck("id")
       expect(ids).to include(other_user.id)
       expect(ids).not_to include(user.id)
-      expect(parse_body).to include("id" => other_user.id, "name" => other_user.display_name)
+      expect(parse_body).to include(hash_including("id" => other_user.id, "name" => other_user.display_name))
     end
 
     it "additionally excludes participants of the given exclude_chat_id" do
