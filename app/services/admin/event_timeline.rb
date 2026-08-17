@@ -34,7 +34,7 @@ module Admin
         .unscope(:order)
         .group(bucket_sql)
         .count
-        .map { |bucket, count| { "bucket" => bucket.to_s, "count" => count } }
+        .map { |bucket, count| { "bucket" => bucket.to_i, "count" => count } }
     end
 
     def bucket_starts
@@ -52,15 +52,14 @@ module Admin
       adapter = ActiveRecord::Base.connection.adapter_name.downcase
       seconds = bucket_size.to_i
       if adapter.include?("mysql")
-        "FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(occurred_at) / #{seconds}) * #{seconds})"
+        "FLOOR(UNIX_TIMESTAMP(occurred_at) / #{seconds}) * #{seconds}"
       else
-        "datetime((strftime('%s', occurred_at) / #{seconds}) * #{seconds}, 'unixepoch')"
+        "(CAST(strftime('%s', occurred_at) AS INTEGER) / #{seconds}) * #{seconds}"
       end
     end
 
     def bucket_key(time)
-      adapter = ActiveRecord::Base.connection.adapter_name.downcase
-      adapter.include?("mysql") ? time.strftime("%Y-%m-%d %H:%M:%S") : time.utc.strftime("%Y-%m-%d %H:%M:%S")
+      (time.to_i / bucket_size.to_i) * bucket_size.to_i
     end
 
     def bucket_size
