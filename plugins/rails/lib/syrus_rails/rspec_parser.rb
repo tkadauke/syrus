@@ -1,26 +1,15 @@
 module SyrusRails
   # Parses RSpec's default progress or documentation formatter output into a
-  # normalized TestRun hash. Use this for projects that haven't configured the
-  # JUnit formatter; projects that produce --format RspecJunitFormatter output
-  # are already handled by core's JUnit parser.
+  # JunitXmlParser::ParsedRun-shaped value object (per the
+  # Syrus::Plugin::TestResultParser contract). Use this for projects that
+  # haven't configured the JUnit formatter; projects that produce
+  # --format RspecJunitFormatter output are already handled by core's JUnit
+  # parser.
   #
-  # TestRun shape:
-  #   {
-  #     "status"   => "passed" | "failed",
-  #     "duration" => Float | nil,
-  #     "summary"  => { "total" => Integer, "passed" => Integer,
-  #                     "failed" => Integer, "pending" => Integer },
-  #     "test_cases" => [TestCase]
-  #   }
-  #
-  # TestCase shape:
-  #   {
-  #     "name"            => String,
-  #     "file_path"       => String | nil,
-  #     "line_number"     => Integer | nil,
-  #     "status"          => "passed" | "failed" | "pending",
-  #     "failure_message" => String | nil
-  #   }
+  # Only failing examples are individually enumerable from RSpec's progress
+  # output (passing/pending examples aren't listed with a name or location),
+  # so `cases` only contains failures; `passed_count`/`skipped_count` on the
+  # returned ParsedRun come from the summary line instead.
   class RspecParser
     # Returns true when this parser can handle the given output file.
     def self.can_parse?(output_path:, format_hint: nil)
@@ -41,20 +30,18 @@ module SyrusRails
     end
 
     def parse
-      summary    = parse_summary
-      test_cases = parse_failures
+      summary = parse_summary
+      cases   = parse_failures
 
-      {
-        "status"     => test_cases.any? { |tc| tc["status"] == "failed" } ? "failed" : "passed",
-        "duration"   => summary[:duration],
-        "summary"    => {
-          "total"   => summary[:total],
-          "passed"  => summary[:passed],
-          "failed"  => summary[:failed],
-          "pending" => summary[:pending]
-        },
-        "test_cases" => test_cases
-      }
+      JunitXmlParser::ParsedRun.new(
+        total_count: summary[:total],
+        passed_count: summary[:passed],
+        failed_count: summary[:failed],
+        skipped_count: summary[:pending],
+        error_count: 0,
+        duration_ms: to_duration_ms(summary[:duration]),
+        cases: cases
+      )
     end
 
     private
@@ -75,6 +62,11 @@ module SyrusRails
       duration = @content.match(DURATION_PATTERN)&.then { |d| d[1].to_f }
 
       { total: total, failed: failed, pending: pending, passed: passed, duration: duration }
+    end
+
+    def to_duration_ms(seconds)
+      return nil if seconds.nil?
+      (seconds * 1000).round
     end
 
     # Each failure block in RSpec output looks like:
@@ -122,7 +114,7 @@ module SyrusRails
 
       # Find location line: "     # ./spec/...:NN:in ..."
       location_line = lines.find { |l| l.match?(%r{#\s+\./}) }
-      file_path, line_number = extract_location(location_line)
+      file_path, _line_number = extract_location(location_line)
 
       # Failure message: lines between the header and the location line,
       # excluding blank lines and the "Failure/Error:" header itself.
@@ -132,13 +124,16 @@ module SyrusRails
         &.reject(&:empty?) || []
       failure_message = msg_lines.join("\n").presence
 
-      {
-        "name"            => name,
-        "file_path"       => file_path,
-        "line_number"     => line_number,
-        "status"          => "failed",
-        "failure_message" => failure_message
-      }
+      JunitXmlParser::ParsedCase.new(
+        name: name,
+        suite_name: file_path.presence || "unknown",
+        file_path: file_path,
+        status: "failed",
+        duration_ms: nil,
+        output: nil,
+        failure_message: failure_message,
+        failure_backtrace: nil
+      )
     end
 
     def extract_location(line)

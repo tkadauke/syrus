@@ -160,13 +160,14 @@ module Steps
         return
       end
 
-      parsed = try_plugin_parsers(absolute_path) || JunitXmlParser.parse(absolute_path.read)
+      parser_name, parsed = try_plugin_parsers(absolute_path)
+      parser_name, parsed = [ "JunitXmlParser", JunitXmlParser.parse(absolute_path.read) ] if parsed.nil?
       TestRunIngester.new(run: run, grader_name: grader_name, parsed_run: parsed).ingest!
       log("[grader:#{grader_name}] ingested #{parsed.total_count} test case(s) from #{output_path_str}")
     rescue JunitXmlParser::ParseError => e
-      log("[grader:#{grader_name}] warning: JUnit XML parse error: #{e.message}")
+      log("[grader:#{grader_name}] warning: JunitXmlParser: JUnit XML parse error: #{e.message}")
     rescue StandardError => e
-      log("[grader:#{grader_name}] warning: test output ingestion failed: #{e.class}: #{e.message}")
+      log("[grader:#{grader_name}] warning: test output ingestion failed via #{parser_name || "JunitXmlParser"}: #{e.class}: #{e.message}")
     end
 
     def try_plugin_parsers(absolute_path)
@@ -176,11 +177,12 @@ module Steps
         end
         next unless can_parse
 
-        return PerformanceLogging.plugin_call(extension_point: :test_result_parser, provider: provider, operation: :call) do
+        parsed = PerformanceLogging.plugin_call(extension_point: :test_result_parser, provider: provider, operation: :call) do
           provider.call(output_path: absolute_path)
         end
+        return [ provider.to_s, parsed ]
       end
-      nil
+      [ nil, nil ]
     end
 
     def env

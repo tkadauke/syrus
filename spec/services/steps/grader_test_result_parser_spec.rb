@@ -134,6 +134,35 @@ RSpec.describe "Steps::Grader :test_result_parser plugin integration" do
     end
   end
 
+  context "when a plugin's return value violates the TestResultParser contract" do
+    it "logs the parser class name and the exception, and does not fail the grader" do
+      # A Hash (the pre-fix RspecParser shape) does not respond to #total_count,
+      # #cases, etc. — this reproduces the exact NoMethodError contract mismatch
+      # that used to be silently swallowed.
+      bad_return_value = { "status" => "passed" }
+      plugin = parser_provider
+      output_path = @ws_path.join("output/results.json")
+      FileUtils.mkdir_p(output_path.dirname)
+      output_path.write("not xml at all")
+
+      allow(plugin).to receive(:can_parse?).with(output_path: output_path).and_return(true)
+      allow(plugin).to receive(:call).with(output_path: output_path).and_return(bad_return_value)
+      allow(plugin).to receive(:to_s).and_return("BadContractParser")
+      register_parser("bad-parser", plugin)
+
+      step = make_step
+      handler, run = handler_for(step)
+
+      expect(JunitXmlParser).not_to receive(:parse)
+      expect { handler.call }.not_to raise_error
+      expect(TestRun.where(run: run, grader_name: "go-tests")).not_to exist
+
+      log_text = run.reload.job_logs.order(:sequence).pluck(:chunk).join
+      expect(log_text).to include("BadContractParser")
+      expect(log_text).to include("NoMethodError")
+    end
+  end
+
   context "when multiple plugins are registered" do
     it "uses the first matching plugin and skips the rest" do
       parsed = stub_parsed_run(total: 5, passed: 5, failed: 0)
