@@ -112,6 +112,11 @@ class ChatPendingAction < ApplicationRecord
         command = PendingActions.for(action_key).new(self)
         repair_targets = command.repair_snapshot_targets
         self.before_snapshot = PendingActions::RepairAuditSnapshot.capture(repair_targets) if command.repair_action?
+        # `record` is an AR record to stash on `action.result` (polymorphic),
+        # or nil when the command is purely a mutation of existing state.
+        # Anything else would blow up the polymorphic assignment (which
+        # calls AR methods like `has_query_constraints?` on the assigned
+        # object).
         record = command.execute
         self.after_snapshot = PendingActions::RepairAuditSnapshot.capture(repair_targets) if command.repair_action?
         record_repair_admin_action!(record) if command.repair_action?
@@ -277,15 +282,6 @@ class ChatPendingAction < ApplicationRecord
 
   def empty_payload_action?
     EMPTY_PAYLOAD_ACTIONS.include?(action_key)
-  end
-
-  # Each command object returns an AR record to stash on `action.result`
-  # (polymorphic), or nil when the action is purely a mutation of
-  # existing state. Anything else would blow up the polymorphic
-  # assignment (which calls AR methods like `has_query_constraints?`
-  # on the assigned object).
-  def apply!
-    PendingActions.for(action_key).new(self).execute
   end
 
   def known_action

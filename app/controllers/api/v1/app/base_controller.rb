@@ -5,6 +5,7 @@ module Api
       # requests use session cookies; CLI requests may use bearer tokens.
       class BaseController < ApplicationController
         include JobEpicRefFinder
+        include JsonErrorRendering
 
         TokenSession = Struct.new(:user, keyword_init: true) do
           def destroy; end
@@ -55,9 +56,6 @@ module Api
           render_error("forbidden", I18n.t("api.base.admin_forbidden"), status: :forbidden)
         end
 
-        def render_error(code, message, status:)
-          render json: { error: { code: code, message: message } }, status: status
-        end
 
         def plain_json(value)
           case value

@@ -2,6 +2,8 @@ module Api
   module V1
     module App
       class MemoriesController < BaseController
+        include Paginatable
+
         PER_PAGE = 20
 
         def index
@@ -164,11 +166,6 @@ module Api
             id: repository.id,
             name: repository.slug
           }
-        end
-
-        def page_param
-          page = params[:page].to_i
-          page.positive? ? page : 1
         end
 
         def create_memory_params
