@@ -76,6 +76,7 @@ module App
         text: text,
         bookmarkable: message.bookmarkable?,
         sender_user: sender_user_json(message),
+        pinnable: message.pinnable?,
         created_at: message.created_at.iso8601
       }
 

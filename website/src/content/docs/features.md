@@ -620,6 +620,17 @@ Mode handoff confirmation as any other Coding Mode change still applies
 before a Job or pull request is created; a skill that only reports back
 (no code changes) simply posts its results in the thread.
 
+Operators (and the agent) can pin individual user and assistant messages
+independently of bookmarks. Hovering a message bubble reveals a pin toggle
+alongside the copy and bookmark controls; pin state is shared across every
+chat participant, the same as bookmarks. The 3 most-recently-pinned messages
+show as truncated single-line previews in a bar at the top of the chat, newest
+first, and clicking one scrolls to and highlights that message. When more
+than 3 messages are pinned, a "view all" link opens a "Pinned" tab in the
+chat's right-side workspace panel with every pinned message, its sender, and
+a relative timestamp — clicking a row there navigates the same way. Pin and
+unpin events update the bar and panel live for everyone in the chat.
+
 Chat transcripts also surface MCP sidecar health. Syrus distinguishes
 available, pending, and unavailable chat tools so operators can tell when
 proposal, schedule, bookmark, or whiteboard persistence is not ready and

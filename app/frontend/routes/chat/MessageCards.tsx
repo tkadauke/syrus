@@ -4,8 +4,9 @@ import type { FormEvent, KeyboardEvent, MouseEvent } from "react"
 import { useEffect, useRef } from "react"
 import { Link } from "react-router-dom"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
-import { createChatBookmark, fetchSourceFileContent, sourceFileUrl, type ChatMessageItem, type ChatPayload, type ChatRenderItem, type ChatStructuredTool, type ChatSystemMessage, type ChatToolGroupItem } from "../../api/chats"
+import { createChatBookmark, createChatMessagePin, deleteChatMessagePin, fetchSourceFileContent, sourceFileUrl, type ChatMessageItem, type ChatPayload, type ChatRenderItem, type ChatStructuredTool, type ChatSystemMessage, type ChatToolGroupItem } from "../../api/chats"
 import { CloseIcon } from "../../components/CloseIcon"
+import { PinIcon } from "../../components/PinIcon"
 import { FilePreviewModal } from "../../components/FilePreviewModal"
 import { Markdown, PlainText } from "../../lib/Markdown"
 import { linkifySlugs } from "../../lib/linkifySlugs"
@@ -13,6 +14,7 @@ import { highlightCode, inferToolResultLanguage } from "../../lib/syntaxHighligh
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { type ChatQueryKey } from "./constants"
+import { chatPinsPath, chatPinsQueryKey, useChatPins } from "./pins"
 import { TOOL_RESULT_PREVIEW_LINE_CHARS } from "./toolRendering"
 import { appendSearch, primaryButton, secondaryButton, withRoutePrefix } from "./utils"
 import { PendingActionCard, ProposalCard } from "./ProposalCards"
@@ -49,7 +51,7 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
     return (
       <article className={`group/message relative flex justify-end pt-6${entranceClass}`} id={`chat_message_${item.id}`}>
         <span className="absolute -top-4" id={`message-${item.id}`} />
-        {readOnly ? null : <BookmarkControl item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} />}
+        {readOnly ? null : <MessageActions item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} />}
         <div className="max-w-[min(42rem,85%)] space-y-2">
           {payload.chat.conversation_kind === "group" && item.sender_user ? (
             <div className="pr-1 text-right text-xs font-medium text-gray-500 dark:text-gray-400">{item.sender_user.name}</div>
@@ -75,7 +77,7 @@ export const ChatMessage = memo(function ChatMessage({ animateIn = false, item, 
     return (
       <article className={`group/message relative pt-6${entranceClass}`} id={`chat_message_${item.id}`}>
         <span className="absolute -top-4" id={`message-${item.id}`} />
-        {readOnly ? null : <BookmarkControl item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} />}
+        {readOnly ? null : <MessageActions item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} />}
         <div className="space-y-3">
           <div className="px-0 py-1 sm:rounded sm:border sm:border-gray-200 sm:bg-white sm:px-4 sm:py-3 sm:dark:border-gray-700 sm:dark:bg-gray-900">
             <Markdown className="chat-prose text-gray-800 dark:text-gray-100" text={item.text} onLinkClick={handleMarkdownLink} />
@@ -262,32 +264,17 @@ export function shouldAnimateMessageEntrance(messageId: number | null | undefine
 }
 
 
-function BookmarkControl({ item, payload, queryKey, onNotice }: { item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
-  const { t } = useT("chat")
-  const queryClient = useQueryClient()
-  const search = queryKey[2]
-  const [open, setOpen] = useState(false)
-  const [label, setLabel] = useState("")
+// Hover-revealed toolbar for a message bubble: timestamp, copy, pin toggle,
+// and the bookmark form. A single wrapper so the pin and bookmark controls
+// share one hover/visibility group instead of each managing its own
+// absolutely-positioned overlay (which would stack and overlap).
+function MessageActions({ item, payload, queryKey, onNotice }: { item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+  const [bookmarkFormOpen, setBookmarkFormOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => { if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current) }, [])
-  const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
-  const bookmark = useMutation({
-    mutationFn: () => createChatBookmark(appendSearch(payload.paths.app_bookmarks_path, search), item.id, label),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
-      onNotice(null)
-      setLabel("")
-      setOpen(false)
-    }
-  })
 
   if (!item.text) return null
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    bookmark.mutate()
-  }
 
   function handleCopy() {
     void navigator.clipboard.writeText(item.text).then(() => {
@@ -297,7 +284,7 @@ function BookmarkControl({ item, payload, queryKey, onNotice }: { item: Extract<
   }
 
   return (
-    <div className={`absolute right-0 top-0 z-10 flex gap-1 ${open ? "flex" : "hidden group-hover/message:flex"}`} ref={menuRef}>
+    <div className={`absolute right-0 top-0 z-10 flex gap-1 ${bookmarkFormOpen ? "flex" : "hidden group-hover/message:flex"}`}>
       {item.created_at ? (
         <time
           className="flex items-center rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-400 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500"
@@ -310,25 +297,83 @@ function BookmarkControl({ item, payload, queryKey, onNotice }: { item: Extract<
       <button className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800" onClick={handleCopy} type="button">
         {copied ? "Copied!" : "Copy"}
       </button>
-      {item.bookmarkable ? (
-        <>
-          <button className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800" onClick={() => setOpen((value) => !value)} type="button">
-            Bookmark
-          </button>
-          {open ? (
-            <form className="absolute right-0 top-8 w-64 space-y-3 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" onSubmit={submit}>
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
-                Label
-                <input className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100" maxLength={120} onChange={(event) => setLabel(event.target.value)} required type="text" value={label} />
-              </label>
-              {bookmark.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(bookmark.error, "Bookmark failed.")}</div> : null}
-              <div className="flex justify-end gap-2">
-                <button className={secondaryButton()} disabled={bookmark.isPending} onClick={() => setOpen(false)} type="button">{t("cancel")}</button>
-                <button className={primaryButton()} disabled={bookmark.isPending} type="submit">{t("save")}</button>
-              </div>
-            </form>
-          ) : null}
-        </>
+      {item.pinnable ? <PinControl item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} /> : null}
+      {item.bookmarkable ? <BookmarkControl item={item} payload={payload} queryKey={queryKey} open={bookmarkFormOpen} onOpenChange={setBookmarkFormOpen} onNotice={onNotice} /> : null}
+    </div>
+  )
+}
+
+function PinControl({ item, payload, queryKey, onNotice }: { item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload; queryKey: ChatQueryKey; onNotice: (message: string | null) => void }) {
+  const { t } = useT("chat")
+  const queryClient = useQueryClient()
+  const search = queryKey[2]
+  const pinsPath = chatPinsPath(payload.chat.id)
+  const pinsQueryKey = chatPinsQueryKey(payload.chat.id, search)
+  const pinsQuery = useChatPins(payload.chat.id, search)
+  const pinned = pinsQuery.data?.pins.some((pin) => pin.chat_message_id === item.id) ?? false
+
+  const togglePin = useMutation({
+    mutationFn: () => pinned ? deleteChatMessagePin(pinsPath, item.id) : createChatMessagePin(pinsPath, item.id),
+    onSuccess: () => {
+      onNotice(null)
+      void queryClient.invalidateQueries({ queryKey: pinsQueryKey })
+    },
+    onError: (error) => onNotice(errorMessage(error, pinned ? t("unable_to_unpin") : t("unable_to_pin")))
+  })
+
+  return (
+    <button
+      aria-label={pinned ? t("unpin_message") : t("pin_message")}
+      aria-pressed={pinned}
+      className={`rounded border px-2 py-1 text-xs font-medium shadow-sm ${pinned ? "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200 dark:hover:bg-blue-900" : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"}`}
+      disabled={togglePin.isPending}
+      onClick={() => togglePin.mutate()}
+      title={pinned ? t("unpin_message") : t("pin_message")}
+      type="button"
+    >
+      <PinIcon className="h-3.5 w-3.5" />
+    </button>
+  )
+}
+
+function BookmarkControl({ item, payload, queryKey, open, onOpenChange, onNotice }: { item: Extract<ChatRenderItem, { type: "message" }>; payload: ChatPayload; queryKey: ChatQueryKey; open: boolean; onOpenChange: (open: boolean) => void; onNotice: (message: string | null) => void }) {
+  const { t } = useT("chat")
+  const queryClient = useQueryClient()
+  const search = queryKey[2]
+  const [label, setLabel] = useState("")
+  const menuRef = useDismissiblePopup<HTMLDivElement>(open, () => onOpenChange(false))
+  const bookmark = useMutation({
+    mutationFn: () => createChatBookmark(appendSearch(payload.paths.app_bookmarks_path, search), item.id, label),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(queryKey, updated)
+      onNotice(null)
+      setLabel("")
+      onOpenChange(false)
+    }
+  })
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    bookmark.mutate()
+  }
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800" onClick={() => onOpenChange(!open)} type="button">
+        Bookmark
+      </button>
+      {open ? (
+        <form className="absolute right-0 top-8 w-64 space-y-3 rounded border border-gray-200 bg-white p-3 shadow-lg dark:border-gray-700 dark:bg-gray-900" onSubmit={submit}>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
+            Label
+            <input className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100" maxLength={120} onChange={(event) => setLabel(event.target.value)} required type="text" value={label} />
+          </label>
+          {bookmark.isError ? <div className="text-xs text-red-700 dark:text-red-300">{errorMessage(bookmark.error, "Bookmark failed.")}</div> : null}
+          <div className="flex justify-end gap-2">
+            <button className={secondaryButton()} disabled={bookmark.isPending} onClick={() => onOpenChange(false)} type="button">{t("cancel")}</button>
+            <button className={primaryButton()} disabled={bookmark.isPending} type="submit">{t("save")}</button>
+          </div>
+        </form>
       ) : null}
     </div>
   )

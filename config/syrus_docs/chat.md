@@ -180,6 +180,21 @@ chat's own Coding Mode turn rather than a separate execution path. See
 `skills.md`'s "Slash-command execution in chat" section for the full
 resolution, Coding Mode gating, and handoff-confirmation behavior.
 
+Independently of bookmarks, user and assistant messages can be pinned via
+`ChatMessagePin` (`POST`/`GET`/`DELETE /api/v1/app/chats/:id/pins`), gated on
+the same `pinnable?` role restriction as `bookmarkable?`. Pin state is shared
+across all chat participants, not per-user. The SPA shows a hover-revealed
+pin toggle on each pinnable message bubble and a top-of-chat bar with the 3
+most-recently-pinned messages as truncated single-line previews (newest
+first); clicking a preview scrolls to and highlights that message, reusing
+the bookmark scroll-to-anchor mechanism. When more than 3 messages are
+pinned, the bar's "+N more" affordance opens a "Pinned" tab in the right-side
+workspace panel (`availableWorkspaceTabs` in `workspaceTabs.ts`) listing every
+pinned message with its sender, a relative timestamp, and the same
+click-to-navigate behavior. `ChatMessagePin` broadcasts `upsert_pin`/
+`remove_pin` app events (`changed: ["pins"]`) so the bar, panel, and toggle
+stay live for every participant.
+
 ## Proposal dependencies
 
 Chat proposal cards can declare dependency edges to existing Jobs/Epics or to

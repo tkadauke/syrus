@@ -16,7 +16,7 @@ import {
 } from "./constants"
 import { codingFilesTabVisible, jobsTabVisible } from "./utils"
 
-export type WorkspaceTab = "whiteboard" | "context" | "media" | "files" | "diff" | "jobs"
+export type WorkspaceTab = "whiteboard" | "context" | "media" | "pinned" | "files" | "diff" | "jobs"
 export type MobileChatTab = "chat" | WorkspaceTab
 
 export function workspaceTabClass(active: boolean) {
@@ -27,6 +27,7 @@ export function workspaceTabLabel(tab: WorkspaceTab, t: (key: string) => string)
   if (tab === "whiteboard") return t("tab_whiteboard")
   if (tab === "context") return t("tab_context")
   if (tab === "media") return t("tab_media")
+  if (tab === "pinned") return t("tab_pinned")
   if (tab === "files") return t("tab_files")
   if (tab === "diff") return t("tab_diff")
   if (tab === "jobs") return t("tab_jobs")
@@ -43,6 +44,7 @@ export function availableWorkspaceTabs(payload: ChatPayload, simpleMode = false)
     "whiteboard",
     ...(simpleMode ? [] : (["context"] as WorkspaceTab[])),
     "media",
+    "pinned",
     ...(codingFilesTabVisible(payload) ? (["files"] as WorkspaceTab[]) : []),
     ...(payload.local_tunnel_connected ? (["diff"] as WorkspaceTab[]) : []),
     ...(jobsTabVisible(payload) ? (["jobs"] as WorkspaceTab[]) : [])
@@ -59,7 +61,7 @@ export function defaultWorkspaceTab(payload: ChatPayload, simpleMode = false): W
 export function storedWorkspaceTab(): WorkspaceTab | null {
   try {
     const value = window.localStorage.getItem(CHAT_WORKSPACE_TAB_KEY)
-    return value === "whiteboard" || value === "context" || value === "media" || value === "files" || value === "diff" || value === "jobs" ? value : null
+    return value === "whiteboard" || value === "context" || value === "media" || value === "pinned" || value === "files" || value === "diff" || value === "jobs" ? value : null
   } catch (_error) {
     return null
   }

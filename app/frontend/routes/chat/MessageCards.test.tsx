@@ -1,16 +1,19 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { ChatMessage, resolveWorkspaceFileLink, ToolGroup } from "./MessageCards"
-import type { ChatPayload, ChatRenderItem, ChatToolGroupItem } from "../../api/chats"
-import { fetchSourceFileContent } from "../../api/chats"
+import type { ChatMessagePin, ChatPayload, ChatRenderItem, ChatToolGroupItem } from "../../api/chats"
+import { createChatMessagePin, deleteChatMessagePin, fetchChatMessagePins, fetchSourceFileContent } from "../../api/chats"
 
 vi.mock("../../api/chats", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/chats")>()
   return {
     ...actual,
-    fetchSourceFileContent: vi.fn()
+    fetchSourceFileContent: vi.fn(),
+    fetchChatMessagePins: vi.fn(),
+    createChatMessagePin: vi.fn(),
+    deleteChatMessagePin: vi.fn()
   }
 })
 
@@ -85,13 +88,14 @@ function makePayload(): ChatPayload {
   } as ChatPayload
 }
 
-function assistantMessage(text: string): Extract<ChatRenderItem, { type: "message" }> {
+function assistantMessage(text: string, options: { pinnable?: boolean } = {}): Extract<ChatRenderItem, { type: "message" }> {
   return {
     type: "message",
     id: 5,
     role: "assistant",
     text,
     bookmarkable: true,
+    pinnable: options.pinnable ?? false,
     attachments: []
   }
 }
@@ -108,13 +112,13 @@ function userMessage(text: string, overrides: Partial<Extract<ChatRenderItem, { 
   }
 }
 
-function renderMessage(text: string, payload = makePayload()) {
+function renderMessage(text: string, payload = makePayload(), options: { pinnable?: boolean } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
         <ChatMessage
-          item={assistantMessage(text)}
+          item={assistantMessage(text, options)}
           payload={payload}
           pendingActionIds={new Set()}
           prefix=""
@@ -146,6 +150,9 @@ function renderChatMessageItem(item: Extract<ChatRenderItem, { type: "message" }
 
 beforeEach(() => {
   vi.mocked(fetchSourceFileContent).mockReset()
+  vi.mocked(fetchChatMessagePins).mockReset().mockResolvedValue({ pins: [] })
+  vi.mocked(createChatMessagePin).mockReset()
+  vi.mocked(deleteChatMessagePin).mockReset()
 })
 
 describe("sender attribution", () => {
@@ -286,5 +293,39 @@ describe("tool result rendering", () => {
 
     expect(screen.queryByTestId("highlighted-code")).not.toBeInTheDocument()
     expect(screen.getByText("a".repeat(2_000))).toBeInTheDocument()
+  })
+})
+
+describe("pin control", () => {
+  it("does not render a pin toggle for non-pinnable messages", () => {
+    renderMessage("Not pinnable", makePayload(), { pinnable: false })
+
+    expect(screen.queryByRole("button", { name: "Pin message" })).not.toBeInTheDocument()
+  })
+
+  it("shows a pin toggle for pinnable messages and pins on click", async () => {
+    vi.mocked(createChatMessagePin).mockResolvedValue({} as ChatPayload)
+    renderMessage("Discuss the aqueduct.", makePayload(), { pinnable: true })
+
+    const pinButton = await screen.findByRole("button", { name: "Pin message" })
+    fireEvent.click(pinButton)
+
+    await waitFor(() => {
+      expect(createChatMessagePin).toHaveBeenCalledWith("/api/v1/app/chats/122/pins", 5)
+    })
+  })
+
+  it("shows an unpin toggle and unpins on click when the message is already pinned", async () => {
+    const pin: ChatMessagePin = { id: 1, chat_message_id: 5, text: "Discuss the aqueduct.", role: "assistant", created_at: "2026-08-10T10:00:00Z" }
+    vi.mocked(fetchChatMessagePins).mockResolvedValue({ pins: [ pin ] })
+    vi.mocked(deleteChatMessagePin).mockResolvedValue({ pins: [] } as unknown as ChatPayload & { pins: ChatMessagePin[] })
+    renderMessage("Discuss the aqueduct.", makePayload(), { pinnable: true })
+
+    const unpinButton = await screen.findByRole("button", { name: "Unpin message" })
+    fireEvent.click(unpinButton)
+
+    await waitFor(() => {
+      expect(deleteChatMessagePin).toHaveBeenCalledWith("/api/v1/app/chats/122/pins", 5)
+    })
   })
 })
