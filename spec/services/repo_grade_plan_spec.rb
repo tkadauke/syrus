@@ -25,7 +25,10 @@ RSpec.describe RepoGradePlan do
 
       expect(result.graders.map(&:name)).to eq(%w[tests audit])
       expect(result.graders.map(&:command)).to eq([ "bin/rspec", "bin/bundler-audit" ])
-      expect(result.graders.map(&:fast_command)).to eq([ "bin/rspec-fast", nil ])
+      # `fast:` is still parsed for the deprecation window but no longer
+      # reaches the Grader; a config declaring it falls back to `run:`.
+      expect(result.graders.map { |g| g.command_for(variant: :fast) })
+        .to eq([ "bin/rspec", "bin/bundler-audit" ])
       expect(result.graders.map(&:ci_command)).to eq([ "RUN_CI_ONLY_SPECS=true bin/rspec", nil ])
       expect(result.graders.map(&:required)).to eq([ true, false ])
       expect(result.graders.map(&:timeout_minutes)).to eq([ 15, 5 ])

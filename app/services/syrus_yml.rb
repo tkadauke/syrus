@@ -28,6 +28,11 @@ class SyrusYml
   Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review)
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern)
   GradeConfig = Data.define(:max_iterations, :steps)
+  # `fast` is accepted but no longer used. Syrus dropped the three-way
+  # run/fast/ci split; `run:` is the parallel command now and `ci:` adds the
+  # isolated :ci_only pass. Repos whose .syrus.yml still carries `fast:`
+  # must keep parsing across the deploy window, so the key is tolerated here
+  # and simply falls back to `run:`. Remove after two deploys.
   GradeStep = Data.define(:name, :run, :fast, :ci, :description, :required, :timeout_minutes, :when_files_changed, :junit_output)
   # Deterministic, in-place, semantics-preserving cosmetic passes (safe
   # autocorrect only). `files` are the globs this formatter owns — both its
@@ -258,7 +263,7 @@ class SyrusYml
 
     run = raw["run"].to_s.strip
     raise ParseError, "#{label}.run: is required" if run.empty?
-    fast = raw["fast"].to_s.strip.presence
+    fast = raw["fast"].to_s.strip.presence # deprecated, ignored — see GradeStep
     ci = raw["ci"].to_s.strip.presence
 
     when_files_changed = raw["when_files_changed"]

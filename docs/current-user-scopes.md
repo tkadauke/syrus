@@ -15,6 +15,7 @@ per-user/private:
   - app/controllers/api/v1/app/bootstrap_controller.rb
   - app/controllers/api/v1/app/bug_reports_controller.rb
   - app/controllers/api/v1/app/browser_errors_controller.rb
+  - app/controllers/api/v1/app/event_actions_controller.rb
   - app/controllers/api/v1/app/report_issue_controller.rb
   - app/controllers/api/v1/app/chat_job_status_controller.rb
   - app/controllers/api/v1/app/chat_participants_controller.rb
@@ -127,6 +128,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/auth_controller.rb` | per-user/private | Returns app-session identity for the current browser user. |
 | `app/controllers/api/v1/app/bug_reports_controller.rb` | per-user/private | Files bug reports with the current user as reporter/context. |
 | `app/controllers/api/v1/app/browser_errors_controller.rb` | per-user/private | Records browser error diagnostics under the signed-in user; admin-only endpoints expose the aggregate event stream. |
+| `app/controllers/api/v1/app/event_actions_controller.rb` | per-user/private | Files a Job from an observability event as the signed-in user; the filer authorizes the actor before creating anything. |
 | `app/controllers/api/v1/app/report_issue_controller.rb` | per-user/private | Files GitHub issues with the current user's connected GitHub token. |
 | `app/controllers/api/v1/app/chat_job_status_controller.rb` | per-user/private | Returns job and epic status for confirmed proposals in a chat session found through `Current.user.chat_sessions`. |
 | `app/controllers/api/v1/app/chat_participants_controller.rb` | per-user/private | Group-chat participant add/remove find the chat through `Current.user.accessible_chat_sessions`, so only current participants can manage membership. |

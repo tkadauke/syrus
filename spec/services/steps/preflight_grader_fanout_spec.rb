@@ -129,7 +129,9 @@ RSpec.describe Steps::PreflightGraderFanout do
     )
   end
 
-  it "uses fast grader commands for main-branch repair preflight checks" do
+  # `fast:` no longer selects anything — a config still carrying it falls back
+  # to `run:`, which is the parallel command now.
+  it "ignores a legacy fast command for main-branch repair preflight checks" do
     write_grade_config(<<~YAML)
       grade:
         - name: rspec
@@ -140,10 +142,10 @@ RSpec.describe Steps::PreflightGraderFanout do
     handler.call
 
     details = workflow.steps.find_by!(kind: "preflight_grader").details
-    expect(details["command"]).to eq("COVERAGE=false bin/rspec")
+    expect(details["command"]).to eq("bin/rspec")
     expect(details["standard_command"]).to eq("bin/rspec")
-    expect(details["fast_command"]).to eq("COVERAGE=false bin/rspec")
-    expect(details["fast_variant"]).to be true
+    expect(details).not_to have_key("fast_command")
+    expect(details).not_to have_key("fast_variant")
   end
 
   it "records grade_plan_source in workflow artifacts" do

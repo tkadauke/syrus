@@ -35,8 +35,7 @@ grade:
   max_iterations: 5
   steps:
     - name: rspec
-      run: bin/rspec
-      fast: COVERAGE=false bin/rspec-fast
+      run: COVERAGE=false bin/rspec-fast
       ci: COVERAGE=false bin/rspec-ci
       description: Run the Ruby test suite
       required: true
@@ -73,30 +72,24 @@ grade:
 | `timeout_minutes` | no | 15 | Clamped to 30 max |
 | `when_files_changed` | no | — | Array of glob patterns; grader is skipped at fanout time if none of the PR's changed files match |
 
-### fast
+### fast (removed)
 
-`fast` is an optional alternate command for the same grader. Syrus uses it when the grader result is only a pass/fail safety check and no fresh coverage report is consumed: `main_branch_repair`, `auto_merge`, `merge_train`, and implementation/feedback/coding grade-loop iterations after the first. `main_grader` uses `ci` when present, otherwise `fast`, otherwise `run`. If `fast` is absent in a fast context, Syrus falls back to `run`.
+`fast` was an optional alternate command used for landing trigger kinds and for
+grade-loop iterations after the first. It has been removed: `run` is the
+everyday command for every non-CI context, so it should already be the fast,
+parallel one. The key is still parsed so existing `.syrus.yml` files keep
+loading, but it selects nothing — a grader declaring `fast` runs `run`.
 
 For Ruby projects, prefer putting formatter, coverage, parallelization, and CI-only filtering policy in a wrapper script such as `bin/rspec-fast`. Grader infrastructure should run the configured command as-is instead of appending RSpec-specific flags.
 
-For example, a Ruby suite can keep coverage on for the first implementation validation while disabling coverage instrumentation for landing and repair rechecks:
-
-```yaml
-grade:
-  - name: rspec
-    run: bin/rspec
-    fast: COVERAGE=false bin/rspec-fast
-```
-
 ### ci
 
-`ci` is an optional alternate command for `ci_failure` workflows. Use it when the CI-only checks are too expensive for normal Syrus grading, but must run when Syrus is specifically repairing a failed CI check. If `ci` is absent, Syrus falls back to `run`; it never falls back from `ci` to `fast`.
+`ci` is an optional alternate command for `ci_failure` and `main_grader` workflows. Use it when the CI-only checks are too expensive for normal Syrus grading, but must run when Syrus is specifically repairing a failed CI check or judging main-branch health. If `ci` is absent, Syrus falls back to `run`.
 
 ```yaml
 grade:
   - name: rspec
-    run: bin/rspec
-    fast: COVERAGE=false bin/rspec-fast
+    run: COVERAGE=false bin/rspec-fast
     ci: COVERAGE=false bin/rspec-ci
 ```
 
@@ -116,12 +109,11 @@ A good default shape is:
 ```yaml
 grade:
   - name: tests
-    run: bin/test-with-coverage
-    fast: bin/test-fast
+    run: bin/test-fast
     ci: bin/test-ci
 ```
 
-Use `run` for the normal validation command. If coverage reporting is configured, this is usually the command that produces coverage artifacts. Use `fast` for pass/fail-only rechecks where fresh coverage is not consumed, such as landing, repair checks, and repeat grade-loop iterations. Use `ci` for CI-failure repair workflows and main-branch grading, where Syrus needs to run the slower checks that GitHub Actions ran.
+Use `run` for the normal validation command — it runs in every context except CI-failure repair and main-branch grading, so make it the fast, parallel one. If coverage reporting is configured, this is also the command that produces coverage artifacts. Use `ci` for CI-failure repair workflows and main-branch grading, where Syrus needs to run the slower checks that GitHub Actions ran.
 
 Keep the normal grader suite fast enough for repeated agent use. A useful target is under 30 seconds for the primary pass/fail suite. If tests are slow because they create real repositories, spawn shells, hit network services, exercise large filesystem trees, or boot full integrations, first try to replace that cost with fakes, dependency injection, fixtures, or narrower unit coverage. Mark tests CI-only only when the real integration behavior is important and cannot reasonably be made fast.
 

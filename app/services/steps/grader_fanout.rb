@@ -161,10 +161,8 @@ module Steps
               "name" => grader.name,
               "command" => grader.command,
               "standard_command" => grader.metadata["standard_command"],
-              "fast_command" => grader.metadata["fast_command"],
               "ci_command" => grader.metadata["ci_command"],
               "command_variant" => grader.metadata["command_variant"],
-              "fast_variant" => grader.metadata["fast_variant"],
               "ci_variant" => grader.metadata["ci_variant"],
               "description" => grader.description,
               "required" => grader.required,
@@ -194,9 +192,5 @@ module Steps
       LandingGraderPlan.variant_for(trigger_kind: workflow.trigger_kind, iteration: run.iteration)
     end
 
-    def fast_grader_context?
-      LandingGraderPlan::FAST_TRIGGER_KINDS.include?(workflow.trigger_kind) ||
-        (run.iteration.to_i > 1 && LandingGraderPlan::REPEAT_FAST_TRIGGER_KINDS.include?(workflow.trigger_kind))
-    end
   end
 end

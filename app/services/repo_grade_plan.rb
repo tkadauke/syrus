@@ -15,18 +15,15 @@ class RepoGradePlan
   CONFIG_FILE = ".syrus.yml".freeze
   NAME_PATTERN = SyrusYml::GRADE_NAME_PATTERN
 
-  Grader = Data.define(:name, :command, :fast_command, :ci_command, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :metadata) do
+  # Two commands, not three. `run:` is the everyday command and is already
+  # parallel; `ci:` layers the isolated serial :ci_only pass on top of it for
+  # ci_failure and main-branch graders. The old `fast:` variant selected a
+  # parallel command while `run:` stayed serial, which meant the first grader
+  # pass of every workflow — the common case — ran single-threaded. A
+  # `.syrus.yml` that still declares `fast:` falls back here to `run:`.
+  Grader = Data.define(:name, :command, :ci_command, :description, :required, :timeout_minutes, :when_files_changed, :junit_output, :metadata) do
     def command_for(variant:)
-      case variant.to_sym
-      when :ci
-        ci_command.presence || command
-      when :ci_or_fast
-        ci_command.presence || fast_command.presence || command
-      when :fast
-        fast_command.presence || command
-      else
-        command
-      end
+      variant.to_sym == :ci ? ci_command.presence || command : command
     end
   end
   Result = Data.define(:graders, :source, :note, :max_iterations)
@@ -64,7 +61,6 @@ class RepoGradePlan
     Grader.new(
       name: step.name,
       command: step.run,
-      fast_command: step.fast,
       ci_command: step.ci,
       description: step.description,
       required: step.required,

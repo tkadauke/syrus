@@ -1,18 +1,16 @@
+# Chooses which command each grader runs. There are two: `run:` (the everyday
+# command, already parallel) and `ci:` (the same parallel run plus the isolated
+# serial :ci_only pass). `ci:` is used for ci_failure workflows and main-branch
+# graders, which are the two contexts that must also cover :ci_only specs.
+#
+# There used to be a third, `fast:`, selected for landing trigger kinds and for
+# repeat grade-loop iterations. It existed because `run:` was serial, so the
+# first pass of every workflow — the common case — ran single-threaded while
+# only retries got parallelism. `run:` is parallel now, so the distinction only
+# created drift: thirteen trigger kinds were in neither list and never reached
+# the fast path at all.
 class LandingGraderPlan
-  FAST_TRIGGER_KINDS = %w[
-    auto_merge
-    landing_validation
-    main_branch_repair
-    merge_train
-  ].freeze
-
-  REPEAT_FAST_TRIGGER_KINDS = %w[
-    chat_feedback
-    coding_handoff
-    initial
-    pr_comment
-    retry
-  ].freeze
+  CI_TRIGGER_KINDS = %w[ ci_failure main_grader ].freeze
 
   def self.effective(plan, trigger_kind:, iteration:)
     new(plan, trigger_kind: trigger_kind, iteration: iteration).effective
@@ -39,11 +37,9 @@ class LandingGraderPlan
         command = grader.command_for(variant: variant)
         metadata = {
           "standard_command" => grader.command,
-          "fast_command" => grader.fast_command,
           "ci_command" => grader.ci_command,
           "command_variant" => variant.to_s,
-          "fast_variant" => fast_variant?(grader, variant),
-          "ci_variant" => %i[ci ci_or_fast].include?(variant) && grader.ci_command.present?
+          "ci_variant" => variant == :ci && grader.ci_command.present?
         }.compact
 
         grader.with(command: command, metadata: metadata)
@@ -52,25 +48,10 @@ class LandingGraderPlan
   end
 
   def variant
-    return :ci if trigger_kind == "ci_failure"
-    return :ci_or_fast if trigger_kind == "main_grader"
-    return :fast if fast?
-
-    :normal
+    CI_TRIGGER_KINDS.include?(trigger_kind) ? :ci : :normal
   end
 
   private
 
   attr_reader :plan, :trigger_kind, :iteration
-
-  def fast_variant?(grader, variant)
-    return true if variant == :fast && grader.fast_command.present?
-
-    variant == :ci_or_fast && grader.ci_command.blank? && grader.fast_command.present?
-  end
-
-  def fast?
-    FAST_TRIGGER_KINDS.include?(trigger_kind) ||
-      (iteration > 1 && REPEAT_FAST_TRIGGER_KINDS.include?(trigger_kind))
-  end
 end

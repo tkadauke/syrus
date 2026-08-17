@@ -124,13 +124,27 @@ Non-agentic. Runs a single grader command (e.g., `bin/rspec`). Required graders 
 
 Syrus does not mutate grader commands for specific test frameworks. If a command needs multiple formatters, coverage toggles, parallelization, or CI-only filtering, put that policy in `.syrus.yml` or a repository wrapper script such as `bin/rspec-fast`.
 
-When a grader defines a `.syrus.yml` `fast:` command, Syrus uses that alternate command in pass/fail-only validation contexts: `main_branch_repair`, `auto_merge`, `merge_train`, and implementation/feedback/coding grade-loop iterations after the first. If `fast:` is absent, the normal `run:` command is used.
+Graders declare two commands. `run:` is used everywhere except the two CI
+contexts below, so it should be the fast, parallel command; `ci:` is an
+optional alternate for the contexts that must also cover CI-only checks.
 
-Speculative `landing_validation` workflows also use the `fast:` command because
-they are pass/fail-only landing gates. Their `when_files_changed` selection is
-computed against the predicted post-merge base, not the current `origin/main`.
+When a grader defines a `.syrus.yml` `ci:` command, Syrus uses it in
+`ci_failure` workflows so CI-only checks can run when the workflow is
+specifically repairing a failed CI signal, and in `main_grader` workflows,
+because main-branch health should match the checks that can fail in GitHub CI.
+If `ci:` is absent, both fall back to `run:`.
 
-When a grader defines a `.syrus.yml` `ci:` command, Syrus uses it in `ci_failure` workflows so CI-only checks can run when the workflow is specifically repairing a failed CI signal. If `ci:` is absent, `ci_failure` workflows fall back to `run:`, not `fast:`. `main_grader` workflows also prefer `ci:` when it is configured, because main-branch health should match the checks that can fail in GitHub CI; for graders without `ci:`, `main_grader` falls back to `fast:` and then `run:`.
+Speculative `landing_validation` workflows use `run:` like any other
+validation. Their `when_files_changed` selection is computed against the
+predicted post-merge base, not the current `origin/main`.
+
+An earlier `fast:` command selected a parallel variant for landing trigger
+kinds and for grade-loop iterations after the first, back when `run:` was
+serial. That meant the first grader pass of every workflow — the common case —
+ran single-threaded, and thirteen trigger kinds were in neither list and never
+reached the fast path at all. `run:` is the parallel command now, so `fast:` is
+gone: it is still parsed so existing configs keep loading, but it selects
+nothing and falls back to `run:`.
 
 `grader` Runs also persist bounded command spans for top-level phases inside
 composite commands. The splitter recognizes conservative top-level `&&`, `||`,

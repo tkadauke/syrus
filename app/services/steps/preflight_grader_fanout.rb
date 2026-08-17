@@ -57,10 +57,8 @@ module Steps
               "name" => grader.name,
               "command" => grader.command,
             "standard_command" => grader.metadata["standard_command"],
-            "fast_command" => grader.metadata["fast_command"],
             "ci_command" => grader.metadata["ci_command"],
             "command_variant" => grader.metadata["command_variant"],
-            "fast_variant" => grader.metadata["fast_variant"],
               "description" => grader.description,
               "required" => grader.required,
               "timeout_minutes" => grader.timeout_minutes
