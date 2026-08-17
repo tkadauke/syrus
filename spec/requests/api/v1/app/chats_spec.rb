@@ -1364,6 +1364,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
       expect(ChatTurnJob).not_to have_been_enqueued
       expect(response).to have_http_status(:ok)
+      expect(chat.reload).not_to be_turn_in_flight
     end
 
     it "enqueues a ChatTurnJob when the message mentions @syrus with 2+ human participants" do
@@ -1408,6 +1409,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
       chat = ChatSession.last
       expect(chat.conversation_kind).to eq("group")
       expect(response).to have_http_status(:created)
+      expect(chat).not_to be_turn_in_flight
     end
 
     it "enqueues a ChatTurnJob when a new group chat's opening message mentions @syrus" do
@@ -1423,6 +1425,20 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
         .and have_enqueued_job(ChatTurnJob)
 
       expect(response).to have_http_status(:created)
+    end
+
+    it "delivers but does not trigger the agent for an unmentioned enqueue_message in an idle group chat" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, conversation_kind: "group")
+      chat.chat_participants.create!(user: Factories.user, role: "member")
+
+      expect {
+        post "/api/v1/app/chats/#{chat.id}/queued_messages", params: { chat_message: { text: "Hello everyone" } }
+      }.to change(ChatMessage, :count).by(1)
+
+      expect(ChatTurnJob).not_to have_been_enqueued
+      expect(response).to have_http_status(:ok)
+      expect(chat.reload).not_to be_turn_in_flight
     end
   end
 

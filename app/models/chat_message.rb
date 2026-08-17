@@ -14,6 +14,12 @@ class ChatMessage < ApplicationRecord
   has_many :pins, class_name: "ChatMessagePin", dependent: :destroy, inverse_of: :chat_message
   has_many :scoped_events, class_name: "ChatScopedEvent", dependent: :nullify
 
+  # Set by callers that already know this user message will not trigger a
+  # ChatTurnJob (e.g. an unmentioned message in a group chat), so the
+  # after_create callback below doesn't flip turn_in_flight on for a turn
+  # that will never run and clear it.
+  attr_accessor :skip_turn_trigger
+
   after_create :record_chat_turn_state
   after_create_commit :broadcast_app_event
   after_create_commit :enqueue_search_index
@@ -102,7 +108,7 @@ class ChatMessage < ApplicationRecord
   end
 
   def record_chat_turn_state
-    chat_session.record_message_turn_state!(self)
+    chat_session.record_message_turn_state!(self, trigger_turn: !skip_turn_trigger)
   end
 
   def enqueue_search_index
