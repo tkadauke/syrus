@@ -1,4 +1,4 @@
-import { ChevronDownIcon, HideIcon } from "./icons"
+import { ChevronDownIcon, HideIcon, TeamIcon } from "./icons"
 import { type ChatSection, activeChatIdFromPath, chatSectionsFromPayload, recentChatLinkClass, sidebarChatTitle, withRoutePrefix } from "./helpers"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react"
@@ -287,6 +287,11 @@ export function RecentChatsSidebar({ featureFlags, onCloseDrawer, onNotice, pref
                         to={withRoutePrefix(chat.chat_path, prefix)}
                       >
                         <ChatModeIcon codingModeEnabled={codingModeEnabled} localModeEnabled={localModeEnabled} mode={chat.mode} />
+                        {chat.conversation_kind === "group" ? (
+                          <span className="contents" data-testid="group-chat-icon">
+                            <TeamIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-purple-500 dark:text-purple-400" />
+                          </span>
+                        ) : null}
                         {chat.pinned ? (
                           <PinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-600 dark:text-blue-300" />
                         ) : null}
