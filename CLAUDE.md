@@ -314,7 +314,28 @@ the landing queue.
 **PR feedback watermarking** tracks both `last_seen_comment_at` and
 `last_feedback_addressed_at`; successful `pr_comment` workflows mark the
 newest addressed comment, and future polls use the later timestamp as the
-cutoff so already-handled feedback is not re-enqueued.
+cutoff so already-handled feedback is not re-enqueued. `PollPullRequestJob`
+also guards against a stale-approval race: `Job#active_feedback_workflow?`
+blocks re-approving a Job (both the single- and multi-approver paths) while a
+`pr_comment`/`chat_feedback` workflow triggered by fresh feedback is still
+queued/running, and `ApprovalPropagator#dismiss` looks up and dismisses the
+PR's current `APPROVED` review even when Syrus never captured a
+`github_review_id` locally (e.g. the approval came from a raw GitHub review).
+The same poller skips dispatching a `ci_failure` workflow while `job.landing?`
+is true, so CI repair never fights an in-flight landing attempt.
+
+**Main-branch health & repair** — Syrus grades the default branch itself, not
+just PR branches. An internal `main_grader` Job/Workflow (`Job#kind ==
+"main_grader"`, filtered out of the operator dashboard) periodically re-runs
+required graders on `main`; when they fail, `MainHealthChangedService` opens
+an urgent `direct` Job with `kind: "main_branch_repair"` to fix it. Both
+trigger kinds are exempt from `AppSetting.max_concurrent_agent_runs` (see
+`RunJob#defer_for_agent_concurrency?`) so a saturated agent-run cap can never
+starve the health signal or block fixing main, and `StepDispatcher` pauses
+other workflows (`start_blocked_reason: "main_branch_broken"`,
+`StepDispatcher::MAIN_HEALTH_BLOCK_REASON`) — including landing — until
+health is restored. Agents can also proactively flag suspected main breakage
+via the `report_main_concern` MCP tool (see above).
 
 ### Terminal feature
 
@@ -777,7 +798,9 @@ the live hook and retries a dead hook instead of parroting a stale mode.
 - **Plugin architecture** — Agent providers, chat providers, MCP tool sets,
   input sources, and source-control providers are registered as plugin gems
   via `Syrus::PluginRegistry`. Bundled plugins live under `plugins/` (e.g.
-  `plugins/claude_agent`, `plugins/codex_agent`, `plugins/github_source`).
+  `plugins/claude_agent`, `plugins/codex_agent`, `plugins/github_source`,
+  `plugins/syrus_dev` — development diagnostics/tooling, including the admin
+  Performance UI's SQL explain and request/phase drilldowns).
   `AgentProviders.for(provider)` resolves providers from the registry.
   When adding a new agent provider or MCP tool set, implement it as a plugin
   gem that calls `Syrus::PluginRegistry.register` in its engine initializer;
@@ -1007,7 +1030,10 @@ test environment (e.g. SolidQueue tables aren't loaded in test —
 test runs single-database), stub the boundary and say so in a
 comment. Don't skip the test.
 
-The full suite runs in ~10s. There is no excuse.
+The suite has grown past 9,300 examples (serial `bin/rspec` now takes
+50-56+ minutes); there is still no excuse — run `bin/rspec-fast` (parallel,
+excludes `:ci_only`) for the normal local/grader loop instead of the serial
+runner.
 
 ## Testing on the deployed instance
 
@@ -1273,6 +1299,17 @@ Required runtime env:
   `bin/rails generate migration` — see Conventions. Recovery is
   hand-edited `UPDATE schema_migrations` SQL in every environment,
   which is exactly the kind of toil this rule exists to prevent.
+- **`insert_all`/`upsert_all` timestamps ignore Rails' UTC setting on
+  MySQL.** Regular Active Record writes emit timestamps from Ruby (UTC), but
+  bulk writes emit the literal SQL `CURRENT_TIMESTAMP(6)`, which MySQL
+  evaluates in the *session* time zone — left at `SYSTEM`, that's the DB
+  container's local zone, not UTC. Production had `ChatMessage.insert_all!`
+  and `Observability::EventStream` batches landing hours away from
+  Ruby-written rows in the same tables. Fixed by pinning `time_zone: "+00:00"`
+  in every `config/database.yml` connection block (commit `2e5170d36`). Any
+  new bulk-insert path is safe going forward, but rows written before the fix
+  stay skewed — don't assume `created_at` ordering is trustworthy across that
+  boundary without checking.
 
 ## Key files at a glance
 
