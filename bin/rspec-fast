@@ -6,6 +6,14 @@ export COVERAGE="${COVERAGE:-false}"
 export PARALLEL_TEST_PROCESSORS="${RSPEC_PROCESSES:-8}"
 export RSPEC_JSON_DIR="${RSPEC_JSON_DIR:-.syrus/rspec-json}"
 
+# Always exclude :ci_only specs from the parallel run, regardless of an
+# ambient CI=true (GitHub Actions sets this on every job). :ci_only specs
+# that mutate schema in-process (e.g. migration reversibility specs) are
+# not safe to interleave with unrelated specs inside a shared parallel
+# worker; bin/rspec-ci runs them afterward in their own isolated,
+# serial pass instead. See spec/spec_helper.rb.
+export RUN_CI_ONLY_SPECS=false
+
 mkdir -p .syrus
 exec 9>.syrus/rspec-fast.lock
 if ! ruby -e 'exit(File.for_fd(9).flock(File::LOCK_EX | File::LOCK_NB) ? 0 : 1)'; then
