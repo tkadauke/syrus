@@ -1,4 +1,10 @@
-export type SlashCommandKind = "system" | "skill"
+// "skill" here predates EPIC-233's Skills:: system: it's a canned-prompt
+// command (toPrompt synthesizes prose sent as a normal chat message).
+// "repo_skill" is the per-repository Skills:: registry (built-ins plus
+// .syrus/skills/* overrides) computed dynamically per chat — see
+// repoSkillCommands. Its raw text is sent unmodified (no toPrompt) so the
+// backend (Skills::ChatInvocation) can parse and resolve it.
+export type SlashCommandKind = "system" | "skill" | "repo_skill"
 
 export type SlashCommandArg = {
   name: string
@@ -14,11 +20,33 @@ export type SlashCommand = {
   requiresConfirmation?: boolean
 }
 
+export type RepoSkillCommandSource = {
+  name: string
+  description: string
+  parameters: { key: string; required: boolean }[]
+}
+
 export type SlashCommandContext = {
   chat?: {
     pinned?: boolean
     system_kind?: "supervisor" | string | null
   }
+  dynamicCommands?: SlashCommand[]
+}
+
+// Builds the per-chat slash-command list for a repository's resolved skill
+// set (built-ins shadowed by .syrus/skills/* overrides, already reflected
+// server-side by Skills.all_for). Executes immediately with no toPrompt
+// transform and no requiresConfirmation — same trust level as any other
+// slash command here; the backend enforces the Coding Mode gate and the
+// existing handoff confirmation for any resulting diff.
+export function repoSkillCommands(skills: RepoSkillCommandSource[]): SlashCommand[] {
+  return skills.map((skill) => ({
+    name: `/${skill.name}`,
+    kind: "repo_skill",
+    args: skill.parameters.map((field) => ({ name: field.key, required: field.required })),
+    description: skill.description
+  }))
 }
 
 export type SlashCommandMatch = {
@@ -184,9 +212,15 @@ export function slashCommandPrompt(text: string, context: SlashCommandContext = 
 }
 
 function commandsForContext(context: SlashCommandContext) {
-  if (context.chat?.system_kind !== "supervisor") return slashCommands
+  const base = context.chat?.system_kind !== "supervisor"
+    ? slashCommands
+    : slashCommands.filter((command) => !supervisorHiddenCommands.has(command.name))
 
-  return slashCommands.filter((command) => !supervisorHiddenCommands.has(command.name))
+  const dynamic = (context.dynamicCommands ?? []).filter(
+    (command) => !base.some((existing) => existing.name === command.name)
+  )
+
+  return dynamic.length > 0 ? [ ...base, ...dynamic ] : base
 }
 
 const supervisorHiddenCommands = new Set<SlashCommand["name"]>([
