@@ -168,4 +168,53 @@ RSpec.describe Repository, "#main_health" do
       expect(fork.main_branch_repair_enabled).to eq(true)
     end
   end
+
+  describe "main health poll error streak" do
+    it "defaults to zero" do
+      fresh = Factories.repository
+      expect(fresh.main_health_poll_error_streak).to eq(0)
+      expect(fresh.last_main_health_poll_error_at).to be_nil
+      expect(fresh).not_to be_main_health_poll_outage
+    end
+
+    describe "#record_main_health_poll_error!" do
+      it "increments the streak and stamps the error timestamp" do
+        expect { repo.record_main_health_poll_error! }
+          .to change { repo.reload.main_health_poll_error_streak }.from(0).to(1)
+
+        expect(repo.last_main_health_poll_error_at).to be_present
+      end
+
+      it "accumulates across repeated calls" do
+        Repository::MAIN_HEALTH_POLL_ERROR_STREAK_THRESHOLD.times { repo.record_main_health_poll_error! }
+
+        expect(repo.reload.main_health_poll_error_streak).to eq(Repository::MAIN_HEALTH_POLL_ERROR_STREAK_THRESHOLD)
+      end
+    end
+
+    describe "#reset_main_health_poll_error_streak!" do
+      it "resets a non-zero streak to zero" do
+        repo.update!(main_health_poll_error_streak: 2)
+
+        expect { repo.reset_main_health_poll_error_streak! }
+          .to change { repo.reload.main_health_poll_error_streak }.from(2).to(0)
+      end
+
+      it "is a no-op when already zero" do
+        expect { repo.reset_main_health_poll_error_streak! }.not_to change { repo.updated_at }
+      end
+    end
+
+    describe "#main_health_poll_outage?" do
+      it "is false below the threshold" do
+        repo.update!(main_health_poll_error_streak: Repository::MAIN_HEALTH_POLL_ERROR_STREAK_THRESHOLD - 1)
+        expect(repo).not_to be_main_health_poll_outage
+      end
+
+      it "is true at or above the threshold" do
+        repo.update!(main_health_poll_error_streak: Repository::MAIN_HEALTH_POLL_ERROR_STREAK_THRESHOLD)
+        expect(repo).to be_main_health_poll_outage
+      end
+    end
+  end
 end

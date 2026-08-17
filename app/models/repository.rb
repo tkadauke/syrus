@@ -7,6 +7,10 @@ class Repository < ApplicationRecord
   EPIC_DEPENDENCY_POLICIES = %w[ linear nonlinear ].freeze
   CI_HEALTH_STATES = %w[ unknown healthy broken not_configured inconclusive ].freeze
   GRADER_HEALTH_STATES = %w[ unknown healthy broken inconclusive ].freeze
+  # Consecutive PollMainBranchHealthJob ticks that fail to reach GitHub
+  # (transient network/5xx errors) before a sustained outage degrades an
+  # already-broken ci_health to "inconclusive". See main_health_poll_outage?.
+  MAIN_HEALTH_POLL_ERROR_STREAK_THRESHOLD = 3
 
   attribute :polling_enabled, :boolean, default: true
   attribute :prepare_enabled, :boolean, default: true
@@ -23,6 +27,7 @@ class Repository < ApplicationRecord
   attribute :upstream_pr_grace_period_days, :integer, default: 7
   attribute :ci_health, :string, default: "unknown"
   attribute :grader_health, :string, default: "unknown"
+  attribute :main_health_poll_error_streak, :integer, default: 0
   attribute :landing_paused, :boolean, default: false
   attribute :main_branch_health_enabled, :boolean, default: true
   attribute :main_branch_repair_enabled, :boolean, default: true
@@ -117,6 +122,25 @@ class Repository < ApplicationRecord
 
   def main_health_unknown?
     main_health == "unknown"
+  end
+
+  # Called by PollMainBranchHealthJob when a GitHub call it makes raises a
+  # transient error (5xx, timeout, connection failure). A single failure is
+  # normal poll-to-poll noise; only a sustained streak should surface as an
+  # outage signal.
+  def record_main_health_poll_error!
+    update_columns(
+      main_health_poll_error_streak: main_health_poll_error_streak + 1,
+      last_main_health_poll_error_at: Time.current
+    )
+  end
+
+  def reset_main_health_poll_error_streak!
+    update_columns(main_health_poll_error_streak: 0) unless main_health_poll_error_streak.zero?
+  end
+
+  def main_health_poll_outage?
+    main_health_poll_error_streak >= MAIN_HEALTH_POLL_ERROR_STREAK_THRESHOLD
   end
 
   # Read-through delegators to the InputSources::Github record.

@@ -310,6 +310,13 @@ health is warning-only and does not hold queued work or the landing queue by
 itself. Internal main-branch grader checks still start and dispatch ahead of
 urgent Jobs so the repository health signal stays current.
 
+A single failed request to GitHub while polling main branch health does not
+change the health signal — Syrus just retries on the next poll. Only a
+sustained GitHub-side outage (several consecutive failed polls) downgrades an
+already-`broken` signal to `inconclusive`, so a landing queue does not stay
+paused indefinitely just because GitHub itself is unreachable; it never
+manufactures a `healthy` result from a poll that couldn't reach GitHub.
+
 If no Job appears, start with
 [the poller troubleshooting checklist](/docs/troubleshooting#the-poller-never-picks-up-my-issue).
 If a Job appears but no PR is created, start with
