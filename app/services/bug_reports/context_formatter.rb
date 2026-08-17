@@ -5,7 +5,7 @@ module BugReports
     def format_context_markdown(context_json)
       return "" if context_json.blank?
 
-      context = JSON.parse(context_json.to_s)
+      context = context_json.is_a?(Hash) ? context_json : JSON.parse(context_json.to_s)
 
       lines = [ "---", "**Environment**" ]
       lines << "- URL: #{context["url"]}" if context["url"].present?

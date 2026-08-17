@@ -53,10 +53,11 @@ landing queue stalls and delayed retries across deploys.
 
 The `browser_error_events` table records React error-boundary crashes from the
 browser. Route-level and app-level error boundaries automatically post a
-structured event to `POST /api/v1/app/browser_errors` before the operator
-chooses whether to file a separate Syrus bug-report Job. The fallback UI shows
-the captured browser error ID so an operator can correlate a visible crash with
-the admin event stream.
+structured event to `POST /api/v1/app/browser_errors`; when the operator clicks
+**Send error report** in the fallback banner, Syrus files from that persisted
+event instead of rebuilding a partial report from the visible stack. The
+fallback UI shows the captured browser error ID so an operator can correlate a
+visible crash with the admin event stream.
 
 Browser error events include the signed-in user, app revision, fingerprint,
 error name/message, JavaScript stack, React component stack, URL/path, viewport,
@@ -76,6 +77,10 @@ The admin UI exposes this stream at **Admin -> Browser Errors**
 `GET /api/v1/app/admin/browser_errors`; the token admin API endpoint is
 `GET /api/v1/admin/browser_errors`. Both are paginated newest-first and accept
 `query`, `since`, `until`, `fingerprint`, `path`, and `revision_scope` filters.
+Rows can advertise event actions. Browser error rows expose **File Job**, which
+routes through `POST /api/v1/app/event_actions/file_job` with
+`event_type=browser_error` and includes the full stored log entry in the created
+Job prompt.
 
 Unlike the high-volume observability streams, browser errors are inserted
 synchronously instead of through `Observability::EventSink` because the browser
@@ -110,7 +115,9 @@ The admin UI exposes this stream at **Admin -> Backend Exceptions**
 `GET /api/v1/admin/backend_exceptions`. Both are paginated newest-first and
 accept `query`, `since`, `until`, `fingerprint`, `source`, `exception_class`,
 `path`, and `revision_scope` filters. Backend exception events retain 14 days
-of data.
+of data. Backend exception rows expose the same generic **File Job** event
+action, but only admins may use it. The created Job prompt includes the full
+stored exception entry.
 
 ## Existing Streams
 

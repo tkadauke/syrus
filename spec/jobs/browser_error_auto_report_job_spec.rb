@@ -51,12 +51,13 @@ RSpec.describe BrowserErrorAutoReportJob do
     expect(report).to be_reported
     expect(report.job).to eq(job)
     expect(router).to have_received(:call).with(
-      title: include("Browser error: undefined is not an object"),
-      description: include("Browser error event: ##{event.id}", "Path: /jobs/3188", "JobDetails"),
+      title: include("Fix browser error: undefined is not an object"),
+      description: include("Browser error event: ##{event.id}", "Full browser error payload:", "\"route_params\":"),
       context: include(
-        source: "browser_error_auto_report",
-        browser_error_event_id: event.id,
-        route_params: { "id" => "3188" }
+        source: "event_job_filer",
+        event_type: "browser_error",
+        event_id: event.id,
+        event_payload: include(route_params: { "id" => "3188" })
       )
     )
   end

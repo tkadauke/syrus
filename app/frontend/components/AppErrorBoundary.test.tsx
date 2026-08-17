@@ -5,6 +5,9 @@ import { AppErrorBoundary } from "./AppErrorBoundary"
 vi.mock("../api/bugReports", () => ({
   createBugReport: vi.fn()
 }))
+vi.mock("../api/eventActions", () => ({
+  fileEventJob: vi.fn()
+}))
 vi.mock("../api/browserErrors", () => ({
   buildBrowserErrorPayload: vi.fn((error: Error, options: Record<string, unknown>) => ({
     message: error.message,
@@ -16,9 +19,11 @@ vi.mock("../api/browserErrors", () => ({
 
 import { createBugReport } from "../api/bugReports"
 import { recordBrowserError } from "../api/browserErrors"
+import { fileEventJob } from "../api/eventActions"
 
 const mockCreateBugReport = createBugReport as ReturnType<typeof vi.fn> & typeof createBugReport
 const mockRecordBrowserError = recordBrowserError as ReturnType<typeof vi.fn> & typeof recordBrowserError
+const mockFileEventJob = fileEventJob as ReturnType<typeof vi.fn> & typeof fileEventJob
 
 function Bomb({ shouldThrow }: { shouldThrow: boolean }) {
   if (shouldThrow) throw new Error("App tree explosion")
@@ -31,6 +36,7 @@ describe("AppErrorBoundary", () => {
     vi.spyOn(console, "error").mockImplementation(() => {})
     sessionStorage.clear()
     mockRecordBrowserError.mockResolvedValue({ id: 456, fingerprint: "fp" })
+    mockFileEventJob.mockResolvedValue({ message: "Job filed.", job_id: 42 })
   })
 
   afterEach(() => {
@@ -76,36 +82,30 @@ describe("AppErrorBoundary", () => {
     expect(await screen.findByRole("link", { name: "Browser error #456 captured" })).toHaveAttribute("href", "/admin/browser_errors?id=456&revision_scope=all")
   })
 
-  it("calls createBugReport with correct title and description when report button is clicked", async () => {
-    mockCreateBugReport.mockResolvedValue({ message: "Report queued", job_id: 42 })
-
+  it("files a job from the captured browser error event when report button is clicked", async () => {
     render(
       <AppErrorBoundary>
         <Bomb shouldThrow={true} />
       </AppErrorBoundary>
     )
 
+    await screen.findByRole("link", { name: "Browser error #456 captured" })
     fireEvent.click(screen.getByRole("button", { name: "Send error report" }))
 
     await waitFor(() =>
-      expect(mockCreateBugReport).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: "Frontend error: App tree explosion",
-          description: expect.stringContaining("App tree explosion")
-        })
-      )
+      expect(mockFileEventJob).toHaveBeenCalledWith({ event_type: "browser_error", event_id: 456 })
     )
+    expect(mockCreateBugReport).not.toHaveBeenCalled()
   })
 
   it("shows 'Reported as JOB-42' and stores fingerprint in sessionStorage on success", async () => {
-    mockCreateBugReport.mockResolvedValue({ message: "Report queued", job_id: 42 })
-
     render(
       <AppErrorBoundary>
         <Bomb shouldThrow={true} />
       </AppErrorBoundary>
     )
 
+    await screen.findByRole("link", { name: "Browser error #456 captured" })
     fireEvent.click(screen.getByRole("button", { name: "Send error report" }))
 
     await waitFor(() => expect(screen.getByText("Reported as JOB-42")).toBeInTheDocument())
@@ -117,7 +117,7 @@ describe("AppErrorBoundary", () => {
   })
 
   it("shows error message and hides report button when fingerprint is already in sessionStorage", async () => {
-    mockCreateBugReport.mockResolvedValue({ message: "Report queued", job_id: 99 })
+    mockFileEventJob.mockResolvedValue({ message: "Job filed.", job_id: 99 })
 
     // First render: report successfully so fingerprint is stored
     const { unmount } = render(
@@ -125,6 +125,7 @@ describe("AppErrorBoundary", () => {
         <Bomb shouldThrow={true} />
       </AppErrorBoundary>
     )
+    await screen.findByRole("link", { name: "Browser error #456 captured" })
     fireEvent.click(screen.getByRole("button", { name: "Send error report" }))
     await waitFor(() => expect(screen.getByText("Reported as JOB-99")).toBeInTheDocument())
     unmount()

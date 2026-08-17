@@ -31,5 +31,8 @@ RSpec.describe "API: /api/v1/admin/backend_exceptions", type: :request do
       "path" => "/jobs/3188",
       "request_id" => "req-123"
     )
+    expect(response.parsed_body.dig("events", 0, "actions")).to include(
+      include("id" => "file_job", "label" => "File Job", "event_type" => "backend_exception")
+    )
   end
 end

@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { type FormEvent, useMemo, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { fetchAdminBackendExceptions, type BackendExceptionEventRow, type BackendExceptionEventsPayload } from "../api/adminBackendExceptions"
+import { AdminEventActions } from "../components/AdminEventActions"
 import { AdminEventPageShell, AdminEventPagination, AdminEventPanelMessage, AdminEventTimeline, DetailBlock, JsonBlock, formatEventDate, inputClass, shortRevision } from "../components/AdminEventLogPanel"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
@@ -211,9 +212,7 @@ function Row({ expanded, onToggle, revisionScope, row }: { expanded: boolean; on
           {row.active_job_id ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">active job {row.active_job_id}</div> : null}
         </td>
         <td className="px-4 py-3 align-top">
-          <button className="rounded border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" onClick={onToggle} type="button">
-            {expanded ? t("backend_exceptions.hide_details") : t("backend_exceptions.show_details")}
-          </button>
+          <AdminEventActions actions={row.actions} eventId={row.id} eventType="backend_exception" showDetailsLabel={expanded ? t("backend_exceptions.hide_details") : t("backend_exceptions.show_details")} onToggleDetails={onToggle} />
         </td>
       </tr>
       {expanded ? (

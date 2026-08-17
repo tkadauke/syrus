@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { type FormEvent, type ReactNode, useMemo, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { fetchAdminBrowserErrors, type BrowserErrorEventRow, type BrowserErrorEventsPayload } from "../api/adminBrowserErrors"
+import { AdminEventActions } from "../components/AdminEventActions"
 import { AdminEventPageShell, AdminEventPagination, AdminEventPanelMessage, AdminEventTimeline, DetailBlock, JsonBlock, formatEventDate, inputClass, shortRevision } from "../components/AdminEventLogPanel"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
@@ -202,9 +203,7 @@ function Row({ expanded, onToggle, revisionScope, row }: { expanded: boolean; on
           {row.user_agent ? <div className="mt-1 line-clamp-2 text-gray-500 dark:text-gray-400">{row.user_agent}</div> : null}
         </td>
         <td className="px-4 py-3 align-top">
-          <button className="rounded border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" onClick={onToggle} type="button">
-            {expanded ? t("browser_errors.hide_details") : t("browser_errors.show_details")}
-          </button>
+          <AdminEventActions actions={row.actions} eventId={row.id} eventType="browser_error" showDetailsLabel={expanded ? t("browser_errors.hide_details") : t("browser_errors.show_details")} onToggleDetails={onToggle} />
         </td>
       </tr>
       {expanded ? (

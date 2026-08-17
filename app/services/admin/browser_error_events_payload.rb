@@ -77,32 +77,9 @@ module Admin
     end
 
     def event_payload(event)
-      {
-        id: event.id,
-        occurred_at: event.occurred_at&.iso8601,
-        app_revision: event.app_revision,
-        fingerprint: event.fingerprint,
-        name: event.name,
-        message: event.message,
-        stack: event.stack,
-        component_stack: event.component_stack,
-        url: event.url,
-        path: event.path,
-        route_id: event.route_id,
-        route_params: event.route_params || {},
-        trace_id: event.trace_id,
-        user_agent: event.user_agent,
-        viewport: event.viewport || {},
-        feature_flags: event.feature_flags || {},
-        recent_api_requests: event.recent_api_requests || [],
-        recent_errors: event.recent_errors || [],
-        metadata: event.metadata || {},
-        user: {
-          id: event.user_id,
-          display_name: event.user&.display_name,
-          email_address: event.user&.email_address
-        }
-      }
+      Observability::EventPayloads.browser_error(event).merge(
+        actions: Observability::EventJobFiler.actions_for("browser_error")
+      )
     end
 
     def query

@@ -1,6 +1,7 @@
 import { Component, useState, type ErrorInfo, type ReactNode } from "react"
 import { buildBrowserErrorPayload, recordBrowserError } from "../api/browserErrors"
 import { createBugReport } from "../api/bugReports"
+import { fileEventJob } from "../api/eventActions"
 import { useT } from "../hooks/useT"
 
 const STORAGE_KEY = "syrus_reported_errors"
@@ -54,7 +55,9 @@ function AppErrorFallback({ error, componentStack, fingerprint: fp, alreadyRepor
     try {
       const title = ("Frontend error: " + error.message).slice(0, 200)
       const description = `${componentStack}\n\n${error.stack ?? ""}`
-      const result = await createBugReport({ title, description })
+      const result = browserEventId != null
+        ? await fileEventJob({ event_type: "browser_error", event_id: browserEventId })
+        : await createBugReport({ title, description })
       markFingerprint(fp)
       setJobId(result.job_id ?? null)
       setReportState("success")

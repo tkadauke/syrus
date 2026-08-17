@@ -66,33 +66,9 @@ module Admin
     end
 
     def event_payload(event)
-      {
-        id: event.id,
-        occurred_at: event.occurred_at&.iso8601,
-        app_revision: event.app_revision,
-        fingerprint: event.fingerprint,
-        source: event.source,
-        role: event.role,
-        hostname: event.hostname,
-        pid: event.pid,
-        request_id: event.request_id,
-        exception_class: event.exception_class,
-        message: event.message,
-        backtrace: event.backtrace,
-        controller: event.controller,
-        action: event.action,
-        method: event.method,
-        path: event.path,
-        status: event.status,
-        job_class: event.job_class,
-        active_job_id: event.active_job_id,
-        queue_name: event.queue_name,
-        executions: event.executions,
-        job_id: event.job_id,
-        workflow_id: event.workflow_id,
-        run_id: event.run_id,
-        metadata: event.metadata || {}
-      }
+      Observability::EventPayloads.backend_exception(event).merge(
+        actions: Observability::EventJobFiler.actions_for("backend_exception")
+      )
     end
 
     def query

@@ -1,5 +1,6 @@
 import { getJson } from "./client"
 import type { AdminEventTimelineBucket } from "../components/AdminEventLogPanel"
+import type { EventAction } from "./eventActions"
 
 export type BackendExceptionRevisionScope = "current" | "all"
 
@@ -29,6 +30,7 @@ export type BackendExceptionEventRow = {
   workflow_id: number | null
   run_id: number | null
   metadata: Record<string, unknown>
+  actions?: EventAction[]
 }
 
 export type BackendExceptionEventsPayload = {

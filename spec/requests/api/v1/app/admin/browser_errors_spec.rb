@@ -50,6 +50,9 @@ RSpec.describe "API: /api/v1/app/admin/browser_errors", type: :request do
       "message" => "undefined is not an object (evaluating 'n.map')",
       "path" => "/jobs/3188"
     )
+    expect(body.dig("events", 0, "actions")).to include(
+      include("id" => "file_job", "label" => "File Job", "event_type" => "browser_error")
+    )
     expect(body.dig("events", 0, "recent_api_requests").first).to include("path" => "/api/v1/app/jobs/3188")
   end
 end

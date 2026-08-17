@@ -35,6 +35,7 @@ Rails.application.routes.draw do
         resources :passkeys, only: %i[index destroy]
         post "bug_reports", to: "bug_reports#create"
         post "browser_errors", to: "browser_errors#create"
+        post "event_actions/file_job", to: "event_actions#file_job"
         post "performance_events", to: "performance_events#create"
         post "report_issue", to: "report_issue#create"
         get "search", to: "search#index"
