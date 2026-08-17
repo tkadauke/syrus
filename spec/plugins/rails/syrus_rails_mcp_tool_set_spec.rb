@@ -170,17 +170,16 @@ RSpec.describe SyrusRails::McpToolSet do
         expect(response).not_to be_error
         data = JSON.parse(response.content.first[:text])
 
-        ops = data["changes"].map { |c| c["op"] }
-        expect(ops).to include("add_column")
+        types = data["changes"].map { |c| c["type"] }
+        expect(types).to include("added")
 
-        add_op = data["changes"].find { |c| c["op"] == "add_column" }
-        expect(add_op["column"]).to eq("name")
-        expect(add_op["table"]).to eq("users")
-        expect(add_op["type"]).to eq("string")
+        add_change = data["changes"].find { |c| c["type"] == "added" }
+        expect(add_change["column"]["name"]).to eq("name")
+        expect(add_change["column"]["type"]).to eq("string")
       end
     end
 
-    it "shows the column absent in before state and present in after state" do
+    it "reports the migration name" do
       with_workspace do |ctx, ws|
         ws.join("db").mkpath
         ws.join("db/schema.rb").write(schema_rb)
@@ -194,8 +193,35 @@ RSpec.describe SyrusRails::McpToolSet do
         )
         data = JSON.parse(response.content.first[:text])
 
-        before_cols = data["before"]["users"]&.fetch("columns", [])&.map { |c| c["name"] }
-        after_cols  = data["after"]["users"]&.fetch("columns", [])&.map { |c| c["name"] }
+        expect(data["migration_name"]).to eq("AddNameToUsers")
+      end
+    end
+
+    # Regression test: before/after used to be a hash keyed by every schema
+    # table name (e.g. data["before"]["users"]) instead of a single
+    # { table_name, columns } object. The frontend's MigrationDiffRenderer
+    # reads payload.before.columns directly, so the old shape crashed the
+    # Job detail page with "undefined is not an object (evaluating 'n.map')"
+    # whenever a migration artifact was rendered.
+    it "shows the column absent in before state and present in after state, in the single-table shape the frontend expects" do
+      with_workspace do |ctx, ws|
+        ws.join("db").mkpath
+        ws.join("db/schema.rb").write(schema_rb)
+        ws.join("db/migrate").mkpath
+        ws.join("db/migrate/20240101000000_add_name_to_users.rb").write(add_column_migration)
+
+        response = tool_set.handle(
+          "explain_migration",
+          { "file_path" => "db/migrate/20240101000000_add_name_to_users.rb" },
+          ctx
+        )
+        data = JSON.parse(response.content.first[:text])
+
+        expect(data["before"]["table_name"]).to eq("users")
+        expect(data["after"]["table_name"]).to eq("users")
+
+        before_cols = data["before"]["columns"].map { |c| c["name"] }
+        after_cols  = data["after"]["columns"].map { |c| c["name"] }
         expect(before_cols).not_to include("name")
         expect(after_cols).to include("name")
       end

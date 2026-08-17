@@ -10,26 +10,51 @@ module SyrusRails
     def self.parse(migration_path, schema_path: nil)
       migration_content = File.read(migration_path)
       schema_content    = schema_path && File.exist?(schema_path) ? File.read(schema_path) : nil
-      new(migration_content, schema_content: schema_content).parse
+      new(migration_content, schema_content: schema_content, file_name: File.basename(migration_path)).parse
     end
 
-    def initialize(migration_content, schema_content: nil)
+    def initialize(migration_content, schema_content: nil, file_name: nil)
       @migration_content = migration_content
       @schema_content    = schema_content
+      @file_name         = file_name
     end
 
+    # Returns a single before/after table snapshot (the primary table touched
+    # by the migration) plus a column-level change summary. Matches the shape
+    # the frontend's MigrationDiffRenderer expects — NOT a map of every
+    # schema table, and NOT the raw internal Change structs.
     def parse
       changes = extract_changes
       schema_tables = @schema_content ? SchemaParser.new(@schema_content).parse[:tables] : []
 
       after_state  = build_after_state(changes, schema_tables)
-      before_state = build_before_state(changes, after_state)
-      summary      = build_summary(changes)
+      before_state = build_before_state(changes, after_state, schema_tables)
+      table_name   = changes.first&.table
 
-      { changes: summary, before: before_state, after: after_state }
+      {
+        migration_name: migration_name,
+        before: table_snapshot(table_name, before_state),
+        after: table_snapshot(table_name, after_state),
+        changes: build_summary(changes)
+      }
     end
 
     private
+
+    def migration_name
+      if (m = @migration_content.match(/\bclass\s+(\w+)\s*</))
+        m[1]
+      elsif @file_name
+        @file_name.sub(/\A\d+_/, "").sub(/\.rb\z/, "")
+      else
+        "Migration"
+      end
+    end
+
+    def table_snapshot(table_name, state)
+      table = table_name && state[table_name] ? state[table_name] : empty_table(table_name)
+      { table_name: table[:name], columns: table[:columns] }
+    end
 
     def extract_changes
       changes = []
@@ -127,8 +152,9 @@ module SyrusRails
       table_map
     end
 
-    def build_before_state(changes, after_state)
+    def build_before_state(changes, after_state, schema_tables)
       before = after_state.transform_values { |t| deep_dup_table(t) }
+      schema_map = schema_tables.each_with_object({}) { |t, h| h[t[:name]] = t }
 
       # Reverse each change to recover the before state
       changes.reverse_each do |c|
@@ -154,24 +180,25 @@ module SyrusRails
         when :create_table
           before.delete(c.table)
         when :drop_table
-          before[c.table] ||= empty_table(c.table)
+          # Restore the dropped table's real columns from the schema when
+          # available, rather than showing it as empty pre-drop.
+          before[c.table] ||= schema_map[c.table] ? deep_dup_table(schema_map[c.table]) : empty_table(c.table)
         end
       end
 
       before
     end
 
+    # Column-level changes only — create_table/drop_table/add_index/remove_index
+    # don't map to a single column and are omitted from this summary (they're
+    # still reflected in the before/after column lists).
     def build_summary(changes)
-      changes.map do |c|
+      changes.filter_map do |c|
         case c.kind
-        when :add_column    then { op: "add_column",    table: c.table, column: c.column, type: c.type }
-        when :remove_column then { op: "remove_column", table: c.table, column: c.column }
-        when :rename_column then { op: "rename_column", table: c.table, from: c.column, to: c.type }
-        when :change_column then { op: "change_column", table: c.table, column: c.column, new_type: c.type }
-        when :create_table  then { op: "create_table",  table: c.table }
-        when :drop_table    then { op: "drop_table",    table: c.table }
-        when :add_index     then { op: "add_index",     table: c.table }
-        when :remove_index  then { op: "remove_index",  table: c.table }
+        when :add_column    then { type: "added",    column: { name: c.column, type: c.type } }
+        when :remove_column then { type: "removed",  column: { name: c.column, type: "unknown" } }
+        when :rename_column then { type: "modified", column: { name: c.type,   type: "unknown" } }
+        when :change_column then { type: "modified", column: { name: c.column, type: c.type } }
         end
       end
     end
