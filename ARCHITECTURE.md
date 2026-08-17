@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-08-10._
+_Last reviewed: 2026-08-17._
 
 **Audience.** A new contributor or returning maintainer who's already
 read `README.md` and wants the full mental model. CLAUDE.md is the
@@ -23,10 +23,11 @@ domain concepts. File paths are repo-relative.
 - [Per-poller flow](#per-poller-flow) — issue ingest, external PR ingest, PR/chat feedback, rebase, scheduled tasks, reaping
 - [Per-Workflow pipeline](#per-workflow-pipeline) — materialized step chains and Run execution
 - [End-to-end GitHub workflow](#end-to-end-github-workflow)
-- [Services](#services)
+- [Services](#services) — including [Preview hosting](#preview-hosting)
 - [Plugin system](#plugin-system)
 - [MCP sidecar](#mcp-sidecar)
 - [Chat sidecar and workspaces](#chat-sidecar-and-workspaces)
+- [External platform chat](#external-platform-chat) — linking Telegram/Discord/Slack accounts to a Syrus chat
 - [Failure recovery](#failure-recovery)
 - [UI surface](#ui-surface)
 - [Deployment topology](#deployment-topology)
@@ -52,10 +53,16 @@ domain concepts. File paths are repo-relative.
 - **AASM** for state machines on `Job`, `Workflow`, `Step`, and `Run`
 - **Claude Code** and **Codex** as agent providers (subprocesses behind
   `AgentProviders::*`; see [Per-Workflow pipeline](#per-workflow-pipeline))
-- **Plugin system** — `Syrus::PluginRegistry` with twelve extension points;
+- **Plugin system** — `Syrus::PluginRegistry` with fifteen extension points;
   bundled plugins (claude_agent, codex_agent, github_source, linear_source,
-  rails, syrus_dev) ship in `plugins/`; third-party plugins are ordinary
-  Rails Engine gems
+  rails, syrus_dev, browser, discord, tailscale) ship in `plugins/`;
+  third-party plugins are ordinary Rails Engine gems
+- **Playwright** (via the bundled `browser` plugin's `@playwright/mcp`
+  subprocess) drives a headless Chromium browser for the `visual_review`
+  agent step and other agentic steps; navigation is hard-restricted to the
+  worker's own loopback preview
+- **whisper.cpp** bundled into the app/worker images as a zero-config,
+  local speech-to-text default for the chat composer's microphone input
 
 ## The big picture
 
@@ -310,6 +317,7 @@ period case ends in `failed` via `ReapStaleRunsJob`, not `cancelled`.
 | `merge_train` | landing queue picked a ready Epic when merge train is enabled | builds and lands all approved child PRs atomically |
 | `retry` | operator: "Run again" | new Run on the existing branch |
 | `replay` | operator replay of a failed/retryable path | uses the retry Workflow template |
+| `manual_visual_review` | operator or chat: "Run visual review" | one-shot QA pass over the Job's already-implemented diff; runs `visual_review` alone (no implement/respond re-loop) |
 | `manual` | operator: explicit manual prompt | freeform |
 | `resume` | operator continuation of a captured provider session | freeform prompt against retained session context |
 | `coding_handoff` | Coding Mode: chat agent commits implementation and operator confirms | skips the agent implement step; runs graders → summarize → PR open (or summarize_amend → push for an existing PR); reverts Job to `coding` on grader failure |
@@ -317,6 +325,7 @@ period case ends in `failed` via `ReapStaleRunsJob`, not `cancelled`.
 | `main_grader` | `PollAllMainBranchHealthJob` detects a new default-branch HEAD SHA | runs graders against the repository's default branch; updates `repository.grader_health` and calls `MainHealthChangedService` on health transitions; excluded from the operator dashboard; routes to the `:runs` queue (subject to `AppSetting.max_concurrent_agent_runs` cap) |
 | `agent_insight` | operator or adaptive insight scheduler requests repository analysis | read-only repository inspection; creates `InsightSuggestion` rows through `submit_insight`; auto-closes the anchor Job and does not open a PR |
 | `external_pr_ingest` | `PollExternalOpenPrsJob` creates a new `external_pr` Job | runs graders on the externally-filed PR; same-repo PRs can receive auto-repair and be pushed; fork PRs get a REQUEST_CHANGES review comment on failure |
+| `external_pr_feedback` | `PollExternalPrJob` finds a qualifying comment on a same-repo `external_pr` Job | mirrors `pr_comment` — address feedback on the existing branch, push; fork PRs can't be pushed to, so they get a `needs_attention` state instead of a Workflow |
 | `external_pr_merge` | landing queue picks an approved `external_pr` Job | runs final graders and calls GitHub's merge API on the external PR |
 
 State changes reach the browser through app events; see
@@ -414,6 +423,16 @@ exists or a single PR succeeded; the first Epic has to reach `done`.
 `User#onboarding_chat` is the durable chat session that unlocks the rest
 of the app chrome and becomes the brand-link target until setup
 finishes.
+
+### PlatformIdentity
+
+Links a `User` to an account on an external chat platform so they can talk to
+their Syrus chat from that platform. `PLATFORMS = %w[telegram slack]` are
+core; `PlatformIdentity.available_platforms` extends that with every
+enabled `:platform_delivery` plugin's `platform_key` (currently `discord`).
+Slack is reserved in `PLATFORMS` but has no working adapter yet
+(`configured? == false`). See [External platform chat](#external-platform-chat)
+for the linking and message-routing flow.
 
 ### ScheduledTask
 
@@ -737,6 +756,18 @@ head branch comes from a fork. The Job immediately starts an
   leaves the Job `implemented` (re-evaluated on the next push by the
   contributor).
 
+Once a PR is ingested, `PollExternalPrJob` (per-Job, analogous to
+`PollPullRequestJob`) keeps watching it: it closes the Job when the
+upstream PR merges or closes, syncs GitHub review state — a
+`CHANGES_REQUESTED` review or a qualifying comment sets `needs_attention`,
+an `APPROVED` review records a `JobApproval` via
+`Job#record_github_review_approval!` — and ingests new PR comments through
+the same `PrCommentIngester` pipeline `PollPullRequestJob` uses for
+Syrus-authored PRs. A qualifying comment on a same-repo PR (Syrus controls
+the branch) dispatches a `Workflows::ExternalPrFeedback` fix-and-push
+Workflow; on a fork PR (Syrus can't push) it instead sets `needs_attention`
+the same way a formal `CHANGES_REQUESTED` review would.
+
 Approved `external_pr` Jobs land through `Workflows::ExternalPrMerge`.
 The landing chain mirrors the ingest shape (same-repo uses
 `mergeability_preflight → prepare → retry_until(grader_fanout, repair: landing_fix) → external_pr_merge`;
@@ -800,11 +831,12 @@ Current Workflow chains:
 
 | Trigger | Chain |
 |---|---|
-| `initial` | `prepare → optional loop(implement → adversarial_review) → retry_until(implement → grader_fanout → grader_collect) → coverage_analyze → summarize → test_plan → pr_open` |
-| `pr_comment` | `prepare → optional loop(respond → adversarial_review) → retry_until(respond → grader_fanout → grader_collect) → coverage_analyze → coverage_pr_comment → summarize_amend → push` |
-| `chat_feedback` | `prepare → optional loop(respond → adversarial_review) → retry_until(respond → grader_fanout → grader_collect) → coverage_analyze → coverage_pr_comment → summarize_amend → push` |
+| `initial` | `prepare → optional loop(implement → adversarial_review) → optional loop(implement → visual_review) → retry_until(implement → grader_fanout → grader_collect) → coverage_analyze → summarize → test_plan → pr_open` |
+| `pr_comment` | `prepare → optional loop(respond → adversarial_review) → optional loop(respond → visual_review) → retry_until(respond → grader_fanout → grader_collect) → coverage_analyze → coverage_pr_comment → summarize_amend → push` |
+| `chat_feedback` | `prepare → optional loop(respond → adversarial_review) → optional loop(respond → visual_review) → retry_until(respond → grader_fanout → grader_collect) → coverage_analyze → coverage_pr_comment → summarize_amend → push` |
 | `ci_failure` | `prepare → retry_until(analyze_and_fix → grader_fanout → grader_collect) → summarize_amend → try(push)` |
 | `retry` / `replay` | same shape as `initial`, reusing the existing branch and PR if present |
+| `manual_visual_review` | `prepare → visual_review` — on-demand QA pass triggered by the operator or chat; records a verdict without looping back into implement/respond |
 | `manual` / `resume` | `manual` |
 | `rebase` | `auto_rebase → agent_rebase → force_push` |
 | `stack_rebase` | `stack_auto_rebase → stack_agent_rebase → stack_force_push` |
@@ -824,7 +856,15 @@ soft-fail with a recorded `prepare_failure` artifact so the agent still
 runs and can fix setup from inside the repository. It can be disabled
 per repository or skipped for one Job with the `syrus-skip-prepare`
 label; the skip is recorded in Workflow artifacts and logged on the
-first Run.
+first Run. Before that lockfile-driven install, `prepare` also checks the
+workspace root for `mise` version files (`.tool-versions`, `.mise.toml`,
+`.ruby-version`, `.python-version`, `.node-version`, `.go-version`) and, if
+any are present, runs `mise install` through `ProcessRunner` (5-minute
+timeout). A `mise install` failure is always soft — recorded as a
+`mise_install_failure` step detail/artifact — and never blocks the rest of
+the run. Worker pods mount a shared `mise` cache (see
+[Deployment topology](#deployment-topology)) so repeated installs across
+Workflows reuse downloaded runtimes.
 
 Agentic Steps (`implement`, `adversarial_review`, `respond`,
 `analyze_and_fix`, rebase repair, landing repair, summarize, test_plan,
@@ -860,6 +900,36 @@ Operators can add an optional `criteria` list to the `adversarial_review`
 block in `.syrus.yml`; when present, the reviewer prompt inserts a "pay
 particular attention" section listing each criterion. Criteria are
 additive — the standard review checklist still applies.
+
+The optional `visual_review` loop runs immediately after the
+`adversarial_review` loop, in the same four Workflows (Initial, Retry,
+`pr_comment`, `chat_feedback`). `RepoVisualReviewPlan` resolves whether the
+loop runs the same way
+`RepoAdversarialReviewPlan` resolves the review loop: it reads a
+`visual_review:` block from `.syrus.yml` on the default branch (`enabled`,
+`rounds`, and an optional `when_files_changed` glob pre-filter evaluated
+against the actual diff once the workspace is cloned), falling back to the
+instance-wide `visual_review` Labs feature flag (`Feature.visual_review_enabled?`)
+when the repository leaves `enabled` unset or has no config at all. Each
+iteration pairs the agentic step (`implement`/`respond`) with an independent
+`visual_review` Step: that reviewer agent calls `start_preview` (an MCP tool
+that resolves a `preview:` command from `.syrus.yml` or a registered
+`:preview_provider` plugin, runs setup/seed commands, spawns the app in the
+workflow runner container, and polls its health-check path) and then drives
+a headless Chromium browser against that preview through the `browser`
+plugin's MCP tool set (`browser_navigate` — hard-restricted to the
+worker's own loopback preview — `browser_snapshot`, `browser_click`,
+`browser_fill`, `browser_screenshot`, `browser_wait_for`, `browser_close`,
+proxying each call to a per-Run `@playwright/mcp` stdio subprocess). It
+reads the implementing agent's `submit_test_plan` `visual_review_recommended`
+hint but makes its own go/no-go call, always calls `stop_preview` before
+exiting, and must call `submit_visual_review(verdict:, critique:)` with
+`approved` (looks correct), `needs_work` (loops back into another
+implement/respond iteration), or `skipped` (not visually testable — exits
+the loop like `approved`). The reviewer's workspace changes are discarded.
+An operator or chat can also trigger a standalone pass without the
+implement/respond pairing — see `manual_visual_review` in the trigger-kind
+table above.
 
 `respond` is shared by `pr_comment` and `chat_feedback` Workflows. The
 PR-comment path composes `Prompts::PrFeedback` from GitHub comments,
@@ -1058,6 +1128,33 @@ dashboard explanation. Those blockers include transitive explicit
 dependencies and, for an Epic unit, same-Epic sibling Jobs that are not
 yet approved or closed even when there is no explicit dependency edge.
 
+### Preview hosting
+
+Separate from the ephemeral, agent-driven `start_preview`/`stop_preview` MCP
+tools used inside a workflow run (see [MCP sidecar](#mcp-sidecar)), Syrus
+can also host a longer-lived preview of a Job's branch for an operator to
+click through in a browser. `PreviewEnvironment` (AASM: `starting` →
+`seeding` → `running` → `stopping` → `stopped`/`failed`) belongs to a `Job`;
+`Job#previewable?` is true once the Job is `implemented`, `approved`, or
+`landing`. `PreviewService` is a long-running poller process that picks up
+environments in `starting` state, allocates a free port from
+`SYRUS_PREVIEW_PORT_MIN`/`_MAX` (default 20000–29999), clones the Job's
+branch into `$SYRUS_DATA_ROOT/previews/<environment_id>` via
+`PreviewWorkspace.prepare!`, resolves the same `PreviewCommandSource`
+priority order the MCP tool uses (`.syrus.yml` `preview:` block, then a
+registered `:preview_provider` plugin), runs setup/seed commands, spawns the
+app as a `SpawnedProcess(kind: "preview")`, and polls its health-check path
+for up to 120s before marking the environment `running`. Environments carry
+a TTL (`PreviewService::DEFAULT_TTL_MINUTES`, default 10) and are reaped on
+expiry, graceful shutdown, or child-process exit. `PreviewProxyMiddleware`
+sits at the top of the Rack stack, recognizes preview hostnames (e.g.
+`preview-<job_id>.lvh.me`), and proxies requests into the running preview
+process — rewriting CSP/frame headers and localhost-origin references so
+the previewed app's own asset server (Vite, etc.) works through the proxy.
+A separate in-process `PreviewControlServer` (Puma, port 4568) inside the
+preview process serves its logs back to the web process for the Job detail
+UI's preview log view.
+
 ## Plugin system
 
 `Syrus::PluginRegistry` (`lib/syrus/plugin_registry.rb`) is the central
@@ -1069,7 +1166,7 @@ and installed the same way.
 
 ### Extension points
 
-The registry defines twelve extension points:
+The registry defines fifteen extension points:
 
 | Extension point | Purpose |
 |---|---|
@@ -1085,6 +1182,9 @@ The registry defines twelve extension points:
 | `:test_result_parser` | Parse provider-specific test output (RSpec, pytest, …) |
 | `:coverage_analyzer` | Parse coverage artifacts (lcov, SimpleCov, Cobertura, …) |
 | `:admin_page` | Register admin-only pages with routes and frontend components |
+| `:grader_augmentor` | Extract/augment grader output (e.g. structured RSpec JSON failure logging) |
+| `:callbacks` | Generic plugin lifecycle callback hooks (e.g. connectivity daemon start/stop) |
+| `:platform_delivery` | Send/receive chat messages over an external platform (Discord, …); see [External platform chat](#external-platform-chat) |
 
 ### Bundled plugins
 
@@ -1096,6 +1196,9 @@ The registry defines twelve extension points:
 | `linear_source` | `plugins/linear_source` | `:input_source` | disabled by default |
 | `rails` | `plugins/rails` | `:mcp_tool_set`, `:artifact_renderer` ×2, `:test_result_parser`, `:coverage_analyzer`, `:prompt_injector`, `:preview_provider` | enabled |
 | `syrus_dev` | `plugins/syrus_dev` | `:admin_page`, `:mcp_tool_set` | disabled by default |
+| `browser` | `plugins/browser` | `:mcp_tool_set` (headless-Chromium browser control via a bundled `@playwright/mcp` subprocess), `:artifact_renderer` (image diffs) | enabled |
+| `discord` | `plugins/discord` | `:platform_delivery` (Gateway websocket DM listener + outbound delivery) | disabled by default |
+| `tailscale` | `plugins/tailscale` | `:callbacks`, `:admin_page` (exposes Syrus on the operator's Tailscale network) | disabled by default |
 
 ### Persistence and enable/disable
 
@@ -1193,6 +1296,28 @@ agent at it over stdio. Today's tool surface:
 - `submit_insight(...)` — available only to `agent_insight_run` roles
   while the `agent_insights` feature is enabled; creates one structured
   `InsightSuggestion` for operator review.
+- `submit_visual_review(critique:, verdict:)` — records one visual-review
+  iteration (`approved` / `needs_work` / `skipped`) on Workflow artifacts.
+  Required by the `visual_review` Step; see
+  [Per-Workflow pipeline](#per-workflow-pipeline).
+- `start_preview(port:)` / `stop_preview()` / `read_preview_log(...)` —
+  spawn, poll (health-check path, up to 60s), and tear down the target app
+  as a background process inside the workflow runner container for the
+  active Run. `start_preview` resolves the start command from `.syrus.yml`
+  `preview:` or a registered `:preview_provider` plugin
+  (`PreviewCommandSource`), runs setup/seed commands, and tracks the
+  spawned pid in an in-process `AgentPreviewRegistry` keyed by Run id so it
+  is force-killed when the sidecar exits. Available to every workflow
+  step role, not just `visual_review` — any agentic step can boot its own
+  ephemeral preview. This is distinct from the operator-facing, longer-lived
+  hosted preview described under [Preview hosting](#preview-hosting).
+
+The bundled `browser` plugin adds a `browser_navigate` / `browser_snapshot`
+/ `browser_click` / `browser_fill` / `browser_screenshot` / `browser_wait_for`
+/ `browser_close` MCP tool set, proxying each call to a per-Run
+`@playwright/mcp` stdio subprocess. `browser_navigate` is hard-restricted to
+loopback URLs (`LoopbackGuard`) so an LLM driving a real browser cannot be
+steered at an arbitrary network destination.
 
 The sidecar lives in-process with Rails, so tool handlers are plain
 ActiveRecord calls scoped to the active Run. No network, no auth
@@ -1350,6 +1475,61 @@ requests as it exits so the next turn is not cancelled by an old signal.
 Chat index records and app events carry `turn_in_flight`/`agent_busy`
 state, letting the React sidebar mark active chat turns without waiting
 for a full recent-chat refetch.
+
+The chat composer's microphone/dictation input transcribes through
+`ChatSpeechToText::Providers::WhisperCpp` by default — a zero-config,
+no-API-key local transcription path using a whisper.cpp binary and model
+bundled into the app/worker images (`/opt/whisper.cpp/`), spawned per
+utterance through `ProcessRunner`. Operators can point
+`SYRUS_STT_WHISPER_CPP_EXECUTABLE`/`_MODEL` at an alternate build; if
+neither the bundled nor a configured binary is present, dictation falls
+back to the browser's own built-in speech recognition.
+
+## External platform chat
+
+Operators can link an external chat-platform account to their Syrus user
+and talk to their Syrus chat from Telegram, Discord, or (once wired up)
+Slack, instead of only the web/CLI/desktop clients.
+
+`PlatformIdentity` (`user`, `platform`, `external_id`, `external_handle`,
+`linked_at`) records the link. `PLATFORMS = %w[telegram slack]` are core;
+`PlatformIdentity.available_platforms` extends that with every enabled
+`:platform_delivery` plugin's `platform_key` (currently `discord` — see
+[Plugin system](#plugin-system)). Slack is reserved in the core list but
+has no working adapter yet. Linking is token-based: `POST
+/api/v1/app/platform_identities/linking_token` returns a signed, 15-minute
+`Rails.application.message_verifier(:platform_linking)` token and
+platform-specific instructions (e.g. "send `/start <token>` to the bot");
+the platform's inbound handler verifies the token and creates the
+`PlatformIdentity` row. Operators manage linked accounts at
+`/settings` → Connected Platforms (`ConnectedPlatforms.tsx`), which live-
+updates via the `platform_identity_linked` app event.
+
+Inbound delivery for every platform funnels through
+`InboundMessageRouter`: given `platform:`/`external_id:`/`message_text:`,
+it resolves the linked `PlatformIdentity`, gets or creates a
+per-platform `ChatSession` (`ChatSession.for_platform(user:, platform:)`),
+appends a user-role `ChatMessage`, and enqueues `ChatTurnJob` when the
+session's `trigger_policy` is `speak_when_spoken_to` (currently the only
+policy implemented — every inbound platform message wakes the agent).
+Outbound delivery — the agent's reply going back to the platform — goes
+through a shared `Syrus::Plugin::PlatformDelivery` interface
+(`.platform_key`, `.connector_job_class`, `.platform_config_class`,
+`#deliver(message:, platform_identity:)`), so core (Telegram) and plugin
+(Discord) adapters share the same shape.
+
+Telegram is long-polled: `PollTelegramUpdatesJob` (a `PlatformPollingJob`,
+self-re-enqueuing rather than cron-scheduled) calls `TelegramClient#get_updates`
+against `GET /bot<token>/getUpdates`, tracks `AppSetting.telegram_update_offset`
+as the polling cursor, and routes non-`/start` messages through
+`InboundMessageRouter`; `PlatformDelivery::TelegramAdapter` chunks outbound
+text to Telegram's 4096-character message cap. Discord instead holds a
+persistent Gateway websocket connection (`Discord::GatewayConnectionJob`,
+also a self-re-enqueuing `PlatformPollingJob` — reconnecting counts as
+"polling again" when the socket drops) and chunks outbound text to
+Discord's 2000-character cap via `Discord::PlatformAdapter`. Both
+connectors are started at boot (`config/initializers/platform_polling.rb`,
+server processes only) rather than through `config/recurring.yml`.
 
 ## Failure recovery
 
@@ -1515,6 +1695,16 @@ Several layers, each catching different failure modes:
 - **`/admin/performance`** and worker health panels — operational
   diagnostics for request/SQL/phase timings and retained worker host
   pressure samples.
+- **Operational log search** — Syrus's own internal application logs
+  (distinct from per-Run `JobLog` transcripts) are batch-persisted to
+  `OperationalLogEvent` (level, role, hostname, app revision, pid, source,
+  request id, optional Job/Workflow/Run association, message, JSON
+  context; 6-hour retention) and asynchronously indexed into an FTS5
+  virtual table (`OperationalLogIndex`) for full-text search. Exposed via
+  the admin REST API and the admin-only chat MCP tool
+  `admin_read_operational_logs`, so an admin (or Supervisor chat) can
+  search Syrus's own error/warning history the same way they'd grep
+  worker logs.
 - **Admin stuck surfaces** — the overview health tile, stuck list, token
   admin stuck API, and chat `explain_stuck_job` tool share reconciler
   issue/repair-plan evidence so operators see the same wait/repair/action
@@ -1658,8 +1848,18 @@ session outcome.
 - Ingress routes the configured app host, for example `syrus.example.com`.
 - Persistent volume mounted at `$SYRUS_DATA_ROOT` (default
   `/home/rails/.syrus`) on worker pods, holding active Workflow
-  workspaces at `workflows/<workflow_id>/` and provider homes under the
+  workspaces at `workflows/<workflow_id>/`, hosted preview clones under
+  `previews/<environment_id>/`, and provider homes under the
   agent workspace area. Web pods don't need this volume.
+- A shared `mise` runtime cache is mounted at `/opt/mise` on worker pods
+  (`bin/deploy` patches both the `syrus-worker-home` Deployment and the
+  `syrus-worker-compute` DaemonSet with a hostPath volume,
+  `MISE_CACHE_HOST_PATH`, default `/data/syrus-mise-cache`; Docker Compose
+  mirrors it with a named volume) so per-Workflow `mise install` runs reuse
+  downloaded language runtimes instead of re-fetching them every time. The
+  image also seeds `/opt/mise-seed` from a cached runtime layer so a cold
+  cache directory still has usable shims before the shared cache
+  populates.
 - Terminal relay sockets are advertised from worker-side sessions.
   Bare-metal/local development can leave `SYRUS_TERMINAL_HOST` unset and
   the relay uses `127.0.0.1`; Docker Compose points it at the worker
