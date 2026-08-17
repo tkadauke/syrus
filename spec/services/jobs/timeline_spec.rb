@@ -59,10 +59,18 @@ RSpec.describe Jobs::Timeline do
       run = wf.first_step.runs.first
       run.start!
       run.update!(agent_outcome: "success", agent_turns: 12)
-      run.update_columns(started_at: 90.seconds.ago)
-      run.succeed!
-      run.update_columns(finished_at: Time.current)
-      run.save!
+
+      # Freeze "now" for the whole start/finish window so slow test
+      # execution (e.g. a loaded CI/grader runner) can't stretch the
+      # started_at..finished_at gap past a whole second and flip the
+      # expected "duration 1m30s" string.
+      finished_at = Time.current
+      run.update_columns(started_at: finished_at - 90.seconds)
+      travel_to(finished_at) do
+        run.succeed!
+        run.update_columns(finished_at: finished_at)
+        run.save!
+      end
 
       events = described_class.for(job)
       finish_event = events.find { |e| e.title == "Run ##{run.id} succeeded" }
