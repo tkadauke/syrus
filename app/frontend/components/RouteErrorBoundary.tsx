@@ -104,7 +104,9 @@ function RouteErrorFallback({ error, componentStack, fingerprint: fp, alreadyRep
           </button>
         )}
         {browserEventId != null ? (
-          <span className="text-xs text-gray-500 dark:text-gray-400">{t("route_error.browser_event_reported", { id: browserEventId })}</span>
+          <a className="text-xs text-gray-500 underline hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200" href={`/admin/browser_errors?id=${browserEventId}&revision_scope=all`}>
+            {t("route_error.browser_event_reported", { id: browserEventId })}
+          </a>
         ) : null}
       </div>
     </div>

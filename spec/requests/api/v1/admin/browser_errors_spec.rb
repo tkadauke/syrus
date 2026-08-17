@@ -31,4 +31,26 @@ RSpec.describe "API: /api/v1/admin/browser_errors", type: :request do
       "path" => "/jobs/3214"
     )
   end
+
+  it "filters browser errors by event id" do
+    first = BrowserErrorEvent.record!(
+      user: admin,
+      payload: {
+        "fingerprint" => "first",
+        "message" => "first frontend crash"
+      }
+    )
+    BrowserErrorEvent.record!(
+      user: admin,
+      payload: {
+        "fingerprint" => "second",
+        "message" => "second frontend crash"
+      }
+    )
+
+    get "/api/v1/admin/browser_errors?id=#{first.id}&revision_scope=all", headers: auth
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.fetch("events").map { |event| event.fetch("id") }).to eq([ first.id ])
+  end
 end

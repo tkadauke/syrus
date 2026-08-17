@@ -61,6 +61,7 @@ function BrowserErrorFilters({ onNavigate, search }: { onNavigate: (params: URLS
     setParam(next, "query", form.get("query"))
     setParam(next, "since", form.get("since"))
     setParam(next, "until", form.get("until"))
+    setParam(next, "id", form.get("id"))
     setParam(next, "fingerprint", form.get("fingerprint"))
     setParam(next, "path", form.get("path"))
     setParam(next, "revision_scope", form.get("revision_scope"))
@@ -74,7 +75,7 @@ function BrowserErrorFilters({ onNavigate, search }: { onNavigate: (params: URLS
 
   return (
     <form className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900" onSubmit={submit}>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
         <label className="space-y-1 md:col-span-2">
           <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{t("browser_errors.query")}</span>
           <input className={inputClass()} defaultValue={params.get("query") || ""} name="query" placeholder={t("browser_errors.query_placeholder")} />
@@ -86,6 +87,10 @@ function BrowserErrorFilters({ onNavigate, search }: { onNavigate: (params: URLS
         <label className="space-y-1">
           <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{t("browser_errors.until")}</span>
           <input className={inputClass()} defaultValue={params.get("until") || ""} name="until" placeholder={t("browser_errors.until_placeholder")} />
+        </label>
+        <label className="space-y-1">
+          <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{t("browser_errors.id")}</span>
+          <input className={inputClass()} defaultValue={params.get("id") || ""} name="id" placeholder="123" />
         </label>
         <label className="space-y-1">
           <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{t("browser_errors.fingerprint")}</span>

@@ -73,7 +73,7 @@ describe("RouteErrorBoundary", () => {
       message: "Test explosion",
       metadata: { boundary: "route" }
     })))
-    expect(await screen.findByText("Browser error #123 captured")).toBeInTheDocument()
+    expect(await screen.findByRole("link", { name: "Browser error #123 captured" })).toHaveAttribute("href", "/admin/browser_errors?id=123&revision_scope=all")
   })
 
   it("calls createBugReport with correct title and description when report button is clicked", async () => {

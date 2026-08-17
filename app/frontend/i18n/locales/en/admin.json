@@ -171,6 +171,7 @@
     "since": "Since",
     "until": "Until",
     "until_placeholder": "optional",
+    "id": "ID",
     "fingerprint": "Fingerprint",
     "path": "Path",
     "revision_scope": "Revision",

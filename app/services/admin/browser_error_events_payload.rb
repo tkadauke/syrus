@@ -19,6 +19,7 @@ module Admin
           query: query,
           since: since_time.iso8601,
           until: until_time&.iso8601,
+          id: id,
           fingerprint: fingerprint,
           path: path
         },
@@ -43,6 +44,7 @@ module Admin
       scope = scope.where(app_revision: current_revision) if revision_scope == "current"
       scope = scope.where(occurred_at: since_time..) if since_time
       scope = scope.where(occurred_at: ..until_time) if until_time
+      scope = scope.where(id: id) if id.present?
       scope = scope.where(fingerprint: fingerprint) if fingerprint.present?
       scope = scope.where(path: path) if path.present?
       if query.present?
@@ -87,6 +89,10 @@ module Admin
 
     def fingerprint
       utf8_param(:fingerprint).safe_byteslice(0, 500).presence
+    end
+
+    def id
+      Integer(params[:id], exception: false)
     end
 
     def path

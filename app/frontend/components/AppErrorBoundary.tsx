@@ -98,7 +98,9 @@ function AppErrorFallback({ error, componentStack, fingerprint: fp, alreadyRepor
             </button>
           )}
           {browserEventId != null ? (
-            <span className="text-sm text-gray-500">{t("route_error.browser_event_reported", { id: browserEventId })}</span>
+            <a className="text-sm text-gray-500 underline hover:text-gray-700" href={`/admin/browser_errors?id=${browserEventId}&revision_scope=all`}>
+              {t("route_error.browser_event_reported", { id: browserEventId })}
+            </a>
           ) : null}
         </div>
       </div>
