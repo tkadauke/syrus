@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_17_131500) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_17_134500) do
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -152,6 +152,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_131500) do
     t.index ["run_id"], name: "index_backend_exception_events_on_run_id"
     t.index ["source", "occurred_at"], name: "index_backend_exception_events_on_source_time"
     t.index ["workflow_id"], name: "index_backend_exception_events_on_workflow_id"
+  end
+
+  create_table "browser_error_auto_reports", force: :cascade do |t|
+    t.string "app_revision", null: false
+    t.integer "browser_error_event_id", null: false
+    t.datetime "created_at", null: false
+    t.text "error_message"
+    t.string "fingerprint", null: false
+    t.text "issue_url"
+    t.integer "job_id"
+    t.string "status", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["browser_error_event_id"], name: "index_browser_error_auto_reports_on_browser_error_event_id"
+    t.index ["fingerprint", "app_revision"], name: "index_browser_error_auto_reports_on_fingerprint_revision", unique: true
+    t.index ["job_id"], name: "index_browser_error_auto_reports_on_job_id"
+    t.index ["status", "created_at"], name: "index_browser_error_auto_reports_on_status_created_at"
+    t.index ["user_id"], name: "index_browser_error_auto_reports_on_user_id"
   end
 
   create_table "browser_error_events", force: :cascade do |t|
@@ -2239,6 +2257,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_131500) do
   add_foreign_key "backend_exception_events", "jobs"
   add_foreign_key "backend_exception_events", "runs"
   add_foreign_key "backend_exception_events", "workflows"
+  add_foreign_key "browser_error_auto_reports", "browser_error_events"
+  add_foreign_key "browser_error_auto_reports", "jobs"
+  add_foreign_key "browser_error_auto_reports", "users"
   add_foreign_key "browser_error_events", "users"
   add_foreign_key "chat_agent_questions", "chat_sessions"
   add_foreign_key "chat_attachments", "chat_sessions"
@@ -2439,4 +2460,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_131500) do
   add_foreign_key "workflow_step_resource_profiles", "repositories"
   add_foreign_key "workflows", "jobs"
   add_foreign_key "workflows", "users"
+
+  # Virtual tables defined in this database.
+  # Note that virtual tables may not work with other database engines. Be careful if changing database.
 end

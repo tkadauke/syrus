@@ -83,6 +83,15 @@ fallback needs the persisted event ID immediately. The row is still append-only
 and pruned by `FlushObservabilityEventsJob`. Browser error events retain 14 days
 of data.
 
+The default-off `browser_error_auto_reports` feature can turn captured browser
+errors into normal Syrus bug-report jobs. When enabled, every new browser error
+enqueues `BrowserErrorAutoReportJob`; the job claims a separate
+`browser_error_auto_reports` row keyed by fingerprint and app revision, then
+routes one bug report through the standard `BugReports::Router`. Duplicate
+events with the same fingerprint on the same revision do not create more jobs.
+The captured `BrowserErrorEvent` remains append-only evidence independent of
+whether bug-report routing succeeds.
+
 ## Backend Exceptions
 
 The `backend_exception_events` table records Rails request and Active Job

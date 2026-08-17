@@ -41,6 +41,13 @@ features:
     description: "Indexes short-lived structured Rails application log events for Syrus implementation agents working on Syrus itself."
     description_i18n_key: "features.slugs.operational_log_indexing.description"
     default: false
+  - slug: browser_error_auto_reports
+    category: "Operations"
+    name: "Browser error auto reports"
+    name_i18n_key: "features.slugs.browser_error_auto_reports.name"
+    description: "Automatically files one bug-report job per browser-error fingerprint and app revision."
+    description_i18n_key: "features.slugs.browser_error_auto_reports.description"
+    default: false
   - slug: local_mode
     category: "Labs"
     name: "Local Mode"

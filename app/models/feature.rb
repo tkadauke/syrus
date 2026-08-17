@@ -74,6 +74,10 @@ class Feature < ApplicationRecord
     enabled?(:operational_log_indexing)
   end
 
+  def self.browser_error_auto_reports_enabled?
+    enabled?(:browser_error_auto_reports)
+  end
+
   def self.admin_supervisor_chat_enabled?
     enabled?(:admin_supervisor_chat)
   end

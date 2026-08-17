@@ -24,6 +24,7 @@ class BrowserErrorEvent < ApplicationRecord
   before_update { raise ActiveRecord::ReadOnlyRecord, "BrowserErrorEvent is append-only" }
   before_destroy { raise ActiveRecord::ReadOnlyRecord, "BrowserErrorEvent is append-only" unless destroyed_by_association }
   after_create_commit :enqueue_index
+  after_create_commit :enqueue_auto_report, if: -> { Feature.browser_error_auto_reports_enabled? }
 
   def self.record!(user:, payload:)
     attrs = payload.respond_to?(:to_unsafe_h) ? payload.to_unsafe_h : payload.to_h
@@ -82,6 +83,10 @@ class BrowserErrorEvent < ApplicationRecord
 
   def enqueue_index
     IndexBrowserErrorEventsJob.perform_later([ id ])
+  end
+
+  def enqueue_auto_report
+    BrowserErrorAutoReportJob.perform_later(id)
   end
 
   def bounded_hash(value, value_bytes:)
