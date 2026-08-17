@@ -521,34 +521,15 @@ module App
     end
 
     def feedback_entry_for(workflow)
-      case Workflow::TriggerKind.feedback_kind_for(workflow.trigger_kind)
-      when :chat_feedback
-        body = workflow.artifacts&.dig("chat_feedback")
-        return unless body.present?
+      feedback_kind = Workflow::FeedbackKind.for(workflow)
+      return unless feedback_kind&.present?
 
-        source = workflow.artifacts&.dig("feedback_source")
-        feedback_history_entry_json(
-          workflow,
-          kind: "chat_feedback",
-          body: body,
-          feedback_source: source
-        )
-      when :pr_comment
-        comments = Array(workflow.artifacts&.dig("pr_comments"))
-        return if comments.empty?
-
-        body = comments.map do |comment|
-          author = comment["author"].present? ? "@#{comment["author"]}: " : ""
-          "#{author}#{comment["body"]}"
-        end.join("\n\n")
-
-        feedback_history_entry_json(
-          workflow,
-          kind: "pr_comment",
-          body: body,
-          feedback_source: nil
-        )
-      end
+      feedback_history_entry_json(
+        workflow,
+        kind: feedback_kind.kind_name,
+        body: feedback_kind.history_body,
+        feedback_source: feedback_kind.feedback_source
+      )
     end
 
     def feedback_history_entry_json(workflow, kind:, body:, feedback_source:)

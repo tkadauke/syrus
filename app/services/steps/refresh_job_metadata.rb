@@ -47,12 +47,7 @@ module Steps
     end
 
     def feedback_text
-      case Workflow::TriggerKind.feedback_kind_for(workflow.trigger_kind)
-      when :chat_feedback
-        workflow.artifact("chat_feedback").to_s
-      when :pr_comment
-        Array(workflow.artifact("pr_comments")).map { |comment| comment["body"].to_s }.reject(&:blank?).join("\n\n")
-      end
+      Workflow::FeedbackKind.for(workflow)&.plain_text
     end
 
     def current_diff
