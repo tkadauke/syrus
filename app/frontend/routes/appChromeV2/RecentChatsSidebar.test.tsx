@@ -129,6 +129,26 @@ describe("RecentChatsSidebar active chat highlighting", () => {
   })
 })
 
+describe("RecentChatsSidebar group chat icon", () => {
+  it("shows a group icon for a group chat", () => {
+    renderSidebar([chatNav({ id: 1, title: "Hello World Test", conversation_kind: "group" })])
+
+    expect(screen.getByTestId("group-chat-icon")).toBeInTheDocument()
+  })
+
+  it("does not show a group icon for a direct chat", () => {
+    renderSidebar([chatNav({ id: 1, title: "Direct Chat", conversation_kind: "direct" })])
+
+    expect(screen.queryByTestId("group-chat-icon")).not.toBeInTheDocument()
+  })
+
+  it("does not show a group icon when conversation_kind is undefined", () => {
+    renderSidebar([chatNav({ id: 1, title: "Legacy Chat" })])
+
+    expect(screen.queryByTestId("group-chat-icon")).not.toBeInTheDocument()
+  })
+})
+
 describe("RecentChatsSidebar supervisor chat", () => {
   it("renders supervisor above ordinary chat groups with unread severity count", () => {
     renderSidebar(

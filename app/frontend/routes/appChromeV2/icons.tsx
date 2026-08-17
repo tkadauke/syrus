@@ -65,9 +65,9 @@ export function TerminalIcon() {
   )
 }
 
-export function TeamIcon() {
+export function TeamIcon({ className = "h-4 w-4 shrink-0" }: { className?: string }) {
   return (
-    <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
+    <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 24 24">
       <path d="M9.25 11.25a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-5 8a5 5 0 0 1 10 0m1.25-8.5a2.5 2.5 0 1 0 0-5m.75 13.5h3.5a4.25 4.25 0 0 0-4.25-4.25" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
     </svg>
   )
