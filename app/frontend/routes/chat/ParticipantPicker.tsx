@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { fetchInvitableUsers, type InvitableUser } from "../../api/chats"
+import { Avatar } from "../../components/Avatar"
 import { CloseIcon } from "../../components/CloseIcon"
 import { useT } from "../../hooks/useT"
-import { ParticipantAvatar } from "./ParticipantAvatar"
 import { primaryButton, secondaryButton } from "./utils"
 
 // Reused for both entry points that need to pick Syrus users to add to a
@@ -107,7 +107,7 @@ export function ParticipantPickerModal({
                     type="button"
                   >
                     <input checked={selected} className="pointer-events-none h-4 w-4 rounded border-gray-300 text-blue-600 dark:border-gray-600" readOnly type="checkbox" />
-                    <ParticipantAvatar avatarUrl={user.avatar_url} name={user.name} size="md" />
+                    <Avatar avatarUrl={user.avatar_url} name={user.name} size="sm" />
                     <span className="min-w-0 truncate text-gray-900 dark:text-gray-100">{user.name}</span>
                   </button>
                 )
