@@ -41,86 +41,124 @@ RSpec.describe SyrusRails::RspecParser do
     context "with progress format output containing one failure" do
       let(:result) { described_class.call(output_path: fixture("progress_output.txt")) }
 
-      it "sets status to 'failed'" do
-        expect(result["status"]).to eq("failed")
+      it "returns a JunitXmlParser::ParsedRun-shaped value object" do
+        expect(result).to respond_to(
+          :total_count, :passed_count, :failed_count, :skipped_count,
+          :error_count, :duration_ms, :cases
+        )
       end
 
-      it "parses the duration" do
-        expect(result["duration"]).to eq(0.42)
+      it "parses the duration in milliseconds" do
+        expect(result.duration_ms).to eq(420)
       end
 
       it "parses summary counts correctly" do
-        expect(result["summary"]["total"]).to eq(8)
-        expect(result["summary"]["failed"]).to eq(1)
-        expect(result["summary"]["pending"]).to eq(1)
-        expect(result["summary"]["passed"]).to eq(6)
+        expect(result.total_count).to eq(8)
+        expect(result.failed_count).to eq(1)
+        expect(result.skipped_count).to eq(1)
+        expect(result.passed_count).to eq(6)
+        expect(result.error_count).to eq(0)
       end
 
-      it "includes a TestCase for the failure" do
-        expect(result["test_cases"].size).to eq(1)
+      it "includes a case for the failure" do
+        expect(result.cases.size).to eq(1)
+      end
+
+      it "returns cases that are duck-typed to JunitXmlParser::ParsedCase" do
+        tc = result.cases.first
+        expect(tc).to respond_to(
+          :name, :suite_name, :file_path, :status, :duration_ms,
+          :output, :failure_message, :failure_backtrace
+        )
       end
 
       it "captures the test case name" do
-        tc = result["test_cases"].first
-        expect(tc["name"]).to eq("GreetingHelper#greet returns the user's name")
+        tc = result.cases.first
+        expect(tc.name).to eq("GreetingHelper#greet returns the user's name")
       end
 
       it "captures the test case status as 'failed'" do
-        tc = result["test_cases"].first
-        expect(tc["status"]).to eq("failed")
+        tc = result.cases.first
+        expect(tc.status).to eq("failed")
       end
 
-      it "captures the file path and line number from the location comment" do
-        tc = result["test_cases"].first
-        expect(tc["file_path"]).to eq("spec/helpers/greeting_helper_spec.rb")
-        expect(tc["line_number"]).to eq(14)
+      it "captures the file path from the location comment" do
+        tc = result.cases.first
+        expect(tc.file_path).to eq("spec/helpers/greeting_helper_spec.rb")
+      end
+
+      it "derives suite_name from the file path, like JunitXmlParser does from classname" do
+        tc = result.cases.first
+        expect(tc.suite_name).to eq("spec/helpers/greeting_helper_spec.rb")
       end
 
       it "captures the failure message" do
-        tc = result["test_cases"].first
-        expect(tc["failure_message"]).to include("expected: \"Hello, Ada\"")
+        tc = result.cases.first
+        expect(tc.failure_message).to include("expected: \"Hello, Ada\"")
       end
     end
 
     context "with all-passing output" do
       let(:result) { described_class.call(output_path: fixture("passing_output.txt")) }
 
-      it "sets status to 'passed'" do
-        expect(result["status"]).to eq("passed")
-      end
-
-      it "returns no test cases (no failures to enumerate)" do
-        expect(result["test_cases"]).to be_empty
+      it "returns no cases (no failures to enumerate)" do
+        expect(result.cases).to be_empty
       end
 
       it "parses summary counts" do
-        expect(result["summary"]["total"]).to eq(6)
-        expect(result["summary"]["failed"]).to eq(0)
-        expect(result["summary"]["pending"]).to eq(0)
-        expect(result["summary"]["passed"]).to eq(6)
+        expect(result.total_count).to eq(6)
+        expect(result.failed_count).to eq(0)
+        expect(result.skipped_count).to eq(0)
+        expect(result.passed_count).to eq(6)
+      end
+
+      it "parses the duration in milliseconds" do
+        expect(result.duration_ms).to eq(150)
       end
     end
 
     context "with multiple failures" do
       let(:result) { described_class.call(output_path: fixture("multiple_failures_output.txt")) }
 
-      it "sets status to 'failed'" do
-        expect(result["status"]).to eq("failed")
-      end
-
-      it "enumerates all failing test cases" do
-        expect(result["test_cases"].size).to eq(2)
+      it "enumerates all failing cases" do
+        expect(result.cases.size).to eq(2)
       end
 
       it "captures distinct names for each failure" do
-        names = result["test_cases"].map { |tc| tc["name"] }
+        names = result.cases.map(&:name)
         expect(names).to include("Widget#price returns the base price")
         expect(names).to include("Widget#price applies the discount")
       end
 
-      it "captures distinct locations for each failure" do
-        line_numbers = result["test_cases"].map { |tc| tc["line_number"] }
-        expect(line_numbers).to contain_exactly(8, 15)
+      it "captures distinct suite_names derived from each failure's file path" do
+        suite_names = result.cases.map(&:suite_name)
+        expect(suite_names).to all(eq("spec/models/widget_spec.rb"))
+      end
+    end
+
+    context "with output missing a location comment" do
+      it "falls back to 'unknown' for suite_name" do
+        Tempfile.create("rspec-no-location") do |f|
+          f.write(<<~OUTPUT)
+            F
+
+            Failures:
+
+              1) something broke
+                 Failure/Error: raise "boom"
+
+                   boom
+
+            Finished in 0.01 seconds (files took 0.1 seconds to load)
+            1 example, 1 failure
+          OUTPUT
+          f.flush
+
+          result = described_class.call(output_path: f.path)
+          tc = result.cases.first
+          expect(tc.file_path).to be_nil
+          expect(tc.suite_name).to eq("unknown")
+        end
       end
     end
   end
