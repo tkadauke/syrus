@@ -279,6 +279,57 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(parse_body["message"]).to eq("Scheduled task created.")
   end
 
+  it "creates a skill task for a repository, without requiring a prompt" do
+    sign_in_as(user)
+
+    expect {
+      post "/api/v1/app/repositories/#{repository.id}/scheduled_tasks", params: {
+        scheduled_task: valid_cron_attrs.except(:prompt).merge(
+          skill_name: "investigate",
+          skill_args: { question: "What changed recently?" }
+        )
+      }
+    }.to change { ScheduledTask.count }.by(1)
+
+    expect(response).to have_http_status(:created)
+    task = ScheduledTask.last
+    expect(task.skill_name).to eq("investigate")
+    expect(task.skill_args).to eq({ "question" => "What changed recently?" })
+    expect(parse_body.dig("task", "skill_name")).to eq("investigate")
+    expect(parse_body.dig("task", "skill_args")).to eq({ "question" => "What changed recently?" })
+  end
+
+  it "returns validation errors when skill_args don't satisfy the skill's parameter schema" do
+    sign_in_as(user)
+
+    expect {
+      post "/api/v1/app/repositories/#{repository.id}/scheduled_tasks", params: {
+        scheduled_task: valid_cron_attrs.except(:prompt).merge(skill_name: "investigate", skill_args: {})
+      }
+    }.not_to change { ScheduledTask.count }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to match(/question/)
+  end
+
+  it "updates a task from freeform to skill-based" do
+    sign_in_as(user)
+    task = repository.scheduled_tasks.create!(user: user, **valid_cron_attrs)
+
+    patch "/api/v1/app/scheduled_tasks/#{task.id}", params: {
+      scheduled_task: {
+        prompt: "",
+        skill_name: "investigate",
+        skill_args: { question: "What changed?" }
+      }
+    }
+
+    expect(response).to have_http_status(:ok)
+    task.reload
+    expect(task.skill_name).to eq("investigate")
+    expect(task.skill_args).to eq({ "question" => "What changed?" })
+  end
+
   it "returns validation errors for malformed schedules" do
     sign_in_as(user)
 

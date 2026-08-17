@@ -25,6 +25,8 @@ export type ScheduledTaskRow = {
 
 export type ScheduledTaskDetail = ScheduledTaskRow & {
   prompt: string
+  skill_name: string | null
+  skill_args: Record<string, string | boolean>
   cron_expression: string | null
   hourly_cron_expression: string | null
   schedule_input: string | null
@@ -46,6 +48,8 @@ export type ScheduledTaskDetail = ScheduledTaskRow & {
 export type ScheduledTaskInput = {
   name: string
   prompt: string
+  skill_name: string
+  skill_args: Record<string, string | boolean>
   kind: string
   cron_expression: string
   schedule_input: string

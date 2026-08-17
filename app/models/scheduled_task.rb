@@ -23,7 +23,7 @@ class ScheduledTask < ApplicationRecord
   scope :alive,    -> { where(archived_at: nil) }
 
   validates :name, presence: true, length: { maximum: 200 }
-  validates :prompt, presence: true
+  validates :prompt, presence: true, if: -> { skill_name.blank? }
   validates :kind, presence: true, inclusion: { in: KINDS }
   validates :state, presence: true, inclusion: { in: STATES }
   validates :pr_pileup_policy, presence: true, inclusion: { in: PR_PILEUP_POLICIES }
@@ -31,11 +31,13 @@ class ScheduledTask < ApplicationRecord
                             numericality: { only_integer: true, in: 0..59 }
   validates :consecutive_failure_count,
             presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+  validates :skill_name, format: { with: Skills::NAME_PATTERN }, allow_nil: true
 
   validates :schedule_expression, presence: true, if: :cron?
   validates :fire_at,         presence: true, if: :one_shot?
   validate  :schedule_expression_is_parseable_and_hourly, if: :cron?
   validate  :fire_at_is_in_the_future_at_create,      if: -> { one_shot? && new_record? }
+  validate  :skill_args_match_parameter_schema, if: -> { skill_name.present? && repository.present? }
 
   before_validation :canonicalize_recurring_schedule
   before_validation :seed_minute_offset_for_cron, on: :create
@@ -66,6 +68,10 @@ class ScheduledTask < ApplicationRecord
 
   def fired?
     state == "fired"
+  end
+
+  def skill_task?
+    skill_name.present?
   end
 
   # Compatibility alias for API consumers that still read the historical
@@ -230,5 +236,14 @@ class ScheduledTask < ApplicationRecord
   def fire_at_is_in_the_future_at_create
     return if fire_at.blank?
     errors.add(:fire_at, "must be in the future") if fire_at <= Time.current
+  end
+
+  def skill_args_match_parameter_schema
+    resolution = Skills.for(repository: repository, name: skill_name, user: user)
+    Skills::ParameterSchema.validate!(resolution.definition.parameters, skill_args.presence || {})
+  rescue Skills::NotFoundError, ArgumentError, Skills::SkillMarkdown::ParseError, Skills::ParameterSchema::ParseError => e
+    errors.add(:skill_name, "could not be resolved: #{e.message}")
+  rescue Skills::ParameterSchema::ValidationError => e
+    errors.add(:skill_args, e.message)
   end
 end
