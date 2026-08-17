@@ -7,7 +7,17 @@ export RSPEC_JSON_DIR="${RSPEC_JSON_DIR:-.syrus/rspec-json}"
 mkdir -p "$RSPEC_JSON_DIR"
 worker_id="${TEST_ENV_NUMBER:-1}"
 
+# bin/rspec-fast's contract is "excludes :ci_only" unconditionally (see
+# CLAUDE.md) — bin/rspec-ci's second phase is solely responsible for running
+# them. But spec_helper.rb's config-level filter also treats a bare
+# ENV["CI"] (which GitHub Actions always sets to "true") as "include
+# ci_only", so under real CI this worker would otherwise run every ci_only
+# spec once here AND again in bin/rspec-ci's explicit second phase —
+# doubling load on a fixed-core runner and producing spurious SQLite lock
+# contention / subprocess-timing failures. Force the exclusion at the CLI
+# level so it holds regardless of the ambient CI env var.
 exec bin/rspec \
+  --tag ~ci_only \
   --format progress \
   --format json \
   --out "$RSPEC_JSON_DIR/rspec-${worker_id}.json" \
