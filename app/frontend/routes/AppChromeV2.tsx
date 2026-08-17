@@ -3,6 +3,7 @@ import { ChevronDownIcon, DashboardIcon, MoonIcon, PlusIcon, RepositoryIcon, Sch
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH, activeChatIdFromPath, adminNavItemActive, adminNavLinkClass, bugReportContext, clampSidebarWidth, isAdminPath, isAuthPath, normalizedAppPath, popupButtonClass, popupLinkClass, redirectsToSetup, sidebarLinkClass, storeSidebarWidth, storedSidebarWidth, updateBootstrapTheme, withRoutePrefix } from "./appChromeV2/helpers"
 import { buildAdminNavItems, type AdminNavGroup, type MergedAdminNavItem } from "./appChromeV2/adminNav"
 import { RecentChatsSidebar } from "./appChromeV2/RecentChatsSidebar"
+import { useMediaQuery } from "./dashboard/components"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { BRAND_ICON_SRC } from "../lib/brandIcon"
 import { type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -62,6 +63,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const inOnboarding = Boolean(data?.setup && !data.setup.complete)
   const onboardingChatStarted = Boolean(data?.setup?.chat_started)
   const tabsHidden = inOnboarding && !onboardingChatStarted
+  const isDesktopSidebarViewport = useMediaQuery("(min-width: 1024px)", true)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [mobileBrandFloating, setMobileBrandFloating] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(storedSidebarWidth)
@@ -209,7 +211,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   return (
     <BugReportContext.Provider value={bugReportContextValue}>
     <div className="flex h-[100dvh] overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white">
-      <aside className="relative hidden shrink-0 lg:flex" data-html2canvas-ignore style={{ width: `${sidebarWidth}px` }}>
+      <aside className="relative hidden shrink-0 lg:flex" style={{ width: `${sidebarWidth}px` }} {...(isDesktopSidebarViewport ? {} : { "data-html2canvas-ignore": true })}>
         <SidebarContent
           csrfToken={data?.csrf_token}
           dashboardSubnavEnabled={true}
