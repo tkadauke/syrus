@@ -93,5 +93,32 @@ RSpec.describe ChatQueuedMessagePromoter do
       promoted = ChatMessage.where(chat_session: chat).first
       expect(promoted.content["text"]).to eq("alpha")
     end
+
+    context "with a group chat" do
+      let(:chat) { ChatSession.create!(user: user, conversation_kind: "group") }
+
+      before { chat.chat_participants.create!(user: Factories.user, role: "member") }
+
+      it "promotes but does not trigger the agent for an unmentioned queued message" do
+        enqueue_message("no mention here")
+
+        result = nil
+        expect {
+          result = described_class.deliver_one_if_idle!(chat)
+        }.not_to have_enqueued_job(ChatTurnJob)
+
+        expect(result).to be true
+        expect(ChatMessage.where(chat_session: chat).count).to eq(1)
+        expect(chat.reload).not_to be_turn_in_flight
+      end
+
+      it "triggers the agent for a queued message that mentions @syrus" do
+        enqueue_message("hey @syrus")
+
+        expect {
+          described_class.deliver_one_if_idle!(chat)
+        }.to have_enqueued_job(ChatTurnJob)
+      end
+    end
   end
 end

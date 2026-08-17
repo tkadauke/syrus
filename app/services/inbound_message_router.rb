@@ -15,15 +15,15 @@ class InboundMessageRouter
     user = identity.user
     session = ChatSession.for_platform(user: user, platform: @platform)
 
+    turn_triggered = session.trigger_policy == "speak_when_spoken_to" && session.should_trigger_agent?(@message_text)
     message = session.messages.create!(
       role: "user",
       sender_user: user,
-      content: { "text" => @message_text }
+      content: { "text" => @message_text },
+      skip_turn_trigger: !turn_triggered
     )
 
-    if session.trigger_policy == "speak_when_spoken_to" && session.should_trigger_agent?(@message_text)
-      ChatTurnJob.perform_later(session.id, message.id)
-    end
+    ChatTurnJob.perform_later(session.id, message.id) if turn_triggered
 
     Result.new(status: :ok, session: session)
   end
