@@ -298,6 +298,8 @@ Rails.application.routes.draw do
         post "repositories/:repository_id/documents", to: "repository_documents#create"
         get "repository_documents/:id/file", to: "repository_documents#file"
         delete "repository_documents/:id", to: "repository_documents#destroy"
+        get "repositories/:repository_id/skills", to: "skills#index"
+        post "repositories/:repository_id/skills", to: "skills#create"
         get "repositories/:repository_id/scheduled_tasks/new", to: "scheduled_tasks#new"
         get "repositories/:repository_id/scheduled_tasks", to: "scheduled_tasks#repository_index"
         post "repositories/:repository_id/scheduled_tasks", to: "scheduled_tasks#create"
@@ -494,6 +496,7 @@ Rails.application.routes.draw do
     get "scheduled_tasks", to: "spa#show", as: :scheduled_tasks
   end
   get "repositories/:repository_id/scheduled_tasks/new", to: "spa#show", as: :new_repository_scheduled_task
+  get "repositories/:repository_id/skills/new", to: "spa#show", as: :new_repository_skill_job
 
   get "chats/search", to: "spa#show", as: :search_chats
   get "chats/shared/:token", to: "spa#show", as: :shared_chat
