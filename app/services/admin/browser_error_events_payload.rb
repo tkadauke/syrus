@@ -23,6 +23,7 @@ module Admin
           fingerprint: fingerprint,
           path: path
         },
+        timeline: Admin::EventTimeline.build(filtered_scope, since_time: since_time, until_time: until_time || Time.current),
         pagination: {
           page: page,
           per_page: per_page,
@@ -40,7 +41,11 @@ module Admin
     attr_reader :params
 
     def relation
-      scope = BrowserErrorEvent.includes(:user).recent_first
+      filtered_scope.includes(:user).recent_first.offset((page - 1) * per_page)
+    end
+
+    def filtered_scope
+      scope = BrowserErrorEvent.all
       scope = scope.where(app_revision: current_revision) if revision_scope == "current"
       scope = scope.where(occurred_at: since_time..) if since_time
       scope = scope.where(occurred_at: ..until_time) if until_time
@@ -56,7 +61,7 @@ module Admin
           scope = scope.where("browser_error_events.message LIKE ? OR browser_error_events.name LIKE ? OR browser_error_events.path LIKE ? OR browser_error_events.stack LIKE ? OR browser_error_events.fingerprint LIKE ? OR browser_error_events.user_agent LIKE ?", pattern, pattern, pattern, pattern, pattern, pattern)
         end
       end
-      scope.offset((page - 1) * per_page)
+      scope
     end
 
     def indexed_query_ids

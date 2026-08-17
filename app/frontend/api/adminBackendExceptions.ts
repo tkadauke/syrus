@@ -1,4 +1,5 @@
 import { getJson } from "./client"
+import type { AdminEventTimelineBucket } from "../components/AdminEventLogPanel"
 
 export type BackendExceptionRevisionScope = "current" | "all"
 
@@ -43,6 +44,7 @@ export type BackendExceptionEventsPayload = {
     next_page?: number | null
     previous_page?: number | null
   }
+  timeline: AdminEventTimelineBucket[]
   events: BackendExceptionEventRow[]
 }
 

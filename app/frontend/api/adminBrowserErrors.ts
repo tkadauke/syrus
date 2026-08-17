@@ -1,4 +1,5 @@
 import { getJson } from "./client"
+import type { AdminEventTimelineBucket } from "../components/AdminEventLogPanel"
 
 export type BrowserErrorRevisionScope = "current" | "all"
 
@@ -47,6 +48,7 @@ export type BrowserErrorEventsPayload = {
     next_page?: number | null
     previous_page?: number | null
   }
+  timeline: AdminEventTimelineBucket[]
   events: BrowserErrorEventRow[]
 }
 

@@ -2,7 +2,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { type FormEvent, useMemo, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { fetchAdminBackendExceptions, type BackendExceptionEventRow, type BackendExceptionEventsPayload } from "../api/adminBackendExceptions"
-import { AdminEventPageShell, AdminEventPagination, AdminEventPanelMessage, DetailBlock, JsonBlock, formatEventDate, inputClass, shortRevision } from "../components/AdminEventLogPanel"
+import { AdminEventPageShell, AdminEventPagination, AdminEventPanelMessage, AdminEventTimeline, DetailBlock, JsonBlock, formatEventDate, inputClass, shortRevision } from "../components/AdminEventLogPanel"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
@@ -136,6 +136,9 @@ function BackendExceptionsView({ onNavigate, payload, search }: { onNavigate: (p
       <div className="flex flex-col gap-2 border-b border-gray-200 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300 sm:flex-row sm:items-center sm:justify-between">
         <span>{t("backend_exceptions.showing", { count: payload.events.length, page: payload.pagination.page })}</span>
         <span>{t("backend_exceptions.revision_hint", { revision: payload.revision_scope === "all" ? t("backend_exceptions.all_revisions") : shortRevision(payload.current_revision) })}</span>
+      </div>
+      <div className="border-b border-gray-200 p-4 dark:border-gray-700">
+        <AdminEventTimeline buckets={payload.timeline || []} emptyLabel={t("backend_exceptions.timeline_empty")} title={t("backend_exceptions.timeline")} />
       </div>
       {payload.events.length > 0 ? <BackendExceptionsTable revisionScope={payload.revision_scope} rows={payload.events} /> : <AdminEventPanelMessage>{t("backend_exceptions.empty")}</AdminEventPanelMessage>}
       <AdminEventPagination

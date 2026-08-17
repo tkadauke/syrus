@@ -24,6 +24,7 @@ module Admin
           exception_class: exception_class,
           path: path
         },
+        timeline: Admin::EventTimeline.build(filtered_scope, since_time: since_time, until_time: until_time || Time.current),
         sources: BackendExceptionEvent.distinct.order(:source).pluck(:source),
         pagination: {
           page: page,
@@ -42,7 +43,11 @@ module Admin
     attr_reader :params
 
     def relation
-      scope = BackendExceptionEvent.recent_first
+      filtered_scope.recent_first.offset((page - 1) * per_page)
+    end
+
+    def filtered_scope
+      scope = BackendExceptionEvent.all
       scope = scope.where(app_revision: current_revision) if revision_scope == "current"
       scope = scope.where(occurred_at: since_time..) if since_time
       scope = scope.where(occurred_at: ..until_time) if until_time
@@ -57,7 +62,7 @@ module Admin
           pattern, pattern, pattern, pattern, pattern
         )
       end
-      scope.offset((page - 1) * per_page)
+      scope
     end
 
     def event_payload(event)
