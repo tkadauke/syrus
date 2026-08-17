@@ -167,6 +167,7 @@
     "reload_page": "Reload page",
     "send_report": "Send error report",
     "already_reported": "Error already reported",
+    "browser_event_reported": "Browser error #{{id}} captured",
     "reported_as": "Reported as JOB-{{job_id}}",
     "report_failed": "Could not send report — try refreshing"
   },

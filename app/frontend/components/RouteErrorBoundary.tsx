@@ -1,4 +1,5 @@
 import { Component, useState, type ErrorInfo, type ReactNode } from "react"
+import { buildBrowserErrorPayload, recordBrowserError } from "../api/browserErrors"
 import { createBugReport } from "../api/bugReports"
 import { useT } from "../hooks/useT"
 
@@ -40,9 +41,10 @@ type FallbackProps = {
   componentStack: string
   fingerprint: string
   alreadyReported: boolean
+  browserEventId?: number | null
 }
 
-function RouteErrorFallback({ error, componentStack, fingerprint: fp, alreadyReported }: FallbackProps) {
+function RouteErrorFallback({ error, componentStack, fingerprint: fp, alreadyReported, browserEventId }: FallbackProps) {
   const { t } = useT("common")
   const [reportState, setReportState] = useState<"idle" | "loading" | "success" | "error">("idle")
   const [jobId, setJobId] = useState<number | null>(null)
@@ -101,6 +103,9 @@ function RouteErrorFallback({ error, componentStack, fingerprint: fp, alreadyRep
             {t("route_error.send_report")}
           </button>
         )}
+        {browserEventId != null ? (
+          <span className="text-xs text-gray-500 dark:text-gray-400">{t("route_error.browser_event_reported", { id: browserEventId })}</span>
+        ) : null}
       </div>
     </div>
   )
@@ -114,6 +119,7 @@ type BoundaryState =
       componentStack: string
       fingerprint: string
       alreadyReported: boolean
+      browserEventId: number | null
     }
 
 export class RouteErrorBoundary extends Component<{ children: ReactNode }, BoundaryState> {
@@ -129,14 +135,24 @@ export class RouteErrorBoundary extends Component<{ children: ReactNode }, Bound
       error,
       componentStack: "",
       fingerprint: fp,
-      alreadyReported: readReportedFingerprints().includes(fp)
+      alreadyReported: readReportedFingerprints().includes(fp),
+      browserEventId: null
     }
   }
 
-  componentDidCatch(_error: Error, info: ErrorInfo) {
+  componentDidCatch(error: Error, info: ErrorInfo) {
     this.setState((prev) => {
       if (!prev.hasError) return prev
       return { ...prev, componentStack: info.componentStack ?? "" }
+    })
+    void recordBrowserError(buildBrowserErrorPayload(error, {
+      boundary: "route",
+      componentStack: info.componentStack ?? "",
+      fingerprint: computeFingerprint(error)
+    })).then((result) => {
+      this.setState((prev) => prev.hasError ? { ...prev, browserEventId: result.id } : prev)
+    }).catch(() => {
+      // The boundary itself must stay usable even if diagnostics fail.
     })
   }
 
@@ -148,6 +164,7 @@ export class RouteErrorBoundary extends Component<{ children: ReactNode }, Bound
           componentStack={this.state.componentStack}
           error={this.state.error}
           fingerprint={this.state.fingerprint}
+          browserEventId={this.state.browserEventId}
         />
       )
     }

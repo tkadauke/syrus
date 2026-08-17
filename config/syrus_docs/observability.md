@@ -49,6 +49,34 @@ accept `event_type`, `job_id`, `workflow_id`, `run_id`, `trigger_kind`, and
 than performance and operational logs so operators and agents can reconstruct
 landing queue stalls and delayed retries across deploys.
 
+## Browser Errors
+
+The `browser_error_events` table records React error-boundary crashes from the
+browser. Route-level and app-level error boundaries automatically post a
+structured event to `POST /api/v1/app/browser_errors` before the operator
+chooses whether to file a separate Syrus bug-report Job. The fallback UI shows
+the captured browser error ID so an operator can correlate a visible crash with
+the admin event stream.
+
+Browser error events include the signed-in user, app revision, fingerprint,
+error name/message, JavaScript stack, React component stack, URL/path, viewport,
+feature flags, recent API requests, recent browser errors, and bounded metadata.
+Payloads are sanitized and size-capped in `BrowserErrorEvent` before storage so
+large stacks or recent-error blobs cannot create a second incident while being
+reported.
+
+The admin UI exposes this stream at **Admin -> Browser Errors**
+(`/admin/browser_errors`). The app API endpoint is
+`GET /api/v1/app/admin/browser_errors`; the token admin API endpoint is
+`GET /api/v1/admin/browser_errors`. Both are paginated newest-first and accept
+`query`, `since`, `until`, `fingerprint`, `path`, and `revision_scope` filters.
+
+Unlike the high-volume observability streams, browser errors are inserted
+synchronously instead of through `Observability::EventSink` because the browser
+fallback needs the persisted event ID immediately. The row is still append-only
+and pruned by `FlushObservabilityEventsJob`. Browser error events retain 14 days
+of data.
+
 ## Existing Streams
 
 `performance_log_events` contain slow request, slow SQL, slow phase, and browser

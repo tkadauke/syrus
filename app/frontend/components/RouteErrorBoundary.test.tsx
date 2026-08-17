@@ -6,10 +6,20 @@ import type { BugReportPayload } from "../api/bugReports"
 vi.mock("../api/bugReports", () => ({
   createBugReport: vi.fn()
 }))
+vi.mock("../api/browserErrors", () => ({
+  buildBrowserErrorPayload: vi.fn((error: Error, options: Record<string, unknown>) => ({
+    message: error.message,
+    fingerprint: options.fingerprint,
+    metadata: { boundary: options.boundary }
+  })),
+  recordBrowserError: vi.fn()
+}))
 
 import { createBugReport } from "../api/bugReports"
+import { recordBrowserError } from "../api/browserErrors"
 
 const mockCreateBugReport = createBugReport as ReturnType<typeof vi.fn> & typeof createBugReport
+const mockRecordBrowserError = recordBrowserError as ReturnType<typeof vi.fn> & typeof recordBrowserError
 
 function Bomb({ shouldThrow }: { shouldThrow: boolean }) {
   if (shouldThrow) throw new Error("Test explosion")
@@ -18,8 +28,10 @@ function Bomb({ shouldThrow }: { shouldThrow: boolean }) {
 
 describe("RouteErrorBoundary", () => {
   beforeEach(() => {
+    vi.clearAllMocks()
     vi.spyOn(console, "error").mockImplementation(() => {})
     sessionStorage.clear()
+    mockRecordBrowserError.mockResolvedValue({ id: 123, fingerprint: "fp" })
   })
 
   afterEach(() => {
@@ -48,6 +60,20 @@ describe("RouteErrorBoundary", () => {
     expect(screen.getByRole("button", { name: "Send error report" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Go back" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Reload page" })).toBeInTheDocument()
+  })
+
+  it("records a browser error event automatically", async () => {
+    render(
+      <RouteErrorBoundary>
+        <Bomb shouldThrow={true} />
+      </RouteErrorBoundary>
+    )
+
+    await waitFor(() => expect(mockRecordBrowserError).toHaveBeenCalledWith(expect.objectContaining({
+      message: "Test explosion",
+      metadata: { boundary: "route" }
+    })))
+    expect(await screen.findByText("Browser error #123 captured")).toBeInTheDocument()
   })
 
   it("calls createBugReport with correct title and description when report button is clicked", async () => {

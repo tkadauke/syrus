@@ -13,6 +13,7 @@ import { NotificationsRoute } from "../components/Notifications"
 import { useAppEvents } from "../lib/useAppEvents"
 import { ConnectionContext } from "../lib/connectionContext"
 import { AdminConsole } from "./AdminConsole"
+import { AdminBrowserErrors } from "./AdminBrowserErrors"
 import { AppChromeV2 } from "./AppChromeV2"
 import { AdminGithubAppConfirm, AdminGithubAppRegister } from "./AdminGithubApp"
 import { AdminInvitations } from "./AdminInvitations"
@@ -89,6 +90,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/admin/stuck", element: <AdminStuck /> },
   { path: "/admin/activity", element: <AdminWorkflowActivity /> },
   { path: "/admin/reconciler_activity", element: <AdminReconcilerActivity /> },
+  { path: "/admin/browser_errors", element: <AdminBrowserErrors /> },
   { path: "/admin/plugins", element: <AdminPlugins /> },
   { path: "/admin/processes", element: <AdminProcessesIndex /> },
   { path: "/admin/processes/:id", element: <AdminProcessDetail /> },

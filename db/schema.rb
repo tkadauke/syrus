@@ -10,7 +10,8 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_16_194000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_17_130000) do
+
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -113,6 +114,35 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_194000) do
     t.index ["workflow_id", "performed_at", "skipped_reason"], name: "idx_auto_retry_attempts_workflow_pending"
     t.index ["workflow_id", "retry_kind"], name: "index_auto_retry_attempts_on_workflow_retry_kind"
     t.index ["workflow_id"], name: "index_auto_retry_attempts_on_workflow_id"
+  end
+
+  create_table "browser_error_events", force: :cascade do |t|
+    t.string "app_revision"
+    t.text "component_stack"
+    t.datetime "created_at", null: false
+    t.json "feature_flags", default: {}, null: false
+    t.string "fingerprint", null: false
+    t.text "message", null: false
+    t.json "metadata", default: {}, null: false
+    t.string "name"
+    t.datetime "occurred_at", null: false
+    t.string "path"
+    t.json "recent_api_requests", default: [], null: false
+    t.json "recent_errors", default: [], null: false
+    t.string "route_id"
+    t.json "route_params", default: {}, null: false
+    t.text "stack"
+    t.string "trace_id"
+    t.datetime "updated_at", null: false
+    t.text "url"
+    t.text "user_agent"
+    t.integer "user_id", null: false
+    t.json "viewport", default: {}, null: false
+    t.index ["app_revision", "occurred_at"], name: "index_browser_error_events_on_revision_time"
+    t.index ["fingerprint", "occurred_at"], name: "index_browser_error_events_on_fingerprint_time"
+    t.index ["occurred_at", "id"], name: "index_browser_error_events_on_occurred_id"
+    t.index ["path", "occurred_at"], name: "index_browser_error_events_on_path_time"
+    t.index ["user_id"], name: "index_browser_error_events_on_user_id"
   end
 
   create_table "chat_agent_questions", force: :cascade do |t|
@@ -2168,6 +2198,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_194000) do
   add_foreign_key "auto_retry_attempts", "jobs"
   add_foreign_key "auto_retry_attempts", "runs"
   add_foreign_key "auto_retry_attempts", "workflows"
+  add_foreign_key "browser_error_events", "users"
   add_foreign_key "chat_agent_questions", "chat_sessions"
   add_foreign_key "chat_attachments", "chat_sessions"
   add_foreign_key "chat_bookmarks", "chat_messages"

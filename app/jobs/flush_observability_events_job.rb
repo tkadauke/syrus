@@ -8,6 +8,7 @@ class FlushObservabilityEventsJob < ApplicationJob
     PerformanceLogging.suppress do
       Observability::EventSink.flush!
       prune_expired(PerformanceLogEvent)
+      prune_expired(BrowserErrorEvent)
       prune_expired(WorkflowActivityEvent)
     end
   end

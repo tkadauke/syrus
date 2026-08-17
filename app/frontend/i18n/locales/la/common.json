@@ -167,6 +167,7 @@
     "reload_page": "Paginam recarica",
     "send_report": "Mitte nuntium errorum",
     "already_reported": "Error iam nuntiatus",
+    "browser_event_reported": "Error navigatoris #{{id}} captus",
     "reported_as": "Nuntiatus ut MUNUS-{{job_id}}",
     "report_failed": "Nuntium mitti non potuit — paginam recarica"
   },
