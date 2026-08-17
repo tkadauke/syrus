@@ -1,9 +1,9 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
-import { type FormEvent, type ReactNode, useMemo, useState } from "react"
+import { type ReactNode, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { fetchAdminBrowserErrors, type BrowserErrorEventRow, type BrowserErrorEventsPayload } from "../api/adminBrowserErrors"
 import { AdminEventActions } from "../components/AdminEventActions"
-import { AdminEventPageShell, AdminEventPagination, AdminEventPanelMessage, AdminEventTimeline, DetailBlock, JsonBlock, formatEventDate, inputClass, shortRevision } from "../components/AdminEventLogPanel"
+import { AdminEventFilterBar, AdminEventPageShell, AdminEventPagination, AdminEventPanelMessage, AdminEventTimeline, DetailBlock, JsonBlock, formatEventDate, shortRevision } from "../components/AdminEventLogPanel"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
@@ -53,77 +53,16 @@ export function AdminBrowserErrors() {
 
 function BrowserErrorFilters({ onNavigate, search }: { onNavigate: (params: URLSearchParams) => void; search: string }) {
   const { t } = useT("admin")
-  const params = useMemo(() => new URLSearchParams(search), [search])
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const form = new FormData(event.currentTarget)
-    const next = new URLSearchParams()
-    setParam(next, "query", form.get("query"))
-    setParam(next, "since", form.get("since"))
-    setParam(next, "until", form.get("until"))
-    setParam(next, "id", form.get("id"))
-    setParam(next, "fingerprint", form.get("fingerprint"))
-    setParam(next, "path", form.get("path"))
-    setParam(next, "revision_scope", form.get("revision_scope"))
-    setParam(next, "per_page", form.get("per_page") || params.get("per_page") || "50")
-    onNavigate(next)
-  }
-
-  function clear() {
-    onNavigate(new URLSearchParams())
-  }
-
-  return (
-    <form className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900" onSubmit={submit}>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
-        <label className="space-y-1 md:col-span-2">
-          <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{t("browser_errors.query")}</span>
-          <input className={inputClass()} defaultValue={params.get("query") || ""} name="query" placeholder={t("browser_errors.query_placeholder")} />
-        </label>
-        <label className="space-y-1">
-          <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{t("browser_errors.since")}</span>
-          <input className={inputClass()} defaultValue={params.get("since") || "24h"} name="since" placeholder="24h" />
-        </label>
-        <label className="space-y-1">
-          <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{t("browser_errors.until")}</span>
-          <input className={inputClass()} defaultValue={params.get("until") || ""} name="until" placeholder={t("browser_errors.until_placeholder")} />
-        </label>
-        <label className="space-y-1">
-          <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{t("browser_errors.id")}</span>
-          <input className={inputClass()} defaultValue={params.get("id") || ""} name="id" placeholder="123" />
-        </label>
-        <label className="space-y-1">
-          <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{t("browser_errors.fingerprint")}</span>
-          <input className={inputClass()} defaultValue={params.get("fingerprint") || ""} name="fingerprint" placeholder="sha..." />
-        </label>
-        <label className="space-y-1">
-          <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{t("browser_errors.path")}</span>
-          <input className={inputClass()} defaultValue={params.get("path") || ""} name="path" placeholder="/jobs/3188" />
-        </label>
-        <label className="space-y-1">
-          <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{t("browser_errors.revision_scope")}</span>
-          <select className={inputClass()} defaultValue={params.get("revision_scope") || "current"} name="revision_scope">
-            {revisionScopes.map((scope) => <option key={scope} value={scope}>{t(`browser_errors.revision_${scope}`)}</option>)}
-          </select>
-        </label>
-        <label className="space-y-1">
-          <span className="text-xs font-medium text-gray-600 dark:text-gray-300">{t("browser_errors.per_page")}</span>
-          <select className={inputClass()} defaultValue={params.get("per_page") || "50"} name="per_page">
-            {[25, 50, 100].map((value) => <option key={value} value={value}>{value}</option>)}
-          </select>
-        </label>
-        <div className="flex items-end gap-2">
-          <button className="inline-flex items-center justify-center rounded bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200" type="submit">
-            {t("browser_errors.search")}
-          </button>
-          <button className="inline-flex items-center justify-center rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800" onClick={clear} type="button">
-            {t("browser_errors.clear")}
-          </button>
-        </div>
-      </div>
-    </form>
-  )
+  return <AdminEventFilterBar clearLabel={t("browser_errors.clear")} fields={[
+    { name: "query", label: t("browser_errors.query"), placeholder: t("browser_errors.query_placeholder") },
+    { name: "since", label: t("browser_errors.since"), defaultValue: "24h", placeholder: "24h" },
+    { name: "until", label: t("browser_errors.until"), placeholder: t("browser_errors.until_placeholder") },
+    { name: "id", label: t("browser_errors.id"), placeholder: "123", inputMode: "numeric" },
+    { name: "fingerprint", label: t("browser_errors.fingerprint"), placeholder: "sha..." },
+    { name: "path", label: t("browser_errors.path"), placeholder: "/jobs/3188" },
+    { name: "revision_scope", label: t("browser_errors.revision_scope"), defaultValue: "current", options: revisionScopes.map((scope) => ({ value: scope, label: t(`browser_errors.revision_${scope}`) })) },
+    { name: "per_page", label: t("browser_errors.per_page"), defaultValue: "50", options: [25, 50, 100].map((value) => ({ value: String(value), label: String(value) })) }
+  ]} search={search} searchLabel={t("browser_errors.search")} onNavigate={onNavigate} />
 }
 
 function BrowserErrorsView({ onNavigate, payload, search }: { onNavigate: (params: URLSearchParams) => void; payload: BrowserErrorEventsPayload; search: string }) {
@@ -221,11 +160,6 @@ function Row({ expanded, onToggle, revisionScope, row }: { expanded: boolean; on
       ) : null}
     </>
   )
-}
-
-function setParam(params: URLSearchParams, key: string, value: FormDataEntryValue | null) {
-  const text = String(value || "").trim()
-  if (text) params.set(key, text)
 }
 
 function normalizedSearch(search: string) {

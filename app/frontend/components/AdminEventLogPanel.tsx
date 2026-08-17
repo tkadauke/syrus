@@ -1,4 +1,4 @@
-import { type ReactNode } from "react"
+import { type FormEvent, type ReactNode, useMemo } from "react"
 
 export function AdminEventPanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "warn" }) {
   const toneClass = tone === "error"
@@ -79,6 +79,76 @@ export function inputClass() {
 
 export function compactInputClass() {
   return "block h-9 w-full rounded border border-gray-300 bg-white px-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100"
+}
+
+export type AdminEventFilterField = {
+  name: string
+  label: string
+  placeholder?: string
+  defaultValue?: string
+  inputMode?: "numeric"
+  options?: Array<{ label: string; value: string }>
+}
+
+export function AdminEventFilterBar({
+  fields,
+  onNavigate,
+  search,
+  searchLabel,
+  clearLabel
+}: {
+  fields: AdminEventFilterField[]
+  onNavigate: (params: URLSearchParams) => void
+  search: string
+  searchLabel: string
+  clearLabel: string
+}) {
+  const params = useMemo(() => new URLSearchParams(search), [search])
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    const next = new URLSearchParams()
+
+    for (const field of fields) {
+      const value = String(form.get(field.name) || "").trim()
+      if (value) next.set(field.name, value)
+    }
+    onNavigate(next)
+  }
+
+  function clear() {
+    onNavigate(new URLSearchParams())
+  }
+
+  return (
+    <form className="flex flex-wrap items-center gap-2 text-sm" onSubmit={submit}>
+      {fields.map((field) => (
+        <label className="inline-flex min-h-10 items-center gap-2 rounded border border-gray-300 bg-white px-2.5 py-1.5 text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200" key={field.name}>
+          <span className="whitespace-nowrap text-xs font-medium text-gray-500 dark:text-gray-400">{field.label} is</span>
+          {field.options ? (
+            <select className={adminEventFilterInputClass()} defaultValue={params.get(field.name) || field.defaultValue || ""} name={field.name}>
+              {field.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          ) : (
+            <input
+              className={adminEventFilterInputClass()}
+              defaultValue={params.get(field.name) || field.defaultValue || ""}
+              inputMode={field.inputMode}
+              name={field.name}
+              placeholder={field.placeholder}
+            />
+          )}
+        </label>
+      ))}
+      <button className="inline-flex min-h-10 items-center justify-center rounded bg-gray-900 px-3 py-1.5 font-medium text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200" type="submit">{searchLabel}</button>
+      <button className="inline-flex min-h-10 items-center justify-center rounded border border-gray-300 bg-white px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800" onClick={clear} type="button">{clearLabel}</button>
+    </form>
+  )
+}
+
+function adminEventFilterInputClass() {
+  return "min-w-0 max-w-56 border-0 bg-transparent p-0 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 dark:text-gray-100 dark:placeholder:text-gray-500"
 }
 
 export function pageButtonClass() {
