@@ -24,7 +24,6 @@ RSpec.describe Steps::Grader do
     old_data_root = ENV["SYRUS_DATA_ROOT"]
     Dir.mktmpdir("syrus-grader") do |dir|
       ENV["SYRUS_DATA_ROOT"] = dir
-      @ws_path = WorkflowWorkspace.path_for(workflow)
       example.run
     end
   ensure
@@ -32,6 +31,17 @@ RSpec.describe Steps::Grader do
   end
 
   before do
+    # Computed here, not in the `around` block above: `workflow` memoizes
+    # `Factories.job`, which validates User#agent_provider against
+    # Syrus::PluginRegistry-registered providers. The registry is reset at
+    # boot in test env and only repopulated by spec/support/bundled_plugins.rb's
+    # global `before` hook, which — like every other `before` hook — only runs
+    # once `around` calls `example.run`. Resolving `workflow` before that call
+    # (i.e. still inside `around`) raced ahead of that repopulation and made
+    # every example in this file fail with "Agent provider is not included in
+    # the list" whenever the registry hadn't already been populated by an
+    # earlier example in the same process.
+    @ws_path = WorkflowWorkspace.path_for(workflow)
     fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
     allow(handler).to receive(:workspace).and_return(fake_ws)
   end
