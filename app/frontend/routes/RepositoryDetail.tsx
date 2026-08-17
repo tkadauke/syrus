@@ -525,6 +525,7 @@ function Actions({ payload, prefix, queryKey, onNotice }: { payload: RepositoryD
           </button>
           {moreOpen ? (
             <div className="absolute left-0 z-20 mt-2 min-w-40 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-1 text-sm shadow-lg" id="repository-actions-menu">
+              <Link className="block rounded px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setMoreOpen(false)} to={withRoutePrefix(payload.paths.new_repository_skill_job_path, prefix)}>{t('repository.launch_skill')}</Link>
               <Link className="block rounded px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setMoreOpen(false)} to={withRoutePrefix(payload.paths.edit_repository_path, prefix)}>Edit</Link>
               <button className="block w-full rounded px-3 py-2 text-left text-amber-800 dark:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/50 disabled:text-gray-300 dark:disabled:text-gray-600" disabled={disabled} onClick={archiveRepository} type="button">{t('repository.archive')}</button>
             </div>

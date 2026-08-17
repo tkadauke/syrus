@@ -280,6 +280,7 @@
     "credential": "Anmeldedaten",
     "syrus_app_via": "Syrus-App über {{account}}",
     "new_job": "Neue Aufgabe",
+    "launch_skill": "Skill starten",
     "poll_now": "Jetzt abfragen",
     "more": "Mehr",
     "connection": "Verbindung:",
