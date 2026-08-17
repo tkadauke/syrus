@@ -53,6 +53,59 @@ module Skills
       resolve_built_in(name: name)
   end
 
+  # Lists every skill available to `repository` — the built-in registry
+  # plus any repo-local `.syrus/skills/<name>/SKILL.md` files — each
+  # resolved to the same Resolution shape `.for` returns, so a caller
+  # (the skill picker API) gets uniform source/path/definition data and
+  # can tell a repo-local skill apart from a built-in one it shadows.
+  # A repo-local SKILL.md that fails to parse is logged and omitted
+  # rather than blowing up the whole listing (unlike `.for`, which
+  # raises for a single explicit lookup) — one broken skill shouldn't
+  # make every other skill unlaunchable from the picker.
+  def self.all_for(repository:, user: nil, client: nil)
+    raise ArgumentError, "repository is required" if repository.nil?
+
+    repo_local_names = repo_local_skill_names(repository: repository, user: user, client: client)
+
+    (Registry.values + repo_local_names).uniq.sort.filter_map do |name|
+      resolve_for_listing(
+        repository: repository, user: user, client: client, name: name,
+        known_repo_local: repo_local_names.include?(name)
+      )
+    end
+  end
+
+  def self.repo_local_skill_names(repository:, user:, client:)
+    return [] unless credentials_available?(repository: repository, user: user)
+
+    github_client = client || resolved_github_client(repository: repository, user: user)
+    return [] unless github_client
+
+    tree = github_client.file_tree_at(repository.slug, repository.default_branch)
+    Array(tree[:items])
+      .filter_map { |item| item[:path][%r{\A#{Regexp.escape(REPO_LOCAL_DIR)}/([^/]+)/SKILL\.md\z}, 1] }
+      .select { |name| name.match?(NAME_PATTERN) }
+  rescue Octokit::Error => e
+    Rails.logger.warn("[Skills.all_for] failed to list repo-local skills for #{repository.slug}: #{e.class}: #{e.message}")
+    []
+  end
+  private_class_method :repo_local_skill_names
+
+  # Skips the repo-local file_content_at round-trip entirely for a name
+  # the tree walk (repo_local_skill_names) already proved has no
+  # override — avoids one GitHub API call per built-in skill on every
+  # listing as the built-in registry grows.
+  def self.resolve_for_listing(repository:, user:, client:, name:, known_repo_local:)
+    return resolve_built_in(name: name) unless known_repo_local
+
+    resolve_repo_local(repository: repository, user: user, client: client, name: name) ||
+      resolve_built_in(name: name)
+  rescue Skills::SkillMarkdown::ParseError, Skills::ParameterSchema::ParseError => e
+    Rails.logger.warn("[Skills.all_for] skill=#{name.inspect} failed to parse for #{repository.slug}: #{e.class}: #{e.message}")
+    nil
+  end
+  private_class_method :resolve_for_listing
+
   def self.resolve_repo_local(repository:, user:, client:, name:)
     return nil unless credentials_available?(repository: repository, user: user)
 

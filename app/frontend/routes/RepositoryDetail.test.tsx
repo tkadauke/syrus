@@ -58,6 +58,7 @@ function repositoryDetailPayload() {
     pagination: { page: 1, per_page: 20, total_jobs: 0, total_pages: 0, first_item: 0, last_item: 0, previous_path: null, next_path: null },
     paths: {
       new_job_path: "/jobs/new",
+      new_repository_skill_job_path: "/repositories/1/skills/new",
       edit_repository_path: "/repositories/1/edit",
       app_poll_repository_path: "/api/v1/app/repositories/1/poll",
       app_archive_repository_path: ARCHIVE_PATH,
@@ -270,6 +271,14 @@ describe("RepositoryDetailRoute archive", () => {
     await waitFor(() => {
       expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true }))
     })
+  })
+
+  it("links to the skill launch picker from the more menu", async () => {
+    renderRoute()
+    await openMoreMenu()
+
+    const link = await screen.findByRole("link", { name: "Launch skill" })
+    expect(link).toHaveAttribute("href", "/app-shell/repositories/1/skills/new")
   })
 
   it("renders the repository Epic dependency default", async () => {

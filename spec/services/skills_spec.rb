@@ -103,4 +103,84 @@ RSpec.describe Skills do
       end
     end
   end
+
+  describe ".all_for" do
+    def tree(*paths)
+      { items: paths.map { |path| { path: path, size: 10 } }, truncated: false }
+    end
+
+    it "raises ArgumentError without a repository" do
+      expect {
+        described_class.all_for(repository: nil)
+      }.to raise_error(ArgumentError, /repository/)
+    end
+
+    it "lists only built-in skills when the repo has no .syrus/skills directory" do
+      allow(client).to receive(:file_content_at).and_return(nil)
+      allow(client).to receive(:file_tree_at)
+        .with("acme/widgets", "main")
+        .and_return(tree("README.md", ".syrus.yml"))
+
+      resolutions = described_class.all_for(repository: repository, client: client)
+
+      expect(resolutions.map { |r| r.definition.name }).to eq([ "investigate" ])
+      expect(resolutions.first.source).to eq(:built_in)
+    end
+
+    it "includes a repo-local skill alongside built-ins, unshadowed" do
+      allow(client).to receive(:file_content_at).and_return(nil)
+      allow(client).to receive(:file_tree_at)
+        .with("acme/widgets", "main")
+        .and_return(tree(".syrus/skills/audit/SKILL.md"))
+      allow(client).to receive(:file_content_at)
+        .with("acme/widgets", ".syrus/skills/audit/SKILL.md", "main")
+        .and_return(content: skill_md(name: "audit"), size: 50)
+
+      resolutions = described_class.all_for(repository: repository, client: client)
+
+      by_name = resolutions.index_by { |r| r.definition.name }
+      expect(by_name.keys.sort).to eq([ "audit", "investigate" ])
+      expect(by_name["audit"].source).to eq(:repo_override)
+      expect(by_name["audit"].path).to eq(".syrus/skills/audit/SKILL.md")
+      expect(by_name["investigate"].source).to eq(:built_in)
+    end
+
+    it "reports a repo-local skill that shadows a built-in as :repo_override" do
+      allow(client).to receive(:file_tree_at)
+        .with("acme/widgets", "main")
+        .and_return(tree(".syrus/skills/investigate/SKILL.md"))
+      allow(client).to receive(:file_content_at)
+        .with("acme/widgets", ".syrus/skills/investigate/SKILL.md", "main")
+        .and_return(content: skill_md(name: "investigate", description: "Repo override of investigate."), size: 60)
+
+      resolutions = described_class.all_for(repository: repository, client: client)
+
+      expect(resolutions.map { |r| r.definition.name }).to eq([ "investigate" ])
+      expect(resolutions.first.source).to eq(:repo_override)
+      expect(resolutions.first.definition.description).to eq("Repo override of investigate.")
+    end
+
+    it "omits a repo-local skill whose SKILL.md fails to parse instead of raising" do
+      allow(client).to receive(:file_content_at).and_return(nil)
+      allow(client).to receive(:file_tree_at)
+        .with("acme/widgets", "main")
+        .and_return(tree(".syrus/skills/broken/SKILL.md"))
+      allow(client).to receive(:file_content_at)
+        .with("acme/widgets", ".syrus/skills/broken/SKILL.md", "main")
+        .and_return(content: "not a valid skill file", size: 20)
+
+      resolutions = described_class.all_for(repository: repository, client: client)
+
+      expect(resolutions.map { |r| r.definition.name }).to eq([ "investigate" ])
+    end
+
+    it "skips the repo-local tree lookup entirely when credentials are unavailable" do
+      user.update!(github_token: nil)
+      expect(GithubClient).not_to receive(:for)
+
+      resolutions = described_class.all_for(repository: repository, user: user)
+
+      expect(resolutions.map { |r| r.definition.name }).to eq([ "investigate" ])
+    end
+  end
 end

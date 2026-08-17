@@ -80,6 +80,7 @@ function buildPayload(): RepositoryDetailPayload {
     pagination: { page: 1, per_page: 20, total_jobs: 0, total_pages: 0, first_item: 0, last_item: 0, previous_path: null, next_path: null },
     paths: {
       new_job_path: "/jobs/new",
+      new_repository_skill_job_path: "/repositories/1/skills/new",
       edit_repository_path: "/repositories/1/edit",
       app_poll_repository_path: "/api/v1/app/repositories/1/poll",
       app_archive_repository_path: "/api/v1/app/repositories/1/archive",

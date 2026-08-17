@@ -51,6 +51,7 @@ import { RepositoryDetailRoute } from "./RepositoryDetail"
 import { RepositoryDocumentsRoute } from "./RepositoryDocuments"
 import { RepositoryFormRoute } from "./RepositoryForm"
 import { RepositoryScheduledTasksRoute } from "./RepositoryScheduledTasks"
+import { RepositorySkillNewRoute } from "./RepositorySkillNew"
 import { ScheduledTaskDetailRoute, ScheduledTaskFormRoute, ScheduledTasksIndex } from "./ScheduledTasks"
 import { SearchRoute } from "./Search"
 import { SpendingInsightsRoute } from "./SpendingInsights"
@@ -128,6 +129,7 @@ const appRouteDefinitions: AppRouteDefinition[] = [
   { path: "/scheduled_tasks/:id/edit", element: <ScheduledTaskFormRoute mode="edit" /> },
   { path: "/repositories/:repositoryId/scheduled_tasks", element: <RepositoryScheduledTasksRoute /> },
   { path: "/repositories/:repositoryId/scheduled_tasks/new", element: <ScheduledTaskFormRoute mode="new" /> },
+  { path: "/repositories/:repositoryId/skills/new", element: <RepositorySkillNewRoute /> },
   { path: "/repositories/:repositoryId/documents", element: <RepositoryDocumentsRoute /> },
   { path: "/repositories/new", element: <RepositoryFormRoute mode="new" /> },
   { path: "/repositories/:id/edit", element: <RepositoryFormRoute mode="edit" /> },
@@ -477,7 +479,8 @@ const SIMPLE_MODE_HIDDEN_PATHS = [
   "/scheduled_tasks/:id",
   "/scheduled_tasks/:id/edit",
   "/repositories/:repositoryId/scheduled_tasks",
-  "/repositories/:repositoryId/scheduled_tasks/new"
+  "/repositories/:repositoryId/scheduled_tasks/new",
+  "/repositories/:repositoryId/skills/new"
 ]
 
 function simpleModeRouteElement(path: string, element: ReactNode, initialBootstrap: BootstrapPayload | null) {

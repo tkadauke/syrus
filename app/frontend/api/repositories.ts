@@ -213,6 +213,7 @@ export type RepositoryDetailPayload = {
   }
   paths: {
     new_job_path: string
+    new_repository_skill_job_path: string
     edit_repository_path: string
     app_poll_repository_path: string
     app_archive_repository_path: string

@@ -280,6 +280,7 @@
     "credential": "Credential",
     "syrus_app_via": "Syrus App via {{account}}",
     "new_job": "New job",
+    "launch_skill": "Launch skill",
     "poll_now": "Poll now",
     "more": "More",
     "connection": "Connection:",

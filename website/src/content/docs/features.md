@@ -747,6 +747,23 @@ Use direct Jobs for internal chores, private context, or experiments that
 do not need a GitHub issue first. Use GitHub issues when the work should be
 visible in the repository's ordinary planning flow.
 
+## Skills
+
+Skills are named, freeform instruction sets for work that resists being
+broken into the deterministic Workflow/Step pipeline — broad investigations,
+judgment-heavy debugging, or one-off operational actions. A skill comes
+either built in to Syrus or as a repository-local `.syrus/skills/<name>/SKILL.md`
+file; a repository-local skill overrides a built-in one of the same name, and
+Syrus always shows which one actually ran.
+
+From a repository's overview page, **More → Launch skill** opens a picker
+listing every skill available to that repository, along with a form generated
+from the chosen skill's declared parameters. Submitting creates a Job that
+runs the skill against the repository, the same way a direct Job runs a
+free-form prompt. The picker flags a repository-local skill that overrides a
+built-in one, and the resulting Job/Run detail view records the same
+provenance so it stays visible after the fact.
+
 ## Account Settings
 
 Each user owns their own profile, credentials, defaults, and preferences:
