@@ -18,12 +18,32 @@ describe("AppChromeV2", () => {
     vi.restoreAllMocks()
   })
 
-  it("renders the desktop sidebar with data-html2canvas-ignore to exclude it from mobile bug report screenshots", () => {
-    renderAppChrome()
+  it("renders the desktop sidebar without data-html2canvas-ignore on desktop viewports so bug report screenshots include it", () => {
+    const restoreMatchMedia = mockMatchMedia(false)
 
-    const desktopSidebar = document.querySelector("aside.lg\\:flex")
-    expect(desktopSidebar).not.toBeNull()
-    expect(desktopSidebar).toHaveAttribute("data-html2canvas-ignore")
+    try {
+      renderAppChrome()
+
+      const desktopSidebar = document.querySelector("aside.lg\\:flex")
+      expect(desktopSidebar).not.toBeNull()
+      expect(desktopSidebar).not.toHaveAttribute("data-html2canvas-ignore")
+    } finally {
+      restoreMatchMedia()
+    }
+  })
+
+  it("renders the desktop sidebar with data-html2canvas-ignore on mobile viewports to exclude it from bug report screenshots", () => {
+    const restoreMatchMedia = mockNarrowViewport()
+
+    try {
+      renderAppChrome()
+
+      const desktopSidebar = document.querySelector("aside.lg\\:flex")
+      expect(desktopSidebar).not.toBeNull()
+      expect(desktopSidebar).toHaveAttribute("data-html2canvas-ignore")
+    } finally {
+      restoreMatchMedia()
+    }
   })
 
   it("renders desktop shell notices in the sidebar above the account row", async () => {
@@ -1284,6 +1304,28 @@ function mockMatchMedia(coarsePointer: boolean) {
     writable: true,
     value: vi.fn().mockImplementation((query: string) => ({
       matches: coarsePointer ? query === "(pointer: coarse)" : query !== "(pointer: coarse)",
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn()
+    }))
+  })
+
+  return () => {
+    if (original) {
+      Object.defineProperty(window, "matchMedia", original)
+    } else {
+      Reflect.deleteProperty(window, "matchMedia")
+    }
+  }
+}
+
+function mockNarrowViewport() {
+  const original = Object.getOwnPropertyDescriptor(window, "matchMedia")
+
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: query !== "(min-width: 1024px)",
       addEventListener: vi.fn(),
       removeEventListener: vi.fn()
     }))
