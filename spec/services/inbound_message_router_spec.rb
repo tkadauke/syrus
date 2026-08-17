@@ -87,6 +87,8 @@ RSpec.describe InboundMessageRouter do
             message_text: "Hello"
           ).call
         }.not_to have_enqueued_job(ChatTurnJob)
+
+        expect(session.reload).not_to be_turn_in_flight
       end
 
       context "when the session has more than one human participant" do
@@ -96,14 +98,17 @@ RSpec.describe InboundMessageRouter do
         end
 
         it "does not enqueue ChatTurnJob for an unmentioned message" do
+          result = nil
           expect {
-            described_class.new(
+            result = described_class.new(
               platform: "telegram",
               external_id: "42",
               external_handle: "@alice",
               message_text: "Hello everyone"
             ).call
           }.not_to have_enqueued_job(ChatTurnJob)
+
+          expect(result.session.reload).not_to be_turn_in_flight
         end
 
         it "enqueues ChatTurnJob when the message mentions @syrus" do

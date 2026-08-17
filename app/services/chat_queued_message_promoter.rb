@@ -9,6 +9,7 @@ class ChatQueuedMessagePromoter
 
   def deliver_one_if_idle!
     user_message = nil
+    turn_triggered = false
 
     ApplicationRecord.transaction do
       chat = ChatSession.lock.find(@chat_session.id)
@@ -19,7 +20,8 @@ class ChatQueuedMessagePromoter
       queued_message = chat.queued_messages.first
       return false unless queued_message
 
-      user_message = chat.messages.create!(role: "user", content: queued_message.content)
+      turn_triggered = chat.should_trigger_agent?(queued_message.content["text"])
+      user_message = chat.messages.create!(role: "user", content: queued_message.content, skip_turn_trigger: !turn_triggered)
       queued_message.update!(delivered_at: Time.current)
       chat.update!(
         last_message_at: Time.current,
@@ -28,7 +30,7 @@ class ChatQueuedMessagePromoter
       chat.pin_chat_provider!
     end
 
-    ChatTurnJob.perform_later(@chat_session.id, user_message.id)
+    ChatTurnJob.perform_later(@chat_session.id, user_message.id) if turn_triggered
     true
   end
 end
