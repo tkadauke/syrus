@@ -8,7 +8,7 @@ class FlushObservabilityEventsJob < ApplicationJob
     PerformanceLogging.suppress do
       Observability::EventSink.flush!
       prune_expired(PerformanceLogEvent)
-      prune_expired(BrowserErrorEvent)
+      prune_expired(BrowserErrorEvent, index: BrowserErrorIndex)
       prune_expired(BackendExceptionEvent)
       prune_expired(WorkflowActivityEvent)
     end
@@ -16,7 +16,8 @@ class FlushObservabilityEventsJob < ApplicationJob
 
   private
 
-  def prune_expired(model)
+  def prune_expired(model, index: nil)
+    index&.prune_before(model::RETENTION.ago) if index
     deleted = 0
     MAX_DELETE_BATCHES.times do
       ids = model.expired.reorder(nil).limit(DELETE_BATCH_SIZE).pluck(:id)

@@ -61,7 +61,7 @@ module SyrusSearchDatabaseTasks
         tokenize = 'porter unicode61'
       )
     SQL
-    "operational_log_fts" => <<~SQL
+    "operational_log_fts" => <<~SQL,
       CREATE VIRTUAL TABLE IF NOT EXISTS operational_log_fts
       USING fts5(
         message,
@@ -82,6 +82,21 @@ module SyrusSearchDatabaseTasks
         tokenize = 'porter unicode61'
       )
     SQL
+    "browser_error_fts" => <<~SQL
+      CREATE VIRTUAL TABLE IF NOT EXISTS browser_error_fts
+      USING fts5(
+        message,
+        search_text,
+        browser_error_event_id UNINDEXED,
+        occurred_at UNINDEXED,
+        app_revision UNINDEXED,
+        fingerprint UNINDEXED,
+        name UNINDEXED,
+        path UNINDEXED,
+        user_id UNINDEXED,
+        tokenize = 'porter unicode61'
+      )
+    SQL
   }.freeze
 
   # `CREATE ... IF NOT EXISTS` silently no-ops when a table already exists
@@ -90,7 +105,8 @@ module SyrusSearchDatabaseTasks
   # loses any indexed rows, so tables with a durable primary-DB source of
   # truth get a repopulation hook run right after the rebuild.
   REBUILD_HOOKS = {
-    "operational_log_fts" => -> { OperationalLogIndex.rebuild! }
+    "operational_log_fts" => -> { OperationalLogIndex.rebuild! },
+    "browser_error_fts" => -> { BrowserErrorIndex.rebuild! }
   }.freeze
 
   module_function

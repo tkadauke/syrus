@@ -48,10 +48,27 @@ module Admin
       scope = scope.where(fingerprint: fingerprint) if fingerprint.present?
       scope = scope.where(path: path) if path.present?
       if query.present?
-        pattern = "%#{ActiveRecord::Base.sanitize_sql_like(query)}%"
-        scope = scope.where("browser_error_events.message LIKE ? OR browser_error_events.name LIKE ? OR browser_error_events.path LIKE ?", pattern, pattern, pattern)
+        ids = indexed_query_ids
+        if ids
+          scope = scope.where(id: ids)
+        else
+          pattern = "%#{ActiveRecord::Base.sanitize_sql_like(query)}%"
+          scope = scope.where("browser_error_events.message LIKE ? OR browser_error_events.name LIKE ? OR browser_error_events.path LIKE ? OR browser_error_events.stack LIKE ? OR browser_error_events.fingerprint LIKE ? OR browser_error_events.user_agent LIKE ?", pattern, pattern, pattern, pattern, pattern, pattern)
+        end
       end
       scope.offset((page - 1) * per_page)
+    end
+
+    def indexed_query_ids
+      return unless BrowserErrorIndex.available?
+
+      BrowserErrorIndex.search(
+        query: query,
+        since: since_time,
+        until_time: until_time,
+        app_revision: revision_scope == "current" ? current_revision : nil,
+        limit: [ (page * per_page) + per_page, BrowserErrorIndex::MAX_LIMIT ].min
+      )
     end
 
     def event_payload(event)

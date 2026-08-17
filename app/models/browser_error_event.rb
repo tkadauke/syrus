@@ -23,6 +23,7 @@ class BrowserErrorEvent < ApplicationRecord
   before_validation :normalize_payload
   before_update { raise ActiveRecord::ReadOnlyRecord, "BrowserErrorEvent is append-only" }
   before_destroy { raise ActiveRecord::ReadOnlyRecord, "BrowserErrorEvent is append-only" unless destroyed_by_association }
+  after_create_commit :enqueue_index
 
   def self.record!(user:, payload:)
     attrs = payload.respond_to?(:to_unsafe_h) ? payload.to_unsafe_h : payload.to_h
@@ -77,6 +78,10 @@ class BrowserErrorEvent < ApplicationRecord
 
   def clean_string(value, limit)
     Mcp::Tools.utf8(value).gsub(/[[:space:]]+/, " ").strip.safe_byteslice(0, limit)
+  end
+
+  def enqueue_index
+    IndexBrowserErrorEventsJob.perform_later([ id ])
   end
 
   def bounded_hash(value, value_bytes:)
