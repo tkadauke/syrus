@@ -32,7 +32,7 @@ class SyrusYml
 
   DEPLOYMENT_STAGE_NAME_PATTERN = /\A[A-Za-z0-9_]+\z/
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review)
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan)
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern)
   GradeConfig = Data.define(:max_iterations, :failures, :steps)
   # `fast` is accepted but no longer used. Syrus dropped the three-way
@@ -90,7 +90,8 @@ class SyrusYml
       generated: parse_generated(raw["generated"]),
       deployment_stages: parse_deployment_stages(raw["deployment_stages"]),
       preview: parse_preview(raw["preview"]),
-      visual_review: parse_visual_review(raw["visual_review"])
+      visual_review: parse_visual_review(raw["visual_review"]),
+      review_plan: ActiveModel::Type::Boolean.new.cast(raw["review_plan"]) || false
     )
   rescue Psych::SyntaxError => e
     raise ParseError, "YAML parse error: #{e.message}"

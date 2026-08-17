@@ -25,7 +25,7 @@ RSpec.describe Workflows::CodingHandoff do
       expect(kinds[1].repair_steps).to eq(%w[ coding_handoff_fix ])
       expect(kinds[1].check_steps).to eq(%w[ grader_fanout grader_collect ])
       expect(kinds[1].repair_first).to be(false)
-      expect(kinds.last(3)).to eq(%w[ summarize test_plan pr_open ])
+      expect(kinds.last(4)).to eq(%w[ summarize test_plan pr_open review_plan ])
     end
 
     it "materializes the representative chain template" do
@@ -33,7 +33,7 @@ RSpec.describe Workflows::CodingHandoff do
       workflow = described_class.instantiate(job: job)
 
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[ prepare grader_fanout grader_collect summarize test_plan pr_open ]
+        %w[ prepare grader_fanout grader_collect summarize test_plan pr_open review_plan ]
       )
       expect(workflow.chain_template).to eq([
         { "type" => "step", "kind" => "prepare" },
@@ -41,7 +41,8 @@ RSpec.describe Workflows::CodingHandoff do
           "repair" => [ "coding_handoff_fix" ], "check" => [ "grader_fanout", "grader_collect" ] },
         { "type" => "step", "kind" => "summarize" },
         { "type" => "step", "kind" => "test_plan" },
-        { "type" => "step", "kind" => "pr_open" }
+        { "type" => "step", "kind" => "pr_open" },
+        { "type" => "step", "kind" => "review_plan" }
       ])
     end
 

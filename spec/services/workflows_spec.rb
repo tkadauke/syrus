@@ -41,7 +41,7 @@ RSpec.describe Workflows do
       expect(wf.state).to eq("queued")
       expect(wf.steps.pluck(:kind, :position)).to eq([
         [ "prepare", 0 ], [ "implement", 1 ], [ "grader_fanout", 2 ], [ "grader_collect", 3 ],
-        [ "coverage_analyze", 4 ], [ "summarize", 5 ], [ "test_plan", 6 ], [ "pr_open", 7 ]
+        [ "coverage_analyze", 4 ], [ "summarize", 5 ], [ "test_plan", 6 ], [ "pr_open", 7 ], [ "review_plan", 8 ]
       ])
       expect(wf.chain_template).to include(
         {
@@ -187,7 +187,7 @@ RSpec.describe Workflows do
       expect(wf.trigger_kind).to eq("retry")
       expect(wf.steps.pluck(:kind, :position)).to eq([
         [ "prepare", 0 ], [ "implement", 1 ], [ "grader_fanout", 2 ], [ "grader_collect", 3 ],
-        [ "coverage_analyze", 4 ], [ "summarize", 5 ], [ "test_plan", 6 ], [ "pr_open", 7 ]
+        [ "coverage_analyze", 4 ], [ "summarize", 5 ], [ "test_plan", 6 ], [ "pr_open", 7 ], [ "review_plan", 8 ]
       ])
     end
 
@@ -215,7 +215,7 @@ RSpec.describe Workflows do
 
       expect(wf.steps.pluck(:kind, :position)).to eq([
         [ "implement", 0 ], [ "grader_fanout", 1 ], [ "grader_collect", 2 ],
-        [ "coverage_analyze", 3 ], [ "summarize", 4 ], [ "test_plan", 5 ], [ "pr_open", 6 ]
+        [ "coverage_analyze", 3 ], [ "summarize", 4 ], [ "test_plan", 5 ], [ "pr_open", 6 ], [ "review_plan", 7 ]
       ])
       expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ implement grader_fanout grader_collect ])
       expect(wf.artifacts).to include("prepare_skipped" => true)
@@ -226,7 +226,7 @@ RSpec.describe Workflows do
 
       wf = Workflows::Retry.instantiate(job: job)
 
-      expect(wf.steps.pluck(:kind)).to eq(%w[ implement grader_fanout grader_collect coverage_analyze summarize test_plan pr_open ])
+      expect(wf.steps.pluck(:kind)).to eq(%w[ implement grader_fanout grader_collect coverage_analyze summarize test_plan pr_open review_plan ])
       expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ implement grader_fanout grader_collect ])
       expect(wf.trigger_kind).to eq("retry")
     end
@@ -244,7 +244,7 @@ RSpec.describe Workflows do
 
       wf = Workflows::Initial.instantiate(job: job)
 
-      expect(wf.steps.pluck(:kind)).to eq(%w[ implement grader_fanout grader_collect coverage_analyze summarize test_plan pr_open ])
+      expect(wf.steps.pluck(:kind)).to eq(%w[ implement grader_fanout grader_collect coverage_analyze summarize test_plan pr_open review_plan ])
       expect(wf.artifact("prepare_skipped_reason")).to eq("repository_configuration")
     end
 
@@ -253,7 +253,7 @@ RSpec.describe Workflows do
 
       wf = Workflows::Initial.instantiate(job: job)
 
-      expect(wf.steps.pluck(:kind)).to eq(%w[ implement grader_fanout grader_collect coverage_analyze summarize test_plan pr_open ])
+      expect(wf.steps.pluck(:kind)).to eq(%w[ implement grader_fanout grader_collect coverage_analyze summarize test_plan pr_open review_plan ])
       expect(wf.artifact("prepare_skipped_reason")).to eq("issue_label")
     end
 
@@ -613,7 +613,7 @@ RSpec.describe Workflows do
     it "instantiates CodingHandoff with pre-PR grader repair before PR open" do
       wf = Workflows::CodingHandoff.instantiate(job: job)
 
-      expect(wf.steps.pluck(:kind)).to eq(%w[ prepare grader_fanout grader_collect summarize test_plan pr_open ])
+      expect(wf.steps.pluck(:kind)).to eq(%w[ prepare grader_fanout grader_collect summarize test_plan pr_open review_plan ])
       expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ grader_fanout grader_collect ])
       expect(wf.chain_template).to include(
         {

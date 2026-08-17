@@ -18,7 +18,7 @@ RSpec.describe Workflows::Initial do
     workflow = described_class.instantiate(job: job)
 
     expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-      %w[ prepare implement grader_fanout grader_collect coverage_analyze summarize test_plan pr_open ]
+      %w[ prepare implement grader_fanout grader_collect coverage_analyze summarize test_plan pr_open review_plan ]
     )
   end
 
@@ -33,7 +33,7 @@ RSpec.describe Workflows::Initial do
       workflow = described_class.instantiate(job: job)
 
       expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-        %w[ prepare implement visual_review implement grader_fanout grader_collect coverage_analyze summarize test_plan pr_open ]
+        %w[ prepare implement visual_review implement grader_fanout grader_collect coverage_analyze summarize test_plan pr_open review_plan ]
       )
     end
 
@@ -62,7 +62,7 @@ RSpec.describe Workflows::Initial do
         workflow = described_class.instantiate(job: job)
 
         expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-          %w[ prepare implement adversarial_review implement visual_review implement grader_fanout grader_collect coverage_analyze summarize test_plan pr_open ]
+          %w[ prepare implement adversarial_review implement visual_review implement grader_fanout grader_collect coverage_analyze summarize test_plan pr_open review_plan ]
         )
       end
     end

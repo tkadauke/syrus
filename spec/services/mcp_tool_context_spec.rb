@@ -72,6 +72,12 @@ RSpec.describe McpToolContext do
       expect(context.role).to eq(AgentRole::WORKFLOW_SUMMARY_TEST_PLAN)
     end
 
+    it "assigns WORKFLOW_SUMMARY_TEST_PLAN for review_plan step kind" do
+      run.step.update_columns(kind: "review_plan")
+      context = described_class.from_run(run.reload)
+      expect(context.role).to eq(AgentRole::WORKFLOW_SUMMARY_TEST_PLAN)
+    end
+
     it "assigns WORKFLOW_IMPLEMENT for grader step kind" do
       run.step.update_columns(kind: "grader")
       context = described_class.from_run(run.reload)

@@ -377,7 +377,7 @@ RSpec.describe StepDispatcher do
       candidate = Workflows::Initial.instantiate(job: Factories.job_record(user: job.user, repository: repository, priority: "medium"))
       candidate_first = candidate.first_step
 
-      %w[prepare implement grader_fanout grader_collect coverage_analyze summarize test_plan pr_open].each do |step_kind|
+      %w[prepare implement grader_fanout grader_collect coverage_analyze summarize test_plan pr_open review_plan].each do |step_kind|
         WorkflowStepResourceProfile.create!(
           repository: repository,
           agent_provider: "claude",
@@ -649,6 +649,25 @@ RSpec.describe StepDispatcher do
       expect(test_plan.details).to include(
         "skipped" => true,
         "skip_reason" => "test_plan_already_submitted"
+      )
+    end
+
+    it "skips review_plan without creating a Run when the review_plan artifact already exists" do
+      review_plan = Step.create!(workflow: workflow, kind: "review_plan", position: 2)
+      s3.update!(position: 3)
+      s2.update!(next_step_id: review_plan.id)
+      review_plan.update!(next_step_id: s3.id)
+      workflow.set_artifact!("review_plan", { "items" => [], "summary" => nil })
+
+      expect {
+        described_class.advance_from(s2)
+      }.to change { s3.runs.count }.by(1)
+
+      expect(review_plan.reload).to be_succeeded
+      expect(review_plan.runs.count).to eq(0)
+      expect(review_plan.details).to include(
+        "skipped" => true,
+        "skip_reason" => "review_plan_already_submitted"
       )
     end
 

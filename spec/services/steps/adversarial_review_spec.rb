@@ -111,7 +111,8 @@ RSpec.describe Steps::AdversarialReview do
           generated: [],
           deployment_stages: [],
           preview: nil,
-          visual_review: nil
+          visual_review: nil,
+          review_plan: false
         )
       )
     end

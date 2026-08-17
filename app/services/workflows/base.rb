@@ -160,7 +160,7 @@ module Workflows
     end
 
     def self.initial_pr_finish_steps
-      [ "summarize", "test_plan", "pr_open" ]
+      [ "summarize", "test_plan", "pr_open", "review_plan" ]
     end
 
     def self.feedback_finish_steps
