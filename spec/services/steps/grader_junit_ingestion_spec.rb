@@ -173,4 +173,57 @@ RSpec.describe "Steps::Grader JUnit XML ingestion" do
       expect(log_output).to include("JUnit XML parse error")
     end
   end
+
+  # Reproduces the shape of a real dogfooding setup: two separate grader
+  # Runs (e.g. two Syrus Jobs, or a retry) ingest JUnit output for the same
+  # suite where one example passes in one Run and fails in the next. This is
+  # the end-to-end path that was silently broken before TestRunIngester
+  # received a properly duck-typed ParsedRun (see
+  # SyrusRails::RspecParser) and before this repo's own .syrus.yml set
+  # junit_output on its rspec grader — confirms TestCase.top_flaky_tests
+  # surfaces real ingested rows once both are wired up.
+  context "flaky test detection via TestCase.top_flaky_tests" do
+    let(:flaky_passing_xml) do
+      <<~XML
+        <?xml version="1.0" encoding="UTF-8"?>
+        <testsuite name="MySpec" tests="1" time="0.1">
+          <testcase classname="MySpec" name="is flaky" time="0.1"/>
+        </testsuite>
+      XML
+    end
+
+    let(:flaky_failing_xml) do
+      <<~XML
+        <testsuite name="MySpec" tests="1" time="0.2">
+          <testcase classname="MySpec" name="is flaky" time="0.2">
+            <failure message="flaked">boom</failure>
+          </testcase>
+        </testsuite>
+      XML
+    end
+
+    it "surfaces a test that both passed and failed across grader Runs" do
+      step = make_step(junit_output: "results.xml")
+      @ws_path.join("results.xml").write(flaky_passing_xml)
+      handler, run = handler_for(step)
+      handler.call
+
+      step2 = make_step(junit_output: "results.xml")
+      @ws_path.join("results.xml").write(flaky_failing_xml)
+      run2 = step2.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running")
+      handler2 = Steps::Grader.new(run2)
+      fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path)
+      allow(handler2).to receive(:workspace).and_return(fake_ws)
+      handler2.call rescue nil
+
+      expect(TestCase.where(name: "is flaky", suite_name: "MySpec").pluck(:status))
+        .to contain_exactly("passed", "failed")
+
+      flaky = TestCase.top_flaky_tests(repository: job.repository)
+      entry = flaky.find { |t| t[:suite_name] == "MySpec" && t[:name] == "is flaky" }
+
+      expect(entry).not_to be_nil
+      expect(entry).to include(failed_count: 1, total_count: 2)
+    end
+  end
 end

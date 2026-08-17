@@ -134,4 +134,10 @@ group :test do
   gem "simplecov-lcov"
 
   gem "parallel_tests", "~> 5.7", require: false
+
+  # JUnit XML formatter — feeds the rspec grader's junit_output ingestion
+  # (Steps::Grader#ingest_test_output!) so TestRun/TestCase rows record
+  # every example (not just failures), which is what TestCase.top_flaky_tests
+  # needs to detect a test that both passed and failed.
+  gem "rspec_junit_formatter", require: false
 end
