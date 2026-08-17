@@ -331,6 +331,7 @@ Rails.application.routes.draw do
           get "activity", to: "workflow_activity#index"
           get "reconciler_activity", to: "reconciler_activity#index"
           get "browser_errors", to: "browser_errors#index"
+          get "backend_exceptions", to: "backend_exceptions#index"
           get "github_app/register", to: "github_app#register"
           get "github_app/confirm", to: "github_app#confirm"
           post "github_app/sync_installations", to: "github_app#sync_installations"
@@ -424,6 +425,7 @@ Rails.application.routes.draw do
         get "activity", to: "workflow_activity#index"
         get "reconciler_activity", to: "reconciler_activity#index"
         get "browser_errors", to: "browser_errors#index"
+        get "backend_exceptions", to: "backend_exceptions#index"
         get "worker_health", to: "worker_health#show"
         get "plugins",  to: "plugins#index"
         post "plugins/:name/enable", to: "plugins#enable", constraints: { name: /[^\/]+/ }
@@ -554,6 +556,7 @@ Rails.application.routes.draw do
   get "admin/activity", to: "spa#show", as: :admin_activity
   get "admin/reconciler_activity", to: "spa#show", as: :admin_reconciler_activity
   get "admin/browser_errors", to: "spa#show", as: :admin_browser_errors
+  get "admin/backend_exceptions", to: "spa#show", as: :admin_backend_exceptions
   get "admin/queue", to: "spa#show", as: :admin_queue_root
   get "admin/queue/:tab", to: "spa#show", as: :admin_queue, constraints: { tab: /active|pending|failed|recurring|workers/ }
   get "admin/stuck", to: "spa#show", as: :admin_stuck

@@ -9,6 +9,7 @@ class FlushObservabilityEventsJob < ApplicationJob
       Observability::EventSink.flush!
       prune_expired(PerformanceLogEvent)
       prune_expired(BrowserErrorEvent)
+      prune_expired(BackendExceptionEvent)
       prune_expired(WorkflowActivityEvent)
     end
   end

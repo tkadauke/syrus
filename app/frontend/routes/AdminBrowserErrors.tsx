@@ -2,7 +2,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { type FormEvent, type ReactNode, useMemo, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { fetchAdminBrowserErrors, type BrowserErrorEventRow, type BrowserErrorEventsPayload } from "../api/adminBrowserErrors"
-import { AdminEventPageShell, AdminEventPagination, AdminEventPanelMessage, formatEventDate, inputClass, shortRevision } from "../components/AdminEventLogPanel"
+import { AdminEventPageShell, AdminEventPagination, AdminEventPanelMessage, DetailBlock, JsonBlock, formatEventDate, inputClass, shortRevision } from "../components/AdminEventLogPanel"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
@@ -214,19 +214,6 @@ function Row({ expanded, onToggle, revisionScope, row }: { expanded: boolean; on
       ) : null}
     </>
   )
-}
-
-function DetailBlock({ title, value }: { title: string; value?: string | null }) {
-  return (
-    <section>
-      <h3 className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{title}</h3>
-      <pre className="mt-2 max-h-80 overflow-auto rounded border border-gray-200 bg-white p-3 text-xs leading-5 text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">{value || "-"}</pre>
-    </section>
-  )
-}
-
-function JsonBlock({ title, value }: { title: string; value: unknown }) {
-  return <DetailBlock title={title} value={JSON.stringify(value, null, 2)} />
 }
 
 function setParam(params: URLSearchParams, key: string, value: FormDataEntryValue | null) {

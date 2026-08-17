@@ -33,4 +33,15 @@ RSpec.describe FlushObservabilityEventsJob do
     remaining_ids = PerformanceLogEvent.where(id: stale.map(&:id)).pluck(:id)
     expect(remaining_ids.size).to eq(1)
   end
+
+  it "deletes expired backend exception events" do
+    stale = BackendExceptionEvent.create!(occurred_at: BackendExceptionEvent::RETENTION.ago - 1.hour, source: "active_job", exception_class: "RuntimeError", message: "old")
+    fresh = BackendExceptionEvent.create!(occurred_at: 1.hour.ago, source: "active_job", exception_class: "RuntimeError", message: "new")
+    allow(Observability::EventSink).to receive(:flush!)
+
+    described_class.new.perform
+
+    expect(BackendExceptionEvent.exists?(stale.id)).to eq(false)
+    expect(BackendExceptionEvent.exists?(fresh.id)).to eq(true)
+  end
 end

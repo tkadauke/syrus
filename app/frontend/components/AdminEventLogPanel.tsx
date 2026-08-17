@@ -90,3 +90,16 @@ export function shortRevision(value: string | null | undefined) {
   if (!value) return "-"
   return value.length > 12 ? value.slice(0, 12) : value
 }
+
+export function DetailBlock({ title, value }: { title: string; value?: string | null }) {
+  return (
+    <section>
+      <h3 className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{title}</h3>
+      <pre className="mt-2 max-h-80 overflow-auto rounded border border-gray-200 bg-white p-3 text-xs leading-5 text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">{value || "-"}</pre>
+    </section>
+  )
+}
+
+export function JsonBlock({ title, value }: { title: string; value: unknown }) {
+  return <DetailBlock title={title} value={JSON.stringify(value, null, 2)} />
+}
