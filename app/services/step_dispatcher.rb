@@ -1037,11 +1037,12 @@ class StepDispatcher
   end
 
   def skip_queued_step!(step)
-    step.skip_with_reason!("test_plan_already_submitted")
+    artifact_key = Step::Kind.fetch(step.kind).skip_if_artifact
+    step.skip_with_reason!("#{artifact_key}_already_submitted")
 
     Rails.logger.info(
       "[StepDispatcher] workflow #{@workflow.id} skipped step #{step.id} " \
-      "(#{step.kind}): test plan already submitted"
+      "(#{step.kind}): #{artifact_key} already submitted"
     )
   end
 

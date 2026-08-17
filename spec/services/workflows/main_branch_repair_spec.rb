@@ -49,7 +49,7 @@ RSpec.describe Workflows::MainBranchRepair do
       workflow = described_class.instantiate(job: job)
 
       kinds = workflow.steps.order(:position).pluck(:kind)
-      expect(kinds.last(3)).to eq(%w[ summarize test_plan pr_open ])
+      expect(kinds.last(4)).to eq(%w[ summarize test_plan pr_open review_plan ])
     end
 
     it "sets trigger_kind to main_branch_repair" do

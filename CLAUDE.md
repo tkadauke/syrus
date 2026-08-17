@@ -89,16 +89,16 @@ sweeps old terminal workspaces after 7 days.
 Current chains:
 
 ```
-initial:     prepare → [loop(implement → adversarial_review)] → [loop(implement → visual_review)] → retry_until(implement → graders) → coverage_analyze → summarize → test_plan → pr_open
+initial:     prepare → [loop(implement → adversarial_review)] → [loop(implement → visual_review)] → retry_until(implement → graders) → coverage_analyze → summarize → test_plan → pr_open → review_plan
 pr_comment:  prepare → [loop(respond → adversarial_review)] → [loop(respond → visual_review)] → retry_until(respond → graders) → coverage_analyze → coverage_pr_comment → summarize_amend → refresh_job_metadata → try(push)
 chat_feedback: prepare → [loop(respond → adversarial_review)] → [loop(respond → visual_review)] → retry_until(respond → graders) → coverage_analyze → coverage_pr_comment → summarize_amend → refresh_job_metadata → try(push)
 ci_failure:  prepare → retry_until(analyze_and_fix → graders) → summarize_amend → try(push)
-retry:       prepare → [loop(implement → visual_review)] → retry_until(implement → graders) → coverage_analyze → summarize → test_plan → pr_open
+retry:       prepare → [loop(implement → visual_review)] → retry_until(implement → graders) → coverage_analyze → summarize → test_plan → pr_open → review_plan
 rebase:      auto_rebase → agent_rebase → force_push
 stack_rebase: stack_auto_rebase → stack_agent_rebase → stack_force_push
 auto_merge:  mergeability_preflight → prepare → retry_until(graders, repair: landing_fix) → push → auto_merge
 merge_train: merge_train_assemble → merge_train_build → merge_train_reconcile → prepare → retry_until(graders, repair: landing_fix) → merge_train_land
-coding_handoff: prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open
+coding_handoff: prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open → review_plan
 external_pr_ingest (same-repo): prepare → retry_until(graders, repair: landing_fix) → push
 external_pr_ingest (fork):      prepare → grader_fanout → grader_collect
 skill:       prepare → run_skill → summarize → pr_open
@@ -263,6 +263,19 @@ Key steps:
 - **`pr_open`** —
   Non-agentic: run service code (`PullRequestOpener`) to push the branch and
   open the PR if needed.
+- **`review_plan`** — Optional, best-effort agentic step after `pr_open` in
+  chains ending with `initial_pr_finish_steps`. Opt-in via `.syrus.yml`
+  `review_plan: true` (a bare boolean, not a nested block); a no-op
+  otherwise. Resumes the agent from the last successful `implement` session
+  and asks it to call `submit_review_plan` with a handful of specific,
+  high-signal "pay attention to X because Y" points anchored at
+  `file`/`line`, then posts (or upserts, by marker) a PR comment formatted
+  from the artifact — an empty item list posts nothing. Unlike other
+  agentic steps, `review_plan` must never fail the parent Job/Workflow: any
+  `StepFailed` raised anywhere in the step (agent error, missing tool call,
+  MCP sidecar unavailable, GitHub API failure) is caught and logged inside
+  the handler; `fail_policy: :advance` on the `Step::Kind` entry is a
+  declarative backstop for the same guarantee.
 
 **MCP sidecar** — `bin/syrus-mcp-sidecar`, spawned by `claude` over stdio
 via a per-step `mcp.json` tempfile. Tools available to workflow agents:
@@ -278,9 +291,10 @@ summarize rather than pasting raw tokens or auth-bearing commands;
 `read_performance_diagnostics` — sanitized current/all-revision performance
 summaries, available only to implement agents working on `tkadauke/syrus` or a
 registered fork;
-`submit_summary(pr_title, pr_body, summary)` and
-`submit_test_plan(steps, notes)` — write to Workflow `artifacts` and append
-`JobLog` audit lines;
+`submit_summary(pr_title, pr_body, summary)`,
+`submit_test_plan(steps, notes)`, and
+`submit_review_plan(items, summary)` — write to Workflow `artifacts` and
+append `JobLog` audit lines;
 `submit_artifact(type, title, payload)` — store a typed, named structured artifact
 under `Workflow#artifacts["typed_artifacts"]`; idempotent on `type` (replaces any
 prior entry with the same type); available to implement, summarize/test-plan, and
@@ -636,6 +650,7 @@ the live hook and retries a dead hook instead of parroting a stale mode.
   (`Prompts::Initial`, `Prompts::PrFeedback`, `Prompts::CiFailure`,
   `Prompts::AdversarialReview`, `Prompts::PullRequestSummary`,
   `Prompts::SubmitSummaryInstructions`, `Prompts::TestPlan`,
+  `Prompts::ReviewPlan`,
   `Prompts::Rebase`, `Prompts::PushRebase`, `Prompts::LandingFix`,
   `Prompts::ScheduledTask`, `Prompts::DirectJob`, `Prompts::EpicContext`,
   `Prompts::Skill`,

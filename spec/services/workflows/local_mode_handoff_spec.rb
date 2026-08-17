@@ -11,14 +11,14 @@ RSpec.describe Workflows::LocalModeHandoff do
 
       it "includes prepare, grader_fanout, grader_collect, summarize, test_plan, pr_open" do
         kinds = described_class.steps_for(job)
-        expect(kinds).to eq(%w[ prepare grader_fanout grader_collect summarize test_plan pr_open ])
+        expect(kinds).to eq(%w[ prepare grader_fanout grader_collect summarize test_plan pr_open review_plan ])
       end
 
       it "materializes the new-PR chain template" do
         workflow = described_class.instantiate(job: job)
 
         expect(workflow.steps.order(:position).pluck(:kind)).to eq(
-          %w[ prepare grader_fanout grader_collect summarize test_plan pr_open ]
+          %w[ prepare grader_fanout grader_collect summarize test_plan pr_open review_plan ]
         )
         expect(workflow.chain_template).to eq([
           { "type" => "step", "kind" => "prepare" },
@@ -26,7 +26,8 @@ RSpec.describe Workflows::LocalModeHandoff do
           { "type" => "step", "kind" => "grader_collect" },
           { "type" => "step", "kind" => "summarize" },
           { "type" => "step", "kind" => "test_plan" },
-          { "type" => "step", "kind" => "pr_open" }
+          { "type" => "step", "kind" => "pr_open" },
+          { "type" => "step", "kind" => "review_plan" }
         ])
       end
 

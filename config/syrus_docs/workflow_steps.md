@@ -215,6 +215,19 @@ superseded/cancelled instead of surfacing a nonretryable branch-divergence
 failure. Real branch divergence with no newer successful publisher still
 requires operator review.
 
+### review_plan
+
+Agentic, but best-effort — never fails the parent Job/Workflow. Optional
+step, opt-in via `.syrus.yml` `review_plan: true` (see [`syrus_yml.md`](syrus_yml.md)). Runs after `pr_open` in chains that end with
+`initial_pr_finish_steps`. Resumes the agent from the last successful
+`implement` session and asks it to call `submit_review_plan` with a handful
+of specific, high-signal "pay attention to X because Y" points anchored at
+`file`/`line`. On success, formats the artifact and posts (or upserts) a PR
+comment; an empty item list posts nothing. Any failure anywhere in the step
+— agent error, missing tool call, MCP sidecar unavailable, GitHub API error
+— is logged and swallowed rather than raised. See
+[`review_plan.md`](review_plan.md) for the full feature reference.
+
 ## Push and rebase steps
 
 ### push

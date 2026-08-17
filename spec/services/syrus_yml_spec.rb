@@ -727,6 +727,32 @@ RSpec.describe SyrusYml do
     end
   end
 
+  describe "review_plan" do
+    it "defaults to false when absent" do
+      config = parse("prepare: []\n")
+
+      expect(config.review_plan).to be(false)
+    end
+
+    it "parses a bare boolean true" do
+      config = parse("review_plan: true\n")
+
+      expect(config.review_plan).to be(true)
+    end
+
+    it "parses a bare boolean false" do
+      config = parse("review_plan: false\n")
+
+      expect(config.review_plan).to be(false)
+    end
+
+    it "coerces through Rails boolean semantics" do
+      config = parse("review_plan: \"yes\"\n")
+
+      expect(config.review_plan).to be(true)
+    end
+  end
+
   describe "deployment_stages: key" do
     it "parses stages with a fixed tag" do
       config = parse(<<~YAML)

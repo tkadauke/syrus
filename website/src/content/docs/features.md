@@ -171,6 +171,24 @@ review to specific changed files, and record seed notes (demo login, a record
 to look for) so the reviewer can reach an authenticated or populated view of
 the app instead of a blank one.
 
+## Review Plan
+
+Repositories can opt in to a lightweight self-review pass with a single
+`.syrus.yml` line:
+
+```yaml
+review_plan: true
+```
+
+Once the PR is open, the same agent that implemented the change looks back
+over its own diff and posts a PR comment pointing reviewers at the specific
+spots most worth a closer look — a tricky assumption, an edge case, a test
+gap — each anchored at a file and line, with a short note on why it matters.
+If nothing about the change stands out, no comment is posted at all.
+
+Review plan is best-effort: it never blocks or fails a Job. If the agent
+doesn't produce anything usable, the run simply moves on without a comment.
+
 ## Epics
 
 Epics group related Jobs inside one repository. They are useful when a

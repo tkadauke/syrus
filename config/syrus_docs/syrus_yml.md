@@ -209,6 +209,21 @@ visual_review:
 
 `seed_notes` is optional free text describing how to reach an authenticated or otherwise populated state in the preview app (e.g. demo credentials, a seed record to look for). It is read by the visual_review agent as a hint, not executed.
 
+## review_plan
+
+Enables an optional self-review pass after the PR is opened: the same agent
+that implemented the change looks back over its own diff and posts a
+"pay attention to X because Y" PR comment pointing at specific file/line
+locations.
+
+```yaml
+review_plan: true
+```
+
+A bare boolean scalar — not a nested block. Omitting the key, or setting it
+to `false`, leaves review plan disabled (the default). See
+[`review_plan.md`](review_plan.md) for the full feature reference.
+
 ## coverage
 
 Enables coverage reporting. Syrus parses lcov or Cobertura artifacts produced by graders, computes diff annotations, and optionally posts a PR comment.
