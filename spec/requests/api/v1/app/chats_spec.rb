@@ -1390,6 +1390,40 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
 
       expect(response).to have_http_status(:ok)
     end
+
+    it "does not enqueue a ChatTurnJob when a new group chat's opening message has no @syrus mention" do
+      sign_in_as(user)
+      other_user = Factories.user
+
+      expect {
+        post "/api/v1/app/chats", params: {
+          participant_user_ids: [ other_user.id ],
+          chat_message: { text: "hello everyone" }
+        }
+      }.to change(ChatSession, :count).by(1)
+        .and change(ChatMessage, :count).by(1)
+        .and have_enqueued_job(ChatTitleJob)
+
+      expect(ChatTurnJob).not_to have_been_enqueued
+      chat = ChatSession.last
+      expect(chat.conversation_kind).to eq("group")
+      expect(response).to have_http_status(:created)
+    end
+
+    it "enqueues a ChatTurnJob when a new group chat's opening message mentions @syrus" do
+      sign_in_as(user)
+      other_user = Factories.user
+
+      expect {
+        post "/api/v1/app/chats", params: {
+          participant_user_ids: [ other_user.id ],
+          chat_message: { text: "hey @syrus, get started" }
+        }
+      }.to change(ChatSession, :count).by(1)
+        .and have_enqueued_job(ChatTurnJob)
+
+      expect(response).to have_http_status(:created)
+    end
   end
 
   it "starts the first-message chat with a pending generated title" do

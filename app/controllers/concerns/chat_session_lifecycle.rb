@@ -39,7 +39,7 @@ module ChatSessionLifecycle
     end
 
     enqueue_chat_title(chat_session, user_message) if user_message
-    enqueue_chat_turn(chat_session, user_message) if user_message
+    enqueue_chat_turn(chat_session, user_message) if user_message && chat_session.should_trigger_agent?(text)
     chat_session
   end
 
