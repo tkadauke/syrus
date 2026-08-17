@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { fullResultBody } from "./toolRendering"
+import { fullResultBody, toolDetail } from "./toolRendering"
 
 describe("tool result rendering", () => {
   it("caps large tool result previews before the browser renders them", () => {
@@ -25,5 +25,11 @@ describe("tool result rendering", () => {
     expect(body).toContain("Full content remains in the chat transcript")
     expect(body.split("\n")[0].length).toBeLessThanOrEqual(2_000)
     expect(body.length).toBeLessThan(3_000)
+  })
+})
+
+describe("toolDetail", () => {
+  it("shows the invoked skill's name for the synthetic resolve_skill provenance call", () => {
+    expect(toolDetail("resolve_skill", { name: "investigate" })).toBe("investigate")
   })
 })

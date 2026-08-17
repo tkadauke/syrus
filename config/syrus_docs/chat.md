@@ -172,6 +172,14 @@ matching MCP tools. `/feedback` and `/propose` are hidden in Supervisor chats,
 where the agent recommends operational next steps in prose instead of starting
 new work.
 
+Repository skill commands, one per skill resolved for the chat's attached
+repository (`/skill-name key=value ...`), are appended to the palette
+dynamically — they are not part of the fixed command list above and vary per
+repository. They execute immediately with no confirmation card, reusing the
+chat's own Coding Mode turn rather than a separate execution path. See
+`skills.md`'s "Slash-command execution in chat" section for the full
+resolution, Coding Mode gating, and handoff-confirmation behavior.
+
 ## Proposal dependencies
 
 Chat proposal cards can declare dependency edges to existing Jobs/Epics or to

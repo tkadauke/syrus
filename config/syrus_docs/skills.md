@@ -72,6 +72,44 @@ Job dispatches a `skill` Workflow (see `trigger_kinds.md`).
   `validation_failed` error when the skill doesn't resolve or the submitted
   args fail schema validation.
 
+## Slash-command execution in chat
+
+A repository-scoped chat can run a skill immediately with `/skill-name
+key=value ...` instead of launching a separate Job. The available commands
+are that chat's attached repository's resolved skill set (`Skills.all_for`,
+built-ins shadowed by `.syrus/skills/*` overrides) — computed dynamically per
+chat, not hardcoded, so repo-local skills show up as soon as they exist on
+the default branch. A chat with no attached repository has no skill slash
+commands.
+
+Typing a recognized `/skill-name ...` in a repo-scoped chat executes
+immediately — no proposal or confirmation card. A slash command is already a
+deliberate, explicit operator action, the same trust level as `/loop` or
+`/code-review`. `Skills::ChatInvocation` resolves the command and validates
+its args against the skill's parameter schema server-side before anything
+runs; an unresolvable name or invalid args gets a clear chat message instead
+of being handed to the agent to guess at.
+
+Execution reuses the chat's own Coding Mode turn — the writable checkout and
+direct command execution the agent already has in Coding Mode — rather than a
+second, separate sandboxed path. A skill invoked this way therefore requires
+Coding Mode to be enabled for that chat; if it isn't, Syrus posts a clear
+system message telling the operator to enable Coding Mode instead of running
+the skill read-only or silently doing nothing. If the skill's execution
+produces a code diff, the *existing* Coding Mode handoff confirmation
+(`complete_implement_step` / `submit_coding_changes` → `coding_handoff`,
+already requiring operator confirmation) applies unchanged before any Job or
+PR is created — slash-command immediacy is about running the skill, not
+about bypassing that gate. A skill that produces no diff (an operational or
+`investigate`-style skill) simply reports its results in the chat thread;
+there is nothing further to confirm.
+
+Which skill definition resolved (built-in vs. repo override, and the
+resolved path/class) is recorded as a synthetic `resolve_skill` tool call in
+the chat's ordinary tool-call trace, immediately after the slash-command
+message — the same provenance requirement as the Job/Run detail view below,
+so a shadowed skill is never a silent debugging trap in chat either.
+
 ## Provenance on the Job/Run detail view
 
 Once a skill Job runs, the Run detail view shows which tier actually
