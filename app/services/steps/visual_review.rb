@@ -129,30 +129,7 @@ module Steps
     end
 
     def feedback_context_text
-      return nil unless feedback_workflow?
-
-      case Workflow::TriggerKind.feedback_kind_for(workflow.trigger_kind)
-      when :chat_feedback
-        workflow.artifact("chat_feedback").to_s.presence
-      when :pr_comment
-        render_pr_comments(Array(workflow.artifact("pr_comments")))
-      end
-    end
-
-    def render_pr_comments(comments)
-      return nil if comments.empty?
-
-      comments.map { |c| render_pr_comment(c) }.join("\n\n")
-    end
-
-    def render_pr_comment(c)
-      author = c["author"].presence || "reviewer"
-      body   = c["body"].to_s
-      if c["path"].present?
-        "[Inline on #{c["path"]}:#{c["line"]}] @#{author}: #{body}"
-      else
-        "@#{author}: #{body}"
-      end
+      Workflow::FeedbackKind.for(workflow)&.review_text
     end
 
     def review_iterations
