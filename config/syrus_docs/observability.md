@@ -65,6 +65,12 @@ Payloads are sanitized and size-capped in `BrowserErrorEvent` before storage so
 large stacks or recent-error blobs cannot create a second incident while being
 reported.
 
+The Vite production build emits JavaScript source maps so captured stack frames
+can be mapped back to frontend source while debugging. Source maps are generated
+with the normal SPA assets, so this is appropriate for Syrus' internal admin
+deployment model; public deployments should make an explicit choice about
+whether source maps are acceptable to serve.
+
 The admin UI exposes this stream at **Admin -> Browser Errors**
 (`/admin/browser_errors`). The app API endpoint is
 `GET /api/v1/app/admin/browser_errors`; the token admin API endpoint is
@@ -75,6 +81,26 @@ Unlike the high-volume observability streams, browser errors are inserted
 synchronously instead of through `Observability::EventSink` because the browser
 fallback needs the persisted event ID immediately. The row is still append-only
 and pruned by `FlushObservabilityEventsJob`. Browser error events retain 14 days
+of data.
+
+## Backend Exceptions
+
+The `backend_exception_events` table records Rails request and Active Job
+exceptions from the same ActiveSupport notification hooks used by operational
+logging. It is not gated by `operational_log_indexing`, so production exception
+history still exists when full operational log indexing is disabled.
+
+Backend exception events include the app revision, fingerprint, source
+(`action_controller` or `active_job`), exception class/message/backtrace,
+request context, job/run context, process role, hostname, pid, and bounded
+metadata. They are append-only and pruned by `FlushObservabilityEventsJob`.
+
+The admin UI exposes this stream at **Admin -> Backend Exceptions**
+(`/admin/backend_exceptions`). The app API endpoint is
+`GET /api/v1/app/admin/backend_exceptions`; the token admin API endpoint is
+`GET /api/v1/admin/backend_exceptions`. Both are paginated newest-first and
+accept `query`, `since`, `until`, `fingerprint`, `source`, `exception_class`,
+`path`, and `revision_scope` filters. Backend exception events retain 14 days
 of data.
 
 ## Existing Streams
