@@ -3,6 +3,12 @@ module Admin
     DEFAULT_PER_PAGE = 50
     MAX_PER_PAGE = 100
     REVISION_SCOPES = %w[ current all ].freeze
+    SORTS = {
+      "time" => [ "backend_exception_events.occurred_at", "backend_exception_events.id" ],
+      "context" => [ "backend_exception_events.source", "backend_exception_events.path", "backend_exception_events.job_class", "backend_exception_events.id" ],
+      "error" => [ "backend_exception_events.message", "backend_exception_events.exception_class", "backend_exception_events.id" ],
+      "runtime" => [ "backend_exception_events.role", "backend_exception_events.hostname", "backend_exception_events.pid", "backend_exception_events.id" ]
+    }.freeze
 
     def initialize(params: {})
       @params = params
@@ -22,7 +28,9 @@ module Admin
           fingerprint: fingerprint,
           source: source,
           exception_class: exception_class,
-          path: path
+          path: path,
+          sort: sort_column,
+          direction: sort_direction
         },
         timeline: Admin::EventTimeline.build(filtered_scope, since_time: since_time, until_time: until_time || Time.current),
         sources: BackendExceptionEvent.distinct.order(:source).pluck(:source),
@@ -43,7 +51,7 @@ module Admin
     attr_reader :params
 
     def relation
-      filtered_scope.recent_first.offset((page - 1) * per_page)
+      sorted_scope.offset((page - 1) * per_page)
     end
 
     def filtered_scope
@@ -63,6 +71,15 @@ module Admin
         )
       end
       scope
+    end
+
+    def sorted_scope
+      columns = SORTS.fetch(sort_column)
+      orders = columns.map.with_index do |column, index|
+        direction = index == columns.length - 1 ? tie_breaker_direction : sort_direction
+        Arel.sql("#{column} #{direction.upcase}")
+      end
+      filtered_scope.reorder(*orders)
     end
 
     def event_payload(event)
@@ -122,6 +139,19 @@ module Admin
     def per_page
       raw = Integer(params[:per_page].presence || params[:per], exception: false) || DEFAULT_PER_PAGE
       [[raw, 1].max, MAX_PER_PAGE].min
+    end
+
+    def sort_column
+      value = utf8_param(:sort)
+      SORTS.key?(value) ? value : "time"
+    end
+
+    def sort_direction
+      utf8_param(:direction) == "asc" ? "asc" : "desc"
+    end
+
+    def tie_breaker_direction
+      sort_column == "time" ? sort_direction : "asc"
     end
 
     def revision_scope

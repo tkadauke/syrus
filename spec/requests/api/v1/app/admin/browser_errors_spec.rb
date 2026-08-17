@@ -56,4 +56,37 @@ RSpec.describe "API: /api/v1/app/admin/browser_errors", type: :request do
     expect(body.dig("events", 0, "recent_api_requests").first).to include("path" => "/api/v1/app/jobs/3188")
     expect(body.fetch("timeline").sum { |bucket| bucket.fetch("count") }).to eq(1)
   end
+
+  it "sorts browser error events by supported columns" do
+    admin = Factories.user
+    BrowserErrorEvent.record!(
+      user: admin,
+      payload: {
+        "occurred_at" => 5.minutes.ago.iso8601,
+        "app_revision" => "current-sha",
+        "fingerprint" => "z",
+        "message" => "zulu",
+        "path" => "/z"
+      }
+    )
+    BrowserErrorEvent.record!(
+      user: admin,
+      payload: {
+        "occurred_at" => 4.minutes.ago.iso8601,
+        "app_revision" => "current-sha",
+        "fingerprint" => "a",
+        "message" => "alpha",
+        "path" => "/a"
+      }
+    )
+    sign_in_as(admin)
+
+    get "/api/v1/app/admin/browser_errors", params: { sort: "path", direction: "asc", revision_scope: "current" }
+
+    expect(response).to have_http_status(:ok)
+    body = response.parsed_body
+    expect(body.dig("filters", "sort")).to eq("path")
+    expect(body.dig("filters", "direction")).to eq("asc")
+    expect(body.fetch("events").map { |event| event.fetch("path") }).to eq([ "/a", "/z" ])
+  end
 end

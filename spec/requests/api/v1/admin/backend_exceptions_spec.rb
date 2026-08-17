@@ -35,4 +35,29 @@ RSpec.describe "API: /api/v1/admin/backend_exceptions", type: :request do
       include("id" => "file_job", "label" => "File Job", "event_type" => "backend_exception")
     )
   end
+
+  it "sorts backend exceptions by supported columns" do
+    BackendExceptionEvent.create!(
+      occurred_at: Time.current,
+      source: "active_job",
+      exception_class: "RuntimeError",
+      message: "zulu failure",
+      job_class: "ZJob"
+    )
+    BackendExceptionEvent.create!(
+      occurred_at: Time.current,
+      source: "action_controller",
+      exception_class: "NoMethodError",
+      message: "alpha failure",
+      path: "/alpha"
+    )
+
+    get "/api/v1/admin/backend_exceptions", params: { sort: "error", direction: "asc", revision_scope: "all" }, headers: auth
+
+    expect(response).to have_http_status(:ok)
+    body = response.parsed_body
+    expect(body.dig("filters", "sort")).to eq("error")
+    expect(body.dig("filters", "direction")).to eq("asc")
+    expect(body.fetch("events").map { |event| event.fetch("message") }).to eq([ "alpha failure", "zulu failure" ])
+  end
 end

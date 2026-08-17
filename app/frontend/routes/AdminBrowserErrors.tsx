@@ -3,7 +3,7 @@ import { type ReactNode, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { fetchAdminBrowserErrors, type BrowserErrorEventRow, type BrowserErrorEventsPayload } from "../api/adminBrowserErrors"
 import { AdminEventActions } from "../components/AdminEventActions"
-import { AdminEventFilterBar, AdminEventPageShell, AdminEventPagination, AdminEventPanelMessage, AdminEventTimeline, DetailBlock, JsonBlock, formatEventDate, shortRevision } from "../components/AdminEventLogPanel"
+import { AdminEventFilterBar, AdminEventPageShell, AdminEventPagination, AdminEventPanelMessage, AdminEventSortableHeader, AdminEventTimeline, DetailBlock, JsonBlock, formatEventDate, shortRevision } from "../components/AdminEventLogPanel"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
@@ -76,7 +76,7 @@ function BrowserErrorsView({ onNavigate, payload, search }: { onNavigate: (param
       <div className="border-b border-gray-200 p-4 dark:border-gray-700">
         <AdminEventTimeline buckets={payload.timeline || []} emptyLabel={t("browser_errors.timeline_empty")} title={t("browser_errors.timeline")} />
       </div>
-      {payload.events.length > 0 ? <BrowserErrorsTable revisionScope={payload.revision_scope} rows={payload.events} /> : <AdminEventPanelMessage>{t("browser_errors.empty")}</AdminEventPanelMessage>}
+      {payload.events.length > 0 ? <BrowserErrorsTable revisionScope={payload.revision_scope} rows={payload.events} search={search} onNavigate={onNavigate} /> : <AdminEventPanelMessage>{t("browser_errors.empty")}</AdminEventPanelMessage>}
       <AdminEventPagination
         label={t("browser_errors.page", { page: payload.pagination.page })}
         nextLabel={t("browser_errors.next")}
@@ -89,7 +89,7 @@ function BrowserErrorsView({ onNavigate, payload, search }: { onNavigate: (param
   )
 }
 
-function BrowserErrorsTable({ revisionScope, rows }: { revisionScope: string; rows: BrowserErrorEventRow[] }) {
+function BrowserErrorsTable({ onNavigate, revisionScope, rows, search }: { onNavigate: (params: URLSearchParams) => void; revisionScope: string; rows: BrowserErrorEventRow[]; search: string }) {
   const { t } = useT("admin")
   const [expandedId, setExpandedId] = useState<number | null>(null)
   return (
@@ -97,10 +97,10 @@ function BrowserErrorsTable({ revisionScope, rows }: { revisionScope: string; ro
       <table className="min-w-full table-fixed divide-y divide-gray-200 text-sm dark:divide-gray-700">
         <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
           <tr>
-            <th className="w-36 px-4 py-2">{t("browser_errors.col_time")}</th>
-            <th className="w-64 px-4 py-2">{t("browser_errors.col_path")}</th>
-            <th className="px-4 py-2">{t("browser_errors.col_error")}</th>
-            <th className="w-56 px-4 py-2">{t("browser_errors.col_user")}</th>
+            <AdminEventSortableHeader className="w-36 px-4 py-2" column="time" search={search} onNavigate={onNavigate}>{t("browser_errors.col_time")}</AdminEventSortableHeader>
+            <AdminEventSortableHeader className="w-64 px-4 py-2" column="path" search={search} onNavigate={onNavigate}>{t("browser_errors.col_path")}</AdminEventSortableHeader>
+            <AdminEventSortableHeader className="px-4 py-2" column="error" search={search} onNavigate={onNavigate}>{t("browser_errors.col_error")}</AdminEventSortableHeader>
+            <AdminEventSortableHeader className="w-56 px-4 py-2" column="user" search={search} onNavigate={onNavigate}>{t("browser_errors.col_user")}</AdminEventSortableHeader>
             <th className="w-32 px-4 py-2">{t("browser_errors.col_actions")}</th>
           </tr>
         </thead>

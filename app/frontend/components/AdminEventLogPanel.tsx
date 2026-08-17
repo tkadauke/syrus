@@ -73,6 +73,44 @@ export function AdminEventPagination({
   )
 }
 
+export function AdminEventSortableHeader({
+  children,
+  className,
+  column,
+  onNavigate,
+  search
+}: {
+  children: ReactNode
+  className?: string
+  column: string
+  onNavigate: (params: URLSearchParams) => void
+  search: string
+}) {
+  const params = new URLSearchParams(search)
+  const active = params.get("sort") === column || (!params.get("sort") && column === "time")
+  const currentDirection = params.get("direction") === "asc" ? "asc" : "desc"
+  const nextDirection = active && currentDirection === "asc" ? "desc" : "asc"
+
+  function sort() {
+    const next = new URLSearchParams(search)
+    next.set("sort", column)
+    next.set("direction", nextDirection)
+    next.delete("page")
+    onNavigate(next)
+  }
+
+  return (
+    <th className={className}>
+      <button className="group inline-flex items-center gap-1 text-left font-medium uppercase hover:text-gray-900 dark:hover:text-gray-100" onClick={sort} type="button">
+        <span>{children}</span>
+        <span className={`text-[10px] ${active ? "text-gray-700 dark:text-gray-200" : "text-gray-300 group-hover:text-gray-500 dark:text-gray-600 dark:group-hover:text-gray-400"}`}>
+          {active ? (currentDirection === "asc" ? "↑" : "↓") : "↕"}
+        </span>
+      </button>
+    </th>
+  )
+}
+
 export function inputClass() {
   return "w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
 }

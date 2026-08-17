@@ -3,7 +3,7 @@ import { useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { fetchAdminBackendExceptions, type BackendExceptionEventRow, type BackendExceptionEventsPayload } from "../api/adminBackendExceptions"
 import { AdminEventActions } from "../components/AdminEventActions"
-import { AdminEventFilterBar, AdminEventPageShell, AdminEventPagination, AdminEventPanelMessage, AdminEventTimeline, DetailBlock, JsonBlock, formatEventDate, shortRevision } from "../components/AdminEventLogPanel"
+import { AdminEventFilterBar, AdminEventPageShell, AdminEventPagination, AdminEventPanelMessage, AdminEventSortableHeader, AdminEventTimeline, DetailBlock, JsonBlock, formatEventDate, shortRevision } from "../components/AdminEventLogPanel"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
@@ -80,7 +80,7 @@ function BackendExceptionsView({ onNavigate, payload, search }: { onNavigate: (p
       <div className="border-b border-gray-200 p-4 dark:border-gray-700">
         <AdminEventTimeline buckets={payload.timeline || []} emptyLabel={t("backend_exceptions.timeline_empty")} title={t("backend_exceptions.timeline")} />
       </div>
-      {payload.events.length > 0 ? <BackendExceptionsTable revisionScope={payload.revision_scope} rows={payload.events} /> : <AdminEventPanelMessage>{t("backend_exceptions.empty")}</AdminEventPanelMessage>}
+      {payload.events.length > 0 ? <BackendExceptionsTable revisionScope={payload.revision_scope} rows={payload.events} search={search} onNavigate={onNavigate} /> : <AdminEventPanelMessage>{t("backend_exceptions.empty")}</AdminEventPanelMessage>}
       <AdminEventPagination
         label={t("backend_exceptions.page", { page: payload.pagination.page })}
         nextLabel={t("backend_exceptions.next")}
@@ -93,7 +93,7 @@ function BackendExceptionsView({ onNavigate, payload, search }: { onNavigate: (p
   )
 }
 
-function BackendExceptionsTable({ revisionScope, rows }: { revisionScope: string; rows: BackendExceptionEventRow[] }) {
+function BackendExceptionsTable({ onNavigate, revisionScope, rows, search }: { onNavigate: (params: URLSearchParams) => void; revisionScope: string; rows: BackendExceptionEventRow[]; search: string }) {
   const { t } = useT("admin")
   const [expandedId, setExpandedId] = useState<number | null>(null)
   return (
@@ -101,10 +101,10 @@ function BackendExceptionsTable({ revisionScope, rows }: { revisionScope: string
       <table className="min-w-full table-fixed divide-y divide-gray-200 text-sm dark:divide-gray-700">
         <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
           <tr>
-            <th className="w-36 px-4 py-2">{t("backend_exceptions.col_time")}</th>
-            <th className="w-64 px-4 py-2">{t("backend_exceptions.col_context")}</th>
-            <th className="px-4 py-2">{t("backend_exceptions.col_error")}</th>
-            <th className="w-48 px-4 py-2">{t("backend_exceptions.col_runtime")}</th>
+            <AdminEventSortableHeader className="w-36 px-4 py-2" column="time" search={search} onNavigate={onNavigate}>{t("backend_exceptions.col_time")}</AdminEventSortableHeader>
+            <AdminEventSortableHeader className="w-64 px-4 py-2" column="context" search={search} onNavigate={onNavigate}>{t("backend_exceptions.col_context")}</AdminEventSortableHeader>
+            <AdminEventSortableHeader className="px-4 py-2" column="error" search={search} onNavigate={onNavigate}>{t("backend_exceptions.col_error")}</AdminEventSortableHeader>
+            <AdminEventSortableHeader className="w-48 px-4 py-2" column="runtime" search={search} onNavigate={onNavigate}>{t("backend_exceptions.col_runtime")}</AdminEventSortableHeader>
             <th className="w-32 px-4 py-2">{t("backend_exceptions.col_actions")}</th>
           </tr>
         </thead>

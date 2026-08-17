@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "../testSupport"
@@ -36,7 +36,7 @@ describe("AdminBackendExceptions", () => {
         next_page: null,
         previous_page: null
       },
-      events: []
+      events: [backendExceptionEvent()]
     }))
 
     renderRoute()
@@ -47,7 +47,72 @@ describe("AdminBackendExceptions", () => {
     expect(screen.getByText("Revision is")).toBeInTheDocument()
     expect(screen.getByDisplayValue("All sources")).toBeInTheDocument()
     expect(screen.getByDisplayValue("Current SHA")).toBeInTheDocument()
-    expect(await screen.findByText("No backend exceptions recorded.")).toBeInTheDocument()
+    expect(await screen.findByText("undefined method map")).toBeInTheDocument()
     expect(String(fetchSpy.mock.calls[0][0])).toContain("/api/v1/app/admin/backend_exceptions?since=24h&revision_scope=current&per_page=50")
   })
+
+  it("sorts by a clicked column header and reverses direction on a second click", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      current_revision: "abc123",
+      revision_scope: "current",
+      filters: {},
+      sources: ["active_job", "action_controller"],
+      timeline: [],
+      pagination: {
+        page: 1,
+        per_page: 50,
+        has_next_page: false,
+        has_previous_page: false,
+        next_page: null,
+        previous_page: null
+      },
+      events: [backendExceptionEvent()]
+    }))
+
+    renderRoute()
+    await screen.findByText("undefined method map")
+
+    fireEvent.click(screen.getByRole("button", { name: /Error/i }))
+
+    await waitFor(() => {
+      expect(fetchSpy.mock.calls.some((call) => String(call[0]).includes("sort=error&direction=asc"))).toBe(true)
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: /Error/i }))
+
+    await waitFor(() => {
+      expect(fetchSpy.mock.calls.some((call) => String(call[0]).includes("sort=error&direction=desc"))).toBe(true)
+    })
+  })
 })
+
+function backendExceptionEvent() {
+  return {
+    id: 1,
+    occurred_at: "2026-08-17T20:46:35Z",
+    app_revision: "abc123",
+    fingerprint: "fp",
+    source: "action_controller",
+    role: "web",
+    hostname: "host-a",
+    pid: 123,
+    request_id: "req-1",
+    exception_class: "NoMethodError",
+    message: "undefined method map",
+    backtrace: null,
+    controller: "JobsController",
+    action: "show",
+    method: "GET",
+    path: "/jobs/3188",
+    status: 500,
+    job_class: null,
+    active_job_id: null,
+    queue_name: null,
+    executions: null,
+    job_id: null,
+    workflow_id: null,
+    run_id: null,
+    metadata: {},
+    actions: []
+  }
+}
