@@ -36,6 +36,25 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(result.run.parent_session_id).to eq(Steps::Base::DISABLE_AGENT_RESUME)
   end
 
+  it "resumes a failed merge_train_reconcile step in place instead of rebuilding the whole train" do
+    job = Factories.job_record(state: "implemented", landing_failure_reason: "merge_train workflow failed")
+    workflow = Workflow.create!(job: job, trigger_kind: "merge_train", artifacts: { "merge_train_id" => 999 })
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+    failed_step = Step.create!(workflow: workflow, kind: "merge_train_reconcile", position: 3)
+    failed_step.update_columns(state: "failed", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+
+    result = described_class.call(workflow: workflow, parent_session_id: "sess_123", prompt: "resume please")
+
+    expect(result).to be_success
+    expect(result.workflow).to eq(workflow)
+    expect(result.step).to eq(failed_step)
+    expect(workflow.reload).to be_running
+    expect(failed_step.reload).to be_queued
+    expect(result.run.parent_session_id).to eq("sess_123")
+    expect(result.run.prompt).to eq("resume please")
+    expect(job.reload.landing_failure_reason).to be_nil
+  end
+
   %w[merge_train_build merge_train_land].each do |failed_step_kind|
     it "rebuilds a failed merge-train instead of retrying the old #{failed_step_kind} step in place" do
       user = Factories.user(github_token: "ghp_test")

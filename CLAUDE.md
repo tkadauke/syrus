@@ -97,7 +97,7 @@ retry:       prepare → [loop(implement → visual_review)] → retry_until(imp
 rebase:      auto_rebase → agent_rebase → force_push
 stack_rebase: stack_auto_rebase → stack_agent_rebase → stack_force_push
 auto_merge:  mergeability_preflight → prepare → retry_until(graders, repair: landing_fix) → push → auto_merge
-merge_train: merge_train_assemble → merge_train_build → prepare → retry_until(graders, repair: landing_fix) → merge_train_land
+merge_train: merge_train_assemble → merge_train_build → merge_train_reconcile → prepare → retry_until(graders, repair: landing_fix) → merge_train_land
 coding_handoff: prepare → grader_fanout → grader_collect → summarize → test_plan → pr_open
 external_pr_ingest (same-repo): prepare → retry_until(graders, repair: landing_fix) → push
 external_pr_ingest (fork):      prepare → grader_fanout → grader_collect
@@ -199,6 +199,16 @@ Key steps:
   branches work under App or PAT credentials; land pushes the integration
   branch, merges one integration PR into base, then comments on and closes the
   member PRs.
+- **`merge_train_reconcile`** — Agentic pass between `merge_train_build` and
+  `prepare` that runs on the just-built integration branch, allows a no-op
+  success, and commits focused reconciliation changes (e.g. cross-member
+  conflicts the mechanical rebase couldn't see) before the grading loop runs.
+  Unlike `merge_train_build`/`merge_train_land`, it doesn't publish or mutate
+  shared landing state, so `RetryFailedStepEnqueuer` resumes/retries it in
+  place on failure (same as `implement`) instead of discarding the whole
+  train and rebuilding through `EpicLandingRetrier` — the deciding factor is
+  the failed step's `Step::Kind#repair_semantics` (`:agentic` steps resume in
+  place; `:rebuild`/`:publication` steps force a full merge-train rebuild).
 - **`adversarial_review`** — Independent critic agent that reads the issue
   and the diff from the preceding `implement` (or `respond`) step, then calls
   `submit_adversarial_review(verdict, critique)`. Verdict `approved` exits the
