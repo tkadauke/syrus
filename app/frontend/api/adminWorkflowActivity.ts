@@ -29,6 +29,8 @@ export type AdminWorkflowActivityPayload = {
     run_id: number | null
     trigger_kind: string | null
     reason_key: string | null
+    sort: string
+    direction: "asc" | "desc"
   }
   pagination: {
     page: number

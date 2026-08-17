@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, useMemo } from "react"
+import { Fragment, type FormEvent, type ReactNode, useMemo, useState } from "react"
 
 export function AdminEventPanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "warn" }) {
   const toneClass = tone === "error"
@@ -108,6 +108,81 @@ export function AdminEventSortableHeader({
         </span>
       </button>
     </th>
+  )
+}
+
+export type AdminEventLogTableColumn<Row> = {
+  className?: string
+  header: ReactNode
+  headerClassName?: string
+  key: string
+  render: (row: Row, state: { expanded: boolean; toggleExpanded: () => void }) => ReactNode
+  sort?: string
+}
+
+export function AdminEventLogTable<Row>({
+  columns,
+  getRowKey,
+  onNavigate,
+  renderExpanded,
+  rows,
+  search,
+  tableClassName = "min-w-full table-fixed divide-y divide-gray-200 text-sm dark:divide-gray-700"
+}: {
+  columns: Array<AdminEventLogTableColumn<Row>>
+  getRowKey: (row: Row) => string | number
+  onNavigate?: (params: URLSearchParams) => void
+  renderExpanded?: (row: Row) => ReactNode
+  rows: Row[]
+  search?: string
+  tableClassName?: string
+}) {
+  const [expandedKey, setExpandedKey] = useState<string | number | null>(null)
+
+  return (
+    <div className="overflow-x-auto">
+      <table className={tableClassName}>
+        <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+          <tr>
+            {columns.map((column) => (
+              column.sort && onNavigate ? (
+                <AdminEventSortableHeader className={column.headerClassName || column.className} column={column.sort} key={column.key} search={search || ""} onNavigate={onNavigate}>
+                  {column.header}
+                </AdminEventSortableHeader>
+              ) : (
+                <th className={column.headerClassName || column.className} key={column.key}>{column.header}</th>
+              )
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+          {rows.map((row) => {
+            const rowKey = getRowKey(row)
+            const expanded = expandedKey === rowKey
+            const toggleExpanded = () => setExpandedKey((current) => current === rowKey ? null : rowKey)
+
+            return (
+              <Fragment key={rowKey}>
+                <tr>
+                  {columns.map((column) => (
+                    <td className={column.className} key={column.key}>
+                      {column.render(row, { expanded, toggleExpanded })}
+                    </td>
+                  ))}
+                </tr>
+                {expanded && renderExpanded ? (
+                  <tr>
+                    <td className="bg-gray-50 px-4 py-4 dark:bg-gray-950/40" colSpan={columns.length}>
+                      {renderExpanded(row)}
+                    </td>
+                  </tr>
+                ) : null}
+              </Fragment>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
   )
 }
 

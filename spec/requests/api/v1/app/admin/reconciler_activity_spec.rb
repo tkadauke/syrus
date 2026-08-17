@@ -49,4 +49,28 @@ RSpec.describe "API: /api/v1/app/admin/reconciler_activity", type: :request do
     expect(body.dig("events", 0, "workflow")).to include("id" => workflow.id, "path" => "/jobs/#{job.id}?tab=workflows#workflow-#{workflow.id}")
     expect(body.dig("events", 0, "run")).to include("id" => run.id, "path" => "/admin/runs/#{run.id}/transcript")
   end
+
+  it "sorts reconciler activity with an allowlisted column" do
+    admin = Factories.user
+    sign_in_as(admin)
+
+    WorkEngineReconcilerActivityEvent.record!(
+      event_type: "run_started",
+      source: "spec",
+      message: "Zulu"
+    )
+    WorkEngineReconcilerActivityEvent.record!(
+      event_type: "run_finished",
+      source: "spec",
+      message: "Alpha"
+    )
+
+    get "/api/v1/app/admin/reconciler_activity", params: { sort: "message", direction: "asc" }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body.dig("filters", "sort")).to eq("message")
+    expect(body.dig("filters", "direction")).to eq("asc")
+    expect(body.fetch("events").first.fetch("message")).to eq("Alpha")
+  end
 end

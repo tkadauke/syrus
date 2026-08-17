@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
-import { AdminEventFilterBar } from "./AdminEventLogPanel"
+import { AdminEventFilterBar, AdminEventLogTable } from "./AdminEventLogPanel"
 
 describe("AdminEventFilterBar", () => {
   it("renders compact filter chips from URL params and submits non-empty values", () => {
@@ -57,5 +57,35 @@ describe("AdminEventFilterBar", () => {
 
     expect(onNavigate).toHaveBeenCalledTimes(1)
     expect((onNavigate.mock.calls[0][0] as URLSearchParams).toString()).toBe("")
+  })
+})
+
+describe("AdminEventLogTable", () => {
+  it("renders sortable columns and expandable detail rows", () => {
+    const onNavigate = vi.fn()
+
+    render(
+      <AdminEventLogTable
+        columns={[
+          { key: "time", header: "Time", sort: "time", className: "px-4 py-2", render: (row: { id: number; message: string }) => row.id },
+          { key: "message", header: "Message", className: "px-4 py-2", render: (row: { id: number; message: string }, state) => (
+            <button onClick={state.toggleExpanded} type="button">{state.expanded ? "Hide" : row.message}</button>
+          ) }
+        ]}
+        getRowKey={(row) => row.id}
+        rows={[{ id: 7, message: "Show details" }]}
+        search="?sort=time&direction=desc"
+        onNavigate={onNavigate}
+        renderExpanded={(row) => <div>Details for {row.id}</div>}
+      />
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Time/ }))
+    expect(onNavigate).toHaveBeenCalledTimes(1)
+    expect((onNavigate.mock.calls[0][0] as URLSearchParams).toString()).toBe("sort=time&direction=asc")
+
+    fireEvent.click(screen.getByRole("button", { name: "Show details" }))
+    expect(screen.getByText("Details for 7")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Hide" })).toBeInTheDocument()
   })
 })

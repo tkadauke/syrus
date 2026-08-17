@@ -24,6 +24,8 @@ export type AdminReconcilerActivityPayload = {
     job_id: number | null
     workflow_id: number | null
     run_id: number | null
+    sort: string
+    direction: "asc" | "desc"
   }
   pagination: {
     page: number

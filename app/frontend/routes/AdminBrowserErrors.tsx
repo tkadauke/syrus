@@ -1,9 +1,8 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
-import { type ReactNode, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { fetchAdminBrowserErrors, type BrowserErrorEventRow, type BrowserErrorEventsPayload } from "../api/adminBrowserErrors"
 import { AdminEventActions } from "../components/AdminEventActions"
-import { AdminEventFilterBar, AdminEventPageShell, AdminEventPagination, AdminEventPanelMessage, AdminEventSortableHeader, AdminEventTimeline, DetailBlock, JsonBlock, formatEventDate, shortRevision } from "../components/AdminEventLogPanel"
+import { AdminEventFilterBar, AdminEventLogTable, type AdminEventLogTableColumn, AdminEventPageShell, AdminEventPagination, AdminEventPanelMessage, AdminEventTimeline, DetailBlock, JsonBlock, formatEventDate, shortRevision } from "../components/AdminEventLogPanel"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
@@ -91,74 +90,87 @@ function BrowserErrorsView({ onNavigate, payload, search }: { onNavigate: (param
 
 function BrowserErrorsTable({ onNavigate, revisionScope, rows, search }: { onNavigate: (params: URLSearchParams) => void; revisionScope: string; rows: BrowserErrorEventRow[]; search: string }) {
   const { t } = useT("admin")
-  const [expandedId, setExpandedId] = useState<number | null>(null)
-  return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full table-fixed divide-y divide-gray-200 text-sm dark:divide-gray-700">
-        <thead className="bg-gray-50 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-          <tr>
-            <AdminEventSortableHeader className="w-36 px-4 py-2" column="time" search={search} onNavigate={onNavigate}>{t("browser_errors.col_time")}</AdminEventSortableHeader>
-            <AdminEventSortableHeader className="w-64 px-4 py-2" column="path" search={search} onNavigate={onNavigate}>{t("browser_errors.col_path")}</AdminEventSortableHeader>
-            <AdminEventSortableHeader className="px-4 py-2" column="error" search={search} onNavigate={onNavigate}>{t("browser_errors.col_error")}</AdminEventSortableHeader>
-            <AdminEventSortableHeader className="w-56 px-4 py-2" column="user" search={search} onNavigate={onNavigate}>{t("browser_errors.col_user")}</AdminEventSortableHeader>
-            <th className="w-32 px-4 py-2">{t("browser_errors.col_actions")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-          {rows.map((row) => (
-            <Row
-              expanded={expandedId === row.id}
-              key={row.id}
-              revisionScope={revisionScope}
-              row={row}
-              onToggle={() => setExpandedId((current) => current === row.id ? null : row.id)}
-            />
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-function Row({ expanded, onToggle, revisionScope, row }: { expanded: boolean; onToggle: () => void; revisionScope: string; row: BrowserErrorEventRow }) {
-  const { t } = useT("admin")
-  return (
-    <>
-      <tr>
-        <td className="whitespace-nowrap px-4 py-3 align-top font-mono text-xs text-gray-600 dark:text-gray-300">
+  const columns: Array<AdminEventLogTableColumn<BrowserErrorEventRow>> = [
+    {
+      className: "w-36 whitespace-nowrap px-4 py-3 align-top font-mono text-xs text-gray-600 dark:text-gray-300",
+      headerClassName: "w-36 px-4 py-2",
+      header: t("browser_errors.col_time"),
+      key: "time",
+      sort: "time",
+      render: (row) => (
+        <>
           {formatEventDate(row.occurred_at)}
           {revisionScope === "all" ? <div className="mt-1 text-gray-500 dark:text-gray-400">{shortRevision(row.app_revision)}</div> : null}
-        </td>
-        <td className="px-4 py-3 align-top font-mono text-xs text-gray-700 dark:text-gray-200">
+        </>
+      )
+    },
+    {
+      className: "w-64 px-4 py-3 align-top font-mono text-xs text-gray-700 dark:text-gray-200",
+      headerClassName: "w-64 px-4 py-2",
+      header: t("browser_errors.col_path"),
+      key: "path",
+      sort: "path",
+      render: (row) => (
+        <>
           <div className="break-words">{row.path || "-"}</div>
           {row.trace_id ? <div className="mt-1 text-gray-500 dark:text-gray-400">trace {row.trace_id}</div> : null}
-        </td>
-        <td className="px-4 py-3 align-top">
+        </>
+      )
+    },
+    {
+      className: "px-4 py-3 align-top",
+      headerClassName: "px-4 py-2",
+      header: t("browser_errors.col_error"),
+      key: "error",
+      sort: "error",
+      render: (row) => (
+        <>
           <div className="break-words font-medium text-gray-900 dark:text-gray-100">{row.message}</div>
           <div className="mt-1 break-all font-mono text-xs text-gray-500 dark:text-gray-400">{row.name || "Error"} · {row.fingerprint}</div>
-        </td>
-        <td className="px-4 py-3 align-top text-xs text-gray-700 dark:text-gray-200">
+        </>
+      )
+    },
+    {
+      className: "w-56 px-4 py-3 align-top text-xs text-gray-700 dark:text-gray-200",
+      headerClassName: "w-56 px-4 py-2",
+      header: t("browser_errors.col_user"),
+      key: "user",
+      sort: "user",
+      render: (row) => (
+        <>
           <div className="font-medium">{row.user.display_name || row.user.email_address || `User ${row.user.id}`}</div>
           {row.user_agent ? <div className="mt-1 line-clamp-2 text-gray-500 dark:text-gray-400">{row.user_agent}</div> : null}
-        </td>
-        <td className="px-4 py-3 align-top">
-          <AdminEventActions actions={row.actions} eventId={row.id} eventType="browser_error" showDetailsLabel={expanded ? t("browser_errors.hide_details") : t("browser_errors.show_details")} onToggleDetails={onToggle} />
-        </td>
-      </tr>
-      {expanded ? (
-        <tr>
-          <td className="bg-gray-50 px-4 py-4 dark:bg-gray-950/40" colSpan={5}>
-            <div className="grid gap-4 lg:grid-cols-2">
-              <DetailBlock title={t("browser_errors.stack")} value={row.stack} />
-              <DetailBlock title={t("browser_errors.component_stack")} value={row.component_stack} />
-              <JsonBlock title={t("browser_errors.recent_api_requests")} value={row.recent_api_requests || []} />
-              <JsonBlock title={t("browser_errors.recent_errors")} value={row.recent_errors || []} />
-              <JsonBlock title={t("browser_errors.environment")} value={{ viewport: row.viewport || {}, feature_flags: row.feature_flags || {}, metadata: row.metadata || {}, route_params: row.route_params || {}, url: row.url }} />
-            </div>
-          </td>
-        </tr>
-      ) : null}
-    </>
+        </>
+      )
+    },
+    {
+      className: "w-32 px-4 py-3 align-top",
+      headerClassName: "w-32 px-4 py-2",
+      header: t("browser_errors.col_actions"),
+      key: "actions",
+      render: (row, state) => (
+        <AdminEventActions actions={row.actions} eventId={row.id} eventType="browser_error" showDetailsLabel={state.expanded ? t("browser_errors.hide_details") : t("browser_errors.show_details")} onToggleDetails={state.toggleExpanded} />
+      )
+    }
+  ]
+
+  return (
+    <AdminEventLogTable
+      columns={columns}
+      getRowKey={(row) => row.id}
+      rows={rows}
+      search={search}
+      onNavigate={onNavigate}
+      renderExpanded={(row) => (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <DetailBlock title={t("browser_errors.stack")} value={row.stack} />
+          <DetailBlock title={t("browser_errors.component_stack")} value={row.component_stack} />
+          <JsonBlock title={t("browser_errors.recent_api_requests")} value={row.recent_api_requests || []} />
+          <JsonBlock title={t("browser_errors.recent_errors")} value={row.recent_errors || []} />
+          <JsonBlock title={t("browser_errors.environment")} value={{ viewport: row.viewport || {}, feature_flags: row.feature_flags || {}, metadata: row.metadata || {}, route_params: row.route_params || {}, url: row.url }} />
+        </div>
+      )}
+    />
   )
 }
 

@@ -2,6 +2,15 @@ module Admin
   class WorkflowActivityPayload
     PER_PAGE = 50
     MAX_PER_PAGE = 100
+    SORTS = {
+      "time" => [ "workflow_activity_events.occurred_at", "workflow_activity_events.id" ],
+      "type" => [ "workflow_activity_events.event_type", "workflow_activity_events.occurred_at", "workflow_activity_events.id" ],
+      "context" => [ "workflow_activity_events.job_id", "workflow_activity_events.workflow_id", "workflow_activity_events.run_id", "workflow_activity_events.occurred_at", "workflow_activity_events.id" ],
+      "state" => [ "workflow_activity_events.trigger_kind", "workflow_activity_events.workflow_state", "workflow_activity_events.step_kind", "workflow_activity_events.run_state", "workflow_activity_events.reason_key", "workflow_activity_events.occurred_at", "workflow_activity_events.id" ],
+      "duration" => [ "workflow_activity_events.duration_ms", "workflow_activity_events.occurred_at", "workflow_activity_events.id" ],
+      "message" => [ "workflow_activity_events.message", "workflow_activity_events.occurred_at", "workflow_activity_events.id" ],
+      "source" => [ "workflow_activity_events.source", "workflow_activity_events.occurred_at", "workflow_activity_events.id" ]
+    }.freeze
 
     def initialize(params: {})
       @params = params
@@ -28,7 +37,9 @@ module Admin
           workflow_id: workflow_id,
           run_id: run_id,
           trigger_kind: trigger_kind,
-          reason_key: reason_key
+          reason_key: reason_key,
+          sort: sort,
+          direction: direction
         },
         event_types: WorkflowActivityEvent::EVENT_TYPES
       }
@@ -40,14 +51,14 @@ module Admin
 
     def relation
       @relation ||= begin
-        scope = WorkflowActivityEvent.includes(:job, :workflow, :run).recent_first
+        scope = WorkflowActivityEvent.includes(:job, :workflow, :run)
         scope = scope.where(event_type: event_type) if event_type.present?
         scope = scope.where(job_id: job_id) if job_id.present?
         scope = scope.where(workflow_id: workflow_id) if workflow_id.present?
         scope = scope.where(run_id: run_id) if run_id.present?
         scope = scope.where(trigger_kind: trigger_kind) if trigger_kind.present?
         scope = scope.where(reason_key: reason_key) if reason_key.present?
-        scope
+        sorted_scope(scope)
       end
     end
 
@@ -90,6 +101,22 @@ module Admin
     def workflow_id = positive_int(params[:workflow_id])
     def run_id = positive_int(params[:run_id])
 
+    def sort
+      value = params[:sort].to_s
+      SORTS.key?(value) ? value : "time"
+    end
+
+    def direction
+      params[:direction].to_s == "asc" ? "asc" : "desc"
+    end
+
+    def sorted_scope(scope)
+      ordered_columns = SORTS.fetch(sort).map do |column|
+        "#{column} #{direction}"
+      end
+      scope.order(Arel.sql(ordered_columns.join(", ")))
+    end
+
     def positive_int(value)
       parsed = value.to_i
       parsed.positive? ? parsed : nil
@@ -130,7 +157,7 @@ module Admin
 
     def path_for(target_page)
       raw_params = params.respond_to?(:to_unsafe_h) ? params.to_unsafe_h : params.to_h
-      query = raw_params.slice("event_type", "job_id", "workflow_id", "run_id", "trigger_kind", "reason_key", "per_page").merge("page" => target_page).compact_blank
+      query = raw_params.slice("event_type", "job_id", "workflow_id", "run_id", "trigger_kind", "reason_key", "per_page", "sort", "direction").merge("page" => target_page).compact_blank
       "/admin/activity#{query.present? ? "?#{query.to_query}" : ""}"
     end
   end
