@@ -7932,6 +7932,8 @@ describe("App", () => {
             scheduled_task: {
               name: "Weekly tests",
               prompt: "Keep tests moving.",
+              skill_name: "",
+              skill_args: {},
               kind: "cron",
               cron_expression: "0 9 * * 1",
               schedule_input: "0 9 * * 1",

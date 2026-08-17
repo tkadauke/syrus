@@ -304,6 +304,12 @@ The `pr_pileup_policy` controls what happens if the last scheduled PR is
 still open: `skip`, `pile`, or `replace`. Repeated failures can
 auto-pause a task until an operator fixes and resumes it.
 
+A task can fire a named skill (see Skills below) with a set of parameters
+instead of a free-form prompt — the create/edit form lets an operator toggle
+between the two. A skill-based task still creates a `cron` Job and follows
+the same pileup and auto-pause behavior; only the source of the agent's
+instructions differs.
+
 ## Chats
 
 Chats are operator conversations that can start with or without repository
@@ -762,7 +768,9 @@ from the chosen skill's declared parameters. Submitting creates a Job that
 runs the skill against the repository, the same way a direct Job runs a
 free-form prompt. The picker flags a repository-local skill that overrides a
 built-in one, and the resulting Job/Run detail view records the same
-provenance so it stays visible after the fact.
+provenance so it stays visible after the fact. A scheduled task (see
+Schedules below) can fire a skill on a recurring or one-shot cadence using
+the same picker and parameter form, instead of a free-form prompt.
 
 ## Account Settings
 

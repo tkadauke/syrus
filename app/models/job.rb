@@ -107,7 +107,7 @@ class Job < ApplicationRecord
   validates :approved_via, inclusion: { in: APPROVAL_VIAS }, allow_nil: true
   validates :system_kind, inclusion: { in: SYSTEM_KINDS }, allow_nil: true
   validates :skill_name, format: { with: Skills::NAME_PATTERN }, allow_nil: true
-  validate  :skill_name_requires_direct_kind, if: -> { skill_name.present? }
+  validate  :skill_name_requires_direct_or_cron_kind, if: -> { skill_name.present? }
   validates :issue_number,
             presence: true,
             numericality: { only_integer: true, greater_than: 0 },
@@ -316,7 +316,7 @@ class Job < ApplicationRecord
     if cron? && scheduled_task
       Struct.new(:title, :body).new(
         "Scheduled task: #{scheduled_task.name}",
-        scheduled_task.prompt.to_s
+        skill_name.present? ? issue_body.to_s : scheduled_task.prompt.to_s
       )
     elsif direct?
       Struct.new(:title, :body).new(issue_title.to_s, issue_body.to_s)
@@ -1467,8 +1467,8 @@ class Job < ApplicationRecord
     errors.add(:issue_number, "must be blank for agent_insight Jobs") if issue_number.present?
   end
 
-  def skill_name_requires_direct_kind
-    errors.add(:skill_name, "requires kind=direct") unless direct?
+  def skill_name_requires_direct_or_cron_kind
+    errors.add(:skill_name, "requires kind=direct or kind=cron") unless direct? || cron?
   end
 
   def issue_number_blank_for_external_pr

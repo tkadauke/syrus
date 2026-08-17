@@ -129,6 +129,59 @@ RSpec.describe ScheduledTaskFire do
       end
     end
 
+    context "skill tasks" do
+      # Override the outer github_token-carrying user so Skills.for resolves
+      # "investigate" as a built-in without a repo-local GitHub lookup.
+      let(:user) { Factories.user }
+      let(:task) do
+        ScheduledTask.create!(
+          user: user, repository: repository,
+          name: "Investigate weekly", prompt: nil,
+          skill_name: "investigate", skill_args: { "question" => "What changed recently?" },
+          kind: "cron", cron_expression: "0 9 * * 1", pr_pileup_policy: "skip"
+        )
+      end
+
+      it "spawns a cron Job carrying skill_name/skill_args and dispatches a Workflows::Skill" do
+        result = described_class.new(task).call
+
+        expect(result).to be_fired
+        job = result.job
+        expect(job.kind).to eq("cron")
+        expect(job.scheduled_task).to eq(task)
+        expect(job.skill_name).to eq("investigate")
+        expect(job.skill_args).to eq({ "question" => "What changed recently?" })
+
+        workflow = job.workflows.last
+        expect(workflow.trigger_kind).to eq("skill")
+        expect(workflow.artifact("skill_name")).to eq("investigate")
+        expect(workflow.artifact("skill_args")).to eq({ "question" => "What changed recently?" })
+      end
+
+      it "leaves the initial Run's prompt unset so Steps::RunSkill renders it on its own turn" do
+        result = described_class.new(task).call
+
+        run = result.job.runs.first
+        expect(run.prompt).to be_blank
+      end
+
+      it "renders a preview issue_body via Skills::Renderer" do
+        result = described_class.new(task).call
+
+        expect(result.job.issue_body).to include("What changed recently?")
+      end
+
+      it "still honors pr_pileup_policy for skill tasks" do
+        task.jobs.create!(
+          user: user, repository: repository,
+          kind: "cron", scheduled_task: task,
+          issue_number: nil, pr_number: 99
+        )
+
+        expect { described_class.new(task).call }.not_to change { Job.count }
+      end
+    end
+
     context "one_shot tasks" do
       let(:task) do
         ScheduledTask.create!(
