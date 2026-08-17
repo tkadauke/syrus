@@ -4,7 +4,12 @@ require "set"
 class SyrusYml
   CONFIG_FILE = ".syrus.yml".freeze
   DEFAULT_GRADE_TIMEOUT_MINUTES = 15
-  MAX_GRADE_TIMEOUT_MINUTES = 60
+  # Was 60; this repo's own .syrus.yml declares timeout_minutes: 75 for the
+  # rspec grader (serial suite growth), but the old ceiling silently clamped
+  # that back down to 60 and produced spurious exit-124 timeouts with 0
+  # actual failures. Keep this above the largest legitimate timeout_minutes
+  # in use.
+  MAX_GRADE_TIMEOUT_MINUTES = 90
   MIN_GRADE_MAX_ITERATIONS = 1
   MAX_GRADE_MAX_ITERATIONS = 10
   MIN_ADVERSARIAL_REVIEW_ROUNDS = 0

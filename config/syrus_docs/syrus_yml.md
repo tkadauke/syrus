@@ -69,7 +69,7 @@ grade:
 | `ci` | no | — | Alternate shell command for `ci_failure` workflows |
 | `description` | no | — | Human-readable label |
 | `required` | no | `true` | Non-required failures warn but don't block |
-| `timeout_minutes` | no | 15 | Clamped to 30 max |
+| `timeout_minutes` | no | 15 | Clamped to 90 max |
 | `when_files_changed` | no | — | Array of glob patterns; grader is skipped at fanout time if none of the PR's changed files match |
 
 ### fast (removed)
