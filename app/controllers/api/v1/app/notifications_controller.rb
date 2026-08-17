@@ -2,6 +2,8 @@ module Api
   module V1
     module App
       class NotificationsController < BaseController
+        include Paginatable
+
         PER_PAGE = 20
 
         def index
@@ -97,10 +99,6 @@ module Api
           )
         end
 
-        def page_param
-          page = params[:page].to_i
-          page.positive? ? page : 1
-        end
       end
     end
   end

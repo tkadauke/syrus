@@ -149,15 +149,6 @@ module ChatSerialization
     params[:include_whiteboard].present?
   end
 
-  def bookmark_json(bookmark)
-    {
-      id: bookmark.id,
-      label: bookmark.label,
-      chat_message_id: bookmark.chat_message_id,
-      anchor_message_id: bookmark.anchor_message_id
-    }
-  end
-
   def bookmarks_json(chat_session)
     message_rows = bookmark_message_rows(chat_session.id)
     return [] if message_rows.empty?

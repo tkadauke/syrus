@@ -418,10 +418,10 @@ function formatBytes(bytes: number) {
   return `${value >= 10 ? Math.round(value) : Math.round(value * 10) / 10}${suffix}`
 }
 
-function formatDuration(seconds: number) {
+export function formatDuration(seconds: number) {
   if (seconds < 60) return `${Math.round(seconds)}s`
   if (seconds < 3600) return `${Math.round(seconds / 60)}m`
-  return `${Math.round(seconds / 360) / 10}h`
+  return `${Math.round(seconds / 3600 * 10) / 10}h`
 }
 
 function formatCost(cost?: { duration_seconds?: number | null; cpu_pressure?: number | null; io_pressure?: number | null; memory_used_percent?: number | null } | null) {

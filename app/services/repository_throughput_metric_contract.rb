@@ -482,15 +482,6 @@ class RepositoryThroughputMetricContract
     end
   end
 
-  def landing_start_to_closed_latencies(landed_jobs)
-    landed_jobs.filter_map do |job|
-      landing_started_at = landing_started_at(job)
-      next unless landing_started_at && job.finished_at
-
-      job.finished_at - landing_started_at
-    end
-  end
-
   def approved_to_landing_latencies_for_attempts(attempts)
     attempts.flat_map do |attempt|
       attempt.jobs.filter_map do |job|

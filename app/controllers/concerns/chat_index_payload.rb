@@ -12,42 +12,6 @@ module ChatIndexPayload
 
   CHAT_INDEX_GROUP_SIZE = 5
 
-  def recent_chats_json(current_chat_session)
-    chat_ids = PerformanceLogging.phase("chat_recent_chats.ids", chat_id: current_chat_session.id) do
-      Current.user.accessible_chat_sessions
-        .visible
-        .ordinary_chats
-        .order(Arel.sql("chat_sessions.pinned DESC, #{chat_activity_order_sql} DESC"), id: :desc)
-        .limit(20)
-        .pluck(:id)
-    end
-
-    chat_ids = chat_ids.first(19) + [ current_chat_session.id ] if current_chat_session.hidden_at.blank? && !chat_ids.include?(current_chat_session.id)
-
-    PerformanceLogging.phase("chat_recent_chats.serialize", chat_id: current_chat_session.id, count: chat_ids.size) do
-      Current.user.accessible_chat_sessions
-        .visible
-        .ordinary_chats
-        .where(id: chat_ids)
-        .preload(:chat_participants, repository_attachments: :attachable)
-        .to_a
-        .sort_by { |chat_session| [ chat_activity_at(chat_session), chat_session.id ] }
-        .reverse
-        .then { |chat_sessions| [ chat_sessions, chat_index_context_for(chat_sessions) ] }
-        .then do |chat_sessions, context|
-          chat_sessions.map do |chat_session|
-            chat_index_json(chat_session, context: context).merge(
-              current: chat_session.id == current_chat_session.id,
-              last_message_at: chat_session.last_message_at&.iso8601,
-              unread: chat_unread?(chat_session),
-              created_at: chat_session.created_at.iso8601,
-              updated_at: chat_session.updated_at.iso8601
-            )
-          end
-        end
-    end
-  end
-
   def recent_chats_index_json
     PerformanceLogging.phase("chat_index.groups") do
       group_specs = []

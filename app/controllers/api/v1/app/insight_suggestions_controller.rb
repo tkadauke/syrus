@@ -5,6 +5,7 @@ module Api
         include RepositoryTabsSerialization
         include ChatSessionLifecycle
         include ChatLockErrors
+        include Paginatable
         prepend_before_action :require_agent_insights_feature
 
         PER_PAGE = 20
@@ -95,17 +96,6 @@ module Api
         end
 
         private
-
-        def page_param
-          page = params[:page].to_i
-          page.positive? ? page : 1
-        end
-
-        def per_page_param
-          per_page = params[:per_page].to_i
-          return PER_PAGE unless per_page.positive?
-          [ per_page, 100 ].min
-        end
 
         def state_param
           state = params[:state].to_s

@@ -8,6 +8,7 @@ module Api
     include ActionController::HttpAuthentication::Token::ControllerMethods
     include JobEpicRefFinder
     include PerformanceLoggingContext
+    include JsonErrorRendering
 
     before_action :authenticate_via_api_token
 
@@ -54,10 +55,6 @@ module Api
     def require_admin_api
       return if current_api_user&.admin?
       render_error("forbidden", I18n.t("api.base.admin_required"), status: :forbidden)
-    end
-
-    def render_error(code, message, status:)
-      render json: { error: { code: code, message: message } }, status: status
     end
   end
 end
