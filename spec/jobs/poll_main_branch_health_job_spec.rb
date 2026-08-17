@@ -391,4 +391,104 @@ RSpec.describe PollMainBranchHealthJob do
       }.not_to change(MainBranchHealthCheck, :count)
     end
   end
+
+  describe "GitHub outage handling" do
+    def octokit_error(error_class, status:, message:)
+      error_class.new(status: status, body: { message: message })
+    end
+
+    %w[ Octokit::ServerError Faraday::TimeoutError Faraday::ConnectionFailed ].each do |name|
+      it "does not crash and does not change ci_health on a single transient #{name}" do
+        repository.update!(ci_health: "healthy", last_health_checked_sha: sha, last_ci_evaluated_sha: sha, last_graded_sha: sha)
+        error = name == "Octokit::ServerError" ? octokit_error(Octokit::ServerError, status: 502, message: "Bad Gateway") : name.constantize.new("transient failure")
+        allow_any_instance_of(GithubClient).to receive(:branch_head_sha).and_raise(error)
+
+        expect { described_class.perform_now(repository.id) }.not_to raise_error
+
+        repository.reload
+        expect(repository.ci_health).to eq("healthy")
+        expect(repository.main_health_poll_error_streak).to eq(1)
+        expect(repository.last_main_health_poll_error_at).to be_present
+      end
+    end
+
+    it "does not degrade or crash on a single transient error from the check-runs summary call" do
+      # last_ci_evaluated_sha deliberately stale so the job proceeds past the
+      # early-return guard and actually calls main_branch_check_runs_summary_for.
+      repository.update!(ci_health: "broken", last_health_checked_sha: sha, last_ci_evaluated_sha: "oldsha", last_graded_sha: sha)
+      stub_sha(sha)
+      allow_any_instance_of(GithubClient).to receive(:main_branch_check_runs_summary_for)
+        .and_raise(octokit_error(Octokit::ServerError, status: 503, message: "Service Unavailable"))
+
+      expect(MainHealthChangedService).not_to receive(:on_health_change!)
+      expect { described_class.perform_now(repository.id) }.not_to raise_error
+
+      repository.reload
+      expect(repository.ci_health).to eq("broken")
+      expect(repository.main_health_poll_error_streak).to eq(1)
+    end
+
+    it "does not degrade ci_health when it is not already broken, even after a sustained outage" do
+      repository.update!(ci_health: "healthy", last_health_checked_sha: sha, last_ci_evaluated_sha: sha, last_graded_sha: sha)
+      allow_any_instance_of(GithubClient).to receive(:branch_head_sha)
+        .and_raise(octokit_error(Octokit::ServerError, status: 502, message: "Bad Gateway"))
+
+      expect(MainHealthChangedService).not_to receive(:on_health_change!)
+      Repository::MAIN_HEALTH_POLL_ERROR_STREAK_THRESHOLD.times do
+        described_class.perform_now(repository.id)
+      end
+
+      expect(repository.reload.ci_health).to eq("healthy")
+    end
+
+    it "degrades an already-broken ci_health to inconclusive after N consecutive transient errors and fires the health-change path" do
+      repository.update!(ci_health: "broken", last_health_checked_sha: sha, last_ci_evaluated_sha: sha, last_graded_sha: sha)
+      allow_any_instance_of(GithubClient).to receive(:branch_head_sha)
+        .and_raise(octokit_error(Octokit::ServerError, status: 502, message: "Bad Gateway"))
+
+      threshold = Repository::MAIN_HEALTH_POLL_ERROR_STREAK_THRESHOLD
+      (threshold - 1).times { described_class.perform_now(repository.id) }
+      expect(repository.reload.ci_health).to eq("broken")
+
+      expect(MainHealthChangedService).to receive(:on_health_change!).with(kind_of(Repository))
+      described_class.perform_now(repository.id)
+
+      repository.reload
+      expect(repository.ci_health).to eq("inconclusive")
+      expect(repository.main_health_poll_error_streak).to eq(threshold)
+    end
+
+    it "resets the error streak and evaluates normally once a poll succeeds again after an outage" do
+      # last_ci_evaluated_sha deliberately stale (carried-forward broken signal
+      # awaiting re-evaluation) so the job proceeds past the early-return guard.
+      repository.update!(
+        ci_health: "broken",
+        last_health_checked_sha: sha,
+        last_ci_evaluated_sha: "oldsha",
+        last_graded_sha: sha,
+        main_health_poll_error_streak: 2,
+        last_main_health_poll_error_at: 1.hour.ago
+      )
+      stub_sha(sha)
+      stub_check_runs({ any?: true, pending?: false, any_failed?: false, all_passed?: true, failed_checks: [] })
+
+      described_class.perform_now(repository.id)
+
+      repository.reload
+      expect(repository.main_health_poll_error_streak).to eq(0)
+      expect(repository.ci_health).to eq("healthy")
+    end
+
+    it "still marks ci_health broken for a genuinely failing check run regardless of poll-error tracking" do
+      repository.update!(main_health_poll_error_streak: 2, last_health_checked_sha: sha, last_ci_evaluated_sha: sha, last_graded_sha: sha)
+      stub_sha(sha)
+      stub_check_runs({ any?: true, pending?: false, any_failed?: true, all_passed?: false, any_cancelled?: false, failed_checks: [] })
+
+      described_class.perform_now(repository.id)
+
+      repository.reload
+      expect(repository.ci_health).to eq("broken")
+      expect(repository.main_health_poll_error_streak).to eq(0)
+    end
+  end
 end

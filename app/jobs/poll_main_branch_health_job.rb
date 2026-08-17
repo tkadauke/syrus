@@ -3,6 +3,15 @@ class PollMainBranchHealthJob < ApplicationJob
 
   limits_concurrency to: 1, key: ->(repo_id, *) { "poll_main_health:#{repo_id}" }
 
+  # GitHub-side failures that mean "we couldn't reach GitHub this tick," not
+  # "main is broken." Mirrors the GitHub-related subset of
+  # AutoRetryFailureClassifier::RETRYABLE_ERROR_CLASSES.
+  TRANSIENT_GITHUB_ERROR_CLASSES = [
+    Octokit::ServerError,
+    Faraday::TimeoutError,
+    Faraday::ConnectionFailed
+  ].freeze
+
   def perform(repository_id)
     repository = Repository.find_by(id: repository_id)
     return unless repository
@@ -11,8 +20,15 @@ class PollMainBranchHealthJob < ApplicationJob
 
     client = GithubClient.for(repository: repository, user: repository.user)
 
-    sha = client.branch_head_sha(repository.slug, repository.default_branch)
+    sha = begin
+      client.branch_head_sha(repository.slug, repository.default_branch)
+    rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
+      handle_transient_github_error!(repository, e)
+      return
+    end
     return unless sha
+
+    repository.reset_main_health_poll_error_streak!
 
     sha_changed = sha != repository.last_health_checked_sha
     previous_health = repository.main_health
@@ -59,7 +75,14 @@ class PollMainBranchHealthJob < ApplicationJob
 
     already_recorded_no_ci = repository.ci_health_not_configured? && repository.last_health_checked_sha == sha
 
-    summary = client.main_branch_check_runs_summary_for(repository.slug, sha)
+    summary = begin
+      client.main_branch_check_runs_summary_for(repository.slug, sha)
+    rescue *TRANSIENT_GITHUB_ERROR_CLASSES => e
+      handle_transient_github_error!(repository, e)
+      return
+    end
+
+    repository.reset_main_health_poll_error_streak!
 
     unless summary[:any?]
       repository.update_columns(
@@ -118,5 +141,28 @@ class PollMainBranchHealthJob < ApplicationJob
     elsif repository.main_health_broken?
       MainHealthChangedService.ensure_repair_job!(repository)
     end
+  end
+
+  private
+
+  # A single failed request is normal poll-to-poll noise — the next scheduled
+  # tick retries. Only a sustained streak of consecutive failures degrades an
+  # already-broken ci_health to "inconclusive" (never fabricates "healthy"
+  # from missing data), which lets MainHealthChangedService's existing
+  # inconclusive path resume landing and notify the operator that the cause
+  # may be a GitHub-side outage rather than unfixed code.
+  def handle_transient_github_error!(repository, error)
+    Rails.logger.warn(
+      "[PollMainBranchHealthJob] GitHub unreachable for #{repository.slug}: #{error.class}: #{error.message}"
+    )
+
+    repository.record_main_health_poll_error!
+    return unless repository.main_health_poll_outage?
+    return unless repository.ci_health_broken?
+
+    previous_health = repository.main_health
+    repository.update_columns(ci_health: "inconclusive")
+    repository.reload
+    MainHealthChangedService.on_health_change!(repository) if repository.main_health != previous_health
   end
 end
