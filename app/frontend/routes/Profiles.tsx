@@ -1,4 +1,5 @@
 import { withRoutePrefix } from "../lib/routing"
+import { Avatar } from "../components/Avatar"
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
 import { useQuery } from "@tanstack/react-query"
 import type { ReactNode } from "react"
@@ -65,7 +66,7 @@ function ProfileCard({ profile, prefix }: { profile: TeamProfileSummary; prefix:
   return (
     <article className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
       <div className="flex items-start gap-3">
-        <Avatar avatarUrl={profile.avatar_url} displayName={profile.display_name} />
+        <Avatar avatarUrl={profile.avatar_url} name={profile.display_name} />
         <div className="min-w-0 flex-1">
           <Link className="text-base font-semibold text-blue-600 dark:text-blue-400 hover:underline" to={withRoutePrefix(profile.profile_path, prefix)}>{profile.display_name}</Link>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
@@ -86,7 +87,7 @@ function ProfileDetail({ profile, prefix }: { profile: TeamProfileDetail; prefix
     <>
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-          <Avatar avatarUrl={profile.avatar_url} displayName={profile.display_name} size="large" />
+          <Avatar avatarUrl={profile.avatar_url} name={profile.display_name} size="large" />
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
               <Link className="text-blue-600 dark:text-blue-400 hover:underline" to={withRoutePrefix(profile.profile_path, prefix)}>{profile.display_name}</Link>
@@ -198,18 +199,6 @@ function ActivityRow({ activity, prefix }: { activity: TeamProfileActivity; pref
       <StatusPill state={activity.state} />
     </div>
   )
-}
-
-function Avatar({ avatarUrl, displayName, size = "normal" }: { avatarUrl: string | null; displayName: string; size?: "normal" | "large" }) {
-  const { t } = useT("settings")
-  const dimension = size === "large" ? "h-20 w-20 text-2xl" : "h-12 w-12 text-base"
-  const initials = displayName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "U"
-
-  if (avatarUrl) {
-    return <img alt="" className={`${dimension} shrink-0 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-700`} src={avatarUrl} />
-  }
-
-  return <div aria-hidden="true" className={`${dimension} flex shrink-0 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800 font-semibold text-gray-500 dark:text-gray-400 ring-1 ring-gray-200 dark:ring-gray-700`}>{initials}</div>
 }
 
 function ProfilesError({ error }: { error: Error }) {

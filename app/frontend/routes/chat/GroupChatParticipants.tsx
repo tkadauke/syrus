@@ -3,11 +3,11 @@ import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { fetchBootstrap } from "../../api/bootstrap"
 import { addChatParticipant, removeChatParticipant, type ChatParticipant, type ChatPayload } from "../../api/chats"
+import { Avatar } from "../../components/Avatar"
 import { CloseIcon } from "../../components/CloseIcon"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { type ChatQueryKey } from "./constants"
-import { ParticipantAvatar } from "./ParticipantAvatar"
 import { ParticipantPickerModal } from "./ParticipantPicker"
 
 // Participant management for the chat header of a `conversation_kind: "group"`
@@ -79,7 +79,7 @@ export function GroupChatParticipants({ payload, prefix, queryKey, onNotice }: {
         const actionLabel = isSelf ? t("leave_chat") : t("remove_participant", { name: participant.name })
         return (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 py-1 pl-1 pr-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200" key={participant.id}>
-            <ParticipantAvatar avatarUrl={participant.avatar_url} name={participant.name} />
+            <Avatar avatarUrl={participant.avatar_url} name={participant.name} size="xs" />
             <span className="max-w-[8rem] truncate">{participant.name}</span>
             <button
               aria-label={actionLabel}
