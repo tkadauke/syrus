@@ -10,6 +10,29 @@ Every `Workflow` has a `trigger_kind` that identifies what the attempt is for an
 
 The primary workflow: explores the repo, writes code, runs graders, and opens a PR.
 
+## skill
+
+**When it fires:** A `direct` Job is created with `skill_name` + `skill_args` set (`SkillJobs::Creator`), rather than a free-form prompt.
+
+**Step chain:** `prepare → run_skill → summarize → pr_open`
+
+`run_skill` resolves the named skill via `Skills.for` (a repo-local
+`.syrus/skills/<name>/SKILL.md` override, or a built-in `Skills::` class),
+renders its instructions with `skill_args` substituted, and invokes the agent
+the same way `implement` does. There is no dedicated "conditional PR" control
+node: like `implement`, `run_skill` raises `Steps::Base::NoChangesProduced`
+when the agent commits nothing, which fails the step before `summarize`/
+`pr_open` ever run — `propagate_fail_to_job!` then closes the Job with
+`closure_reason: "no_changes"` instead of `:failed`, the same happy path cron
+Jobs use for a no-op survey. This makes read-only skills (an `investigate`
+skill, an operational skill that only reports) first-class: no diff is a
+successful, PR-less outcome, not an error.
+
+Which tier resolved (`skill_source`: `repo_override` or `built_in`) and the
+resolved path/class are recorded on the Run so a repo-local skill silently
+shadowing a built-in one of the same name is never a debugging trap — see the
+Run detail payload and `Admin::JobStateSerializer`.
+
 ## pr_comment
 
 **When it fires:** New non-Syrus-bot review comments appear on the Job's PR since the last addressed comment.

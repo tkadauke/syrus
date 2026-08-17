@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { filterSlashCommands, findSlashCommand, slashCommandDescription, slashCommandPrompt, slashCommandSignature, slashCommands, type SlashCommand } from "./slashCommands"
+import { filterSlashCommands, findSlashCommand, repoSkillCommands, slashCommandDescription, slashCommandPrompt, slashCommandSignature, slashCommands, type SlashCommand } from "./slashCommands"
 
 function promptFor(commandName: string, args = "") {
   const command: SlashCommand | undefined = slashCommands.find((item) => item.name === commandName)
@@ -285,5 +285,47 @@ describe("slashCommands", () => {
 
     expect(prompt).toContain("The operator wants to set a reminder: tomorrow at 9am standup")
     expect(prompt).toContain("schedule_wakeup MCP tool")
+  })
+
+  describe("repository skill commands", () => {
+    const skills = [
+      { name: "investigate", description: "Investigate something.", parameters: [ { key: "question", required: true } ] },
+      { name: "audit", description: "Audit repo-local instructions.", parameters: [] }
+    ]
+
+    it("builds one slash command per resolved skill, sent as raw text with no confirmation", () => {
+      const commands = repoSkillCommands(skills)
+
+      expect(commands.map((command) => command.name)).toEqual([ "/investigate", "/audit" ])
+      const investigate = commands[0]
+      expect(investigate.kind).toBe("repo_skill")
+      expect(investigate.args).toEqual([ { name: "question", required: true } ])
+      expect(investigate.requiresConfirmation).toBeUndefined()
+      expect(investigate.toPrompt).toBeUndefined()
+    })
+
+    it("is not transformed by slashCommandPrompt — it executes immediately with the raw text", () => {
+      const context = { dynamicCommands: repoSkillCommands(skills) }
+      const text = '/investigate question="why is CI red?"'
+
+      expect(slashCommandPrompt(text, context)).toBe(text)
+    })
+
+    it("is discoverable via findSlashCommand and the autocomplete filter once resolved for this chat's repository", () => {
+      const context = { dynamicCommands: repoSkillCommands(skills) }
+
+      expect(findSlashCommand('/investigate question=foo', context)?.command.kind).toBe("repo_skill")
+      expect(filterSlashCommands("audit", context).map((command) => command.name)).toContain("/audit")
+    })
+
+    it("is not resolvable at all before the repository's skill list has loaded (no dynamicCommands)", () => {
+      expect(findSlashCommand("/investigate question=foo")).toBeNull()
+    })
+
+    it("does not let a repo-local skill name shadow an existing system/canned-prompt command", () => {
+      const context = { dynamicCommands: repoSkillCommands([ { name: "propose", description: "A repo skill named the same as the built-in wizard.", parameters: [] } ]) }
+
+      expect(findSlashCommand("/propose", context)?.command.kind).toBe("skill")
+    })
   })
 })

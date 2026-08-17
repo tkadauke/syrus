@@ -47,6 +47,7 @@ module Api
         def create
           repository = find_repository
           task = repository.scheduled_tasks.build(scheduled_task_params)
+          task.skill_args = scheduled_task_skill_args
           task.user = Current.user
           task.structured_intent = unsafe_hash(params.dig(:scheduled_task, :structured_intent))
           if params[:from_template].present?
@@ -88,6 +89,7 @@ module Api
         def update
           task = find_task
           task.structured_intent = unsafe_hash(params.dig(:scheduled_task, :structured_intent))
+          task.skill_args = scheduled_task_skill_args
 
           if task.update(scheduled_task_params)
             render json: scheduled_task_detail_payload(task).merge(message: "Scheduled task updated.")
@@ -200,6 +202,8 @@ module Api
         def task_detail_json(task)
           task_summary_json(task).merge(
             prompt: task.prompt,
+            skill_name: task.skill_name,
+            skill_args: task.skill_args || {},
             cron_expression: task.cron_expression,
             hourly_cron_expression: task.hourly_cron_expression,
             schedule_input: task.schedule_input,
@@ -241,6 +245,8 @@ module Api
             pr_pileup_policy: task.pr_pileup_policy,
             auto_approve_mode: task.auto_approve_mode,
             prompt: task.prompt,
+            skill_name: task.skill_name,
+            skill_args: task.skill_args || {},
             cron_template_id: task.cron_template_id
           }
         end
@@ -352,7 +358,11 @@ module Api
         end
 
         def scheduled_task_params
-          params.expect(scheduled_task: %i[ name prompt kind cron_expression schedule_input schedule_expression schedule_timezone fire_at pr_pileup_policy auto_approve_mode ])
+          params.expect(scheduled_task: %i[ name prompt kind cron_expression schedule_input schedule_expression schedule_timezone fire_at pr_pileup_policy auto_approve_mode skill_name ])
+        end
+
+        def scheduled_task_skill_args
+          plain_json(params.dig(:scheduled_task, :skill_args).presence || {})
         end
       end
     end

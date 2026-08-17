@@ -1348,6 +1348,36 @@ it "auto-creates and starts a workflow for direct jobs on advance_after_triage" 
     end
   end
 
+  describe "cron kind" do
+    let(:user) { Factories.user }
+    let(:repository) { Factories.repository(user: user) }
+    let(:task) do
+      ScheduledTask.create!(
+        user: user, repository: repository,
+        name: "Weekly maintenance", prompt: "Survey the repo.",
+        kind: "cron", cron_expression: "0 9 * * 1"
+      )
+    end
+
+    it "synthetic_issue uses the parent ScheduledTask's prompt for a freeform cron Job" do
+      job = Job.create!(user: user, repository: repository, kind: "cron", scheduled_task: task, issue_number: nil)
+      si = job.synthetic_issue
+      expect(si.body).to eq("Survey the repo.")
+    end
+
+    it "synthetic_issue uses the Job's own issue_body (not the blank scheduled_task prompt) for a skill-based cron Job" do
+      task.update!(prompt: nil, skill_name: "investigate", skill_args: { "question" => "What changed?" })
+      job = Job.create!(
+        user: user, repository: repository, kind: "cron", scheduled_task: task, issue_number: nil,
+        skill_name: "investigate", skill_args: { "question" => "What changed?" },
+        issue_body: "Skill: investigate\n\nWhat changed?"
+      )
+
+      si = job.synthetic_issue
+      expect(si.body).to eq("Skill: investigate\n\nWhat changed?")
+    end
+  end
+
   describe "external_pr kind" do
     let(:user) { Factories.user }
     let(:repository) { Factories.repository(user: user) }

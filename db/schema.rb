@@ -1072,6 +1072,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_134500) do
     t.string "runaway_protection"
     t.datetime "runaway_protection_at"
     t.integer "scheduled_task_id"
+    t.json "skill_args"
+    t.string "skill_name"
     t.boolean "skip_prepare", default: false, null: false
     t.string "slug"
     t.string "stack_base", default: "auto", null: false
@@ -1724,6 +1726,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_134500) do
     t.bigint "output_tokens"
     t.string "parent_session_id"
     t.text "prompt"
+    t.string "skill_resolved_class"
+    t.string "skill_resolved_path"
+    t.string "skill_source"
     t.datetime "started_at"
     t.string "state", default: "queued", null: false
     t.text "step_agent_diff", limit: 16777215
@@ -1789,12 +1794,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_134500) do
     t.integer "minute_offset", default: 0, null: false
     t.string "name", null: false
     t.string "pr_pileup_policy", default: "skip", null: false
-    t.text "prompt", null: false
+    t.text "prompt"
     t.integer "repository_id", null: false
     t.text "schedule_expression"
     t.string "schedule_format", default: "rrule", null: false
     t.string "schedule_input"
     t.string "schedule_timezone", default: "UTC", null: false
+    t.json "skill_args"
+    t.string "skill_name"
     t.string "state", default: "scheduled", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false

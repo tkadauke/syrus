@@ -39,26 +39,7 @@ class ScheduledTaskFire
         return result
       end
 
-      rendered_prompt = Prompts::ScheduledTask.new(scheduled_task: @task, fired_at: @now).to_s
-
-      job = Job.create!(
-        user: @task.user,
-        repository: @task.repository,
-        kind: "cron",
-        scheduled_task: @task,
-        issue_title: "Scheduled task: #{@task.name}",
-        issue_body: rendered_prompt,
-        issue_number: nil
-      )
-      job.advance_after_triage! if job.may_advance_after_triage?
-
-      # Job#after_create_commit only auto-instantiates the Initial
-      # workflow for issue Jobs. Cron Jobs need explicit instantiation
-      # here so the pre-rendered prompt rides through to the first
-      # Run; Steps::Implement skips its GitHub round-trip when
-      # run.prompt is already set.
-      workflow = Workflows::Initial.instantiate(job: job)
-      StepDispatcher.start_workflow(workflow, prompt: rendered_prompt)
+      job = @task.skill_task? ? fire_skill_job! : fire_freeform_job!
 
       @task.record_fire!(at: @now)
       @task.mark_fired_one_shot! if @task.one_shot?
@@ -66,6 +47,71 @@ class ScheduledTaskFire
       Result.new(job: job, skipped: false, reason: nil)
     end
   end
+
+  private
+
+  # Job#after_create_commit only auto-instantiates the Initial workflow
+  # for issue Jobs. Cron Jobs need explicit instantiation here so the
+  # pre-rendered prompt rides through to the first Run; Steps::Implement
+  # skips its GitHub round-trip when run.prompt is already set.
+  def fire_freeform_job!
+    rendered_prompt = Prompts::ScheduledTask.new(scheduled_task: @task, fired_at: @now).to_s
+
+    job = Job.create!(
+      user: @task.user,
+      repository: @task.repository,
+      kind: "cron",
+      scheduled_task: @task,
+      issue_title: "Scheduled task: #{@task.name}",
+      issue_body: rendered_prompt,
+      issue_number: nil
+    )
+    job.advance_after_triage! if job.may_advance_after_triage?
+
+    workflow = Workflows::Initial.instantiate(job: job)
+    StepDispatcher.start_workflow(workflow, prompt: rendered_prompt)
+    job
+  end
+
+  # Mirrors fire_freeform_job! but dispatches Workflows::Skill instead
+  # of pre-rendering a Prompts::ScheduledTask prompt. The actual
+  # instructions come from Skills::Renderer/Prompts::Skill inside
+  # Steps::RunSkill (the same rendering path SkillJobs::Creator's direct
+  # skill Jobs use) — prompt: nil here lets that step resolve, validate,
+  # and render on its own turn, so a skill that changed (or vanished)
+  # since this task was last saved surfaces as a normal Run failure
+  # instead of wedging the poller. issue_body is a best-effort preview
+  # for the Job list/synthetic_issue; a failure to pre-render it never
+  # blocks the fire.
+  def fire_skill_job!
+    args = @task.skill_args.presence || {}
+
+    job = Job.create!(
+      user: @task.user,
+      repository: @task.repository,
+      kind: "cron",
+      scheduled_task: @task,
+      skill_name: @task.skill_name,
+      skill_args: args,
+      issue_title: "Scheduled task: #{@task.name}",
+      issue_body: skill_issue_body_preview(args),
+      issue_number: nil
+    )
+    job.advance_after_triage! if job.may_advance_after_triage?
+
+    workflow = Workflows::Skill.instantiate(job: job, artifacts: job.skill_workflow_artifacts)
+    StepDispatcher.start_workflow(workflow, prompt: nil)
+    job
+  end
+
+  def skill_issue_body_preview(args)
+    resolution = Skills.for(repository: @task.repository, name: @task.skill_name, user: @task.user)
+    Skills::Renderer.render(resolution.definition, args)
+  rescue Skills::NotFoundError, ArgumentError, Skills::SkillMarkdown::ParseError, Skills::ParameterSchema::ParseError
+    "Skill: #{@task.skill_name}"
+  end
+
+  public
 
   def close_prior_open_prs
     @task.open_pr_jobs.find_each do |old_job|

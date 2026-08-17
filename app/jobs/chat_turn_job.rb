@@ -62,6 +62,14 @@ class ChatTurnJob < ApplicationJob
       return
     end
 
+    @skill_invocation = resolve_skill_invocation
+    if @skill_invocation && @skill_invocation.status != :ready
+      create_message!("system", text: @skill_invocation.message)
+      touch_chat!
+      return
+    end
+    record_skill_provenance!(@skill_invocation.resolution) if @skill_invocation
+
     workspace_path = ensure_workspace!
     parent_session_id = resume_session_id_for(provider)
     ChatContextCompactor.maybe_compact!(@chat) if Feature.chat_context_compaction_enabled?
@@ -195,6 +203,11 @@ class ChatTurnJob < ApplicationJob
     snapshot = AgentEnvironmentSnapshot.for_chat(repository: @chat.repository, chat_session: @chat)
     return proposal_outcome_prompt(snapshot: snapshot, user_text: user_text) if proposal_outcome_message?
 
+    if @skill_invocation
+      return [ snapshot, system_guidance(parent_session_id), (chat_history_fallback if parent_session_id.present?), skill_invocation_text ]
+        .compact.join("\n\n---\n\n")
+    end
+
     walkthrough_text = walkthrough_orientation(user_note: user_text)
     if walkthrough_text
       return [ snapshot, system_guidance(parent_session_id), (chat_history_fallback if parent_session_id.present?), walkthrough_text ]
@@ -268,6 +281,62 @@ class ChatTurnJob < ApplicationJob
     return nil unless @chat.coding?
 
     Prompts::ChatCodingMode.new(chat_session: @chat, setup_error: @coding_checkout_setup_error).to_s
+  end
+
+  # Resolves the newest user message as a possible `/skill-name key=value
+  # ...` slash command. Returns nil for an ordinary message (not a command,
+  # no repository attached) so the caller falls through to a normal turn
+  # unchanged; otherwise returns the full Skills::ChatInvocation::Result,
+  # including non-ready statuses the caller surfaces as a system message.
+  def resolve_skill_invocation
+    return nil unless @user_message.content.is_a?(Hash)
+
+    text = @user_message.content["text"].to_s
+    return nil if text.blank?
+
+    result = Skills::ChatInvocation.resolve(chat_session: @chat, text: text)
+    result.status == :not_a_command ? nil : result
+  end
+
+  def skill_invocation_text
+    Prompts::ChatSkillInvocation.new(
+      resolution: @skill_invocation.resolution,
+      args: @skill_invocation.args
+    ).to_s
+  end
+
+  # Records which skill definition resolved (built-in vs. repo override) as
+  # a synthetic tool_use/tool_result pair in the same shape record_agent_event
+  # writes for real agent tool calls, so it renders in the chat's ordinary
+  # tool-call trace — the provenance requirement elsewhere in this Epic.
+  def record_skill_provenance!(resolution)
+    tool_use_id = "skill-resolve-#{SecureRandom.uuid}"
+    @chat.messages.create!(
+      role: "tool_use",
+      tool_name: "resolve_skill",
+      tool_use_id: tool_use_id,
+      content: {
+        "type" => "tool_use",
+        "id" => tool_use_id,
+        "name" => "resolve_skill",
+        "input" => { "name" => resolution.definition.name }
+      }
+    )
+    @chat.messages.create!(
+      role: "tool_result",
+      tool_name: "resolve_skill",
+      tool_use_id: tool_use_id,
+      content: {
+        "type" => "tool_result",
+        "tool_use_id" => tool_use_id,
+        "content" => {
+          "source" => resolution.source.to_s,
+          "resolved_path" => resolution.path,
+          "resolved_class" => resolution.klass&.name
+        }.compact,
+        "is_error" => false
+      }
+    )
   end
 
   def chat_history_fallback

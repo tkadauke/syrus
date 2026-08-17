@@ -7932,6 +7932,8 @@ describe("App", () => {
             scheduled_task: {
               name: "Weekly tests",
               prompt: "Keep tests moving.",
+              skill_name: "",
+              skill_args: {},
               kind: "cron",
               cron_expression: "0 9 * * 1",
               schedule_input: "0 9 * * 1",
@@ -15589,6 +15591,7 @@ function repositoryDetailPayload() {
     },
     paths: {
       new_job_path: "/jobs/new?repository_id=3",
+      new_repository_skill_job_path: "/repositories/3/skills/new",
       edit_repository_path: "/repositories/3/edit",
       app_poll_repository_path: "/api/v1/app/repositories/3/poll",
       app_archive_repository_path: "/api/v1/app/repositories/3/archive",
@@ -16451,6 +16454,9 @@ function jobDetailPayload(overrides: Record<string, unknown> = {}) {
                 agent_pr_title: "Repair aqueduct",
                 agent_summary: "Moved the uphill water simulation.",
                 parent_session_id: null,
+                skill_source: null,
+                skill_resolved_path: null,
+                skill_resolved_class: null,
                 head_sha: "deadbeef",
                 iteration: null,
                 started_at: "2026-05-30T10:01:00Z",

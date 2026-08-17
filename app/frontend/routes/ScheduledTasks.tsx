@@ -32,6 +32,8 @@ import {
   type ScheduledTasksIndexPayload,
   type ScheduledTaskRow
 } from "../api/scheduledTasks"
+import { fetchRepositorySkills, type SkillSummary } from "../api/skills"
+import { initialArgs, SkillOption, SkillParameterInput } from "./RepositorySkillNew"
 import { errorMessage } from "../lib/errorMessage"
 
 const fallbackOptions: ScheduledTaskOptions = {
@@ -120,6 +122,7 @@ export function ScheduledTaskFormRoute({ mode }: { mode: "new" | "edit" }) {
   const initial = mode === "new" && form.data ? formInput(form.data.task) : detail.data ? detailInput(detail.data.task) : null
   const options = form.data?.options || detail.data?.options || fallbackOptions
   const repository = form.data?.repository || detail.data?.task.repository
+  const skillsRepositoryId = repository ? String(repository.id) : repositoryId
 
   return (
     <main aria-label={mode === "new" ? t("scheduled_tasks.new_heading") : t("scheduled_tasks.edit_heading")} className="mx-auto max-w-3xl space-y-6 p-6">
@@ -141,6 +144,7 @@ export function ScheduledTaskFormRoute({ mode }: { mode: "new" | "edit" }) {
           mode={mode}
           options={options}
           repositoryId={repositoryId}
+          skillsRepositoryId={skillsRepositoryId}
         />
       ) : null}
     </main>
@@ -260,8 +264,21 @@ function TaskDetail({ payload, basePath, prefix }: { payload: ScheduledTaskDetai
       </section>
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-        <h2 className="mb-2 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">{t("scheduled_tasks.prompt_heading")}</h2>
-        <pre className="whitespace-pre-wrap rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 font-mono text-xs">{payload.task.prompt}</pre>
+        <h2 className="mb-2 text-sm font-semibold uppercase text-gray-500 dark:text-gray-400">
+          {payload.task.skill_name ? t("scheduled_tasks.skill_heading") : t("scheduled_tasks.prompt_heading")}
+        </h2>
+        {payload.task.skill_name ? (
+          <div className="space-y-2 text-sm">
+            <p className="font-mono">{payload.task.skill_name}</p>
+            {Object.keys(payload.task.skill_args).length > 0 ? (
+              <pre className="whitespace-pre-wrap rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 font-mono text-xs">
+                {JSON.stringify(payload.task.skill_args, null, 2)}
+              </pre>
+            ) : null}
+          </div>
+        ) : (
+          <pre className="whitespace-pre-wrap rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 font-mono text-xs">{payload.task.prompt}</pre>
+        )}
       </section>
 
       <RecentJobs jobs={payload.recent_jobs} />
@@ -352,6 +369,7 @@ function ScheduledTaskForm({
   mode,
   id,
   repositoryId,
+  skillsRepositoryId,
   fromTemplate,
   initial,
   options,
@@ -360,15 +378,34 @@ function ScheduledTaskForm({
   mode: "new" | "edit"
   id: number
   repositoryId: string
+  skillsRepositoryId: string
   fromTemplate: string | null
   initial: ScheduledTaskInput
   options: ScheduledTaskOptions
   basePath: string
 }) {
   const { t } = useT("settings")
+  const { t: tJobs } = useT("jobs")
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [values, setValues] = useState<ScheduledTaskInput>(initial)
+  const [taskSource, setTaskSource] = useState<"prompt" | "skill">(initial.skill_name ? "skill" : "prompt")
+  const skills = useQuery({
+    queryKey: ["repositories", skillsRepositoryId, "skills"],
+    queryFn: () => fetchRepositorySkills(skillsRepositoryId),
+    enabled: taskSource === "skill" && skillsRepositoryId.length > 0
+  })
+  const selectedSkill = skills.data?.skills.find((skill) => skill.name === values.skill_name) || null
+
+  function selectTaskSource(source: "prompt" | "skill") {
+    setTaskSource(source)
+    if (source === "prompt") setValues((current) => ({ ...current, skill_name: "", skill_args: {} }))
+  }
+
+  function selectSkill(skill: SkillSummary) {
+    setValues((current) => ({ ...current, skill_name: skill.name, skill_args: initialArgs(skill) }))
+  }
+
   const save = useMutation({
     mutationFn: (structuredIntent: Record<string, unknown> | null) => mode === "new"
       ? createScheduledTask(repositoryId, submitInput(values, structuredIntent), fromTemplate)
@@ -394,6 +431,7 @@ function ScheduledTaskForm({
 
   useEffect(() => {
     setValues(initial)
+    setTaskSource(initial.skill_name ? "skill" : "prompt")
   }, [initial])
 
   useEffect(() => {
@@ -443,11 +481,60 @@ function ScheduledTaskForm({
         </select>
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{autoApproval?.preview}</p>
       </Field>
-      <Field label={t("scheduled_tasks.prompt_heading")}>
-        <textarea className={`${inputClass()} font-mono`} onChange={(event) => setValues({ ...values, prompt: event.target.value })} rows={8} value={values.prompt} />
+      <Field label={t("scheduled_tasks.field_task_source")}>
+        <div className="flex gap-4 text-sm text-gray-700 dark:text-gray-300">
+          <label className="flex items-center gap-2">
+            <input checked={taskSource === "prompt"} onChange={() => selectTaskSource("prompt")} type="radio" value="prompt" />
+            {t("scheduled_tasks.task_source_prompt")}
+          </label>
+          <label className="flex items-center gap-2">
+            <input checked={taskSource === "skill"} onChange={() => selectTaskSource("skill")} type="radio" value="skill" />
+            {t("scheduled_tasks.task_source_skill")}
+          </label>
+        </div>
       </Field>
+      {taskSource === "prompt" ? (
+        <Field label={t("scheduled_tasks.prompt_heading")}>
+          <textarea className={`${inputClass()} font-mono`} onChange={(event) => setValues({ ...values, prompt: event.target.value })} rows={8} value={values.prompt} />
+        </Field>
+      ) : (
+        <>
+          {skills.isPending ? <PanelMessage>{tJobs("skill_job_loading")}</PanelMessage> : null}
+          {skills.isError ? <PanelMessage tone="error">{errorMessage(skills.error, tJobs("skill_job_load_error"))}</PanelMessage> : null}
+          {skills.data && skills.data.skills.length === 0 ? <PanelMessage>{tJobs("skill_job_no_skills")}</PanelMessage> : null}
+          {skills.data && skills.data.skills.length > 0 ? (
+            <>
+              <Field label={tJobs("skill_job_section_pick")}>
+                <div className="space-y-2">
+                  {skills.data.skills.map((skill) => (
+                    <SkillOption key={skill.name} onSelect={() => selectSkill(skill)} selected={skill.name === values.skill_name} skill={skill} />
+                  ))}
+                </div>
+              </Field>
+              {selectedSkill && selectedSkill.parameters.length > 0 ? (
+                <Field label={tJobs("skill_job_section_parameters")}>
+                  <div className="space-y-4">
+                    {selectedSkill.parameters.map((field) => (
+                      <SkillParameterInput
+                        field={field}
+                        key={field.key}
+                        onChange={(value) => setValues((current) => ({ ...current, skill_args: { ...current.skill_args, [field.key]: value } }))}
+                        value={values.skill_args[field.key]}
+                      />
+                    ))}
+                  </div>
+                </Field>
+              ) : null}
+            </>
+          ) : null}
+        </>
+      )}
       <div className="flex items-center gap-3">
-        <button className="rounded bg-blue-600 px-3.5 py-2.5 font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900" disabled={save.isPending} type="submit">
+        <button
+          className="rounded bg-blue-600 px-3.5 py-2.5 font-medium text-white hover:bg-blue-500 dark:hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-900"
+          disabled={save.isPending || (taskSource === "skill" && !values.skill_name)}
+          type="submit"
+        >
           {save.isPending ? t("scheduled_tasks.saving") : mode === "new" ? t("scheduled_tasks.create_task") : t("scheduled_tasks.save")}
         </button>
         <Link className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100" to={mode === "new" ? basePath : `${basePath}/${id}`}>{t("scheduled_tasks.cancel")}</Link>
@@ -504,6 +591,8 @@ function formInput(input: ScheduledTaskInput): ScheduledTaskInput {
   return {
     name: input.name || "",
     prompt: input.prompt || "",
+    skill_name: input.skill_name || "",
+    skill_args: input.skill_args || {},
     kind: input.kind || "cron",
     cron_expression: input.cron_expression || "0 9 * * 1",
     schedule_input: input.schedule_input || input.cron_expression || "Every Monday at 9:00 AM",
@@ -519,6 +608,8 @@ function detailInput(task: ScheduledTaskDetail): ScheduledTaskInput {
   return formInput({
     name: task.name,
     prompt: task.prompt,
+    skill_name: task.skill_name || "",
+    skill_args: task.skill_args || {},
     kind: task.kind,
     cron_expression: task.cron_expression || "",
     schedule_input: task.schedule_input || task.cron_expression || "",
@@ -531,12 +622,15 @@ function detailInput(task: ScheduledTaskDetail): ScheduledTaskInput {
 }
 
 function submitInput(values: ScheduledTaskInput, structuredIntent: Record<string, unknown> | null): ScheduledTaskInput {
+  const isSkillTask = values.skill_name.trim().length > 0
   return {
     ...values,
     cron_expression: values.kind === "cron" ? values.cron_expression : "",
     schedule_input: values.kind === "cron" ? values.schedule_input : "",
     fire_at: values.kind === "one_shot" ? values.fire_at : "",
-    structured_intent: values.kind === "cron" ? structuredIntent : null
+    structured_intent: values.kind === "cron" ? structuredIntent : null,
+    prompt: isSkillTask ? "" : values.prompt,
+    skill_args: isSkillTask ? values.skill_args : {}
   }
 }
 

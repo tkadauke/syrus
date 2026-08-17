@@ -304,6 +304,12 @@ The `pr_pileup_policy` controls what happens if the last scheduled PR is
 still open: `skip`, `pile`, or `replace`. Repeated failures can
 auto-pause a task until an operator fixes and resumes it.
 
+A task can fire a named skill (see Skills below) with a set of parameters
+instead of a free-form prompt — the create/edit form lets an operator toggle
+between the two. A skill-based task still creates a `cron` Job and follows
+the same pileup and auto-pause behavior; only the source of the agent's
+instructions differs.
+
 ## Chats
 
 Chats are operator conversations that can start with or without repository
@@ -601,6 +607,19 @@ chats. In ordinary chats, `/propose` starts a guided wizard: the agent asks for
 a Job title, description, and optional Epic, then creates a proposal card for
 operator confirmation.
 
+A chat attached to a repository also gets one slash command per skill
+available to that repository (see Skills below) — the list is computed for
+that repository, so it varies by repo and picks up repository-local skills
+automatically. Typing `/skill-name key=value ...` runs the skill immediately,
+with no confirmation card, reusing the chat's own Coding Mode session rather
+than a separate execution path — a skill that needs to run commands requires
+Coding Mode to be enabled for that chat, and Syrus says so plainly if it
+isn't. Which skill definition ran (built-in or repository override) shows up
+in the chat's tool-call trace. If the skill changes code, the same Coding
+Mode handoff confirmation as any other Coding Mode change still applies
+before a Job or pull request is created; a skill that only reports back
+(no code changes) simply posts its results in the thread.
+
 Chat transcripts also surface MCP sidecar health. Syrus distinguishes
 available, pending, and unavailable chat tools so operators can tell when
 proposal, schedule, bookmark, or whiteboard persistence is not ready and
@@ -758,6 +777,27 @@ and release each one into the normal triage flow.
 Use direct Jobs for internal chores, private context, or experiments that
 do not need a GitHub issue first. Use GitHub issues when the work should be
 visible in the repository's ordinary planning flow.
+
+## Skills
+
+Skills are named, freeform instruction sets for work that resists being
+broken into the deterministic Workflow/Step pipeline — broad investigations,
+judgment-heavy debugging, or one-off operational actions. A skill comes
+either built in to Syrus or as a repository-local `.syrus/skills/<name>/SKILL.md`
+file; a repository-local skill overrides a built-in one of the same name, and
+Syrus always shows which one actually ran.
+
+From a repository's overview page, **More → Launch skill** opens a picker
+listing every skill available to that repository, along with a form generated
+from the chosen skill's declared parameters. Submitting creates a Job that
+runs the skill against the repository, the same way a direct Job runs a
+free-form prompt. The picker flags a repository-local skill that overrides a
+built-in one, and the resulting Job/Run detail view records the same
+provenance so it stays visible after the fact. A scheduled task (see
+Schedules below) can fire a skill on a recurring or one-shot cadence using
+the same picker and parameter form, instead of a free-form prompt. A
+repository-scoped chat (see Chats above) can also run a skill directly with
+a `/skill-name key=value ...` slash command, instead of launching a Job.
 
 ## Account Settings
 

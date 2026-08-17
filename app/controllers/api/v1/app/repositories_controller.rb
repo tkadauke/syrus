@@ -476,6 +476,7 @@ module Api
               pagination: pagination_json(page: page, total_jobs: total_jobs, total_pages: total_pages, repository: repository),
               paths: {
                 new_job_path: new_job_path(repository_id: repository.id),
+                new_repository_skill_job_path: new_repository_skill_job_path(repository),
                 edit_repository_path: edit_repository_path(repository),
                 app_poll_repository_path: "/api/v1/app/repositories/#{repository.id}/poll",
                 app_archive_repository_path: "/api/v1/app/repositories/#{repository.id}/archive",
