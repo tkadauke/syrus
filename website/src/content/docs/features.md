@@ -595,6 +595,19 @@ chats. In ordinary chats, `/propose` starts a guided wizard: the agent asks for
 a Job title, description, and optional Epic, then creates a proposal card for
 operator confirmation.
 
+A chat attached to a repository also gets one slash command per skill
+available to that repository (see Skills below) — the list is computed for
+that repository, so it varies by repo and picks up repository-local skills
+automatically. Typing `/skill-name key=value ...` runs the skill immediately,
+with no confirmation card, reusing the chat's own Coding Mode session rather
+than a separate execution path — a skill that needs to run commands requires
+Coding Mode to be enabled for that chat, and Syrus says so plainly if it
+isn't. Which skill definition ran (built-in or repository override) shows up
+in the chat's tool-call trace. If the skill changes code, the same Coding
+Mode handoff confirmation as any other Coding Mode change still applies
+before a Job or pull request is created; a skill that only reports back
+(no code changes) simply posts its results in the thread.
+
 Chat transcripts also surface MCP sidecar health. Syrus distinguishes
 available, pending, and unavailable chat tools so operators can tell when
 proposal, schedule, bookmark, or whiteboard persistence is not ready and
@@ -770,7 +783,9 @@ free-form prompt. The picker flags a repository-local skill that overrides a
 built-in one, and the resulting Job/Run detail view records the same
 provenance so it stays visible after the fact. A scheduled task (see
 Schedules below) can fire a skill on a recurring or one-shot cadence using
-the same picker and parameter form, instead of a free-form prompt.
+the same picker and parameter form, instead of a free-form prompt. A
+repository-scoped chat (see Chats above) can also run a skill directly with
+a `/skill-name key=value ...` slash command, instead of launching a Job.
 
 ## Account Settings
 

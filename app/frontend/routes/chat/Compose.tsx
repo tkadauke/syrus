@@ -1,6 +1,6 @@
 import type { ChatComposeAttachment, ChatSystemAction, ChatSystemCommandAction, ChatSystemCommandHandlers, PendingSlashCommandConfirmation, WalkthroughDraft } from "./composeTypes"
 import { createConsumer, type Subscription } from "@rails/actioncable"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { ClipboardEvent as ReactClipboardEvent, DragEvent, FormEvent, KeyboardEvent } from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
@@ -17,7 +17,8 @@ import { EnqueueIcon } from "../../components/EnqueueIcon"
 import { ImageAnnotationModal } from "../../components/ImageAnnotationModal"
 import { SendIcon } from "../../components/SendIcon"
 import { StopIcon } from "../../components/StopIcon"
-import { filterSlashCommands, findSlashCommand, slashCommandDescription, slashCommandPrompt, slashCommandQuery, slashCommandSignature, type SlashCommand, type SlashCommandMatch } from "../../lib/slashCommands"
+import { filterSlashCommands, findSlashCommand, repoSkillCommands, slashCommandDescription, slashCommandPrompt, slashCommandQuery, slashCommandSignature, type SlashCommand, type SlashCommandMatch } from "../../lib/slashCommands"
+import { fetchRepositorySkills } from "../../api/skills"
 import { formatScheduledTime, parseScheduleCommandArgs } from "../../lib/scheduleTime"
 import { useBugReportTrigger } from "../../lib/bugReportContext"
 import { chatTranscriptBugReportAttachment } from "../../lib/chatBugReportAttachments"
@@ -104,7 +105,24 @@ export function Compose({ autoFocus = false, canLoadEarlierMessages = false, cha
   const textareaPr = inlineButtonCount >= 3 ? "pr-32" : inlineButtonCount === 2 ? "pr-24" : "pr-12"
   const [dismissedSuggestion, setDismissedSuggestion] = useState<string | null>(null)
   const suggestionShownAtRef = useRef(0)
-  const slashCommandContext = useMemo(() => ({ chat: { pinned: payload.chat.pinned, system_kind: payload.chat.system_kind } }), [payload.chat.pinned, payload.chat.system_kind])
+  // The repository's resolved skill set (built-ins ∪ .syrus/skills/*,
+  // shadowed correctly) drives this chat's available slash commands —
+  // computed dynamically per chat rather than hardcoded, since repo-local
+  // skills vary per repo. No repository attached means no skill commands.
+  const repositoryId = payload.chat.repository?.id
+  const repositorySkills = useQuery({
+    queryKey: [ "repositories", String(repositoryId), "skills" ],
+    queryFn: () => fetchRepositorySkills(String(repositoryId)),
+    enabled: repositoryId != null
+  })
+  const dynamicSkillCommands = useMemo(
+    () => repoSkillCommands(repositorySkills.data?.skills ?? []),
+    [ repositorySkills.data ]
+  )
+  const slashCommandContext = useMemo(
+    () => ({ chat: { pinned: payload.chat.pinned, system_kind: payload.chat.system_kind }, dynamicCommands: dynamicSkillCommands }),
+    [ payload.chat.pinned, payload.chat.system_kind, dynamicSkillCommands ]
+  )
   const commandQuery = slashCommandQuery(text)
   const matchingCommands = useMemo(() => commandQuery == null ? [] : filterSlashCommands(commandQuery, slashCommandContext), [commandQuery, slashCommandContext])
   const pendingProposals = useMemo(() => {

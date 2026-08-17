@@ -80,6 +80,9 @@ export function toolDetail(name: string, input: Record<string, unknown>) {
     case "ToolSearch":
       detail = stringValue(input.query)
       break
+    case "resolve_skill":
+      detail = stringValue(input.name)
+      break
     default:
       if (name.startsWith("mcp__")) {
         const candidate = Object.values(input).find((value) => typeof value === "string" && value.length > 0)
