@@ -317,6 +317,21 @@ describe("chat message tail refetch", () => {
   })
 })
 
+describe("chat compose with an omitted attachment_groups payload", () => {
+  it("renders the landing view instead of crashing when attachment_groups is absent from the response", async () => {
+    // Regression test for a production crash ("undefined is not an object (evaluating
+    // 'n.map')"): Compose read `payload.attachment_groups.repositories` unconditionally on
+    // every render. `attachment_groups` is normally always present, but ChatPayload types it
+    // as optional (it doubles as the shape of the lazy /context payload), so any response that
+    // omits the key — an older cached fetch, a future lazy-loading change — must not crash.
+    mockChatRouteFetch(chatPayload({ messages: [] }, { attachment_groups: undefined }))
+
+    renderRoute()
+
+    expect(await screen.findByText("What would you like to build?")).toBeInTheDocument()
+  })
+})
+
 describe("simple mode chat transcript", () => {
   beforeEach(() => {
     window.localStorage.clear()
