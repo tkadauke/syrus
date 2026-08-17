@@ -51,7 +51,7 @@ RSpec.describe Workflows::CodingHandoff do
       kinds = described_class.steps_for(job)
       expect(kinds).not_to include("prepare")
       expect(kinds.first).to be_a(Workflows::RetryUntil)
-      expect(kinds.last).to eq("pr_open")
+      expect(kinds.last).to eq("review_plan")
     end
   end
 
