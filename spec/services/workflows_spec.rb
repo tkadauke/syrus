@@ -74,7 +74,8 @@ RSpec.describe Workflows do
         [ "coverage_analyze", 6, 1, nil ],
         [ "summarize", 7, 1, nil ],
         [ "test_plan", 8, 1, nil ],
-        [ "pr_open", 9, 1, nil ]
+        [ "pr_open", 9, 1, nil ],
+        [ "review_plan", 10, 1, nil ]
       ])
       expect(wf.chain_template).to eq([
         { "type" => "step", "kind" => "prepare" },
@@ -93,7 +94,8 @@ RSpec.describe Workflows do
         { "type" => "step", "kind" => "coverage_analyze" },
         { "type" => "step", "kind" => "summarize" },
         { "type" => "step", "kind" => "test_plan" },
-        { "type" => "step", "kind" => "pr_open" }
+        { "type" => "step", "kind" => "pr_open" },
+        { "type" => "step", "kind" => "review_plan" }
       ])
       expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ implement adversarial_review implement grader_fanout grader_collect ])
     end
@@ -114,7 +116,8 @@ RSpec.describe Workflows do
         [ "coverage_analyze", 4, 1 ],
         [ "summarize", 5, 1 ],
         [ "test_plan", 6, 1 ],
-        [ "pr_open", 7, 1 ]
+        [ "pr_open", 7, 1 ],
+        [ "review_plan", 8, 1 ]
       ])
       expect(wf.chain_template).to eq([
         { "type" => "step", "kind" => "prepare" },
@@ -128,7 +131,8 @@ RSpec.describe Workflows do
         { "type" => "step", "kind" => "coverage_analyze" },
         { "type" => "step", "kind" => "summarize" },
         { "type" => "step", "kind" => "test_plan" },
-        { "type" => "step", "kind" => "pr_open" }
+        { "type" => "step", "kind" => "pr_open" },
+        { "type" => "step", "kind" => "review_plan" }
       ])
     end
 
@@ -152,7 +156,8 @@ RSpec.describe Workflows do
         [ "coverage_analyze", 6, 1, nil ],
         [ "summarize", 7, 1, nil ],
         [ "test_plan", 8, 1, nil ],
-        [ "pr_open", 9, 1, nil ]
+        [ "pr_open", 9, 1, nil ],
+        [ "review_plan", 10, 1, nil ]
       ])
       expect(review_loop_id).not_to eq(grade_loop_id)
       expect(wf.chain_template).to include(
@@ -286,7 +291,7 @@ RSpec.describe Workflows do
 
     it "wires next_step_id top-down (linear chain)" do
       wf = Workflows::Initial.instantiate(job: job)
-      a, b, c, d, e, f, g, h = wf.steps.order(:position)
+      a, b, c, d, e, f, g, h, i = wf.steps.order(:position)
       expect(a.next_step).to eq(b)
       expect(b.next_step).to eq(c)
       expect(c.next_step).to eq(d)
@@ -294,7 +299,8 @@ RSpec.describe Workflows do
       expect(e.next_step).to eq(f)
       expect(f.next_step).to eq(g)
       expect(g.next_step).to eq(h)
-      expect(h.next_step).to be_nil
+      expect(h.next_step).to eq(i)
+      expect(i.next_step).to be_nil
     end
 
     it "materializes the first iteration of a loop node inside the chain" do

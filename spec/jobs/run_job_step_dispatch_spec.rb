@@ -179,7 +179,8 @@ RSpec.describe RunJob, "step-dispatch path" do
         [ "coverage_analyze", 1 ],
         [ "summarize", 1 ],
         [ "test_plan", 1 ],
-        [ "pr_open", 1 ]
+        [ "pr_open", 1 ],
+        [ "review_plan", 1 ]
       ])
       expect(observed_parents).to include(
         [ "implement_review", 1, nil ],
@@ -213,7 +214,8 @@ RSpec.describe RunJob, "step-dispatch path" do
         [ "coverage_analyze", "succeeded" ],
         [ "summarize", "succeeded" ],
         [ "test_plan", "succeeded" ],
-        [ "pr_open", "succeeded" ]
+        [ "pr_open", "succeeded" ],
+        [ "review_plan", "succeeded" ]
       ])
       expect(review_workflow.steps.where(loop_id: review_workflow.steps.find_by!(kind: "adversarial_review").loop_id, iteration: 2)).to be_empty
       expect(observed_parents).to include(
