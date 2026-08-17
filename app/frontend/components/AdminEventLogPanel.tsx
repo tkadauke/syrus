@@ -77,8 +77,46 @@ export function inputClass() {
   return "w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
 }
 
+export function compactInputClass() {
+  return "block h-9 w-full rounded border border-gray-300 bg-white px-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100"
+}
+
 export function pageButtonClass() {
   return "inline-flex items-center justify-center rounded border border-gray-300 bg-white px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-500"
+}
+
+export function paginationLinkClass() {
+  return "rounded border border-gray-300 px-3 py-1 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+}
+
+export function disabledPaginationClass() {
+  return "rounded border border-gray-200 px-3 py-1 text-gray-400 dark:border-gray-800 dark:text-gray-600"
+}
+
+export function adminEventLinkClass() {
+  return "text-blue-600 underline hover:no-underline dark:text-blue-300"
+}
+
+export function severityPillClass(severity: string) {
+  if (severity === "alarm" || severity === "error") return "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300"
+  if (severity === "warn") return "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
+  return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+}
+
+export function durationLabel(value: number | null) {
+  if (value == null) return "-"
+  if (value >= 60_000) return `${(value / 60_000).toFixed(1)}m`
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}s`
+  return `${Math.round(value)}ms`
+}
+
+export function AdminEventTextFilter({ defaultValue, inputMode, label, name }: { defaultValue: string; inputMode?: "numeric"; label: string; name: string }) {
+  return (
+    <label className="space-y-1">
+      <span className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{label}</span>
+      <input className={compactInputClass()} defaultValue={defaultValue} inputMode={inputMode} name={name} />
+    </label>
+  )
 }
 
 export function formatEventDate(value: string | null | undefined) {

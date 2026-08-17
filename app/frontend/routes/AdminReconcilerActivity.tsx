@@ -4,6 +4,7 @@ import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useQuery } from "@tanstack/react-query"
 import type { FormEvent, ReactNode } from "react"
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom"
+import { AdminEventPageShell, AdminEventPanelMessage, AdminEventTextFilter, adminEventLinkClass, compactInputClass, disabledPaginationClass, paginationLinkClass, severityPillClass } from "../components/AdminEventLogPanel"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
 
@@ -34,12 +35,8 @@ export function AdminReconcilerActivity() {
   }
 
   return (
-    <main aria-label={t("reconciler_activity.aria")} className="mx-auto max-w-[96rem] space-y-6 p-6">
-      <header className="flex items-end justify-between gap-4 border-b border-gray-200 pb-4 dark:border-gray-700">
-        <div>
-          <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("section_label")}</p>
-          <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-100">{t("reconciler_activity.heading")}</h1>
-        </div>
+    <AdminEventPageShell
+      actions={
         <button
           className="inline-flex shrink-0 items-center justify-center rounded border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-500"
           disabled={activity.isFetching}
@@ -48,19 +45,23 @@ export function AdminReconcilerActivity() {
         >
           {activity.isFetching ? t("reconciler_activity.refreshing") : t("reconciler_activity.refresh")}
         </button>
-      </header>
+      }
+      ariaLabel={t("reconciler_activity.aria")}
+      eyebrow={t("section_label")}
+      title={t("reconciler_activity.heading")}
+    >
 
       <form className="grid gap-3 rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900 sm:grid-cols-2 lg:grid-cols-5" onSubmit={applyFilters}>
         <label className="space-y-1">
           <span className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("reconciler_activity.filter_event_type")}</span>
-          <select className={inputClass()} defaultValue={searchParams.get("event_type") || ""} name="event_type">
+          <select className={compactInputClass()} defaultValue={searchParams.get("event_type") || ""} name="event_type">
             <option value="">{t("reconciler_activity.all_event_types")}</option>
             {(activity.data?.event_types || []).map((type) => <option key={type} value={type}>{type}</option>)}
           </select>
         </label>
-        <TextFilter defaultValue={searchParams.get("job_id") || ""} label={t("reconciler_activity.filter_job")} name="job_id" />
-        <TextFilter defaultValue={searchParams.get("workflow_id") || ""} label={t("reconciler_activity.filter_workflow")} name="workflow_id" />
-        <TextFilter defaultValue={searchParams.get("run_id") || ""} label={t("reconciler_activity.filter_run")} name="run_id" />
+        <AdminEventTextFilter defaultValue={searchParams.get("job_id") || ""} inputMode="numeric" label={t("reconciler_activity.filter_job")} name="job_id" />
+        <AdminEventTextFilter defaultValue={searchParams.get("workflow_id") || ""} inputMode="numeric" label={t("reconciler_activity.filter_workflow")} name="workflow_id" />
+        <AdminEventTextFilter defaultValue={searchParams.get("run_id") || ""} inputMode="numeric" label={t("reconciler_activity.filter_run")} name="run_id" />
         <div className="flex items-end gap-2">
           <button className="rounded bg-gray-900 px-3 py-2 font-medium text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200" type="submit">{t("reconciler_activity.apply_filters")}</button>
           <Link className="rounded border border-gray-300 px-3 py-2 font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800" to={withRoutePrefix("/admin/reconciler_activity", prefix)}>{t("reconciler_activity.clear_filters")}</Link>
@@ -68,26 +69,17 @@ export function AdminReconcilerActivity() {
       </form>
 
       <section className="rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-        {activity.isPending ? <PanelMessage>{t("reconciler_activity.loading")}</PanelMessage> : null}
-        {activity.isError ? <PanelMessage tone="error">{t("reconciler_activity.error_load")}</PanelMessage> : null}
+        {activity.isPending ? <AdminEventPanelMessage>{t("reconciler_activity.loading")}</AdminEventPanelMessage> : null}
+        {activity.isError ? <AdminEventPanelMessage tone="error">{t("reconciler_activity.error_load")}</AdminEventPanelMessage> : null}
         {activity.isSuccess ? <ActivityTable payload={activity.data} prefix={prefix} /> : null}
       </section>
-    </main>
-  )
-}
-
-function TextFilter({ defaultValue, label, name }: { defaultValue: string; label: string; name: string }) {
-  return (
-    <label className="space-y-1">
-      <span className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{label}</span>
-      <input className={inputClass()} defaultValue={defaultValue} inputMode="numeric" name={name} />
-    </label>
+    </AdminEventPageShell>
   )
 }
 
 function ActivityTable({ payload, prefix }: { payload: AdminReconcilerActivityPayload; prefix: string }) {
   const { t } = useT("admin")
-  if (payload.events.length === 0) return <PanelMessage>{t("reconciler_activity.no_events")}</PanelMessage>
+  if (payload.events.length === 0) return <AdminEventPanelMessage>{t("reconciler_activity.no_events")}</AdminEventPanelMessage>
 
   return (
     <div>
@@ -121,7 +113,7 @@ function ActivityRow({ event, prefix }: { event: ReconcilerActivityEvent; prefix
     <tr>
       <td className="whitespace-nowrap px-4 py-2 text-xs text-gray-500 dark:text-gray-400"><RelativeTimestamp value={event.occurred_at} /></td>
       <td className="px-4 py-2">
-        <span className={`rounded px-1.5 py-0.5 font-mono text-xs ${severityClass(event.severity)}`}>{event.event_type}</span>
+        <span className={`rounded px-1.5 py-0.5 font-mono text-xs ${severityPillClass(event.severity)}`}>{event.event_type}</span>
       </td>
       <td className="px-4 py-2 text-xs text-gray-600 dark:text-gray-300"><ContextLinks event={event} prefix={prefix} /></td>
       <td className="px-4 py-2 font-mono text-xs text-gray-600 dark:text-gray-300">{decisionLabel(event)}</td>
@@ -162,33 +154,10 @@ function Pagination({ pagination, prefix }: { pagination: AdminReconcilerActivit
   )
 }
 
-function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" }) {
-  return <div className={`p-4 text-sm ${tone === "error" ? "text-red-700 dark:text-red-300" : "text-gray-600 dark:text-gray-300"}`}>{children}</div>
-}
-
 function decisionLabel(event: ReconcilerActivityEvent) {
   return [event.issue_kind, event.repair_action, event.repair_status].filter(Boolean).join(" · ") || "-"
 }
 
-function severityClass(severity: string) {
-  if (severity === "alarm") return "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300"
-  if (severity === "error") return "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300"
-  if (severity === "warn") return "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
-  return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
-}
-
-function inputClass() {
-  return "block h-9 w-full rounded border border-gray-300 bg-white px-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100"
-}
-
 function linkClass() {
-  return "text-blue-600 underline hover:no-underline dark:text-blue-300"
-}
-
-function paginationLinkClass() {
-  return "rounded border border-gray-300 px-3 py-1 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-}
-
-function disabledPaginationClass() {
-  return "rounded border border-gray-200 px-3 py-1 text-gray-400 dark:border-gray-800 dark:text-gray-600"
+  return adminEventLinkClass()
 }
