@@ -207,6 +207,25 @@ RSpec.describe RepositoryThroughputMetricContract do
     )
   end
 
+  it "caps the number of run diffs sampled for throughput LOC metrics even when all diffs are small" do
+    stub_const("#{described_class}::MAX_DIFF_SAMPLE_RUNS", 1)
+    jobs = (1..3).map do |i|
+      job = Factories.job_record(user: user, repository: repository, pr_number: 100 + i, created_at: now - 40.minutes)
+      workflow = workflow_for(job, trigger_kind: "initial")
+      step = step_for(workflow, kind: "implement", finished_at: now - 25.minutes)
+      run_for(job, step, head_sha: (i.to_s * 40), step_agent_diff: "+small\n")
+      job
+    end
+
+    output = call.fetch(:windows).fetch("1h").fetch(:output)
+
+    expect(output.fetch(:commits)).to include(count: 3, sample_count: 3)
+    expect(output.fetch(:loc)).to include(sample_count: 1, unavailable_sample_count: 2)
+    expect(output.fetch(:by_job).sum { |entry| entry.fetch(:diff_sample_count) }).to eq(1)
+    expect(output.fetch(:by_job).sum { |entry| entry.fetch(:unavailable_sample_count) }).to eq(2)
+    expect(jobs.map(&:id)).to include(*output.fetch(:by_job).map { |entry| entry.fetch(:job_id) })
+  end
+
   it "defines landing throughput, merge-train size, latency, and landing waste for clean auto-merge and trains" do
     approved_at = now - 50.minutes
     landing_started_at = now - 20.minutes

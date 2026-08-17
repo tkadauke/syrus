@@ -22,6 +22,7 @@ class RepositoryThroughputMetricContract
   LANDING_VALIDATION_CACHED_REASON = "landing_validation_cached".freeze
   MAX_DIFF_SAMPLE_BYTES = 256.kilobytes
   MAX_TOTAL_DIFF_SAMPLE_BYTES = 2.megabytes
+  MAX_DIFF_SAMPLE_RUNS = 200
   APPROVAL_SOURCE_BY_VIA = {
     "operator" => :operator,
     "bulk" => :operator,
@@ -755,8 +756,10 @@ class RepositoryThroughputMetricContract
 
   # Only the columns `output_for` needs for exact commit counting and bounded
   # diff sampling. The actual longtext diffs are fetched later by primary key,
-  # capped by MAX_*_DIFF_SAMPLE_BYTES, so one pathological repository page
-  # cannot transfer hundreds of MB of patch text just to draw throughput cards.
+  # capped by MAX_*_DIFF_SAMPLE_BYTES and MAX_DIFF_SAMPLE_RUNS, so one
+  # pathological repository page cannot transfer hundreds of MB of patch text
+  # (or blow up the `Run.where(id: ids)` IN-list to thousands of entries) just
+  # to draw throughput cards.
   OUTPUT_RUN_COLUMNS = [
     "runs.id",
     "runs.job_id",
@@ -807,7 +810,7 @@ class RepositoryThroughputMetricContract
 
       total_bytes += bytes
       run.id
-    end
+    end.first(MAX_DIFF_SAMPLE_RUNS)
   end
 
   def preferred_diff_bytes_for(run)
