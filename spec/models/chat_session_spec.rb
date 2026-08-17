@@ -320,6 +320,14 @@ RSpec.describe ChatSession do
     expect(session.last_message_at.to_i).to eq(assistant_message.created_at.to_i)
   end
 
+  it "does not report a turn in flight for a user message that skips the turn trigger" do
+    session = described_class.create!(repository: repo, user: repo.user)
+
+    session.messages.create!(role: "user", content: { "text" => "Ave" }, skip_turn_trigger: true)
+
+    expect(session).not_to be_turn_in_flight
+  end
+
   it "reports whether an agent process is running in its workspace" do
     session = described_class.create!(repository: repo, user: repo.user)
     expect(session).not_to be_agent_busy

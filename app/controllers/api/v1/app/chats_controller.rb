@@ -295,18 +295,18 @@ module Api
           return if performed?
 
           user_message = nil
+          turn_triggered = chat_session.should_trigger_agent?(text)
           ApplicationRecord.transaction do
             chat_session.update!(
               last_message_at: Time.current,
               title: chat_session.title.presence
             )
-            user_message = chat_session.messages.create!(role: "user", content: content, sender_user_id: Current.user.id)
+            user_message = chat_session.messages.create!(role: "user", content: content, sender_user_id: Current.user.id, skip_turn_trigger: !turn_triggered)
             chat_session.pin_chat_provider!
           end
           if chat_session.title.blank? && (title_message = first_user_message(chat_session))
             enqueue_chat_title(chat_session, title_message)
           end
-          turn_triggered = chat_session.should_trigger_agent?(text)
           enqueue_chat_turn(chat_session, user_message) if turn_triggered
 
           if stream_request?
@@ -515,9 +515,10 @@ module Api
           notice = "Message queued."
 
           unless chat_session.turn_in_flight? || chat_session.agent_busy?
-            user_message = promote_queued_message(chat_session, queued_message)
+            turn_triggered = chat_session.should_trigger_agent?(text)
+            user_message = promote_queued_message(chat_session, queued_message, trigger_turn: turn_triggered)
             enqueue_chat_title(chat_session, user_message) if chat_session.title.blank? && user_message == first_user_message(chat_session)
-            enqueue_chat_turn(chat_session, user_message)
+            enqueue_chat_turn(chat_session, user_message) if turn_triggered
             notice = "Message sent."
           end
 
@@ -1291,12 +1292,12 @@ module Api
           Document   => ->(r) { "#{r.title} (#{r.repository&.slug})" }
         }.freeze
 
-        def promote_queued_message(chat_session, queued_message)
+        def promote_queued_message(chat_session, queued_message, trigger_turn: true)
           user_message = nil
           ApplicationRecord.transaction do
             locked_chat = ChatSession.lock.find(chat_session.id)
             locked_queued_message = locked_chat.queued_messages.find(queued_message.id)
-            user_message = locked_chat.messages.create!(role: "user", content: locked_queued_message.content, sender_user_id: Current.user.id)
+            user_message = locked_chat.messages.create!(role: "user", content: locked_queued_message.content, sender_user_id: Current.user.id, skip_turn_trigger: !trigger_turn)
             locked_queued_message.update!(delivered_at: Time.current)
             locked_chat.update!(
               last_message_at: Time.current,

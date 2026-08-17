@@ -251,13 +251,14 @@ class ChatSession < ApplicationRecord
     self[:turn_in_flight]
   end
 
-  def record_message_turn_state!(message)
+  def record_message_turn_state!(message, trigger_turn: true)
+    in_flight = message.role == "user" && trigger_turn
     update_columns(
-      turn_in_flight: message.role == "user",
+      turn_in_flight: in_flight,
       last_message_at: message.created_at || Time.current
     )
     self.last_message_at = message.created_at || Time.current
-    self.turn_in_flight = message.role == "user"
+    self.turn_in_flight = in_flight
   end
 
   def recalculate_turn_state!

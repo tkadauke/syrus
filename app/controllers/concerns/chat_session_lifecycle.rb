@@ -20,6 +20,7 @@ module ChatSessionLifecycle
 
     chat_session = nil
     user_message = nil
+    turn_triggered = false
 
     ApplicationRecord.transaction do
       chat_session = ChatSession.create!(
@@ -33,13 +34,14 @@ module ChatSessionLifecycle
         chat_session.chat_participants.create!(user: participant_user, role: "member")
       end
       if text.present?
-        user_message = chat_session.messages.create!(role: "user", content: content, sender_user_id: Current.user.id)
+        turn_triggered = chat_session.should_trigger_agent?(text)
+        user_message = chat_session.messages.create!(role: "user", content: content, sender_user_id: Current.user.id, skip_turn_trigger: !turn_triggered)
         chat_session.pin_chat_provider!
       end
     end
 
     enqueue_chat_title(chat_session, user_message) if user_message
-    enqueue_chat_turn(chat_session, user_message) if user_message && chat_session.should_trigger_agent?(text)
+    enqueue_chat_turn(chat_session, user_message) if user_message && turn_triggered
     chat_session
   end
 
