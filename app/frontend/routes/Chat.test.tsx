@@ -3438,6 +3438,149 @@ describe("AgentQuestionPrompt markdown rendering", () => {
   })
 })
 
+describe("group chat participants and composer hint", () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+    mockDesktopViewport()
+  })
+
+  function groupParticipants() {
+    return [
+      { id: 1, name: "Marcus Cato", avatar_url: null, role: "owner" },
+      { id: 2, name: "Livia Drusilla", avatar_url: null, role: "member" }
+    ]
+  }
+
+  it("shows the @syrus mention hint in the composer for a group chat with 2+ participants", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { conversation_kind: "group", participants: groupParticipants() } }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    expect(screen.getByTestId("group-mention-hint")).toBeInTheDocument()
+  })
+
+  it("does not show the mention hint in a direct chat", async () => {
+    mockChatRouteFetch(chatPayload())
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    expect(screen.queryByTestId("group-mention-hint")).not.toBeInTheDocument()
+  })
+
+  it("does not show the mention hint once the group is down to one participant", async () => {
+    mockChatRouteFetch(chatPayload({
+      chat: { conversation_kind: "group", participants: [{ id: 1, name: "Marcus Cato", avatar_url: null, role: "owner" }] }
+    }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    expect(screen.queryByTestId("group-mention-hint")).not.toBeInTheDocument()
+  })
+
+  it("renders the participant list in the chat header for a group chat", async () => {
+    mockChatRouteFetch(chatPayload({ chat: { conversation_kind: "group", participants: groupParticipants() } }))
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    expect(screen.getByText("Marcus Cato")).toBeInTheDocument()
+    expect(screen.getByText("Livia Drusilla")).toBeInTheDocument()
+  })
+
+  it("adds a participant through the invite picker", async () => {
+    const payload = chatPayload({ chat: { conversation_kind: "group", participants: groupParticipants() } })
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/bootstrap") {
+        return Promise.resolve(jsonResponse({ current_user: { id: 1, display_name: "Marcus Cato" } }))
+      }
+      if (path.startsWith("/api/v1/app/users/invitable")) {
+        return Promise.resolve(jsonResponse([{ id: 3, name: "Cicero", avatar_url: null }]))
+      }
+      if (path === "/api/v1/app/chats/8/participants" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({
+          participants: [...groupParticipants(), { id: 3, name: "Cicero", avatar_url: null, role: "member" }]
+        }, 201))
+      }
+
+      return Promise.resolve(jsonResponse(payload))
+    })
+
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: /Add participant/i }))
+
+    const option = await screen.findByRole("option", { name: /Cicero/i })
+    fireEvent.click(option)
+    fireEvent.click(screen.getByRole("button", { name: "Add" }))
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((call) => String(call[0]) === "/api/v1/app/chats/8/participants" && (call[1] as RequestInit)?.method === "POST")).toBe(true)
+    })
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Add participant" })).not.toBeInTheDocument()
+    })
+    expect(screen.getAllByText("Cicero").length).toBeGreaterThan(0)
+  })
+
+  it("removes another participant from the group", async () => {
+    const payload = chatPayload({ chat: { conversation_kind: "group", participants: groupParticipants() } })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/bootstrap") {
+        return Promise.resolve(jsonResponse({ current_user: { id: 1, display_name: "Marcus Cato" } }))
+      }
+      if (path === "/api/v1/app/chats/8/participants/2" && init?.method === "DELETE") {
+        return Promise.resolve(jsonResponse({ participants: [groupParticipants()[0]] }))
+      }
+
+      return Promise.resolve(jsonResponse(payload))
+    })
+
+    renderRoute()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(screen.getByRole("button", { name: "Remove Livia Drusilla" }))
+
+    await waitFor(() => {
+      expect(screen.queryByText("Livia Drusilla")).not.toBeInTheDocument()
+    })
+  })
+
+  it("leaves the group chat when the current user removes themselves, navigating away", async () => {
+    const payload = chatPayload({ chat: { conversation_kind: "group", participants: groupParticipants() } })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (path === "/api/v1/app/bootstrap") {
+        return Promise.resolve(jsonResponse({ current_user: { id: 1, display_name: "Marcus Cato" } }))
+      }
+      if (path === "/api/v1/app/chats/8/participants/1" && init?.method === "DELETE") {
+        return Promise.resolve(jsonResponse({ participants: [groupParticipants()[1]] }))
+      }
+
+      return Promise.resolve(jsonResponse(payload))
+    })
+
+    renderRouteWithLocation()
+
+    await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.click(await screen.findByRole("button", { name: "Leave chat" }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/dashboard/jobs")
+    })
+  })
+})
+
 function renderRoute() {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -3460,6 +3603,7 @@ function renderRouteWithLocation() {
           <Route element={<div />} path="/app-shell/jobs" />
           <Route element={<div />} path="/app-shell/jobs/:id" />
           <Route element={<div />} path="/app-shell/epics/:id" />
+          <Route element={<div />} path="/app-shell/dashboard/jobs" />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>

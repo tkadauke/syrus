@@ -17,14 +17,18 @@ module ChatTurnStreaming
     request.format == Mime[:event_stream] || request.headers["Accept"].to_s.include?("text/event-stream")
   end
 
-  def stream_chat_turn(chat_session, user_message)
+  def stream_chat_turn(chat_session, user_message, turn_enqueued: true)
     response.headers["Content-Type"] = "text/event-stream"
     response.headers["Cache-Control"] = "no-cache"
     response.headers["X-Accel-Buffering"] = "no"
 
     self.response_body = Enumerator.new do |stream|
       write_sse(stream, "message", { role: "user", content: user_message.content["text"].to_s, message: chat_message_json(user_message, chat_session: chat_session) })
-      stream_chat_messages(stream, chat_session, after_id: user_message.id)
+      if turn_enqueued
+        stream_chat_messages(stream, chat_session, after_id: user_message.id)
+      else
+        write_sse(stream, "turn_complete", { chat_id: chat_session.id })
+      end
     rescue StandardError => e
       write_sse(stream, "error", { message: e.message })
     end

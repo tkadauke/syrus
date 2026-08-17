@@ -319,5 +319,21 @@
   "picker_no_jobs_with_pr": "Nulla opera cum extractionibus apertis.",
   "picker_no_epics": "Nulla epica inventa.",
   "picker_loading": "Onerantur…",
-  "aria_job_epic_picker": "Elige opus vel epicum"
+  "aria_job_epic_picker": "Elige opus vel epicum",
+  "add_participant": "Adde participem",
+  "leave_chat": "Relinque colloquium",
+  "remove_participant": "Remove {{name}}",
+  "group_picker_title_create": "Incipe colloquium coetus",
+  "group_picker_title_add": "Adde participem",
+  "group_picker_search_placeholder": "Quaere homines…",
+  "group_picker_no_users": "Nemo addendus.",
+  "group_picker_loading": "Onerantur…",
+  "group_picker_create_button": "Crea colloquium coetus",
+  "group_picker_add_button": "Adde",
+  "group_picker_selected_count_one": "{{count}} electus",
+  "group_picker_selected_count_other": "{{count}} electi",
+  "group_picker_add_error": "Particeps addi non potuit.",
+  "group_picker_remove_error": "Particeps removeri non potuit.",
+  "left_group_chat_notice": "Colloquium reliquisti.",
+  "group_mention_hint": "Memora @syrus ut responsum in hoc colloquio coetus accipias."
 }

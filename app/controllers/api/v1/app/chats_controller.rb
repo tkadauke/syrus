@@ -306,10 +306,11 @@ module Api
           if chat_session.title.blank? && (title_message = first_user_message(chat_session))
             enqueue_chat_title(chat_session, title_message)
           end
-          enqueue_chat_turn(chat_session, user_message)
+          turn_triggered = chat_session.should_trigger_agent?(text)
+          enqueue_chat_turn(chat_session, user_message) if turn_triggered
 
           if stream_request?
-            stream_chat_turn(chat_session, user_message)
+            stream_chat_turn(chat_session, user_message, turn_enqueued: turn_triggered)
             return
           end
 
@@ -1331,6 +1332,8 @@ module Api
             title: chat_session.title.presence || ChatSession.fallback_title_for(repository),
             title_pending: chat_session.title_pending?,
             system_kind: chat_session.system_kind,
+            conversation_kind: chat_session.conversation_kind,
+            participants: chat_session.participants_payload,
             pinned: chat_session.pinned?,
             pinned_context: chat_session.pinned_context,
             chat_provider: chat_session.chat_provider,

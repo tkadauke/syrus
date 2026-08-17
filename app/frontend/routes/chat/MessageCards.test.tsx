@@ -96,6 +96,18 @@ function assistantMessage(text: string): Extract<ChatRenderItem, { type: "messag
   }
 }
 
+function userMessage(text: string, overrides: Partial<Extract<ChatRenderItem, { type: "message" }>> = {}): Extract<ChatRenderItem, { type: "message" }> {
+  return {
+    type: "message",
+    id: 6,
+    role: "user",
+    text,
+    bookmarkable: true,
+    attachments: [],
+    ...overrides
+  }
+}
+
 function renderMessage(text: string, payload = makePayload()) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
@@ -114,8 +126,56 @@ function renderMessage(text: string, payload = makePayload()) {
   )
 }
 
+function renderChatMessageItem(item: Extract<ChatRenderItem, { type: "message" }>, payload = makePayload()) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <ChatMessage
+          item={item}
+          payload={payload}
+          pendingActionIds={new Set()}
+          prefix=""
+          queryKey={["chats", "122", ""] as const}
+          onNotice={() => {}}
+        />
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
 beforeEach(() => {
   vi.mocked(fetchSourceFileContent).mockReset()
+})
+
+describe("sender attribution", () => {
+  it("renders the sender's name above a human message in a group chat", () => {
+    const payload = makePayload()
+    payload.chat.conversation_kind = "group"
+
+    renderChatMessageItem(userMessage("Ave.", { sender_user: { id: 3, name: "Marcus Cato" } }), payload)
+
+    expect(screen.getByText("Marcus Cato")).toBeInTheDocument()
+  })
+
+  it("does not render a sender name in a direct chat even if sender_user is present", () => {
+    const payload = makePayload()
+    payload.chat.conversation_kind = "direct"
+
+    renderChatMessageItem(userMessage("Ave.", { sender_user: { id: 3, name: "Marcus Cato" } }), payload)
+
+    expect(screen.queryByText("Marcus Cato")).not.toBeInTheDocument()
+  })
+
+  it("omits sender attribution in a group chat when the message has no recorded sender", () => {
+    const payload = makePayload()
+    payload.chat.conversation_kind = "group"
+
+    renderChatMessageItem(userMessage("Ave.", { sender_user: null }), payload)
+
+    expect(screen.getByText("Ave.")).toBeInTheDocument()
+    expect(screen.queryByText("Marcus Cato")).not.toBeInTheDocument()
+  })
 })
 
 describe("chat workspace source links", () => {

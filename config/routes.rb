@@ -178,6 +178,7 @@ Rails.application.routes.draw do
         delete "epics/:id/dependencies/:depends_on_epic_id", to: "epics#remove_dependency", constraints: { id: /[a-zA-Z0-9_-]+/, depends_on_epic_id: /\d+/ }
         get "filters/fk_options", to: "filters#fk_options"
         get "filters/suggestions", to: "filters#suggestions"
+        get "users/invitable", to: "users#invitable"
         get "insights/spending", to: "insights/spending#show"
         get "dashboard", to: "dashboard#show"
         patch "dashboard/preferences", to: "dashboard#preferences"
@@ -200,6 +201,8 @@ Rails.application.routes.draw do
         get "chats/:id/messages", to: "chats#messages", constraints: { id: /\d+/ }
         get "chats/:id/whiteboard", to: "chat_whiteboards#show", constraints: { id: /\d+/ }
         patch "chats/:id/whiteboard", to: "chat_whiteboards#update", constraints: { id: /\d+/ }
+        post "chats/:chat_id/participants", to: "chat_participants#create", constraints: { chat_id: /\d+/ }
+        delete "chats/:chat_id/participants/:user_id", to: "chat_participants#destroy", constraints: { chat_id: /\d+/, user_id: /\d+/ }
         get "chats/:chat_id/whiteboard_snapshots", to: "whiteboard_snapshots#index", constraints: { chat_id: /\d+/ }
         post "chats/:chat_id/whiteboard_snapshots", to: "whiteboard_snapshots#create", constraints: { chat_id: /\d+/ }
         post "chats/:chat_id/video_walkthroughs", to: "video_walkthroughs#create", constraints: { chat_id: /\d+/ }

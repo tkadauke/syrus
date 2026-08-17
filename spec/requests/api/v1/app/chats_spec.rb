@@ -1196,6 +1196,90 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
+  describe "creating group chats with participant_user_ids" do
+    it "creates a direct chat when participant_user_ids is absent" do
+      sign_in_as(user)
+
+      post "/api/v1/app/chats"
+
+      expect(response).to have_http_status(:created)
+      chat = ChatSession.last
+      expect(chat.conversation_kind).to eq("direct")
+      expect(chat.chat_participants.count).to eq(1)
+    end
+
+    it "creates a group chat with member participants for each requested id" do
+      sign_in_as(user)
+      other_user = Factories.user
+      third_user = Factories.user
+
+      expect {
+        post "/api/v1/app/chats", params: { participant_user_ids: [ other_user.id, third_user.id ] }
+      }.to change(ChatSession, :count).by(1)
+
+      expect(response).to have_http_status(:created)
+      chat = ChatSession.last
+      expect(chat.conversation_kind).to eq("group")
+      expect(chat.participants).to contain_exactly(user, other_user, third_user)
+      expect(chat.chat_participants.find_by(user: user).role).to eq("owner")
+      expect(chat.chat_participants.find_by(user: other_user).role).to eq("member")
+      expect(chat.chat_participants.find_by(user: third_user).role).to eq("member")
+    end
+
+    it "rejects an unknown participant user id" do
+      sign_in_as(user)
+      other_user = Factories.user
+      bogus_id = other_user.id + 100_000
+
+      expect {
+        post "/api/v1/app/chats", params: { participant_user_ids: [ other_user.id, bogus_id ] }
+      }.not_to change(ChatSession, :count)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "message")).to include(bogus_id.to_s)
+    end
+
+    it "rejects participant_user_ids that resolve to zero additional humans" do
+      sign_in_as(user)
+
+      expect {
+        post "/api/v1/app/chats", params: { participant_user_ids: [ user.id ] }
+      }.not_to change(ChatSession, :count)
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "message")).to include("at least one other participant")
+    end
+  end
+
+  it "includes conversation_kind and participants in the chat show payload for a group chat" do
+    sign_in_as(user)
+    other_user = Factories.user
+    chat = ChatSession.create!(user: user, conversation_kind: "group")
+    chat.chat_participants.create!(user: other_user, role: "member")
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("chat", "conversation_kind")).to eq("group")
+    expect(parse_body.dig("chat", "participants")).to contain_exactly(
+      hash_including("id" => user.id, "name" => user.display_name, "role" => "owner"),
+      hash_including("id" => other_user.id, "name" => other_user.display_name, "role" => "member")
+    )
+  end
+
+  it "includes conversation_kind direct and a single participant for a direct chat" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("chat", "conversation_kind")).to eq("direct")
+    expect(parse_body.dig("chat", "participants")).to contain_exactly(
+      hash_including("id" => user.id, "name" => user.display_name, "role" => "owner")
+    )
+  end
+
   it "creates the first message and enqueues a turn" do
     sign_in_as(user)
 
@@ -1266,6 +1350,80 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "   " } }
 
     expect(response).to have_http_status(:unprocessable_content)
+  end
+
+  describe "group chat mention gating" do
+    it "does not enqueue a ChatTurnJob for an unmentioned message with 2+ human participants" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, conversation_kind: "group")
+      chat.chat_participants.create!(user: Factories.user, role: "member")
+
+      expect {
+        post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "Hello everyone" } }
+      }.to change(ChatMessage, :count).by(1)
+
+      expect(ChatTurnJob).not_to have_been_enqueued
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "enqueues a ChatTurnJob when the message mentions @syrus with 2+ human participants" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, conversation_kind: "group")
+      chat.chat_participants.create!(user: Factories.user, role: "member")
+
+      expect {
+        post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "hey @syrus, can you help?" } }
+      }.to change(ChatMessage, :count).by(1)
+        .and have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer))
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "still enqueues a ChatTurnJob for an unmentioned message with 0-1 human participants" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user)
+
+      expect {
+        post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "no mention here" } }
+      }.to change(ChatMessage, :count).by(1)
+        .and have_enqueued_job(ChatTurnJob).with(chat.id, kind_of(Integer))
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "does not enqueue a ChatTurnJob when a new group chat's opening message has no @syrus mention" do
+      sign_in_as(user)
+      other_user = Factories.user
+
+      expect {
+        post "/api/v1/app/chats", params: {
+          participant_user_ids: [ other_user.id ],
+          chat_message: { text: "hello everyone" }
+        }
+      }.to change(ChatSession, :count).by(1)
+        .and change(ChatMessage, :count).by(1)
+        .and have_enqueued_job(ChatTitleJob)
+
+      expect(ChatTurnJob).not_to have_been_enqueued
+      chat = ChatSession.last
+      expect(chat.conversation_kind).to eq("group")
+      expect(response).to have_http_status(:created)
+    end
+
+    it "enqueues a ChatTurnJob when a new group chat's opening message mentions @syrus" do
+      sign_in_as(user)
+      other_user = Factories.user
+
+      expect {
+        post "/api/v1/app/chats", params: {
+          participant_user_ids: [ other_user.id ],
+          chat_message: { text: "hey @syrus, get started" }
+        }
+      }.to change(ChatSession, :count).by(1)
+        .and have_enqueued_job(ChatTurnJob)
+
+      expect(response).to have_http_status(:created)
+    end
   end
 
   it "starts the first-message chat with a pending generated title" do
@@ -4384,6 +4542,25 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(response.body).to include("Built **aqueducts**.")
     expect(response.body).to include("event: turn_complete")
     expect(chat.reload.messages.where(role: "user").last.content).to eq("text" => "Now inspect proposals")
+  end
+
+  it "streams turn_complete immediately for an unmentioned group-chat message, without waiting on an agent turn" do
+    user.update!(api_token: "cli-token")
+    chat = ChatSession.create!(user: user, repository: repository, conversation_kind: "group", last_message_at: 1.day.ago)
+    chat.chat_participants.create!(user: Factories.user, role: "member")
+    expect(ChatTurnJob).not_to receive(:perform_later)
+
+    post "/api/v1/app/chats/#{chat.id}/message",
+         params: { content: "Hello everyone" },
+         headers: {
+           "Authorization" => "Bearer cli-token",
+           "Accept" => "text/event-stream"
+         }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.media_type).to eq("text/event-stream")
+    expect(response.body).to include("event: turn_complete")
+    expect(response.body).not_to include("event: text_chunk")
   end
 
   it "uses the first user message for a delayed initial title" do

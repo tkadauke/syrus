@@ -21,7 +21,9 @@ class InboundMessageRouter
       content: { "text" => @message_text }
     )
 
-    ChatTurnJob.perform_later(session.id, message.id) if session.trigger_policy == "speak_when_spoken_to"
+    if session.trigger_policy == "speak_when_spoken_to" && session.should_trigger_agent?(@message_text)
+      ChatTurnJob.perform_later(session.id, message.id)
+    end
 
     Result.new(status: :ok, session: session)
   end

@@ -389,6 +389,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_194000) do
     t.boolean "coding_checkout_uncommitted", default: false, null: false
     t.string "coding_relay_address"
     t.string "coding_relay_token"
+    t.string "conversation_kind", default: "direct", null: false
     t.datetime "created_at", null: false
     t.decimal "cumulative_cost_usd", precision: 12, scale: 6, default: "0.0", null: false
     t.bigint "cumulative_input_tokens", default: 0, null: false

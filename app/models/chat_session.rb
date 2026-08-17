@@ -6,6 +6,7 @@ class ChatSession < ApplicationRecord
   SYSTEM_KINDS = %w[supervisor].freeze
   DAEMON_STATES = %w[connected disconnected].freeze
   EFFORT_LEVELS = %w[none medium high].freeze
+  CONVERSATION_KINDS = { direct: "direct", group: "group" }.freeze
 
   TRIGGER_POLICIES = %w[speak_when_spoken_to].freeze
 
@@ -103,6 +104,11 @@ class ChatSession < ApplicationRecord
             numericality: { greater_than_or_equal_to: 0 }
   enum :mode, { planning: "planning", coding: "coding", local: "local" }, validate: { allow_nil: true }
   enum :system_kind, { supervisor: "supervisor" }, prefix: true, validate: { allow_nil: true }
+  # scopes: false — an auto-generated `.group` scope would shadow
+  # ActiveRecord's GROUP BY `group` method, which admin chat listing
+  # relies on (Api::V1::Admin::ChatsController#index).
+  enum :conversation_kind, CONVERSATION_KINDS, scopes: false, validate: true
+  validate :conversation_kind_is_immutable, if: -> { persisted? && conversation_kind_changed? }
 
   validates :chat_provider, presence: true, if: :persisted?
   validates :chat_provider, inclusion: { in: -> { User.chat_providers } }, allow_nil: true
@@ -447,10 +453,54 @@ class ChatSession < ApplicationRecord
     supervisor_chat? && Feature.admin_supervisor_chat_enabled?
   end
 
+  # Plain-text, case-insensitive `@syrus` substring match — no
+  # autocomplete/chip UI in this pass. Mirrors Telegram's own
+  # plain-text bot-mention convention so this stays compatible with a
+  # future Telegram-group bridge.
+  def agent_addressed?(text)
+    text.to_s.downcase.include?("@syrus")
+  end
+
+  # Computed live from current human headcount, not a stored/toggleable
+  # setting: chats with 0-1 participants always trigger the agent; chats
+  # with 2+ participants require an explicit @syrus mention on every message.
+  def should_trigger_agent?(text)
+    chat_participants.count <= 1 || agent_addressed?(text)
+  end
+
+  def participants_payload
+    chat_participants.includes(:user).order(:joined_at, :id).map do |participant|
+      {
+        id: participant.user_id,
+        name: participant.user.display_name,
+        avatar_url: participant.user.avatar_url,
+        role: participant.role
+      }
+    end
+  end
+
+  # `recipients` lets callers notify a user who is no longer a
+  # participant by the time this fires (e.g. a just-removed member) —
+  # the default falls back to the current live participant set.
+  def broadcast_participants_update!(recipients: nil)
+    broadcast_to_participants(
+      recipients: recipients,
+      type: "updated",
+      resource: "chat",
+      id: id,
+      changed: [ "participants" ],
+      payload: {
+        action: "update_participants",
+        conversation_kind: conversation_kind,
+        participants: participants_payload
+      }
+    )
+  end
+
   private
 
-  def broadcast_to_participants(**event_args)
-    (participants.to_a.presence || [ user ]).each do |p|
+  def broadcast_to_participants(recipients: nil, **event_args)
+    (recipients || participants.to_a.presence || [ user ]).each do |p|
       AppEvents.broadcast(user: p, **event_args)
     end
   end
@@ -503,6 +553,10 @@ class ChatSession < ApplicationRecord
     errors.add(:title, "cannot be changed for the supervisor chat") if title_changed? && persisted?
     errors.add(:pinned, "cannot be disabled for the supervisor chat") if pinned == false
     errors.add(:hidden_at, "cannot be set for the supervisor chat") if hidden_at.present?
+  end
+
+  def conversation_kind_is_immutable
+    errors.add(:conversation_kind, "cannot be changed after creation")
   end
 
   def prevent_enabled_supervisor_destroy
