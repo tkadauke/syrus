@@ -98,6 +98,16 @@ A brand-new Syrus installation seeds three starter templates (`CronTemplate::DEF
 
 They're seeded once via `User#seed_default_cron_templates` (an `after_create` callback gated on being the very first `User` row) and are ordinary templates from then on — operators can edit, disable, or delete them like any other. `CronTemplate.seed_defaults_for(user)` is idempotent (`find_or_create_by!` on name), so re-running it is a no-op. Later signups don't get a copy.
 
+## Skill-based tasks
+
+A task can fire a named skill (see `skills.md`) instead of a freeform prompt: set `skill_name` plus a `skill_args` hash instead of `prompt`. This is additive — existing freeform tasks are unaffected, and a task carries exactly one or the other (the `prompt` column is nullable and only required when `skill_name` is blank).
+
+At save time, `skill_name` must resolve to a real skill (repo-local override or built-in) for the task's repository, and `skill_args` must satisfy that skill's declared parameter schema — the same validation `SkillJobs::Creator` runs for an immediate skill Job launch. On fire, `ScheduledTaskFire` creates a `kind=cron` Job carrying `skill_name`/`skill_args` and dispatches a `Workflows::Skill` (trigger_kind `skill`) instead of `Workflows::Initial`, deferring the actual instruction rendering to the `run_skill` step (`Skills::Renderer`/`Prompts::Skill`) — the same rendering path a direct skill Job launch uses, so a repo-local skill that changed (or was removed) since the task was last saved surfaces as a normal Run failure rather than wedging the poller.
+
+`pr_pileup_policy` and auto-pause-on-failure behave identically for skill-based and freeform tasks — both are just `Job` outcomes tracked against the parent `ScheduledTask`. The New/Edit scheduled task form lets an operator toggle between "Freeform prompt" and "Skill", reusing the same skill picker + schema-driven parameter form used to launch a one-off skill Job from a repository.
+
+`CronTemplate` does not currently support skill-based tasks — templates remain freeform-prompt only.
+
 ## Variables in prompts
 
 Cron task prompts support these interpolation variables, rendered at fire time:

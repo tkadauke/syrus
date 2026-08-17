@@ -29,14 +29,20 @@ RSpec.describe Job do
       expect(job.errors[:skill_name]).to be_present
     end
 
-    it "rejects a skill_name on a non-direct Job" do
+    it "rejects a skill_name on an issue Job" do
       job = Job.new(user: user, repository: repository, kind: "issue", issue_number: 1, skill_name: "investigate")
       expect(job).not_to be_valid
-      expect(job.errors[:skill_name]).to include("requires kind=direct")
+      expect(job.errors[:skill_name]).to include("requires kind=direct or kind=cron")
     end
 
     it "allows a valid skill_name on a direct Job" do
       job = Job.new(user: user, repository: repository, kind: "direct", issue_number: nil, skill_name: "investigate")
+      job.valid?
+      expect(job.errors[:skill_name]).to be_empty
+    end
+
+    it "allows a valid skill_name on a cron Job (ScheduledTask skill launch)" do
+      job = Job.new(user: user, repository: repository, kind: "cron", issue_number: nil, skill_name: "investigate")
       job.valid?
       expect(job.errors[:skill_name]).to be_empty
     end

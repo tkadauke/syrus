@@ -150,7 +150,7 @@ function SkillLaunchForm({
   )
 }
 
-function SkillOption({ skill, selected, onSelect }: { skill: SkillSummary; selected: boolean; onSelect: () => void }) {
+export function SkillOption({ skill, selected, onSelect }: { skill: SkillSummary; selected: boolean; onSelect: () => void }) {
   const { t } = useT("jobs")
   return (
     <label
@@ -195,7 +195,7 @@ function SourceBadge({ source, shadowsBuiltIn }: { source: SkillSummary["source"
   return <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${tone}`}>{label}</span>
 }
 
-function SkillParameterInput({
+export function SkillParameterInput({
   field,
   value,
   onChange
@@ -263,7 +263,7 @@ function SkillParameterInput({
   )
 }
 
-function initialArgs(skill: SkillSummary | null): Record<string, string | boolean> {
+export function initialArgs(skill: SkillSummary | null): Record<string, string | boolean> {
   if (!skill) return {}
   return skill.parameters.reduce<Record<string, string | boolean>>((values, field) => {
     if (field.type === "boolean") {

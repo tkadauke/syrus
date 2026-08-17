@@ -133,6 +133,53 @@ RSpec.describe ScheduledTask do
       task = build_one_shot(fire_at: 1.day.ago)
       expect(task).not_to be_valid
     end
+
+    context "skill tasks" do
+      it "is valid with a resolvable skill name and args satisfying its parameter schema, without a prompt" do
+        task = build_cron(prompt: nil, skill_name: "investigate", skill_args: { "question" => "What does this repo do?" })
+        expect(task).to be_valid
+      end
+
+      it "is a skill_task? once skill_name is set" do
+        task = build_cron(prompt: nil, skill_name: "investigate", skill_args: { "question" => "x" })
+        expect(task).to be_skill_task
+      end
+
+      it "does not require a prompt when skill_name is present" do
+        task = build_cron(prompt: "", skill_name: "investigate", skill_args: { "question" => "x" })
+        expect(task).to be_valid
+      end
+
+      it "still requires a prompt for freeform tasks" do
+        task = build_cron(prompt: "")
+        expect(task).not_to be_valid
+        expect(task.errors[:prompt]).to be_present
+      end
+
+      it "rejects an unresolvable skill name" do
+        task = build_cron(prompt: nil, skill_name: "does-not-exist", skill_args: {})
+        expect(task).not_to be_valid
+        expect(task.errors[:skill_name]).to be_present
+      end
+
+      it "rejects skill_args missing a required parameter" do
+        task = build_cron(prompt: nil, skill_name: "investigate", skill_args: {})
+        expect(task).not_to be_valid
+        expect(task.errors[:skill_args].join).to match(/question/)
+      end
+
+      it "rejects skill_args carrying an undeclared parameter" do
+        task = build_cron(prompt: nil, skill_name: "investigate", skill_args: { "question" => "x", "bogus" => "y" })
+        expect(task).not_to be_valid
+        expect(task.errors[:skill_args].join).to match(/bogus/)
+      end
+
+      it "rejects a malformed skill name" do
+        task = build_cron(prompt: nil, skill_name: "Not Valid!", skill_args: {})
+        expect(task).not_to be_valid
+        expect(task.errors[:skill_name]).to be_present
+      end
+    end
   end
 
   describe "#hourly_cron_expression" do

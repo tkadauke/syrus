@@ -1794,12 +1794,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_134500) do
     t.integer "minute_offset", default: 0, null: false
     t.string "name", null: false
     t.string "pr_pileup_policy", default: "skip", null: false
-    t.text "prompt", null: false
+    t.text "prompt"
     t.integer "repository_id", null: false
     t.text "schedule_expression"
     t.string "schedule_format", default: "rrule", null: false
     t.string "schedule_input"
     t.string "schedule_timezone", default: "UTC", null: false
+    t.json "skill_args"
+    t.string "skill_name"
     t.string "state", default: "scheduled", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
