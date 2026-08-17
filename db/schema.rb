@@ -130,7 +130,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_134500) do
     t.string "job_class"
     t.integer "job_id"
     t.text "message", null: false
-    t.json "metadata", default: {}, null: false
+    t.json "metadata", null: false
     t.string "method"
     t.datetime "occurred_at", null: false
     t.text "path"
@@ -176,24 +176,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_134500) do
     t.string "app_revision"
     t.text "component_stack"
     t.datetime "created_at", null: false
-    t.json "feature_flags", default: {}, null: false
+    t.json "feature_flags", null: false
     t.string "fingerprint", null: false
     t.text "message", null: false
-    t.json "metadata", default: {}, null: false
+    t.json "metadata", null: false
     t.string "name"
     t.datetime "occurred_at", null: false
     t.string "path"
-    t.json "recent_api_requests", default: [], null: false
-    t.json "recent_errors", default: [], null: false
+    t.json "recent_api_requests", null: false
+    t.json "recent_errors", null: false
     t.string "route_id"
-    t.json "route_params", default: {}, null: false
+    t.json "route_params", null: false
     t.text "stack"
     t.string "trace_id"
     t.datetime "updated_at", null: false
     t.text "url"
     t.text "user_agent"
     t.integer "user_id", null: false
-    t.json "viewport", default: {}, null: false
+    t.json "viewport", null: false
     t.index ["app_revision", "occurred_at"], name: "index_browser_error_events_on_revision_time"
     t.index ["fingerprint", "occurred_at"], name: "index_browser_error_events_on_fingerprint_time"
     t.index ["occurred_at", "id"], name: "index_browser_error_events_on_occurred_id"

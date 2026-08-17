@@ -139,8 +139,12 @@ end
 
 rule "mysql_json_default" do |offenses, path, lines|
   lines.each_with_index do |line, i|
-    next unless line =~ /^\s*add_column\b/
-    next unless line =~ /:json\b/
+    # Both spellings reach the same DDL: `add_column ..., :json, default:`
+    # and `t.json ..., default:` inside a create_table block. Only the first
+    # was checked, so a create_table carrying seven JSON defaults passed the
+    # linter and would have failed the deploy at migration time.
+    next unless line =~ /^\s*add_column\b/ || line =~ /^\s*t\.json\b/
+    next unless line =~ /:json\b/ || line =~ /^\s*t\.json\b/
     next unless line =~ /\bdefault:/
     offenses << Offense.new(
       rule: "mysql_json_default",

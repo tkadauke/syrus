@@ -124,6 +124,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     expect(body["feature_flags"]).to eq(
       "admin_supervisor_chat" => false,
       "agent_insights" => false,
+      "browser_error_auto_reports" => false,
       "chat_context_compaction" => false,
       "chat_speech_to_text" => false,
       "coding_mode" => false,
