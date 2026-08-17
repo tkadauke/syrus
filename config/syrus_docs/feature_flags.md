@@ -95,19 +95,24 @@ transcript behavior even when the flag is on.
 **Category:** Operations
 
 Enables speculative landing validation for the next eligible same-repository
-Job in the landing queue. After the current `auto_merge` workflow's landing
-graders pass, Syrus may dispatch an infrastructure `landing_validation`
-workflow for the next ordinary owned-branch PR. That workflow rebases the next
-PR onto the predicted post-merge tree, runs the same fast landing graders, and
-records a reusable landing-validation artifact.
+landing unit in the landing queue. After the current `auto_merge` or
+`merge_train` workflow's landing graders pass, Syrus may dispatch an
+infrastructure validation workflow for the next unit:
+
+- `landing_validation` for the next ordinary owned-branch PR.
+- `merge_train_validation` for the next Epic merge-train unit.
+
+The validation workflow rebases or builds the next unit onto the predicted
+post-merge tree, runs the same fast landing graders, and records a reusable
+landing-validation artifact.
 
 Actual publication remains serialized: speculative validation never pushes,
 never runs `landing_fix`, never calls the GitHub merge API, and never moves the
 Job into `landing`. If the previous Job fails to land, or if the later real base
 tree/grader configuration/changed-file selection differs, Syrus discards the
-speculative result and the normal `auto_merge` workflow reruns graders. The flag
-defaults to off because it spends grader capacity ahead of the queue and may
-produce wasted work when the front Job fails.
+speculative result and the normal `auto_merge` or `merge_train` workflow reruns
+graders. The flag defaults to off because it spends grader capacity ahead of the
+queue and may produce wasted work when the front unit fails.
 
 ## performance_logging
 

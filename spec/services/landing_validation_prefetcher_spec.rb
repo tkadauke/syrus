@@ -5,6 +5,7 @@ RSpec.describe LandingValidationPrefetcher do
   let(:repository) { Factories.repository(user: user, auto_merge_enabled: true) }
   let(:source_job) { approved_job(issue_number: 1, approved_at: 2.minutes.ago, state: "landing") }
   let(:candidate) { approved_job(issue_number: 2, approved_at: 1.minute.ago) }
+  let(:git) { instance_double(GitRunner) }
   let(:source_path) { Pathname.new(Dir.mktmpdir("landing-validation-source")) }
   let(:workflow) do
     Workflows::AutoMerge.instantiate(job: source_job).tap do |wf|
@@ -18,6 +19,7 @@ RSpec.describe LandingValidationPrefetcher do
       repository: repository,
       issue_number: issue_number,
       pr_number: issue_number,
+      branch_name: "syrus/issue-#{issue_number}",
       state: state,
       approved_at: approved_at
     )
@@ -33,9 +35,13 @@ RSpec.describe LandingValidationPrefetcher do
       feature.name = "Landing validation prefetch"
       feature.enabled = false
     end.update!(enabled: false)
+    Feature.clear_enabled_cache!("landing_validation_prefetch")
     candidate
     allow(WorkflowWorkspace).to receive(:path_for).and_call_original
     allow(WorkflowWorkspace).to receive(:path_for).with(workflow).and_return(source_path)
+    allow(GitRunner).to receive(:new).and_return(git)
+    allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: source_path.to_s).and_return("source-head\n")
+    allow(git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: source_path.to_s).and_return("source-tree\n")
     allow(GithubClient).to receive(:for).and_return(double("GithubClient", pull_request: pr("candidate-head", "main")))
     allow(StepDispatcher).to receive(:start_workflow)
   end
@@ -52,10 +58,6 @@ RSpec.describe LandingValidationPrefetcher do
 
   it "dispatches a landing_validation workflow for the next eligible job when enabled" do
     Feature.find_by!(slug: "landing_validation_prefetch").update!(enabled: true)
-    git = instance_double(GitRunner)
-    allow(GitRunner).to receive(:new).and_return(git)
-    allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: source_path.to_s).and_return("source-head\n")
-    allow(git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: source_path.to_s).and_return("source-tree\n")
 
     expect {
       described_class.after_landing_graders_passed(workflow: workflow)
@@ -72,5 +74,50 @@ RSpec.describe LandingValidationPrefetcher do
       "prefetch_candidate_head_sha" => "candidate-head"
     )
     expect(StepDispatcher).to have_received(:start_workflow).with(prefetch)
+  end
+
+  it "dispatches a merge_train_validation workflow for the next eligible Epic landing unit" do
+    Feature.find_by!(slug: "landing_validation_prefetch").update!(enabled: true)
+    AppSetting.current.update!(merge_train_enabled: true)
+    candidate.destroy!
+
+    epic = Factories.epic(user: user, repository: repository, state: "ready")
+    first = approved_job(issue_number: 10, approved_at: 1.minute.ago).tap do |job|
+      job.update!(epic: epic, branch_name: "syrus/issue-10-#{job.id}")
+    end
+    second = approved_job(issue_number: 11, approved_at: 30.seconds.ago).tap do |job|
+      job.update!(epic: epic, branch_name: "syrus/issue-11-#{job.id}", parent_job: first)
+    end
+
+    expect {
+      described_class.after_landing_graders_passed(workflow: workflow)
+    }.to change { Workflow.where(trigger_kind: "merge_train_validation", job: second).count }.by(1)
+
+    prefetch = Workflow.where(trigger_kind: "merge_train_validation", job: second).last
+    expect(prefetch.artifacts).to include(
+      "prefetch_landing_unit_key" => "epic:#{epic.id}",
+      "prefetch_landing_unit_kind" => "merge_train",
+      "prefetch_merge_train_epic_id" => epic.id,
+      "prefetch_merge_train_member_job_ids" => [ first.id, second.id ],
+      "prefetch_source_head_sha" => "source-head",
+      "predicted_base_sha" => "source-head",
+      "predicted_base_tree_sha" => "source-tree",
+      "predicted_base_ref" => repository.default_branch
+    )
+    expect(StepDispatcher).to have_received(:start_workflow).with(prefetch)
+  end
+
+  it "lets a successful merge_train workflow prefetch the next ordinary landing unit" do
+    Feature.find_by!(slug: "landing_validation_prefetch").update!(enabled: true)
+    AppSetting.current.update!(merge_train_enabled: true)
+
+    epic = Factories.epic(user: user, repository: repository, state: "ready")
+    source_job.update!(epic: epic, branch_name: "syrus/issue-1-#{source_job.id}")
+    workflow.update!(trigger_kind: "merge_train")
+    candidate.update!(approved_at: 30.seconds.ago)
+
+    expect {
+      described_class.after_landing_graders_passed(workflow: workflow)
+    }.to change { Workflow.where(trigger_kind: "landing_validation", job: candidate).count }.by(1)
   end
 end

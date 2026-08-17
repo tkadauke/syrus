@@ -74,7 +74,7 @@ module Steps
     end
 
     def changed_files_base_ref
-      return workflow.artifact("predicted_base_sha").presence if workflow.trigger_kind == "landing_validation"
+      return workflow.artifact("predicted_base_sha").presence if workflow.trigger_kind.in?(%w[landing_validation merge_train_validation])
 
       default_branch_ref
     end

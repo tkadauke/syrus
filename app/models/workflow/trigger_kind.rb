@@ -17,6 +17,7 @@ class Workflow
       Entry.new(kind: "landing_validation", template: "LandingValidation", label: "Landing validation",      style: "bg-emerald-100 text-emerald-700", retry_label: nil,                  feedback_kind: nil),
       Entry.new(kind: "external_pr_merge",  template: "ExternalPrMerge",  label: "External PR merge",       style: "bg-green-100 text-green-700",    retry_label: "Retry landing step", feedback_kind: nil),
       Entry.new(kind: "merge_train",   template: "MergeTrain",  label: "Epic merge-train",        style: "bg-green-100 text-green-800",    retry_label: nil,                  feedback_kind: nil),
+      Entry.new(kind: "merge_train_validation", template: "MergeTrainValidation", label: "Epic train validation", style: "bg-emerald-100 text-emerald-800", retry_label: nil, feedback_kind: nil),
       Entry.new(kind: "retry",         template: "Retry",       label: "Retry",                   style: "bg-amber-100 text-amber-700",    retry_label: "Retry failed step",  feedback_kind: nil),
       Entry.new(kind: "manual_visual_review", template: "ManualVisualReview", label: "Manual visual review", style: "bg-pink-100 text-pink-700", retry_label: "Retry failed step", feedback_kind: nil),
       Entry.new(kind: "replay",        template: "Retry",       label: "Retry",                   style: "bg-amber-100 text-amber-700",    retry_label: "Retry failed step",  feedback_kind: nil),

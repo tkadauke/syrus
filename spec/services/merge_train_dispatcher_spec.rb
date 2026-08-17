@@ -134,6 +134,15 @@ RSpec.describe MergeTrainDispatcher do
     expect(StepDispatcher).not_to have_received(:start_workflow)
   end
 
+  it "does not dispatch the real train while speculative train validation is active" do
+    child = approved_child(1)
+    Workflow.create!(job: child, trigger_kind: "merge_train_validation", state: "running")
+
+    expect(described_class.try_dispatch!(epic)).to be_nil
+    expect(MergeTrain.count).to eq(0)
+    expect(StepDispatcher).not_to have_received(:start_workflow)
+  end
+
   it "does not dispatch while a rebase workflow is active for a train member" do
     child = approved_child(1)
     workflow = Workflow.create!(job: child, trigger_kind: "stack_rebase", state: "running")

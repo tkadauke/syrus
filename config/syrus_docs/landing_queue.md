@@ -70,10 +70,14 @@ If graders fail, `landing_fix` (an agentic repair step) attempts a fix, and grad
 ### Speculative landing validation
 
 When the `landing_validation_prefetch` feature flag is enabled, a successful
-`auto_merge` grader loop can warm the next ordinary same-repository landing
-candidate before the current Job actually merges. Syrus dispatches an
-infrastructure `landing_validation` workflow for the next eligible owned-branch
-PR. The workflow:
+landing grader loop can warm the next same-repository landing unit before the
+current unit actually publishes to the base branch. Syrus dispatches an
+infrastructure validation workflow for the next eligible unit:
+
+- Ordinary owned-branch PRs use `landing_validation`.
+- Epic merge-train units use `merge_train_validation`.
+
+For an ordinary PR, the workflow:
 
 - Clones the next PR branch.
 - Fetches the current landing workflow's local `HEAD` as the predicted future base.
@@ -81,12 +85,17 @@ PR. The workflow:
 - Runs the same fast landing graders without `landing_fix`.
 - Records a `LandingValidationCache` artifact with the predicted base SHA and base tree SHA.
 
-The real `auto_merge` workflow later reuses that validation only if the candidate
-head/tree, base ref, base tree, grader fingerprint, and changed-file fingerprint
-still match. A different base commit SHA is allowed only when its Git tree SHA is
-identical to the predicted tree, which covers GitHub rebase-merge producing a
-different commit object for the same contents. If any identity differs, the
-normal serialized landing workflow reruns graders.
+For an Epic merge-train unit, the workflow builds the candidate integration tree
+on top of the same predicted future base, mechanically rebases each member
+branch into that scratch integration branch, and runs fast landing graders
+without creating a real `MergeTrain`, pushing, or repairing.
+
+The real `auto_merge` or `merge_train` workflow later reuses that validation
+only if the candidate head/tree, base ref, base tree, grader fingerprint, and
+changed-file fingerprint still match. A different base commit SHA is allowed
+only when its Git tree SHA is identical to the predicted tree, which covers
+GitHub rebase-merge producing a different commit object for the same contents.
+If any identity differs, the normal serialized landing workflow reruns graders.
 
 Speculative validation is not an additional landing lane. It never pushes,
 merges, or repairs; a failed speculative workflow leaves the Job approved and

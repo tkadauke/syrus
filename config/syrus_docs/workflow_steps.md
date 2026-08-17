@@ -8,7 +8,7 @@ Each Syrus workflow is a chain of steps. Steps are either **agentic** (invoke th
 
 Non-agentic. Runs the commands from `.syrus.yml` `prepare:` (or auto-detected from lockfiles) in the cloned workspace. Explicit commands hard-fail on error; auto-detected commands soft-fail with a warning so a wrong guess doesn't block the first run. Per-timeout: 10 minutes per command.
 
-Present in: `initial`, `pr_comment`, `chat_feedback`, `ci_failure`, `retry`, `auto_merge`, `landing_validation`, `external_pr_merge`, `merge_train`, `coding_handoff`, `skill`.
+Present in: `initial`, `pr_comment`, `chat_feedback`, `ci_failure`, `retry`, `auto_merge`, `landing_validation`, `merge_train_validation`, `external_pr_merge`, `merge_train`, `coding_handoff`, `skill`.
 
 **Empty/uninitialized remotes.** `WorkflowWorkspace#clone_and_checkout` (called at the start of `prepare`) auto-recovers when a freshly-created GitHub repository has zero branches — for example, when GitHub hasn't finished async-provisioning its auto-init commit yet, or auto-init was disabled. When the branch-scoped clone fails, Syrus checks whether the remote genuinely has no branches at all (`git ls-remote --heads`); if so, it clones the empty repository, creates the configured default branch locally with a minimal initial commit, and pushes it before continuing. A log line in the Run transcript notes when this happened. Any other clone failure — most commonly a `default_branch` that doesn't match what's actually on GitHub — still fails the step as before.
 
@@ -229,6 +229,17 @@ the predicted base commit, verifies the candidate PR head when known, fetches th
 predicted base from the source workspace, and performs a local `git rebase`
 without pushing. Conflicts or stale identities fail only the speculative
 workflow; the Job remains approved for the normal landing queue path.
+
+### speculative_merge_train_build
+
+Non-agentic. Used only by the feature-gated `merge_train_validation`
+infrastructure workflow. It verifies the current landing workflow's local
+workspace is still at the predicted base commit, fetches that predicted base,
+builds a scratch integration branch for the next Epic merge-train unit by
+mechanically rebasing each member branch in dependency order, and records the
+speculative head/tree identity. It never creates a real `MergeTrain`, pushes,
+or repairs. Conflicts or stale identities fail only the speculative workflow;
+the Epic remains approved for the normal landing queue path.
 
 ### auto_merge
 

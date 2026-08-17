@@ -105,8 +105,8 @@ Transient GitHub errors defer the Job back to `approved` for retry. Does not run
 ## landing_validation
 
 **When it fires:** The `landing_validation_prefetch` feature flag is enabled and
-an `auto_merge` workflow's required landing graders pass while another ordinary
-same-repository Job is next in the queue.
+an `auto_merge` or `merge_train` workflow's required landing graders pass while
+another ordinary same-repository Job is next in the queue.
 
 **Step chain:** `speculative_landing_build → prepare → grader_fanout → grader_collect`
 
@@ -114,6 +114,22 @@ Infrastructure-only speculative prevalidation. It rebases the next PR onto the
 predicted post-merge tree from the current landing workflow and runs fast landing
 graders so the later real `auto_merge` may skip duplicate grader work. It never
 pushes, repairs, or merges, and failed/cancelled workflows do not fail the Job.
+
+## merge_train_validation
+
+**When it fires:** The `landing_validation_prefetch` feature flag is enabled and
+an `auto_merge` or `merge_train` workflow's required landing graders pass while
+an eligible Epic merge-train unit is next in the queue.
+
+**Step chain:** `speculative_merge_train_build → prepare → grader_fanout → grader_collect`
+
+Infrastructure-only speculative prevalidation for Epic trains. It builds a
+scratch integration branch on top of the predicted post-merge tree from the
+current landing workflow, mechanically rebases each member branch into that
+scratch integration branch, and runs fast landing graders so the later real
+`merge_train` may skip duplicate grader work. It never creates a real
+`MergeTrain`, pushes, repairs, or merges, and failed/cancelled workflows do not
+fail the Job.
 
 ## external_pr_merge
 

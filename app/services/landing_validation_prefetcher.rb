@@ -1,6 +1,8 @@
 class LandingValidationPrefetcher
   ARTIFACT_WORKFLOW_ID = "landing_validation_prefetch_workflow_id".freeze
   ARTIFACT_DISPATCHED_AT = "landing_validation_prefetch_dispatched_at".freeze
+  SOURCE_TRIGGER_KINDS = %w[auto_merge merge_train].freeze
+  VALIDATION_TRIGGER_KINDS = %w[landing_validation merge_train_validation].freeze
 
   def self.after_landing_graders_passed(workflow:)
     new(workflow).call
@@ -14,28 +16,23 @@ class LandingValidationPrefetcher
 
   def call
     return unless Feature.landing_validation_prefetch_enabled?
-    return unless workflow.trigger_kind == "auto_merge"
+    return unless workflow.trigger_kind.in?(SOURCE_TRIGGER_KINDS)
     return if workflow.artifact(ARTIFACT_WORKFLOW_ID).present?
     return unless job&.landing?
 
-    candidate = next_candidate
-    return unless candidate
+    target = next_landing_unit
+    return unless target
 
     source = source_identity
     return unless source
-    candidate_info = candidate_identity(candidate)
+    artifacts = source.merge(target.artifacts)
 
     workflow_to_start = nil
     Workflow.transaction do
-      candidate.lock!
       workflow.lock!
-      if workflow.artifact(ARTIFACT_WORKFLOW_ID).blank? &&
-          !candidate.workflows.active.where(trigger_kind: "landing_validation").exists? &&
-          candidate.approved?
-        workflow_to_start = Workflows::LandingValidation.instantiate(
-          job: candidate,
-          artifacts: source.merge(candidate_info)
-        )
+      target.jobs.each(&:lock!)
+      if workflow.artifact(ARTIFACT_WORKFLOW_ID).blank? && target.still_eligible?
+        workflow_to_start = target.instantiate(artifacts)
         workflow.set_artifact!(ARTIFACT_WORKFLOW_ID, workflow_to_start.id)
         workflow.set_artifact!(ARTIFACT_DISPATCHED_AT, Time.current.iso8601)
       end
@@ -52,24 +49,121 @@ class LandingValidationPrefetcher
 
   attr_reader :workflow, :job, :git
 
-  def next_candidate
-    entries = LandingQueueProcessor.entries(Job.where(repository_id: job.repository_id))
-    index = entries.index { |entry| entry.job_id == job.id }
+  TargetUnit = Data.define(:kind, :key, :jobs, :artifacts) do
+    def instantiate(seed_artifacts)
+      workflow_class.instantiate(job: workflow_job, artifacts: seed_artifacts.merge(artifacts))
+    end
+
+    def still_eligible?
+      case kind
+      when "job"
+        job = jobs.first
+        job.approved? &&
+          !job.external_pr? &&
+          job.pr_number.present? &&
+          !job.workflows.active.where(trigger_kind: VALIDATION_TRIGGER_KINDS).exists?
+      when "merge_train"
+        jobs.all?(&:approved?) &&
+          jobs.all? { |job| job.pr_number.present? && job.branch_name.present? } &&
+          !Workflow.active.where(job_id: jobs.map(&:id), trigger_kind: %w[merge_train merge_train_validation]).exists?
+      else
+        false
+      end
+    end
+
+    private
+
+    def workflow_class
+      kind == "merge_train" ? Workflows::MergeTrainValidation : Workflows::LandingValidation
+    end
+
+    def workflow_job
+      jobs.last
+    end
+  end
+
+  def next_landing_unit
+    units = LandingQueueProcessor.landing_units(Job.where(repository_id: job.repository_id))
+    index = units.index { |unit| unit.key == source_unit_key }
     return if index.nil?
 
-    entries[(index + 1)..]&.find do |entry|
-      ordinary_auto_merge_candidate?(entry.job) && entry.eligible?
-    end&.job
+    units[(index + 1)..]&.filter_map { |unit| target_for(unit) }&.first
+  end
+
+  def source_unit_key
+    job.epic_id.present? ? "epic:#{job.epic_id}" : "job:#{job.id}"
+  end
+
+  def target_for(unit)
+    return if unit.blocker_jobs.any?
+
+    if merge_train_unit?(unit) && AppSetting.merge_train_enabled?
+      merge_train_target(unit)
+    else
+      ordinary_target(unit)
+    end
+  end
+
+  def ordinary_target(unit)
+    candidate = unit.jobs.find { |unit_job| ordinary_auto_merge_candidate?(unit_job) }
+    return unless candidate
+
+    TargetUnit.new(
+      kind: "job",
+      key: unit.key,
+      jobs: [ candidate ],
+      artifacts: candidate_identity(candidate).merge(
+        "prefetch_landing_unit_key" => unit.key,
+        "prefetch_landing_unit_kind" => "job"
+      )
+    )
+  end
+
+  def merge_train_target(unit)
+    return unless AppSetting.merge_train_enabled?
+    return unless unit.jobs.map(&:epic_id).compact.uniq.one?
+    return unless unit.jobs.all? { |member| ordinary_merge_train_member?(member) }
+    return if Workflow.active.where(job_id: unit.job_ids, trigger_kind: %w[merge_train merge_train_validation]).exists?
+
+    result = MergeTrainAssembler.call(unit.jobs.first.epic)
+    return unless result.ready?
+    return unless result.job_ids == unit.job_ids
+
+    TargetUnit.new(
+      kind: "merge_train",
+      key: unit.key,
+      jobs: result.members,
+      artifacts: {
+        "prefetch_landing_unit_key" => unit.key,
+        "prefetch_landing_unit_kind" => "merge_train",
+        "prefetch_merge_train_epic_id" => result.members.first.epic_id,
+        "prefetch_merge_train_member_job_ids" => result.job_ids,
+        "predicted_base_ref" => result.members.first.repository.default_branch
+      }
+    )
+  end
+
+  def merge_train_unit?(unit)
+    unit.key.start_with?("epic:")
   end
 
   def ordinary_auto_merge_candidate?(candidate)
-    return false unless candidate.approved?
-    return false if candidate.external_pr?
-    return false if candidate.pr_number.blank?
-    return false if candidate.epic_id.present? && AppSetting.merge_train_enabled?
-    return false if candidate.workflows.active.where(trigger_kind: "landing_validation").exists?
+    ordinary_merge_candidate?(candidate) &&
+      !(candidate.epic_id.present? && AppSetting.merge_train_enabled?) &&
+      !candidate.workflows.active.where(trigger_kind: VALIDATION_TRIGGER_KINDS).exists?
+  end
 
-    true
+  def ordinary_merge_train_member?(candidate)
+    ordinary_merge_candidate?(candidate) &&
+      candidate.epic_id.present? &&
+      !candidate.workflows.active.where(trigger_kind: VALIDATION_TRIGGER_KINDS).exists?
+  end
+
+  def ordinary_merge_candidate?(candidate)
+    candidate.approved? &&
+      !candidate.external_pr? &&
+      candidate.pr_number.present? &&
+      candidate.branch_name.present?
   end
 
   def source_identity
@@ -88,11 +182,24 @@ class LandingValidationPrefetcher
       "prefetch_source_tree_sha" => tree_sha,
       "predicted_base_sha" => head_sha,
       "predicted_base_tree_sha" => tree_sha,
-      "predicted_base_ref" => job.effective_base_branch.presence || job.repository.default_branch
+      "predicted_base_ref" => predicted_base_ref
     }
   rescue StandardError => e
     Rails.logger.warn("[LandingValidationPrefetcher] source identity failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
     nil
+  end
+
+  def predicted_base_ref
+    return merge_train_base_ref if workflow.trigger_kind == "merge_train"
+
+    job.effective_base_branch.presence || job.repository.default_branch
+  end
+
+  def merge_train_base_ref
+    train_id = workflow.artifact("merge_train_id")
+    return job.repository.default_branch if train_id.blank?
+
+    MergeTrain.find_by(id: train_id)&.base_branch.presence || job.repository.default_branch
   end
 
   def candidate_identity(candidate)
