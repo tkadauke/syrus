@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_17_151725) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_18_081044) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -306,10 +306,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_151725) do
     t.integer "chat_session_id", null: false
     t.json "content", null: false
     t.datetime "created_at", null: false
+    t.string "parent_tool_use_id"
     t.bigint "pending_action_id"
     t.integer "proposal_id"
     t.string "role", null: false
     t.bigint "sender_user_id"
+    t.boolean "sidechain", default: false, null: false
     t.string "tool_name"
     t.string "tool_use_id"
     t.datetime "updated_at", null: false
@@ -320,6 +322,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_151725) do
     t.index ["chat_session_id", "role", "id"], name: "idx_chat_messages_session_role_id"
     t.index ["chat_session_id", "role", "tool_name", "created_at", "id"], name: "idx_chat_messages_session_role_tool_created_id"
     t.index ["chat_session_id", "role"], name: "idx_chat_messages_session_role"
+    t.index ["chat_session_id", "tool_use_id"], name: "index_chat_messages_on_chat_session_id_and_tool_use_id"
     t.index ["chat_session_id"], name: "index_chat_messages_on_chat_session_id"
     t.index ["pending_action_id"], name: "index_chat_messages_on_pending_action_id"
     t.index ["proposal_id", "id"], name: "idx_chat_messages_proposal_id_id"
@@ -2477,7 +2480,4 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_17_151725) do
   add_foreign_key "workflow_step_resource_profiles", "repositories"
   add_foreign_key "workflows", "jobs"
   add_foreign_key "workflows", "users"
-
-  # Virtual tables defined in this database.
-  # Note that virtual tables may not work with other database engines. Be careful if changing database.
 end

@@ -35,6 +35,29 @@ RSpec.describe App::ChatMessagePayload do
     expect(payload.fetch(:text)).to eq("")
   end
 
+  it "includes sidechain + parent_tool_use_id for a subagent's nested tool call" do
+    message = chat.messages.create!(
+      role: "tool_use", tool_name: "Read", tool_use_id: "sub1",
+      sidechain: true, parent_tool_use_id: "toolu_agent1",
+      content: { "type" => "tool_use", "id" => "sub1", "name" => "Read", "input" => {} }
+    )
+
+    payload = described_class.messages([ message ], repository: repository).first
+
+    expect(payload.fetch(:sidechain)).to eq(true)
+    expect(payload.fetch(:parent_tool_use_id)).to eq("toolu_agent1")
+  end
+
+  it "omits sidechain + parent_tool_use_id for an ordinary top-level message" do
+    message = chat.messages.create!(role: "tool_use", tool_name: "Read", tool_use_id: "t1",
+                                    content: { "type" => "tool_use", "id" => "t1", "name" => "Read", "input" => {} })
+
+    payload = described_class.messages([ message ], repository: repository).first
+
+    expect(payload).not_to have_key(:sidechain)
+    expect(payload).not_to have_key(:parent_tool_use_id)
+  end
+
   it "includes pinnable to gate the pin control the same way as bookmarkable" do
     user_message = chat.messages.create!(role: "user", content: { "text" => "Pin me." })
     tool_message = chat.messages.create!(role: "tool_use", tool_name: "Read", content: { "type" => "tool_use", "id" => "t1", "name" => "Read", "input" => {} })

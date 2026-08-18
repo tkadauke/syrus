@@ -898,6 +898,21 @@ class ChatTurnJob < ApplicationJob
     end
 
     persist_optional_session_metadata(session, capture)
+    backfill_sidechain_chat_messages!(capture)
+  end
+
+  # ChatMessage rows for this turn were already created live (see
+  # #record_agent_event) before subagent transcript data existed --
+  # apply the sidechain/parent_tool_use_id tags computed from the
+  # post-turn normalized_messages now that they're available.
+  def backfill_sidechain_chat_messages!(capture)
+    return if capture.normalized_messages.blank?
+
+    ChatMessageSidechainBackfiller.call(chat_session: @chat, normalized_messages: capture.normalized_messages)
+  rescue StandardError => e
+    Rails.logger.warn(
+      "[chat_session] sidechain backfill failed chat_id=#{@chat.id} session_id=#{capture.session_id}: #{e.class}: #{e.message}"
+    )
   end
 
   def persist_optional_session_metadata(session, capture)

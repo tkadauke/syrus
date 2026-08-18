@@ -371,6 +371,61 @@ RSpec.describe ChatTurnJob do
     saved&.each { |key, value| ENV[key] = value }
   end
 
+  it "backfills sidechain metadata onto ChatMessage rows created live for a subagent's nested tool calls" do
+    ChatTurnJob.agent_runner = ->(**kwargs) {
+      # Claude Code streams a subagent's own tool calls live today, same as
+      # any other tool call, with no sidechain marker -- this is exactly the
+      # bug the Epic describes: a nested Read call interleaved with the
+      # still-open outer Agent tool_use/tool_result pair.
+      kwargs[:log_sink].call("● Agent(...)", kind: "tool_call", tool_name: "Agent", tool_input: {}, tool_use_id: "toolu_agent1")
+      kwargs[:log_sink].call("● Read(...)", kind: "tool_call", tool_name: "Read", tool_input: { file_path: "/foo" }, tool_use_id: "sub_read1")
+      kwargs[:log_sink].call(
+        "  file contents", kind: "tool_result", tool_name: "Read",
+        tool_result_content: [ { "type" => "text", "text" => "file contents" } ],
+        tool_result_error: false, tool_use_id: "sub_read1"
+      )
+      kwargs[:log_sink].call(
+        "  Agent done", kind: "tool_result", tool_name: "Agent",
+        tool_result_content: [ { "type" => "text", "text" => "done" } ],
+        tool_result_error: false, tool_use_id: "toolu_agent1"
+      )
+
+      # The post-turn transcript (what ClaudeTranscript/normalized_messages_for
+      # parse) carries the sidechain marker + spawning tool_use id for the
+      # nested calls -- in production this comes from merging the sibling
+      # subagents/*.jsonl file (see ChatProviders::Claude#session_capture);
+      # inlined directly here to unit-test the backfill independent of that.
+      transcript = [
+        { "type" => "assistant", "message" => { "content" => [
+          { "type" => "tool_use", "name" => "Agent", "input" => {}, "id" => "toolu_agent1" }
+        ] } },
+        { "type" => "assistant", "isSidechain" => true, "parentToolUseId" => "toolu_agent1", "message" => { "content" => [
+          { "type" => "tool_use", "name" => "Read", "input" => { "file_path" => "/foo" }, "id" => "sub_read1" }
+        ] } },
+        { "type" => "user", "isSidechain" => true, "parentToolUseId" => "toolu_agent1", "message" => { "content" => [
+          { "type" => "tool_result", "tool_use_id" => "sub_read1", "content" => "file contents" }
+        ] } },
+        { "type" => "user", "message" => { "content" => [
+          { "type" => "tool_result", "tool_use_id" => "toolu_agent1", "content" => "done" }
+        ] } }
+      ].map(&:to_json).join("\n")
+
+      result_fixture(session_id: "chat-session-sidechain", transcript_jsonl: "#{transcript}\n")
+    }
+
+    described_class.perform_now(chat.id, user_message.id)
+
+    outer_use = chat.messages.find_by(role: "tool_use", tool_use_id: "toolu_agent1")
+    outer_result = chat.messages.find_by(role: "tool_result", tool_use_id: "toolu_agent1")
+    nested_use = chat.messages.find_by(role: "tool_use", tool_use_id: "sub_read1")
+    nested_result = chat.messages.find_by(role: "tool_result", tool_use_id: "sub_read1")
+
+    expect(outer_use).to have_attributes(sidechain: false, parent_tool_use_id: nil)
+    expect(outer_result).to have_attributes(sidechain: false, parent_tool_use_id: nil)
+    expect(nested_use).to have_attributes(sidechain: true, parent_tool_use_id: "toolu_agent1")
+    expect(nested_result).to have_attributes(sidechain: true, parent_tool_use_id: "toolu_agent1")
+  end
+
   it "includes attached Epic context in the first-turn prompt" do
     epic = Factories.epic(
       user: user,
