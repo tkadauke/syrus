@@ -21,6 +21,7 @@ module Skills
       Entry.new(name: "investigate", klass: "Investigate"),
       Entry.new(name: "onboard-to-syrus", klass: "OnboardToSyrus"),
       Entry.new(name: "debug", klass: "Debug"),
+      Entry.new(name: "rebase-conflict-resolver", klass: "RebaseConflictResolver"),
       Entry.new(name: "dependency-audit", klass: "DependencyAudit"),
       Entry.new(name: "explain-failing-ci", klass: "ExplainFailingCi"),
       Entry.new(name: "coverage-gap-report", klass: "CoverageGapReport"),
