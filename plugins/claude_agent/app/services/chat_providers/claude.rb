@@ -234,7 +234,11 @@ module ChatProviders
       return transcript if subagent_lines.empty?
 
       all_lines = transcript.each_line.map(&:chomp).reject(&:blank?) + subagent_lines
-      all_lines.sort_by { |line| parsed_timestamp(line) }.join("\n")
+      # `sort_by` isn't stable, so pair each line with its original index as
+      # a tiebreaker -- otherwise lines sharing a timestamp (millisecond
+      # resolution, so more common than it sounds) could interleave
+      # nondeterministically between runs.
+      all_lines.each_with_index.sort_by { |line, index| [ parsed_timestamp(line), index ] }.map(&:first).join("\n")
     end
 
     def tagged_subagent_lines(agent_path)
