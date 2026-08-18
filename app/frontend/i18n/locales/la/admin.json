@@ -592,7 +592,21 @@
     "state_paused": "suspensum",
     "state_running": "currens",
     "state_enabled": "activatum",
-    "state_disabled": "desactivatum"
+    "state_disabled": "desactivatum",
+    "maintenance_heading": "Cura",
+    "maintenance_description": "Iterationes tempus signant in celante communi tamquam pilulam venenatam; omnis processus web/opifex id per se animadvertit et se ipsum terminat, ut ratio iterandi machinae (Kubernetes, Docker Compose, vel foreman) eum iterum excitet.",
+    "restart_web_title": "Web iterare",
+    "restart_web_description": "Omnes processus web iterat. Brevis interruptio petitionum dum iterat.",
+    "restart_worker_title": "Opificem iterare",
+    "restart_worker_description": "Omnes processus opificis iterat. Cursus activi interrumpuntur et, si fieri potest, iterum automatice temptantur.",
+    "restart_all_title": "Omnia iterare",
+    "restart_all_description": "Et web et opificem iterat.",
+    "restart_confirm": "Certusne es hanc partem iterare velle?",
+    "restart_confirm_with_runs": "{{count}} cursus activi sunt. Si nunc iteras, interrumpentur. Pergere?",
+    "restart_confirm_button": "Iterare",
+    "restart_force_confirm": "Iterationem cogere",
+    "restart_success": "Iteratio incepta est. Haec pagina paulisper adiri non poterit — post ~15 secunda itera.",
+    "restart_error": "Iteratio incipi non potuit."
   },
   "queue": {
     "heading": "Agmen",

@@ -28,6 +28,7 @@ export type AdminConsolePayload = {
   settings: ConsoleSettings
   users: ConsoleUser[]
   recent_admin_actions: ConsoleAction[]
+  active_runs: number
   ok?: boolean
   message?: string
 }

@@ -55,6 +55,40 @@ such as `confirm_rebase`, `close_successfully_no_changes`, `retry_job`, `wait`,
 Run, PR, dependency, or queue state; actions that would mutate state still
 require the separate pending-confirmation tools.
 
+## Restart Web / Worker
+
+The operator console's Maintenance section and `POST /api/v1/admin/restart`
+(bearer-token API) / `POST /api/v1/app/admin/restart` (session-authenticated,
+used by the React admin UI) restart web and/or worker processes without any
+environment-specific code — no `kubectl`, no Kubernetes API access, no RBAC.
+
+The mechanism is a shared cache "poison pill": `Admin::RestartService` writes
+a UTC timestamp to `Rails.cache` under `syrus:restart_web` and/or
+`syrus:restart_worker` (component `all` writes both). Every web and worker
+process runs a `RestartWatcher` background thread (started by
+`config/initializers/restart_watcher.rb`, gated the same way as
+`InstanceVersionSupervisor` — only when `SyrusVersion.server_process?`, so it
+never runs in the console, test suite, or asset compilation) that polls its
+own role-scoped key every 10 seconds. When it finds a timestamp newer than
+its own start time, it logs, sleeps a random 0-20s jitter (staggers
+multi-pod/container restarts so the platform can replace one instance before
+the next goes down), then sends itself `SIGTERM`. The platform's existing
+restart policy brings the process back — Kubernetes' pod restart policy,
+Docker Compose's `restart: unless-stopped` (already set on `web` and `worker`
+in `docker-compose.yml`), or foreman in local dev.
+
+Because each process compares the poison-pill timestamp against its own boot
+time, a freshly restarted process ignores the old timestamp instead of
+restarting in a loop. The cache entry expires after 5 minutes.
+
+Restarting `worker` or `all` is refused with `409` (`initiated: false`,
+`active_runs: N`) when Runs are in `queued`/`running` state, unless the
+request passes `force: true`. Restarting `web` alone never checks active Runs.
+Every restart request — successful or refused-then-forced — is recorded via
+`AdminAction.log!` (`action: "restart"`) with `component`, `source`
+(`"api"` or `"app"`), `force`, and the active-run count observed at request
+time, visible in the console's Recent Admin Actions table.
+
 ## Stale Run Reap
 
 The admin-only stale-run reap action defers to the unified work-engine

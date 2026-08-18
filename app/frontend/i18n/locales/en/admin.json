@@ -652,7 +652,21 @@
     "state_paused": "paused",
     "state_running": "running",
     "state_enabled": "enabled",
-    "state_disabled": "disabled"
+    "state_disabled": "disabled",
+    "maintenance_heading": "Maintenance",
+    "maintenance_description": "Restarts write a shared cache poison-pill timestamp; every web/worker process notices it independently and terminates itself so the platform's restart policy (Kubernetes, Docker Compose, or foreman) brings it back.",
+    "restart_web_title": "Restart web",
+    "restart_web_description": "Restarts every web process. Brief request interruption while it restarts.",
+    "restart_worker_title": "Restart worker",
+    "restart_worker_description": "Restarts every worker process. Active Runs are interrupted and auto-retried where possible.",
+    "restart_all_title": "Restart all",
+    "restart_all_description": "Restarts both web and worker processes.",
+    "restart_confirm": "Are you sure you want to restart this component?",
+    "restart_confirm_with_runs": "There are {{count}} active run(s) in progress. Restarting now will interrupt them. Continue?",
+    "restart_confirm_button": "Restart",
+    "restart_force_confirm": "Force restart",
+    "restart_success": "Restart initiated. This page may become temporarily unavailable — reload in ~15 seconds.",
+    "restart_error": "Unable to initiate restart."
   },
   "queue": {
     "heading": "Queue",

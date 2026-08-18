@@ -364,6 +364,7 @@ Rails.application.routes.draw do
           post "console/enable_merge_train", to: "console#enable_merge_train"
           post "console/disable_merge_train", to: "console#disable_merge_train"
           post "console/clear_github_cache", to: "console#clear_github_cache"
+          post "restart", to: "restart#create"
           get "installations", to: "installations#index"
           get "installations/diagnostic", to: "installations#diagnostic"
           post "installations/refresh", to: "installations#refresh"
@@ -448,6 +449,11 @@ Rails.application.routes.draw do
         post "console/unpause_runs",    to: "console#unpause_runs"
         post "console/enable_merge_train",  to: "console#enable_merge_train"
         post "console/disable_merge_train", to: "console#disable_merge_train"
+
+        # Poison-pill restart — writes a Rails.cache timestamp that every
+        # web/worker process independently polls for (see RestartWatcher).
+        # Body: { component: "web" | "worker" | "all", force: true }.
+        post "restart", to: "restart#create"
 
         # Per-instance version info — returns the SHA + role of the
         # pod handling THIS request (`request_handler`) plus every
