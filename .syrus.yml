@@ -132,7 +132,11 @@ grade:
       RAILS_MAX_THREADS / config/database.yml's pool, or trim the
       queue's thread count.
     run: BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs 4 && bin/check-thread-budget
-    timeout_minutes: 1
+    # Landing dispatches graders in parallel; this one starts with the same
+    # `bundle check` as eager-load/production-build-boot, so it needs the
+    # same 3-minute headroom under contention instead of the tighter 1-minute
+    # budget that produced a spurious exit-124 with zero actual failures.
+    timeout_minutes: 3
 
   - name: feature-slugs
     description: |
