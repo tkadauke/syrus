@@ -110,6 +110,8 @@ Agentic. An independent reviewer agent drives a headless browser against its own
 
 Before spending an agent turn, the step applies `visual_review.when_files_changed` as a deterministic pre-filter — same glob semantics as a grader's `when_files_changed` — and skips immediately (verdict `skipped`, no agent turn) when configured and no changed file matches. When the agent does run, it reads the `submit_test_plan` artifact's `visual_review_recommended`/`visual_review_reason` fields (set by the implementing agent) as a hint, but makes its own independent go/no-go call before ever starting a preview. `needs_work` feeds the loop back into another `implement`/`respond` iteration, the same way `adversarial_review`'s does; `approved` and `skipped` both exit the loop early.
 
+If the reviewer agent finishes without calling its required MCP tool (`submit_adversarial_review` / `submit_visual_review`), the step raises and `RunFailureClassifier` records `missing_required_tool_call` (confidence 0.85, retryable). Both steps discard the reviewer's workspace changes before this failure is raised, so there is no partial state a retry could compound — `WorkEngine::RepairExecutor` picks it up on the normal 5m/20m/1h auto-retry backoff instead of surfacing as an operator-action-required stuck-job alarm.
+
 ### grader_fanout
 
 Non-agentic. Reads grader definitions from `.syrus.yml` and materializes one `grader` Step per configured grader command. Run once at the start of each check cycle.
