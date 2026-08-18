@@ -82,6 +82,24 @@ module Steps
       WorkspaceDependencyEnv.for(workspace.path)
     end
 
+    def capture_workspace_git_state
+      git = GitRunner.new
+      {
+        "head" => git.run("rev-parse", "HEAD", chdir: workspace.path.to_s).strip,
+        "tree" => git.run("rev-parse", "HEAD^{tree}", chdir: workspace.path.to_s).strip,
+        "status" => git.run("status", "--porcelain", chdir: workspace.path.to_s)
+      }
+    end
+
+    def assert_workspace_git_state_unchanged!(before, context:)
+      after = capture_workspace_git_state
+      return if after["head"] == before["head"] && after["tree"] == before["tree"] && after["status"].strip.empty?
+
+      log("#{context}: metadata-only agent turn changed workspace git state; refusing to continue")
+      raise StepFailed,
+            "#{context} changed workspace contents or git history; metadata-only steps must only call MCP tools"
+    end
+
     # Shared transcript-append + heartbeat-bump for this Run, used
     # by streamed agent output and by handler-emitted log lines.
     # Resilient to blank input — see RunJob#log for the same

@@ -24,6 +24,7 @@ module Steps
       end
 
       run.update!(prompt: Prompts::SummarizeAmend.new.to_s) if run.prompt.blank?
+      git_state_before_agent = capture_workspace_git_state
 
       log("invoking agent for summarize_amend step (#{workflow.slug}, --resume)")
       run_agent(
@@ -32,6 +33,7 @@ module Steps
         required_mcp_tools: %w[submit_summary]
       )
 
+      assert_workspace_git_state_unchanged!(git_state_before_agent, context: "summarize_amend")
       promote_artifacts!
       rewrite_amend_commit_message!
     end

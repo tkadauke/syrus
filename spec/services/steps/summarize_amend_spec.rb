@@ -151,6 +151,25 @@ RSpec.describe Steps::SummarizeAmend, :ci_only do
       expect(commit_message).to start_with("Address review feedback: tighten docstring")
     end
 
+    it "fails if the summarize_amend agent changes workspace contents before submitting metadata" do
+      allow(handler).to receive(:run_agent) do
+        File.write(@ws_path.join("unrelated.rb"), "class Unrelated; end\n")
+        sh("git -C #{@ws_path} add unrelated.rb")
+        sh("git -C #{@ws_path} commit -q -m 'Unrelated follow-up change'")
+        run.update!(
+          agent_pr_title: "Address review feedback: tighten docstring",
+          agent_pr_body: "Tightened the docs.",
+          agent_summary: "Addressed review feedback."
+        )
+      end
+
+      expect {
+        handler.call
+      }.to raise_error(Steps::Base::StepFailed, /metadata-only steps must only call MCP tools/)
+      expect(commit_message).to eq("Unrelated follow-up change")
+      expect(workflow.reload.artifact("amend_commit_subject")).to be_nil
+    end
+
     it "includes amend_commit_body in the message when present" do
       stub_agent(title: "Address review feedback: tighten docstring", body: "Tightened the docs.")
       handler.call
@@ -193,7 +212,8 @@ RSpec.describe Steps::SummarizeAmend, :ci_only do
     end
   end
 
-  def sh(env, cmd)
+  def sh(*args)
+    env, cmd = args.size == 2 ? args : [ {}, args.fetch(0) ]
     out, err, status = Open3.capture3(env, cmd)
     raise "shell failed: #{cmd}\n#{out}\n#{err}" unless status.success?
     out

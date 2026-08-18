@@ -245,6 +245,25 @@ RSpec.describe Steps::Summarize, :ci_only do
       expect(commit_message).to start_with("Add greeting helper")
     end
 
+    it "fails if the summarize agent changes workspace contents before submitting metadata" do
+      allow(handler).to receive(:run_agent) do
+        File.write(@ws_path.join("wrong_skill.rb"), "class WrongSkill; end\n")
+        sh("git -C #{@ws_path} add wrong_skill.rb")
+        sh("git -C #{@ws_path} commit -q -m 'Unrelated content change'")
+        run.update!(
+          agent_pr_title: "Add greeting helper",
+          agent_pr_body: "Adds a tiny helper.",
+          agent_summary: "Added a greeting helper."
+        )
+      end
+
+      expect {
+        handler.call
+      }.to raise_error(Steps::Base::StepFailed, /metadata-only steps must only call MCP tools/)
+      expect(commit_message).to eq("Unrelated content change")
+      expect(workflow.reload.artifact("pr_title")).to be_nil
+    end
+
     it "includes pr_body in the commit message body when present" do
       stub_agent(title: "Add greeting helper", body: "Adds a tiny helper.")
       handler.call
@@ -320,7 +339,8 @@ RSpec.describe Steps::Summarize, :ci_only do
     end
   end
 
-  def sh(env, cmd)
+  def sh(*args)
+    env, cmd = args.size == 2 ? args : [ {}, args.fetch(0) ]
     out, err, status = Open3.capture3(env, cmd)
     raise "shell failed: #{cmd}\n#{out}\n#{err}" unless status.success?
     out

@@ -37,6 +37,7 @@ module Steps
       raise StepFailed, "#{workflow.slug} has no completed implement run to summarize" if missing_required_implement_run?
 
       run.update!(prompt: Prompts::Summarize.new.to_s) if run.prompt.blank?
+      git_state_before_agent = capture_workspace_git_state
 
       log("invoking agent for summarize step (#{workflow.slug}, --resume from implement)")
 
@@ -59,6 +60,7 @@ module Steps
         )
       end
 
+      assert_workspace_git_state_unchanged!(git_state_before_agent, context: "summarize")
       promote_artifacts!
       rewrite_implement_commit_message!
     end
