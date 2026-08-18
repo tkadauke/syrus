@@ -42,7 +42,7 @@ RSpec.describe "bin/rspec-worker" do
 
       expect(status).to be_success, "expected success, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
       expect(File.read(log_path).lines.map(&:chomp)).to eq([
-        "rspec args=--tag ~ci_only --format progress --format json --out .syrus/rspec-json/rspec-1.json spec/models/job_spec.rb"
+        "rspec args=--tag ~ci_only --require rspec_junit_formatter --format progress --format json --out .syrus/rspec-json/rspec-1.json --format RspecJunitFormatter --out .syrus/rspec-junit/rspec-junit-1.xml spec/models/job_spec.rb"
       ])
     end
   end

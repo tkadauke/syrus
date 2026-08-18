@@ -3,8 +3,12 @@ set -euo pipefail
 
 export RAILS_ENV="${RAILS_ENV:-test}"
 export RSPEC_JSON_DIR="${RSPEC_JSON_DIR:-.syrus/rspec-json}"
+# Per-worker JUnit XML. bin/rspec-fast merges these into one document so the
+# `junit_output:` grader key still ingests under parallelism — a single worker
+# only ever sees its own slice of the suite.
+export RSPEC_JUNIT_DIR="${RSPEC_JUNIT_DIR:-.syrus/rspec-junit}"
 
-mkdir -p "$RSPEC_JSON_DIR"
+mkdir -p "$RSPEC_JSON_DIR" "$RSPEC_JUNIT_DIR"
 worker_id="${TEST_ENV_NUMBER:-1}"
 
 # bin/rspec-fast's contract is "excludes :ci_only" unconditionally (see
@@ -18,7 +22,10 @@ worker_id="${TEST_ENV_NUMBER:-1}"
 # level so it holds regardless of the ambient CI env var.
 exec bin/rspec \
   --tag ~ci_only \
+  --require rspec_junit_formatter \
   --format progress \
   --format json \
   --out "$RSPEC_JSON_DIR/rspec-${worker_id}.json" \
+  --format RspecJunitFormatter \
+  --out "$RSPEC_JUNIT_DIR/rspec-junit-${worker_id}.xml" \
   "$@"
