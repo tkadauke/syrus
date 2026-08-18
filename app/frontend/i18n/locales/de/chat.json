@@ -40,6 +40,8 @@
   "hide_system_messages": "Systemnachrichten ausblenden",
   "show_system_messages_one": "1 ausgeblendete Systemnachricht anzeigen",
   "show_system_messages_other": "{{count}} ausgeblendete Systemnachrichten anzeigen",
+  "system_message_show_details": "Details der Systemnachricht anzeigen",
+  "system_message_hide_details": "Details der Systemnachricht ausblenden",
   "switching_to_provider": "Wechsle zu {{provider}}…",
   "queue_followup": "Folgenachricht in die Warteschlange stellen...",
   "ask_repository": "Über dieses Repository fragen...",

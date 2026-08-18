@@ -40,6 +40,8 @@
   "hide_system_messages": "Hide system messages",
   "show_system_messages_one": "Show 1 hidden system message",
   "show_system_messages_other": "Show {{count}} hidden system messages",
+  "system_message_show_details": "Show system message details",
+  "system_message_hide_details": "Hide system message details",
   "switching_to_provider": "Switching to {{provider}}…",
   "queue_followup": "Queue a follow-up message...",
   "ask_repository": "Ask about this repository...",

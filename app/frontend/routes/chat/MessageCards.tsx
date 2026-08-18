@@ -453,6 +453,7 @@ function StructuredTool({ tool, fallback }: { tool?: ChatStructuredTool; fallbac
 }
 
 function SystemMessage({ item, prefix }: { item: ChatSystemMessage; prefix: string }) {
+  const { t } = useT("chat")
   const colors = {
     success: "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-100",
     warning: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100",
@@ -489,7 +490,7 @@ function SystemMessage({ item, prefix }: { item: ChatSystemMessage; prefix: stri
         ) : null}
         <button
           aria-expanded={expanded}
-          aria-label={expanded ? "Hide system message details" : "Show system message details"}
+          aria-label={expanded ? t("system_message_hide_details") : t("system_message_show_details")}
           className="shrink-0 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
           onClick={() => setExpanded((value) => !value)}
           type="button"
