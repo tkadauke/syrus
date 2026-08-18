@@ -1,7 +1,7 @@
 require "rails_helper"
 require "tempfile"
 
-RSpec.describe SyrusRails::SimpleCovAnalyzer do
+RSpec.describe Ruby::SimpleCovAnalyzer do
   let(:fixtures_path) { Rails.root.join("spec/fixtures/simplecov") }
 
   def fixture(name)
@@ -117,41 +117,6 @@ RSpec.describe SyrusRails::SimpleCovAnalyzer do
 
       it "still produces a single entry per file after merging" do
         expect(result["files"].keys).to eq(["app/models/user.rb"])
-      end
-    end
-  end
-
-  describe "SyrusRails.detect?" do
-    it "returns true when a directory has Gemfile, config/application.rb, and bin/rails" do
-      Dir.mktmpdir do |dir|
-        FileUtils.touch(File.join(dir, "Gemfile"))
-        FileUtils.mkdir_p(File.join(dir, "config"))
-        FileUtils.touch(File.join(dir, "config", "application.rb"))
-        FileUtils.mkdir_p(File.join(dir, "bin"))
-        FileUtils.touch(File.join(dir, "bin", "rails"))
-
-        expect(SyrusRails.detect?(dir)).to be true
-      end
-    end
-
-    it "returns false when bin/rails is missing" do
-      Dir.mktmpdir do |dir|
-        FileUtils.touch(File.join(dir, "Gemfile"))
-        FileUtils.mkdir_p(File.join(dir, "config"))
-        FileUtils.touch(File.join(dir, "config", "application.rb"))
-
-        expect(SyrusRails.detect?(dir)).to be false
-      end
-    end
-
-    it "returns false when Gemfile is missing" do
-      Dir.mktmpdir do |dir|
-        FileUtils.mkdir_p(File.join(dir, "config"))
-        FileUtils.touch(File.join(dir, "config", "application.rb"))
-        FileUtils.mkdir_p(File.join(dir, "bin"))
-        FileUtils.touch(File.join(dir, "bin", "rails"))
-
-        expect(SyrusRails.detect?(dir)).to be false
       end
     end
   end

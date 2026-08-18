@@ -9,10 +9,8 @@ module SyrusRails
       SyrusRails::SchemaErdRenderer.include(Syrus::Plugin::ArtifactRenderer)
       SyrusRails::MigrationDiffRenderer.include(Syrus::Plugin::ArtifactRenderer)
       SyrusRails::RspecParser.include(Syrus::Plugin::TestResultParser)
-      SyrusRails::SimpleCovAnalyzer.include(Syrus::Plugin::CoverageAnalyzer)
       SyrusRails::PromptContext.include(Syrus::Plugin::PromptInjector)
       SyrusRails::PreviewProvider.include(Syrus::Plugin::PreviewProvider)
-      SyrusRails::GraderAugmentor.include(Syrus::Plugin::GraderAugmentor)
 
       Syrus::PluginRegistry.register(
         name:        "syrus-rails",
@@ -24,10 +22,8 @@ module SyrusRails
           mcp_tool_set:       SyrusRails::McpToolSet,
           artifact_renderer:  [SyrusRails::SchemaErdRenderer, SyrusRails::MigrationDiffRenderer],
           test_result_parser: SyrusRails::RspecParser,
-          coverage_analyzer:  SyrusRails::SimpleCovAnalyzer,
           prompt_injector:    SyrusRails::PromptContext,
-          preview_provider:   SyrusRails::PreviewProvider,
-          grader_augmentor:   SyrusRails::GraderAugmentor
+          preview_provider:   SyrusRails::PreviewProvider
         }
       )
     end
