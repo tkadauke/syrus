@@ -507,6 +507,33 @@ RSpec.describe Job do
       end
     end
 
+    it "closes agent_insight jobs instead of leaving them implemented" do
+      Feature.find_or_create_by!(slug: "agent_insights") do |f|
+        f.category = "Labs"
+        f.name     = "Agent Insights"
+      end.update!(enabled: true)
+
+      user = Factories.user
+      repository = Factories.repository(user: user)
+      job = Job.create!(
+        user: user,
+        owner_user: user,
+        repository: repository,
+        kind: "agent_insight",
+        issue_title: "Insight analysis: #{repository.slug}",
+        issue_number: nil,
+        state: "running"
+      )
+
+      freeze_time do
+        expect { job.mark_implemented! }
+          .to change(job, :state).from("running").to("closed")
+
+        expect(job.closure_reason).to eq("agent_insight")
+        expect(job.finished_at).to eq(Time.current)
+      end
+    end
+
     it "may_close? is false for an already-closed job" do
       job = Factories.job
       job.close!

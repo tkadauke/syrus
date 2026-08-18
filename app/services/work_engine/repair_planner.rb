@@ -877,15 +877,15 @@ module WorkEngine
         end
       end
 
-      class CompletedMainGraderJob < Base
+      class CompletedInfrastructureJob < Base
         def plan
           automatic_plan(
-            "close_completed_main_grader_job",
+            "close_completed_infrastructure_job",
             primary_job,
-            "Completed main-grader Jobs are operational health checks and can be closed once their latest Workflow is terminal or the Job is implemented.",
+            "Completed infrastructure Jobs (main_grader, agent_insight) are internal-tooling runs with no PR or operator review, and can be closed once their latest Workflow is terminal or the Job is implemented.",
             execution_steps: [ "Job#close_with_reason!" ],
             preconditions: {
-              job_kind: "main_grader",
+              job_kind: issue.evidence["job_kind"],
               closure_reason: issue.evidence["closure_reason"],
               latest_workflow_state: issue.evidence["latest_workflow_state"]
             }

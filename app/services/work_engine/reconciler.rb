@@ -182,7 +182,7 @@ module WorkEngine
       issues.concat(classify_queued_jobs_cancelled_without_active_workflow)
       issues.concat(classify_approved_jobs_with_landing_start_blockers)
       issues.concat(classify_unambiguous_job_state_drift)
-      issues.concat(classify_completed_main_grader_jobs)
+      issues.concat(classify_completed_infrastructure_jobs)
       issues.concat(classify_start_blocks)
       issues.concat(classify_main_broken_workflows)
       issues.concat(classify_resource_congestion)
@@ -961,27 +961,35 @@ module WorkEngine
       }
     end
 
-    def classify_completed_main_grader_jobs
+    # main_grader and agent_insight Jobs are internal-tooling health
+    # checks: no PR, no operator review. They're meant to close as soon
+    # as their one Workflow finishes (via Job#mark_infrastructure_job_closed
+    # or the agent_insight chain's own auto_close step), but a hook
+    # exception or a generic, kind-unaware repair path (e.g. the plain
+    # queued/succeeded or running/succeeded ReconcileJobStatesJob::Plan
+    # cases) can still strand one open. This is the safety net.
+    def classify_completed_infrastructure_jobs
       jobs.filter_map do |job|
-        next unless job.kind == "main_grader"
+        next unless job.infrastructure_job?
         next if job.closed?
 
         latest_workflow = job.latest_workflow
         next unless job.implemented? || ReconcileJobStatesJob.new.terminal_workflow?(latest_workflow)
 
         issue(
-          kind: :completed_main_grader_job,
+          kind: :completed_infrastructure_job,
           severity: :info,
           affected_ids: ids_for(job).merge(workflow_ids: [ latest_workflow&.id ]),
           safe_to_auto_repair: true,
-          recommended_repair_action: "close_completed_main_grader_job",
+          recommended_repair_action: "close_completed_infrastructure_job",
           evidence: {
+            job_kind: job.kind,
             job_state: job.state,
             latest_workflow_id: latest_workflow&.id,
             latest_workflow_state: latest_workflow&.state,
-            closure_reason: Job::MAIN_GRADER_CLOSURE_REASON
+            closure_reason: job.kind
           },
-          explanation: "Main grader Job ##{job.id} is complete and can be closed."
+          explanation: "#{job.kind.humanize} Job ##{job.id} is complete and can be closed."
         )
       end
     end

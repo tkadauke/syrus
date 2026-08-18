@@ -9,7 +9,7 @@ class ReconcileJobStatesJob < ApplicationJob
     Rails.logger.info("[ReconcileJobStatesJob] delegated to unified work-engine reconciler")
   end
 
-  # Called by WorkEngine::Reconciler#classify_completed_main_grader_jobs.
+  # Called by WorkEngine::Reconciler#classify_completed_infrastructure_jobs.
   def terminal_workflow?(workflow)
     workflow && %w[ succeeded failed cancelled ].include?(workflow.state)
   end
