@@ -96,6 +96,7 @@ admin-only:
   - app/controllers/api/v1/app/admin/installations_controller.rb
   - app/controllers/api/v1/app/admin/invitations_controller.rb
   - app/controllers/api/v1/app/admin/queue_controller.rb
+  - app/controllers/api/v1/app/admin/restart_controller.rb
   - app/controllers/api/v1/app/admin/settings_controller.rb
   - app/controllers/api/v1/app/admin/spawned_processes_controller.rb
   - app/controllers/api/v1/app/admin/supervisor_chats_controller.rb
@@ -228,6 +229,7 @@ behind `require_admin` unless a replacement admin authorization layer is added.
 | `app/controllers/api/v1/app/admin/installations_controller.rb` | admin-only | Queues installation sync for the current admin. |
 | `app/controllers/api/v1/app/admin/invitations_controller.rb` | admin-only | Records the current admin as invitation creator. |
 | `app/controllers/api/v1/app/admin/queue_controller.rb` | admin-only | Reads queue/process state through admin-only payloads and user-aware filters. |
+| `app/controllers/api/v1/app/admin/restart_controller.rb` | admin-only | Writes the Rails.cache restart poison-pill and passes the current admin as actor for `AdminAction` audit logging. |
 | `app/controllers/api/v1/app/admin/spawned_processes_controller.rb` | admin-only | Lists and kills subprocesses through admin payloads, with the current admin passed for authorization/audit. |
 | `app/controllers/api/v1/app/admin/users_controller.rb` | admin-only | Lists user records through an admin payload with the current admin as actor. |
 | `app/controllers/api/v1/app/auth_controller.rb` | admin-only | Public auth status includes current-user context when a signed-in admin hits auth routes. |
