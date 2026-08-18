@@ -118,10 +118,26 @@ production:
     <<: *primary_production
     database: syrus_production_queue
     migrations_paths: db/queue_migrate
+    # SolidQueue's fan-out jobs (PollAllMainBranchHealthJob, PollAllDeploymentStagesJob,
+    # PollAllMergeStatesJob, PollAllPullRequestsJob, ...) bulk-enqueue many child jobs at
+    # once. Under MySQL's default REPEATABLE READ, concurrent INSERTs into the same table
+    # take gap locks on adjacent index ranges, and overlapping fan-outs running at the same
+    # time can deadlock on solid_queue_jobs. READ COMMITTED drops those gap locks, which is
+    # the standard recommendation for running SolidQueue on MySQL.
+    variables:
+      innodb_lock_wait_timeout: 10
+      time_zone: "+00:00"
+      transaction_isolation: "READ-COMMITTED"
   cable:
     <<: *primary_production
     database: syrus_production_cable
     migrations_paths: db/cable_migrate
+    # Solid Cable polling also does concurrent writes into a shared table; same gap-lock
+    # deadlock risk as the queue database above.
+    variables:
+      innodb_lock_wait_timeout: 10
+      time_zone: "+00:00"
+      transaction_isolation: "READ-COMMITTED"
   search:
     adapter: sqlite3
     pool: <%= ENV.fetch("DB_POOL") { ENV.fetch("RAILS_MAX_THREADS") { 10 } } %>
