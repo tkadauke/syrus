@@ -114,6 +114,43 @@ RSpec.describe SmartFolder do
     expect(described_class.builtins(:job).pluck(:name).grep("Paused")).to eq([ "Paused" ])
   end
 
+  it "caches builtin reconciliation per subject so repeated calls skip the reconcile sweep" do
+    cache_store = ActiveSupport::Cache::MemoryStore.new
+    allow(Rails).to receive(:cache).and_return(cache_store)
+    allow(described_class).to receive(:reconcile_builtin_set!).and_call_original
+
+    described_class.ensure_builtins_for_subject!(:job)
+    described_class.ensure_builtins_for_subject!(:job)
+    described_class.ensure_builtins_for_subject!(:job)
+
+    expect(described_class).to have_received(:reconcile_builtin_set!).once
+    expect(described_class.builtins(:job).pluck(:name)).to eq(described_class::JOB_BUILTINS.map { |definition| definition.fetch(:name) })
+  end
+
+  it "reconciles again once the cached entry expires" do
+    cache_store = ActiveSupport::Cache::MemoryStore.new
+    allow(Rails).to receive(:cache).and_return(cache_store)
+    allow(described_class).to receive(:reconcile_builtin_set!).and_call_original
+
+    described_class.ensure_builtins_for_subject!(:job)
+    travel(described_class::BUILTIN_RECONCILE_CACHE_TTL + 1.minute) do
+      described_class.ensure_builtins_for_subject!(:job)
+    end
+
+    expect(described_class).to have_received(:reconcile_builtin_set!).twice
+  end
+
+  it "reconciles immediately when the definitions change, bypassing the cached TTL" do
+    cache_store = ActiveSupport::Cache::MemoryStore.new
+    allow(Rails).to receive(:cache).and_return(cache_store)
+    allow(described_class).to receive(:reconcile_builtin_set!).and_call_original
+
+    described_class.ensure_builtin_set!("job", described_class::JOB_BUILTINS)
+    described_class.ensure_builtin_set!("job", described_class::JOB_BUILTINS + [ { key: "extra", name: "Extra", visibility: :on_demand, filter: { "and" => [] } } ])
+
+    expect(described_class).to have_received(:reconcile_builtin_set!).twice
+  end
+
   it "sweeps retired built-ins on next ensure_builtins!" do
     described_class.create!(name: "Ghost", kind: "builtin", filter: { "attention" => "ghost" }, position: 99)
     described_class.create!(name: "Ghost", subject_type: "epic", kind: "builtin", filter: { "attention" => "ghost" }, position: 99)

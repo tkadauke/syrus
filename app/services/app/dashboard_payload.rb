@@ -283,9 +283,19 @@ module App
                      .where("user_id IS NULL OR user_id = ?", user.id)
                      .find_by(id: id)
         elsif default_inbox_smart_folder?
-          SmartFolder.find_builtin_by_attention("inbox")
+          default_inbox_smart_folder
         end
       end
+    end
+
+    # `active_smart_folder` and `active_folder_key_for_prefs` both fall
+    # back to the default inbox folder independently; memoize the lookup
+    # so a single request issues one SmartFolder builtins query instead
+    # of two.
+    def default_inbox_smart_folder
+      return @default_inbox_smart_folder if defined?(@default_inbox_smart_folder)
+
+      @default_inbox_smart_folder = SmartFolder.find_builtin_by_attention("inbox")
     end
 
     def active_folder_key_for_prefs
@@ -296,7 +306,7 @@ module App
         end
 
         if id.nil? && default_inbox_smart_folder?
-          id = SmartFolder.find_builtin_by_attention("inbox")&.id
+          id = default_inbox_smart_folder&.id
         end
 
         id&.to_s || "null"

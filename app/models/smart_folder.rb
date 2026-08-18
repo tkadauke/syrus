@@ -208,8 +208,27 @@ class SmartFolder < ApplicationRecord
     ensure_builtin_set!(:spawned_process, SPAWNED_PROCESS_BUILTIN_DEFINITIONS)
   end
 
+  # Reconciliation is called on every dashboard/admin request that renders
+  # a smart-folder sidebar (see App::DashboardPayload#call), but the
+  # built-in definitions only ever change on deploy. Re-running the full
+  # select/assign/save/destroy_all sweep on every request was showing up
+  # as one of the hottest SQL fingerprints in performance diagnostics.
+  # Cache "already reconciled" per subject; the cache key folds in a hash
+  # of the definitions so a deploy that changes them busts the cache
+  # immediately instead of waiting out the TTL.
+  BUILTIN_RECONCILE_CACHE_TTL = 10.minutes
+
   def self.ensure_builtin_set!(subject, definitions)
     subject = subject.to_s
+    cache_key = [ "smart_folder/builtins_reconciled", subject, definitions.hash ].join("/")
+
+    Rails.cache.fetch(cache_key, expires_in: BUILTIN_RECONCILE_CACHE_TTL) do
+      reconcile_builtin_set!(subject, definitions)
+      true
+    end
+  end
+
+  def self.reconcile_builtin_set!(subject, definitions)
     existing_by_name = canonical_builtin_rows_by_name(subject)
 
     definitions.each_with_index do |definition, index|
