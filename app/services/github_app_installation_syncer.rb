@@ -72,7 +72,7 @@ class GithubAppInstallationSyncer
   end
 
   def user_for(account_login)
-    Repository.where("lower(owner) = ?", account_login.to_s.downcase).includes(:user).first&.user ||
+    Repository.where(owner: account_login.to_s).includes(:user).first&.user ||
       @default_user ||
       User.where(admin: true).order(:id).first ||
       User.order(:id).first
