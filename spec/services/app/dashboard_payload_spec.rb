@@ -80,6 +80,14 @@ RSpec.describe App::DashboardPayload do
       expect(result[:active_smart_folder_id]).to eq(inbox_folder.id)
     end
 
+    it "looks up the default inbox folder only once per call, not once per consumer" do
+      allow(SmartFolder).to receive(:find_builtin_by_attention).and_call_original
+
+      call(subject: "job", view: "list", section: "full")
+
+      expect(SmartFolder).to have_received(:find_builtin_by_attention).once
+    end
+
     it "reads sort preferences from the inbox folder's slot (round-trip)" do
       # The frontend saves sort preferences keyed by active_smart_folder_id.
       # On the default inbox view that is inbox_folder.id, so we write there.
