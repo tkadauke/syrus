@@ -934,7 +934,7 @@ RSpec.describe PollPullRequestJob, :ci_only do
       expect(repair_job.reload.last_ci_handled_sha).to eq(sha)
     end
 
-    it "does not mark failing CI as handled when main health defers workflow start" do
+    it "does not dispatch a ci_failure workflow while main is known-broken (landing_paused? && main_health_broken?)" do
       repository.update!(ci_health: "broken", landing_paused: true)
       stub_check_runs(sha, [
         { name: "test", status: "completed", conclusion: "failure",
@@ -944,13 +944,50 @@ RSpec.describe PollPullRequestJob, :ci_only do
 
       expect {
         described_class.perform_now(job.id)
+      }.not_to change { job.workflows.where(trigger_kind: "ci_failure").count }
+
+      expect(Run.count).to eq(run_count)
+      expect(job.reload.last_ci_handled_sha).to be_nil
+    end
+
+    it "dispatches ci_failure normally when landing_paused? is true but main health is not broken" do
+      repository.update!(landing_paused: true)
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "failure",
+          html_url: "u", output: { summary: "fail" } }
+      ])
+
+      expect {
+        described_class.perform_now(job.id)
       }.to change { job.workflows.where(trigger_kind: "ci_failure").count }.by(1)
 
-      wf = job.workflows.where(trigger_kind: "ci_failure").last
-      expect(wf.first_step.runs).to be_empty
-      expect(Run.count).to eq(run_count)
-      expect(wf.artifact("start_blocked_reason")).to eq("main_branch_broken")
-      expect(job.reload.last_ci_handled_sha).to be_nil
+      expect(job.reload.last_ci_handled_sha).to eq(sha)
+    end
+
+    it "still dispatches ci_failure for main branch repair jobs even while main is known-broken" do
+      repair_job = Factories.job_record(
+        user: user,
+        repository: repository,
+        kind: "direct",
+        system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR,
+        issue_number: nil,
+        issue_title: Job::MAIN_BRANCH_REPAIR_TITLE,
+        issue_body: "Fix broken main.",
+        state: "implemented",
+        branch_name: "syrus/main-repair",
+        pr_number: 7
+      )
+      repository.update!(ci_health: "broken", landing_paused: true)
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "failure",
+          html_url: "u", output: { summary: "fail" } }
+      ])
+
+      expect {
+        described_class.perform_now(repair_job.id)
+      }.to change { repair_job.workflows.where(trigger_kind: "ci_failure").count }.by(1)
+
+      expect(repair_job.reload.last_ci_handled_sha).to eq(sha)
     end
 
     it "suppresses autonomous ci_failure workflows while the provider circuit is open" do
