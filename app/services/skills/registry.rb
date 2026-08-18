@@ -20,7 +20,8 @@ module Skills
     ENTRIES = [
       Entry.new(name: "investigate", klass: "Investigate"),
       Entry.new(name: "onboard-to-syrus", klass: "OnboardToSyrus"),
-      Entry.new(name: "debug", klass: "Debug")
+      Entry.new(name: "debug", klass: "Debug"),
+      Entry.new(name: "explain-failing-ci", klass: "ExplainFailingCi")
     ].freeze
 
     BY_NAME = ENTRIES.index_by(&:name).freeze
@@ -41,8 +42,8 @@ module Skills
       fetch(name).klass_const
     end
 
-    def definition_for(name, workspace_path: nil)
-      class_for(name).definition(workspace_path: workspace_path)
+    def definition_for(name, workspace_path: nil, args: {}, repository: nil)
+      class_for(name).definition(workspace_path: workspace_path, args: args, repository: repository)
     end
   end
 end
