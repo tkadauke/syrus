@@ -6,8 +6,6 @@ import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
 
-const levels = ["", "debug", "info", "warn", "error", "fatal", "unknown"] as const
-const roles = ["", "web", "worker"] as const
 const revisionScopes = ["current", "all"] as const
 
 export function AdminOperationalLogs() {
@@ -43,7 +41,7 @@ export function AdminOperationalLogs() {
       eyebrow={t("section_label")}
       title={t("operational_logs.heading")}
     >
-      <OperationalLogFilters search={search} onNavigate={navigateSearch} />
+      <OperationalLogFilters payload={logs.data} search={search} onNavigate={navigateSearch} />
 
       {logs.isPending ? <AdminEventPanelMessage>{t("operational_logs.loading")}</AdminEventPanelMessage> : null}
       {logs.isError ? <AdminEventPanelMessage tone="error">{errorMessage(logs.error, t("operational_logs.error_load"))}</AdminEventPanelMessage> : null}
@@ -54,14 +52,14 @@ export function AdminOperationalLogs() {
 
 export default AdminOperationalLogs
 
-function OperationalLogFilters({ onNavigate, search }: { onNavigate: (params: URLSearchParams) => void; search: string }) {
+function OperationalLogFilters({ onNavigate, payload, search }: { onNavigate: (params: URLSearchParams) => void; payload?: OperationalLogsPayload; search: string }) {
   const { t } = useT("admin")
-  return <AdminEventFilterBar clearLabel={t("operational_logs.clear")} fields={[
+  return <AdminEventFilterBar clearLabel={t("operational_logs.clear")} filter={payload?.filter} filterSchema={payload?.filter_schema} fields={[
     { name: "query", label: t("operational_logs.query"), placeholder: t("operational_logs.query_placeholder") },
     { name: "since", label: t("operational_logs.since"), defaultValue: "1h", placeholder: "1h" },
     { name: "until", label: t("operational_logs.until"), placeholder: t("operational_logs.until_placeholder") },
-    { name: "level", label: t("operational_logs.level"), options: levels.map((level) => ({ value: level, label: level ? level.toUpperCase() : t("operational_logs.all_levels") })) },
-    { name: "role", label: t("operational_logs.role"), options: roles.map((role) => ({ value: role, label: role || t("operational_logs.all_roles") })) },
+    { name: "level", label: t("operational_logs.level") },
+    { name: "role", label: t("operational_logs.role") },
     { name: "hostname", label: t("operational_logs.hostname"), placeholder: "worker-0" },
     { name: "revision_scope", label: t("operational_logs.revision_scope"), defaultValue: "current", options: revisionScopes.map((scope) => ({ value: scope, label: t(`operational_logs.revision_${scope}`) })) },
     { name: "per_page", label: t("operational_logs.per_page"), defaultValue: "50", options: [25, 50, 100].map((value) => ({ value: String(value), label: String(value) })) }

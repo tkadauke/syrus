@@ -42,7 +42,7 @@ export function AdminBrowserErrors() {
       eyebrow={t("section_label")}
       title={t("browser_errors.heading")}
     >
-      <BrowserErrorFilters search={search} onNavigate={navigateSearch} />
+      <BrowserErrorFilters payload={errors.data} search={search} onNavigate={navigateSearch} />
       {errors.isPending ? <AdminEventPanelMessage>{t("browser_errors.loading")}</AdminEventPanelMessage> : null}
       {errors.isError ? <AdminEventPanelMessage tone="error">{errorMessage(errors.error, t("browser_errors.error_load"))}</AdminEventPanelMessage> : null}
       {errors.isSuccess ? <BrowserErrorsView payload={errors.data} search={search} onNavigate={navigateSearch} /> : null}
@@ -50,9 +50,9 @@ export function AdminBrowserErrors() {
   )
 }
 
-function BrowserErrorFilters({ onNavigate, search }: { onNavigate: (params: URLSearchParams) => void; search: string }) {
+function BrowserErrorFilters({ onNavigate, payload, search }: { onNavigate: (params: URLSearchParams) => void; payload?: BrowserErrorEventsPayload; search: string }) {
   const { t } = useT("admin")
-  return <AdminEventFilterBar clearLabel={t("browser_errors.clear")} fields={[
+  return <AdminEventFilterBar clearLabel={t("browser_errors.clear")} filter={payload?.filter} filterSchema={payload?.filter_schema} fields={[
     { name: "query", label: t("browser_errors.query"), placeholder: t("browser_errors.query_placeholder") },
     { name: "since", label: t("browser_errors.since"), defaultValue: "24h", placeholder: "24h" },
     { name: "until", label: t("browser_errors.until"), placeholder: t("browser_errors.until_placeholder") },

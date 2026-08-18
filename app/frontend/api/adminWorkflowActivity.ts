@@ -1,4 +1,5 @@
 import { getJson } from "./client"
+import type { AdminEventFilterPayload } from "../components/AdminEventLogPanel"
 
 export type WorkflowActivityEvent = {
   id: number
@@ -19,7 +20,7 @@ export type WorkflowActivityEvent = {
   run: { id: number; state: string; path: string } | null
 }
 
-export type AdminWorkflowActivityPayload = {
+export type AdminWorkflowActivityPayload = AdminEventFilterPayload & {
   events: WorkflowActivityEvent[]
   event_types: string[]
   filters: {

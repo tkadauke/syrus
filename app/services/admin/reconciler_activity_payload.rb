@@ -29,14 +29,9 @@ module Admin
           previous_path: page > 1 ? path_for(page - 1) : nil,
           next_path: page < total_pages ? path_for(page + 1) : nil
         },
-        filters: {
-          event_type: event_type,
-          job_id: job_id,
-          workflow_id: workflow_id,
-          run_id: run_id,
-          sort: sort,
-          direction: direction
-        },
+        filter_schema: filter_definition.schema,
+        filter: filter_tree,
+        filters: filters_payload.merge(sort: sort, direction: direction),
         event_types: WorkEngineReconcilerActivityEvent::EVENT_TYPES
       }
     end
@@ -48,10 +43,7 @@ module Admin
     def relation
       @relation ||= begin
         scope = WorkEngineReconcilerActivityEvent.includes(:job, :workflow, :run)
-        scope = scope.where(event_type: event_type) if event_type.present?
-        scope = scope.where(job_id: job_id) if job_id.present?
-        scope = scope.where(workflow_id: workflow_id) if workflow_id.present?
-        scope = scope.where(run_id: run_id) if run_id.present?
+        scope = filter_definition.apply(scope, params)
         sorted_scope(scope)
       end
     end
@@ -76,23 +68,6 @@ module Admin
       [ parsed, MAX_PER_PAGE ].min
     end
 
-    def event_type
-      value = params[:event_type].to_s
-      WorkEngineReconcilerActivityEvent::EVENT_TYPES.include?(value) ? value : nil
-    end
-
-    def job_id
-      positive_int(params[:job_id])
-    end
-
-    def workflow_id
-      positive_int(params[:workflow_id])
-    end
-
-    def run_id
-      positive_int(params[:run_id])
-    end
-
     def sort
       value = params[:sort].to_s
       SORTS.key?(value) ? value : "time"
@@ -107,11 +82,6 @@ module Admin
         "#{column} #{direction}"
       end
       scope.order(Arel.sql(ordered_columns.join(", ")))
-    end
-
-    def positive_int(value)
-      parsed = value.to_i
-      parsed.positive? ? parsed : nil
     end
 
     def event_json(event)
@@ -161,8 +131,20 @@ module Admin
 
     def path_for(target_page)
       raw_params = params.respond_to?(:to_unsafe_h) ? params.to_unsafe_h : params.to_h
-      query = raw_params.slice("event_type", "job_id", "workflow_id", "run_id", "per_page", "sort", "direction").merge("page" => target_page).compact_blank
+      query = raw_params.slice("q", "event_type", "job_id", "workflow_id", "run_id", "per_page", "sort", "direction").merge("page" => target_page).compact_blank
       "/admin/reconciler_activity#{query.present? ? "?#{query.to_query}" : ""}"
+    end
+
+    def filter_definition
+      Admin::EventLogFilterDefinitions.reconciler_activity
+    end
+
+    def filter_tree
+      @filter_tree ||= filter_definition.filter_tree(params)
+    end
+
+    def filters_payload
+      @filters_payload ||= filter_definition.flat_filters(params).symbolize_keys
     end
   end
 end

@@ -47,7 +47,7 @@ describe("AdminOperationalLogs", () => {
 
     await screen.findByRole("heading", { name: "Operational Logs" })
     expect(screen.getByRole("button", { name: "Search is migration" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Level is ERROR" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Level is error" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Role is worker" })).toBeInTheDocument()
 
     await waitFor(() => expect(fetchSpy).toHaveBeenLastCalledWith("/api/v1/app/admin/operational_logs?query=migration&since=2h&until=2026-08-05T10%3A00%3A00Z&level=error&role=worker&hostname=worker-a&revision_scope=all&per_page=100", expect.objectContaining({

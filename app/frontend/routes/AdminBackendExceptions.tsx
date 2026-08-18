@@ -52,7 +52,7 @@ export function AdminBackendExceptions() {
 
 function BackendExceptionFilters({ onNavigate, payload, search }: { onNavigate: (params: URLSearchParams) => void; payload?: BackendExceptionEventsPayload; search: string }) {
   const { t } = useT("admin")
-  return <AdminEventFilterBar clearLabel={t("backend_exceptions.clear")} fields={[
+  return <AdminEventFilterBar clearLabel={t("backend_exceptions.clear")} filter={payload?.filter} filterSchema={payload?.filter_schema} fields={[
     { name: "query", label: t("backend_exceptions.query"), placeholder: t("backend_exceptions.query_placeholder") },
     { name: "since", label: t("backend_exceptions.since"), defaultValue: "24h", placeholder: "24h" },
     { name: "until", label: t("backend_exceptions.until"), placeholder: t("backend_exceptions.until_placeholder") },

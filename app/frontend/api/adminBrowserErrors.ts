@@ -1,5 +1,5 @@
 import { getJson } from "./client"
-import type { AdminEventTimelineBucket } from "../components/AdminEventLogPanel"
+import type { AdminEventFilterPayload, AdminEventTimelineBucket } from "../components/AdminEventLogPanel"
 import type { EventAction } from "./eventActions"
 
 export type BrowserErrorRevisionScope = "current" | "all"
@@ -32,7 +32,7 @@ export type BrowserErrorEventRow = {
   actions?: EventAction[]
 }
 
-export type BrowserErrorEventsPayload = {
+export type BrowserErrorEventsPayload = AdminEventFilterPayload & {
   current_revision: string
   revision_scope: BrowserErrorRevisionScope
   filters: {

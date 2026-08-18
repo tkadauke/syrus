@@ -1,4 +1,5 @@
 import { getJson } from "@app/api/client"
+import type { AdminEventFilterPayload } from "@app/components/AdminEventLogPanel"
 
 export type OperationalLogLevel = "debug" | "info" | "warn" | "error" | "fatal" | "unknown"
 export type OperationalLogRole = "web" | "worker"
@@ -21,7 +22,7 @@ export type OperationalLogRow = {
   context?: Record<string, string> | null
 }
 
-export type OperationalLogsPayload = {
+export type OperationalLogsPayload = AdminEventFilterPayload & {
   enabled: boolean
   retention_seconds: number
   current_revision: string

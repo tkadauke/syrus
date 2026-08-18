@@ -38,7 +38,7 @@ export function AdminWorkflowActivity() {
       eyebrow={t("section_label")}
       title={t("activity.heading")}
     >
-      <AdminEventFilterBar clearLabel={t("activity.clear_filters")} fields={[
+      <AdminEventFilterBar clearLabel={t("activity.clear_filters")} filter={activity.data?.filter} filterSchema={activity.data?.filter_schema} fields={[
         { name: "event_type", label: t("activity.filter_event_type"), options: [
           { value: "", label: t("activity.all_event_types") },
           ...(activity.data?.event_types || []).map((type) => ({ value: type, label: type }))

@@ -43,7 +43,7 @@ export function AdminReconcilerActivity() {
       eyebrow={t("section_label")}
       title={t("reconciler_activity.heading")}
     >
-      <AdminEventFilterBar clearLabel={t("reconciler_activity.clear_filters")} fields={[
+      <AdminEventFilterBar clearLabel={t("reconciler_activity.clear_filters")} filter={activity.data?.filter} filterSchema={activity.data?.filter_schema} fields={[
         { name: "event_type", label: t("reconciler_activity.filter_event_type"), options: [
           { value: "", label: t("reconciler_activity.all_event_types") },
           ...(activity.data?.event_types || []).map((type) => ({ value: type, label: type }))

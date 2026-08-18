@@ -1,4 +1,5 @@
 import { getJson } from "./client"
+import type { AdminEventFilterPayload } from "../components/AdminEventLogPanel"
 
 export type ReconcilerActivityEvent = {
   id: number
@@ -16,7 +17,7 @@ export type ReconcilerActivityEvent = {
   run: { id: number; state: string; path: string } | null
 }
 
-export type AdminReconcilerActivityPayload = {
+export type AdminReconcilerActivityPayload = AdminEventFilterPayload & {
   events: ReconcilerActivityEvent[]
   event_types: string[]
   filters: {

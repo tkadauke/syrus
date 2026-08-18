@@ -21,17 +21,9 @@ module Admin
       {
         current_revision: current_revision,
         revision_scope: revision_scope,
-        filters: {
-          query: query,
-          since: since_time.iso8601,
-          until: until_time&.iso8601,
-          fingerprint: fingerprint,
-          source: source,
-          exception_class: exception_class,
-          path: path,
-          sort: sort_column,
-          direction: sort_direction
-        },
+        filter_schema: filter_definition.schema,
+        filter: filter_tree,
+        filters: filters_payload.merge(sort: sort_column, direction: sort_direction),
         timeline: Admin::EventTimeline.build(filtered_scope, since_time: since_time, until_time: until_time || Time.current),
         sources: BackendExceptionEvent.distinct.order(:source).pluck(:source),
         pagination: {
@@ -55,22 +47,7 @@ module Admin
     end
 
     def filtered_scope
-      scope = BackendExceptionEvent.all
-      scope = scope.where(app_revision: current_revision) if revision_scope == "current"
-      scope = scope.where(occurred_at: since_time..) if since_time
-      scope = scope.where(occurred_at: ..until_time) if until_time
-      scope = scope.where(fingerprint: fingerprint) if fingerprint.present?
-      scope = scope.where(source: source) if source.present?
-      scope = scope.where(exception_class: exception_class) if exception_class.present?
-      scope = scope.where(path: path) if path.present?
-      if query.present?
-        pattern = "%#{ActiveRecord::Base.sanitize_sql_like(query)}%"
-        scope = scope.where(
-          "backend_exception_events.message LIKE ? OR backend_exception_events.exception_class LIKE ? OR backend_exception_events.path LIKE ? OR backend_exception_events.backtrace LIKE ? OR backend_exception_events.request_id LIKE ?",
-          pattern, pattern, pattern, pattern, pattern
-        )
-      end
-      scope
+      filter_definition.apply(BackendExceptionEvent.all, params)
     end
 
     def sorted_scope
@@ -88,48 +65,20 @@ module Admin
       )
     end
 
-    def query
-      utf8_param(:query).safe_byteslice(0, 500).presence
-    end
-
-    def fingerprint
-      utf8_param(:fingerprint).safe_byteslice(0, 500).presence
-    end
-
-    def source
-      utf8_param(:source).safe_byteslice(0, 500).presence
-    end
-
-    def exception_class
-      utf8_param(:exception_class).safe_byteslice(0, 500).presence
-    end
-
-    def path
-      utf8_param(:path).safe_byteslice(0, 500).presence
-    end
-
     def since_time
-      parsed_time(:since, default: 24.hours.ago)
+      time_filter(:since, default: 24.hours.ago)
     end
 
     def until_time
-      parsed_time(:until, default: nil)
+      time_filter(:until, default: nil)
     end
 
-    def parsed_time(key, default:)
-      value = utf8_param(key)
-      parsed = if value.blank?
-        default
-      elsif (match = value.match(/\A(\d+)([mhd])\z/i))
-        amount = match[1].to_i
-        amount.public_send({ "m" => :minutes, "h" => :hours, "d" => :days }.fetch(match[2].downcase)).ago
-      else
-        Time.zone.parse(value)
-      end
-      return nil if parsed.nil? && default.nil?
-      raise ArgumentError, "#{key} must be an ISO8601 timestamp or relative duration like 30m, 2h, or 1d" unless parsed
+    def time_filter(key, default:)
+      value = filters_payload[key]
+      return default if value.blank?
+      return duration_value(value).ago if value.is_a?(Hash)
 
-      parsed
+      Time.zone.parse(value.to_s) || default
     end
 
     def page
@@ -137,7 +86,7 @@ module Admin
     end
 
     def per_page
-      raw = Integer(params[:per_page].presence || params[:per], exception: false) || DEFAULT_PER_PAGE
+      raw = Integer(filters_payload[:per_page].presence || params[:per], exception: false) || DEFAULT_PER_PAGE
       [[raw, 1].max, MAX_PER_PAGE].min
     end
 
@@ -155,12 +104,30 @@ module Admin
     end
 
     def revision_scope
-      value = utf8_param(:revision_scope)
+      value = filters_payload[:revision_scope].to_s
       REVISION_SCOPES.include?(value) ? value : "current"
     end
 
     def current_revision
       SyrusVersion.current
+    end
+
+    def filter_definition
+      Admin::EventLogFilterDefinitions.backend_exceptions
+    end
+
+    def filter_tree
+      @filter_tree ||= filter_definition.filter_tree(params)
+    end
+
+    def filters_payload
+      @filters_payload ||= filter_definition.flat_filters(params).symbolize_keys
+    end
+
+    def duration_value(value)
+      amount = Integer(value["n"] || value[:n] || 0)
+      unit = (value["unit"] || value[:unit]).to_s
+      amount.public_send(unit)
     end
 
     def utf8_param(key)

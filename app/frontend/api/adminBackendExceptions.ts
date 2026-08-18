@@ -1,5 +1,5 @@
 import { getJson } from "./client"
-import type { AdminEventTimelineBucket } from "../components/AdminEventLogPanel"
+import type { AdminEventFilterPayload, AdminEventTimelineBucket } from "../components/AdminEventLogPanel"
 import type { EventAction } from "./eventActions"
 
 export type BackendExceptionRevisionScope = "current" | "all"
@@ -33,7 +33,7 @@ export type BackendExceptionEventRow = {
   actions?: EventAction[]
 }
 
-export type BackendExceptionEventsPayload = {
+export type BackendExceptionEventsPayload = AdminEventFilterPayload & {
   current_revision: string
   revision_scope: BackendExceptionRevisionScope
   filters: Record<string, string | null>

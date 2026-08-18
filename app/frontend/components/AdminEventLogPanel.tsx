@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode, useMemo, useState } from "react"
-import { FilterBar, topFilterChildren, type FilterChip, type FilterLinkBuilder, type FilterSchemaField, type FilterTree } from "./FilterBar"
+import { FilterBar, type FilterChip, type FilterSchemaField, type FilterTree } from "./FilterBar"
 
 export function AdminEventPanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "warn" }) {
   const toneClass = tone === "error"
@@ -204,26 +204,35 @@ export type AdminEventFilterField = {
   options?: Array<{ label: string; value: string }>
 }
 
+export type AdminEventFilterPayload = {
+  filter?: Record<string, unknown> | null
+  filter_schema?: FilterSchemaField[]
+}
+
 export function AdminEventFilterBar({
+  filter,
+  filterSchema,
   fields,
   search
 }: {
-  fields: AdminEventFilterField[]
+  filter?: Record<string, unknown> | null
+  filterSchema?: FilterSchemaField[]
+  fields?: AdminEventFilterField[]
   onNavigate?: (params: URLSearchParams) => void
   search: string
   searchLabel: string
   clearLabel: string
 }) {
-  const schema = useMemo(() => adminEventFilterSchema(fields), [fields])
-  const filter = useMemo(() => adminEventFilterTree(fields, search), [fields, search])
+  const fallbackFields = fields || []
+  const schema = useMemo(() => filterSchema || adminEventFilterSchema(fallbackFields), [fallbackFields, filterSchema])
+  const activeFilter = useMemo(() => filter || adminEventFilterTree(fallbackFields, search), [fallbackFields, filter, search])
 
   return (
     <FilterBar
-      buildLink={adminEventFilterLink(fields)}
       className="space-y-2"
-      filter={filter}
+      filter={activeFilter}
       filterSchema={schema}
-      legacyFilterKeys={fields.map((field) => field.name)}
+      legacyFilterKeys={fallbackFields.map((field) => field.name)}
       pathname=""
       search={search}
     />
@@ -248,36 +257,6 @@ function adminEventFilterTree(fields: AdminEventFilterField[], search: string): 
     return value ? [ { field: field.name, op: "is", value } ] : []
   })
   return { and: chips }
-}
-
-function adminEventFilterLink(fields: AdminEventFilterField[]): FilterLinkBuilder {
-  const fieldNames = new Set(fields.map((field) => field.name))
-  return (_path, search, updates) => {
-    const params = new URLSearchParams(search)
-    params.delete("q")
-    params.delete("page")
-    for (const fieldName of fieldNames) params.delete(fieldName)
-
-    const decoded = typeof updates.q === "string" ? decodeAdminEventFilterTree(updates.q) : null
-    for (const node of topFilterChildren(decoded)) {
-      if (!("field" in node) || node.op !== "is" || !fieldNames.has(node.field)) continue
-      const value = node.value == null ? "" : String(node.value).trim()
-      if (value) params.set(node.field, value)
-    }
-
-    const query = params.toString()
-    return query ? `?${query}` : "?"
-  }
-}
-
-function decodeAdminEventFilterTree(encoded: string): FilterTree | null {
-  try {
-    const base64 = encoded.replace(/-/g, "+").replace(/_/g, "/")
-    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=")
-    return JSON.parse(decodeURIComponent(escape(atob(padded)))) as FilterTree
-  } catch {
-    return null
-  }
 }
 
 export function pageButtonClass() {
