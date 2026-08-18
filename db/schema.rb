@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_18_081044) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_18_182002) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -868,7 +868,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_081044) do
 
   create_table "installations", force: :cascade do |t|
     t.bigint "account_id", null: false
-    t.string "account_login", null: false
+    t.string "account_login", null: false, collation: "NOCASE"
     t.string "account_type", null: false
     t.text "cached_token"
     t.datetime "cached_token_expires_at"
@@ -1535,8 +1535,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_18_081044) do
     t.boolean "main_branch_repair_auto_approve", default: false, null: false
     t.boolean "main_branch_repair_enabled", default: true, null: false
     t.integer "main_health_poll_error_streak", default: 0, null: false
-    t.string "name", null: false
-    t.string "owner", null: false
+    t.string "name", null: false, collation: "NOCASE"
+    t.string "owner", null: false, collation: "NOCASE"
     t.boolean "polling_enabled", default: true, null: false
     t.boolean "pr_cost_footer_enabled", default: true, null: false
     t.boolean "prepare_enabled", default: true, null: false

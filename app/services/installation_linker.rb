@@ -2,11 +2,11 @@ class InstallationLinker
   def self.find_for_owner(owner)
     return nil if owner.blank?
 
-    Installation.active.find_by("lower(account_login) = ?", owner.to_s.downcase)
+    Installation.active.find_by(account_login: owner.to_s)
   end
 
   def self.link_repositories_for(installation)
-    Repository.where("lower(owner) = ?", installation.account_login.downcase)
+    Repository.where(owner: installation.account_login)
       .update_all(installation_id: installation.id, updated_at: Time.current)
   end
 

@@ -27,7 +27,7 @@ class GithubAppInstallationDiagnostic
     owner, name = slug.split("/", 2)
     return [] if owner.blank? || name.blank?
 
-    scope.where("lower(owner) = ? AND lower(name) = ?", owner.downcase, name.downcase).to_a
+    scope.where(owner: owner, name: name).to_a
   end
 
   def global_state
@@ -71,9 +71,9 @@ class GithubAppInstallationDiagnostic
   end
 
   def installation_rows(repositories)
-    owners = repositories.map { |repository| repository.owner.downcase }.uniq
-    Installation.where("lower(account_login) IN (?)", owners.presence || [ nil ])
-      .order(Arel.sql("lower(account_login) ASC"), :github_installation_id)
+    owners = repositories.map(&:owner).uniq
+    Installation.where(account_login: owners.presence || [ nil ])
+      .order(:account_login, :github_installation_id)
       .map { |installation| installation_state(installation) }
   end
 
@@ -153,11 +153,11 @@ class GithubAppInstallationDiagnostic
   end
 
   def active_installations_for_owner(owner)
-    Installation.active.where("lower(account_login) = ?", owner.to_s.downcase)
+    Installation.active.where(account_login: owner.to_s)
   end
 
   def removed_installations_for_owner(owner)
-    Installation.where.not(removed_at: nil).where("lower(account_login) = ?", owner.to_s.downcase)
+    Installation.where.not(removed_at: nil).where(account_login: owner.to_s)
   end
 
   def github_app_install_url_for(repositories)
