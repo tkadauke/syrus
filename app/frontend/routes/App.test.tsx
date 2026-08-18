@@ -1413,7 +1413,7 @@ describe("App", () => {
           ]
         }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
-      if (path === "/api/v1/app/chats/77?message_id=12") {
+      if (path === "/api/v1/app/chats/77") {
         return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
 
@@ -1439,7 +1439,7 @@ describe("App", () => {
 
       await waitFor(() => {
         expect(fetchSpy).toHaveBeenCalledWith(
-          "/api/v1/app/chats/77?message_id=12",
+          "/api/v1/app/chats/77",
           expect.objectContaining({ credentials: "same-origin" })
         )
       })
@@ -14798,7 +14798,7 @@ describe("App", () => {
     }
   })
 
-  it("scrolls to a message_id deep link and clears it from the chat URL", async () => {
+  it("ignores a message_id query param and opens the chat at the latest messages without scrolling", async () => {
     const scrollIntoView = vi.fn()
     Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView })
     const initialPayload = chatPayload()
@@ -14820,11 +14820,12 @@ describe("App", () => {
         </QueryClientProvider>
       )
 
-      await waitFor(() => expect(scrollIntoView).toHaveBeenCalled())
       await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/chats/8",
+        "/api/v1/app/chats/8?message_id=9",
         expect.objectContaining({ credentials: "same-origin" })
       ))
+      expect(await screen.findByTestId("chat-message-stream")).toBeInTheDocument()
+      expect(scrollIntoView).not.toHaveBeenCalled()
     } finally {
       fetchSpy.mockRestore()
     }

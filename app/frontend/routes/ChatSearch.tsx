@@ -140,7 +140,7 @@ function MatchRow({ chatSessionId, match }: { chatSessionId: number; match: Chat
   return (
     <button
       className="flex w-full flex-col gap-2 py-3 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-800 sm:flex-row sm:items-start"
-      onClick={() => navigate(`/chats/${chatSessionId}?message_id=${match.message_id}`)}
+      onClick={() => navigate(`/chats/${chatSessionId}`)}
       type="button"
     >
       <span className="inline-flex w-fit shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium capitalize text-gray-700 dark:bg-gray-800 dark:text-gray-200">{match.role.replace(/_/g, " ")}</span>

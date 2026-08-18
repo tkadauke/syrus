@@ -3,7 +3,7 @@ import { Markdown } from "../lib/Markdown"
 import type { Step } from "react-joyride"
 import type { CSSProperties, FormEvent, KeyboardEvent, MouseEvent as ReactMouseEvent, MutableRefObject, ReactNode, UIEvent } from "react"
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
+import { Link, useLocation, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
 import { ProviderAvailabilityWarning } from "../components/ProviderAvailabilityWarning"
@@ -708,8 +708,6 @@ function ChatWorkspace({
   const [bookmarkTarget, setBookmarkTarget] = useState<BookmarkTarget | null>(null)
   const [bookmarkPickerOpen, setBookmarkPickerOpen] = useState(false)
   const bookmarkRequestIdRef = useRef(0)
-  const handledMessageDeepLinkRef = useRef<string | null>(null)
-  const navigate = useNavigate()
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const { t } = useT("chat")
   const simpleMode = useSimpleMode()
@@ -778,21 +776,6 @@ function ChatWorkspace({
     bookmarkRequestIdRef.current += 1
     setBookmarkTarget({ messageId, requestId: bookmarkRequestIdRef.current })
   }
-
-  useEffect(() => {
-    const searchParams = new URLSearchParams(queryKey[2])
-    const messageId = Number.parseInt(searchParams.get("message_id") || "", 10)
-    if (!Number.isFinite(messageId) || messageId <= 0) return
-
-    const deepLinkKey = `${payload.chat.id}:${messageId}`
-    if (handledMessageDeepLinkRef.current === deepLinkKey) return
-
-    handledMessageDeepLinkRef.current = deepLinkKey
-    selectBookmark(messageId)
-    searchParams.delete("message_id")
-    const nextSearch = searchParams.toString()
-    navigate({ search: nextSearch ? `?${nextSearch}` : "" }, { replace: true })
-  }, [navigate, payload.chat.id, queryKey])
 
   const commandHandlers: ChatSystemCommandHandlers = {
     openBookmarks: () => {
