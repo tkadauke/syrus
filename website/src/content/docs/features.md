@@ -232,11 +232,13 @@ the actor, timestamp, and before/after text.
 
 Repositories default new Epics to a linear child-Job dependency policy: child
 Jobs should form one ordered chain. Each Epic stores a concrete policy when it
-is created: linear by default, or nonlinear when the operator explicitly
-overrides it. Bundled Epic proposals are checked at confirmation time and
-linear proposals with branching, fan-in, or disconnected child Jobs are rejected
-with the offending child slugs unless the proposal used the explicit nonlinear
-override.
+is created; `nonlinear` can no longer be newly chosen anywhere — it only
+persists on Epics and repositories that already had it before that
+restriction landed. Chat's `propose_epic_with_jobs` tool rejects a branching,
+fan-in, or disconnected child-Job graph immediately, with the offending child
+slugs in the error, before it even creates the proposal card — the operator
+never sees a card that would fail later. The same check runs again at
+confirmation time as a safety net.
 
 ### Epic reconciliation
 

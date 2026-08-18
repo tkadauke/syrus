@@ -462,6 +462,83 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     expect(chat_session.proposals.count).to eq(0)
   end
 
+  it "rejects fan-in child dependency graphs before creating any proposals" do
+    response = call_tool(
+      epic: { slug: "epic", title: "Epic", description: "Desc.", target_repo: repository.slug },
+      jobs: [
+        { slug: "left", target_repo: repository.slug, title: "Left", description: "Left." },
+        { slug: "right", target_repo: repository.slug, title: "Right", description: "Right." },
+        { slug: "merge", target_repo: repository.slug, title: "Merge", description: "Merge.", depends_on: [ "left", "right" ] }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to match(/single chain.*left, right/)
+    expect(chat_session.proposals.count).to eq(0)
+  end
+
+  it "rejects fan-out child dependency graphs before creating any proposals" do
+    response = call_tool(
+      epic: { slug: "epic", title: "Epic", description: "Desc.", target_repo: repository.slug },
+      jobs: [
+        { slug: "root", target_repo: repository.slug, title: "Root", description: "Root." },
+        { slug: "left", target_repo: repository.slug, title: "Left", description: "Left.", depends_on: [ "root" ] },
+        { slug: "right", target_repo: repository.slug, title: "Right", description: "Right.", depends_on: [ "root" ] }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to match(/single chain.*left, right/)
+    expect(chat_session.proposals.count).to eq(0)
+  end
+
+  it "rejects multiple root and leaf child graphs before creating any proposals" do
+    response = call_tool(
+      epic: { slug: "epic", title: "Epic", description: "Desc.", target_repo: repository.slug },
+      jobs: [
+        { slug: "first", target_repo: repository.slug, title: "First", description: "First." },
+        { slug: "second", target_repo: repository.slug, title: "Second", description: "Second.", depends_on: [ "first" ] },
+        { slug: "third", target_repo: repository.slug, title: "Third", description: "Third." },
+        { slug: "fourth", target_repo: repository.slug, title: "Fourth", description: "Fourth.", depends_on: [ "third" ] }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to match(/single chain.*first, third/)
+    expect(chat_session.proposals.count).to eq(0)
+  end
+
+  it "rejects a nonlinear child graph even when adding to an existing Epic" do
+    target_epic = Factories.epic(user: user, repository: repository, title: "Existing epic", description: "Existing description.")
+
+    response = call_tool(
+      epic: { slug: "add-nonlinear", epic_id: target_epic.id },
+      jobs: [
+        { slug: "root", target_repo: repository.slug, title: "Root", description: "Root." },
+        { slug: "left", target_repo: repository.slug, title: "Left", description: "Left.", depends_on: [ "root" ] },
+        { slug: "right", target_repo: repository.slug, title: "Right", description: "Right.", depends_on: [ "root" ] }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to match(/single chain.*left, right/)
+    expect(chat_session.proposals.count).to eq(0)
+  end
+
+  it "accepts an unordered but valid three-job linear chain" do
+    response = call_tool(
+      epic: { slug: "epic", title: "Epic", description: "Desc.", target_repo: repository.slug },
+      jobs: [
+        { slug: "third", target_repo: repository.slug, title: "Third", description: "Third.", depends_on: [ "second" ] },
+        { slug: "first", target_repo: repository.slug, title: "First", description: "First." },
+        { slug: "second", target_repo: repository.slug, title: "Second", description: "Second.", depends_on: [ "first" ] }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be_falsey
+    expect(chat_session.proposals.where(kind: "syrus_issue").count).to eq(3)
+  end
+
   it "rejects a withdrawn epic slug without reviving the withdrawn proposal" do
     withdrawn = chat_session.proposals.create!(
       repository: repository,
@@ -531,7 +608,8 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
           slug: "no-media-job",
           target_repo: repository.slug,
           title: "Job without media",
-          description: "Nothing to attach."
+          description: "Nothing to attach.",
+          depends_on: [ "media-job" ]
         }
       ]
     )
@@ -563,6 +641,15 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
       expect(tool_description).to include("epic.depends_on")
       expect(tool_description).to include("jobs[].depends_on_epic_ids")
       expect(tool_description).to include("ALL child jobs")
+    end
+
+    it "explains the linear-chain constraint on child Jobs" do
+      expect(tool_description).to match(/single linear dependency chain/i)
+      expect(tool_description).to include("fan-out")
+      expect(tool_description).to include("fan-in")
+
+      job_depends_on_desc = schema.fetch(:properties).fetch(:jobs).fetch(:items).fetch(:properties).fetch(:depends_on).fetch(:description)
+      expect(job_depends_on_desc).to match(/single linear chain/i)
     end
   end
 
