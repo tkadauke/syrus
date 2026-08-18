@@ -570,6 +570,7 @@ export type ChatProposalMutationPayload = {
   message?: string | null
   proposal?: ChatProposal | null
   messages?: ChatMessageItem[]
+  pending_proposal_count?: number
 }
 
 export type ChatContextPayload = Pick<ChatPayload, "attachment_groups" | "documents_in_scope" | "attachment_results">

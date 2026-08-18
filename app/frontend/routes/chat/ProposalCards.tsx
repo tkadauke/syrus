@@ -388,7 +388,11 @@ function applyProposalActionResult(current: ChatPayload | undefined, updated: Ch
 
   const proposal = updated.proposal || null
   const messages = current.messages.map((message) => proposal ? replaceProposal(message, proposal) : message)
-  return { ...current, messages: appendMissingMessages(messages, updated.messages || []) }
+  return {
+    ...current,
+    messages: appendMissingMessages(messages, updated.messages || []),
+    pending_proposal_count: updated.pending_proposal_count ?? current.pending_proposal_count
+  }
 }
 
 function isChatPayload(payload: ChatPayload | ChatProposalMutationPayload): payload is ChatPayload {

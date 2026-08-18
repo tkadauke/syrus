@@ -1265,7 +1265,8 @@ module Api
           {
             message: message,
             proposal: ::App::ChatMessagePayload.proposal(proposal, chat_session: chat_session, repository: repository),
-            messages: ::App::ChatMessagePayload.messages([ system_message ], repository: repository)
+            messages: ::App::ChatMessagePayload.messages([ system_message ], repository: repository),
+            pending_proposal_count: chat_session.proposals.where(state: "proposed").count
           }
         end
 

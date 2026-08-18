@@ -3681,6 +3681,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body["message"]).to match(/\AProposal confirmed and filed as JOB-\d+\.\z/)
     expect(parse_body).to include("proposal", "messages")
     expect(parse_body).not_to include("chat", "recent_chats", "attachment_groups")
+    expect(parse_body["pending_proposal_count"]).to eq(1)
     expect(confirmed.reload).to be_confirmed
     expect(parse_body.dig("proposal", "materialized_label")).to eq("#{confirmed.job.slug}")
     expect(parse_body.dig("messages", 0, "text")).to eq(%(Proposal confirmed. #{confirmed.job.slug} "Map auth" was created.))
@@ -3706,6 +3707,7 @@ RSpec.describe "API: /api/v1/app/chats", type: :request do
     expect(parse_body).to include("proposal", "messages")
     expect(parse_body).not_to include("chat", "recent_chats", "attachment_groups")
     expect(parse_body.dig("proposal", "state")).to eq("rejected")
+    expect(parse_body["pending_proposal_count"]).to eq(0)
     expect(rejected.reload).to be_rejected
     rejection_message = chat.messages.where(role: "system").order(:created_at, :id).last
     expect(rejection_message).to have_attributes(role: "system", proposal_id: nil)
