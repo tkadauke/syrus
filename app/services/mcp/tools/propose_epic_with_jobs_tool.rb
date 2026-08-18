@@ -12,6 +12,14 @@ module Mcp::Tools
       Job proposal slugs from other proposal cards in this chat session.
       Confirming the card creates the Epic, child Jobs, and sibling Job
       dependencies in one Syrus transaction.
+      Child Jobs must form a SINGLE LINEAR DEPENDENCY CHAIN — Syrus Epics
+      execute as one stacked branch, not parallel branches, so no two child
+      Jobs may share a common dependency (fan-out) or a common dependent
+      (fan-in), and every child beyond the first must chain onto exactly one
+      other child (directly or transitively) via depends_on. This is
+      validated and rejected before the proposal card is created — fix the
+      dependency edges and call the tool again rather than expecting the
+      operator to catch a branching graph at confirmation time.
       Proposals cannot be updated after creation. To revise a proposal,
       call delete_proposal with its slug, then call this tool again with a
       new slug. Reusing a withdrawn slug is an error.
@@ -58,7 +66,7 @@ module Mcp::Tools
               title: { type: "string", description: "Child Job title." },
               description: { type: "string", description: "Child Job prompt/body." },
               depends_on_epic_ids: { type: "array", items: { type: "integer" }, description: "Existing Epic IDs this child Job (not the whole epic) depends on. Use when only this specific job must wait for an upstream epic while sibling jobs in the same epic can start sooner. For whole-epic sequencing, prefer `epic.depends_on`." },
-              depends_on: { type: "array", items: { type: "string" }, description: "Sibling job slugs or job proposal slugs from other cards in this chat session. Default to linear chains — if jobs share a test path (e.g. backend → frontend → agent handoff that consumes both), chain them even when code changes don't overlap directly. Only omit a dependency when the jobs are genuinely independently deployable and testable end-to-end. The operator can instruct otherwise." },
+              depends_on: { type: "array", items: { type: "string" }, description: "Sibling job slugs or job proposal slugs from other cards in this chat session. REQUIRED to form a single linear chain across all child Jobs in this proposal: every job besides the first must depend on exactly one other child job (no two children may share a dependency or a dependent). A fan-in, fan-out, or otherwise unordered graph is rejected before the card is created. Default to linear chains — if jobs share a test path (e.g. backend → frontend → agent handoff that consumes both), chain them even when code changes don't overlap directly. Only omit a dependency when there is just one other child job in this proposal and the two are genuinely independently deployable and testable end-to-end. The operator can instruct otherwise." },
               media: {
                 type: "array",
                 items: { type: "string" },
@@ -212,8 +220,25 @@ module Mcp::Tools
         target_error = invalid_dependency_target_message(user.epics.where(id: jobs.flat_map { |job| job[:depends_on_epic_ids] }.uniq))
         return target_error if target_error
         return "depends_on would create a cycle" if cyclic?(jobs)
+        linear_chain_error = linear_chain_violation_message(jobs)
+        return linear_chain_error if linear_chain_error
 
         nil
+      end
+
+      def linear_chain_violation_message(jobs)
+        return nil if jobs.length <= 1
+
+        slugs = jobs.map { |job| job[:slug] }
+        labels_by_key = slugs.index_by(&:itself)
+        edges = jobs.flat_map do |job|
+          (job[:depends_on] & slugs).map { |dependency_slug| [ job[:slug], dependency_slug ] }
+        end
+
+        EpicDependencyPolicy::Linear.validate_chain!(labels_by_key: labels_by_key, edges: edges)
+        nil
+      rescue ArgumentError => e
+        e.message
       end
 
       def cyclic?(jobs)
