@@ -33,13 +33,26 @@ RSpec.describe RetryWorkflowEligibility do
       expect(result.code).to be_nil
     end
 
-    it "is ineligible when the job is closed" do
+    it "is ineligible when the job is closed and points at Reopen for a non-infrastructure Job" do
       job = Factories.job_record(user: user, repository: repository, state: "closed", closure_reason: "pr_merged")
 
       result = described_class.call(job: job)
 
       expect(result).not_to be_eligible
       expect(result.code).to eq("closed")
+      expect(result.message).to eq("Thread is closed - reopen it to continue.")
+    end
+
+    it "is ineligible when the job is closed and points at Start Over for an infrastructure Job" do
+      job = Factories.job_record(user: user, repository: repository, state: "queued")
+      Workflow.create!(job: job, trigger_kind: "main_grader", state: "succeeded")
+      job.update_columns(state: "closed", closure_reason: "pr_merged")
+
+      result = described_class.call(job: job)
+
+      expect(result).not_to be_eligible
+      expect(result.code).to eq("closed")
+      expect(result.message).to eq("Thread is closed - use Start over to begin a new one.")
     end
 
     it "is ineligible when the job is approved" do

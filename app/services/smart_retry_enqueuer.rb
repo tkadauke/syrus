@@ -72,7 +72,7 @@ class SmartRetryEnqueuer
   end
 
   def call
-    return skipped(:closed, "Thread is closed - use Start over to begin a new one.") if job.closed?
+    return skipped(:closed, closed_job_message) if job.closed?
     return skipped(:no_change_needed, "Job has no changes to retry.") if job.no_change_needed?
     return skipped(:pr_ready, "PR is already current and checks are passing.") if pr_ready?
     return skipped(:active_run, "A Run is already in progress - wait for it to finish.") if job.any_active_run?
@@ -122,6 +122,14 @@ class SmartRetryEnqueuer
 
   def duplicate_active_retry_workflow?
     job.workflows.active.where(trigger_kind: "retry").exists?
+  end
+
+  def closed_job_message
+    if job.infrastructure?
+      "Thread is closed - use Start over to begin a new one."
+    else
+      "Thread is closed - reopen it to continue."
+    end
   end
 
   def pr_ready?

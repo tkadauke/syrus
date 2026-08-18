@@ -209,6 +209,26 @@ RSpec.describe SmartRetryEnqueuer do
     expect(result.skipped_by_reason).to eq(closed: 1, approved: 1, no_change_needed: 1)
   end
 
+  it "points a closed non-infrastructure job at Reopen rather than Start Over" do
+    closed = Factories.job_record(user: user, repository: repository, state: "closed")
+
+    result = described_class.call(job: closed)
+
+    expect(result).to be_skipped
+    expect(result.error).to eq("Thread is closed - reopen it to continue.")
+  end
+
+  it "points a closed infrastructure job at Start Over since Reopen is not available" do
+    closed = Factories.job_record(user: user, repository: repository, state: "queued")
+    Workflow.create!(job: closed, trigger_kind: "main_grader", state: "succeeded")
+    closed.update_columns(state: "closed")
+
+    result = described_class.call(job: closed)
+
+    expect(result).to be_skipped
+    expect(result.error).to eq("Thread is closed - use Start over to begin a new one.")
+  end
+
   it "skips jobs whose PR is already current and passing" do
     ready_job, = failed_job
     ready_job.update!(

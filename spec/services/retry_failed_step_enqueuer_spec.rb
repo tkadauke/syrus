@@ -197,6 +197,20 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(result.error).to eq("Epic is not ready for a merge-train rebuild: child Jobs without a PR: #{blocker.slug}.")
   end
 
+  it "directs the operator to admin escalation instead of Start Over when the merge train record is missing" do
+    job = Factories.job_record(state: "implemented")
+    workflow = Workflow.create!(job: job, trigger_kind: "merge_train", artifacts: { "merge_train_id" => 999_999 })
+    workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
+    land_step = Step.create!(workflow: workflow, kind: "merge_train_land", position: 5)
+    land_step.update_columns(state: "failed", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+
+    result = described_class.call(workflow: workflow)
+
+    expect(result).not_to be_success
+    expect(result.error).to eq("Merge train record not found - contact an admin or operator to rebuild the merge train.")
+    expect(result.error).not_to include("Start over")
+  end
+
   (Workflow::LANDING_TRIGGER_KINDS - [ "merge_train" ]).each do |trigger_kind|
     it "clears landing_failure_reason on the job when retrying a failed #{trigger_kind} step" do
       job = Factories.job_record(state: "implemented", landing_failure_reason: "#{trigger_kind} workflow failed")

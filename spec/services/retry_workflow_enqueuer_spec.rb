@@ -89,7 +89,7 @@ RSpec.describe RetryWorkflowEnqueuer do
     expect {
       result = described_class.call(job: job)
       expect(result).not_to be_success
-      expect(result.error).to eq("Thread is closed - use Start over to begin a new one.")
+      expect(result.error).to eq("Thread is closed - reopen it to continue.")
     }.not_to change { job.workflows.where(trigger_kind: "retry").count }
   end
 

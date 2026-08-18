@@ -312,6 +312,18 @@ RSpec.describe "App API job run commands", type: :request do
     expect(parse_body.dig("job", "state")).to eq("running")
   end
 
+  it "refuses to retry a failed step once the workspace has been cleaned up" do
+    workflow = job.workflows.last
+    failed_step = workflow.steps.find_by!(kind: "summarize")
+    failed_step.update!(state: "failed", started_at: 1.minute.ago, finished_at: Time.current)
+    workflow.update!(state: "failed", started_at: 1.minute.ago, finished_at: Time.current, cleaned_up_at: Time.current)
+
+    post app_job_path("/workflows/#{workflow.id}/retry_step"), as: :json
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq(RetryFailedStepEnqueuer::WORKSPACE_CLEANED_UP_MESSAGE)
+  end
+
   it "queues a push for a failed workflow with an intact workspace" do
     workflow = Workflow.create!(
       job: job,
