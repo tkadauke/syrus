@@ -53,6 +53,26 @@ threshold. Operators can force a recheck or "Resume anyway" from Agent Settings
 or the usage banner; the override is per-user/per-provider and only suppresses
 pauses until newer provider evidence arrives.
 
+**Claude usage probe:** `ClaudeUsageProbe` (`plugins/claude_agent/app/services/claude_usage_probe.rb`)
+mirrors `CodexUsageProbe` as a proactive, ground-truth signal for Claude/Anthropic
+usage instead of relying solely on reactive error-text classification. It makes a
+minimal `POST /v1/messages` call (1 `max_tokens`, the cheapest Haiku model) using
+the user's stored Claude Code OAuth token with the `anthropic-beta:
+oauth-2025-04-20` header, then reads Anthropic's `anthropic-ratelimit-unified-5h-*`
+/ `-7d-*` response headers to classify `available` / `warning` (>= 85% utilization)
+/ `exhausted` (>= 100%). Results are persisted via
+`ProviderAvailabilityEvidence.record_claude_probe!` (`source: "usage_probe"`,
+`account_id: nil` — there is no Claude equivalent of `CodexAccountScope`) and gated
+on the same 10-minute staleness window as Codex. It is invoked opportunistically —
+no dedicated cron — from `AgentProviders::Claude#invoke`/`.invoke_one_shot` after
+every Claude agent call, and from `ProviderAvailabilityPause#refresh_stale_usage`
+as a pre-Run gate check, exactly like Codex's wiring. Unlike Codex, this evidence
+does not (yet) feed the threshold-based provider-availability pause above or the
+usage banner/snapshot — those stay Codex-only pending a follow-up. It does feed
+`ProviderCircuitBreaker`: fresh `exhausted` probe evidence can open the Claude
+circuit before any Run fails, and fresh `available` evidence suppresses
+false-positive circuit opens, the same as Codex evidence already does.
+
 ### run_skill
 
 Agentic. The `skill` workflow's equivalent of `implement`: resolves the Job's

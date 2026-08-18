@@ -177,6 +177,45 @@ RSpec.describe AgentProviders::Claude do
 
       expect(run.reload.live_session_id).to eq("sid-live-abc")
     end
+
+    it "refreshes the Claude usage probe after invocation, mirroring Codex's own probe wiring" do
+      built = adapter # force Job/Run creation (which itself opportunistically probes) before stubbing
+      RunJob.agent_runner = ->(**kwargs) {
+        AgentInvocation::Result.new(turns: 1, exit_status: 0, timed_out: false,
+                                    is_error: false, outcome: "success",
+                                    final_text: nil, session_id: nil)
+      }
+      allow(ClaudeUsageProbe).to receive(:refresh_for)
+
+      built.run(prompt: "do it", log_sink: ->(*, **) { })
+
+      expect(ClaudeUsageProbe).to have_received(:refresh_for).with(user: user).once
+    end
+
+    it "still refreshes the Claude usage probe when the invocation itself raises" do
+      built = adapter # force Job/Run creation (which itself opportunistically probes) before stubbing
+      RunJob.agent_runner = ->(**kwargs) { raise "boom" }
+      allow(ClaudeUsageProbe).to receive(:refresh_for)
+
+      expect { built.run(prompt: "do it", log_sink: ->(*, **) { }) }.to raise_error("boom")
+
+      expect(ClaudeUsageProbe).to have_received(:refresh_for).with(user: user).once
+    end
+
+    it "does not probe when the user has no Claude OAuth token configured" do
+      built = adapter # force Job/Run creation before clearing the token
+      user.update!(claude_oauth_token: nil)
+      RunJob.agent_runner = ->(**kwargs) {
+        AgentInvocation::Result.new(turns: 1, exit_status: 0, timed_out: false,
+                                    is_error: false, outcome: "success",
+                                    final_text: nil, session_id: nil)
+      }
+      allow(ClaudeUsageProbe).to receive(:refresh_for)
+
+      built.run(prompt: "do it", log_sink: ->(*, **) { })
+
+      expect(ClaudeUsageProbe).not_to have_received(:refresh_for)
+    end
   end
 
   describe "#run_once" do
@@ -205,6 +244,26 @@ RSpec.describe AgentProviders::Claude do
         mcp_config: nil,
         resume_session_id: nil
       )
+    end
+  end
+
+  describe ".invoke_one_shot" do
+    it "refreshes the Claude usage probe after a one-shot invocation" do
+      runner = ->(**kwargs) {
+        AgentInvocation::Result.new(turns: 1, exit_status: 0, timed_out: false,
+                                    is_error: false, outcome: "success",
+                                    final_text: "ok", session_id: nil)
+      }
+      allow(ClaudeUsageProbe).to receive(:refresh_for)
+
+      Dir.mktmpdir do |dir|
+        described_class.invoke_one_shot(
+          workspace_path: dir, user: user, runner: runner, scope: "chat_title",
+          prompt: "title this", log_sink: ->(*, **) { }, timeout: 5, max_turns: 1
+        )
+      end
+
+      expect(ClaudeUsageProbe).to have_received(:refresh_for).with(user: user)
     end
   end
 

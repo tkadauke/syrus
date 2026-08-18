@@ -80,6 +80,28 @@ class ProviderAvailabilityEvidence < ApplicationRecord
     evidence
   end
 
+  # Unlike record_codex_probe!, ClaudeUsageProbe classifies directly into
+  # this model's STATUSES vocabulary (available/warning/exhausted/
+  # probe_inconclusive/auth_error/unsupported/probe_unavailable), so no
+  # evidence_status_for_probe translation is needed. There is no Claude
+  # equivalent of CodexAccountScope, so account_id stays nil.
+  def self.record_claude_probe!(user:, status:, snapshot:, message:, http_status: nil, observed_at: Time.current)
+    create!(
+      user: user,
+      provider: "claude",
+      account_id: nil,
+      model: nil,
+      status: status,
+      source: "usage_probe",
+      observed_at: observed_at,
+      http_status: http_status,
+      details: sanitized_details(
+        message: message,
+        snapshot: snapshot
+      )
+    )
+  end
+
   def self.record_codex_invocation_failure!(run:, status: "exhausted", model: nil, message: nil, observed_at: Time.current)
     return unless run&.user
     status = "probe_inconclusive" if false_positive_codex_usage_limit?(message, model: model)

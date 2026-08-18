@@ -196,6 +196,40 @@ RSpec.describe ProviderCircuitBreaker do
     expect(described_class.call("codex", now: now)).not_to be_open
   end
 
+  it "opens the Claude circuit proactively from usage-probe evidence alone, with no failed Run" do
+    ProviderAvailabilityEvidence.record_claude_probe!(
+      user: user,
+      status: "exhausted",
+      snapshot: { "session_pct" => 100.0 },
+      message: "Claude usage limit has been reached.",
+      observed_at: now - 1.minute
+    )
+
+    decision = described_class.call("claude", now: now)
+
+    expect(decision).to be_open
+    expect(decision).to be_usage_limit
+  end
+
+  it "closes the Claude usage-limit circuit once newer available probe evidence exists" do
+    ProviderAvailabilityEvidence.record_claude_probe!(
+      user: user,
+      status: "exhausted",
+      snapshot: { "session_pct" => 100.0 },
+      message: "Claude usage limit has been reached.",
+      observed_at: now - 2.minutes
+    )
+    ProviderAvailabilityEvidence.record_claude_probe!(
+      user: user,
+      status: "available",
+      snapshot: { "session_pct" => 5.0 },
+      message: "Claude usage snapshot refreshed.",
+      observed_at: now - 1.minute
+    )
+
+    expect(described_class.call("claude", now: now)).not_to be_open
+  end
+
   it "suppresses stale Codex usage-limit runs with inconclusive model metadata decode errors" do
     run = failed_agent_run(
       outcome: "turn_failed",

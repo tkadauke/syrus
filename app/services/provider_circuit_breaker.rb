@@ -7,6 +7,12 @@ class ProviderCircuitBreaker
   MIN_FAILURES = 5
   MIN_UNRELATED_JOBS = 3
   REPEAT_SIGNATURE_THRESHOLD = 3
+  # Providers with a proactive usage probe (CodexUsageProbe, ClaudeUsageProbe)
+  # that can record "exhausted" evidence before any Run actually fails - lets
+  # that evidence open the circuit ahead of the reactive text-classification
+  # path. Other providers have no probe, so there's nothing proactive to look
+  # up.
+  PROBED_PROVIDERS = %w[codex claude].freeze
   @read_cache_mutex = Mutex.new
   @read_cache = {}
 
@@ -227,7 +233,7 @@ class ProviderCircuitBreaker
   end
 
   def current_usage_limit_evidence
-    return unless provider == "codex"
+    return unless PROBED_PROVIDERS.include?(provider)
 
     ProviderAvailabilityEvidence
       .where(provider: provider, status: "exhausted")
@@ -349,7 +355,7 @@ class ProviderCircuitBreaker
   end
 
   def latest_provider_evidence_payload
-    return unless provider == "codex"
+    return unless PROBED_PROVIDERS.include?(provider)
 
     ProviderAvailabilityEvidence.latest_positive_negative_for_provider(provider)
   end
