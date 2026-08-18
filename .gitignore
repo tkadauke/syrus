@@ -18,7 +18,8 @@
 !.bundle/
 !.bundle/config
 vendor/bundle/
-.syrus/
+.syrus/*
+!.syrus/skills/
 node_modules/
 desktop/dist/
 desktop/dist-electron/
