@@ -1,4 +1,5 @@
 require "fileutils"
+require "json"
 
 module ChatProviders
   class Claude < Base
@@ -103,7 +104,10 @@ module ChatProviders
           provider: provider,
           session_id: result.session_id,
           transcript_jsonl: transcript,
-          normalized_messages: normalized_messages_for(transcript),
+          normalized_messages: normalized_messages_for(
+            merge_subagent_transcripts(transcript, home: ENV.fetch("HOME"),
+                                                     cwd: ChatWorkspace.path_for(chat), session_id: session_id)
+          ),
           missing_message: nil
         )
       else
@@ -209,6 +213,60 @@ module ChatProviders
         missing_message: "[chat_session] invalid Claude session id - " \
                          "session continuation won't be available for this chat"
       )
+    end
+
+    # Claude Code (SDK/headless mode, which is how Syrus always invokes it)
+    # does NOT interleave subagent (Task/Agent tool) turns into the main
+    # session transcript -- they're written to sibling
+    # `<session>/subagents/agent-<id>.jsonl` files, each paired with an
+    # `agent-<id>.meta.json` that carries the spawning tool_use id
+    # (`toolUseId`). Merge those lines back into a single chronological
+    # JSONL stream, stamping each with `parentToolUseId`, so
+    # ClaudeTranscript can tag sidechain events instead of losing them
+    # entirely (the main transcript alone has no trace of subagent activity).
+    def merge_subagent_transcripts(transcript, home:, cwd:, session_id:)
+      dir = ProviderSession.canonical_subagents_dir_for(home: home, cwd: cwd, session_id: session_id)
+      return transcript unless Dir.exist?(dir)
+
+      subagent_lines = Dir.glob(File.join(dir, "**", "agent-*.jsonl")).flat_map do |agent_path|
+        tagged_subagent_lines(agent_path)
+      end
+      return transcript if subagent_lines.empty?
+
+      all_lines = transcript.each_line.map(&:chomp).reject(&:blank?) + subagent_lines
+      # `sort_by` isn't stable, so pair each line with its original index as
+      # a tiebreaker -- otherwise lines sharing a timestamp (millisecond
+      # resolution, so more common than it sounds) could interleave
+      # nondeterministically between runs.
+      all_lines.each_with_index.sort_by { |line, index| [ parsed_timestamp(line), index ] }.map(&:first).join("\n")
+    end
+
+    def tagged_subagent_lines(agent_path)
+      meta_path = agent_path.sub(/\.jsonl\z/, ".meta.json")
+      tool_use_id = begin
+        JSON.parse(File.read(meta_path))["toolUseId"] if File.exist?(meta_path)
+      rescue JSON::ParserError
+        nil
+      end
+
+      File.readlines(agent_path).filter_map do |raw_line|
+        raw_line = raw_line.strip
+        next if raw_line.blank?
+
+        parsed = JSON.parse(raw_line)
+        next unless parsed.is_a?(Hash)
+
+        parsed["parentToolUseId"] = tool_use_id
+        parsed.to_json
+      rescue JSON::ParserError
+        nil
+      end
+    end
+
+    def parsed_timestamp(line)
+      JSON.parse(line)["timestamp"].to_s
+    rescue JSON::ParserError
+      ""
     end
   end
 end

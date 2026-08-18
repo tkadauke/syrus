@@ -82,6 +82,8 @@ module App
 
       payload[:attachments] = message.content["attachments"] if message.content.is_a?(Hash) && message.content["attachments"].is_a?(Array)
       payload[:video_walkthrough_id] = message.content["video_walkthrough_id"] if message.content.is_a?(Hash) && message.content["video_walkthrough_id"].present?
+      payload[:sidechain] = true if message.sidechain
+      payload[:parent_tool_use_id] = message.parent_tool_use_id if message.parent_tool_use_id.present?
       payload[:proposal] = proposal_json(message.proposal, chat_session: message.chat_session) if message.proposal_id.present?
       payload[:pending_action] = pending_action_json(message.pending_action, chat_session: message.chat_session) if message.pending_action_id.present?
 
