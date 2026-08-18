@@ -31,14 +31,90 @@ module Skills
     end
 
     def to_s
-      <<~INSTRUCTIONS
+      [ intro, pre_scan_section, step_by_step_instructions ].compact.join("\n\n")
+    end
+
+    private
+
+    # Present only when a real on-disk checkout was available at
+    # resolution time (Steps::RunSkill, once the shared workspace is
+    # set up) — nil for every other resolution path (picker, chat
+    # slash command, ScheduledTask fire), which fall back to the
+    # generic step-by-step instructions below with no concrete
+    # findings to report.
+    def scan
+      return nil unless @workspace_path
+
+      @scan ||= {
+        existing_config: Pathname.new(@workspace_path).join(SyrusYml::CONFIG_FILE).exist?,
+        prep: RepoPrepPlan.for(@workspace_path),
+        grade: RepoGradeSignals.for(@workspace_path)
+      }
+    end
+
+    def intro
+      <<~TXT.strip
         You are onboarding this repository to Syrus by producing a sensible
         `.syrus.yml` — the config file that tells Syrus how to install
         dependencies (`prepare:`) and validate changes (`grade:`) in this
         repository.
 
         Dry run: {{dry_run}}
+      TXT
+    end
 
+    def pre_scan_section
+      return nil unless scan
+
+      <<~TXT.strip
+        ## Automated pre-scan results
+
+        Syrus already scanned this checkout before invoking you — use these
+        findings as your starting point. The scan is deliberately shallow
+        (plain file-existence checks plus a best-effort read of any CI
+        workflow files), so verify each finding against the actual repo
+        rather than trusting it blindly, and use the detection tables in
+        the steps below to catch anything it missed.
+
+        - `.syrus.yml`: #{existing_config_summary}
+        - Detected prepare command: #{prep_summary}
+        - Detected grade candidates: #{grade_candidates_summary}
+        - Existing CI workflows: #{ci_summary}
+      TXT
+    end
+
+    def existing_config_summary
+      if scan[:existing_config]
+        "already exists at the repo root. Do not overwrite it — produce a gap analysis instead (see Step 1)."
+      else
+        "does not exist. Write a new one from scratch (see Steps 2–4)."
+      end
+    end
+
+    def prep_summary
+      prep = scan[:prep]
+      return "none — no recognized lockfile found" if prep.commands.empty?
+
+      "`#{prep.commands.join(' && ')}` (source: #{prep.source})"
+    end
+
+    def grade_candidates_summary
+      candidates = scan[:grade].candidates
+      return "none detected" if candidates.empty?
+
+      candidates.map { |c| "#{c.name} (`#{c.run}`, evidence: #{c.evidence})" }.join("; ")
+    end
+
+    def ci_summary
+      grade = scan[:grade]
+      return "none found" if grade.ci_workflow_paths.empty?
+
+      commands = grade.ci_run_commands.any? ? " — run commands seen: #{grade.ci_run_commands.join('; ')}" : ""
+      "#{grade.ci_workflow_paths.join(', ')}#{commands}"
+    end
+
+    def step_by_step_instructions
+      <<~INSTRUCTIONS.strip
         ## Step 1 — check for an existing .syrus.yml
 
         Look for a `.syrus.yml` at the repository root.
@@ -128,8 +204,6 @@ module Skills
         outcome: an onboarding run with nothing to do closes without a PR.
       INSTRUCTIONS
     end
-
-    private
 
     def prepare_detection_table
       RepoPrepPlan::AUTO_DETECT.map { |file, command| "- `#{file}` → `#{command}`" }.join("\n")

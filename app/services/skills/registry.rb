@@ -40,8 +40,8 @@ module Skills
       fetch(name).klass_const
     end
 
-    def definition_for(name)
-      class_for(name).definition
+    def definition_for(name, workspace_path: nil)
+      class_for(name).definition(workspace_path: workspace_path)
     end
   end
 end
