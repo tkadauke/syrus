@@ -17,6 +17,7 @@ RSpec.describe "API: /api/v1/admin/console", type: :request do
     it "returns current pause settings and recent actions" do
       AppSetting.current.update!(polling_paused: true, runs_paused: false)
       AdminAction.log!(user: admin, action: :pause_polling, params: { source: "test" })
+      Factories.job
 
       get "/api/v1/admin/console", headers: auth
 
@@ -29,6 +30,7 @@ RSpec.describe "API: /api/v1/admin/console", type: :request do
         "action" => "pause_polling",
         "user_email" => admin.email_address
       )
+      expect(parse_body["active_runs"]).to eq(1)
     end
 
     it "401s without a token" do

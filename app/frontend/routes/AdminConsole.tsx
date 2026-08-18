@@ -12,7 +12,9 @@ import {
   type ConsoleCommand,
   type ConsoleSettings
 } from "../api/adminConsole"
+import { requestRestart, type RestartComponent } from "../api/adminRestart"
 import { ApiError } from "../api/client"
+import { ConfirmDialog } from "../components/ConfirmDialog"
 import { NoticeToast } from "../components/NoticeToast"
 import { useT } from "../hooks/useT"
 
@@ -72,6 +74,8 @@ function ConsoleView({ payload }: { payload: AdminConsolePayload }) {
         <ReaperPanel />
         <GithubCachePanel payload={payload} />
       </section>
+
+      <MaintenanceSection activeRuns={payload.active_runs} />
 
       <ActionsTable actions={payload.recent_admin_actions} />
     </>
@@ -197,6 +201,90 @@ function GithubCachePanel({ payload }: { payload: AdminConsolePayload }) {
       <NoticeToast message={mutation.data?.message || null} onDismiss={() => mutation.reset()} />
       {mutation.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300">{t("console.clear_error")}</p> : null}
     </section>
+  )
+}
+
+function MaintenanceSection({ activeRuns }: { activeRuns: number }) {
+  const { t } = useT("admin")
+
+  return (
+    <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+      <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+        {t("console.maintenance_heading")}
+      </div>
+      <p className="px-4 pt-3 text-xs text-gray-600 dark:text-gray-300">{t("console.maintenance_description")}</p>
+      <div className="grid gap-4 p-4 md:grid-cols-3">
+        <RestartPanel
+          activeRuns={activeRuns}
+          component="web"
+          description={t("console.restart_web_description")}
+          title={t("console.restart_web_title")}
+        />
+        <RestartPanel
+          activeRuns={activeRuns}
+          component="worker"
+          description={t("console.restart_worker_description")}
+          title={t("console.restart_worker_title")}
+        />
+        <RestartPanel
+          activeRuns={activeRuns}
+          component="all"
+          description={t("console.restart_all_description")}
+          title={t("console.restart_all_title")}
+        />
+      </div>
+    </section>
+  )
+}
+
+function RestartPanel({
+  component,
+  title,
+  description,
+  activeRuns
+}: {
+  component: RestartComponent
+  title: string
+  description: string
+  activeRuns: number
+}) {
+  const { t } = useT("admin")
+  const [confirming, setConfirming] = useState(false)
+  const warnActiveRuns = component !== "web" && activeRuns > 0
+  const mutation = useMutation({
+    mutationFn: () => requestRestart(component, warnActiveRuns)
+  })
+
+  return (
+    <div className="rounded border border-gray-200 dark:border-gray-700 p-3">
+      <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">{title}</h3>
+      <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">{description}</p>
+      <button
+        className="mt-3 rounded bg-red-600 dark:bg-red-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 dark:hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-red-300 dark:disabled:bg-red-900"
+        disabled={mutation.isPending}
+        onClick={() => setConfirming(true)}
+        type="button"
+      >
+        {title}
+      </button>
+      {mutation.isSuccess ? <NoticeToast message={t("console.restart_success")} onDismiss={() => mutation.reset()} /> : null}
+      {mutation.isError ? (
+        <p className="mt-2 text-xs text-red-700 dark:text-red-300">
+          {mutation.error instanceof ApiError ? mutation.error.message : t("console.restart_error")}
+        </p>
+      ) : null}
+      <ConfirmDialog
+        confirmLabel={warnActiveRuns ? t("console.restart_force_confirm") : t("console.restart_confirm_button")}
+        destructive
+        message={warnActiveRuns ? t("console.restart_confirm_with_runs", { count: activeRuns }) : t("console.restart_confirm")}
+        onCancel={() => setConfirming(false)}
+        onConfirm={() => {
+          setConfirming(false)
+          mutation.mutate()
+        }}
+        open={confirming}
+      />
+    </div>
   )
 }
 
