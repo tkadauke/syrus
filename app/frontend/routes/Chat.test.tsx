@@ -1110,6 +1110,41 @@ describe("proposal outcome system events", () => {
     expect(await screen.findByText("Add the auth route map.")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Show 1 hidden system message" })).not.toBeInTheDocument()
   })
+
+  it("renders a long system message collapsed to a single-line bubble with an expand/collapse toggle", async () => {
+    const longBody = 'Proposal confirmed. Epic #241 "Workout planning" was created. Child jobs: JOB-3311 "Group workout exercises into blocks", JOB-3312 "Plan, Goal, and PlannedWorkout models", JOB-3313 "Progression engine". The Epic was started; ready child Jobs are dispatching.'
+    mockChatPayload(chatPayload({
+      messages: [
+        {
+          ...chatMessage(9, "system", longBody, localDateAt(9, 0)),
+          content: { text: longBody, source: "proposal_notification", outcome: "confirmed" },
+          bookmarkable: false
+        }
+      ]
+    }))
+
+    renderRoute()
+
+    const summary = await screen.findByTestId("system-message-summary")
+    expect(summary).toHaveTextContent(longBody)
+    expect(summary.className).toContain("truncate")
+    expect(screen.queryByTestId("system-message-details")).not.toBeInTheDocument()
+
+    const toggle = screen.getByRole("button", { name: "Show system message details" })
+    expect(toggle).toHaveAttribute("aria-expanded", "false")
+
+    fireEvent.click(toggle)
+
+    const details = await screen.findByTestId("system-message-details")
+    expect(details).toHaveTextContent(longBody)
+    const collapseToggle = screen.getByRole("button", { name: "Hide system message details" })
+    expect(collapseToggle).toHaveAttribute("aria-expanded", "true")
+
+    fireEvent.click(collapseToggle)
+
+    expect(screen.queryByTestId("system-message-details")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Show system message details" })).toBeInTheDocument()
+  })
 })
 
 describe("scoped event evaluator handoffs", () => {
