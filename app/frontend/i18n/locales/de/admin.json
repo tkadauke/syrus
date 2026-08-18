@@ -596,7 +596,21 @@
     "state_paused": "pausiert",
     "state_running": "läuft",
     "state_enabled": "aktiviert",
-    "state_disabled": "deaktiviert"
+    "state_disabled": "deaktiviert",
+    "maintenance_heading": "Wartung",
+    "maintenance_description": "Neustarts schreiben einen gemeinsamen Cache-Zeitstempel als „Giftpille“; jeder Web-/Worker-Prozess erkennt ihn unabhängig und beendet sich selbst, sodass die Neustart-Richtlinie der Plattform (Kubernetes, Docker Compose oder Foreman) ihn wieder hochfährt.",
+    "restart_web_title": "Web neu starten",
+    "restart_web_description": "Startet alle Web-Prozesse neu. Kurze Unterbrechung der Anfragen während des Neustarts.",
+    "restart_worker_title": "Worker neu starten",
+    "restart_worker_description": "Startet alle Worker-Prozesse neu. Aktive Runs werden unterbrochen und, falls möglich, automatisch wiederholt.",
+    "restart_all_title": "Alles neu starten",
+    "restart_all_description": "Startet sowohl Web- als auch Worker-Prozesse neu.",
+    "restart_confirm": "Möchten Sie diese Komponente wirklich neu starten?",
+    "restart_confirm_with_runs": "Es laufen {{count}} aktive Run(s). Ein Neustart jetzt unterbricht sie. Fortfahren?",
+    "restart_confirm_button": "Neu starten",
+    "restart_force_confirm": "Neustart erzwingen",
+    "restart_success": "Neustart eingeleitet. Diese Seite kann kurzzeitig nicht erreichbar sein — in ca. 15 Sekunden neu laden.",
+    "restart_error": "Neustart konnte nicht eingeleitet werden."
   },
   "queue": {
     "heading": "Warteschlange",

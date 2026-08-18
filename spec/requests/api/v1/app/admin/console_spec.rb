@@ -48,6 +48,7 @@ RSpec.describe "API: /api/v1/app/admin/console", type: :request do
       "action" => "pause_polling",
       "user_email" => admin.email_address
     )
+    expect(parse_body["active_runs"]).to eq(0)
   end
 
   it "pauses and resumes polling and runs" do

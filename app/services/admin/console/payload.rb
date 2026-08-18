@@ -9,7 +9,8 @@ module Admin
         {
           settings: settings_payload,
           users: users_payload,
-          recent_admin_actions: recent_admin_actions_payload
+          recent_admin_actions: recent_admin_actions_payload,
+          active_runs: Run.active.count
         }
       end
 
