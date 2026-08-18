@@ -955,9 +955,23 @@ module WorkEngine
 
       class CleanupBlockedByActiveDescendants < Base
         def plan
-          operator_plan(
-            "operator_review_active_descendants",
-            "The workflow is terminal but still has active descendant work, so cleanup must wait for or resolve that state drift first."
+          if issue.recommended_repair_action == "operator_review_active_descendants"
+            return operator_plan(
+              "operator_review_active_descendants",
+              "The workflow is terminal but still has live descendant work, so cleanup must wait for or resolve that state drift first."
+            )
+          end
+
+          automatic_plan(
+            "cancel_terminal_workflow_active_descendants",
+            primary_workflow,
+            "The workflow is terminal but still has active descendant work, so cancel those stale descendants without changing the workflow outcome.",
+            execution_steps: [ "Workflow#cancel_active_descendants!" ],
+            preconditions: {
+              workflow_state: %w[succeeded failed cancelled],
+              active_step_ids: issue.evidence["active_step_ids"],
+              active_run_ids: issue.evidence["active_run_ids"]
+            }
           )
         end
       end

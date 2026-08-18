@@ -161,8 +161,12 @@ Planner examples:
   returns no unsatisfied dependencies, the reconciler emits
   `stale_dependency_start_block` with an automatic
   `clear_stale_start_block_and_start_workflow` repair.
-- Terminal Workflows with active descendants return operator-review cleanup
-  plans, because cleanup must not race still-active Step or Run rows.
+- Terminal Workflows with stale queued/running descendants plan
+  `cancel_terminal_workflow_active_descendants`, which cancels those child
+  Steps/Runs without changing the terminal Workflow outcome. This handles old
+  failed/cancelled Workflows whose downstream queued tail would otherwise stay
+  visible forever. Cleanup blockers that still have other live descendant
+  evidence remain operator-review plans.
 
 ## Stuck visibility and explanations
 

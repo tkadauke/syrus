@@ -432,13 +432,14 @@ class Workflow < ApplicationRecord
 
   def cancel_active_descendants!
     Step.suppress_cancel_cascade do
-      steps.active.find_each do |step|
-        step.runs.active.find_each do |run|
-          if run.may_cancel?
-            run.cancel!
-            run.save!
-          end
+      runs.active.find_each do |run|
+        if run.may_cancel?
+          run.cancel!
+          run.save!
         end
+      end
+
+      steps.active.find_each do |step|
         if step.may_cancel?
           step.cancel!
           step.save!

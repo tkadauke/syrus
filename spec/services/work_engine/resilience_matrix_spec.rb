@@ -455,8 +455,8 @@ RSpec.describe "Work engine resilience regression matrix" do
     },
     "active descendants preventing cleanup" => {
       issue_kind: :cleanup_blocked_by_active_descendants,
-      action: :operator_review_active_descendants,
-      auto_executable: false,
+      action: :cancel_terminal_workflow_active_descendants,
+      auto_executable: true,
       setup: lambda {
         _job, workflow, step, run = matrix_graph
         workflow.update_columns(state: "succeeded", finished_at: 10.minutes.ago, cleaned_up_at: nil)

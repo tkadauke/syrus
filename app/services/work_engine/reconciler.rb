@@ -169,6 +169,7 @@ module WorkEngine
       issues.concat(classify_epic_workflow_conflicts)
       issues.concat(classify_closed_jobs_with_active_workflows)
       issues.concat(classify_superseded_active_workflows)
+      issues.concat(classify_terminal_workflows_with_active_descendants)
       issues.concat(classify_queued_runs)
       issues.concat(classify_paused_queues)
       issues.concat(classify_running_runs)
@@ -269,7 +270,7 @@ module WorkEngine
         Workflow.where(id: Step.where(id: Run.where(id: run_id).select(:step_id)).select(:workflow_id))
       else
         Workflow.where(job_id: jobs.map(&:id)).where(state: %w[ queued running failed ])
-          .or(Workflow.where(id: terminal_workflows_with_active_runs.select(:id)))
+          .or(Workflow.where(id: terminal_workflows_with_active_descendants.select(:id)))
       end
     end
 
@@ -282,15 +283,14 @@ module WorkEngine
       end
     end
 
-    # A Workflow can reach a terminal state (cancelled/succeeded) while a child
-    # Run is left behind in queued/running — e.g. Workflow#cancel's
-    # cancel_active_descendants! callback racing a Run that was already mid-flight.
-    # Drive this off active Runs (a small set) rather than scanning every terminal
-    # Workflow, so an orphaned Run is never permanently invisible to the default
-    # reconciler scan just because its parent Workflow already finished.
-    def terminal_workflows_with_active_runs
-      Workflow.where(state: %w[ cancelled succeeded ])
-              .where(id: Step.where(id: Run.where(state: %w[ queued running ]).select(:step_id)).select(:workflow_id))
+    # A Workflow can reach a terminal state while child Steps/Runs are left
+    # behind in queued/running. Drive this off active descendants (small sets)
+    # instead of scanning every terminal Workflow, so old failed/cancelled
+    # Workflows do not keep invisible queued work forever.
+    def terminal_workflows_with_active_descendants
+      active_step_workflows = Step.where(state: Step::ACTIVE_STATES).select(:workflow_id)
+      active_run_workflows = Step.where(id: Run.where(state: Run::ACTIVE_STATES).select(:step_id)).select(:workflow_id)
+      Workflow.terminal.where(id: active_step_workflows).or(Workflow.terminal.where(id: active_run_workflows))
     end
 
     def classify_queued_runs
@@ -509,6 +509,27 @@ module WorkEngine
             age_seconds: seconds_since(step.created_at)
           ),
           explanation: "Step ##{step.id} is queued behind succeeded Step ##{previous.id}, but no Run was created for it."
+        )
+      end
+    end
+
+    def classify_terminal_workflows_with_active_descendants
+      workflows.select(&:terminal?).filter_map do |workflow|
+        active_step_ids = workflow.steps.active.pluck(:id)
+        active_run_ids = workflow.runs.active.pluck(:id)
+        next if active_step_ids.empty? && active_run_ids.empty?
+
+        issue(
+          kind: :cleanup_blocked_by_active_descendants,
+          severity: :warning,
+          affected_ids: ids_for(workflow).merge(step_ids: active_step_ids, run_ids: active_run_ids),
+          safe_to_auto_repair: true,
+          recommended_repair_action: "cancel_terminal_workflow_active_descendants",
+          evidence: workflow_evidence(workflow).merge(
+            active_step_ids: active_step_ids,
+            active_run_ids: active_run_ids
+          ),
+          explanation: "Workflow ##{workflow.id} is terminal but still has queued/running descendants; cancel the stale descendants so the terminal workflow is internally consistent."
         )
       end
     end
@@ -1287,6 +1308,7 @@ module WorkEngine
       workflows.select { |workflow| %w[succeeded failed cancelled].include?(workflow.state) }.filter_map do |workflow|
         next if workflow.cleaned_up_at.present?
         next unless workflow.live_descendants?
+        next if workflow.active_descendants?
 
         issue(
           kind: :cleanup_blocked_by_active_descendants,

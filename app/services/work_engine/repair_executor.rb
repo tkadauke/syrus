@@ -557,6 +557,28 @@ module WorkEngine
         end
       end
 
+      class CancelTerminalWorkflowActiveDescendants < Base
+        def perform
+          workflow = target_workflow
+          return skipped("Workflow no longer exists") unless workflow
+          return skipped("Workflow is #{workflow.state}, not terminal") unless workflow.terminal?
+          return skipped("Workflow has no active descendants") unless workflow.active_descendants?
+
+          StateTransition.with_source("reconciler") do
+            workflow.cancel_active_descendants!
+          end
+
+          workflow.reload
+          remaining_steps = workflow.steps.active.pluck(:id)
+          remaining_runs = workflow.runs.active.pluck(:id)
+          if remaining_steps.any? || remaining_runs.any?
+            failure("active descendants remain: steps=#{remaining_steps.inspect} runs=#{remaining_runs.inspect}")
+          else
+            success("cancelled active descendants for terminal Workflow ##{workflow.id}")
+          end
+        end
+      end
+
       class CancelSupersededActiveWorkflow < Base
         def perform
           workflow = target_workflow

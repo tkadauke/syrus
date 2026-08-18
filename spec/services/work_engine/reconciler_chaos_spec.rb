@@ -500,7 +500,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
         "topology terminal workflow with active descendant",
         target: { workflow_id: workflow.id },
         expected_issue: :cleanup_blocked_by_active_descendants,
-        expected_action: :operator_review_active_descendants
+        expected_action: :cancel_terminal_workflow_active_descendants
       )
     end
 
@@ -1263,7 +1263,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
         "terminal workflow with active descendants",
         target: { workflow_id: workflow.id },
         expected_issue: :cleanup_blocked_by_active_descendants,
-        expected_action: :operator_review_active_descendants
+        expected_action: :cancel_terminal_workflow_active_descendants
       )
     end
 

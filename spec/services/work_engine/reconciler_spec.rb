@@ -1157,7 +1157,7 @@ RSpec.describe WorkEngine::Reconciler do
     expect(issue.evidence).to include("detached_worker_evidence" => false)
   end
 
-  it "still reaps a stale running Run left behind under an already-cancelled Workflow" do
+  it "cancels a stale running Run left behind under an already-cancelled Workflow" do
     ensure_solid_queue_test_tables!
     run.update_columns(
       state: "running",
@@ -1174,23 +1174,23 @@ RSpec.describe WorkEngine::Reconciler do
     # etc.) uses. Before the fix, scoped_workflows dropped this cancelled
     # Workflow entirely, so the stale Run was never visible here.
     result = reconcile(job_id: job.id)
-    issue = kind(result, :running_run_without_live_worker_evidence)
+    issue = kind(result, :cleanup_blocked_by_active_descendants)
 
     expect(issue).to have_attributes(
-      severity: "critical",
+      severity: "warning",
       safe_to_auto_repair: true,
-      recommended_repair_action: "fail_run_as_worker_died"
+      recommended_repair_action: "cancel_terminal_workflow_active_descendants"
     )
     expect(issue.affected_ids[:run_ids]).to eq([ run.id ])
 
     executed = reconcile_and_execute(job_id: job.id)
-    repair_plan = plan(executed, :mark_worker_died)
+    repair_plan = plan(executed, :cancel_terminal_workflow_active_descendants)
 
-    expect(repair_plan).to have_attributes(auto_executable: true, target_id: run.id)
-    expect(run.reload).to have_attributes(state: "failed", agent_outcome: "worker_died")
+    expect(repair_plan).to have_attributes(auto_executable: true, target_id: workflow.id)
+    expect(run.reload).to have_attributes(state: "cancelled", agent_outcome: nil)
   end
 
-  it "still reaps a stale running Run left behind under an already-succeeded Workflow" do
+  it "cancels a stale running Run left behind under an already-succeeded Workflow" do
     ensure_solid_queue_test_tables!
     run.update_columns(
       state: "running",
@@ -1203,20 +1203,20 @@ RSpec.describe WorkEngine::Reconciler do
     allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(false)
 
     result = reconcile(job_id: job.id)
-    issue = kind(result, :running_run_without_live_worker_evidence)
+    issue = kind(result, :cleanup_blocked_by_active_descendants)
 
     expect(issue).to have_attributes(
-      severity: "critical",
+      severity: "warning",
       safe_to_auto_repair: true,
-      recommended_repair_action: "fail_run_as_worker_died"
+      recommended_repair_action: "cancel_terminal_workflow_active_descendants"
     )
     expect(issue.affected_ids[:run_ids]).to eq([ run.id ])
 
     executed = reconcile_and_execute(job_id: job.id)
-    repair_plan = plan(executed, :mark_worker_died)
+    repair_plan = plan(executed, :cancel_terminal_workflow_active_descendants)
 
-    expect(repair_plan).to have_attributes(auto_executable: true, target_id: run.id)
-    expect(run.reload).to have_attributes(state: "failed", agent_outcome: "worker_died")
+    expect(repair_plan).to have_attributes(auto_executable: true, target_id: workflow.id)
+    expect(run.reload).to have_attributes(state: "cancelled", agent_outcome: nil)
   end
 
   it "still classifies a stale running Run under a normal active Workflow through the default job-scoped scan" do
@@ -2657,6 +2657,40 @@ RSpec.describe WorkEngine::Reconciler do
 
     expect(kind(result, :nonretryable_semantic_git_failure)).to be_nil
     expect(plan(result, :operator_review_nonretryable_failure)).to be_nil
+  end
+
+  it "cancels stale queued descendants inside a terminal failed Workflow" do
+    queued_tail = workflow.steps.where(state: "queued").where.not(id: step.id).first ||
+      Step.create!(workflow: workflow, kind: "summarize", position: 99, state: "queued")
+    queued_tail_run = queued_tail.runs.create!(
+      job: job,
+      user: job.user,
+      trigger_kind: workflow.trigger_kind,
+      agent_provider: workflow.agent_provider,
+      state: "queued",
+      created_at: 10.minutes.ago,
+      updated_at: 10.minutes.ago
+    )
+    run.update_columns(state: "failed", finished_at: 10.minutes.ago)
+    step.update_columns(state: "failed", finished_at: 10.minutes.ago)
+    workflow.update_columns(state: "failed", finished_at: 10.minutes.ago, cleaned_up_at: nil)
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+    issue = kind(result, :cleanup_blocked_by_active_descendants)
+
+    expect(issue).to have_attributes(
+      safe_to_auto_repair: true,
+      recommended_repair_action: "cancel_terminal_workflow_active_descendants"
+    )
+    expect(plan(result, :cancel_terminal_workflow_active_descendants)).to have_attributes(
+      auto_executable: true,
+      target_type: "Workflow",
+      target_id: workflow.id
+    )
+    expect(result.repair_executions.map(&:message)).to include("cancelled active descendants for terminal Workflow ##{workflow.id}")
+    expect(workflow.reload).to be_failed
+    expect(queued_tail.reload).to be_cancelled
+    expect(queued_tail_run.reload).to be_cancelled
   end
 
   it "classifies provider rate limits from the circuit breaker" do
