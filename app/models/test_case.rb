@@ -63,12 +63,21 @@ class TestCase < ApplicationRecord
   # Returns the top flakiest tests for a repository, sorted by flakiness score descending.
   # Only returns tests that have both passed and failed (truly flaky).
   def self.top_flaky_tests(repository:, lookback: FLAKINESS_LOOKBACK, limit: 20)
+    # repository_id/lookback/limit are embedded as validated integers rather than
+    # via sanitize_sql named binds: the MySQL adapter's Quoting#cast_bound_value
+    # stringifies Numeric binds before quoting, which turns `LIMIT :limit` into
+    # `LIMIT '20'` -- a MySQL syntax error (SQLite tolerates the quoted literal,
+    # which is why this only broke in production).
+    repository_id = repository.id.to_i
+    lookback = lookback.to_i
+    limit = limit.to_i
+
     sql = <<~SQL
       WITH ranked AS (
         SELECT suite_name, name, status, duration_ms, created_at,
                ROW_NUMBER() OVER (PARTITION BY suite_name, name ORDER BY created_at DESC) AS rn
         FROM test_cases
-        WHERE repository_id = :repository_id
+        WHERE repository_id = #{repository_id}
       ),
       stats AS (
         SELECT
@@ -80,7 +89,7 @@ class TestCase < ApplicationRecord
           AVG(CAST(duration_ms AS REAL)) AS avg_duration_ms,
           MAX(created_at) AS last_seen_at
         FROM ranked
-        WHERE rn <= :lookback
+        WHERE rn <= #{lookback}
         GROUP BY suite_name, name
         HAVING SUM(CASE WHEN status IN ('failed', 'error') THEN 1 ELSE 0 END) > 0
            AND SUM(CASE WHEN status = 'passed' THEN 1 ELSE 0 END) > 0
@@ -94,12 +103,10 @@ class TestCase < ApplicationRecord
         last_seen_at
       FROM stats
       ORDER BY failed_count * 1.0 / total_count DESC
-      LIMIT :limit
+      LIMIT #{limit}
     SQL
 
-    rows = connection.exec_query(
-      sanitize_sql([ sql, { repository_id: repository.id, lookback: lookback, limit: limit } ])
-    )
+    rows = connection.exec_query(sql)
 
     rows.map do |row|
       total  = row["total_count"].to_i
