@@ -21,14 +21,25 @@ module Skills
         []
       end
 
-      def definition
+      # `workspace_path` is present only when the caller already has a
+      # real checkout on disk (currently: Steps::RunSkill, once the
+      # Workflow's shared workspace is set up) — nil everywhere else
+      # (the skill picker, chat slash-command listing, ScheduledTask
+      # fire). Most skills ignore it entirely; a skill that wants to
+      # tailor its instructions to the actual repo (see
+      # Skills::OnboardToSyrus) can read it from `@workspace_path`.
+      def definition(workspace_path: nil)
         Definition.new(
           name: skill_name,
           description: description,
           parameters: ParameterSchema.normalize(parameter_schema),
-          instructions: new.to_s
+          instructions: new(workspace_path: workspace_path).to_s
         )
       end
+    end
+
+    def initialize(workspace_path: nil)
+      @workspace_path = workspace_path
     end
 
     def to_s

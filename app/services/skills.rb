@@ -42,7 +42,13 @@ module Skills
   # parse raises Skills::SkillMarkdown::ParseError rather than silently
   # falling back to a built-in of the same name — a broken repo-local
   # skill is an authoring bug to surface, not to mask.
-  def self.for(repository:, name:, user: nil, client: nil)
+  # `workspace_path` is forwarded to a built-in skill's own `.definition`
+  # (see Skills::Base) so it can tailor its instructions to a real
+  # on-disk checkout — currently only Steps::RunSkill passes one, once
+  # the Workflow's shared workspace is set up. Every other caller
+  # (picker, chat slash command, ScheduledTask fire) omits it and gets
+  # each skill's generic, repo-agnostic instructions.
+  def self.for(repository:, name:, user: nil, client: nil, workspace_path: nil)
     raise ArgumentError, "repository is required" if repository.nil?
 
     name = name.to_s.strip
@@ -50,7 +56,7 @@ module Skills
     raise ArgumentError, "invalid skill name=#{name.inspect}" unless name.match?(NAME_PATTERN)
 
     resolve_repo_local(repository: repository, user: user, client: client, name: name) ||
-      resolve_built_in(name: name)
+      resolve_built_in(name: name, workspace_path: workspace_path)
   end
 
   # Lists every skill available to `repository` — the built-in registry
@@ -131,9 +137,9 @@ module Skills
   end
   private_class_method :resolved_github_client
 
-  def self.resolve_built_in(name:)
+  def self.resolve_built_in(name:, workspace_path: nil)
     klass = Registry.class_for(name)
-    Resolution.new(source: :built_in, path: nil, klass: klass, definition: klass.definition)
+    Resolution.new(source: :built_in, path: nil, klass: klass, definition: klass.definition(workspace_path: workspace_path))
   end
   private_class_method :resolve_built_in
 

@@ -20,6 +20,12 @@ module Steps
   # summarize/pr_open never run and the Job closes successfully.
   class RunSkill < Base
     def call
+      # Set up the workspace before resolving — a built-in skill's
+      # `.definition` may want a real on-disk checkout to tailor its
+      # instructions to (see Skills::OnboardToSyrus). Idempotent:
+      # perform_agentic_change_step calls workspace.setup again below,
+      # which is a no-op once the clone already exists.
+      workspace.setup
       resolution = resolve_skill!
       record_provenance!(resolution)
 
@@ -42,7 +48,7 @@ module Steps
     end
 
     def resolve_skill!
-      Skills.for(repository: repository, name: skill_name, user: job.user)
+      Skills.for(repository: repository, name: skill_name, user: job.user, workspace_path: workspace.path.to_s)
     rescue Skills::NotFoundError, ArgumentError, Skills::SkillMarkdown::ParseError, Skills::ParameterSchema::ParseError => e
       raise StepFailed, "could not resolve skill #{skill_name.inspect}: #{e.class}: #{e.message}"
     end

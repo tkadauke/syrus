@@ -1,4 +1,5 @@
 require "rails_helper"
+require "tmpdir"
 
 RSpec.describe Skills::OnboardToSyrus do
   describe ".definition" do
@@ -73,6 +74,74 @@ RSpec.describe Skills::OnboardToSyrus do
       instructions = described_class.definition.instructions
 
       expect(instructions).to include(".github/workflows")
+    end
+
+    it "does not report an automated pre-scan without a workspace_path" do
+      expect(described_class.definition.instructions).not_to include("Automated pre-scan results")
+    end
+  end
+
+  describe ".definition(workspace_path:)" do
+    around do |ex|
+      Dir.mktmpdir("syrus-onboard-to-syrus") { |dir| @dir = dir; ex.run }
+    end
+
+    def write(rel, contents = "")
+      path = File.join(@dir, rel)
+      FileUtils.mkdir_p(File.dirname(path))
+      File.write(path, contents)
+    end
+
+    it "reports no existing .syrus.yml and no detected signals for an empty repo" do
+      instructions = described_class.definition(workspace_path: @dir).instructions
+
+      expect(instructions).to include("Automated pre-scan results")
+      expect(instructions).to match(/`\.syrus\.yml`: does not exist/)
+      expect(instructions).to match(/Detected prepare command: none/)
+      expect(instructions).to match(/Detected grade candidates: none detected/)
+      expect(instructions).to match(/Existing CI workflows: none found/)
+    end
+
+    it "reports the detected prepare command and grade candidates for a Ruby repo" do
+      write("Gemfile", "source 'https://rubygems.org'\n")
+      write("spec/spec_helper.rb")
+      write(".rubocop.yml")
+
+      instructions = described_class.definition(workspace_path: @dir).instructions
+
+      expect(instructions).to match(/Detected prepare command: `bundle install`/)
+      expect(instructions).to include("rspec (`bin/rspec`, evidence: spec/)")
+      expect(instructions).to include("rubocop (`bundle exec rubocop`, evidence: .rubocop.yml)")
+    end
+
+    it "reports existing CI workflow paths and extracted run commands" do
+      write("Gemfile")
+      write(".github/workflows/ci.yml", <<~YAML)
+        jobs:
+          test:
+            steps:
+              - run: bin/rspec-ci
+      YAML
+
+      instructions = described_class.definition(workspace_path: @dir).instructions
+
+      expect(instructions).to match(%r{Existing CI workflows: \.github/workflows/ci\.yml})
+      expect(instructions).to include("run commands seen: bin/rspec-ci")
+    end
+
+    it "tells the agent an existing .syrus.yml must not be overwritten" do
+      write(".syrus.yml", "prepare:\n  - bundle install\n")
+
+      instructions = described_class.definition(workspace_path: @dir).instructions
+
+      expect(instructions).to match(/`\.syrus\.yml`: already exists.*do not overwrite it/i)
+    end
+
+    it "still includes the full reference tables alongside the concrete scan results" do
+      instructions = described_class.definition(workspace_path: @dir).instructions
+
+      RepoPrepPlan::AUTO_DETECT.each { |file, _command| expect(instructions).to include("`#{file}`") }
+      RepoGradeSignals::RULE_DESCRIPTIONS.each { |rule| expect(instructions).to include(rule.name) }
     end
   end
 end
