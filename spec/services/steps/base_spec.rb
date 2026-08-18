@@ -268,6 +268,21 @@ RSpec.describe Steps::Base do
       expect(chunks).to include(match(/\[mcp_required_health\] status=missing.*missing=submit_summary/))
       expect(chunks).to include(include("[mcp_sidecar_stderr]", "sidecar booted"))
     end
+
+    it "threads disallowed_tools through to the adapter" do
+      fake_adapter = instance_double(AgentProviders::Base)
+      received_disallowed_tools = :not_set
+      allow(handler).to receive(:agent_adapter).and_return(fake_adapter)
+      allow(fake_adapter).to receive(:run) do |disallowed_tools: :not_set, **|
+        received_disallowed_tools = disallowed_tools
+        fake_result
+      end
+      allow(fake_adapter).to receive(:record_result!).and_return(fake_result)
+
+      handler.send(:run_agent, prompt: "review it", disallowed_tools: %w[ReportFindings])
+
+      expect(received_disallowed_tools).to eq(%w[ReportFindings])
+    end
   end
 
   describe "#perform_agentic_change_step" do

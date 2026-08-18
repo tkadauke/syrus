@@ -156,6 +156,8 @@ module Prompts
         - verdict: "needs_work" when implementation changes are needed, "approved" when the change looks correct, "skipped" when the change isn't visually testable.
 
         The verdict is recorded for future workflow control but is not acted on yet.
+
+        Do not call `ReportFindings` or any other generic findings-reporting tool — this step is only complete once `submit_visual_review` has been called.
       TEXT
     end
   end

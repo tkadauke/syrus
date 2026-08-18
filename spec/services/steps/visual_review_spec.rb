@@ -64,10 +64,11 @@ RSpec.describe Steps::VisualReview do
 
   it "calls run_agent without using the change-step commit path" do
     expect(handler).not_to receive(:perform_agentic_change_step)
-    expect(handler).to receive(:run_agent) do |prompt: nil, required_mcp_tools: nil, **|
+    expect(handler).to receive(:run_agent) do |prompt: nil, required_mcp_tools: nil, disallowed_tools: nil, **|
       expect(prompt).to include("submit_visual_review")
       expect(prompt).to include("diff --git a/app/views/dashboard/show.html.erb")
       expect(required_mcp_tools).to eq(%w[submit_visual_review])
+      expect(disallowed_tools).to eq(%w[ReportFindings])
       workflow.set_artifact!("visual_review_iterations", [
         { "iteration" => review_step.iteration, "critique" => "Looks correct.", "verdict" => "approved" }
       ])

@@ -150,6 +150,21 @@ RSpec.describe AgentProviders::Claude do
       )
     end
 
+    it "threads disallowed_tools through to ClaudeInvocation" do
+      received = nil
+      RunJob.agent_runner = ->(**kwargs) {
+        received = kwargs
+        AgentInvocation::Result.new(turns: 1, exit_status: 0, timed_out: false,
+                                    is_error: false, outcome: "success",
+                                    final_text: nil, session_id: nil)
+      }
+
+      adapter.run(prompt: "do it", log_sink: ->(*, **) { }, max_turns: 7,
+                  disallowed_tools: %w[ReportFindings])
+
+      expect(received[:disallowed_tools]).to eq(%w[ReportFindings])
+    end
+
     it "persists live_session_id on the Run when on_session_id callback fires" do
       RunJob.agent_runner = ->(**kwargs) {
         kwargs[:on_session_id].call("sid-live-abc")
