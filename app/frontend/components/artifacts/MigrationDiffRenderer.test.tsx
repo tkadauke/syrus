@@ -107,4 +107,33 @@ describe("MigrationDiffRenderer", () => {
     expect(screen.getByText("AddEmailToUsers")).toBeInTheDocument()
     expect(screen.queryByText("added")).not.toBeInTheDocument()
   })
+
+  it("does not crash on a legacy change entry with no column object (regression)", () => {
+    // Older workflow runs (pre commit 02a622a8f) persisted change summaries
+    // shaped like { op: "create_table", table: "widgets" } with no `column`
+    // key at all, which threw "undefined is not an object (evaluating
+    // 'e.column.name')" and took down the whole Job detail route.
+    const legacyPayload = {
+      ...migrationPayload,
+      changes: [
+        { op: "create_table", table: "widgets" },
+        { type: "added", column: { name: "email", type: "string" } }
+      ]
+    } as unknown as MigrationDiffPayload
+
+    render(<MigrationDiffRenderer payload={legacyPayload} />)
+
+    expect(screen.getByText("AddEmailToUsers")).toBeInTheDocument()
+    expect(screen.getAllByText("email").length).toBeGreaterThan(0)
+  })
+
+  it("does not crash when before/after or changes are missing entirely", () => {
+    const minimalPayload = {
+      migration_name: "SomeMigration"
+    } as unknown as MigrationDiffPayload
+
+    render(<MigrationDiffRenderer payload={minimalPayload} />)
+
+    expect(screen.getByText("SomeMigration")).toBeInTheDocument()
+  })
 })
