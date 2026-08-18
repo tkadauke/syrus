@@ -1027,6 +1027,26 @@ module WorkEngine
 
     def classify_start_blocks
       workflows.filter_map do |workflow|
+        if workflow.running? && phase_start_block_recheck_due?(workflow)
+          reason = workflow.artifact("start_blocked_reason")
+          next unless resource_admission_block_reason?(reason)
+
+          next issue(
+            kind: :resource_admission_start_block,
+            severity: :error,
+            affected_ids: ids_for(workflow).merge(step_ids: [ workflow.artifact("start_blocked_details").to_h["phase_step_id"] ].compact),
+            safe_to_auto_repair: true,
+            recommended_repair_action: "resume_deferred_phase",
+            evidence: workflow_evidence(workflow).merge(
+              start_blocked_reason: reason,
+              start_blocked_next_check_at: workflow.artifact("start_blocked_next_check_at"),
+              phase_step_id: workflow.artifact("start_blocked_details").to_h["phase_step_id"],
+              phase_step_kind: workflow.artifact("start_blocked_details").to_h["phase_step_kind"]
+            ),
+            explanation: "Workflow ##{workflow.id} is paused at a phase boundary after its resource-admission recheck time elapsed."
+          )
+        end
+
         next unless workflow.queued? && start_blocked?(workflow)
         next if landing_start_blocked_workflow?(workflow)
 
@@ -1061,6 +1081,18 @@ module WorkEngine
       return "wait_for_resource_admission" if admission_block
 
       "wait_for_main_health"
+    end
+
+    def phase_start_block_recheck_due?(workflow)
+      reason = workflow.artifact("start_blocked_reason")
+      return false if reason.blank?
+      return false unless workflow.artifact("start_blocked_details").to_h["phase_step_id"].present?
+
+      start_blocked_check_due?(workflow)
+    end
+
+    def resource_admission_block_reason?(reason)
+      WorkflowAdmissionCapacityWakeup.admission_or_resource_reason?(reason)
     end
 
     def classify_main_broken_workflows

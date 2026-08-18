@@ -1716,6 +1716,45 @@ RSpec.describe WorkEngine::Reconciler do
     expect(plan(result, :wait_for_resource_admission).auto_executable).to eq(false)
   end
 
+  it "resumes an expired resource-admission phase pause on a running workflow" do
+    AppSetting.current.update!(workflow_admission_control_enabled: false)
+    next_step = step.next_step || Step.create!(workflow: workflow, kind: "grader_fanout", position: step.position + 1, state: "queued")
+    step.update!(next_step: next_step) unless step.next_step_id == next_step.id
+    run.update_columns(state: "succeeded", finished_at: 10.minutes.ago)
+    step.update_columns(state: "succeeded", finished_at: 10.minutes.ago)
+    next_step.runs.destroy_all
+    next_step.update_columns(state: "queued", created_at: 10.minutes.ago, updated_at: 10.minutes.ago)
+    workflow.update_columns(
+      state: "running",
+      started_at: 10.minutes.ago,
+      artifacts: {
+        "pause_reason" => StepDispatcher::PAUSE_REASON_RESOURCE_SAFETY,
+        "pause_kind" => "hard_resource_pressure",
+        "pause_started_at" => 10.minutes.ago.iso8601,
+        "pause_next_check_at" => 1.minute.ago.iso8601,
+        "start_blocked_reason" => StepDispatcher::PAUSE_REASON_RESOURCE_SAFETY,
+        "start_blocked_next_check_at" => 1.minute.ago.iso8601,
+        "start_blocked_details" => {
+          "phase_step_id" => next_step.id,
+          "phase_step_kind" => next_step.kind,
+          "phase_step_position" => next_step.position
+        }
+      }
+    )
+
+    result = reconcile_and_execute(workflow_id: workflow.id)
+    issue = kind(result, :resource_admission_start_block)
+
+    expect(issue).to have_attributes(
+      severity: "error",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "resume_deferred_phase"
+    )
+    expect(plan(result, :resume_deferred_phase)).to have_attributes(auto_executable: true, target_id: workflow.id)
+    expect(next_step.runs.reload.count).to eq(1)
+    expect(workflow.reload.artifact("start_blocked_reason")).to be_nil
+  end
+
   it "ignores stale main-health start blocks after repository health recovers" do
     run.destroy!
     job.repository.update!(ci_health: "healthy", grader_health: "healthy", landing_paused: false)

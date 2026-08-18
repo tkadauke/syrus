@@ -697,6 +697,21 @@ module WorkEngine
 
       class ResourceAdmissionStartBlock < Base
         def plan
+          if issue.recommended_repair_action == "resume_deferred_phase"
+            return automatic_plan(
+              "resume_deferred_phase",
+              primary_workflow,
+              "The workflow's resource-admission phase pause is past its recheck time, so replay the phase admission gate and either resume the queued step or refresh the blocker.",
+              execution_steps: [ "StepDispatcher.resume_deferred_phase" ],
+              preconditions: {
+                workflow_state: "running",
+                start_blocked_reason: issue.evidence["start_blocked_reason"],
+                phase_step_id: issue.evidence["phase_step_id"],
+                phase_step_kind: issue.evidence["phase_step_kind"]
+              }
+            )
+          end
+
           waiting_plan(
             "wait_for_resource_admission",
             "The workflow is intentionally delayed by resource admission control."

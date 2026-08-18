@@ -362,6 +362,34 @@ module WorkEngine
         end
       end
 
+      class ResumeDeferredPhase < Base
+        def perform
+          workflow = target_workflow
+          return skipped("Workflow no longer exists") unless workflow
+          return skipped("Workflow is #{workflow.state}, not running") unless workflow.running?
+          return skipped("Workflow is not resource-admission paused") unless WorkflowAdmissionCapacityWakeup.admission_or_resource_paused?(workflow)
+
+          step_id = plan.preconditions["phase_step_id"]
+          step = workflow.steps.find_by(id: step_id)
+          return skipped("Paused phase step no longer exists") unless step
+          return skipped("Paused phase step is #{step.state}, not queued") unless step.queued?
+          return skipped("Paused phase step already has a Run") if step.runs.exists?
+
+          before_run_ids = step.runs.pluck(:id)
+          StepDispatcher.resume_deferred_phase(workflow.id, step.id)
+
+          step.reload
+          new_run = step.runs.where.not(id: before_run_ids).order(:id).last
+          if new_run
+            success("resumed deferred phase for Workflow ##{workflow.id} with Run ##{new_run.id}")
+          elsif WorkflowAdmissionCapacityWakeup.admission_or_resource_paused?(workflow.reload)
+            skipped("phase remains paused after admission recheck")
+          else
+            success("cleared deferred phase block for Workflow ##{workflow.id}")
+          end
+        end
+      end
+
       class DeferLandingStartBlockedWorkflow < Base
         def perform
           workflow = target_workflow

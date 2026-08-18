@@ -80,6 +80,9 @@ The classifier currently emits these families:
 - `dependency_stack_start_block`
 - `stale_dependency_start_block`
 - `main_health_start_block`
+- `resource_admission_start_block` — waits for future resource/admission
+  rechecks and automatically resumes a running Workflow when an already-paused
+  phase has passed its recorded recheck time
 - `main_branch_broken`
 - `resource_congestion`
 - `rate_limit`

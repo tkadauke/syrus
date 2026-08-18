@@ -461,6 +461,7 @@ class StepDispatcher
     if admission.admit?
       record_admission_decision!(workflow, admission)
       clear_start_blocked!(workflow, ADMISSION_BLOCK_REASON)
+      clear_start_blocked!(workflow, PAUSE_REASON_RESOURCE_SAFETY)
       return false
     end
     return false if whole_workflow_policy_ignores_phase_delay?(admission)
