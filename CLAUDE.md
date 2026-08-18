@@ -1320,6 +1320,18 @@ Required runtime env:
   new bulk-insert path is safe going forward, but rows written before the fix
   stay skewed — don't assume `created_at` ordering is trustworthy across that
   boundary without checking.
+- **MySQL's default REPEATABLE READ deadlocks concurrent fan-out inserts.**
+  Fan-out jobs (`PollAllMainBranchHealthJob`, `PollAllDeploymentStagesJob`,
+  `PollAllMergeStatesJob`, `PollAllPullRequestsJob`) bulk-enqueue many child
+  jobs at once; under REPEATABLE READ, concurrent `INSERT`s into the same
+  table take gap locks on adjacent index ranges, and overlapping fan-outs can
+  deadlock on `solid_queue_jobs` (`SolidQueue::Job::EnqueueError:
+  ActiveRecord::Deadlocked`). Fixed by pinning
+  `transaction_isolation: "READ-COMMITTED"` on the `queue` and `cable`
+  connections in `config/database.yml` (Solid Cable polling has the same
+  concurrent-write shape) — this is the standard recommendation for running
+  SolidQueue on MySQL. Left the `primary`/`cache` connections on the MySQL
+  default since they aren't doing concurrent bulk-insert fan-out.
 
 ## Key files at a glance
 
