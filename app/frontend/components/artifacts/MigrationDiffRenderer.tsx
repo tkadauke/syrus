@@ -1,9 +1,24 @@
-import type { MigrationDiffPayload } from "../../api/artifacts"
+import type { MigrationDiffChange, MigrationDiffPayload } from "../../api/artifacts"
 
 // Renders a Rails migration diff as a two-column before/after table.
 // Added columns are highlighted green, removed columns red, modified amber.
+//
+// payload comes from an agent-submitted typed artifact (submit_artifact
+// accepts arbitrary JSON — see SyrusMcp::SubmitArtifactTool), so it isn't
+// guaranteed to match MigrationDiffPayload at runtime: older workflow runs
+// persisted a change-summary shape without a `column` object at all. Filter
+// those out instead of letting `.column.name` throw and take down the whole
+// route (see commit "Fix migration diff artifact crashing the Job detail
+// page" for the same lesson applied to the backend side).
+function hasColumn(change: MigrationDiffChange): change is MigrationDiffChange & { column: { name: string; type: string } } {
+  return !!change.column && typeof change.column.name === "string"
+}
+
 export function MigrationDiffRenderer({ payload }: { payload: MigrationDiffPayload }) {
-  const { migration_name, before, after, changes } = payload
+  const { migration_name, before, after, changes: rawChanges } = payload
+  const changes = (rawChanges ?? []).filter(hasColumn)
+  const beforeColumns = before?.columns ?? []
+  const afterColumns = after?.columns ?? []
 
   const changeMap = new Map(changes.map((c) => [c.column.name, c.type]))
 
@@ -11,8 +26,8 @@ export function MigrationDiffRenderer({ payload }: { payload: MigrationDiffPaylo
     <div className="space-y-3">
       <div className="font-mono text-sm font-semibold text-gray-700">{migration_name}</div>
       <div className="grid grid-cols-2 gap-4">
-        <ColumnTable title="Before" tableName={before.table_name} columns={before.columns} changeMap={changeMap} side="before" />
-        <ColumnTable title="After" tableName={after.table_name} columns={after.columns} changeMap={changeMap} side="after" />
+        <ColumnTable title="Before" tableName={before?.table_name} columns={beforeColumns} changeMap={changeMap} side="before" />
+        <ColumnTable title="After" tableName={after?.table_name} columns={afterColumns} changeMap={changeMap} side="after" />
       </div>
       {changes.length > 0 && (
         <div className="space-y-1">
@@ -40,7 +55,7 @@ function ColumnTable({
   side
 }: {
   title: string
-  tableName: string
+  tableName: string | undefined
   columns: Array<{ name: string; type: string }>
   changeMap: Map<string, string>
   side: "before" | "after"
