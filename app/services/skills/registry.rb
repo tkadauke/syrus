@@ -28,7 +28,8 @@ module Skills
       Entry.new(name: "license-audit", klass: "LicenseAudit"),
       Entry.new(name: "security-review", klass: "SecurityReview"),
       Entry.new(name: "add-ci-workflow", klass: "AddCiWorkflow"),
-      Entry.new(name: "init-docs", klass: "InitDocs")
+      Entry.new(name: "init-docs", klass: "InitDocs"),
+      Entry.new(name: "changelog-generate", klass: "ChangelogGenerate")
     ].freeze
 
     BY_NAME = ENTRIES.index_by(&:name).freeze
