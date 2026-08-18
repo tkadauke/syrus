@@ -251,6 +251,13 @@ class Job < ApplicationRecord
     kind == "agent_insight"
   end
 
+  # Jobs whose sole purpose is running one internal-tooling Workflow and
+  # then closing — no PR, no operator review/approval step. See the
+  # mark_implemented event and mark_infrastructure_job_closed below.
+  def infrastructure_job?
+    main_grader? || agent_insight?
+  end
+
   def external_pr?
     kind == "external_pr"
   end
@@ -391,8 +398,16 @@ class Job < ApplicationRecord
     # For follow-up workflows (pr_comment, ci_failure, retry that
     # didn't open a new PR), Workflow#succeed's after-callback
     # transitions :running → :implemented since the PR already exists.
+    #
+    # infrastructure_job? (main_grader, agent_insight) Jobs never open a
+    # PR and have no operator-review step, so this event routes them
+    # straight to :closed instead of :implemented. Without this guard,
+    # any generic caller of mark_implemented! (e.g. the reconciler's
+    # catch-all queued/succeeded and running/succeeded repair cases,
+    # which aren't scoped by Job#kind) would strand these Jobs at
+    # :implemented forever — see JOB-3302.
     event :mark_implemented do
-      transitions from: [ :queued, :running ], to: :closed, guard: :main_grader?, after: :mark_main_grader_closed
+      transitions from: [ :queued, :running ], to: :closed, guard: :infrastructure_job?, after: :mark_infrastructure_job_closed
       transitions from: [ :queued, :running ], to: :implemented, after: :notify_job_implemented
     end
 
@@ -1047,8 +1062,12 @@ class Job < ApplicationRecord
     )
   end
 
-  def mark_main_grader_closed
-    self.closure_reason = MAIN_GRADER_CLOSURE_REASON
+  # kind doubles as the closure_reason for infrastructure_job? Jobs
+  # ("main_grader", "agent_insight") — matches MAIN_GRADER_CLOSURE_REASON
+  # and the literal "agent_insight" reason Steps::AutoClose/
+  # Workflows::AgentInsight already use for their own close_with_reason! calls.
+  def mark_infrastructure_job_closed
+    self.closure_reason = kind
     self.finished_at ||= Time.current
   end
 
@@ -1178,7 +1197,7 @@ class Job < ApplicationRecord
   # prompt at fire time.
   def create_initial_run_if_needed
     return if cron?
-    return if main_grader?
+    return if infrastructure_job?
     return if workflows.where.not(state: "cancelled").exists?
 
     create_initial_run

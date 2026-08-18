@@ -873,18 +873,18 @@ module WorkEngine
         end
       end
 
-      class CloseCompletedMainGraderJob < Base
+      class CloseCompletedInfrastructureJob < Base
         def perform
           job = target_job
           return skipped("Job no longer exists") unless job
-          return skipped("Job is not a main grader") unless job.kind == "main_grader"
+          return skipped("Job is not an infrastructure job") unless job.infrastructure_job?
           return skipped("Job is already closed") if job.closed?
           return skipped("Job cannot close") unless job.may_close?
 
           StateTransition.with_source("reconciler") do
-            job.close_with_reason!(Job::MAIN_GRADER_CLOSURE_REASON)
+            job.close_with_reason!(job.kind)
           end
-          success("closed completed main grader Job ##{job.id}")
+          success("closed completed #{job.kind} Job ##{job.id}")
         end
       end
     end

@@ -2684,6 +2684,42 @@ RSpec.describe WorkEngine::Reconciler do
     )
   end
 
+  it "closes a stranded agent_insight job whose latest workflow already succeeded" do
+    Feature.find_or_create_by!(slug: "agent_insights") do |f|
+      f.category = "Labs"
+      f.name     = "Agent Insights"
+    end.update!(enabled: true)
+
+    # Reproduces JOB-3302: an agent_insight Job stuck at :implemented (or
+    # any other open state) despite its infrastructure Workflow having
+    # already finished. Nothing else in the normal chain revisits a Job
+    # once it's out of :queued/:running, so this is the safety net.
+    insight_job = Factories.job_record(
+      user: job.user,
+      repository: job.repository,
+      kind: "agent_insight",
+      issue_number: nil,
+      state: "implemented"
+    )
+    Workflow.create!(job: insight_job, trigger_kind: "agent_insight", state: "succeeded", finished_at: Time.current)
+
+    result = reconcile_and_execute
+
+    expect(kind(result, :completed_infrastructure_job)).to have_attributes(
+      severity: "info",
+      safe_to_auto_repair: true,
+      recommended_repair_action: "close_completed_infrastructure_job"
+    )
+    expect(plan(result, :close_completed_infrastructure_job)).to have_attributes(
+      auto_executable: true,
+      target_type: "Job",
+      target_id: insight_job.id
+    )
+    expect(result.repair_executions.map(&:message)).to include("closed completed agent_insight Job ##{insight_job.id}")
+    expect(insight_job.reload).to be_closed
+    expect(insight_job.closure_reason).to eq("agent_insight")
+  end
+
   # A failed SolidQueue job keeps finished_at NULL forever, so the
   # unfinished-RunJob query accumulates every RunJob that ever failed. On
   # production that was 1,775 rows -- 1,751 of them permanently dead, oldest a
