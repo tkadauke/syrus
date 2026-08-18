@@ -47,6 +47,7 @@ class ChatEpicProposalMaterializer
       end
 
       wire_sibling_dependencies(job_proposals, job_by_proposal_id)
+      wire_child_job_id_dependencies(job_proposals, job_by_proposal_id)
       wire_epic_dependencies(epic_proposal, epic)
       wire_job_epic_dependencies(job_proposals, job_by_proposal_id)
       ChatEpicProposalDependencyWirer.new(user: user).resolve_confirmed_proposal!(epic_proposal)
@@ -89,7 +90,7 @@ class ChatEpicProposalMaterializer
   end
 
   def validate_child_dependency_policy!(epic_proposal, job_proposals)
-    policy_for(epic_proposal).validate_proposed_child_graph!(job_proposals)
+    policy_for(epic_proposal).validate_proposed_child_graph!(job_proposals, epic: epic_proposal.target_epic)
   end
 
   def policy_for(_epic_proposal)
@@ -118,6 +119,31 @@ class ChatEpicProposalMaterializer
           create_pending_proposal_dependency!(job, dependency)
           next
         end
+
+        validate_dependency_target!(depends_on_job)
+        JobDependency.find_or_create_by!(
+          job: job,
+          depends_on_job: depends_on_job
+        ) do |job_dependency|
+          job_dependency.source = "manual"
+          job_dependency.created_by_user = user
+        end
+      end
+    end
+  end
+
+  # Distinct from wire_sibling_dependencies (which wires sibling/cross-card
+  # ChatProposalDependency edges): this wires each child Job proposal's
+  # depends_on_job_ids -- references to already-existing real Jobs, most
+  # importantly a target Epic's pre-existing children, so a newly proposed
+  # child can chain onto that Epic's existing tail instead of floating as
+  # a disconnected parallel branch.
+  def wire_child_job_id_dependencies(job_proposals, job_by_proposal_id)
+    job_proposals.each do |proposal|
+      job = job_by_proposal_id.fetch(proposal.id)
+      Array(proposal.depends_on_job_ids).each do |job_id|
+        depends_on_job = user.jobs.find_by(id: job_id)
+        next unless depends_on_job
 
         validate_dependency_target!(depends_on_job)
         JobDependency.find_or_create_by!(

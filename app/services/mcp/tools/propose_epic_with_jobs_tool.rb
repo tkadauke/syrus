@@ -20,6 +20,12 @@ module Mcp::Tools
       validated and rejected before the proposal card is created — fix the
       dependency edges and call the tool again rather than expecting the
       operator to catch a branching graph at confirmation time.
+      If epic.epic_id targets an existing Epic that already has child Jobs,
+      the chain requirement extends to those existing Jobs too: at least one
+      new child must set jobs[].depends_on_job_ids to the existing Epic's
+      current tail Job (read the Epic's Jobs first if you don't already know
+      it), or the new batch will float as a disconnected parallel branch and
+      be rejected the same as any other fan-out.
       Proposals cannot be updated after creation. To revise a proposal,
       call delete_proposal with its slug, then call this tool again with a
       new slug. Reusing a withdrawn slug is an error.
@@ -66,6 +72,7 @@ module Mcp::Tools
               title: { type: "string", description: "Child Job title." },
               description: { type: "string", description: "Child Job prompt/body." },
               depends_on_epic_ids: { type: "array", items: { type: "integer" }, description: "Existing Epic IDs this child Job (not the whole epic) depends on. Use when only this specific job must wait for an upstream epic while sibling jobs in the same epic can start sooner. For whole-epic sequencing, prefer `epic.depends_on`." },
+              depends_on_job_ids: { type: "array", items: { type: "integer" }, description: "Existing Job IDs this child Job depends on. This is the ONLY way to chain a new child Job onto an existing Epic's already-materialized Jobs when epic.epic_id targets a non-empty Epic — depends_on (below) only reaches slugs proposed in this same session, not real Job IDs. Required on at least one new child whenever the target Epic already has Jobs, naming that Epic's current tail Job, or the proposal is rejected as a disconnected parallel branch." },
               depends_on: { type: "array", items: { type: "string" }, description: "Sibling job slugs or job proposal slugs from other cards in this chat session. REQUIRED to form a single linear chain across all child Jobs in this proposal: every job besides the first must depend on exactly one other child job (no two children may share a dependency or a dependent). A fan-in, fan-out, or otherwise unordered graph is rejected before the card is created. Default to linear chains — if jobs share a test path (e.g. backend → frontend → agent handoff that consumes both), chain them even when code changes don't overlap directly. Only omit a dependency when there is just one other child job in this proposal and the two are genuinely independently deployable and testable end-to-end. The operator can instruct otherwise." },
               media: {
                 type: "array",
@@ -107,7 +114,7 @@ module Mcp::Tools
         end
 
         normalized_jobs = job_attrs.map { |job| normalize_job(job, default_repo: epic_repository.slug) }
-        validation_error = validate_payload(chat_session, user, normalized_epic, normalized_jobs)
+        validation_error = validate_payload(chat_session, user, normalized_epic, normalized_jobs, target_epic)
         return Mcp::Tools.invalid(validation_error) if validation_error
         dependency_error = validate_epic_dependencies(chat_session, user, normalized_epic[:depends_on])
         return Mcp::Tools.invalid(dependency_error) if dependency_error
@@ -165,6 +172,7 @@ module Mcp::Tools
           description: job["description"].to_s.strip,
           target_repo: job["target_repo"].to_s.strip.presence || default_repo,
           depends_on_epic_ids: normalize_integer_list(job["depends_on_epic_ids"]),
+          depends_on_job_ids: normalize_integer_list(job["depends_on_job_ids"]),
           depends_on: normalize_string_list(job["depends_on"]),
           media_ids: Array(job["media"])
         }
@@ -178,7 +186,7 @@ module Mcp::Tools
         Array(value).filter_map { |item| Integer(item, exception: false) }.uniq
       end
 
-      def validate_payload(chat_session, user, epic, jobs)
+      def validate_payload(chat_session, user, epic, jobs, target_epic)
         return "epic slug is required" if epic[:slug].empty?
         return "epic title is required" if epic[:title].empty?
         return "epic description is required" if epic[:description].empty?
@@ -219,20 +227,37 @@ module Mcp::Tools
         return "unknown job depends_on_epic_ids: #{unknown_epic_ids.join(', ')}" if unknown_epic_ids.any?
         target_error = invalid_dependency_target_message(user.epics.where(id: jobs.flat_map { |job| job[:depends_on_epic_ids] }.uniq))
         return target_error if target_error
+        unknown_job_dep_ids = jobs.flat_map { |job| job[:depends_on_job_ids] }.uniq
+        unknown_job_dep_ids -= user.jobs.where(id: unknown_job_dep_ids).pluck(:id)
+        return "unknown job depends_on_job_ids: #{unknown_job_dep_ids.join(', ')}" if unknown_job_dep_ids.any?
+        target_error = invalid_dependency_target_message(user.jobs.where(id: jobs.flat_map { |job| job[:depends_on_job_ids] }.uniq))
+        return target_error if target_error
         return "depends_on would create a cycle" if cyclic?(jobs)
-        linear_chain_error = linear_chain_violation_message(jobs)
+        linear_chain_error = linear_chain_violation_message(jobs, target_epic)
         return linear_chain_error if linear_chain_error
 
         nil
       end
 
-      def linear_chain_violation_message(jobs)
-        return nil if jobs.length <= 1
+      def linear_chain_violation_message(jobs, target_epic)
+        existing_jobs = target_epic ? target_epic.jobs.to_a : []
+        return nil if jobs.length <= 1 && existing_jobs.empty?
 
         slugs = jobs.map { |job| job[:slug] }
         labels_by_key = slugs.index_by(&:itself)
         edges = jobs.flat_map do |job|
-          (job[:depends_on] & slugs).map { |dependency_slug| [ job[:slug], dependency_slug ] }
+          sibling_edges = (job[:depends_on] & slugs).map { |dependency_slug| [ job[:slug], dependency_slug ] }
+          existing_edges = job[:depends_on_job_ids]
+                              .select { |job_id| existing_jobs.any? { |existing| existing.id == job_id } }
+                              .map { |job_id| [ job[:slug], EpicDependencyPolicy::Linear.job_key(job_id) ] }
+          sibling_edges + existing_edges
+        end
+
+        if existing_jobs.any?
+          existing_jobs.each { |job| labels_by_key[EpicDependencyPolicy::Linear.job_key(job.id)] = job.slug }
+          JobDependency.where(job_id: existing_jobs.map(&:id), depends_on_job_id: existing_jobs.map(&:id))
+                       .pluck(:job_id, :depends_on_job_id)
+                       .each { |dependent_id, dependency_id| edges << [ EpicDependencyPolicy::Linear.job_key(dependent_id), EpicDependencyPolicy::Linear.job_key(dependency_id) ] }
         end
 
         EpicDependencyPolicy::Linear.validate_chain!(labels_by_key: labels_by_key, edges: edges)
@@ -354,6 +379,7 @@ module Mcp::Tools
             kind: "syrus_issue",
             labels: nil,
             depends_on_epic_ids: job[:depends_on_epic_ids],
+            depends_on_job_ids: job[:depends_on_job_ids],
             media_ids: job[:media_ids],
             state: "proposed",
             edited_at: child.persisted? ? Time.current : nil
@@ -403,6 +429,7 @@ module Mcp::Tools
               state: child.state,
               target_repo: child.repository&.slug,
               depends_on_epic_ids: child.depends_on_epic_ids,
+              depends_on_job_ids: child.depends_on_job_ids,
               depends_on: child.dependencies.order(:slug).pluck(:slug)
             }
           end

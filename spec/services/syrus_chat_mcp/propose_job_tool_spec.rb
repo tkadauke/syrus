@@ -44,6 +44,40 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
     expect(chat_session.messages.last).to have_attributes(role: "assistant", proposal: proposal)
   end
 
+  it "rejects a Job proposed into a non-empty existing Epic without chaining onto its Jobs" do
+    epic = Factories.epic(user: user, repository: repository, title: "Forum renovation")
+    existing_job = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 9)
+
+    response = call_tool(
+      repo: repository.slug,
+      epic_id: epic.id,
+      title: "Install carved labels",
+      description: "Every marble drawer deserves a label."
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("already has Jobs")
+    expect(response[:result][:content].first[:text]).to include("depends_on_job_ids")
+    expect(chat_session.proposals.find_by(title: "Install carved labels")).to be_nil
+  end
+
+  it "accepts a Job proposed into a non-empty existing Epic when it chains onto an existing Job" do
+    epic = Factories.epic(user: user, repository: repository, title: "Forum renovation")
+    existing_job = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 9)
+
+    response = call_tool(
+      repo: repository.slug,
+      epic_id: epic.id,
+      title: "Install carved labels",
+      description: "Every marble drawer deserves a label.",
+      depends_on_job_ids: [ existing_job.id ]
+    )
+
+    expect(response[:result][:isError]).to be_falsey
+    proposal = chat_session.proposals.find_by!(title: "Install carved labels")
+    expect(proposal.depends_on_job_ids).to eq([ existing_job.id ])
+  end
+
   it "creates an epicless Job proposal with dependency edges" do
     root = chat_session.proposals.create!(
       repository: repository,
@@ -318,5 +352,18 @@ RSpec.describe Mcp::Tools::ProposeJobTool do
       changed: [ "proposal" ],
       payload: { action: "update_proposal", proposal_id: proposal.id }
     )
+  end
+
+  describe "tool schema descriptions" do
+    let(:schema) { described_class.input_schema.instance_variable_get(:@schema) }
+    let(:tool_description) { described_class.description }
+
+    it "explains the Epic chain requirement when epic_id targets a non-empty Epic" do
+      expect(tool_description).to match(/one stacked branch, not parallel branches/)
+      expect(tool_description).to include("propose_epic_with_jobs")
+
+      depends_on_job_ids_desc = schema.fetch(:properties).fetch(:depends_on_job_ids).fetch(:description)
+      expect(depends_on_job_ids_desc).to include("non-empty Epic")
+    end
   end
 end
