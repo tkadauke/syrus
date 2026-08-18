@@ -459,6 +459,8 @@ function SystemMessage({ item, prefix }: { item: ChatSystemMessage; prefix: stri
     error: "border-red-200 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100",
     neutral: "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
   }
+  const [expanded, setExpanded] = useState(false)
+
   if (item.prominent) {
     return (
       <div className="flex justify-center">
@@ -476,16 +478,30 @@ function SystemMessage({ item, prefix }: { item: ChatSystemMessage; prefix: stri
   }
 
   return (
-    <div className="flex justify-center">
+    <div className="flex flex-col items-center justify-center gap-1">
       <div className={`inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1 text-xs ${colors[item.tone]}`}>
         <span className="shrink-0 rounded bg-white/70 px-1.5 py-0.5 font-medium uppercase tracking-wide dark:bg-black/25">{item.label}</span>
-        <span className="min-w-0 break-words">{linkifySlugs(item.body, { jobStyle: "copyable" })}</span>
+        <span className="min-w-0 truncate" data-testid="system-message-summary">{linkifySlugs(item.body, { jobStyle: "copyable" })}</span>
         {item.cta ? (
           <Link className="shrink-0 font-medium underline hover:no-underline" to={withRoutePrefix(item.cta.path, prefix)}>
             {item.cta.label}
           </Link>
         ) : null}
+        <button
+          aria-expanded={expanded}
+          aria-label={expanded ? "Hide system message details" : "Show system message details"}
+          className="shrink-0 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+          onClick={() => setExpanded((value) => !value)}
+          type="button"
+        >
+          {expanded ? "▾" : "▸"}
+        </button>
       </div>
+      {expanded ? (
+        <div className={`w-full max-w-3xl rounded border px-4 py-3 text-left text-sm shadow-sm ${colors[item.tone]}`} data-testid="system-message-details">
+          <div className="break-words leading-relaxed">{linkifySlugs(item.body, { jobStyle: "copyable" })}</div>
+        </div>
+      ) : null}
     </div>
   )
 }
