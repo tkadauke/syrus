@@ -101,9 +101,10 @@ class ClaudeTranscript
   def user_events(parsed)
     content = parsed.dig("message", "content")
     timestamp = parsed["timestamp"]
+    meta = sidechain_metadata(parsed)
 
     if content.is_a?(String)
-      [ Event.new(kind: :user_prompt, timestamp: timestamp, data: { text: content }) ]
+      [ Event.new(kind: :user_prompt, timestamp: timestamp, data: { text: content }.merge(meta)) ]
     elsif content.is_a?(Array)
       content.filter_map do |c|
         next unless c["type"] == "tool_result"
@@ -114,7 +115,7 @@ class ClaudeTranscript
             tool_use_id: c["tool_use_id"],
             content: c["content"],
             error: c["is_error"] == true
-          }
+          }.merge(meta)
         )
       end
     else
@@ -127,18 +128,35 @@ class ClaudeTranscript
   def assistant_events(parsed)
     content = parsed.dig("message", "content") || []
     timestamp = parsed["timestamp"]
+    meta = sidechain_metadata(parsed)
     content.filter_map do |block|
       case block["type"]
       when "text"
-        Event.new(kind: :assistant_text, timestamp: timestamp, data: { text: block["text"] })
+        Event.new(kind: :assistant_text, timestamp: timestamp, data: { text: block["text"] }.merge(meta))
       when "tool_use"
         Event.new(
           kind: :tool_use,
           timestamp: timestamp,
-          data: { name: block["name"], input: block["input"], id: block["id"] }
+          data: { name: block["name"], input: block["input"], id: block["id"] }.merge(meta)
         )
       end
     end
+  end
+
+  # Claude-code tags subagent (Task/Agent tool) transcript lines with
+  # `isSidechain: true`. The on-disk per-session transcript doesn't carry
+  # the spawning tool_use id inline -- subagent turns are written to sibling
+  # `subagents/agent-<id>.jsonl` files instead, correlated to the parent
+  # tool_use via a `.meta.json` sidecar (see
+  # ChatProviders::Claude#session_capture, which merges those files in and
+  # stamps `parentToolUseId` onto each line before handing the combined
+  # JSONL here). Forward whatever is present on the line so a flat
+  # consumer can reconstruct nesting instead of discarding it.
+  def sidechain_metadata(parsed)
+    {
+      sidechain: parsed["isSidechain"] == true,
+      parent_tool_use_id: parsed["parentToolUseId"]
+    }
   end
 
   def result_event(parsed)

@@ -67,15 +67,27 @@ module ChatProviders
       ClaudeTranscript.new(transcript_jsonl).events.filter_map do |event|
         case event.kind
         when :user_prompt
-          { "role" => "user", "content" => event.data.fetch(:text).to_s }
+          { "role" => "user", "content" => event.data.fetch(:text).to_s }.merge(sidechain_tags(event))
         when :assistant_text
-          { "role" => "assistant", "content" => event.data.fetch(:text).to_s }
+          { "role" => "assistant", "content" => event.data.fetch(:text).to_s }.merge(sidechain_tags(event))
         when :tool_use
-          { "role" => "tool_use", "content" => event.data }
+          { "role" => "tool_use", "content" => event.data }.merge(sidechain_tags(event))
         when :tool_result
-          { "role" => "tool_result", "content" => event.data }
+          { "role" => "tool_result", "content" => event.data }.merge(sidechain_tags(event))
         end
       end
+    end
+
+    # Carries the sidechain (subagent) marker and its spawning tool_use id
+    # forward from ClaudeTranscript's per-event data onto the normalized
+    # message, so a consumer can reconstruct which top-level tool call a
+    # nested subagent turn belongs to without restructuring the flat list.
+    # Omitted entirely for ordinary top-level messages (the vast majority)
+    # to keep the normalized shape unchanged for non-subagent transcripts.
+    def sidechain_tags(event)
+      return {} unless event.data[:sidechain] == true
+
+      { "sidechain" => true, "parent_tool_use_id" => event.data[:parent_tool_use_id] }
     end
   end
 end

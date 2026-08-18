@@ -72,6 +72,13 @@ RSpec.describe ProviderSession do
     end
   end
 
+  describe ".canonical_subagents_dir_for" do
+    it "points at the subagents directory sibling to the session's own jsonl file" do
+      dir = described_class.canonical_subagents_dir_for(home: "/home/rails", cwd: "/syrus-home/.syrus/runs/40", session_id: "abc-123")
+      expect(dir).to eq("/home/rails/.claude/projects/-syrus-home--syrus-runs-40/abc-123/subagents")
+    end
+  end
+
   describe ".with_succeeded_transcript" do
     it "includes succeeded Runs that still have a non-nil transcript_jsonl" do
       succeeded_run = Factories.job.initial_run.tap { |r| r.start!; r.succeed!; r.save! }

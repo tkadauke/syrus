@@ -305,6 +305,57 @@ RSpec.describe ChatProviders::Claude do
       end
     end
 
+    it "merges sibling subagent transcripts into normalized_messages, tagging nested calls with sidechain + parent_tool_use_id" do
+      Dir.mktmpdir("syrus-chat-home") do |home|
+        saved_home = ENV["HOME"]
+        ENV["HOME"] = home
+        workspace_path = Pathname.new(Dir.mktmpdir("syrus-chat-workspace"))
+        allow(ChatWorkspace).to receive(:path_for).with(chat).and_return(workspace_path)
+        session_id = "chat-session-1"
+        path = ProviderSession.canonical_path_for(home: home, cwd: workspace_path, session_id: session_id)
+        FileUtils.mkdir_p(File.dirname(path))
+
+        main_jsonl = [
+          { "type" => "assistant", "timestamp" => "2026-08-18T00:00:00Z", "message" => { "content" => [
+            { "type" => "tool_use", "name" => "Agent", "input" => {}, "id" => "toolu_agent1" }
+          ] } },
+          { "type" => "user", "timestamp" => "2026-08-18T00:00:05Z", "message" => { "content" => [
+            { "type" => "tool_result", "tool_use_id" => "toolu_agent1", "content" => "done" }
+          ] } }
+        ].map(&:to_json).join("\n")
+        File.write(path, "#{main_jsonl}\n")
+
+        subagents_dir = ProviderSession.canonical_subagents_dir_for(home: home, cwd: workspace_path, session_id: session_id)
+        FileUtils.mkdir_p(subagents_dir)
+        File.write(File.join(subagents_dir, "agent-a1.meta.json"), { "toolUseId" => "toolu_agent1" }.to_json)
+        File.write(File.join(subagents_dir, "agent-a1.jsonl"), [
+          { "type" => "assistant", "isSidechain" => true, "timestamp" => "2026-08-18T00:00:02Z", "message" => { "content" => [
+            { "type" => "tool_use", "name" => "Read", "input" => { "file_path" => "/foo" }, "id" => "sub1" }
+          ] } },
+          { "type" => "user", "isSidechain" => true, "timestamp" => "2026-08-18T00:00:03Z", "message" => { "content" => [
+            { "type" => "tool_result", "tool_use_id" => "sub1", "content" => "file contents" }
+          ] } }
+        ].map(&:to_json).join("\n"))
+
+        capture = described_class.new(chat: chat).session_capture(result_fixture(session_id: session_id))
+
+        # The raw capture stays exactly what's on disk for the main session --
+        # subagent files are merged only for the normalized replay messages.
+        expect(capture.transcript_jsonl).to eq("#{main_jsonl}\n")
+
+        expect(capture.normalized_messages).to include(
+          { "role" => "tool_use", "content" => include(name: "Agent", id: "toolu_agent1") },
+          { "role" => "tool_use", "content" => include(name: "Read", id: "sub1"),
+            "sidechain" => true, "parent_tool_use_id" => "toolu_agent1" },
+          { "role" => "tool_result", "content" => include(tool_use_id: "sub1", content: "file contents"),
+            "sidechain" => true, "parent_tool_use_id" => "toolu_agent1" }
+        )
+      ensure
+        ENV["HOME"] = saved_home
+        FileUtils.rm_rf(workspace_path) if workspace_path
+      end
+    end
+
     it "does not read a transcript path for an unsafe session id" do
       expect(File).not_to receive(:read)
 
