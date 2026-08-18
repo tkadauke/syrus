@@ -525,6 +525,69 @@ RSpec.describe Mcp::Tools::ProposeEpicWithJobsTool do
     expect(chat_session.proposals.count).to eq(0)
   end
 
+  it "rejects a new child Job proposed into a non-empty existing Epic without chaining onto its existing Jobs" do
+    target_epic = Factories.epic(user: user, repository: repository, title: "Existing epic", description: "Existing description.")
+    existing_job = Factories.job_record(user: user, repository: repository, epic: target_epic, issue_number: 9)
+
+    response = call_tool(
+      epic: { slug: "add-orphan", epic_id: target_epic.id },
+      jobs: [
+        { slug: "orphan", target_repo: repository.slug, title: "Orphan", description: "Orphan." }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to match(/single chain.*orphan, #{Regexp.escape(existing_job.slug)}/)
+    expect(chat_session.proposals.count).to eq(0)
+  end
+
+  it "accepts a new child Job that chains onto a non-empty existing Epic via depends_on_job_ids" do
+    target_epic = Factories.epic(user: user, repository: repository, title: "Existing epic", description: "Existing description.")
+    existing_job = Factories.job_record(user: user, repository: repository, epic: target_epic, issue_number: 9)
+
+    response = call_tool(
+      epic: { slug: "add-chained", epic_id: target_epic.id },
+      jobs: [
+        { slug: "next-step", target_repo: repository.slug, title: "Next step", description: "Next.", depends_on_job_ids: [ existing_job.id ] }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be_falsey
+    child = chat_session.proposals.find_by!(slug: "next-step")
+    expect(child.depends_on_job_ids).to eq([ existing_job.id ])
+  end
+
+  it "rejects unknown job depends_on_job_ids without creating proposals" do
+    response = call_tool(
+      epic: { slug: "epic", title: "Epic", description: "Desc.", target_repo: repository.slug },
+      jobs: [
+        { slug: "ui", target_repo: repository.slug, title: "UI", description: "Build it.", depends_on_job_ids: [ 123_456 ] }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include("unknown job depends_on_job_ids")
+    expect(chat_session.proposals.count).to eq(0)
+  end
+
+  it "rejects a child Job depends_on_job_ids target that is already closed unsuccessfully" do
+    prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 7)
+    prerequisite.update_columns(state: "closed", closure_reason: "cancelled", finished_at: Time.current)
+
+    response = call_tool(
+      epic: { slug: "epic", title: "Epic", description: "Desc.", target_repo: repository.slug },
+      jobs: [
+        { slug: "ui", target_repo: repository.slug, title: "UI", description: "Build it.", depends_on_job_ids: [ prerequisite.id ] }
+      ]
+    )
+
+    expect(response[:result][:isError]).to be(true)
+    expect(response[:result][:content].first[:text]).to include(
+      "Cannot depend on #{prerequisite.slug} because it is closed as cancelled and will not satisfy dependencies."
+    )
+    expect(chat_session.proposals.count).to eq(0)
+  end
+
   it "accepts an unordered but valid three-job linear chain" do
     response = call_tool(
       epic: { slug: "epic", title: "Epic", description: "Desc.", target_repo: repository.slug },

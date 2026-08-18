@@ -10,6 +10,14 @@ module Mcp::Tools
       Create a Job proposal card. If epic_id is provided, confirming the
       card creates the Job under that Epic. Without epic_id, confirming
       creates an epicless direct Job.
+      Syrus Epics execute as one stacked branch, not parallel branches, so a
+      Job proposed into an Epic that already has Jobs is REQUIRED to set
+      depends_on_job_ids to one of that Epic's existing Jobs — otherwise it
+      would materialize as a disconnected parallel branch and the tool
+      rejects it before creating the proposal card. For proposing an Epic
+      together with a batch of new child Jobs in one call, prefer
+      propose_epic_with_jobs instead, which also validates the whole batch
+      as a single chain.
       Proposals cannot be updated after creation. To revise a proposal,
       call delete_proposal with its slug, then call this tool again with a
       new title or different input so a new slug is generated.
@@ -28,7 +36,7 @@ module Mcp::Tools
         title: { type: "string", description: "Job title." },
         description: { type: "string", description: "Markdown Job description." },
         depends_on_epic_ids: { type: "array", items: { type: "integer" }, description: "Optional existing Epic IDs this Job depends on." },
-        depends_on_job_ids: { type: "array", items: { type: "integer" }, description: "Optional existing Job IDs this Job depends on." },
+        depends_on_job_ids: { type: "array", items: { type: "integer" }, description: "Existing Job IDs this Job depends on. Required to include one of the target Epic's existing Jobs when epic_id targets a non-empty Epic — this is how a new Job chains onto that Epic's stack instead of becoming a disconnected parallel branch." },
         depends_on: { type: "array", items: { type: "string" }, description: "Optional Job proposal slugs from this chat session. Prefer declaring a dependency when this job builds on or needs to be tested against another proposal in the same session; omit only when the work is genuinely independent. The operator can instruct otherwise." },
         media: {
           type: "array",
@@ -73,6 +81,14 @@ module Mcp::Tools
         return Mcp::Tools.invalid("unknown depends_on_job_ids: #{unknown_job_ids.join(', ')}") if unknown_job_ids.any?
         dependency_error = dependency_target_error(chat_session.user.jobs, depends_on_job_ids)
         return Mcp::Tools.invalid(dependency_error) if dependency_error
+        if target_epic && target_epic.jobs.exists? && (depends_on_job_ids & target_epic.jobs.pluck(:id)).empty?
+          return Mcp::Tools.invalid(
+            "Epic #{epic_id} already has Jobs — Syrus Epics execute as one stacked branch, not parallel " \
+            "branches, so this Job must chain onto the Epic via depends_on_job_ids naming one of its " \
+            "existing Jobs (read the Epic's Jobs first if you don't already know its current tail), or it " \
+            "would become a disconnected parallel branch."
+          )
+        end
 
         proposal = nil
         ChatProposal.transaction do

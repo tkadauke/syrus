@@ -339,6 +339,32 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(proposal.reload).to be_proposed
   end
 
+  it "rejects a new child Job proposal that doesn't chain onto the target Epic's existing Jobs" do
+    target_epic = Factories.epic(user: user, repository: repository, title: "Existing epic")
+    existing_job = Factories.job_record(user: user, repository: repository, epic: target_epic, issue_number: 9)
+    proposal = epic_proposal
+    proposal.update!(target_epic: target_epic)
+    child_for(proposal, "orphan")
+
+    expect {
+      described_class.new(user: user).file!(proposal)
+    }.to raise_error(ArgumentError, /single chain.*orphan, #{Regexp.escape(existing_job.slug)}/)
+    expect(proposal.reload).to be_proposed
+  end
+
+  it "wires depends_on_job_ids onto the target Epic's existing Jobs and accepts the resulting chain" do
+    target_epic = Factories.epic(user: user, repository: repository, title: "Existing epic")
+    existing_job = Factories.job_record(user: user, repository: repository, epic: target_epic, issue_number: 9)
+    proposal = epic_proposal
+    proposal.update!(target_epic: target_epic)
+    child = child_for(proposal, "next-step")
+    child.update!(depends_on_job_ids: [ existing_job.id ])
+
+    result = described_class.new(user: user).file!(proposal)
+
+    expect(result.jobs.sole.dependencies.map(&:depends_on_job)).to contain_exactly(existing_job)
+  end
+
   it "creates pending Job dependencies for unresolved cross-card Job proposal references" do
     prerequisite = chat_session.proposals.create!(
       slug: "upstream-job",

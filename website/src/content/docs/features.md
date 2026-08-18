@@ -238,7 +238,13 @@ restriction landed. Chat's `propose_epic_with_jobs` tool rejects a branching,
 fan-in, or disconnected child-Job graph immediately, with the offending child
 slugs in the error, before it even creates the proposal card — the operator
 never sees a card that would fail later. The same check runs again at
-confirmation time as a safety net.
+confirmation time as a safety net. Adding more children to an Epic that
+already has Jobs is covered too: the new batch must chain onto the Epic's
+existing Jobs via `jobs[].depends_on_job_ids`, or it is rejected as a
+disconnected parallel branch rather than silently landing as one. The
+single-Job `propose_job` tool enforces the same rule when its `epic_id`
+targets a non-empty Epic: it requires `depends_on_job_ids` to name one of
+that Epic's existing Jobs.
 
 ### Epic reconciliation
 
