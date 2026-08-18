@@ -52,6 +52,52 @@ runtime availability depends on the repository context that invokes the sidecar.
 Test result parsers and coverage analyzers are listed as registered parser
 classes.
 
+## Plugin dependencies (`depends_on`)
+
+A plugin manifest can declare `depends_on: ["other_plugin_name"]` — an array of
+other plugin names it needs to function:
+
+```ruby
+Syrus::PluginRegistry.register(
+  name: "rails", version: "1.0.0",
+  depends_on: [ "ruby" ],
+  provides: { preview_provider: SyrusRails::PreviewProvider }
+)
+```
+
+Dependency names are validated once boot settles, from the same
+`Rails.application.config.after_initialize` block that calls
+`fire_boot_callbacks!` — plugin engine initializer order isn't guaranteed, so a
+dependency may register after the plugin that depends on it, and validation has
+to wait until every engine has had a chance to register. An unresolved
+`depends_on` name (misspelled, or the dependency plugin was never installed) is
+logged as an error rather than crashing boot, since a bad `depends_on` in one
+plugin gem shouldn't be able to take down the whole instance.
+
+This declaration drives two behaviors in Admin → Plugins:
+
+- **Enabling** a plugin cascades to enable every plugin in its `depends_on`
+  chain, transitively, silently. There is no confirmation step, since enabling
+  is additive and safe.
+- **Disabling** a plugin checks whether any other currently-enabled plugin
+  depends on it, transitively. If so, the API responds with
+  `{ requires_confirmation: true, plugin_name:, dependents: [...] }` instead of
+  disabling anything; the frontend shows the dependent plugin names and asks
+  the operator to confirm. Retrying the request with `confirm_cascade: true`
+  disables the target plugin and every one of those dependents together, in a
+  single transaction. This is independent of `Admin::PluginDisableGuard`'s
+  existing hard blockers (configured users/repositories/chats/input
+  sources/etc., which still return a `409 plugin_in_use` and block the
+  disable outright) — a plugin can be blocked by usage, have dependents, both,
+  or neither.
+
+`Admin::PluginDependencyGraph` computes both the transitive dependency and
+dependent sets from the registered manifests and is cycle-safe. The API
+payload for each plugin includes its declared `depends_on` array and a derived
+`dependents` array (every plugin — enabled or not — that transitively depends
+on it), so the relationship is visible on the Admin → Plugins page even before
+an operator tries to disable anything.
+
 ## `:preview_provider`
 
 Preview providers tell Syrus how to start, seed, and health-check a preview

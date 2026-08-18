@@ -706,6 +706,67 @@ RSpec.describe Syrus::PluginRegistry, :reset_plugin_registry do
     end
   end
 
+  describe "Manifest depends_on" do
+    it "defaults to an empty array" do
+      described_class.register(name: "no_deps_plugin", version: "1.0.0")
+      expect(described_class.all_plugins.first.depends_on).to eq([])
+    end
+
+    it "stores declared dependency names on the manifest" do
+      described_class.register(name: "base_plugin", version: "1.0.0")
+      described_class.register(name: "dependent_plugin", version: "1.0.0", depends_on: [ "base_plugin" ])
+
+      manifest = described_class.all_plugins.find { |m| m.name == "dependent_plugin" }
+      expect(manifest.depends_on).to eq([ "base_plugin" ])
+    end
+
+    it "stringifies symbol dependency names" do
+      described_class.register(name: "base_plugin", version: "1.0.0")
+      described_class.register(name: "dependent_plugin", version: "1.0.0", depends_on: [ :base_plugin ])
+
+      manifest = described_class.all_plugins.find { |m| m.name == "dependent_plugin" }
+      expect(manifest.depends_on).to eq([ "base_plugin" ])
+    end
+
+    it "supports multiple dependencies" do
+      described_class.register(name: "ruby", version: "1.0.0")
+      described_class.register(name: "javascript", version: "1.0.0")
+      described_class.register(name: "rails", version: "1.0.0", depends_on: [ "ruby", "javascript" ])
+
+      manifest = described_class.all_plugins.find { |m| m.name == "rails" }
+      expect(manifest.depends_on).to eq([ "ruby", "javascript" ])
+    end
+  end
+
+  describe ".validate_dependencies!" do
+    it "does not raise when every depends_on name resolves to a registered plugin" do
+      described_class.register(name: "base_plugin", version: "1.0.0")
+      described_class.register(name: "dependent_plugin", version: "1.0.0", depends_on: [ "base_plugin" ])
+
+      expect { described_class.validate_dependencies! }.not_to raise_error
+    end
+
+    it "does not raise when no plugin declares depends_on" do
+      described_class.register(name: "solo_plugin", version: "1.0.0")
+
+      expect { described_class.validate_dependencies! }.not_to raise_error
+    end
+
+    it "raises RegistrationError naming the dependent plugin and the unresolved dependency" do
+      described_class.register(name: "dependent_plugin", version: "1.0.0", depends_on: [ "missing_plugin" ])
+
+      expect { described_class.validate_dependencies! }
+        .to raise_error(described_class::RegistrationError, /dependent_plugin.*missing_plugin/)
+    end
+
+    it "is resilient to registration order - a dependency registered after its dependent still resolves" do
+      described_class.register(name: "dependent_plugin", version: "1.0.0", depends_on: [ "base_plugin" ])
+      described_class.register(name: "base_plugin", version: "1.0.0")
+
+      expect { described_class.validate_dependencies! }.not_to raise_error
+    end
+  end
+
   describe ".fire_boot_callbacks!" do
     let(:callbacks_class) do
       Class.new do

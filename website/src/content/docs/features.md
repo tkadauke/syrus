@@ -935,6 +935,13 @@ or removing plugins still requires changing the Gemfile and restarting Syrus.
 A search box filters the list by name, description, and category — a simple
 full text search, not a full search-engine integration.
 
+Plugins can declare dependencies on other plugins (for example, `rails`
+depends on `ruby`). The page shows both directions of that relationship —
+what a plugin depends on, and what depends on it. Enabling a plugin silently
+enables its dependencies too. Disabling a plugin that other enabled plugins
+still depend on asks for confirmation first, listing exactly which plugins
+would also be disabled, before cascading the disable through all of them.
+
 ## Tailscale
 
 The bundled `tailscale` plugin exposes a Syrus installation on the operator's

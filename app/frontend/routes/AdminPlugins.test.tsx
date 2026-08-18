@@ -274,6 +274,137 @@ describe("AdminPlugins", () => {
     await waitFor(() => expect(reloadMock).toHaveBeenCalled())
   })
 
+  it("renders declared dependency relationships", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+      plugins: [
+        {
+          name: "ruby",
+          display_name: "Ruby",
+          disable_blockers: [],
+          version: "1.0.0",
+          enabled: true,
+          disableable: true,
+          default_enabled: true,
+          description: null,
+          homepage: null,
+          author: null,
+          source: null,
+          extension_points: [],
+          depends_on: [],
+          dependents: [ "rails" ]
+        },
+        {
+          name: "rails",
+          display_name: "Rails",
+          disable_blockers: [],
+          version: "1.0.0",
+          enabled: true,
+          disableable: true,
+          default_enabled: true,
+          description: null,
+          homepage: null,
+          author: null,
+          source: null,
+          extension_points: [],
+          depends_on: [ "ruby" ],
+          dependents: []
+        }
+      ]
+    }))
+
+    renderRoute(<AdminPlugins />)
+
+    const list = await screen.findByRole("region", { name: "Registered plugins" })
+    const rubyCard = within(list).getByRole("heading", { name: "Ruby" }).closest("article") as HTMLElement
+    expect(within(rubyCard).getByText("Required by:")).toBeInTheDocument()
+    expect(within(rubyCard).getByText("rails")).toBeInTheDocument()
+
+    const railsCard = within(list).getByRole("heading", { name: "Rails" }).closest("article") as HTMLElement
+    expect(within(railsCard).getByText("Depends on:")).toBeInTheDocument()
+    expect(within(railsCard).getByText("ruby")).toBeInTheDocument()
+  })
+
+  it("shows a cascade confirmation instead of reloading when the plugin has enabled dependents", async () => {
+    let confirmed = false
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input).endsWith("/disable") && init?.method === "POST") {
+        const body = init?.body ? JSON.parse(String(init.body)) : {}
+        if (body.confirm_cascade) {
+          confirmed = true
+          return Promise.resolve(jsonResponse({ plugins: [] }))
+        }
+        return Promise.resolve(jsonResponse({
+          requires_confirmation: true,
+          plugin_name: "ruby",
+          dependents: [ "rails" ]
+        }))
+      }
+      return Promise.resolve(jsonResponse({
+        plugins: [
+          {
+            name: "ruby",
+            display_name: "Ruby",
+            disable_blockers: [],
+            disableable: true,
+            version: "1.0.0",
+            enabled: true,
+            description: null,
+            extension_points: []
+          }
+        ]
+      }))
+    })
+
+    renderRoute(<AdminPlugins />)
+
+    fireEvent.click(await screen.findByRole("button", { name: "Disable" }))
+
+    expect(await screen.findByText("Other enabled plugins depend on this one")).toBeInTheDocument()
+    expect(screen.getByText("rails")).toBeInTheDocument()
+    expect(reloadMock).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Disable all" }))
+
+    await waitFor(() => expect(reloadMock).toHaveBeenCalled())
+    expect(confirmed).toBe(true)
+  })
+
+  it("cancels the cascade confirmation without disabling", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (String(input).endsWith("/disable") && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({
+          requires_confirmation: true,
+          plugin_name: "ruby",
+          dependents: [ "rails" ]
+        }))
+      }
+      return Promise.resolve(jsonResponse({
+        plugins: [
+          {
+            name: "ruby",
+            display_name: "Ruby",
+            disable_blockers: [],
+            disableable: true,
+            version: "1.0.0",
+            enabled: true,
+            description: null,
+            extension_points: []
+          }
+        ]
+      }))
+    })
+
+    renderRoute(<AdminPlugins />)
+
+    fireEvent.click(await screen.findByRole("button", { name: "Disable" }))
+    await screen.findByText("Other enabled plugins depend on this one")
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+
+    expect(screen.queryByText("Other enabled plugins depend on this one")).not.toBeInTheDocument()
+    expect(reloadMock).not.toHaveBeenCalled()
+  })
+
   it("reloads the page after enabling a plugin", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (String(input).endsWith("/enable") && init?.method === "POST") {
