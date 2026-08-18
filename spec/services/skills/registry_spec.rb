@@ -5,6 +5,10 @@ RSpec.describe Skills::Registry do
     it "includes the seed built-in skill" do
       expect(described_class.values).to include("investigate")
     end
+
+    it "includes the onboard-to-syrus built-in skill" do
+      expect(described_class.values).to include("onboard-to-syrus")
+    end
   end
 
   describe ".fetch" do
