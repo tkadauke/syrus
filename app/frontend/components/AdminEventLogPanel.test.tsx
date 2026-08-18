@@ -1,62 +1,49 @@
 import { fireEvent, render, screen } from "@testing-library/react"
+import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
 import { AdminEventFilterBar, AdminEventLogTable } from "./AdminEventLogPanel"
 
 describe("AdminEventFilterBar", () => {
-  it("renders compact filter chips from URL params and submits non-empty values", () => {
-    const onNavigate = vi.fn()
-
+  it("renders dashboard-style filter chips from URL params and defaults", () => {
     render(
-      <AdminEventFilterBar
-        clearLabel="Clear"
-        fields={[
-          { name: "query", label: "Search", placeholder: "message or path" },
-          { name: "since", label: "Since", defaultValue: "24h", placeholder: "24h" },
-          { name: "id", label: "ID", inputMode: "numeric" },
-          { name: "revision_scope", label: "Revision", defaultValue: "current", options: [
-            { value: "current", label: "Current SHA" },
-            { value: "all", label: "All SHAs" }
-          ] }
-        ]}
-        search="?query=n.map&revision_scope=all"
-        searchLabel="Search"
-        onNavigate={onNavigate}
-      />
+      <MemoryRouter>
+        <AdminEventFilterBar
+          clearLabel="Clear"
+          fields={[
+            { name: "query", label: "Search", placeholder: "message or path" },
+            { name: "since", label: "Since", defaultValue: "24h", placeholder: "24h" },
+            { name: "id", label: "ID", inputMode: "numeric" },
+            { name: "revision_scope", label: "Revision", defaultValue: "current", options: [
+              { value: "current", label: "Current SHA" },
+              { value: "all", label: "All SHAs" }
+            ] }
+          ]}
+          search="?query=n.map&revision_scope=all"
+          searchLabel="Search"
+        />
+      </MemoryRouter>
     )
 
-    expect(screen.getByText("Search is")).toBeInTheDocument()
-    expect(screen.getByText("Revision is")).toBeInTheDocument()
-    expect(screen.getByDisplayValue("n.map")).toBeInTheDocument()
-    expect(screen.getByDisplayValue("24h")).toBeInTheDocument()
-    expect(screen.getByDisplayValue("All SHAs")).toBeInTheDocument()
-
-    fireEvent.change(screen.getByDisplayValue("n.map"), { target: { value: "  TypeError  " } })
-    fireEvent.change(screen.getByDisplayValue("24h"), { target: { value: "" } })
-    fireEvent.change(screen.getByDisplayValue("All SHAs"), { target: { value: "current" } })
-    fireEvent.click(screen.getByRole("button", { name: "Search" }))
-
-    expect(onNavigate).toHaveBeenCalledTimes(1)
-    const params = onNavigate.mock.calls[0][0] as URLSearchParams
-    expect(params.toString()).toBe("query=TypeError&revision_scope=current")
+    expect(screen.getByRole("button", { name: "Search is n.map" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Since is 24h" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Revision is All SHAs" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "+ Add filter" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Clear filters" })).toBeInTheDocument()
   })
 
-  it("clears all filter params", () => {
-    const onNavigate = vi.fn()
-
+  it("builds clear links that remove admin filter params", () => {
     render(
-      <AdminEventFilterBar
-        clearLabel="Clear"
-        fields={[{ name: "query", label: "Search" }]}
-        search="?query=boom"
-        searchLabel="Search"
-        onNavigate={onNavigate}
-      />
+      <MemoryRouter>
+        <AdminEventFilterBar
+          clearLabel="Clear"
+          fields={[{ name: "query", label: "Search" }]}
+          search="?query=boom&sort=time"
+          searchLabel="Search"
+        />
+      </MemoryRouter>
     )
 
-    fireEvent.click(screen.getByRole("button", { name: "Clear" }))
-
-    expect(onNavigate).toHaveBeenCalledTimes(1)
-    expect((onNavigate.mock.calls[0][0] as URLSearchParams).toString()).toBe("")
+    expect(screen.getByRole("link", { name: "Clear filters" })).toHaveAttribute("href", "/?sort=time")
   })
 })
 

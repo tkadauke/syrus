@@ -21,7 +21,7 @@ function renderRoute() {
 describe("AdminBrowserErrors", () => {
   afterEach(() => vi.restoreAllMocks())
 
-  it("renders compact filter chips for browser error searches", async () => {
+  it("renders dashboard-style filter chips for browser error searches", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
       current_revision: "abc123",
       revision_scope: "current",
@@ -41,11 +41,10 @@ describe("AdminBrowserErrors", () => {
     renderRoute()
 
     expect(await screen.findByRole("heading", { name: "Browser errors" })).toBeInTheDocument()
-    expect(screen.getByText("Search is")).toBeInTheDocument()
-    expect(screen.getByText("Since is")).toBeInTheDocument()
-    expect(screen.getByText("Revision is")).toBeInTheDocument()
-    expect(screen.getByDisplayValue("24h")).toBeInTheDocument()
-    expect(screen.getByDisplayValue("Current SHA")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Since is 24h" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Revision is Current SHA" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Per page is 50" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "+ Add filter" })).toBeInTheDocument()
     expect(await screen.findByText("undefined is not an object")).toBeInTheDocument()
     expect(String(fetchSpy.mock.calls[0][0])).toContain("/api/v1/app/admin/browser_errors?since=24h&revision_scope=current&per_page=50")
   })

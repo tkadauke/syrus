@@ -1,4 +1,5 @@
-import { Fragment, type FormEvent, type ReactNode, useMemo, useState } from "react"
+import { Fragment, type ReactNode, useMemo, useState } from "react"
+import { FilterBar, topFilterChildren, type FilterChip, type FilterLinkBuilder, type FilterSchemaField, type FilterTree } from "./FilterBar"
 
 export function AdminEventPanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "error" | "warn" }) {
   const toneClass = tone === "error"
@@ -205,63 +206,78 @@ export type AdminEventFilterField = {
 
 export function AdminEventFilterBar({
   fields,
-  onNavigate,
-  search,
-  searchLabel,
-  clearLabel
+  search
 }: {
   fields: AdminEventFilterField[]
-  onNavigate: (params: URLSearchParams) => void
+  onNavigate?: (params: URLSearchParams) => void
   search: string
   searchLabel: string
   clearLabel: string
 }) {
-  const params = useMemo(() => new URLSearchParams(search), [search])
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const form = new FormData(event.currentTarget)
-    const next = new URLSearchParams()
-
-    for (const field of fields) {
-      const value = String(form.get(field.name) || "").trim()
-      if (value) next.set(field.name, value)
-    }
-    onNavigate(next)
-  }
-
-  function clear() {
-    onNavigate(new URLSearchParams())
-  }
+  const schema = useMemo(() => adminEventFilterSchema(fields), [fields])
+  const filter = useMemo(() => adminEventFilterTree(fields, search), [fields, search])
 
   return (
-    <form className="flex flex-wrap items-center gap-2 text-sm" onSubmit={submit}>
-      {fields.map((field) => (
-        <label className="inline-flex min-h-10 items-center gap-2 rounded border border-gray-300 bg-white px-2.5 py-1.5 text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200" key={field.name}>
-          <span className="whitespace-nowrap text-xs font-medium text-gray-500 dark:text-gray-400">{field.label} is</span>
-          {field.options ? (
-            <select className={adminEventFilterInputClass()} defaultValue={params.get(field.name) || field.defaultValue || ""} name={field.name}>
-              {field.options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-          ) : (
-            <input
-              className={adminEventFilterInputClass()}
-              defaultValue={params.get(field.name) || field.defaultValue || ""}
-              inputMode={field.inputMode}
-              name={field.name}
-              placeholder={field.placeholder}
-            />
-          )}
-        </label>
-      ))}
-      <button className="inline-flex min-h-10 items-center justify-center rounded bg-gray-900 px-3 py-1.5 font-medium text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200" type="submit">{searchLabel}</button>
-      <button className="inline-flex min-h-10 items-center justify-center rounded border border-gray-300 bg-white px-3 py-1.5 font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800" onClick={clear} type="button">{clearLabel}</button>
-    </form>
+    <FilterBar
+      buildLink={adminEventFilterLink(fields)}
+      className="space-y-2"
+      filter={filter}
+      filterSchema={schema}
+      legacyFilterKeys={fields.map((field) => field.name)}
+      pathname=""
+      search={search}
+    />
   )
 }
 
-function adminEventFilterInputClass() {
-  return "min-w-0 max-w-56 border-0 bg-transparent p-0 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 dark:text-gray-100 dark:placeholder:text-gray-500"
+function adminEventFilterSchema(fields: AdminEventFilterField[]): FilterSchemaField[] {
+  return fields.map((field) => ({
+    bucket: field.options ? "enum" : field.inputMode === "numeric" ? "number" : "text",
+    expansions: field.placeholder ? { placeholder: field.placeholder } : undefined,
+    field: field.name,
+    label: field.label,
+    operators: [ "is" ],
+    values: field.options
+  }))
+}
+
+function adminEventFilterTree(fields: AdminEventFilterField[], search: string): FilterTree {
+  const params = new URLSearchParams(search)
+  const chips = fields.flatMap((field): FilterChip[] => {
+    const value = params.get(field.name) || field.defaultValue || ""
+    return value ? [ { field: field.name, op: "is", value } ] : []
+  })
+  return { and: chips }
+}
+
+function adminEventFilterLink(fields: AdminEventFilterField[]): FilterLinkBuilder {
+  const fieldNames = new Set(fields.map((field) => field.name))
+  return (_path, search, updates) => {
+    const params = new URLSearchParams(search)
+    params.delete("q")
+    params.delete("page")
+    for (const fieldName of fieldNames) params.delete(fieldName)
+
+    const decoded = typeof updates.q === "string" ? decodeAdminEventFilterTree(updates.q) : null
+    for (const node of topFilterChildren(decoded)) {
+      if (!("field" in node) || node.op !== "is" || !fieldNames.has(node.field)) continue
+      const value = node.value == null ? "" : String(node.value).trim()
+      if (value) params.set(node.field, value)
+    }
+
+    const query = params.toString()
+    return query ? `?${query}` : "?"
+  }
+}
+
+function decodeAdminEventFilterTree(encoded: string): FilterTree | null {
+  try {
+    const base64 = encoded.replace(/-/g, "+").replace(/_/g, "/")
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=")
+    return JSON.parse(decodeURIComponent(escape(atob(padded)))) as FilterTree
+  } catch {
+    return null
+  }
 }
 
 export function pageButtonClass() {
