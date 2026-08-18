@@ -17,6 +17,10 @@ RSpec.describe Skills::Registry do
     it "includes the explain-failing-ci built-in skill" do
       expect(described_class.values).to include("explain-failing-ci")
     end
+
+    it "includes the coverage-gap-report built-in skill" do
+      expect(described_class.values).to include("coverage-gap-report")
+    end
   end
 
   describe ".fetch" do
