@@ -2,7 +2,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { useLocation, useNavigate } from "react-router-dom"
 import { fetchAdminBrowserErrors, type BrowserErrorEventRow, type BrowserErrorEventsPayload } from "../api/adminBrowserErrors"
 import { AdminEventActions } from "../components/AdminEventActions"
-import { AdminEventFilterBar, AdminEventLogTable, type AdminEventLogTableColumn, AdminEventPageShell, AdminEventPagination, AdminEventPanelMessage, AdminEventTimeline, DetailBlock, JsonBlock, formatEventDate, shortRevision } from "../components/AdminEventLogPanel"
+import { AdminEventFilterBar, AdminEventLogTable, type AdminEventLogTableColumn, AdminEventPageShell, AdminEventPagination, AdminEventPanelMessage, DetailBlock, JsonBlock, formatEventDate, shortRevision } from "../components/AdminEventLogPanel"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
@@ -71,9 +71,6 @@ function BrowserErrorsView({ onNavigate, payload, search }: { onNavigate: (param
       <div className="flex flex-col gap-2 border-b border-gray-200 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300 sm:flex-row sm:items-center sm:justify-between">
         <span>{t("browser_errors.showing", { count: payload.events.length, page: payload.pagination.page })}</span>
         <span>{t("browser_errors.revision_hint", { revision: payload.revision_scope === "all" ? t("browser_errors.all_revisions") : shortRevision(payload.current_revision) })}</span>
-      </div>
-      <div className="border-b border-gray-200 p-4 dark:border-gray-700">
-        <AdminEventTimeline buckets={payload.timeline || []} emptyLabel={t("browser_errors.timeline_empty")} title={t("browser_errors.timeline")} />
       </div>
       {payload.events.length > 0 ? <BrowserErrorsTable revisionScope={payload.revision_scope} rows={payload.events} search={search} onNavigate={onNavigate} /> : <AdminEventPanelMessage>{t("browser_errors.empty")}</AdminEventPanelMessage>}
       <AdminEventPagination
