@@ -1,6 +1,14 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { useEffect, useState, type ReactNode } from "react"
-import { disableAdminPlugin, enableAdminPlugin, fetchAdminPlugins, type AdminPlugin, type AdminPluginExtensionPoint } from "../api/adminPlugins"
+import {
+  disableAdminPlugin,
+  enableAdminPlugin,
+  fetchAdminPlugins,
+  type AdminPlugin,
+  type AdminPluginDisableConfirmation,
+  type AdminPluginExtensionPoint,
+  type AdminPluginsPayload
+} from "../api/adminPlugins"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
@@ -72,14 +80,21 @@ function PluginsView({ plugins, isFiltered }: { plugins: AdminPlugin[]; isFilter
 
 function PluginCard({ plugin }: { plugin: AdminPlugin }) {
   const { t } = useT("admin")
-  const toggle = useMutation({
-    mutationFn: () => plugin.enabled ? disableAdminPlugin(plugin.name) : enableAdminPlugin(plugin.name),
-    onSuccess: () => {
+  const [pendingCascade, setPendingCascade] = useState<AdminPluginDisableConfirmation | null>(null)
+  const toggle = useMutation<AdminPluginsPayload | AdminPluginDisableConfirmation, unknown, boolean | undefined>({
+    mutationFn: (confirmCascade) => plugin.enabled ? disableAdminPlugin(plugin.name, confirmCascade) : enableAdminPlugin(plugin.name),
+    onSuccess: (data) => {
+      if ("requires_confirmation" in data && data.requires_confirmation) {
+        setPendingCascade(data)
+        return
+      }
       pageReload.reloadPage()
     }
   })
   const disableBlockers = plugin.disable_blockers || []
   const disableBlocked = plugin.enabled && disableBlockers.length > 0
+  const dependsOn = plugin.depends_on || []
+  const dependents = plugin.dependents || []
 
   let disableTooltip: string | undefined
   if (plugin.enabled && !plugin.disableable) {
@@ -107,6 +122,8 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
             {plugin.category ? <span>{t("plugins.category")}: <span className="font-mono">{plugin.category}</span></span> : null}
             <span>{t("plugins.default_state")}: {plugin.default_enabled ? t("plugins.enabled") : t("plugins.disabled")}</span>
+            {dependsOn.length > 0 ? <span>{t("plugins.depends_on")}: <span className="font-mono">{dependsOn.join(", ")}</span></span> : null}
+            {dependents.length > 0 ? <span>{t("plugins.required_by")}: <span className="font-mono">{dependents.join(", ")}</span></span> : null}
           </div>
           {toggle.isError ? <p className="mt-2 text-sm text-red-700 dark:text-red-300">{errorMessage(toggle.error, t("plugins.error_toggle"))}</p> : null}
         </div>
@@ -115,7 +132,7 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
             <button
               className="inline-flex items-center justify-center rounded border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-500"
               disabled={toggle.isPending || (plugin.enabled && (!plugin.disableable || disableBlocked))}
-              onClick={() => toggle.mutate()}
+              onClick={() => toggle.mutate(undefined)}
               type="button"
             >
               {toggle.isPending ? t("plugins.saving") : plugin.enabled ? t("plugins.disable") : t("plugins.enable")}
@@ -124,6 +141,34 @@ function PluginCard({ plugin }: { plugin: AdminPlugin }) {
           <PluginMetadata plugin={plugin} />
         </div>
       </div>
+
+      {pendingCascade ? (
+        <div className="mt-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-700 dark:bg-amber-950">
+          <p className="font-medium text-amber-900 dark:text-amber-200">{t("plugins.cascade_confirm_heading")}</p>
+          <p className="mt-1 text-amber-800 dark:text-amber-300">{t("plugins.cascade_confirm_body")}</p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-amber-800 dark:text-amber-300">
+            {pendingCascade.dependents.map((name) => <li key={name}>{name}</li>)}
+          </ul>
+          <div className="mt-3 flex gap-2">
+            <button
+              className="inline-flex items-center justify-center rounded border border-red-300 bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={toggle.isPending}
+              onClick={() => toggle.mutate(true)}
+              type="button"
+            >
+              {toggle.isPending ? t("plugins.saving") : t("plugins.cascade_confirm_cta")}
+            </button>
+            <button
+              className="inline-flex items-center justify-center rounded border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+              disabled={toggle.isPending}
+              onClick={() => setPendingCascade(null)}
+              type="button"
+            >
+              {t("plugins.cascade_cancel")}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {disableBlocked ? (
         <details className="mt-4">

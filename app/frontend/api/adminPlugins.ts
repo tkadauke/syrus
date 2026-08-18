@@ -25,10 +25,18 @@ export type AdminPlugin = {
   author: string | null
   source: string | null
   extension_points: AdminPluginExtensionPoint[]
+  depends_on?: string[]
+  dependents?: string[]
 }
 
 export type AdminPluginsPayload = {
   plugins: AdminPlugin[]
+}
+
+export type AdminPluginDisableConfirmation = {
+  requires_confirmation: true
+  plugin_name: string
+  dependents: string[]
 }
 
 export function fetchAdminPlugins(query = "") {
@@ -42,6 +50,9 @@ export function enableAdminPlugin(name: string) {
   return postJson<AdminPluginsPayload>(`/api/v1/app/admin/plugins/${encodeURIComponent(name)}/enable`)
 }
 
-export function disableAdminPlugin(name: string) {
-  return postJson<AdminPluginsPayload>(`/api/v1/app/admin/plugins/${encodeURIComponent(name)}/disable`)
+export function disableAdminPlugin(name: string, confirmCascade = false) {
+  return postJson<AdminPluginsPayload | AdminPluginDisableConfirmation>(
+    `/api/v1/app/admin/plugins/${encodeURIComponent(name)}/disable`,
+    confirmCascade ? { confirm_cascade: true } : undefined
+  )
 }

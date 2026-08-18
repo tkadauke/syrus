@@ -7,5 +7,11 @@ Rails.application.config.after_initialize do
   else
     Syrus::PluginRegistry.fire_boot_callbacks!
     at_exit { Syrus::PluginRegistry.fire_shutdown_callbacks! }
+
+    begin
+      Syrus::PluginRegistry.validate_dependencies!
+    rescue Syrus::PluginRegistry::RegistrationError => e
+      Rails.logger.error("[PluginRegistry] #{e.message}")
+    end
   end
 end

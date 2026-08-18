@@ -20,6 +20,14 @@ module Admin
       raise Blocked, blockers if blockers.any?
     end
 
+    # Currently-enabled plugins that depend (transitively) on `manifest`. This is
+    # a warn-and-confirm signal, not a hard block: disabling `manifest` is still
+    # allowed, but the caller should confirm before cascading the disable through
+    # these plugins too (see Api::V1::Admin::PluginsController#disable).
+    def self.dependents_for(manifest)
+      new(manifest).dependents
+    end
+
     def initialize(manifest)
       @manifest = manifest
     end
@@ -32,6 +40,12 @@ module Admin
         result.concat(input_source_blockers)
         result.concat(source_control_blockers)
         result
+      end
+    end
+
+    def dependents
+      @dependents ||= PluginDependencyGraph.new.dependents_for(manifest.name).select do |name|
+        PluginRecord.find_by(name: name)&.effective_enabled?
       end
     end
 
